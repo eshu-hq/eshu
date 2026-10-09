@@ -41,6 +41,14 @@ fail() {
   exit 1
 }
 
+require_unconditional_step() {
+  local step="$1" name="$2"
+  [[ -n "${step}" ]] || fail "${name} step is missing"
+  if rg -q '^        (if:|continue-on-error:)' <<< "${step}"; then
+    fail "${name} step can be skipped or its failure ignored"
+  fi
+}
+
 rg -q '^  workflow_dispatch:$' "${workflow}" || fail 'manual dispatch missing'
 rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch default changed'
 
@@ -87,6 +95,7 @@ verifier_body="$(job_body verify-public-ci-service-mirrors)"
 for job in publish-ci-service-mirrors verify-public-ci-service-mirrors; do
   body="$(job_body "${job}")"
   crane_step="$(step_body "${body}" 'Install pinned crane')"
+  require_unconditional_step "${crane_step}" "${job} pinned crane install"
   rg -Fqx -- '        run: GOBIN="${RUNNER_TEMP}" scripts/ci/go-install-retry.sh github.com/google/go-containerregistry/cmd/crane@v0.20.6' \
     <<< "${crane_step}" || fail "${job} lacks the pinned crane install command"
   crane_line="$(rg -n -m1 '^      - name: Install pinned crane$' <<< "${body}")"
@@ -98,12 +107,17 @@ for job in publish-ci-service-mirrors verify-public-ci-service-mirrors; do
     "${installer_line%%:*}" -lt "${test_line%%:*}" ]] ||
     fail "${job} installs a tool after its safety test"
   safety_step="$(step_body "${body}" 'Test publisher safety contract')"
+  require_unconditional_step "$(step_body "${body}" 'Install ripgrep')" "${job} ripgrep install"
+  require_unconditional_step "${safety_step}" "${job} publisher safety test"
   rg -q '^        run: bash scripts/dev/test-publish-ci-image-mirrors.sh$' <<< "${safety_step}" ||
     fail "${job} does not run its publisher safety test"
 done
 copy_step="$(step_body "${publisher_body}" 'Copy exact upstream indexes')"
 verify_step="$(step_body "${verifier_body}" 'Verify anonymous digests')"
 login_step="$(step_body "${publisher_body}" 'Log in to GHCR')"
+require_unconditional_step "${copy_step}" 'publisher copy'
+require_unconditional_step "${verify_step}" 'public verification'
+require_unconditional_step "${login_step}" 'publisher GHCR login'
 rg -q '^          CRANE_BIN: \$\{\{ runner.temp \}\}/crane$' <<< "${copy_step}" ||
   fail 'publisher copy step lacks the pinned crane binary binding'
 rg -q '^          CRANE_BIN: \$\{\{ runner.temp \}\}/crane$' <<< "${verify_step}" ||
@@ -216,6 +230,34 @@ if [[ "$#" -eq 0 ]]; then
   ' "${workflow}" > "${scratch}/decoy-copy.yml"
   if bash "$0" "${scratch}/decoy-copy.yml" > /dev/null 2>&1; then
     fail 'seeded disabled decoy copy hid a bypassed publisher operation'
+  fi
+  awk '
+    { print }
+    /^      - name: Copy exact upstream indexes$/ { print "        if: false" }
+  ' "${workflow}" > "${scratch}/disabled-copy.yml"
+  if bash "$0" "${scratch}/disabled-copy.yml" > /dev/null 2>&1; then
+    fail 'seeded disabled real publisher copy was not detected'
+  fi
+  awk '
+    { print }
+    /^      - name: Verify anonymous digests$/ { print "        if: false" }
+  ' "${workflow}" > "${scratch}/disabled-verify.yml"
+  if bash "$0" "${scratch}/disabled-verify.yml" > /dev/null 2>&1; then
+    fail 'seeded disabled real public verification was not detected'
+  fi
+  awk '
+    { print }
+    /^      - name: Test publisher safety contract$/ { print "        if: false" }
+  ' "${workflow}" > "${scratch}/disabled-safety.yml"
+  if bash "$0" "${scratch}/disabled-safety.yml" > /dev/null 2>&1; then
+    fail 'seeded disabled publisher safety test was not detected'
+  fi
+  awk '
+    { print }
+    /^      - name: Copy exact upstream indexes$/ { print "        continue-on-error: true" }
+  ' "${workflow}" > "${scratch}/ignored-copy-error.yml"
+  if bash "$0" "${scratch}/ignored-copy-error.yml" > /dev/null 2>&1; then
+    fail 'seeded ignored publisher copy error was not detected'
   fi
   sed "/^  attach-release-sbom:/,/^  package-and-push-chart:/s/github.ref_type == 'tag'/github.ref_type == 'branch'/" \
     "${workflow}" > "${scratch}/sbom-branch.yml"
