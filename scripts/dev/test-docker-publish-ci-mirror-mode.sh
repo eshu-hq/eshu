@@ -8,8 +8,8 @@ job_condition() {
   local job="$1"
   awk -v wanted="  ${job}:" '
     /^  [a-zA-Z][a-zA-Z0-9-]*:$/ { in_job = ($0 == wanted); in_if = 0 }
-    in_job && /^    if:/ { in_if = 1; print; next }
-    in_if && /^      / { print; next }
+    in_job && /^    if:/ { in_if = 1; sub(/[[:space:]]+#.*$/, ""); print; next }
+    in_if && /^      / { sub(/[[:space:]]+#.*$/, ""); print; next }
     in_if { exit }
   ' "${workflow}"
 }
@@ -23,6 +23,17 @@ job_body() {
     }
     in_job { print }
   ' "${workflow}"
+}
+
+step_body() {
+  local wanted="      - name: $2"
+  awk -v wanted="${wanted}" '
+    /^      - (name|uses):/ {
+      if (in_step) exit
+      in_step = ($0 == wanted)
+    }
+    in_step { print }
+  ' <<< "$1"
 }
 
 fail() {
@@ -54,6 +65,9 @@ for job in changes verify-apk-floors build-and-push-image promote-moving-tags \
   [[ "${condition}" == *"github.event_name != 'workflow_dispatch' || inputs.mode == 'release'"* ]] ||
     fail "${job} does not exclude mirror dispatches and allow release dispatches"
 done
+sbom_condition="$(job_condition attach-release-sbom)"
+[[ "${sbom_condition}" == *"needs.changes.outputs.image == 'true' && github.ref_type == 'tag'"* ]] ||
+  fail 'release SBOM job no longer requires an image tag release'
 
 for spec in 'publish-ci-service-mirrors:ci-mirrors-publish' \
   'verify-public-ci-service-mirrors:ci-mirrors-verify-public'; do
@@ -72,13 +86,38 @@ publisher_body="$(job_body publish-ci-service-mirrors)"
 verifier_body="$(job_body verify-public-ci-service-mirrors)"
 for job in publish-ci-service-mirrors verify-public-ci-service-mirrors; do
   body="$(job_body "${job}")"
+  crane_step="$(step_body "${body}" 'Install pinned crane')"
+  rg -Fqx -- '        run: GOBIN="${RUNNER_TEMP}" go install github.com/google/go-containerregistry/cmd/crane@v0.20.6' \
+    <<< "${crane_step}" || fail "${job} lacks the pinned crane install command"
+  crane_line="$(rg -n -m1 '^      - name: Install pinned crane$' <<< "${body}")"
   rg -Uq '^      - name: Install ripgrep\n        run: scripts/ci/install-apt-packages.sh ripgrep$' \
     <<< "${body}" || fail "${job} lacks the pinned ripgrep installer"
   installer_line="$(rg -n -m1 '^      - name: Install ripgrep$' <<< "${body}")"
   test_line="$(rg -n -m1 '^      - name: Test publisher safety contract$' <<< "${body}")"
-  [[ -n "${test_line}" && "${installer_line%%:*}" -lt "${test_line%%:*}" ]] ||
-    fail "${job} installs ripgrep after its safety test"
+  [[ -n "${test_line}" && "${crane_line%%:*}" -lt "${test_line%%:*}" &&
+    "${installer_line%%:*}" -lt "${test_line%%:*}" ]] ||
+    fail "${job} installs a tool after its safety test"
+  safety_step="$(step_body "${body}" 'Test publisher safety contract')"
+  rg -q '^        run: bash scripts/dev/test-publish-ci-image-mirrors.sh$' <<< "${safety_step}" ||
+    fail "${job} does not run its publisher safety test"
 done
+copy_step="$(step_body "${publisher_body}" 'Copy exact upstream indexes')"
+verify_step="$(step_body "${verifier_body}" 'Verify anonymous digests')"
+rg -q '^          CRANE_BIN: \$\{\{ runner.temp \}\}/crane$' <<< "${copy_step}" ||
+  fail 'publisher copy step lacks the pinned crane binary binding'
+rg -q '^          CRANE_BIN: \$\{\{ runner.temp \}\}/crane$' <<< "${verify_step}" ||
+  fail 'public verifier step lacks the pinned crane binary binding'
+copy_line="$(rg -n -m1 '^      - name: Copy exact upstream indexes$' <<< "${publisher_body}")"
+login_line="$(rg -n -m1 '^      - name: Log in to GHCR$' <<< "${publisher_body}")"
+verify_line="$(rg -n -m1 '^      - name: Verify anonymous digests$' <<< "${verifier_body}")"
+publish_test_line="$(rg -n -m1 '^      - name: Test publisher safety contract$' <<< "${publisher_body}")"
+verify_test_line="$(rg -n -m1 '^      - name: Test publisher safety contract$' <<< "${verifier_body}")"
+[[ -n "${copy_line}" && -n "${login_line}" &&
+  "${publish_test_line%%:*}" -lt "${login_line%%:*}" &&
+  "${login_line%%:*}" -lt "${copy_line%%:*}" ]] ||
+  fail 'publisher safety test and login must precede the copy'
+[[ -n "${verify_line}" && "${verify_test_line%%:*}" -lt "${verify_line%%:*}" ]] ||
+  fail 'public safety test must precede verification'
 rg -q '^        run: bash scripts/dev/publish-ci-image-mirrors.sh publish$' <<< "${publisher_body}" ||
   fail 'publisher job does not run the pinned publisher'
 rg -q '^          EXPECTED_REVIEWED_SHA: \$\{\{ inputs.expected_sha \}\}$' <<< "${publisher_body}" ||
@@ -106,6 +145,19 @@ if [[ "$#" -eq 0 ]]; then
   if bash "$0" "${scratch}/bad.yml" > /dev/null 2>&1; then
     fail 'seeded mirror-dispatch violation was not detected'
   fi
+  awk '
+    /^  changes:$/ { in_changes = 1 }
+    in_changes && /^    if:/ {
+      print "    if: true"
+      print "      # github.event_name != '\''workflow_dispatch'\'' || inputs.mode == '\''release'\''"
+      in_changes = 0
+      next
+    }
+    { print }
+  ' "${workflow}" > "${scratch}/comment-only-release.yml"
+  if bash "$0" "${scratch}/comment-only-release.yml" > /dev/null 2>&1; then
+    fail 'seeded comment-only release isolation was not detected'
+  fi
   cp "${workflow}" "${scratch}/extra.yml"
   printf '\n  unguarded-extra-job:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo unexpected\n' \
     >> "${scratch}/extra.yml"
@@ -131,6 +183,34 @@ if [[ "$#" -eq 0 ]]; then
   ' "${workflow}" > "${scratch}/late-rg.yml"
   if bash "$0" "${scratch}/late-rg.yml" > /dev/null 2>&1; then
     fail 'seeded late ripgrep installer was not detected'
+  fi
+  sed '/^          CRANE_BIN: /d' "${workflow}" > "${scratch}/no-crane-bin.yml"
+  if bash "$0" "${scratch}/no-crane-bin.yml" > /dev/null 2>&1; then
+    fail 'seeded missing crane binary binding was not detected'
+  fi
+  sed '/^      - name: Install pinned crane$/,+1d' "${workflow}" > "${scratch}/no-crane-install.yml"
+  if bash "$0" "${scratch}/no-crane-install.yml" > /dev/null 2>&1; then
+    fail 'seeded missing pinned crane installation was not detected'
+  fi
+  sed 's|run: bash scripts/dev/test-publish-ci-image-mirrors.sh|run: echo bypassed|' \
+    "${workflow}" > "${scratch}/no-safety-test.yml"
+  if bash "$0" "${scratch}/no-safety-test.yml" > /dev/null 2>&1; then
+    fail 'seeded missing publisher safety-test call was not detected'
+  fi
+  sed "/^  attach-release-sbom:/,/^  package-and-push-chart:/s/github.ref_type == 'tag'/github.ref_type == 'branch'/" \
+    "${workflow}" > "${scratch}/sbom-branch.yml"
+  awk '
+    /^  attach-release-sbom:$/ { in_sbom = 1 }
+    in_sbom && /^    if: >-$/ {
+      print
+      print "      # needs.changes.outputs.image == '\''true'\'' && github.ref_type == '\''tag'\''"
+      in_sbom = 0
+      next
+    }
+    { print }
+  ' "${scratch}/sbom-branch.yml" > "${scratch}/sbom-comment.yml"
+  if bash "$0" "${scratch}/sbom-comment.yml" > /dev/null 2>&1; then
+    fail 'seeded release SBOM tag-guard removal was not detected'
   fi
 
   sed 's|run: bash scripts/dev/publish-ci-image-mirrors.sh publish|run: echo bypassed|' \
