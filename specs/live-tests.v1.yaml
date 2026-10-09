@@ -2326,6 +2326,11 @@ tests:
     tag: ~
     class: scheduled
     reason: "#7389 marker-vs-heartbeat exclusion proof (1,000 interleaved races), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 1s locally (1.3s under -race) and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+  - file: go/internal/storage/postgres/projector_marked_write_age_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7471 stuck-write signal proof (the oldest set marker on a non-retired generation with open projector work; retired and unmarked generations excluded; gauge rests at zero when empty), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; under 0.5s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_ack_scope_wait_live_test.go
     tag: ~
     class: scheduled
