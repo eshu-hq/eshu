@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -45,6 +46,57 @@ func methodologyVerifySameProduction(t *testing.T, base string, paths []string) 
 			t.Fatalf("production source %s differs from base: this unchanged-query paired runner cannot measure a rewrite; run separate base/candidate binaries", path)
 		}
 	}
+}
+
+// methodologyVerifySameProductionTree binds every matching source at both
+// revisions, including files added or removed since the base revision.
+func methodologyVerifySameProductionTree(t *testing.T, base, directory, pattern string) {
+	t.Helper()
+	output, err := exec.Command("git", "ls-tree", "-r", "--name-only", base, "--", directory).Output()
+	if err != nil {
+		t.Fatalf("list base production sources in %s: %v", directory, err)
+	}
+	paths := make(map[string]struct{})
+	for _, path := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		name := filepath.Base(path)
+		matched, err := filepath.Match(pattern, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if matched && !strings.HasSuffix(name, "_test.go") {
+			paths[path] = struct{}{}
+		}
+	}
+	current, err := filepath.Glob(filepath.Join("../../..", directory, pattern))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range current {
+		name := filepath.Base(path)
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		relative, err := filepath.Rel("../../..", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths[filepath.ToSlash(relative)] = struct{}{}
+	}
+	selected := make([]string, 0, len(paths))
+	for path := range paths {
+		selected = append(selected, path)
+	}
+	sort.Strings(selected)
+	if len(selected) == 0 {
+		t.Fatalf("no production sources match %s/%s", directory, pattern)
+	}
+	methodologyVerifySameProduction(t, base, selected)
+}
+
+func TestMethodologyProductionSourceTreesMatchBase(t *testing.T) {
+	base := methodologyGitCommit(t, "origin/main")
+	methodologyVerifySameProductionTree(t, base, "go/internal/graph", "schema*.go")
+	methodologyVerifySameProductionTree(t, base, "go/internal/storage/postgres/migrations", "*.sql")
 }
 
 func methodologyBuild(t *testing.T, commit string, schema, migrations, indexes []string) queryplan.PilotBuildIdentity {
