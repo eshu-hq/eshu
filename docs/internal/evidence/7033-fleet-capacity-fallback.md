@@ -20,12 +20,14 @@ slots and let the internal 25 ms reservation budget expire with a live caller.
 consumer checks precisely this marker. This proves the code failure path,
 not the identity of the holder in the historical incident.
 
-Behavior proof: On candidate `452f5f4bc`, the runtime package tests and race
+Behavior proof: On the feature branch, the runtime package tests and race
 tests passed with Go 1.26.9. The focused tests cover live-caller admission
-timeout, caller deadline, single-reader wait, prior setup failure, subsequent
-reservation, waiter cleanup, and 50 cancel/release races. The marker is added
-only before SQL setup; the existing query fallback passes the same checkpoint
-context to its fenced one-reader statement. The existing disposable-Postgres
+timeout, caller deadline, single-reader wait, fatal and transient prior setup
+failures, subsequent reservation, waiter cleanup, and 50 cancel/release races.
+The transient-then-capacity test failed with the `failures == nil` guard removed
+in an isolated scratch worktree, then passed with the guard intact. The code
+adds the marker only before SQL setup. The existing query fallback passes the
+same checkpoint context to its fenced one-reader statement. The existing disposable-Postgres
 guarded-reader test compares complete uncapped ordered code-topic results to
 the serial query and checks cleanup, but uses a legacy reader rather than the
 fleet. There is no newly run fleet-plus-content SQL integration test here.
