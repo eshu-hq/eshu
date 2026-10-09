@@ -22,7 +22,7 @@ tiers fails CI.
    at least one tier entry.
 2. Injects deterministic synthetic uids onto parsed entities (the ingester
    assigns real uids downstream; the golden harness stands in for that).
-3. Runs `reducer.ExtractCodeCallRows` and tallies each row's `resolution_method`.
+3. Runs `codecall.ExtractRows` and tallies each row's `resolution_method`.
 4. Compares the per-language tally to `testdata/resolution_tiers.golden.json`.
 
 It runs in the normal `go test ./...` matrix, so the parity gate fires on any
@@ -30,7 +30,7 @@ parser or edge-writer change without extra CI wiring.
 
 `TestGoldenCallGraphCorrectnessHarness` adds a second gate. It parses
 source-authored fixtures, injects deterministic entity uids, runs
-`reducer.ExtractCodeCallRows`, and compares the observed caller→callee edges
+`codecall.ExtractRows`, and compares the observed caller→callee edges
 with independent expected edges through `parser/goldenaudit`. This catches a
 wrong target even when the edge keeps the same `resolution_method` tier.
 
@@ -88,7 +88,7 @@ tier:
   for eshu-hq/eshu#5332 (the Dart byte-scanner that misread every
   declaration as a self-call): `TestDeclarationOnlyDartSourceHasNoCallGraphEdges`
   drives a declaration-only Dart file through the same
-  `parser.DefaultEngine()` -> `reducer.ExtractCodeCallRows` pipeline and
+  `parser.DefaultEngine()` -> `codecall.ExtractRows` pipeline and
   asserts zero CALLS edges, while `TestDartRecursionCallGraphSelfLoopSurvives`
   proves the fix does not overcorrect: genuine same-file recursion still
   produces a real self-loop edge (`resolution_method="same_file"`). These are

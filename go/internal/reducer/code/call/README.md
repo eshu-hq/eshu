@@ -64,3 +64,31 @@ One-way imports only. From the reducer tree: `code/call/shared`, every
 `facts`, `codeprovenance`, the SDK `factschema`, and the standard library.
 Never the parent reducer package. No leaf imports this package back, and
 `code/call/shared` imports no leaf.
+
+## Evidence
+
+No-Regression Evidence: #6626 batch 1 retires the root
+`reducer.ExtractCodeCallRows` alias (a deleted `compat_projection.go` stanza)
+and retargets its 7 callers (4 test files plus doc references) to
+`codecall.ExtractRows`. No logic, query, queue, lease, or concurrency path
+changes: the alias forwarded to this package's `ExtractRows`, so the call
+graph is identical before and after.
+
+- Baseline: `cb5fa4a515`, `go test -count=1 ./internal/reducer/
+  ./internal/reducer/code/call/ ./internal/accuracygate/
+  ./internal/resolutionparity/`: 4 ok, 0 fail.
+- After: measurement commit `371b572375` (docs-only refresh on top),
+  same command:
+  4 ok, 0 fail (identical ok-package set; input shape is the unchanged
+  test corpus, terminal row counts unchanged because no projection code
+  moved).
+- Backend/version: go1.26.9 linux/amd64, in-memory test backends.
+- Telemetry/status evidence: no new metric, span, or log; the retired alias
+  emitted none, and the golden call-graph tests plus the accuracy-golden gate
+  still pass, which is the suite that would catch a dispatch change.
+- Why safe: compiler-checked symbol retarget; the RED run (`go vet` failing
+  on the unresolved alias before the retarget) proves the alias is gone, and
+  the GREEN run proves every former caller resolves to the same function.
+
+No-Observability-Change: this batch adds, removes, and renames no operator
+signal; `verify-telemetry-coverage.sh` passes unchanged.

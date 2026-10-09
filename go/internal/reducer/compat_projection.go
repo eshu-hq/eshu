@@ -342,11 +342,6 @@ func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []Shar
 	return materialization.BuildRouteIntentRowsForQueryProof(envelopes)
 }
 
-// ExtractCodeCallRows forwards to [codecall.ExtractRows].
-func ExtractCodeCallRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
-	return codecall.ExtractRows(envelopes)
-}
-
 // ExtractAllCodeRelationshipRows forwards to
 // [codecall.ExtractAllRelationshipRows].
 func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (

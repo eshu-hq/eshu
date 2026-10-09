@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/parser/goldenaudit"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 )
 
 // resolverCoveredLanguages is the published cross-repo call-resolver coverage
@@ -127,7 +127,7 @@ func measureResolverCoverage(t *testing.T) map[string]string {
 
 	statuses := make(map[string]string)
 	for _, fixture := range resolverCoverageFixtures() {
-		_, rows := reducer.ExtractCodeCallRows(fixture.envelopes)
+		_, rows := codecall.ExtractRows(fixture.envelopes)
 		if resolverFixtureEdgeObserved(rows, fixture) {
 			statuses[fixture.language] = "resolver"
 			continue
@@ -151,7 +151,7 @@ func measureResolverCoverageWithBrokenLanguage(t *testing.T, language string) ma
 		if fixture.language == language {
 			envelopes = stripResolverSignal(envelopes)
 		}
-		_, rows := reducer.ExtractCodeCallRows(envelopes)
+		_, rows := codecall.ExtractRows(envelopes)
 		if resolverFixtureEdgeObserved(rows, fixture) {
 			statuses[fixture.language] = "resolver"
 			continue
@@ -280,7 +280,7 @@ func observeResolverEdges(t *testing.T, engine *parser.Engine, fixture resolverC
 		},
 	})
 
-	_, rows := reducer.ExtractCodeCallRows(envelopes)
+	_, rows := codecall.ExtractRows(envelopes)
 	return edgesFromRows(rows)
 }
 
