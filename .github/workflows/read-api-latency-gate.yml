@@ -43,6 +43,8 @@ on:
       - 'scripts/verify-read-api-latency-gate.sh'
       - 'scripts/refresh-read-api-work-budgets.sh'
       - 'scripts/test-refresh-read-api-work-budgets.sh'
+      - 'scripts/extend-read-api-work-budgets.sh'
+      - 'scripts/test-extend-read-api-work-budgets.sh'
       - 'scripts/compare-backend-latency.sh'
       - 'scripts/test-compare-backend-latency.sh'
       - 'scripts/lib/test-compare-backend-latency-report.json'
@@ -157,7 +159,7 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep jq
 
       - name: Test the work budget refresh script
-        run: bash scripts/test-refresh-read-api-work-budgets.sh
+        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh
 
   # #6965 phase 6: scripts/compare-backend-latency.sh reads two -latency-report
   # JSON legs and never runs the live gate itself, so its formulas and

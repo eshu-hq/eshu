@@ -2900,6 +2900,8 @@ gates:
       - "scripts/verify-read-api-latency-gate.sh"
       - "scripts/refresh-read-api-work-budgets.sh"
       - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/extend-read-api-work-budgets.sh"
+      - "scripts/test-extend-read-api-work-budgets.sh"
       - "scripts/compare-backend-latency.sh"
       - "scripts/test-compare-backend-latency.sh"
       - "scripts/lib/live-gate-lock.sh"
@@ -2927,14 +2929,16 @@ gates:
     name: Read API work budget refresh mirror (static)
     category: hygiene
     layer: performance
-    purpose: "Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet."
+    purpose: "Self-tests work-budget rendering and selective extension: formulas, ratchets, and preservation of existing rows."
     tier: pre-pr
     blocking: true
     triggers:
       - "scripts/refresh-read-api-work-budgets.sh"
       - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/extend-read-api-work-budgets.sh"
+      - "scripts/test-extend-read-api-work-budgets.sh"
     local:
-      command: "bash scripts/test-refresh-read-api-work-budgets.sh"
+      command: "bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh"
       test_command: ""
       pre_push: floor
     ci:

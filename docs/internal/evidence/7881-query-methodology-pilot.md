@@ -105,3 +105,34 @@ and exact exits alongside the reports. Preserve the required NornicDB lane.
 NOT_CHECKED in this calibration note: the final combined-head live runner and
 the default-scale concurrent latency stage. Their required receipts are the
 current generated artifacts and PR proof, not these preliminary timings.
+
+## Status operation calibration candidate
+
+The first default-scale Neo4j run failed work checks for the two newly covered
+status operations under the unnamed default. Its report remains RED and proves
+no concurrency. The existing status siblings use the same production readers.
+An arbiter approved temporary envelopes copied from their committed work rows,
+with every existing row and the default preserved.
+
+A subsequent bootstrap at `f84fc95b` passed in 616 seconds (10m 16s): 68/116
+operations exercised, three counted passes, and all three concurrent pilots at
+20/20 successful responses with peak client in-flight count four. Corpus sizing
+remained 800 scopes, 150,000 nodes per infra label, 150,000 IaC facts and 2.5
+million shared projection intents. The built gate checked seeded counts.
+The timing samples are observations: no independent base canary was run and
+startup load exceeded the quiet-window limit. No speedup is claimed.
+
+The existing renderer generated new GET and MCP rows from that GREEN report.
+`extend-read-api-work-budgets.sh` imports only those two rows and preserves the
+original table bytes. The added provenance identifies a local candidate;
+CI runner-class GREEN reports remain required before final calibration. The
+existing semantic-extraction row is retained rather than recalibrated: #7009
+changed its reader before this feature, and this corpus does not test a large
+semantic-job backlog. No ratchet exception is used.
+
+Focused guard tests reject missing plans with empty or incomplete alternate
+work, self-produced alternate evidence and serialized concurrent results.
+The extension mirror checks missing defaults, old-key replacement, missing or
+duplicate new rows, byte preservation and idempotency. Real gate selection
+checks cover both extension helper paths. Final candidate backend runs and
+current-head combined artifacts are NOT_CHECKED in this historical note.

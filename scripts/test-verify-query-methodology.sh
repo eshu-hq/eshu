@@ -62,4 +62,12 @@ for family in query graph-schema postgres-schema live-helper combined; do
  done
  printf 'selection %s: static and live proof selected\n' "$family"
 done
+for helper in scripts/extend-read-api-work-budgets.sh scripts/test-extend-read-api-work-budgets.sh; do
+ printf '%s\n' "$helper" > "$work/paths"
+ "$work/ci-gates" select --registry "$repo_root/specs/ci-gates.v1.yaml" --tier pre-pr --paths-from "$work/paths" --json > "$work/selection.json"
+ for gate in read-api-work-budget-mirror; do
+  jq -e --arg gate "$gate" 'any(.selected[]; .id == $gate)' "$work/selection.json" >/dev/null || { printf '%s failed to select %s\n' "$helper" "$gate" >&2; exit 1; }
+ done
+ printf 'selection %s: static mirror selected\n' "$helper"
+done
 printf 'test-verify-query-methodology: pass\n'
