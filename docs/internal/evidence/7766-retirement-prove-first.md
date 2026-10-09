@@ -51,7 +51,7 @@ code.
   mix: 12,000 active, 941 pending, 325 failed, the rest superseded. Two reducer
   rows and one projector row per generation.
 - Totals across all seed scripts, summed from the `INSERT 0 n` lines in
-  `out/01_seed_bg.out` to `out/06_seed_targets_final.out`: 2,126,917 generations
+  `out/01_seed_bg.psql.txt` to `out/06_seed_targets_final.psql.txt`: 2,126,917 generations
   (729,462 background, then 435,330, 261,195, and 700,930 from seeds 04, 05, and
   06) and 9,175,661 work-item inserts (2,188,386 from seed 02, then
   2,176,650, 1,305,975, and 3,504,650 from seeds 04, 05, and 06). That is about 2.13M generations and
@@ -255,7 +255,9 @@ colons in file names became hyphens (`p1_explain_M:01_design.txt` is
 `p1_explain_M-01_design.txt`); `out/p1_summary.txt` was regenerated from the CSVs
 by `summarize_p1.py` because the original file lacked five tuned rows; and the
 repository's pre-commit hooks trimmed trailing whitespace in
-`out/p2_explain.txt` and `out/p2_bench_2arm_partial.txt`. No
+`out/p2_explain.txt`, `out/p2_bench_2arm_partial.txt`, and
+`out/01_seed_bg.psql.txt`. The seed outputs were renamed from `*.out`, which
+`.gitignore` excludes, to `*.psql.txt`. No
 DSN, password, or absolute path of the scratch machine appears in any file.
 
 | Path | What it holds | Backs |
@@ -266,7 +268,7 @@ DSN, password, or absolute path of the scratch machine appears in any file.
 | `sql/p1_timed_statements.sql`, `sql/p1_claim_proxies.sql` | The statements the P1 driver and the fleet-pause workers ran (bind parameters; documentation, not runnable) | P1 |
 | `sql/p2_setup.sql` | Marker-row loader, psql variable `n` | P2 |
 | `psql.sh`, `run_p2_bench.sh`, `summarize_p1.py` | Shell wrappers and the CSV summariser. `run_p2_bench.sh` records how the P2 numbers ran; it needs the uncommitted benchmark | P1, P2 |
-| `out/0[0-6]_*.out` | psql output of each seed script, with the `INSERT 0 n` counts behind the totals | Data |
+| `out/0[0-6]_*.psql.txt` | psql output of each seed script, with the `INSERT 0 n` counts behind the totals | Data |
 | `out/p1_time_*.csv` | Per-run P1 timings, one row per run, per-statement columns | P1 tables |
 | `out/p1_block_*.csv`, `out/p1_block_summary.txt` | Fleet-pause runs | fleet pause |
 | `out/p1_explain_*.txt` | `EXPLAIN (ANALYZE, BUFFERS)` of each timed statement per shape and cache state | P1 |

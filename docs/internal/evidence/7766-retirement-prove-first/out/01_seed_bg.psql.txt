@@ -1,0 +1,21 @@
+Timing is on.
+SET
+Time: 0.177 ms
+ setseed
+---------
+
+(1 row)
+
+Time: 0.415 ms
+DROP TABLE
+Time: 0.141 ms
+NOTICE:  table "_bg_counts" does not exist, skipping
+SELECT 12000
+Time: 15.657 ms
+INSERT 0 12000
+Time: 725.183 ms
+INSERT 0 729462
+Time: 36013.465 ms (00:36.013)
+UPDATE 12000
+Time: 1109.396 ms (00:01.109)
+./psql.sh < sql/01_seed_background.sql  0.01s user 0.01s system 0% cpu 38.012 total

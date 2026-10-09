@@ -1,0 +1,11 @@
+Timing is on.
+SET
+Time: 0.192 ms
+UPDATE 80
+Time: 20.510 ms
+UPDATE 80
+Time: 15.772 ms
+INSERT 0 200
+Time: 4.043 ms
+INSERT 0 32
+Time: 2.499 ms
