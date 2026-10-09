@@ -19,7 +19,7 @@ var ErrLeaseLost = errors.New("activation obligation lease lost")
 // store adapter returns it wrapped around the database error.
 var ErrFinalizeLockTimeout = errors.New("activation obligation finalize lock timeout")
 
-// ErrInapplicable is returned (wrapped) by an Maintainer
+// ErrInapplicable is returned (wrapped) by a Maintainer
 // when the owed partition is active but maps to no repository in the shipped
 // active-repository read, so no pass can ever publish its phase (a repo_id
 // collision loser). The runner retires the obligation as inapplicable through
