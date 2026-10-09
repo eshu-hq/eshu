@@ -82,9 +82,9 @@ The #7881 pilot adds a seeded `GET /api/v0/status/ingesters/repository`,
 `POST /api/v0/relationships/catalog` with `{}`, and an actual MCP HTTP
 `tools/call` for `get_index_status`. Each selected operation must return
 HTTP 200 with the expected payload: the repository ingester identity and
-status sections; a nonempty relationship verb catalog whose declared counts
-equal its rows; or a JSON-RPC result whose structured index status matches
-its resource block and the zero-repository graph seed. A malformed, empty,
+status sections; an exact 21-verb relationship catalog across six declared
+layers with zero edges; or a JSON-RPC result whose structured index status
+matches its resource block and the zero-repository graph seed. A malformed, empty,
 or mismatched 200 response fails the gate, including during warmup. Pilot
 latency includes reading and checking the response body. The MCP server is a
 separate process started by the runner and exercises the production tool dispatcher.

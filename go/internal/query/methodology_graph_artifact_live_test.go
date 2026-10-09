@@ -37,6 +37,7 @@ func methodologyWriteGraphArtifact(t *testing.T, ctx context.Context, driver neo
 	baseCommit := methodologyGitCommit(t, "origin/main")
 	candidateCommit := methodologyGitCommit(t, "HEAD")
 	methodologyVerifySameProduction(t, baseCommit, methodologyGraphProductionFiles)
+	methodologyVerifySameProductionTree(t, baseCommit, "go/internal/graph", "schema*.go")
 	schema, indexes := methodologyGraphProductionDDL(t)
 	methodologyCheckGraphSchema(t, ctx, driver, database)
 	config := methodologyGraphConfig(t, ctx, driver, database)
