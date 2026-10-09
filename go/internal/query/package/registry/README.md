@@ -232,6 +232,48 @@ cycling back through root; extracting it is a larger, cross-family change out
 of scope for this move. The two `AuthMiddlewareWithScopedTokens` route-allowlist
 tests exercise root's middleware directly and never call `Handler`.
 
+## Failed reads (#7674)
+
+Every route answers a failed graph, correlation, or aggregate read with a
+fixed message per step (for example `package registry package query failed`
+or `package registry dependency access check failed`), never the backend
+error text. `writeRegistryReadFailure` (`handler_tracing.go`) runs
+`querycontract.WriteGraphReadError` first, so a stale or timed-out PostgreSQL
+reader answers the retryable `503` with `Retry-After` and a graph outage or
+deadline keeps its 503/504. Before #7674 the correlations and
+dependency-chains reads and the scoped correlation grant probes had no fence
+mapping and answered 500. Anything else answers `500` with the fixed message
+and records the error on the handler span, or `499` with an
+`eshu.request.client_canceled` event and no span error when the caller
+canceled the request.
+
+The scoped gates (`scoped_gates.go`) are authorization probes. A probe failure
+answers that 500 (or 503/499), never the 200 empty page a denied grant or a
+nonexistent anchor answers, so a failing probe cannot fail open and cannot
+read as "not granted". The nonexistent-anchor timing probe shares its
+route's access-check message with the resolving path's gate, so a failed
+probe is no existence oracle. `server_failure*_test.go` covers each route and
+step with a canary fault, a client cancel, and a stale reader.
+
+No-Regression Evidence (#7674): the change runs only after a read has already
+returned an error. No Cypher, SQL, query parameter, call count, row bound,
+authorization verdict, or success path changed; the queryplan source digests
+for `listPackages`, `listVersions`, and `listDependencies` were re-pinned
+because their error branches changed. A failure now costs one span
+`RecordError`/`SetStatus` and a fixed-string write instead of formatting the
+error into the body. `go test ./internal/query/... ./internal/queryplan/...
+-count=1` and `go test -race ./internal/query/package/registry/...` exit 0.
+No benchmark is claimed because the success path has no runtime delta to
+measure.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the handler span as an `exception` event and sets status Error with the step's
+fixed message as the description; a client cancel adds
+`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
+The `pkgreg.*` span attributes the gates set are unchanged.
+`server_failure*_test.go` asserts both span shapes with a recording tracer for
+every route and step.
+
 ## Related docs
 
 - [Cypher performance](../../../../../docs/public/reference/cypher-performance.md)

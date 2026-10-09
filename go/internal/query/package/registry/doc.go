@@ -27,4 +27,12 @@
 // querycontract before this package's own tests run, faithfully mirroring
 // root's values; see that file's doc comment for why it exists and why it is
 // not redundant.
+//
+// A failed graph, correlation, or aggregate read answers a fixed message per
+// route step and records the backend error on the handler span; the error
+// text never reaches the response body (#7674). A stale or timed-out
+// PostgreSQL reader answers the retryable 503 through
+// querycontract.WriteGraphReadError, and a client cancel answers 499 with no
+// span error. A scoped gate probe failure answers that error status, never
+// the empty page of a denied grant, so the gates fail closed.
 package registry

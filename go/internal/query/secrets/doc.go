@@ -19,6 +19,12 @@
 // raw IAM role ARN, ServiceAccount name, Vault role name, or path crosses the
 // wire.
 //
+// A failed store read answers a fixed message per route step and records the
+// backend error on the handler span; the error text never reaches the
+// response body (#7674). A stale or timed-out PostgreSQL reader answers the
+// retryable 503 through querycontract.WriteGraphReadError, and a client
+// cancel answers 499 with no span error.
+//
 // This package imports querycontract (profiles, envelopes, capability
 // registration, HTTP helpers, read ports, and repository-access filtering)
 // and tracing (the shared handler-span seam); it MUST NOT import the query

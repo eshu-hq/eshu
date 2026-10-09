@@ -39,6 +39,19 @@ Read `doc.go` and `README.md` first.
   `ResolvePackageDependencyChains` are the one deliberate exception --
   `Package` there names the data (a dependency chain between packages), not
   this package, so it does not stutter.
+- Every failed graph, correlation, or aggregate read MUST go through
+  `writeRegistryReadFailure` (`handler_tracing.go`) with a fixed message
+  constant for that route step: `querycontract.WriteGraphReadError` first
+  (fence 503, graph 503/504), then `tracing.WriteServerFailure` (500, or 499
+  for a client cancel). Declare a new step's message in the `const` block
+  there. Never write `err.Error()` or a message formatted with `err` to a 4xx
+  or 5xx body; the query error-text guard holds every file here at zero
+  sites (#7674).
+- A scoped gate probe failure MUST answer an error status, never the empty
+  page of a denied or nonexistent anchor (that would fail open or read as
+  "not granted"). A nonexistent-anchor timing probe MUST share its route's
+  access-check message with the resolving path's gate, so a failure is no
+  existence oracle. `server_failure_routes_test.go` pins both.
 
 ## `VersionCountsByPackageID` has a sibling caller
 

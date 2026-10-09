@@ -112,6 +112,37 @@ package-local tracer var (mirroring `packageregTracer` in
 `go/internal/query/package/registry/handler_tracing.go`), seeded from
 `tracing.HandlerTracer()`.
 
+## Failed reads (#7674)
+
+Every route answers a failed read-model or grant-graph read with a fixed
+message per step (for example `secrets/IAM posture gap query failed` or
+`secrets/IAM S3 external-principal grant posture query failed`), never the
+backend error text. `writeSecretsReadFailure` (`handler_tracing.go`) runs
+`querycontract.WriteGraphReadError` first, so a stale or timed-out PostgreSQL
+reader answers the retryable `503` with `Retry-After`; before #7674 only the
+posture summary's grant section did, and the five read-model reads answered
+500. Anything else answers `500` with the fixed message and records the error
+on the handler span, or `499` with an `eshu.request.client_canceled` event and
+no span error when the caller canceled the request. `server_failure_test.go`
+covers each route and step with a canary fault, a client cancel, and a stale
+reader.
+
+No-Regression Evidence (#7674): the change runs only after a read has already
+returned an error. No SQL, Cypher, query parameter, call count, row bound,
+scope check, or success path changed. A failure now costs one span
+`RecordError`/`SetStatus` and a fixed-string write instead of formatting the
+error into the body. `go test ./internal/query/... ./internal/queryplan/...
+-count=1` and `go test -race ./internal/query/secrets/...` exit 0. No
+benchmark is claimed because the success path has no runtime delta to
+measure.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the handler span as an `exception` event and sets status Error with the step's
+fixed message as the description; a client cancel adds
+`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
+`server_failure_test.go` asserts both span shapes with a recording tracer for
+every route and step.
+
 ## Related docs
 
 - `go/internal/query/read-models.md`
