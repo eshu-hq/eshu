@@ -60,7 +60,8 @@ Into One Row" in [NornicDB Pitfalls](nornicdb-pitfalls.md#pitfall-optional-match
 
 `go test ./internal/query/package/registry -tags live_nornicdb_answer_truth
 -run TestLiveVersionCountsEmptyGroupIsAbsent -count=1 -v` against one
-container per backend (`ESHU_NEO4J_URI`, `ESHU_LIVE_GRAPH_BACKEND`): the
+container per backend (`ESHU_NEO4J_URI` each; the `nornicdb` / `neo4j`
+backend-selection knob is documented in the test header): the
 version-less single-id page resolves to an empty map with no `""` key on
 both legs, and the seeded id still counts 1. RED before the filter on
 NornicDB (`map[:0]`), green after; Neo4j green throughout.
