@@ -104,6 +104,79 @@ func seedProducerRemovalCorpus(t *testing.T, ctx context.Context, database *sql.
 	}
 }
 
+// seedProducerRemovalTiedCorpus mirrors seedProducerRemovalCorpus with the
+// predecessor and the owed generation stamped at the SAME ingested_at
+// (coarse clock / backfill tie). The generation_ids sort
+// predecessor-first so the (ingested_at, generation_id) tuple bound still
+// admits the live predecessor; a tie with reversed IDs is genuinely
+// unordered and stays excluded by the documented tie-break.
+func seedProducerRemovalTiedCorpus(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	statements := []string{
+		`INSERT INTO ingestion_scopes
+		    (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+		     observed_at, ingested_at, status, active_generation_id)
+		 VALUES ('oci:removaltie', 'container_registry_repository', 'oci_registry', 'example/app',
+		         'oci_registry', 'example/app',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00',
+		         'active', 'removaltie-gen2')`,
+		`INSERT INTO scope_generations
+		    (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		 VALUES ('removaltie-gen1', 'oci:removaltie', 'snapshot',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00',
+		         'superseded', TIMESTAMPTZ '2026-07-01 00:00:00+00'),
+		        ('removaltie-gen2', 'oci:removaltie', 'snapshot',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00',
+		         'active', TIMESTAMPTZ '2026-07-01 00:00:00+00')`,
+		fmt.Sprintf(`INSERT INTO fact_records
+		    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+		     source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+		 VALUES ('removaltie-manifest-live', 'oci:removaltie', 'removaltie-gen1', 'oci_registry.image_manifest',
+		         'oci_registry.image_manifest:removaltie-manifest', 'oci_registry', 'removaltie-manifest',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00', FALSE,
+		         '{"repository_id": "example/app", "digest": "%s"}'::jsonb),
+		        ('removaltie-manifest-tomb', 'oci:removaltie', 'removaltie-gen2', 'oci_registry.image_manifest',
+		         'oci_registry.image_manifest:removaltie-manifest', 'oci_registry', 'removaltie-manifest',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00', TRUE,
+		         '{}'::jsonb)`, removalDigestA),
+		`INSERT INTO producer_activation_obligations (scope_id, generation_id, state, work_item_id, created_at)
+		 VALUES ('oci:removaltie', 'removaltie-gen2', 'pending', 'removaltie-obligation', clock_timestamp())`,
+		`INSERT INTO ingestion_scopes
+		    (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+		     observed_at, ingested_at, status, active_generation_id)
+		 VALUES ('k8s:removaltie-linked', 'cluster', 'kubernetes', 'removaltie-linked',
+		         'kubernetes_live', 'removaltie-linked',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00',
+		         'active', 'removaltie-linked')`,
+		`INSERT INTO scope_generations
+		    (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		 VALUES ('removaltie-linked', 'k8s:removaltie-linked', 'sync',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00',
+		         'active', TIMESTAMPTZ '2026-07-01 00:00:00+00')`,
+		fmt.Sprintf(`INSERT INTO fact_records
+		    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+		     source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+		 VALUES ('removaltie-linked-pod', 'k8s:removaltie-linked', 'removaltie-linked',
+		         'kubernetes_live.pod_template', 'kubernetes_live.pod_template:removaltie-linked-pod',
+		         'kubernetes', 'removaltie-linked-pod',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00', FALSE,
+		         '{"object_id": "pod-removaltie-linked",
+		           "containers": [{"name": "app", "resolved_image_digest": "example/app@%s"}]}'::jsonb)`,
+			removalDigestA),
+		`INSERT INTO fact_work_items
+		    (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, created_at, updated_at)
+		 VALUES ('removaltie-linked/kubernetes_correlation_materialization', 'k8s:removaltie-linked',
+		        'removaltie-linked', 'reducer', 'kubernetes_correlation_materialization', 'succeeded', 1,
+		        TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00')`,
+		"ANALYZE",
+	}
+	for _, statement := range statements {
+		if _, err := database.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("seed producer removal tied corpus: %v", err)
+		}
+	}
+}
+
 // seedProducerPartialRemovalCorpus seeds a partial-removal OCI producer
 // generation: partial-old carries live manifests A and B, partial-new
 // (active) keeps A live and tombstones B. Consumers embed each digest.

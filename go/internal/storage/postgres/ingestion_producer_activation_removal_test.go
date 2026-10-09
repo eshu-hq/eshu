@@ -60,6 +60,44 @@ func TestProducerRemovalOnlyGenerationReopensConsumersLive(t *testing.T) {
 	}
 }
 
+// TestProducerRemovalTiedTimestampReopensLive pins the owner-P2 corner: the
+// live predecessor shares the owed generation's ingested_at exactly, and
+// the (ingested_at, generation_id) tuple bound still admits it, so the
+// removal-only generation owes and the linked consumer replays.
+func TestProducerRemovalTiedTimestampReopensLive(t *testing.T) {
+	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
+		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
+	}
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_remtie")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	seedProducerRemovalTiedCorpus(t, ctx, database)
+
+	carries, err := GenerationCarriesProducerEvidence(ctx, SQLDB{DB: database}, "oci:removaltie", "removaltie-gen2")
+	if err != nil {
+		t.Fatalf("probe tied-timestamp removal generation: %v", err)
+	}
+	if !carries {
+		t.Fatalf("probe tied-timestamp removal generation = false, want true (same-timestamp live predecessor owes)")
+	}
+	owed, err := listProducerOwedOCIKeys(ctx, SQLDB{DB: database}, "oci:removaltie", "removaltie-gen2")
+	if err != nil {
+		t.Fatalf("list tied removal owed OCI keys: %v", err)
+	}
+	if len(owed.digests) != 1 || owed.digests[0] != removalDigestA {
+		t.Fatalf("tied removal owed digests = %v, want [%s]", owed.digests, removalDigestA)
+	}
+	counts, err := SettleProducerActivations(ctx, database)
+	if err != nil {
+		t.Fatalf("settle tied-timestamp removal generation: %v", err)
+	}
+	if len(counts) != 1 || counts["kubernetes_correlation_materialization"] != 1 {
+		t.Fatalf("settle reopened %v, want exactly one kubernetes_correlation_materialization item", counts)
+	}
+	assertProducerObligationState(t, ctx, database, "oci:removaltie", "removaltie-gen2", "completed")
+	assertProducerWorkItemStatus(t, ctx, database, "removaltie-linked/kubernetes_correlation_materialization", "pending")
+}
+
 // TestProducerPartialRemovalReopensBothLive covers the partial-removal half
 // of #7705: the owed keys are the live keys plus the removed keys, so the
 // consumers of surviving and removed digests both replay.

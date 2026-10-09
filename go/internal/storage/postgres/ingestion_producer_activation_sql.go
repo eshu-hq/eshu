@@ -300,6 +300,10 @@ var listProducerDependentDriftItemsQuery = deriveQueryAtMarker(
 // producerOlderGenerationIDsSQL enumerates the scope's generations older
 // than the owed one ($1 scope, $2 owed generation), riding
 // scope_generations_scope_latest_lookup_idx on (scope_id, ingested_at).
+// The (ingested_at, generation_id) tuple tie-break keeps a live
+// predecessor that shares the owed generation's timestamp (coarse clocks,
+// backfills) in the set; generation_id is unique per scope so the order
+// is total. Mirrors the facts_cicd_run_history.go predecessor bound.
 // Both #7705 predecessor lookups bound the live-predecessor search to this
 // set so the fact probe stays (scope_id, generation_id)-anchored instead
 // of scanning the scope's history by key, for which no index exists.
@@ -310,7 +314,7 @@ JOIN scope_generations AS owed
   ON owed.scope_id = $1
  AND owed.generation_id = $2
 WHERE older.scope_id = $1
-  AND older.ingested_at < owed.ingested_at
+  AND (older.ingested_at, older.generation_id) < (owed.ingested_at, owed.generation_id)
 `
 
 // producerTombstoneEvidenceArmSQL matches a tombstone that retracts producer
