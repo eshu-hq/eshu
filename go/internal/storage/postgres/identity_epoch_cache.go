@@ -42,6 +42,17 @@ type identityEpoch struct {
 	activeFingerprint string
 }
 
+// identityFlight is one in-flight identity-fact load. The leader that created
+// it owns the load; every other caller that joins while it runs waits on done.
+// startEpoch is the leader's pre-load probe, and waiters counts the callers
+// currently blocked on done. All fields except done are guarded by
+// IdentityEpochCache.mu.
+type identityFlight struct {
+	done       chan struct{}
+	startEpoch identityEpoch
+	waiters    int
+}
+
 // IdentityEpochCache caches the full set of active container-image identity
 // facts, validated by an O(1) epoch probe (count + max observed_at) backed
 // by a partial B-tree index. On probe match the cached slice is served with
@@ -54,7 +65,7 @@ type IdentityEpochCache struct {
 	mu      sync.Mutex
 	epoch   identityEpoch
 	facts   []facts.Envelope
-	loading chan struct{} // non-nil while a singleflight reload is in flight
+	loading *identityFlight // non-nil while a singleflight reload is in flight
 
 	maxBytes int64
 	inst     *telemetry.Instruments
@@ -86,7 +97,8 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	// Fast path: check whether a reload is already in flight, under lock.
 	c.mu.Lock()
 	if c.loading != nil {
-		waitCh := c.loading
+		waitCh := c.loading.done
+		c.loading.waiters++
 		c.mu.Unlock()
 		select {
 		case <-waitCh:
@@ -112,7 +124,8 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	// Double-check: another goroutine may have started a reload, or
 	// repopulated the cache, while we were probing without the lock.
 	if c.loading != nil {
-		waitCh := c.loading
+		waitCh := c.loading.done
+		c.loading.waiters++
 		c.mu.Unlock()
 		select {
 		case <-waitCh:
@@ -133,7 +146,8 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 
 	// Cache miss: start a singleflight reload.
 	c.inst.IdentityCacheMissTotal.Add(ctx, 1)
-	c.loading = make(chan struct{})
+	flight := &identityFlight{done: make(chan struct{}), startEpoch: probe}
+	c.loading = flight
 	preLoadProbe := probe // save for post-load comparison
 	c.mu.Unlock()
 
@@ -143,7 +157,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	loaded, err := store.loadIdentityFactsUncached(ctx)
 	if err != nil {
 		c.mu.Lock()
-		close(c.loading)
+		close(flight.done)
 		c.loading = nil
 		c.mu.Unlock()
 		return nil, err
@@ -155,7 +169,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	c.inst.IdentityCacheProbeDuration.Record(ctx, time.Since(postProbeStart).Seconds())
 	if postProbeErr != nil {
 		c.mu.Lock()
-		close(c.loading)
+		close(flight.done)
 		c.loading = nil
 		c.mu.Unlock()
 		// Serve uncached on probe error (best effort).
@@ -167,7 +181,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	if postProbe != preLoadProbe {
 		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1)
 		c.mu.Lock()
-		close(c.loading)
+		close(flight.done)
 		c.loading = nil
 		c.mu.Unlock()
 		return loaded, nil
@@ -181,7 +195,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	if sizeErr != nil || (c.maxBytes > 0 && estBytes > c.maxBytes) {
 		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1)
 		c.mu.Lock()
-		close(c.loading)
+		close(flight.done)
 		c.loading = nil
 		c.mu.Unlock()
 		return loaded, nil
@@ -193,7 +207,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	c.mu.Lock()
 	c.epoch = preLoadProbe
 	c.facts = loaded
-	close(c.loading)
+	close(flight.done)
 	c.loading = nil
 	c.mu.Unlock()
 
