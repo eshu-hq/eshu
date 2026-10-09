@@ -187,7 +187,7 @@ const Content = `
                       "description": "Present only when a search with no repository filter ended at its work budget before the page was proven complete. results is then an ordered prefix of the exact answer.",
                       "properties": {
                         "reason": {"type": "string", "enum": ["candidate_budget_exceeded", "budget_exceeded_on_large_document"]},
-                        "rows_scanned_in_order": {"type": "integer", "description": "Rows visited in repo_id, relative_path order, up to and including cursor."},
+                        "rows_scanned_in_order": {"type": "integer", "description": "Rows this call visited in repo_id, relative_path order, up to and including cursor; a resumed call counts from its request cursor."},
                         "rows_matched": {"type": "integer", "description": "Matching rows found so far, before the request offset is applied."},
                         "cursor": {
                           "type": "object",

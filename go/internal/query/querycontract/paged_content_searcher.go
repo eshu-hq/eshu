@@ -69,8 +69,8 @@ type SearchPartial struct {
 	// Reason is SearchPartialCandidateBudgetExceeded or
 	// SearchPartialBudgetExceededOnLargeDocument.
 	Reason string `json:"reason"`
-	// RowsScannedInOrder counts the rows the search visited in key order, up to
-	// and including Cursor.
+	// RowsScannedInOrder counts the rows this call visited in key order, up to
+	// and including Cursor; a resumed call counts from its request cursor.
 	RowsScannedInOrder int `json:"rows_scanned_in_order"`
 	// RowsMatched counts the matching rows found so far in key order, before
 	// the request offset is applied. A client that resumes from Cursor sends
