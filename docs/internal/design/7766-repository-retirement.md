@@ -9,7 +9,7 @@ the commit gate.
 Binding inputs: the
 [arbiter ruling for #7765 and #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598)
 (Option C: signal only, plus one operator-driven retire primitive), the arbiter
-ruling on the #7766 prove-first results (to be posted on #7766), ADR 2248
+ruling on the #7766 prove-first results ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964)), ADR 2248
 ([retention semantics](2248-retention-semantics-generations-facts-content.md)),
 design [7324](7324-cross-scope-writer-rearm.md),
 `docs/public/reference/hosted-retention-deletion-policy.md`, and

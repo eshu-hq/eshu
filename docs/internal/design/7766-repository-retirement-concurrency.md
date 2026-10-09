@@ -11,8 +11,8 @@ invariants that make the phase 2 order safe, the folded commit gate, and the
 re-admission interleavings. P1 and P9 failed as originally designed, so these
 sections are the amended design, not the first draft. Binding inputs: the
 [shared-contract arbiter ruling](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598)
-and the arbiter ruling on the #7766 prove-first results (to be posted on
-#7766). Measurements are in
+and the [arbiter ruling on the #7766 prove-first
+results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964). Measurements are in
 [Prove-First Results](7766-repository-retirement-proof-and-rollout.md#prove-first-results).
 
 Source check: origin/main 16c8c2a36 (read by the arbiter, 2026-10-09); the
