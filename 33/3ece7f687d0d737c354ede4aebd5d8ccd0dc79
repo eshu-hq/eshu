@@ -1,0 +1,25 @@
+docs/public/reference/local-testing/read-api-latency-gate.md
+  s_29175cf8c573b8::t_6911159d9a6b45 186-187,194-197
+docs/internal/evidence/7881-query-methodology-pilot.md
+  s_29175cf8c573b8::t_a08c2d0f2dc95e 1-88
+docs/internal/query-engineering.md
+  s_29175cf8c573b8::t_6911159d9a6b45 38-53,140-142
+scripts/verify-query-methodology.sh
+  s_29175cf8c573b8::t_6911159d9a6b45 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "333ece7f687d0d737c354ede4aebd5d8ccd0dc79",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
