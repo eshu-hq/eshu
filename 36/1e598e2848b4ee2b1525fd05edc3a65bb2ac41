@@ -1,0 +1,42 @@
+specs/ci-gates.v1.yaml
+  s_b0d7e3abc26c5a::t_c79db8c9181291 2021-2022,2028-2029,2032
+scripts/verify-measurement-citations.sh
+  s_b0d7e3abc26c5a::t_cd09cf7d265dd7 16-17,49-50,53-54,58,64,66-72,161,181
+  s_b0d7e3abc26c5a::t_b5aba9dd4e4846 51-52,55-56,61-63
+scripts/test-verify-measurement-citations-wrapper.sh
+  s_b0d7e3abc26c5a::t_5bc19f88962be0 116-123
+  s_b0d7e3abc26c5a::t_8db381348e9ba1 105-115,124
+  s_b0d7e3abc26c5a::t_a911d7fa1f3184 22
+  s_b0d7e3abc26c5a::t_ab9e438bffaeb2 5-6,19-20,44-46
+  s_b0d7e3abc26c5a::t_323ee4dfff7fb5 86-95
+  s_b0d7e3abc26c5a::t_4cad5e9b08fdde 1-4,7-12,17-18,21,23-43,47-50,137
+  s_b0d7e3abc26c5a::t_e674aad10cb5ce 13-16
+  s_b0d7e3abc26c5a::t_b91827084a3b4c 51-85,96-104,125-136
+.github/workflows/static-contract-gates.yml
+  s_b0d7e3abc26c5a::t_c79db8c9181291 379-380,502
+docs/internal/measurement-ledger.md
+  s_b0d7e3abc26c5a::t_c79db8c9181291 64-68
+  s_b0d7e3abc26c5a::t_220ce85dabe055 60-61
+  s_b0d7e3abc26c5a::t_30602ffa4f9bef 62-63
+scripts/dev/precommit-go.sh
+  s_b0d7e3abc26c5a::t_394eae87459be6 461-463
+  s_b0d7e3abc26c5a::t_cd09cf7d265dd7 459-460,464
+docs/public/reference/ci-gates.md
+  s_b0d7e3abc26c5a::t_de49c9df246f01 253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "361e598e2848b4ee2b1525fd05edc3a65bb2ac41",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
