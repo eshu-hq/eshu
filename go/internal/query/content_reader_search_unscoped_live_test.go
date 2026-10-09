@@ -187,44 +187,68 @@ func TestSearchFilesUnscopedMatchesOldStatementLive(t *testing.T) {
 
 // TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive runs the real
 // cancel path: a two-character token has no trigram, so the tail rechecks
-// every row and cannot finish inside a 100 ms budget. The server cancels it,
-// the savepoint keeps the transaction usable, and resuming from each returned
-// cursor gathers exactly the old statement's rows with no gap and no
-// duplicate.
+// every row and cannot finish inside a small enough budget. The server cancels
+// it, the savepoint keeps the transaction usable, and resuming from each
+// returned cursor gathers exactly the old statement's rows with no gap and no
+// duplicate. The budget falls until a run is cut short, because how long the
+// tail takes depends on host speed.
 func TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive(t *testing.T) {
 	ctx, db := openUnscopedLiveFixture(t)
-	reader := NewContentReader(db).WithUnscopedSearch(unscoped.MinBudget, nil)
 	want := oracleKeys(t, ctx, db, liveNoTrigramHits, 1000, 0)
 	if len(want) < 3 {
 		t.Fatalf("fixture has %d matches for the no-trigram token, want at least 3", len(want))
 	}
 
+	// Whether the tail finishes inside a budget depends on host speed, so the
+	// budget falls below the configured minimum until a run is cut short. The
+	// walk accepts any positive budget; every run, cut short or not, must gather
+	// exactly the old statement's rows, and failing to cut the tail at every
+	// budget is a failure, not a skip.
+	var tried []string
+	for _, ms := range []time.Duration{100, 60, 40, 25, 15} {
+		budget := ms * time.Millisecond
+		partials := resumeNoTrigramSearch(t, ctx, db, budget, want)
+		if partials > 0 {
+			return
+		}
+		tried = append(tried, fmt.Sprintf("%dms", ms))
+	}
+	t.Fatalf("no partial page at any budget (%s): the tail always finished, so the cancel path was not exercised", strings.Join(tried, ", "))
+}
+
+// resumeNoTrigramSearch pages the no-trigram token through cursor resume at one
+// budget and returns how many partial pages it took. It fails the test unless
+// the gathered rows equal the old statement's rows exactly.
+func resumeNoTrigramSearch(t *testing.T, ctx context.Context, db *sql.DB, budget time.Duration, want []string) int {
+	t.Helper()
+	searcher := &unscoped.Searcher{
+		Store:  postgres.NewSQLReadStore(db),
+		Budget: budget,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
 	var gathered []string
 	cursor := querycontract.SearchCursor{}
-	offset := 0
 	partials := 0
-	for call := 0; call < 200; call++ {
-		page, err := reader.SearchFilesUnscoped(ctx, liveNoTrigramHits, 100, offset, cursor.RepoID, cursor.RelativePath)
+	for call := 0; call < 400; call++ {
+		page, err := searcher.Search(ctx, liveNoTrigramHits, 100, 0, cursor)
 		if err != nil {
-			t.Fatalf("call %d: %v", call, err)
+			t.Fatalf("budget %d ms call %d: %v", budget.Milliseconds(), call, err)
 		}
 		gathered = append(gathered, pageKeys(page.Files)...)
 		if page.Partial == nil {
 			if strings.Join(gathered, ",") != strings.Join(want, ",") {
-				t.Fatalf("gathered %v, want %v (after %d partial pages)", gathered, want, partials)
+				t.Fatalf("budget %d ms: gathered %v, want %v (after %d partial pages)", budget.Milliseconds(), gathered, want, partials)
 			}
-			if partials == 0 {
-				t.Fatal("no partial page: the tail finished inside the budget, so the cancel path was not exercised")
-			}
-			return
+			return partials
 		}
 		partials++
-		if page.Partial.Cursor.IsZero() && partials > 1 {
-			t.Fatalf("call %d: partial without a cursor after the first page: %+v", call, page.Partial)
+		if page.Partial.Cursor == cursor {
+			t.Fatalf("budget %d ms call %d: partial page did not advance the cursor: %+v", budget.Milliseconds(), call, page.Partial)
 		}
 		cursor = page.Partial.Cursor
 	}
-	t.Fatalf("no convergence in 200 calls; gathered %v", gathered)
+	t.Fatalf("budget %d ms: no convergence in 400 calls; gathered %v", budget.Milliseconds(), gathered)
+	return partials
 }
 
 type explainNode struct {
