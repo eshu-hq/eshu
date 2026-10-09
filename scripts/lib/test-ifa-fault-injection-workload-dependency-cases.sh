@@ -89,7 +89,7 @@ run_ifa_fault_injection_workload_dependency_cases() {
 	production_reopen_query="$(awk '/^const reopenSucceededReducerWorkQuery = `/,/^`/' "${replay_source}")"
 	printf '%s\n' "${production_reopen_query}" | rg --fixed-strings --quiet -- 'ReopenSucceededReducerSetClause' \
 		|| fail "reopenSucceededReducerWorkQuery no longer interpolates ReopenSucceededReducerSetClause"
-	shared_set_clause="$(awk '/^const ReopenSucceededReducerSetClause = `/,/^`/' "${replay_source}" | sed '1s/^const ReopenSucceededReducerSetClause = `//')"
+	shared_set_clause="$(awk '/^const ReopenSucceededReducerSetClause = `/,/`$/' "${replay_source}" | sed '1s/^const ReopenSucceededReducerSetClause = `//')"
 	[[ -n "${shared_set_clause}" ]] || fail "ReopenSucceededReducerSetClause const missing from ${replay_source}"
 	# The query composes SET + the shared clause (#7807); mirror the composed text.
 	production_reopen_body="SET ${shared_set_clause}"
