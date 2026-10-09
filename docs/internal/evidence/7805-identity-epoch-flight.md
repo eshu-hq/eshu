@@ -65,15 +65,37 @@ holds only `(observed_at, fact_id)`. An index that includes `generation_id`
 would bring it back to an index-only scan; that needs a migration and is not
 part of this change.
 
-Drain of 130 items, 8 workers, 2 s of handler work per item, final code, same
-shim (`after-drain-final-superseded.txt`, `after-drain-final-active.txt`):
+Drain of 130 items, 8 workers, 2 s of handler work per item, same shim, run at
+the final code (head of this change, after the retryable-error rule for a torn
+leader). Each item retries on a leader error up to 3 attempts, the
+`ESHU_REDUCER_MAX_ATTEMPTS` default of 3 in the env registry, then counts as dead-lettered. Raw captures
+`after-drain-head-superseded.txt`, `after-drain-head-active.txt`,
+`after-drain-head-active-7s.txt`, `aborted-drain-head-active-5s-timeout600s.txt`:
 
-| Churn during the run | Elapsed | Items per hour | Loads started | In-flight retries | Cache hits | Shared waiters | Torn-set waiters | Discarded loads |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Superseded-generation row deleted every 10 s (4 deletes) | 49.5 s | 9,461 | 1 | 0 | 122 | 7 | 0 | 0 |
-| Active-generation identity fact inserted every 10 s (13 inserts, about two per load) | 139.6 s | 3,353 | 14 | 2 | 52 | 66 | 14 | 2 |
+| Churn during the run | Elapsed | Items per hour | Loads / in-flight retries | Cache hits | Shared / torn-set waiters | Leader errors (`identity_epoch_unstable`) | Items needing a retry | Max attempts one item used | Dead-lettered |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Superseded-generation row deleted every 10 s (4 deletes) | 45.4 s | 10,302 | 1 / 0 | 122 | 7 / 0 | 0 | 0 | 1 | 0 |
+| Active-generation fact inserted every 10 s (7 inserts, about one per 2 loads) | 70.8 s | 6,611 | 7 / 0 | 74 | 49 / 0 | 0 | 0 | 1 | 0 |
+| Active-generation fact inserted every 7 s (57 inserts, 1.5 per load time) | 6 min 41 s | 1,167 | 49 / 22 | 0 | 113 / 64 | 10 | 8 | 3 | 0 |
+| Active-generation fact inserted every 5 s (about one per load time) | did not finish in 600 s (stopped) | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 
-The second row is a worst case: the active set moves about every other load.
+The older drain files `after-drain-final-*.txt` ran before the retryable-error
+rule existed and are kept only as history (pre-F17): they measured 49.5 s and
+139.6 s for the first two churn profiles.
+
+Reading the table. Superseded-generation churn costs nothing. At one active-set
+change per two loads the cache still serves 74 of 130 items. At 1.5 changes per
+load time the cache never serves a hit, every flight is retried, 10 leaders fail
+retryably, and 8 items need a second or third attempt, but none dead-letters
+(1,167 items per hour, still about 200 times the pre-change rate of one item
+per 8 to 12 minutes, 5 to 7 items per hour). At one change per load time (5 s churn against a 4.7 s load) the
+drain did not finish: every flight tears, joined waiters re-probe and wait for
+the next flight, and only leaders consume attempts. Production churn is far
+below that (see the torn-load paragraph below), but the cache then has no
+bound on waiter patience other than the caller's context and the lease, a limit
+of the caller loop that existed before this change (each flight now makes at
+most two loads) and is bounded only by that context.
+
 The before drain was not run: with a 500 to 720 s load and an epoch that moves
 every few minutes the cache never populates, so each load served one item. That
 gives about 130 loads of 8 to 12 minutes each (17 to 26 hours at the shim load
@@ -123,13 +145,32 @@ change. Unit tests
 `...LeaderCancelDoesNotFailWaiters`, `...LoadErrorIsSharedWithWaiters`, and
 `...LeaderPanicReleasesWaiters` cover these paths under `-race`.
 
+Torn means any epoch move, and what that costs (F21, deferred by arbiter ruling).
+The epoch fingerprint hashes the active generation of every scope, so a
+generation activation in any scope, identity-relevant or not, moves the epoch
+and can tear an in-flight load. A leader item fails retryably with
+`identity_epoch_unstable` only when the epoch moves during both of its two load
+attempts. At the measured churn that is about 0.3 percent per leader item; if
+one activation landed per load, it is about 6 percent. The item is retried under
+the normal lease and retry policy. A dead letter needs three consecutive torn
+attempts (`ESHU_REDUCER_MAX_ATTEMPTS`, default 3), which is rare at those odds
+and impossible unless the epoch keeps moving. Measured production churn today is
+one activation in 24 hours (a read-only count on the reader). The elevated
+windows are the delta-active repair and maintenance reopens, which activate many
+scopes in a short time. A repeatedly torn item is findable: the dead-letter row
+and `eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}`
+carry the class. No code changes for this in this PR. Follow-up: narrow the
+epoch fingerprint to identity-relevant activations only.
+Follow-up: #NNNN
+
 Raw outputs are attached to the PR (no private paths). File names:
 `red-f6-f8.txt`, `red-joinable-mutation.txt`, `red-noreprobe-mutation.txt`,
 `red-probeerr-mutation.txt`, `red-noclass-mutation.txt`,
 `green-unit-r3.txt`, `green-live-r3.txt`, `red-live-epoch.txt`,
 `red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
 `red-keyset-live-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
-`after-drain-final-superseded.txt`, `after-drain-final-active.txt`,
+`after-drain-head-superseded.txt`, `after-drain-head-active.txt`,
+`after-drain-head-active-7s.txt`, `aborted-drain-head-active-5s-timeout600s.txt`,
 `postgres-race-r3.txt`, `gates-r3.txt`.
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph

@@ -2372,7 +2372,9 @@ type Instruments struct {
 	IdentityCacheHitTotal metric.Int64Counter
 	// IdentityCacheMissTotal counts identity-fact cache misses (epoch changed → reload) (#5438).
 	IdentityCacheMissTotal metric.Int64Counter
-	// IdentityCacheReloadTotal counts identity-fact cache reloads (singleflight leader) (#5438).
+	// IdentityCacheReloadTotal counts identity-fact load attempts, including the
+	// one in-flight retry a flight makes when the epoch moved during the paged
+	// load (#5438, #7805).
 	IdentityCacheReloadTotal metric.Int64Counter
 	// IdentityCachePassthroughTotal counts identity-fact loads that were not
 	// cached, by reason: cap_exceeded and size_unknown serve the consistent set
@@ -6172,7 +6174,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.IdentityCacheReloadTotal, err = meter.Int64Counter(
 		"eshu_dp_identity_cache_reload_total",
-		metric.WithDescription("Total identity-fact cache reloads (singleflight leader)"),
+		metric.WithDescription("Total identity-fact load attempts, including the in-flight retry after an epoch move"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCacheReloadTotal counter: %w", err)
