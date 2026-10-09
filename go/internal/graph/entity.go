@@ -99,6 +99,7 @@ func BuildEntityMergeStatement(props EntityProps) (CypherStatement, error) {
 		setParts = append(setParts, fmt.Sprintf("n.`%s` = $`%s`", key, key))
 	}
 
+	// anchor-census: dynamic-label writer; label set bounded by TestEntityMergeHelpersHaveNoProductionCaller
 	cypher := fmt.Sprintf(`MATCH (f:File {path: $file_path})
 MERGE (n:%s {%s})
 SET %s

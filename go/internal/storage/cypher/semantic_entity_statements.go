@@ -266,6 +266,7 @@ func semanticEntityDeltaLabelRetractCypher(label string) string {
 		"DETACH DELETE n"
 }
 
+// anchor-census: dynamic-label writer; label set bounded by TestSemanticEntityUpsertLabelsAreAnchorLabels
 func semanticEntitySingleRowUpsertCypher(label string) string {
 	return "MATCH (f:File {path: $file_path})\n" +
 		"MERGE (n:" + label + " {uid: $entity_id})\n" +
@@ -273,6 +274,7 @@ func semanticEntitySingleRowUpsertCypher(label string) string {
 		"MERGE (f)-[:CONTAINS]->(n)"
 }
 
+// anchor-census: dynamic-label writer; label set bounded by TestSemanticEntityUpsertLabelsAreAnchorLabels
 func semanticEntityBatchedPropertiesUpsertCypher(label string) string {
 	return "UNWIND $rows AS row\n" +
 		"MATCH (f:File {path: row.file_path})\n" +
@@ -306,6 +308,7 @@ func semanticEntityCanonicalNodeRowsUpsertCypher(label string, cypher string) st
 	const evidenceSourceAssignment = "n.evidence_source = row.evidence_source"
 
 	rewritten := semanticEntityMergeFirstRowsUpsertCypher(cypher)
+	// anchor-census: dynamic-label writer; label set bounded by TestSemanticEntityUpsertLabelsAreAnchorLabels
 	rewritten = strings.Replace(
 		rewritten,
 		"MERGE (n:"+label+" {uid: row.entity_id})",
