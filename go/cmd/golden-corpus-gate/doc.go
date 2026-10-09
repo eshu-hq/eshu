@@ -50,12 +50,15 @@
 //     mode, -diff-executions-advisory-max (#6941) caps the reproduced
 //     advisory total — above it, a required nornicdb_vs_neo4j_executions_ceiling
 //     finding fails the gate instead of the total growing unbounded.
-//   - writer-coverage: every statement in the differential capture recordings
-//     that writes a node id names at least one uid-constrained or
-//     id-constrained label (#7212). Opt-in and excluded from "all". It fails
-//     on an empty capture and on a capture with no id write.
-//   - graph/anchor_census, inside the graph phase on the Neo4j leg (#7212): no
-//     node with an id is unreachable by the labeled entity-context anchor.
+//   - writer-coverage: a heuristic pre-filter (#7212) that reads the
+//     differential capture recordings for a statement writing a node id on a node
+//     with no uid-constrained or id-constrained label. It reports the shapes the
+//     tests in go/internal/graph/anchor cover. Opt-in and excluded from "all". It
+//     fails on an empty capture and on a capture with no id write.
+//   - graph/anchor_census, inside the graph phase on the Neo4j leg (#7212): the
+//     required check that no node with an id is unreachable by the labeled
+//     entity-context anchor. It is the authority; writer-coverage is the
+//     pre-filter.
 //
 // The command connects to a Postgres DSN, a graph backend, and a running
 // eshu-api using the same environment variables the services under test use

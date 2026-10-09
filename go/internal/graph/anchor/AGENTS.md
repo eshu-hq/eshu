@@ -14,21 +14,25 @@
   the other in the same commit, and run `census_live_test.go` on Neo4j before
   you claim they agree. The live-backend CI job runs it from
   `specs/live-tests.v1.yaml` (Neo4j only; it self-skips elsewhere).
-- **Fail closed for the tested shapes, and say so.** `CheckWriters` reports an
-  unlabeled variable, a variable rebound to another label, an unprovable dynamic
-  map or dynamic key, a parameter property map, a SET target that is not a plain
-  variable, a label expression it cannot reduce, and an `id` key left in a
-  MERGE or CREATE clause after the recognized patterns are masked. Do not turn
-  any of them into a skip. It is not a full Cypher parser: do not write "fail
-  closed" about a shape without a test row for it, and list a new blind spot in
-  the README. A new false red is fixed by teaching `parse.go` the shape, with a
-  test row first, not by an exception list.
+- **The census is the authority; `CheckWriters` is a heuristic pre-filter.**
+  The required `graph/anchor_census` check after the replay, and the reducer
+  gauge, decide whether an unanchored id-bearing node exists. `CheckWriters`
+  reports the shapes its test rows cover (the README names them). Do not turn a
+  reported shape into a skip. Do not write a categorical claim about what the
+  analyzer or the sweep catches: state a shape only with its test function
+  beside it, and add a newly found miss to the README's known blind spots
+  (not exhaustive) with a row in `TestCheckWritersKnownBlindSpots` or
+  `TestSweepKnownBlindSpots`. A new false red on the production sweep is fixed by
+  teaching `parse.go` the shape with a test row first, never by an exception
+  list.
 - **A dynamic-label writer carries its own marker.** Put
   `// anchor-census: dynamic-label writer; label set bounded by <TestName>` within
-  10 lines above the template, and make `<TestName>` a real test that proves the
-  labels are anchor labels. The sweep fails on a template with no marker, on a
-  marker naming no test, and on a marker with no template under it. Do not add a
-  list of exceptions anywhere else.
+  10 lines above the template, and make `<TestName>` a real test, defined in the
+  same directory as the marker, that proves the labels are anchor labels. A
+  marker pairs 1:1 with the nearest template below it. The sweep reports a
+  template with no marker of its own, a marker naming no test in its directory,
+  and a marker with no template of its own under it. Do not add a list of
+  exceptions anywhere else.
 - **A gate that sees nothing must fail.** Zero statements, or zero id writes,
   is a failure in the gate phase. Keep that when you edit the phase.
 - **No ids in output.** Failures print label sets and counts, never an entity
@@ -43,6 +47,6 @@
 - **A dynamic-label writer** (a template whose node label is a placeholder) →
   put `// anchor-census: dynamic-label writer; label set bounded by <TestName>`
   beside it, within 10 lines above, with `<TestName>` a real test in the same
-  directory that proves every label the writer can use is an anchor label. The
+  directory that proves each label the writer can use is an anchor label. The
   sweep fails without the marker, without the test, or when two writers share
   one marker. The corpus replay still has to exercise the writer.

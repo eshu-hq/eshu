@@ -8,9 +8,10 @@ query path: `EntityContextStatements` still returns two statements on Neo4j.
 It adds the proof and the operator signal that the second change depends on.
 
 - `go/internal/graph/anchor`: the definition of which id-bearing nodes the
-  labeled anchor reaches, an analyzer for statements that write a node id (it
-  fails closed for the shapes its tests cover, and the package README lists what
-  it does not model), and the census Cypher.
+  labeled anchor reaches, the census Cypher, and a heuristic pre-filter over
+  Cypher text that looks for statements that write a node id (the package README
+  names the shapes it reports beside the test functions, and its known blind
+  spots).
 - `golden-corpus-gate`: the opt-in `writer-coverage` phase over the capture
   recordings, and the required `graph/anchor_census` check on the Neo4j leg.
 - The reducer's id-anchor census `Runner` (`internal/reducer/maintenance/census`): a bounded periodic census, a gauge, and
@@ -32,7 +33,7 @@ graph by node, not by label:
 | Reached through both | 0 |
 | Not reachable by the labeled anchor (residual) | 0 |
 
-Every residual line was zero: no id-bearing node with a different uid, no
+All residual lines were zero: no id-bearing node with a different uid, no
 Directory with an id, no id on a label outside the schema, and no id-bearing
 node without a label. The 7,911 nodes without a uid sit on six id-constrained
 labels. The scan was one read transaction of about 1.95 s under Neo4j's
@@ -43,49 +44,70 @@ and the gauge below, not this count alone. The graph has 1,130,424 nodes; the
 
 ## The two gates
 
+**Authority.** The authority that no unanchored id-bearing node ships is the
+census: the required `graph/anchor_census` check on the Neo4j legs after the
+replay, and the reducer gauge on each deployment. Writer coverage and the static
+sweep below are a heuristic pre-filter over Cypher text. They name a writer early;
+they do not decide.
+
 **Writer coverage** (`-phase=writer-coverage`, replay half). Over the
-differential capture recordings, every statement that writes a node id must name
-at least one label in the union of the uid-constrained and id-constrained label
-sets. A write is `MERGE`/`CREATE` with an `id` key in a node property map,
-`SET n.id = ...`, or a dynamic `SET n += <map>`. For the shapes the tests cover
-the check fails closed: an unlabeled variable is a finding, so is a variable
-rebound to another label, a parameter property map, a SET target that is not a
-plain variable, and an id key in a pattern the scan cannot place; a dynamic map
-on an uncovered label is a finding unless the recorded parameters prove the map
-has no `id` key at any depth. A relationship variable is not a node and is
-skipped. It is not a full Cypher parser. Known blind spots, backed by the census
-check and gauge only: a procedure call that writes a node outside the
-`apoc.create/merge/cypher/do/periodic/refactor` families, an UNWIND alias
-rebound by a form other than `AS name`, a comprehension variable, or a FOREACH
-variable, and Cypher the scan does not model (quantified path patterns). An empty capture,
-and a capture that never sees an id write, both fail, because either would pass a
-blind analyzer. All four capture legs join, because the writers are the same
+differential capture recordings, `CheckWriters` looks for a statement that writes
+a node id (a `MERGE`/`CREATE` map key, `SET n.id = ...`, or a dynamic
+`SET n += <map>`) on a node whose labels include no label from the union of the
+uid-constrained and id-constrained label sets. A dynamic map on an uncovered
+label is reported unless the recorded parameters show the map has no `id` key at
+any depth. It reports the shapes its test rows cover. The package README names
+them beside the test functions: `TestCheckWriters`,
+`TestCheckWritersUnparsedShapes`, `TestCheckWritersPatternContextShapes`,
+`TestCheckWritersRebindingAndProcedureShapes`, and
+`TestCheckWritersScopeTargetAndRemovalShapes`, with the covered-label controls in
+`TestCheckWritersStricterParserKeepsCoveredWritesClean`,
+`TestCheckWritersPatternContextKeepsCoveredWritesClean`, and
+`TestCheckWritersScopeTargetAndRemovalKeepProductionClean`. It is not a full
+Cypher parser. The phase fails on an empty capture and on a capture that never
+sees an id write. All four capture legs join, because the writers are the same
 code on both backends.
 
+Known blind spots (not exhaustive), each backed by the census check and gauge:
+scope loss through a `CALL` subquery (an unlabeled re-declaration of an outer
+name inherits the earlier label); procedure writers outside the
+`apoc.create/merge/cypher/do/periodic/refactor` families (`db.create.setNodeVectorProperty`,
+`apoc.atomic.add`); an UNWIND alias rebound by a form other than `AS name`, a
+comprehension variable, or a FOREACH variable (a `YIELD` column of the same
+name); and Cypher the scan does not model. `TestCheckWritersKnownBlindSpots`
+holds a row for the ones with a concrete example.
+
 **Static sweep** (`TestEveryProductionIDWriterNamesAnAnchorLabel`,
-`TestEveryDynamicLabelWriterIsMarkedWithAProof`). An independent test over the
-Cypher in `go/`. It does not depend on what a replay executes. It admits a string
-literal or a `+` chain of literals, same-package named constants, and other
-operands (an unresolved operand reads as a placeholder), with a write keyword, an
-`id` token or `+=` and a node pattern that is labeled, unlabeled with an `id` key,
-or has a placeholder label (also `%[1]s`), or a parameter property map. Measured on
-the final tree by the test's own walk: 92 admitted sites, 79 with a static label
-and 13 with a placeholder label; of the 79, 76 report id writes and 3 report none;
-none is uncovered. The 13 placeholder-label sites (the canonical and semantic
-entity upsert templates, the `internal/graph` entity merge helpers, the read-API
-latency seed tool) cannot be decided statically, so each carries a co-located
-marker comment that names a test proving its labels are anchor labels, and the
-sweep fails on a template with no marker, a marker naming no test, or a marker
-with no template under it. The four proofs are
-`TestEntityUpsertTemplateLabelsAreAnchorLabels` (every canonical entity label
-except Parameter, which the generic entity phase never writes, is an anchor
-label), `TestSemanticEntityUpsertLabelsAreAnchorLabels`,
-`TestEntityMergeHelpersHaveNoProductionCaller` (no production file outside
-`internal/graph` calls the helpers), and `TestSeedLabelsAreAnchorLabels`. The
-sweep does not see a writer assembled outside an admitted literal or `+` chain: a
-`strings.Builder`, a `fmt.Sprintf` whose verb supplies the `id` key, a statement
-reached only through a bare constant name. Those rest on the replay half of the
-gate and on the census check and gauge.
+`TestEveryDynamicLabelWriterIsMarkedWithAProof`). A test over the non-test Go
+files under `go/` that does not depend on what a replay executes. It admits a
+string literal, or a `+` chain whose node pattern sits in a literal or a
+same-package constant it can resolve (an operand it cannot resolve reads as a
+placeholder). The text needs a write keyword, an `id` token or `+=`, and a node
+pattern that is labeled (`(n:L` or `(n IS L`), unlabeled with an `id` key, or has
+a placeholder label (also `%[1]s`); or a parameter property map; or a
+`REMOVE n:L`. Measured on the final tree by the test's own walk: 93 admitted
+sites, 80 with a static label and 13 with a placeholder label; of the 80, 76
+report id writes and 4 report none; the analyzer reports nothing on them.
+The 13 placeholder-label sites (the canonical and semantic entity upsert
+templates, the `internal/graph` entity merge helpers, the read-API latency seed
+tool) cannot be decided statically, so each carries a co-located marker comment
+that names a test, defined in the marker's own directory, that proves its labels
+are anchor labels. A marker pairs 1:1 with the nearest template below it; the
+sweep reports a template with no marker of its own, a marker naming no test in
+its directory, and a marker with no template of its own under it. The four proofs
+are `TestEntityUpsertTemplateLabelsAreAnchorLabels` (the canonical entity labels
+except Parameter, which the generic entity phase never writes, are anchor
+labels), `TestSemanticEntityUpsertLabelsAreAnchorLabels` (the plan labels, and
+the entity types `buildSemanticEntityRowMap` accepts, are anchor labels),
+`TestEntityMergeHelpersHaveNoProductionCaller` (no production file other than the
+helpers' own calls them), and `TestSeedLabelsAreAnchorLabels`.
+
+Known sweep blind spots (not exhaustive), each backed by the census check and
+gauge: a `+` chain whose node pattern sits in an operand it cannot resolve (a
+package `var`, a cross-package constant, a function call); `strings.Builder` or
+other runtime assembly; a `fmt.Sprintf` verb that supplies the `id` key; and a
+statement reached only through a bare constant name whose text is a fragment.
+`TestSweepKnownBlindSpots` holds a row for each with a concrete example.
 
 **Census check** (`graph/anchor_census`, graph phase, Neo4j leg). After the
 replay, the count of nodes with an id that are not anchor-reachable must be zero,
@@ -107,6 +129,7 @@ rise by two.
 | Writer coverage, dynamic | `SET n += row.props` on an uncovered label, `props` carries `id` | gate fails |
 | Writer coverage, dynamic | same statement, no `id` key in any row | gate passes |
 | Static sweep | the same `MERGE` in a Go file under the real tree | test fails, names file and line |
+| Marker pairing | a second template under an existing marker; two markers over one template; a proof test in another directory | the sweep reports each (`TestOneMarkerExcusesOnlyTheNearestWriter`, `TestMarkerProofMustLiveInTheMarkersDirectory`) |
 | Census check | one id-only node on an unconstrained label | check fails |
 | Census check | one `Function` with an id and no uid | check fails |
 | Census check | clean canonical nodes | check passes |
@@ -124,14 +147,17 @@ last good values, so the snapshot age grows. A nonzero count logs at WARN.
 
 The gauge is the traffic-independent check that the invariant holds on a
 deployment. The existing `resolved_by` counter stays as the traffic-dependent
-cross-check. The rollout of the second change is gated on this gauge reading
-zero on each deployment, or on a read-only census of the same shape under its own
-admission.
+cross-check. The rollout of the second change is gated on `unreachable_nodes = 0
+AND id_bearing_nodes > 0` from the same pass (both are in the `id anchor census`
+log line), on each deployment, or on a read-only census of the same shape under
+its own admission. A reading of zero with `id_bearing_nodes = 0` proves nothing:
+an empty graph reads zero. The gauge detects after the fact, with a lag of up to
+one poll interval (default one hour).
 
 ## Performance Evidence
 
 Performance Evidence: the census adds one read-only `AllNodesScan` per pass per
-reducer replica, off every request path and off the scrape path. The same shape
+reducer replica, off the request path and off the scrape path. The same shape
 of scan took about 1.95 s over 1,130,424 nodes (898,874 with an id) on ops-qa,
 image sha-57167b0, on 2026-10-08, in one read transaction. At the default hourly
 interval that is under 0.1% of one core. The two-minute timeout is about 60
@@ -176,7 +202,7 @@ startup pass, one id-only node planted: gauge=1
 level=WARN msg="id anchor census" snapshot=true first_pass=true id_bearing_nodes=3 via_uid_nodes=1 via_id_nodes=1 unreachable_nodes=1 duration_seconds=0.0023
 ```
 
-`TestLiveAnchorCensus` agreed with the reference classification on every seeded
+`TestLiveAnchorCensus` agreed with the reference classification on each seeded
 shape and failed when the `coalesce` was removed (the null-uid node vanished from
 the count, residual moved by 1 instead of 2). `TestLiveAnchorCensusCheck` ran the
 gate's own Bolt reader with the production schema applied: canonical shapes
@@ -190,11 +216,46 @@ configurations collect the gauge.
 ## What only CI exercises
 
 - The census check against a real replay's graph (the graph phase of
-  `golden-corpus-gate-neo4j`). The three live tests are rows in
-  `specs/live-tests.v1.yaml` (class `ci`, Neo4j only, self-skipping elsewhere), so
-  the live-backend CI job also runs them.
+  `golden-corpus-gate-neo4j`, and the Neo4j legs of the differential job). The
+  three live tests are rows in `specs/live-tests.v1.yaml` (class `ci`, Neo4j only,
+  self-skipping elsewhere), so the live-backend CI job also runs them. They ran
+  on `fce583612`; the census Cypher, the gate's Bolt reader, and the reducer
+  wiring are unchanged since that head.
 - The writer-coverage phase over a real replay's recordings. The analyzer is
-  proved on recorded-session fixtures and by the static sweep, not on a full
-  replay.
+  proved on recorded-session fixtures and the sweep on the source tree, not on a
+  full replay.
 - Whether a clean replay leaves a residual of zero. The census check is
   required; a residual in the corpus fails the leg and is a finding to root-cause.
+
+## What the census does not close
+
+The census is the authority, and four classes stay outside what it can see:
+
+1. **A writer the golden corpus never drives.** A code path with no fixture in
+   the corpus (a collector or projection lane without a cassette, a repair,
+   backfill or migration tool, a deployment-only path, the offline tier) produces
+   no node in the gate graph, so the census check and writer coverage see nothing.
+   The static sweep reads the Go source (a heuristic; its blind spots are listed
+   above), the marker proofs cover the dynamic-label templates, and after
+   deployment the gauge covers what has run there. Detection is after the fact,
+   with a lag of up to one poll interval (default one hour).
+2. **Legacy data on a deployment** written by older code. CI never sees it; the
+   gauge does, on its startup pass. This is what the rollout condition above is
+   for.
+3. **A statement the replay records that produces no unreachable node** (an empty
+   `UNWIND $rows`, a `MERGE` that matched an existing node, an `ON CREATE` that did
+   not fire). Only the pre-filter's shape check sees it, and in a blind-spot shape
+   it misses.
+4. **A node written between two gauge passes.** Until the next pass warns and the
+   writer is fixed, such a node is not found by the labeled anchor. This matters
+   once the second change removes the fallback, not for this change, which alters
+   no query behavior.
+
+The hourly gauge on ops-qa and ops-prod covers class 1 for writers that have
+already run there and class 2 wholesale. It does not pre-empt a future writer
+(class 1) and does not close class 4. An alert rule on the gauge is a follow-up for
+the second change.
+
+Arbiter ruling 2026-10-08, repeat findings F3/F4: the pre-filter and the sweep are
+heuristic, the census is the authority, and a further analyzer miss blocks only if
+a non-test Go literal or a replay recording carries that shape.

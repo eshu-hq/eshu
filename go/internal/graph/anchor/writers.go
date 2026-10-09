@@ -54,23 +54,22 @@ type Report struct {
 	// IDWrites is the number of distinct statement and variable pairs that
 	// write, or may write, a node id.
 	IDWrites int
-	// Findings lists every uncovered id write, one per statement, variable,
+	// Findings lists the uncovered id writes found, one per statement, variable,
 	// and kind.
 	Findings []Finding
 }
 
-// CheckWriters checks that every statement writing a node id names at least
-// one label in anchorLabels, so the labeled entity-context anchor can reach
-// the node. Statements repeat across a replay, so identical text, parameters,
-// and callsite count once.
+// CheckWriters is a heuristic pre-filter over Cypher text. It looks for a
+// statement that writes a node id on a node whose labels include no label in
+// anchorLabels, the labels the entity-context anchor reaches a node through.
+// Statements repeat across a replay, so identical text, parameters, and
+// callsite count once.
 //
-// For the shapes its tests cover, the check fails closed. A variable the
-// statement does not label, a variable rebound to another label, a parameter
-// property map, a SET target that is not a plain variable, an id key in a pattern
-// the scan cannot place, or a dynamic `SET n += <map>` on an uncovered label
-// whose bound parameters do not prove the map has no id key, is a finding. A
-// relationship variable is not a node and is skipped. The check is not a full
-// Cypher parser; the package README lists the shapes it does not model.
+// It reports the shapes its test rows cover; the package README names them
+// beside the test functions, and lists the known blind spots (not exhaustive).
+// It is not a full Cypher parser. The authority that no unanchored id-bearing
+// node ships is the census (CensusCypher), run as the required
+// graph/anchor_census check after the replay and as the reducer gauge.
 func CheckWriters(statements []Statement, anchorLabels map[string]bool) Report {
 	var report Report
 	seen := make(map[Statement]bool, len(statements))

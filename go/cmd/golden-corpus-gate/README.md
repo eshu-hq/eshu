@@ -60,20 +60,21 @@ golden-corpus-gate -phase=backend-diff \
   -diff-left=/tmp/diff-capture/pair1/nornicdb -diff-right=/tmp/diff-capture/pair1/neo4j \
   -diff-left2=/tmp/diff-capture/pair2/nornicdb -diff-right2=/tmp/diff-capture/pair2/neo4j
 
-# Writer coverage (every recorded id write names an anchor label, #7212):
+# Writer coverage (heuristic pre-filter for unanchored id writers, #7212):
 golden-corpus-gate -phase=writer-coverage \
   -coverage-dirs=/tmp/diff-capture/nornicdb,/tmp/diff-capture/neo4j
 ```
 
 The writer-coverage phase is opt-in and excluded from `-phase=all`, like
-backend-diff. It reads the same capture recordings and requires every statement
-that writes a node id to name at least one label in the union of the
-uid-constrained and id-constrained label sets (`go/internal/graph/anchor`),
-because the Neo4j entity-context anchor reaches a node only through such a
-label. An empty capture, or a capture with no id write, fails. The graph phase
-also runs the required `graph/anchor_census` check on the Neo4j leg: after the
-replay, no node with an id may be unreachable by the anchor. Off Neo4j the
-check records a non-required skip with its reason.
+backend-diff. It reads the same capture recordings and looks for a statement that
+writes a node id on a node with no label in the union of the uid-constrained and
+id-constrained label sets (`go/internal/graph/anchor`), because the Neo4j
+entity-context anchor reaches a node only through such a label. It is a heuristic
+pre-filter: the package README names the shapes it reports and its known blind
+spots. An empty capture, or a capture with no id write, fails. The authority is
+the required `graph/anchor_census` check in the graph phase on the Neo4j leg:
+after the replay, no node with an id may be unreachable by the anchor. Off Neo4j
+the check records a non-required skip with its reason.
 
 The backend-diff phase is opt-in and excluded from `-phase=all`: it needs
 two backends' recording directories, which a normal single-backend B-7 run

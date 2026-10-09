@@ -307,15 +307,19 @@ cd go && go run ./cmd/golden-corpus-gate -phase=statement-coverage \
 ### Id writer coverage and the anchor census
 
 The Neo4j entity-context anchor reaches a node through a uid-constrained label
-with `uid = id`, or through an id-constrained label. Two checks keep every
-id-bearing node inside that set.
+with `uid = id`, or through an id-constrained label. Two checks look for a node
+with an id outside that set.
 
-The `writer-coverage` phase reads the same capture recordings and fails when a
-statement that writes a node id names no label from those two sets. A dynamic
-`SET n += <map>` on an uncovered label fails unless the recorded parameters
-prove the map has no `id` key. An empty capture, or one with no id write, also
-fails. The `graph/anchor_census` check runs in the graph phase on the Neo4j
-leg and fails when any node with an id is unreachable by the anchor.
+The `graph/anchor_census` check is the authority. It runs in the graph phase on
+the Neo4j leg after the replay and fails the leg when a node with an id is
+unreachable by the anchor, or when the graph holds no id-bearing node.
+
+The `writer-coverage` phase is a heuristic pre-filter. It reads the same capture
+recordings and looks for a statement that writes a node id on a node with no label
+from those two sets. A dynamic `SET n += <map>` on an uncovered label is reported
+unless the recorded parameters show the map has no `id` key. It reports the shapes
+the tests in `go/internal/graph/anchor` cover; that package's README lists them
+and its known blind spots. An empty capture, or one with no id write, fails.
 
 ```bash
 cd go && go run ./cmd/golden-corpus-gate -phase=writer-coverage \

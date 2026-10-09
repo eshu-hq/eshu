@@ -11,22 +11,20 @@
 // a node with an AllNodesScan; keeping that scan off the miss path depends on
 // no writer producing the node in the first place.
 //
-// Two checks hold that invariant:
+// Two parts hold that invariant:
 //
-//   - [CheckWriters] reads recorded or literal Cypher and requires every
-//     statement that writes a node id to name at least one label in [Labels].
-//     For the shapes its tests cover it fails closed: an unlabeled variable, a
-//     label expression it cannot reduce, an id key in a pattern it cannot place,
-//     a parameter property map, a SET target that is not a plain variable, a
-//     variable rebound to another label, or a dynamic `SET n += <map>` on an
-//     uncovered label whose bound parameters do not prove the map has no id key,
-//     is a finding. It is not a full Cypher parser: the README lists the shapes
-//     it does not model, and the census is their backstop.
 //   - [CensusCypher] counts, over the whole graph, the id-bearing nodes the
 //     anchor cannot reach. [Classify] is the reference definition the Cypher
 //     must agree with; [EvaluateCensus] turns a [Census] into a gate verdict.
+//     This count is the authority. It runs as the required graph/anchor_census
+//     check on the Neo4j legs after the golden-corpus replay, and as the
+//     reducer's gauge on each deployment.
+//   - [CheckWriters] is a heuristic pre-filter over Cypher text, recorded or
+//     literal. It reports a node-id write whose node carries no label in
+//     [Labels], for the shapes its test rows cover, which the package README
+//     names beside the test functions. It is not a full Cypher parser. The
+//     README also lists its known blind spots (not exhaustive); the census is
+//     the backstop for them.
 //
-// The golden-corpus gate runs both against a replay, and the reducer runs the
-// census on an interval as an operator signal. The package has no runtime
-// state and emits no telemetry of its own.
+// The package has no runtime state and emits no telemetry of its own.
 package anchor

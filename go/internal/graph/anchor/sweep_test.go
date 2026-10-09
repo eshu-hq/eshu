@@ -140,3 +140,43 @@ func TestSweepSeesTheShapesItWasTaught(t *testing.T) {
 		})
 	}
 }
+
+// TestSweepAdmitsTheUnlabeledAndDynamicMapShapes plants the shapes the first
+// prefilter dropped: an unlabeled id write, a dynamic property map on an
+// uncovered label, and a label concatenated from a variable. Each must reach the
+// analyzer or the dynamic-label check.
+func TestSweepAdmitsTheUnlabeledAndDynamicMapShapes(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		wantFailure bool
+		wantDynamic bool
+	}{
+		{
+			name:        "unlabeled id write",
+			source:      "package planted\n\nconst planted = `MERGE (n {id: $id}) SET n.name = $name`\n",
+			wantFailure: true,
+		},
+		{
+			name:        "dynamic map on an uncovered label",
+			source:      "package planted\n\nconst planted = `MERGE (n:Unconstrained {uid: $uid}) SET n += $props`\n",
+			wantFailure: true,
+		},
+		{
+			name:        "label concatenated from a variable",
+			source:      "package planted\n\nvar label = \"Unconstrained\"\n\nvar planted = \"MERGE (n:\" + label + \" {uid: $uid}) SET n.id = $uid\"\n",
+			wantDynamic: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := sweepSource(t, plantedTree(t, tc.source, ""), Labels())
+			if tc.wantFailure && len(result.Failures) == 0 {
+				t.Errorf("no failure for %q", tc.source)
+			}
+			if tc.wantDynamic && len(result.Dynamic) != 1 {
+				t.Errorf("dynamic sites = %d for %q, want 1", len(result.Dynamic), tc.source)
+			}
+		})
+	}
+}
