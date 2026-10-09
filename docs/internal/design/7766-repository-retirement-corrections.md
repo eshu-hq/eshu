@@ -12,7 +12,7 @@ adjustment, not the original wording.
 Binding inputs: the arbiter rulings on
 [#7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598) and
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
-and the arbiter ruling, round 3 (to be posted on #7766).
+and the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)).
 Source check: origin/main 3b03f018e, 2026-10-09.
 
 ## Corrections To The First Arbiter Ruling

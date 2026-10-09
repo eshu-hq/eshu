@@ -6,7 +6,7 @@ Companions: [Repository Retirement](7766-repository-retirement.md) (the design),
 lock-order rule), [Runner](7766-repository-retirement-runner.md) (phase 2), and
 [Proof And Rollout](7766-repository-retirement-proof-and-rollout.md).
 
-Binding input: the arbiter ruling, round 3 (to be posted on #7766), section F1.
+Binding input: the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), section F1.
 Source check: origin/main 3b03f018e, 2026-10-09.
 
 Phase 1 fences claims for the reducer rows that exist at commit. It does not
