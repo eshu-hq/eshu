@@ -156,20 +156,34 @@ on every corpus generation. Bulk OCI rows in other generations are never
 touched. Wall figures are same-host runs on a shared box and carry its
 noise; buffer counts and plan shapes are the deterministic claims.
 
-## F5 limitation: removal-only OCI generations (deferred follow-up)
+## F5 limitation: removal-only OCI generations (resolved by #7705)
 
-Removal-only OCI generations create an obligation the settle retires as
-inapplicable, and removal-affected consumers can be missed:
-`producerEvidenceExistsQuery` requires non-tombstoned identity facts, so
-a generation that only tombstones manifests never reaches the reopen
-listings, and partial-removal generations link only their surviving
-evidence while consumers embedding the removed keys lack intersection.
-Those consumers stay stale until the next commit-driven epoch pass.
-(Drift is not affected: its arms carry no tombstone filter, so tombstoned
-ARNs still link.) This sits inside arbiter-blessed R2-A and needs a
-design decision (tombstone-aware owe plus previous-generation linkage),
-so it is deferred to #7705 rather than fixed here; see that issue for the
-acceptance criteria.
+Removal-only OCI generations used to create an obligation the settle
+retired as inapplicable, and removal-affected consumers could be missed:
+`producerEvidenceExistsQuery` required non-tombstoned identity facts, so
+a generation that only tombstoned manifests never reached the reopen
+listings, and partial-removal generations linked only their surviving
+evidence while consumers embedding the removed keys lacked intersection.
+(Drift was never affected: its arms carry no tombstone filter, so
+tombstoned ARNs still link.)
+
+#7705 closed this with tombstone-aware owe plus removed-key linkage.
+The evidence probe gained a tombstone arm: an identity-filter-kind
+tombstone with a live predecessor payload under the same
+`stable_fact_key` in an older generation of the scope now owes, while a
+predecessor-less tombstone still retires inapplicable. The owed-keys
+query gained a `UNION ALL` arm extracting keys from the predecessor
+payload (tombstone payloads are empty). Both predecessor lookups bound
+the search to the scope's older generations
+(`producerOlderGenerationIDsSQL`), so every fact probe stays
+`(scope_id, generation_id)`-anchored; no new index, no new telemetry —
+removal settles flow through the existing outcome and reopened counters.
+Proof: `TestProducerRemovalOnlyGenerationReopensConsumersLive`,
+`TestProducerPartialRemovalReopensBothLive`,
+`TestProducerTombstoneWithoutPredecessorStaysInapplicableLive`,
+`TestProducerRemovalKindPrefilterDifferentialLive`, and
+`TestProducerRemovalOwedKeysPlanLive` (20k bulk rows, no sequence scan,
+one probe per side).
 
 Observability Evidence: the consumer emits `eshu_dp_producer_activation_settle_total`
 (by outcome), `eshu_dp_producer_activation_reopened_total` (by consumer

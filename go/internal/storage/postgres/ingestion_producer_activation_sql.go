@@ -174,10 +174,15 @@ UNION ALL
 const producerKeyedFactKinds = `('oci_registry.image_manifest', 'oci_registry.image_index', 'oci_registry.image_tag_observation', 'aws_image_reference', 'azure_image_reference', 'gcp_image_reference', 'file', 'kubernetes_live.pod_template')`
 
 // producerOwedOCIKeysQuery reads the owed generation's OCI linkage keys once
-// per settle. The keys are invariant for the settle, so the settle fetches
-// them in one indexed probe and passes them as arrays to the listing below;
-// joining them inside the correlated EXISTS would rescan the owed
-// generation's facts once per floored candidate.
+// per settle: the live keys plus the removed keys (#7705). The keys are
+// invariant for the settle, so the settle fetches them in one indexed probe
+// and passes them as arrays to the listing below; joining them inside the
+// correlated EXISTS would rescan the owed generation's facts once per
+// floored candidate. The removed-keys arm extracts from the live
+// predecessor payload, never the tombstone: tombstone payloads are empty.
+// Keys may repeat across arms and predecessors; the consumer intersection
+// (ANY/IN) is duplicate-insensitive, matching the live arm, which never
+// deduplicated either.
 var producerOwedOCIKeysQuery = `
 SELECT keys.repo_key, keys.tag, keys.digest
 FROM fact_records AS owed_fact, ` + producerFactKeysLateral("owed_fact") + ` AS keys
@@ -185,6 +190,20 @@ WHERE owed_fact.scope_id = $1
   AND owed_fact.generation_id = $2
   AND owed_fact.is_tombstone = FALSE
   AND owed_fact.fact_kind IN ` + producerKeyedFactKinds + `
+UNION ALL
+SELECT pkeys.repo_key, pkeys.tag, pkeys.digest
+FROM fact_records AS tomb
+JOIN fact_records AS prev
+  ON prev.scope_id = $1
+ AND prev.generation_id IN (` + producerOlderGenerationIDsSQL + `)
+ AND prev.stable_fact_key = tomb.stable_fact_key
+ AND prev.is_tombstone = FALSE
+ AND prev.fact_kind IN ` + producerKeyedFactKinds + `,
+` + producerFactKeysLateral("prev") + ` AS pkeys
+WHERE tomb.scope_id = $1
+  AND tomb.generation_id = $2
+  AND tomb.is_tombstone = TRUE
+  AND tomb.fact_kind IN ` + producerKeyedFactKinds + `
 `
 
 // producerOCILinkageConjunct narrows the shipped correlation listing to the
@@ -278,12 +297,54 @@ var listProducerDependentDriftItemsQuery = deriveQueryAtMarker(
 	producerDriftLinkageConjunct,
 )
 
+// producerOlderGenerationIDsSQL enumerates the scope's generations older
+// than the owed one ($1 scope, $2 owed generation), riding
+// scope_generations_scope_latest_lookup_idx on (scope_id, ingested_at).
+// Both #7705 predecessor lookups bound the live-predecessor search to this
+// set so the fact probe stays (scope_id, generation_id)-anchored instead
+// of scanning the scope's history by key, for which no index exists.
+const producerOlderGenerationIDsSQL = `
+SELECT older.generation_id
+FROM scope_generations AS older
+JOIN scope_generations AS owed
+  ON owed.scope_id = $1
+ AND owed.generation_id = $2
+WHERE older.scope_id = $1
+  AND older.ingested_at < owed.ingested_at
+`
+
+// producerTombstoneEvidenceArmSQL matches a tombstone that retracts producer
+// evidence (#7705): an identity-filter kind with a live predecessor payload
+// under the same stable_fact_key in an older generation of the scope.
+// Tombstone payloads are empty, so the arm matches kinds, never the
+// filter's payload predicates; the predecessor side re-pins the same kinds
+// because a stable_fact_key embeds its fact kind, so a same-key
+// predecessor is the same kind or the key derivation is broken elsewhere.
+// The kind list derives from the identity filter text, so a new filter arm
+// automatically extends the tombstone match, and the regex derivation picks
+// the same literals from the composed core text for the prefilter. A
+// predecessor-less tombstone matches nothing: removal without a live past
+// is not producer evidence.
+var producerTombstoneEvidenceArmSQL = `(fact.is_tombstone = TRUE
+          AND fact.fact_kind IN (` + producerQuoteKindListSQL(producerEvidenceFactKindsFromFilter(identityFactFilterSQL)) + `)
+          AND EXISTS (
+            SELECT 1
+            FROM fact_records AS prev
+            WHERE prev.scope_id = $1
+              AND prev.generation_id IN (` + producerOlderGenerationIDsSQL + `)
+              AND prev.stable_fact_key = fact.stable_fact_key
+              AND prev.is_tombstone = FALSE
+              AND prev.fact_kind IN (` + producerQuoteKindListSQL(producerEvidenceFactKindsFromFilter(identityFactFilterSQL)) + `)
+          ))`
+
 // producerEvidenceCoreSQL is the producer-evidence predicate: identity-filter
 // facts (embedded verbatim with the loader's own 'fact' alias, mirroring
-// the loader including its tombstone filter) or terraform_state_resource
-// facts with a joinable ARN (mirroring the drift reader, which has no
-// tombstone filter).
+// the loader including its tombstone filter), tombstones retracting
+// identity-filter evidence with a live predecessor (#7705), or
+// terraform_state_resource facts with a joinable ARN (mirroring the drift
+// reader, which has no tombstone filter).
 var producerEvidenceCoreSQL = `(` + identityFactFilterSQL + ` AND fact.is_tombstone = FALSE)
+      OR ` + producerTombstoneEvidenceArmSQL + `
       OR (fact.fact_kind = 'terraform_state_resource'
           AND btrim(COALESCE(fact.payload->'attributes'->>'arn', '')) <> '')`
 
@@ -292,19 +353,28 @@ var producerEvidenceCoreSQL = `(` + identityFactFilterSQL + ` AND fact.is_tombst
 var producerEvidenceFactKindPattern = regexp.MustCompile(`fact_kind\s+IN\s*\(([^)]*)\)|fact_kind\s*=\s*'([^']*)'`)
 
 // producerEvidenceFactKindsFromFilter extracts every fact_kind literal the
-// identity filter can match, in filter order. The probe's kind prefilter is
-// derived from the filter text itself, never hand-copied, so a new filter
-// arm cannot silently fall outside the prefilter.
+// identity filter can match, in filter order, deduplicated: the composed
+// core predicate repeats the identity kinds in the #7705 tombstone arm, and
+// the prefilter lists each kind once. First occurrence wins, so the pinned
+// derivation order never changes when an arm repeats a kind.
 func producerEvidenceFactKindsFromFilter(filter string) []string {
 	var kinds []string
+	seen := map[string]struct{}{}
+	add := func(kind string) {
+		if _, ok := seen[kind]; ok {
+			return
+		}
+		seen[kind] = struct{}{}
+		kinds = append(kinds, kind)
+	}
 	for _, match := range producerEvidenceFactKindPattern.FindAllStringSubmatch(filter, -1) {
 		if match[1] != "" {
 			for _, item := range strings.Split(match[1], ",") {
-				kinds = append(kinds, strings.Trim(strings.TrimSpace(item), "'"))
+				add(strings.Trim(strings.TrimSpace(item), "'"))
 			}
 			continue
 		}
-		kinds = append(kinds, match[2])
+		add(match[2])
 	}
 	return kinds
 }
@@ -321,7 +391,12 @@ func producerEvidenceFactKindsFromFilter(filter string) []string {
 // non-producer facts only to filter them out (F1: a 5000-row non-producer
 // generation costs 882 buffers unprefiltered, 4 prefiltered).
 func producerEvidenceFactKindListSQL() string {
-	kinds := producerEvidenceFactKindsFromFilter(producerEvidenceCoreSQL)
+	return producerQuoteKindListSQL(producerEvidenceFactKindsFromFilter(producerEvidenceCoreSQL))
+}
+
+// producerQuoteKindListSQL formats extracted kind literals as a
+// comma-separated quoted SQL list for an IN predicate.
+func producerQuoteKindListSQL(kinds []string) string {
 	quoted := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
 		quoted = append(quoted, "'"+kind+"'")
