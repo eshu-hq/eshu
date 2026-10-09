@@ -151,7 +151,9 @@ To confirm the cause, check the `not_listed_sample` slugs on GitHub:
 ## Expired-row sweep
 
 The collector marks exactly one request per cycle with `Request.SweepExpired`:
-the githubOrg request, or the last owner's request in explicit mode. After that
+the githubOrg request, or the last owner's request in explicit mode. A cycle
+that issues no request (filesystem mode, an explicit list with no owners, or
+no observer wired) sweeps nothing. After that
 request's `evaluated`, `guard_tripped`, or `listing_truncated` outcome, `Observer` calls
 `Store.DeleteExpiredObservations(now, ExpiredObservationGrace)` once. That
 deletes rows of every selector whose `evaluated_at` plus their own liveness

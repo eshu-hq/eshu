@@ -114,7 +114,7 @@ With the exclusion all 16,000 abandoned `not_listed` rows survive and no
 abandoned row of another state does. The probe costs about 3 ms more because
 it filters the kept `not_listed` rows on each pass.
 
-The probe runs once per collector cycle on shard 0, so the steady state is
+The probe runs at most once per collector cycle on shard 0, so the steady state is
 the common case; that is why the batch is unordered. No index: the
 predicate combines two columns with an interval, and an expression index on
 `timestamptz + interval` is not allowed because the operator is only
