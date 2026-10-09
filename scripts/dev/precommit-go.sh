@@ -45,6 +45,26 @@ gosec_version="${gosec_version:-v2.27.1}"
 note() { printf 'precommit-go: %s\n' "$*" >&2; }
 die() { printf 'precommit-go: %s\n' "$*" >&2; exit 1; }
 
+# ledger_gate_base prints the commit the measurement-citations gate must diff
+# against: the merge base of origin/main and HEAD, NOT the tip of origin/main.
+# The gate's append-only ledger check compares the ledger at this base with the
+# worktree ledger, so a tip base makes every row main gained since the branch
+# point look "deleted" on a branch that is merely behind main (#7859). CI does
+# not hit this: its HEAD is the pull request merge ref, which already holds
+# main's rows. Falls back to the origin/main tip only when no merge base
+# exists, then to HEAD~1 when origin/main is not resolvable at all.
+ledger_gate_base() {
+	local mb
+	mb="$(git -C "${repo_root}" merge-base origin/main HEAD 2>/dev/null || true)"
+	if [[ -n "${mb}" ]]; then
+		printf '%s\n' "${mb}"
+	elif git -C "${repo_root}" rev-parse --verify origin/main >/dev/null 2>&1; then
+		printf '%s\n' "origin/main"
+	else
+		printf '%s\n' "HEAD~1"
+	fi
+}
+
 # go_dirs prints the unique go/-relative package dirs (as ./path) for the staged
 # Go files passed as args, so package-level tools run only on what changed.
 go_dirs() {
@@ -418,9 +438,11 @@ case "${cmd}" in
 		# evidence"): a change touching storage/cypher, storage/postgres, collector,
 		# reducer, query, runtime, workers, queues, etc. needs a tracked evidence
 		# marker. The CI gate diffs the PR against its base; reproduce that here by
-		# pinning the base to origin/main (its own HEAD~1 fallback would only see the
-		# last commit and miss multi-commit branches). Needs bash >= 4 (the gate
-		# uses associative arrays); the script's shebang resolves that from PATH.
+		# passing origin/main. The gate only reads `git diff "${base}"...HEAD`, a
+		# merge-base diff, so the tip is equivalent to the merge base and a branch
+		# behind main is not penalised (unlike the ledger check in
+		# measurement-citations below). Needs bash >= 4 (the gate uses associative
+		# arrays); the script's shebang resolves that from PATH.
 		git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
 		base="origin/main"
 		git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
@@ -445,8 +467,9 @@ case "${cmd}" in
 	telemetry)
 		# The telemetry-coverage gate (verify-telemetry-coverage.yml): a new metric
 		# or pipeline stage must be reflected in the X1 coverage doc. Like the
-		# perf-evidence gate it diffs against the PR base, so pin it to origin/main
-		# (the script's HEAD~1 fallback only sees the last commit).
+		# perf-evidence gate it diffs against the PR base and only reads the
+		# merge-base form `git diff --diff-filter=A "${base}"...HEAD`, so passing
+		# the origin/main tip is equivalent to the merge base.
 		git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
 		base="origin/main"
 		git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
@@ -456,12 +479,13 @@ case "${cmd}" in
 		# The measurement-ledger citation gate (static-contract-gates.yml "Verify
 		# measurement-citations gate"): a newly added "<N>/<M> trials" or
 		# "Measurement:" claim must cite a docs/internal/measurements.jsonl row.
-		# Like perf-evidence and telemetry it diffs against the PR base, so pin it
-		# to origin/main (the script's HEAD~1 fallback only sees the last commit
-		# and would miss earlier commits on a multi-commit branch).
+		# It diffs against the PR base, and its append-only ledger check compares
+		# the ledger AT that base with the worktree ledger. Hand it the merge base,
+		# not the origin/main tip: a branch behind main by a new ledger row would
+		# otherwise see that row as deleted (#7859). Fetch first so the merge base
+		# is current. See ledger_gate_base.
 		git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
-		base="origin/main"
-		git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
+		base="$(ledger_gate_base)"
 		ESHU_MEASUREMENT_CITATIONS_BASE="${base}" "${repo_root}/scripts/verify-measurement-citations.sh"
 		;;
 	lint-all)

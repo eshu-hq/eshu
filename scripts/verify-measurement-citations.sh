@@ -57,8 +57,10 @@ fi
 # fixed in verify-performance-evidence.sh and verify-root-cause-evidence.sh. A
 # HEAD~1 default scopes the gate to the last commit alone, so an uncited
 # measurement claim added in an earlier commit of a multi-commit branch escapes
-# whenever the tip commit is innocuous. scripts/dev/precommit-go.sh pins
-# origin/main for its own call, but a direct invocation gets this default.
+# whenever the tip commit is innocuous. scripts/dev/precommit-go.sh passes the
+# same merge base explicitly (its ledger_gate_base), never the origin/main tip:
+# the append-only ledger check below reads the ledger AT this base, so a tip
+# base would report rows main gained after the branch point as deleted (#7859).
 if [ -z "$base" ]; then
   if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
     merge_base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || true)"

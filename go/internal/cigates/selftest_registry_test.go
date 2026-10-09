@@ -84,6 +84,8 @@ func TestCommittedRegistrySelfTestHarnessInputsAreCovered(t *testing.T) {
 		"measurement-citations": {
 			"scripts/verify-measurement-citations.sh",
 			"scripts/test-verify-measurement-citations.sh",
+			"scripts/dev/precommit-go.sh",
+			"scripts/test-precommit-go-merge-base.sh",
 		},
 		"docs-build-changed": {
 			"docs/public/index.md",

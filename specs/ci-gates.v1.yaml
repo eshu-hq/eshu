@@ -2018,14 +2018,20 @@ gates:
       - "go/**/evidence-*.md"
       - "scripts/verify-measurement-citations.sh"
       - "scripts/test-verify-measurement-citations.sh"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/test-precommit-go-merge-base.sh"
       - "specs/ci-gates.v1.yaml"
       - ".github/workflows/static-contract-gates.yml"
     self_test_triggers:
       - "scripts/verify-measurement-citations.sh"
       - "scripts/test-verify-measurement-citations.sh"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/test-precommit-go-merge-base.sh"
     local:
       command: "bash scripts/verify-measurement-citations.sh"
-      test_command: "bash scripts/test-verify-measurement-citations.sh"
+      # The second half pins the diff base the pre-push wrapper hands this gate
+      # (merge base, not the origin/main tip; #7859).
+      test_command: "bash scripts/test-verify-measurement-citations.sh && bash scripts/test-precommit-go-merge-base.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify measurement-citations gate"
