@@ -1,0 +1,20 @@
+go/internal/query/code_topic_fleet_endpoint_live_test.go
+  s_b0d7e3abc26c5a::t_ad3775580d0188 8,10,17,26,35-49,51-94,191-196,248-249,251-254,261-264,279-282,333-334,338-341
+  s_b0d7e3abc26c5a::t_039462912b804a 50,256,343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc5392c0e635541483f1cd2a2c4cb26b68bd1a71",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
