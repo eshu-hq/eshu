@@ -51,6 +51,16 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 		return err
 	}
 
+	// A blank writing generation normalizes to NULL, not an empty string.
+	// Both read dirty (fail-safe), but only NULL stays eligible for the
+	// migration-169 backfill guard (`WHERE generation_id IS NULL`); a stored
+	// empty string would stay dirty until a later generation rewrites the
+	// path (#7889 review).
+	tag := any(generationID)
+	if strings.TrimSpace(generationID) == "" {
+		tag = nil
+	}
+
 	args := make([]any, 0, len(batch)*columnsPerContentFile)
 	var values strings.Builder
 
@@ -80,7 +90,7 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 			row.templateDialect,
 			row.iacRelevant,
 			indexedAt,
-			generationID,
+			tag,
 		)
 	}
 

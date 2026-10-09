@@ -314,6 +314,37 @@ func TestReducerContentionGateContentWriterStampsGenerationTag(t *testing.T) {
 	}
 }
 
+// TestReducerContentionGateContentWriterBlankGenerationStoresNull proves a
+// materialization with a blank generation id stores NULL, not an empty
+// string, on its file rows (#7889 review). Both read dirty, but only NULL
+// stays eligible for the migration-169 backfill guard.
+func TestReducerContentionGateContentWriterBlankGenerationStoresNull(t *testing.T) {
+	ctx, database := openContentGenerationTagSchema(t)
+	writer := NewContentWriter(SQLDB{DB: database})
+	_, err := writer.Write(ctx, content.Materialization{
+		RepoID:       "repo-blank",
+		ScopeID:      "scope-blank",
+		GenerationID: "   ",
+		SourceSystem: "git",
+		Records: []content.Record{
+			{Path: "package.json", Body: `{"name": "@acme/blank"}`},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	var tag any
+	row := database.QueryRowContext(ctx,
+		`SELECT generation_id FROM content_files
+		 WHERE repo_id = 'repo-blank' AND relative_path = 'package.json'`)
+	if err := row.Scan(&tag); err != nil {
+		t.Fatalf("read stored tag: %v", err)
+	}
+	if tag != nil {
+		t.Fatalf("stored tag = %v, want NULL: a blank writing generation must not stamp ''", tag)
+	}
+}
+
 // TestReducerContentionGateContentFilesBackfillAttributesOnlyCleanScopes
 // proves migration 169's B1 backfill tags a legacy row with the scope's
 // active generation only where every guard clause holds, and leaves every
