@@ -5,13 +5,16 @@ package query
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,12 +23,73 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	runtimepostgres "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 type codeTopicFleetObserver struct {
 	businessQueries atomic.Int64
 	borrows         atomic.Int64
+}
+
+// codeTopicFleetProbeGate holds each real standby probe until all four have
+// entered QueryContext. A serial partition loop times out instead of passing
+// on the same query and borrow totals as parallel execution.
+type codeTopicFleetProbeGate struct {
+	arrived atomic.Int32
+	release chan struct{}
+}
+
+type codeTopicFleetProbeStore struct {
+	db.ReadStore
+	snapshots db.ReadSnapshotSetBeginner
+	gate      atomic.Pointer[codeTopicFleetProbeGate]
+}
+
+func (s *codeTopicFleetProbeStore) MaxReadConnections() int {
+	return s.snapshots.MaxReadConnections()
+}
+
+func (s *codeTopicFleetProbeStore) BeginReadOnlySnapshotSet(ctx context.Context, count int) (db.ReadSnapshotSet, error) {
+	set, err := s.snapshots.BeginReadOnlySnapshotSet(ctx, count)
+	if err != nil {
+		return nil, err
+	}
+	return codeTopicFleetProbeSet{ReadSnapshotSet: set, gate: s.gate.Load()}, nil
+}
+
+type codeTopicFleetProbeSet struct {
+	db.ReadSnapshotSet
+	gate *codeTopicFleetProbeGate
+}
+
+func (s codeTopicFleetProbeSet) Reader(index int) (db.Queryer, error) {
+	reader, err := s.ReadSnapshotSet.Reader(index)
+	if err != nil {
+		return nil, err
+	}
+	return codeTopicFleetProbeReader{Queryer: reader, gate: s.gate}, nil
+}
+
+type codeTopicFleetProbeReader struct {
+	db.Queryer
+	gate *codeTopicFleetProbeGate
+}
+
+func (r codeTopicFleetProbeReader) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	if r.gate != nil && strings.Contains(query, "WITH terms(term) AS") && !strings.Contains(query, "jsonb_to_recordset") {
+		if r.gate.arrived.Add(1) == 4 {
+			close(r.gate.release)
+		}
+		select {
+		case <-r.gate.release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(5 * time.Second):
+			return nil, fmt.Errorf("four code-topic probes did not overlap: arrived=%d", r.gate.arrived.Load())
+		}
+	}
+	return r.Queryer.QueryContext(ctx, query, args...)
 }
 
 func (o *codeTopicFleetObserver) Observe(role string, stage runtimepostgres.Stage, outcome runtimepostgres.Outcome, _ time.Duration) {
@@ -124,7 +188,12 @@ FROM generate_series(1, 251) AS i`)
 		}
 	})
 	reader := access.Reader()
-	handler := &CodeHandler{Content: NewContentReaderWithReadStore(reader), Profile: ProfileLocalAuthoritative}
+	snapshotReader, ok := reader.(db.ReadSnapshotSetBeginner)
+	if !ok {
+		t.Fatal("fleet reader does not provide a snapshot set")
+	}
+	probeStore := &codeTopicFleetProbeStore{ReadStore: reader, snapshots: snapshotReader}
+	handler := &CodeHandler{Content: NewContentReaderWithReadStore(probeStore), Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	terms := []string{
@@ -176,14 +245,23 @@ FROM generate_series(1, 251) AS i`)
 			}
 			beforeHealthyQueries := observer.businessQueries.Load()
 			beforeHealthyBorrows := observer.borrows.Load()
+			healthyGate := &codeTopicFleetProbeGate{release: make(chan struct{})}
+			probeStore.gate.Store(healthyGate)
 			healthy := post()
+			if got := healthyGate.arrived.Load(); got != 4 {
+				t.Fatalf("healthy concurrent probe arrivals=%d, want four", got)
+			}
+			probeStore.gate.Store(nil)
 			if got := observer.businessQueries.Load() - beforeHealthyQueries; got < 5 {
-				t.Fatalf("healthy business queries=%d, want four parallel probes and one assembly", got)
+				t.Fatalf("healthy reader query operations=%d, want at least five", got)
 			}
 			if got := observer.borrows.Load() - beforeHealthyBorrows; got < 4 {
 				t.Fatalf("healthy reader borrows=%d, want four snapshot readers", got)
 			}
-			coverage := healthy["coverage"].(map[string]any)
+			coverage, ok := healthy["coverage"].(map[string]any)
+			if !ok {
+				t.Fatalf("healthy coverage=%#v, want object", healthy["coverage"])
+			}
 			if got := coverage["searched_term_count"]; got != float64(16) {
 				t.Fatalf("searched_term_count=%v, want 16 to exercise four-reader fleet", got)
 			}
@@ -198,7 +276,10 @@ FROM generate_series(1, 251) AS i`)
 				t.Fatalf("healthy evidence_groups=%#v, want nonempty", healthy["evidence_groups"])
 			}
 			for _, raw := range groups {
-				row := raw.(map[string]any)
+				row, ok := raw.(map[string]any)
+				if !ok {
+					t.Fatalf("healthy evidence row=%#v, want object", raw)
+				}
 				if row["repo_id"] != "repo://tenant-a/granted" || row["language"] != "go" {
 					t.Fatalf("row escaped grant or language filter: %#v", row)
 				}
@@ -249,11 +330,17 @@ FROM generate_series(1, 251) AS i`)
 			}
 			beforeRecoveredQueries := observer.businessQueries.Load()
 			beforeRecoveredBorrows := observer.borrows.Load()
+			recoveredGate := &codeTopicFleetProbeGate{release: make(chan struct{})}
+			probeStore.gate.Store(recoveredGate)
 			if recovered := post(); !reflect.DeepEqual(recovered, healthy) {
 				t.Fatalf("recovered response differs from healthy: got=%#v want=%#v", recovered, healthy)
 			}
+			if got := recoveredGate.arrived.Load(); got != 4 {
+				t.Fatalf("recovered concurrent probe arrivals=%d, want four", got)
+			}
+			probeStore.gate.Store(nil)
 			if got := observer.businessQueries.Load() - beforeRecoveredQueries; got < 5 {
-				t.Fatalf("recovered business queries=%d, want four parallel probes and one assembly", got)
+				t.Fatalf("recovered reader query operations=%d, want at least five", got)
 			}
 			if got := observer.borrows.Load() - beforeRecoveredBorrows; got < 4 {
 				t.Fatalf("recovered reader borrows=%d, want four snapshot readers", got)
