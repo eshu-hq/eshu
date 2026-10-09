@@ -194,8 +194,8 @@ func TestRecordCycleBackoff_EmitsGauges(t *testing.T) {
 
 // TestRunSamplesCycleGaugesOnProductiveCycles proves the cycle gauges
 // sample every cycle: the run below performs exactly one productive
-// cycle and cancels before any empty cycle can run, so the poll-interval
-// data point can only come from the productive path.
+// cycle and cancels before any empty cycle can run, so the 0 data point
+// can only come from the productive path (immediate re-poll, no wait).
 func TestRunSamplesCycleGaugesOnProductiveCycles(t *testing.T) {
 	t.Parallel()
 
@@ -228,8 +228,8 @@ func TestRunSamplesCycleGaugesOnProductiveCycles(t *testing.T) {
 	}
 
 	rm := collectMetrics(t, reader)
-	if !gaugeFloatHasAttrsAndValue(rm, "eshu_dp_shared_projection_cycle_backoff_seconds", map[string]any{}, 0.05) {
-		t.Error("cycle_backoff_seconds: no data point with the poll interval 0.05 after the productive cycle")
+	if !gaugeFloatHasAttrsAndValue(rm, "eshu_dp_shared_projection_cycle_backoff_seconds", map[string]any{}, 0.0) {
+		t.Error("cycle_backoff_seconds: no data point with 0 after the productive cycle (immediate re-poll records no wait)")
 	}
 }
 

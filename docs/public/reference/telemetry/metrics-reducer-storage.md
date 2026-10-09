@@ -305,7 +305,7 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_code_call_edge_batch_duration_seconds` | histogram | Isolated code-call edge batch latency. |
 | `eshu_dp_shared_projection_partition_visits_total` | counter | Shared-projection partition visits by `domain` and closed `outcome` (`visited`, `backoff_skipped`, `lease_held`, `error`) (#7724). Every cell records one outcome per cycle, and every outcome except `backoff_skipped` is one lease claim attempt: this is the idle-claim signal. |
 | `eshu_dp_shared_projection_partition_backoff_seconds` | gauge | Current per-partition backoff delay by `domain` and `partition_id` (#7724; bounded 11×8 grid). Zero means full cadence; `T_max` (default 30s) means pinned. |
-| `eshu_dp_shared_projection_cycle_backoff_seconds` | gauge | Current global shared-projection cycle backoff interval, sampled every cycle (the poll interval on productive ones) (#7724). |
+| `eshu_dp_shared_projection_cycle_backoff_seconds` | gauge | Current global shared-projection cycle backoff interval, sampled every cycle (0 on productive ones: immediate re-poll, no wait) (#7724). |
 | `eshu_dp_shared_projection_partitions_at_max_backoff` | gauge | Partitions pinned at `T_max` backoff, sampled every cycle (#7724). |
 | `eshu_dp_shared_projection_prefetch_keys_total` | counter | Distinct prefetch keys submitted to the store by `domain` and closed `kind` (`acceptance`, `readiness`); readiness counts only queried keys (#7724). |
 | `eshu_dp_shared_projection_prefetch_queries_total` | counter | Prefetch SQL queries issued by `domain` and `kind`; batched prefetches issue at most ceil(keys/1000) (#7724). |

@@ -142,7 +142,9 @@ func (r *Runner) Run(ctx context.Context) error {
 
 		if result.ProcessedIntents > 0 {
 			consecutiveEmpty = 0
-			r.sampleCycleBackoffGauges(ctx, r.Config.pollInterval())
+			// Productive cycles re-poll immediately, so the recorded
+			// wait is 0 rather than the poll interval (#7826 T2).
+			r.sampleCycleBackoffGauges(ctx, 0)
 			continue // immediately re-poll
 		}
 

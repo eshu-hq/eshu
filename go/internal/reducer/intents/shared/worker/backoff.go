@@ -263,8 +263,8 @@ func (r *Runner) recordCycleBackoff(ctx context.Context, backoff time.Duration, 
 
 // sampleCycleBackoffGauges records the current global backoff interval
 // and the count of partitions pinned at T_max. It runs every cycle —
-// including productive ones — so the gauges never go stale behind a
-// drain.
+// including productive ones, which record 0 (immediate re-poll, no
+// wait) — so the gauges never go stale behind a drain.
 func (r *Runner) sampleCycleBackoffGauges(ctx context.Context, interval time.Duration) {
 	if r.Instruments == nil {
 		return

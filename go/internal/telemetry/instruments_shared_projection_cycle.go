@@ -44,6 +44,11 @@ const (
 	SharedProjectionPrefetchKindReadiness = "readiness"
 )
 
+// sharedProjectionPrefetchBuckets bounds the #7724 prefetch store-time
+// histogram, shared with the bucket audit table so a future retune
+// cannot drift one without the other.
+var sharedProjectionPrefetchBuckets = []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
+
 // registerSharedProjectionCycle registers the #7724 shared-projection
 // visit/backoff/prefetch instruments on inst. Labels are closed bounded
 // sets: domain (the fixed sharedProjectionDomains list), outcome (the
@@ -103,7 +108,7 @@ func registerSharedProjectionCycle(meter metric.Meter, inst *Instruments) error 
 	if inst.SharedProjectionPrefetchDuration, err = meter.Float64Histogram(
 		"eshu_dp_shared_projection_prefetch_seconds",
 		metric.WithDescription("Prefetch store time by domain and kind (#7724)"),
-		metric.WithExplicitBucketBoundaries(0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
+		metric.WithExplicitBucketBoundaries(sharedProjectionPrefetchBuckets...),
 	); err != nil {
 		return fmt.Errorf("register SharedProjectionPrefetchDuration histogram: %w", err)
 	}

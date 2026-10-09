@@ -288,8 +288,8 @@ type Instruments struct {
 	SharedProjectionPartitionBackoff metric.Float64Gauge
 	// SharedProjectionCycleBackoff is the current global
 	// shared-projection cycle backoff interval (#7724), sampled every
-	// cycle (the poll interval on productive ones) so it never goes
-	// stale behind a drain.
+	// cycle (0 on productive ones: immediate re-poll, no wait) so it
+	// never goes stale behind a drain.
 	SharedProjectionCycleBackoff metric.Float64Gauge
 	// SharedProjectionPartitionsAtMaxBackoff counts partitions pinned at
 	// T_max backoff, sampled each cycle (#7724).
