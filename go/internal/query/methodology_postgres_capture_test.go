@@ -10,6 +10,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"reflect"
 	"sort"
 	"strings"
@@ -277,13 +279,15 @@ func methodologyPostgresWork(t *testing.T, plan string) json.RawMessage {
 	rootTotal := func(keys ...string) float64 {
 		var total float64
 		for _, key := range keys {
-			if counter, present := root[key]; present {
-				number, valid := counter.(float64)
-				if !valid {
-					t.Fatalf("invalid root counter %s: %v", key, counter)
-				}
-				total += number
+			counter, present := root[key]
+			if !present {
+				t.Fatalf("missing root counter %s", key)
 			}
+			number, valid := counter.(float64)
+			if !valid {
+				t.Fatalf("invalid root counter %s: %v", key, counter)
+			}
+			total += number
 		}
 		return total
 	}
@@ -312,5 +316,28 @@ func TestMethodologyPostgresWorkUsesInclusiveRootCounters(t *testing.T) {
 	}
 	if work["root_buffers_total"] != float64(10) || work["root_temp_blocks_total"] != float64(0) {
 		t.Fatalf("root work=%v", work)
+	}
+}
+
+func TestMethodologyPostgresWorkRequiresSixRootCounters(t *testing.T) {
+	probes := map[string]string{
+		"all_missing":        `[ {"Plan":{"Node Type":"Index Scan"}} ]`,
+		"one_shared_missing": `[ {"Plan":{"Shared Hit Blocks":0,"Shared Read Blocks":0,"Local Hit Blocks":0,"Temp Read Blocks":0,"Temp Written Blocks":0}} ]`,
+		"one_temp_missing":   `[ {"Plan":{"Shared Hit Blocks":0,"Shared Read Blocks":0,"Local Hit Blocks":0,"Local Read Blocks":0,"Temp Read Blocks":0}} ]`,
+		"invalid_type":       `[ {"Plan":{"Shared Hit Blocks":"zero","Shared Read Blocks":0,"Local Hit Blocks":0,"Local Read Blocks":0,"Temp Read Blocks":0,"Temp Written Blocks":0}} ]`,
+	}
+	if name := os.Getenv("ESHU_METHOD_PG_COUNTER_PROBE"); name != "" {
+		methodologyPostgresWork(t, probes[name])
+		return
+	}
+	for name := range probes {
+		t.Run(name, func(t *testing.T) {
+			command := exec.Command(os.Args[0], "-test.run", "^TestMethodologyPostgresWorkRequiresSixRootCounters$")
+			command.Env = append(os.Environ(), "ESHU_METHOD_PG_COUNTER_PROBE="+name)
+			output, err := command.CombinedOutput()
+			if err == nil || !strings.Contains(string(output), "root counter") {
+				t.Fatalf("invalid EXPLAIN root accepted or failed for wrong reason: %v: %s", err, output)
+			}
+		})
 	}
 }
