@@ -20,21 +20,21 @@ checks the destination digest. It creates no mutable version tags. Repeated or
 concurrent copies publish the same content. The manual mirror mode skips every
 normal Eshu image, chart, and release job.
 
-## Bootstrap and public-access gate
+## Publication and public-access gate
 
-1. Independently review the exact branch commit and record its full SHA. The
-   `workflow_dispatch` trigger exists on the default branch, so manual runs
-   are available. The mirror jobs exist on the reviewed branch; `--ref`
-   runs that branch's workflow and code before merge:
+1. Independently review the exact `main` commit and record its full SHA. Run
+   the manual publisher from that commit:
 
    ```bash
-   gh workflow run docker-publish.yml --ref fix/ci-owned-image-mirror-20261009 \
+   gh workflow run docker-publish.yml --ref main \
      -f mode=ci-mirrors-publish -f expected_sha=<reviewed-40-character-sha>
    ```
 
    The publisher rejects a moved branch when `GITHUB_SHA` differs from
-   `expected_sha`. It allows only this bootstrap branch or `main`, and only
-   a manual run in `eshu-hq/eshu`.
+   `expected_sha`. It allows only a manual run on `main` in `eshu-hq/eshu`.
+   The initial three indexes were published from the reviewed bootstrap branch
+   in [run 38000888647](https://github.com/eshu-hq/eshu/actions/runs/38000888647)
+   before the `main`-only restriction. Do not reuse that branch for refreshes.
 
 2. New GHCR container packages start private. Before changing visibility, a
    package admin must inspect **every version** in each of the three packages
@@ -46,10 +46,10 @@ normal Eshu image, chart, and release job.
 3. After that package-wide inspection, an authorized package admin changes
    each package's visibility to Public in its package settings. This is an
    external, irreversible visibility change; the workflow does not do it.
-4. Run the anonymous check from the reviewed branch (or `main` after merge):
+4. Run the anonymous check from `main`:
 
    ```bash
-   gh workflow run docker-publish.yml --ref fix/ci-owned-image-mirror-20261009 \
+   gh workflow run docker-publish.yml --ref main \
      -f mode=ci-mirrors-verify-public
    ```
 

@@ -83,9 +83,11 @@ if rg -q '^cp .*ghcr.io/eshu-hq/ci-[^@: ]+:[^@ ]+$' "${CRANE_CALLS}"; then
   fail 'publisher attempted a mutable tag destination'
 fi
 
-# The existing default-branch workflow can dispatch this exact reviewed branch
-# to bootstrap the packages before consumers depend on them.
+# After bootstrap, the publisher must reject the temporary branch.
 export GITHUB_REF=refs/heads/fix/ci-owned-image-mirror-20261009
+expect_failure bash "${publisher}" publish
+[[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'bootstrap ref copied existing digests'
+export GITHUB_REF=refs/heads/main
 bash "${publisher}" publish > "${scratch}/out"
 [[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'same-byte rerun tried to recopy existing digests'
 

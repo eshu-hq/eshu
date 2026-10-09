@@ -74,12 +74,12 @@ for spec in 'publish-ci-service-mirrors:ci-mirrors-publish' \
   job="${spec%%:*}"
   mode="${spec#*:}"
   condition="$(job_condition "${job}")"
-  [[ "${condition}" == *"github.event_name == 'workflow_dispatch' && inputs.mode == '${mode}'"* ]] ||
-    fail "${job} does not require its exact manual mode"
-  [[ "${condition}" == *"github.repository == 'eshu-hq/eshu'"* ]] ||
-    fail "${job} does not require the parent repository"
-  [[ "${condition}" == *"github.ref == 'refs/heads/fix/ci-owned-image-mirror-20261009'"* ]] ||
-    fail "${job} cannot run on the reviewed bootstrap branch"
+  expected_condition="    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.mode == '${mode}' &&
+      github.repository == 'eshu-hq/eshu' &&
+      github.ref == 'refs/heads/main'"
+  [[ "${condition}" == "${expected_condition}" ]] ||
+    fail "${job} is not limited to its exact mode on eshu-hq/eshu main"
 done
 
 publisher_body="$(job_body publish-ci-service-mirrors)"
