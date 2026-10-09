@@ -19,7 +19,7 @@ new walk bounds the work it issues and does not depend on the planner's choice.
 It is not faster for every class: on the real corpus it is slower for the
 selective and zero-match classes and much faster for the common-token classes.
 
-V4c reader run (ops-qa read replica, read-only, SQL `Execution Time` sums, one
+V4c reader run (a deployed read replica, read-only, SQL `Execution Time` sums, one
 run for old and new, figures rounded as in the issue comment; budget B = 800 ms;
 old is the single statement in the planner's natural regime, warm with the
 first run (cold) in parentheses):
