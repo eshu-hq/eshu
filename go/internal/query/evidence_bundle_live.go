@@ -161,6 +161,7 @@ func liveEvidenceSnapshotFromReport(report status.Report, repoCount int) evidenc
 		HealthState:       report.Health.State,
 		HealthReasons:     append([]string(nil), report.Health.Reasons...),
 		QueueBlockedCount: sumQueueBlockedCounts(report.QueueBlockages),
+		ActiveWorkSource:  report.ActiveWorkSource.JSON(),
 		Queue: evidencebundle.LiveQueueSnapshot{
 			Total:                 report.Queue.Total,
 			Outstanding:           report.Queue.Outstanding,

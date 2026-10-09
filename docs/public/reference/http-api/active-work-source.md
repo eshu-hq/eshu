@@ -7,16 +7,23 @@ that data is. The routes are `GET /api/v0/status/pipeline`,
 `GET /api/v0/status/index` (and `GET /api/v0/index-status`),
 `GET /api/v0/status/ingesters`, `GET /api/v0/status/ingesters/{ingester}`,
 `GET /api/v0/ingesters` and its `{ingester}` alias,
-`GET /api/v0/status/hosted-readiness`, and `GET /api/v0/status/operations`,
-plus the runtime `/admin/status` JSON. A scoped caller of the index and
-operations routes does not read the status snapshot, so the object is absent
-there. A reader that reports no source adds no key.
+`GET /api/v0/status/hosted-readiness`, `GET /api/v0/status/operations`,
+`GET /api/v0/status/freshness-causality`,
+`GET /api/v0/status/operator-control-plane`, and
+`GET /api/v0/evidence/bundle`, plus the runtime `/admin/status` JSON. A scoped
+caller of the index and operations routes does not read the status snapshot,
+so the object is absent there. A reader that reports no source adds no key.
 
-Not every route that renders this data carries the object yet. The live evidence
-bundle and the freshness-causality route read the same report and have no
-`active_work_source`, so with the reader on they serve stored counts without the
-marker; a follow-up covers them before the reader's default changes (see the
-evidence note for #7009).
+Routes that read the status report but render none of the stored sections
+carry no object (#7660 triage): `GET /api/v0/status/collectors` (and
+`GET /api/v0/collectors`), `GET /api/v0/status/collector-readiness` (and
+`GET /api/v0/collector-readiness`), `GET /api/v0/status/governance`,
+`GET /api/v0/status/semantic-extraction`, and
+`GET /api/v0/status/answer-narration`. The collectors routes render collector
+runtimes and promotion readiness only; governance renders environment config
+plus semantic-extraction state; semantic-extraction reads through the
+semantic-only selection, which never touches the stored summary; and
+answer-narration renders the static narration posture only.
 
 ```json
 {

@@ -134,9 +134,10 @@ func TestRoutesThatSkipTerraformNeverCarryTheTerraformStateSource(t *testing.T) 
 
 // TestLiveEvidenceBundleNeverCarriesTheTerraformStateSource: the live bundle
 // reads the report with Terraform evidence skipped and composes a
-// LiveSnapshot that has no field for a source marker, so it cannot carry the key
-// even when the report does. The route is not a StatusHandler route, so it has
-// its own check.
+// LiveSnapshot that has no field for a Terraform-state marker, so it cannot
+// carry the key even when the report does. (It does carry active_work_source
+// via LiveSnapshot.ActiveWorkSource since #7660.) The route is not a
+// StatusHandler route, so it has its own check.
 func TestLiveEvidenceBundleNeverCarriesTheTerraformStateSource(t *testing.T) {
 	t.Parallel()
 

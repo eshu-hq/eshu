@@ -6,6 +6,8 @@ package evidencebundle
 import (
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // liveProfile is deliberately "unknown". Nothing in the three status routes
@@ -43,6 +45,11 @@ type LiveSnapshot struct {
 	DomainBacklogsTruncated bool
 	Collectors              []LiveCollectorSnapshot
 	SemanticExtraction      LiveSemanticExtractionSnapshot
+	// ActiveWorkSource is the stored-summary marker the status reader
+	// reported for the queue, stage, backlog, blockage, and failure figures
+	// this snapshot carries (#7660). Nil when the reader reports none, in
+	// which case the bundle omits the key.
+	ActiveWorkSource *status.ActiveWorkSourceJSON
 }
 
 // LiveQueueSnapshot mirrors the reducer/ingest queue depth reported by
@@ -187,6 +194,7 @@ func BuildLiveBundle(snapshot LiveSnapshot, opts LiveBundleOptions) Bundle {
 			PipelineState:         &pipelineState,
 			SemanticProviderState: &semanticState,
 		},
+		ActiveWorkSource: snapshot.ActiveWorkSource,
 		Missing: []MissingEvidence{
 			{
 				Family: "fact_counts",

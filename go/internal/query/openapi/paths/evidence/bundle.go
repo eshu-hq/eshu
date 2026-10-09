@@ -40,6 +40,7 @@ const Bundle = `
                     "missing_evidence": {"type": "array", "items": {"type": "object"}},
                     "reproduce": {"type": "array", "items": {"type": "object"}},
                     "bounds": {"type": "object"},
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "validation": {"type": "object", "properties": {
                       "status": {"type": "string", "enum": ["passed"]},
                       "checks": {"type": "array", "items": {"type": "string"}}
