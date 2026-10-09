@@ -6,6 +6,9 @@ legal request at that maximum over a common name returned
 262,144-byte budget in the 2026-10-08 read sweep). The error carried no rows and
 no way to reach the remainder.
 
+`repo-A` in this note is a stable placeholder for the measured repository id; the
+mapping is held outside the repository.
+
 ## Page size model
 
 A throwaway test (not committed) built rows shaped like a common-name hit: a
