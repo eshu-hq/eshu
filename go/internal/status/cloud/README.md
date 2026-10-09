@@ -83,11 +83,11 @@ Measurement: identical before/after outcomes (ledger:6949-cloud-batch1-before,
 ledger:6949-cloud-batch1-after). The command is `go test -count=1` over
 the 3 affected package targets (`./internal/status/...`,
 `./internal/query/`, `./internal/storage/postgres/`) on baseline
-`16c8c2a365` vs measurement commit `7f68c9cb5c` (this Evidence section,
+`5f72790f6e` vs measurement commit `c5d4128c01` (this Evidence section,
 the two ledger rows, and content-identical rebases tracking main are the
 only later changes): 3 packages ok, 0 fail on both sides, with the
 ok-package set byte-identical after timing strip. `go test -list`
-inventory is identical on both sides (5482 tests). Backend/version:
+inventory is identical on both sides (5486 tests). Backend/version:
 go1.26.9 linux/amd64, in-memory; no backend touched. Input shape: n/a
 (no runtime input). Terminal queue/row counts: none — no queue, lease,
 Cypher, or SQL path is touched. Contract gates green on the branch:
