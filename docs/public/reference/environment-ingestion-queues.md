@@ -116,6 +116,7 @@ held time for large repositories.
 | `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `500ms` | reducer shared projection | Idle poll interval; idle cycles back off up to `5s`. |
 | `ESHU_SHARED_PROJECTION_LEASE_TTL` | `60s` | reducer shared projection | Partition lease TTL. |
 | `ESHU_SHARED_PROJECTION_LEASE_OWNER` | `shared-projection-runner:<hostname>:<pid>:<boot-nonce>` | reducer shared projection | Per-process partition lease owner. A configured value replaces the prefix; the process suffix is always appended. |
+| `ESHU_SHARED_PROJECTION_PARTITION_BACKOFF_MAX` | `30s` (hard cap `5m`) | reducer shared projection | T_max for per-partition backoff (#7724): the longest a persistently unproductive (domain, partition) waits between visits, and the pickup bound for work arriving during backoff. |
 | `ESHU_CODE_CALL_PROJECTION_POLL_INTERVAL` | `500ms` | reducer code-call sidecar | Idle poll interval for code-call projection. |
 | `ESHU_CODE_CALL_PROJECTION_LEASE_TTL` | `60s` | reducer code-call sidecar | Lease TTL for code-call projection work. |
 | `ESHU_CODE_CALL_PROJECTION_BATCH_LIMIT` | `100` | reducer code-call sidecar | Claim batch size for code-call work. |

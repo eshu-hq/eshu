@@ -6,9 +6,11 @@ package worker
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -130,6 +132,105 @@ func (r *Runner) recordSharedProjectionPartitionMetrics(
 				telemetry.AttrDomain(domain),
 			),
 		)
+	}
+}
+
+// recordPartitionVisit records one partition visit's outcome and the
+// cell's current backoff delay (#7724): the visits counter (domain +
+// closed outcome) is the idle-claim-attempt signal — every outcome except
+// backoff_skipped is one lease claim — and the backoff gauge (domain +
+// partition_id) shows the live per-cell delay, zero at full cadence.
+func (r *Runner) recordPartitionVisit(
+	ctx context.Context,
+	domain string,
+	partitionID int,
+	outcome string,
+	delay time.Duration,
+) {
+	if r.Instruments == nil {
+		return
+	}
+	r.Instruments.SharedProjectionPartitionVisits.Add(
+		ctx,
+		1,
+		metric.WithAttributes(
+			telemetry.AttrDomain(domain),
+			telemetry.AttrOutcome(outcome),
+		),
+	)
+	r.Instruments.SharedProjectionPartitionBackoff.Record(
+		ctx,
+		delay.Seconds(),
+		metric.WithAttributes(
+			telemetry.AttrDomain(domain),
+			telemetry.AttrPartitionID(partitionID),
+		),
+	)
+}
+
+// recordSelectionPrefetch records one visit's selection prefetch behavior
+// (#7724): widen rounds, and per-kind keys submitted, queries issued,
+// rows returned, cache hits, and store durations. A visit that ran no
+// selection (lease held, backoff skipped) records nothing.
+func (r *Runner) recordSelectionPrefetch(
+	ctx context.Context,
+	domain string,
+	result PartitionProcessResult,
+) {
+	if r.Instruments == nil || result.SelectionRounds == 0 {
+		return
+	}
+	r.Instruments.SharedProjectionSelectionRounds.Add(
+		ctx,
+		int64(result.SelectionRounds),
+		metric.WithAttributes(
+			telemetry.AttrDomain(domain),
+		),
+	)
+	r.recordPrefetchKind(ctx, domain, sharedintent.PrefetchKindAcceptance, result.PrefetchStats.Acceptance)
+	r.recordPrefetchKind(ctx, domain, sharedintent.PrefetchKindReadiness, result.PrefetchStats.Readiness)
+}
+
+// recordPrefetchKind records one prefetch kind's counters and duration
+// histogram, skipping zero observations so an idle kind emits no
+// zero-valued points.
+func (r *Runner) recordPrefetchKind(
+	ctx context.Context,
+	domain string,
+	kind sharedintent.PrefetchKind,
+	stats sharedintent.PrefetchKindStats,
+) {
+	attrs := metric.WithAttributes(
+		telemetry.AttrDomain(domain),
+		telemetry.AttrKind(prefetchKindLabel(kind)),
+	)
+	if stats.Keys > 0 {
+		r.Instruments.SharedProjectionPrefetchKeys.Add(ctx, int64(stats.Keys), attrs)
+	}
+	if stats.Queries > 0 {
+		r.Instruments.SharedProjectionPrefetchQueries.Add(ctx, int64(stats.Queries), attrs)
+	}
+	if stats.Rows > 0 {
+		r.Instruments.SharedProjectionPrefetchRows.Add(ctx, int64(stats.Rows), attrs)
+	}
+	if stats.CacheHits > 0 {
+		r.Instruments.SharedProjectionPrefetchCacheHits.Add(ctx, int64(stats.CacheHits), attrs)
+	}
+	if stats.Duration > 0 {
+		r.Instruments.SharedProjectionPrefetchDuration.Record(ctx, stats.Duration.Seconds(), attrs)
+	}
+}
+
+// prefetchKindLabel maps a sharedintent prefetch kind onto the closed
+// kind label set of the prefetch instruments.
+func prefetchKindLabel(kind sharedintent.PrefetchKind) string {
+	switch kind {
+	case sharedintent.PrefetchKindAcceptance:
+		return telemetry.SharedProjectionPrefetchKindAcceptance
+	case sharedintent.PrefetchKindReadiness:
+		return telemetry.SharedProjectionPrefetchKindReadiness
+	default:
+		return string(kind)
 	}
 }
 

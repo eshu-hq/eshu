@@ -190,6 +190,34 @@ func (database *sharedProjectionAcceptanceTestDB) QueryContext(_ context.Context
 
 func queryAcceptanceRows(rows []sharedProjectionAcceptanceRow, query string, args ...any) (db.Rows, error) {
 	switch {
+	case strings.Contains(query, "UNNEST("):
+		if len(args) != 3 {
+			return nil, fmt.Errorf("expected 3 array args, got %d", len(args))
+		}
+		scopes, ok := args[0].([]string)
+		if !ok {
+			return nil, fmt.Errorf("batch arg 0 is %T, want []string", args[0])
+		}
+		units, ok := args[1].([]string)
+		if !ok {
+			return nil, fmt.Errorf("batch arg 1 is %T, want []string", args[1])
+		}
+		runs, ok := args[2].([]string)
+		if !ok {
+			return nil, fmt.Errorf("batch arg 2 is %T, want []string", args[2])
+		}
+		byKey := make(map[string]sharedProjectionAcceptanceRow, len(rows))
+		for _, row := range rows {
+			byKey[acceptanceKey(row.scopeID, row.acceptanceUnitID, row.sourceRunID)] = row
+		}
+		var matches [][]any
+		for i := range scopes {
+			if row, ok := byKey[acceptanceKey(scopes[i], units[i], runs[i])]; ok {
+				matches = append(matches, []any{row.scopeID, row.acceptanceUnitID, row.sourceRunID, row.generationID})
+			}
+		}
+		return &acceptanceRows{data: matches, idx: -1}, nil
+
 	case strings.Contains(query, "WHERE scope_id = $1"):
 		if len(args) != 3 {
 			return nil, fmt.Errorf("expected 3 args, got %d", len(args))

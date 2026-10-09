@@ -43,6 +43,7 @@ an edge writer.
 | `UnroutableReasonMissingRequiredField` / `UnroutableReasonNoStatementForType` | bounded unroutable reasons |
 | `PartitionLeaseManager` | claims/releases a worker partition lease |
 | `AcceptedGenerationLookup` / `AcceptedGenerationPrefetch` | accepted-generation resolution for a batch |
+| `PrefetchKind` / `PrefetchStats` / `ContextWithPrefetchStats` / `RecordPrefetch` | per-kind keys/queries/rows/cache-hits/durations accumulator carried through the frozen prefetch signatures (#7724) |
 | `PartitionHashForKey` / `PartitionForKey` | stable partition assignment for a key |
 | `RowsForPartition` | filters rows to one worker partition |
 | `RowRepoID` | the repo id a row's readiness/presence gates key on |

@@ -78,8 +78,13 @@ Registers no instruments of its own; it records through the
 `CanonicalWriteDuration`, `SharedProjectionPartitionProcessingDuration`,
 `SharedProjectionIntentsCompleted`, `SharedProjectionStepDuration`,
 `SharedProjectionPartitionHeartbeatMissed`, `SharedAcceptanceLookupDuration`,
-`SharedAcceptanceLookupErrors`, `SharedProjectionStaleIntents`), unchanged by
-this move since the instruments followed their call sites.
+`SharedAcceptanceLookupErrors`, `SharedProjectionStaleIntents`, plus the
+#7724 visit/backoff/prefetch family: `SharedProjectionPartitionVisits`,
+`SharedProjectionPartitionBackoff`, `SharedProjectionCycleBackoff`,
+`SharedProjectionPartitionsAtMaxBackoff`, `SharedProjectionPrefetchKeys`,
+`SharedProjectionPrefetchQueries`, `SharedProjectionPrefetchRows`,
+`SharedProjectionPrefetchCacheHits`, `SharedProjectionPrefetchDuration`,
+`SharedProjectionSelectionRounds`).
 `SharedProjectionStaleIntents` carries a closed `reason` attribute:
 `acceptance_mismatch` or `generation_superseded` (#7121).
 
@@ -150,6 +155,25 @@ re-activating a superseded generation, because the SQL does not enforce that
 (`sharedintent.DomainHasRepoWideRetract`). A domain added to that set without
 a matching change in `internal/storage/cypher`'s `wholeScopeRetractDomains`
 table gets the #6166 over-delete.
+
+**Prefetches batch; readiness caches across rounds; acceptance never does
+(#7724).** The storage prefetches resolve one UNNEST/JOIN query per 1000
+distinct keys. Within one `SelectPartitionBatch` call the readiness
+answers cache across widen rounds (delta-only re-queries). Acceptance is
+re-queried fresh every round, and the #7121 drain re-read bypasses the
+cache — a stale cached answer on either path can complete a live row as
+stale and lose its edge permanently. Widening still runs to the cap with
+no early stop.
+
+**Per-partition backoff paces idle cells; the global loop does not pin on
+blocked rows (#7724).** Each `(domain, partition)` cell gets K=2
+full-cadence unproductive visits, then `min(poll*2^(n-K), T_max)` with
+`T_max` defaulting to 30s (`ESHU_SHARED_PROJECTION_PARTITION_BACKOFF_MAX`,
+hard cap 5m). Any completion resets the cell; lease-miss and error visits
+hold it. The global poll interval doubles on consecutive zero-completion
+cycles regardless of blocked counts. `Runner.BackoffState()` is the debug
+surface; `blocked_count` / `blocked_intent_wait_seconds` stay the
+stall signals, distinct from backoff.
 
 ## Related docs
 
