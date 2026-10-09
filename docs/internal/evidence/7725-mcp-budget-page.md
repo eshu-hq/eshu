@@ -6,6 +6,9 @@ legal request at that maximum over a common name returned
 262,144-byte budget in the 2026-10-08 read sweep). The error carried no rows and
 no way to reach the remainder.
 
+`repo-A` in this note is a stable placeholder for the measured repository id; the
+mapping is held outside the repository.
+
 ## Page size model
 
 A throwaway test (not committed) built rows shaped like a common-name hit: a
@@ -18,7 +21,7 @@ measured the single-copy (resource-only) size the guard compares to the budget.
 | `search_entity_content` | 200 | 1,038,916 | 5,194 | about 50 |
 | `find_code` | 200 | 1,486,172 | 7,430 | about 35 |
 
-### Production row sizes (read-only, ops-prod)
+### Production row sizes (read-only, the production environment)
 
 The arbiter required real sizes. The `search_entity_content` shape for pattern
 `decode` with no repository (limit 200, the sweep's call index 1 and 9) was run
@@ -29,7 +32,7 @@ sizes returned. The 200 rows serialize to 447,180 bytes in the embedded
 resource form (mean 2,228, max 6,342 bytes per row), against 262,144, so 133 of
 200 rows fit. The sizes agree with the observed 884,737-byte two-copy reply
 (about 404 KB structured plus 447 KB escaped resource plus envelope) within 4%.
-`find_code` for query `decode`, language php, repository `r_957cd853` takes the
+`find_code` for query `decode`, language php, repository `repo-A` takes the
 graph path, which Postgres cannot reproduce. Its page size is derived from the
 observed 610,762-byte two-copy reply, not measured: about 1.6 KB per row, so
 about 160 of 200 rows fit. The trim does not depend on either number; it
@@ -104,7 +107,7 @@ failed on both tools (for example `find_code` limit 25: page 1 held
 
 ## Tie-break cost evidence
 
-Neo4j (ops-prod, 2026.08.1, read-only shim, `PROFILE`, same statement text apart
+Neo4j (the production environment, 2026.08.1, read-only shim, `PROFILE`, same statement text apart
 from `ORDER BY e.name` versus `ORDER BY e.name, e.id`):
 
 | Repo (files / rows before Top) | Db hits old / new | Delta | Warm time |

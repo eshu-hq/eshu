@@ -7,8 +7,11 @@ Scope: `SearchEntitiesByLanguageAndTypeForAccess`
 `content_entities (repo_id, language, entity_type)`. No Go SQL changes.
 
 This is a **Prove-The-Theory-First** record. The defect was reproduced on the
-ops-prod read replica, three predicate-only rewrites were measured and rejected
+production read replica, three predicate-only rewrites were measured and rejected
 there, and the index was measured on a scratch clone. No DDL ran on production.
+
+`repo-A` to `repo-I` in this note are stable one-to-one placeholders for the
+measured repository ids; the mapping is held outside the repository.
 
 ## The defect
 
@@ -20,13 +23,13 @@ For a repository with many JavaScript functions the planner probes
 `(javascript, Function)` entries in heap order and discards every entry that
 belongs to another repository until the first row of the target repository.
 
-ops-prod read replica (PG 18.3, 2,240,821 `content_entities` rows),
-`repository:r_8946df89` (241,726 rows, 44,433 JavaScript functions), body
+Measured on the production read replica (PG 18.3, 2,240,821 `content_entities` rows),
+`repository:repo-B` (241,726 rows, 44,433 JavaScript functions), body
 `{language: javascript, entity_type: function, limit: 10}`, 2026-10-08:
 
 ```text
 InitPlan 1: Index Scan using content_entities_language_type_idx
-  Filter: (repo_id = 'repository:r_8946df89')   Rows Removed by Filter: 121106
+  Filter: (repo_id = 'repository:repo-B')   Rows Removed by Filter: 121106
   Buffers: shared hit=155688   actual time=276.233 rows=1
 Execution Time: 277.489 ms        (same page without the gate: 5.679 ms)
 ```
@@ -39,13 +42,13 @@ repository is small.
 
 | candidate | cheapest proof | old | new | accuracy | concurrency | disposition |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| Drop the gate when `repo_id` is set | ops-prod reader `EXPLAIN` | JS TerraformResource on the slow repo 0.2 ms | 4548.6 ms, 1,431,639 buffers | same rows | no change | rejected |
-| Fence the gate onto the repository (`OFFSET 0`) | ops-prod reader `EXPLAIN` | JS Function 277.5 ms | 314.0 ms; kotlin Function 25.6 ms to 387.4 ms | same rows | no change | rejected |
-| Gate on the corpus pair only | ops-prod reader `EXPLAIN` | JS Class (repo-empty) 25.5 ms | 1034.1 ms, 1.44M buffers | same rows | no change | rejected |
+| Drop the gate when `repo_id` is set | production reader `EXPLAIN` | JS TerraformResource on the slow repo 0.2 ms | 4548.6 ms, 1,431,639 buffers | same rows | no change | rejected |
+| Fence the gate onto the repository (`OFFSET 0`) | production reader `EXPLAIN` | JS Function 277.5 ms | 314.0 ms; kotlin Function 25.6 ms to 387.4 ms | same rows | no change | rejected |
+| Gate on the corpus pair only | production reader `EXPLAIN` | JS Class (repo-empty) 25.5 ms | 1034.1 ms, 1.44M buffers | same rows | no change | rejected |
 | Index `(repo_id, language, entity_type)` | scratch clone `EXPLAIN` | gate 51,000 to 55,000 buffers (forced shape) | gate 3 to 6 buffers | same rows | one more btree on a hot table | proven on the clone, production confirmation pending |
 
 Probe details for the three rejected rows (warm, literal parameters, custom-plan
-shape; slow repo `r_8946df89`):
+shape; slow repo `repo-B`):
 
 | case | current gate | no gate | repo-fenced gate | corpus-pair gate |
 | --- | ---: | ---: | ---: | ---: |
@@ -64,7 +67,7 @@ Clone: pod `pg-rehearsal-s1`, PG 18.3, `shared_buffers` 128 MB, default
 rows. The clone ran the four scripts with rc=0 and no ERROR lines. Raw outputs
 are in the operator-local 7247 preflight directory, not committed.
 
-**Honest limit.** The clone does not contain `r_8946df89`. Its largest
+**Honest limit.** The clone does not contain `repo-B`. Its largest
 JavaScript-function repository has 12,982 rows, and the planner already takes
 `content_entities_repo_idx` for the gate there (worst natural gate 63.6 ms
 first-touch). The clone therefore cannot show the planner choosing the
@@ -85,9 +88,9 @@ Forced arm: the gate written `(repo_id || '') = ...` with `enable_seqscan` and
 117,648) reproduce the production shape:
 
 ```text
-S1a r_df9e7bda forced: Rows Removed by Filter 126289, gate Buffers 55170, 204.2 ms first-touch
-S1b r_3368ccc4 forced: Rows Removed by Filter 126071, gate Buffers 54998, 180.9 ms
-S1c r_d770bcfd forced: Rows Removed by Filter 117648, gate Buffers 50998, 166.8 ms
+S1a repo-C forced: Rows Removed by Filter 126289, gate Buffers 55170, 204.2 ms first-touch
+S1b repo-D forced: Rows Removed by Filter 126071, gate Buffers 54998, 180.9 ms
+S1c repo-E forced: Rows Removed by Filter 117648, gate Buffers 50998, 166.8 ms
 ```
 
 Natural arm, the shipped query with the planner free. Times are
@@ -95,20 +98,20 @@ first-touch / repeat in ms. "Gate bufs" is the gate InitPlan's buffer count.
 
 | case | before: gate plan | before ms | before gate bufs | after: gate plan | after ms | after gate bufs |
 | --- | --- | ---: | ---: | --- | ---: | ---: |
-| S1a r_df9e7bda JS Function | repo_idx | 6.6 / 0.6 | 114 | repo_language_type_idx | 0.8 / 0.5 | 4 |
-| S1b r_3368ccc4 JS Function | repo_idx | 6.1 / 0.4 | 53 | repo_language_type_idx | 0.5 / 0.3 | 4 |
-| S1c r_d770bcfd JS Function | repo_idx | 4.6 / 0.3 | 11 | repo_language_type_idx | 0.4 / 0.2 | 5 |
-| S3a r_957cd853 php Function | Seq Scan | 756.2 / 157.1 | 175 | repo_language_type_idx | 170.6 / 150.1 | 4 |
-| S3b r_b0ff4ca0 php Function | repo_idx | 3.4 / 0.1 | 30 | repo_language_type_idx | 0.1 / 0.1 | 4 |
-| S5 r_df9e7bda kotlin Function (repo-empty) | Bitmap Heap Scan | 0.4 / 0.3 | 21 | repo_language_type_idx | 0.04 / 0.02 | 3 |
-| S6 r_d770bcfd JS Class (repo-empty) | language_type_idx | 0.9 / 0.1 | 265 | repo_language_type_idx | 0.05 / 0.03 | 6 |
-| S7 r_df9e7bda JS TerraformResource (corpus-empty) | Bitmap Heap Scan | 0.04 / 0.03 | 6 | repo_language_type_idx | 0.04 / 0.03 | 6 |
-| S2 r_df9e7bda hcl Function (corpus-empty) | repo_idx | 4.9 / 2.5 | 1156 | repo_language_type_idx | 0.03 / 0.02 | 3 |
-| R1 r_957cd853 JS Function | Seq Scan | 0.7 / 4.5 | 178 | repo_language_type_idx | 0.3 / 0.1 | 4 |
-| R2 r_4ff9d0b5 JS Function | repo_idx | 1.7 / 0.6 | 7 | repo_language_type_idx | 0.4 / 0.07 | 4 |
-| R3 r_2645123f JS Function | repo_idx | 1.6 / 0.6 | 44 | repo_language_type_idx | 0.3 / 0.07 | 4 |
-| R4 r_0cfe3508 JS Function | repo_idx | 3.1 / 0.5 | 27 | repo_language_type_idx | 2.3 / 0.5 | 4 |
-| S4 r_4ff9d0b5 php Function (repo-empty) | repo_idx | 1.2 / 0.5 | 305 | repo_language_type_idx | 0.02 / 0.02 | 3 |
+| S1a repo-C JS Function | repo_idx | 6.6 / 0.6 | 114 | repo_language_type_idx | 0.8 / 0.5 | 4 |
+| S1b repo-D JS Function | repo_idx | 6.1 / 0.4 | 53 | repo_language_type_idx | 0.5 / 0.3 | 4 |
+| S1c repo-E JS Function | repo_idx | 4.6 / 0.3 | 11 | repo_language_type_idx | 0.4 / 0.2 | 5 |
+| S3a repo-A php Function | Seq Scan | 756.2 / 157.1 | 175 | repo_language_type_idx | 170.6 / 150.1 | 4 |
+| S3b repo-F php Function | repo_idx | 3.4 / 0.1 | 30 | repo_language_type_idx | 0.1 / 0.1 | 4 |
+| S5 repo-C kotlin Function (repo-empty) | Bitmap Heap Scan | 0.4 / 0.3 | 21 | repo_language_type_idx | 0.04 / 0.02 | 3 |
+| S6 repo-E JS Class (repo-empty) | language_type_idx | 0.9 / 0.1 | 265 | repo_language_type_idx | 0.05 / 0.03 | 6 |
+| S7 repo-C JS TerraformResource (corpus-empty) | Bitmap Heap Scan | 0.04 / 0.03 | 6 | repo_language_type_idx | 0.04 / 0.03 | 6 |
+| S2 repo-C hcl Function (corpus-empty) | repo_idx | 4.9 / 2.5 | 1156 | repo_language_type_idx | 0.03 / 0.02 | 3 |
+| R1 repo-A JS Function | Seq Scan | 0.7 / 4.5 | 178 | repo_language_type_idx | 0.3 / 0.1 | 4 |
+| R2 repo-G JS Function | repo_idx | 1.7 / 0.6 | 7 | repo_language_type_idx | 0.4 / 0.07 | 4 |
+| R3 repo-H JS Function | repo_idx | 1.6 / 0.6 | 44 | repo_language_type_idx | 0.3 / 0.07 | 4 |
+| R4 repo-I JS Function | repo_idx | 3.1 / 0.5 | 27 | repo_language_type_idx | 2.3 / 0.5 | 4 |
+| S4 repo-G php Function (repo-empty) | repo_idx | 1.2 / 0.5 | 305 | repo_language_type_idx | 0.02 / 0.02 | 3 |
 
 Findings:
 
@@ -162,15 +165,15 @@ not a measurement.
 
 ## Production confirmation (not yet done)
 
-After migration 164 is applied to ops-prod, run read-only
-`EXPLAIN (ANALYZE, BUFFERS)` of the gate for `repository:r_8946df89` on the read
+After migration 164 is applied to the production environment, run read-only
+`EXPLAIN (ANALYZE, BUFFERS)` of the gate for `repository:repo-B` on the read
 replica. Expected: the gate InitPlan is an Index Only Scan on
 `content_entities_repo_language_type_idx` with single-digit buffers, and the
 page read stays near 5.7 ms.
 
 ## Performance Evidence
 
-Performance Evidence: the gate InitPlan for `repository:r_8946df89` JavaScript
+Performance Evidence: the gate InitPlan for `repository:repo-B` JavaScript
 Function was an Index Scan on `content_entities_language_type_idx` with
 `Rows Removed by Filter: 121106` and 155,688 buffers (277.5 ms warm). On the
 clone, the same plan shape (forced) costs 50,998 to 55,170 gate buffers across
