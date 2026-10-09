@@ -6,6 +6,7 @@ package unscoped_test
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -61,16 +62,24 @@ func newCorpus(n int, rowCost time.Duration, isMatch func(i int) bool) *fakeCorp
 	return corpus
 }
 
-func (c *fakeCorpus) indexAfter(repo, path string) int {
-	if repo == "" && path == "" {
-		return 0
+// indexAfter returns the index of the first row after the keyset cursor. The
+// fake reads the operator from the statement text, not from the walk's intent:
+// a statement that spells the predicate ">=" re-reads the cursor row, exactly
+// as PostgreSQL would, so a wrong operator in the shipped SQL changes the rows.
+func (c *fakeCorpus) indexAfter(query, repo, path string) (int, error) {
+	if !strings.Contains(query, "(repo_id, relative_path) >") {
+		return 0, fmt.Errorf("fake: cursor arguments bound but the statement has no keyset predicate: %s", query)
 	}
+	inclusive := strings.Contains(query, "(repo_id, relative_path) >=")
 	for i, row := range c.rows {
 		if row.repo > repo || (row.repo == repo && row.path > path) {
-			return i
+			if inclusive && i > 0 {
+				return i - 1, nil
+			}
+			return i, nil
 		}
 	}
-	return len(c.rows)
+	return len(c.rows), nil
 }
 
 // fakeDB is the Beginner the searcher opens its transaction on.
@@ -166,9 +175,9 @@ func (tx *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db
 		tx.indexOff = false
 		return newFakeRows(nil), nil
 	case "step":
-		return tx.runStep(args)
+		return tx.runStep(query, args)
 	case "tail":
-		return tx.runTail(args)
+		return tx.runTail(query, args)
 	}
 	return nil, fmt.Errorf("fake: unclassified statement %q", query)
 }
@@ -207,12 +216,28 @@ func (tx *fakeTx) cancel(lag time.Duration) (db.Rows, error) {
 
 // runStep simulates the key-ordered window statement: $1 pattern, $2 window
 // rows, $3 matches wanted, optional $4/$5 cursor.
-func (tx *fakeTx) runStep(args []any) (db.Rows, error) {
+func (tx *fakeTx) runStep(query string, args []any) (db.Rows, error) {
 	window := int(args[1].(int64))
 	want := int(args[2].(int64))
 	from := 0
 	if len(args) >= 5 {
-		from = tx.db.corpus.indexAfter(args[3].(string), args[4].(string))
+		var err error
+		if from, err = tx.db.corpus.indexAfter(query, args[3].(string), args[4].(string)); err != nil {
+			return nil, err
+		}
+	} else if strings.Contains(query, "(repo_id, relative_path) >") {
+		return nil, fmt.Errorf("fake: keyset predicate without cursor arguments: %s", query)
+	}
+	// The edge row is the row at OFFSET (window - back) after the cursor; the
+	// shipped text says OFFSET ($2::bigint - 1), so the edge is the window's
+	// last row. Any other expression moves the cursor off the window.
+	edgeBack := 0
+	match := edgeOffsetPattern.FindStringSubmatch(query)
+	if match == nil {
+		return nil, fmt.Errorf("fake: no recognizable edge OFFSET in the statement: %s", query)
+	}
+	if match[1] != "" {
+		edgeBack, _ = strconv.Atoi(match[1])
 	}
 	rows := tx.db.corpus.rows
 	var cost time.Duration
@@ -229,7 +254,7 @@ func (tx *fakeTx) runStep(args []any) (db.Rows, error) {
 		return tx.cancel(0)
 	}
 	tx.db.clock.advance(cost)
-	if edge := from + window - 1; edge < len(rows) {
+	if edge := from + window - edgeBack; edge >= 0 && edge < len(rows) {
 		out = append(out, fileRow(kindEdge, rows[edge]))
 	}
 	return newFakeRows(out), nil
@@ -238,14 +263,19 @@ func (tx *fakeTx) runStep(args []any) (db.Rows, error) {
 // runTail simulates the trigram bitmap statement: $1 pattern, $2 matches
 // wanted, optional $3/$4 cursor. It refuses to run with index scans enabled,
 // because the contract is that the tail is planned as the trigram bitmap.
-func (tx *fakeTx) runTail(args []any) (db.Rows, error) {
+func (tx *fakeTx) runTail(query string, args []any) (db.Rows, error) {
 	if !tx.indexOff {
 		return nil, fmt.Errorf("fake: tail ran with enable_indexscan on")
 	}
 	want := int(args[1].(int64))
 	from := 0
 	if len(args) >= 4 {
-		from = tx.db.corpus.indexAfter(args[2].(string), args[3].(string))
+		var err error
+		if from, err = tx.db.corpus.indexAfter(query, args[2].(string), args[3].(string)); err != nil {
+			return nil, err
+		}
+	} else if strings.Contains(query, "(repo_id, relative_path) >") {
+		return nil, fmt.Errorf("fake: keyset predicate without cursor arguments: %s", query)
 	}
 	cost := tx.db.corpus.tailCost(from)
 	if tx.timeout > 0 && cost > tx.timeout {
@@ -260,6 +290,10 @@ func (tx *fakeTx) runTail(args []any) (db.Rows, error) {
 	}
 	return newFakeRows(out), nil
 }
+
+// edgeOffsetPattern reads the edge branch of a window statement:
+// OFFSET ($2::bigint - N) LIMIT 1.
+var edgeOffsetPattern = regexp.MustCompile(`OFFSET \(\$2::bigint(?: - (\d+))?\) LIMIT 1`)
 
 const (
 	kindHit  = "hit"

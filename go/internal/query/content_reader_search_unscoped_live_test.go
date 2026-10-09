@@ -8,13 +8,20 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -32,6 +39,11 @@ const (
 	liveMediumToken   = "widget"
 	liveRareToken     = "zq_rare_literal_k"
 	liveNoTrigramHits = "zz"
+	// liveEdgeToken sits on the rows a window statement ends on and on the row
+	// after each, so a duplicated or skipped boundary row changes the answer.
+	// Window edges fall on g = 200 + 500k when the walk starts at the first row
+	// (200-row probe, then 500-row steps), and the tail resumes after one.
+	liveEdgeToken = "edgemark"
 )
 
 func openUnscopedLiveFixture(t *testing.T) (context.Context, *sql.DB) {
@@ -66,9 +78,10 @@ func openUnscopedLiveFixture(t *testing.T) (context.Context, *sql.DB) {
 			         || CASE WHEN g %% 4 = 0 THEN ' %[2]s' ELSE '' END
 			         || CASE WHEN g %% 50 = 7 THEN ' %[3]s' ELSE '' END
 			         || CASE WHEN g IN (9001, 11000, 11777) THEN ' %[4]s' ELSE '' END
-			         || CASE WHEN g IN (3, 10001, 11999) THEN ' %[5]s' ELSE '' END,
+			         || CASE WHEN g IN (3, 10001, 11999) OR g %% 500 IN (200, 201) THEN ' %[5]s' ELSE '' END
+			         || CASE WHEN g %% 500 IN (200, 201) THEN ' %[6]s' ELSE '' END,
 			       md5(g::text), 1, 'go', 'source'
-			FROM generate_series(1, %[1]d) g`, liveFixtureRows, liveDenseToken, liveMediumToken, liveRareToken, liveNoTrigramHits),
+			FROM generate_series(1, %[1]d) g`, liveFixtureRows, liveDenseToken, liveMediumToken, liveRareToken, liveNoTrigramHits, liveEdgeToken),
 		`CREATE INDEX content_files_content_trgm_idx ON content_files USING gin (content gin_trgm_ops)`,
 		`VACUUM ANALYZE content_files`,
 	}
@@ -82,21 +95,16 @@ func openUnscopedLiveFixture(t *testing.T) (context.Context, *sql.DB) {
 
 // oracleOffsetSQL derives the old single-statement page query from the
 // shipped tail statement: the same WHERE and ORDER BY, with the old OFFSET.
-// The guard asserts the derivation really is a byte prefix of production.
+// The hermetic TestOracleStatementIsDerivedFromShippedTailText pins the
+// derivation; no copy of the statement exists in the tests.
 func oracleOffsetSQL(t *testing.T) string {
 	t.Helper()
 	shipped := unscoped.Statements().TailFirst
-	marker := "LIMIT $2::bigint"
-	cut := strings.Index(shipped, marker)
-	if cut < 0 {
-		t.Fatalf("shipped tail statement lost its LIMIT marker: %s", shipped)
+	const marker = "LIMIT $2::bigint"
+	if !strings.HasSuffix(strings.TrimSpace(shipped), marker) {
+		t.Fatalf("shipped tail statement no longer ends with %q: %s", marker, shipped)
 	}
-	prefix := shipped[:cut]
-	derived := prefix + marker + " OFFSET $3::bigint"
-	if !strings.HasPrefix(derived, prefix) || !strings.HasPrefix(shipped, prefix) {
-		t.Fatal("derived oracle is not a byte prefix of the shipped tail statement")
-	}
-	return derived
+	return strings.TrimSpace(shipped) + " OFFSET $3::bigint"
 }
 
 func oracleKeys(t *testing.T, ctx context.Context, db *sql.DB, pattern string, limit, offset int) []string {
@@ -187,8 +195,8 @@ func TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive(t *testing.T) 
 	ctx, db := openUnscopedLiveFixture(t)
 	reader := NewContentReader(db).WithUnscopedSearch(unscoped.MinBudget, nil)
 	want := oracleKeys(t, ctx, db, liveNoTrigramHits, 1000, 0)
-	if len(want) != 3 {
-		t.Fatalf("fixture has %d matches for the no-trigram token, want 3", len(want))
+	if len(want) < 3 {
+		t.Fatalf("fixture has %d matches for the no-trigram token, want at least 3", len(want))
 	}
 
 	var gathered []string
@@ -328,4 +336,53 @@ func planHas(plan explainNode, want string) bool {
 		}
 	}
 	return false
+}
+
+// TestSearchFilesUnscopedEdgeRowsAreExactLive is the SQL-level exactness proof
+// for the keyset and the window edge: the edge token is planted on every row a
+// window ends on and on the row after it, the budget is small enough that the
+// probe, at least two continuation steps and then the trigram tail all run, and
+// the answer must equal the old statement's rows exactly. An inclusive keyset
+// operator duplicates a boundary row; an edge offset past the window skips
+// one; either changes the list.
+func TestSearchFilesUnscopedEdgeRowsAreExactLive(t *testing.T) {
+	ctx, db := openUnscopedLiveFixture(t)
+	spans := tracetest.NewSpanRecorder()
+	searcher := &unscoped.Searcher{
+		Store:  postgres.NewSQLReadStore(db),
+		Budget: 200 * time.Millisecond,
+		Tracer: sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	want := oracleKeys(t, ctx, db, liveEdgeToken, 1000, 0)
+	if len(want) < 40 {
+		t.Fatalf("fixture has %d edge matches, want a boundary-rich set", len(want))
+	}
+	page, err := searcher.Search(ctx, liveEdgeToken, 200, 0, querycontract.SearchCursor{})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if page.Partial != nil {
+		t.Fatalf("partial result %+v, want the tail to complete the answer", page.Partial)
+	}
+	if got := pageKeys(page.Files); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("walk rows (%d) != old statement rows (%d)\nwalk: %v\nold:  %v", len(got), len(want), got, want)
+	}
+
+	ended := spans.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(ended))
+	}
+	attrs := map[string]attribute.Value{}
+	for _, kv := range ended[0].Attributes() {
+		attrs[string(kv.Key)] = kv.Value
+	}
+	if steps := attrs["search.continuation_steps"].AsInt64(); steps < 2 {
+		t.Fatalf("continuation steps = %d, want at least 2 so a step edge is the next cursor", steps)
+	}
+	if !attrs["search.tail_ran"].AsBool() || attrs["search.tail_cancelled"].AsBool() {
+		t.Fatalf("tail_ran=%v tail_cancelled=%v, want a tail that ran and completed from a step-edge cursor",
+			attrs["search.tail_ran"].AsBool(), attrs["search.tail_cancelled"].AsBool())
+	}
 }
