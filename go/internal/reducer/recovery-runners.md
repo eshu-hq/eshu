@@ -58,7 +58,7 @@ recovery);
 failure logs carry the `reduction` phase attribute. No-Regression Evidence: the
 runner adds no hot-path Cypher or worker-default change; it re-uses the existing
 projector enqueue path under bounded `LIMIT` statements. Verify with
-`go test ./internal/reducer/maintenance -run 'GenerationLiveness' -count=1` and
+`go test ./internal/reducer/maintenance/liveness -run 'GenerationLiveness' -count=1` and
 `go test ./internal/storage/postgres -run 'GenerationLiveness|WedgedActive|OrphanedActive' -count=1`.
 
 ## Poison Dead-Letter Liveness Recovery (#4740)
@@ -186,7 +186,7 @@ proves source-local canonical Repository nodes are outside the sweep predicate.
 `go test ./cmd/reducer -run TestProductionWiringConsumesCapabilityDefaults
 -count=1` proves the reducer runtime consumes the same closed label default
 instead of a stale subset.
-`go test ./internal/reducer/maintenance -run
+`go test ./internal/reducer/maintenance/orphan -run
 'TestGraphOrphanSweepRunner' -count=1` proves the runner drains available
 delete batches without lowering worker concurrency and skips graph mutation
 when another replica owns the sweep lease. `go test ./internal/reducer -run
