@@ -131,8 +131,10 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 	}
 	query := db.queries[0].query
 	for _, want := range []string{
-		"scope.active_generation_id = fact.generation_id",
+		"(fact.scope_id, fact.generation_id) IN (",
+		"scope.active_generation_id",
 		"generation.status = 'active'",
+		"OR FALSE",
 		"fact.fact_kind IN ('oci_registry.image_tag_observation', 'oci_registry.image_manifest', 'oci_registry.image_index')",
 		"fact.fact_kind = 'aws_image_reference'",
 		"fact.fact_kind = 'aws_relationship'",

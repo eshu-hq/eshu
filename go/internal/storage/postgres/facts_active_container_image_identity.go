@@ -51,6 +51,25 @@ const identityFactFilterSQL = `(
     )
   )`
 
+// listActiveContainerImageIdentityFactsQuery pages the identity fact set in
+// (observed_at, fact_id) keyset order, restricted to each scope's active
+// generation.
+//
+// The active-generation restriction is a hashed SubPlan filter, deliberately
+// not a JOIN. As a JOIN against ingestion_scopes and scope_generations the
+// planner drives the query from the roughly 1,400 active scopes, reads and
+// filters the whole active identity set, and top-N sorts it for every
+// 500-row page, so a full load was quadratic (about 0.35 to 0.63 s per page on
+// a 547k-row active set, #7805). The "OR FALSE" is load-bearing: it keeps the
+// planner from pulling the IN subquery up into a semi-join, so the filter
+// rides on the ordered scan of fact_records_identity_epoch_idx_v2 and the
+// LIMIT stops that scan after about one page of rows. PostgreSQL folds the
+// constant away after sublink pull-up, so it costs nothing at run time.
+// TestIdentityPageQueryRidesOrderedIndexLive pins the plan on a real database.
+//
+// The (scope_id, active_generation_id) pairs are exactly the pairs the former
+// JOIN matched: a scope's active generation, when that generation row is
+// itself status 'active'.
 const listActiveContainerImageIdentityFactsQuery = `
 SELECT
     fact.fact_id,
@@ -70,15 +89,19 @@ SELECT
     fact.is_tombstone,
     fact.payload
 FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
 WHERE ` + identityFactFilterSQL + `
   AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
+  AND (
+    (fact.scope_id, fact.generation_id) IN (
+      SELECT scope.scope_id, scope.active_generation_id
+      FROM ingestion_scopes AS scope
+      JOIN scope_generations AS generation
+        ON generation.scope_id = scope.scope_id
+       AND generation.generation_id = scope.active_generation_id
+      WHERE generation.status = 'active'
+    )
+    OR FALSE
+  )
   AND (
     $1::timestamptz IS NULL
     OR (fact.observed_at, fact.fact_id) > ($1::timestamptz, $2::text)
@@ -88,28 +111,48 @@ LIMIT $3
 `
 
 // probeIdentityEpochQuery returns (count, COALESCE(max(observed_at), '-infinity'),
-// active_fingerprint) — the count+max of identity facts over all generations
-// FROM fact_records plus a collision-resistant SHA-256 digest of the active
+// active_fingerprint). The count and max are taken over identity facts of each
+// scope's ACTIVE generation only, the same set the page query serves, so
+// retention and supersession deletes of old-generation rows do not move the
+// epoch (#7805: the former all-generations count moved every few minutes, which
+// discarded nearly every load). An insert or delete on an active generation
+// still moves it. The active restriction is the same hashed SubPlan filter the
+// page query uses, "OR FALSE" included, for the same planner reason (see
+// listActiveContainerImageIdentityFactsQuery). It reads the heap for scope and
+// generation, so it costs about twice the former index-only probe (about
+// 120 ms versus 60 ms on a 1.0M-identity-fact shim, docs/internal/evidence/
+// 7805-identity-epoch-flight.md) and needs no new index.
+//
+// The fingerprint is a collision-resistant SHA-256 digest of the active
 // generation mapping from ingestion_scopes (every scope's
 // "scope_id:active_generation_id" pair, ORDER BY scope_id, joined with '|').
-// The fingerprint detects supersession (active_generation_id flip) so the
-// cache misses when a new generation becomes active even when total fact
-// count and max observed_at are unchanged. Unlike a summed hash, the ordered
-// digest has no collision mode where two different active mappings (a 32-bit
-// hashtext collision, or offsetting deltas that cancel in a sum) produce the
-// same fingerprint.
-// Backed by the partial B-tree index fact_records_identity_epoch_idx_v2
-// ON (observed_at, fact_id) WHERE <filter> AND is_tombstone = FALSE.
+// It detects supersession (active_generation_id flip) so the cache misses when
+// a new generation becomes active even when the active count and max
+// observed_at are unchanged. Unlike a summed hash, the ordered digest has no
+// collision mode where two different active mappings (a 32-bit hashtext
+// collision, or offsetting deltas that cancel in a sum) produce the same
+// fingerprint.
 const probeIdentityEpochQuery = `
 SELECT
     f.cnt,
     COALESCE(f.max_obs, '-infinity'::timestamptz),
     COALESCE(s.fingerprint, '')
 FROM (
-    SELECT count(*) AS cnt, max(observed_at) AS max_obs
+    SELECT count(*) AS cnt, max(fact.observed_at) AS max_obs
     FROM fact_records AS fact
     WHERE ` + identityFactFilterSQL + `
-      AND is_tombstone = FALSE
+      AND fact.is_tombstone = FALSE
+      AND (
+        (fact.scope_id, fact.generation_id) IN (
+          SELECT scope.scope_id, scope.active_generation_id
+          FROM ingestion_scopes AS scope
+          JOIN scope_generations AS generation
+            ON generation.scope_id = scope.scope_id
+           AND generation.generation_id = scope.active_generation_id
+          WHERE generation.status = 'active'
+        )
+        OR FALSE
+      )
 ) f
 CROSS JOIN (
     SELECT encode(sha256(convert_to(COALESCE(string_agg(scope_id::text || ':' || active_generation_id::text, '|' ORDER BY scope_id), ''), 'UTF8')), 'hex') AS fingerprint
