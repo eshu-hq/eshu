@@ -65,8 +65,9 @@ const (
 	// published memos were written; the commit that changed it triggers the
 	// epoch whole pass.
 	HoldCatalogChanged = "catalog_changed"
-	// HoldNoMemoBaseline: no active partition holds a memo row yet,
-	// so a catalog change cannot be detected until a whole pass writes one.
+	// HoldNoMemoBaseline: neither an active partition nor an owed scope
+	// holds a memo row yet, so a catalog change cannot be detected until
+	// a whole pass writes one.
 	HoldNoMemoBaseline = "no_memo_baseline"
 	// HoldClosureTooDeep: promoting dependent partitions did not
 	// settle within the pass's round bound.
