@@ -223,7 +223,7 @@ owns `EvidenceArtifact` and `EVIDENCES_REPOSITORY_RELATIONSHIP`. **That is
 wrong, and it was wrong in a way that pointed at the wrong guard.** Read from
 the writer:
 
-- The nodes are written at `storage/cypher/edge_writer.go:196`, inside
+- The nodes are written at `storage/cypher/edge/writer/writer.go:196`, inside
   `if domain == reducer.DomainRepoDependency`.
 - `DomainRepoDependency` is `"repo_dependency"`, and it is a *shared projection*
   domain (`reducer/contract/domain.go`), not one of the seventeen reducer
