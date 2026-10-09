@@ -127,14 +127,14 @@ fi
 # to bootstrap the packages before consumers depend on them.
 export GITHUB_REF=refs/heads/fix/ci-owned-image-mirror-20261009
 bash "${publisher}" publish > "${scratch}/out"
-[[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'same-byte rerun tried to overwrite existing tags'
+[[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'same-byte rerun tried to recopy existing digests'
 
 export CRANE_BAD_DEST=true
 expect_failure bash "${publisher}" publish
-[[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'wrong-byte existing tag was copied over'
+[[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'wrong-byte existing digest was copied over'
 unset CRANE_BAD_DEST
 
-# A first run may stop after one tag; the next run must preserve it and resume.
+# A first run may stop after one digest; the next run must preserve it and resume.
 rm -- "${scratch}/bookworm" "${scratch}/neo4j"
 export CRANE_COPY_FAIL_ON=bookworm
 expect_failure bash "${publisher}" publish
