@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +22,15 @@ import (
 // is counted and pruned. The pre-screen SQL is also queried directly to pin
 // its per-generation counts.
 func TestGenerationRetentionPrescreenSkipsOverFactGenerationsLive(t *testing.T) {
+	// Bridge the live-postgres-readiness runner's family DSN onto the shared
+	// helper's generic variable, as TestGenerationRetentionHardCeilingLive
+	// does. Local runs keep using ESHU_POSTGRES_TEST_DSN directly.
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_GENERATION_RETENTION_PROOF_DSN is set without ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	old := now.Add(-10 * 24 * time.Hour)
@@ -122,6 +132,15 @@ func mustSeedPrescreenSeqScan(shipped string) string {
 // payload-filter variant must make the same guard fail, proving the guard
 // can see the sequential scan it exists to catch.
 func TestGenerationRetentionPrescreenProbesFactIndexLive(t *testing.T) {
+	// Bridge the live-postgres-readiness runner's family DSN onto the shared
+	// helper's generic variable, as TestGenerationRetentionHardCeilingLive
+	// does. Local runs keep using ESHU_POSTGRES_TEST_DSN directly.
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_GENERATION_RETENTION_PROOF_DSN is set without ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
 
@@ -196,6 +215,15 @@ func mustSeedTargetedNoLock(shipped string) string {
 // SKIP LOCKED, which must surface as a LockRows plan node. Each seeded
 // variant must make its own guard fail.
 func TestGenerationRetentionTargetedLockPlanShapeLive(t *testing.T) {
+	// Bridge the live-postgres-readiness runner's family DSN onto the shared
+	// helper's generic variable, as TestGenerationRetentionHardCeilingLive
+	// does. Local runs keep using ESHU_POSTGRES_TEST_DSN directly.
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_GENERATION_RETENTION_PROOF_DSN is set without ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	old := now.Add(-10 * 24 * time.Hour)
@@ -310,6 +338,15 @@ func init() {
 // between the re-lock's snapshot and its row lock must be dropped, while an
 // untouched bystander member of the same set is still locked.
 func TestGenerationRetentionTargetedLockEvalPlanQualDropsRacedMembersLive(t *testing.T) {
+	// Bridge the live-postgres-readiness runner's family DSN onto the shared
+	// helper's generic variable, as TestGenerationRetentionHardCeilingLive
+	// does. Local runs keep using ESHU_POSTGRES_TEST_DSN directly.
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_GENERATION_RETENTION_PROOF_DSN is set without ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	cutoff := now.Add(-7 * 24 * time.Hour)

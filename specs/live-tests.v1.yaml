@@ -2076,6 +2076,11 @@ tests:
     tag: ~
     class: scheduled
     reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_relock_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7334 disposable PostgreSQL 18 proof of unlocked planning (own-fact pre-screen skip, fact-index probe, targeted re-lock plan shape, EPQ raced-member drop) on the migrated schema, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests in 5.53s wall with the migrated-schema setup on postgres:18 on 2026-10-09"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_fairness_live_test.go
     tag: ~
     class: scheduled
