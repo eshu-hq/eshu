@@ -33,14 +33,17 @@ type occurrence struct {
 	// reset marks `AS name`: the name is bound again to a value whose labels
 	// the scan does not know, so earlier labels no longer apply.
 	reset bool
+	// relationship marks a relationship variable, -[r]-: not a node.
+	relationship bool
 }
 
 // parsedStatement is the part of a statement the id-write check reads.
 type parsedStatement struct {
-	writes           []idWrite
-	occurrences      map[string][]occurrence
-	relationshipVars map[string]bool
-	unwindAliases    map[string]string
+	writes        []idWrite
+	occurrences   map[string][]occurrence
+	unwindAliases map[string]string
+	// adds and removals are the SET n:L and REMOVE n:L label operations.
+	adds, removals []labelOp
 }
 
 // labelsOf returns the sorted labels of the write's variable: the labels of
@@ -51,7 +54,7 @@ func (p parsedStatement) labelsOf(write idWrite) []string {
 	set := make(map[string]bool)
 	var nearest []string
 	for _, occ := range p.occurrences[write.variable] {
-		if occ.pos >= write.pos {
+		if occ.pos > write.pos {
 			break
 		}
 		if occ.reset {
@@ -96,6 +99,9 @@ var (
 	aliasShadow = regexp.MustCompile(`(?i)[(\[]\s*(\w+)\s+IN\b`)
 	// setTarget captures the left side of a SET item up to its first assignment.
 	setTarget = regexp.MustCompile(`^(.*?)\s*(?:\+=|=)(?:[^=]|$)`)
+	// plainProperty matches the target of a non-id property assignment on a plain
+	// variable: n.name, n.`my prop`, n.é.
+	plainProperty = regexp.MustCompile("^[A-Za-z_]\\w*\\s*\\.\\s*(?:[^.\\[\\]()\\s`]+|`[^`]+`)$")
 	// idProperty matches a target that ends in the id property.
 	idProperty = regexp.MustCompile("\\.\\s*(?:id|`id`)\\s*$")
 	// relationshipPattern matches a relationship variable, [r:TYPE] or [r],
@@ -113,12 +119,12 @@ var (
 func parseStatement(raw string) parsedStatement {
 	text := blankLiteralsAndComments(raw)
 	parsed := parsedStatement{
-		occurrences:      make(map[string][]occurrence),
-		relationshipVars: make(map[string]bool),
-		unwindAliases:    unwindAliasesOf(text),
+		occurrences:   make(map[string][]occurrence),
+		unwindAliases: unwindAliasesOf(text),
 	}
-	for _, m := range relationshipPattern.FindAllStringSubmatch(text, -1) {
-		parsed.relationshipVars[m[1]] = true
+	for _, loc := range relationshipPattern.FindAllStringSubmatchIndex(text, -1) {
+		name := text[loc[2]:loc[3]]
+		parsed.occurrences[name] = append(parsed.occurrences[name], occurrence{pos: loc[0], relationship: true})
 	}
 	if loc := procedureWrite.FindStringIndex(text); loc != nil {
 		// A procedure that creates or merges a node takes labels and properties
@@ -162,6 +168,7 @@ func parseStatement(raw string) parsedStatement {
 			})
 		}
 	}
+	addScopeResets(&parsed, text, clauses)
 	for _, occs := range parsed.occurrences {
 		sort.SliceStable(occs, func(i, j int) bool { return occs[i].pos < occs[j].pos })
 	}
@@ -177,6 +184,9 @@ func parseStatement(raw string) parsedStatement {
 				}
 				offset += len(item) + 1
 			}
+			parsed.adds = append(parsed.adds, parseLabelItems(text[clause.end:end], clause.end)...)
+		case "REMOVE":
+			parsed.removals = append(parsed.removals, parseLabelItems(text[clause.end:end], clause.end)...)
 		case "MERGE", "CREATE":
 			// Fail closed: an id key left in a write clause after the node
 			// patterns and relationship brackets are masked sits in a shape the
@@ -226,22 +236,32 @@ func clauseSpanEnd(text string, clauses []clause, i int) int {
 	return len(text)
 }
 
-// setItemWrites classifies one SET assignment item.
+// setItemWrites classifies one SET assignment item by its target. A plain
+// variable takes the whole-map forms, a plain variable's property takes the id
+// check, and a plain variable with a bracketed key is a dynamic key. Any other
+// target (a backtick or non-ASCII name, an expression) is an unplaced write: the
+// scan cannot name the node it writes.
 func setItemWrites(item string) []idWrite {
 	if m := setPropertyID.FindStringSubmatch(item); m != nil {
 		return []idWrite{{variable: m[1], kind: KindSetProperty}}
 	}
-	// A target that ends in .id but is not a plain variable (a backtick name, a
-	// parenthesized expression) writes an id on a node the scan cannot name.
-	if m := setTarget.FindStringSubmatch(item); m != nil && idProperty.MatchString(m[1]) {
+	t := setTarget.FindStringSubmatch(item)
+	if t == nil {
+		return nil
+	}
+	target := strings.TrimSpace(t[1])
+	switch {
+	case idProperty.MatchString(target):
 		return []idWrite{{kind: KindSetProperty}}
+	case plainProperty.MatchString(target):
+		return nil
 	}
 	if m := setDynamicKey.FindStringSubmatch(item); m != nil {
 		return []idWrite{{variable: m[1], kind: KindDynamicMap, keyExpression: strings.TrimSpace(m[2])}}
 	}
 	m := setWholeMap.FindStringSubmatch(item)
 	if m == nil {
-		return nil
+		return []idWrite{{kind: KindDynamicMap}}
 	}
 	expression := strings.TrimSpace(m[3])
 	if strings.HasPrefix(expression, "{") {
@@ -267,7 +287,11 @@ type clause struct {
 func clausePositions(text string) []clause {
 	var out []clause
 	depths := bracketDepths(text)
+	inBacktick := backtickMask(text)
 	for _, loc := range clauseKeyword.FindAllStringIndex(text, -1) {
+		if inBacktick[loc[0]] {
+			continue
+		}
 		if prev := previousNonSpace(text, loc[0]); prev == ':' || prev == '.' || prev == '`' {
 			continue
 		}

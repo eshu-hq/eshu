@@ -112,6 +112,16 @@ func TestSweepSeesTheShapesItWasTaught(t *testing.T) {
 			wantDynamic: true,
 		},
 		{
+			name:        "Cypher 5 IS label form",
+			source:      "package planted\n\nconst planted = `CREATE (n IS Unconstrained {id: $id})`\n",
+			wantFailure: true,
+		},
+		{
+			name:        "label removal that strands the node",
+			source:      "package planted\n\nconst planted = `MATCH (n:Function {uid: $u}) REMOVE n:Function`\n",
+			wantFailure: true,
+		},
+		{
 			name:        "parameter property map",
 			source:      "package planted\n\nconst planted = `CREATE (n:Unconstrained $props)`\n",
 			wantFailure: true,

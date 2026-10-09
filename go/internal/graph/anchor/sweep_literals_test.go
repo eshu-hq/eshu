@@ -19,13 +19,17 @@ import (
 //
 //   - a write keyword (MERGE, CREATE, SET),
 //   - and an id token or a dynamic map write (`+=`) or a parameter map,
-//   - and a node pattern: labeled (`(n:Label`), a template label (`(n:%s`),
-//     or unlabeled with an id key in its map (`(n {id: ...})`).
+//   - and a node pattern: labeled (`(n:Label` or `(n IS Label`), a template
+//     label (`(n:%s`), or unlabeled with an id key in its map (`(n {id: ...})`),
+//   - or a REMOVE of a label beside a labeled node pattern.
 //
 // Postgres SQL (SET col = value) has none of the node patterns and stays out.
 var (
-	writeShape        = regexp.MustCompile(`(?is)\b(MERGE|CREATE|SET)\b.*(\bid\b|\+=)`)
-	labeledShape      = regexp.MustCompile(`\(\s*\w*\s*:\s*[A-Za-z_` + "`" + `]`)
+	writeShape   = regexp.MustCompile(`(?is)\b(MERGE|CREATE|SET)\b.*(\bid\b|\+=)`)
+	labeledShape = regexp.MustCompile(`\(\s*\w*\s*(?::\s*[A-Za-z_` + "`" + `]|\s+IS\s+[A-Z][A-Za-z0-9_]*[a-z0-9_])`)
+	// labelRemoval finds REMOVE n:Label, which can strand an id on a node with no
+	// anchor label even when the statement writes no id itself.
+	labelRemoval      = regexp.MustCompile(`(?is)\bREMOVE\s+\w+\s*:\s*[A-Za-z_` + "`" + `]`)
 	unlabeledIDShape  = regexp.MustCompile(`\(\s*\w*\s*\{[^{}]*\bid\s*:`)
 	templateLabelNode = regexp.MustCompile(`\(\s*\w*\s*:\s*%(\[\d+\])?[sdvq]`)
 	templateWriteNode = regexp.MustCompile(`(?is)\b(MERGE|CREATE)\b.*\(\s*\w*\s*:\s*%(\[\d+\])?[sdvq]`)
@@ -163,7 +167,8 @@ func productionCypherSites(t *testing.T, root string) []cypherSite {
 			dynamic := templateLabelNode.MatchString(text)
 			admitted := dynamic && templateWriteNode.MatchString(text) ||
 				writeShape.MatchString(text) && (labeledShape.MatchString(text) || unlabeledIDShape.MatchString(text)) ||
-				parameterMapNode.MatchString(text)
+				parameterMapNode.MatchString(text) ||
+				labelRemoval.MatchString(text) && labeledShape.MatchString(text)
 			if admitted {
 				line := fset.Position(expr.Pos()).Line
 				out = append(out, cypherSite{

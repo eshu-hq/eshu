@@ -25,6 +25,9 @@ const (
 	KindMapKey = "map_key"
 	// KindSetProperty is a `SET n.id = ...` assignment.
 	KindSetProperty = "set_property"
+	// KindLabelRemoval is a `REMOVE n:Label` of an anchor label that leaves the
+	// node with no anchor label in the same statement.
+	KindLabelRemoval = "label_removal"
 	// KindDynamicMap is a `SET n += <map>` or `SET n = <map>` whose map may
 	// carry an id key that the statement text does not settle.
 	KindDynamicMap = "dynamic_map"
@@ -91,7 +94,7 @@ func analyze(statement Statement, anchorLabels map[string]bool) (int, []Finding)
 	writes := 0
 	counted := make(map[string]bool)
 	for _, write := range parsed.writes {
-		if parsed.relationshipVars[write.variable] {
+		if parsed.nearestIsRelationship(write) {
 			continue
 		}
 		labels := parsed.labelsOf(write)
@@ -127,6 +130,9 @@ func analyze(statement Statement, anchorLabels map[string]bool) (int, []Finding)
 			Callsite:  statement.Callsite,
 		})
 	}
+	removalFound := removalFindings(parsed, statement, anchorLabels)
+	writes += len(removalFound)
+	findings = append(findings, removalFound...)
 	sort.SliceStable(findings, func(i, j int) bool { return findings[i].Variable < findings[j].Variable })
 	return writes, findings
 }
