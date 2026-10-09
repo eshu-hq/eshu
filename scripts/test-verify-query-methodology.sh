@@ -14,13 +14,16 @@ if [[ "$*" == *'-list '* ]]; then
  exit 0
 fi
 case "$*" in
+ *'test ./internal/queryplan -count=1'*)
+  if [[ "${SHIM_OMIT:-}" != coverage ]]; then printf '{"families":[]}\n' > "$ESHU_QUERY_METHODOLOGY_COVERAGE"; fi ;;
  *'-run ^TestQueryMethodologyPostgresLive$'*)
   [[ -n "$ESHU_POSTGRES_TEST_DSN" && -n "$ESHU_QUERY_METHODOLOGY_POSTGRES_IMAGE" ]] || exit 11
   [[ "${SHIM_FAIL:-}" != postgres ]] || exit 12
   if [[ "${SHIM_OMIT:-}" != postgres ]]; then printf '{"engine":"postgresql"}\n' > "$ESHU_QUERY_METHODOLOGY_POSTGRES_ARTIFACT"; fi ;;
  *'-run ^TestImportDependencyMethodologyLive$'*)
   [[ "$ESHU_QUERY_METHODOLOGY_LIVE" == 1 && "$ESHU_QUERYPLAN_PROFILE_ISOLATED" == 1 && "$ESHU_QUERY_METHODOLOGY_CALIBRATED" == 1 ]] || exit 13
-  printf '{"engine":"neo4j"}\n' > "$ESHU_QUERY_METHODOLOGY_GRAPH_ARTIFACT" ;;
+  printf '{"engine":"neo4j"}\n' > "$ESHU_QUERY_METHODOLOGY_GRAPH_ARTIFACT"
+  if [[ "${SHIM_OMIT:-}" != graph-cases ]]; then printf '{"cases":[]}\n' > "$ESHU_QUERY_METHODOLOGY_REPORT"; fi ;;
  *'-run ^TestImportDependencyMethodologyMCPTerminalCapLive$'*)
   [[ -n "$ESHU_NEO4J_URI" ]] || exit 14 ;;
 esac
@@ -38,6 +41,9 @@ run_shim() {
 }
 run_shim static --static
 if rg -q '^docker ' "$work/static.log"; then printf 'static stage touched Docker\n' >&2; exit 1; fi
+if SHIM_OMIT=coverage run_shim missing-coverage --static; then printf 'missing coverage passed\n' >&2; exit 1; fi
+run_shim stale-coverage --static
+if SHIM_OMIT=coverage run_shim stale-coverage --static; then printf 'old coverage concealed omitted producer\n' >&2; exit 1; fi
 run_shim live --live
 for test in TestQueryMethodologyPostgresLive TestImportDependencyMethodologyLive TestImportDependencyMethodologyMCPTerminalCapLive TestQueryplanProfileFlagsUnboundedVarLength TestPilotArtifactFiles; do
  rg -q -- "-run \^$test" "$work/live.log" || { printf 'live stage omitted %s\n' "$test" >&2; exit 1; }
@@ -46,6 +52,9 @@ if SHIM_OMIT=postgres run_shim missing --live; then printf 'missing artifact pas
 run_shim stale --live
 if SHIM_OMIT=postgres run_shim stale --live; then printf 'old artifact concealed omitted producer\n' >&2; exit 1; fi
 if SHIM_FAIL=postgres run_shim failing --live; then printf 'failed producer passed\n' >&2; exit 1; fi
+if SHIM_OMIT=graph-cases run_shim missing-graph-cases --live; then printf 'missing graph cases passed\n' >&2; exit 1; fi
+run_shim stale-graph-cases --live
+if SHIM_OMIT=graph-cases run_shim stale-graph-cases --live; then printf 'old graph cases concealed omitted producer\n' >&2; exit 1; fi
 # The real selector must cover query-only, schema-only and combined tree paths.
 (cd "$repo_root/go" && go build -o "$work/ci-gates" ./cmd/ci-gates)
 for family in query graph-schema postgres-schema live-helper combined; do

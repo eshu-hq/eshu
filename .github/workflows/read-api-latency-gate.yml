@@ -115,21 +115,41 @@ jobs:
           GATE_CONCURRENT_REPORT: ${{ runner.temp }}/methodology-concurrency.json
         run: |
           resource_report="${RUNNER_TEMP}/methodology-resources.txt"
+          observer_stop="${RUNNER_TEMP}/.methodology-resource-observer-stop"
+          rm -f "$observer_stop"
           {
             printf 'logical_cpus='; nproc
             printf 'start_load='; cat /proc/loadavg
           } > "$resource_report"
           (
-            while true; do
+            while [[ ! -e "$observer_stop" ]]; do
               date -u +%FT%TZ
               cat /proc/loadavg
-              docker stats --no-stream --format '{{.Name}} CPU={{.CPUPerc}} memory={{.MemUsage}}'
-              sleep 10
+              timeout 20s docker stats --no-stream --format '{{.Name}} CPU={{.CPUPerc}} memory={{.MemUsage}}'
+              for _ in {1..10}; do
+                [[ ! -e "$observer_stop" ]] || break
+                sleep 1
+              done
             done
           ) >> "$resource_report" 2>&1 &
           observer=$!
-          trap 'kill "$observer" 2>/dev/null || true' EXIT
-          bash scripts/verify-read-api-latency-gate.sh
+          trap 'touch "$observer_stop"; kill "$observer" 2>/dev/null || true' EXIT
+          gate_status=0
+          bash scripts/verify-read-api-latency-gate.sh || gate_status=$?
+          touch "$observer_stop"
+          observer_status=0
+          wait "$observer" || observer_status=$?
+          trap - EXIT
+          rm -f "$observer_stop"
+          if [[ "$observer_status" -ne 0 ]]; then
+            printf 'methodology resource observer failed: exit %s\n' "$observer_status" >&2
+            [[ "$gate_status" -ne 0 ]] || gate_status=1
+          fi
+          if ! rg -q '^[^[:space:]]+ CPU=[0-9]+([.][0-9]+)?% memory=[0-9]' "$resource_report"; then
+            printf 'methodology resource observer recorded no container CPU/memory sample\n' >&2
+            [[ "$gate_status" -ne 0 ]] || gate_status=1
+          fi
+          exit "$gate_status"
       - name: Archive scale proof
         if: always()
         uses: actions/upload-artifact@v4
