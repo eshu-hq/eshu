@@ -318,7 +318,7 @@ func TestContentStoreUpsertFileBatchInsertsRows(t *testing.T) {
 		{Path: "util.go", Body: "package util\n", Metadata: map[string]string{"language": "go"}},
 	}
 
-	if err := store.UpsertFileBatch(context.Background(), "repo-1", files); err != nil {
+	if err := store.UpsertFileBatch(context.Background(), "repo-1", "generation-1", files); err != nil {
 		t.Fatalf("UpsertFileBatch() error = %v, want nil", err)
 	}
 	if got, want := len(db.execs), 2; got != want {
@@ -341,7 +341,7 @@ func TestContentStoreUpsertFileBatchDeletesTombstoned(t *testing.T) {
 		{Path: "deleted.go", Deleted: true},
 	}
 
-	if err := store.UpsertFileBatch(context.Background(), "repo-1", files); err != nil {
+	if err := store.UpsertFileBatch(context.Background(), "repo-1", "generation-1", files); err != nil {
 		t.Fatalf("UpsertFileBatch() error = %v, want nil", err)
 	}
 	if got, want := len(db.execs), 2; got != want {
@@ -360,7 +360,7 @@ func TestContentStoreUpsertFileBatchRejectsEmptyRepoID(t *testing.T) {
 
 	store := NewContentStore(&fakeExecQueryer{})
 
-	err := store.UpsertFileBatch(context.Background(), "", []content.Record{{Path: "a.go"}})
+	err := store.UpsertFileBatch(context.Background(), "", "generation-1", []content.Record{{Path: "a.go"}})
 	if err == nil {
 		t.Fatal("UpsertFileBatch() error = nil, want non-nil")
 	}
@@ -371,7 +371,7 @@ func TestContentStoreUpsertFileBatchRejectsEmptyPath(t *testing.T) {
 
 	store := NewContentStore(&fakeExecQueryer{})
 
-	err := store.UpsertFileBatch(context.Background(), "repo-1", []content.Record{{Path: ""}})
+	err := store.UpsertFileBatch(context.Background(), "repo-1", "generation-1", []content.Record{{Path: ""}})
 	if err == nil {
 		t.Fatal("UpsertFileBatch() error = nil, want non-nil")
 	}
@@ -383,7 +383,7 @@ func TestContentStoreUpsertFileBatchSkipsEmpty(t *testing.T) {
 	db := &fakeExecQueryer{}
 	store := NewContentStore(db)
 
-	if err := store.UpsertFileBatch(context.Background(), "repo-1", nil); err != nil {
+	if err := store.UpsertFileBatch(context.Background(), "repo-1", "generation-1", nil); err != nil {
 		t.Fatalf("UpsertFileBatch() error = %v, want nil", err)
 	}
 	if got := len(db.execs); got != 0 {

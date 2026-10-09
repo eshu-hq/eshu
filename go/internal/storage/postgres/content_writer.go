@@ -288,7 +288,7 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 
 	// Batch upsert file records
 	fileUpsertStart := time.Now()
-	if err := w.upsertContentFileBatches(ctx, fileUpserts, indexedAt); err != nil {
+	if err := w.upsertContentFileBatches(ctx, fileUpserts, indexedAt, cloned.GenerationID); err != nil {
 		return content.Result{}, err
 	}
 	w.logStage(

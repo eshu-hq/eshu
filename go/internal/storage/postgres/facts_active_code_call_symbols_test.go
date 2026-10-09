@@ -133,9 +133,10 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsSkipsEmptySymbols(t *te
 }
 
 // codeCallGoModManifestRow stages one go.mod manifest read row: the leaf
-// scans content as sql.NullString (#7609 dirty scopes arrive as NULL).
+// scans (scope_id, content, tag_outcome), content as sql.NullString (#7609
+// dirty scopes arrive as NULL) with a clean tag (#7760).
 func codeCallGoModManifestRow(scopeID, content string) []any {
-	return []any{scopeID, sql.NullString{String: content, Valid: true}}
+	return []any{scopeID, sql.NullString{String: content, Valid: true}, "clean"}
 }
 
 func codeCallDefinitionScanRow(factID string) []any {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 var schemaVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
@@ -66,6 +67,7 @@ ORDER BY observed_at ASC, fact_id ASC
 type FactStore struct {
 	database      db.ExecQueryer
 	identityCache *IdentityEpochCache
+	instruments   *telemetry.Instruments
 }
 
 // NewFactStore constructs a Postgres-backed fact store without identity caching.
@@ -78,6 +80,13 @@ func NewFactStore(database db.ExecQueryer) *FactStore {
 // the identity-fact epoch cache enabled.
 func NewFactStoreWithIdentityCache(database db.ExecQueryer, cache *IdentityEpochCache) *FactStore {
 	return &FactStore{database: database, identityCache: cache}
+}
+
+// WithInstruments returns a copy that records manifest tag outcomes on the
+// active code-call-symbol loads.
+func (s FactStore) WithInstruments(instruments *telemetry.Instruments) *FactStore {
+	s.instruments = instruments
+	return &s
 }
 
 // CountFacts returns the number of facts for a scope generation without loading them.

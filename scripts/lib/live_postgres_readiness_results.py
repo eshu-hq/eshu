@@ -158,6 +158,14 @@ PACKAGES = {
             "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
             "TestRefinalizeDeltaActiveReindexLockContention",
         ),
+        "go/internal/storage/postgres/content_files_generation_tag_live_test.go": (
+            "TestReducerContentionGateContentGenerationTagAheadWriteReadsDirty",
+            "TestReducerContentionGateContentGenerationTagActivatedTagReadsClean",
+            "TestReducerContentionGateContentGenerationTagManifestLessScopeWithSignalReadsDirty",
+            "TestReducerContentionGateContentGenerationTagDangledAndNullTagReadDirty",
+            "TestReducerContentionGateContentWriterStampsGenerationTag",
+            "TestReducerContentionGateContentFilesBackfillAttributesOnlyCleanScopes",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (

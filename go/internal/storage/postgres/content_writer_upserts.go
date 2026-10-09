@@ -28,13 +28,13 @@ import (
 // loop costs little at repo scale (Kubernetes had ~40 file batches), so
 // the parallel-batch optimization is reserved for the entity path where
 // the K8s gate miss actually lives.
-func (w ContentWriter) upsertContentFileBatches(ctx context.Context, rows []preparedFileRow, indexedAt time.Time) error {
+func (w ContentWriter) upsertContentFileBatches(ctx context.Context, rows []preparedFileRow, indexedAt time.Time, generationID string) error {
 	for i := 0; i < len(rows); i += contentFileBatchSize {
 		end := i + contentFileBatchSize
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := w.upsertContentFileBatch(ctx, rows[i:end], indexedAt); err != nil {
+		if err := w.upsertContentFileBatch(ctx, rows[i:end], indexedAt, generationID); err != nil {
 			return err
 		}
 	}
@@ -42,7 +42,7 @@ func (w ContentWriter) upsertContentFileBatches(ctx context.Context, rows []prep
 }
 
 // upsertContentFileBatch inserts one batch of file records using a multi-row INSERT query.
-func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []preparedFileRow, indexedAt time.Time) error {
+func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []preparedFileRow, indexedAt time.Time, generationID string) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -61,9 +61,10 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 		offset := i * columnsPerContentFile
 		fmt.Fprintf(
 			&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
 			offset+6, offset+7, offset+8, offset+9, offset+10, offset+11,
+			offset+12,
 		)
 
 		args = append(
@@ -79,6 +80,7 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 			row.templateDialect,
 			row.iacRelevant,
 			indexedAt,
+			generationID,
 		)
 	}
 

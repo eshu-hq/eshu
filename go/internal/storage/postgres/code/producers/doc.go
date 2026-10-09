@@ -23,8 +23,14 @@
 // must not import the parent internal/storage/postgres package from non-test
 // code (#6693).
 //
-// The package.json read UNION ALLs the scopes whose stored manifest may be
-// ahead of the active generation (#7609); those rows carry a NULL manifest
-// and always join the producer set, because a dropped candidate would let a
-// same-named producer resolve alone and bypass the ambiguity rule.
+// Both reads bind stored content to the generation that wrote it through the
+// content_files generation tag (#7760): a row is clean only when its tag
+// names a generation with activated_at set, and every other tag (NULL,
+// dangling, empty, never-activated) reads as a NULL manifest that always
+// joins the producer set, because a dropped candidate would let a
+// same-named producer resolve alone and bypass the ambiguity rule. Scopes
+// with no stored manifest but a never-activated generation resolve dirty
+// through a manifest-less leg, since per-row tags cannot see row-less
+// scopes. WithInstruments counts every row each read sees by kind and tag
+// outcome for the operator.
 package producerstore

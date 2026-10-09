@@ -57,7 +57,8 @@ func assertCodeCallManifestShape(t *testing.T, query string, pathPredicates ...s
 		t.Fatalf("manifest query must read content_files in a MATERIALIZED CTE:\n%s", query)
 	}
 	for _, want := range append([]string{
-		"scope.source_key = manifest.repo_id",
+		"scope.source_key = tagged.repo_id",
+		"tag.generation_id = manifest.generation_id",
 		"scope.scope_kind = 'repository'",
 		"generation.generation_id = scope.active_generation_id",
 		"generation.status = 'active'",
@@ -78,9 +79,9 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScop
 			{rows: [][]any{codeCallSymbolFactRow("fact-go", "scope-go", observedAt)}},
 			// Manifest read.
 			{rows: [][]any{
-				{"scope-logging", sql.NullString{String: `{"name":"@acme/logging","version":"1.0.0"}`, Valid: true}},
-				{"scope-logging", sql.NullString{String: `{"name":"@acme/logging-internal"}`, Valid: true}},
-				{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}},
+				{"scope-logging", sql.NullString{String: `{"name":"@acme/logging","version":"1.0.0"}`, Valid: true}, "clean"},
+				{"scope-logging", sql.NullString{String: `{"name":"@acme/logging-internal"}`, Valid: true}, "clean"},
+				{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}, "clean"},
 			}},
 			// Anchored scan for the package key.
 			{rows: [][]any{codeCallSymbolFactRow("fact-logging", "scope-logging", observedAt)}},
@@ -136,10 +137,10 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsKeepsDuplicateNameProducers(t *t
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{"scope-b", sql.NullString{String: `{"name":"@acme/shared"}`, Valid: true}},
-				{"scope-a", sql.NullString{String: `{"name":"@acme/shared"}`, Valid: true}},
+				{"scope-b", sql.NullString{String: `{"name":"@acme/shared"}`, Valid: true}, "clean"},
+				{"scope-a", sql.NullString{String: `{"name":"@acme/shared"}`, Valid: true}, "clean"},
 				// A nested workspace manifest maps its name to its repository.
-				{"scope-mono", sql.NullString{String: `{"name":"@acme/widgets"}`, Valid: true}},
+				{"scope-mono", sql.NullString{String: `{"name":"@acme/widgets"}`, Valid: true}, "clean"},
 			}},
 			{},
 		},
@@ -166,12 +167,12 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsSkipsUnusableManifests(t *testin
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{"scope-invalid", sql.NullString{String: `{"name": "@acme/logging",`, Valid: true}},
-				{"scope-unnamed", sql.NullString{String: `{"version":"1.0.0"}`, Valid: true}},
-				{"scope-blank", sql.NullString{String: `{"name":"   "}`, Valid: true}},
-				{"scope-not-object", sql.NullString{String: `["@acme/logging"]`, Valid: true}},
-				{"scope-wrong-type", sql.NullString{String: `{"name":42}`, Valid: true}},
-				{"scope-nul", sql.NullString{String: `{"name":"@acme/logging","description":"a\u0000b"}`, Valid: true}},
+				{"scope-invalid", sql.NullString{String: `{"name": "@acme/logging",`, Valid: true}, "clean"},
+				{"scope-unnamed", sql.NullString{String: `{"version":"1.0.0"}`, Valid: true}, "clean"},
+				{"scope-blank", sql.NullString{String: `{"name":"   "}`, Valid: true}, "clean"},
+				{"scope-not-object", sql.NullString{String: `["@acme/logging"]`, Valid: true}, "clean"},
+				{"scope-wrong-type", sql.NullString{String: `{"name":42}`, Valid: true}, "clean"},
+				{"scope-nul", sql.NullString{String: `{"name":"@acme/logging","description":"a\u0000b"}`, Valid: true}, "clean"},
 			}},
 			{},
 		},
@@ -197,7 +198,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer(t *t
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}}}},
+			{rows: [][]any{{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}, "clean"}}},
 		},
 	}
 
@@ -236,8 +237,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsScansDirtyScopes(t *testing.T) {
 			// Manifest read: one NULL row marks a dirty scope (#7609), whose
 			// stored content may be ahead of its active generation.
 			{rows: [][]any{
-				{"scope-dirty", sql.NullString{}},
-				{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}},
+				{"scope-dirty", sql.NullString{}, "dangling_tag"},
+				{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}, "clean"},
 			}},
 			// Anchored scan over the dirty scope.
 			{rows: [][]any{codeCallSymbolFactRow("fact-dirty", "scope-dirty", observedAt)}},
@@ -301,7 +302,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsPagesAnchoredScan(t *testing.T) 
 	lastObservedAt := start.Add(time.Duration(listFactsByKindPageSize-1) * time.Second)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}}}},
+			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}, "clean"}}},
 			{rows: fullPage},
 			{rows: [][]any{codeCallSymbolFactRow("fact-last", "scope-logging", lastObservedAt.Add(time.Second))}},
 		},
@@ -345,7 +346,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesAcrossScans(t *testi
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
-			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}}}},
+			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}, "clean"}}},
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
 		},
 	}
@@ -370,7 +371,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsTrimsPackageKeyName(t *testing.T
 		queryResponses: []queueFakeRows{
 			// Manifest names are trimmed when parsed, so a key whose package part
 			// carries stray whitespace must still find its producer.
-			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}}}},
+			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}, "clean"}}},
 			{rows: [][]any{codeCallSymbolFactRow("fact-logging", "scope-logging", observedAt)}},
 		},
 	}
