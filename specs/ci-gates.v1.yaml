@@ -1437,6 +1437,34 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: query-methodology-static
+    hook_id: query-methodology-static
+    name: Verify Query Methodology Contracts
+    category: exactness
+    layer: contract
+    purpose: "Checks pilot contracts, emitted production variants and PostgreSQL execution-site coverage."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/internal/queryplan/**"
+      - "go/internal/graph/schema*.go"
+      - "go/internal/storage/postgres/migrations/**"
+      - "scripts/verify-query-methodology.sh"
+      - "scripts/test-verify-query-methodology.sh"
+      - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/lib/live-gate-lock.sh"
+    local:
+      command: "bash scripts/verify-query-methodology.sh --static"
+      test_command: "bash scripts/test-verify-query-methodology.sh"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: query-plan-regression
     name: Verify Query Plan Regression
     category: exactness
@@ -1446,6 +1474,11 @@ gates:
     blocking: true
     triggers:
       - "go/internal/query/**"
+      - "go/internal/queryplan/**"
+      - "go/internal/graph/schema*.go"
+      - "go/internal/storage/postgres/migrations/**"
+      - "scripts/verify-query-methodology.sh"
+      - "scripts/test-verify-query-methodology.sh"
       - "go/internal/storage/cypher/**"
       - "scripts/test-verify-query-plan-regression.sh"
       - "scripts/verify-query-plan-regression.sh"

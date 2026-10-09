@@ -7,9 +7,13 @@ package query
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/imports"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -143,17 +147,100 @@ func methodologyRowsContainRepo(rows []map[string]any, repo string) bool {
 func methodologySeedGraph(t *testing.T, ctx context.Context, driver neo4j.DriverWithContext, database string) {
 	t.Helper()
 	methodologyExecute(t, ctx, driver, database, "MATCH (n) DETACH DELETE n", nil)
-	for _, stmt := range []string{
-		"CREATE INDEX methodology_repo_id IF NOT EXISTS FOR (n:Repository) ON (n.id)",
-		"CREATE INDEX methodology_file_relative IF NOT EXISTS FOR (n:File) ON (n.relative_path)",
-		"CREATE INDEX methodology_file_path IF NOT EXISTS FOR (n:File) ON (n.path)",
-		"CREATE INDEX methodology_module_name IF NOT EXISTS FOR (n:Module) ON (n.name)",
-		"CREATE INDEX methodology_function_uid IF NOT EXISTS FOR (n:Function) ON (n.uid)",
-	} {
+	for _, legacy := range []string{"methodology_repo_id", "methodology_file_relative", "methodology_file_path", "methodology_module_name", "methodology_function_uid"} {
+		methodologyExecute(t, ctx, driver, database, "DROP INDEX "+legacy+" IF EXISTS", nil)
+	}
+	schema, indexes := methodologyGraphProductionDDL(t)
+	for _, stmt := range append(schema, indexes...) {
 		methodologyExecute(t, ctx, driver, database, stmt, nil)
 	}
 	methodologyExecute(t, ctx, driver, database, "CALL db.awaitIndexes(120)", nil)
-	seed := `CREATE (r:Repository {id:'proof-repository', name:'proof', scope_id:'proof-scope'})
+	methodologyCheckGraphSchema(t, ctx, driver, database)
+	for _, stmt := range methodologyGraphSeedDDL {
+		methodologyExecute(t, ctx, driver, database, stmt, nil)
+	}
+	t.Logf("fixture shape: two tenants, duplicate import edges, null import attributes, orphan history, 128 skew files")
+}
+
+func methodologyGraphProductionDDL(t *testing.T) ([]string, []string) {
+	t.Helper()
+	all, err := graph.SchemaStatementsForBackend(graph.SchemaBackendNeo4j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wanted := map[string]bool{"repository_id": false, "path": false, "module_name_lookup": false, "function_uid_unique": false}
+	var constraints, indexes []string
+	for _, stmt := range all {
+		for name := range wanted {
+			if strings.HasPrefix(stmt, "CREATE CONSTRAINT "+name+" ") {
+				constraints = append(constraints, stmt)
+				wanted[name] = true
+			} else if strings.HasPrefix(stmt, "CREATE INDEX "+name+" ") {
+				indexes = append(indexes, stmt)
+				wanted[name] = true
+			}
+		}
+	}
+	for name, present := range wanted {
+		if !present {
+			t.Fatalf("production Neo4j schema missing %s", name)
+		}
+	}
+	return constraints, indexes
+}
+
+func methodologyCheckGraphSchema(t *testing.T, ctx context.Context, driver neo4j.DriverWithContext, database string) {
+	t.Helper()
+	for _, name := range methodologyMissingGraphSchema(t, ctx, driver, database) {
+		t.Fatalf("physical production Neo4j schema missing or offline: %s", name)
+	}
+}
+
+func methodologyMissingGraphSchema(t *testing.T, ctx context.Context, driver neo4j.DriverWithContext, database string) []string {
+	t.Helper()
+	indexes := map[string]bool{"repository_id": false, "path": false, "module_name_lookup": false, "function_uid_unique": false}
+	constraints := map[string]bool{"repository_id": false, "path": false, "function_uid_unique": false}
+	for _, row := range methodologyExecute(t, ctx, driver, database, "SHOW INDEXES YIELD name, state RETURN name, state", nil) {
+		name := fmt.Sprint(row["name"])
+		if _, required := indexes[name]; required && row["state"] == "ONLINE" {
+			indexes[name] = true
+		}
+	}
+	for _, row := range methodologyExecute(t, ctx, driver, database, "SHOW CONSTRAINTS YIELD name RETURN name", nil) {
+		name := fmt.Sprint(row["name"])
+		if _, required := constraints[name]; required {
+			constraints[name] = true
+		}
+	}
+	var missing []string
+	for name, online := range indexes {
+		if !online || (name != "module_name_lookup" && !constraints[name]) {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+func methodologyProveMissingGraphIndex(t *testing.T, ctx context.Context, driver neo4j.DriverWithContext, database string) {
+	t.Helper()
+	methodologyCheckGraphSchema(t, ctx, driver, database)
+	methodologyExecute(t, ctx, driver, database, "DROP INDEX module_name_lookup IF EXISTS", nil)
+	missing := methodologyMissingGraphSchema(t, ctx, driver, database)
+	if !slices.Equal(missing, []string{"module_name_lookup"}) {
+		t.Fatalf("planted physical index drop missing=%v, want module_name_lookup", missing)
+	}
+	_, indexes := methodologyGraphProductionDDL(t)
+	for _, ddl := range indexes {
+		methodologyExecute(t, ctx, driver, database, ddl, nil)
+	}
+	methodologyExecute(t, ctx, driver, database, "CALL db.awaitIndexes(120)", nil)
+	methodologyCheckGraphSchema(t, ctx, driver, database)
+	t.Log("planted missing production module_name_lookup index RED, restored physical index GREEN")
+}
+
+var methodologyGraphSeedDDL = []string{
+	`CREATE (r:Repository {id:'proof-repository', name:'proof', scope_id:'proof-scope'})
  CREATE (other:Repository {id:'other-repository', name:'other', scope_id:'other-scope'})
  CREATE (a:File {path:'/proof/src/proof.py', relative_path:'src/proof.py', name:'proof.source.py', language:'python'})
  CREATE (b:File {path:'/proof/src/target.py', relative_path:'src/target.py', name:'proof.target.py', language:'python'})
@@ -174,24 +261,18 @@ func methodologySeedGraph(t *testing.T, ctx context.Context, driver neo4j.Driver
  CREATE (h:Function {uid:'fn-other', id:'fn-other', name:'other'})
  CREATE (a)-[:CONTAINS]->(f), (b)-[:CONTAINS]->(g), (x)-[:CONTAINS]->(h)
  CREATE (f)-[:CALLS {call_kind:'direct'}]->(g)
- CREATE (h)-[:CALLS {call_kind:'direct'}]->(g)`
-	methodologyExecute(t, ctx, driver, database, seed, nil)
-	methodologyExecute(t, ctx, driver, database,
-		`MATCH (r:Repository {id:'proof-repository'})-[:REPO_CONTAINS]->(a:File {relative_path:'src/proof.py'}), (b:File {path:'/proof/src/target.py'})-[:CONTAINS]->(m:Module {name:'proof.target'})
-         CREATE (a)-[:IMPORTS {imported_name:'proof.target', line_number:3}]->(m)`, nil)
-	methodologyExecute(t, ctx, driver, database,
-		`MATCH (r:Repository {id:'other-repository'}), (m:Module {name:'proof.target'})<-[:IMPORTS]-(f:File)<-[:REPO_CONTAINS]-(r)
+ CREATE (h)-[:CALLS {call_kind:'direct'}]->(g)`,
+	`MATCH (r:Repository {id:'proof-repository'})-[:REPO_CONTAINS]->(a:File {relative_path:'src/proof.py'}), (b:File {path:'/proof/src/target.py'})-[:CONTAINS]->(m:Module {name:'proof.target'})
+         CREATE (a)-[:IMPORTS {imported_name:'proof.target', line_number:3}]->(m)`,
+	`MATCH (r:Repository {id:'other-repository'}), (m:Module {name:'proof.target'})<-[:IMPORTS]-(f:File)<-[:REPO_CONTAINS]-(r)
          WITH r,m LIMIT 1
          UNWIND range(1, 128) AS i
          CREATE (f:File {path:'/other/src/skew-' + toString(i) + '.py', relative_path:'src/skew-' + toString(i) + '.py', name:'skew.py', language:'python'})
          CREATE (r)-[:REPO_CONTAINS]->(f)
-         CREATE (f)-[:IMPORTS {line_number:i}]->(m)`, nil)
-	methodologyExecute(t, ctx, driver, database,
-		`CREATE (:File {path:'/history/src/proof.py', relative_path:'src/proof.py', name:'proof.py', language:'python', version:'history'})`, nil)
-	methodologyExecute(t, ctx, driver, database,
-		`MATCH (a:File {path:'/proof/src/proof.py'}), (b:File {path:'/proof/src/target.py'})-[:CONTAINS]->(n:Module {name:'proof.target'})
-         CREATE (a)-[:IMPORTS {line_number:4}]->(n)`, nil)
-	t.Logf("fixture shape: two tenants, duplicate import edges, null import attributes, orphan history, 128 skew files")
+         CREATE (f)-[:IMPORTS {line_number:i}]->(m)`,
+	`CREATE (:File {path:'/history/src/proof.py', relative_path:'src/proof.py', name:'proof.py', language:'python', version:'history'})`,
+	`MATCH (a:File {path:'/proof/src/proof.py'}), (b:File {path:'/proof/src/target.py'})-[:CONTAINS]->(n:Module {name:'proof.target'})
+         CREATE (a)-[:IMPORTS {line_number:4}]->(n)`,
 }
 
 var _ querycontract.GraphQuery = (*methodologyGraphReader)(nil)

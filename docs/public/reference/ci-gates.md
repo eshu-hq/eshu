@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 141 gates. Local execution runs the primary
+The registry currently defines 142 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -96,7 +96,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (52 gates)
+### Contract: Do declared or generated artifacts match the code? (53 gates)
 
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
 - `route-coverage` (blocking): Fails when a registered HTTP route has no test that actually references it.
@@ -116,6 +116,7 @@ results are derived from the inputs rather than written by hand. See
 - `capability-inventory` (blocking): Runs the capability-inventory tool in verify mode to check the capability catalog matches the code.
 - `capability-inventory-docs` (blocking): Runs the capability-inventory tool in docs mode to check public docs and README match the capability catalog.
 - `parser-relationship-kit` (blocking): Checks parser-documented test commands, language-parity ledgers, and dead-code maturity data still match the parser code.
+- `query-methodology-static` (blocking): Checks pilot contracts, emitted production variants and PostgreSQL execution-site coverage.
 - `scale-corpus-suite` (blocking): Validates the public scale-lab corpus spec has the required structure and contains no private data before use.
 - `scale-benchmark-artifact` (blocking): Validates the scale-benchmark artifact contract spec and, if given a result file, that it has the required metric fields.
 - `capability-budget-proof` (blocking): Validates the capability performance-budget proof contract matches the capability catalog spec.
@@ -237,7 +238,8 @@ results are derived from the inputs rather than written by hand. See
 | `parser-relationship-kit` | Verify Parser Relationship Kit | exactness | pre-pr | true | `bash scripts/verify-parser-relationship-kit.sh`<br>then self-test: `bash scripts/test-verify-parser-relationship-kit.sh` | static-contract-gates.yml / Verify parser relationship kit gate | 23 path(s): .github/workflows/static-contract-gates.yml, specs/ci-gates.v1.yaml, docs/**/*.md, … |
 | `accuracy-golden-gate` | Verify Accuracy Golden Gate | exactness | pre-pr | true | `bash scripts/verify_accuracy_golden_gate.sh` | test.yml / verify-contracts | 5 path(s): go/internal/collector/**, go/internal/parser/**, go/internal/relationships/**, … |
 | `heredoc-budget` | Heredoc Budget (bash 5.1+ pipe-buffer deadlock guard) | exactness | pre-pr | true | `cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt`<br>then self-test: `cd go && go test ./cmd/heredoc-budget -count=1` | static-contract-gates.yml / Verify heredoc budget gate | 3 path(s): scripts/**/*.sh, scripts/heredoc-budget-baseline.txt, go/cmd/heredoc-budget/** |
-| `query-plan-regression` | Verify Query Plan Regression | exactness | pre-pr | true | `bash scripts/verify-query-plan-regression.sh`<br>then self-test: `bash scripts/test-verify-query-plan-regression.sh` | test.yml / verify-contracts | 6 path(s): go/internal/query/**, go/internal/storage/cypher/**, scripts/test-verify-query-plan-regression.sh, … |
+| `query-methodology-static` | Verify Query Methodology Contracts | exactness | pre-commit | true | `bash scripts/verify-query-methodology.sh --static`<br>then self-test: `bash scripts/test-verify-query-methodology.sh` | test.yml / verify-contracts | 8 path(s): go/internal/query/**, go/internal/queryplan/**, go/internal/graph/schema*.go, … |
+| `query-plan-regression` | Verify Query Plan Regression | exactness | pre-pr | true | `bash scripts/verify-query-plan-regression.sh`<br>then self-test: `bash scripts/test-verify-query-plan-regression.sh` | test.yml / verify-contracts | 11 path(s): go/internal/query/**, go/internal/queryplan/**, go/internal/graph/schema*.go, … |
 | `scale-corpus-suite` | Verify Scale Corpus Suite | exactness | pre-pr | true | `bash scripts/verify-scale-corpus-suite.sh`<br>then self-test: `bash scripts/test-verify-scale-corpus-suite.sh` | test.yml / verify-contracts | 6 path(s): go/internal/collector/**, go/internal/parser/**, specs/scale-lab-corpus.v1.yaml, … |
 | `scale-benchmark-artifact` | Verify Scale Benchmark Artifact | exactness | pre-pr | true | `bash scripts/verify-scale-benchmark-artifact.sh`<br>then self-test: `bash scripts/test-verify-scale-benchmark-artifact.sh` | test.yml / verify-contracts | 5 path(s): go/internal/collector/**, go/internal/reducer/**, specs/scale-benchmark-artifact.v1.yaml, … |
 | `capability-budget-proof` | Verify Capability Budget Proof | exactness | pre-pr | true | `bash scripts/verify-capability-budget-proof.sh`<br>then self-test: `bash scripts/test-verify-capability-budget-proof.sh` | test.yml / verify-contracts | 5 path(s): go/internal/mcp/**, specs/capability-catalog.v1.yaml, specs/capability-budget-proof.v1.yaml, … |

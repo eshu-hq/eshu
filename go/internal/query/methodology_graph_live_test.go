@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"slices"
 	"sort"
@@ -40,6 +41,7 @@ func TestImportDependencyMethodologyLive(t *testing.T) {
 		database = "neo4j"
 	}
 	methodologySeedGraph(t, ctx, driver, database)
+	methodologyProveMissingGraphIndex(t, ctx, driver, database)
 	versionRows := methodologyExecute(t, ctx, driver, database, "CALL dbms.components() YIELD name, versions RETURN name, versions", nil)
 	t.Logf("backend_components=%v", versionRows)
 	recorder := &methodologyGraphReader{driver: driver, database: database}
@@ -47,18 +49,32 @@ func TestImportDependencyMethodologyLive(t *testing.T) {
 	expectedByRequest := make(map[string][]string, len(requests))
 	actualByRequest := make(map[string][]string, len(requests))
 	moreByRequest := make(map[string]bool, len(requests))
+	requestQueryCounts := make(map[string]int, len(requests))
+	maxRequestQueryCount := 0
 	if len(requests) != 488 {
 		t.Fatalf("valid request shapes=%d, want 488", len(requests))
 	}
 	for _, request := range requests {
 		requestName := importDependencyQueryplanRequestName(request)
+		if _, duplicate := requestQueryCounts[requestName]; duplicate {
+			t.Fatalf("duplicate request shape %s", requestName)
+		}
 		recorder.requestName = requestName
 		if err := request.Validate(); err != nil {
 			t.Fatalf("invalid enumerated request: %v", err)
 		}
+		priorCalls := recorder.calls
 		rows, enumeration, err := imports.Rows(ctx, recorder, request)
 		if err != nil {
 			t.Fatalf("request %s: %v", importDependencyQueryplanRequestName(request), err)
+		}
+		queryCount := recorder.calls - priorCalls
+		if err := methodologyRequestQueryCountWithinBudget(queryCount, 3); err != nil {
+			t.Fatalf("request %s: %v", requestName, err)
+		}
+		requestQueryCounts[requestName] = queryCount
+		if queryCount > maxRequestQueryCount {
+			maxRequestQueryCount = queryCount
 		}
 		response := codemodel.ImportDependencyResponseWithCycleEnumeration(request, rows, enumeration)
 		methodologyAssertResponse(t, request, response)
@@ -80,18 +96,28 @@ func TestImportDependencyMethodologyLive(t *testing.T) {
 	for name, cypher := range registered {
 		expected[cypher] = name
 	}
-	report := methodologyReport{BackendComponents: versionRows, ValidRequests: len(requests)}
+	report := methodologyReport{BackendComponents: versionRows, ValidRequests: len(requests), RequestQueryCounts: requestQueryCounts, MaxRequestQueryCount: maxRequestQueryCount, RequestQueryCountBudget: 3}
 	for cypher, capture := range recorder.statements {
 		name, ok := expected[cypher]
 		if !ok {
 			t.Fatalf("unregistered executed text sha256=%s", methodologyHash(cypher))
 		}
+		entryID := methodologyEntryID(name)
+		capture.entryID = entryID
+		capture.expectedIDs = methodologyOracleStatementIDs(entryID, capture.params)
+		capture.actualIDs = methodologyStatementIDs(entryID, capture.data)
+		if !slices.Equal(capture.actualIDs, capture.expectedIDs) {
+			t.Fatalf("statement %s raw IDs=%v, independent fixture wants %v", name, capture.actualIDs, capture.expectedIDs)
+		}
+		oracleRecordedAt := time.Now().UTC()
 		statement := methodologyStatementReport{
-			VariantID: name, EntryID: methodologyEntryID(name), CaseID: "representative", ScopeMode: methodologyScopeMode(name), RequestName: capture.requestName,
+			VariantID: name, EntryID: entryID, CaseID: "representative", ScopeMode: methodologyScopeMode(name), RequestName: capture.requestName,
 			Expected: expectedByRequest[capture.requestName], Actual: actualByRequest[capture.requestName], HasMore: moreByRequest[capture.requestName], SHA256: methodologyHash(cypher),
-			EmittedText: cypher, Params: capture.params, ResultRows: capture.rows,
+			EmittedText: cypher, Params: capture.params, ResultRows: capture.rows, ExpectedStatementIDs: capture.expectedIDs, ActualStatementIDs: capture.actualIDs,
+			OracleRecordedAt: oracleRecordedAt.Format(time.RFC3339Nano),
 		}
 		if os.Getenv("ESHU_QUERY_METHODOLOGY_CALIBRATED") == "1" {
+			statement.MeasuredAt = time.Now().UTC().Format(time.RFC3339Nano)
 			base, candidate := methodologyPairedMeasurements(t, ctx, driver, database, capture)
 			statement.Base, statement.Candidate = &base, &candidate
 		} else {
@@ -105,35 +131,60 @@ func TestImportDependencyMethodologyLive(t *testing.T) {
 			t.Fatalf("registered text not executed sha256=%s", methodologyHash(cypher))
 		}
 	}
-	sort.Slice(report.Statements, func(i, j int) bool { return report.Statements[i].VariantID < report.Statements[j].VariantID })
+	if os.Getenv("ESHU_QUERY_METHODOLOGY_CALIBRATED") == "1" {
+		report.Statements = append(report.Statements, methodologyParameterCases(t, ctx, driver, database, expected)...)
+	}
+	sort.Slice(report.Statements, func(i, j int) bool {
+		if report.Statements[i].VariantID != report.Statements[j].VariantID {
+			return report.Statements[i].VariantID < report.Statements[j].VariantID
+		}
+		return report.Statements[i].CaseID < report.Statements[j].CaseID
+	})
 	methodologyWriteReport(t, report)
+	if os.Getenv("ESHU_QUERY_METHODOLOGY_CALIBRATED") == "1" {
+		methodologyWriteGraphArtifact(t, ctx, driver, database, report)
+	}
 	methodologyAssertCappedCyclePage(t, ctx, driver, database)
 	t.Logf("valid_requests=%d distinct_executed_texts=%d", len(requests), len(recorder.statements))
 }
 
 type methodologyReport struct {
-	BackendComponents []map[string]any             `json:"backend_components"`
-	ValidRequests     int                          `json:"valid_requests"`
-	Statements        []methodologyStatementReport `json:"statements"`
+	BackendComponents       []map[string]any             `json:"backend_components"`
+	ValidRequests           int                          `json:"valid_requests"`
+	RequestQueryCounts      map[string]int               `json:"request_query_counts"`
+	MaxRequestQueryCount    int                          `json:"max_request_query_count"`
+	RequestQueryCountBudget int                          `json:"request_query_count_budget"`
+	Statements              []methodologyStatementReport `json:"statements"`
+}
+
+func methodologyRequestQueryCountWithinBudget(count, budget int) error {
+	if budget <= 0 || count < 0 || count > budget {
+		return fmt.Errorf("graph queries per request=%d exceeds declared budget=%d", count, budget)
+	}
+	return nil
 }
 
 type methodologyStatementReport struct {
-	VariantID          string                   `json:"variant_id"`
-	EntryID            string                   `json:"entry_id"`
-	CaseID             string                   `json:"case_id"`
-	ScopeMode          string                   `json:"scope_mode"`
-	RequestName        string                   `json:"request_name"`
-	Expected           []string                 `json:"expected"`
-	Actual             []string                 `json:"actual"`
-	HasMore            bool                     `json:"has_more"`
-	SHA256             string                   `json:"sha256"`
-	EmittedText        string                   `json:"emitted_text"`
-	Params             map[string]any           `json:"params"`
-	ResultRows         int                      `json:"result_rows"`
-	NormalMilliseconds []float64                `json:"normal_milliseconds"`
-	Profile            methodologyProfileReport `json:"profile"`
-	Base               *methodologyPairedRun    `json:"base,omitempty"`
-	Candidate          *methodologyPairedRun    `json:"candidate,omitempty"`
+	VariantID            string                   `json:"variant_id"`
+	EntryID              string                   `json:"entry_id"`
+	CaseID               string                   `json:"case_id"`
+	ScopeMode            string                   `json:"scope_mode"`
+	RequestName          string                   `json:"request_name"`
+	Expected             []string                 `json:"expected"`
+	Actual               []string                 `json:"actual"`
+	HasMore              bool                     `json:"has_more"`
+	SHA256               string                   `json:"sha256"`
+	EmittedText          string                   `json:"emitted_text"`
+	Params               map[string]any           `json:"params"`
+	ResultRows           int                      `json:"result_rows"`
+	ExpectedStatementIDs []string                 `json:"expected_statement_ids"`
+	ActualStatementIDs   []string                 `json:"actual_statement_ids"`
+	OracleRecordedAt     string                   `json:"oracle_recorded_at"`
+	MeasuredAt           string                   `json:"measured_at"`
+	NormalMilliseconds   []float64                `json:"normal_milliseconds"`
+	Profile              methodologyProfileReport `json:"profile"`
+	Base                 *methodologyPairedRun    `json:"base,omitempty"`
+	Candidate            *methodologyPairedRun    `json:"candidate,omitempty"`
 }
 
 func methodologyScopeMode(name string) string {
@@ -153,13 +204,16 @@ type methodologyProfileReport struct {
 }
 
 type methodologyPlanReport struct {
-	Operator        string                  `json:"operator"`
-	Arguments       map[string]any          `json:"arguments"`
-	DbHits          int64                   `json:"db_hits"`
-	Rows            int64                   `json:"rows"`
-	PageCacheHits   int64                   `json:"page_cache_hits"`
-	PageCacheMisses int64                   `json:"page_cache_misses"`
-	Children        []methodologyPlanReport `json:"children"`
+	Operator          string                  `json:"operator"`
+	Arguments         map[string]any          `json:"arguments"`
+	Identifiers       []string                `json:"identifiers"`
+	DbHits            int64                   `json:"db_hits"`
+	Rows              int64                   `json:"rows"`
+	PageCacheHits     int64                   `json:"page_cache_hits"`
+	PageCacheMisses   int64                   `json:"page_cache_misses"`
+	PageCacheHitRatio float64                 `json:"page_cache_hit_ratio"`
+	TimeRaw           int64                   `json:"time_raw"`
+	Children          []methodologyPlanReport `json:"children"`
 }
 
 func methodologyEntryID(name string) string {
@@ -244,7 +298,11 @@ func methodologyExecute(t *testing.T, ctx context.Context, driver neo4j.DriverWi
 
 type methodologyCapturedStatement struct {
 	cypher      string
+	entryID     string
 	params      map[string]any
+	data        []map[string]any
+	expectedIDs []string
+	actualIDs   []string
 	rows        int
 	elapsed     time.Duration
 	requestName string
@@ -255,9 +313,11 @@ type methodologyGraphReader struct {
 	database    string
 	statements  map[string]methodologyCapturedStatement
 	requestName string
+	calls       int
 }
 
 func (r *methodologyGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	r.calls++
 	if r.statements == nil {
 		r.statements = make(map[string]methodologyCapturedStatement)
 	}
@@ -285,7 +345,15 @@ func (r *methodologyGraphReader) Run(ctx context.Context, cypher string, params 
 		for key, value := range params {
 			copied[key] = value
 		}
-		r.statements[cypher] = methodologyCapturedStatement{cypher: cypher, params: copied, rows: len(rows), elapsed: time.Since(started), requestName: r.requestName}
+		capturedRows := make([]map[string]any, 0, len(rows))
+		for _, row := range rows {
+			captured := make(map[string]any, len(row))
+			for key, value := range row {
+				captured[key] = value
+			}
+			capturedRows = append(capturedRows, captured)
+		}
+		r.statements[cypher] = methodologyCapturedStatement{cypher: cypher, params: copied, rows: len(rows), data: capturedRows, elapsed: time.Since(started), requestName: r.requestName}
 	}
 	return rows, nil
 }
@@ -333,7 +401,11 @@ func methodologyProfile(t *testing.T, ctx context.Context, driver neo4j.DriverWi
 }
 
 func methodologyPlanTree(plan neo4j.ProfiledPlan) methodologyPlanReport {
-	result := methodologyPlanReport{Operator: plan.Operator(), Arguments: plan.Arguments(), DbHits: plan.DbHits(), Rows: plan.Records(), PageCacheHits: plan.PageCacheHits(), PageCacheMisses: plan.PageCacheMisses()}
+	result := methodologyPlanReport{
+		Operator: plan.Operator(), Arguments: plan.Arguments(), Identifiers: plan.Identifiers(),
+		DbHits: plan.DbHits(), Rows: plan.Records(), PageCacheHits: plan.PageCacheHits(), PageCacheMisses: plan.PageCacheMisses(),
+		PageCacheHitRatio: plan.PageCacheHitRatio(), TimeRaw: plan.Time(),
+	}
 	for _, child := range plan.Children() {
 		result.Children = append(result.Children, methodologyPlanTree(child))
 	}
@@ -357,8 +429,8 @@ func methodologyNormalTimes(t *testing.T, ctx context.Context, driver neo4j.Driv
 	for range 2 {
 		started := time.Now()
 		rows := methodologyExecute(t, ctx, driver, database, capture.cypher, capture.params)
-		if len(rows) != capture.rows {
-			t.Fatalf("repeat %s rows=%d, first=%d", methodologyHash(capture.cypher), len(rows), capture.rows)
+		if ids := methodologyStatementIDs(capture.entryID, rows); !slices.Equal(ids, capture.expectedIDs) {
+			t.Fatalf("repeat %s IDs=%v, independent fixture wants %v", methodologyHash(capture.cypher), ids, capture.expectedIDs)
 		}
 		times = append(times, float64(time.Since(started).Microseconds())/1000)
 	}

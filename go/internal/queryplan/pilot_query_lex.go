@@ -32,6 +32,7 @@ func pilotTokens(source string) ([]string, error) {
 			continue
 		}
 		if source[i] == '\'' || source[i] == '"' || source[i] == '`' {
+			start := i
 			quote := source[i]
 			i++
 			closed := false
@@ -54,7 +55,9 @@ func pilotTokens(source string) ([]string, error) {
 			if !closed {
 				return nil, errors.New("unterminated query literal")
 			}
-			tokens = append(tokens, "<literal>")
+			// The exact value is part of a grant contract. Collapsing every
+			// literal would make 'public' match required 'repository'.
+			tokens = append(tokens, source[start:i])
 			continue
 		}
 		if source[i] == ';' {
@@ -67,6 +70,11 @@ func pilotTokens(source string) ([]string, error) {
 				i++
 			}
 			tokens = append(tokens, strings.ToUpper(source[start:i]))
+			continue
+		}
+		if strings.HasPrefix(source[i:], "->>") {
+			tokens = append(tokens, "->>")
+			i += 3
 			continue
 		}
 		if i+1 < len(source) {

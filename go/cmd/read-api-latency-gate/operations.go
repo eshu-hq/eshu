@@ -16,13 +16,13 @@ import (
 func PilotOperations(inv capabilitycatalog.SurfaceInventory) (map[string]Operation, error) {
 	operations := map[string]Operation{
 		"GET /api/v0/status/ingesters/{ingester}": {
-			Method: http.MethodGet, Path: "/api/v0/status/ingesters/repository",
+			Method: http.MethodGet, Path: "/api/v0/status/ingesters/repository", Expect: "ingester_status",
 		},
 		"POST /api/v0/relationships/catalog": {
-			Method: http.MethodPost, Path: "/api/v0/relationships/catalog", Body: `{}`,
+			Method: http.MethodPost, Path: "/api/v0/relationships/catalog", Body: `{}`, Expect: "relationships_catalog",
 		},
 		"MCP get_index_status": {
-			Method: http.MethodPost, Path: "/mcp/message", MCP: true,
+			Method: http.MethodPost, Path: "/mcp/message", MCP: true, Expect: "mcp_index_status",
 			Body: `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_index_status","arguments":{}}}`,
 		},
 	}

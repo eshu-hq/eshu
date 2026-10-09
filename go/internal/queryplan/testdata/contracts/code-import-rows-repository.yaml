@@ -12,12 +12,12 @@ rationale: "Extend existing production-bound query families and independent fixt
 alternatives: ["schema-only plans do not prove seeded result semantics", "a copied query oracle cannot prove correctness"]
 index_cost: "Use existing schema indexes; no index is added by the pilot. Real-index acceptance must measure write work and storage."
 exceptions: ["Planner variation and bounded Cartesian products are recorded; accept only within declared workload and result budgets."]
-budget: {max_normal_ms: 2000, max_query_count: 1, max_work: {query_count: 1}, noise_tolerance: "Absolute two-second fixture ceiling; paired normal timing records expose noise without claiming a speedup. Scale calibration is a separate required stage."}
+budget: {max_normal_ms: 2000, max_query_count: 1, max_work: {query_count: 1, total_operator_db_hits: 5000, root_output_rows: 1000}, noise_tolerance: "Same-host 282-case calibration observed at most 2413 total operator database hits and normal cold-plan times below 145 ms. The 5000-hit ceiling permits planner variation while bounding work; the two-second normal ceiling allows compilation noise. Bounded Cartesian products remain recorded exceptions, not blanket failures. Scale calibration is separate."}
 workload: {"budgets": "PostgreSQL normal execution <=2000 ms on the 20000-row fixture; graph plans and endpoint budgets use the selected workload.", "cardinality": "PostgreSQL 20001 owners and 20000 source facts; Neo4j two tenants plus duplicate edges and 128 skew files.", "depth": "Declared bounded code traversals; cycle reconstruction scans capped edges.", "fanout": "128 skew imports plus repeated import edges; record PROFILE expansion rows.", "payload": "Narrow identity and import fields; large-payload operation proof is a dedicated stage.", "query_count": "One SQL statement per page; graph query counts recorded per request and emitted family.", "skew": "Cross-scope negative cases and high-degree imports; zero-result reads retain the populated fixture."}
 require_order: true
 require_limit: true
 environment: {"engine": "neo4j", "fixture": "import-edge-ledger-v1", "indexes": "physical indexes and full definitions captured per run", "oracle": "import-edge-ledger-v1", "runner": "TestImportDependencyMethodologyLive", "schema": "disposable declared fixture DDL", "version": "2026.08.1"}
-required_schema: ["methodology_repo_id", "methodology_file_relative", "methodology_file_path", "methodology_module_name", "methodology_function_uid"]
+required_schema: ["repository_id", "path", "module_name_lookup", "function_uid_unique"]
 authorization_aliases: ["repo"]
 required_cases:
   - {"case_id": "representative", "query_sha256": "2fceb8f02963b53f2cd15887a53dfb01142fc18a3eac7c80d0e708a7b93b2c81", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+repo+language/direct-imports"}
@@ -48,3 +48,5 @@ required_cases:
   - {"case_id": "representative", "query_sha256": "ce63b6b7f271d31be74ac05535192925ffde68e97791b185243c55103a2637c7", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+source-file/direct-imports"}
   - {"case_id": "representative", "query_sha256": "4a5838339444a4b8331b526bc9386ed3b05ec98514af7e4b85f53ceda940afea", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+target-module+language/direct-imports"}
   - {"case_id": "representative", "query_sha256": "b7065528e42b9171cbd51e19ef506b2d35f70b95df4ee8e91754214d15906860", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+target-module/direct-imports"}
+  - {"case_id": "empty-page", "query_sha256": "8d79c2a99aee72a5d8985c2beb83cb0d47371654c589ffc66af4c63a57798abf", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+repo/direct-imports"}
+  - {"case_id": "missing-source-file", "query_sha256": "ce63b6b7f271d31be74ac05535192925ffde68e97791b185243c55103a2637c7", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+source-file/direct-imports"}

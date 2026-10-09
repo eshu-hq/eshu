@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -43,12 +44,18 @@ func SweepConcurrentOperations(opts SweepOptions, operations map[string]Operatio
 		errors := make([]error, requests)
 		jobs := make(chan int)
 		var group sync.WaitGroup
+		var active, peak atomic.Int32
+		started := time.Now()
 		for worker := 0; worker < workers; worker++ {
 			group.Add(1)
 			go func() {
 				defer group.Done()
 				for index := range jobs {
+					inFlight := active.Add(1)
+					for previous := peak.Load(); inFlight > previous && !peak.CompareAndSwap(previous, inFlight); previous = peak.Load() {
+					}
 					samples[index], statuses[index], bodies[index], errors[index] = sweepOperation(client, base+op.Path, opts.APIKey, op)
+					active.Add(-1)
 				}
 			}()
 		}
@@ -57,12 +64,15 @@ func SweepConcurrentOperations(opts SweepOptions, operations map[string]Operatio
 		}
 		close(jobs)
 		group.Wait()
-		result := RouteLatency{Route: id, Method: op.Method, Path: op.Path, MCP: op.MCP, Exercised: true, Samples: samples, P95: p95(append([]time.Duration(nil), samples...))}
+		result := RouteLatency{Route: id, Method: op.Method, Path: op.Path, MCP: op.MCP, Exercised: true, Samples: samples, P95: p95(append([]time.Duration(nil), samples...)), Requested: requests, Workers: workers, PeakInFlight: int(peak.Load()), Wall: time.Since(started), Statuses: statuses}
 		for index := range requests {
 			if errors[index] != nil {
 				return nil, fmt.Errorf("concurrent sweep %s request %d: %w", id, index+1, errors[index])
 			}
 			result.Status = statuses[index]
+			if statuses[index] == http.StatusOK {
+				result.Succeeded++
+			}
 			if statuses[index] >= 400 && statuses[index] < 500 {
 				result.Exercised = false
 			}

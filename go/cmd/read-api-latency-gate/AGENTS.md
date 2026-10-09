@@ -83,7 +83,8 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   meter never read. Catching a meter/extension failure and continuing on
   latency alone is the exact failure the work budget exists to prevent.
   The optional `SweepConcurrentOperations` runs only after that metered stage,
-  refuses a meter, and reports its own request count and worker count.
+  refuses a meter, validates every pilot response, and reports its own
+  request/success counts, worker count, and peak in-flight count.
 - **`testdata/benchmarks/read-api-route-work-budgets.txt` is generated.**
   Render it with `scripts/refresh-read-api-work-budgets.sh` from GREEN
   `-work-report` files (from the runner class the gate enforces on, not a local

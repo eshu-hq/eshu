@@ -68,7 +68,7 @@ func runConcurrentPilot(opts runOptions, operations map[string]Operation, budget
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: concurrent pilot workers=%d requests/operation=%d (unmetered after sequential metered sweep)\n", opts.concurrentWorkers, opts.concurrentRequests)
 	for _, result := range concurrent {
 		fmt.Fprintf(os.Stderr, "  %s method=%s path=%s p95=%s status=%d exercised=%t hard_failed=%t\n", result.Route, result.Method, result.Path, result.P95, result.Status, result.Exercised, result.HardFailed)
-		if !result.Exercised || result.HardFailed || len(EvaluateBudgets([]RouteLatency{result}, budgets)) > 0 {
+		if !result.Exercised || result.HardFailed || result.Succeeded != result.Requested || len(EvaluateBudgets([]RouteLatency{result}, budgets)) > 0 {
 			return fmt.Errorf("concurrent pilot %s failed correctness or latency budget", result.Route)
 		}
 	}

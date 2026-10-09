@@ -180,8 +180,18 @@ jobs:
 
       - name: Verify query-plan regression gate
         run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          scripts/test-verify-query-methodology.sh
           scripts/test-verify-query-plan-regression.sh
           scripts/verify-query-plan-regression.sh
+
+      - name: Archive query methodology evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: query-methodology-${{ github.sha }}
+          path: .proof-artifacts/query-methodology/*.json
+          if-no-files-found: error
 
       - name: Verify scale corpus suite
         run: |

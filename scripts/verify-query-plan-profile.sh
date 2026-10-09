@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-image="${ESHU_QUERYPLAN_PROFILE_IMAGE:-neo4j@sha256:6c162e2432f861f2c4e3da77a6ba478e7f10e2160b870541f85294532bc6ff5f}"
+image="${ESHU_QUERYPLAN_PROFILE_IMAGE:-neo4j@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f}"
 container="eshu-queryplan-profile-${$}-${RANDOM}"
 password="queryplan-profile-${RANDOM}-${$}"
 

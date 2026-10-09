@@ -70,6 +70,13 @@ type RouteLatency struct {
 	// a host under variable load can produce a stable pooled p95 while
 	// individual runs swing widely.
 	WarmRunP95s []time.Duration
+	// Concurrent-only load evidence. Zero for the sequential route sweep.
+	Requested    int
+	Succeeded    int
+	Workers      int
+	PeakInFlight int
+	Wall         time.Duration
+	Statuses     []int
 }
 
 // BudgetBreach is one route that failed the gate: either its measured p95

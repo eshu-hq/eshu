@@ -30,10 +30,12 @@ func TestQueryMethodologyPostgresLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	seedCloudResourceListLiveCorpus(t, ctx, handle)
+	applyMethodologyPostgresMigrations(t, ctx, handle)
 	proof := runMethodologyPostgresProof(t, ctx, handle)
 	if proof.Variants != 64 || proof.Cases < 96 {
 		t.Fatalf("production coverage = %d variants/%d cases, want 64 variants and >=96 cases", proof.Variants, proof.Cases)
 	}
+	writeMethodologyPostgresArtifact(t, ctx, handle, proof)
 	if path := os.Getenv("ESHU_QUERY_METHODOLOGY_POSTGRES_REPORT"); path != "" {
 		encoded, err := json.MarshalIndent(proof, "", "  ")
 		if err != nil {
