@@ -210,10 +210,12 @@ func codeCallGoSymbolImportPath(key string) string {
 // codeCallGoModuleManifestPath returns the module path declared by a go.mod
 // manifest's `module` directive, or "" when the content has none. It scans
 // past blank lines and `//` comments and takes the second field of the first
-// `module` line, so a trailing comment never leaks into the path. One bad
-// manifest never fails the load.
+// `module` line, so a trailing comment never leaks into the path. Carriage
+// returns fold to newlines first so a bare-CR manifest parses the same way
+// the Go parser's line-ending normalization reads it. One bad manifest
+// never fails the load.
 func codeCallGoModuleManifestPath(content string) string {
-	for _, line := range strings.Split(content, "\n") {
+	for _, line := range strings.Split(strings.ReplaceAll(content, "\r", "\n"), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 2 || fields[0] != "module" {
 			continue
