@@ -306,7 +306,7 @@ generated: run the gate on the runner class with `GATE_WORK_REPORT`, then
 the GREEN maximum. The five routes the #6794 fix did not change are guards for
 future regressions; the fix pair cannot prove them RED.
 
-**Floor.** No named work row is rendered below the `default` row (13 calls, 21
+**Floor.** No named work row is rendered below the current `default` row (13 calls, 18
 buffers, 14 rows). Routes that read almost nothing would otherwise get a budget
 of 0 rows and 3 buffers, and the meter window sums the whole database, so a
 single stray statement would be a blocking breach. The floor comes from
