@@ -72,8 +72,12 @@ publisher_body="$(job_body publish-ci-service-mirrors)"
 verifier_body="$(job_body verify-public-ci-service-mirrors)"
 for job in publish-ci-service-mirrors verify-public-ci-service-mirrors; do
   body="$(job_body "${job}")"
-  rg -q '^        run: scripts/ci/install-apt-packages.sh ripgrep$' <<< "${body}" ||
-    fail "${job} lacks the pinned ripgrep installer before its safety test"
+  rg -Uq '^      - name: Install ripgrep\n        run: scripts/ci/install-apt-packages.sh ripgrep$' \
+    <<< "${body}" || fail "${job} lacks the pinned ripgrep installer"
+  installer_line="$(rg -n -m1 '^      - name: Install ripgrep$' <<< "${body}")"
+  test_line="$(rg -n -m1 '^      - name: Test publisher safety contract$' <<< "${body}")"
+  [[ -n "${test_line}" && "${installer_line%%:*}" -lt "${test_line%%:*}" ]] ||
+    fail "${job} installs ripgrep after its safety test"
 done
 rg -q '^        run: bash scripts/dev/publish-ci-image-mirrors.sh publish$' <<< "${publisher_body}" ||
   fail 'publisher job does not run the pinned publisher'
@@ -112,6 +116,21 @@ if [[ "$#" -eq 0 ]]; then
   sed '/^      - name: Install ripgrep$/,+1d' "${workflow}" > "${scratch}/no-rg.yml"
   if bash "$0" "${scratch}/no-rg.yml" > /dev/null 2>&1; then
     fail 'seeded missing ripgrep installer was not detected'
+  fi
+  awk '
+    /^      - name: Install ripgrep$/ { held = $0; getline; held = held ORS $0; next }
+    /^      - name: Test publisher safety contract$/ {
+      print
+      getline
+      print
+      print held
+      held = ""
+      next
+    }
+    { print }
+  ' "${workflow}" > "${scratch}/late-rg.yml"
+  if bash "$0" "${scratch}/late-rg.yml" > /dev/null 2>&1; then
+    fail 'seeded late ripgrep installer was not detected'
   fi
 
   sed 's|run: bash scripts/dev/publish-ci-image-mirrors.sh publish|run: echo bypassed|' \
