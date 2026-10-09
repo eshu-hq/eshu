@@ -39,10 +39,9 @@ func TestSourceNextSkipsRetryableHTTPStatusOnPing(t *testing.T) {
 	tests := []struct {
 		name   string
 		status int
-		class  string
 	}{
-		{name: "server error skips the target", status: http.StatusServiceUnavailable, class: collector.RegistryFailureRetryable},
-		{name: "rate limited skips the target", status: http.StatusTooManyRequests, class: collector.RegistryFailureRateLimited},
+		{name: "server error skips the target", status: http.StatusServiceUnavailable},
+		{name: "rate limited skips the target", status: http.StatusTooManyRequests},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
