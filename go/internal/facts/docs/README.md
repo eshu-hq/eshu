@@ -103,7 +103,7 @@ and bytes, so callers are value-identical by construction; no fact kind
 string, payload shape, or registry output changes (contract classification:
 patch — no contract surface touched).
 
-- Baseline: `35d869c4a9`, `go test -count=1` on the 23 affected-package
+- Baseline: `81794178a1`, `go test -count=1` on the 23 affected-package
   targets (every Go directory the diff touches): 22 ok, 1 fail
   (`TestFetchChurnZombiesDrainedByReaper`, which fails identically on
   the clean base on this host and passes in CI).
