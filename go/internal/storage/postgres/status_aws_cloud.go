@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 const awsCloudScanStatusQuery = `
@@ -44,16 +44,16 @@ LIMIT $1
 
 const awsCloudScanStatusLimit = 1000
 
-func readAWSCloudScanStatuses(ctx context.Context, queryer db.Queryer) ([]statuspkg.AWSCloudScanStatus, bool, error) {
+func readAWSCloudScanStatuses(ctx context.Context, queryer db.Queryer) ([]cloud.AWSScanStatus, bool, error) {
 	rows, err := queryer.QueryContext(ctx, awsCloudScanStatusQuery, awsCloudScanStatusLimit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("list AWS cloud scan statuses: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	output := []statuspkg.AWSCloudScanStatus{}
+	output := []cloud.AWSScanStatus{}
 	for rows.Next() {
-		var row statuspkg.AWSCloudScanStatus
+		var row cloud.AWSScanStatus
 		var lastStartedAt sql.NullTime
 		var lastObservedAt sql.NullTime
 		var lastCompletedAt sql.NullTime

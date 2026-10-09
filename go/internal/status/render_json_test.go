@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 func TestBuildReportClampsNegativeAges(t *testing.T) {
@@ -197,7 +198,7 @@ func TestRenderStatusIncludesAWSCloudScans(t *testing.T) {
 	report := status.BuildReport(
 		status.RawSnapshot{
 			AsOf: now,
-			AWSCloudScans: []status.AWSCloudScanStatus{{
+			AWSCloudScans: []cloud.AWSScanStatus{{
 				CollectorInstanceID: "aws-prod",
 				AccountID:           "123456789012",
 				Region:              "us-east-1",

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 func TestAuthMiddlewareWithScopedTokensAllowsCollectorStatusRoute(t *testing.T) {
@@ -41,7 +42,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsCollectorStatusRoute(t *testing.T) 
 						UpdatedAt:      now,
 					}},
 				},
-				AWSCloudScans: []statuspkg.AWSCloudScanStatus{{
+				AWSCloudScans: []cloud.AWSScanStatus{{
 					CollectorInstanceID: privateInstanceID,
 					Region:              "private-region",
 					ServiceKind:         "private-service",

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 func collectorReadinessByKind(t *testing.T, body []byte) map[string]map[string]any {
@@ -94,7 +95,7 @@ func TestCollectorReadinessClassifiesConfiguredCollectors(t *testing.T) {
 				{InstanceID: "collector-aws", CollectorKind: "aws", Enabled: true, ClaimsEnabled: true, LastObservedAt: now, UpdatedAt: now},
 			},
 		},
-		AWSCloudScans: []statuspkg.AWSCloudScanStatus{
+		AWSCloudScans: []cloud.AWSScanStatus{
 			{CollectorInstanceID: "collector-aws", Status: "failed_terminal", CredentialFailed: true, FailureClass: "credential_denied", UpdatedAt: now},
 		},
 		CollectorFactEvidence: []statuspkg.CollectorFactEvidence{

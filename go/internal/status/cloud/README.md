@@ -68,6 +68,46 @@ is pure value transformation over rows the status reader already gathered.
   (`queued`/`claimed`/`handed_off`/`failed`) in `RenderAWSFreshnessLines`
   silently drops that bucket from the rendered line.
 
+## Evidence
+
+No-Regression Evidence (#6949 batch 1, cloud family): this change moves
+the two `cloud.*` compat entries' Go importers (`AWSCloudScanStatus` and
+`AWSFreshnessSnapshot`) off the transitional `status.*` compat spellings
+onto `cloud.AWSScanStatus` and `cloud.AWSFreshnessSnapshot`, and deletes
+the emptied `compat_cloud.go`. No type shape, wire field, SQL text, or
+executable statement changes: across 13 files, every production hunk
+requalifies an identifier or import path only, every other hunk is a
+package-doc rewording, a ledger row, or the compat file's own deletion,
+and the build resolves with no dangling reference.
+Measurement: identical before/after outcomes (ledger:6949-cloud-batch1-before,
+ledger:6949-cloud-batch1-after). The command is `go test -count=1` over
+the 3 affected package targets (`./internal/status/...`,
+`./internal/query/`, `./internal/storage/postgres/`) on baseline
+`5f72790f6e` vs measurement commit `c5d4128c01` (this Evidence section,
+the two ledger rows, and content-identical rebases tracking main are the
+only later changes): 3 packages ok, 0 fail on both sides, with the
+ok-package set byte-identical after timing strip. `go test -list`
+inventory is identical on both sides (5486 tests). Backend/version:
+go1.26.9 linux/amd64, in-memory; no backend touched. Input shape: n/a
+(no runtime input). Terminal queue/row counts: none — no queue, lease,
+Cypher, or SQL path is touched. Contract gates green on the branch:
+the three byte-for-byte wire goldens
+(`TestRenderWireJSON_ByteForByteGolden`,
+`TestRenderWireText_ByteForByteGolden`,
+`TestRenderWireJSON_KeyPathsGolden`), `verify-openapi.sh` (261/261
+routes), `verify-contracttest.sh`, and `verify-package-docs.sh`. The
+change is safe because it cannot alter runtime behavior: the compiler
+resolves the same types through their new paths, and the compat
+deletion is compile-enforced total — any missed caller would fail the
+build.
+
+No-Observability-Change (#6949 batch 1, cloud family): this package
+carries no instrumentation (see Telemetry above) and the move adds,
+removes, or renames no metric, span, structured log, or status field in
+any touched package. The status readers, query handlers, and renderers
+that use these types are untouched; operator signals are identical
+before and after.
+
 ## Related docs
 
 - `docs/internal/naming.md` — the nesting rules this leaf was created under

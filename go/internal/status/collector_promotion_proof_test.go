@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 // promotionTestCatalog is a small deterministic catalog used to exercise every
@@ -37,7 +38,7 @@ func promotionScenarioReport(now time.Time) status.Report {
 				{InstanceID: "collector-sbom", CollectorKind: "sbom_attestation", Mode: "claim", Enabled: false, ClaimsEnabled: false, DeactivatedAt: now.Add(-1 * time.Hour), LastObservedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-1 * time.Hour)},
 			},
 		},
-		AWSCloudScans: []status.AWSCloudScanStatus{
+		AWSCloudScans: []cloud.AWSScanStatus{
 			{CollectorInstanceID: "collector-aws", AccountID: "acct", Region: "us-east-1", ServiceKind: "ec2", Status: "failed_terminal", CredentialFailed: true, FailureClass: "credential_denied", LastObservedAt: now.Add(-3 * time.Minute), UpdatedAt: now.Add(-3 * time.Minute)},
 		},
 		CollectorFactEvidence: []status.CollectorFactEvidence{
