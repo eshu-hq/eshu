@@ -7,20 +7,20 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func suppressionStateForJustification(justification string) SupplyChainSuppressionState {
 	switch strings.TrimSpace(justification) {
-	case facts.VulnerabilitySuppressionJustificationNotAffected:
+	case chain.VulnerabilitySuppressionJustificationNotAffected:
 		return SupplyChainSuppressionStateNotAffected
-	case facts.VulnerabilitySuppressionJustificationAcceptedRisk:
+	case chain.VulnerabilitySuppressionJustificationAcceptedRisk:
 		return SupplyChainSuppressionStateAcceptedRisk
-	case facts.VulnerabilitySuppressionJustificationFalsePositive:
+	case chain.VulnerabilitySuppressionJustificationFalsePositive:
 		return SupplyChainSuppressionStateFalsePositive
-	case facts.VulnerabilitySuppressionJustificationIgnored:
+	case chain.VulnerabilitySuppressionJustificationIgnored:
 		return SupplyChainSuppressionStateIgnored
-	case facts.VulnerabilitySuppressionJustificationProviderDismissed:
+	case chain.VulnerabilitySuppressionJustificationProviderDismissed:
 		return SupplyChainSuppressionStateProviderDismissed
 	default:
 		return SupplyChainSuppressionStateActive

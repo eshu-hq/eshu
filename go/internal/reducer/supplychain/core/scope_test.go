@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // TestEvaluateSupplyChainSuppressionEnvironmentScopeHidesMatchingEnvironment
@@ -26,8 +27,8 @@ func TestEvaluateSupplyChainSuppressionEnvironmentScopeHidesMatchingEnvironment(
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-env-stage",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Reason:        "not exploitable in staging",
 		Scope: vulnerabilitySuppressionScope{
@@ -58,8 +59,8 @@ func TestEvaluateSupplyChainSuppressionEnvironmentScopeDoesNotHideOtherEnvironme
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-env-stage",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         "CVE-2026-0200",
@@ -93,8 +94,8 @@ func TestEvaluateSupplyChainSuppressionEnvironmentScopeCanonicalizesAliases(t *t
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-alias",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         "CVE-2026-0220",
@@ -128,8 +129,8 @@ func TestEvaluateSupplyChainSuppressionEnvironmentScopeFailsClosedWithNoEvidence
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-env-no-evidence",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         "CVE-2026-0230",
@@ -249,8 +250,8 @@ func TestEvaluateSupplyChainSuppressionWorkloadAndServiceScopeMatchAndFailClosed
 
 			suppression := vulnerabilitySuppression{
 				SuppressionID: "suppression-" + tt.name,
-				Source:        facts.VulnerabilitySuppressionSourcePolicy,
-				Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+				Source:        chain.VulnerabilitySuppressionSourcePolicy,
+				Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 				AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 				Scope:         tt.scope,
 			}
@@ -276,8 +277,8 @@ func TestEvaluateSupplyChainSuppressionEnvironmentAndWorkloadCombinationRequires
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-combo",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope:         scope,
 	}
@@ -318,8 +319,8 @@ func TestEvaluateSupplyChainSuppressionNoNewScopeFieldsBehavesAsDigestEverywhere
 
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-digest-everywhere",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         "CVE-2026-0500",
@@ -353,8 +354,8 @@ func TestBuildVulnerabilitySuppressionsDecodesEnvironmentWorkloadServiceScope(t 
 	envelopes := []facts.Envelope{
 		vulnerabilitySuppressionFactEnvelope(
 			"vuln-suppression:2",
-			facts.VulnerabilitySuppressionSourcePolicy,
-			facts.VulnerabilitySuppressionJustificationNotAffected,
+			chain.VulnerabilitySuppressionSourcePolicy,
+			chain.VulnerabilitySuppressionJustificationNotAffected,
 			"eshu:policy/operator@example.com",
 			"2026-05-10T00:00:00Z",
 			"",
@@ -405,8 +406,8 @@ func TestBuildVulnerabilitySuppressionsOmittedEnvironmentWorkloadServiceScope(t 
 	envelopes := []facts.Envelope{
 		vulnerabilitySuppressionFactEnvelope(
 			"vuln-suppression:3",
-			facts.VulnerabilitySuppressionSourceVEX,
-			facts.VulnerabilitySuppressionJustificationNotAffected,
+			chain.VulnerabilitySuppressionSourceVEX,
+			chain.VulnerabilitySuppressionJustificationNotAffected,
 			"vex:openvex/operator@example.com",
 			"2026-05-10T00:00:00Z",
 			"",

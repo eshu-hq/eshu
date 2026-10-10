@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // benchmarkLegacySuppressionSet preserves the exact pre-#5466 input shape used
@@ -26,8 +26,8 @@ func benchmarkLegacySuppressionSet() []vulnerabilitySuppression {
 		}
 		suppressions = append(suppressions, vulnerabilitySuppression{
 			SuppressionID: fmt.Sprintf("suppression-%d", i),
-			Source:        facts.VulnerabilitySuppressionSourcePolicy,
-			Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+			Source:        chain.VulnerabilitySuppressionSourcePolicy,
+			Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 			AuthoredAt:    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 			Scope:         scope,
 		})
@@ -42,8 +42,8 @@ func benchmarkLegacySuppressionSet() []vulnerabilitySuppression {
 	}
 	suppressions[0] = vulnerabilitySuppression{
 		SuppressionID: "suppression-0",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 		Scope:         scope,
 	}
@@ -59,8 +59,8 @@ func benchmarkDeploymentSuppressionSet(count int) []vulnerabilitySuppression {
 	for i := 0; i < count; i++ {
 		suppressions = append(suppressions, vulnerabilitySuppression{
 			SuppressionID: fmt.Sprintf("suppression-%d", i),
-			Source:        facts.VulnerabilitySuppressionSourcePolicy,
-			Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+			Source:        chain.VulnerabilitySuppressionSourcePolicy,
+			Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 			AuthoredAt:    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 			Scope: vulnerabilitySuppressionScope{
 				CVEID:         "CVE-2026-00000",

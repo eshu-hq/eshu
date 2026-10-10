@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -70,7 +71,7 @@ func TestBuildSupplyChainImpactReducerIntentReasonBySourceKind(t *testing.T) {
 		{"security alert", facts.SecurityAlertRepositoryAlertFactKind, "provider security alert evidence observed"},
 		{"package identity", facts.PackageRegistryPackageFactKind, "package registry identity observed"},
 		{"SBOM component", facts.SBOMComponentFactKind, "SBOM package evidence observed"},
-		{"suppression", facts.VulnerabilitySuppressionFactKind, "vulnerability suppression evidence observed"},
+		{"suppression", chain.VulnerabilitySuppressionFactKind, "vulnerability suppression evidence observed"},
 		{"OCI manifest", facts.OCIImageManifestFactKind, "OCI image subject evidence observed"},
 		{"OCI referrer", facts.OCIImageReferrerFactKind, "OCI image subject evidence observed"},
 	}

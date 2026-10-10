@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -117,7 +118,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			}
 		case facts.VulnerabilityEPSSScoreFactKind, facts.VulnerabilityKnownExploitedFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
-		case facts.VulnerabilitySuppressionFactKind:
+		case chain.VulnerabilitySuppressionFactKind:
 			if scope := payloadcore.PayloadMap(envelope.Payload, "scope"); scope != nil {
 				cveIDs = append(cveIDs, payloadcore.PayloadStr(scope, "cve_id"))
 				advisoryIDs = append(advisoryIDs, payloadcore.PayloadStr(scope, "advisory_id"))

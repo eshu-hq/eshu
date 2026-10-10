@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -22,8 +23,8 @@ func TestSupplyChainImpactHandlerEvaluatesSuppressionAndPersistsDecision(t *test
 			vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
 			suppressionFactEnvelope(
 				"suppression-1",
-				facts.VulnerabilitySuppressionSourceVEX,
-				facts.VulnerabilitySuppressionJustificationNotAffected,
+				chain.VulnerabilitySuppressionSourceVEX,
+				chain.VulnerabilitySuppressionJustificationNotAffected,
 				"vex:openvex/operator@example.com",
 				"2026-05-10T00:00:00Z",
 				"",
@@ -84,8 +85,8 @@ func TestSupplyChainImpactHandlerKeepsExpiredSuppressionVisible(t *testing.T) {
 			vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0030", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
 			suppressionFactEnvelope(
 				"suppression-expired",
-				facts.VulnerabilitySuppressionSourcePolicy,
-				facts.VulnerabilitySuppressionJustificationIgnored,
+				chain.VulnerabilitySuppressionSourcePolicy,
+				chain.VulnerabilitySuppressionJustificationIgnored,
 				"eshu:policy/operator@example.com",
 				"2026-04-01T00:00:00Z",
 				"2026-05-14T00:00:00Z",
@@ -152,8 +153,8 @@ func TestSupplyChainImpactHandlerFailsOpenWhenSuppressionCandidatesAreTruncated(
 		active: []facts.Envelope{
 			suppressionFactEnvelope(
 				"suppression-older-loaded",
-				facts.VulnerabilitySuppressionSourcePolicy,
-				facts.VulnerabilitySuppressionJustificationNotAffected,
+				chain.VulnerabilitySuppressionSourcePolicy,
+				chain.VulnerabilitySuppressionJustificationNotAffected,
 				"eshu:policy/operator@example.com",
 				"2026-05-10T00:00:00Z",
 				"",
@@ -232,8 +233,8 @@ func TestSupplyChainImpactPayloadIncludesSuppressionState(t *testing.T) {
 		Suppression: SupplyChainSuppressionDecision{
 			State:         SupplyChainSuppressionStateAcceptedRisk,
 			SuppressionID: "suppression-accepted",
-			Source:        facts.VulnerabilitySuppressionSourcePolicy,
-			Justification: facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+			Source:        chain.VulnerabilitySuppressionSourcePolicy,
+			Justification: chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 			Author:        "eshu:policy/operator@example.com",
 			AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 			Reason:        "compensating control",
@@ -277,7 +278,7 @@ func suppressionFactEnvelope(
 	}
 	return facts.Envelope{
 		FactID:   id,
-		FactKind: facts.VulnerabilitySuppressionFactKind,
+		FactKind: chain.VulnerabilitySuppressionFactKind,
 		Payload:  payload,
 	}
 }

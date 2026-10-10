@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestSupplyChainImpactFilterSeedsAdvisoryOnlySuppressionDiscovery(t *testing.T) {
@@ -15,7 +16,7 @@ func TestSupplyChainImpactFilterSeedsAdvisoryOnlySuppressionDiscovery(t *testing
 
 	filter := supplyChainImpactFilter([]facts.Envelope{{
 		FactID:   "suppression-advisory-only",
-		FactKind: facts.VulnerabilitySuppressionFactKind,
+		FactKind: chain.VulnerabilitySuppressionFactKind,
 		Payload: map[string]any{
 			"scope": map[string]any{"advisory_id": "GHSA-2026-aaaa-bbbb"},
 		},

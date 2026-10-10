@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -25,7 +26,7 @@ func BuildVulnerabilitySuppressions(
 	out := make([]vulnerabilitySuppression, 0)
 	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.VulnerabilitySuppressionFactKind {
+		if envelope.FactKind != chain.VulnerabilitySuppressionFactKind {
 			continue
 		}
 		suppression, err := decodeVulnerabilitySuppression(envelope)
@@ -78,7 +79,7 @@ func decodeVulnerabilitySuppression(envelope facts.Envelope) (vulnerabilitySuppr
 	}
 	expiresRaw := optionalSuppressionString(value.ExpiresAt)
 	expiresAt, expiresPresent, expiresValid := parseSuppressionTime(expiresRaw)
-	if strings.TrimSpace(value.Justification) == facts.VulnerabilitySuppressionJustificationIgnored &&
+	if strings.TrimSpace(value.Justification) == chain.VulnerabilitySuppressionJustificationIgnored &&
 		!expiresPresent {
 		return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField("expires_at")
 	}
@@ -102,20 +103,20 @@ func decodeVulnerabilitySuppression(envelope facts.Envelope) (vulnerabilitySuppr
 
 func vulnerabilitySuppressionSourceJustificationInvalidField(source string, justification string) string {
 	switch strings.TrimSpace(source) {
-	case facts.VulnerabilitySuppressionSourceVEX:
-		if strings.TrimSpace(justification) == facts.VulnerabilitySuppressionJustificationNotAffected {
+	case chain.VulnerabilitySuppressionSourceVEX:
+		if strings.TrimSpace(justification) == chain.VulnerabilitySuppressionJustificationNotAffected {
 			return ""
 		}
-	case facts.VulnerabilitySuppressionSourcePolicy:
+	case chain.VulnerabilitySuppressionSourcePolicy:
 		switch strings.TrimSpace(justification) {
-		case facts.VulnerabilitySuppressionJustificationNotAffected,
-			facts.VulnerabilitySuppressionJustificationAcceptedRisk,
-			facts.VulnerabilitySuppressionJustificationFalsePositive,
-			facts.VulnerabilitySuppressionJustificationIgnored:
+		case chain.VulnerabilitySuppressionJustificationNotAffected,
+			chain.VulnerabilitySuppressionJustificationAcceptedRisk,
+			chain.VulnerabilitySuppressionJustificationFalsePositive,
+			chain.VulnerabilitySuppressionJustificationIgnored:
 			return ""
 		}
-	case facts.VulnerabilitySuppressionSourceProviderDismissal:
-		if strings.TrimSpace(justification) == facts.VulnerabilitySuppressionJustificationProviderDismissed {
+	case chain.VulnerabilitySuppressionSourceProviderDismissal:
+		if strings.TrimSpace(justification) == chain.VulnerabilitySuppressionJustificationProviderDismissed {
 			return ""
 		}
 	default:

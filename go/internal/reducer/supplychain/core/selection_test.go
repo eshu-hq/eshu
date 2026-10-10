@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestEvaluateSupplyChainSuppressionOnlineSelectionMatchesStableSort(t *testing.T) {
@@ -22,36 +22,36 @@ func TestEvaluateSupplyChainSuppressionOnlineSelectionMatchesStableSort(t *testi
 	}
 	activeOlder := selectionTestSuppression(
 		"active-older",
-		facts.VulnerabilitySuppressionSourcePolicy,
-		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		chain.VulnerabilitySuppressionSourcePolicy,
+		chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 		time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 		"stage",
 	)
 	activeTieZ := selectionTestSuppression(
 		"active-z",
-		facts.VulnerabilitySuppressionSourcePolicy,
-		facts.VulnerabilitySuppressionJustificationNotAffected,
+		chain.VulnerabilitySuppressionSourcePolicy,
+		chain.VulnerabilitySuppressionJustificationNotAffected,
 		time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		"stage",
 	)
 	activeTieA := selectionTestSuppression(
 		"active-a",
-		facts.VulnerabilitySuppressionSourcePolicy,
-		facts.VulnerabilitySuppressionJustificationFalsePositive,
+		chain.VulnerabilitySuppressionSourcePolicy,
+		chain.VulnerabilitySuppressionJustificationFalsePositive,
 		activeTieZ.AuthoredAt,
 		"stage",
 	)
 	provider := selectionTestSuppression(
 		"provider-newer",
-		facts.VulnerabilitySuppressionSourceProviderDismissal,
-		facts.VulnerabilitySuppressionJustificationProviderDismissed,
+		chain.VulnerabilitySuppressionSourceProviderDismissal,
+		chain.VulnerabilitySuppressionJustificationProviderDismissed,
 		time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC),
 		"stage",
 	)
 	expired := selectionTestSuppression(
 		"expired-newest",
-		facts.VulnerabilitySuppressionSourcePolicy,
-		facts.VulnerabilitySuppressionJustificationNotAffected,
+		chain.VulnerabilitySuppressionSourcePolicy,
+		chain.VulnerabilitySuppressionJustificationNotAffected,
 		time.Date(2026, 5, 21, 0, 0, 0, 0, time.UTC),
 		"stage",
 	)
@@ -59,8 +59,8 @@ func TestEvaluateSupplyChainSuppressionOnlineSelectionMatchesStableSort(t *testi
 	expired.ExpiresAt = time.Date(2026, 5, 22, 0, 0, 0, 0, time.UTC)
 	mismatch := selectionTestSuppression(
 		"mismatch",
-		facts.VulnerabilitySuppressionSourcePolicy,
-		facts.VulnerabilitySuppressionJustificationNotAffected,
+		chain.VulnerabilitySuppressionSourcePolicy,
+		chain.VulnerabilitySuppressionJustificationNotAffected,
 		time.Date(2026, 5, 23, 0, 0, 0, 0, time.UTC),
 		"prod",
 	)
@@ -127,7 +127,7 @@ func evaluateSupplyChainSuppressionStableSortReference(
 			expired = append(expired, suppression)
 			continue
 		}
-		if suppression.Source == facts.VulnerabilitySuppressionSourceProviderDismissal {
+		if suppression.Source == chain.VulnerabilitySuppressionSourceProviderDismissal {
 			provider = append(provider, suppression)
 			continue
 		}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
@@ -146,12 +147,12 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	suppressionCoverage := findSurfaceCoverage(
 		t,
 		cov,
-		FactKindSurfacePrefix+facts.VulnerabilitySuppressionFactKind,
+		FactKindSurfacePrefix+chain.VulnerabilitySuppressionFactKind,
 	)
 	if suppressionCoverage.Status != replaycoverage.StatusCovered {
 		t.Errorf(
 			"fact_kind:%s status = %q, detail=%q, want covered by the operator suppression Odù",
-			facts.VulnerabilitySuppressionFactKind,
+			chain.VulnerabilitySuppressionFactKind,
 			suppressionCoverage.Status,
 			suppressionCoverage.Detail,
 		)

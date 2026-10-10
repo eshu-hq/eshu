@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestUniqueServiceWorkloadPairsCanonicalizesPermutationAndDecisionReason(t *testing.T) {
@@ -50,8 +50,8 @@ func TestUniqueServiceWorkloadPairsCanonicalizesPermutationAndDecisionReason(t *
 			},
 			[]vulnerabilitySuppression{{
 				SuppressionID: "suppression-permutation",
-				Source:        facts.VulnerabilitySuppressionSourcePolicy,
-				Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+				Source:        chain.VulnerabilitySuppressionSourcePolicy,
+				Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 				Scope: vulnerabilitySuppressionScope{
 					CVEID:      "CVE-2026-0597",
 					WorkloadID: "workload-x",

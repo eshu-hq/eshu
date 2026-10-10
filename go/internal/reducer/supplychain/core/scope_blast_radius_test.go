@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // TestEvaluateSupplyChainSuppressionEnvironmentOnlyScopeFailsClosed proves
@@ -19,8 +19,8 @@ func TestEvaluateSupplyChainSuppressionEnvironmentOnlyScopeFailsClosed(t *testin
 
 	environmentOnly := vulnerabilitySuppression{
 		SuppressionID: "suppression-environment-only",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			Environment: "prod",
@@ -52,8 +52,8 @@ func TestEvaluateSupplyChainSuppressionSpecificScopeOutranksInvalidEnvironmentOn
 
 	specificOlder := vulnerabilitySuppression{
 		SuppressionID: "suppression-specific-older",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         "CVE-2026-0900",
@@ -65,8 +65,8 @@ func TestEvaluateSupplyChainSuppressionSpecificScopeOutranksInvalidEnvironmentOn
 	}
 	broadNewer := vulnerabilitySuppression{
 		SuppressionID: "suppression-env-only-newer",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			Environment: "prod",
