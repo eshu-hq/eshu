@@ -96,6 +96,7 @@ func runMethodologyPostgresProof(t *testing.T, ctx context.Context, handle *sql.
 					if candidate {
 						run = &caseProof.Candidate
 					}
+					run.StatementResults = append(run.StatementResults, methodologyPostgresStatementRows(t, got))
 					if round < 2 {
 						run.ColdMilliseconds = append(run.ColdMilliseconds, float64(elapsed)/float64(time.Millisecond))
 					} else {
@@ -134,6 +135,17 @@ func runMethodologyPostgresProof(t *testing.T, ctx context.Context, handle *sql.
 	proveMethodologyPostgresScopeMutation(t, ctx, reader, store)
 	proveMethodologyPostgresMissingIndex(t, ctx, handle)
 	return proof
+}
+
+// methodologyPostgresStatementRows keeps both columns returned by the
+// production SQL page. The store scans exactly these selected columns.
+func methodologyPostgresStatementRows(t *testing.T, identities []CloudResourceListIdentity) json.RawMessage {
+	t.Helper()
+	rows := make([]map[string]any, 0, len(identities))
+	for _, identity := range identities {
+		rows = append(rows, map[string]any{"uid": identity.UID, "resource_type": identity.ResourceType})
+	}
+	return methodologyJSON(t, rows)
 }
 
 func seedMethodologyPostgresEdges(t *testing.T, ctx context.Context, handle *sql.DB) {
@@ -291,10 +303,16 @@ func methodologyPostgresWork(t *testing.T, plan string) json.RawMessage {
 		}
 		return total
 	}
+	actualRows, rowsPresent := root["Actual Rows"].(float64)
+	actualLoops, loopsPresent := root["Actual Loops"].(float64)
+	if !rowsPresent || !loopsPresent || actualRows < 0 || actualLoops < 0 {
+		t.Fatal("measured plan has no valid root row and loop counters")
+	}
 	return methodologyJSON(t, map[string]any{
 		"query_count": 1, "operator_counters": value[0]["Plan"],
 		"root_buffers_total":     rootTotal("Shared Hit Blocks", "Shared Read Blocks", "Local Hit Blocks", "Local Read Blocks"),
 		"root_temp_blocks_total": rootTotal("Temp Read Blocks", "Temp Written Blocks"),
+		"root_output_rows":       actualRows * actualLoops,
 		"buffer_accounting":      "inclusive per-node, never summed", "timing": "normal execution measured separately",
 	})
 }
@@ -309,7 +327,7 @@ func methodologyJSON(t *testing.T, value any) json.RawMessage {
 }
 
 func TestMethodologyPostgresWorkUsesInclusiveRootCounters(t *testing.T) {
-	plan := `[{"Plan":{"Shared Hit Blocks":1,"Shared Read Blocks":2,"Local Hit Blocks":3,"Local Read Blocks":4,"Temp Read Blocks":0,"Temp Written Blocks":0,"Plans":[{"Shared Hit Blocks":1000}]}}]`
+	plan := `[{"Plan":{"Actual Rows":1,"Actual Loops":1,"Shared Hit Blocks":1,"Shared Read Blocks":2,"Local Hit Blocks":3,"Local Read Blocks":4,"Temp Read Blocks":0,"Temp Written Blocks":0,"Plans":[{"Shared Hit Blocks":1000}]}}]`
 	var work map[string]any
 	if err := json.Unmarshal(methodologyPostgresWork(t, plan), &work); err != nil {
 		t.Fatal(err)
@@ -321,10 +339,10 @@ func TestMethodologyPostgresWorkUsesInclusiveRootCounters(t *testing.T) {
 
 func TestMethodologyPostgresWorkRequiresSixRootCounters(t *testing.T) {
 	probes := map[string]string{
-		"all_missing":        `[ {"Plan":{"Node Type":"Index Scan"}} ]`,
-		"one_shared_missing": `[ {"Plan":{"Shared Hit Blocks":0,"Shared Read Blocks":0,"Local Hit Blocks":0,"Temp Read Blocks":0,"Temp Written Blocks":0}} ]`,
-		"one_temp_missing":   `[ {"Plan":{"Shared Hit Blocks":0,"Shared Read Blocks":0,"Local Hit Blocks":0,"Local Read Blocks":0,"Temp Read Blocks":0}} ]`,
-		"invalid_type":       `[ {"Plan":{"Shared Hit Blocks":"zero","Shared Read Blocks":0,"Local Hit Blocks":0,"Local Read Blocks":0,"Temp Read Blocks":0,"Temp Written Blocks":0}} ]`,
+		"all_missing":        `[ {"Plan":{"Actual Rows":1,"Actual Loops":1,"Node Type":"Index Scan"}} ]`,
+		"one_shared_missing": `[ {"Plan":{"Actual Rows":1,"Actual Loops":1,"Shared Hit Blocks":0,"Shared Read Blocks":0,"Local Hit Blocks":0,"Temp Read Blocks":0,"Temp Written Blocks":0}} ]`,
+		"one_temp_missing":   `[ {"Plan":{"Actual Rows":1,"Actual Loops":1,"Shared Hit Blocks":0,"Shared Read Blocks":0,"Local Hit Blocks":0,"Local Read Blocks":0,"Temp Read Blocks":0}} ]`,
+		"invalid_type":       `[ {"Plan":{"Actual Rows":1,"Actual Loops":1,"Shared Hit Blocks":"zero","Shared Read Blocks":0,"Local Hit Blocks":0,"Local Read Blocks":0,"Temp Read Blocks":0,"Temp Written Blocks":0}} ]`,
 	}
 	if name := os.Getenv("ESHU_METHOD_PG_COUNTER_PROBE"); name != "" {
 		methodologyPostgresWork(t, probes[name])
@@ -339,5 +357,12 @@ func TestMethodologyPostgresWorkRequiresSixRootCounters(t *testing.T) {
 				t.Fatalf("invalid EXPLAIN root accepted or failed for wrong reason: %v: %s", err, output)
 			}
 		})
+	}
+}
+
+func TestMethodologyPostgresStatementRowsIncludeSelectedColumns(t *testing.T) {
+	got := methodologyPostgresStatementRows(t, []CloudResourceListIdentity{{UID: "same", ResourceType: "different"}})
+	if string(got) != `[{"resource_type":"different","uid":"same"}]` {
+		t.Fatalf("full selected SQL row=%s", got)
 	}
 }

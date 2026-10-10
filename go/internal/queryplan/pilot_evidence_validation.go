@@ -93,6 +93,7 @@ func pilotPlanMetrics(raw json.RawMessage, queryKind string) (map[string]float64
 		return map[string]float64{
 			"root_buffers_total":     root["Shared Hit Blocks"].(float64) + root["Shared Read Blocks"].(float64) + root["Local Hit Blocks"].(float64) + root["Local Read Blocks"].(float64),
 			"root_temp_blocks_total": root["Temp Read Blocks"].(float64) + root["Temp Written Blocks"].(float64),
+			"root_output_rows":       root["Actual Rows"].(float64) * root["Actual Loops"].(float64),
 		}, true
 	}
 	if queryKind == queryKindCypher {
@@ -251,6 +252,58 @@ func pilotHasNumber(raw json.RawMessage) bool {
 		return false
 	}
 	return visit(value)
+}
+
+// validatePilotStatementResults measures every timed statement's complete
+// row array, including columns omitted from the independent identity oracle.
+func validatePilotStatementResults(key string, run PilotCaseRun, maximum int, queryKind string) []string {
+	want := len(run.ColdMilliseconds) + len(run.WarmMilliseconds)
+	if want == 0 || len(run.StatementResults) != want {
+		return []string{fmt.Sprintf("%s: full statement result samples=%d, want %d", key, len(run.StatementResults), want)}
+	}
+	var result []any
+	if err := json.Unmarshal(run.Result, &result); err != nil || result == nil {
+		return []string{key + ": projected result is not a row array"}
+	}
+	planMetrics, validPlan := pilotPlanMetrics(run.Plan, queryKind)
+	var violations []string
+	for i, raw := range run.StatementResults {
+		if len(bytes.TrimSpace(raw)) == 0 || bytes.TrimSpace(raw)[0] != '[' {
+			violations = append(violations, fmt.Sprintf("%s: statement result sample %d is not a row array", key, i))
+			continue
+		}
+		var rows []map[string]any
+		if err := json.Unmarshal(raw, &rows); err != nil || rows == nil {
+			violations = append(violations, fmt.Sprintf("%s: statement result sample %d is malformed", key, i))
+			continue
+		}
+		invalidRow := false
+		for _, row := range rows {
+			if len(row) == 0 {
+				invalidRow = true
+				break
+			}
+		}
+		if invalidRow {
+			violations = append(violations, fmt.Sprintf("%s: statement result sample %d has an empty or null row", key, i))
+			continue
+		}
+		if len(rows) != len(result) {
+			violations = append(violations, fmt.Sprintf("%s: statement result sample %d has %d rows, projected result has %d", key, i, len(rows), len(result)))
+		}
+		if validPlan && float64(len(rows)) != planMetrics["root_output_rows"] {
+			violations = append(violations, fmt.Sprintf("%s: statement result sample %d has %d rows, plan root emitted %.0f", key, i, len(rows), planMetrics["root_output_rows"]))
+		}
+		canonical, err := json.Marshal(rows)
+		if err != nil {
+			violations = append(violations, fmt.Sprintf("%s: statement result sample %d cannot be encoded", key, i))
+			continue
+		}
+		if len(canonical) > maximum {
+			violations = append(violations, fmt.Sprintf("%s: full statement result sample %d is %d bytes, exceeds declared %d-byte maximum", key, i, len(canonical), maximum))
+		}
+	}
+	return violations
 }
 
 func substantialPilotJSON(raw json.RawMessage) bool {

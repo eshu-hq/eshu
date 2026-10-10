@@ -26,6 +26,7 @@ type methodologyPairedRun struct {
 	WarmMilliseconds []float64                `json:"warm_ms"`
 	Profile          methodologyProfileReport `json:"profile"`
 	ResultIDs        []string                 `json:"result_ids"`
+	StatementResults []json.RawMessage        `json:"statement_results"`
 }
 
 func methodologyPairedMeasurements(t *testing.T, ctx context.Context, driver neo4j.DriverWithContext, database string, capture methodologyCapturedStatement) (methodologyPairedRun, methodologyPairedRun) {
@@ -47,10 +48,12 @@ func methodologyPairedMeasurements(t *testing.T, ctx context.Context, driver neo
 				t.Fatal("plan cache reset returned no proof")
 			}
 			runs[side].ColdProof = append(runs[side].ColdProof, proof)
-			cold, coldIDs := methodologyTimedRead(t, ctx, driver, database, capture)
+			cold, coldIDs, coldRows := methodologyTimedRead(t, ctx, driver, database, capture)
 			runs[side].ColdMilliseconds = append(runs[side].ColdMilliseconds, cold)
-			warm, warmIDs := methodologyTimedRead(t, ctx, driver, database, capture)
+			runs[side].StatementResults = append(runs[side].StatementResults, methodologyJSON(t, coldRows))
+			warm, warmIDs, warmRows := methodologyTimedRead(t, ctx, driver, database, capture)
 			runs[side].WarmMilliseconds = append(runs[side].WarmMilliseconds, warm)
+			runs[side].StatementResults = append(runs[side].StatementResults, methodologyJSON(t, warmRows))
 			if !slices.Equal(coldIDs, warmIDs) {
 				t.Fatalf("paired %s cold/warm identities diverged", methodologyHash(capture.cypher))
 			}
@@ -69,7 +72,7 @@ func methodologyPairedMeasurements(t *testing.T, ctx context.Context, driver neo
 	return runs[0], runs[1]
 }
 
-func methodologyTimedRead(t *testing.T, ctx context.Context, driver neo4j.DriverWithContext, database string, capture methodologyCapturedStatement) (float64, []string) {
+func methodologyTimedRead(t *testing.T, ctx context.Context, driver neo4j.DriverWithContext, database string, capture methodologyCapturedStatement) (float64, []string, []map[string]any) {
 	t.Helper()
 	session := driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: database, AccessMode: neo4j.AccessModeRead})
 	defer func() { _ = session.Close(context.Background()) }()
@@ -82,14 +85,7 @@ func methodologyTimedRead(t *testing.T, ctx context.Context, driver neo4j.Driver
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := make([]map[string]any, 0, len(records))
-	for _, record := range records {
-		row := make(map[string]any, len(record.Keys))
-		for i, key := range record.Keys {
-			row[key] = record.Values[i]
-		}
-		rows = append(rows, row)
-	}
+	rows := methodologyRecordRows(records)
 	ids := methodologyStatementIDs(capture.entryID, rows)
 	if !slices.Equal(ids, capture.expectedIDs) {
 		t.Fatalf("timed query %s IDs=%v, independent fixture wants %v", methodologyHash(capture.cypher), ids, capture.expectedIDs)
@@ -98,5 +94,17 @@ func methodologyTimedRead(t *testing.T, ctx context.Context, driver neo4j.Driver
 	if elapsed <= 0 {
 		t.Fatalf("timed query %s nonpositive duration", methodologyHash(capture.cypher))
 	}
-	return elapsed, ids
+	return elapsed, ids, rows
+}
+
+func methodologyRecordRows(records []*neo4j.Record) []map[string]any {
+	rows := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		row := make(map[string]any, len(record.Keys))
+		for i, key := range record.Keys {
+			row[key] = record.Values[i]
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }
