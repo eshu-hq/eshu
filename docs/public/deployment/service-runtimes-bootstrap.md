@@ -304,6 +304,7 @@ or GitOps workflow.
 | `DEFAULT_DATABASE` | no | Bolt database name, default `nornic`. |
 | `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | no | Per graph DDL statement deadline, default `2m`. |
 | `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | no | Adopt a complete existing graph schema by writing the fingerprint marker. |
+| `ESHU_GRAPH_SCHEMA_ADOPT_ONLY` | no | Refuse graph DDL when a missing or incompatible marker cannot be adopted from a complete inspected catalog. Default `false`. |
 | `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY` | no | Apply graph schema despite a matching marker. For disaster recovery, after the graph was wiped and Postgres kept. |
 
 Existing-schema adoption inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`, then
@@ -315,6 +316,17 @@ finds an incomplete NornicDB schema, bootstrap forwards only missing objects to
 the strict DDL pass. Existing indexes and constraints are skipped before they
 reach the backend, avoiding repeated populated-index backfills during additive
 schema upgrades.
+
+Set `ESHU_GRAPH_SCHEMA_ADOPT_ONLY=true` only for a controlled migration that
+must not run graph DDL. It makes catalog inspection mandatory when the marker
+does not match. Missing or retired objects, absent inspection support, and
+inspection errors fail startup without graph DDL or a new marker. A matching
+or compatible marker still skips graph work. The flag rejects an invalid value,
+`ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true`, and an explicit false or invalid
+`ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` before either store opens. It does not
+prevent Postgres migrations: they run before graph inspection and can commit
+even when graph adoption later fails. The inspection checks object names, not
+object definitions or index ONLINE state; check those before using this mode.
 
 ## Bootstrap Index
 

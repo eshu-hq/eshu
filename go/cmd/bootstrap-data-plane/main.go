@@ -145,6 +145,10 @@ func run(
 	if err != nil {
 		return err
 	}
+	adoptOnly, err := graphSchemaAdoptOnly(getenv)
+	if err != nil {
+		return err
+	}
 
 	// Postgres schema
 	database, err := openDBFn(ctx, getenv)
@@ -217,10 +221,16 @@ func run(
 		timeout:  statementTimeout,
 	})
 	adoptionMode := graphSchemaAdoptionModeFromEnv(getenv, backend)
+	if adoptOnly {
+		adoptionMode = graphSchemaAdoptionRequired
+	}
 	var existingSchemaNames map[string]struct{}
 	if adoptionMode != graphSchemaAdoptionDisabled {
 		if nd.inspector == nil {
 			if adoptionMode == graphSchemaAdoptionRequired {
+				if adoptOnly {
+					return fmt.Errorf("%s requires graph schema inspection support; graph DDL refused", graphSchemaAdoptOnlyEnv)
+				}
 				return fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
 			}
 		} else {
@@ -232,6 +242,9 @@ func run(
 			}
 			if adopted {
 				return nil
+			}
+			if adoptOnly {
+				return fmt.Errorf("%s refused incomplete graph schema; graph DDL and marker were not applied", graphSchemaAdoptOnlyEnv)
 			}
 			existingSchemaNames = actualNames
 		}

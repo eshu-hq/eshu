@@ -18,6 +18,44 @@ import (
 
 const graphSchemaAdoptExistingEnv = "ESHU_GRAPH_SCHEMA_ADOPT_EXISTING"
 
+// graphSchemaAdoptOnlyEnv refuses graph DDL when a missing marker cannot be
+// adopted from a complete existing graph schema catalog.
+const graphSchemaAdoptOnlyEnv = "ESHU_GRAPH_SCHEMA_ADOPT_ONLY"
+
+// graphSchemaAdoptOnly validates the opt-in before either store is opened.
+// Legacy adoption configuration keeps its existing behavior when this flag is
+// unset or false.
+func graphSchemaAdoptOnly(getenv func(string) string) (bool, error) {
+	only, valid := graphSchemaBoolean(getenv(graphSchemaAdoptOnlyEnv))
+	if !valid {
+		return false, fmt.Errorf("%s must be a boolean", graphSchemaAdoptOnlyEnv)
+	}
+	if !only {
+		return false, nil
+	}
+	if graphSchemaForceReapply(getenv) {
+		return false, fmt.Errorf("%s cannot be combined with %s", graphSchemaAdoptOnlyEnv, graphSchemaForceReapplyEnv)
+	}
+	if raw := strings.TrimSpace(getenv(graphSchemaAdoptExistingEnv)); raw != "" {
+		adopt, valid := graphSchemaBoolean(raw)
+		if !valid || !adopt {
+			return false, fmt.Errorf("%s requires %s to be unset or true", graphSchemaAdoptOnlyEnv, graphSchemaAdoptExistingEnv)
+		}
+	}
+	return true, nil
+}
+
+func graphSchemaBoolean(raw string) (bool, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "0", "false", "f", "no", "n", "off":
+		return false, true
+	case "1", "true", "t", "yes", "y", "on":
+		return true, true
+	default:
+		return false, false
+	}
+}
+
 // graphSchemaForceReapplyEnv makes bootstrap apply graph schema even when the
 // Postgres marker says the current fingerprint is already applied.
 //
