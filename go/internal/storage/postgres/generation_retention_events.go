@@ -379,7 +379,7 @@ func scanRetentionCandidates(rows db.Rows) ([]generationRetentionCandidate, erro
 	var candidates []generationRetentionCandidate
 	for rows.Next() {
 		var candidate generationRetentionCandidate
-		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt); err != nil {
+		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt, &candidate.uncovered); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("generation retention: scan candidate: %w", err)
 		}

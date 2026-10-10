@@ -28,6 +28,7 @@ func ledgerRetentionFake(now time.Time) *generationRetentionFakeDB {
 		candidateRows: [][]any{{
 			"scope-ledger", "generation-ledger", "repository",
 			now.Add(-10 * 24 * time.Hour), now.Add(-11 * 24 * time.Hour),
+			false,
 		}},
 		countRows: [][]any{{"generation-ledger", "fact_records", int64(5)}},
 		ledgerCountRows: [][]any{
@@ -60,6 +61,7 @@ func TestGenerationRetentionRowLimitCountsChangedSinceLedgerRows(t *testing.T) {
 	database := ledgerRetentionFake(now)
 	database.candidateRows = append(database.candidateRows, []any{
 		"scope-ledger", "generation-small", "repository", now.Add(-9 * 24 * time.Hour), now.Add(-10 * 24 * time.Hour),
+		false,
 	})
 	database.countRows = append(database.countRows, []any{"generation-small", "fact_records", int64(1)})
 	store := NewGenerationRetentionStore(database)
@@ -173,8 +175,8 @@ func TestGenerationRetentionRechecksLimitWhenRecountGrows(t *testing.T) {
 	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
 	database := &generationRetentionFakeDB{
 		candidateRows: [][]any{
-			{"scope-l", "generation-older", "repository", now.Add(-12 * 24 * time.Hour), now.Add(-13 * 24 * time.Hour)},
-			{"scope-l", "generation-newer", "repository", now.Add(-11 * 24 * time.Hour), now.Add(-12 * 24 * time.Hour)},
+			{"scope-l", "generation-older", "repository", now.Add(-12 * 24 * time.Hour), now.Add(-13 * 24 * time.Hour), false},
+			{"scope-l", "generation-newer", "repository", now.Add(-11 * 24 * time.Hour), now.Add(-12 * 24 * time.Hour), false},
 		},
 		countRows: [][]any{
 			{"generation-older", "fact_records", int64(5)},

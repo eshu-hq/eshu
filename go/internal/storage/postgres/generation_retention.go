@@ -44,73 +44,6 @@ const (
 // the server setting.
 const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
 
-// GenerationRetentionPolicy bounds automated cleanup of superseded source-local
-// generations. The active generation and the newest superseded generations
-// inside the count or age window are never candidates, except past the hard
-// history ceiling (#7585), which never frees active, live-work, or
-// dependency-pinned generations.
-type GenerationRetentionPolicy struct {
-	MinSupersededGenerations int
-	MaxSupersededAge         time.Duration
-	// HardMaxSupersededAge: superseded history older than this (from the
-	// original superseded_at) is eligible regardless of rank. Unset resolves
-	// to DefaultGenerationRetentionHardMaxAge(MaxSupersededAge).
-	HardMaxSupersededAge time.Duration
-	BatchGenerationLimit int
-	BatchRowLimit        int
-	PolicyScope          string
-	PolicyRevision       string
-}
-
-// DefaultGenerationRetentionPolicy returns the ADR #2248 default retention
-// window: keep the active generation plus the last 24 superseded generations or
-// any superseded generation newer than seven days, whichever keeps more,
-// bounded by the 90-day hard history ceiling (#7585).
-func DefaultGenerationRetentionPolicy() GenerationRetentionPolicy {
-	return GenerationRetentionPolicy{
-		MinSupersededGenerations: defaultGenerationRetentionMinSuperseded,
-		MaxSupersededAge:         defaultGenerationRetentionMaxAge,
-		HardMaxSupersededAge:     defaultGenerationRetentionHardMaxAge,
-		BatchGenerationLimit:     defaultGenerationRetentionBatchLimit,
-		BatchRowLimit:            defaultGenerationRetentionRowLimit,
-		PolicyScope:              defaultGenerationRetentionPolicyScope,
-		PolicyRevision:           defaultGenerationRetentionPolicyRev,
-	}
-}
-
-// DefaultGenerationRetentionHardMaxAge returns the hard history ceiling for a
-// policy that sets none: 90 days, or maxSupersededAge when that is longer
-// (#7611). An explicit ceiling below the soft window is still rejected.
-func DefaultGenerationRetentionHardMaxAge(maxSupersededAge time.Duration) time.Duration {
-	return max(defaultGenerationRetentionHardMaxAge, maxSupersededAge)
-}
-
-func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
-	defaults := DefaultGenerationRetentionPolicy()
-	if p.MinSupersededGenerations < 0 {
-		p.MinSupersededGenerations = defaults.MinSupersededGenerations
-	}
-	if p.MaxSupersededAge <= 0 {
-		p.MaxSupersededAge = defaults.MaxSupersededAge
-	}
-	if p.HardMaxSupersededAge <= 0 {
-		p.HardMaxSupersededAge = DefaultGenerationRetentionHardMaxAge(p.MaxSupersededAge)
-	}
-	if p.BatchGenerationLimit <= 0 {
-		p.BatchGenerationLimit = defaults.BatchGenerationLimit
-	}
-	if p.BatchRowLimit <= 0 {
-		p.BatchRowLimit = defaults.BatchRowLimit
-	}
-	if p.PolicyScope == "" {
-		p.PolicyScope = defaults.PolicyScope
-	}
-	if p.PolicyRevision == "" {
-		p.PolicyRevision = defaults.PolicyRevision
-	}
-	return p
-}
-
 // GenerationRetentionResult reports the work a cleanup transaction completed.
 // RowsPruned is keyed by bounded table/data-class names, never raw scope or
 // generation identifiers. Each event's row_counts charges a content row shared
@@ -288,6 +221,18 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	// Uncovered writers (#7472) ride the candidate query's report leg so the
+	// pass can count them without spending prune batch slots on them; they
+	// are never locked, counted, or deleted.
+	prunable := candidates[:0]
+	for _, candidate := range candidates {
+		if candidate.uncovered {
+			result.Skipped["uncovered_writer"]++
+			continue
+		}
+		prunable = append(prunable, candidate)
+	}
+	candidates = prunable
 	if len(candidates) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -332,6 +277,10 @@ type generationRetentionCandidate struct {
 	scopeKind    string
 	supersededAt time.Time
 	observedAt   time.Time
+	// uncovered marks a reported-but-not-prunable row (#7472): the
+	// reconcile probe still needs it, so it is counted as skipped and
+	// never locked or deleted.
+	uncovered bool
 }
 
 func (s GenerationRetentionStore) selectCandidates(
