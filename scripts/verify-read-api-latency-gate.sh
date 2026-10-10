@@ -166,7 +166,9 @@ cleanup() {
     fi
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/api.log" ]]; then
 		cp "${work_dir}/logs/api.log" "${api_log_preserve_path}" 2>/dev/null || true
-        if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then cp "${work_dir}/logs/api.log" "${GATE_H1_CAPTURE_DIR}/api.log" 2>/dev/null || true; fi
+        if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+            python3 "${repo_root}/scripts/ci/h1-redact-log.py" "${work_dir}/logs/api.log" "${GATE_H1_CAPTURE_DIR}/api.log" 2>/dev/null || true
+        fi
 	fi
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/mcp-server.log" ]]; then
 		cp "${work_dir}/logs/mcp-server.log" "${mcp_log_preserve_path}" 2>/dev/null || true
