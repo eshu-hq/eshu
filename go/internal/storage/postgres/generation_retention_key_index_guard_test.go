@@ -26,6 +26,7 @@ func TestGenerationRetentionRefusesCycleWithoutKeyIndexes(t *testing.T) {
 		candidateRows: [][]any{{
 			"scope-old", "generation-old", "repository",
 			now.Add(-10 * 24 * time.Hour), now.Add(-11 * 24 * time.Hour),
+			false,
 		}},
 		countRows: [][]any{{"generation-old", "fact_records", int64(1)}},
 	}

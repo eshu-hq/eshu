@@ -373,13 +373,13 @@ func generationRetentionRowsTotal(rows map[string]int64) int64 {
 
 // scanRetentionCandidates scans candidate rows from a query whose column
 // order matches the selection queries: scope id, generation id, scope kind,
-// superseded at, observed at. The caller wraps the error with its query
-// context.
+// superseded at, observed at, uncovered. The caller wraps the error with its
+// query context.
 func scanRetentionCandidates(rows db.Rows) ([]generationRetentionCandidate, error) {
 	var candidates []generationRetentionCandidate
 	for rows.Next() {
 		var candidate generationRetentionCandidate
-		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt); err != nil {
+		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt, &candidate.uncovered); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("generation retention: scan candidate: %w", err)
 		}

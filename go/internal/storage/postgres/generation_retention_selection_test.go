@@ -135,7 +135,7 @@ func TestSelectCandidatesWithinRowLimitCases(t *testing.T) {
 }
 
 func recheckCandidate(scope, id string, now time.Time, ageDays int) []any {
-	return []any{scope, id, "repository", now.Add(-time.Duration(ageDays) * 24 * time.Hour), now.Add(-time.Duration(ageDays+1) * 24 * time.Hour)}
+	return []any{scope, id, "repository", now.Add(-time.Duration(ageDays) * 24 * time.Hour), now.Add(-time.Duration(ageDays+1) * 24 * time.Hour), false}
 }
 
 // TestGenerationRetentionRecheckDefersTheGrownMember is PB3's first fixture.
