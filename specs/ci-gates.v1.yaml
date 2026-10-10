@@ -1447,6 +1447,12 @@ gates:
     blocking: true
     triggers:
       - "go/internal/query/**"
+      - "go/internal/mcp/methodology_live_test.go"
+      - "specs/live-tests.v1.yaml"
+      - ".github/workflows/test.yml"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/lib/verify-query-methodology-live-contract.py"
+      - "scripts/test-verify-query-methodology-live-contract.py"
       - "go/internal/queryplan/**"
       - "go/internal/graph/schema*.go"
       - "go/internal/storage/postgres/migrations/**"
@@ -1457,7 +1463,7 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
     local:
       command: "bash scripts/verify-query-methodology.sh --static"
-      test_command: "bash scripts/test-verify-query-methodology.sh"
+      test_command: "python3 scripts/test-verify-query-methodology-live-contract.py && bash scripts/test-verify-query-methodology.sh"
       pre_push: floor
     ci:
       workflow: test.yml
@@ -1475,6 +1481,12 @@ gates:
     blocking: true
     triggers:
       - "go/internal/query/**"
+      - "go/internal/mcp/methodology_live_test.go"
+      - "specs/live-tests.v1.yaml"
+      - ".github/workflows/test.yml"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/lib/verify-query-methodology-live-contract.py"
+      - "scripts/test-verify-query-methodology-live-contract.py"
       - "go/internal/queryplan/**"
       - "go/internal/graph/schema*.go"
       - "go/internal/storage/postgres/migrations/**"

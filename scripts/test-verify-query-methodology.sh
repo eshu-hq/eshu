@@ -21,6 +21,12 @@ run_shim live --live
 for test in TestQueryMethodologyPostgresLive TestImportDependencyMethodologyLive TestImportDependencyMethodologyMCPTerminalCapLive TestQueryplanProfileFlagsUnboundedVarLength TestPilotArtifactFiles; do
  rg -q -- "-run \^$test" "$work/live.log" || { printf 'live stage omitted %s\n' "$test" >&2; exit 1; }
 done
+for event in zero skip fail; do
+ if SHIM_EVENT="$event" run_shim "event-$event" --live; then
+  printf 'methodology %s event falsely passed\n' "$event" >&2
+  exit 1
+ fi
+done
 if SHIM_OMIT=postgres run_shim missing --live; then printf 'missing artifact passed\n' >&2; exit 1; fi
 run_shim stale --live
 if SHIM_OMIT=postgres run_shim stale --live; then printf 'old artifact concealed omitted producer\n' >&2; exit 1; fi
@@ -51,6 +57,26 @@ for helper in scripts/extend-read-api-work-budgets.sh scripts/test-extend-read-a
   jq -e --arg gate "$gate" 'any(.selected[]; .id == $gate)' "$work/selection.json" >/dev/null || { printf '%s failed to select %s\n' "$helper" "$gate" >&2; exit 1; }
  done
  printf 'selection %s: static mirror selected\n' "$helper"
+done
+for fixture in \
+ go/internal/mcp/methodology_live_test.go \
+ go/internal/query/methodology_graph_artifact_live_test.go \
+ go/internal/query/methodology_graph_cases_live_test.go \
+ go/internal/query/methodology_graph_cycle_cap_live_test.go \
+ go/internal/query/methodology_graph_fixture_live_test.go \
+ go/internal/query/methodology_graph_live_test.go \
+ go/internal/query/methodology_graph_measure_live_test.go \
+ go/internal/query/methodology_graph_oracle_live_test.go \
+ go/internal/query/methodology_graph_profile_live_test.go \
+ go/internal/query/methodology_postgres_live_test.go \
+ scripts/lib/verify-query-methodology-live-contract.py \
+ scripts/test-verify-query-methodology-live-contract.py \
+ .github/workflows/test.yml; do
+ printf '%s\n' "$fixture" > "$work/paths"
+ "$work/ci-gates" select --registry "$repo_root/specs/ci-gates.v1.yaml" --tier pre-pr --paths-from "$work/paths" --json > "$work/selection.json"
+ for gate in query-methodology-static query-plan-regression; do
+  jq -e --arg gate "$gate" 'any(.selected[]; .id == $gate)' "$work/selection.json" >/dev/null || { printf '%s failed to select %s\n' "$fixture" "$gate" >&2; exit 1; }
+ done
 done
 for fixture in scripts/lib/test-verify-query-methodology-go.sh scripts/lib/test-verify-query-methodology-docker.sh; do
  printf '%s\n' "$fixture" > "$work/paths"
