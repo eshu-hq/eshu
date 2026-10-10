@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 func TestBuildReportProjectsTerraformStateSerials(t *testing.T) {
@@ -22,7 +23,7 @@ func TestBuildReportProjectsTerraformStateSerials(t *testing.T) {
 		// Two locators with multiple generations each — the reader is expected
 		// to surface only the latest serial per locator. The projection keeps
 		// whatever the reader sent, sorted by safe_locator_hash.
-		TerraformStateLastSerials: []status.TerraformStateLocatorSerial{
+		TerraformStateLastSerials: []tfstate.LocatorSerial{
 			{
 				SafeLocatorHash: "hash-z",
 				BackendKind:     "s3",
@@ -67,7 +68,7 @@ func TestBuildReportGroupsRecentWarningsByLocatorAndKind(t *testing.T) {
 	base := time.Date(2026, 5, 2, 8, 0, 0, 0, time.UTC)
 	raw := status.RawSnapshot{
 		AsOf: base,
-		TerraformStateRecentWarnings: []status.TerraformStateLocatorWarning{
+		TerraformStateRecentWarnings: []tfstate.LocatorWarning{
 			{SafeLocatorHash: "hash-1", BackendKind: "s3", WarningKind: "state_in_vcs", Reason: "approved_local", Source: "git_local_file", ObservedAt: base},
 			{SafeLocatorHash: "hash-1", BackendKind: "s3", WarningKind: "output_value_dropped", Reason: "sensitive_composite_output", Source: "outputs.x", ObservedAt: base.Add(time.Minute)},
 			{SafeLocatorHash: "hash-1", BackendKind: "s3", WarningKind: "state_in_vcs", Reason: "approved_local", Source: "git_local_file", ObservedAt: base.Add(2 * time.Minute)},
@@ -105,7 +106,7 @@ func TestBuildReportSummarizesTerraformStateWarnings(t *testing.T) {
 	base := time.Date(2026, 5, 2, 8, 0, 0, 0, time.UTC)
 	raw := status.RawSnapshot{
 		AsOf: base,
-		TerraformStateRecentWarnings: []status.TerraformStateLocatorWarning{
+		TerraformStateRecentWarnings: []tfstate.LocatorWarning{
 			{SafeLocatorHash: "hash-1", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source", ObservedAt: base},
 			{SafeLocatorHash: "hash-2", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source", ObservedAt: base.Add(time.Minute)},
 			{SafeLocatorHash: "hash-3", BackendKind: "local", WarningKind: "state_missing", Reason: "path_not_found", Source: "source", ObservedAt: base.Add(2 * time.Minute)},
@@ -153,7 +154,7 @@ func TestBuildReportSummarizesUnresolvedBackendExpressionWarnings(t *testing.T) 
 	base := time.Date(2026, 6, 13, 15, 30, 0, 0, time.UTC)
 	raw := status.RawSnapshot{
 		AsOf: base,
-		TerraformStateRecentWarnings: []status.TerraformStateLocatorWarning{
+		TerraformStateRecentWarnings: []tfstate.LocatorWarning{
 			{
 				SafeLocatorHash: "repository:r_12345678:env/backend.tf",
 				BackendKind:     "git",
@@ -192,7 +193,7 @@ func TestRenderJSONIncludesTerraformStateSection(t *testing.T) {
 	observedAt := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
 	raw := status.RawSnapshot{
 		AsOf: observedAt,
-		TerraformStateLastSerials: []status.TerraformStateLocatorSerial{{
+		TerraformStateLastSerials: []tfstate.LocatorSerial{{
 			SafeLocatorHash: "abc123",
 			BackendKind:     "s3",
 			Lineage:         "lineage-1",
@@ -200,7 +201,7 @@ func TestRenderJSONIncludesTerraformStateSection(t *testing.T) {
 			GenerationID:    "terraform_state:state_snapshot:s3:abc123:lineage-1:serial:5",
 			ObservedAt:      observedAt,
 		}},
-		TerraformStateRecentWarnings: []status.TerraformStateLocatorWarning{{
+		TerraformStateRecentWarnings: []tfstate.LocatorWarning{{
 			SafeLocatorHash: "abc123",
 			BackendKind:     "s3",
 			WarningKind:     "state_in_vcs",
@@ -267,8 +268,8 @@ func TestRenderJSONIncludesTerraformStateSummaryOnly(t *testing.T) {
 
 	report := status.Report{
 		AsOf: time.Date(2026, 5, 3, 11, 0, 0, 0, time.UTC),
-		TerraformState: status.TerraformStateReport{
-			WarningSummary: []status.TerraformStateWarningSummary{{
+		TerraformState: tfstate.Report{
+			WarningSummary: []tfstate.WarningSummary{{
 				WarningKind:   "state_missing",
 				Reason:        "s3_not_found",
 				ScopeClass:    "s3",
@@ -310,7 +311,7 @@ func TestLoadReportSurfacesTerraformStateThroughReader(t *testing.T) {
 	observedAt := time.Date(2026, 5, 5, 9, 0, 0, 0, time.UTC)
 	reader := &fakeReader{snapshot: status.RawSnapshot{
 		AsOf: observedAt,
-		TerraformStateLastSerials: []status.TerraformStateLocatorSerial{{
+		TerraformStateLastSerials: []tfstate.LocatorSerial{{
 			SafeLocatorHash: "hash-zzz", Serial: 1,
 		}, {
 			SafeLocatorHash: "hash-aaa", Serial: 99,

@@ -12,10 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
-
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 var summaryObservedAt = time.Date(2026, 10, 7, 9, 30, 15, 123456000, time.UTC)
@@ -44,7 +43,7 @@ func TestSummaryEntriesStoreWhatTheLiveReadReturns(t *testing.T) {
 		summaryWarningRow("hash-a", "sensitive_skip", sql.NullTime{Time: summaryObservedAt.Add(-time.Hour), Valid: true}),
 		summaryWarningRow("hash-b", "state_missing", sql.NullTime{}),
 	}
-	live, err := ReadTerraformStateAdminEvidence(context.Background(), summaryFakeQueryer(serials, warnings), statuspkg.MaxTerraformStateRecentWarnings, summaryObservedAt)
+	live, err := ReadTerraformStateAdminEvidence(context.Background(), summaryFakeQueryer(serials, warnings), tfstate.MaxRecentWarnings, summaryObservedAt)
 	if err != nil {
 		t.Fatalf("ReadTerraformStateAdminEvidence() error = %v", err)
 	}
@@ -84,7 +83,7 @@ func TestSummaryEntriesStoreWhatTheLiveReadReturns(t *testing.T) {
 func TestSummaryEntriesEmptyResultDecodesToEmptySlices(t *testing.T) {
 	t.Parallel()
 
-	live, err := ReadTerraformStateAdminEvidence(context.Background(), summaryFakeQueryer(nil, nil), statuspkg.MaxTerraformStateRecentWarnings, summaryObservedAt)
+	live, err := ReadTerraformStateAdminEvidence(context.Background(), summaryFakeQueryer(nil, nil), tfstate.MaxRecentWarnings, summaryObservedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +165,7 @@ func TestSummarySourceSHA256CoversBothStatementsAndTheLimit(t *testing.T) {
 			t.Fatalf("changing the %s did not change the digest", name)
 		}
 	}
-	if got := SummarySourceSHA256(); got != summarySourceSHA256(terraformStateLastSerialQuery, terraformStateRecentWarningsQuery, statuspkg.MaxTerraformStateRecentWarnings) || len(got) != 64 {
+	if got := SummarySourceSHA256(); got != summarySourceSHA256(terraformStateLastSerialQuery, terraformStateRecentWarningsQuery, tfstate.MaxRecentWarnings) || len(got) != 64 {
 		t.Fatalf("SummarySourceSHA256() = %q, want the digest of the two shipped statements and the production limit", got)
 	}
 }

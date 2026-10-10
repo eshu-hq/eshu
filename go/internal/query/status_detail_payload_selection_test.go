@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 func TestRepositoryDetailPayloadIndependentOfTerraformEvidence(t *testing.T) {
@@ -46,8 +47,8 @@ func TestRepositoryDetailPayloadIndependentOfTerraformEvidence(t *testing.T) {
 			} else if tc.health == "healthy" {
 				raw.Coordinator.ActiveClaims = 0
 			}
-			raw.TerraformStateLastSerials = []statuspkg.TerraformStateLocatorSerial{{SafeLocatorHash: "hash-a", BackendKind: "s3", Serial: 7, ObservedAt: asOf}}
-			raw.TerraformStateRecentWarnings = []statuspkg.TerraformStateLocatorWarning{{SafeLocatorHash: "hash-a", WarningKind: "state_missing", ObservedAt: asOf}}
+			raw.TerraformStateLastSerials = []tfstate.LocatorSerial{{SafeLocatorHash: "hash-a", BackendKind: "s3", Serial: 7, ObservedAt: asOf}}
+			raw.TerraformStateRecentWarnings = []tfstate.LocatorWarning{{SafeLocatorHash: "hash-a", WarningKind: "state_missing", ObservedAt: asOf}}
 			for _, route := range []string{"/api/v0/status/ingesters/repository", "/api/v0/ingesters/repository"} {
 				for _, scoped := range []bool{false, true} {
 					name := fmt.Sprintf("%s/scoped=%t", route, scoped)

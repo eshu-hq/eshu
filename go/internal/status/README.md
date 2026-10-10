@@ -162,19 +162,19 @@ See `doc.go` for the godoc contract. Key types and functions:
   zero-key default is `unavailable` with deterministic answer packets available
   as the canonical fallback; status output is limited to state, reason,
   retention, policy hash, and validator reason-code metadata.
-- `TerraformStateLocatorSerial` — most recent observed serial per
+- `tfstate.LocatorSerial` — most recent observed serial per
   Terraform-state scope, keyed by safe locator hash so the report never carries
   raw bucket names, S3 keys, or local paths
-- `TerraformStateLocatorWarning` — recent `terraform_state_warning` fact row,
+- `tfstate.LocatorWarning` — recent `terraform_state_warning` fact row,
   bounded per locator or Git backend-source handle by
-  `MaxTerraformStateRecentWarnings`; source-level rows may include a
+  `tfstate.MaxRecentWarnings`; source-level rows may include a
   public-safe `SourceHandle` plus severity/actionability classification. Git
   unresolved-backend warnings use `BackendKind=git` so summaries do not expose
   the unresolved S3 locator that could not be safely formed.
-- `TerraformStateWarningSummary` — aggregate warning totals by warning kind,
+- `tfstate.WarningSummary` — aggregate warning totals by warning kind,
   reason, public scope class, severity, and actionability for release-gate
   readback
-- `TerraformStateReport` — operator-facing tfstate section attached to
+- `tfstate.Report` — operator-facing tfstate section attached to
   `Report.TerraformState`; carries sorted serial rows, recent warnings, and
   warnings grouped by safe locator hash and warning kind plus a compact warning
   summary
@@ -431,7 +431,7 @@ and `eshu_dp_postgres_query_duration_seconds`.
   `MergeRetryPolicies` deduplicate by stage and sort alphabetically before
   returning. Do not rely on insertion order.
 - **Terraform-state warning summaries are public-safe.** Use
-  `TerraformStateReport.WarningSummary` for release-gate or public API readback.
+  `tfstate.Report.WarningSummary` for release-gate or public API readback.
   Raw warning rows carry safe locator hashes or Git source handles and source
   strings and belong only in bounded admin status, not broad public gate output.
 - **`evaluateHealth` returns `stalled` before `degraded`.** Overdue claims and

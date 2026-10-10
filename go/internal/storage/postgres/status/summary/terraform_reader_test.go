@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
@@ -62,7 +63,7 @@ func tfStoredRow(t *testing.T, asOf time.Time, sha string, entries []summary.Ent
 func liveEvidence(t *testing.T) statestore.TerraformStateAdminEvidence {
 	t.Helper()
 	queryer := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: tfSerialRows()}, {Data: tfWarningRows()}}}
-	evidence, err := statestore.ReadTerraformStateAdminEvidence(context.Background(), queryer, statuspkg.MaxTerraformStateRecentWarnings, tfObservedAt)
+	evidence, err := statestore.ReadTerraformStateAdminEvidence(context.Background(), queryer, tfstate.MaxRecentWarnings, tfObservedAt)
 	if err != nil {
 		t.Fatal(err)
 	}

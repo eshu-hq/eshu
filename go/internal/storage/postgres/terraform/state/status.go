@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // listTerraformStateLastSerials returns the most recent observed serial per
@@ -24,14 +23,14 @@ import (
 func listTerraformStateLastSerials(
 	ctx context.Context,
 	queryer db.Queryer,
-) ([]statuspkg.TerraformStateLocatorSerial, error) {
+) ([]tfstate.LocatorSerial, error) {
 	rows, err := queryer.QueryContext(ctx, terraformStateLastSerialQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list terraform state last serials: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	serials := []statuspkg.TerraformStateLocatorSerial{}
+	serials := []tfstate.LocatorSerial{}
 	for rows.Next() {
 		var locatorHash string
 		var backendKind string
@@ -55,7 +54,7 @@ func listTerraformStateLastSerials(
 			// whole admin status query; this is observability data.
 			continue
 		}
-		row := statuspkg.TerraformStateLocatorSerial{
+		row := tfstate.LocatorSerial{
 			SafeLocatorHash: strings.TrimSpace(locatorHash),
 			BackendKind:     strings.TrimSpace(backendKind),
 			Lineage:         strings.TrimSpace(lineage),
@@ -75,14 +74,14 @@ func listTerraformStateLastSerials(
 
 // listTerraformStateRecentWarnings returns up to limit warning_fact rows per
 // safe_locator_hash. Limit must be positive; callers that want the contract
-// default should pass statuspkg.MaxTerraformStateRecentWarnings.
+// default should pass tfstate.MaxRecentWarnings.
 func listTerraformStateRecentWarnings(
 	ctx context.Context,
 	queryer db.Queryer,
 	limit int,
-) ([]statuspkg.TerraformStateLocatorWarning, error) {
+) ([]tfstate.LocatorWarning, error) {
 	if limit <= 0 {
-		limit = statuspkg.MaxTerraformStateRecentWarnings
+		limit = tfstate.MaxRecentWarnings
 	}
 	rows, err := queryer.QueryContext(ctx, terraformStateRecentWarningsQuery, limit)
 	if err != nil {
@@ -90,7 +89,7 @@ func listTerraformStateRecentWarnings(
 	}
 	defer func() { _ = rows.Close() }()
 
-	warnings := []statuspkg.TerraformStateLocatorWarning{}
+	warnings := []tfstate.LocatorWarning{}
 	for rows.Next() {
 		var locatorHash string
 		var backendKind string
@@ -116,7 +115,7 @@ func listTerraformStateRecentWarnings(
 		); scanErr != nil {
 			return nil, fmt.Errorf("list terraform state recent warnings: %w", scanErr)
 		}
-		row := statuspkg.TerraformStateLocatorWarning{
+		row := tfstate.LocatorWarning{
 			SafeLocatorHash: strings.TrimSpace(locatorHash),
 			BackendKind:     strings.TrimSpace(backendKind),
 			WarningKind:     strings.TrimSpace(warningKind),
@@ -142,8 +141,8 @@ func listTerraformStateRecentWarnings(
 // returned by ReadTerraformStateAdminEvidence. Callers can either use the
 // helper or inline the two list calls when they need to control timing.
 type TerraformStateAdminEvidence struct {
-	LastSerials    []statuspkg.TerraformStateLocatorSerial
-	RecentWarnings []statuspkg.TerraformStateLocatorWarning
+	LastSerials    []tfstate.LocatorSerial
+	RecentWarnings []tfstate.LocatorWarning
 }
 
 // ReadTerraformStateAdminEvidence calls both query helpers in a single call so

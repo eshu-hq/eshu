@@ -12,6 +12,7 @@ import (
 
 	statussummary "github.com/eshu-hq/eshu/go/internal/reducer/status/summary"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	store "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
@@ -198,12 +199,12 @@ func TestTerraformModelServedEqualToLiveLive(t *testing.T) {
 					perLocator[w.SafeLocatorHash]++
 				}
 				for locator, n := range perLocator {
-					if n > statuspkg.MaxTerraformStateRecentWarnings {
-						t.Fatalf("locator %s has %d warnings, want at most the rank cap %d", locator, n, statuspkg.MaxTerraformStateRecentWarnings)
+					if n > tfstate.MaxRecentWarnings {
+						t.Fatalf("locator %s has %d warnings, want at most the rank cap %d", locator, n, tfstate.MaxRecentWarnings)
 					}
 				}
-				if len(perLocator) != 2 || len(live.TerraformStateRecentWarnings) != 2*statuspkg.MaxTerraformStateRecentWarnings {
-					t.Fatalf("rank-cap fixture = %v, want 2 locators at exactly %d rows each", perLocator, statuspkg.MaxTerraformStateRecentWarnings)
+				if len(perLocator) != 2 || len(live.TerraformStateRecentWarnings) != 2*tfstate.MaxRecentWarnings {
+					t.Fatalf("rank-cap fixture = %v, want 2 locators at exactly %d rows each", perLocator, tfstate.MaxRecentWarnings)
 				}
 			}
 			// Each row reads its own database clock in its own transaction,

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 // terraformSelectionReader records the selection a runtime surface requests
@@ -57,10 +58,10 @@ func terraformMetricsSnapshot() statuspkg.RawSnapshot {
 		AsOf:          asOf,
 		ScopeActivity: statuspkg.ScopeActivitySnapshot{Active: 3, Changed: 1, Unchanged: 2},
 		Queue:         statuspkg.QueueSnapshot{Total: 4, Outstanding: 1, Pending: 1, Succeeded: 3},
-		TerraformStateLastSerials: []statuspkg.TerraformStateLocatorSerial{
+		TerraformStateLastSerials: []tfstate.LocatorSerial{
 			{SafeLocatorHash: "hash-a", BackendKind: "s3", Serial: 7, ObservedAt: asOf},
 		},
-		TerraformStateRecentWarnings: []statuspkg.TerraformStateLocatorWarning{
+		TerraformStateRecentWarnings: []tfstate.LocatorWarning{
 			{SafeLocatorHash: "hash-a", BackendKind: "s3", WarningKind: "state_missing", ObservedAt: asOf},
 		},
 		CollectorFactEvidence: []statuspkg.CollectorFactEvidence{

@@ -5,7 +5,7 @@
 This package reads bounded Terraform-state admin evidence for the operator
 status page: one row per `state_snapshot` scope keyed by safe locator hash
 (the last observed serial), plus up to
-`statuspkg.MaxTerraformStateRecentWarnings` recent `warning_fact` rows per
+`tfstate.MaxRecentWarnings` recent `warning_fact` rows per
 locator or Git backend-source handle.
 
 ## Ownership boundary
@@ -13,7 +13,7 @@ locator or Git backend-source handle.
 This package owns the two read-only admin-status statements
 (`terraformStateLastSerialQuery`, `terraformStateRecentWarningsQuery`) and
 the row-scan/assembly logic that turns them into
-`statuspkg.TerraformStateLocatorSerial` / `TerraformStateLocatorWarning`
+`tfstate.LocatorSerial` / `tfstate.LocatorWarning`
 rows. It owns no schema, DDL, or write path: the underlying
 `ingestion_scopes`, `scope_generations`, and `fact_records` tables belong to
 the root package and the collectors that populate them. The parent
@@ -28,7 +28,7 @@ leaf) owns rendering this evidence into `statuspkg.RawSnapshot`.
   leaf moves.
 - `TerraformStateAdminEvidence` — `LastSerials` and `RecentWarnings`.
 
-- `SummaryEntries(ctx, queryer)` runs the two statements (limit: `statuspkg.MaxTerraformStateRecentWarnings`, the constant the digest covers) with the live
+- `SummaryEntries(ctx, queryer)` runs the two statements (limit: `tfstate.MaxRecentWarnings`, the constant the digest covers) with the live
   decoder and returns the rows as summary entries (`serial` and `warning`
   sections) for the `terraform_state` summary model; `DecodeSummaryEntries`
   turns stored entries back into a `TerraformStateAdminEvidence`;
@@ -45,8 +45,8 @@ See `doc.go` for the godoc contract.
 ## Dependencies
 
 - `internal/storage/postgres/db` for the `Queryer` contract.
-- `internal/status` for `TerraformStateLocatorSerial`,
-  `TerraformStateLocatorWarning`, and `MaxTerraformStateRecentWarnings`.
+- `internal/status/tfstate` for `LocatorSerial`,
+  `LocatorWarning`, and `MaxRecentWarnings`.
 
 ## Telemetry
 
@@ -60,7 +60,7 @@ observability for the call.
   rather than failing the whole admin-status query: this is observability
   data, not a correctness-critical read.
 - `listTerraformStateRecentWarnings` defaults `limit` to
-  `statuspkg.MaxTerraformStateRecentWarnings` whenever the caller passes a
+  `tfstate.MaxRecentWarnings` whenever the caller passes a
   non-positive value, so the result size is always hard-capped.
 - Git-scope unresolved-backend warnings key on repo id plus repo-relative
   source path as the safe locator handle instead of a state locator; they

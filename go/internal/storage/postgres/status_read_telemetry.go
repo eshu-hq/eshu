@@ -15,6 +15,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	statestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
@@ -275,7 +276,7 @@ func (s StatusStore) readTerraformState(ctx context.Context, asOf time.Time) (st
 		Decode: statestore.DecodeSummaryEntries,
 		Live: func(ctx context.Context) (statestore.TerraformStateAdminEvidence, error) {
 			q, done := s.read(ctx, statusReadTerraformState)
-			evidence, err := statestore.ReadTerraformStateAdminEvidence(ctx, q, statuspkg.MaxTerraformStateRecentWarnings, asOf)
+			evidence, err := statestore.ReadTerraformStateAdminEvidence(ctx, q, tfstate.MaxRecentWarnings, asOf)
 			return evidence, done(err)
 		},
 		Clone: func(e statestore.TerraformStateAdminEvidence) statestore.TerraformStateAdminEvidence {

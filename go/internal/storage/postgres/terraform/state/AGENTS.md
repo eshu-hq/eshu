@@ -32,8 +32,8 @@
   test asserting the exact fragments the callers rely on
   (`rank <= $1`, the `collector_kind IN (...)` / `scope_kind IN (...)`
   filters, the `unresolved_backend_expression` Git-warning branch).
-- New fields on `statuspkg.TerraformStateLocatorSerial` or
-  `TerraformStateLocatorWarning` need a matching `SELECT` column and scan
+- New fields on `tfstate.LocatorSerial` or
+  `tfstate.LocatorWarning` need a matching `SELECT` column and scan
   target in the corresponding list function.
 
 ## Failure modes

@@ -163,7 +163,7 @@
 // runs the bounded Terraform-state admin queries via
 // statestore.ReadTerraformStateAdminEvidence (terraform/state/status.go): one
 // row per state_snapshot scope keyed by safe locator hash, plus up to
-// MaxTerraformStateRecentWarnings recent warning_fact rows per locator so the
+// tfstate.MaxRecentWarnings recent warning_fact rows per locator so the
 // admin status surface shows tfstate liveness without scanning the fact stream.
 // PostgresTerraformBackendQuery and PostgresDriftEvidenceLoader serve the
 // reducer's Terraform config-vs-state drift handler: the first answers

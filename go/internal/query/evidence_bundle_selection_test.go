@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 type bundleSelectionReader struct {
@@ -56,8 +57,8 @@ func (r *bundleSelectionReader) ReadStatusSnapshotFiltered(
 func TestEvidenceBundleSelectsAllExceptTerraformState(t *testing.T) {
 	fixed := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	raw := evidenceBundleFixtureSnapshot()
-	raw.TerraformStateLastSerials = []statuspkg.TerraformStateLocatorSerial{{SafeLocatorHash: "safe-hash", Serial: 42, ObservedAt: fixed}}
-	raw.TerraformStateRecentWarnings = []statuspkg.TerraformStateLocatorWarning{{SafeLocatorHash: "safe-hash", WarningKind: "state_missing", ObservedAt: fixed}}
+	raw.TerraformStateLastSerials = []tfstate.LocatorSerial{{SafeLocatorHash: "safe-hash", Serial: 42, ObservedAt: fixed}}
+	raw.TerraformStateRecentWarnings = []tfstate.LocatorWarning{{SafeLocatorHash: "safe-hash", WarningKind: "state_missing", ObservedAt: fixed}}
 	raw.CollectorFactEvidence = []statuspkg.CollectorFactEvidence{{
 		InstanceID: "git-1", CollectorKind: "git", EvidenceSource: "file", ObservationCount: 8, LastObservedAt: fixed,
 	}}
