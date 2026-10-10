@@ -22,6 +22,7 @@ jobs:
     name: Detect changed gate paths
     runs-on: ubuntu-latest
     outputs:
+      parserrelationship: ${{ steps.filter.outputs.parserrelationship }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -471,10 +472,10 @@ jobs:
         if: ${{ always() && github.event_name == 'merge_group' }}
         run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
       # on hosted runners. Skipped, not failed, when the secrets are absent.
