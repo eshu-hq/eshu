@@ -189,6 +189,7 @@ For a pure docs diff that currently selects:
 
 ```text
 no-ai-attribution
+no-private-identifiers
 capability-inventory-docs
 docs-catalog-metadata
 docs-prose-quality

@@ -563,6 +563,53 @@ gates:
     ci_only_reason: ""
     hook_id: no-ai-attribution-content
 
+  - id: no-private-identifiers
+    name: No environment or organization identifiers in commits/docs
+    category: hygiene
+    layer: hygiene
+    purpose: "Scans commit messages and added diff lines for environment and organization identifiers and blocks them."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # Like no-ai-attribution, the CI check scans every commit message and
+      # every added diff line, so required-gate selection waits for it on every
+      # non-empty PR.
+      - "**"
+      # The gate's own files, listed beside the catch-all because a
+      # self_test_trigger must also appear in triggers: editing one selects the
+      # test mirror that exercises it.
+      - "scripts/verify-no-private-identifiers.sh"
+      - "scripts/lib/private-identifier-pattern.sh"
+      - "scripts/lib/test-private-identifier-cases.sh"
+      - "scripts/test-verify-agent-hygiene.sh"
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - ".pre-commit-config.yaml"
+      - "specs/ci-gates.v1.yaml"
+    self_test_triggers:
+      - "scripts/verify-no-private-identifiers.sh"
+      - "scripts/lib/private-identifier-pattern.sh"
+      - "scripts/lib/test-private-identifier-cases.sh"
+      - "scripts/test-verify-agent-hygiene.sh"
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - ".pre-commit-config.yaml"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-no-private-identifiers.sh"
+      pre_push: floor
+      # The seeded RED/GREEN cases sit in the agent-hygiene test mirror beside
+      # the attribution cases; CI runs the same mirror in the test-verify job.
+      test_command: "bash scripts/test-verify-agent-hygiene.sh"
+    ci:
+      # Runs as a "No environment or organization identifiers" step in the
+      # same Agent hygiene gate job as no-ai-attribution. The private denylist
+      # mode (ESHU_PRIVATE_IDENTIFIER_FILE) is local-only and never set in CI.
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    # Pure bash plus git and rg, like markdown-file-cap: no Go toolchain.
+    requirements: []
+    ci_only_reason: ""
+    hook_id: no-private-identifiers-content
+
   - id: license-header
     name: Go license header verification
     category: hygiene
@@ -772,13 +819,15 @@ gates:
       - "scripts/dev/test-pre-enqueue-check.sh"
       - "scripts/lib/test-pre-enqueue-check-*"
       - "scripts/lib/ai-attribution-pattern.sh"
+      - "scripts/lib/private-identifier-pattern.sh"
     local:
       # pre-enqueue-check.sh only reads GitHub, but a real run needs a live PR
       # and network, so the hermetic mirror IS the verification: a fake `gh`
       # on PATH serves per-case JSON and a local bare repository stands in for
       # origin, so each fail-closed arm (head, merge-tree vs main and vs the
       # queue tip, checks, required-gates-complete, merge state, threads,
-      # issue reference or closing keyword, attribution) has a seeded RED
+      # issue reference or closing keyword, attribution, private identifier)
+      # has a seeded RED
       # beside one all-green case
       # (docs/public/reference/local-testing/pre-enqueue-check.md).
       command: "bash scripts/dev/test-pre-enqueue-check.sh"
@@ -6084,6 +6133,8 @@ hygiene_hooks:
     reason: "pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow"
   - id: no-ai-attribution-message
     reason: "commit-msg-stage variant of the no-ai-attribution gate (same check, different stage)"
+  - id: no-private-identifiers-message
+    reason: "commit-msg-stage variant of the no-private-identifiers gate (same check, different stage)"
   - id: frontend-format-staged
     reason: "staged-file variant of frontend-format-changed (same prettier check, pre-commit stage)"
   - id: frontend-format-verifier-tests
