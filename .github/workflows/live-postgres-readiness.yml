@@ -94,9 +94,12 @@ jobs:
     name: live-postgres-readiness (postgres18)
     runs-on: ubuntu-latest
     # Budget for the ledger-selected live suite (130-143 tests, ~25-30m on CI
-    # runners as of #7842). Raise deliberately, not to mask a hang: runs that
-    # approach this cap again mean the gate needs splitting, not more budget.
-    timeout-minutes: 40
+    # runners as of #7842). Measured on 2026-10-10 (#7864): 58 successful jobs
+    # took 23-39m (seven took 38-39m) and 9 were cancelled at the old 40m cap.
+    # 60m is 1.5x the longest observed success. Raise deliberately, not to
+    # mask a hang: runs that approach this cap again mean the gate needs
+    # splitting, not more budget.
+    timeout-minutes: 60
     env:
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
