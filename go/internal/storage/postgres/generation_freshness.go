@@ -117,8 +117,11 @@ func (s IngestionStore) CurrentScopeGeneration(
 // scope_generations lifecycle row of the intent's generation.
 //
 // Outcomes:
-//   - the intent generation is active, the scope has no active generation, or
-//     the scope is unknown: (true, nil), and the handler runs;
+//   - the intent generation is active, the scope is unknown, or the scope has
+//     no active generation and the intent is not pending: (true, nil), and the
+//     handler runs;
+//   - the scope has no active generation and the intent is pending:
+//     (false, reducercontract.GenerationNotYetActiveError) until first Ack;
 //   - the intent generation is still pending and sorts after the active
 //     generation: (false, reducercontract.GenerationNotYetActiveError). Its
 //     projector has enqueued reducer work but not yet acknowledged, so the
@@ -152,7 +155,13 @@ func NewGenerationFreshnessCheck(database db.ExecQueryer) reducer.GenerationFres
 		}
 
 		if !activeGenID.Valid {
-			// No active generation yet — assume current.
+			if intentStatus.Valid && intentStatus.String == string(scope.GenerationStatusPending) {
+				return false, reducercontract.GenerationNotYetActiveError{
+					ScopeID:      scopeID,
+					GenerationID: generationID,
+				}
+			}
+			// Preserve the legacy result for every other no-active state.
 			return true, nil
 		}
 		if activeGenID.String == generationID {

@@ -53,8 +53,9 @@ spans, counters, and structured logs around contract handlers.
   existing `reducer` API too.
 - `GenerationFreshnessCheck` has three outcomes, not two (#6686): `(true, nil)`
   runs the handler, `(false, nil)` is terminal supersession, and
-  `(false, GenerationNotYetActiveError)` means the intent's generation is newer
-  than the active one and still pending. Callers must propagate that error
+  `(false, GenerationNotYetActiveError)` means the intent's generation is
+  pending before first activation or newer than the active generation. Callers
+  must propagate that error
   (wrapped with `%w`) so the queue retries the intent; treating it as
   supersession acks work for a generation that is about to activate, and nothing
   re-drives it. Its failure class ends in `_not_ready` so the storage enrollment

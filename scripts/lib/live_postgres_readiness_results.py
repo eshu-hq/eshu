@@ -160,6 +160,9 @@ PACKAGES = {
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
             "TestContainerImageIdentityActivationEpochMissIsSentinelLive",
         ),
+        "go/internal/storage/postgres/container_image_identity_first_generation_live_test.go": (
+            "TestContainerImageIdentityFirstGenerationEpochBarrierLive",
+        ),
         "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
             "TestProjectorZombieHealRestoresCanonicalNodesLive",
         ),

@@ -1672,6 +1672,11 @@ tests:
     class: postgres_ci
     reason: "#6502 disposable PostgreSQL 18 proof that a projection reading the activation epoch ahead of activation defers and retries without dead-lettering, that the released generation proceeds and acks, that a superseded generation acks as superseded, and that every epoch miss wraps the not-active sentinel; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/container_image_identity_first_generation_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7916 disposable PostgreSQL 18 proof that a pending first generation without an active predecessor defers its reducer intent without counting an attempt, then replays after actual projector Ack creates the activation epoch; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/container_image_identity_failure_fencing_live_test.go
     tag: ~
     class: scheduled
