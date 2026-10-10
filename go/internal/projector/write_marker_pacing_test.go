@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,33 +15,32 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 )
 
-// TestMain paces nothing: the deferral backoff sleeps real time, so the
-// package suite runs with an instant sleeper and only the tests below that
-// assert pacing swap the real one back in.
+// instantWriteMarkerSleep paces nothing: the deferral backoff sleeps real time,
+// so the package suite runs with this instant sleeper.
+func instantWriteMarkerSleep(context.Context, time.Duration) error { return nil }
+
+// realWriteMarkerSleep is the init-installed ctx-aware sleeper, saved before
+// TestMain swaps in the instant one so pacing tests exercise the production
+// sleeper instead of a copy.
+var realWriteMarkerSleep *writeMarkerSleepFunc
+
+// TestMain installs the instant sleeper for the package suite; only the tests
+// below that assert pacing swap the real one back in.
 func TestMain(m *testing.M) {
-	instant := writeMarkerSleepFunc(func(context.Context, time.Duration) error { return nil })
+	realWriteMarkerSleep = writeMarkerDeferralSleep.Load()
+	instant := writeMarkerSleepFunc(instantWriteMarkerSleep)
 	writeMarkerDeferralSleep.Store(&instant)
-	m.Run()
+	os.Exit(m.Run())
 }
 
-// withRealWriteMarkerSleep swaps the real ctx-aware sleeper back in for one
-// test. Callers must not be parallel: a parallel sibling would load the real
-// sleeper mid-run.
+// withRealWriteMarkerSleep swaps the init-installed ctx-aware sleeper back in
+// for one test. Callers must not be parallel: a parallel sibling would load
+// the real sleeper mid-run.
 func withRealWriteMarkerSleep(t *testing.T) {
 	t.Helper()
-	real := writeMarkerSleepFunc(func(ctx context.Context, d time.Duration) error {
-		timer := time.NewTimer(d)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
-			return nil
-		}
-	})
-	writeMarkerDeferralSleep.Store(&real)
+	writeMarkerDeferralSleep.Store(realWriteMarkerSleep)
 	t.Cleanup(func() {
-		instant := writeMarkerSleepFunc(func(context.Context, time.Duration) error { return nil })
+		instant := writeMarkerSleepFunc(instantWriteMarkerSleep)
 		writeMarkerDeferralSleep.Store(&instant)
 	})
 }
@@ -112,6 +112,41 @@ func TestMarkProjectionWriteStartedPaceHonorsCancel(t *testing.T) {
 	if got := marker.callCount(); got >= DefaultWriteMarkerMaxAttempts {
 		t.Fatalf("marker calls = %d, want fewer than the %d bound", got, DefaultWriteMarkerMaxAttempts)
 	}
+}
+
+// TestMarkProjectionWriteStartedPaceCancelCountsShutdownOnce closes the F1
+// accounting: a deferral canceled during its pace sleep counts one shutdown,
+// not a retried plus a shutdown. The wrapper cancels deterministically inside
+// the first sleep instead of racing a timer, and still delegates to the
+// init-installed sleeper.
+func TestMarkProjectionWriteStartedPaceCancelCountsShutdownOnce(t *testing.T) {
+	deferred := fmt.Errorf("lock timeout: %w", failure.ErrWorkWriteMarkerDeferred)
+	errs := make([]error, DefaultWriteMarkerMaxAttempts)
+	for i := range errs {
+		errs[i] = deferred
+	}
+	reader, instruments := newAckWaitReader(t)
+	marker := &fakeWriteMarker{errs: errs}
+	ctx, cancel := context.WithCancel(context.Background())
+	wrapper := writeMarkerSleepFunc(func(c context.Context, d time.Duration) error {
+		cancel()
+		return (*realWriteMarkerSleep)(c, d)
+	})
+	writeMarkerDeferralSleep.Store(&wrapper)
+	t.Cleanup(func() {
+		instant := writeMarkerSleepFunc(instantWriteMarkerSleep)
+		writeMarkerDeferralSleep.Store(&instant)
+	})
+	err := MarkProjectionWriteStarted(ctx, marker, writeMarkerTestWork(), instruments, nil)
+	if err == nil || !strings.Contains(err.Error(), "context canceled") {
+		t.Fatalf("MarkProjectionWriteStarted() = %v, want a shutdown error joining context.Canceled", err)
+	}
+	if got := marker.callCount(); got != 1 {
+		t.Fatalf("marker calls = %d, want exactly 1 (the canceled first deferral)", got)
+	}
+	got := collectWriteMarkerMetrics(t, reader)
+	assertOutcomeCounts(t, "write_marker_deferrals_total", got.deferrals, map[string]int64{"shutdown": 1})
+	assertOutcomeCounts(t, "write_marker_wait_seconds count", got.waits, map[string]uint64{"shutdown": 1})
 }
 
 // TestServiceWriteMarkerDeferralCauseIsLogged pins the G1 enrichment: a

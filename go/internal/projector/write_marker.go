@@ -135,17 +135,16 @@ func MarkProjectionWriteStarted(
 			return writeMarkerRetryableError{fmt.Errorf("mark projection write started after %d attempts: %w", attempt, err)}
 		}
 		deferrals++
-		recordWriteMarkerDeferral(ctx, instruments, writeMarkerOutcomeRetried)
 		cause := writeMarkerDeferralCause(err)
 		if onDeferred != nil {
 			onDeferred(attempt, cause)
 		}
 		if sleepErr := (*writeMarkerDeferralSleep.Load())(ctx, writeMarkerDeferralBackoff(deferrals)); sleepErr != nil {
 			stopOutcome = writeMarkerOutcomeShutdown
-			deferrals++
 			recordWriteMarkerDeferral(ctx, instruments, stopOutcome)
 			return fmt.Errorf("mark projection write started: %w", errors.Join(ctx.Err(), err))
 		}
+		recordWriteMarkerDeferral(ctx, instruments, writeMarkerOutcomeRetried)
 	}
 }
 
