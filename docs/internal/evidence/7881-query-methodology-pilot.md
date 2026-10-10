@@ -46,10 +46,13 @@ it does not replace artifacts for a later head.
 
 ## Operators and failure evidence
 
-Observability Evidence: JSON artifacts retain emitted text, safe fixture
-parameters, commit/engine/schema/index identities, independent expected and
-actual rows, full plans, per-node work and repeated normal timings. The graph
-report also counts every request's graph reads and enforces a three-read bound.
+Observability Evidence: the calibration JSON artifacts retain emitted text,
+safe fixture parameters, commit/engine/schema/index identities, independent
+expected and actual identity ledgers, full plans, per-node work and repeated
+normal timings. The expanded artifacts also retain complete database statement
+row arrays for each normal sample and check their canonical JSON byte size
+against the declared family ceiling. The graph report also counts every
+request's graph reads and enforces a three-read bound.
 The latency harness reports each selected HTTP/MCP operation and every concurrent
 status/result, plus workers, peak client requests in flight, wall time,
 throughput and p95. The dedicated job archives host load and container CPU/memory.
