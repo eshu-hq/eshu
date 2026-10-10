@@ -150,6 +150,45 @@ touched package. The collector, reducer, and projector telemetry that reads
 and writes facts of these kinds is untouched; operator signals are identical
 before and after.
 
+No-Regression Evidence (#6950 batch 4b, cloud terraform_state stanza): this
+change moves the eighteen `cloud.*` terraform_state compat entries' Go
+importers (sixteen fact-kind and schema-version constants plus the
+`TerraformStateFactKinds`/`TerraformStateSchemaVersion` accessors) off the
+transitional `facts.TerraformState*` compat spellings and deletes the
+emptied stanza from `compat_cloud.go`. No fact-kind string, payload shape,
+registry entry, or executable statement changes: across 51 files, every
+production hunk requalifies an identifier or import path only, the mcp
+kind-consumer matchers accept the `cloud.` spelling the migration
+introduces (per the contract batch 3 established), every other hunk is this
+note, a ledger row, a stale-comment reword, or the stanza's own deletion,
+and the build resolves with no dangling reference.
+Measurement: identical before/after outcomes (ledger:6950-cloud-batch4b-before, ledger:6950-cloud-batch4b-after). The command is `go test -count=1`
+over the 8 affected package targets (per-side counts in the
+cited rows) on baseline `473a6a757f` vs measurement commit `3e16807853`
+(this Evidence note and the two ledger rows are the only later changes):
+640 packages ok plus the same single pre-existing host-only
+`TestFetchChurnZombiesDrainedByReaper` failure (#7865, fails identically on
+the clean base) on both sides, with the ok-package set byte-identical
+after timing strip. `go test -list` inventory is identical on both sides
+(13479 names). The 16 storage/postgres tests in the two touched test files
+pass on both sides. Backend/version: go1.26.9 linux/amd64, in-memory; no
+backend touched. Input shape: n/a (no runtime input). Terminal queue/row
+counts: none — no queue, lease, Cypher, or SQL path is touched. Contract
+gates green on the branch: `verify-fact-kind-registry.sh` (generated
+artifacts byte-identical), `verify-factschema-diff.sh` (no breaking
+changes), `verify-payload-usage-manifest.sh`, and `verify-contracttest.sh`,
+plus `precommit-go.sh surface` (no MCP tool-surface drift). The change
+is safe because it cannot alter runtime behavior: the compiler resolves the
+same constants through their new paths, and the compat deletion is
+compile-enforced total — any missed caller would fail the build.
+
+No-Observability-Change (#6950 batch 4b, cloud terraform_state stanza): this
+package carries no instrumentation (see Telemetry above) and the move adds,
+removes, or renames no metric, span, structured log, or status field in any
+touched package. The collector, reducer, projector, and query telemetry that
+reads and writes facts of these kinds is untouched; operator signals are
+identical before and after.
+
 ## Related docs
 
 - `docs/public/reference/fact-schema-versioning.md`
