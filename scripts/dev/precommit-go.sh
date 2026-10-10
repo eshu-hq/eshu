@@ -456,13 +456,12 @@ case "${cmd}" in
 		# The measurement-ledger citation gate (static-contract-gates.yml "Verify
 		# measurement-citations gate"): a newly added "<N>/<M> trials" or
 		# "Measurement:" claim must cite a docs/internal/measurements.jsonl row.
-		# Like perf-evidence and telemetry it diffs against the PR base, so pin it
-		# to origin/main (the script's HEAD~1 fallback only sees the last commit
-		# and would miss earlier commits on a multi-commit branch).
-		git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
-		base="origin/main"
-		git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
-		ESHU_MEASUREMENT_CITATIONS_BASE="${base}" "${repo_root}/scripts/verify-measurement-citations.sh"
+		# Refresh the base ref; the verifier resolves its common ancestor with
+		# HEAD to one commit for both ledger and claim comparisons.
+		git -C "${repo_root}" fetch --no-tags origin \
+			main:refs/remotes/origin/main >/dev/null 2>&1 \
+			|| die "cannot refresh origin/main for measurement citations"
+		ESHU_MEASUREMENT_CITATIONS_BASE=origin/main "${repo_root}/scripts/verify-measurement-citations.sh"
 		;;
 	lint-all)
 		# Whole-module golangci-lint (./...), not just changed packages. Catches
