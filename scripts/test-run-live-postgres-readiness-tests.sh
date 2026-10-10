@@ -45,6 +45,8 @@ while read -r var; do
     ESHU_GRAPH_BACKEND) want=neo4j ;;
     *) want=1 ;;
   esac
+EOF
+cat >>"${seed_dir}/bin/go" <<'EOF'
   [[ "${!var:-}" == "${want}" ]] || { echo "wrong ${var}" >&2; exit 9; }
 done <"${ESHU_FAKE_DIR}/envs"
 EOF
