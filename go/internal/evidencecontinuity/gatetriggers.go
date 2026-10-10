@@ -5,7 +5,6 @@ package evidencecontinuity
 
 import (
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -123,8 +122,8 @@ const validatorPackageDir = "go/internal/evidencecontinuity"
 //
 // The two categories above watch what the validator reads; neither watches what
 // it is built from. validateGateTriggerCoverage calls cigates.Load,
-// cigates.MatchGlob, and cigates.DornyFilters, so a semantic change to
-// MatchGlob or DornyFilters changes what gate_trigger_gap reports -- yet before
+// cigates.MatchGlob, and cigates.DornyFiltersFile, so a semantic change to
+// MatchGlob or DornyFiltersFile changes what gate_trigger_gap reports -- yet before
 // #6131's follow-up neither trigger set named go/internal/cigates, so a
 // cigates-only edit never selected this gate. The validator's own package is
 // listed for the same reason one layer in: no `go test` proof ref names it, so
@@ -333,11 +332,10 @@ func evidenceGateTriggers(repoRoot string) ([]string, error) {
 // this self-check false-green.
 func evidenceWorkflowFilter(repoRoot string) ([]string, error) {
 	workflowPath := filepath.Join(repoRoot, filepath.FromSlash(gateWorkflowPath))
-	raw, err := os.ReadFile(workflowPath) // #nosec G304 -- static verifier reads a repo-local workflow path, not request input.
+	filters, every, err := cigates.DornyFiltersFile(workflowPath)
 	if err != nil {
-		return nil, fmt.Errorf("read workflow for trigger coverage: %w", err)
+		return nil, fmt.Errorf("workflow %s dorny filters: %w", workflowPath, err)
 	}
-	filters, every := cigates.DornyFilters(raw)
 	if filters == nil {
 		return nil, fmt.Errorf("workflow %s has no parsable dorny/paths-filter step; trigger coverage cannot be checked", workflowPath)
 	}

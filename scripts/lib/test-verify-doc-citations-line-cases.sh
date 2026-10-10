@@ -418,8 +418,8 @@ remove_workflow_trigger() {
 }
 
 test_line_trigger_lockstep() {
-  local registry="${repo_root}/specs/ci-gates.v1.yaml"
-  local workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
+  local registry="${registry_flat}"
+  local workflow="${static_workflow_flat}"
   if line_trigger_contract_holds "${registry}" "${workflow}"; then
     record_pass "line case: registry/workflow line-citation triggers are in lockstep"
   else
@@ -428,8 +428,8 @@ test_line_trigger_lockstep() {
 }
 
 test_line_trigger_contract_is_block_scoped() {
-  local registry="${repo_root}/specs/ci-gates.v1.yaml"
-  local workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
+  local registry="${registry_flat}"
+  local workflow="${static_workflow_flat}"
   local target mutated_registry mutated_workflow
   for target in 'docs/**' 'go/**' \
     'scripts/lib/test-verify-doc-citations-preparation-cases.sh'; do
@@ -452,7 +452,7 @@ test_line_trigger_contract_is_block_scoped() {
 
 test_line_contract_help_and_registry_comment() {
   local help_out="${tmp_root}/line-help.out"
-  local registry="${repo_root}/specs/ci-gates.v1.yaml"
+  local registry="${registry_flat}"
   local registry_block="${tmp_root}/line-registry-block.txt"
   "${BASH:-bash}" "${verifier}" --help >"${help_out}" 2>&1
   assert_contains "raw Go line citations" "${help_out}" \

@@ -12,9 +12,13 @@ fixture_lib="${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 workflow="${repo_root}/.github/workflows/golden-corpus-gate.yml"
 snapshot="${repo_root}/testdata/golden/e2e-20repo-snapshot.json"
 sql_drop_fixture="${repo_root}/tests/fixtures/ecosystems/sql_comprehensive/migrations/V2__drop_legacy_tables.sql"
-ci_gates="${repo_root}/specs/ci-gates.v1.yaml"
+ci_gates_dir="$(mktemp -d)"
+ci_gates="${ci_gates_dir}/ci-gates.v1.yaml"
 prepr="${repo_root}/scripts/dev/pre-pr.sh"
 fail() { printf 'test-verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
+trap 'rm -rf "${ci_gates_dir}"' EXIT
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${ci_gates}" "${repo_root}"
 
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-golden-corpus-gate.sh must be executable"
@@ -405,7 +409,7 @@ fi
 # socket rather than a guessed port number.
 listener_port_file="$(mktemp -t golden-corpus-readiness-port.XXXXXX)"
 listener_pid=""
-trap 'kill "${listener_pid}" >/dev/null 2>&1 || true; rm -f "${listener_port_file}"' EXIT
+trap 'kill "${listener_pid}" >/dev/null 2>&1 || true; rm -f "${listener_port_file}"; rm -rf "${ci_gates_dir}"' EXIT
 python3 - "${listener_port_file}" <<'PY' &
 import socket
 import sys
@@ -438,7 +442,7 @@ fi
 kill "${listener_pid}" >/dev/null 2>&1 || true
 wait "${listener_pid}" 2>/dev/null || true
 rm -f "${listener_port_file}"
-trap - EXIT
+trap 'rm -rf "${ci_gates_dir}"' EXIT
 # The per-phase check must default to advisory on shared CI runners (hardware
 # variance exceeds the band); a controlled host flips it blocking.
 require_lib "per-phase advisory default" "-phase-regression-advisory"
@@ -472,30 +476,8 @@ fi
 # pipeline (the 0/0-before-the-reducer-runs race).
 require "populated-then-drained guard" 'require-populated-domains="repo_dependency"'
 
-# No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-# The 12-digit arm catches a bare cloud account id. The lock cases used to age
-# a guard past its budget with `touch -h -t <stamp>`; age now comes from a
-# birth epoch embedded in the guard's own payload (pid:epoch), computed at
-# runtime via `date +%s`, so no `touch -h -t` stamp (and no exclusion for one)
-# remains in the scanned files.
-private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(?<![0-9])[0-9]{12}(?![0-9])|/Users/|/home/[a-z]'
-# Scan every scripts/lib/golden-corpus-*.sh lib via the glob-derived
-# golden_corpus_libs array (built above, and already asserted non-empty), not a
-# hand-maintained list of names: a hand-maintained list silently stopped
-# covering golden-corpus-maintenance-drains.sh even though it now owns the live
-# gate orchestration this PR moved out of the main script, so a future secret
-# added there would pass this scan. Deriving the list from the same glob the
-# orchestrator's own lib-count assertion uses means an added lib is covered
-# automatically, with no new path entry to keep in sync. The orchestrator
-# script itself and live-gate-lock.sh are not golden-corpus-*.sh named, so they
-# still need an explicit entry.
-for scanned in "${script}" \
-	"${repo_root}/scripts/lib/live-gate-lock.sh" \
-	"${golden_corpus_libs[@]}"; do
-	if rg --pcre2 --quiet -- "${private_pattern}" "${scanned}"; then
-		fail "$(basename "${scanned}") looks like it contains private data"
-	fi
-done
+# shellcheck source=scripts/lib/test-golden-corpus-private-data.sh
+. "${repo_root}/scripts/lib/test-golden-corpus-private-data.sh"
 
 # golden-corpus-lock-cases.sh is not only executable cases: it also carries one
 # invariant-routed assertion of its own -- require "live gate mutex"

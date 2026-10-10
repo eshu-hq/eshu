@@ -4,6 +4,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-query-plan-regression.sh"
 profile_verifier="${repo_root}/scripts/verify-query-plan-profile.sh"
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+registry_flat="$(mktemp)"
+trap 'rm -f "${registry_flat}"' EXIT
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry_flat}" "${repo_root}"
 
 bash -n "$verifier"
 bash -n "$profile_verifier"
@@ -71,7 +75,7 @@ gate_triggers="$(awk '
 	inside && /^    triggers:/ { collecting = 1; next }
 	collecting && /^    [a-z_]+:/ { exit }
 	collecting { print }
-' "${repo_root}/specs/ci-gates.v1.yaml")"
+' "${registry_flat}")"
 if [ -z "$gate_triggers" ]; then
 	printf 'test-verify-query-plan-regression: found no triggers for the query-plan-regression gate in specs/ci-gates.v1.yaml — the gate was renamed, moved, or reshaped, and the trigger checks below would otherwise pass having read nothing\n' >&2
 	exit 1

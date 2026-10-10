@@ -42,10 +42,9 @@ type pathFilterWorkflowFile struct {
 // in sorted key order, plus whether that step sets
 // `predicate-quantifier: every`. The map is nil when
 // no such step is present or its filters block does not parse. It is the
-// exported face of dornyFilters for gates that must assert their own workflow
-// filter covers the files their verdict depends on; the evidence-continuity
-// trigger-coverage self-check (go/internal/evidencecontinuity) is the
-// consumer. Callers that need to distinguish "no dorny step" from "empty
+// exported face of dornyFilters for inline filter data. The evidence-continuity
+// trigger-coverage self-check uses DornyFiltersFile to resolve file references
+// in workflows. Callers that need to distinguish "no dorny step" from "empty
 // filters" must treat nil as absent and fail loudly rather than skip.
 //
 // The quantifier flag is part of the contract, not a detail: under dorny's
@@ -369,7 +368,12 @@ func checkPathFilterCoverage(repoRoot string, reg *Registry) []error {
 		every := everyCache[g.CI.Workflow]
 		hostJob := hostJobCache[g.CI.Workflow]
 		if !cached {
-			filters, every, hostJob = dornyFilters(raw)
+			var filterErr error
+			filters, every, hostJob, filterErr = dornyFiltersFile(filepath.Join(wfDir, filepath.Base(g.CI.Workflow)))
+			if filterErr != nil {
+				errs = append(errs, fmt.Errorf("drift: workflow %q dorny filters: %w", g.CI.Workflow, filterErr))
+				continue
+			}
 			filtersCache[g.CI.Workflow] = filters
 			everyCache[g.CI.Workflow] = every
 			hostJobCache[g.CI.Workflow] = hostJob

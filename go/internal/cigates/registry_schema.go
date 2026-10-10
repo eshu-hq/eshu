@@ -8,6 +8,7 @@ package cigates
 type registryFile struct {
 	Version              string                    `yaml:"version"`
 	Gates                []gateFile                `yaml:"gates"`
+	GateFragments        []string                  `yaml:"gate_fragments"`
 	HygieneHooks         []hygieneHookFile         `yaml:"hygiene_hooks"`
 	NonGateWorkflows     []nonGateWorkflowFile     `yaml:"non_gate_workflows"`
 	RequiredStatusChecks []requiredStatusCheckFile `yaml:"required_status_checks"`

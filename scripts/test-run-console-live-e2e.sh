@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="$repo_root/scripts/run-console-live-e2e.sh"
 workflow="$repo_root/.github/workflows/frontend.yml"
-registry="$repo_root/specs/ci-gates.v1.yaml"
+registry="$repo_root/specs/ci-gates.d"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 

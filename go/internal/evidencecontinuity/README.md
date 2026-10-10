@@ -23,7 +23,7 @@ prove runtime behavior directly.
 ## Dependencies
 
 The package imports the Go standard library, `gopkg.in/yaml.v3`, and
-`internal/cigates` (registry loading, `MatchGlob`, `DornyFilters`). That import
+`internal/cigates` (registry loading, `MatchGlob`, `DornyFiltersFile`). That import
 is itself anchored in both trigger sets — see the code-dependency anchor below.
 It reads
 the capability matrix under `specs/`, the generated surface inventory under
@@ -86,7 +86,7 @@ requirement for a listed input is enforced.
 
 The third anchor category is the code the validator is built from, not the data
 it reads: this package and every first-party package it imports, listed in
-`validatorCodeDeps`. `cigates.MatchGlob` and `cigates.DornyFilters` decide what
+`validatorCodeDeps`. `cigates.MatchGlob` and `cigates.DornyFiltersFile` decide what
 `gate_trigger_gap` reports, so a semantic change to either alters this gate's
 verdict — yet neither trigger set named `go/internal/cigates`, so a
 cigates-only change never selected the gate. This package's own directory is

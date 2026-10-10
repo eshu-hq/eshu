@@ -1,0 +1,426 @@
+tests:
+  - file: go/internal/storage/cypher/canonical_module_identity_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/canonical_moved_block_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip; proves the Neo4j schema bootstrap drops the #7095 narrow uniqueness constraints and a moved block of each of the five retired labels keeps one node; local runs on neo4j:2026-community took 10.7s cold (first schema apply) and 2.6s warm — promote to blocking with repeated timing evidence"
+    backends: neo4j
+  - file: go/internal/storage/cypher/canonical_moved_block_nornicdb_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip; proves the NornicDB schema bootstrap drops the #7097 single-property path uniqueness constraints and a moved block of each of the five labels keeps one node; local runs on the pinned fix-500 NornicDB image took 9.5s on a fresh store and 2.0s warm — promote to blocking with repeated timing evidence"
+    backends: nornicdb
+  - file: go/internal/storage/cypher/cloud_resource_node_writer_heterogeneous_batch_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/provenance_identity_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/repo_dependency_artifact_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/retract_repo_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/runs_on_concurrency_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/runs_on_legacy_identity_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/runs_on_precedence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/shell_exec_antijoin_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/target_presence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/edge/writer/workload_dependency_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/graph_guard_prove_theory_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/oci_tag_first_observed_prove_theory_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/orphan_sweep_antijoin_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/orphan_sweep_module_class_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/orphan_sweep_module_language_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/orphan_sweep_sourceless_artifact_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "sourceless-artifact sweep regression for #7322; deterministic seeded fixture with unique id prefixes and cleanup on both paths; measured 0.1s locally against Neo4j; backend-agnostic so both live-backend legs run it"
+  - file: go/internal/storage/cypher/owner_ledger_batch_perf_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/owner_ledger_prove_theory_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/owner_ledger_returning_correctness_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/owner_ledger_returning_perf_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/owner_ledger_returning_semantics_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/posture_node_writers_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/repo_dependency_mutex_prove_theory_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/repo_dependency_source_tool_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/storage/cypher/provenance_counts_tiebreak_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7711 deterministic seeded proof that the provenance count reads deliver tied groups in tiebreaker order on each backend leg (exact row sequence asserted); local run 0.03 s on NornicDB, 0.52 s on Neo4j"
+  - file: go/internal/storage/cypher/retrying_executor_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/retrying_executor_relationship_snapshot_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/secrets_iam_graph_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/semantic_entity_full_repo_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/semantic_entity_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/semantic_entity_variable_nornicdb_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/tfstate_canonical_writer_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/tfstate_canonical_writer_stale_attrs_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/tfstate_state_match_edge_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/tfstate_state_match_edge_retract_authoritative_nonowner_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/tfstate_state_match_edge_retract_delta_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/tfstate_state_match_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/unwind_row_keys_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/storage/postgres/aws_cloud_runtime_drift_admission_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/aws_cloud_runtime_drift_lambda_completeness_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/aws_cloud_runtime_drift_readiness_deterministic_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/aws_cloud_runtime_drift_readiness_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/aws_cloud_runtime_drift_reopen_anchor_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/aws_cloud_runtime_drift_value_collapse_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/browser_sessions_static_grant_policy_hash_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/changed_since_delta_generation_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (#7282 delta-generation refusal); unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/changed_since_link_accuracy_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/changed_since_multiset_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/changed_since_normalization_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/changed_since_single_statement_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/cloud_resource_liveness_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/cloud_resource_liveness_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/cloud_resource_owner_page_index_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/drifted_bucket_skip_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7228 overfull-band-bucket skip proof, enrolled in the live-postgres-readiness runner on ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: a 307-member bucket nominates no pairs while the same repo's small-bucket pairs are unchanged, with skipped-bucket/max-bucket/pairs-considered stats. Local run passed in 1.3s on postgres:18 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/code_drifted_findings_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/code_reachability_index_replay_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/code/reachability/store_route_liveness_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7592 disposable PostgreSQL 18 proof that the reachability edge loader reads the consumer scope's own edges only (a chain X -> Z.g -> P never lands in X); enrolled in the live-postgres-readiness runner. Upper-bound timing: 1.31s cold including one-time schema bootstrap, 0.09s warm, on local postgres:18"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/code_reachability_upgrade_backfill_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_ack_array_theory_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_ack_attempt_fencing_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_ack_batch_exactness_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_ack_capability_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_ack_capability_reset_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_ack_fixed_schema_performance_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_ack_legacy_performance_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_ack_ordering_helpers_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_ack_ordering_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_ack_performance_helpers_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_ack_performance_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_claim_epoch_fencing_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_claim_fixed_schema_performance_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_claim_latch_performance_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_claim_latch_service_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_claim_legacy_performance_helpers_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_claim_performance_helpers_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_claim_trigger_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_cutover_backfill_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_cutover_migration_behavior_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_cutover_migration_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_cutover_migration_rerun_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_cutover_work_item_lock_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#6502 disposable PostgreSQL 18 proof that a projection reading the activation epoch ahead of activation defers and retries without dead-lettering, that the released generation proceeds and acks, that a superseded generation acks as superseded, and that every epoch miss wraps the not-active sentinel; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/container_image_identity_failure_fencing_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_held_support_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_legacy_cleanup_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_marker_lock_performance_live_test.go
+    tag: perf5854_ack
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/container_image_identity_support_facts_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_support_pagination_collation_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_support_pagination_prefix_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_support_snapshot_cutover_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_support_snapshot_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_v3_migration_helpers_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/container_image_identity_v3_migration_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/content_files_relative_path_index_live_test.go
+    tag: ~
+    class: scheduled
+    reason: disposable PostgreSQL concurrent-index recovery and legacy-upgrade proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
+  - file: go/internal/storage/postgres/content_files_relative_path_skipped_125_live_test.go
+    tag: ~
+    class: scheduled
+    reason: disposable PostgreSQL out-of-order migration receipt proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
+  - file: go/internal/storage/postgres/content_entities_k8s_select_partial_index_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/content_file_secret_lines_concurrency_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/content_file_secret_lines_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/content_file_secret_lines_writebench_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live benchmark gated by env Skip (ESHU_SECRET_LINES_BENCH); slow by nature (perf), runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/content_search_index_finalize_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence

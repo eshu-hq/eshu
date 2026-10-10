@@ -27,6 +27,11 @@ command -v rg >/dev/null 2>&1 || {
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+registry_flat="${tmp_root}/ci-gates.v1.yaml"
+static_workflow_flat="${tmp_root}/static-contract-gates.yml"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry_flat}" "${repo_root}"
+ci_gates_static_workflow_view "${repo_root}/.github/workflows/static-contract-gates.yml" "${static_workflow_flat}" "${repo_root}"
 
 PASS=0
 FAIL=0

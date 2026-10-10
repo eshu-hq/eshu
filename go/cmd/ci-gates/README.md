@@ -359,6 +359,22 @@ dropped. `scripts/generate-ci-gates-doc.sh` calls this subcommand, so the layer
 questions are defined once, in `internal/cigates`. It reads the registry only
 and changes nothing.
 
+### fragments and compare
+
+```bash
+ci-gates fragments --registry specs/ci-gates.v1.yaml
+ci-gates compare --left specs/ci-gates.v1.yaml --right /tmp/ci-gates-flat.yaml
+```
+
+`fragments` prints the ordered paths accepted by the production loader, one
+per line. It prints nothing for a validated flat registry. The flat-view
+helper uses this output so quoted and inline YAML references cannot be
+silently omitted. `compare` loads both registries and checks every gate and
+the required checks, hygiene hooks, and non-gate workflows. It ignores only
+the representation choice between fragments and a flat view. The helper
+requires this comparison before handing a temporary flat view to text-based
+consumers, including main-health.
+
 ## Thin shell wrappers
 
 | Script | Purpose |

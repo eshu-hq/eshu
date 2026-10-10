@@ -1,0 +1,423 @@
+tests:
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_differential_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 write-side differential of the partition-scoped deferred maintenance pass against the whole pass on two identically seeded bootstrapped schemas (outgoing, inbound, GCP, ArgoCD, shared partition, empty, unrelated quiet scope, memo hit and miss); enrolled in the live-postgres-readiness runner; local run passed in 15.07s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_interleave_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 differential of the partition-scoped pass against the whole pass under a generation advance before the evidence commit and before the phase, successor activation, a failed sibling batch and its retry, promotion of an unprocessed source, and the catalog-change refusal; enrolled in the live-postgres-readiness runner; local run passed in 11.84s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_outcomes_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 per-owed outcomes of the partition-scoped pass (not_active before the catalog guard, no_memo_baseline, NULL active pointer from the real projector Fail path, repo_id collision loser, empty catalog) and its targeted-only metric series; enrolled in the live-postgres-readiness runner; local run passed in 11.99s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_sql_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 proof that the repo-bounded and partition-bounded repository-generation reads equal the shipped corpus-wide read filtered in Go, including a repo_id DISTINCT ON collision; enrolled in the live-postgres-readiness runner; local run passed in 1.04s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/issue7033_scoped_rollout_legacy_live_test.go
+    tag: issue7033_rollout
+    class: scheduled
+    reason: "tagged helper-only legacy-receipt validator compiled into the explicitly authorized #7033 rollout proof; no standalone test is eligible for automated live-backend execution"
+  - file: go/internal/storage/postgres/issue7033_scoped_rollout_live_test.go
+    tag: issue7033_rollout
+    class: scheduled
+    reason: "explicitly authorized #7033 schema-mutation proof requires a fully identified rollout target and must never run in automated live-backend execution"
+  - file: go/internal/storage/postgres/identity_provider_config_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/installed_advisory_targets_paging_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7154 narrowed OS-package drain proofs (paging to completion, purl forms against the Go matcher, plan at 50,000 rows, generation flip mid-drain), untagged and gated by the ESHU_POSTGRES_TEST_DSN env Skip; about 12s locally under -race, 10s of it the 50,000-row plan proof; Postgres only; enrolled in the blocking reducer contention gate workflow, not the live-backend job, where ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1 turns the unset-DSN skip into a failure (#7141)"
+  - file: go/internal/storage/postgres/infra/inventory/backfill_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/background_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/derive_bench_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/derive_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/fence_backfill_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/fence_invariant_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/fence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/fence_race_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/fence_repair_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/fence_session_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/fence_shapes_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/fence_state_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/reader_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/reconcile_claim_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/reconcile_cursor_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/reconcile_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/reconcile_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/retention_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/infra/inventory/retention_lock_probe_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_backfill_flux_cross_repo_ordering_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_backfill_relationship_family_index_migration_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_backfill_relationship_family_index_odu_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_backfill_relationship_family_index_write_tax_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_backfill_relationship_family_retained_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_flux_evidence_identity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7543 disposable PostgreSQL 18 proof of the repository-scoped Flux source identity: native commit binds TEXT without SQLSTATE 22021, two repositories with the same namespace and name stay distinct, and mixed legacy/current generations coexist via the COALESCE fallback; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_scope_source_key_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_scopes_active_state_snapshot_index_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7088 disposable PostgreSQL 18 backfill and contention proofs (repair after ready, heavy-scope paging, scope-writer wait, 25-scope bound, concurrent idempotent passes) over the package-manifest consumption keys, enrolled in the #7529 live-postgres-readiness runner. Upper-bound timing: local sixteen-proof runner passed the five proofs in 0.62s to 1.24s each (4.2s summed; the six-test storage package ran in 7.3s test time and 16s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took about 27s for the six storage proofs including compile; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/maintenance/requests_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7620 disposable PostgreSQL 18 proof that the reindex watermark upsert returns a monotonic database-clock stamp: sequential requests never go backward, sixteen concurrent requests store the largest returned value, and a future-seeded value is not moved backward (a mutant without GREATEST fails this proof). Enrolled in the live-postgres-readiness runner; 1.23s of test time, 3s wall with a warm build cache, on postgres:18.6-alpine on tmpfs on 2026-10-06; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/maintenance/repository_reindex_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7620 disposable PostgreSQL 18 proof of the per-repository reindex watermarks: one request stores one row per distinct scope, sixteen concurrent requests over overlapping scope sets in opposite orders all succeed and store the largest returned value per scope, a future-seeded value is not moved backward, and the per-cycle read returns only rows newer than the fleet watermark (a mutant that locks rows in input order fails with SQLSTATE 40P01). Enrolled in the live-postgres-readiness runner; 2.01s of test time on postgres:18 on 2026-10-07; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/known_scopes_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7625 disposable PostgreSQL 18 proof of the github_org host filter on KnownScopes: with host github.com only the org's github.com scopes are known (HTTPS and normalized SSH remotes), and gitlab.com, GitHub Enterprise, and remote-less scopes drop out; with an empty host the read keeps the slug-only org partition. Enrolled in the live-postgres-readiness runner; 1.58-1.61s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/live_read_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7625 disposable PostgreSQL 18 proof that the SQL live filter in ReadLiveScopeObservations keeps exactly the rows selection.Live keeps, at and around the liveness window boundary, so the Go predicate and the SQL cannot drift. Enrolled in the live-postgres-readiness runner; 1.38-1.39s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/observations_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7625 disposable PostgreSQL 18 proof of repository selection observations: the org partition read excludes other orgs, repository_ref scopes, and other collectors; over three cycles the stored rows equal membership.Evaluate's projection (a repeated state keeps state_since and adds a cycle, a changed state restarts both); a replayed or older batch changes nothing; explicit selected rows sit beside org rows; and eight writers released by a start barrier (four on one selector, four on a second) neither deadlock nor double-count. Enrolled in the live-postgres-readiness runner; 1.47-1.57s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/observations_sweep_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7774 disposable PostgreSQL 18 proof of the expired repository_selection_observations sweep: only rows strictly past their own liveness window plus the grace are deleted (live, in-grace, boundary, and long-window rows are kept); not_listed rows are never deleted, so a selector whose rows all expired still evaluates instead of tripping the mass-miss guard; a 1,203-row backlog drains in batches and a backlog past the batch cap stops at the cap and finishes on the next call; a row an open evaluation holds is skipped without waiting and kept once renewed; and an evaluation that collides with an in-flight delete waits, then inserts a fresh row. Enrolled in the live-postgres-readiness runner; 1.70-1.97s of test time on postgres:18.6 on 2026-10-09; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/migration_148_delta_baseline_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7088 disposable PostgreSQL 18 upgrade proof from shipped migration 138 across the secret-lines migrations, enrolled in the #7529 live-postgres-readiness runner. Upper-bound timing: 0.60s of test time in the local sixteen-proof runner (same storage package run as the backfill proofs: 7.3s test time, 16s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took about 27s for the six storage proofs including compile; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/prefetch_batch_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7724 disposable PostgreSQL 18 proof that both shared-projection prefetch batch queries probe the primary key with no sequential scan at 500-key scale over 100K-row tables, that the shipped SQL binds UNNEST arrays against real Postgres, and that LookupBatch returns exactly the present subset; enrolled in the live-postgres-readiness runner, bridging its ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN family pair onto ESHU_POSTGRES_TEST_DSN with a disposable-ack fail-closed"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_heartbeat_refusal_lock_order_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7389 heartbeat vs delta-baseline refusal lock-order proof (a sleep trigger holds the refusal on the work row), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 1.6s locally and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+  - file: go/internal/storage/postgres/projector_heartbeat_write_marker_interleave_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7389 marker-vs-heartbeat exclusion proof (1,000 interleaved races), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 1s locally (1.3s under -race) and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+  - file: go/internal/storage/postgres/projector_marked_write_age_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7471 stuck-write signal proof (the oldest set marker on a non-terminal generation with open projector work; terminal (superseded, completed, failed) and unmarked generations excluded; gauge rests at zero when empty), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; under 0.5s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_scope_wait_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_ack_superseded_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_ack_obsolete_marker_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7820 Ack lock-time marker proof (deterministic marker-commit-after-Ack-snapshot spare, in-flight skip without waiting, 300-trial commit race with zero marked retirements), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 8s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_attempt_fence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_attempt_reclaim_contention_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_deadlock_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_fence_lifecycle_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_full_guard_contention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7473 claim-path contention proof (sixteen workers claim 512 single-generation scopes per round, five rounds against the pre-guard text derived from the shipped constant and five after; asserts correctness only and logs medians as no-regression evidence), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 30s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_full_guard_epq_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7473 EvalPlanQual recheck proof (dropped full holder claimed after the snapshot, guard/fence agreement across clocks), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 8s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_full_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7473 full-guard functional proof (pending full survives a newer delta and projects first, backoff and drifted fulls hold their delta, fulls behind newer fulls and deltas behind deltas still supersede, terminal fulls never hold, Ack still supersedes a full behind an acked delta), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 10s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_full_guard_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7473 plan and lock-set proof (index-backed hold probes with no new sequential scans or row locks, at scale on the #7115 harness shape; the held delta, spared full generation, and ingestion_scopes stay unlocked), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 7s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_lock_skip_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_maintenance_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_contention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 claim-path contention proof (sixteen workers claim 512 single-generation scopes per round, five rounds against the pre-guard text derived from the shipped constant and five after; asserts correctness only and logs medians as no-regression evidence), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 60s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 EvalPlanQual recheck proof (lock-skipped sweep generation, dropped holder claimed after the snapshot, guard/fence agreement across clocks, marker-vs-sweep race), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 15s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_interleave_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 claim interleave proof (the marked retry always wins its race against the newer generation whether the rival snapshot predates or follows the commit), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 6s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 admission-guard functional proof (invisible and visible marked retries win, unmarked stale generations still supersede, terminal marked generations never hold, Ack keeps marked obsolete generations), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 11s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 plan and lock-set proof (index-backed guard probes with no new sequential scans or row locks, at scale on the #7115 harness shape; the held row, spared generation, and ingestion_scopes stay unlocked), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 6s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7819 marker fence-sync proof (a held fence row defers the marker without waiting, the re-run marks and bumps the fence by exactly one, a refused marker bumps nothing), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 0.2s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_scope_chain_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_scope_fence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_sorted_lock_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_superseded_generation_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_delta_baseline_concurrency_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/projector_queue_delta_baseline_edge_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/projector_queue_delta_baseline_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/projector_queue_delta_baseline_race_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/projector_queue_heartbeat_scope_lock_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_heartbeat_superseded_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_ingestion_lock_order_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_supersession_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_write_marker_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7389 write-through proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; under 0.3s locally and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+  - file: go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7209 graph-truth proof on Neo4j Community (production-writer zombie retract deletes the active generation's files, refused Ack heals, claim/mark/write/ack drain restores them), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN (+ DISPOSABLE) and ESHU_NEO4J_URI env Skips (with a Neo4j backend the runner also requires ESHU_GRAPH_BACKEND=neo4j and ESHU_NEO4J_USERNAME/PASSWORD; without one it excuses this proof and names the skip); about 6s locally; enrolled in the #7529 live-postgres-readiness runner, which also provides the Neo4j service"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_zombie_heal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7209 zombie-heal proof (refused Ack/Heartbeat re-opens the active row, sequential + 4-way concurrent convergence, four skip gates, closed outcome labels), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN (+ DISPOSABLE) env Skip; Postgres only; about 0.5s locally; enrolled in the #7529 live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_write_marker_replay_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7389 replayed failed generation and latest-write-start proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only (migrated private schema); about 5s locally and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+  - file: go/internal/storage/postgres/provenance_edge_identity_upgrade_performance_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/provenance_edge_identity_upgrade_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/activation/ack_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 atomic activation obligation insert inside real ProjectorQueue.Ack on the full bootstrap schema in an isolated disposable PostgreSQL schema; accepted Ack writes one row, rejected/stale/duplicate/superseded Ack writes none, injected insert failure rolls Ack back"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/claim_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation claim never waits on a held row and never leases or starves on finished rows, and a lease lost inside finalize rolls back the wake and the completion (statement-level pg_sleep trigger in an isolated disposable PostgreSQL schema)"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/targeted_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation consumer with the production partition-scoped maintainer on the full bootstrap schema in an isolated disposable PostgreSQL schema: real catalog_changed and no_memo_baseline refusals are held one callback per lease and complete after the epoch whole pass with no consumer pass; a real repo_id collision loser retires inapplicable after one callback"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/terminal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation terminal states on the full bootstrap schema in an isolated disposable PostgreSQL schema: cloud scope retires inapplicable with no callback and no reclaim, repo_id collision loser retires inapplicable after one callback, catalog-changed refusal is held at lease cadence with no consumer pass, and a NULL active pointer from the real projector Fail retires obsolete with no wake"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_terminal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation repo_id collision loser retired inapplicable against the shipped active-repository read (kept in the root package because that read is unexported) on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/consumer_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation consumer protocol (ordering, late failure, parallel claim and lease recovery) on the full bootstrap schema in an isolated disposable PostgreSQL schema; real Ack, reducer Fail/Claim and control-arm maintenance"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/matrix_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation finalize matrix (queue isolation incl. other-domain row, terminal preservation, forged identity and injected completion rollback, no phase substitution, supersession) on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/recovery_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation restart/duplicate fencing, >32-row wake batch cap and bounded catch-up pages on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/composed_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 composed concurrency: consumer cycle with the production partition-scoped maintainer racing the ingester epoch pass through the deferred barrier (forced lock-holder interleavings plus a 20-iteration barrier race) and two consumer replicas on one and on distinct obligations, on the full bootstrap schema in isolated disposable PostgreSQL schemas"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/lease_restart_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 composed concurrency: lease expiry mid-maintenance with a second claimer (one completion, one wake, late Finalize not_owner) and a consumer crash between the evidence commit and the phase publication, on the full bootstrap schema in isolated disposable PostgreSQL schemas"
+    runner: live-postgres-readiness

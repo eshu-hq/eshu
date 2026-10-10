@@ -1,0 +1,332 @@
+version: v1
+gates:
+  - id: frontend-site
+    name: Marketing site typecheck/test/build (root Vite)
+    category: frontend
+    layer: unit
+    purpose: "Typechecks, unit-tests, and builds the marketing site to catch build-breaking regressions."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "src/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - "wrangler.jsonc"
+      # src/cloudflareConfig.test.ts (part of `npm test`) asserts the .nvmrc pin
+      # and the CLOUDFLARE_PAGES.md Node-version row in lockstep (#5798).
+      - ".nvmrc"
+      - "CLOUDFLARE_PAGES.md"
+      # Root vite.config.ts sets `exclude` with no `include`, so vitest's default
+      # pattern collects scripts/marketing-review-runtime.test.mjs from the repo
+      # root - and `npm test` is this gate's own command. That test imports
+      # marketing-review-runtime.mjs and reads marketing-review.mjs, so all three
+      # are in this gate's blast radius (#5798, same class as the pins above).
+      - "scripts/marketing-review.mjs"
+      - "scripts/marketing-review-runtime.mjs"
+      - "scripts/marketing-review-runtime.test.mjs"
+      # public/ is Vite's default publicDir (no root/publicDir override), copied
+      # verbatim into build.outDir and published by wrangler as the Pages
+      # artifact - a direct input to this gate's own `npm run build` (#5798).
+      # Matched as a class: enumerating the assets is the mistake above.
+      - "public/**"
+    local:
+      command: "npm run typecheck && npm test && npm run build"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "Marketing site (root Vite)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: frontend-console-checks
+    name: Console typecheck/test/build (apps/console)
+    category: frontend
+    layer: unit
+    purpose: "Typechecks, unit-tests, and builds the admin console, including its JS bundle-size budget checks."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "apps/console/**"
+      - "src/**"
+      - "scripts/run-console-live-e2e.sh"
+      - "scripts/run-console-retained-e2e.sh"
+      - "scripts/test-run-console-live-e2e.sh"
+      - "scripts/test-run-console-retained-e2e.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/console-live-e2e-runtime.mjs"
+      - "scripts/lib/console-retained-create-proof-schema.sql"
+      - "scripts/lib/console-retained-verify-public-identity.sql"
+      # console:* commands resolve dependencies from the root package.json, so a
+      # root dependency change must re-run the console checks (CI's Console job
+      # has no per-job path filter and runs on these too).
+      - "package.json"
+      - "package-lock.json"
+      # `npm run console:build` runs both bundle-budget scripts directly, and
+      # consoleBundleBudget.test.ts / consoleBundleReport.test.ts (`console:test`)
+      # import them; the adjacent hand-maintained .d.mts types are resolved by
+      # `console:typecheck` (tsc), not by `console:test` (vitest) (#5798).
+      - "scripts/console-bundle-budget.mjs"
+      - "scripts/console-bundle-budget.d.mts"
+      - "scripts/console-bundle-report.mjs"
+      - "scripts/console-bundle-report.d.mts"
+    local:
+      command: "bash scripts/test-run-console-live-e2e.sh && bash scripts/test-run-console-retained-e2e.sh && npm run console:typecheck && npm run console:test && npm run console:build"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "Console (apps/console)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: console-a11y
+    name: Console a11y audit (axe-core, critical+serious block)
+    category: frontend
+    layer: hygiene
+    purpose: "Runs an axe-core accessibility audit on the console and blocks merge on any critical or serious violation."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "apps/console/**"
+    local:
+      command: "npm run console:a11y"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "Console a11y audit (axe-core)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: frontend-eslint
+    name: ESLint flat config (src + apps/console/src)
+    category: frontend
+    layer: hygiene
+    purpose: "Lints the marketing site and console TypeScript/JS source against the shared ESLint config."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "src/**"
+      - "apps/console/src/**"
+      - "eslint.config.js"
+      - "scripts/verify-eslint-config.sh"
+      - "scripts/test-eslint-config.sh"
+      # The eslint self-test (test-eslint-config.sh) reads the lint fixtures, so
+      # a fixture change must re-run this gate (it is in frontend.yml's filter).
+      - "tests/lint-fixture/**"
+      # verify-eslint-config.sh runs `eslint .` repo-wide, and eslint.config.js
+      # carries an explicit files: ["scripts/**/*.{js,mjs,cjs,ts,mts,cts}"] block,
+      # so every .mjs under scripts/ is linted by this gate (#5798). Matched as a
+      # class rather than enumerated: naming them one at a time is what let the
+      # console-bundle and marketing-review scripts go ungated in the first place.
+      # The .d.mts siblings are deliberately NOT covered - eslint.config.js
+      # ignores "**/*.d.mts", so this glob must not match them (it does not).
+      - "scripts/**/*.mjs"
+    local:
+      command: "bash scripts/verify-eslint-config.sh"
+      test_command: "bash scripts/test-eslint-config.sh"
+    ci:
+      workflow: frontend.yml
+      job: "ESLint flat config (issue #3763)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: npm-audit
+    name: npm audit (fail on high/critical)
+    category: frontend
+    layer: hygiene
+    purpose: "Fails the build if npm audit finds any high- or critical-severity dependency vulnerability."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "package.json"
+      - "package-lock.json"
+    local:
+      command: "npm audit --audit-level=high"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "npm audit (fail on high/critical)"
+    requirements:
+      - node
+      - network
+    ci_only_reason: ""
+
+  # ─── SECURITY ──────────────────────────────────────────────────────────────
+
+  - id: gosec-changed
+    name: gosec static analysis (whole module)
+    category: security
+    layer: hygiene
+    purpose: "Runs gosec static analysis across the Go module to catch common security anti-patterns in source code."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/**"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/go-install-retry.sh"
+    # Whole-module gosec here so the ci-gates runner (which passes no file list)
+    # runs a real scan rather than a no-op. #4217 narrows the local security lane
+    # to changed packages for speed while keeping CI authoritative.
+    local:
+      command: "bash scripts/dev/precommit-go.sh gosec-all"
+      test_command: ""
+    ci:
+      workflow: security-scan.yml
+      job: "gosec (Go static analysis)"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: go-gosec
+
+  - id: govulncheck
+    name: govulncheck (Go vulnerability database)
+    category: security
+    layer: hygiene
+    purpose: "Checks Go dependencies against the public vulnerability database for known CVEs actually reachable by the code."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "go/go.mod"
+      - "go/go.sum"
+      - "go/**/*.go"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/test-precommit-go-toolchain-isolation.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/go-install-retry.sh"
+    local:
+      command: "bash scripts/dev/precommit-go.sh govulncheck"
+      # Self-test mirror: precommit-go.sh installs its scanners from the repo
+      # root, where no go.mod is visible, so a GOROOT leaked by a
+      # toolchain-switched parent made every install fail to compile and this
+      # gate died before govulncheck ran. The self-test is hermetic (it fakes
+      # `go`), so it needs no network and no real toolchain.
+      test_command: "bash scripts/test-precommit-go-toolchain-isolation.sh"
+    ci:
+      workflow: security-scan.yml
+      job: "govulncheck (Go vulnerability database)"
+    requirements:
+      - go
+      - network
+    ci_only_reason: ""
+
+  - id: nancy
+    name: nancy (Sonatype dep CVE + license scan)
+    category: security
+    layer: hygiene
+    purpose: "Runs Sonatype nancy for Go dependency CVE/license issues; non-blocking since missing credentials mean it scans nothing today."
+    tier: pre-push
+    # Advisory, not blocking (#5791, #5804): Sonatype's OSS Index rejects ALL
+    # anonymous requests with 401 Unauthorized, and neither this repo's CI nor
+    # local dev has OSS_INDEX_USERNAME/OSS_INDEX_TOKEN configured, so nancy
+    # cannot perform a real scan anywhere today — CI's identical unpiped
+    # invocation has never scanned anything either (it silently audits 0
+    # dependencies and reports success). Mirrors the trivy-fs entry below:
+    # a security scanner that cannot always run must be informational, not a
+    # gate that blocks every contributor on a condition outside their
+    # control. Reclassify back to blocking once #5804 wires real credentials.
+    blocking: false
+    triggers:
+      - "go/go.mod"
+      - "go/go.sum"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/dev/nancy-local.sh"
+      - "scripts/test-nancy-local.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/go-install-retry.sh"
+    local:
+      command: "bash scripts/dev/precommit-go.sh nancy"
+      test_command: "bash scripts/test-nancy-local.sh"
+    ci:
+      workflow: security-scan.yml
+      job: "nancy (Sonatype dep CVE + license scan)"
+    requirements:
+      - go
+      - network
+    ci_only_reason: ""
+
+  - id: trivy-fs
+    name: Trivy filesystem scan (vuln + secret + config)
+    category: security
+    layer: hygiene
+    purpose: "Scans the filesystem with Trivy for vulnerabilities, secrets, and misconfiguration when installed locally; CI stays authoritative."
+    tier: pre-push
+    blocking: false
+    triggers:
+      - "Dockerfile"
+      - "deploy/**"
+      - "go/go.mod"
+      - "go/go.sum"
+      - "package-lock.json"
+      # The gate that actually EXECUTES trivy-fs-local.sh must itself be
+      # selected by an edit to that script, the shared skip-dirs derivation it
+      # sources, the specs file that derivation reads, or the CI job it must
+      # stay wired to -- otherwise a change to any one selects some other
+      # mix of unrelated gates (varying by path -- e.g. docs-build-changed
+      # for the specs file, heredoc-budget for the shell scripts, plus
+      # ci-gate-registry and/or no-ai-attribution's blanket "**" trigger on
+      # some of them), but never the trivy-fs gate whose local.command runs
+      # the edited script (#5925 review, F3; F8; single-source review P3-2).
+      - "scripts/dev/trivy-fs-local.sh"
+      - "scripts/lib/trivy-skip-dirs.sh"
+      - "specs/trivy-skip-dirs.txt"
+      - ".github/workflows/security-scan.yml"
+    # Optional: trivy is not a required local tool. The script runs the scan when
+    # trivy is installed and otherwise prints setup guidance and defers to CI —
+    # it never passes silently as if the scan ran. Advisory locally; CI's
+    # trivy-fs job (with SARIF upload) remains authoritative.
+    local:
+      command: "bash scripts/dev/trivy-fs-local.sh"
+      test_command: ""
+    ci:
+      workflow: security-scan.yml
+      job: "Trivy filesystem scan (vuln + secret + config)"
+    requirements:
+      - network
+    ci_only_reason: ""
+
+  # ─── CI-ONLY (local==null) ─────────────────────────────────────────────────
+
+  # The gate itself is ci-heavy, so its mirror test was never selected in the
+  # local lane: an edit to the mutex ran no local gate at all. This pre-pr
+  # hygiene gate runs the mirror (no Docker, no ports) so the local half of that
+  # gap is closed too, not just CI.
+  - id: golden-corpus-mirror
+    name: Golden corpus gate mirror (static)
+    category: hygiene
+    layer: hygiene
+    purpose: "Runs the golden-corpus gate's own hermetic test suite locally, with no Docker, as a static mirror of the real gate."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/test-verify-golden-corpus-gate.sh"
+      - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/test-golden-corpus-*.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "tests/fixtures/ecosystems/**"
+    local:
+      command: "bash scripts/test-verify-golden-corpus-gate.sh"
+      test_command: ""
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 74s (this is the static mirror; the live golden-corpus cell never ran locally at all -- it is path-triggered and Docker-only). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via golden-corpus-gate.yml (required-gates-complete)."
+    ci:
+      workflow: "golden-corpus-gate.yml"
+      job: "static mirror"
+    requirements: []
+    ci_only_reason: ""
+  # #7362 (#7331 phase 2): the NornicDB leg of golden-corpus-gate.yml. Neo4j is
+  # the supported backend and golden-corpus-gate-neo4j is the blocking truth
+  # gate, so this leg is watch-only: it reports NornicDB drift without holding
+  # a merge. required-gates-complete waits only for registry-blocking gates, and
+  # the ruleset lists no per-leg context, so no ruleset change is involved. This
+  # covers the corpus-gate (nornicdb) cell only: golden-corpus-differential
+  # still runs the NornicDB B-7 capture and stays blocking (out of scope here).

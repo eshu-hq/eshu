@@ -1,0 +1,196 @@
+version: v1
+gates:
+  - id: fips-md5-sql-sweep
+    name: Production SQL has no md5() calls (FIPS, #6753)
+    category: exactness
+    layer: contract
+    purpose: "Scans production Go SQL literals, migrations, and shipped schema SQL for md5() calls, which fail on FIPS-enabled PostgreSQL."
+    tier: pre-pr
+    blocking: true
+    # TestProductionSQLHasNoMD5Calls scans the non-test Go string literals
+    # under go/ plus the shipped .sql roots (migrations and
+    # schema/data-plane/postgres)
+    # (go/internal/storage/postgres/md5_sql_sweep_test.go). Testdata,
+    # fixtures, docs evidence, and script proof helpers may still use md5();
+    # only shipped SQL is in scope.
+    triggers:
+      - "go/**"
+      - "schema/data-plane/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "cd go && go test ./internal/storage/postgres -run '^TestProductionSQLHasNoMD5Calls$' -count=1"
+      test_command: "cd go && go test ./internal/storage/postgres -run '^TestMD5SweepFlagsSeededViolation$' -count=1"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: hot-cypher-source-coverage
+    name: Hot Cypher manifest covers every production query call
+    category: exactness
+    layer: contract
+    purpose: "Checks that the hot-Cypher manifest lists every production query call site so no query runs outside the tracked manifest."
+    tier: pre-pr
+    blocking: true
+    # TestHotCypherManifestCoversEveryProductionQueryCall
+    # (go/internal/queryplan/source_coverage_test.go) discovers query call
+    # sites under ../query and checks them against the manifests in
+    # go/internal/queryplan/testdata.
+    triggers:
+      - "go/internal/queryplan/**"
+      - "go/internal/query/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "cd go && go test ./internal/queryplan -run '^TestHotCypherManifestCoversEveryProductionQueryCall$' -count=1"
+      test_command: "cd go && go test ./internal/queryplan -run '^TestValidateSourceCoverage' -count=1"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: ask-overlay-inventory-coverage
+    name: Ask catalog overlay covers the surface inventory
+    category: exactness
+    layer: contract
+    purpose: "Checks that the Ask catalog's overlay covers every surface listed in the generated surface-inventory registry."
+    tier: pre-pr
+    blocking: true
+    # TestOverlayCoversInventory (go/internal/ask/catalog/coverage_test.go)
+    # reads the committed
+    # go/internal/capabilitycatalog/data/surface-inventory.generated.json and
+    # checks it against the overlay in its own package.
+    triggers:
+      - "go/internal/ask/catalog/**"
+      - "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "cd go && go test ./internal/ask/catalog -run '^TestOverlayCoversInventory$' -count=1"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: ifa-materialized-edge-coverage
+    name: Ifa materialized-edge exhaustiveness gate (#5351)
+    category: exactness
+    layer: contract
+    purpose: "Checks that the Ifá materialized-edge coverage manifest stays exhaustive against the reducer, Cypher writers, and cassette fixtures."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      # This gate runs two package-level `go test` commands, which compile every
+      # file in each package — so an edit to any sibling file can change the
+      # verdict and must select the gate (#5873). The per-file entries below are
+      # kept: they are the files the gate is actually about, and the doc renders
+      # them as the reader's map of what it guards.
+      - "go/internal/ifa/**"
+      - "go/cmd/ifa/**"
+      - "go/internal/reducer/**"
+      - "go/internal/ifa/materializededges/**"
+      - "go/internal/ifa/sql_relationship_odu*.go"
+      - "go/internal/reducer/materialized_edge_families.go"
+      - "go/internal/reducer/contract/domain.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_materialization.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_embedded_query.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_metadata.go"
+      # The whole cypher package, for the same reason the reducer leg above is
+      # a subtree (#6181). This gate's direct-family drift guard parses EVERY
+      # non-test file in go/internal/storage/cypher and follows each reducer
+      # port through the package call graph to the Cypher it reaches, so any
+      # file there can change its verdict. The four per-file entries below
+      # covered 6 of the package's 131 non-test files, which meant a change to
+      # iam_can_perform_edge_writer.go or secrets_iam_graph_writer.go -- a
+      # direct writer whose family the guard classifies -- did not select this
+      # gate at all. Measured with `ci-gates select --paths-from`, not
+      # estimated. The per-file entries stay as the reader's map of what the
+      # gate is about.
+      - "go/internal/storage/cypher/**"
+      - "go/internal/storage/cypher/edge/writer/sql.go"
+      - "go/internal/storage/cypher/materialized_edge_*.go"
+      - "go/internal/storage/cypher/canonical_code_call_edges.go"
+      - "go/internal/storage/cypher/canonical_inheritance_edges.go"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
+      # The Go blocker-shape lockstep test PARSES these shell files: it reads
+      # each family's declared blocker_kind from the registry rows and binds
+      # it to the real handler's write shape. Without these triggers a row
+      # could be flipped to shared_intent_lock for an EdgeWriter-only handler,
+      # its hand-derived pin updated to agree, and the check able to prove that
+      # blocker architecturally vacuous would not be selected for this gate.
+      #
+      # "not selected for this gate" is the accurate scope, and it is narrower
+      # than it looks. The reducer leg below is what runs that lockstep, and it
+      # was absent from the CI job's command until this change added it -- so
+      # before, these triggers bought local `make pre-pr` selection only, while
+      # in CI the lockstep rode along on test.yml's go-core lane (whose `code:`
+      # filter is '**' minus docs, and therefore already matched any
+      # scripts/lib/** edit). Local and CI now run the same command for this
+      # gate id. Said plainly because the earlier wording claimed the triggers
+      # were the only thing standing between a vacuous blocker and CI, which
+      # was not true of any lane.
+      - "scripts/lib/ifa_family_registry.sh"
+      - "scripts/lib/ifa_family_registry/**"
+      - "testdata/cassettes/sqlrelationships/**"
+      - "testdata/cassettes/codecalls/**"
+      - "testdata/cassettes/symbolruntime/**"
+      # Every remaining family that carries a materialized_edges:* coverage row.
+      # This gate RECONCILES that manifest, so a cassette edit which changes facts
+      # while leaving the edge set identical must re-run it -- the two live gates'
+      # exact-set assertions cannot see such an edit, and the compiled-Odu/cassette
+      # lockstep this gate runs is what does. Listing three of twelve made the map
+      # uneven and the rule unstated (#6212); ci-gates/ifa_registry_test.go now
+      # derives the required set from the coverage manifest and fails if one is
+      # missing, so this list cannot drift again by hand.
+      - "testdata/cassettes/codeowners/**"
+      - "testdata/cassettes/deployableunit/**"
+      - "testdata/cassettes/documentation/**"
+      - "testdata/cassettes/inheritance/**"
+      - "testdata/cassettes/iaminstanceprofilerole/**"
+      - "testdata/cassettes/kubernetesnamespaceenvironment/**"
+      - "testdata/cassettes/rationale/**"
+      - "testdata/cassettes/repodependency/**"
+      - "testdata/cassettes/shellexec/**"
+      - "testdata/cassettes/submodulepin/**"
+      - "testdata/cassettes/workloaddependency/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
+      - "go/internal/ifa/testdata/codecalls/**"
+    local:
+      # The reducer leg runs the WHOLE TREE (`./internal/reducer/...`)
+      # rather than a -run filter.
+      # A hand-maintained test-name regex went stale twice here: it listed
+      # TestMaterializedEdgeFamilies|TestMaterializedEdgeFamilyBlockerLockstep,
+      # which silently did not select TestIfaFamilyRegistryWaitKeyIsKnownDomain
+      # when that landed -- a check present in the tree and never run by the
+      # gate meant to run it. The tree takes ~8s; that buys a selection
+      # that cannot rot as tests are added, and -- because the leg is
+      # recursive -- cannot rot as #6061 moves families out of the
+      # reducer root into domain subpackages either.
+      #
+      # The ifa leg names materializededges explicitly for the same reason.
+      # That leg -- not the reducer one above it -- is PACKAGE-EXACT,
+      # not recursive, so a package that is not named here
+      # is not run by this gate no matter how many tests it holds.
+      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
+      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Ifa contract-layer gate"
+    requirements:
+      - go
+    ci_only_reason: ""
