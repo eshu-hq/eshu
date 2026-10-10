@@ -5629,7 +5629,12 @@
                 "superseded": "__runtime_service_changed_since_deployment_superseded_count__"
               },
               "unavailable": false
-            }
+            },
+            {"category": "runtime"},
+            {"category": "dependencies"},
+            {"category": "docs"},
+            {"category": "incidents"},
+            {"category": "vulnerabilities"}
           ]
         },
         "arguments": {

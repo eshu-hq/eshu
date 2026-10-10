@@ -140,6 +140,9 @@ func TestGoldenSnapshotServiceChangedSinceIsNonVacuous(t *testing.T) {
 			"unavailable": false,
 		},
 	}
+	for _, category := range []string{"runtime", "dependencies", "docs", "incidents", "vulnerabilities"} {
+		wantMatches = append(wantMatches, map[string]any{"category": category})
+	}
 	if got := shape.RequiredJSONObjectMatches["data.categories[]"]; !reflect.DeepEqual(got, wantMatches) {
 		t.Errorf("RequiredJSONObjectMatches[data.categories[]] = %#v, want %#v", got, wantMatches)
 	}
