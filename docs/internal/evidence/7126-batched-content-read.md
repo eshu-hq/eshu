@@ -181,11 +181,13 @@ every run: `TestChunkedReadHonorsContextCancellation/already_cancelled` failed
 
 The one survivor splits the critical section of a finishing read: it wakes the
 dispatcher and releases the mutex, then takes the mutex again to record the
-failure. It is killable only if the dispatcher wins the mutex in that gap,
-which needs scheduler control. `TestChunkedReadStopsDispatchingAfterAFailure`
-did not fail in 2,000 runs against it. The correct code records the outcome
-and frees the slot in one critical section by construction, which is the
-property the mutant breaks; it is not claimed as covered by a test.
+failure. It is killable only if the dispatcher wins the mutex in that gap.
+That is rare: `TestChunkedReadStopsDispatchingAfterAFailure` did not fail in
+2,000 runs against it, and the independent review saw one failure in 1,000
+runs under `-race`. It is a survivor of a test that cannot control the
+scheduler. The correct code records the outcome and frees the slot in one
+critical section by construction, which is the property the mutant breaks; it
+is not claimed as covered by a test.
 
 ## Performance, laptop bench
 
@@ -205,9 +207,36 @@ failed (shipped path scaled to the pod's statement count measured 0.54 of the
 pod's CPU), so only arm-against-arm differences hold; none of these numbers is
 a pod figure.
 
+Which code each table measured. The dispatcher was rewritten after the first
+bench (launch under the mutex, a goroutine per chunk). The table below is at
+the fixed head. It was taken on a busy host: load1 sampled at 21.6 to 32.7,
+above the 12 limit, so its CPU figures are inflated by contention and hold
+arm-against-arm only. Statements, spans, bytes and digests are unaffected by
+load. The tables after it were measured with the earlier dispatcher (a worker
+pool fed through a channel) on a quiet host. CPU at the fixed head on a quiet
+host is NOT_CHECKED.
+
+Fixed head, busy host (load1 21.6-32.7):
+
+| Data | Arm | Statements | CPU-s median (min-max) | Rounds N below FN |
+|---|---|---|---|---|
+| Original mix | A | 8,300 | 4.487 (4.273-4.835) | |
+| | FN | 3,618 | 4.085 (3.635-4.590) | |
+| | N | 1,140 | 3.970 (3.554-4.083) | 8 of 9 (-0.115 CPU-s, -2.8 percent) |
+| Observed mix | A | 8,300 | 3.749 (3.027-3.819) | |
+| | FN | 4,325 | 3.213 (2.794-3.437) | |
+| | N | 1,166 | 3.014 (2.364-3.117) | 9 of 9 (-0.199 CPU-s, -6.2 percent) |
+
+N against A at the fixed head: -0.517 CPU-s (-11.5 percent) on the original
+mix and -0.735 CPU-s (-19.6 percent) on the observed mix. The CPU gain of N
+over FN is smaller than with the earlier dispatcher on a quiet host. Its sign
+holds in 17 of 18 rounds. The spans for N are 6,842 and 6,998.
+
 Arms. A: the pre-change pass (every candidate read in full, one statement per
 file). FN: PR 1's loader (needed content, one statement per file). N: this
 change's loader (needed content, chunks of 10).
+
+Earlier dispatcher, quiet host (load1 4.0-9.9):
 
 | Data | Arm | Statements (list + get + batch + blank) | Bytes | CPU-s median (min-max) | Digest |
 |---|---|---|---|---|---|
@@ -224,7 +253,7 @@ change's loader (needed content, chunks of 10).
 | | FN | 1 + 28 + 0 + 1 = 30 | 5,658,197 | 0.450 (0.447-0.461) | `765e7796` |
 | | N | 1 + 0 + 4 + 1 = 6 | 5,658,197 | 0.453 (0.447-0.458) | `765e7796` |
 
-Differences on medians:
+Differences on medians (earlier dispatcher, quiet host):
 
 | Data | N against FN (PR 1) | N against A (pre-change) | Rounds N below FN |
 |---|---|---|---|
@@ -232,28 +261,6 @@ Differences on medians:
 | Original mix, pass 2 | -0.216 CPU-s (-7.6 percent) | -0.505 CPU-s (-16.1 percent) | 9 of 9 |
 | Observed mix | -0.211 CPU-s (-10.8 percent) | -0.604 CPU-s (-25.7 percent) | 8 of 9 (one round +0.277, the maximum 2.399 of N) |
 | Heaviest repository | +0.003 CPU-s (+0.7 percent, noise) | +0.014 CPU-s (+3.2 percent, noise) | 6 of 9 |
-
-Rerun at the HEAD that holds the dispatcher fixes (launch under the mutex, a
-goroutine per chunk). The host was busy with other work: load1 sampled at 21.6
-to 32.7, above the 12 limit, so these CPU figures are inflated by contention
-and hold arm-against-arm only. Statements, spans, bytes and digests are
-unaffected by load.
-
-| Data | Arm | Statements | CPU-s median (min-max) | Rounds N below FN |
-|---|---|---|---|---|
-| Original mix | A | 8,300 | 4.487 (4.273-4.835) | |
-| | FN | 3,618 | 4.085 (3.635-4.590) | |
-| | N | 1,140 | 3.970 (3.554-4.083) | 8 of 9 (-0.115 CPU-s, -2.8 percent) |
-| Observed mix | A | 8,300 | 3.749 (3.027-3.819) | |
-| | FN | 4,325 | 3.213 (2.794-3.437) | |
-| | N | 1,166 | 3.014 (2.364-3.117) | 9 of 9 (-0.199 CPU-s, -6.2 percent) |
-
-The statement counts, spans (6,842 and 6,998 for N), bytes and digests equal
-the quiet-host pass. The CPU gain of N over FN is smaller under this load than
-in the quiet-host pass (-7.0 and -10.8 percent) and its sign holds in 17 of 18
-rounds. The quiet-host figures were measured with the earlier dispatcher (a
-worker pool fed through a channel); the change moves chunk launch to a
-goroutine per chunk, which adds at most five goroutine starts per repository.
 
 Reader attempts equal statements (1,140 against 3,618 and 8,300), spans fall
 from 49,802 (A) and 21,710 (FN) to 6,842 (N) on the original mix, and
@@ -274,19 +281,23 @@ statement per consumed file) and the pre-change pass (arm A) on a private
 native PostgreSQL 18.6 primary plus hot standby, the real fenced reader and
 `ContentReader`, 300 related repositories and 8,000 hydrated files. After, with
 the shipped loader (arm N): 1,140 statements against 3,618 (FN) and 8,300 (A)
-on the original mix, 1,166 against 4,325 and 8,300 on the observed mix; CPU
-median 2.753 against 2.960 CPU-s (FN, -7.0 percent) and 3.273 (A, -15.9
-percent) on the original mix, 1.749 against 1.960 and 2.353 on the observed
-mix (-10.8 and -25.7 percent), nine ABBA rounds each at host load1 4.0-9.9,
-and the same `config_paths` digest in all 27 runs of each data set. A rerun at
-the fix HEAD on a busy host (load1 21.6-32.7, arm-against-arm only) gave 3.970
-against 4.085 CPU-s (-2.8 percent) and 3.014 against 3.213 (-6.2 percent). The statement is an index scan
-on `content_files_repo_path_pattern_idx` with no sequential scan, for a small
-repository and a 50-file repository, under a custom and a generic plan. The
-change is safe because the batched reader returns exactly the rows N single
-reads return (live proof), assigns them by path, fails the repository on any
-chunk failure with a deterministic error, keeps at most 8 chunk reads in
-flight, and stops on a cancelled context.
+on the original mix, 1,166 against 4,325 and 8,300 on the observed mix, spans
+6,842 against 21,710 (FN), and the same `config_paths` digest in all 27 runs of
+each data set. CPU at the fixed head (launch under the mutex), nine ABBA rounds
+on a busy host at load1 21.6-32.7, arm-against-arm only: median 3.970 against
+4.085 CPU-s (FN, -2.8 percent, N lower in 8 of 9 rounds) and 4.487 (A) on the
+original mix, 3.014 against 3.213 (FN, -6.2 percent, 9 of 9) and 3.749 (A) on
+the observed mix. With the earlier dispatcher (a worker pool) on a quiet host at
+load1 4.0-9.9: 2.753 against 2.960 CPU-s (FN, -7.0 percent) and 3.273 (A) on the
+original mix, 1.749 against 1.960 and 2.353 on the observed mix (-10.8 and -25.7
+percent against A). CPU at the fixed head on a quiet host is NOT_CHECKED. The
+statement is an index scan on `content_files_repo_path_pattern_idx` with no
+sequential scan, for a small repository and a 50-file repository, under a custom
+and a generic plan. The change is safe because the batched reader returns
+exactly the rows N single reads return (live proof), assigns them by path,
+fails the repository on any chunk failure with a deterministic error, keeps at
+most 8 chunk reads in flight, launches no chunk once a failure is recorded or
+the context is done, and stops on a cancelled context.
 
 Observability Evidence: the `deployment_artifacts` stage line of
 `repository_query.stage_completed` carries `batch_statements`,
@@ -304,6 +315,8 @@ in PR 1. The HTTP API, OpenAPI and MCP surfaces are unchanged (no wire change).
 Ingest-time extraction (PR 3), a parse cache, request budgets, a batch for the
 anchor repository's controller, runtime, workflow and compose loaders, a
 cross-repository batch, and any change to worker counts. Pod CPU and the
-ops-qa stage seconds of the response set are NOT_CHECKED. Server-side detoast
+ops-qa stage seconds of the response set are NOT_CHECKED. CPU at the fixed head
+on a quiet host (load1 under 9) is NOT_CHECKED: the only CPU measured at the
+fixed head is the busy-host rerun. Server-side detoast
 on the standby for a large chunk, API heap for a chunk of large files, and
 concurrent stories against the 30-connection reader pool are NOT_CHECKED.
