@@ -1,5 +1,8 @@
 # #6851 File Import Cycles: Bounded Multi-Node Python Enumeration
 
+`repo-M` and `repo-Z` in this note are stable one-to-one placeholders for the
+measured repository ids and names; the mapping is held outside the repository.
+
 ## Scope
 
 `file_import_cycles` answered reciprocal Python pairs only. This lane adds
@@ -13,9 +16,9 @@ do not reach the graph (edges carry only `imported_name`, `alias`, and
 
 ## Theory proof (read-only PROFILE on the deployed Neo4j graph)
 
-Largest repository `portal-java-ycm`: 38,240 `IMPORTS` edges (java 34,865,
+Largest repository `repo-M`: 38,240 `IMPORTS` edges (java 34,865,
 tsx 2,441, typescript 870, python 46, javascript 18) over 3,387 importing
-files. Largest Python corpus `trident-automation`: 4,522 Python edges over
+files. Largest Python corpus `repo-Z`: 4,522 Python edges over
 626 files and 930 modules, 172 resolved in-repo.
 
 | Shape | Time | DbHits | Rows |

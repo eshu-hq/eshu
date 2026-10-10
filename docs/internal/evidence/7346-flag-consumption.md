@@ -1,5 +1,8 @@
 # 7346 (part 2) — file_import_cycles consumes the import flags
 
+`repo-Z` in this note is a stable placeholder for the measured repository name;
+the mapping is held outside the repository.
+
 Validation record for the second of two PRs that deliver issue #7346, split from
 #6851. Part 1 (`7346-cycle-paging-budget.md`) fixed the pager, bounded the walk,
 and threaded the enumeration state. This part makes the cycle reader use the
@@ -252,7 +255,7 @@ reference and the codemodel README are updated to the same contract.
 
 The 250,000-step walk budget from part 1 was set by a wall-time ceiling, not by a margin
 over a real import graph, and an arbiter condition on #7346 asked for that margin before this
-part merges. The named corpus (`trident-automation`, 4,522 edges over 626 files, 172 resolved
+part merges. The named corpus (`repo-Z`, 4,522 edges over 626 files, 172 resolved
 in-repo) is a QA graph that this lane may not read, so the measurement uses real public
 Python repositories as a labelled proxy. An arbiter accepted that on these terms: each proxy is
 chosen by reader-resolved edge count (at least 172), its rows are built through the projector's
@@ -287,7 +290,7 @@ The worst case is NVIDIA/DeepLearningExamples (also the densest graph, 4,415 col
 steps at length 8, about 1.7% of the budget and a 60x margin. This is weak evidence and is stated as
 such: only one of the six proxies has a cyclic component at all, so on the other five the reader walks
 nothing. It shows the budget is not the binding constraint on these graphs; it does not show how
-`trident-automation` behaves. The resolved edges on the proxies are mostly standard-library names
+`repo-Z` behaves. The resolved edges on the proxies are mostly standard-library names
 (`datetime`, `json`, `typing`, `io`) that collide with a same-named file elsewhere in the tree. That is a pre-existing accuracy risk the proxy data exposed, not one this change introduces: the reader turns `import json` into a hop to any repository file named `json.py` that itself imports something (a file only becomes a hop target if it is the source of at least one edge in the fetch), which can report a false cycle and inflates the resolved-edge counts these proxies qualified on. The matcher is deliberately not widened or narrowed here. The
 replay of the exact corpus stays an open follow-up on #7346 (one read-only query and a CSV export, then a
 replay through the reader), and the merge does not wait for it. Wall time per step was not measured on

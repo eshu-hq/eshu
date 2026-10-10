@@ -38,8 +38,8 @@ Package-cohort seed enumeration (`BuildOutlierCohortsCypher`,
 
 | repo | Functions | shipped (`coalesce`, `NodeByLabelScan`) | fixed (bare equality, `NodeIndexSeek`) |
 | --- | ---: | ---: | ---: |
-| websites-php-youboat (`repo-B`) | 45,495 | 700 / 725 / 662 ms, 1,506,338 db accesses | 247 / 252 / 242 ms, 471,967 db accesses |
-| portal-java-ycm (`repo-M`) | 44,991 | 582 ms, 1,563,839 db accesses | 228 ms, 528,964 db accesses |
+| `repo-B` | 45,495 | 700 / 725 / 662 ms, 1,506,338 db accesses | 247 / 252 / 242 ms, 471,967 db accesses |
+| `repo-M` | 44,991 | 582 ms, 1,563,839 db accesses | 228 ms, 528,964 db accesses |
 | wordpress (`repo-A`) | 42,714 | 552 ms, 1,456,170 db accesses | 201 ms, 419,018 db accesses |
 | (`repo-N`, smallest repo) | 1 | 484 / 476 / 447 ms | 1 / 0 / 0 ms |
 
@@ -49,7 +49,7 @@ cost is decoupled from the queried repository's own size: it pays the same
 45,495-Function repo pays, because both statements scan every `Function` in
 the graph before the `coalesce()`-wrapped filter drops the non-matching
 rows. Rows-equal: full sorted row dump of shipped vs. fixed for
-websites-php-youboat, 45,495 rows, byte-identical (`diff` produced no
+`repo-B`, 45,495 rows, byte-identical (`diff` produced no
 output). Full narrative, EXPLAIN/PROFILE plan text, and the growth-threshold
 arithmetic (~8-9M total Functions before this defect alone reaches the 10s
 per-statement deadline at QA's measured per-node cost) are recorded in
