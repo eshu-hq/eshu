@@ -222,8 +222,8 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 		return nil, nil, nil, err
 	}
 	// Uncovered writers (#7472) ride the candidate query's report leg so the
-	// pass can count them without spending prune batch slots on them; they
-	// are never locked, counted, or deleted.
+	// pass can tally them as skipped without spending prune batch slots on
+	// them; they are never locked, row-counted for pruning, or deleted.
 	prunable := candidates[:0]
 	for _, candidate := range candidates {
 		if candidate.uncovered {
