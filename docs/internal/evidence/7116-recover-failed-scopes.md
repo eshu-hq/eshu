@@ -1,12 +1,15 @@
 # #7116 — all-scopes recovery skipped failed scopes without saying so
 
+`repo-AR` in this note is a stable placeholder for the measured repository id;
+the mapping is held outside the repository.
+
 `POST /api/v0/admin/recover-generations` with `all_scopes` (and the named-scope
 form of the same refinalize) selected only `ingestion_scopes` rows with
 `status = 'active'` and a non-null `active_generation_id`. A scope whose latest
 generation failed carries `status = 'failed'` and no active generation, so it
 was skipped, and the response gave no sign that anything was left out. After a
 graph-backend rebuild that repository was simply absent from the new graph. The
-real case was `repository:r_874801ea` on the QA environment: newest generation dead-lettered
+real case was `repository:repo-AR` on the QA environment: newest generation dead-lettered
 with `graph_write_timeout`, older generations superseded, and 810 items enqueued
 without it.
 
@@ -139,7 +142,7 @@ in `docs/public/observability/telemetry-coverage.md`.
 ## Not proven here
 
 - A run against QA data. The shim is synthetic and the live tests are fixtures;
-  the QA scope `r_874801ea` was not touched.
+  the QA scope `repo-AR` was not touched.
 - Per-scope work item counts for repositories with a very large number of
   non-superseded generations. The lateral stops at the first non-superseded
   generation per failed scope, and a failed scope has only a handful in practice.

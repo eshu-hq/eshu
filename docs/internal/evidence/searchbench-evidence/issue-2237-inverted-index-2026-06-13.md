@@ -1,5 +1,8 @@
 # Issue #2237 follow-up — searchhybrid inverted index (2026-06-13)
 
+`repo-AQ` in this note is a stable placeholder for the measured repository id;
+the mapping is held outside the repository.
+
 The first #2235 run (latency record
 [issue-2235-search-lane-latency-2026-06-13.md](issue-2235-search-lane-latency-2026-06-13.md))
 showed the in-process curated hybrid lane scored **every in-scope document
@@ -9,7 +12,7 @@ only the documents that contain its terms.
 
 ## Performance Evidence
 
-Same harness (`go/cmd/search-bench`), same corpus (`repository:r_9a84f5f1`,
+Same harness (`go/cmd/search-bench`), same corpus (`repository:repo-AQ`,
 27,822 curated documents), 50 derived queries × 5 rounds, keyword mode.
 
 | Backend | p50 before | p50 after | p95 before | p95 after | max before | max after |
