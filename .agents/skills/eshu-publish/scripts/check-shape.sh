@@ -19,6 +19,11 @@
 # trips the paragraph rule: that is where long data belongs. Lengths are counted
 # in bytes, so a paragraph with many non-ASCII characters counts a little high.
 # That is why a paragraph warns at 600 and fails only above 800.
+#
+# One rule reads every line, fenced or not: a line that carries an environment
+# or organization identifier FAILs (scripts/lib/private-identifier-pattern.sh,
+# the definition shared with the no-private-identifiers gate). Evidence belongs
+# in <details>, but an identifier does not.
 set -euo pipefail
 
 mode="pr"
@@ -39,7 +44,31 @@ if [ -z "${file}" ] || [ ! -f "${file}" ]; then
   exit 2
 fi
 
-LC_ALL=C awk -v mode="${mode}" '
+# The private-identifier pattern lives in the repository's scripts/lib, four
+# levels above this script (also through the .claude/.codex skill links). A
+# missing lib fails the check: a silent skip would read as a clean body.
+extra_fails=0
+pattern_lib="$(cd "$(dirname "$0")/../../../.." && pwd)/scripts/lib/private-identifier-pattern.sh"
+if [ -f "${pattern_lib}" ]; then
+  # shellcheck source=scripts/lib/private-identifier-pattern.sh
+  source "${pattern_lib}"
+  id_rc=0
+  id_hits="$(rg -n -e "${PRIVATE_IDENTIFIER_PATTERN}" "${file}" | cut -d: -f1)" || id_rc=$?
+  if [ "${id_rc}" -gt 1 ]; then
+    echo "FAIL private-identifier: the scan failed (exit ${id_rc}); the text was not verified"
+    extra_fails=1
+  elif [ -n "${id_hits}" ]; then
+    while IFS= read -r id_line; do
+      echo "FAIL private-identifier: line ${id_line} carries an environment or organization identifier; rephrase it (QA environment, production environment, repo-X)"
+      extra_fails=$((extra_fails + 1))
+    done <<<"${id_hits}"
+  fi
+else
+  echo "FAIL private-identifier: pattern lib not found at ${pattern_lib}; the text was not verified"
+  extra_fails=1
+fi
+
+LC_ALL=C awk -v mode="${mode}" -v extra_fails="${extra_fails}" '
 function fail(rule, msg) { print "FAIL " rule ": " msg; fails++ }
 function warn(rule, msg) { print "WARN " rule ": " msg }
 # fencemark sets mk_c, mk_n, mk_rest when s starts with 3 or more of ` or ~.
@@ -122,6 +151,7 @@ function flush(   first, w, len) {
 }
 END {
   flush()
+  fails += extra_fails
   if (infence) warn("fence", "a code fence was never closed; the text after it was not checked")
   if (indet) warn("details", "a <details> block was never closed; the text after it was not checked")
   if (mode == "pr" &&

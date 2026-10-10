@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 142 gates. Local execution runs the primary
+The registry currently defines 144 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (45 gates)
+### Hygiene: Is the change well-formed? (46 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -55,6 +55,7 @@ results are derived from the inputs rather than written by hand. See
 - `no-diff-fragments` (blocking): Scans every tracked file for leftover diff fragments or unresolved merge-conflict markers.
 - `filename-stutter` (blocking): Fails when a newly added or renamed path repeats its own directory name (filename stutter).
 - `no-ai-attribution` (blocking): Scans commit messages and added diff lines for AI-attribution text and blocks it.
+- `no-private-identifiers` (blocking): Scans commit messages and added diff lines for environment and organization identifiers and blocks them.
 - `license-header` (blocking): Checks every .go file in the repo carries the required license header.
 - `ci-install-apt-packages` (blocking): Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker.
 - `ci-go-mod-download-retry` (blocking): Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt.
@@ -211,12 +212,13 @@ results are derived from the inputs rather than written by hand. See
 | `no-diff-fragments` | No diff fragments or conflict markers in source | hygiene | pre-commit | true | `bash scripts/verify-no-diff-fragments.sh`<br>then self-test: `bash scripts/test-verify-no-diff-fragments.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `filename-stutter` | No filename or directory stutter in added/renamed paths | hygiene | pre-commit | true | `bash scripts/verify-filename-stutter.sh`<br>then self-test: `bash scripts/test-verify-filename-stutter.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `no-ai-attribution` | No AI attribution in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-ai-attribution.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
+| `no-private-identifiers` | No environment or organization identifiers in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-private-identifiers.sh`<br>then self-test: `bash scripts/test-verify-agent-hygiene.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 8 path(s): **, scripts/verify-no-private-identifiers.sh, scripts/lib/private-identifier-pattern.sh, … |
 | `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh`<br>then self-test: `bash scripts/test-verify-license-header.sh` | test.yml / verify-contracts | 4 path(s): **/*.go, scripts/test-verify-license-header.sh, scripts/verify-license-header.sh, … |
 | `ci-install-apt-packages` | CI apt/ripgrep installer test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-install-apt-packages.sh` | test.yml / go-core | 5 path(s): scripts/ci/install-apt-packages.sh, scripts/test-ci-install-apt-packages.sh, scripts/lib/test-ci-install-apt-packages-fixtures.sh, … |
 | `ci-go-mod-download-retry` | CI Go module pre-warm retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-mod-download-retry.sh` | test.yml / go-core | 4 path(s): scripts/ci/go-mod-download-retry.sh, scripts/test-ci-go-mod-download-retry.sh, .github/workflows/test.yml, … |
 | `ci-go-install-retry` | CI Go tool install retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-install-retry.sh` | test.yml / go-core | 5 path(s): scripts/ci/go-install-retry.sh, scripts/test-ci-go-install-retry.sh, scripts/lib/test-ci-go-install-retry-fake-go.sh, … |
 | `main-health-watcher` | Post-merge main-health watcher test mirror | hygiene | pre-pr | true | `bash scripts/test-main-health.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 9 path(s): scripts/ci/main-health.sh, scripts/lib/main-health-policy.sh, scripts/test-main-health.sh, … |
-| `pre-enqueue-check` | Pre-enqueue merge-queue check test mirror | hygiene | pre-pr | true | `bash scripts/dev/test-pre-enqueue-check.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 4 path(s): scripts/dev/pre-enqueue-check.sh, scripts/dev/test-pre-enqueue-check.sh, scripts/lib/test-pre-enqueue-check-*, … |
+| `pre-enqueue-check` | Pre-enqueue merge-queue check test mirror | hygiene | pre-pr | true | `bash scripts/dev/test-pre-enqueue-check.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 5 path(s): scripts/dev/pre-enqueue-check.sh, scripts/dev/test-pre-enqueue-check.sh, scripts/lib/test-pre-enqueue-check-*, … |
 | `openapi-surface` | Verify OpenAPI Surface | exactness | pre-pr | true | `bash scripts/verify-openapi.sh`<br>then self-test: `bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh` | static-contract-gates.yml / Verify OpenAPI gate | 11 path(s): go/internal/query/**, go/internal/mcp/**, go/internal/serviceintelhttp/**, … |
 | `route-coverage` | Verify Route Coverage | exactness | pre-pr | true | `bash scripts/verify-route-coverage.sh`<br>then self-test: `bash scripts/test-verify-route-coverage.sh` | static-contract-gates.yml / Verify route coverage gate | 4 path(s): go/internal/query/**, go/cmd/api/**, scripts/test-verify-route-coverage.sh, … |
 | `edge-source-tool-coverage` | Verify Edge Source-Tool Coverage | exactness | pre-pr | true | `bash scripts/verify-edge-source-tool-coverage.sh`<br>then self-test: `bash scripts/test-verify-edge-source-tool-coverage.sh` | static-contract-gates.yml / Verify edge source-tool coverage gate | 6 path(s): go/internal/relationships/**, go/internal/collector/**, go/internal/reducer/crossrepo/cross_repo_evidence_type.go, … |
@@ -333,6 +335,7 @@ results are derived from the inputs rather than written by hand. See
 | `codex-spawn-guard` | *(alias — pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI)* | — | — | — | — | — | — |
 | `goal-role-routing` | *(alias — pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow)* | — | — | — | — | — | — |
 | `no-ai-attribution-message` | *(alias — commit-msg-stage variant of the no-ai-attribution gate (same check, different stage))* | — | — | — | — | — | — |
+| `no-private-identifiers-message` | *(alias — commit-msg-stage variant of the no-private-identifiers gate (same check, different stage))* | — | — | — | — | — | — |
 | `frontend-format-staged` | *(alias — staged-file variant of frontend-format-changed (same prettier check, pre-commit stage))* | — | — | — | — | — | — |
 | `frontend-format-verifier-tests` | *(alias — self-test of the frontend-format verifier + hook wiring)* | — | — | — | — | — | — |
 | `docs-build-staged` | *(alias — staged-file variant of docs-build-changed (same mkdocs check, pre-commit stage))* | — | — | — | — | — | — |

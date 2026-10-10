@@ -347,6 +347,22 @@ ok=0
 check "GREEN prose about attribution and a human co-author pass the body arm" "${ok}"
 [[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 
+# The body arm also shares scripts/lib/private-identifier-pattern.sh with the
+# no-private-identifiers gate. The token is assembled at run time so this file
+# never matches that gate's own content scan.
+env_token="$(printf 'ops%s' '-qa')"
+new_case private-identifier
+edit pr.json '.body += "\nMeasured on the " + $e + " cluster.\n"' --arg e "${env_token}"
+expect_red "environment identifier in body" body
+new_case private-identifier-clean
+edit pr.json '.body += "\nMeasured on the QA environment; r_0a1b2c3d is a fixture id.\n"'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+check "GREEN a body with no environment identifier passes the body arm" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+
 # --- usage -------------------------------------------------------------------
 set +e
 "${target}" 100 abc123 >/dev/null 2>&1

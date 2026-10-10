@@ -217,6 +217,20 @@ expect "fence: unclosed fence warns"     0 "WARN fence" pr "${tmp}/unclosed-fenc
 printf '<details>\n<summary>x</summary>\n' | with unclosed-details
 expect "details: unclosed block warns"   0 "WARN details" pr "${tmp}/unclosed-details.md"
 
+# --- The private-identifier rule reads every line, including fenced and <details> text.
+# The token is assembled at run time so this file never matches the gate that
+# shares the pattern (scripts/verify-no-private-identifiers.sh).
+env_token="ops""-qa"
+printf 'Measured on the %s cluster.\n' "${env_token}" | with id-prose
+expect "identifier: prose line fails"    1 "FAIL private-identifier: line" pr "${tmp}/id-prose.md"
+printf '<details>\n<summary>x</summary>\n\nhost %s\n</details>\n' "${env_token}" | with id-details
+expect "identifier: inside <details> still fails" 1 "FAIL private-identifier" pr "${tmp}/id-details.md"
+printf '```text\nhost %s\n```\n' "${env_token}" | with id-fence
+expect "identifier: inside a fence still fails" 1 "FAIL private-identifier" pr "${tmp}/id-fence.md"
+printf 'Fixture r_0a1b2c3d on the QA environment.\n' | with id-clean
+expect_not "identifier: fixture id and plain prose are quiet" 0 "private-identifier" pr "${tmp}/id-clean.md"
+expect_not "identifier: the clean fixture passes" 0 "FAIL" pr "${good}"
+
 # --- The documented templates and worked examples must pass the checker they point to.
 tpl_count=0
 for f in "${tmp}"/tpl-*.md; do
