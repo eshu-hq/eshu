@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestBuildSupplyChainImpactFindingsProvesJVMManifestParity(t *testing.T) {
@@ -201,7 +202,7 @@ func jvmAffectedPackageRangeFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":         cveID,
 			"advisory_id":    cveID,

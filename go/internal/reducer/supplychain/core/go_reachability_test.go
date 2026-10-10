@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestClassifyGoVulnerabilityReachabilityModuleOnly(t *testing.T) {
@@ -249,9 +250,9 @@ func goModuleEvidenceEnvelope(
 ) facts.Envelope {
 	t.Helper()
 	return facts.Envelope{
-		FactID:        facts.StableID(facts.VulnerabilityGoModuleEvidenceFactKind, map[string]any{"repo": repoID, "module": modulePath, "version": requiredVersion}),
-		FactKind:      facts.VulnerabilityGoModuleEvidenceFactKind,
-		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+		FactID:        facts.StableID(chain.VulnerabilityGoModuleEvidenceFactKind, map[string]any{"repo": repoID, "module": modulePath, "version": requiredVersion}),
+		FactKind:      chain.VulnerabilityGoModuleEvidenceFactKind,
+		SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
 		Payload: map[string]any{
 			"repository_id":       repoID,
 			"relative_path":       relativePath,
@@ -306,9 +307,9 @@ func goAffectedPackageEnvelopeWithRange(
 		payload["fixed_versions"] = fixedVersions
 	}
 	return facts.Envelope{
-		FactID:        facts.StableID(facts.VulnerabilityAffectedPackageFactKind, map[string]any{"osv": osvID, "module": modulePath}),
-		FactKind:      facts.VulnerabilityAffectedPackageFactKind,
-		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+		FactID:        facts.StableID(chain.VulnerabilityAffectedPackageFactKind, map[string]any{"osv": osvID, "module": modulePath}),
+		FactKind:      chain.VulnerabilityAffectedPackageFactKind,
+		SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
 		Payload:       payload,
 	}
 }
@@ -340,9 +341,9 @@ func goReachabilityEnvelope(
 	}
 	trace = append(trace, frame)
 	return facts.Envelope{
-		FactID:        facts.StableID(facts.VulnerabilityGoCallReachabilityFactKind, map[string]any{"osv": osvID, "module": modulePath, "package": packagePath}),
-		FactKind:      facts.VulnerabilityGoCallReachabilityFactKind,
-		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+		FactID:        facts.StableID(chain.VulnerabilityGoCallReachabilityFactKind, map[string]any{"osv": osvID, "module": modulePath, "package": packagePath}),
+		FactKind:      chain.VulnerabilityGoCallReachabilityFactKind,
+		SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
 		Payload: map[string]any{
 			"repository_id":      repoID,
 			"osv_id":             osvID,

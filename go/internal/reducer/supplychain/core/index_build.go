@@ -96,7 +96,7 @@ func addSupplyChainImpactIndexEntry(
 	imageConsensus map[supplyChainImageIdentityConsensusKey]int,
 ) (factdecode.QuarantinedFact, bool, error) {
 	switch envelope.FactKind {
-	case facts.VulnerabilityCVEFactKind:
+	case chain.VulnerabilityCVEFactKind:
 		cve, err := supplyChainCVEFromEnvelope(envelope)
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)
@@ -104,7 +104,7 @@ func addSupplyChainImpactIndexEntry(
 		if cve.CVEID != "" {
 			index.cves = append(index.cves, cve)
 		}
-	case facts.VulnerabilityAffectedPackageFactKind:
+	case chain.VulnerabilityAffectedPackageFactKind:
 		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)
@@ -112,7 +112,7 @@ func addSupplyChainImpactIndexEntry(
 		if pkg.CVEID != "" {
 			index.affectedPackages[pkg.CVEID] = append(index.affectedPackages[pkg.CVEID], pkg)
 		}
-	case facts.VulnerabilityAffectedProductFactKind:
+	case chain.VulnerabilityAffectedProductFactKind:
 		product, err := supplyChainAffectedProductFromEnvelope(envelope)
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)
@@ -128,7 +128,7 @@ func addSupplyChainImpactIndexEntry(
 		if consumption.PackageID != "" {
 			index.consumption[consumption.PackageID] = append(index.consumption[consumption.PackageID], consumption)
 		}
-	case facts.VulnerabilityOSPackageFactKind:
+	case chain.VulnerabilityOSPackageFactKind:
 		pkg, err := supplyChainOSPackageFromEnvelope(envelope)
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)
@@ -191,7 +191,7 @@ func addSupplyChainImpactIndexEntry(
 		if service.RepositoryID != "" {
 			index.services = append(index.services, service)
 		}
-	case facts.VulnerabilityEPSSScoreFactKind:
+	case chain.VulnerabilityEPSSScoreFactKind:
 		score, err := schemadecode.DecodeVulnerabilityEPSSScore(envelope)
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)
@@ -201,7 +201,7 @@ func addSupplyChainImpactIndexEntry(
 		signals.EPSSProbability = payloadcore.DerefString(score.Probability)
 		signals.EPSSPercentile = payloadcore.DerefString(score.Percentile)
 		index.riskSignals[score.CVEID] = signals
-	case facts.VulnerabilityKnownExploitedFactKind:
+	case chain.VulnerabilityKnownExploitedFactKind:
 		kev, err := schemadecode.DecodeVulnerabilityKnownExploited(envelope)
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)

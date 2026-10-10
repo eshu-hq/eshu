@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -55,7 +56,7 @@ func extractGoModuleEvidenceRowsWithQuarantine(envelopes []facts.Envelope) ([]go
 	out := make([]goModuleEvidenceRow, 0)
 	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.VulnerabilityGoModuleEvidenceFactKind || envelope.IsTombstone {
+		if envelope.FactKind != chain.VulnerabilityGoModuleEvidenceFactKind || envelope.IsTombstone {
 			continue
 		}
 		evidence, err := schemadecode.DecodeVulnerabilityGoModuleEvidence(envelope)
@@ -94,7 +95,7 @@ func extractGovulncheckReachabilityRowsWithQuarantine(envelopes []facts.Envelope
 	out := make([]goReachabilityRow, 0)
 	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.VulnerabilityGoCallReachabilityFactKind || envelope.IsTombstone {
+		if envelope.FactKind != chain.VulnerabilityGoCallReachabilityFactKind || envelope.IsTombstone {
 			continue
 		}
 		finding, err := schemadecode.DecodeVulnerabilityGoCallReachability(envelope)
@@ -163,7 +164,7 @@ func goVulnerabilityCallFramesFromTyped(frames []vulnerabilityv1.CallFrame) []Go
 func extractGoAffectedPackages(envelopes []facts.Envelope) []goAffectedPackageRow {
 	out := make([]goAffectedPackageRow, 0)
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.VulnerabilityAffectedPackageFactKind || envelope.IsTombstone {
+		if envelope.FactKind != chain.VulnerabilityAffectedPackageFactKind || envelope.IsTombstone {
 			continue
 		}
 		pkg, err := schemadecode.DecodeVulnerabilityAffectedPackage(envelope)

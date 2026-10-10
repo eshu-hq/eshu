@@ -122,8 +122,8 @@ func sourceFactKindAllowed(factKind string) bool {
 	if slices.Contains(chain.SBOMAttestationFactKinds(), factKind) {
 		return true
 	}
-	return factKind == facts.VulnerabilityOSPackageFactKind ||
-		factKind == facts.VulnerabilityWarningFactKind
+	return factKind == chain.VulnerabilityOSPackageFactKind ||
+		factKind == chain.VulnerabilityWarningFactKind
 }
 
 func sourceFactSchemaVersion(factKind string) (string, bool) {
@@ -134,8 +134,8 @@ func sourceFactSchemaVersion(factKind string) (string, bool) {
 		return version, true
 	}
 	switch factKind {
-	case facts.VulnerabilityOSPackageFactKind, facts.VulnerabilityWarningFactKind:
-		return facts.VulnerabilityIntelligenceSchemaVersion(factKind)
+	case chain.VulnerabilityOSPackageFactKind, chain.VulnerabilityWarningFactKind:
+		return chain.VulnerabilityIntelligenceSchemaVersion(factKind)
 	default:
 		return "", false
 	}

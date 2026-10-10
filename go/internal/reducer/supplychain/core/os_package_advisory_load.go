@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
@@ -115,7 +116,7 @@ func supplyChainImpactOSPackageAdvisoryTargets(envelopes []facts.Envelope) (ecos
 	sources := make(map[string]struct{})
 	keys := make(map[string]struct{})
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.VulnerabilityAffectedPackageFactKind {
+		if envelope.FactKind != chain.VulnerabilityAffectedPackageFactKind {
 			continue
 		}
 		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)

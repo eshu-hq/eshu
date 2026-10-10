@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -53,7 +54,7 @@ func TestAnalyzerExtractsOSPackagesFromLayerEvidence(t *testing.T) {
 	if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {
 		t.Fatalf("ValidateFactOutput() error = %v, want nil", err)
 	}
-	fact := firstFactByKind(t, result.Output.Facts, facts.VulnerabilityOSPackageFactKind)
+	fact := firstFactByKind(t, result.Output.Facts, chain.VulnerabilityOSPackageFactKind)
 	if got, want := fact.Payload["name"], "openssl"; got != want {
 		t.Fatalf("name = %#v, want %q", got, want)
 	}
@@ -105,7 +106,7 @@ func TestAnalyzerExtractsOSPackagesFromRootFSEvidence(t *testing.T) {
 	if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {
 		t.Fatalf("ValidateFactOutput() error = %v, want nil", err)
 	}
-	fact := firstFactByKind(t, result.Output.Facts, facts.VulnerabilityOSPackageFactKind)
+	fact := firstFactByKind(t, result.Output.Facts, chain.VulnerabilityOSPackageFactKind)
 	if got, want := fact.Payload["package_manager"], "dpkg"; got != want {
 		t.Fatalf("package_manager = %#v, want %q", got, want)
 	}

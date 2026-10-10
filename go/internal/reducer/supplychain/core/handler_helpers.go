@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
@@ -119,7 +120,7 @@ func supplyChainImpactOSPackageScopeGenerationPairs(
 	seen := make(map[string]struct{})
 	var pairs []supplyChainImpactScopeGenerationPair
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.VulnerabilityOSPackageFactKind {
+		if envelope.FactKind != chain.VulnerabilityOSPackageFactKind {
 			continue
 		}
 		scopeID := strings.TrimSpace(envelope.ScopeID)

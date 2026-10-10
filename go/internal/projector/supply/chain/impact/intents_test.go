@@ -15,7 +15,7 @@ import (
 func TestBuildSupplyChainImpactReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
 
-	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: facts.VulnerabilitySourceSnapshotFactKind}})
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: chain.VulnerabilitySourceSnapshotFactKind}})
 	if _, ok := BuildSupplyChainImpactReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a supply_chain_impact intent for a source-snapshot-only fact")
 	}
@@ -34,9 +34,9 @@ func TestBuildSupplyChainImpactReducerIntentFromVulnerabilityCVEFact(t *testing.
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactKind: facts.VulnerabilitySourceSnapshotFactKind},
+		{FactKind: chain.VulnerabilitySourceSnapshotFactKind},
 		{
-			FactKind:      facts.VulnerabilityCVEFactKind,
+			FactKind:      chain.VulnerabilityCVEFactKind,
 			FactID:        "cve-fact-1",
 			SourceRef:     facts.Ref{SourceSystem: "vulnerability_intelligence"},
 			CollectorKind: "vulnerability_intelligence",
@@ -102,7 +102,7 @@ func TestBuildSupplyChainImpactReducerIntentEarliestAcrossKinds(t *testing.T) {
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: chain.SBOMComponentFactKind, FactID: "sbom-fact-1"},
-		{FactKind: facts.VulnerabilityCVEFactKind, FactID: "cve-fact-2"},
+		{FactKind: chain.VulnerabilityCVEFactKind, FactID: "cve-fact-2"},
 	})
 	intent, ok := BuildSupplyChainImpactReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
@@ -121,7 +121,7 @@ func TestBuildSupplyChainImpactReducerIntentSourceSystemFallsBackToCollectorKind
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:      facts.VulnerabilityCVEFactKind,
+		FactKind:      chain.VulnerabilityCVEFactKind,
 		FactID:        "cve-fact-3",
 		CollectorKind: "  vulnerability_intelligence  ",
 	}})
@@ -144,7 +144,7 @@ func TestBuildSupplyChainImpactReducerIntentSourceSystemPrefersSourceRef(t *test
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:      facts.VulnerabilityCVEFactKind,
+		FactKind:      chain.VulnerabilityCVEFactKind,
 		FactID:        "cve-fact-4",
 		CollectorKind: "osv_scanner",
 		SourceRef:     facts.Ref{SourceSystem: "  vulnerability_intelligence  "},

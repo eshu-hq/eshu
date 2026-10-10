@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -38,7 +39,7 @@ func vulnerabilityCVEFactWithProvenance(
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityCVEFactKind,
+		FactKind: chain.VulnerabilityCVEFactKind,
 		Payload:  payload,
 	}
 }
@@ -71,7 +72,7 @@ func vulnerabilityAffectedPackageFactWithSource(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":            cveID,
 			"advisory_id":       advisoryID,
@@ -101,7 +102,7 @@ func vulnerabilityAffectedPackageMultiFixed(
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":         cveID,
 			"advisory_id":    advisoryID,

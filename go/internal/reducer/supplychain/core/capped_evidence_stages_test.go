@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // TestSupplyChainImpactScannerScopePairsOverCapConverge pins #7154 on the
@@ -25,7 +26,7 @@ func TestSupplyChainImpactScannerScopePairsOverCapConverge(t *testing.T) {
 		for i := range count {
 			envelopes = append(envelopes, facts.Envelope{
 				FactID:       fmt.Sprintf("os-%04d", i),
-				FactKind:     facts.VulnerabilityOSPackageFactKind,
+				FactKind:     chain.VulnerabilityOSPackageFactKind,
 				ScopeID:      fmt.Sprintf("scan-%04d", i),
 				GenerationID: fmt.Sprintf("gen-%04d", i),
 			})

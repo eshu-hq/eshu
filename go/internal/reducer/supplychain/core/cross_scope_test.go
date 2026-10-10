@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // Production fact shapes differ from the simplified in-repo fixtures: the
@@ -147,7 +148,7 @@ func affectedPackageWithPURLFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":            cveID,
 			"advisory_id":       cveID,

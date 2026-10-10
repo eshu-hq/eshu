@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestBuildSupplyChainImpactFindingsUsesVendorRPMOSPackageEvidence(t *testing.T) {
@@ -70,7 +71,7 @@ func TestBuildSupplyChainImpactFindingsUsesVendorRPMOSPackageEvidence(t *testing
 		t.Fatalf("DetectionProfile = %q, want precise", got.DetectionProfile)
 	}
 	path := strings.Join(got.EvidencePath, " -> ")
-	if !strings.Contains(path, facts.VulnerabilityOSPackageFactKind) {
+	if !strings.Contains(path, chain.VulnerabilityOSPackageFactKind) {
 		t.Fatalf("EvidencePath = %#v, want os package evidence", got.EvidencePath)
 	}
 }
@@ -447,7 +448,7 @@ func rpmOSPackageFact(factID string, payload map[string]any) facts.Envelope {
 func osPackageFact(factID string, scopeID string, payload map[string]any) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityOSPackageFactKind,
+		FactKind: chain.VulnerabilityOSPackageFactKind,
 		ScopeID:  scopeID,
 		Payload:  payload,
 	}
@@ -464,7 +465,7 @@ func vulnerabilityAffectedPackageOSVRangeFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":         cveID,
 			"advisory_id":    advisoryID,

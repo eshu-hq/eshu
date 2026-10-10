@@ -244,7 +244,7 @@ func collectorFactKinds() map[string][]string {
 		string(scope.CollectorDocumentation):             docs.FactKinds(),
 		string(scope.CollectorOCIRegistry):               chain.OCIRegistryFactKinds(),
 		string(scope.CollectorPackageRegistry):           chain.PackageRegistryFactKinds(),
-		string(scope.CollectorVulnerabilityIntelligence): facts.VulnerabilityIntelligenceFactKinds(),
+		string(scope.CollectorVulnerabilityIntelligence): chain.VulnerabilityIntelligenceFactKinds(),
 		string(scope.CollectorSBOMAttestation):           chain.SBOMAttestationFactKinds(),
 		string(scope.CollectorSecurityAlert):             facts.SecurityAlertFactKinds(),
 		string(scope.CollectorCICDRun):                   facts.CICDRunFactKinds(),

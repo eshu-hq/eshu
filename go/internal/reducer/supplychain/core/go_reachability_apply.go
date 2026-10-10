@@ -6,7 +6,7 @@ package core
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -35,12 +35,12 @@ func applyGoSupplyChainReachability(
 }
 
 func goSupplyChainReachabilityEvidencePath(finding GoVulnerabilityFinding) []string {
-	path := []string{facts.VulnerabilityGoModuleEvidenceFactKind}
+	path := []string{chain.VulnerabilityGoModuleEvidenceFactKind}
 	switch finding.Reachability {
 	case GoVulnReachabilitySymbolReachable,
 		GoVulnReachabilityPackageImportReachable,
 		GoVulnReachabilityNotCalled:
-		path = append(path, facts.VulnerabilityGoCallReachabilityFactKind)
+		path = append(path, chain.VulnerabilityGoCallReachabilityFactKind)
 	case GoVulnReachabilityModuleOnly, GoVulnReachabilityUnknown:
 		// Module-only and unknown reachability carry no call-graph evidence,
 		// so they contribute no evidence kind. Matches the pre-move default

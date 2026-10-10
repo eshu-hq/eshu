@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -74,7 +75,7 @@ func TestSupplyChainImpactHandlerLoadsOSPackageFromAdvisoryTargetReader(t *testi
 		osPackageAdvisoryFactEnvelopes: []facts.Envelope{
 			{
 				FactID:       "dpkg-os-openssl-advisory-reader",
-				FactKind:     facts.VulnerabilityOSPackageFactKind,
+				FactKind:     chain.VulnerabilityOSPackageFactKind,
 				ScopeID:      scanScopeID,
 				GenerationID: scanGenerationID,
 				Payload: map[string]any{

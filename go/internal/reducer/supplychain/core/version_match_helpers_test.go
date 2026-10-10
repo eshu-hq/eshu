@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // This file holds fixture-builder and assertion helpers for
@@ -27,7 +28,7 @@ func vulnerabilityAffectedPackageMavenRangeFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":         cveID,
 			"advisory_id":    cveID,
@@ -55,7 +56,7 @@ func vulnerabilityAffectedPackageMalformedRangeFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":       cveID,
 			"advisory_id":  cveID,
@@ -93,7 +94,7 @@ func vulnerabilityAffectedPackageRawRangeFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":         cveID,
 			"advisory_id":    cveID,

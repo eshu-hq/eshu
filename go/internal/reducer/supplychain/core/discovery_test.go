@@ -54,12 +54,12 @@ func TestSupplyChainImpactFilterSeedsAdvisoryFromSourceFacts(t *testing.T) {
 	filter := supplyChainImpactFilter([]facts.Envelope{
 		{
 			FactID:   "source-advisory",
-			FactKind: facts.VulnerabilityCVEFactKind,
+			FactKind: chain.VulnerabilityCVEFactKind,
 			Payload:  map[string]any{"advisory_id": "GHSA-2026-aaaa-bbbb"},
 		},
 		{
 			FactID:   "affected-advisory",
-			FactKind: facts.VulnerabilityAffectedPackageFactKind,
+			FactKind: chain.VulnerabilityAffectedPackageFactKind,
 			Payload: map[string]any{
 				"advisory_id": "GHSA-2026-aaaa-bbbb",
 				"package_id":  "pkg:npm/example@1.2.3",

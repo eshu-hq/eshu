@@ -100,7 +100,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{ServiceCatalogFactKinds, ServiceCatalogSchemaVersion},
 	{SubmoduleFactKinds, SubmoduleSchemaVersion},
 	{cloud.TerraformStateFactKinds, cloud.TerraformStateSchemaVersion},
-	{VulnerabilityIntelligenceFactKinds, VulnerabilityIntelligenceSchemaVersion},
+	{chain.VulnerabilityIntelligenceFactKinds, chain.VulnerabilityIntelligenceSchemaVersion},
 	{chain.VulnerabilitySuppressionFactKinds, chain.VulnerabilitySuppressionSchemaVersion},
 	{WorkItemFactKinds, WorkItemSchemaVersion},
 }

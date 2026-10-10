@@ -228,7 +228,7 @@ func TestSupplyChainImpactStableFactKeyIgnoresSourceScopeGeneration(t *testing.T
 		MatchReason:      "npm_semver_affected_range",
 		Remediation:      SupplyChainImpactRemediation{FirstPatchedVersion: "1.3.0"},
 		EvidenceFactIDs:  []string{"cve-1", "affected-1", "consume-1"},
-		EvidencePath:     []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedPackageFactKind},
+		EvidencePath:     []string{chain.VulnerabilityCVEFactKind, chain.VulnerabilityAffectedPackageFactKind},
 		DetectionProfile: DetectionProfilePrecise,
 	}
 	writes := []SupplyChainImpactWrite{
@@ -371,7 +371,7 @@ func unmarshalSupplyChainImpactPayload(t *testing.T, raw any) map[string]any {
 func vulnerabilityCVEFact(factID string, cveID string, cvssScore float64) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityCVEFactKind,
+		FactKind: chain.VulnerabilityCVEFactKind,
 		Payload: map[string]any{
 			"cve_id":      cveID,
 			"advisory_id": cveID,
@@ -396,7 +396,7 @@ func vulnerabilityAffectedPackageFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":            cveID,
 			"advisory_id":       cveID,
@@ -412,7 +412,7 @@ func vulnerabilityAffectedPackageFact(
 func vulnerabilityEPSSFact(factID string, cveID string, probability string, percentile string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityEPSSScoreFactKind,
+		FactKind: chain.VulnerabilityEPSSScoreFactKind,
 		Payload: map[string]any{
 			"cve_id":      cveID,
 			"probability": probability,
@@ -425,7 +425,7 @@ func vulnerabilityEPSSFact(factID string, cveID string, probability string, perc
 func vulnerabilityKEVFact(factID string, cveID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityKnownExploitedFactKind,
+		FactKind: chain.VulnerabilityKnownExploitedFactKind,
 		Payload: map[string]any{
 			"cve_id":     cveID,
 			"date_added": "2026-05-16",

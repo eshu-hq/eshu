@@ -101,22 +101,22 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 	var advisoryIDs []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.VulnerabilityCVEFactKind:
+		case chain.VulnerabilityCVEFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 			advisoryIDs = append(advisoryIDs, payloadcore.PayloadStr(envelope.Payload, "advisory_id"))
-		case facts.VulnerabilityAffectedPackageFactKind:
+		case chain.VulnerabilityAffectedPackageFactKind:
 			purl := payloadcore.PayloadStr(envelope.Payload, "purl")
 			packageIDs = append(packageIDs, canonicalSupplyChainAffectedPackageID(payloadcore.PayloadStr(envelope.Payload, "package_id"), purl))
 			purls = append(purls, purl)
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 			advisoryIDs = append(advisoryIDs, payloadcore.PayloadStr(envelope.Payload, "advisory_id"))
-		case facts.VulnerabilityAffectedProductFactKind:
+		case chain.VulnerabilityAffectedProductFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 			advisoryIDs = append(advisoryIDs, payloadcore.PayloadStr(envelope.Payload, "advisory_id"))
 			if payloadBool(envelope.Payload, "vulnerable") {
 				productCriteria = append(productCriteria, payloadcore.PayloadStr(envelope.Payload, "criteria"))
 			}
-		case facts.VulnerabilityEPSSScoreFactKind, facts.VulnerabilityKnownExploitedFactKind:
+		case chain.VulnerabilityEPSSScoreFactKind, chain.VulnerabilityKnownExploitedFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 		case chain.VulnerabilitySuppressionFactKind:
 			if scope := payloadcore.PayloadMap(envelope.Payload, "scope"); scope != nil {
@@ -127,10 +127,10 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 				digests = append(digests, payloadcore.PayloadStr(scope, "subject_digest"))
 				repositoryIDs = append(repositoryIDs, payloadcore.PayloadStr(scope, "repository_id"))
 			}
-		case facts.VulnerabilityGoModuleEvidenceFactKind:
+		case chain.VulnerabilityGoModuleEvidenceFactKind:
 			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))
 			repositoryIDs = append(repositoryIDs, payloadcore.PayloadStr(envelope.Payload, "repository_id"))
-		case facts.VulnerabilityGoCallReachabilityFactKind:
+		case chain.VulnerabilityGoCallReachabilityFactKind:
 			cveIDs = append(cveIDs, payloadcore.PayloadStr(envelope.Payload, "osv_id"))
 			repositoryIDs = append(repositoryIDs, payloadcore.PayloadStr(envelope.Payload, "repository_id"))
 		case facts.SecurityAlertRepositoryAlertFactKind:
@@ -296,7 +296,7 @@ func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[s
 	byPackageID := map[string]struct{}{}
 	groups := map[string][]supplychainmodel.AffectedPackage{}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.VulnerabilityAffectedPackageFactKind {
+		if envelope.FactKind != chain.VulnerabilityAffectedPackageFactKind {
 			continue
 		}
 		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)

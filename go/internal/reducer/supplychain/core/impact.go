@@ -418,7 +418,7 @@ func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bo
 	if strings.TrimSpace(finding.RepositoryID) != "" || strings.TrimSpace(finding.SubjectDigest) != "" {
 		return true
 	}
-	return slices.Contains(finding.EvidencePath, facts.VulnerabilityOSPackageFactKind)
+	return slices.Contains(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 }
 
 func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFinding) bool {
@@ -430,7 +430,7 @@ func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFind
 
 // supplyChainImpactFactKinds is the set of fact kinds loaded from the intent's
 // OWN scope/generation via factload.LoadFactsForKinds. It intentionally OMITS
-// facts.VulnerabilityOSPackageFactKind and facts.ScannerWorkerAnalysisFactKind
+// chain.VulnerabilityOSPackageFactKind and facts.ScannerWorkerAnalysisFactKind
 // even though both feed supply-chain-impact classification: neither lives in
 // the intent's vulnerability-intelligence scope, so listing them here would
 // query the wrong scope and return nothing. They are loaded cross-scope by two
@@ -445,14 +445,14 @@ func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFind
 // and the golden-corpus list_supply_chain_impact_findings floor (CVE-2026-00010).
 func supplyChainImpactFactKinds() []string {
 	return []string{
-		facts.VulnerabilityCVEFactKind,
-		facts.VulnerabilityAffectedPackageFactKind,
-		facts.VulnerabilityAffectedProductFactKind,
-		facts.VulnerabilityEPSSScoreFactKind,
-		facts.VulnerabilityKnownExploitedFactKind,
+		chain.VulnerabilityCVEFactKind,
+		chain.VulnerabilityAffectedPackageFactKind,
+		chain.VulnerabilityAffectedProductFactKind,
+		chain.VulnerabilityEPSSScoreFactKind,
+		chain.VulnerabilityKnownExploitedFactKind,
 		chain.VulnerabilitySuppressionFactKind,
-		facts.VulnerabilityGoModuleEvidenceFactKind,
-		facts.VulnerabilityGoCallReachabilityFactKind,
+		chain.VulnerabilityGoModuleEvidenceFactKind,
+		chain.VulnerabilityGoCallReachabilityFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,
 		chain.PackageRegistryPackageFactKind,
 		chain.SBOMComponentFactKind,

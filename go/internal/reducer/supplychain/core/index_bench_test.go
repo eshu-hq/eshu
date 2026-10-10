@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
@@ -29,7 +30,7 @@ func BenchmarkBuildSupplyChainImpactIndexWithQuarantine(b *testing.B) {
 		packageID := fmt.Sprintf("pkg:npm/bench-package-%d", i)
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("cve-%d", i),
-			FactKind: facts.VulnerabilityCVEFactKind,
+			FactKind: chain.VulnerabilityCVEFactKind,
 			Payload: map[string]any{
 				"cve_id":         cveID,
 				"advisory_id":    cveID,
@@ -43,7 +44,7 @@ func BenchmarkBuildSupplyChainImpactIndexWithQuarantine(b *testing.B) {
 		})
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("affected-package-%d", i),
-			FactKind: facts.VulnerabilityAffectedPackageFactKind,
+			FactKind: chain.VulnerabilityAffectedPackageFactKind,
 			Payload: map[string]any{
 				"cve_id":            cveID,
 				"advisory_id":       cveID,
@@ -70,7 +71,7 @@ func BenchmarkBuildSupplyChainImpactIndexWithQuarantine(b *testing.B) {
 		})
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("os-package-%d", i),
-			FactKind: facts.VulnerabilityOSPackageFactKind,
+			FactKind: chain.VulnerabilityOSPackageFactKind,
 			ScopeID:  fmt.Sprintf("image://registry.example/bench-app-%d@sha256:deadbeef", i),
 			Payload: map[string]any{
 				"distro":                 "debian",

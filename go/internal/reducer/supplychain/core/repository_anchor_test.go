@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
@@ -95,7 +96,7 @@ func (l *repositoryAnchorSupplyChainImpactFactLoader) ListActiveSupplyChainImpac
 func repositoryAnchorDebianOSPackageFact(factID, scopeID, generationID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:       factID,
-		FactKind:     facts.VulnerabilityOSPackageFactKind,
+		FactKind:     chain.VulnerabilityOSPackageFactKind,
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Payload: map[string]any{
@@ -384,7 +385,7 @@ func TestSupplyChainImpactHandlerRetainsOSPackageFindingWithUnresolvedDigest(t *
 		t.Fatalf("SubjectDigest = %q, want %q (the scanner analysis digest resolves independently of the repository join)",
 			got.SubjectDigest, testScannerAnalysisImageDigest)
 	}
-	assertContainsString(t, got.EvidencePath, facts.VulnerabilityOSPackageFactKind)
+	assertContainsString(t, got.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 }
 
 // TestSupplyChainImpactHandlerPreservesConsumptionRepositoryOverImageIdentity

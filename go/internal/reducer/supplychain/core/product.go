@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -59,7 +58,7 @@ func baseSupplyChainImpactProductFinding(
 		CVSSScore:           cve.CVSSScore,
 		AdvisoryPublishedAt: cve.PublishedAt,
 		AdvisoryUpdatedAt:   cve.SourceUpdatedAt,
-		EvidencePath:        []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedProductFactKind},
+		EvidencePath:        []string{chain.VulnerabilityCVEFactKind, chain.VulnerabilityAffectedProductFactKind},
 		EvidenceFactIDs:     []string{cve.FactID, product.FactID},
 	}
 	applyRiskSignals(&finding, index.riskSignals[cve.CVEID])
@@ -96,7 +95,7 @@ func baseSupplyChainImpactFinding(
 		RangeSource:          provenance.RangeSource,
 		VulnerableRange:      provenance.VulnerableRange,
 		AdvisorySources:      provenance.AdvisorySources,
-		EvidencePath:         []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedPackageFactKind},
+		EvidencePath:         []string{chain.VulnerabilityCVEFactKind, chain.VulnerabilityAffectedPackageFactKind},
 		EvidenceFactIDs:      provenance.EvidenceFactIDs,
 	}
 	applyRiskSignals(&finding, index.riskSignals[cves.cveID])

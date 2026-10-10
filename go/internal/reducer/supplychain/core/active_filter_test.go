@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // TestSupplyChainImpactFilterPreservesIndependentAdvisoryIDs protects the
@@ -18,7 +19,7 @@ func TestSupplyChainImpactFilterPreservesIndependentAdvisoryIDs(t *testing.T) {
 	envelopes := []facts.Envelope{
 		{
 			FactID:   "cve-1",
-			FactKind: facts.VulnerabilityCVEFactKind,
+			FactKind: chain.VulnerabilityCVEFactKind,
 			Payload: map[string]any{
 				"cve_id":      "CVE-2026-1234",
 				"advisory_id": "GHSA-demo-1111-2222",

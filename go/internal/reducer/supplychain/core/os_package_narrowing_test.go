@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
@@ -30,7 +31,7 @@ func osPackageIntent() reducercontract.Intent {
 func installedOSPackage(scopeID, generationID, name, purl string) facts.Envelope {
 	return facts.Envelope{
 		FactID:       "os-" + scopeID + "-" + name,
-		FactKind:     facts.VulnerabilityOSPackageFactKind,
+		FactKind:     chain.VulnerabilityOSPackageFactKind,
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Payload: map[string]any{
@@ -344,7 +345,7 @@ func TestSupplyChainImpactChunkedStagesStopWhenTheBudgetIsSpent(t *testing.T) {
 		for i := range 10 {
 			scope, gen := fmt.Sprintf("scan-%d", i), fmt.Sprintf("gen-%d", i)
 			factsByScope[scanScopedFactLoaderKey(scope, gen)] = []facts.Envelope{scannerWorkerAnalysisFact(scope, gen, fmt.Sprintf("sha256:%064d", i), "ref")}
-			envelopes = append(envelopes, facts.Envelope{FactID: "os-" + scope, FactKind: facts.VulnerabilityOSPackageFactKind, ScopeID: scope, GenerationID: gen})
+			envelopes = append(envelopes, facts.Envelope{FactID: "os-" + scope, FactKind: chain.VulnerabilityOSPackageFactKind, ScopeID: scope, GenerationID: gen})
 		}
 		loader := &scanScopedSupplyChainImpactFactLoader{factsByScope: factsByScope}
 		budget := newSupplyChainImpactEvidenceBudget(3)

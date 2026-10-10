@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
@@ -52,7 +53,7 @@ func osPackageEnvelopes(count int, scopeID, generationID string) []facts.Envelop
 	for i := range count {
 		out = append(out, facts.Envelope{
 			FactID:       fmt.Sprintf("dpkg-os-%04d", i),
-			FactKind:     facts.VulnerabilityOSPackageFactKind,
+			FactKind:     chain.VulnerabilityOSPackageFactKind,
 			ScopeID:      scopeID,
 			GenerationID: generationID,
 			Payload: map[string]any{

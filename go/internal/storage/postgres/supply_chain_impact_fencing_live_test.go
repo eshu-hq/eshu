@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
@@ -58,11 +59,11 @@ func (l *fencingLoader) ListFacts(ctx context.Context, _, _ string) ([]facts.Env
 func fencingEvidence(repositoryID string) []facts.Envelope {
 	return []facts.Envelope{
 		{
-			FactID: "cve:" + repositoryID, FactKind: facts.VulnerabilityCVEFactKind,
+			FactID: "cve:" + repositoryID, FactKind: chain.VulnerabilityCVEFactKind,
 			Payload: map[string]any{"cve_id": replaceSetLiveCVE, "advisory_id": replaceSetLiveCVE, "cvss_score": 8.1, "aliases": []any{replaceSetLiveCVE}},
 		},
 		{
-			FactID: "affected:" + repositoryID, FactKind: facts.VulnerabilityAffectedPackageFactKind,
+			FactID: "affected:" + repositoryID, FactKind: chain.VulnerabilityAffectedPackageFactKind,
 			Payload: map[string]any{
 				"cve_id": replaceSetLiveCVE, "advisory_id": replaceSetLiveCVE, "package_id": "pkg:npm/example", "ecosystem": "npm",
 				"package_name": "example", "affected_versions": []any{"1.2.3"}, "fixed_versions": []any{"1.3.0"},
