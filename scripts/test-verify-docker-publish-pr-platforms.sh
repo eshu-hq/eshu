@@ -77,7 +77,7 @@ require_workflow_pattern \
 	'docker publish workflow must make SBOM release asset upload idempotent'
 
 require_workflow_pattern \
-	"if: needs.changes.outputs.image == 'true' && github.ref_type == 'tag'" \
+	"needs.changes.outputs.image == 'true' && github.ref_type == 'tag'" \
 	'docker publish workflow must restrict release SBOM asset publishing to image tag releases'
 
 require_workflow_pattern \
