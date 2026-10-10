@@ -25,6 +25,7 @@ type readinessJob struct {
 	If              string               `yaml:"if"`
 	Needs           yaml.Node            `yaml:"needs"`
 	ContinueOnError string               `yaml:"continue-on-error"`
+	TimeoutMinutes  int                  `yaml:"timeout-minutes"`
 	Env             map[string]string    `yaml:"env"`
 	Services        map[string]yaml.Node `yaml:"services"`
 	Steps           []readinessStep      `yaml:"steps"`
@@ -74,6 +75,9 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	if !ok || live.Name != gate.CI.CheckNames[1] {
 		return "missing live check"
 	}
+	if hermetic.TimeoutMinutes != 30 || live.TimeoutMinutes != 40 {
+		return "hermetic and live jobs must retain independent 30/40-minute limits"
+	}
 	for name, job := range parsed.Jobs {
 		if job.If != "" || job.ContinueOnError != "" || job.Needs.Kind != 0 {
 			return name + " must not skip, waive, or depend on another job"
@@ -88,6 +92,9 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		}
 	}
 	if problem := checkReadinessDockerHubLogin(live); problem != "" {
+		return problem
+	}
+	if problem := checkReadinessCleanup(live); problem != "" {
 		return problem
 	}
 	counts := map[string]int{}
@@ -116,6 +123,24 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	if !jobRuns(hermetic.Steps, "scripts/test-run-live-postgres-readiness-tests.sh") ||
 		!jobRuns(live.Steps, "scripts/run-live-postgres-readiness-tests.sh") {
 		return "proof runners must be in their designated jobs"
+	}
+	return ""
+}
+
+func checkReadinessCleanup(job readinessJob) string {
+	const stop = "bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}'"
+	count := 0
+	for _, step := range job.Steps {
+		if !strings.Contains(step.Run, "live-postgres-standby-fixture.sh stop") {
+			continue
+		}
+		count++
+		if strings.TrimSpace(step.Run) != stop || step.If != "always()" || step.ContinueOnError != "" {
+			return "standby cleanup must run on every live-job outcome"
+		}
+	}
+	if count != 1 {
+		return "live job must stop its disposable standby exactly once"
 	}
 	return ""
 }
@@ -221,6 +246,10 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		{"missing login", "uses: docker/login-action@v3", "uses: actions/cache@v4"},
 		{"skip login", "if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "if: false"},
 		{"waive login failure", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n        continue-on-error: true"},
+		{"short hermetic timeout", "timeout-minutes: 30", "timeout-minutes: 20"},
+		{"changed live timeout", "timeout-minutes: 40", "timeout-minutes: 41"},
+		{"missing standby cleanup", "run: bash scripts/ci/live-postgres-standby-fixture.sh stop", "run: true # bash scripts/ci/live-postgres-standby-fixture.sh stop"},
+		{"skipped standby cleanup", "        if: always()", "        if: false"},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
 			if !strings.Contains(string(workflow), mutation.old) {
