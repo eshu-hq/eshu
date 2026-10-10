@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // SPDXFixtureEnvelopes normalizes one SPDX 2.x JSON document into
@@ -101,7 +102,7 @@ func spdxDocumentEnvelope(ctx FixtureContext, input spdxDocumentInput) facts.Env
 			input.subjects...,
 		)),
 	}
-	stableKey := facts.StableID(facts.SBOMDocumentFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMDocumentFactKind, map[string]any{
 		"document_digest": input.docDigest,
 		"document_id":     input.docID,
 		"format":          string(FormatSPDX),
@@ -110,7 +111,7 @@ func spdxDocumentEnvelope(ctx FixtureContext, input spdxDocumentInput) facts.Env
 	if recordID == "" {
 		recordID = firstNonBlank(input.documentNamespace, input.docID)
 	}
-	return newEnvelope(ctx, facts.SBOMDocumentFactKind, stableKey, recordID, payload)
+	return newEnvelope(ctx, chain.SBOMDocumentFactKind, stableKey, recordID, payload)
 }
 
 func spdxEnvelopes(ctx FixtureContext, digest string, doc spdxDocument) []facts.Envelope {

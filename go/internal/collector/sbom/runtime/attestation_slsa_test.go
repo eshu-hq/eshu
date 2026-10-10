@@ -6,7 +6,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
@@ -60,8 +60,8 @@ func TestClaimedSourceEmitsSLSAProvenanceV1WithRunDetailsBuilderID(t *testing.T)
 	}`)
 
 	collected := collectAttestation(t, baseSLSATarget(), raw)
-	statement := requireFactKind(t, collected, facts.AttestationStatementFactKind)
-	provenance := requireFactKind(t, collected, facts.AttestationSLSAProvenanceFactKind)
+	statement := requireFactKind(t, collected, chain.AttestationStatementFactKind)
+	provenance := requireFactKind(t, collected, chain.AttestationSLSAProvenanceFactKind)
 
 	statementID := payloadString(statement.Payload, "statement_id")
 	if statementID == "" {
@@ -94,7 +94,7 @@ func TestClaimedSourceEmitsSLSAProvenanceV02WithBuilderID(t *testing.T) {
 	}`)
 
 	collected := collectAttestation(t, baseSLSATarget(), raw)
-	provenance := requireFactKind(t, collected, facts.AttestationSLSAProvenanceFactKind)
+	provenance := requireFactKind(t, collected, chain.AttestationSLSAProvenanceFactKind)
 
 	if got, want := payloadString(provenance.Payload, "predicate_type"), "https://slsa.dev/provenance/v0.2"; got != want {
 		t.Fatalf("provenance predicate_type = %q, want %q", got, want)
@@ -118,11 +118,11 @@ func TestClaimedSourceDoesNotEmitSLSAProvenanceForNonSLSAPredicateType(t *testin
 	}`)
 
 	collected := collectAttestation(t, baseSLSATarget(), raw)
-	requireFactKind(t, collected, facts.AttestationStatementFactKind)
-	if fact := optionalFactKind(collected, facts.AttestationSLSAProvenanceFactKind); fact.FactID != "" {
+	requireFactKind(t, collected, chain.AttestationStatementFactKind)
+	if fact := optionalFactKind(collected, chain.AttestationSLSAProvenanceFactKind); fact.FactID != "" {
 		t.Fatalf("emitted attestation.slsa_provenance fact %q for non-SLSA predicate type; must never substring-match slsa.dev/provenance", fact.FactID)
 	}
-	if fact := optionalFactKind(collected, facts.SBOMWarningFactKind); fact.FactID != "" {
+	if fact := optionalFactKind(collected, chain.SBOMWarningFactKind); fact.FactID != "" {
 		t.Fatalf("emitted sbom.warning fact %q for a well-formed non-SLSA predicate; only an SLSA predicate type can be malformed_slsa_predicate", fact.FactID)
 	}
 }
@@ -141,12 +141,12 @@ func TestClaimedSourceEmitsWarningForNullSLSAPredicate(t *testing.T) {
 	}`)
 
 	collected := collectAttestation(t, baseSLSATarget(), raw)
-	requireFactKind(t, collected, facts.AttestationStatementFactKind)
-	warning := requireFactKind(t, collected, facts.SBOMWarningFactKind)
+	requireFactKind(t, collected, chain.AttestationStatementFactKind)
+	warning := requireFactKind(t, collected, chain.SBOMWarningFactKind)
 	if got, want := payloadString(warning.Payload, "reason"), "malformed_slsa_predicate"; got != want {
 		t.Fatalf("warning reason = %q, want %q", got, want)
 	}
-	if fact := optionalFactKind(collected, facts.AttestationSLSAProvenanceFactKind); fact.FactID != "" {
+	if fact := optionalFactKind(collected, chain.AttestationSLSAProvenanceFactKind); fact.FactID != "" {
 		t.Fatalf("emitted attestation.slsa_provenance fact %q for a null predicate; Go decodes null into a zero-value struct without error, so an explicit null check is required", fact.FactID)
 	}
 }
@@ -165,12 +165,12 @@ func TestClaimedSourceEmitsWarningForUndecodableSLSAPredicateShape(t *testing.T)
 	}`)
 
 	collected := collectAttestation(t, baseSLSATarget(), raw)
-	requireFactKind(t, collected, facts.AttestationStatementFactKind)
-	warning := requireFactKind(t, collected, facts.SBOMWarningFactKind)
+	requireFactKind(t, collected, chain.AttestationStatementFactKind)
+	warning := requireFactKind(t, collected, chain.SBOMWarningFactKind)
 	if got, want := payloadString(warning.Payload, "reason"), "malformed_slsa_predicate"; got != want {
 		t.Fatalf("warning reason = %q, want %q", got, want)
 	}
-	if fact := optionalFactKind(collected, facts.AttestationSLSAProvenanceFactKind); fact.FactID != "" {
+	if fact := optionalFactKind(collected, chain.AttestationSLSAProvenanceFactKind); fact.FactID != "" {
 		t.Fatalf("emitted attestation.slsa_provenance fact %q for an undecodable predicate shape", fact.FactID)
 	}
 }
@@ -213,7 +213,7 @@ func TestClaimedSourceEmitsSLSAProvenanceV1WithMaterialsAndConfigSource(t *testi
 	}`)
 
 	collected := collectAttestation(t, baseSLSATarget(), raw)
-	provenance := requireFactKind(t, collected, facts.AttestationSLSAProvenanceFactKind)
+	provenance := requireFactKind(t, collected, chain.AttestationSLSAProvenanceFactKind)
 
 	configSource, ok := provenance.Payload["config_source"].(*sbomv1.SLSAConfigSource)
 	if !ok || configSource == nil {
@@ -273,7 +273,7 @@ func TestClaimedSourceEmitsSLSAProvenanceV02WithMaterialsAndConfigSource(t *test
 	}`)
 
 	collected := collectAttestation(t, baseSLSATarget(), raw)
-	provenance := requireFactKind(t, collected, facts.AttestationSLSAProvenanceFactKind)
+	provenance := requireFactKind(t, collected, chain.AttestationSLSAProvenanceFactKind)
 
 	configSource, ok := provenance.Payload["config_source"].(*sbomv1.SLSAConfigSource)
 	if !ok || configSource == nil {
@@ -313,7 +313,7 @@ func TestClaimedSourceEmitsSLSAProvenanceWithNilBuilderIDWhenAbsent(t *testing.T
 	}`)
 
 	collected := collectAttestation(t, baseSLSATarget(), raw)
-	provenance := requireFactKind(t, collected, facts.AttestationSLSAProvenanceFactKind)
+	provenance := requireFactKind(t, collected, chain.AttestationSLSAProvenanceFactKind)
 
 	if got, want := payloadString(provenance.Payload, "predicate_type"), "https://slsa.dev/provenance/v1"; got != want {
 		t.Fatalf("provenance predicate_type = %q, want %q", got, want)
@@ -321,7 +321,7 @@ func TestClaimedSourceEmitsSLSAProvenanceWithNilBuilderIDWhenAbsent(t *testing.T
 	if got := payloadString(provenance.Payload, "builder_id"); got != "" {
 		t.Fatalf("provenance builder_id = %q, want empty (well-formed predicate with no builder.id)", got)
 	}
-	if fact := optionalFactKind(collected, facts.SBOMWarningFactKind); fact.FactID != "" {
+	if fact := optionalFactKind(collected, chain.SBOMWarningFactKind); fact.FactID != "" {
 		t.Fatalf("emitted sbom.warning fact %q for a well-formed predicate with no builder.id", fact.FactID)
 	}
 }

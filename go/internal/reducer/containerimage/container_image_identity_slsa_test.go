@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // slsaConfigSourceProvenanceFact builds an attestation.slsa_provenance
@@ -494,7 +495,7 @@ func attestationSLSAProvenanceFactWithMaterials(
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AttestationSLSAProvenanceFactKind,
+		FactKind: chain.AttestationSLSAProvenanceFactKind,
 		Payload:  payload,
 	}
 }
@@ -509,7 +510,7 @@ func attestationStatementFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AttestationStatementFactKind,
+		FactKind: chain.AttestationStatementFactKind,
 		Payload: map[string]any{
 			"statement_id":        statementID,
 			"statement_digest":    statementDigest,
@@ -531,7 +532,7 @@ func attestationSignatureVerificationFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AttestationSignatureVerificationFactKind,
+		FactKind: chain.AttestationSignatureVerificationFactKind,
 		Payload: map[string]any{
 			"statement_id":        statementID,
 			"verification_result": result,

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -96,8 +97,8 @@ func attestationSLSAProvenanceEnvelope(factID, scopeID, generationID string) fac
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.AttestationSLSAProvenanceFactKind,
-		SchemaVersion:    facts.SBOMAttestationSchemaVersionV1,
+		FactKind:         chain.AttestationSLSAProvenanceFactKind,
+		SchemaVersion:    chain.SBOMAttestationSchemaVersionV1,
 		CollectorKind:    "sbom_attestation",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.July, 23, 10, 0, 0, 0, time.UTC),
@@ -117,8 +118,8 @@ func attestationSignatureVerificationEnvelope(factID, scopeID, generationID stri
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.AttestationSignatureVerificationFactKind,
-		SchemaVersion:    facts.SBOMAttestationSchemaVersionV1,
+		FactKind:         chain.AttestationSignatureVerificationFactKind,
+		SchemaVersion:    chain.SBOMAttestationSchemaVersionV1,
 		CollectorKind:    "sbom_attestation",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.July, 23, 11, 0, 0, 0, time.UTC),

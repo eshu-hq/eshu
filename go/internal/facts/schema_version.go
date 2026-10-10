@@ -92,7 +92,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{ReducerDerivedFactKinds, ReducerDerivedSchemaVersion},
 	{cloud.S3BucketPostureFactKinds, cloud.S3BucketPostureSchemaVersion},
 	{cloud.S3ExternalPrincipalGrantFactKinds, cloud.S3ExternalPrincipalGrantSchemaVersion},
-	{SBOMAttestationFactKinds, SBOMAttestationSchemaVersion},
+	{chain.SBOMAttestationFactKinds, chain.SBOMAttestationSchemaVersion},
 	{ScannerWorkerFactKinds, ScannerWorkerSchemaVersion},
 	{SecretsIAMFactKinds, SecretsIAMSchemaVersion},
 	{SecurityAlertFactKinds, SecurityAlertSchemaVersion},

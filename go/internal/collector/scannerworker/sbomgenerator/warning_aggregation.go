@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 const componentWarningSampleLimit = 5
@@ -136,13 +137,13 @@ func newComponentWarningFact(
 	addWarningPayloadString(payload, "lockfile_path", group.key.lockfilePath)
 	addWarningPayloadString(payload, "extraction_reason", group.key.extractionReason)
 	addWarningPayloadString(payload, "created_by_tool", group.key.tool)
-	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMWarningFactKind, map[string]any{
 		"document_id":   documentID,
 		"generation_id": input.GenerationID,
 		"reason":        WarningReasonComponentMissingIdentity,
 		"warning_key":   warningKey,
 	})
-	return newEnvelope(input, observedAt, facts.SBOMWarningFactKind, stableKey, payload)
+	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, payload)
 }
 
 func addWarningPayloadString(payload map[string]any, key string, value string) {
@@ -171,7 +172,7 @@ func componentIndexSummary(indexes []int) string {
 }
 
 func (k componentWarningKey) stableKey() string {
-	return facts.StableID(facts.SBOMWarningFactKind+":component", map[string]any{
+	return facts.StableID(chain.SBOMWarningFactKind+":component", map[string]any{
 		"category":          k.category,
 		"component_type":    k.componentType,
 		"ecosystem":         k.ecosystem,

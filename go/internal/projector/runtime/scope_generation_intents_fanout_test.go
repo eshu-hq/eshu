@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -321,7 +322,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 
 		{
 			FactID: "sbom-document-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.SBOMDocumentFactKind, SchemaVersion: facts.SBOMAttestationSchemaVersionV1,
+			FactKind: chain.SBOMDocumentFactKind, SchemaVersion: chain.SBOMAttestationSchemaVersionV1,
 			SourceRef: facts.Ref{SourceSystem: "sbom_attestation"},
 			Payload: map[string]any{
 				"document_id":     "doc-team-api",

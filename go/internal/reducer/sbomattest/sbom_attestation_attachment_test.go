@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -387,7 +388,7 @@ func sbomDocumentFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.SBOMDocumentFactKind,
+		FactKind: chain.SBOMDocumentFactKind,
 		Payload: map[string]any{
 			"document_id":         documentID,
 			"document_digest":     documentDigest,
@@ -403,7 +404,7 @@ func sbomDocumentFact(
 func sbomComponentFact(factID string, documentID string, purl string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.SBOMComponentFactKind,
+		FactKind: chain.SBOMComponentFactKind,
 		Payload: map[string]any{
 			"document_id":  documentID,
 			"component_id": purl,
@@ -422,7 +423,7 @@ func attestationStatementFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AttestationStatementFactKind,
+		FactKind: chain.AttestationStatementFactKind,
 		Payload: map[string]any{
 			"statement_id":        statementID,
 			"statement_digest":    statementDigest,
@@ -461,7 +462,7 @@ func attestationSignatureVerificationFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AttestationSignatureVerificationFactKind,
+		FactKind: chain.AttestationSignatureVerificationFactKind,
 		Payload: map[string]any{
 			"statement_id":        statementID,
 			"verification_result": result,

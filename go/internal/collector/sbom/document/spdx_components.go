@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // spdxComponentResult bundles per-package projection output so the document
@@ -143,11 +144,11 @@ func spdxComponentEnvelope(ctx FixtureContext, docID, componentID string, pkg sp
 		"is_duplicate":        duplicate,
 		"correlation_anchors": uniqueSorted(nonEmptyStrings(purl, cpe, strings.TrimSpace(pkg.SPDXID))),
 	}
-	stableKey := facts.StableID(facts.SBOMComponentFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMComponentFactKind, map[string]any{
 		"component_id": componentID,
 		"document_id":  docID,
 	})
-	return newEnvelope(ctx, facts.SBOMComponentFactKind, stableKey, componentID, payload)
+	return newEnvelope(ctx, chain.SBOMComponentFactKind, stableKey, componentID, payload)
 }
 
 func spdxPackagePURL(pkg spdxPackage) string {

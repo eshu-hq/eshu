@@ -157,54 +157,6 @@ func PackageRegistrySchemaVersion(factKind string) (string, bool) {
 	return chain.PackageRegistrySchemaVersion(factKind)
 }
 
-// Stanza: sbom_attestation.go (moved to chain/sbom_attestation.go).
-const (
-	// AttestationSLSAProvenanceFactKind identifies one SLSA provenance predicate.
-	// See [chain.AttestationSLSAProvenanceFactKind].
-	AttestationSLSAProvenanceFactKind = chain.AttestationSLSAProvenanceFactKind
-	// AttestationSignatureVerificationFactKind identifies one signature
-	// verification result. See [chain.AttestationSignatureVerificationFactKind].
-	AttestationSignatureVerificationFactKind = chain.AttestationSignatureVerificationFactKind
-	// AttestationStatementFactKind identifies one in-toto statement envelope. See
-	// [chain.AttestationStatementFactKind].
-	AttestationStatementFactKind = chain.AttestationStatementFactKind
-	// SBOMAttestationSchemaVersionV1 is the SBOM/attestation fact schema version.
-	// Bumped 1.0.0 -> 1.1.0 (#5456) for the additive-optional
-	// materials/config_source fields added to attestation.slsa_provenance
-	// (sdk/go/factschema/sbom/v1.SLSAProvenance); no existing field, kind, or
-	// required set changed, so every other kind in this shared family stays
-	// backward compatible under the bump. See
-	// [chain.SBOMAttestationSchemaVersionV1].
-	SBOMAttestationSchemaVersionV1 = chain.SBOMAttestationSchemaVersionV1
-	// SBOMComponentFactKind identifies one component from an SBOM document. See
-	// [chain.SBOMComponentFactKind].
-	SBOMComponentFactKind = chain.SBOMComponentFactKind
-	// SBOMDependencyRelationshipFactKind identifies one SBOM dependency edge. See
-	// [chain.SBOMDependencyRelationshipFactKind].
-	SBOMDependencyRelationshipFactKind = chain.SBOMDependencyRelationshipFactKind
-	// SBOMDocumentFactKind identifies one parsed or attempted SBOM document. See
-	// [chain.SBOMDocumentFactKind].
-	SBOMDocumentFactKind = chain.SBOMDocumentFactKind
-	// SBOMExternalReferenceFactKind identifies one SBOM external reference. See
-	// [chain.SBOMExternalReferenceFactKind].
-	SBOMExternalReferenceFactKind = chain.SBOMExternalReferenceFactKind
-	// SBOMWarningFactKind identifies non-fatal SBOM or attestation warnings. See
-	// [chain.SBOMWarningFactKind].
-	SBOMWarningFactKind = chain.SBOMWarningFactKind
-)
-
-// SBOMAttestationFactKinds returns the accepted SBOM and attestation fact
-// kinds in their source contract order. See [chain.SBOMAttestationFactKinds].
-func SBOMAttestationFactKinds() []string {
-	return chain.SBOMAttestationFactKinds()
-}
-
-// SBOMAttestationSchemaVersion returns the schema version for an SBOM or
-// attestation fact kind. See [chain.SBOMAttestationSchemaVersion].
-func SBOMAttestationSchemaVersion(factKind string) (string, bool) {
-	return chain.SBOMAttestationSchemaVersion(factKind)
-}
-
 // Stanza: vulnerability_intelligence.go (moved to chain/vulnerability_intelligence.go).
 const (
 	// VulnerabilityAffectedPackageFactKind identifies package-native advisory

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // TestSupplyChainImpactFindingPrefersConsumptionRepositoryOverSBOMImageIdentity
@@ -56,7 +57,7 @@ func TestSupplyChainImpactFindingPrefersConsumptionRepositoryOverSBOMImageIdenti
 	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5780"]
 	// Sanity: the SBOM component path fired (this is an SBOM-tier finding, not an
 	// os-package one), so the assertion below exercises the SBOM branch's guard.
-	if !slices.Contains(got.EvidencePath, facts.SBOMComponentFactKind) {
+	if !slices.Contains(got.EvidencePath, chain.SBOMComponentFactKind) {
 		t.Fatalf("EvidencePath = %#v, want the SBOM component path to have fired", got.EvidencePath)
 	}
 	if got.RepositoryID != consumptionRepositoryID {

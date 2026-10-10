@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -144,11 +145,11 @@ func attestationStatementEnvelope(
 			SourceFormat:       stringPtr(sourceFormatJSON),
 		})
 	})
-	stableKey := facts.StableID(facts.AttestationStatementFactKind, map[string]any{
+	stableKey := facts.StableID(chain.AttestationStatementFactKind, map[string]any{
 		"statement_digest": input.statementDigest,
 		"statement_id":     input.statementID,
 	})
-	return runtimeEnvelope(item, target, facts.AttestationStatementFactKind, stableKey, input.sourceRecordID, input.sourceURI, input.observedAt, payload)
+	return runtimeEnvelope(item, target, chain.AttestationStatementFactKind, stableKey, input.sourceRecordID, input.sourceURI, input.observedAt, payload)
 }
 
 func attestationVerificationEnvelope(
@@ -178,12 +179,12 @@ func attestationVerificationEnvelope(
 			VerificationSubject: stringPtr(strings.TrimSpace(target.SubjectDigest)),
 		})
 	})
-	stableKey := facts.StableID(facts.AttestationSignatureVerificationFactKind, map[string]any{
+	stableKey := facts.StableID(chain.AttestationSignatureVerificationFactKind, map[string]any{
 		"statement_id":        statementID,
 		"verification_policy": target.VerificationPolicy,
 		"verification_result": target.VerificationResult,
 	})
-	return runtimeEnvelope(item, target, facts.AttestationSignatureVerificationFactKind, stableKey, sourceRecordID, sourceURI, observedAt, payload)
+	return runtimeEnvelope(item, target, chain.AttestationSignatureVerificationFactKind, stableKey, sourceRecordID, sourceURI, observedAt, payload)
 }
 
 func attestationWarningEnvelope(
@@ -207,11 +208,11 @@ func attestationWarningEnvelope(
 			Summary:     stringPtr("in-toto statement could not be parsed: " + parseErr.Error()),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMWarningFactKind, map[string]any{
 		"reason":       "malformed_document",
 		"statement_id": statementID,
 	})
-	return runtimeEnvelope(item, target, facts.SBOMWarningFactKind, stableKey, sourceRecordID, sourceURI, observedAt, payload)
+	return runtimeEnvelope(item, target, chain.SBOMWarningFactKind, stableKey, sourceRecordID, sourceURI, observedAt, payload)
 }
 
 func runtimeEnvelope(
@@ -224,7 +225,7 @@ func runtimeEnvelope(
 	observedAt time.Time,
 	payload map[string]any,
 ) facts.Envelope {
-	schemaVersion, _ := facts.SBOMAttestationSchemaVersion(factKind)
+	schemaVersion, _ := chain.SBOMAttestationSchemaVersion(factKind)
 	return facts.Envelope{
 		FactID:           runtimeFactID(factKind, stableKey, target.ScopeID, item.GenerationID),
 		ScopeID:          target.ScopeID,

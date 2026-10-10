@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestSPDXFixtureBuildsReducerConsumableFacts(t *testing.T) {
@@ -29,7 +29,7 @@ func TestSPDXFixtureBuildsReducerConsumableFacts(t *testing.T) {
 	}
 	byKind := envelopesByKind(envelopes)
 
-	docs := byKind[facts.SBOMDocumentFactKind]
+	docs := byKind[chain.SBOMDocumentFactKind]
 	if len(docs) != 1 {
 		t.Fatalf("document facts = %d, want 1", len(docs))
 	}
@@ -41,7 +41,7 @@ func TestSPDXFixtureBuildsReducerConsumableFacts(t *testing.T) {
 	assertPayload(t, doc.Payload, "parse_status", string(ParseStatusParsed))
 	assertPayload(t, doc.Payload, "subject_digest", "sha256:1111111111111111111111111111111111111111111111111111111111111111")
 
-	components := byKind[facts.SBOMComponentFactKind]
+	components := byKind[chain.SBOMComponentFactKind]
 	// Expect 5 components: Image, lodash, lodash-dup, requests, alpine (noident dropped).
 	if len(components) != 5 {
 		t.Fatalf("component facts = %d, want 5", len(components))
@@ -53,18 +53,18 @@ func TestSPDXFixtureBuildsReducerConsumableFacts(t *testing.T) {
 	}
 	assertPayload(t, requests.Payload, "cpe", "cpe:2.3:a:python-requests:requests:2.31.0:*:*:*:*:*:*:*")
 
-	deps := byKind[facts.SBOMDependencyRelationshipFactKind]
+	deps := byKind[chain.SBOMDependencyRelationshipFactKind]
 	// CONTAINS lodash, CONTAINS requests, DEPENDS_ON requests → 3 edges.
 	if len(deps) != 3 {
 		t.Fatalf("dependency facts = %d, want 3", len(deps))
 	}
 
-	refs := byKind[facts.SBOMExternalReferenceFactKind]
+	refs := byKind[chain.SBOMExternalReferenceFactKind]
 	if len(refs) == 0 {
 		t.Fatalf("expected external reference facts")
 	}
 
-	warnings := byKind[facts.SBOMWarningFactKind]
+	warnings := byKind[chain.SBOMWarningFactKind]
 	reasons := warningReasons(warnings)
 	wantReasons := []string{
 		string(WarningReasonDuplicateComponent),
@@ -86,12 +86,12 @@ func TestSPDXFixtureMissingSubjectEmitsWarning(t *testing.T) {
 		t.Fatalf("SPDXFixtureEnvelopes() error = %v", err)
 	}
 	byKind := envelopesByKind(envelopes)
-	doc := byKind[facts.SBOMDocumentFactKind][0]
+	doc := byKind[chain.SBOMDocumentFactKind][0]
 	if got := doc.Payload["subject_digest"]; got != "" {
 		t.Fatalf("subject_digest = %q, want empty for missing-subject document", got)
 	}
-	if !containsString(warningReasons(byKind[facts.SBOMWarningFactKind]), string(WarningReasonMissingSubject)) {
-		t.Fatalf("expected missing_subject warning, got %#v", byKind[facts.SBOMWarningFactKind])
+	if !containsString(warningReasons(byKind[chain.SBOMWarningFactKind]), string(WarningReasonMissingSubject)) {
+		t.Fatalf("expected missing_subject warning, got %#v", byKind[chain.SBOMWarningFactKind])
 	}
 }
 
@@ -104,14 +104,14 @@ func TestSPDXFixtureMalformedEmitsUnparseableDocument(t *testing.T) {
 		t.Fatalf("SPDXFixtureEnvelopes() error = %v", err)
 	}
 	byKind := envelopesByKind(envelopes)
-	if len(byKind[facts.SBOMDocumentFactKind]) != 1 {
-		t.Fatalf("malformed spdx should emit one document fact, got %d", len(byKind[facts.SBOMDocumentFactKind]))
+	if len(byKind[chain.SBOMDocumentFactKind]) != 1 {
+		t.Fatalf("malformed spdx should emit one document fact, got %d", len(byKind[chain.SBOMDocumentFactKind]))
 	}
-	if got := byKind[facts.SBOMDocumentFactKind][0].Payload["parse_status"]; got != string(ParseStatusMalformed) {
+	if got := byKind[chain.SBOMDocumentFactKind][0].Payload["parse_status"]; got != string(ParseStatusMalformed) {
 		t.Fatalf("parse_status = %v, want %q", got, ParseStatusMalformed)
 	}
-	if !containsString(warningReasons(byKind[facts.SBOMWarningFactKind]), string(WarningReasonMalformedDocument)) {
-		t.Fatalf("expected malformed_document warning, got %#v", byKind[facts.SBOMWarningFactKind])
+	if !containsString(warningReasons(byKind[chain.SBOMWarningFactKind]), string(WarningReasonMalformedDocument)) {
+		t.Fatalf("expected malformed_document warning, got %#v", byKind[chain.SBOMWarningFactKind])
 	}
 }
 

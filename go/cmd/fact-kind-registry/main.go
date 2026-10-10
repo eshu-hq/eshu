@@ -430,7 +430,7 @@ func liveFamilies() []liveFamily {
 		{"reducer_derived", facts.ReducerDerivedFactKinds, facts.ReducerDerivedSchemaVersion},
 		{"s3_bucket_posture", cloud.S3BucketPostureFactKinds, cloud.S3BucketPostureSchemaVersion},
 		{"s3_external_principal_grant", cloud.S3ExternalPrincipalGrantFactKinds, cloud.S3ExternalPrincipalGrantSchemaVersion},
-		{"sbom_attestation", facts.SBOMAttestationFactKinds, facts.SBOMAttestationSchemaVersion},
+		{"sbom_attestation", chain.SBOMAttestationFactKinds, chain.SBOMAttestationSchemaVersion},
 		{"scanner_worker", facts.ScannerWorkerFactKinds, facts.ScannerWorkerSchemaVersion},
 		{"secrets_iam", facts.SecretsIAMFactKinds, facts.SecretsIAMSchemaVersion},
 		{"security_alert", facts.SecurityAlertFactKinds, facts.SecurityAlertSchemaVersion},

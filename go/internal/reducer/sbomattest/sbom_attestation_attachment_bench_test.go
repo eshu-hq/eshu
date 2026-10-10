@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // benchmarkSBOMAttachmentCorpus builds a synthetic corpus of documentCount
@@ -23,7 +24,7 @@ func benchmarkSBOMAttachmentCorpus(documentCount int) []facts.Envelope {
 		envelopes = append(envelopes,
 			facts.Envelope{
 				FactID:   docID,
-				FactKind: facts.SBOMDocumentFactKind,
+				FactKind: chain.SBOMDocumentFactKind,
 				Payload: map[string]any{
 					"document_id":         docID,
 					"document_digest":     fmt.Sprintf("sha256:%064x", i),
@@ -36,7 +37,7 @@ func benchmarkSBOMAttachmentCorpus(documentCount int) []facts.Envelope {
 			},
 			facts.Envelope{
 				FactID:   docID + "-component",
-				FactKind: facts.SBOMComponentFactKind,
+				FactKind: chain.SBOMComponentFactKind,
 				Payload: map[string]any{
 					"document_id":  docID,
 					"component_id": docID + "-component",
@@ -47,7 +48,7 @@ func benchmarkSBOMAttachmentCorpus(documentCount int) []facts.Envelope {
 			},
 			facts.Envelope{
 				FactID:   docID + "-warning",
-				FactKind: facts.SBOMWarningFactKind,
+				FactKind: chain.SBOMWarningFactKind,
 				Payload: map[string]any{
 					"document_id":      docID,
 					"reason":           "missing_purl_identity",
@@ -67,7 +68,7 @@ func benchmarkSBOMAttachmentCorpus(documentCount int) []facts.Envelope {
 			},
 			facts.Envelope{
 				FactID:   docID + "-verification",
-				FactKind: facts.AttestationSignatureVerificationFactKind,
+				FactKind: chain.AttestationSignatureVerificationFactKind,
 				Payload: map[string]any{
 					"statement_id":         "",
 					"document_id":          docID,

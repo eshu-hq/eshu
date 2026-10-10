@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
@@ -245,11 +246,11 @@ func attestationSLSAProvenanceEnvelope(
 			ConfigSource:  details.configSource,
 		})
 	})
-	stableKey := facts.StableID(facts.AttestationSLSAProvenanceFactKind, map[string]any{
+	stableKey := facts.StableID(chain.AttestationSLSAProvenanceFactKind, map[string]any{
 		"statement_digest": statementDigest,
 		"statement_id":     statementID,
 	})
-	return runtimeEnvelope(item, target, facts.AttestationSLSAProvenanceFactKind, stableKey, sourceRecordID, sourceURI, observedAt, payload)
+	return runtimeEnvelope(item, target, chain.AttestationSLSAProvenanceFactKind, stableKey, sourceRecordID, sourceURI, observedAt, payload)
 }
 
 func attestationMalformedSLSAPredicateWarningEnvelope(
@@ -272,9 +273,9 @@ func attestationMalformedSLSAPredicateWarningEnvelope(
 			Summary:     stringPtr("SLSA provenance predicate could not be decoded"),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMWarningFactKind, map[string]any{
 		"reason":       "malformed_slsa_predicate",
 		"statement_id": statementID,
 	})
-	return runtimeEnvelope(item, target, facts.SBOMWarningFactKind, stableKey, sourceRecordID, sourceURI, observedAt, payload)
+	return runtimeEnvelope(item, target, chain.SBOMWarningFactKind, stableKey, sourceRecordID, sourceURI, observedAt, payload)
 }

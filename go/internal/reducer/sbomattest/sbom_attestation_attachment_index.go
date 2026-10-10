@@ -5,6 +5,7 @@ package sbomattest
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -172,7 +173,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.SBOMDocumentFactKind:
+		case chain.SBOMDocumentFactKind:
 			doc, err := sbomDocumentFromEnvelope(envelope)
 			if err != nil {
 				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
@@ -187,7 +188,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 			if doc.documentID != "" {
 				index.documents[doc.documentID] = doc
 			}
-		case facts.AttestationStatementFactKind:
+		case chain.AttestationStatementFactKind:
 			doc, err := attestationDocumentFromEnvelope(envelope)
 			if err != nil {
 				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
@@ -202,7 +203,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 			if doc.documentID != "" {
 				index.documents[doc.documentID] = doc
 			}
-		case facts.SBOMComponentFactKind:
+		case chain.SBOMComponentFactKind:
 			component, err := schemadecode.DecodeSBOMComponent(envelope)
 			if err != nil {
 				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
@@ -239,7 +240,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 			if image.digest != "" {
 				index.images[image.digest] = append(index.images[image.digest], image)
 			}
-		case facts.AttestationSignatureVerificationFactKind:
+		case chain.AttestationSignatureVerificationFactKind:
 			verification, err := schemadecode.DecodeAttestationSignatureVerification(envelope)
 			if err != nil {
 				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
@@ -260,7 +261,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 					verificationPolicy: derefString(verification.VerificationPolicy),
 				}
 			}
-		case facts.AttestationSLSAProvenanceFactKind:
+		case chain.AttestationSLSAProvenanceFactKind:
 			q, isQuarantine, fatal := indexAttestationSLSAProvenance(index, envelope)
 			if fatal != nil {
 				return sbomAttachmentIndex{}, nil, fatal
@@ -268,7 +269,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 			if isQuarantine {
 				quarantined = append(quarantined, q)
 			}
-		case facts.SBOMWarningFactKind:
+		case chain.SBOMWarningFactKind:
 			warning, err := schemadecode.DecodeSBOMWarning(envelope)
 			if err != nil {
 				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
@@ -287,7 +288,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 					occurrenceCount: warningOccurrenceCount(warning.OccurrenceCount),
 				})
 			}
-		case facts.SBOMDependencyRelationshipFactKind:
+		case chain.SBOMDependencyRelationshipFactKind:
 			q, isQuarantine, fatal := indexSBOMDependencyRelationship(index, envelope)
 			if fatal != nil {
 				return sbomAttachmentIndex{}, nil, fatal
@@ -295,7 +296,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 			if isQuarantine {
 				quarantined = append(quarantined, q)
 			}
-		case facts.SBOMExternalReferenceFactKind:
+		case chain.SBOMExternalReferenceFactKind:
 			q, isQuarantine, fatal := indexSBOMExternalReference(index, envelope)
 			if fatal != nil {
 				return sbomAttachmentIndex{}, nil, fatal

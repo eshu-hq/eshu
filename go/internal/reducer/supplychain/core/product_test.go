@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -75,7 +76,7 @@ func TestBuildSupplyChainImpactFindingsDerivesProductImpactFromSBOMCPE(t *testin
 	}
 	for _, want := range []string{
 		facts.VulnerabilityAffectedProductFactKind,
-		facts.SBOMComponentFactKind,
+		chain.SBOMComponentFactKind,
 		reducercontract.SBOMAttestationAttachmentFactKind,
 		reducercontract.ContainerImageIdentityFactKind,
 	} {
@@ -257,7 +258,7 @@ func vulnerabilityAffectedProductFact(
 func sbomComponentCPEImpactFact(factID string, documentID string, cpe string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.SBOMComponentFactKind,
+		FactKind: chain.SBOMComponentFactKind,
 		Payload: map[string]any{
 			"document_id": documentID,
 			"cpe":         cpe,

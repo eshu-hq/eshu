@@ -19,7 +19,7 @@ var candidateFactKinds = []string{
 	chain.VulnerabilitySuppressionFactKind,
 	facts.SecurityAlertRepositoryAlertFactKind,
 	facts.PackageRegistryPackageFactKind,
-	facts.SBOMComponentFactKind,
+	chain.SBOMComponentFactKind,
 	facts.OCIImageManifestFactKind,
 	facts.OCIImageIndexFactKind,
 	facts.OCIImageTagObservationFactKind,
@@ -62,7 +62,7 @@ func triggerFact(envelope facts.Envelope) bool {
 		chain.VulnerabilitySuppressionFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,
 		facts.PackageRegistryPackageFactKind,
-		facts.SBOMComponentFactKind,
+		chain.SBOMComponentFactKind,
 		facts.OCIImageManifestFactKind,
 		facts.OCIImageIndexFactKind,
 		facts.OCIImageTagObservationFactKind,
@@ -80,7 +80,7 @@ func reason(envelope facts.Envelope) string {
 	if envelope.FactKind == facts.PackageRegistryPackageFactKind {
 		return "package registry identity observed"
 	}
-	if envelope.FactKind == facts.SBOMComponentFactKind {
+	if envelope.FactKind == chain.SBOMComponentFactKind {
 		return "SBOM package evidence observed"
 	}
 	if envelope.FactKind == chain.VulnerabilitySuppressionFactKind {

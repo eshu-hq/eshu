@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -31,7 +32,7 @@ func TestServiceRecordsRetryableCommitFailure(t *testing.T) {
 			Output: FactOutput{
 				TargetCount: 1,
 				ResultCount: 1,
-				Facts:       []facts.Envelope{testScannerFact(t, item, claim, facts.SBOMDocumentFactKind)},
+				Facts:       []facts.Envelope{testScannerFact(t, item, claim, chain.SBOMDocumentFactKind)},
 			},
 			Usage: ResourceUsage{CPUSeconds: 0.25, PeakMemoryBytes: 128 << 20},
 		},

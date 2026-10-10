@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -26,7 +27,7 @@ func TestRuntimeSBOMFactsAttachToOCIReferrerSubjectTruth(t *testing.T) {
 	t.Parallel()
 
 	runtimeFacts := runtimeSBOMFacts(t)
-	doc := firstFactKind(t, runtimeFacts, facts.SBOMDocumentFactKind)
+	doc := firstFactKind(t, runtimeFacts, chain.SBOMDocumentFactKind)
 	documentDigest := payloadcore.PayloadString(doc.Payload, "document_digest")
 
 	decisions := sbomattest.BuildSBOMAttestationAttachmentDecisions(append(
@@ -49,7 +50,7 @@ func TestRuntimeSBOMFactsPreserveSubjectMismatchEvidence(t *testing.T) {
 	t.Parallel()
 
 	runtimeFacts := runtimeSBOMFacts(t)
-	doc := firstFactKind(t, runtimeFacts, facts.SBOMDocumentFactKind)
+	doc := firstFactKind(t, runtimeFacts, chain.SBOMDocumentFactKind)
 	documentDigest := payloadcore.PayloadString(doc.Payload, "document_digest")
 
 	decisions := sbomattest.BuildSBOMAttestationAttachmentDecisions(append(
