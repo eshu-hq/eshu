@@ -90,14 +90,14 @@ func (a *Analyzer) HandleDeadCodeInvestigation(w http.ResponseWriter, r *http.Re
 
 	scan, err := a.ScanDeadCodeInvestigation(r.Context(), req)
 	if err != nil {
-		a.writeStoreError(w, r, err, deadCodeInvestigationCapability)
+		a.writeStoreError(w, r, err, deadCodeInvestigationCapability, deadCodeInvestigationScanFailedMessage)
 		return
 	}
 	// Clip every bucket before coverage and analysis read the rows (#7234).
 	clippedDocstrings := clipDeadCodeInvestigationDocstrings(&scan)
 	coverage, err := a.deadCodeInvestigationCoverage(r.Context(), req, scan)
 	if err != nil {
-		a.writeStoreError(w, r, err, deadCodeInvestigationCapability)
+		a.writeStoreError(w, r, err, deadCodeInvestigationCapability, deadCodeInvestigationCoverageFailedMessage)
 		return
 	}
 	allReturned := deadCodeInvestigationAllReturned(scan)

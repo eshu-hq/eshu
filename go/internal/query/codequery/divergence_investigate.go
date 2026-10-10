@@ -120,10 +120,7 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 				WriteError(w, http.StatusNotFound, "divergence finding not found")
 				return
 			}
-			if WriteGraphReadError(w, r, err, divergenceFindingsCapability) {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, divergenceFindingsCapability, divergenceWrapperBypassFailedMessage)
 			return
 		}
 		finding = assembled
@@ -135,10 +132,7 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 				WriteError(w, http.StatusNotFound, "divergence finding not found")
 				return
 			}
-			if WriteGraphReadError(w, r, err, divergenceFindingsCapability) {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, divergenceFindingsCapability, divergenceOutlierFailedMessage)
 			return
 		}
 		finding = assembled
@@ -146,7 +140,7 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 	} else if req.kind() == codedivergence.KindDrifted {
 		rows, err := reader.DriftedFindingRows(r.Context(), req.RepoID, []string{req.Fingerprint})
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, divergenceFindingsCapability, divergenceDriftedFailedMessage)
 			return
 		}
 		row, ok := rows[req.Fingerprint]
@@ -163,7 +157,7 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 	} else {
 		membersByFP, err := reader.DivergenceMembers(r.Context(), req.RepoID, req.kind(), []string{req.Fingerprint})
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, divergenceFindingsCapability, divergenceMembersFailedMessage)
 			return
 		}
 		members := membersByFP[req.Fingerprint]

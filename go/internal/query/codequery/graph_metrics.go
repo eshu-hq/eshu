@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -99,19 +100,19 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 
 	data, err := h.CallGraphMetricsData(r.Context(), req)
 	if err != nil {
-		span.RecordError(err)
-		if errors.Is(err, errCallGraphMetricsUnavailable) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
-			return
-		}
-		if errors.Is(err, errCallGraphMetricsScopeTooBroad) {
-			WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		if writeCodeUnavailable(w, r, err, errCallGraphMetricsUnavailable, callGraphMetricsCapability) {
 			return
 		}
 		if WriteGraphReadError(w, r, err, callGraphMetricsCapability) {
+			span.RecordError(err)
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		if errors.Is(err, errCallGraphMetricsScopeTooBroad) {
+			span.RecordError(err)
+			WriteError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, callGraphMetricsFailedMessage)
 		return
 	}
 	WriteSuccess(

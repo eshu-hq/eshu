@@ -3,6 +3,58 @@
 
 package codequery
 
+import (
+	"errors"
+	"net/http"
+
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
+)
+
+// writeCodeReadFailure answers a failed code read that the route's own 503
+// verdicts and 4xx sentinels did not claim. A stale or timed-out PostgreSQL
+// reader, a graph outage, or a graph deadline gets its shared verdict from
+// WriteGraphReadError (503 with Retry-After, or 504). Anything else answers
+// message through tracing.WriteServerFailure: 500 with err recorded on the
+// request span, or 499 with only the client-cancel event when the caller
+// canceled the request.
+func writeCodeReadFailure(w http.ResponseWriter, r *http.Request, err error, capability, message string) {
+	if WriteGraphReadError(w, r, err, capability) {
+		return
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
+}
+
+// writeCodeUnavailable answers a code read that failed because a backend the
+// route needs is not configured or not ready, and reports whether err wraps
+// sentinel. A graph or reader verdict from WriteGraphReadError still wins, and
+// a client cancel answers 499. Otherwise the answer is 503 with sentinel's own
+// fixed text, never the wrapped err, and no Retry-After: these sentinels name
+// a configuration state, not a transient fault. err is recorded on the
+// request span with Error status, as tracing.WriteServerFailure does for a
+// 500; that helper cannot answer 503. It writes nothing and reports false when
+// err does not wrap sentinel.
+func writeCodeUnavailable(w http.ResponseWriter, r *http.Request, err, sentinel error, capability string) bool {
+	if !errors.Is(err, sentinel) {
+		return false
+	}
+	if WriteGraphReadError(w, r, err, capability) {
+		return true
+	}
+	message := sentinel.Error()
+	if tracing.ClientCanceled(r.Context(), err) {
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
+		return true
+	}
+	span := trace.SpanFromContext(r.Context())
+	span.RecordError(err)
+	span.SetStatus(codes.Error, message)
+	WriteError(w, http.StatusServiceUnavailable, message)
+	return true
+}
+
 // Fixed client-facing messages for code-family read failures (#7674). Each
 // route step that answers a server failure has its own constant, and the
 // response body is exactly that text: a backend error quotes SQL, Cypher,

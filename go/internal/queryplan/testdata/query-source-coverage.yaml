@@ -42,7 +42,7 @@ source_coverage:
       - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: f1108f914b92101a3279a63ab2a3bc2b89cf67a75e35c62e260d6218c90316ed, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: codequery/callers.go
     calls:
-      - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: b7dc27071813d89a487879f42df7a05db22a47e2a7a6c1be303fadca97ef729e, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
+      - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: f1cc9866e631849ae758f77b7d4757537c1e9f6745062ebde286a445eeffb9d8, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
       - {symbol: "(*CodeHandler).nornicDBCallChainOneHopRows", count: 1, non_hot: {class: degree_bounded, source_sha256: 072603251b05d2e63cb29ed1deea87714e3b523d8e00f3e039a4b4143027c2a0, key_bound: single_key, max_degree: 1125}}
       - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot: {class: degree_bounded, source_sha256: ab22753396c9ea72863716b0eee9c5f2004739a284591629ac04e4c5cca4f9b4, key_bound: single_key, max_degree: 1125}}
   - file: codequery/graph_metrics.go
@@ -80,13 +80,13 @@ source_coverage:
         non_hot:
           class: operator_query
           policy: validated_query_endpoint
-          source_sha256: 6a2277b93ee6a316fd91552fce8b05c3802218be3137e76486af42547c981375
+          source_sha256: a753220320331d2b9184be2b4895532f046ef65f43aaae63d1abf5d70c270375
       - symbol: "(*CodeHandler).handleVisualizeQuery"
         count: 1
         non_hot:
           class: operator_query
           policy: validated_query_endpoint
-          source_sha256: a0ad8905558b4e07d1e8d1b9c46589eea98af4371ced7b980e6b061f0c445402
+          source_sha256: 08af3c95b5a79c0940ceced22a8654107a548214f1ca1c7ada9059215cf86a70
   - file: codequery/analyzer.go
     calls:
       - symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges"
@@ -121,7 +121,7 @@ source_coverage:
           max_results: 101
   - file: codequery/registry_bundles.go
     calls:
-      - {symbol: "(*CodeHandler).handleSearchBundles", count: 1, non_hot: {class: label_inventory, source_sha256: 49736854fec277cb80ec38df0d4d5e8b38b9270fed903eaa7e9b7278a167762d, label: "Package", max_results: 201}}
+      - {symbol: "(*CodeHandler).handleSearchBundles", count: 1, non_hot: {class: label_inventory, source_sha256: 49c99f7997f18ba2965f0cef1fad83faca2987bfcb86aa31386a32fea27bca0f, label: "Package", max_results: 201}}
   - file: codequery/story_reads.go
     calls:
       - {symbol: "(*CodeHandler).relationshipStoryClassMethods", count: 1, non_hot: {class: keyed_support, source_sha256: 9aa6a5ab37553b88875eb73b4aa711b1b36265f038d10ab5e72d65fd9a09f98b, key_bound: single_key, max_results: 201}}

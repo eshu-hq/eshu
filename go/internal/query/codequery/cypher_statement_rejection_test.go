@@ -32,13 +32,14 @@ func TestCypherRoutesAnswer400ForARejectedCallerStatement(t *testing.T) {
 	t.Parallel()
 
 	routes := []struct {
-		name    string
-		path    string
-		handle  func(*CodeHandler, http.ResponseWriter, *http.Request)
-		wantCap string
+		name        string
+		path        string
+		handle      func(*CodeHandler, http.ResponseWriter, *http.Request)
+		wantCap     string
+		wantFailure string
 	}{
-		{name: "cypher", path: "/api/v0/code/cypher", handle: (*CodeHandler).handleCypherQuery, wantCap: readOnlyCypherCapability},
-		{name: "visualize", path: "/api/v0/code/visualize", handle: (*CodeHandler).handleVisualizeQuery, wantCap: visualizationGraphQueryCapability},
+		{name: "cypher", path: "/api/v0/code/cypher", handle: (*CodeHandler).handleCypherQuery, wantCap: readOnlyCypherCapability, wantFailure: readOnlyCypherFailedMessage},
+		{name: "visualize", path: "/api/v0/code/visualize", handle: (*CodeHandler).handleVisualizeQuery, wantCap: visualizationGraphQueryCapability, wantFailure: visualizationQueryFailedMessage},
 	}
 	for _, route := range routes {
 		for _, tc := range []struct {
@@ -49,7 +50,7 @@ func TestCypherRoutesAnswer400ForARejectedCallerStatement(t *testing.T) {
 			wantCode   ErrorCode
 		}{
 			{name: "rejected statement", err: rejectedStatementError{message: "Invalid input <REDACTED> expected a clause"}, wantStatus: http.StatusBadRequest, wantBody: "Invalid input <REDACTED> expected a clause", wantCode: ErrorCodeInvalidArgument},
-			{name: "other failure", err: errors.New("graph query failed"), wantStatus: http.StatusInternalServerError, wantBody: "graph query failed", wantCode: ErrorCodeInternalError},
+			{name: "other failure", err: errors.New("graph backend detail"), wantStatus: http.StatusInternalServerError, wantBody: route.wantFailure, wantCode: ErrorCodeInternalError},
 		} {
 			t.Run(route.name+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -71,6 +72,9 @@ func TestCypherRoutesAnswer400ForARejectedCallerStatement(t *testing.T) {
 				if !strings.Contains(body, tc.wantBody) || !strings.Contains(body, `"code":"`+string(tc.wantCode)+`"`) ||
 					!strings.Contains(body, route.wantCap) {
 					t.Fatalf("body = %s, want message %q, code %q, capability %q", body, tc.wantBody, tc.wantCode, route.wantCap)
+				}
+				if strings.Contains(body, "graph backend detail") {
+					t.Fatalf("body = %s, leaked the backend error text", body)
 				}
 			})
 		}

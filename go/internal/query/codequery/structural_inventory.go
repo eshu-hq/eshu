@@ -102,12 +102,11 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 
 	data, err := h.structuralInventoryData(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, errStructuralInventoryUnavailable) ||
-			errors.Is(err, ErrContentSubstringIndexesNotReady) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, errStructuralInventoryUnavailable, structuralInventoryCapability) ||
+			writeCodeUnavailable(w, r, err, ErrContentSubstringIndexesNotReady, structuralInventoryCapability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, structuralInventoryCapability, structuralInventoryFailedMessage)
 		return
 	}
 

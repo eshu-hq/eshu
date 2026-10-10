@@ -153,14 +153,15 @@ func assertNoCodeFailureLeak(t *testing.T, rec *httptest.ResponseRecorder) {
 func codeFailureBodyMessage(t *testing.T, rec *httptest.ResponseRecorder) string {
 	t.Helper()
 	var body struct {
-		Detail string                       `json:"detail"`
-		Error  *querycontract.ErrorEnvelope `json:"error"`
+		Detail string          `json:"detail"`
+		Error  json.RawMessage `json:"error"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v; body = %s", err, rec.Body.String())
 	}
-	if body.Error != nil {
-		return body.Error.Message
+	var envelope querycontract.ErrorEnvelope
+	if body.Detail == "" && json.Unmarshal(body.Error, &envelope) == nil {
+		return envelope.Message
 	}
 	return body.Detail
 }

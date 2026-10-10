@@ -123,7 +123,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 
 	scan, err := a.ScanCrossRepoDeadCodeCandidates(r.Context(), req)
 	if err != nil {
-		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability)
+		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability, crossRepoScanFailedMessage)
 		return
 	}
 	clippedDocstrings := clipCrossRepoDeadCodeDocstrings(&scan)
@@ -134,13 +134,13 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		req.ConsumerRepoIDs,
 	)
 	if err != nil {
-		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability)
+		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability, crossRepoEvidenceFailedMessage)
 		return
 	}
 
 	coverage, err := a.crossRepoDeadCodeConsumerCoverage(r.Context(), len(scan.Active), req.ConsumerRepoIDs, evidenceAvailable)
 	if err != nil {
-		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability)
+		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability, crossRepoCoverageFailedMessage)
 		return
 	}
 
@@ -148,7 +148,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 	if !crossRepoDeadCodeConsumerSetBounded(req, coverage) {
 		rootPaths, err = a.crossRepoDeadCodeConsumerRootPaths(r.Context(), evidence)
 		if err != nil {
-			a.writeStoreError(w, r, err, crossRepoDeadCodeCapability)
+			a.writeStoreError(w, r, err, crossRepoDeadCodeCapability, crossRepoRootPathsFailedMessage)
 			return
 		}
 	}
