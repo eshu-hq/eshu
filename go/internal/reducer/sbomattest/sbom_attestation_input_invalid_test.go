@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -38,7 +39,7 @@ func TestSBOMAttestationAttachmentQuarantinesMissingDocumentID(t *testing.T) {
 	// fact is the missing required field.
 	malformed := facts.Envelope{
 		FactID:   "malformed-doc",
-		FactKind: facts.SBOMDocumentFactKind,
+		FactKind: chain.SBOMDocumentFactKind,
 		Payload: map[string]any{
 			// "document_id" intentionally absent.
 			"document_digest":     "sha256:9999999999999999999999999999999999999999999999999999999999999999",
@@ -111,7 +112,7 @@ func TestSBOMAttestationAttachmentComponentQuarantinesMissingDocumentID(t *testi
 
 	malformedComponent := facts.Envelope{
 		FactID:   "malformed-component",
-		FactKind: facts.SBOMComponentFactKind,
+		FactKind: chain.SBOMComponentFactKind,
 		Payload: map[string]any{
 			// "document_id" intentionally absent.
 			"component_id": "bad-component",
@@ -173,7 +174,7 @@ func TestSBOMAttestationAttachmentQuarantineReplayIsIdempotent(t *testing.T) {
 
 	malformed := facts.Envelope{
 		FactID:   "malformed-doc",
-		FactKind: facts.SBOMDocumentFactKind,
+		FactKind: chain.SBOMDocumentFactKind,
 		Payload: map[string]any{
 			// "document_id" intentionally absent.
 			"subject_digest": testSBOMSubjectDigest,

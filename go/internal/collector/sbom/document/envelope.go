@@ -12,13 +12,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 func newEnvelope(ctx FixtureContext, factKind, stableKey, sourceRecordID string, payload map[string]any) facts.Envelope {
-	schemaVersion, _ := facts.SBOMAttestationSchemaVersion(factKind)
+	schemaVersion, _ := chain.SBOMAttestationSchemaVersion(factKind)
 	return facts.Envelope{
 		FactID:           factID(factKind, stableKey, ctx.ScopeID, ctx.GenerationID),
 		ScopeID:          ctx.ScopeID,
@@ -120,12 +121,12 @@ func warningFact(ctx FixtureContext, documentID string, key string, reason Warni
 			Summary:    stringPtr(summary),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMWarningFactKind, map[string]any{
 		"document_id": documentID,
 		"key":         key,
 		"reason":      string(reason),
 	})
-	return newEnvelope(ctx, facts.SBOMWarningFactKind, stableKey, documentID+":"+key, payload)
+	return newEnvelope(ctx, chain.SBOMWarningFactKind, stableKey, documentID+":"+key, payload)
 }
 
 func dependencyFact(ctx FixtureContext, documentID, from, to, relType, relKind string) facts.Envelope {
@@ -145,14 +146,14 @@ func dependencyFact(ctx FixtureContext, documentID, from, to, relType, relKind s
 			RelationshipOrigin: stringPtr(relKind),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMDependencyRelationshipFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMDependencyRelationshipFactKind, map[string]any{
 		"document_id":         documentID,
 		"from_component_id":   from,
 		"to_component_id":     to,
 		"relationship_origin": relKind,
 		"relationship_type":   relType,
 	})
-	return newEnvelope(ctx, facts.SBOMDependencyRelationshipFactKind, stableKey, from+"->"+to, payload)
+	return newEnvelope(ctx, chain.SBOMDependencyRelationshipFactKind, stableKey, from+"->"+to, payload)
 }
 
 func externalReferenceFact(ctx FixtureContext, documentID, componentID, refType, refURL, refLocator string) facts.Envelope {
@@ -172,7 +173,7 @@ func externalReferenceFact(ctx FixtureContext, documentID, componentID, refType,
 			ReferenceLocator: stringPtr(refLocator),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMExternalReferenceFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMExternalReferenceFactKind, map[string]any{
 		"component_id":      componentID,
 		"document_id":       documentID,
 		"reference_locator": refLocator,
@@ -185,7 +186,7 @@ func externalReferenceFact(ctx FixtureContext, documentID, componentID, refType,
 	} else {
 		recordID += refURL
 	}
-	return newEnvelope(ctx, facts.SBOMExternalReferenceFactKind, stableKey, recordID, payload)
+	return newEnvelope(ctx, chain.SBOMExternalReferenceFactKind, stableKey, recordID, payload)
 }
 
 func uniqueSorted(values []string) []string {

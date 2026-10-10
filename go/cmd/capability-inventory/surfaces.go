@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -244,7 +245,7 @@ func collectorFactKinds() map[string][]string {
 		string(scope.CollectorOCIRegistry):               facts.OCIRegistryFactKinds(),
 		string(scope.CollectorPackageRegistry):           facts.PackageRegistryFactKinds(),
 		string(scope.CollectorVulnerabilityIntelligence): facts.VulnerabilityIntelligenceFactKinds(),
-		string(scope.CollectorSBOMAttestation):           facts.SBOMAttestationFactKinds(),
+		string(scope.CollectorSBOMAttestation):           chain.SBOMAttestationFactKinds(),
 		string(scope.CollectorSecurityAlert):             facts.SecurityAlertFactKinds(),
 		string(scope.CollectorCICDRun):                   facts.CICDRunFactKinds(),
 		string(scope.CollectorPagerDuty): appendFactKinds(

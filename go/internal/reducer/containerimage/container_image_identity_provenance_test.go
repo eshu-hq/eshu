@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
@@ -214,7 +215,7 @@ func sbomDocumentFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.SBOMDocumentFactKind,
+		FactKind: chain.SBOMDocumentFactKind,
 		Payload: map[string]any{
 			"document_id":         documentID,
 			"document_digest":     documentDigest,

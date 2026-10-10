@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -155,7 +156,7 @@ func addSupplyChainImpactIndexEntry(
 		if analysis.ImageDigest != "" {
 			index.scannerAnalyses[supplychainmodel.ScopeGenerationKey(analysis.ScopeID, analysis.GenerationID)] = analysis
 		}
-	case facts.SBOMComponentFactKind:
+	case chain.SBOMComponentFactKind:
 		component := supplyChainSBOMComponentFromEnvelope(envelope)
 		if component.PURL != "" || component.PackageID != "" || component.CPE != "" {
 			index.components = append(index.components, component)

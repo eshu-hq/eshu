@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func attestationSLSAProvenanceFact(
@@ -25,7 +26,7 @@ func attestationSLSAProvenanceFact(
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AttestationSLSAProvenanceFactKind,
+		FactKind: chain.AttestationSLSAProvenanceFactKind,
 		Payload:  payload,
 	}
 }
@@ -128,7 +129,7 @@ func attestationSLSAProvenanceFactWithMaterials(
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AttestationSLSAProvenanceFactKind,
+		FactKind: chain.AttestationSLSAProvenanceFactKind,
 		Payload:  payload,
 	}
 }
@@ -230,7 +231,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsSLSAProvenanceMissingStatementID
 		attestationStatementFact("statement-orphan", "stmt-orphan", testSBOMSubjectDigest, "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "parsed", "verified"),
 		{
 			FactID:   "provenance-missing-statement-id",
-			FactKind: facts.AttestationSLSAProvenanceFactKind,
+			FactKind: chain.AttestationSLSAProvenanceFactKind,
 			Payload: map[string]any{
 				"predicate_type": "https://slsa.dev/provenance/v1",
 			},

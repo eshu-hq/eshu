@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -38,8 +39,8 @@ var candidateFactKinds = []string{
 	facts.CICDWorkflowImageEvidenceFactKind,
 	"content_entity",
 	containerImageIdentityFileFactKind,
-	facts.AttestationSLSAProvenanceFactKind,
-	facts.AttestationSignatureVerificationFactKind,
+	chain.AttestationSLSAProvenanceFactKind,
+	chain.AttestationSignatureVerificationFactKind,
 }
 
 // BuildContainerImageIdentityReducerIntent enqueues one
@@ -119,7 +120,7 @@ func triggerFact(envelope facts.Envelope) bool {
 		// only a Dockerfile or a deleted direct GitHub Actions workflow may
 		// trigger, never an arbitrary source file.
 		return dockerfileIdentityTriggerFile(envelope) || deletedWorkflowImageTriggerFile(envelope)
-	case facts.AttestationSLSAProvenanceFactKind:
+	case chain.AttestationSLSAProvenanceFactKind:
 		// A signed SLSA provenance predicate carries the digest-to-commit
 		// anchor the reducer's container_image_identity domain joins by
 		// statement_id (#5456 PR #5707 P1-b). It lives in the SBOM-attestation
@@ -129,7 +130,7 @@ func triggerFact(envelope facts.Envelope) bool {
 		// other new identity evidence in the same generation would never
 		// cause the reducer to re-derive the affected image's decision.
 		return true
-	case facts.AttestationSignatureVerificationFactKind:
+	case chain.AttestationSignatureVerificationFactKind:
 		// The #5456 PR #5707 P1-a verification gate requires a PASSED
 		// signature_verification fact before the SLSA tier applies. A
 		// verification result can land in a later generation than its

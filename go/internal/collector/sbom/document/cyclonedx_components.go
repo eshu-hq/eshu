@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // componentIndexEntry resolves bom-refs and PURLs back to a component ID.
@@ -138,11 +139,11 @@ func cycloneDXComponentEnvelope(ctx FixtureContext, docID, componentID string, c
 			strings.TrimSpace(comp.BOMRef),
 		)),
 	}
-	stableKey := facts.StableID(facts.SBOMComponentFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMComponentFactKind, map[string]any{
 		"component_id": componentID,
 		"document_id":  docID,
 	})
-	return newEnvelope(ctx, facts.SBOMComponentFactKind, stableKey, componentID, payload)
+	return newEnvelope(ctx, chain.SBOMComponentFactKind, stableKey, componentID, payload)
 }
 
 func cycloneDXLicenses(licenses []cycloneDXLicense) []map[string]string {

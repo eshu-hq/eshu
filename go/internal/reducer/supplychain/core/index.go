@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -114,7 +115,7 @@ func classifySupplyChainImpactPackage(
 		finding.SubjectDigest = attachment.SubjectDigest
 		finding.ImageRef = image.imageRef
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.FactID, attachment.FactID, image.factID)
-		finding.EvidencePath = append(finding.EvidencePath, facts.SBOMComponentFactKind, reducercontract.SBOMAttestationAttachmentFactKind, reducercontract.ContainerImageIdentityFactKind)
+		finding.EvidencePath = append(finding.EvidencePath, chain.SBOMComponentFactKind, reducercontract.SBOMAttestationAttachmentFactKind, reducercontract.ContainerImageIdentityFactKind)
 		// image.repositoryID is the OCI/container registry's OWN repository
 		// identifier ("oci-registry://..."), a namespace disjoint from every git
 		// "repository:..." entity id that matchingSupplyChainWorkloads/Services/

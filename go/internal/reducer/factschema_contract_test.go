@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -52,14 +53,14 @@ var factSchemaWireKindCases = []struct {
 	{"oci_registry.image_tag_observation", factschema.FactKindOCIImageTagObservation, facts.OCIImageTagObservationFactKind},
 	{"oci_registry.image_referrer", factschema.FactKindOCIImageReferrer, facts.OCIImageReferrerFactKind},
 	{"oci_registry.warning", factschema.FactKindOCIRegistryWarning, facts.OCIRegistryWarningFactKind},
-	{"sbom.document", factschema.FactKindSBOMDocument, facts.SBOMDocumentFactKind},
-	{"sbom.component", factschema.FactKindSBOMComponent, facts.SBOMComponentFactKind},
-	{"sbom.dependency_relationship", factschema.FactKindSBOMDependencyRelationship, facts.SBOMDependencyRelationshipFactKind},
-	{"sbom.external_reference", factschema.FactKindSBOMExternalReference, facts.SBOMExternalReferenceFactKind},
-	{"sbom.warning", factschema.FactKindSBOMWarning, facts.SBOMWarningFactKind},
-	{"attestation.statement", factschema.FactKindAttestationStatement, facts.AttestationStatementFactKind},
-	{"attestation.signature_verification", factschema.FactKindAttestationSignatureVerification, facts.AttestationSignatureVerificationFactKind},
-	{"attestation.slsa_provenance", factschema.FactKindAttestationSLSAProvenance, facts.AttestationSLSAProvenanceFactKind},
+	{"sbom.document", factschema.FactKindSBOMDocument, chain.SBOMDocumentFactKind},
+	{"sbom.component", factschema.FactKindSBOMComponent, chain.SBOMComponentFactKind},
+	{"sbom.dependency_relationship", factschema.FactKindSBOMDependencyRelationship, chain.SBOMDependencyRelationshipFactKind},
+	{"sbom.external_reference", factschema.FactKindSBOMExternalReference, chain.SBOMExternalReferenceFactKind},
+	{"sbom.warning", factschema.FactKindSBOMWarning, chain.SBOMWarningFactKind},
+	{"attestation.statement", factschema.FactKindAttestationStatement, chain.AttestationStatementFactKind},
+	{"attestation.signature_verification", factschema.FactKindAttestationSignatureVerification, chain.AttestationSignatureVerificationFactKind},
+	{"attestation.slsa_provenance", factschema.FactKindAttestationSLSAProvenance, chain.AttestationSLSAProvenanceFactKind},
 	{"scanner_worker.analysis", factschema.FactKindScannerWorkerAnalysis, facts.ScannerWorkerAnalysisFactKind},
 	{"scanner_worker.warning", factschema.FactKindScannerWorkerWarning, facts.ScannerWorkerWarningFactKind},
 	{"ci.run", factschema.FactKindCICDRun, facts.CICDRunFactKind},

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -339,14 +340,14 @@ func buildSBOMAttestationAttachmentDecisionsWithQuarantine(
 
 func sbomAttestationAttachmentFactKinds() []string {
 	return []string{
-		facts.SBOMDocumentFactKind,
-		facts.SBOMComponentFactKind,
-		facts.SBOMDependencyRelationshipFactKind,
-		facts.SBOMExternalReferenceFactKind,
-		facts.AttestationStatementFactKind,
-		facts.AttestationSLSAProvenanceFactKind,
-		facts.AttestationSignatureVerificationFactKind,
-		facts.SBOMWarningFactKind,
+		chain.SBOMDocumentFactKind,
+		chain.SBOMComponentFactKind,
+		chain.SBOMDependencyRelationshipFactKind,
+		chain.SBOMExternalReferenceFactKind,
+		chain.AttestationStatementFactKind,
+		chain.AttestationSLSAProvenanceFactKind,
+		chain.AttestationSignatureVerificationFactKind,
+		chain.SBOMWarningFactKind,
 		facts.OCIImageReferrerFactKind,
 		reducercontract.ContainerImageIdentityFactKind,
 	}
@@ -407,20 +408,20 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 	var keys []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.SBOMDocumentFactKind:
+		case chain.SBOMDocumentFactKind:
 			keys = append(
 				keys,
 				payloadcore.PayloadString(envelope.Payload, "subject_digest"),
 				payloadcore.PayloadString(envelope.Payload, "document_digest"),
 				payloadcore.PayloadString(envelope.Payload, "document_id"),
 			)
-		case facts.SBOMComponentFactKind:
+		case chain.SBOMComponentFactKind:
 			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "document_id"))
-		case facts.SBOMDependencyRelationshipFactKind:
+		case chain.SBOMDependencyRelationshipFactKind:
 			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "document_id"))
-		case facts.SBOMExternalReferenceFactKind:
+		case chain.SBOMExternalReferenceFactKind:
 			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "document_id"))
-		case facts.AttestationStatementFactKind:
+		case chain.AttestationStatementFactKind:
 			keys = append(keys, PayloadStrings(envelope.Payload, "subject_digest", "subject_digests")...)
 			keys = append(
 				keys,
@@ -428,15 +429,15 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 				payloadcore.PayloadString(envelope.Payload, "payload_digest"),
 				payloadcore.PayloadString(envelope.Payload, "statement_id"),
 			)
-		case facts.AttestationSignatureVerificationFactKind:
+		case chain.AttestationSignatureVerificationFactKind:
 			keys = append(
 				keys,
 				payloadcore.PayloadString(envelope.Payload, "statement_id"),
 				payloadcore.PayloadString(envelope.Payload, "document_id"),
 			)
-		case facts.AttestationSLSAProvenanceFactKind:
+		case chain.AttestationSLSAProvenanceFactKind:
 			keys = append(keys, payloadcore.PayloadString(envelope.Payload, "statement_id"))
-		case facts.SBOMWarningFactKind:
+		case chain.SBOMWarningFactKind:
 			keys = append(
 				keys,
 				payloadcore.PayloadString(envelope.Payload, "document_id"),

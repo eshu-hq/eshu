@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -46,16 +47,16 @@ func TestAnalyzerGeneratesDocumentAndComponentSourceFacts(t *testing.T) {
 		t.Fatalf("ResultCount = %d, want 2 components", result.Output.ResultCount)
 	}
 	counts := countFactKinds(result.Output.Facts)
-	if counts[facts.SBOMDocumentFactKind] != 1 {
-		t.Fatalf("document facts = %d, want 1", counts[facts.SBOMDocumentFactKind])
+	if counts[chain.SBOMDocumentFactKind] != 1 {
+		t.Fatalf("document facts = %d, want 1", counts[chain.SBOMDocumentFactKind])
 	}
-	if counts[facts.SBOMComponentFactKind] != 2 {
-		t.Fatalf("component facts = %d, want 2", counts[facts.SBOMComponentFactKind])
+	if counts[chain.SBOMComponentFactKind] != 2 {
+		t.Fatalf("component facts = %d, want 2", counts[chain.SBOMComponentFactKind])
 	}
-	if counts[facts.SBOMWarningFactKind] != 0 {
-		t.Fatalf("warning facts = %d, want 0", counts[facts.SBOMWarningFactKind])
+	if counts[chain.SBOMWarningFactKind] != 0 {
+		t.Fatalf("warning facts = %d, want 0", counts[chain.SBOMWarningFactKind])
 	}
-	doc := firstFact(result.Output.Facts, facts.SBOMDocumentFactKind)
+	doc := firstFact(result.Output.Facts, chain.SBOMDocumentFactKind)
 	if got := doc.Payload["subject_digest"]; got != source.inventory.SubjectDigest {
 		t.Fatalf("subject_digest = %v, want %q", got, source.inventory.SubjectDigest)
 	}
@@ -95,13 +96,13 @@ func TestAnalyzerEmitsMissingSubjectWarningWithoutFailing(t *testing.T) {
 		t.Fatalf("Analyze() error = %v, want nil for warning-only outcome", err)
 	}
 	counts := countFactKinds(result.Output.Facts)
-	if counts[facts.SBOMDocumentFactKind] != 1 {
-		t.Fatalf("document facts = %d, want 1", counts[facts.SBOMDocumentFactKind])
+	if counts[chain.SBOMDocumentFactKind] != 1 {
+		t.Fatalf("document facts = %d, want 1", counts[chain.SBOMDocumentFactKind])
 	}
-	if counts[facts.SBOMComponentFactKind] != 1 {
-		t.Fatalf("component facts = %d, want 1", counts[facts.SBOMComponentFactKind])
+	if counts[chain.SBOMComponentFactKind] != 1 {
+		t.Fatalf("component facts = %d, want 1", counts[chain.SBOMComponentFactKind])
 	}
-	if counts[facts.SBOMWarningFactKind] == 0 {
+	if counts[chain.SBOMWarningFactKind] == 0 {
 		t.Fatalf("warning facts = 0, want at least 1 (missing_subject)")
 	}
 	if !hasWarningReason(result.Output.Facts, "missing_subject") {
@@ -132,8 +133,8 @@ func TestAnalyzerSkipsComponentsMissingIdentityWithWarning(t *testing.T) {
 		t.Fatalf("Analyze() error = %v, want nil", err)
 	}
 	counts := countFactKinds(result.Output.Facts)
-	if counts[facts.SBOMComponentFactKind] != 1 {
-		t.Fatalf("component facts = %d, want 1 (malformed skipped)", counts[facts.SBOMComponentFactKind])
+	if counts[chain.SBOMComponentFactKind] != 1 {
+		t.Fatalf("component facts = %d, want 1 (malformed skipped)", counts[chain.SBOMComponentFactKind])
 	}
 	if !hasWarningReason(result.Output.Facts, "component_missing_identity") {
 		t.Fatalf("warnings = %v, want component_missing_identity", warningReasons(result.Output.Facts))
@@ -178,14 +179,14 @@ func TestAnalyzerPreservesLockfileComponentAndWarningEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Analyze() error = %v, want nil", err)
 	}
-	component := firstFact(result.Output.Facts, facts.SBOMComponentFactKind)
+	component := firstFact(result.Output.Facts, chain.SBOMComponentFactKind)
 	assertPayloadString(t, component.Payload, "ecosystem", "composer")
 	assertPayloadString(t, component.Payload, "evidence_source", "repository_lockfile")
 	assertPayloadString(t, component.Payload, "lockfile_path", "services/api/composer.lock")
 	assertPayloadString(t, component.Payload, "dependency_scope", "packages")
 	assertPayloadString(t, component.Payload, "dependency_type", "runtime")
 	assertPayloadString(t, component.Payload, "extraction_reason", "lockfile_exact_version")
-	warning := firstFact(result.Output.Facts, facts.SBOMWarningFactKind)
+	warning := firstFact(result.Output.Facts, chain.SBOMWarningFactKind)
 	assertPayloadString(t, warning.Payload, "reason", WarningReasonLockfileMalformed)
 	assertPayloadString(t, warning.Payload, "ecosystem", "nuget")
 	assertPayloadString(t, warning.Payload, "lockfile_path", "services/api/packages.lock.json")
@@ -339,8 +340,8 @@ func TestAnalyzerDeduplicatesComponentsByCanonicalIdentity(t *testing.T) {
 		t.Fatalf("Analyze() error = %v, want nil", err)
 	}
 	counts := countFactKinds(result.Output.Facts)
-	if counts[facts.SBOMComponentFactKind] != 2 {
-		t.Fatalf("component facts = %d, want 2 (canonical dedup collapsed casing duplicates)", counts[facts.SBOMComponentFactKind])
+	if counts[chain.SBOMComponentFactKind] != 2 {
+		t.Fatalf("component facts = %d, want 2 (canonical dedup collapsed casing duplicates)", counts[chain.SBOMComponentFactKind])
 	}
 	if got := warningReasons(result.Output.Facts); !containsString(got, "component_missing_identity") {
 		t.Fatalf("warnings = %v, want component_missing_identity duplicate warning", got)
@@ -369,7 +370,7 @@ func TestAnalyzerRejectsMalformedSubjectDigest(t *testing.T) {
 	if !hasWarningReason(result.Output.Facts, "malformed_subject_digest") {
 		t.Fatalf("warnings = %v, want malformed_subject_digest", warningReasons(result.Output.Facts))
 	}
-	doc := firstFact(result.Output.Facts, facts.SBOMDocumentFactKind)
+	doc := firstFact(result.Output.Facts, chain.SBOMDocumentFactKind)
 	if got := doc.Payload["subject_digest"]; got != "" {
 		t.Fatalf("subject_digest = %v, want empty for malformed input", got)
 	}
@@ -396,7 +397,7 @@ func firstFact(envelopes []facts.Envelope, factKind string) facts.Envelope {
 
 func hasWarningReason(envelopes []facts.Envelope, reason string) bool {
 	for _, env := range envelopes {
-		if env.FactKind != facts.SBOMWarningFactKind {
+		if env.FactKind != chain.SBOMWarningFactKind {
 			continue
 		}
 		if got, _ := env.Payload["reason"].(string); got == reason {
@@ -418,7 +419,7 @@ func containsString(values []string, want string) bool {
 func warningReasons(envelopes []facts.Envelope) []string {
 	out := make([]string, 0)
 	for _, env := range envelopes {
-		if env.FactKind != facts.SBOMWarningFactKind {
+		if env.FactKind != chain.SBOMWarningFactKind {
 			continue
 		}
 		if reason, ok := env.Payload["reason"].(string); ok {

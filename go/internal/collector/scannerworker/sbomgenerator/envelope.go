@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
@@ -73,14 +74,14 @@ func newDocumentFact(input scannerworker.ClaimInput, observedAt time.Time, doc d
 			CorrelationAnchors:  documentAnchors(doc.documentID, doc.subjectDigest),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMDocumentFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMDocumentFactKind, map[string]any{
 		"document_id":    doc.documentID,
 		"format":         Format,
 		"generation_id":  input.GenerationID,
 		"scope_id":       input.Target.ScopeID,
 		"subject_digest": strings.TrimSpace(doc.subjectDigest),
 	})
-	return newEnvelope(input, observedAt, facts.SBOMDocumentFactKind, stableKey, payload)
+	return newEnvelope(input, observedAt, chain.SBOMDocumentFactKind, stableKey, payload)
 }
 
 func newComponentFact(
@@ -101,7 +102,7 @@ func newComponentFact(
 	}
 	usedIdentities[identity] = struct{}{}
 	componentID := newComponentID(documentID, identity)
-	stableKey := facts.StableID(facts.SBOMComponentFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMComponentFactKind, map[string]any{
 		"component_id":  componentID,
 		"document_id":   documentID,
 		"generation_id": input.GenerationID,
@@ -166,7 +167,7 @@ func newComponentFact(
 			CorrelationAnchors: uniqueSorted([]string{purl, bomRef, strings.TrimSpace(comp.Ecosystem), strings.TrimSpace(comp.LockfilePath)}),
 		})
 	})
-	return newEnvelope(input, observedAt, facts.SBOMComponentFactKind, stableKey, payload), true
+	return newEnvelope(input, observedAt, chain.SBOMComponentFactKind, stableKey, payload), true
 }
 
 func newWarningFact(
@@ -188,13 +189,13 @@ func newWarningFact(
 			Summary:    stringPtr(summary),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMWarningFactKind, map[string]any{
 		"document_id":   documentID,
 		"generation_id": input.GenerationID,
 		"reason":        reason,
 		"summary":       summary,
 	})
-	return newEnvelope(input, observedAt, facts.SBOMWarningFactKind, stableKey, payload)
+	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, payload)
 }
 
 func newWarningFactWithEvidence(
@@ -236,7 +237,7 @@ func newWarningFactWithEvidence(
 			ExtractionReason: optionalStringPtrFromPayload(payload, "extraction_reason"),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMWarningFactKind, map[string]any{
 		"document_id":       documentID,
 		"ecosystem":         payload["ecosystem"],
 		"extraction_reason": payload["extraction_reason"],
@@ -245,7 +246,7 @@ func newWarningFactWithEvidence(
 		"reason":            reason,
 		"summary":           summary,
 	})
-	return newEnvelope(input, observedAt, facts.SBOMWarningFactKind, stableKey, payload)
+	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, payload)
 }
 
 func newEnvelope(
@@ -255,7 +256,7 @@ func newEnvelope(
 	stableKey string,
 	payload map[string]any,
 ) facts.Envelope {
-	schemaVersion, _ := facts.SBOMAttestationSchemaVersion(factKind)
+	schemaVersion, _ := chain.SBOMAttestationSchemaVersion(factKind)
 	return facts.Envelope{
 		FactID:           factKind + ":" + stableKey,
 		ScopeID:          input.Target.ScopeID,

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
@@ -127,7 +128,7 @@ func cycloneDXDocumentEnvelope(ctx FixtureContext, input cycloneDXDocumentInput)
 			CorrelationAnchors: cycloneDXDocumentAnchors(input),
 		})
 	})
-	stableKey := facts.StableID(facts.SBOMDocumentFactKind, map[string]any{
+	stableKey := facts.StableID(chain.SBOMDocumentFactKind, map[string]any{
 		"document_digest": input.docDigest,
 		"document_id":     input.docID,
 		"format":          string(FormatCycloneDX),
@@ -136,7 +137,7 @@ func cycloneDXDocumentEnvelope(ctx FixtureContext, input cycloneDXDocumentInput)
 	if recordID == "" {
 		recordID = input.docID
 	}
-	return newEnvelope(ctx, facts.SBOMDocumentFactKind, stableKey, recordID, payload)
+	return newEnvelope(ctx, chain.SBOMDocumentFactKind, stableKey, recordID, payload)
 }
 
 func cycloneDXDocumentAnchors(input cycloneDXDocumentInput) []string {

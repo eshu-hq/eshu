@@ -134,8 +134,8 @@ func TestBuildProjectionQueuesSupplyChainImpactForSBOMComponentEvidence(t *testi
 		FactID:        "fact-sbom-component",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
-		FactKind:      facts.SBOMComponentFactKind,
-		SchemaVersion: facts.SBOMAttestationSchemaVersionV1,
+		FactKind:      chain.SBOMComponentFactKind,
+		SchemaVersion: chain.SBOMAttestationSchemaVersionV1,
 		Payload: map[string]any{
 			"document_id": "doc-1",
 			"purl":        "pkg:npm/example@1.2.3",

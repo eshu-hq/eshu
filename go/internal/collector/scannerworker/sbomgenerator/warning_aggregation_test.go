@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -59,7 +60,7 @@ func TestAnalyzerAggregatesRepeatedComponentMissingIdentityWarnings(t *testing.T
 		t.Fatalf("summary = %q, want aggregate count", summary)
 	}
 	counts := countFactKinds(result.Output.Facts)
-	if got, want := counts[facts.SBOMComponentFactKind], 1; got != want {
+	if got, want := counts[chain.SBOMComponentFactKind], 1; got != want {
 		t.Fatalf("component facts = %d, want %d", got, want)
 	}
 	if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {
@@ -127,7 +128,7 @@ func TestAnalyzerAllowsSingleComponentAtExactFactLimit(t *testing.T) {
 func warningFactsWithReason(envelopes []facts.Envelope, reason string) []facts.Envelope {
 	out := make([]facts.Envelope, 0)
 	for _, env := range envelopes {
-		if env.FactKind != facts.SBOMWarningFactKind {
+		if env.FactKind != chain.SBOMWarningFactKind {
 			continue
 		}
 		if got, _ := env.Payload["reason"].(string); got == reason {
@@ -160,8 +161,8 @@ func BenchmarkAnalyzerAggregatedMissingIdentityWarnings(b *testing.B) {
 			b.Fatalf("Analyze() error = %v, want nil", err)
 		}
 		counts := countFactKinds(result.Output.Facts)
-		if counts[facts.SBOMWarningFactKind] != 1 {
-			b.Fatalf("warning facts = %d, want 1", counts[facts.SBOMWarningFactKind])
+		if counts[chain.SBOMWarningFactKind] != 1 {
+			b.Fatalf("warning facts = %d, want 1", counts[chain.SBOMWarningFactKind])
 		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
@@ -460,7 +461,7 @@ func packageRegistryPackageImpactFact(factID string, packageID string) facts.Env
 func sbomComponentImpactFact(factID string, documentID string, purl string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.SBOMComponentFactKind,
+		FactKind: chain.SBOMComponentFactKind,
 		Payload: map[string]any{
 			"document_id": documentID,
 			"purl":        purl,

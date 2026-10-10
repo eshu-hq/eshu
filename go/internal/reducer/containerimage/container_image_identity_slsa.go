@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -69,7 +70,7 @@ func extractSLSADigestAnchorsWithQuarantine(
 	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.AttestationStatementFactKind:
+		case chain.AttestationStatementFactKind:
 			statement, err := schemadecode.DecodeAttestationStatement(envelope)
 			if err != nil {
 				q, ok, fatal := factdecode.PartitionDecodeFailures(envelope, err)
@@ -91,7 +92,7 @@ func extractSLSADigestAnchorsWithQuarantine(
 			if len(digests) == 1 {
 				statementSubjects[statement.StatementID] = digests[0]
 			}
-		case facts.AttestationSignatureVerificationFactKind:
+		case chain.AttestationSignatureVerificationFactKind:
 			verification, err := schemadecode.DecodeAttestationSignatureVerification(envelope)
 			if err != nil {
 				q, ok, fatal := factdecode.PartitionDecodeFailures(envelope, err)
@@ -121,7 +122,7 @@ func extractSLSADigestAnchorsWithQuarantine(
 	repositories := source.ExtractRepositories(envelopes)
 	byDigest := map[string]slsaDigestAnchor{}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AttestationSLSAProvenanceFactKind {
+		if envelope.FactKind != chain.AttestationSLSAProvenanceFactKind {
 			continue
 		}
 		provenance, err := schemadecode.DecodeAttestationSLSAProvenance(envelope)

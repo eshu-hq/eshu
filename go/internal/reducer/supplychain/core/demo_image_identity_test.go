@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -92,7 +93,7 @@ func TestBuildSupplyChainImpactFindingsDemoImageIdentityHop(t *testing.T) {
 
 	evidencePath := strings.Join(got.EvidencePath, " -> ")
 	for _, want := range []string{
-		facts.SBOMComponentFactKind,
+		chain.SBOMComponentFactKind,
 		reducercontract.SBOMAttestationAttachmentFactKind,
 		reducercontract.ContainerImageIdentityFactKind,
 	} {
@@ -142,7 +143,7 @@ func demoImageIdentityAffectedPackageFact(factID string) facts.Envelope {
 func demoImageIdentitySBOMComponentFact(factID string, documentID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.SBOMComponentFactKind,
+		FactKind: chain.SBOMComponentFactKind,
 		Payload: map[string]any{
 			"document_id": documentID,
 			"purl":        demoImageIdentityPURL,

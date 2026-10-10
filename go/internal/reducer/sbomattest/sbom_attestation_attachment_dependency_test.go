@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func dependencyRelationshipFact(factID, documentID, from, to, relType, origin string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.SBOMDependencyRelationshipFactKind,
+		FactKind: chain.SBOMDependencyRelationshipFactKind,
 		Payload: map[string]any{
 			"document_id":         documentID,
 			"from_component_id":   from,
@@ -29,7 +30,7 @@ func dependencyRelationshipFact(factID, documentID, from, to, relType, origin st
 func externalReferenceFact(factID, documentID, componentID, refType, refURL, refLocator string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.SBOMExternalReferenceFactKind,
+		FactKind: chain.SBOMExternalReferenceFactKind,
 		Payload: map[string]any{
 			"document_id":       documentID,
 			"component_id":      componentID,
@@ -198,7 +199,7 @@ func TestBuildSBOMAttestationAttachmentDecisionsQuarantinesDependencyMissingDocu
 
 	envelope := facts.Envelope{
 		FactID:   "dep-missing-doc",
-		FactKind: facts.SBOMDependencyRelationshipFactKind,
+		FactKind: chain.SBOMDependencyRelationshipFactKind,
 		Payload: map[string]any{
 			"from_component_id": "a",
 			"to_component_id":   "b",

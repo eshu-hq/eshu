@@ -21,17 +21,17 @@
 // # Fact kinds
 //
 // CycloneDXFixtureEnvelopes and SPDXFixtureEnvelopes emit a subset of the
-// SBOM fact kinds declared in [facts.SBOMAttestationFactKinds]:
+// SBOM fact kinds declared in [chain.SBOMAttestationFactKinds]:
 //
-//   - [facts.SBOMDocumentFactKind] — one per source document with subject
+//   - [chain.SBOMDocumentFactKind] — one per source document with subject
 //     digest, format, spec version, parse status, and counts.
-//   - [facts.SBOMComponentFactKind] — one per projected component or SPDX
+//   - [chain.SBOMComponentFactKind] — one per projected component or SPDX
 //     package, including the metadata.component or SPDXRef-DOCUMENT subject.
-//   - [facts.SBOMExternalReferenceFactKind] — one per CycloneDX external
+//   - [chain.SBOMExternalReferenceFactKind] — one per CycloneDX external
 //     reference or SPDX external ref locator.
-//   - [facts.SBOMDependencyRelationshipFactKind] — one per resolved
+//   - [chain.SBOMDependencyRelationshipFactKind] — one per resolved
 //     dependency or SPDX relationship edge.
-//   - [facts.SBOMWarningFactKind] — one per parser-level warning
+//   - [chain.SBOMWarningFactKind] — one per parser-level warning
 //     (malformed_document, missing_subject, ambiguous_subject,
 //     duplicate_component_identity, unsupported_field,
 //     component_missing_identity, unattached_relationship).

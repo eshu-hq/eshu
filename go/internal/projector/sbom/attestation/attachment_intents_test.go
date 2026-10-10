@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -23,7 +24,7 @@ func attachmentEnvelope(factID, factKind, sourceSystem, collectorKind string) fa
 		ScopeID:       testScopeID,
 		GenerationID:  testGenerationID,
 		FactKind:      factKind,
-		SchemaVersion: facts.SBOMAttestationSchemaVersionV1,
+		SchemaVersion: chain.SBOMAttestationSchemaVersionV1,
 		CollectorKind: collectorKind,
 		SourceRef:     facts.Ref{SourceSystem: sourceSystem},
 	}
@@ -43,9 +44,9 @@ func TestBuildSBOMAttestationAttachmentReducerIntent(t *testing.T) {
 		// The attestation statement is placed before the SBOM document on
 		// purpose: input order picks the anchor, not a per-kind priority.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			{FactID: "decoy-1", FactKind: facts.SBOMComponentFactKind},
-			attachmentEnvelope("fact-attestation-statement", facts.AttestationStatementFactKind, "sbom_attestation", ""),
-			attachmentEnvelope("fact-sbom-doc", facts.SBOMDocumentFactKind, "sbom_attestation", ""),
+			{FactID: "decoy-1", FactKind: chain.SBOMComponentFactKind},
+			attachmentEnvelope("fact-attestation-statement", chain.AttestationStatementFactKind, "sbom_attestation", ""),
+			attachmentEnvelope("fact-sbom-doc", chain.SBOMDocumentFactKind, "sbom_attestation", ""),
 		})
 		got, ok := BuildSBOMAttestationAttachmentReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -66,12 +67,12 @@ func TestBuildSBOMAttestationAttachmentReducerIntent(t *testing.T) {
 	t.Run("every candidate kind triggers on its own", func(t *testing.T) {
 		t.Parallel()
 		for _, kind := range []string{
-			facts.SBOMDocumentFactKind,
-			facts.AttestationStatementFactKind,
+			chain.SBOMDocumentFactKind,
+			chain.AttestationStatementFactKind,
 			facts.OCIImageReferrerFactKind,
 		} {
 			lookup := projectorintent.NewFactLookup([]facts.Envelope{
-				{FactID: "decoy-1", FactKind: facts.SBOMComponentFactKind},
+				{FactID: "decoy-1", FactKind: chain.SBOMComponentFactKind},
 				attachmentEnvelope("anchor-"+kind, kind, "sbom_attestation", ""),
 			})
 			got, ok := BuildSBOMAttestationAttachmentReducerIntent(testScopeID, testGenerationID, lookup)
@@ -87,7 +88,7 @@ func TestBuildSBOMAttestationAttachmentReducerIntent(t *testing.T) {
 	t.Run("falls back to CollectorKind when SourceRef is blank", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			attachmentEnvelope("fact-attestation-statement", facts.AttestationStatementFactKind, "  ", "sbom_attestation"),
+			attachmentEnvelope("fact-attestation-statement", chain.AttestationStatementFactKind, "  ", "sbom_attestation"),
 		})
 		got, ok := BuildSBOMAttestationAttachmentReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -101,7 +102,7 @@ func TestBuildSBOMAttestationAttachmentReducerIntent(t *testing.T) {
 	t.Run("does not queue for component-only evidence", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			attachmentEnvelope("component-only", facts.SBOMComponentFactKind, "sbom_attestation", ""),
+			attachmentEnvelope("component-only", chain.SBOMComponentFactKind, "sbom_attestation", ""),
 		})
 		got, ok := BuildSBOMAttestationAttachmentReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {

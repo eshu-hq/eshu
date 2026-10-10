@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestAnalyzerGeneratesFactsForImageAndArtifactTargets(t *testing.T) {
@@ -41,7 +41,7 @@ func TestAnalyzerGeneratesFactsForImageAndArtifactTargets(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Analyze(%q) error = %v, want nil", tc.kind, err)
 			}
-			if counts := countFactKinds(result.Output.Facts); counts[facts.SBOMDocumentFactKind] != 1 || counts[facts.SBOMComponentFactKind] != 1 {
+			if counts := countFactKinds(result.Output.Facts); counts[chain.SBOMDocumentFactKind] != 1 || counts[chain.SBOMComponentFactKind] != 1 {
 				t.Fatalf("fact counts = %v, want one document and one component", counts)
 			}
 			if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {

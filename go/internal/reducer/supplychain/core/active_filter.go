@@ -147,7 +147,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			for _, dependency := range dependencies {
 				repositoryIDs = append(repositoryIDs, dependency.RepositoryID)
 			}
-		case facts.SBOMComponentFactKind:
+		case chain.SBOMComponentFactKind:
 			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))
 			purls = append(purls, payloadcore.PayloadStr(envelope.Payload, "purl"))
 			documentIDs = append(documentIDs, payloadcore.PayloadStr(envelope.Payload, "document_id"))

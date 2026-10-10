@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -231,7 +232,7 @@ func TestCollectorFactKindsCoversFactEmittingCollectors(t *testing.T) {
 		collector scope.CollectorKind
 		factKinds []string
 	}{
-		{collector: scope.CollectorSBOMAttestation, factKinds: facts.SBOMAttestationFactKinds()},
+		{collector: scope.CollectorSBOMAttestation, factKinds: chain.SBOMAttestationFactKinds()},
 		{collector: scope.CollectorSecurityAlert, factKinds: facts.SecurityAlertFactKinds()},
 		{collector: scope.CollectorCICDRun, factKinds: facts.CICDRunFactKinds()},
 		{collector: scope.CollectorScannerWorker, factKinds: facts.ScannerWorkerFactKinds()},

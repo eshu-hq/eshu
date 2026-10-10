@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -52,8 +53,8 @@ func TestClaimedSourceParsesConfiguredCycloneDXSourceIntoStableRedactedFacts(t *
 
 	first := collectClaimed(t, source, target.ScopeID)
 	second := collectClaimed(t, source, target.ScopeID)
-	firstDoc := requireFactKind(t, first, facts.SBOMDocumentFactKind)
-	secondDoc := requireFactKind(t, second, facts.SBOMDocumentFactKind)
+	firstDoc := requireFactKind(t, first, chain.SBOMDocumentFactKind)
+	secondDoc := requireFactKind(t, second, chain.SBOMDocumentFactKind)
 
 	if got, want := first.Scope.ScopeKind, scope.KindSBOMAttestation; got != want {
 		t.Fatalf("ScopeKind = %q, want %q", got, want)
@@ -107,8 +108,8 @@ func TestClaimedSourceParsesMalformedSBOMAsWarningFacts(t *testing.T) {
 	}
 
 	collected := collectClaimed(t, source, target.ScopeID)
-	doc := requireFactKind(t, collected, facts.SBOMDocumentFactKind)
-	warning := requireFactKind(t, collected, facts.SBOMWarningFactKind)
+	doc := requireFactKind(t, collected, chain.SBOMDocumentFactKind)
+	warning := requireFactKind(t, collected, chain.SBOMWarningFactKind)
 
 	if got, want := payloadString(doc.Payload, "parse_status"), "malformed"; got != want {
 		t.Fatalf("parse_status = %q, want %q", got, want)
@@ -154,11 +155,11 @@ func TestClaimedSourceUsesOCIReferrerTargetWithoutEmittingOCIFacts(t *testing.T)
 	if got, want := provider.calls[0].ReferrerDigest, testReferrerDigest; got != want {
 		t.Fatalf("provider ReferrerDigest = %q, want %q", got, want)
 	}
-	requireFactKind(t, collected, facts.SBOMDocumentFactKind)
+	requireFactKind(t, collected, chain.SBOMDocumentFactKind)
 	if fact := optionalFactKind(collected, facts.OCIImageReferrerFactKind); fact.FactID != "" {
 		t.Fatalf("runtime emitted OCI referrer fact %q; OCI collector owns those facts", fact.FactID)
 	}
-	doc := requireFactKind(t, collected, facts.SBOMDocumentFactKind)
+	doc := requireFactKind(t, collected, chain.SBOMDocumentFactKind)
 	if got, want := doc.SourceRef.SourceRecordID, testReferrerDigest; got != want {
 		t.Fatalf("SourceRecordID = %q, want referrer digest %q", got, want)
 	}
@@ -200,8 +201,8 @@ func TestClaimedSourceEmitsAttestationStatementAndSeparateVerificationFact(t *te
 	}
 
 	collected := collectClaimed(t, source, target.ScopeID)
-	statement := requireFactKind(t, collected, facts.AttestationStatementFactKind)
-	verification := requireFactKind(t, collected, facts.AttestationSignatureVerificationFactKind)
+	statement := requireFactKind(t, collected, chain.AttestationStatementFactKind)
+	verification := requireFactKind(t, collected, chain.AttestationSignatureVerificationFactKind)
 
 	if got, want := payloadString(statement.Payload, "subject_digest"), testSubjectDigest; got != want {
 		t.Fatalf("statement subject_digest = %q, want %q", got, want)

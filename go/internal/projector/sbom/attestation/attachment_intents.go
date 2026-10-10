@@ -5,6 +5,7 @@ package attestation
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -12,7 +13,7 @@ import (
 // sbomAttestationAttachmentCandidateFactKinds are the fact kinds
 // sbomAttestationAttachmentTriggerFact accepts.
 var sbomAttestationAttachmentCandidateFactKinds = []string{
-	facts.SBOMDocumentFactKind, facts.AttestationStatementFactKind, facts.OCIImageReferrerFactKind,
+	chain.SBOMDocumentFactKind, chain.AttestationStatementFactKind, facts.OCIImageReferrerFactKind,
 }
 
 // BuildSBOMAttestationAttachmentReducerIntent enqueues one reducer intent that
@@ -53,7 +54,7 @@ func BuildSBOMAttestationAttachmentReducerIntent(
 // carries both subject and referrer digests.
 func sbomAttestationAttachmentTriggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
-	case facts.SBOMDocumentFactKind, facts.AttestationStatementFactKind, facts.OCIImageReferrerFactKind:
+	case chain.SBOMDocumentFactKind, chain.AttestationStatementFactKind, facts.OCIImageReferrerFactKind:
 		return true
 	default:
 		return false

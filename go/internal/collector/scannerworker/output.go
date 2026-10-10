@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // ValidateFactOutput validates scanner-worker output before fact commit.
@@ -118,7 +119,7 @@ func sourceFactKindAllowed(factKind string) bool {
 	if slices.Contains(facts.ScannerWorkerFactKinds(), factKind) {
 		return true
 	}
-	if slices.Contains(facts.SBOMAttestationFactKinds(), factKind) {
+	if slices.Contains(chain.SBOMAttestationFactKinds(), factKind) {
 		return true
 	}
 	return factKind == facts.VulnerabilityOSPackageFactKind ||
@@ -129,7 +130,7 @@ func sourceFactSchemaVersion(factKind string) (string, bool) {
 	if version, ok := facts.ScannerWorkerSchemaVersion(factKind); ok {
 		return version, true
 	}
-	if version, ok := facts.SBOMAttestationSchemaVersion(factKind); ok {
+	if version, ok := chain.SBOMAttestationSchemaVersion(factKind); ok {
 		return version, true
 	}
 	switch factKind {

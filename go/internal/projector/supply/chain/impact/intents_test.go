@@ -70,7 +70,7 @@ func TestBuildSupplyChainImpactReducerIntentReasonBySourceKind(t *testing.T) {
 	}{
 		{"security alert", facts.SecurityAlertRepositoryAlertFactKind, "provider security alert evidence observed"},
 		{"package identity", facts.PackageRegistryPackageFactKind, "package registry identity observed"},
-		{"SBOM component", facts.SBOMComponentFactKind, "SBOM package evidence observed"},
+		{"SBOM component", chain.SBOMComponentFactKind, "SBOM package evidence observed"},
 		{"suppression", chain.VulnerabilitySuppressionFactKind, "vulnerability suppression evidence observed"},
 		{"OCI manifest", facts.OCIImageManifestFactKind, "OCI image subject evidence observed"},
 		{"OCI referrer", facts.OCIImageReferrerFactKind, "OCI image subject evidence observed"},
@@ -101,7 +101,7 @@ func TestBuildSupplyChainImpactReducerIntentEarliestAcrossKinds(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactKind: facts.SBOMComponentFactKind, FactID: "sbom-fact-1"},
+		{FactKind: chain.SBOMComponentFactKind, FactID: "sbom-fact-1"},
 		{FactKind: facts.VulnerabilityCVEFactKind, FactID: "cve-fact-2"},
 	})
 	intent, ok := BuildSupplyChainImpactReducerIntent("scope-1", "gen-1", lookup)
