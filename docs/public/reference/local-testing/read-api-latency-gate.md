@@ -172,6 +172,16 @@ client overlap; it does not measure backend resource use by itself. Keep the
 existing NornicDB CI lane under its current blocking policy while the
 supported-backend pilot is added.
 
+The dedicated manual Neo4j job allows 45 minutes for cold Compose startup,
+database migration and seeding, host builds, the serial sweep, and the later
+concurrent pass. In [run 38032713508](https://github.com/eshu-hq/eshu/actions/runs/38032713508),
+the serial report arrived 30m8s after the first job-setup log; the former
+30-minute job deadline canceled the remaining work. At 3 operations, 20
+requests each, 4 workers, and a 30-second request timeout, the normal
+concurrent request envelope is 7m30s before cleanup. This job deadline is
+separate from each route's latency and work budgets. The canceled run's raw
+artifacts are incomplete proof; a passing hosted rerun is still required.
+
 Flags mirror the golden corpus gate's: `--keep` leaves the stack up for
 debugging a breach, `--no-compose` assumes Postgres/NornicDB are already
 running. It shares the golden corpus gate's cross-run mutex
