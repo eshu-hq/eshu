@@ -26,9 +26,11 @@ import (
 // heal. They are flagged in eligible by the same definition the probe uses,
 // excluded from the lock set and the prunable leg at any age (including past
 // the hard ceiling), and reported back on a second, lock-free UNION ALL leg
-// capped at the same batch limit, so a scope full of them can neither stall
-// the batch nor vanish silently; the store counts them as Skipped
-// "uncovered_writer", which the retention runner already logs per cycle.
+// capped at the same batch limit, oldest-first with no cursor. Writers past
+// the cap stay retained but uncounted until older ones clear, so the reported
+// count is a floor, not a census. The store counts the reported ones as
+// Skipped "uncovered_writer", which the retention runner already logs per
+// cycle.
 //
 // $1 soft cutoff, $2 min newer superseded generations, $3 batch/lock-set
 // limit (each leg separately), $4 hard-ceiling cutoff (#7585): the count

@@ -20,7 +20,10 @@ import (
 // (UncoveredProjectionWriters) needs to force a full snapshot — retention
 // must not prune it, at any age. A covered writer (older than the last
 // activated full) carries no such evidence and must still prune, so the
-// exclusion mirrors the probe instead of over-retaining.
+// exclusion mirrors the probe instead of over-retaining. A second scope with
+// no activated full pins the COALESCE '-infinity' default through this query:
+// with no horizon, every writer is uncovered and must be retained and counted
+// as skipped.
 func TestGenerationRetentionKeepsUncoveredWritersLive(t *testing.T) {
 	// Bridge the live-postgres-readiness runner's family DSN onto the shared
 	// helper's generic variable. Local runs keep using ESHU_POSTGRES_TEST_DSN
@@ -61,6 +64,16 @@ func TestGenerationRetentionKeepsUncoveredWritersLive(t *testing.T) {
 		writeStartedAt: coveredWrite, isDelta: true,
 	})
 
+	// Fail-closed scope: no activated full at all, so the horizon
+	// subquery has no row and the '-infinity' default fires. The old
+	// writer is uncovered by definition and must be retained and counted.
+	const bareScopeID = "retention-uncovered-bare"
+	testfixtures.SeedScope(t, ctx, database, bareScopeID)
+	seedUncoveredWriterGeneration(t, ctx, database, bareScopeID, bareScopeID+"-writer", generationWriterSeed{
+		supersededAt: old, ingestedAt: old,
+		writeStartedAt: old, isDelta: false,
+	})
+
 	store := NewGenerationRetentionStore(SQLDB{DB: database})
 	store.Now = func() time.Time { return now }
 	result, err := store.PruneSupersededGenerations(ctx, GenerationRetentionPolicy{
@@ -77,6 +90,7 @@ func TestGenerationRetentionKeepsUncoveredWritersLive(t *testing.T) {
 
 	remaining := remainingScopeGenerations(t, ctx, database, []string{
 		scopeID + "-full", scopeID + "-uncovered", scopeID + "-covered",
+		bareScopeID + "-writer",
 	})
 	if !remaining[scopeID+"-full"] {
 		t.Errorf("coverage-horizon full %s was pruned, want retained (too recent to be eligible)", scopeID+"-full")
@@ -87,11 +101,14 @@ func TestGenerationRetentionKeepsUncoveredWritersLive(t *testing.T) {
 	if remaining[scopeID+"-covered"] {
 		t.Errorf("covered writer %s was retained, want pruned (older than the last activated full)", scopeID+"-covered")
 	}
+	if !remaining[bareScopeID+"-writer"] {
+		t.Errorf("fail-closed writer %s was pruned, want retained (no activated full, so the '-infinity' default must fire)", bareScopeID+"-writer")
+	}
 	if result.GenerationsPruned != 1 {
 		t.Errorf("GenerationsPruned = %d, want 1 (the covered writer only)", result.GenerationsPruned)
 	}
-	if got := result.Skipped["uncovered_writer"]; got != 1 {
-		t.Errorf(`Skipped["uncovered_writer"] = %d, want 1`, got)
+	if got := result.Skipped["uncovered_writer"]; got != 2 {
+		t.Errorf(`Skipped["uncovered_writer"] = %d, want 2 (the uncovered writer plus the fail-closed writer)`, got)
 	}
 }
 
