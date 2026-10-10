@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"regexp"
 	"regexp/syntax"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"unicode"
@@ -233,6 +234,21 @@ func hclMutantCases(t *testing.T) []hclMutantCase {
 	return out
 }
 
+// pinnedEquivalentHCLMutants are the sweep mutants that no input can kill
+// because the altered pattern accepts exactly the same language as the
+// production pattern. Each is a word boundary inserted where the neighbouring
+// pattern already forces a boundary, so the gate it derives is stricter on
+// paper and identical in effect. The sweep checks each against a second
+// corpus and fails when an entry stops surviving or an unlisted mutant
+// survives. Keys are scan name / mutation name @ site index.
+var pinnedEquivalentHCLMutants = map[string]string{
+	"includePath/invent word boundaries@0":          `\b\bPATH\b\s*=: the leading \b is already in the pattern, and the byte after PATH is whitespace or "=", never a word character`,
+	"configFunction/invent word boundaries@0":       `\b(?:\bFILE\b|templatefile)\(: the leading \b is already in the pattern, and "(" follows FILE, never a word character`,
+	"configFunction/invent word boundaries@1":       `\b(?:file|\btemplatefile\b)\(: the leading \b is already in the pattern, and "(" follows TEMPLATEFILE, never a word character`,
+	"dependencyConfigPath/invent word boundaries@0": `\bconfig_path\b: it is preceded by line start, CR, LF or \s (all non-word) and followed by \s*=`,
+	"moduleSource/invent word boundaries@4":         `\b\bterraform\b\s*\{: the leading \b is already in the pattern, and \s or "{" follows terraform, never a word character`,
+}
+
 // TestHCLPrefilterMutantsAreKilled is the seeded-violation RED/GREEN pair
 // for the wiring. GREEN: the production prefilters give identical rows over
 // the corpus (the equality test). RED: each gate weakened in a way that makes
@@ -253,11 +269,13 @@ func TestHCLPrefilterMutantsAreKilled(t *testing.T) {
 		t.Fatalf("only %d gate mutants were generated; the sweep is not covering the gates", len(cases))
 	}
 	perScan := map[int]int{}
-	var killed, equivalent atomic.Int64
+	var killed atomic.Int64
+	var survivors sync.Map // mutant key -> true, for survivors identical to production on the second corpus
 	t.Run("sweep", func(t *testing.T) {
 		for _, c := range cases {
 			perScan[c.scan]++
-			t.Run(hclScanNames[c.scan]+"/"+c.name, func(t *testing.T) {
+			key := hclScanNames[c.scan] + "/" + c.name
+			t.Run(key, func(t *testing.T) {
 				t.Parallel()
 				res := hclScanRegexps()
 				res[c.scan] = regexp.MustCompile(c.pattern)
@@ -269,26 +287,38 @@ func TestHCLPrefilterMutantsAreKilled(t *testing.T) {
 						return
 					}
 				}
-				// Surviving is acceptable only when the altered pattern is
-				// indistinguishable from the production pattern on a large
-				// independent corpus: an equivalent mutant, such as a \b the
-				// neighbouring \s+ or \( already implies. A mutant that is
-				// narrower on some file but changes no rows means the corpus
-				// lacks the case.
+				// A survivor must be indistinguishable from the production
+				// pattern on a large independent corpus. A mutant that is
+				// narrower on some file but changes no rows means the
+				// corpus lacks the case.
 				orig := hclScanRegexps()[c.scan]
 				for _, f := range hclCorpus(4000, 977) {
 					if !reflect.DeepEqual(orig.FindAllStringSubmatch(f.Content, -1), res[c.scan].FindAllStringSubmatch(f.Content, -1)) {
-						t.Errorf("SURVIVED: mutant %s of %s (pattern %s) is narrower than the production pattern on %q but changed no rows; add the case to the corpus",
-							c.name, hclScanNames[c.scan], c.pattern, f.Content)
+						t.Errorf("SURVIVED: mutant %s (pattern %s) is narrower than the production pattern on %q but changed no rows; add the case to the corpus",
+							key, c.pattern, f.Content)
 						return
 					}
 				}
-				equivalent.Add(1)
-				t.Logf("equivalent on the corpus: %s of %s (pattern %s)", c.name, hclScanNames[c.scan], c.pattern)
+				survivors.Store(key, true)
+				if _, ok := pinnedEquivalentHCLMutants[key]; !ok {
+					t.Errorf("UNPINNED SURVIVOR: mutant %s (pattern %s) changed no rows and matches production on the second corpus. "+
+						"Prove it language-equivalent and pin it with its argument, or add the case that kills it", key, c.pattern)
+					return
+				}
+				t.Logf("pinned equivalent: %s: %s", key, pinnedEquivalentHCLMutants[key])
 			})
 		}
 	})
-	t.Logf("gate mutants=%d killed=%d equivalent=%d", len(cases), killed.Load(), equivalent.Load())
+	// The pin list cannot rot: a pinned mutant that now dies, or no longer
+	// exists, means its equivalence argument no longer describes the sweep.
+	for key := range pinnedEquivalentHCLMutants {
+		if _, ok := survivors.Load(key); !ok {
+			t.Errorf("pinned equivalent mutant %s no longer survives (killed, or not generated); remove or re-derive its pin", key)
+		}
+	}
+	nSurvivors := 0
+	survivors.Range(func(_, _ any) bool { nSurvivors++; return true })
+	t.Logf("gate mutants=%d killed=%d equivalent=%d", len(cases), killed.Load(), nSurvivors)
 	for scan, name := range hclScanNames {
 		if perScan[scan] == 0 {
 			t.Errorf("no mutants for scan %s; its gate is not under test", name)

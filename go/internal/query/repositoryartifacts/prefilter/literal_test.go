@@ -31,8 +31,8 @@ func TestMatcherAgreesWithRegexpOnTargetedInputs(t *testing.T) {
 		{"boundary after holds at end", `source\b`, "a source"},
 		{"boundary after fails before underscore", `source\b`, "source_x"},
 		{"boundary after holds before non-ASCII letter", `source\b`, "source\u00e9"},
-		{"long s then boundary", `(?i)\bsource\b`, "x \u017fource y"},
-		{"long s preceded by word char fails boundary", `(?i)\bsource\b`, "x\u017fource"},
+		{"long s after a space has no boundary", `(?i)\bsource\b`, "x \u017fource y"},
+		{"long s after a word char holds the boundary", `(?i)\bsource\b`, "x\u017fource"},
 		{"nul bytes", `(?i)a_b`, "\x00A_B\x00"},
 		{"crlf", `(?im)^\s*config_path`, "a\r\nCONFIG_PATH = 1\r\n"},
 		{"invalid utf8 prefix", `(?i)source`, "\xff\xfesource"},
@@ -55,6 +55,35 @@ func TestMatcherAgreesWithRegexpOnTargetedInputs(t *testing.T) {
 				t.Fatalf("UNSOUND: %q matches %q but the gate (%s) rejects it", tc.pattern, tc.input, set.Describe(0))
 			}
 		})
+	}
+}
+
+// TestLongSBoundaryFollowsGoWordRule pins the subtle case the HCL gate relies
+// on: U+017F folds to s but is not an ASCII word character, so \b before it
+// holds only when a word character precedes it. Go's own matcher is the
+// reference, and the gate must agree on every match.
+func TestLongSBoundaryFollowsGoWordRule(t *testing.T) {
+	t.Parallel()
+	re := regexp.MustCompile(`(?i)\bsource\b`)
+	set := NewSet(re)
+	for _, tc := range []struct {
+		input string
+		match bool
+	}{
+		{"x\u017fource", true},
+		{"_\u017fource ", true},
+		{" \u017fource", false},
+		{"{\u017fource", false},
+		{"x \u017fource y", false},
+		{"\u017fource", false},
+		{"source", true},
+	} {
+		if got := re.MatchString(tc.input); got != tc.match {
+			t.Fatalf("Go matcher for %q = %v, test expectation %v; revisit the boundary assumption", tc.input, got, tc.match)
+		}
+		if tc.match && !set.Evaluate(tc.input)[0] {
+			t.Errorf("gate rejects %q, which Go matches", tc.input)
+		}
 	}
 }
 

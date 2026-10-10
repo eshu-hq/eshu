@@ -14,11 +14,13 @@
 //
 // Soundness is the contract. When Set.Evaluate reports false for an
 // expression, the expression has no match in the text, for every input
-// including invalid UTF-8. A true value carries no claim. Whatever the
-// analysis cannot prove (a class, a wildcard, an optional or repeated part)
-// contributes no requirement, and an expression with no requirement at all is
-// reported ungated and always evaluates true. There is no hand-kept token
-// list: nothing is gated that the pattern itself does not force.
+// including invalid UTF-8. A true value carries no claim. A small class (four
+// runes or fewer) is a set of exact alternatives and a plus keeps its
+// operand's requirement. Whatever the analysis cannot prove (a large class, a
+// wildcard, an optional or starred part) contributes no requirement, and an
+// expression with no requirement at all is reported ungated and always
+// evaluates true. There is no hand-kept token list: nothing is gated that the
+// pattern itself does not force.
 //
 // The package is pure: no state between calls, no I/O, no configuration.
 package prefilter

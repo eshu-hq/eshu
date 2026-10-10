@@ -24,10 +24,12 @@ majority of inputs that cannot match (#7126).
 - **Word boundaries follow Go.** A `\b` placed directly against a fragment is
   checked with Go's ASCII-only word rule, in which every non-ASCII rune is a
   non-word character.
-- **Unprovable means ungated.** Classes, wildcards, optional and repeated
-  parts add no requirement. A pattern with nothing derivable is reported
-  ungated and always evaluates true. A pattern fragment containing U+FFFD is
-  never gated, because invalid bytes decode to it.
+- **Unprovable means ungated.** A class of four runes or fewer is a set of
+  exact alternatives and a `+` part keeps its operand's requirement. Large
+  classes, wildcards, and optional or starred parts add no requirement. A
+  pattern with nothing derivable is reported ungated and always evaluates
+  true. A pattern fragment containing U+FFFD is never gated, because invalid
+  bytes decode to it.
 
 ## How the derivation works
 

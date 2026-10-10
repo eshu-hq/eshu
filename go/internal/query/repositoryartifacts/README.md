@@ -99,9 +99,13 @@ the equality differential in
 `repository_config_artifacts_hcl_prefilter_test.go` against a frozen copy of
 the pre-prefilter extractor, the pinned derivation in
 `TestHCLPrefilterDerivationIsPinned`, and the mutation sweep in
-`repository_config_artifacts_hcl_prefilter_mutation_test.go`. A change to one
-of the six patterns changes its derived gate; update the pinned derivation
-and re-run the sweep in the same change.
+`repository_config_artifacts_hcl_prefilter_mutation_test.go`. The sweep pins
+its few language-equivalent survivors by name with an equivalence argument, and
+fails on an unpinned survivor or a pinned one that now dies.
+`BenchmarkHCLScanShippedVsGated` times the frozen extractor against the gated
+one on six content shapes at 2, 12 and 86 KB. A change to one of the six
+patterns changes its derived gate; update the pinned derivation and re-run the
+sweep in the same change.
 
 ## Dependencies
 
