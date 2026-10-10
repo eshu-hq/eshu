@@ -171,6 +171,18 @@ class ContractTest(unittest.TestCase):
         git("commit", "-q", "-m", "candidate proof sources")
         git("update-ref", "refs/remotes/origin/main", base)
         environment = os.environ.copy()
+        hosted_event = self.root / "hosted-event.json"
+        hosted_event.write_text("{}")
+        environment.update({
+            "GITHUB_EVENT_NAME": "pull_request",
+            "GITHUB_EVENT_PATH": str(hosted_event),
+            "GITHUB_SHA": "f" * 40,
+            "GITHUB_REF": "refs/pull/42/merge",
+        })
+        self.assertNotEqual(environment["GITHUB_SHA"], git("rev-parse", "HEAD"))
+        # The scratch hook must resolve its own Git DAG, not the parent's event.
+        for key in ("GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH", "GITHUB_SHA", "GITHUB_REF"):
+            environment.pop(key, None)
         environment["PATH"] = f"{fake_go.parent}:{environment['PATH']}"
         environment["SHIM_LOG"] = str(self.root / "go-shim.log")
 
