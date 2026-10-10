@@ -199,6 +199,13 @@ func (f routeFailureContent) ListRepoEntitiesByIDs(ctx context.Context, repoID s
 	return f.FakePortContentStore.ListRepoEntitiesByIDs(ctx, repoID, ids, limit)
 }
 
+// ListRepoEntitiesByKeys finds no key match and, unlike the embedded fake,
+// ignores a canceled context, so a client-cancel case reaches the step under
+// test instead of failing in metadata enrichment first.
+func (f routeFailureContent) ListRepoEntitiesByKeys(context.Context, string, []querycontract.EntityContentKey) ([]querycontract.EntityContent, error) {
+	return nil, nil
+}
+
 func (f routeFailureContent) SearchEntityNames(context.Context, entitycontract.EntityNameSearch) ([]querycontract.EntityContent, error) {
 	return nil, f.nameSearchErr
 }

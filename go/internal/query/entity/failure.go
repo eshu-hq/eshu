@@ -3,6 +3,18 @@
 
 package entity
 
+import (
+	"context"
+	"errors"
+	"net/http"
+
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
+)
+
 // Fixed response messages for a service context, investigation, or story read
 // that failed for a reason that is not a fence or graph verdict (#7626). A
 // backend error quotes SQL, Cypher, and host detail, so the client sees only
@@ -40,3 +52,36 @@ const (
 	workloadStoryQueryFailedMessage            = "workload story query failed"
 	workloadStoryEnrichmentFailedMessage       = "workload story enrichment failed"
 )
+
+// writeReadFailure answers a failed read step of an entity route.
+// querycontract.WriteGraphReadError runs first, so a reader fence answers the
+// retryable 503 and a graph verdict its 503 or 504. Anything else answers
+// message through tracing.WriteServerFailure: 500 with err recorded on the
+// request span, or 499 with only the client-cancel event when the caller
+// canceled the request. err's text never reaches the body.
+func writeReadFailure(w http.ResponseWriter, r *http.Request, err error, capability, message string) {
+	if querycontract.WriteGraphReadError(w, r, err, capability) {
+		return
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
+}
+
+// unavailableSentinel reports whether err is a configuration-state 503 for
+// sentinel: err wraps sentinel and ctx, the request context, was not canceled
+// by the client. When it holds, it records err on ctx's span with sentinel's
+// text as the Error description, and the caller answers 503 with that
+// sentinel's own text, never err's, because a wrapper can quote backend
+// detail. Name the sentinel at the write site (ErrFoo.Error()) so the
+// #7674 guard sees fixed text. The answer carries no Retry-After: the state
+// does not clear on its own. When it does not hold, the caller's
+// tracing.WriteServerFailure step answers (499 for a client cancel). Call it
+// after querycontract.WriteGraphReadError.
+func unavailableSentinel(ctx context.Context, err, sentinel error) bool {
+	if !errors.Is(err, sentinel) || tracing.ClientCanceled(ctx, err) {
+		return false
+	}
+	span := trace.SpanFromContext(ctx)
+	span.RecordError(err)
+	span.SetStatus(codes.Error, sentinel.Error())
+	return true
+}

@@ -200,12 +200,12 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: dff8459e3718ddeeffb0c14d0f63b660f33d03f137e4a574d0e54a1d643e4382
+          source_sha256: 9b703a01c6a3ca395d92cc740c69c7b4c87ec6890e6c3b86b4fd319cff6d9bdd
           key_bound: single_key
           max_results: 1
   - file: entity/handler.go
     calls:
-      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 5f8c4acb35418321c55a93d08e3e5ddfb638e6451c6889e99caec76ba1f24182, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 321bc4fd27fcdd2d870106b7a38ec79af71bfb8d7e128ece119dc9589c0bce11, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
   - file: entity/resolve_workload.go
     calls:
       - {symbol: "(*Handler).ResolveWorkloadEntities", count: 2, source_sha256: 0f5ae69f1f825814cd2e58fecb146589dc2733e95fe9dd24163c0bb2939473ad, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
