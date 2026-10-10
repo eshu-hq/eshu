@@ -23,8 +23,17 @@ func TestApplyBootstrapExecutesDefinitionsInOrder(t *testing.T) {
 
 	got := exec.statements
 	defs := BootstrapDefinitions()
-	want := make([]string, 0, len(defs))
+	want := make([]string, 0, len(defs)+2)
 	for _, def := range defs {
+		if def.Name == "content_files_generation_id" {
+			update := strings.Index(def.SQL, "\n\nUPDATE content_files AS f\n")
+			analyze := strings.Index(def.SQL, "\n\nANALYZE content_files;")
+			if update < 0 || analyze <= update {
+				t.Fatal("migration 169 phase boundaries changed")
+			}
+			want = append(want, def.SQL[:update], def.SQL[update:analyze], def.SQL[analyze:])
+			continue
+		}
 		want = append(want, def.SQL)
 	}
 	if len(got) != len(want) {
