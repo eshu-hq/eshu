@@ -25,7 +25,7 @@ import (
 // `if envelope.FactKind != facts.<Kind>FactKind { continue }` (or `return
 // false`) in go/internal/reducer alone, immediately followed by real payload
 // field reads. go/internal/reducer/packages/correlation/source.go
-// (`extractPackageSourceHints`)'s `if envelope.FactKind != facts.PackageRegistrySourceHintFactKind {
+// (`extractPackageSourceHints`)'s `if envelope.FactKind != chain.PackageRegistrySourceHintFactKind {
 // continue }` — followed by payload reads of "normalized_url"
 // and friends — is the concrete case that was missed when this scan only
 // matched token.EQL: package_registry.source_hint was wrongly disclosed as

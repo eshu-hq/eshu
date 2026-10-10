@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -117,7 +118,7 @@ func TestBuildSecretsIAMTrustChainReducerIntent(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			{FactID: "decoy-1", FactKind: "code_symbol_reference"},
-			{FactID: "decoy-2", FactKind: facts.PackageRegistryPackageFactKind},
+			{FactID: "decoy-2", FactKind: chain.PackageRegistryPackageFactKind},
 		})
 		got, ok := BuildSecretsIAMTrustChainReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {

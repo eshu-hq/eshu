@@ -5,6 +5,7 @@ package security
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -12,7 +13,7 @@ import (
 // securityAlertReconciliationCandidateFactKinds are the fact kinds
 // securityAlertReconciliationTriggerFact accepts.
 var securityAlertReconciliationCandidateFactKinds = []string{
-	facts.SecurityAlertRepositoryAlertFactKind, facts.PackageRegistryPackageFactKind,
+	facts.SecurityAlertRepositoryAlertFactKind, chain.PackageRegistryPackageFactKind,
 }
 
 // BuildSecurityAlertReconciliationReducerIntent builds the scope-generation
@@ -40,7 +41,7 @@ func BuildSecurityAlertReconciliationReducerIntent(
 func securityAlertReconciliationTriggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
 	case facts.SecurityAlertRepositoryAlertFactKind,
-		facts.PackageRegistryPackageFactKind:
+		chain.PackageRegistryPackageFactKind:
 		return true
 	default:
 		return false
@@ -48,7 +49,7 @@ func securityAlertReconciliationTriggerFact(envelope facts.Envelope) bool {
 }
 
 func securityAlertReconciliationReason(envelope facts.Envelope) string {
-	if envelope.FactKind == facts.PackageRegistryPackageFactKind {
+	if envelope.FactKind == chain.PackageRegistryPackageFactKind {
 		return "package registry identity observed"
 	}
 	return "provider security alert evidence observed"

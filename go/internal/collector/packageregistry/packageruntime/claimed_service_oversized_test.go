@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -88,7 +89,7 @@ func TestClaimedServiceCompletesMetadataTooLargeWithoutRetry(t *testing.T) {
 	if committer.claimedCalls != 1 {
 		t.Fatalf("CommitClaimedScopeGeneration calls = %d, want 1 warning generation", committer.claimedCalls)
 	}
-	if got := committer.factKindCounts[facts.PackageRegistryWarningFactKind]; got != 1 {
+	if got := committer.factKindCounts[chain.PackageRegistryWarningFactKind]; got != 1 {
 		t.Fatalf("committed warning facts = %d, want 1", got)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
@@ -85,11 +86,11 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		return facts.Envelope{}, err
 	}
 
-	stableFactKey := facts.StableID(facts.PackageRegistryWarningFactKind, stableIdentity)
+	stableFactKey := facts.StableID(chain.PackageRegistryWarningFactKind, stableIdentity)
 	envelope := newEnvelope(envelopeInput{
-		factKind:            facts.PackageRegistryWarningFactKind,
+		factKind:            chain.PackageRegistryWarningFactKind,
 		stableFactKey:       stableFactKey,
-		schemaVersion:       facts.PackageRegistryWarningSchemaVersion,
+		schemaVersion:       chain.PackageRegistryWarningSchemaVersion,
 		scopeID:             observation.ScopeID,
 		generationID:        observation.GenerationID,
 		collectorInstanceID: observation.CollectorInstanceID,

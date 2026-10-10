@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // NewPackageArtifactEnvelope builds the durable artifact fact for one package
@@ -30,7 +31,7 @@ func NewPackageArtifactEnvelope(observation PackageArtifactObservation) (facts.E
 		return facts.Envelope{}, fmt.Errorf("package artifact key must not be blank")
 	}
 
-	stableFactKey := facts.StableID(facts.PackageRegistryPackageArtifactFactKind, map[string]any{
+	stableFactKey := facts.StableID(chain.PackageRegistryPackageArtifactFactKind, map[string]any{
 		"artifact_key": artifactKey,
 		"version_id":   versionID,
 	})
@@ -53,9 +54,9 @@ func NewPackageArtifactEnvelope(observation PackageArtifactObservation) (facts.E
 	}
 
 	envelope := newEnvelope(envelopeInput{
-		factKind:            facts.PackageRegistryPackageArtifactFactKind,
+		factKind:            chain.PackageRegistryPackageArtifactFactKind,
 		stableFactKey:       stableFactKey,
-		schemaVersion:       facts.PackageRegistryPackageArtifactSchemaVersion,
+		schemaVersion:       chain.PackageRegistryPackageArtifactSchemaVersion,
 		scopeID:             observation.ScopeID,
 		generationID:        observation.GenerationID,
 		collectorInstanceID: observation.CollectorInstanceID,

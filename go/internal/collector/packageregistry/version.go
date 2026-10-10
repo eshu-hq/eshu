@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
@@ -38,7 +39,7 @@ func NewPackageVersionEnvelope(observation PackageVersionObservation) (facts.Env
 
 	observedAt := normalizedObservedAt(observation.ObservedAt)
 	versionID := normalized.PackageID + "@" + version
-	stableFactKey := facts.StableID(facts.PackageRegistryPackageVersionFactKind, map[string]any{
+	stableFactKey := facts.StableID(chain.PackageRegistryPackageVersionFactKind, map[string]any{
 		"version_id": versionID,
 	})
 	publishedAt := ""
@@ -69,12 +70,12 @@ func NewPackageVersionEnvelope(observation PackageVersionObservation) (facts.Env
 	}
 
 	return facts.Envelope{
-		FactID:           packageRegistryFactID(facts.PackageRegistryPackageVersionFactKind, stableFactKey, observation.ScopeID, observation.GenerationID),
+		FactID:           packageRegistryFactID(chain.PackageRegistryPackageVersionFactKind, stableFactKey, observation.ScopeID, observation.GenerationID),
 		ScopeID:          observation.ScopeID,
 		GenerationID:     observation.GenerationID,
-		FactKind:         facts.PackageRegistryPackageVersionFactKind,
+		FactKind:         chain.PackageRegistryPackageVersionFactKind,
 		StableFactKey:    stableFactKey,
-		SchemaVersion:    facts.PackageRegistryPackageVersionSchemaVersion,
+		SchemaVersion:    chain.PackageRegistryPackageVersionSchemaVersion,
 		CollectorKind:    CollectorKind,
 		FencingToken:     observation.FencingToken,
 		SourceConfidence: facts.SourceConfidenceReported,

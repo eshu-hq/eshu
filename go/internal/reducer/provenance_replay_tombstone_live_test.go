@@ -452,9 +452,9 @@ func assertProvenanceReplayEndpoints(t *testing.T, envelopes []facts.Envelope) {
 		switch envelope.FactKind {
 		case "repository":
 			want["repository:"+replayPayloadString(envelope.Payload, "repo_id")] = true
-		case facts.PackageRegistryPackageFactKind:
+		case chain.PackageRegistryPackageFactKind:
 			want["package:"+replayPayloadString(envelope.Payload, "package_id")] = true
-		case facts.PackageRegistryPackageVersionFactKind:
+		case chain.PackageRegistryPackageVersionFactKind:
 			want["version:"+replayPayloadString(envelope.Payload, "version_id")] = true
 		case chain.OCIImageManifestFactKind:
 			want["digest:"+replayPayloadString(envelope.Payload, "digest")] = true

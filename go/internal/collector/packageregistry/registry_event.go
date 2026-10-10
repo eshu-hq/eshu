@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // NewRegistryEventEnvelope builds the durable source-reported registry event
@@ -38,7 +39,7 @@ func NewRegistryEventEnvelope(observation RegistryEventObservation) (facts.Envel
 	}
 	artifactKey := strings.TrimSpace(observation.ArtifactKey)
 
-	stableFactKey := facts.StableID(facts.PackageRegistryRegistryEventFactKind, map[string]any{
+	stableFactKey := facts.StableID(chain.PackageRegistryRegistryEventFactKind, map[string]any{
 		"artifact_key": artifactKey,
 		"event_key":    eventKey,
 		"event_type":   eventType,
@@ -62,9 +63,9 @@ func NewRegistryEventEnvelope(observation RegistryEventObservation) (facts.Envel
 	}
 
 	envelope := newEnvelope(envelopeInput{
-		factKind:            facts.PackageRegistryRegistryEventFactKind,
+		factKind:            chain.PackageRegistryRegistryEventFactKind,
 		stableFactKey:       stableFactKey,
-		schemaVersion:       facts.PackageRegistryRegistryEventSchemaVersion,
+		schemaVersion:       chain.PackageRegistryRegistryEventSchemaVersion,
 		scopeID:             observation.ScopeID,
 		generationID:        observation.GenerationID,
 		collectorInstanceID: observation.CollectorInstanceID,

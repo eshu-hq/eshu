@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
@@ -46,7 +47,7 @@ func TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion(t *testing.T) {
 	}
 	assertNotContainsString(t, got.MissingEvidence, "image or SBOM attachment evidence missing")
 	path := strings.Join(got.EvidencePath, " -> ")
-	if strings.Contains(path, facts.PackageRegistryPackageVersionFactKind) {
+	if strings.Contains(path, chain.PackageRegistryPackageVersionFactKind) {
 		t.Fatalf("EvidencePath = %#v, must not treat registry versions as installed versions", got.EvidencePath)
 	}
 	if !strings.Contains(path, correlation.PackageConsumptionFactKind) {

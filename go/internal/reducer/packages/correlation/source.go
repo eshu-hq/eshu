@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -80,7 +81,7 @@ func BuildPackageSourceDecisions(envelopes []facts.Envelope) []PackageSourceDeci
 func extractPackageSourceHints(envelopes []facts.Envelope) []packageSourceHint {
 	hints := make([]packageSourceHint, 0)
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.PackageRegistrySourceHintFactKind {
+		if envelope.FactKind != chain.PackageRegistrySourceHintFactKind {
 			continue
 		}
 		sourceURL := payloadcore.FirstNonBlank(

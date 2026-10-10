@@ -4,7 +4,7 @@
 package source
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -25,7 +25,7 @@ func BuildReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	if envelope, ok := lookup.FirstOfKind(facts.PackageRegistrySourceHintFactKind); ok {
+	if envelope, ok := lookup.FirstOfKind(chain.PackageRegistrySourceHintFactKind); ok {
 		return projectorintent.ReducerIntent{
 			ScopeID:      scopeID,
 			GenerationID: generationID,
@@ -36,7 +36,7 @@ func BuildReducerIntent(
 			SourceSystem: projectorintent.SourceSystem(envelope),
 		}, true
 	}
-	if envelope, ok := lookup.FirstOfKind(facts.PackageRegistryPackageFactKind); ok {
+	if envelope, ok := lookup.FirstOfKind(chain.PackageRegistryPackageFactKind); ok {
 		return projectorintent.ReducerIntent{
 			ScopeID:      scopeID,
 			GenerationID: generationID,

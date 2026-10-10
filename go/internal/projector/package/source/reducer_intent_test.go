@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -23,8 +24,8 @@ func sourceHintEnvelope(factID, sourceSystem, collectorKind string) facts.Envelo
 		FactID:           factID,
 		ScopeID:          testScopeID,
 		GenerationID:     testGenerationID,
-		FactKind:         facts.PackageRegistrySourceHintFactKind,
-		SchemaVersion:    facts.PackageRegistrySourceHintSchemaVersion,
+		FactKind:         chain.PackageRegistrySourceHintFactKind,
+		SchemaVersion:    chain.PackageRegistrySourceHintSchemaVersion,
 		CollectorKind:    collectorKind,
 		SourceConfidence: "reported",
 		ObservedAt:       time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
@@ -42,8 +43,8 @@ func packageIdentityEnvelope(factID, sourceSystem, collectorKind string) facts.E
 		FactID:           factID,
 		ScopeID:          testScopeID,
 		GenerationID:     testGenerationID,
-		FactKind:         facts.PackageRegistryPackageFactKind,
-		SchemaVersion:    facts.PackageRegistryPackageSchemaVersion,
+		FactKind:         chain.PackageRegistryPackageFactKind,
+		SchemaVersion:    chain.PackageRegistryPackageSchemaVersion,
 		CollectorKind:    collectorKind,
 		SourceConfidence: "reported",
 		ObservedAt:       time.Date(2026, 5, 23, 10, 0, 0, 0, time.UTC),
@@ -137,7 +138,7 @@ func TestBuildReducerIntent(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			{FactID: "decoy-1", FactKind: "code_symbol_reference"},
-			{FactID: "decoy-2", FactKind: facts.PackageRegistryPackageVersionFactKind},
+			{FactID: "decoy-2", FactKind: chain.PackageRegistryPackageVersionFactKind},
 		})
 		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {

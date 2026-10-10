@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
@@ -365,9 +366,9 @@ func packageSourceSummary(
 
 func packageSourceFactKinds() []string {
 	return []string{
-		facts.PackageRegistrySourceHintFactKind,
-		facts.PackageRegistryPackageFactKind,
-		facts.PackageRegistryPackageVersionFactKind,
+		chain.PackageRegistrySourceHintFactKind,
+		chain.PackageRegistryPackageFactKind,
+		chain.PackageRegistryPackageVersionFactKind,
 		factload.FactKindRepository,
 	}
 }

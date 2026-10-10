@@ -137,7 +137,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))
 			cveIDs = append(cveIDs, payloadcore.PayloadStrings(envelope.Payload, "cve_id", "cve_ids")...)
 			repositoryIDs = append(repositoryIDs, payloadcore.PayloadStr(envelope.Payload, "repository_id"))
-		case facts.PackageRegistryPackageFactKind:
+		case chain.PackageRegistryPackageFactKind:
 			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))
 		case correlation.PackageConsumptionFactKind:
 			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))

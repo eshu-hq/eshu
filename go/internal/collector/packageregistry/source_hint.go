@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // NewSourceHintEnvelope builds the durable source-hint fact for one package
@@ -44,7 +45,7 @@ func NewSourceHintEnvelope(observation SourceHintObservation) (facts.Envelope, e
 		versionID = pkg.PackageID + "@" + version
 	}
 
-	stableFactKey := facts.StableID(facts.PackageRegistrySourceHintFactKind, map[string]any{
+	stableFactKey := facts.StableID(chain.PackageRegistrySourceHintFactKind, map[string]any{
 		"hint_kind":      hintKind,
 		"package_id":     pkg.PackageID,
 		"source_url":     stableURL,
@@ -65,9 +66,9 @@ func NewSourceHintEnvelope(observation SourceHintObservation) (facts.Envelope, e
 	}
 
 	envelope := newEnvelope(envelopeInput{
-		factKind:            facts.PackageRegistrySourceHintFactKind,
+		factKind:            chain.PackageRegistrySourceHintFactKind,
 		stableFactKey:       stableFactKey,
-		schemaVersion:       facts.PackageRegistrySourceHintSchemaVersion,
+		schemaVersion:       chain.PackageRegistrySourceHintSchemaVersion,
 		scopeID:             observation.ScopeID,
 		generationID:        observation.GenerationID,
 		collectorInstanceID: observation.CollectorInstanceID,

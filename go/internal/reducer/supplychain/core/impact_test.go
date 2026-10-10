@@ -436,7 +436,7 @@ func vulnerabilityKEVFact(factID string, cveID string) facts.Envelope {
 func packageVersionFact(factID string, packageID string, purl string, version string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.PackageRegistryPackageVersionFactKind,
+		FactKind: chain.PackageRegistryPackageVersionFactKind,
 		Payload: map[string]any{
 			"package_id": packageID,
 			"purl":       purl,
@@ -448,7 +448,7 @@ func packageVersionFact(factID string, packageID string, purl string, version st
 func packageRegistryPackageImpactFact(factID string, packageID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.PackageRegistryPackageFactKind,
+		FactKind: chain.PackageRegistryPackageFactKind,
 		Payload: map[string]any{
 			"package_id":      packageID,
 			"ecosystem":       "npm",

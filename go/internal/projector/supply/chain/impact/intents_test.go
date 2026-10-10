@@ -69,7 +69,7 @@ func TestBuildSupplyChainImpactReducerIntentReasonBySourceKind(t *testing.T) {
 		reason   string
 	}{
 		{"security alert", facts.SecurityAlertRepositoryAlertFactKind, "provider security alert evidence observed"},
-		{"package identity", facts.PackageRegistryPackageFactKind, "package registry identity observed"},
+		{"package identity", chain.PackageRegistryPackageFactKind, "package registry identity observed"},
 		{"SBOM component", chain.SBOMComponentFactKind, "SBOM package evidence observed"},
 		{"suppression", chain.VulnerabilitySuppressionFactKind, "vulnerability suppression evidence observed"},
 		{"OCI manifest", chain.OCIImageManifestFactKind, "OCI image subject evidence observed"},

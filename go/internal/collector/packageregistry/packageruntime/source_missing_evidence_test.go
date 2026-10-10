@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestClaimedSourceCompletesDerivedNotFoundAsWarning(t *testing.T) {
@@ -55,7 +56,7 @@ func TestClaimedSourceCompletesDerivedNotFoundAsWarning(t *testing.T) {
 
 	var warnings int
 	for envelope := range collected.Facts {
-		if envelope.FactKind != facts.PackageRegistryWarningFactKind {
+		if envelope.FactKind != chain.PackageRegistryWarningFactKind {
 			t.Fatalf("FactKind = %q, want only warning evidence", envelope.FactKind)
 		}
 		warnings++
@@ -109,7 +110,7 @@ func TestClaimedSourceCompletesMetadataTooLargeAsCoverageGapWarning(t *testing.T
 
 	var warnings int
 	for envelope := range collected.Facts {
-		if envelope.FactKind != facts.PackageRegistryWarningFactKind {
+		if envelope.FactKind != chain.PackageRegistryWarningFactKind {
 			t.Fatalf("FactKind = %q, want only warning evidence", envelope.FactKind)
 		}
 		warnings++
@@ -287,7 +288,7 @@ func assertSinglePackageRegistryWarningCode(t *testing.T, collected collector.Co
 	var warnings int
 	var warning facts.Envelope
 	for envelope := range collected.Facts {
-		if envelope.FactKind != facts.PackageRegistryWarningFactKind {
+		if envelope.FactKind != chain.PackageRegistryWarningFactKind {
 			t.Fatalf("FactKind = %q, want only warning evidence", envelope.FactKind)
 		}
 		warning = envelope

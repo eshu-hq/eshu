@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
@@ -33,7 +34,7 @@ func NewPackageEnvelope(observation PackageObservation) (facts.Envelope, error) 
 		visibility = VisibilityUnknown
 	}
 
-	stableFactKey := facts.StableID(facts.PackageRegistryPackageFactKind, map[string]any{
+	stableFactKey := facts.StableID(chain.PackageRegistryPackageFactKind, map[string]any{
 		"package_id": normalized.PackageID,
 	})
 	payload := map[string]any{
@@ -76,12 +77,12 @@ func NewPackageEnvelope(observation PackageObservation) (facts.Envelope, error) 
 	}
 
 	return facts.Envelope{
-		FactID:           packageRegistryFactID(facts.PackageRegistryPackageFactKind, stableFactKey, observation.ScopeID, observation.GenerationID),
+		FactID:           packageRegistryFactID(chain.PackageRegistryPackageFactKind, stableFactKey, observation.ScopeID, observation.GenerationID),
 		ScopeID:          observation.ScopeID,
 		GenerationID:     observation.GenerationID,
-		FactKind:         facts.PackageRegistryPackageFactKind,
+		FactKind:         chain.PackageRegistryPackageFactKind,
 		StableFactKey:    stableFactKey,
-		SchemaVersion:    facts.PackageRegistryPackageSchemaVersion,
+		SchemaVersion:    chain.PackageRegistryPackageSchemaVersion,
 		CollectorKind:    CollectorKind,
 		FencingToken:     observation.FencingToken,
 		SourceConfidence: facts.SourceConfidenceReported,

@@ -6,7 +6,6 @@ package decode
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
@@ -32,7 +31,7 @@ func TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage(t *testing.T)
 		{FactID: "tf-1", FactKind: cloud.TerraformStateResourceFactKind, Field: "address"},
 		{FactID: "oci-1", FactKind: chain.OCIImageManifestFactKind, Field: "digest"},
 		{FactID: "tf-2", FactKind: cloud.TerraformStateTagObservationFactKind, Field: "resource_address"},
-		{FactID: "pkg-1", FactKind: facts.PackageRegistryPackageFactKind, Field: "package_id"},
+		{FactID: "pkg-1", FactKind: chain.PackageRegistryPackageFactKind, Field: "package_id"},
 		{FactID: "code-1", FactKind: FactKindFileObserved, Field: "relative_path"},
 	}
 
@@ -104,8 +103,8 @@ func TestQuarantinedFactStageRoutesAndFallsBack(t *testing.T) {
 		factKind  string
 		wantStage string
 	}{
-		{facts.PackageRegistryPackageFactKind, PackageRegistryCanonicalStage},
-		{facts.PackageRegistryPackageDependencyFactKind, PackageRegistryCanonicalStage},
+		{chain.PackageRegistryPackageFactKind, PackageRegistryCanonicalStage},
+		{chain.PackageRegistryPackageDependencyFactKind, PackageRegistryCanonicalStage},
 		{cloud.TerraformStateResourceFactKind, TerraformStateCanonicalStage},
 		{chain.OCIImageManifestFactKind, OCIRegistryCanonicalStage},
 		{chain.OCIRegistryRepositoryFactKind, OCIRegistryCanonicalStage},

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestPackageRegistryIdentityKeyRowsDeriveAllOwnershipKeys(t *testing.T) {
@@ -20,7 +21,7 @@ func TestPackageRegistryIdentityKeyRowsDeriveAllOwnershipKeys(t *testing.T) {
 			FactID:       "registry-live",
 			ScopeID:      "registry-scope",
 			GenerationID: "generation-1",
-			FactKind:     facts.PackageRegistryPackageFactKind,
+			FactKind:     chain.PackageRegistryPackageFactKind,
 			Payload: map[string]any{
 				"package_id":      "pkg:npm/@scope/example@1.0.0",
 				"ecosystem":       "npm",
@@ -29,7 +30,7 @@ func TestPackageRegistryIdentityKeyRowsDeriveAllOwnershipKeys(t *testing.T) {
 				"namespace":       "@scope",
 			},
 		},
-		{FactID: "registry-tombstone", FactKind: facts.PackageRegistryPackageFactKind, IsTombstone: true},
+		{FactID: "registry-tombstone", FactKind: chain.PackageRegistryPackageFactKind, IsTombstone: true},
 		{FactID: "not-registry", FactKind: "content_entity"},
 	})
 
@@ -50,7 +51,7 @@ func TestRefreshPackageRegistryIdentityKeysReplacesAcceptedFacts(t *testing.T) {
 		FactID:       "registry-live",
 		ScopeID:      "registry-scope",
 		GenerationID: "generation-1",
-		FactKind:     facts.PackageRegistryPackageFactKind,
+		FactKind:     chain.PackageRegistryPackageFactKind,
 		Payload: map[string]any{
 			"package_id": "pkg:npm/example@1.0.0",
 			"ecosystem":  "npm",

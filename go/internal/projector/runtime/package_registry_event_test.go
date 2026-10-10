@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // This file holds the package_registry.registry_event-specific canonical
@@ -139,9 +140,9 @@ func packageRegistryEventFact() facts.Envelope {
 		FactID:           "package-registry-event-1",
 		ScopeID:          "package-registry-scope-1",
 		GenerationID:     "package-registry-generation-1",
-		FactKind:         facts.PackageRegistryRegistryEventFactKind,
+		FactKind:         chain.PackageRegistryRegistryEventFactKind,
 		StableFactKey:    "package-registry-event-1",
-		SchemaVersion:    facts.PackageRegistryRegistryEventSchemaVersion,
+		SchemaVersion:    chain.PackageRegistryRegistryEventSchemaVersion,
 		CollectorKind:    "package_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.June, 1, 9, 30, 0, 0, time.UTC),

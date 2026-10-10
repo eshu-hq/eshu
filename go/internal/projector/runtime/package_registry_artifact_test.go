@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // This file holds the package_registry.package_artifact-specific canonical
@@ -215,9 +216,9 @@ func packageRegistryArtifactFact() facts.Envelope {
 		FactID:           "package-registry-artifact-1",
 		ScopeID:          "package-registry-scope-1",
 		GenerationID:     "package-registry-generation-1",
-		FactKind:         facts.PackageRegistryPackageArtifactFactKind,
+		FactKind:         chain.PackageRegistryPackageArtifactFactKind,
 		StableFactKey:    "package-registry-artifact-1",
-		SchemaVersion:    facts.PackageRegistryPackageArtifactSchemaVersion,
+		SchemaVersion:    chain.PackageRegistryPackageArtifactSchemaVersion,
 		CollectorKind:    "package_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 13, 14, 0, 0, 0, time.UTC),

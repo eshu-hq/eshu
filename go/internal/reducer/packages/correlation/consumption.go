@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -209,7 +210,7 @@ func ExtractPackageRegistryIdentities(envelopes []facts.Envelope) []PackageRegis
 	seen := make(map[string]struct{})
 	out := make([]PackageRegistryIdentity, 0)
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.PackageRegistryPackageFactKind || envelope.IsTombstone {
+		if envelope.FactKind != chain.PackageRegistryPackageFactKind || envelope.IsTombstone {
 			continue
 		}
 		packageID := payloadcore.PayloadStr(envelope.Payload, "package_id")

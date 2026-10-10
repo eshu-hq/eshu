@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestPackageDependencyObservationBuildsReportedEnvelope(t *testing.T) {
@@ -44,7 +45,7 @@ func TestPackageDependencyObservationBuildsReportedEnvelope(t *testing.T) {
 		t.Fatalf("NewPackageDependencyEnvelope() error = %v", err)
 	}
 
-	assertReportedPackageRegistryEnvelope(t, envelope, facts.PackageRegistryPackageDependencyFactKind, facts.PackageRegistryPackageDependencySchemaVersion)
+	assertReportedPackageRegistryEnvelope(t, envelope, chain.PackageRegistryPackageDependencyFactKind, chain.PackageRegistryPackageDependencySchemaVersion)
 	if !envelope.ObservedAt.Equal(observedAt) {
 		t.Fatalf("ObservedAt = %s, want %s", envelope.ObservedAt, observedAt)
 	}
@@ -152,7 +153,7 @@ func TestPackageArtifactObservationBuildsReportedEnvelope(t *testing.T) {
 		t.Fatalf("NewPackageArtifactEnvelope() error = %v", err)
 	}
 
-	assertReportedPackageRegistryEnvelope(t, envelope, facts.PackageRegistryPackageArtifactFactKind, facts.PackageRegistryPackageArtifactSchemaVersion)
+	assertReportedPackageRegistryEnvelope(t, envelope, chain.PackageRegistryPackageArtifactFactKind, chain.PackageRegistryPackageArtifactSchemaVersion)
 	if got := envelope.Payload["version_id"]; got != "maven://repo.maven.apache.org/maven2/org.example:core-api@1.2.3" {
 		t.Fatalf("version_id = %#v", got)
 	}
@@ -194,7 +195,7 @@ func TestSourceHintObservationBuildsReportedEnvelope(t *testing.T) {
 		t.Fatalf("NewSourceHintEnvelope() error = %v", err)
 	}
 
-	assertReportedPackageRegistryEnvelope(t, envelope, facts.PackageRegistrySourceHintFactKind, facts.PackageRegistrySourceHintSchemaVersion)
+	assertReportedPackageRegistryEnvelope(t, envelope, chain.PackageRegistrySourceHintFactKind, chain.PackageRegistrySourceHintSchemaVersion)
 	if got := envelope.Payload["raw_url"]; got != "https://github.com/example/friendly-bard" {
 		t.Fatalf("raw_url = %#v", got)
 	}
@@ -230,7 +231,7 @@ func TestRepositoryHostingObservationBuildsReportedEnvelope(t *testing.T) {
 		t.Fatalf("NewRepositoryHostingEnvelope() error = %v", err)
 	}
 
-	assertReportedPackageRegistryEnvelope(t, envelope, facts.PackageRegistryRepositoryHostingFactKind, facts.PackageRegistryRepositoryHostingSchemaVersion)
+	assertReportedPackageRegistryEnvelope(t, envelope, chain.PackageRegistryRepositoryHostingFactKind, chain.PackageRegistryRepositoryHostingSchemaVersion)
 	if got := envelope.Payload["registry"]; got != "jfrog.example/artifactory" {
 		t.Fatalf("registry = %#v", got)
 	}
@@ -263,7 +264,7 @@ func TestWarningObservationBuildsReportedEnvelope(t *testing.T) {
 		t.Fatalf("NewWarningEnvelope() error = %v", err)
 	}
 
-	assertReportedPackageRegistryEnvelope(t, envelope, facts.PackageRegistryWarningFactKind, facts.PackageRegistryWarningSchemaVersion)
+	assertReportedPackageRegistryEnvelope(t, envelope, chain.PackageRegistryWarningFactKind, chain.PackageRegistryWarningSchemaVersion)
 	if got := envelope.Payload["message"]; got != "skipped https://registry.example/pkg after rate limit" {
 		t.Fatalf("message = %#v", got)
 	}

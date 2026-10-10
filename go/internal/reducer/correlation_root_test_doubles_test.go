@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
@@ -27,7 +28,7 @@ import (
 
 func packageSourceHintFact(packageID, hintKind, normalizedURL string, observedAt time.Time) facts.Envelope {
 	return facts.Envelope{
-		FactKind:   facts.PackageRegistrySourceHintFactKind,
+		FactKind:   chain.PackageRegistrySourceHintFactKind,
 		ObservedAt: observedAt,
 		Payload: map[string]any{
 			"package_id":        packageID,
@@ -68,7 +69,7 @@ func packageRegistryPackageFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:        "package-fact:" + packageID,
-		FactKind:      facts.PackageRegistryPackageFactKind,
+		FactKind:      chain.PackageRegistryPackageFactKind,
 		ObservedAt:    observedAt,
 		IsTombstone:   false,
 		SourceRef:     facts.Ref{SourceSystem: "package_registry"},
@@ -100,7 +101,7 @@ func packageRegistryPackageVersionFact(
 	}
 	return facts.Envelope{
 		FactID:        factID,
-		FactKind:      facts.PackageRegistryPackageVersionFactKind,
+		FactKind:      chain.PackageRegistryPackageVersionFactKind,
 		ObservedAt:    observedAt,
 		IsTombstone:   false,
 		SourceRef:     facts.Ref{SourceSystem: "package_registry"},

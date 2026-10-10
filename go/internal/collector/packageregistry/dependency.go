@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // NewPackageDependencyEnvelope builds the durable dependency fact for one
@@ -30,7 +31,7 @@ func NewPackageDependencyEnvelope(observation PackageDependencyObservation) (fac
 	}
 
 	dependencyType := strings.TrimSpace(observation.DependencyType)
-	stableFactKey := facts.StableID(facts.PackageRegistryPackageDependencyFactKind, map[string]any{
+	stableFactKey := facts.StableID(chain.PackageRegistryPackageDependencyFactKind, map[string]any{
 		"dependency_package_id": dependency.PackageID,
 		"dependency_range":      strings.TrimSpace(observation.Range),
 		"dependency_type":       dependencyType,
@@ -68,9 +69,9 @@ func NewPackageDependencyEnvelope(observation PackageDependencyObservation) (fac
 	}
 
 	envelope := newEnvelope(envelopeInput{
-		factKind:            facts.PackageRegistryPackageDependencyFactKind,
+		factKind:            chain.PackageRegistryPackageDependencyFactKind,
 		stableFactKey:       stableFactKey,
-		schemaVersion:       facts.PackageRegistryPackageDependencySchemaVersion,
+		schemaVersion:       chain.PackageRegistryPackageDependencySchemaVersion,
 		scopeID:             observation.ScopeID,
 		generationID:        observation.GenerationID,
 		collectorInstanceID: observation.CollectorInstanceID,

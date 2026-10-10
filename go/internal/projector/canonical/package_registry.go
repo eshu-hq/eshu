@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -136,35 +137,35 @@ func ExtractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts
 	for _, envelope := range envelopes {
 		var err error
 		switch envelope.FactKind {
-		case facts.PackageRegistryPackageFactKind:
+		case chain.PackageRegistryPackageFactKind:
 			var row PackageRegistryPackageRow
 			var ok bool
 			row, ok, err = packageRegistryPackageRow(envelope)
 			if ok {
 				mat.PackageRegistryPackages = append(mat.PackageRegistryPackages, row)
 			}
-		case facts.PackageRegistryPackageVersionFactKind:
+		case chain.PackageRegistryPackageVersionFactKind:
 			var row PackageRegistryVersionRow
 			var ok bool
 			row, ok, err = packageRegistryVersionRow(envelope)
 			if ok {
 				mat.PackageRegistryVersions = append(mat.PackageRegistryVersions, row)
 			}
-		case facts.PackageRegistryPackageDependencyFactKind:
+		case chain.PackageRegistryPackageDependencyFactKind:
 			var row PackageRegistryDependencyRow
 			var ok bool
 			row, ok, err = packageRegistryDependencyRow(envelope)
 			if ok {
 				mat.PackageRegistryDependencies = append(mat.PackageRegistryDependencies, row)
 			}
-		case facts.PackageRegistryPackageArtifactFactKind:
+		case chain.PackageRegistryPackageArtifactFactKind:
 			var row PackageRegistryArtifactRow
 			var ok bool
 			row, ok, err = packageRegistryArtifactRow(envelope)
 			if ok {
 				mat.PackageRegistryArtifacts = append(mat.PackageRegistryArtifacts, row)
 			}
-		case facts.PackageRegistryRegistryEventFactKind:
+		case chain.PackageRegistryRegistryEventFactKind:
 			var row PackageRegistryEventRow
 			var ok bool
 			row, ok, err = packageRegistryEventRow(envelope)
