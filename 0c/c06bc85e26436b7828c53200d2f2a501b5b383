@@ -1,0 +1,37 @@
+go/internal/cigates/README.md
+  s_29175cf8c573b8::t_2b978a63c247ee 27-28
+go/internal/cigates/pathfilter.go
+  s_29175cf8c573b8::t_5fb569bf9d9cde 45-47
+go/internal/evidencecontinuity/AGENTS.md
+  s_29175cf8c573b8::t_ec9294a5dff217 44
+go/internal/evidencecontinuity/README.md
+  s_29175cf8c573b8::t_e152d30a7001df 26,89
+go/internal/evidencecontinuity/doc.go
+  s_29175cf8c573b8::t_adc7a9b50e128a 25
+go/internal/evidencecontinuity/gatetriggers.go
+  s_29175cf8c573b8::t_a7ba8ca6115c7c 125-126
+go/internal/evidencecontinuity/gatetriggers_codedeps_test.go
+  s_29175cf8c573b8::t_755f9e02ee9279 26
+scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh
+  s_29175cf8c573b8::t_984bd79e2239f6 7-19,33
+scripts/test-run-live-backend-tests.sh
+  s_29175cf8c573b8::t_26758f185da36c 64-65
+scripts/test-verify-ifa-dead-letter-matrix.sh
+  s_29175cf8c573b8::t_166403e93bd118 193,212-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0cc06bc85e26436b7828c53200d2f2a501b5b383",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
