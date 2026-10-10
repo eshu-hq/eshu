@@ -192,3 +192,41 @@ func TestSupersedeRunningLocksWorkBeforeGenerationWithLeaseFence(t *testing.T) {
 		t.Error("the work UPDATE must update exactly the locked work row")
 	}
 }
+
+// TestMarkerFenceQueryShapes pins the #7819 marker fence protocol: the lock
+// statement reads exactly the scope's fence row non-blocking, and the bump
+// statement touches only that row. The marker must never wait on the fence
+// (it already waits on the generation row under lock_timeout) and must never
+// lock a work row.
+func TestMarkerFenceQueryShapes(t *testing.T) {
+	t.Parallel()
+	for _, want := range []string{
+		"FROM projector_scope_claim_fences",
+		"WHERE scope_id = $1",
+		"FOR NO KEY UPDATE SKIP LOCKED",
+	} {
+		if !strings.Contains(lockProjectorMarkerFenceQuery, want) {
+			t.Errorf("lockProjectorMarkerFenceQuery lacks %q", want)
+		}
+	}
+	for _, want := range []string{
+		"UPDATE projector_scope_claim_fences",
+		"SET fence = fence + 1",
+		"WHERE scope_id = $1",
+	} {
+		if !strings.Contains(bumpProjectorMarkerFenceQuery, want) {
+			t.Errorf("bumpProjectorMarkerFenceQuery lacks %q", want)
+		}
+	}
+	for name, q := range map[string]string{
+		"lockProjectorMarkerFenceQuery": lockProjectorMarkerFenceQuery,
+		"bumpProjectorMarkerFenceQuery": bumpProjectorMarkerFenceQuery,
+	} {
+		if strings.Contains(q, "fact_work_items") {
+			t.Errorf("%s must not touch work rows", name)
+		}
+	}
+	if strings.Contains(bumpProjectorMarkerFenceQuery, "SKIP LOCKED") {
+		t.Error("bumpProjectorMarkerFenceQuery updates the already-held row and must not skip")
+	}
+}

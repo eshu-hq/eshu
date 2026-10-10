@@ -154,6 +154,10 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		return proofResult{}, nil
 	case strings.Contains(query, "set_config('lock_timeout'"):
 		return proofResult{}, nil
+	case query == bumpProjectorMarkerFenceQuery:
+		// #7819: the proof domain models no claim fence and no concurrent
+		// claimer, so the marker's fence bump is a no-op.
+		return proofResult{}, nil
 	case strings.Contains(query, "set_config('eshu.package_manifest_consumption_keys_writer'"):
 		return proofResult{}, nil
 	case strings.Contains(query, "DELETE FROM package_manifest_consumption_keys"):
@@ -192,6 +196,10 @@ func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...a
 		return newProofRows(proofDeltaBaselineFenceRows(tx.state, args)), nil
 	case query == markProjectionWriteStartedQuery:
 		return newProofRows(proofMarkProjectionWriteStartedRows(tx.state, args)), nil
+	case query == lockProjectorMarkerFenceQuery:
+		// #7819: the proof domain models no claim fence and no concurrent
+		// claimer, so the marker's fence lock always finds its row.
+		return newProofRows([][]any{{int64(0)}}), nil
 	case strings.Contains(query, "WITH latest_generations AS"):
 		return newProofRows(proofLatestRelationshipFactRows(tx.state)), nil
 	case strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'"):

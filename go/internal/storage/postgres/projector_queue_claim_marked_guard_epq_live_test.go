@@ -277,17 +277,54 @@ JOIN fact_work_items AS w2 ON w2.generation_id = 'gen-il2'
 WHERE g1.generation_id = 'gen-il1'
 `
 
-// markGuardSweepRaceMarker is the racing marker write. It carries the shipped
-// marker's status fence but not its lease EXISTS: gen-il1 must stay retrying
-// for the sweep to engage it, and on a retrying row the shipped EXISTS could
-// never pass. The lease fence is orthogonal and pinned by the write-marker
-// shape tests; this models the generation-row write the sweep races.
+// markGuardSweepRaceMarker is the racing marker's generation-row write. It
+// carries the shipped marker's status fence but not its lease EXISTS: gen-il1
+// must stay retrying for the sweep to engage it, and on a retrying row the
+// shipped EXISTS could never pass. The lease fence is orthogonal and pinned by
+// the write-marker shape tests. The race runs this inside the shipped fence
+// protocol (lockProjectorMarkerFenceQuery, then this write, then
+// bumpProjectorMarkerFenceQuery), using the shipped consts verbatim so the
+// modeled marker cannot drift from the real one.
 const markGuardSweepRaceMarker = `
 UPDATE scope_generations
 SET projection_write_started_at = now()
 WHERE generation_id = 'gen-il1'
   AND status IN ('pending', 'failed')
 `
+
+// runMarkGuardSweepRaceMarker runs one racing marker attempt against
+// scope-il: lock the claim fence row, write the marker, bump the fence, and
+// commit. A busy fence defers (rollback, nil error), like the shipped
+// MarkProjectionWriteStarted. Unlike the shipped marker it bumps and
+// commits even when the modeled write marks no row; that is
+// assertion-neutral here (a post-hoc bump cannot move a completed claim,
+// and the absolute fence value is unused across iterations). The
+// generation-row write is the modeled markGuardSweepRaceMarker; the fence
+// statements are the shipped consts.
+func runMarkGuardSweepRaceMarker(ctx context.Context, t *testing.T, markerDB *sql.DB) error {
+	t.Helper()
+	tx, err := markerDB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	var fence int64
+	if err := tx.QueryRowContext(ctx, lockProjectorMarkerFenceQuery, "scope-il").Scan(&fence); err != nil {
+		_ = tx.Rollback()
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, markGuardSweepRaceMarker); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, bumpProjectorMarkerFenceQuery, "scope-il"); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
 
 // markGuardSweepRaceIterations is the #7469 ruling's N for marker-vs-sweep.
 const markGuardSweepRaceIterations = 1000
@@ -302,11 +339,15 @@ const markGuardSweepRaceIterations = 1000
 // leave the retry spared (claimed or still retrying) with gen-il2 pending
 // behind it, and a sweep that wins must leave gen-il1 superseded with no
 // marker while the claim takes gen-il2. Both winning (gen-il1 superseded AND
-// marked) is the double win the marker_spared flag closes, and sparing
-// gen-il1 while claiming gen-il2 in the same statement is the split decision
-// its oldest-ready guard closes: the pool only sees the snapshot, so without
-// the lock-time guard a marker that commits mid-statement is spared by the
-// sweep while the newer row is claimed behind its back.
+// marked) is the double win the marker_spared flag closes. Sparing gen-il1
+// while claiming gen-il2 in the same statement is the split decision the
+// #7819 fence protocol closes: the marker locks the scope's claim fence row
+// before writing, so a marker in flight makes the claim skip the scope, a
+// claim in flight makes the marker defer, and a marker that commits between
+// the claim's snapshot and its fence lock drops the candidate through the
+// #7115 fence recheck. The racing marker models a real attempt: it defers on
+// a busy fence and retries nothing, so a deferred trial ends with the sweep
+// winning outright.
 func TestProjectorClaimMarkerSweepRace(t *testing.T) {
 	dsn := claimMaintenanceProofDSN(t)
 	control := openClaimDeadlockProofDB(t, dsn, 4)
@@ -350,7 +391,7 @@ func TestProjectorClaimMarkerSweepRace(t *testing.T) {
 			if mode == 1 {
 				time.Sleep(delay)
 			}
-			_, markerErr = markerDB.ExecContext(ctx, markGuardSweepRaceMarker)
+			markerErr = runMarkGuardSweepRaceMarker(ctx, t, markerDB)
 		}()
 		go func() {
 			defer wg.Done()
@@ -403,18 +444,16 @@ func TestProjectorClaimMarkerSweepRace(t *testing.T) {
 		if workStatus == "superseded" && marked == "true" {
 			t.Errorf("double win %q seen %d times: the sweep retired a marked generation", final, count)
 		}
-		// The split decision is MEASURED, not asserted: the sweep spared the
-		// marked retry but the same statement claimed the newer row behind
-		// it. It needs a three-way conjunction: the holder unmarked in the
+		// The split decision is ASSERTED zero: the sweep spared the marked
+		// retry but the same statement claimed the newer row behind it. It
+		// needs a three-way conjunction: the holder unmarked in the
 		// snapshot, the marker transaction in flight (and so SKIP-invisible)
 		// during the sweep's generation pull, and the newer row sorting
-		// oldest by updated_at. Predicting the in-flight transaction's
-		// future would need serialization or a fence-bump-on-marker protocol
-		// change, both beyond #7469; the consequence is bounded (a temporary
-		// backward pointer: deltas are refused by the #7319 fence and the
-		// next sync heals), strictly milder than the pre-fix always-retire,
-		// and production-rarer than this adversarial every-trial race.
-		// Follow-up: close the skip-blindness (see the #7469 evidence note).
+		// oldest by updated_at. #7819 closes it with the fence-bump-on-marker
+		// protocol change: the marker locks the scope's claim fence row
+		// before the generation row, so the marker commit and a claim's
+		// fence lock serialize and a claim whose snapshot predates the
+		// marker drops its candidate through the #7115 fence recheck.
 		if marked == "true" && newerStatus != "pending" {
 			splits[order] += count
 		}
@@ -422,8 +461,13 @@ func TestProjectorClaimMarkerSweepRace(t *testing.T) {
 			t.Errorf("final %q seen %d times: an unmarked retrying row beside a newer sibling must be swept or marked", final, count)
 		}
 	}
-	t.Logf("split decisions (measured residual, see comment): natural=%d drifted=%d of %d",
+	t.Logf("split decisions (asserted zero, see comment): natural=%d drifted=%d of %d",
 		splits["natural"], splits["drifted"], markGuardSweepRaceIterations)
+	if splits["natural"] != 0 || splits["drifted"] != 0 {
+		t.Errorf("split decisions natural=%d drifted=%d, want 0 on both parities: "+
+			"the sweep spared a marked retry while the same statement claimed the newer row",
+			splits["natural"], splits["drifted"])
+	}
 	if delta := deadlocksAfter - deadlocksBefore; delta != 0 {
 		t.Errorf("pg_stat_database.deadlocks delta = %d, want 0", delta)
 	}

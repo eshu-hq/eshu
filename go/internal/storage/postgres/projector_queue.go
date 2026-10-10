@@ -217,7 +217,9 @@ func (q ProjectorQueue) Ack(
 	// other generations, target generation), Fail (scope, work, generation) and
 	// the ingestion commit (scope, generation, work). The delta-baseline refusal
 	// takes no scope row and shares work-then-generation with Ack. The
-	// write-start marker locks only its own generation row.
+	// write-start marker locks the scope's fence row SKIP LOCKED (#7819) and
+	// then only its own generation row; it never waits on the fence, so this
+	// order still holds.
 	if _, err := tx.ExecContext(ctx, updateProjectorScopeGenerationQuery,
 		now, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
 		return fmt.Errorf("ack projector work: update scope active generation: %w", err)
