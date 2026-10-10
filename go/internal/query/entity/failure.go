@@ -18,3 +18,25 @@ const (
 	serviceStoryCICDEvidenceFailedMessage       = "service story ci/cd evidence load failed"
 	serviceStorySupplyChainFailedMessage        = "service story supply chain evidence enrichment failed"
 )
+
+// Fixed response messages for the entity resolve, entity context, and
+// workload context and story routes (#7674), one per route step, with the
+// same contract as the service messages above.
+const (
+	resolveEntityQueryFailedMessage            = "entity resolve query failed"
+	resolveEntityEnrichmentFailedMessage       = "entity resolve enrichment failed"
+	resolveEntityRepoIdentityFailedMessage     = "entity resolve repository identity hydration failed"
+	resolveEntityContentFallbackFailedMessage  = "entity resolve content fallback failed"
+	resolveGlobalContentEntitiesFailedMessage  = "global entity resolve failed"
+	resolveCanonicalContentEntityFailedMessage = "canonical content entity resolve failed"
+	resolveCanonicalRepoIdentityFailedMessage  = "canonical content entity repository identity hydration failed"
+	resolveWorkloadEntitiesFailedMessage       = "workload entity resolve failed"
+	entityContextQueryFailedMessage            = "entity context query failed"
+	entityContextContentFallbackFailedMessage  = "entity context content fallback failed"
+	entityContextRepoIdentityFailedMessage     = "entity context repository identity hydration failed"
+	entityContextEnrichmentFailedMessage       = "entity context enrichment failed"
+	workloadContextQueryFailedMessage          = "workload context query failed"
+	workloadContextEnrichmentFailedMessage     = "workload context enrichment failed"
+	workloadStoryQueryFailedMessage            = "workload story query failed"
+	workloadStoryEnrichmentFailedMessage       = "workload story enrichment failed"
+)
