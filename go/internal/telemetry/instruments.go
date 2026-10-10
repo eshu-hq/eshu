@@ -6197,7 +6197,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 			"torn_set (flight could not validate its set; retried), "+
 			"gave_up_flights (caller waited out 3 flights; sustained churn), "+
 			"gave_up_wall (caller waited one heartbeat interval; a slow flight); "+
-			"both fail the item retryably after one final probe"),
+			"both fail the item retryably after a final epoch probe finds no cache entry "+
+			"for the current epoch (a give-up that waited runs its own probe; a caller "+
+			"that arrives at the lead decision with its budget spent is covered by the "+
+			"probe at the top of that same pass)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCacheFlightWaiterTotal counter: %w", err)

@@ -230,6 +230,10 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 			// The caller spent its whole wait budget on other callers' flights.
 			// A caller that has used up its budget never leads: its item fails
 			// retryably and the next caller, with a fresh budget, leads (#7805).
+			// This path calls gaveUp, not giveUp, on purpose: the probe at the
+			// top of this same pass already ran after the caller's last wait,
+			// and nothing but mu sits between it and here, so that probe (and
+			// the cache check above it) is the final probe giveUp would repeat.
 			c.mu.Unlock()
 			return nil, c.gaveUp(ctx, identityWaiterGaveUpWall, identityGaveUpWallClock)
 		}
@@ -270,6 +274,10 @@ func (c *IdentityEpochCache) settleWaiter(
 		return nil, false, nil
 	}
 	if flight.err != nil {
+		// One load error fails every joinable waiter, each losing one queue
+		// attempt (standard singleflight sharing). The tradeoff against
+		// re-probing is in docs/internal/evidence/7805-identity-epoch-flight.md,
+		// the paragraph that opens "A load error is shared".
 		c.inst.IdentityCacheFlightWaiterTotal.Add(ctx, 1,
 			metric.WithAttributes(telemetry.AttrOutcome(identityWaiterSharedError)))
 		return nil, true, flight.err

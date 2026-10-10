@@ -164,7 +164,17 @@ into two labels on one counter: `gave_up_flights` dominant means sustained churn
 `gave_up_wall` dominant means a slow stable flight (a load longer than about 30 s also
 trips the wall bound, with the same class). Before a waiter gives up it makes one final
 probe and is served a cache that a consistent flight filled in the meantime; the probe
-never starts a load.
+never starts a load. That probe is `giveUp` in
+`go/internal/storage/postgres/facts_active_container_image_identity.go`, reached
+from a wait that expired or from three unserved flights. A caller that instead
+reaches the lead decision with its wait budget already spent calls `gaveUp`
+directly, with no second probe, and that is deliberate: it arrives there from the
+top of a pass whose epoch probe ran after its last wait, and the only things
+between that probe and the give-up are `mu` and the in-memory cache check, which
+serves a cache entry matching that probe before the budget is looked at. That
+pass-top probe is the final probe; a second one would sample the same epoch
+microseconds later. Both paths record `gave_up_wall` and fail with
+`identity_epoch_unstable`.
 Tests: `TestContainerImageIdentityHandlerGivesUpAfterThreeTornFlights` (a
 handler that joins three torn flights fails retryably with no decision write),
 `TestIdentityEpochCacheWaiterGivesUpAfterOneHeartbeatInterval` and
@@ -266,6 +276,24 @@ activations in about 4 minutes (5, 22, 41 and 14 per minute). That sync is pause
 Such a burst tears an identity load that takes about 5 s. The delta-active repair
 and maintenance reopens activate many scopes in a short time and produce the same
 kind of burst.
+
+A load error is shared with every joinable waiter. When a flight's load fails
+with an error that is not the leader's own context ending, each waiter whose probe
+equals the flight's start epoch receives that same error
+(`flight_waiter_total{outcome="shared_error"}`) and its item fails once through
+the queue, losing one attempt. Why: this is standard singleflight sharing, part of the
+shared-flight design since the first #7805 commit; the alternative is waking each
+waiter to re-probe and elect a new leader. A persistent outage then fails fast on
+one load, where the re-probe path would serialize N failing loads. Cost: a single transient error spends one attempt on
+every parked caller at once, up to the full worker pool sharing the load, so two
+coincident blips can dead-letter an item the re-probe path would have served.
+The attempt limit is `ESHU_REDUCER_MAX_ATTEMPTS`, default 3
+(`defaultRetryMaxAttempts` in `go/internal/runtime/retry_policy.go`), so an item
+needs three failed attempts. Leader-cancel and torn flights still wake waiters to
+retry; only a load error is shared. Signal for an operator: a `shared_error`
+count that rises with `eshu_dp_queue_dead_letters_total{queue="reducer"}` (see its
+`failure_class` label) means one load error cost many items; a `shared_error` count
+with no dead-letter growth is the shared cost working as designed. The code site carries a comment that points here.
 
 A repeatedly failing item is findable: the dead-letter row and
 `eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}`
