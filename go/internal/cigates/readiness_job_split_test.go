@@ -21,17 +21,22 @@ type readinessWorkflow struct {
 }
 
 type readinessJob struct {
-	Name            string               `yaml:"name"`
-	If              string               `yaml:"if"`
-	Needs           yaml.Node            `yaml:"needs"`
-	ContinueOnError string               `yaml:"continue-on-error"`
-	TimeoutMinutes  int                  `yaml:"timeout-minutes"`
-	Env             map[string]string    `yaml:"env"`
-	Services        map[string]yaml.Node `yaml:"services"`
-	Steps           []readinessStep      `yaml:"steps"`
+	Name            string                      `yaml:"name"`
+	If              string                      `yaml:"if"`
+	Needs           yaml.Node                   `yaml:"needs"`
+	ContinueOnError string                      `yaml:"continue-on-error"`
+	TimeoutMinutes  int                         `yaml:"timeout-minutes"`
+	Env             map[string]string           `yaml:"env"`
+	Services        map[string]readinessService `yaml:"services"`
+	Steps           []readinessStep             `yaml:"steps"`
+}
+
+type readinessService struct {
+	Credentials map[string]string `yaml:"credentials"`
 }
 
 type readinessStep struct {
+	Name            string            `yaml:"name"`
 	Run             string            `yaml:"run"`
 	Uses            string            `yaml:"uses"`
 	If              string            `yaml:"if"`
@@ -87,8 +92,13 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		return "only the live job must start both disposable backends"
 	}
 	for _, service := range []string{"postgres", "neo4j"} {
-		if _, ok := live.Services[service]; !ok {
+		configuration, ok := live.Services[service]
+		if !ok {
 			return "missing live service " + service
+		}
+		if configuration.Credentials["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
+			configuration.Credentials["password"] != "${{ secrets.DOCKERHUB_TOKEN }}" {
+			return service + " must authenticate its job-init image pull with both Docker Hub secrets"
 		}
 	}
 	if problem := checkReadinessDockerHubLogin(live); problem != "" {
@@ -163,7 +173,8 @@ func checkReadinessDockerHubLogin(job readinessJob) string {
 				return "Docker Hub login must run exactly once"
 			}
 			login = i
-			if step.Uses != "docker/login-action@v3" ||
+			if step.Name != "Log in to Docker Hub" ||
+				step.Uses != "docker/login-action@v3" ||
 				step.If != "env.DOCKERHUB_LOGIN_ENABLED == 'true'" ||
 				step.ContinueOnError != "" || step.Run != "" ||
 				step.With["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
@@ -244,6 +255,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		{"username-only login flag", "secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''", "secrets.DOCKERHUB_USERNAME != ''"},
 		{"token-only login flag", "secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''", "secrets.DOCKERHUB_TOKEN != ''"},
 		{"missing login", "uses: docker/login-action@v3", "uses: actions/cache@v4"},
+		{"renamed login", "name: Log in to Docker Hub\n", "name: Unrelated login\n"},
 		{"skip login", "if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "if: false"},
 		{"waive login failure", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n        continue-on-error: true"},
 		{"short hermetic timeout", "timeout-minutes: 30", "timeout-minutes: 20"},
@@ -261,8 +273,35 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			}
 		})
 	}
+	const credentials = "        credentials:\n" +
+		"          username: ${{ secrets.DOCKERHUB_USERNAME }}\n" +
+		"          password: ${{ secrets.DOCKERHUB_TOKEN }}\n"
+	workflowText := string(workflow)
+	if strings.Count(workflowText, credentials) != 2 {
+		t.Fatal("expected one credential block for each live service")
+	}
+	for _, mutation := range []struct {
+		name, replacement string
+		last              bool
+	}{
+		{"missing postgres credentials", "", false},
+		{"missing neo4j credentials", "", true},
+		{"partial postgres credentials", "        credentials:\n          username: ${{ secrets.DOCKERHUB_USERNAME }}\n", false},
+		{"partial neo4j credentials", "        credentials:\n          password: ${{ secrets.DOCKERHUB_TOKEN }}\n", true},
+	} {
+		t.Run(mutation.name, func(t *testing.T) {
+			index := strings.Index(workflowText, credentials)
+			if mutation.last {
+				index = strings.LastIndex(workflowText, credentials)
+			}
+			changed := workflowText[:index] + mutation.replacement + workflowText[index+len(credentials):]
+			if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
+				t.Fatal("seeded service credential violation passed")
+			}
+		})
+	}
 	t.Run("late login", func(t *testing.T) {
-		const loginStep = "      - name: Log in to Docker Hub for standby fixture\n" +
+		const loginStep = "      - name: Log in to Docker Hub\n" +
 			"        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n" +
 			"        uses: docker/login-action@v3\n" +
 			"        with:\n" +
