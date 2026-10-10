@@ -141,6 +141,7 @@ jobs:
           capture_dir="${RUNNER_TEMP}/methodology-h1"
           mkdir -p "$capture_dir"
           docker run -d --name eshu-h1-collector --network host \
+            --user "$(id -u):$(id -g)" \
             -v "$capture_dir:/evidence" \
             -v "${GITHUB_WORKSPACE}/scripts/ci/h1-collector.yaml:/etc/otelcol-contrib/config.yaml:ro" \
             otel/opentelemetry-collector-contrib:0.143.0@sha256:3bc07732530c87c53f9103b01a3afed972fdeba26087a590c1098781736e58c2 \

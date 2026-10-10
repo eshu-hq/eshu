@@ -29,6 +29,7 @@ required = {
         r"(?m)^      capture_h1_trace:\s*\n\s+type: boolean\s*\n\s+default: false\s*$",
         workflow)),
     "conditional collector": "if: ${{ inputs.capture_h1_trace == true }}" in collector,
+    "collector evidence owner": '--user "$(id -u):$(id -g)"' in collector,
     "pinned collector": bool(re.search(
         r"(?s)docker run -d --name eshu-h1-collector.*?"
         r"otel/opentelemetry-collector-contrib:0\.143\.0@sha256:"
