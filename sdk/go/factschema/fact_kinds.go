@@ -109,10 +109,10 @@ const (
 	FactKindOCIRegistryWarning = "oci_registry.warning"
 	// The terraform_state family fact-kind strings are UNDERSCORE-separated,
 	// like the aws/gcp/azure kinds. The values here MATCH the wire strings the
-	// terraform-state collector emits (go/internal/facts.TerraformState*FactKind)
+	// terraform-state collector emits (go/internal/facts/cloud.TerraformState*FactKind)
 	// byte-for-byte; the reducer-side drift lock
 	// TestFactSchemaKindsMatchWireFactKinds asserts each stays byte-equal to its
-	// facts.*FactKind counterpart.
+	// cloud.*FactKind counterpart.
 
 	// FactKindTerraformStateSnapshot is the "terraform_state_snapshot" fact kind.
 	FactKindTerraformStateSnapshot = "terraform_state_snapshot"

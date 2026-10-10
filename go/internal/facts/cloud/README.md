@@ -156,13 +156,13 @@ importers (sixteen fact-kind and schema-version constants plus the
 `TerraformStateFactKinds`/`TerraformStateSchemaVersion` accessors) off the
 transitional `facts.TerraformState*` compat spellings and deletes the
 emptied stanza from `compat_cloud.go`. No fact-kind string, payload shape,
-registry entry, or executable statement changes: across 53 files (51 code
-files plus this note and the ledger rows), every production hunk
-requalifies an identifier or import path only; the mcp kind-consumer
-matchers accept the `cloud.` spelling the migration introduces (per the
-contract batch 3 established); every other hunk is this note, a ledger row,
-a stale-comment reword, or the stanza's own deletion; and the build
-resolves with no dangling reference.
+registry entry, or executable statement changes: across 55 files (52 Go
+files plus this note, the ledger rows, and one sdk AGENTS.md guidance
+line), every production hunk requalifies an identifier or import path only;
+the mcp kind-consumer matchers accept the `cloud.` spelling the migration
+introduces (per the contract batch 3 established); every other hunk is this
+note, a ledger row, a stale-comment reword, or the stanza's own deletion;
+and the build resolves with no dangling reference.
 Measurement: identical before/after outcomes (ledger:6950-cloud-batch4b-before, ledger:6950-cloud-batch4b-after). The command is `go test -count=1`
 over the 8 affected package targets (per-side counts in the
 cited rows) on baseline `473a6a757f` vs measurement commit `3e16807853`
