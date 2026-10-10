@@ -1,0 +1,36 @@
+docs/public/deployment/service-runtimes-bootstrap.md
+  s_b0d7e3abc26c5a::t_8c74844a3cf29a 326-327
+  s_b0d7e3abc26c5a::t_02f6078ee10e2b 331-333
+  s_b0d7e3abc26c5a::t_0436e32f797125 328-329
+  s_b0d7e3abc26c5a::t_cc7fb27fdeedf6 330
+go/internal/envregistry/entries.go
+  s_b0d7e3abc26c5a::t_0436e32f797125 44
+go/cmd/bootstrap-data-plane/schema_adoption.go
+  s_b0d7e3abc26c5a::t_0d86ceba54bdbc 11,30-36
+go/cmd/bootstrap-data-plane/README.md
+  s_b0d7e3abc26c5a::t_0436e32f797125 65-68
+docs/public/reference/environment-runtime-storage.md
+  s_b0d7e3abc26c5a::t_0436e32f797125 142
+go/cmd/bootstrap-data-plane/graph_schema_adoption_only_test.go
+  s_b0d7e3abc26c5a::t_98a736f6721860 14,18-23,36-66,90-91,166-169
+  s_b0d7e3abc26c5a::t_f2a181e370a50b 67-89
+  s_b0d7e3abc26c5a::t_b4887e1da6d86d 24-35
+docs/public/reference/env-registry.md
+  s_b0d7e3abc26c5a::t_9ef86f33ebcde3 323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6532fbed39bc0c755a0db25b723e822a2da2f8fa",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
