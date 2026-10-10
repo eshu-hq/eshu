@@ -456,9 +456,8 @@ problems, not writer problems.
 
 ## Identity Fact Cache
 
-The reducer shares one identity fact set (container-image and Kubernetes
-correlation handlers) through an epoch-validated cache. These counters show
-whether callers are sharing one load or queueing behind many.
+The reducer shares one identity fact set (container-image and Kubernetes correlation handlers) through an
+epoch-validated cache. These counters show whether callers share one load or queue behind many.
 
 | Metric | Type | Use |
 | --- | --- | --- |
@@ -470,32 +469,26 @@ whether callers are sharing one load or queueing behind many.
 | `eshu_dp_identity_cache_hit_total`, `eshu_dp_identity_cache_miss_total` | counter | Epoch-validated cache hits and misses. |
 | `eshu_dp_identity_cache_probe_duration_seconds` | histogram | Duration of the epoch probe, which runs on every call. |
 
-A leader whose epoch moved on both load attempts fails its item with the retryable
-failure class `identity_epoch_unstable`. No item is decided on such a set. The class is
-the `failure_class` label of `eshu_dp_reducer_retry_surge_total` (every scheduled retry) and, if the
-item exhausts `ESHU_REDUCER_MAX_ATTEMPTS`, of `eshu_dp_queue_dead_letters_total` with
-`queue="reducer"`; the dead-letter row keeps the same class in its `failure_class` column,
-because a self-classifying error keeps its own class when the queue dead-letters it. To
-count repeatedly torn items, use
-`sum(increase(eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}[1h]))`.
-The class counts claim attempts, so the existing attempt limit bounds it. Waiters of that
-flight show as `flight_waiter_total{outcome="torn_set"}`.
+A leader whose epoch moved on both load attempts fails its item with the retryable failure class
+`identity_epoch_unstable`; no item is decided on such a set. The class is the `failure_class` label of
+`eshu_dp_reducer_retry_surge_total` and, once `ESHU_REDUCER_MAX_ATTEMPTS` is exhausted, of
+`eshu_dp_queue_dead_letters_total{queue="reducer"}`, where the dead-letter row keeps the class. Count torn items with
+`sum(increase(eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}[1h]))`. The
+class counts claim attempts, so the existing attempt limit bounds it. Waiters of that flight show as
+`flight_waiter_total{outcome="torn_set"}`.
 
-A waiter does not wait without limit. It gives up after 3 flights that did not serve it, or
-after one reducer heartbeat interval of total waiting (30 s with the default one-minute claim
-lease), whichever comes first. It then makes one final probe: if a consistent flight has filled
-the cache for the current epoch, the waiter is served that set as a hit. Otherwise its item fails
-with the retryable `identity_epoch_unstable` class, counted as
-`flight_waiter_total{outcome="gave_up_flights"}` or `{outcome="gave_up_wall"}`. When
-`gave_up_flights` dominates, the epoch is churning; when `gave_up_wall` dominates, a single
-flight is slow but stable (a load longer than about 30 s). A call's time inside the identity cache is bounded by one heartbeat interval plus two load attempts and a few epoch probes; a call that has exhausted its wait budget (3 flights or one heartbeat interval) never starts a load: it fails retryably with identity_epoch_unstable and the next caller leads with a fresh budget.
-A waiter never starts a load after its budget is gone. Without these bounds, sustained epoch
-churn parked every worker of the pool on a flight and the pool stalled.
+A waiter does not wait without limit. It gives up after 3 flights that did not serve it, or after one reducer heartbeat
+interval of total waiting (30 s with the default one-minute claim lease), whichever comes first. It then makes one final
+probe: if a consistent flight has filled the cache for the current epoch, the waiter is served that set as a hit. Otherwise
+its item fails with the retryable `identity_epoch_unstable` class, counted as
+`flight_waiter_total{outcome="gave_up_flights"}` or `{outcome="gave_up_wall"}`. When `gave_up_flights` dominates, the epoch
+is churning; when `gave_up_wall` dominates, a single flight is slow but stable (a load longer than about 30 s). A call's
+time inside the identity cache is bounded by one heartbeat interval plus two load attempts and a few epoch probes. A call
+that has exhausted its wait budget never starts a load: it fails retryably and the next caller leads with a fresh budget.
+Without these bounds, sustained epoch churn parked every worker of the pool on a flight and the pool stalled.
 
-A healthy domain shows many `shared` waiters per `reload_total`. A high
-`passthrough_total{reason="epoch_moved"}` means the active set changes faster
-than a load runs. A high `flight_waiter_total{outcome="stale_epoch"}` or `load_retry_total` with many
-loads means the active set keeps moving during loads.
+A healthy domain shows many `shared` waiters per `reload_total`. A high `passthrough_total{reason="epoch_moved"}`,
+`flight_waiter_total{outcome="stale_epoch"}` or `load_retry_total` means the active set moves faster than a load.
 
 ## Capacity And Memory
 
