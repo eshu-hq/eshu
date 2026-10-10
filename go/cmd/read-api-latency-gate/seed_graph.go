@@ -113,6 +113,7 @@ func seedIaCGraphLabelNodes(ctx context.Context, driver neo4j.DriverWithContext,
 		})
 	}
 
+	// anchor-census: dynamic-label writer; label set bounded by TestSeedLabelsAreAnchorLabels
 	cypher := fmt.Sprintf(
 		`UNWIND $rows AS row
 		 CREATE (n:%s {
@@ -166,6 +167,7 @@ func seedLabel(ctx context.Context, driver neo4j.DriverWithContext, database, la
 			batch = iacGraphSeedBatchSize
 		}
 	}
+	// anchor-census: dynamic-label writer; label set bounded by TestSeedLabelsAreAnchorLabels
 	cypher := fmt.Sprintf("UNWIND $rows AS row\n\t\t CREATE (n:%s {\n\t\t   %s\n\t\t })", label, props)
 
 	for _, r := range bulkNodeRanges(count, batch) {

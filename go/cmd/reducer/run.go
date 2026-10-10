@@ -6,14 +6,19 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/eshu-hq/eshu/go/internal/app"
+	"github.com/eshu-hq/eshu/go/internal/graph/anchor"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
+	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/census"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -104,6 +109,11 @@ func run(parent context.Context) error {
 		return err
 	}
 
+	graphBackend, err := runtimecfg.LoadGraphBackend(os.Getenv)
+	if err != nil {
+		return err
+	}
+
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	// Start the gauge refreshers under the shutdown context and stop them
 	// before the deferred graph-driver and database closes run, so a shutdown
@@ -115,8 +125,12 @@ func run(parent context.Context) error {
 	waitPackageManifestBackfill := startPackageManifestConsumptionKeyBackfill(ctx, func(runCtx context.Context) error {
 		return runPackageManifestConsumptionKeyBackfill(runCtx, db, instruments, logger)
 	}, logger)
+	// The id-anchor census (#7212) reads the graph, so it stops before the
+	// deferred graph-driver close like the gauge refreshers above.
+	waitIDAnchorCensus := startIDAnchorCensus(ctx, loadIDAnchorCensusConfig(os.Getenv), graphBackend, idAnchorCensusReader(neo4jReader, graphReader), instruments, logger)
 	defer func() {
 		stop()
+		waitIDAnchorCensus()
 		waitPackageManifestBackfill()
 		waitGraphRefresher()
 		waitPostgresRefresher()
@@ -126,4 +140,55 @@ func run(parent context.Context) error {
 	startConfigStateDriftCatchUpSweeper(ctx, db, instruments, logger)
 
 	return service.Run(ctx)
+}
+
+// startIDAnchorCensus starts the id-anchor census loop (#7212) when it should
+// run and returns a wait function for shutdown before the graph driver closes.
+// When it does not run it logs why once and the returned function is a no-op.
+func startIDAnchorCensus(
+	ctx context.Context,
+	cfg idAnchorCensusConfig,
+	backend runtimecfg.GraphBackend,
+	reader anchor.RowReader,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) func() {
+	if !idAnchorCensusShouldRun(cfg, backend) || reader == nil {
+		logger.Info("id anchor census not started",
+			slog.Bool("enabled", cfg.Enabled),
+			slog.String("graph_backend", string(backend)),
+			slog.Bool("reader_configured", reader != nil))
+		return func() {}
+	}
+	runner := &census.Runner{
+		Source:      anchor.ReaderCensus{Reader: reader},
+		Instruments: instruments,
+		Logger:      logger,
+		Interval:    cfg.PollInterval,
+		Timeout:     cfg.Timeout,
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := runner.Run(ctx); err != nil && ctx.Err() == nil {
+			logger.Error("id anchor census stopped", slog.String("error", err.Error()))
+		}
+	}()
+	return func() { <-done }
+}
+
+// idAnchorCensusReader picks the graph read port for the census. It prefers the
+// raw session runner over the differential-capture decorator: the census is an
+// operator probe, not a production query, and a recorded copy of it would be a
+// Neo4j-only statement in every golden-corpus capture and show up as a backend
+// divergence. It falls back to the decorated reader when the raw port is not a
+// single-row reader, and returns nil when neither is configured.
+func idAnchorCensusReader(raw sourcecypher.CypherReader, decorated query.GraphQuery) anchor.RowReader {
+	if rowReader, ok := raw.(anchor.RowReader); ok {
+		return rowReader
+	}
+	if decorated != nil {
+		return decorated
+	}
+	return nil
 }

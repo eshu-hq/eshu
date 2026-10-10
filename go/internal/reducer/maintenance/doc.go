@@ -12,8 +12,8 @@
 // (generation liveness recovery), retention (generation retention
 // pruning), orphan (graph orphan sweep), infra (infra read model
 // reconcile, #6793), poison (poison dead-letter liveness, #4740),
-// producer (producer activation consumer, #7635), and testutil (shared
-// metric-reading test helpers). Each one runs beside the main
+// producer (producer activation consumer, #7635), census (Neo4j id-anchor
+// census, #7212), and testutil (shared metric-reading test helpers). Each one runs beside the main
 // claim/execute/ack loop as a [reducer.Service] side-runner; none owns
 // intent claiming or graph projection itself.
 //

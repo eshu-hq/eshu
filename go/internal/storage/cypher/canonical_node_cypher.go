@@ -282,13 +282,16 @@ SET repoRel.evidence_source = 'projector/canonical',
 // canonicalNodeEntityUpsertTemplate is formatted with the graph label at write
 // time. It intentionally writes only the entity node so rows can batch across
 // files and stay aligned with NornicDB's simple UNWIND/MERGE hot path.
+// anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
 const canonicalNodeEntityUpsertTemplate = `UNWIND $rows AS row
 MERGE (n:%s {uid: row.entity_id})
 SET n += row.props`
 
+// anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
 const canonicalNodeEntitySingletonUpsertTemplate = `MERGE (n:%s {uid: $entity_id})
 SET n += $props`
 
+// anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
 const canonicalNodeEntityFileScopedUpsertWithContainmentTemplate = `UNWIND $rows AS row
 MATCH (f:File {path: $file_path})
 MERGE (n:%s {uid: row.entity_id})
@@ -297,6 +300,7 @@ MERGE (f)-[rel:CONTAINS]->(n)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
+// anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
 const canonicalNodeEntityUpsertWithContainmentTemplate = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
 MERGE (n:%s {uid: row.entity_id})
@@ -305,6 +309,7 @@ MERGE (f)-[rel:CONTAINS]->(n)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
+// anchor-census: dynamic-label writer; label set bounded by TestEntityUpsertTemplateLabelsAreAnchorLabels
 const canonicalNodeEntitySingletonUpsertWithContainmentTemplate = `MATCH (f:File {path: $file_path})
 MERGE (n:%s {uid: $entity_id})
 SET n += $props

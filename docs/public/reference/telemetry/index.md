@@ -281,7 +281,7 @@ zero-relationship graph nodes in the closed orphan-sweep label set. The only
 metric label is `node_label`; repository ids, resource names, generation ids,
 and graph node ids stay out of metrics.
 
-A background refresher runs the bounded count queries through the graph read port ([snapshots](graph-gauge-snapshots.md)); the callback serves the last one. Each label is capped by
+A background refresher runs the bounded count queries through the graph read port ([snapshots](graph-gauge-snapshots.md); the Neo4j id-anchor census gauge is in [Id-Anchor Census](id-anchor-census.md)); the callback serves the last one. Each label is capped by
 `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`. Treat the gauge as a cleanup
 pressure signal. Use reducer sweep logs for cycle duration, mark/delete counts,
 and `failure_class=graph_orphan_sweep_error` when the count is not draining.

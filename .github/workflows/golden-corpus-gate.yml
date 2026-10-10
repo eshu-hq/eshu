@@ -413,6 +413,18 @@ jobs:
           -coverage-manifest=go/internal/queryplan/testdata/statement-builders.yaml
           "-coverage-dirs=${{ runner.temp }}/diff-capture/pair1/neo4j,${{ runner.temp }}/diff-capture/pair2/neo4j"
 
+      # #7212: writer coverage over the same recordings. Every captured
+      # statement that writes a node id must name a uid-constrained or
+      # id-constrained label, because the Neo4j entity-context anchor reaches a
+      # node only through such a label. All four legs join: the writers are the
+      # same code on both backends, and a statement one backend never reached
+      # still counts. The corpus-scale census half runs inside the B-7 graph
+      # phase on the Neo4j legs above (check graph/anchor_census).
+      - name: Check id writer coverage on capture recordings
+        run: >
+          "${{ runner.temp }}/golden-corpus-gate" -phase=writer-coverage
+          "-coverage-dirs=${{ runner.temp }}/diff-capture/pair1/neo4j,${{ runner.temp }}/diff-capture/pair2/neo4j,${{ runner.temp }}/diff-capture/pair1/nornicdb,${{ runner.temp }}/diff-capture/pair2/nornicdb"
+
       - name: Report an advisory backend divergence
         if: steps.compare.outcome == 'failure'
         run: |

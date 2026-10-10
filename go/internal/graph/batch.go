@@ -117,6 +117,7 @@ func BatchMergeEntities(
 
 	// Execute UID-identity batches.
 	if len(uidRows) > 0 {
+		// anchor-census: dynamic-label writer; label set bounded by TestEntityMergeHelpersHaveNoProductionCaller
 		cypher := fmt.Sprintf(`UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
 MERGE (n:%s {uid: row.uid})
@@ -130,6 +131,7 @@ MERGE (f)-[:CONTAINS]->(n)`, label, setClause)
 
 	// Execute name-identity batches.
 	if len(nameRows) > 0 {
+		// anchor-census: dynamic-label writer; label set bounded by TestEntityMergeHelpersHaveNoProductionCaller
 		cypher := fmt.Sprintf(`UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
 MERGE (n:%s {name: row.name, path: row.file_path, line_number: row.line_number})
