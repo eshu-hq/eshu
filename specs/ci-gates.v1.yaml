@@ -5548,6 +5548,8 @@ gates:
       - "scripts/test-verify-docker-publish-moving-tags.sh"
       - "scripts/dev/publish-ci-image-mirrors.sh"
       - "scripts/dev/fixtures/ci-image-mirror-crane-stub.sh"
+      - "scripts/dev/fixtures/ci-image-mirror-publish-job.txt"
+      - "scripts/dev/fixtures/ci-image-mirror-verify-public-job.txt"
       - "scripts/dev/test-publish-ci-image-mirrors.sh"
       - "scripts/dev/test-docker-publish-ci-mirror-mode.sh"
     local:
@@ -5636,6 +5638,55 @@ gates:
     requirements:
       - credentials
     ci_only_reason: "attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group"
+
+  # Owner rows for the two CI service image mirror jobs of docker-publish.yml.
+  # Both jobs run only on a workflow_dispatch of the main branch of eshu-hq/eshu
+  # with inputs.mode set to their own mirror mode, so they are skipped on every
+  # pull_request, merge_group, push, and tag run and no merge can depend on
+  # them. The rows exist so the job-ownership drift check and main-health read
+  # each job as a deliberate advisory decision instead of an unowned job. The
+  # shape of both jobs is pinned by docker-publish-shape (blocking).
+  - id: ci-service-mirror-publish
+    name: CI service image mirror publish
+    category: release
+    layer: secondary
+    purpose: "Copies the reviewed upstream CI service images to GHCR by digest on a main-only manual dispatch; it never runs on a pull request or merge group."
+    tier: manual
+    blocking: false
+    triggers:
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/dev/publish-ci-image-mirrors.sh"
+      - "scripts/dev/test-publish-ci-image-mirrors.sh"
+      - "scripts/dev/fixtures/ci-image-mirror-crane-stub.sh"
+      - "scripts/ci/go-install-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "publish-ci-service-mirrors"
+    requirements:
+      - credentials
+    ci_only_reason: "manual main-only dispatch with packages: write and a GHCR login; no merge depends on it and it never runs on a pull_request or merge_group"
+
+  - id: ci-service-mirror-verify-public
+    name: CI service image mirror public verify
+    category: release
+    layer: secondary
+    purpose: "Verifies on a main-only manual dispatch that the mirrored CI service images resolve to the reviewed digests without registry credentials."
+    tier: manual
+    blocking: false
+    triggers:
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/dev/publish-ci-image-mirrors.sh"
+      - "scripts/dev/test-publish-ci-image-mirrors.sh"
+      - "scripts/dev/fixtures/ci-image-mirror-crane-stub.sh"
+      - "scripts/ci/go-install-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-public-ci-service-mirrors"
+    requirements:
+      - network
+    ci_only_reason: "manual main-only dispatch that needs live registry reads; no merge depends on it and it never runs on a pull_request or merge_group"
 
   - id: apk-floors
     name: Alpine apk floors match the repository

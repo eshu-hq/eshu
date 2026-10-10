@@ -7,7 +7,7 @@ workflow="${1:-${repo_root}/.github/workflows/docker-publish.yml}"
 job_condition() {
   local job="$1"
   awk -v wanted="  ${job}:" '
-    /^  [a-zA-Z][a-zA-Z0-9-]*:$/ { in_job = ($0 == wanted); in_if = 0 }
+    /^  ["\047]?[A-Za-z_][A-Za-z0-9_-]*["\047]?:[[:space:]]*(#.*)?$/ { in_job = ($0 == wanted); in_if = 0 }
     in_job && /^    if:/ { in_if = 1; sub(/[[:space:]]+#.*$/, ""); print; next }
     in_if && /^      / { sub(/[[:space:]]+#.*$/, ""); print; next }
     in_if { exit }
@@ -17,7 +17,7 @@ job_condition() {
 job_body() {
   local job="$1"
   awk -v wanted="  ${job}:" '
-    /^  [a-zA-Z][a-zA-Z0-9-]*:$/ {
+    /^  ["\047]?[A-Za-z_][A-Za-z0-9_-]*["\047]?:[[:space:]]*(#.*)?$/ {
       if (in_job) exit
       in_job = ($0 == wanted)
     }
@@ -91,9 +91,12 @@ expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
   verify-public-ci-service-mirrors | LC_ALL=C sort)"
 actual_jobs="$(awk '
   /^jobs:$/ { in_jobs = 1; next }
-  in_jobs && /^  [a-zA-Z][a-zA-Z0-9-]*:$/ {
-    job = $1
-    sub(/:$/, "", job)
+  in_jobs && /^  ["\047]?[A-Za-z_][A-Za-z0-9_-]*["\047]?:[[:space:]]*(#.*)?$/ {
+    job = $0
+    sub(/[[:space:]]+#.*$/, "", job)
+    sub(/^[[:space:]]+/, "", job)
+    sub(/:[[:space:]]*$/, "", job)
+    gsub(/["\047]/, "", job)
     print job
   }
 ' "${workflow}" | LC_ALL=C sort)"
@@ -184,6 +187,19 @@ if rg -q '^      packages:|docker/login-action|secrets.GITHUB_TOKEN' <<< "${veri
   fail 'public verifier job can access GHCR credentials or packages permission'
 fi
 
+# Pin each mirror job verbatim, comments and blank lines aside. A step, env key,
+# or permission ADDED to the job that holds packages: write and the GHCR login
+# passes every targeted check above, so the whole job text must match a fixture.
+for spec in 'publish-ci-service-mirrors:ci-image-mirror-publish-job.txt' \
+  'verify-public-ci-service-mirrors:ci-image-mirror-verify-public-job.txt'; do
+  job="${spec%%:*}"
+  fixture="${repo_root}/scripts/dev/fixtures/${spec#*:}"
+  [[ -f "${fixture}" ]] || fail "${job} pinned step-list fixture is missing"
+  actual="$(job_body "${job}" | awk '!/^[[:space:]]*(#|$)/')"
+  [[ "${actual}" == "$(< "${fixture}")" ]] ||
+    fail "${job} differs from its pinned step list in scripts/dev/fixtures/${spec#*:}; a changed or added step, env key, or permission needs a reviewed fixture update"
+done
+
 if [[ "$#" -eq 0 ]]; then
   scratch="$(mktemp -d)"
   trap 'rm -r -- "${scratch}"' EXIT
@@ -221,6 +237,18 @@ if [[ "$#" -eq 0 ]]; then
   if bash "$0" "${scratch}/extra.yml" > /dev/null 2>&1; then
     fail 'seeded unguarded tenth job was not detected'
   fi
+  # Job keys with an underscore, quotes, or a trailing comment must not slip past
+  # the partition guard (review-7888 F1).
+  for spelling in 'extra_job:' '"quoted-extra-job":' 'extra-job: # comment'; do
+    cp "${workflow}" "${scratch}/extra-spelling.yml"
+    printf '\n  %s\n    permissions:\n      packages: write\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo unexpected\n' \
+      "${spelling}" >> "${scratch}/extra-spelling.yml"
+    if out="$(bash "$0" "${scratch}/extra-spelling.yml" 2>&1)"; then
+      fail "seeded job header spelling '${spelling}' was not detected"
+    fi
+    [[ "${out}" == *'workflow jobs differ'* ]] ||
+      fail "seeded job header spelling '${spelling}' failed for a reason other than the partition guard"
+  done
 
   sed '/^      - name: Install ripgrep$/,+1d' "${workflow}" > "${scratch}/no-rg.yml"
   if bash "$0" "${scratch}/no-rg.yml" > /dev/null 2>&1; then
@@ -362,6 +390,57 @@ if [[ "$#" -eq 0 ]]; then
   if bash "$0" "${scratch}/verify-write.yml" > /dev/null 2>&1; then
     fail 'seeded verifier package-write permission was not detected'
   fi
+
+  # An ADDED step, env key, or permission must trip the step-list pin and no
+  # other check: each case also asserts the pin's own message.
+  expect_pin_violation() {
+    local file="$1" label="$2" out
+    if out="$(bash "$0" "${file}" 2>&1)"; then
+      fail "seeded ${label} was not detected"
+    fi
+    [[ "${out}" == *'differs from its pinned step list'* ]] ||
+      fail "seeded ${label} failed for a reason other than the step-list pin"
+  }
+  awk '
+    /^      - name: Copy exact upstream indexes$/ {
+      print "      - name: Added publisher step"
+      print "        run: echo added"
+    }
+    { print }
+  ' "${workflow}" > "${scratch}/publisher-added-step.yml"
+  expect_pin_violation "${scratch}/publisher-added-step.yml" 'step added to the publisher job'
+  awk '
+    /^  verify-public-ci-service-mirrors:$/ {
+      print "      - name: Added trailing publisher step"
+      print "        run: echo added"
+    }
+    { print }
+  ' "${workflow}" > "${scratch}/publisher-trailing-step.yml"
+  expect_pin_violation "${scratch}/publisher-trailing-step.yml" 'trailing step added to the publisher job'
+  awk '
+    /^      - name: Verify anonymous digests$/ {
+      print "      - name: Added verifier step"
+      print "        run: echo added"
+    }
+    { print }
+  ' "${workflow}" > "${scratch}/verifier-added-step.yml"
+  expect_pin_violation "${scratch}/verifier-added-step.yml" 'step added to the verifier job'
+  cp "${workflow}" "${scratch}/verifier-trailing-step.yml"
+  printf '      - name: Added trailing verifier step\n        run: echo added\n' \
+    >> "${scratch}/verifier-trailing-step.yml"
+  expect_pin_violation "${scratch}/verifier-trailing-step.yml" 'trailing step added to the verifier job'
+  awk '
+    { print }
+    /^          EXPECTED_REVIEWED_SHA: / { print "          EXTRA_TOKEN: ${{ secrets.GITHUB_TOKEN }}" }
+  ' "${workflow}" > "${scratch}/publisher-added-env.yml"
+  expect_pin_violation "${scratch}/publisher-added-env.yml" 'env key added to the publisher copy step'
+  awk '
+    /^  publish-ci-service-mirrors:$/ { in_publisher = 1 }
+    /^  verify-public-ci-service-mirrors:$/ { in_publisher = 0 }
+    { print }
+    in_publisher && /^      packages: write$/ { print "      id-token: write" }
+  ' "${workflow}" > "${scratch}/publisher-added-permission.yml"
+  expect_pin_violation "${scratch}/publisher-added-permission.yml" 'permission added to the publisher job'
 fi
 
 printf 'PASS: mirror jobs preserve calls, SHA fence, and least-privilege permissions; release jobs stay excluded\n'

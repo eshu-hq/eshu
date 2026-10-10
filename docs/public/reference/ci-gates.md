@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 142 gates. Local execution runs the primary
+The registry currently defines 144 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -182,13 +182,15 @@ results are derived from the inputs rather than written by hand. See
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
 - `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.
 
-### Secondary: What do we watch without blocking a merge? (8 gates)
+### Secondary: What do we watch without blocking a merge? (10 gates)
 
 - `docs-prose-quality` (advisory): Advisory check that flags weak prose quality in public docs as a burn-down baseline, not a merge gate.
 - `docs-contradiction` (advisory): Advisory scan for self-contradicting statements across public docs, run as a burn-down baseline.
 - `golden-corpus-gate` (advisory): Runs the golden-corpus pipeline on NornicDB, the secondary backend, to watch for backend drift; Neo4j is the blocking golden gate.
 - `auth-sso-e2e` (advisory): Runs a real browser against a fresh stack to prove first-run, OIDC login, SSO enforcement and break-glass work end to end.
 - `release-sbom-attach` (advisory): Attaches the image SBOM to the GitHub Release after a tag publish; runs only on a tag push.
+- `ci-service-mirror-publish` (advisory): Copies the reviewed upstream CI service images to GHCR by digest on a main-only manual dispatch; it never runs on a pull request or merge group.
+- `ci-service-mirror-verify-public` (advisory): Verifies on a main-only manual dispatch that the mirrored CI service images resolve to the reviewed digests without registry credentials.
 - `apk-floors-drift` (advisory): Runs the apk floor check daily against the live Alpine repository so a stale floor surfaces without a Dockerfile change.
 - `docker-publish` (advisory): Publishes the Docker image and Helm chart after merge; the publish steps never block a pull request.
 - `macos-build` (advisory): Builds the project on macOS on a schedule as an extra-platform check with no bearing on merges.
@@ -313,10 +315,12 @@ results are derived from the inputs rather than written by hand. See
 | `trivy-image` | Trivy image scan (GHCR) | security | ci-heavy | false | — (CI-only: requires published container image and GHCR credentials) | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | 3 path(s): go/**, Dockerfile, deploy/helm/** |
 | `docker-image-build` | Docker image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / build-and-push-image | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
 | `docker-image-reproducibility` | Docker image reproducibility | build | ci-heavy | true | — (CI-only: requires two clean hosted Docker Buildx builds) | docker-publish.yml / verify-reproducibility | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
-| `docker-publish-shape` | Docker publish workflow shape | build | pre-pr | true | `bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh` | static-contract-gates.yml / Verify docker-publish shape gate | 15 path(s): docs/internal/ci-service-image-mirrors.md, .github/workflows/docker-publish.yml, .github/workflows/security-scan.yml, … |
+| `docker-publish-shape` | Docker publish workflow shape | build | pre-pr | true | `bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh` | static-contract-gates.yml / Verify docker-publish shape gate | 17 path(s): docs/internal/ci-service-image-mirrors.md, .github/workflows/docker-publish.yml, .github/workflows/security-scan.yml, … |
 | `dockerhub-login` | Docker Hub login in image-pulling workflows | hygiene | pre-pr | true | `bash scripts/verify-dockerhub-login.sh`<br>then self-test: `bash scripts/test-verify-dockerhub-login.sh` | static-contract-gates.yml / Verify Docker Hub login gate | 6 path(s): .github/**, **/*.*sh, scripts/lib/dockerhub-login-*.awk, … |
 | `docker-image-promotion` | Moving image tag promotion | build | ci-heavy | false | — (CI-only: requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs) | docker-publish.yml / promote-moving-tags | 5 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `release-sbom-attach` | Release SBOM attach | release | ci-heavy | false | — (CI-only: attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group) | docker-publish.yml / attach-release-sbom | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
+| `ci-service-mirror-publish` | CI service image mirror publish | release | manual | false | — (CI-only: manual main-only dispatch with packages: write and a GHCR login; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / publish-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
+| `ci-service-mirror-verify-public` | CI service image mirror public verify | release | manual | false | — (CI-only: manual main-only dispatch that needs live registry reads; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / verify-public-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
 | `apk-floors` | Alpine apk floors match the repository | exactness | pre-pr | true | `bash scripts/verify-apk-floors.sh`<br>then self-test: `bash scripts/test-verify-apk-floors.sh` | docker-publish.yml / verify-apk-floors | 5 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/verify-apk-floors.sh, … |
 | `apk-floors-drift` | Alpine apk floors drift (daily) | exactness | ci-heavy | false | — (CI-only: daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script) | apk-floors-drift.yml / Apk floors drift (daily) | 5 path(s): Dockerfile, .github/workflows/apk-floors-drift.yml, scripts/verify-apk-floors.sh, … |
 | `helm-package` | Helm chart lint and package | release | ci-heavy | true | — (CI-only: requires the hosted Helm packaging lane; PR runs skip the registry push) | docker-publish.yml / package-and-push-chart | 2 path(s): deploy/helm/**, .github/workflows/docker-publish.yml |
