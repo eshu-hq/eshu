@@ -39,9 +39,10 @@ still read exactly once via `fact_work_items_status_idx`, every generation
 re-check is still a primary-key probe, and no new per-row loop appears.
 This is plan-shape evidence, not a wall-time claim: the candidate query
 runs once per retention pass, not per key, so a single added bounded scan
-keeps its budget. The regression test pins terminal counts on a 3-row
-fixture: uncovered retained and skipped, covered pruned,
-`GenerationsPruned=1`. No new index: the horizon scan filter matches no
+keeps its budget. The regression test pins terminal counts on a 4-row
+fixture: uncovered and fail-closed writers retained and skipped
+(`Skipped["uncovered_writer"]=2`), covered pruned, `GenerationsPruned=1`.
+No new index: the horizon scan filter matches no
 narrower existing index and the ranked CTE already scans the same table.
 
 Observability Evidence (#7472):
