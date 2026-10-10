@@ -75,8 +75,9 @@ lex_load() {
       V) cur="${pfx}V_${KEY}"; printf -v "${cur}" '%s%s\n' "${!cur:-}" "${rest}"
          if [[ "${mode}" == repo ]]; then var_files="${var_files}${rel}"$'\n'; else runs_var="${runs_var}${rel}"$'\n'; fi ;;
       D) if [[ "${mode}" == repo ]]; then dock_files="${dock_files}${rel}"$'\n'; else runs_dock="${runs_dock}${rel}"$'\n'; fi ;;
+      A | X | S | F | P | B) cur="${pfx}${kind}_${KEY}"; printf -v "${cur}" '%s%s\n' "${!cur:-}" "${rest}" ;;
     esac
-  done < <(awk -f "${lex_awk}" "$@")
+  done < <(awk -f "${lex_awk}" -f "${lex_params_awk}" "$@")
 }
 
 # file_kind <repo-relative file>: sets KIND to other | compose | none. A docker
@@ -89,8 +90,8 @@ file_kind() {
   elif [[ "$1" == *.yml || "$1" == *.yaml ]]; then
     # A local composite action file is not in the shell batch: lex its run steps.
     yq e '(.runs.steps // []) | .[] | .run // ""' "${root}/$1" >"${tmp}/action-run.txt" 2>/dev/null || true
-    kinds="$(awk -f "${lex_awk}" "${tmp}/action-run.txt" | cut -f2 | sort -u)"
-    if [[ "${kinds}" == *[OU]* || ( "${kinds}" == *V* && "${kinds}" == *D* ) ]]; then KIND=other
+    kinds="$(awk -f "${lex_awk}" -f "${lex_params_awk}" "${tmp}/action-run.txt" | cut -f2 | sort -u)"
+    if [[ "${kinds}" == *[OU]* ]] || [[ "${kinds}" == *V* && "${kinds}" == *A* && -n "$(awk -f "${lex_awk}" -f "${lex_params_awk}" "${tmp}/action-run.txt" | awk -F'\t' '$2 == "A" { a[$3] = 1 } $2 == "V" { split($3, w, "\037"); n = w[1]; gsub(/["{}$]|\[[@*]\]/, "", n); sub(/[^A-Za-z0-9_].*$/, "", n); v[n] = 1 } END { for (n in v) if (n in a) print n }')" ]]; then KIND=other
     elif [[ "${kinds}" == *C* ]]; then KIND=compose; fi
   fi
 }
@@ -100,6 +101,7 @@ file_kind() {
 # word in a command (D). The batch scan lexes only files with a docker word; a
 # file without one can only add V, so it is lexed here, on demand, and only when
 # a docker word is in play (lexed_files remembers what was lexed).
+# var_conflict (below) is the rule built on it.
 has_vd() {
   local f
   local -a lazy=()
@@ -117,6 +119,75 @@ has_vd() {
     [[ -n "${f}" ]] || continue
     [[ "${var_files}" != *$'\n'"${f}"$'\n'* ]] || HAS_V=1
   done <<<"$1"
+}
+
+# var_conflict <run seq> <closure files> <step env64> <job>: sets VCONF to the
+# first fact of the step that may run docker, "" when none (A decision, #7886).
+# A variable invoked as a command (V) is settled by its assignments, by name:
+#   - a docker value assigned to it in the run text, any reached script, or the
+#     step, job or workflow env (A) may run docker;
+#   - an unresolvable value ($(...), a backquote, ${!x}, read) assigned in a script
+#     that itself names docker (X), or an unresolved ${{ }} env value read by a
+#     script that names docker (E), may run docker;
+#   - a variable with no assignment anywhere in the reached scripts or env takes
+#     its value from outside the repository, and passes (a documented limit).
+# A bare docker passed as an argument (B) is settled by its callee: a function or
+# script that invokes a variable assigned from that parameter, or a callee that
+# no reached script defines, may run docker (see lib/dockerhub-login-vconf.awk).
+# Reached files without a docker word are lexed on demand, and only when docker
+# or a docker-valued env name is in play (lexed_files remembers what was).
+var_conflict() {
+  local seq="$1" files="$2" env64="$3" job="$4" f cur has_d=0 line cmd tok dir key rel kind rest
+  VCONF=""
+  dock_env_re='^[A-Za-z_][A-Za-z0-9_]*=(.*[^A-Za-z0-9_.$-])?docker(-compose)?([^A-Za-z0-9_./-].*)?$'
+  expr_env_re='^[A-Za-z_][A-Za-z0-9_]*=.*\$\{\{'
+  { [[ -z "${env64}" ]] || printf '%s' "${env64}" | b64d
+    printf '\n'
+    awk -F'\t' -v j="${job}" '$1 == j { print $2 "=" $3 }' "${tmp}/jobenv.tsv"
+    awk -F'\t' '{ print $1 "=" $2 }' "${tmp}/wfenv.tsv"
+  } >"${tmp}/vc.env"
+  [[ "${runs_dock}" != *$'\n'"${seq}"$'\n'* ]] || has_d=1
+  while IFS= read -r f; do
+    [[ -n "${f}" && "${dock_files}" == *$'\n'"${f}"$'\n'* ]] && has_d=1
+  done <<<"${files}"
+  if [[ "${has_d}" -eq 1 ]] || rg -q -N -e "${dock_env_re}" "${tmp}/vc.env"; then has_vd "${files}" 1; else return 0; fi
+  {
+    { rg -N -e "${dock_env_re}" "${tmp}/vc.env" || true; } | sed 's/=.*//; s/^/A\tenv\t/'
+    { rg -N -e "${expr_env_re}" "${tmp}/vc.env" || true; } | sed 's/=.*//; s/^/E\tenv\t/'
+    emit_vc_facts "run" "${seq}" "." "$([[ "${runs_dock}" == *$'\n'"${seq}"$'\n'* ]] && echo 1 || echo 0)"
+    while IFS= read -r f; do
+      [[ -n "${f}" ]] || continue
+      dir="."; [[ "${f}" != */* ]] || dir="${f%/*}"
+      mkkey "${f}"
+      emit_vc_facts "${f}" "${KEY}" "${dir}" "$([[ "${dock_files}" == *$'\n'"${f}"$'\n'* ]] && echo 1 || echo 0)"
+    done <<<"${files}"
+  } >"${tmp}/vc.facts"
+  VCONF="$(awk -f "${repo_root}/scripts/lib/dockerhub-login-vconf.awk" "${tmp}/vc.facts")"
+  return 0
+}
+
+# emit_vc_facts <source> <key> <dir> <names docker 0|1>: prints the vconf facts
+# of one lexed source (the run text, key = its sequence; or a reached script).
+emit_vc_facts() {
+  local src="$1" key="$2" dir="$3" nd="$4" pfx=F line cmd tok pos txt cur
+  [[ "${src}" != run ]] || pfx=R
+  cur="${pfx}A_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|A\t${src}\t|"
+  cur="${pfx}X_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|X\t${src}\t|"
+  cur="${pfx}S_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|S\t${src}\t|"
+  cur="${pfx}F_${key}"; printf '%s' "${!cur:-}" | sed '/^$/d; s/^/F\t/'
+  cur="${pfx}P_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|P\t${src}\t|"
+  cur="${pfx}V_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|V\t${src}\t${nd}\t|"
+  cur="${pfx}B_${key}"
+  while IFS=$'\t' read -r cmd pos txt; do
+    [[ -n "${cmd}" ]] || continue
+    tok="${cmd//[\"\']/}"; tok="$(printf '%s' "${tok}" | sed -E 's/^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\///')"
+    if [[ "${tok}" == *.sh || "${tok}" == *.bash ]]; then
+      resolve_token "${tok}" "${dir}"
+      printf 'BS\t%s\t%s\t%s\t%s\n' "${src}" "${RESOLVED:-?}" "${pos}" "${txt}"
+    else
+      printf 'B\t%s\t%s\t%s\t%s\n' "${src}" "${cmd}" "${pos}" "${txt}"
+    fi
+  done <<<"${!cur:-}"
 }
 
 # closure <script>: sets closure_kind (other|compose|none), closure_chain and

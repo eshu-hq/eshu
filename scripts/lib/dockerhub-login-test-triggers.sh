@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
 # dockerhub-login-test-triggers.sh - seeded RED/GREEN cases for the queue-path
-# trigger set and the workflow file extensions of
-# scripts/verify-dockerhub-login.sh (#7886). Sourced, never run, from
-# scripts/test-verify-dockerhub-login.sh. It uses queue_tree, qjob, steps_run,
-# ghcr_digest and queue_wf from the queue lib and the test's own expect_green.
+# trigger set, the workflow file extensions and the variable and argument probes
+# of scripts/verify-dockerhub-login.sh (#7886). Sourced, never run, from
+# scripts/test-verify-dockerhub-login.sh after the precision batch. It uses
+# queue_tree, qjob, steps_run, pscript, ghcr_digest and queue_wf from the earlier
+# libs and the test's own expect_green.
 #
 # shellcheck disable=SC2154  # failures, run_verifier, ghcr_digest come from the test
 
@@ -76,3 +77,17 @@ write_wf "${d}" fixture-cycle-b.yml cycle-b '{"workflow_run": {"workflows": ["cy
 write_wf "${d}" fixture-scan.yml fixture-scan '{"workflow_run": {"workflows": ["fixture-queue"], "types": ["completed"]}}' \
   '{"scan": {"runs-on": "ubuntu-latest", "permissions": {"contents": "read", "packages": "read"}, "steps": [{"uses": "docker/login-action@v3", "with": {"registry": "ghcr.io", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}"}}, {"run": "docker pull '"${ghcr_digest}"'"}]}}'
 expect_green workflow-run-of-a-non-queue-workflow-and-the-ghcr-scan-shape-pass "${d}"
+
+# --- F2 and F3: the probes of the review, as seeded cases -------------------------
+queue_tree probes-red
+d="${QUEUE_DIR}"
+pscript "${d}" fixture-r-tool '#!/usr/bin/env bash\ntool="$1"\nshift\n"$tool" "$@"\n'
+qjob "${d}" r-tool-from-dollar-1-runs-a-hub-pull "$(steps_run 'bash scripts/fixture-r-tool.sh docker pull alpine:3.21')"
+pscript "${d}" fixture-r-cat '#!/usr/bin/env bash\nRT="$(cat /tmp/runtime-name)"\n"$RT" frobnicate x\ndocker ps\n'
+qjob "${d}" r-command-substitution-beside-docker "$(steps_run 'bash scripts/fixture-r-cat.sh')"
+pscript "${d}" fixture-r-read '#!/usr/bin/env bash\nread -r RT </tmp/runtime-name\n"$RT" frobnicate x\ndocker ps\n'
+qjob "${d}" r-read-beside-docker "$(steps_run 'bash scripts/fixture-r-read.sh')"
+pscript "${d}" fixture-r-direct '#!/usr/bin/env bash\n"$1" pull alpine:3.21\n'
+qjob "${d}" r-bare-docker-to-a-script-that-invokes-dollar-1 "$(steps_run 'bash scripts/fixture-r-direct.sh docker')"
+expect_queue_jobs_red probe-variable-and-argument-pulls-fail "${d}" r-tool-from-dollar-1-runs-a-hub-pull \
+  r-command-substitution-beside-docker r-read-beside-docker r-bare-docker-to-a-script-that-invokes-dollar-1

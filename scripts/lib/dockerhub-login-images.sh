@@ -354,30 +354,14 @@ fact_is_hub() {
   return 1
 }
 
-# var_example <seq> <files...>: prints the first variable-as-command record (the
-# run text first), for the failure message.
-var_example() {
-  local seq="$1" f cur line
-  shift
-  cur="RV_${seq}"
-  line="$(printf '%s' "${!cur:-}" | head -n 1 | tr '\037' ' ')"
-  if [[ -n "${line}" ]]; then printf 'run: %s' "${line}"; return 0; fi
-  for f in "$@"; do
-    mkkey "${f}"; cur="FV_${KEY}"
-    line="$(printf '%s' "${!cur:-}" | head -n 1 | tr '\037' ' ')"
-    if [[ -n "${line}" ]]; then printf '%s: %s' "${f}" "${line}"; return 0; fi
-  done
-  printf '(not recorded)'
-}
-
 # step_hub_why <run file> <run has other> <run has compose> <closure files>
-# <env64> <run has var> <run has docker word>: sets HUBWHY to a reason when the
+# <env64> <job>: sets HUBWHY to a reason when the
 # step can pull from Docker Hub, "" otherwise. The has-flags are 1 when the run
 # text itself matches. Variable
 # tables load only when a docker command carries a $ reference. A docker word
 # the lexer could not classify (RU_/FU_ records) counts as Docker Hub last.
 step_hub_why() {
-  local runf="$1" run_other="$2" cfiles="$4" env64="$5" run_var="${6:-0}" run_dock="${7:-0}" f line name need_compose="$3" need_vars=0 i cur seq="${1##*/}"
+  local runf="$1" run_other="$2" cfiles="$4" env64="$5" job="${6:-}" f line name need_compose="$3" need_vars=0 i cur seq="${1##*/}"
   local -a files=() fact_text=() fact_src=()
   HUBWHY=""
   while IFS= read -r f; do [[ -z "${f}" ]] || files+=("${f}"); done <<<"${cfiles}"
@@ -429,11 +413,12 @@ step_hub_why() {
     HUBWHY="docker compose with compose files not provably non-Hub"
     return 0
   fi
-  # A variable invoked as a command (V) next to a docker word (D) in the run text
-  # or the scripts it reaches may hold docker (fail closed).
-  has_vd "${cfiles}" "${run_dock}"
-  if [[ ( "${run_var}" -eq 1 || "${HAS_V}" -eq 1 ) && "${HAS_D}" -eq 1 ]]; then
-    HUBWHY="a variable is invoked as a command where docker is also named, so the gate cannot tell whether it runs docker: $(var_example "${seq}" "${files[@]+"${files[@]}"}")"
+  # A variable invoked as a command (V) that is assigned a docker or an
+  # unresolvable value, or a bare docker passed to a callee that invokes its
+  # argument (B), may run docker (fail closed; see var_conflict).
+  var_conflict "${seq}" "${cfiles}" "${env64}" "${job}"
+  if [[ -n "${VCONF}" ]]; then
+    HUBWHY="a variable invoked as a command, or a bare docker argument, may run docker (a docker or unresolvable value is assigned to the variable, or the callee invokes the argument), so the gate cannot tell: ${VCONF}"
     return 0
   fi
   # A docker word the lexer could not classify counts as Docker Hub (fail closed).

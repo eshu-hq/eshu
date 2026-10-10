@@ -57,15 +57,32 @@
 # NAME=$(command -v docker), also after then/else/do, and sticky: a later
 # NAME=podman does not clear it) invoked later as $NAME or "${NAME[@]}"; with
 # docker itself as the command word ("${X:-docker}", $(which docker)); and in
-# "$(...)". A bare docker word the lexer cannot place (an unknown command with
-# docker as an argument, such as retry 3 docker pull, or a variable named like
-# docker or compose invoked as a command without a docker assignment in the same
-# file) counts as Docker Hub. So does a variable invoked as a command (V) in a
-# run text or script set where docker is also named (D) anywhere: the variable may
-# hold docker through the environment or a sourced file ("$RUNTIME" pull with
-# RUNTIME=docker set in a sourced lib). A variable that the file only ever assigns
-# literals (or script paths) is not a V. A heredoc body handed to a shell is lexed
-# like a script.
+# "$(...)". A command that wraps docker (retry 3 docker pull x, run_it docker
+# compose ... up) is read as the docker command it runs, so its subcommand and
+# image are classified like a direct call; a bare trailing docker (require_tool
+# docker) names the program and runs nothing. A bare docker word the lexer cannot
+# place (a variable named like docker or compose invoked as a command without a
+# docker assignment in the same file) counts as Docker Hub.
+#
+# A variable invoked as a command (V) is settled by name, against its assignments
+# (lib/dockerhub-login-vconf.awk). A V that its own script assigns is settled by
+# that script's assignments; a V its script never assigns takes the assignments of
+# the run text, the reached scripts and the step, job and workflow env. It may run
+# docker when one assignment holds the word docker (rt=docker, NAME=(docker
+# compose), NAME=$(command -v docker), a for-loop list), when one is unresolvable
+# ($(...), a backquote, ${!x}, read) in a script that itself names docker, or when
+# an unresolved ${{ }} env value reaches a script that names docker. A variable
+# assigned only from its own function's positional parameter ("${fail_fn}") takes
+# the caller's argument. A V that no script and no env assigns takes a value from
+# outside the repository: it passes, and that is a limit of this gate. A bare
+# trailing docker passed to a callee ("require_tools fail docker") is settled by
+# the callee: a function or script that invokes a variable assigned from that
+# parameter, or one that no reached script defines, may run docker. Words after
+# docker (retry 3 docker pull x) are the docker command that wrapper runs. A
+# step whose run reads ${{ matrix.KEY }} is expanded once per static matrix cell
+# (lib/dockerhub-login-matrix.awk); a matrix it cannot
+# expand (fromJSON, a missing key) stays an unresolved expression. A heredoc body
+# handed to a shell is lexed like a script.
 # A docker word in a comment, in a quoted string that no shell evaluates, or in a
 # heredoc body that is data does not count. docker ps/exec/logs/rm/... and
 # docker compose ps/logs/down/... pull and build nothing and do not count.
@@ -84,8 +101,9 @@
 # file or file: + service:) and include:; a service that extends takes the
 # base's image or build unless it overrides it. Digest pins do not avoid the
 # limit. Anything not derivable counts as Docker Hub: an unresolved variable or
-# an expression (inputs, matrix, secrets, vars) in the host, a compose file the
-# script does not name, an extends/include that cannot be resolved or cycles, an
+# an expression (inputs, a matrix it cannot expand, secrets, vars) in the host or
+# in a compose -f value, a compose file the script does not name, an
+# extends/include that cannot be resolved or cycles, an
 # inline Dockerfile, a build context that is a URL, an unparsable docker run, a
 # docker pull with no readable image, docker buildx create/bootstrap.
 #
@@ -127,7 +145,10 @@
 # another local action is not); a script that sets its runtime variable only in a
 # file no workflow step reaches; compose files found by default name
 # (compose.yaml) or by a -f value that names no docker-compose*.y*ml file are
-# counted as Hub when none is named, and not followed otherwise.
+# counted as Hub when none is named, and not followed otherwise; a variable that
+# holds docker only through a value from outside the repository (the runner's own
+# environment, a non-shell file read at run time) and is invoked with an ordinary
+# argument, which the repository's scripts, steps and env do not assign.
 #
 # ESHU_DOCKERHUB_LOGIN_ROOT points the verifier at a scratch repo tree.
 # ESHU_DOCKERHUB_LOGIN_EXPLAIN=1 prints the derived scope table;
@@ -186,6 +207,7 @@ queue_job_check() {
 # shell text) and script references by lib/dockerhub-login-refs.awk.
 bare_re='(?:^|[^A-Za-z0-9_./$-])docker(?:-compose)?(?:[^A-Za-z0-9_./-]|$)|\$\{[A-Za-z_][A-Za-z0-9_]*:?[-=+]docker(?:-compose)?(?:[^A-Za-z0-9_./-]|$)|\$\{?[A-Za-z0-9_]*(?i:docker|compose)'
 lex_awk="${repo_root}/scripts/lib/dockerhub-login-lex.awk"
+lex_params_awk="${repo_root}/scripts/lib/dockerhub-login-lex-params.awk"
 refs_awk="${repo_root}/scripts/lib/dockerhub-login-refs.awk"
 compose_file_re='[A-Za-z0-9_./-]*docker-compose[A-Za-z0-9_.-]*\.ya?ml'
 rg_scripts=(--no-ignore --hidden -g '*.sh' -g '*.bash' -g '!.git' -g '!node_modules')
@@ -321,10 +343,10 @@ check_job() {
         done <<<"${!cur:-}"
         # A variable invoked as a command next to a docker word anywhere in the
         # run text or the scripts it reaches may hold docker: fail closed.
-        has_vd "${cfiles}" "${d_dock}"
-        if [[ ( "${d_var}" -eq 1 || "${HAS_V}" -eq 1 ) && "${HAS_D}" -eq 1 ]]; then possible=1; fi
+        var_conflict "${seq}" "${cfiles}" "${env64}" "${job}"
+        [[ -z "${VCONF}" ]] || possible=1
         [[ "${possible}" -gt 0 ]] || continue
-        step_hub_why "${runf}" "${d_other}" "${d_comp}" "${cfiles}" "${env64}" "${d_var}" "${d_dock}"
+        step_hub_why "${runf}" "${d_other}" "${d_comp}" "${cfiles}" "${env64}" "${job}"
         [[ -z "${trace}" ]] || printf 'trace %s steps[%s] other=%s compose=%s files=%s -> %s\n' "${where}" "${idx}" "${d_other}" "${d_comp}" "$(printf '%s' "${cfiles}" | rg -c .)" "${HUBWHY:-none}" >&2
         if [[ -n "${HUBWHY}" ]]; then
           case "${HUBWHY}" in
@@ -405,6 +427,20 @@ for wf in ${wf_files[@]+"${wf_files[@]}"}; do
   rm -rf "${tmp}/runs"; mkdir -p "${tmp}/runs"
   yq e '.jobs | to_entries | .[] | select(.value.steps | type == "!!seq") | select(.value.steps | length > 0) | ((.value.steps // []) | to_entries | .[] | ("@@STEP\n" + (.value.run // "")))' "${wf}" |
     awk -v dir="${tmp}/runs" '/^@@STEP$/ { if (out != "") close(out); n++; out = dir "/" n; next } { print > out }'
+  # A step that reads ${{ matrix.KEY }} is expanded once per static matrix cell.
+  if rg -q -F -e '${{ matrix.' -e '${{matrix.' "${tmp}/runs" 2>/dev/null; then
+    yq e '.jobs | to_entries | .[] | .key as $j | ((.value.steps // []) | .[] | $j + "")' "${wf}" >"${tmp}/stepjobs.txt"
+    yq e '.jobs | to_entries | .[] | .key as $j | (.value.strategy.matrix | select(tag == "!!map")) as $m | (
+        (($m.include // []) | .[] | select(tag == "!!map") | ["I", $j, (to_entries | map(select((.value | tag) != "!!map" and (.value | tag) != "!!seq") | .key + "=" + (.value | tostring)) | join(";;"))] | join("\t")),
+        ($m | to_entries | .[] | select(.key != "include" and .key != "exclude" and (.value | tag) == "!!seq") | ["X", $j, .key, ((.value | map(tostring)) | join("@@"))] | join("\t")))' "${wf}" >"${tmp}/matrix.tsv"
+    sn=0
+    while IFS= read -r sjob; do
+      sn=$((sn + 1))
+      [[ -f "${tmp}/runs/${sn}" ]] && rg -q -e '\$\{\{ *matrix\.' "${tmp}/runs/${sn}" || continue
+      awk -v job="${sjob}" -v mfile="${tmp}/matrix.tsv" -f "${repo_root}/scripts/lib/dockerhub-login-matrix.awk" "${tmp}/runs/${sn}" >"${tmp}/runs/${sn}.x"
+      mv "${tmp}/runs/${sn}.x" "${tmp}/runs/${sn}"
+    done <"${tmp}/stepjobs.txt"
+  fi
   runs_other=$'\n'; runs_compose=$'\n'; runs_unclass=$'\n'; runs_var=$'\n'; runs_dock=$'\n'
   while IFS= read -r v; do unset "${v}"; done < <(compgen -v RO_ || true; compgen -v RU_ || true; compgen -v RV_ || true)
   run_inputs=()
