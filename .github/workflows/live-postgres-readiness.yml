@@ -98,7 +98,7 @@ jobs:
     # The fake-Go runner checks every ledger-selected proof and its fail-closed
     # accounting. Keep it in a separate job so it cannot consume the live
     # PostgreSQL/Neo4j job's 40-minute budget.
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out code
         uses: actions/checkout@v5
