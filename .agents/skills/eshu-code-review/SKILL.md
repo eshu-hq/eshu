@@ -71,8 +71,9 @@ issue and owner agreement required by the merge bar; P3 does not restart the loo
 
 Capture the clean verdict's exact inputs with `ci-gates review-attest capture`.
 The order is: proof, clean preliminary review plus that capture, `make
-pre-push`, `ci-gates review-attest verify`, then push. `make pre-push` is the
-required floor before every push — changed-package test/lint/build/vet, the
+pre-push`, `ci-gates review-attest verify`, then push. For a waiver note,
+`make pre-push` runs before the capture ([Rebase Waiver](#rebase-waiver)).
+`make pre-push` is the required floor before every push — changed-package test/lint/build/vet, the
 file cap, registry-selected static gates, and docs-contradiction. For
 queue/lease/claim code, schema DDL, hot-path Cypher or graph writes, reducer
 projection/materialization, or a package move, the orchestrator also runs one
@@ -82,24 +83,9 @@ it themselves. After preflight, `ci-gates review-attest verify` replaces a
 second full semantic review only when the receipt matches. Any changed base,
 commit, tree, worktree, submodule, PR claim, review packet, or verdict
 invalidates it: repeat affected proof and full review, then capture a new
-receipt. One exception is a base-only change. After a rebase that needed no
-conflict resolution, compare the cumulative patch-id, which is one ID over
-the whole diff: `git diff <base>..HEAD | git patch-id --stable`. Compute it
-for the old base and head, and again for the new ones. Overlap is empty when
-`comm -12 <(git diff --name-only <new-base>..HEAD | sort -u) <(git diff
---name-only <old-base>..<new-base> | sort -u)` prints nothing. If the patch-id
-is unchanged and that overlap is empty, a scoped re-review replaces the full
-one. The scoped re-review must still:
-- confirm the patch-id, `git range-diff <old-base>..<old-head>
-  <new-base>..HEAD` (every commit `=`), and the empty overlap itself;
-- check semantic interaction with the new base commits;
-- re-check the claims;
-- rerun affected proof;
-- capture a new receipt.
-
-A conflict, a changed patch-id, any file overlap, or any range-diff entry that
-is not `=` requires the full review.
-Do not edit between verified attestation and push. This receipt
+receipt. A rebase is the exception: the table in
+[Rebase Waiver](#rebase-waiver) sets its review, including the waiver.
+Do not edit between verified attestation and push. A review receipt
 reuses semantic review; it does not waive independent review, current GitHub
 state, CI, or authorization. CI's `required-gates-complete` (with
 `go-core-complete` and `go-race-complete`) is the actual blocking authority
@@ -108,6 +94,90 @@ gate locally rather than re-running everything. After a rebase, a gate can be
 red on the new base itself. Reproduce it on the bare base before you attribute
 it to the diff; the procedure is in
 [rebase-verify.md](../eshu-session-lifecycle/references/rebase-verify.md).
+
+## Rebase Waiver
+
+The owner set this rule on 2026-10-09. After a rebase that applies with no
+conflicts, do not run the review again, unless the PR has an open finding. The
+waiver covers a rebase that changes only the base. This table is the single
+source for every rebase. Take the first row that matches.
+
+| # | Case | Action |
+|---|---|---|
+| 1 | No clean prior verdict for the old head: none, `blocked`, or for another SHA or branch | Full review. Not a waiver case. |
+| 2 | An open finding, with or without conflicts | Full review. |
+| 3 | The rebase adds a commit (a `>` line in `git range-diff`), and every other commit is `=` or a conflict resolution you read. | Scoped review of the added commit against the whole diff, plus any conflict resolutions. Write the [scoped rebase verdict](references/verdict.md#scoped-rebase-verdict). Any other non-`=` commit fails this row: take the next row that matches. |
+| 4 | Conflicts, no open finding | Scoped re-review of the resolutions (below). Write the [scoped rebase verdict](references/verdict.md#scoped-rebase-verdict). |
+| 5 | No conflicts, no open finding, but a commit is not `=` in `git range-diff` (changed, added, dropped, reordered, or reworded), or the patch-id changed | Full review. |
+| 6 | No conflicts, no open finding, every commit `=`, patch-id equal | [Waiver note](references/verdict.md#waiver-note), the only row that uses it. |
+
+**Clean prior verdict.** A full or scoped verdict for the old head, with P0=0,
+P1=0, and P2-blocking=0. Name the file or PR comment that holds it. After an
+earlier waiver or scoped rebase verdict, the old head's record is that file,
+which names the verdict it rests on.
+
+**Open finding.** Read the live sources in
+[github-truth.md](references/github-truth.md): an unresolved review thread, a
+finding in a review body or issue comment with no disposition, or a required
+CI job that completed red. A cancelled or timed-out job did not complete red. It is
+not an open finding and not a pass: its result comes from the wave on the
+pushed head. Add any unresolved P0, P1, or blocking P2 in the
+prior verdict. A P2 deferred with a linked issue and the owner's agreement
+quoted in the PR, and a P3, are not open findings
+([merge-bar.md](references/merge-bar.md)).
+Before a PR exists, only the prior verdict's findings count. Record
+`no PR exists yet`.
+
+**Content.** Both conditions must hold, and the commit messages are part of
+the content:
+
+1. `git range-diff <old-base>..<old-head> <new-base>..<new-head>` prints every
+   commit as `=`. The count is the same. The rebase does not add, drop,
+   reorder, or reword a commit. It compares each commit's message and diff, so
+   a dedent, a squash, a reworded message, or a closing keyword shows as `!`. A
+   base edit within three lines of a hunk changes the context and also shows
+   as `!`.
+2. `git diff <base>..HEAD | git patch-id --stable` is equal for the old base
+   and head and for the new ones. This is a second test on the cumulative
+   diff. It is blind to whitespace and to messages, so it never replaces step 1.
+   With an added commit, step 1 alone covers the old commits.
+
+**Reversion scan.** `git diff <new-base>..HEAD` shows no hunk that reverts or
+drops a line the new base added. Read the files both sides touched. List them
+with `comm -12 <(git diff --name-only <new-base>..HEAD | sort -u)
+<(git diff --name-only <old-base>..<new-base> | sort -u)`. This scan is
+textual. A semantic collision with no shared hunk shows only in the merged-tree
+vet and tests of `make pre-push`, and in CI.
+
+**Order.** The waiver note and the scoped rebase verdict state the
+`make pre-push` exit, so the floor runs first: `make pre-push` on the rebased
+head, then write the note or verdict, capture (`--verdict <file>`),
+`ci-gates review-attest verify`, push. The file records the exit code and the
+head SHA the floor ran on. Never write it before the floor exits 0. Before capture, re-read the PR title and body claims
+against the final diff, and rerun the proof the rebase can affect. The receipt
+hashes the claims file, so a claims edit after capture voids it. Make no edit
+after the floor. A green CI wave on the exact
+pushed head, with two stable reads, exists only after the push. Record it in
+the PR before merge.
+
+A waiver receipt proves only that the note and the inputs did not change. It
+records no review. The note ([verdict.md](references/verdict.md#waiver-note))
+MUST NOT claim a new review happened. A scoped rebase verdict
+([verdict.md](references/verdict.md#scoped-rebase-verdict)) is a review
+verdict for the receipt. It MUST claim only the scope it reviewed (the
+resolution hunks or the added commit), never the old commits.
+
+Rows 3 and 4 scoped review must:
+- read every entry in
+  `git range-diff <old-base>..<old-head> <new-base>..<new-head>` that is not
+  `=` (`!`, `>`, `<`): each conflict resolution, each added or dropped commit,
+  and each message change.
+- review semantic interaction with the new base commits.
+- re-read the claims.
+- rerun affected proof.
+- write the scoped rebase verdict: finding counts and dispositions for the
+  reviewed scope, plus the rebase evidence fields.
+- capture a new receipt.
 
 ## Reporting
 

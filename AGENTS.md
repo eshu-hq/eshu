@@ -58,16 +58,25 @@ The promotion order is:
 
 1. Run focused local proof.
 2. Run a clean preliminary `eshu-code-review`. Capture a `ci-gates review-attest`
-   receipt.
+   receipt. A rebase waiver note or scoped rebase verdict follows step 3.
 3. Run `make pre-push` (the fast local floor).
-4. Run `ci-gates review-attest verify`. A match replaces a second full semantic
-   review.
+4. Run `ci-gates review-attest verify`. A match replaces a second full review.
 5. Push. Make no edits between the verified attestation and the push.
 
 A change to the base, commit, tree, worktree, submodule, PR claims, packet, or
-verdict voids the receipt. Then rerun the affected proof and a full review. A
-clean base-only rebase gets the scoped re-review in `eshu-code-review`. Never
-publish an unreviewed diff.
+verdict voids the receipt. Then rerun the affected proof and a full review.
+Never publish an unreviewed diff. A rebase follows the decision table in
+`eshu-code-review` ("Rebase Waiver"):
+
+- No conflicts, no open finding, every commit `=` in `git range-diff`, equal
+  patch-id, clean prior verdict: no review rerun. Run `make pre-push` first.
+  After exit 0, capture a waiver note with that exit and head SHA, verify, and
+  push. Record a green CI wave on the pushed head before merge.
+- Conflicts, no open finding: scoped re-review of the resolutions, or of an
+  added commit when every other commit is `=`. Write a scoped rebase verdict.
+- Full review: no conflicts but a changed patch-id, or a commit changed,
+  dropped, reordered, or reworded. Also full review: an open finding, or no
+  clean prior verdict.
 
 ## Mandatory Pre-PR Local Proof
 

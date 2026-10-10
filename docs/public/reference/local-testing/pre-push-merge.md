@@ -98,8 +98,9 @@ binds the reviewed diff, not the merge:
 - Known trap: `--base origin/main` binds main's moving tip. `make pre-push`
   fetches main first, so `review-attest verify` fails with
   `base_commit changed` whenever main moved between capture and push. On a
-  busy day that is almost every push, and each failure demands a full review
-  of an unchanged diff.
+  busy day that is almost every push. A failure is a base move: the Rebase
+  Waiver table in `eshu-code-review` decides whether a review reruns, and the
+  merge-base capture above avoids the failure.
 
 The merge the floor vetted is recorded in the pre-push summary line,
 `merge tree: <tree> (HEAD <sha> + origin/main <sha>)`: the floor tested the

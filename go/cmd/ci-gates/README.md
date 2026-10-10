@@ -147,9 +147,9 @@ ci-gates review-attest verify  # repeat the same flags
 commits and trees, merge base, binary and raw diffs, commit range, worktree,
 submodules, PR claims, review packet, and verdict. A match permits a mechanical
 final attestation instead of a second semantic review. A mismatch names the
-first changed field and requires a full rereview. Keep the receipt outside the
-worktree, normally under the shared Git common directory, so the receipt does
-not make the tree dirty.
+first changed field and voids the receipt. The `eshu-code-review` skill names
+the review that follows. Keep the receipt outside the worktree, normally under
+the shared Git common directory, so the receipt does not make the tree dirty.
 
 ### await
 
