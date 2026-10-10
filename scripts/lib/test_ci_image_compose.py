@@ -215,5 +215,32 @@ class RealComposeParityTest(unittest.TestCase):
                 self.assertTrue(before_config == after_config, "unexpected Compose config change")
 
 
+class CiImageEntrypointTest(unittest.TestCase):
+    """Exercise the production startup call and minimal token policy."""
+
+    def test_corpus_sources_its_ci_overlay_helper(self) -> None:
+        """The real startup statement resolves a committed, executable helper."""
+        root = SCRIPT.parents[2]
+        gate = root / "scripts/verify-golden-corpus-gate.sh"
+        calls = [line for line in gate.read_text(encoding="utf-8").splitlines()
+                 if line.startswith('. "${repo_root}/scripts/lib/')
+                 and "golden_corpus_prepare_ci_overlay" in line]
+        self.assertEqual(len(calls), 1)
+        result = subprocess.run(
+            ["bash", "-euo", "pipefail", "-c", calls[0]],
+            env={**os.environ, "repo_root": str(root), "use_compose": "0"},
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_e2e_token_is_read_only(self) -> None:
+        """The image-consuming E2E workflow grants no implicit write scope."""
+        path = SCRIPT.parents[2] / ".github/workflows/e2e-tests.yml"
+        workflow = json.loads(subprocess.check_output(
+            ["yq", "-o=json", ".", str(path)], text=True,
+        ))
+        self.assertEqual(workflow.get("permissions"), {"contents": "read"})
+
+
 if __name__ == "__main__":
     unittest.main()

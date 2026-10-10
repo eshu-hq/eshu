@@ -32,7 +32,7 @@ class ToolsWorkflowTest(unittest.TestCase):
         self.assertEqual(tools["destination"], "ghcr.io/eshu-hq/ci-tools")
         self.assertEqual(
             tools["digest"],
-            "sha256:195eb6d12b37a3eb1f35686b92beeeeba101d479146ef7396ece84f51c4994a4",
+            "sha256:05ab9636508dd971fc39f532e5b13ef7088209f89be30172e403c98e9fab1738",
         )
         self.assertEqual(
             tools["recipe_sha256"], hashlib.sha256(RECIPE.read_bytes()).hexdigest()

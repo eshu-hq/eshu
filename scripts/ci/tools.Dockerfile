@@ -90,4 +90,9 @@ RUN set -eux; \
 
 # The digest plus package inventory is captured by the publishing workflow.
 # The image contains tooling only; source is mounted by Actions at execution.
+RUN /usr/sbin/groupadd --gid 1001 ci-tools \
+    && /usr/sbin/useradd --uid 1001 --gid 1001 --create-home \
+      --shell /usr/sbin/nologin ci-tools
+ENV HOME=/home/ci-tools
+USER 1001:1001
 WORKDIR /workspace

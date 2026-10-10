@@ -94,7 +94,7 @@ chmod +x "${seed_dir}/fakebin/docker"
 # this seed needs real extraction, so drop it (docker stays stubbed).
 rm -f "${seed_dir}/fakebin/python3"
 export ESHU_LIVE_RUNNER_STUB_MARKER="${seed_dir}/partial-stack"
-up_err="$(PATH="${seed_dir}/fakebin:${PATH}" bash "${script}" --backend nornicdb 2>&1)" &&
+up_err="$(env -u ESHU_CI_IMAGES PATH="${seed_dir}/fakebin:${PATH}" bash "${script}" --backend nornicdb 2>&1)" &&
 	fail "failed up did not die"
 [[ "${up_err}" == *"could not start nornicdb stack"* ]] ||
 	fail "failed up misreported: ${up_err}"

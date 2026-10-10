@@ -11,15 +11,37 @@ image="$1"
 platform="${CI_TOOLS_PLATFORM:-linux/amd64}"
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 cache_volume="$(docker volume create)"
-trap 'docker volume rm "${cache_volume}" >/dev/null' EXIT
+workspace_volume=""
+cleanup() {
+  docker volume rm "${cache_volume}" >/dev/null
+  if [[ -n "${workspace_volume}" ]]; then
+    docker volume rm "${workspace_volume}" >/dev/null
+  fi
+}
+trap cleanup EXIT
+docker run --rm --user 0 \
+  --mount "type=volume,src=${cache_volume},dst=/tmp/eshu-ci" \
+  --entrypoint chown "${image}" 1001:1001 /tmp/eshu-ci
 
 docker run --rm --platform "${platform}" \
   --mount "type=bind,src=${repo_root},dst=/workspace,readonly" \
-  --mount "type=volume,src=${cache_volume},dst=/ci-cache" \
+  --mount "type=volume,src=${cache_volume},dst=/tmp/eshu-ci" \
   --workdir /workspace \
-  --env GOCACHE=/ci-cache/go-build \
-  --env GOMODCACHE=/ci-cache/go-mod \
+  --env GOCACHE=/tmp/eshu-ci/go-build \
+  --env GOMODCACHE=/tmp/eshu-ci/go-mod \
   "${image}" bash -euo pipefail -c '
+    if [[ "$(id -u)" == 0 ]]; then
+      echo "CI tools image runs as root" >&2
+      exit 1
+    fi
+    if [[ "$(id -un)" != ci-tools ]]; then
+      echo "CI tools image has no ci-tools account for its runtime UID" >&2
+      exit 1
+    fi
+    if [[ -z "${HOME}" || ! -w "${HOME}" ]]; then
+      echo "CI tools image has no writable HOME" >&2
+      exit 1
+    fi
     test "$(go version | awk "{print \$3}")" = go1.26.9
     getconf GNU_LIBC_VERSION | rg "^glibc 2\\.39$"
     for tool in bash git curl rg jq yq python3 gh gcc pkg-config docker; do
@@ -44,6 +66,29 @@ docker run --rm --platform "${platform}" \
     go test -race ./internal/ifa/saturation/ -run "^Test" -count=1
     cd ..
     bash scripts/verify-openapi.sh
+  '
+
+workspace_volume="$(docker volume create)"
+docker run --rm --user 0 \
+  --mount "type=volume,src=${workspace_volume},dst=/workspace" \
+  --entrypoint chown "${image}" 1001:1001 /workspace
+docker run --rm --platform "${platform}" \
+  --mount "type=volume,src=${workspace_volume},dst=/workspace" \
+  --workdir /workspace \
+  "${image}" bash -euo pipefail -c '
+    git init --bare --initial-branch=main /workspace/remote.git
+    git init --initial-branch=main /workspace/source
+    git -C /workspace/source config user.name "CI tools smoke test"
+    git -C /workspace/source config user.email ci-tools@example.invalid
+    printf "checkout ownership proof\\n" > /workspace/source/README
+    git -C /workspace/source add README
+    git -C /workspace/source commit -m "initial"
+    git -C /workspace/source remote add origin /workspace/remote.git
+    git -C /workspace/source push --quiet origin main
+    git clone --quiet /workspace/remote.git /workspace/checkout
+    git -C /workspace/checkout fetch --quiet origin main
+    test "$(git -C /workspace/checkout rev-parse HEAD)" = "$(git -C /workspace/checkout rev-parse origin/main)"
+    test -z "$(git -C /workspace/checkout status --porcelain)"
   '
 
 if [[ "${CI_TOOLS_DOCKER_SOCKET:-0}" == 1 ]]; then

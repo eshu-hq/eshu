@@ -5,6 +5,9 @@
 Eshu source, binaries, credentials, or private paths. Actions mounts the
 checkout and its JavaScript action runtime separately. The image therefore
 needs no Node.js installation for `actions/checkout` or `docker/login-action`.
+The job runs as UID/GID 1001 with a writable home directory; this keeps the
+blocking tools container from running as root while leaving the host-provided
+Actions JavaScript runtime unchanged.
 
 The default base is the upstream Ubuntu 24.04 OCI index digest observed on
 2026-10-10. Publication should pass `BASE_IMAGE` as the verified digest of the

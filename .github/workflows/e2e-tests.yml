@@ -26,6 +26,9 @@ on:
       - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/e2e-tests.yml"
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
