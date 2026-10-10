@@ -71,6 +71,9 @@ func TestQueueSelectSelectsWholeWorkflowAtCapAndOnPolicyChanges(t *testing.T) {
 		{name: "cap", files: `[` + strings.Join(files, ",") + `]`, truncated: true},
 		{name: "workflow edit", files: `[{"filename":".github/workflows/test.yml"}]`},
 		{name: "registry edit", files: `[{"filename":"specs/ci-gates.v1.yaml"}]`},
+		{name: "fragment edit", files: `[{"filename":"specs/ci-gates.d/gates-14.yaml"}]`},
+		{name: "fragment rename", files: `[{"filename":"specs/ci-gates.d/gates-15.yaml","previous_filename":"specs/ci-gates.d/gates-14.yaml"}]`},
+		{name: "shared selector edit", files: `[{"filename":".github/workflows/queue-selection.yml"}]`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := selectQueueGates(context.Background(), queueRunner(tt.files), []*cigates.Registry{queueTestRegistry()}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "test.yml", "")
@@ -81,6 +84,21 @@ func TestQueueSelectSelectsWholeWorkflowAtCapAndOnPolicyChanges(t *testing.T) {
 				t.Fatalf("selection = %+v", got)
 			}
 		})
+	}
+}
+
+func TestQueueSelectSelectsStaticWorkflowOnExternalFilterEdit(t *testing.T) {
+	t.Parallel()
+	reg := &cigates.Registry{Gates: []cigates.Gate{
+		{ID: "static-one", Blocking: true, Triggers: []string{"go/one/**"}, CI: cigates.CI{Workflow: "static-contract-gates.yml", Job: "one"}},
+		{ID: "static-two", Triggers: []string{"docs/two/**"}, CI: cigates.CI{Workflow: "static-contract-gates.yml", Job: "two"}},
+	}}
+	got, err := selectQueueGates(context.Background(), queueRunner(`[{"filename":".github/static-contract-filters.yml"}]`), []*cigates.Registry{reg}, "eshu-hq/eshu", "main", queueBranchFixture, headSHAFixture, "static-contract-gates.yml", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Selected || !reflect.DeepEqual(got.Gates, []string{"static-one", "static-two"}) {
+		t.Fatalf("external filter edit did not select the whole static workflow: %+v", got)
 	}
 }
 

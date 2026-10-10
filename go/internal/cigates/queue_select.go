@@ -6,6 +6,7 @@ package cigates
 import (
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // QueueSelection is the decision for one merge-group workflow or job. Jobs
@@ -27,7 +28,18 @@ func SelectQueueWorkflow(registries []*Registry, paths []string, truncated bool,
 	if len(registries) == 0 || workflow == "" {
 		return result, fmt.Errorf("a registry and workflow are required")
 	}
-	all := truncated || slices.Contains(paths, ".github/workflows/"+workflow) || slices.Contains(paths, "specs/ci-gates.v1.yaml")
+	all := truncated || slices.Contains(paths, ".github/workflows/"+workflow) ||
+		slices.Contains(paths, ".github/workflows/queue-selection.yml") ||
+		slices.Contains(paths, "specs/ci-gates.v1.yaml") ||
+		(workflow == "static-contract-gates.yml" && slices.Contains(paths, ".github/static-contract-filters.yml"))
+	if !all {
+		for _, path := range paths {
+			if strings.HasPrefix(path, "specs/ci-gates.d/") {
+				all = true
+				break
+			}
+		}
+	}
 	knownWorkflow, knownJob := false, job == ""
 	seenJobs := make(map[string]struct{})
 	seenGates := make(map[string]struct{})

@@ -32,8 +32,11 @@ PR #7913 separately changes PostgreSQL readiness and is outside this patch.
 check. It reuses `ci-gates` fixed-base merge-group selection, including renamed
 paths and the conservative 300-file truncation rule. It unions the head registry
 with the trusted default-branch registry so policy edits cannot suppress work the
-trusted publisher still expects. Workflow or registry edits select that workflow's
-owned gates. Existing gate names and registry ownership remain intact.
+trusted publisher still expects. The trusted root and ordered fragments come
+from one fetched default-branch commit. Missing or malformed fragments fail
+closed. Workflow, shared selector, or registry fragment edits select all owned
+gates for the workflow. A static filter edit selects every static row. Existing
+gate names and registry ownership remain intact.
 
 All source jobs wait for selection. Unselected payload steps skip expensive
 checkout, builds, and tests, while stable check jobs succeed. Selection

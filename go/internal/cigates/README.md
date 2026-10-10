@@ -88,8 +88,12 @@ verifier without rerunning the verifier's own fixture suite.
 selection step for the merge queue. The CLI supplies the changed paths from the
 fixed-base compare; this package matches blocking rows through `RequiredGates`
 and advisory rows through the same trigger matcher. It unions the head and
-trusted default-branch registries. A 300-file-truncated compare or a change to
-the requested workflow or gate registry selects all of that workflow's rows.
+trusted default-branch registries. The workflow fetches the default branch once
+and archives the root and ordered fragments from that immutable commit into one
+temporary tree. A missing or malformed trusted fragment fails selection closed.
+A 300-file-truncated compare, or a change to the requested workflow, shared
+selector, registry root, or registry fragment selects all of that workflow's
+rows. An external static-filter edit selects every static workflow row.
 An unknown workflow or job has no CI owner and returns an error. The result
 contains registry `ci.job` names, selected gate IDs, and a `selected` boolean.
 

@@ -82,13 +82,19 @@ class ToolsWorkflowTest(unittest.TestCase):
 
         changed_paths = workflow()["jobs"]["changes"]["steps"]
         filter_step = next(step for step in changed_paths if step.get("id") == "filter")
-        filters = filter_step["with"]["filters"]
+        self.assertEqual(
+            filter_step["with"]["filters"], ".github/static-contract-filters.yml"
+        )
+        filters = json.loads(subprocess.check_output(
+            ["yq", "-o=json", ".", str(ROOT / ".github/static-contract-filters.yml")],
+            text=True,
+        ))["dockerhublogin"]
         for path in (
             "scripts/ci/tools.Dockerfile",
             "scripts/ci/test-tools-workflow.py",
             "specs/ci-images.v1.json",
         ):
-            self.assertIn("- '" + path + "'", filters)
+            self.assertIn(path, filters)
 
 
 if __name__ == "__main__":
