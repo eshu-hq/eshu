@@ -10,6 +10,7 @@ trap 'rm -rf "${scratch}"' EXIT
 
 fail() { printf 'test-live-postgres-standby-fixture: %s\n' "$*" >&2; exit 1; }
 
+command -v rg >/dev/null 2>&1 || fail 'ripgrep (rg) is required to inspect the workflow'
 [[ -f "${helper}" ]] || fail 'fixture helper missing'
 install_step="$(rg -n -m1 '^[[:space:]]+run: scripts/ci/install-apt-packages\.sh ripgrep$' "${workflow}" || true)"
 fixture_step="$(rg -n -m1 -F 'name: Check physical-standby fixture fail-closed behavior' "${workflow}" || true)"
