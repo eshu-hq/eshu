@@ -27,6 +27,9 @@ func evaluateJSONArrayBound(root any, path string, bound QueryArrayBound) string
 	if len(items) < bound.MinimumResults || (bound.MaximumResults > 0 && len(items) > bound.MaximumResults) {
 		return fmt.Sprintf("JSON array bound %q has %d results, want [%d,%d]", path, len(items), bound.MinimumResults, bound.MaximumResults)
 	}
+	if len(bound.ResultItemRequiredFields) == 0 {
+		return ""
+	}
 	for index, item := range items {
 		object, ok := item.(map[string]any)
 		if !ok {

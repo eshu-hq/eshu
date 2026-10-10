@@ -76,7 +76,9 @@ tests are unchanged.
   assert evidence citations and confidence labels without an unbounded response
   scan. `RequiredJSONArrayBounds` checks the count and required item fields of
   one array at a named nested path, so an enveloped MCP result can preserve its
-  semantic truth while still rejecting missing or extra result rows.
+  semantic truth while still rejecting missing or extra result rows. A count-only
+  bound accepts scalar items; item-object validation applies when required item
+  fields are declared.
 - **Mutual-exclusion assertions catch disclosure-vs-served contradictions.**
   `RequiredAbsentWhenPresent` (`AbsentWhenPresent`) fails only when a sibling
   JSON path is present AND a domain marker path (e.g.
