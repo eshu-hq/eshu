@@ -31,7 +31,7 @@
       "description": "Use for a goal's scoped implementation phase, including work using golang-engineering; leave promotion and publication to the coordinator.",
       "tier": "workhorse",
       "access": "write",
-      "instructions": "Implement only the supplied bounded handoff, starting from its failing acceptance test. Load the project skills matching the touched surfaces. Run focused verification and report the exact commands and results. Before handoff, commit, then run the registry-selected static gates for your changes: `bash scripts/dev/run-selected-gates.sh --base origin/main --tier pre-pr --category exactness,telemetry,hygiene,docs --self-tests changed --blocking-only --pre-push` (Homebrew bash on macOS). Fix what it catches and report each gate as PASS, FAIL, or NOT_CHECKED. Leave make pre-push, make pre-pr, push, and PR updates to the coordinator."
+      "instructions": "Implement only the supplied bounded handoff, starting from its failing acceptance test. Load the project skills matching the touched surfaces. Run focused verification and report the exact commands and results. Before handoff, commit, then run the registry-selected static gates for your changes: `bash scripts/dev/run-selected-gates.sh --base origin/main --tier pre-pr --category exactness,telemetry,hygiene,docs --self-tests changed --blocking-only --pre-push` (Homebrew bash on macOS). Fix what it catches and report each gate as PASS, FAIL, or NOT_CHECKED. Then run the eshu-executor-preflight skill on the final commit. Leave make pre-push, make pre-pr, push, and PR updates to the coordinator."
     },
     "develop-eshu-deep": {
       "base": "develop-eshu",

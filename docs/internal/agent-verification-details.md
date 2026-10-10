@@ -58,6 +58,26 @@ git diff --check
 Docs, root agent files, and README changes require the docs build plus
 `git diff --check`.
 
+## Go gates fail with a toolchain version mismatch
+
+If a Go gate fails every package with
+`compile: version "go1.X.Y" does not match go tool version "go1.X.Z"`, a
+switched toolchain exported its `GOROOT` to a child that then ran the host `go`.
+It happens when `go.mod` pins a newer `go` than the host binary and
+`GOTOOLCHAIN=auto` re-execs the downloaded one. The `ci-gates` runner passes
+that `GOROOT` to each gate command.
+
+The repair belongs at the call site that runs `go` from the repo root: use
+`env -u GOROOT go ...`, as `go_install_tool` in `scripts/dev/precommit-go.sh`
+does. `scripts/test-precommit-go-toolchain-isolation.sh` guards it. For a gate
+command you run by hand from the repo root, prefix it with `env -u GOROOT`.
+Prefixing an outer command such as `make pre-push` does not clear what the
+runner re-exports. Upgrading the host `go` to the `go.mod` version also removes
+the cause.
+
+A different message, `go: cannot find GOROOT directory`, means the shell exports
+a `GOROOT` that no longer exists. Unset it.
+
 ## The custom lint plugins
 
 The bare `golangci-lint run ./...` above needs the repo's custom `filelength`
