@@ -28,11 +28,11 @@
   in the query root: many families gate on it, so it is not this family's
   row to move. Keep the capability strings and the `TruthBasisHybrid`
   envelope basis on the moved handlers verbatim.
-- `ResolveEntity` maps a `repo_id` selector error in the order
-  `querycontract.WriteGraphReadError` (503/504), then
-  `selector.WriteLookupFailure` (500, fixed body, span error), then 404 for
-  not-found and 400 otherwise. Never write `err.Error()` of a
-  `selector.LookupError` to a body: it carries backend text (#7626).
+- `ResolveEntity` maps a `repo_id` selector error through
+  `selector.ResolveForRequestWithAccess`: `WriteGraphReadError` (503/504),
+  the lookup-failure 500, 404 not-found, 400 ambiguous, and the fixed 500 for
+  anything else. Never write `err.Error()` of a `selector.LookupError` to a
+  body: it carries backend text (#7626).
 - The service routes' optional `repo` selector follows the same rule.
   `InvestigateService` calls `selector.WriteLookupFailure` after
   `WriteGraphReadError`; `serviceStoryResolutionError` (behind
@@ -47,6 +47,15 @@
   format the error into the body. A client cancel answers 499 with no span
   error. The story's ci/cd and supply-chain steps run `GraphReadErrorEnvelope`
   first, so a reader fence answers the retryable 503.
+- The entity resolve, entity context, and workload context and story routes
+  follow the same order (#7674): `WriteGraphReadError`, then the route's
+  configuration-state 503 sentinels, then `writeReadFailure` or
+  `tracing.WriteServerFailure` with one `failure.go` constant per step. A
+  sentinel 503 checks `unavailableSentinel` and writes the named sentinel's
+  own text (`ErrFoo.Error()`), never the wrapped `err`, with no
+  `Retry-After`. Never route a sentinel through `WriteServerFailure`: it
+  would answer 500. Never use `querycontract.WriteContentSubstringIndexUnavailable`
+  here: it echoes the wrapped error.
 - Keep the root `entity_alias.go` aliases and forwarders until every
   external caller has a separately reviewed migration path.
 - `GetEntityContext` records `resolved_by` (anchor, fallback, content, none)
