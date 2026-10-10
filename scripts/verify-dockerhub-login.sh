@@ -351,7 +351,7 @@ for wf in "${root}"/.github/workflows/*.yml; do
       ((.value.container | select(type == "!!map") | ["C", $j, "container", "x" + (.image // ""), "x" + (.credentials.username // ""), "x" + (.credentials.password // "")] | join("\t")) // "")
     )' "${wf}" | sed '/^$/d;/^null$/d' >"${tmp}/jobs.tsv"
   # steps.tsv: seq, job, idx, uses, if (base64), with.registry/username/password/file/context, env (base64 NAME=VALUE lines), continue-on-error, with.driver, with.driver-opts (base64), with.image.
-  yq e '.jobs | to_entries | .[] | .key as $j | ((.value.steps // []) | to_entries | .[] |
+  yq e '.jobs | to_entries | .[] | select(.value.steps | type == "!!seq") | select(.value.steps | length > 0) | .key as $j | ((.value.steps // []) | to_entries | .[] |
       [$j, (.key | tostring), "x" + (.value.uses // ""), "x" + ((.value.if // "") | tostring | @base64),
        "x" + ((.value.with.registry // "") | tostring), "x" + ((.value.with.username // "") | tostring),
        "x" + ((.value.with.password // "") | tostring), "x" + ((.value.with.file // "") | tostring),
@@ -364,7 +364,7 @@ for wf in "${root}"/.github/workflows/*.yml; do
   yq e '.jobs | to_entries | .[] | .key as $j | (.value.env | select(type == "!!map") | to_entries | .[] | [$j, .key, (.value | tostring)] | join("\t"))' "${wf}" >"${tmp}/jobenv.tsv"
   # One file per step run text, named by the step's sequence number.
   rm -rf "${tmp}/runs"; mkdir -p "${tmp}/runs"
-  yq e '.jobs | to_entries | .[] | ((.value.steps // []) | to_entries | .[] | ("@@STEP\n" + (.value.run // "")))' "${wf}" |
+  yq e '.jobs | to_entries | .[] | select(.value.steps | type == "!!seq") | select(.value.steps | length > 0) | ((.value.steps // []) | to_entries | .[] | ("@@STEP\n" + (.value.run // "")))' "${wf}" |
     awk -v dir="${tmp}/runs" '/^@@STEP$/ { if (out != "") close(out); n++; out = dir "/" n; next } { print > out }'
   runs_other=$'\n'; runs_compose=$'\n'; runs_unclass=$'\n'; runs_var=$'\n'; runs_dock=$'\n'
   while IFS= read -r v; do unset "${v}"; done < <(compgen -v RO_ || true; compgen -v RU_ || true; compgen -v RV_ || true)
