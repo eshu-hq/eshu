@@ -13,7 +13,17 @@ one fake graph-apply callback, no actual database or storage. With
 interleaved B/A/A/B/B/A/A/B. Baseline elapsed samples were 562, 559, 557,
 and 560 ms (median 559.5 ms); candidate samples were 566, 571, 568, and
 564 ms (median 567 ms), or +7.5 ms per 3,000 runs (+1.34%). All eight runs
-exited 0. The default path has no material measured regression in this local
+exited 0. The retained baseline test binary has SHA-256
+`d137fa7d12b780046f89a235328801f76818d590fee1074b5503704cab1f95c8`;
+the candidate binary has SHA-256
+`d315209345cfad2ec9c360256dd56b20d400a3b616347cbbb6f36fdf09559fca`.
+Each sample ran the following command and measured wall time around it:
+
+```sh
+GOMAXPROCS=1 timeout 30s <binary> -test.run '^TestRunPassesNeo4jBackendToSchemaApplicator$' -test.count=3000 -test.parallel=1
+```
+
+The default path has no material measured regression in this local
 shim; the small difference is not a deployed latency claim. Backend version,
 terminal queue count, and live row count are not applicable to this fake-store
 fixture. The opt-in refusal has no baseline-equivalent output: focused tests
