@@ -96,6 +96,8 @@ values are not allowed in metric labels or status errors.
 - Duplicate remote links inside one issue collection are collapsed by provider
   link ID, global ID, or URL.
 - Empty Jira projects or updated windows commit a successful empty generation.
+- An order-only JQL target, such as `ORDER BY updated DESC`, searches the
+  bounded updated window with that ordering. It is not treated as a filter.
 - Permission-hidden metadata emits `work_item.metadata_warning` so readers can
   distinguish hidden source context from a genuinely empty site.
 - Signed Jira webhooks wake configured collector scopes through the shared
