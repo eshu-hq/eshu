@@ -31,6 +31,7 @@ on:
       - 'go/internal/reducer/maintenance/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/internal/reducer/status/**'
+      - 'go/internal/cigates/readiness_job_split_test.go'
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
@@ -70,6 +71,7 @@ on:
       - 'go/internal/reducer/maintenance/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/internal/reducer/status/**'
+      - 'go/internal/cigates/readiness_job_split_test.go'
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
@@ -96,6 +98,22 @@ permissions:
   contents: read
 
 jobs:
+  hermetic:
+    name: live-postgres-readiness hermetic
+    runs-on: ubuntu-latest
+    # The fake-Go runner checks every ledger-selected proof and its fail-closed
+    # accounting. Keep it in a separate job so it cannot consume the live
+    # PostgreSQL/Neo4j job's 60-minute budget.
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Check runner fail-closed behavior
+        run: bash scripts/test-run-live-postgres-readiness-tests.sh
+
   live-postgres-readiness:
     name: live-postgres-readiness (postgres18)
     runs-on: ubuntu-latest
@@ -177,9 +195,6 @@ jobs:
 
       - name: Install ripgrep for readiness fixture checks
         run: scripts/ci/install-apt-packages.sh ripgrep
-
-      - name: Check runner fail-closed behavior
-        run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
       - name: Check physical-standby fixture fail-closed behavior
         run: bash scripts/test-live-postgres-standby-fixture.sh
