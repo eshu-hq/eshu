@@ -434,7 +434,7 @@ gates:
     name: CI service image mirror publish
     category: release
     layer: secondary
-    purpose: "Copies the reviewed upstream CI service images to GHCR by digest on a main-only manual dispatch; it never runs on a pull request or merge group."
+    purpose: "Copies the reviewed upstream CI service and build-base images to GHCR by digest on a main-only manual dispatch; it never runs on a pull request or merge group."
     tier: manual
     blocking: false
     triggers:
@@ -455,7 +455,7 @@ gates:
     name: CI service image mirror public verify
     category: release
     layer: secondary
-    purpose: "Verifies on a main-only manual dispatch that the mirrored CI service images resolve to the reviewed digests without registry credentials."
+    purpose: "Verifies on a main-only manual dispatch that the mirrored CI service and build-base images resolve to the reviewed digests without registry credentials."
     tier: manual
     blocking: false
     triggers:

@@ -189,8 +189,8 @@ results are derived from the inputs rather than written by hand. See
 - `golden-corpus-gate` (advisory): Runs the golden-corpus pipeline on NornicDB, the secondary backend, to watch for backend drift; Neo4j is the blocking golden gate.
 - `auth-sso-e2e` (advisory): Runs a real browser against a fresh stack to prove first-run, OIDC login, SSO enforcement and break-glass work end to end.
 - `release-sbom-attach` (advisory): Attaches the image SBOM to the GitHub Release after a tag publish; runs only on a tag push.
-- `ci-service-mirror-publish` (advisory): Copies the reviewed upstream CI service images to GHCR by digest on a main-only manual dispatch; it never runs on a pull request or merge group.
-- `ci-service-mirror-verify-public` (advisory): Verifies on a main-only manual dispatch that the mirrored CI service images resolve to the reviewed digests without registry credentials.
+- `ci-service-mirror-publish` (advisory): Copies the reviewed upstream CI service and build-base images to GHCR by digest on a main-only manual dispatch; it never runs on a pull request or merge group.
+- `ci-service-mirror-verify-public` (advisory): Verifies on a main-only manual dispatch that the mirrored CI service and build-base images resolve to the reviewed digests without registry credentials.
 - `apk-floors-drift` (advisory): Runs the apk floor check daily against the live Alpine repository so a stale floor surfaces without a Dockerfile change.
 - `docker-publish` (advisory): Publishes the Docker image and Helm chart after merge; the publish steps never block a pull request.
 - `macos-build` (advisory): Builds the project on macOS on a schedule as an extra-platform check with no bearing on merges.
