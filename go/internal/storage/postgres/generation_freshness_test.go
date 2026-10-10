@@ -37,6 +37,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 		database      *generationFreshnessTestDB
 		wantCurrent   bool
 		wantRetryable bool
+		wantActiveID  string
 		wantErr       bool
 	}{
 		{
@@ -88,6 +89,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 				"scope-123": row("gen-new", "pending", true),
 			}},
 			wantRetryable: true,
+			wantActiveID:  "gen-new",
 		},
 		{
 			name:         "current when scope not found",
@@ -97,7 +99,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			wantCurrent:  true,
 		},
 		{
-			name:         "pending first generation defers when active_generation_id is NULL",
+			name:         "pending first generation defers before activation",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
 			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
@@ -166,21 +168,15 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 				}
 				return
 			}
-			assertGenerationNotYetActive(t, err, tt.scopeID, tt.generationID)
-			if tt.name == "pending first generation defers when active_generation_id is NULL" {
-				var typed reducercontract.GenerationNotYetActiveError
-				if !errors.As(err, &typed) || typed.ActiveGenerationID != "" {
-					t.Fatalf("first-generation deferral = %#v, want empty active generation ID", err)
-				}
-			}
+			assertGenerationNotYetActive(t, err, tt.scopeID, tt.generationID, tt.wantActiveID)
 			// The runtime wraps the check error with %w before WorkSink.Fail;
 			// the classification must survive that wrapping.
-			assertGenerationNotYetActive(t, fmt.Errorf("generation freshness check: %w", err), tt.scopeID, tt.generationID)
+			assertGenerationNotYetActive(t, fmt.Errorf("generation freshness check: %w", err), tt.scopeID, tt.generationID, tt.wantActiveID)
 		})
 	}
 }
 
-func assertGenerationNotYetActive(t *testing.T, err error, scopeID, generationID string) {
+func assertGenerationNotYetActive(t *testing.T, err error, scopeID, generationID, activeGenerationID string) {
 	t.Helper()
 	if !reducer.IsRetryable(err) {
 		t.Fatalf("error %v is not retryable", err)
@@ -193,8 +189,8 @@ func assertGenerationNotYetActive(t *testing.T, err error, scopeID, generationID
 		t.Fatalf("error %v does not self-classify as %q", err, reducercontract.GenerationActivationNotReadyFailureClass)
 	}
 	var typed reducercontract.GenerationNotYetActiveError
-	if !errors.As(err, &typed) || typed.ScopeID != scopeID || typed.GenerationID != generationID {
-		t.Fatalf("error %#v does not carry scope %q generation %q", err, scopeID, generationID)
+	if !errors.As(err, &typed) || typed.ScopeID != scopeID || typed.GenerationID != generationID || typed.ActiveGenerationID != activeGenerationID {
+		t.Fatalf("error %#v does not carry scope %q generation %q active generation %q", err, scopeID, generationID, activeGenerationID)
 	}
 }
 
