@@ -99,7 +99,7 @@ fresh_case() {
 	export STUB_REPO="eshu-hq/eshu"
 	export RACE_LOSE_ONCE=0
 	export STUB_REQUIRE_BEARER=1
-	export STUB_TOKEN_MODE=token STUB_REGISTRY_DENIED=0 STUB_MISSING_PATH=""
+	export STUB_TOKEN_MODE=token STUB_REGISTRY_DENIED=0 STUB_MISSING_PATH="" STUB_MAIN_HEAD_FAILURE=""
 	mkdir -p "${STUB_DIR}/tags" "${STUB_DIR}/revs"
 	: >"${STUB_DIR}/curl.log"
 	: >"${STUB_DIR}/docker.log"
@@ -280,6 +280,15 @@ for missing_path in manifests/sha256:mf2222 blobs/sha256:cf2222; do
  run_promote "refs/heads/main" 1
  check "${missing_path} fails closed without promotion" "$([ "${PROMOTE_RC}" != 0 ] && [ "$(creates)" == 0 ] && echo 0 || echo 1)"
  check "${missing_path} preserves the newer tag" "$(tag_is main "${D_NEWER}" && echo 0 || echo 1)"
+done
+
+# A failed digest read after successful revision lookup is not a mismatch.
+for head_failure in 401 404 500 transport; do
+ fresh_case main-digest-failure
+ printf '%s' "${D_MINE}" >"${STUB_DIR}/tags/main"
+ export STUB_MAIN_HEAD_FAILURE="${head_failure}"
+ run_promote "refs/heads/main" 1
+ check "main digest ${head_failure} cannot write tags" "$([ "${PROMOTE_RC}" != 0 ] && [ "$(creates)" == 0 ] && echo 0 || echo 1)"
 done
 
 printf 'test-promote-moving-tags: %d passed, %d failed\n' "${pass}" "${fail}"

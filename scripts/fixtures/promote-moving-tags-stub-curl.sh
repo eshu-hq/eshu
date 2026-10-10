@@ -34,6 +34,13 @@ if [[ -n "${STUB_MISSING_PATH:-}" && "${path}" == "${STUB_MISSING_PATH}" ]]; the
  printf '{"errors":[{"code":"NOT_FOUND"}]}\n404'
  exit 0
 fi
+if [[ "${head_mode}" == 1 && "${path}" == manifests/main && -n "${STUB_MAIN_HEAD_FAILURE:-}" ]]; then
+ case "${STUB_MAIN_HEAD_FAILURE}" in
+ transport) exit 28 ;;
+ *) printf 'HTTP/2 %s\r\n\r\n' "${STUB_MAIN_HEAD_FAILURE}" ;;
+ esac
+ exit 0
+fi
 san() { printf '%s' "$1" | tr -c 'A-Za-z0-9' '_'; }
 known_digest() {
 	local want="$1" f

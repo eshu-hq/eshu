@@ -196,14 +196,18 @@ while [[ "${attempt}" -le "${attempts}" ]]; do
 	elif [[ "${rc}" != "0" ]]; then
 		echo "promote: cannot read :main; waiting ${interval}s"
 	elif [[ "${current}" == "${my_sha}" ]]; then
-		main_now="$(tag_digest_of main 2>/dev/null)" || main_now=""
-		if [[ "${main_now}" == "${digest}" ]]; then
+		main_read_rc=0
+		main_now="$(tag_digest_of main)" || main_read_rc=$?
+		if [[ "${main_read_rc}" != 0 ]]; then
+			echo "promote: cannot confirm :main digest; waiting ${interval}s"
+		elif [[ "${main_now}" == "${digest}" ]]; then
 			echo "promote: :main already points at ${digest}; done"
 			exit 0
+		else
+			echo "promote: :main carries our revision with a different digest; re-promoting"
+			promote_and_verify && exit 0
+			echo "promote: verify failed after push; waiting ${interval}s"
 		fi
-		echo "promote: :main carries our revision with a different digest; re-promoting"
-		promote_and_verify && exit 0
-		echo "promote: verify failed after push; waiting ${interval}s"
 	elif git merge-base --is-ancestor "${my_sha}" "${current}" 2>/dev/null; then
 		echo "promote: :main already carries newer commit ${current}; skipping"
 		exit 0
