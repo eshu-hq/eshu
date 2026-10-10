@@ -40,10 +40,16 @@ type hydrationStore struct {
 	// blankMode replaces the non-blank answer, to mutate the SQL predicate.
 	blankMode func(content string) bool
 
+	// getCalls lists every path whose content was read, by GetFileContent or
+	// by a GetFileContents chunk, so the fetched-set assertions hold for both
+	// read shapes. batchCalls holds the paths of each GetFileContents call.
 	getCalls   []string
-	blankCalls [][]string
-	listCalls  int
-	bytes      int
+	batchCalls [][]string
+	// singleCalls counts GetFileContent statements only.
+	singleCalls int
+	blankCalls  [][]string
+	listCalls   int
+	bytes       int
 }
 
 func newHydrationStore(files ...querycontract.FileContent) *hydrationStore {
@@ -82,10 +88,14 @@ func (s *hydrationStore) ListRepoFiles(_ context.Context, _ string, limit int) (
 	return files, nil
 }
 
-func (s *hydrationStore) GetFileContent(_ context.Context, _, relativePath string) (*querycontract.FileContent, error) {
+func (s *hydrationStore) GetFileContent(_ context.Context, repoID, relativePath string) (*querycontract.FileContent, error) {
+	if repoID != hydrationTestRepoID {
+		return nil, fmt.Errorf("content read for repository %q, want %q", repoID, hydrationTestRepoID)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.getCalls = append(s.getCalls, relativePath)
+	s.singleCalls++
 	if err := s.getAt[relativePath]; err != nil {
 		return nil, err
 	}
@@ -95,6 +105,39 @@ func (s *hydrationStore) GetFileContent(_ context.Context, _, relativePath strin
 	}
 	s.bytes += len(row.Content)
 	return &row, nil
+}
+
+// GetFileContents answers a chunk from the same rows and rules as
+// GetFileContent: a vanished row is absent, a path in getAt fails the whole
+// call, and the rows are returned in request order without duplicates.
+func (s *hydrationStore) GetFileContents(_ context.Context, repoID string, relativePaths []string) ([]querycontract.FileContent, error) {
+	if repoID != hydrationTestRepoID {
+		return nil, fmt.Errorf("content read for repository %q, want %q", repoID, hydrationTestRepoID)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.batchCalls = append(s.batchCalls, append([]string(nil), relativePaths...))
+	s.getCalls = append(s.getCalls, relativePaths...)
+	for _, relativePath := range relativePaths {
+		if err := s.getAt[relativePath]; err != nil {
+			return nil, err
+		}
+	}
+	seen := make(map[string]struct{}, len(relativePaths))
+	out := make([]querycontract.FileContent, 0, len(relativePaths))
+	for _, relativePath := range relativePaths {
+		if _, dup := seen[relativePath]; dup {
+			continue
+		}
+		seen[relativePath] = struct{}{}
+		row, ok := s.rows[relativePath]
+		if !ok || s.gone[relativePath] || s.goneAfterCheck[relativePath] {
+			continue
+		}
+		s.bytes += len(row.Content)
+		out = append(out, row)
+	}
+	return out, nil
 }
 
 func (s *hydrationStore) NonBlankRepoFilePaths(_ context.Context, _ string, relativePaths []string) ([]string, error) {

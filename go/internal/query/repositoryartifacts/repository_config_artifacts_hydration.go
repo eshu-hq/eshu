@@ -95,19 +95,35 @@ func hydrateConfigArtifactFiles(
 	return productionConfigHydration.hydrate(ctx, reader, repoID, files, stats)
 }
 
-// configHydrationPolicy names the two decisions the needed-content pass makes
-// about content: which files an extractor reads by itself, and which resource
-// files the kustomizations pull in. Production uses productionConfigHydration.
-// The field seam exists so the equality tests can run the same pass with one
-// decision removed and watch the output diverge.
+// configContentFetcher reads the stored rows of hydrated at indexes and writes
+// them back into hydrated, as hydrateFileIndexes does for one file at a time.
+// A path with no stored row keeps its list row. A failure fails the pass and
+// the caller discards hydrated.
+type configContentFetcher func(
+	ctx context.Context,
+	reader querycontract.ContentStore,
+	repoID string,
+	hydrated []querycontract.FileContent,
+	indexes []int,
+	stats *ConfigArtifactReadStats,
+) error
+
+// configHydrationPolicy names the three decisions the needed-content pass
+// makes about content: which files an extractor reads by itself, which
+// resource files the kustomizations pull in, and how the chosen files are
+// read. Production uses productionConfigHydration. The field seam exists so
+// the equality tests can run the same pass with one decision removed, or with
+// the per-file reader of the earlier change, and compare the output.
 type configHydrationPolicy struct {
 	readsContent  func(querycontract.FileContent) bool
 	planResources func([]querycontract.FileContent) map[string]struct{}
+	fetch         configContentFetcher
 }
 
 var productionConfigHydration = configHydrationPolicy{
 	readsContent:  configArtifactReadsContent,
 	planResources: planKustomizeResourceReads,
+	fetch:         productionChunkedRead.fetch,
 }
 
 func (policy configHydrationPolicy) hydrate(
@@ -135,7 +151,7 @@ func (policy configHydrationPolicy) hydrate(
 			deferred[index] = false
 		}
 
-		if err := hydrateFileIndexes(ctx, reader, repoID, hydrated, needed); err != nil {
+		if err := policy.fetch(ctx, reader, repoID, hydrated, needed, stats); err != nil {
 			return nil, err
 		}
 		fetchedFull += len(needed)
@@ -179,7 +195,7 @@ func (policy configHydrationPolicy) hydrate(
 				positions = append(positions, item.position)
 			}
 		}
-		if err := hydrateFileIndexes(ctx, reader, repoID, hydrated, positions); err != nil {
+		if err := policy.fetch(ctx, reader, repoID, hydrated, positions, stats); err != nil {
 			return nil, err
 		}
 		fetchedFull += len(positions)

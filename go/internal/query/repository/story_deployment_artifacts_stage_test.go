@@ -35,13 +35,18 @@ func (s metadataOnlyContent) ListRepoFiles(ctx context.Context, repoID string, l
 	return files, err
 }
 
-// failingHydrationContent fails every GetFileContent, the read a
-// deployment-artifact load needs for a config file.
+// failingHydrationContent fails every content read, GetFileContent and the
+// GetFileContents chunk read a deployment-artifact load needs for a config
+// file.
 type failingHydrationContent struct {
 	metadataOnlyContent
 }
 
 func (failingHydrationContent) GetFileContent(context.Context, string, string) (*querycontract.FileContent, error) {
+	return nil, errors.New("content store unavailable")
+}
+
+func (failingHydrationContent) GetFileContents(context.Context, string, []string) ([]querycontract.FileContent, error) {
 	return nil, errors.New("content store unavailable")
 }
 
@@ -93,6 +98,9 @@ func TestGetRepositoryStoryDeploymentArtifactsStageReportsReadCounts(t *testing.
 		"found=", "error=false", "related_repository_count=0", "files_listed=3",
 		"files_hydrated=1", "files_skipped=2", "hydrated_bytes=", "statements=",
 		"blank_check_statements=1", "list_seconds=", "hydrate_seconds=", "parse_seconds=",
+		// One consumed file (infra/main.tf): one chunk statement, never more
+		// than one chunk in flight, the chunk size of the batched reader.
+		"batch_statements=1", "batch_chunk_size=10", "batch_chunks_in_flight_max=1",
 	} {
 		if !strings.Contains(line, want) {
 			t.Errorf("stage_completed = %q, want it to contain %q", line, want)

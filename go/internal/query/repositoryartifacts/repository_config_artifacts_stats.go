@@ -36,8 +36,19 @@ type ConfigArtifactReadStats struct {
 	// BlankCheckStatements is the number of non-blank checks issued, at most
 	// one per repository.
 	BlankCheckStatements int
-	// Statements is every ListRepoFiles, GetFileContent and non-blank check
-	// the stage issued through the content store.
+	// BatchStatements is the number of GetFileContents statements the
+	// config-artifact load issued: one per chunk of up to BatchChunkSize
+	// paths. It replaces one GetFileContent per hydrated file.
+	BatchStatements int
+	// BatchChunkSize is the number of paths one GetFileContents statement
+	// reads, zero when the load issued none.
+	BatchChunkSize int
+	// BatchChunksInFlightMax is the largest number of chunk reads of one
+	// repository that ran at once during the load; it never exceeds the bound
+	// of eight.
+	BatchChunksInFlightMax int
+	// Statements is every ListRepoFiles, GetFileContent, GetFileContents and
+	// non-blank check the stage issued through the content store.
 	Statements int
 	// HydratedBytes is the total content length GetFileContent returned.
 	HydratedBytes int64
@@ -50,7 +61,7 @@ type ConfigArtifactReadStats struct {
 }
 
 // countingContentStore counts the statements and content bytes that pass
-// through the three reads the artifact loaders use. Every other method falls
+// through the four reads the artifact loaders use. Every other method falls
 // through to the embedded store. It is safe for the concurrent hydration
 // workers.
 type countingContentStore struct {
@@ -71,6 +82,15 @@ func (s *countingContentStore) GetFileContent(ctx context.Context, repoID, relat
 		s.bytes.Add(int64(len(file.Content)))
 	}
 	return file, err
+}
+
+func (s *countingContentStore) GetFileContents(ctx context.Context, repoID string, relativePaths []string) ([]querycontract.FileContent, error) {
+	s.statements.Add(1)
+	files, err := s.ContentStore.GetFileContents(ctx, repoID, relativePaths)
+	for i := range files {
+		s.bytes.Add(int64(len(files[i].Content)))
+	}
+	return files, err
 }
 
 func (s *countingContentStore) NonBlankRepoFilePaths(ctx context.Context, repoID string, relativePaths []string) ([]string, error) {
