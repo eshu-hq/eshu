@@ -12,8 +12,16 @@
 - This package is a leaf. `git` imports it; it must never import `git`.
 - Do not rename it to `selection`: the dirgate naming rule would then demand
   that every `selection_*.go` file in `git/` move into it.
-- It records evidence only. Do not add deletion, hiding, retirement, or graph
-  writes here.
+- It records evidence only. Do not add scope deletion, hiding, retirement, or
+  graph writes here. The one deletion is the #7774 sweep of observation rows
+  past their window plus `ExpiredObservationGrace`, run at most once per cycle on the
+  request marked `SweepExpired` after any outcome but a store error,
+  including a truncated listing, so a held-low repo limit cannot stop it.
+  It never deletes `not_listed` rows: the mass-miss guard reads them, and
+  deleting them can hold a recovered selector's guard tripped forever. Do not
+  remove that exclusion, and keep exactly one `SweepExpired` request per cycle that issues any.
+- A sweep failure is the `expired_sweep` failure class and never changes the
+  cycle's outcome.
 - The state set, `Live`, and the uniform `Confirmed` rule live in
   `go/internal/scope/selection`, shared with the freshness `not_selected`
   verdict. Change them there, never by redefining them here.

@@ -29,6 +29,7 @@ func TestRepositorySelectionInstrumentsRegisterClosedLabels(t *testing.T) {
 	inst.RepositorySelectionScopes.Record(ctx, 25, metric.WithAttributes(
 		AttrCollectorKind("git"), AttrState(RepositorySelectionStateNotListedPending),
 	))
+	inst.RepositorySelectionObservationsDeleted.Add(ctx, 1203, metric.WithAttributes(AttrCollectorKind("git")))
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &rm); err != nil {
@@ -43,6 +44,7 @@ func TestRepositorySelectionInstrumentsRegisterClosedLabels(t *testing.T) {
 	for _, name := range []string{
 		"eshu_dp_collector_repository_selection_evaluations_total",
 		"eshu_dp_collector_repository_selection_scopes",
+		"eshu_dp_collector_repository_selection_observations_deleted_total",
 	} {
 		if !seen[name] {
 			t.Fatalf("metric %s not collected; collected %v", name, seen)

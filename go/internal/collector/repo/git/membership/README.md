@@ -98,7 +98,10 @@ under `outcome="guard_tripped"`. The scope gauge keeps its last `evaluated`
 sample. Because the selector's rows are no longer refreshed, they expire after
 the liveness window. Unless another selector still has live rows for them, the
 org's scopes then read selection `unknown`, which leaves their freshness
-verdict where it was before #7625. Nothing is deleted.
+verdict where it was before #7625. The expired-row sweep never deletes the
+selector's `not_listed` rows, so the scopes it had already confirmed missing
+still do not count as newly unlisted once access returns, however long the
+guard tripped.
 
 To confirm the cause, check the `not_listed_sample` slugs on GitHub:
 
@@ -138,6 +141,52 @@ To confirm the cause, check the `not_listed_sample` slugs on GitHub:
   `liveness_window_seconds`) when the gap since the selector's previous
   evaluation exceeds the window: its rows had expired and read `unknown`
   until this evaluation.
+- Counter `eshu_dp_collector_repository_selection_observations_deleted_total`
+  `{collector_kind="git"}` (#7774): expired rows the sweep deleted. The INFO
+  line of the request that swept carries `expired_deleted_count`, zero on
+  every other request; a failed sweep logs
+  `git_repository_selection_store_failed` with `failure_class=expired_sweep`
+  and keeps the cycle's outcome.
+
+## Expired-row sweep
+
+In a cycle that issues any request, the collector marks exactly one with
+`Request.SweepExpired`: the githubOrg request, or the last owner's request in
+explicit mode. A cycle
+that issues no request (filesystem mode, an explicit list with no owners, a
+failed discovery, or no observer wired) sweeps nothing. After that
+request's `evaluated`, `guard_tripped`, or `listing_truncated` outcome, `Observer` calls
+`Store.DeleteExpiredObservations(now, ExpiredObservationGrace)` once. That
+deletes rows of every selector whose `evaluated_at` plus their own liveness
+window plus `ExpiredObservationGrace` has passed (#7774), except `not_listed`
+rows, which are never deleted. Rows orphaned by a credential rotation, rules
+change, or owner change are the target. A failed store read or a failed upsert
+on that request skips the sweep for the cycle. A truncated listing still
+sweeps: it writes no rows, and the predicate is time-based and never reads the
+listing, so an `ESHU_REPO_LIMIT` held below the org size cannot stop the drain.
+While truncation lasts, the selector's own rows age out too and, past their
+window plus the grace, are deleted like those of a paused selector (see
+below); they already read `unknown` once expired.
+
+`not_listed` rows stay because the mass-miss guard reads them: a scope whose
+prior row is `not_listed` is not newly unlisted, and a relist is counted only
+against one. Deleting that history could hold a recovered selector's guard
+tripped forever. Deleting any other prior row changes no guard count, since a
+missing prior and a prior in another state both count the scope as newly
+unlisted. What a selector does lose past its window plus the grace:
+
+- A returning `archived_excluded` or `rule_excluded` scope restarts at one
+  cycle and reads pending until confirmed again. That errs toward no
+  `not_selected` verdict, never a wrong one.
+- `liveness_lapsed` may not fire on its first evaluation, because
+  `PreviousEvaluatedAt` reads only the rows that remain.
+
+The grace still matters for those: a selector that resumes inside it keeps
+its full history and logs `liveness_lapsed`. Explicit selectors write no
+`not_listed` rows, so the exception never applies to them. The cost is that
+an abandoned selector's `not_listed` rows stay forever. They are bounded by
+the selectors ever created times the scopes each had unlisted, freshness
+reads only live rows, and `Evaluate` reads only its own selector.
 
 ## Evidence
 
@@ -160,7 +209,7 @@ outcome; the three non-`evaluated` outcomes also log their WARN. A silent
 shard 0 is visible as a missing counter series. `evaluated` cycles also
 set `eshu_dp_collector_repository_selection_scopes` per `state`. Store
 failures carry `failure_class` (`known_scopes_read`, `observations_read`,
-`upsert`, `store_missing`).
+`upsert`, `store_missing`, `expired_sweep`).
 
 ## Verification
 

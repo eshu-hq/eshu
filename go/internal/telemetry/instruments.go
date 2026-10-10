@@ -1718,6 +1718,11 @@ type Instruments struct {
 	// archived_excluded, rule_excluded) (#7625).
 	RepositorySelectionScopes metric.Int64Gauge
 
+	// RepositorySelectionObservationsDeleted counts expired
+	// repository_selection_observations rows the git collector's sweep
+	// deleted (#7774), by collector_kind.
+	RepositorySelectionObservationsDeleted metric.Int64Counter
+
 	// CanonicalRepositoryStubsCreated counts Repository nodes the
 	// repo_dependency and submodule_pin shared-edge writers MERGE-created by
 	// id because no node held that id (#7446): a path-less stub, typically

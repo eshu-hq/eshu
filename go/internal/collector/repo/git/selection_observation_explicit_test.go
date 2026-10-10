@@ -91,6 +91,9 @@ func TestNativeRepositorySelectorObservesExplicitRepositoriesPerOwnerOnShardZero
 		if !request.Listing.Complete || request.SourceMode != "explicit" || request.RepoShardCount != 3 || request.LivenessWindow != 48*time.Hour {
 			t.Fatalf("request %d = %+v, want a complete explicit listing over 3 shards with the 48h window", i, request)
 		}
+		if wantSweep := i == len(observer.requests)-1; request.SweepExpired != wantSweep {
+			t.Fatalf("request %d SweepExpired = %v, want %v: only the cycle's last request sweeps", i, request.SweepExpired, wantSweep)
+		}
 		var slugs []string
 		for _, listed := range request.Listing.Repositories {
 			if listed.State != membership.StateSelected {
@@ -181,6 +184,10 @@ func (s *ownerKnownStore) Observations(context.Context, string) ([]membership.Ob
 func (s *ownerKnownStore) UpsertObservations(_ context.Context, batch membership.Batch) error {
 	s.batches = append(s.batches, batch)
 	return nil
+}
+
+func (*ownerKnownStore) DeleteExpiredObservations(context.Context, time.Time, time.Duration) (int64, error) {
+	return 0, nil
 }
 
 // TestExplicitSelectionWritesSelectedRowsOnlyForScopedRepositories runs the

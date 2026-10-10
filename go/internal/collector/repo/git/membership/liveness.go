@@ -26,6 +26,14 @@ const (
 	// maximumLivenessWindow keeps liveness_window_seconds inside its INTEGER
 	// column.
 	maximumLivenessWindow = time.Duration(math.MaxInt32) * time.Second
+	// ExpiredObservationGrace is how long an observation row is kept after
+	// its own liveness window ends before the sweep deletes it (#7774). An
+	// expired row already reads as unknown, but Evaluate still uses it as
+	// prior state: a selector that resumes inside the grace keeps its
+	// exclusion confirmations and logs liveness_lapsed. The sweep never
+	// deletes not_listed rows, so the mass-miss guard keeps its history
+	// whatever the gap.
+	ExpiredObservationGrace = 7 * 24 * time.Hour
 )
 
 // livenessWindow applies the DefaultLivenessWindow fallback to a configured

@@ -62,9 +62,26 @@ The policy preserves Eshu's facts-first model:
 Collector deselection (#7625), where a repository drops out of a git
 collector's org listing, is an observation that surfaces as the `not_selected`
 freshness verdict; it never triggers repository removal, which stays the
-tombstone path above (phase 3). Its `repository_selection_observations` rows
-are kept after they expire: an expired row reads as no evidence (`unknown`),
-and no sweep deletes it until #7774 lands.
+tombstone path above (phase 3). An expired `repository_selection_observations`
+row reads as no evidence (`unknown`) at once. The git collector deletes it
+once it has stayed expired for a 7-day grace past its own liveness window
+(#7774), unless its state is `not_listed`. The collector sweeps at most once
+per cycle on shard 0, after any outcome but a store error (a truncated listing
+still sweeps, so a repo limit below the org size cannot stop the drain), in
+batches of at most 500 rows and 10,000 rows per cycle. A cycle with no
+observation request (filesystem mode, an explicit list with no owners, or a
+cycle whose discovery fails) issues no sweep, so rows orphaned while no sweep
+runs drain only once a cycle that issues a request runs again; they still read
+`unknown`. `not_listed` rows are never
+deleted, because the mass-miss guard reads them: without that history a
+recovered selector could count scopes it had already confirmed missing as
+newly unlisted and hold every write. Those rows of an abandoned selector
+therefore stay, bounded by the selectors ever created times the scopes each
+had unlisted. The grace keeps the rest of a briefly lapsed selector's history,
+so its exclusion confirmations survive a short outage. The deletion never
+touches a live row, `ingestion_scopes`, facts, or the graph.
+`eshu_dp_collector_repository_selection_observations_deleted_total` counts
+the deleted rows.
 
 ## Tombstones And Query Truth
 

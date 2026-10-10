@@ -285,7 +285,8 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   `eshu_dp_large_repo_semaphore_wait_seconds`,
   `eshu_dp_scip_process_wait_seconds`,
   `eshu_dp_collector_repository_selection_evaluations_total` (labeled
-  `outcome`), `eshu_dp_collector_repository_selection_scopes` (labeled `state`)
+  `outcome`), `eshu_dp_collector_repository_selection_scopes` (labeled `state`),
+  `eshu_dp_collector_repository_selection_observations_deleted_total` (#7774)
 - Log events: `git repository sync started`,
   `git repository sync progress`, `git repository sync completed`,
   `git repository sync failed`, `git repository default branch changed`
