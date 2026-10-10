@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -50,15 +49,21 @@ var productionChunkedRead = chunkedRead{
 //   - a failed read fails the pass, and hydrated is left unchanged, so no
 //     partial result is mistaken for success.
 //
-// Chunks are dispatched in list order and every dispatched chunk runs to
-// completion. After a failure no further chunk is dispatched. The error
-// returned is therefore the one of the lowest-numbered failing chunk, whatever
-// the interleaving: a failing chunk numbered below the first observed failure
-// was dispatched earlier and finishes before the pass returns. A cancelled
-// context fails the pass the same way, with the context error.
+// Chunks launch in list order, each in its own goroutine, while a slot of the
+// in-flight bound is free. The launch decision and the recording of a failure
+// run under one mutex, and a read frees its slot in the same critical section
+// that records its failure (a condition variable on that mutex wakes the
+// dispatcher). So the dispatcher launches no chunk once a failure
+// is recorded or the context is done: a chunk is either launched before the
+// failure is recorded, or not launched at all. A chunk already launched runs
+// to completion, and its statement may begin after the failure was recorded.
+// The error returned is that of the lowest-numbered failing chunk, whatever
+// the interleaving: a failing chunk numbered below the first recorded failure
+// was launched earlier and finishes before the pass returns. A context that
+// ends before every chunk is launched fails the pass with the context error.
 //
 // The rows are written into hydrated by the calling goroutine after every
-// read has returned, so the workers share no slice.
+// read has returned, so the readers share no slice.
 func (c chunkedRead) fetch(
 	ctx context.Context,
 	reader querycontract.ContentStore,
@@ -87,60 +92,60 @@ func (c chunkedRead) fetch(
 	}
 
 	var (
-		results    = make([][]querycontract.FileContent, len(chunks))
-		errs       = make([]error, len(chunks))
-		failed     atomic.Bool
-		running    atomic.Int64
-		peak       atomic.Int64
+		results = make([][]querycontract.FileContent, len(chunks))
+		errs    = make([]error, len(chunks))
+		// mu guards everything below and the launch decision. A read ends in
+		// one critical section that frees its slot (running) and records its
+		// failure, so the dispatcher, which waits on cond for a free slot,
+		// cannot see the slot without the failure.
+		mu         sync.Mutex
+		cond       = sync.NewCond(&mu)
+		failed     bool
+		running    int
+		peak       int
 		dispatched int
 		wg         sync.WaitGroup
 	)
-	jobs := make(chan int)
-	for range min(inFlight, len(chunks)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for chunk := range jobs {
-				now := running.Add(1)
-				for {
-					seen := peak.Load()
-					if now <= seen || peak.CompareAndSwap(seen, now) {
-						break
-					}
-				}
-				rows, err := reader.GetFileContents(ctx, repoID, chunks[chunk])
-				running.Add(-1)
-				if err != nil {
-					errs[chunk] = err
-					failed.Store(true)
-					continue
-				}
-				results[chunk] = rows
-			}
-		}()
-	}
-dispatch:
 	for chunk := range chunks {
-		if failed.Load() || ctx.Err() != nil {
+		mu.Lock()
+		for running >= inFlight {
+			cond.Wait()
+		}
+		if failed || ctx.Err() != nil {
+			mu.Unlock()
 			break
 		}
-		select {
-		case <-ctx.Done():
-			break dispatch
-		case jobs <- chunk:
-			dispatched++
-		}
+		dispatched++
+		running++
+		peak = max(peak, running)
+		wg.Add(1)
+		mu.Unlock()
+		go func() {
+			defer wg.Done()
+			rows, err := reader.GetFileContents(ctx, repoID, chunks[chunk])
+			mu.Lock()
+			running--
+			if err != nil {
+				errs[chunk] = err
+				failed = true
+			} else {
+				results[chunk] = rows
+			}
+			cond.Signal()
+			mu.Unlock()
+		}()
 	}
-	close(jobs)
 	wg.Wait()
 
-	stats.BatchStatements += dispatched
-	stats.BatchChunkSize = chunkSize
-	stats.BatchChunksInFlightMax = max(stats.BatchChunksInFlightMax, int(peak.Load()))
+	if dispatched > 0 {
+		stats.BatchStatements += dispatched
+		stats.BatchChunkSize = chunkSize
+		stats.BatchChunksInFlightMax = max(stats.BatchChunksInFlightMax, peak)
+	}
 
 	for chunk, err := range errs {
 		if err != nil {
-			return fmt.Errorf("get artifact files (%d paths from %q): %w", len(chunks[chunk]), chunks[chunk][0], err)
+			return fmt.Errorf("get artifact files from %q (chunk of %d): %w", chunks[chunk][0], len(chunks[chunk]), err)
 		}
 	}
 	if dispatched < len(chunks) {

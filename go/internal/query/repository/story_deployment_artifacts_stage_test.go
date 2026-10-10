@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -80,8 +81,9 @@ func deploymentArtifactsStageLine(t *testing.T, logs, event string) string {
 func TestGetRepositoryStoryDeploymentArtifactsStageReportsReadCounts(t *testing.T) {
 	t.Parallel()
 
+	mainTF := "module \"m\" {\n  source = \"./m\"\n}\n"
 	store := metadataOnlyContent{FakePortContentStore: content.FakePortContentStore{RepoFiles: []querycontract.FileContent{
-		{RepoID: "repo-da-1", RelativePath: "infra/main.tf", Content: "module \"m\" {\n  source = \"./m\"\n}\n"},
+		{RepoID: "repo-da-1", RelativePath: "infra/main.tf", Content: mainTF},
 		{RepoID: "repo-da-1", RelativePath: "web/package.json", Content: `{"name":"x"}`},
 		{RepoID: "repo-da-1", RelativePath: "env/prod.tfvars", Content: "a = 1\n"},
 	}}}
@@ -96,7 +98,8 @@ func TestGetRepositoryStoryDeploymentArtifactsStageReportsReadCounts(t *testing.
 	line := deploymentArtifactsStageLine(t, logs.String(), "repository_query.stage_completed")
 	for _, want := range []string{
 		"found=", "error=false", "related_repository_count=0", "files_listed=3",
-		"files_hydrated=1", "files_skipped=2", "hydrated_bytes=", "statements=",
+		// Only main.tf is read, by the chunked read: its bytes are the total.
+		"files_hydrated=1", "files_skipped=2", fmt.Sprintf("hydrated_bytes=%d ", len(mainTF)), "statements=",
 		"blank_check_statements=1", "list_seconds=", "hydrate_seconds=", "parse_seconds=",
 		// One consumed file (infra/main.tf): one chunk statement, never more
 		// than one chunk in flight, the chunk size of the batched reader.

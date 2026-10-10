@@ -41,16 +41,19 @@ type ConfigArtifactReadStats struct {
 	// paths. It replaces one GetFileContent per hydrated file.
 	BatchStatements int
 	// BatchChunkSize is the number of paths one GetFileContents statement
-	// reads, zero when the load issued none.
+	// reads. It is set only when the load issued at least one such statement,
+	// so it is zero when the load issued none, including when the context
+	// ended before the first chunk was sent.
 	BatchChunkSize int
 	// BatchChunksInFlightMax is the largest number of chunk reads of one
-	// repository that ran at once during the load; it never exceeds the bound
-	// of eight.
+	// repository that ran at once during the load, taken as the maximum over
+	// every repository; it never exceeds the bound of eight.
 	BatchChunksInFlightMax int
 	// Statements is every ListRepoFiles, GetFileContent, GetFileContents and
 	// non-blank check the stage issued through the content store.
 	Statements int
-	// HydratedBytes is the total content length GetFileContent returned.
+	// HydratedBytes is the total content length that GetFileContent and
+	// GetFileContents returned.
 	HydratedBytes int64
 	// ListDuration is time spent listing related repositories' files.
 	ListDuration time.Duration

@@ -267,61 +267,64 @@ func TestChunkedReadReturnsTheLowestFailingChunkDeterministically(t *testing.T) 
 	}
 }
 
-// TestChunkedReadStopsDispatchingAfterAFailure shows a failed chunk ends the
-// pass early: with 20 chunks and eight in flight, a failure of the first
-// leaves at most one further chunk issued after it.
+// TestChunkedReadStopsDispatchingAfterAFailure shows a recorded failure ends
+// the launches. One chunk is in flight at a time and the first fails. The
+// dispatcher is waiting for the slot of that read, a read records its failure
+// before it frees its slot, and the launch decision reads the failure under the
+// same mutex, so the freed slot is never used: exactly one statement runs of
+// 20 chunks. A dispatcher that handed the next chunk to the failing worker,
+// or checked the failure before taking the slot, would issue two.
 func TestChunkedReadStopsDispatchingAfterAFailure(t *testing.T) {
 	t.Parallel()
 
 	store := newGatedBatchStore()
 	boom := errors.New("boom")
 	store.failAt["p000.tf"] = boom
-	store.failNow = make(chan struct{})
+	// Every read that does run is answered, so a regression fails the count
+	// below instead of waiting on a blocked read.
+	close(store.release)
 	files, indexes := gatedFixture(200)
 	var stats ConfigArtifactReadStats
-	done := make(chan error, 1)
-	go func() {
-		done <- productionChunkedRead.fetch(context.Background(), store, "repo", files, indexes, &stats)
-	}()
-	store.awaitStarted(t, 8)
-	// All eight chunks are in flight and seven are blocked. Fail the first,
-	// give the dispatcher time to see it, then let the rest finish.
-	close(store.failNow)
-	time.Sleep(50 * time.Millisecond)
-	close(store.release)
-	if err := <-done; !errors.Is(err, boom) {
+	err := chunkedRead{chunkSize: 10, inFlight: 1}.fetch(context.Background(), store, "repo", files, indexes, &stats)
+	if !errors.Is(err, boom) {
 		t.Fatalf("error = %v, want the injected failure", err)
 	}
-	if store.calls > 9 {
-		t.Fatalf("%d chunks issued after the first failed, want at most 9 (8 in flight plus one raced dispatch)", store.calls)
+	if store.calls != 1 {
+		t.Fatalf("%d chunks issued, want exactly the one that failed: none after it", store.calls)
+	}
+	if stats.BatchStatements != 1 {
+		t.Fatalf("stats.BatchStatements = %d, want 1", stats.BatchStatements)
 	}
 }
 
 // TestChunkedReadHonorsContextCancellation covers both cancellation points: a
 // context that is already done issues no statement, and one cancelled while
-// reads are in flight returns the context error and leaves no goroutine
-// behind.
+// reads are in flight returns the context error, launches nothing further and
+// leaves no goroutine behind. Both counts are exact: the launch decision reads
+// the context under the dispatcher's lock, with no ready-worker race.
 func TestChunkedReadHonorsContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("already cancelled", func(t *testing.T) {
 		t.Parallel()
-		// A select with two ready cases picks one at random, so one run cannot
-		// show that a dispatcher checks the context first. Forty can.
-		for run := 0; run < 40; run++ {
-			store := newGatedBatchStore()
-			close(store.release)
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel()
-			files, indexes := gatedFixture(30)
-			var stats ConfigArtifactReadStats
-			err := productionChunkedRead.fetch(ctx, store, "repo", files, indexes, &stats)
-			if !errors.Is(err, context.Canceled) {
-				t.Fatalf("run %d: error = %v, want context.Canceled", run, err)
-			}
-			if store.calls != 0 {
-				t.Fatalf("run %d: %d statements issued on a cancelled context, want none", run, store.calls)
-			}
+		// The store ignores the context and would answer every read, so a
+		// statement issued on the cancelled context would come back as
+		// success.
+		store := newGatedBatchStore()
+		close(store.release)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		files, indexes := gatedFixture(30)
+		var stats ConfigArtifactReadStats
+		err := productionChunkedRead.fetch(ctx, store, "repo", files, indexes, &stats)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want context.Canceled", err)
+		}
+		if store.calls != 0 {
+			t.Fatalf("%d statements issued on a cancelled context, want none", store.calls)
+		}
+		if stats.BatchStatements != 0 || stats.BatchChunkSize != 0 || stats.BatchChunksInFlightMax != 0 {
+			t.Fatalf("stats = %+v, want no batch fields when no statement was issued", stats)
 		}
 	})
 	t.Run("cancelled in flight", func(t *testing.T) {
@@ -345,8 +348,8 @@ func TestChunkedReadHonorsContextCancellation(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("the pass did not return after the context was cancelled")
 		}
-		if store.calls > 9 {
-			t.Fatalf("%d statements issued, want the eight in flight (at most one raced dispatch)", store.calls)
+		if store.calls != 8 {
+			t.Fatalf("%d statements issued, want exactly the eight in flight", store.calls)
 		}
 		store.mu.Lock()
 		inFlight := store.inFlight
@@ -442,8 +445,8 @@ func TestChunkedReadCancelledBetweenChunksIsNotSuccess(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", err)
 	}
-	if store.calls.Load() >= 20 {
-		t.Fatalf("%d of 20 chunks issued; the dispatcher did not stop on the context", store.calls.Load())
+	if got := store.calls.Load(); got != 1 {
+		t.Fatalf("%d chunks issued, want exactly the one that ended the context", got)
 	}
 	for i := range files {
 		if files[i] != before[i] {
