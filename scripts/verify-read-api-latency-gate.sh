@@ -393,7 +393,7 @@ done
 # check that the process we started is still the one alive.
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
 if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
-    python3 "${repo_root}/scripts/ci/h1-effective-config.py" "${api_pid}" "${GATE_H1_CAPTURE_DIR}/effective-config.json"
+    python3 "${repo_root}/scripts/ci/h1-effective-config.py" "${api_pid}" "${GATE_H1_CAPTURE_DIR}/effective-config.json" "$(git rev-parse HEAD)"
 fi
 
 log "start MCP HTTP transport"

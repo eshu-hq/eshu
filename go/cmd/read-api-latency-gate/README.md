@@ -112,12 +112,13 @@ See `doc.go` for the full contract.
 The normal CI benchmark reports through stdout/stderr and its process exit
 code. A manual `read-api-latency-gate.yml` run with `capture_h1_trace=true`
 adds client socket/timing records, API OpenTelemetry spans, a readiness-port
-canary, an allowlisted API configuration snapshot, and bounded Postgres/host
-samples to the `methodology-h1-<sha>` artifact. The runner's
+canary, an allowlisted API environment/default snapshot, and bounded
+Postgres/host samples to the `methodology-h1-<sha>` artifact. The runner's
 `GATE_H1_CAPTURE_DIR` selects this diagnostic mode. Its instrumented p95 is
 for diagnosis; the ordinary uninstrumented scale job remains the latency
 acceptance check. A missing or ambiguous client/server join is reported as
-`unavailable` in `join-result.json`.
+`unavailable` in `join-result.json`. Derived pool and Go runtime values
+remain `unknown` unless they were explicitly present in the API environment.
 
 ## Gotchas / invariants
 
