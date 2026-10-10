@@ -1,0 +1,20 @@
+go/internal/storage/postgres/issue7033_migration_cancel_fixture_live_test.go
+  s_b0d7e3abc26c5a::t_51df62fa11ae6d 9,15,18-19,279-361
+  s_b0d7e3abc26c5a::t_1105ea6dc32003 362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ad847c4ccc93c919ba9940e8e0bd2e8e446c2105",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
