@@ -324,6 +324,7 @@ nav:
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md
+      - Identity Fact Cache Metrics: reference/telemetry/metrics-identity-cache.md
       - Graph-read Safety: reference/telemetry/graph-read-safety.md
       - Graph-Backed Gauge Snapshots: reference/telemetry/graph-gauge-snapshots.md
       - Id-Anchor Census: reference/telemetry/id-anchor-census.md
