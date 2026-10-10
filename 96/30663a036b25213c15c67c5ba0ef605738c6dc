@@ -1,0 +1,21 @@
+go/internal/cigates/readiness_job_split_test.go
+  s_b0d7e3abc26c5a::t_ed6c1a6e48e18d 28,78-80,97-99,130-147,249-252
+.github/workflows/live-postgres-readiness.yml
+  s_b0d7e3abc26c5a::t_955b01ba4b5922 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9630663a036b25213c15c67c5ba0ef605738c6dc",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
