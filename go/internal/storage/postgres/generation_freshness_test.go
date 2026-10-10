@@ -97,13 +97,38 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			wantCurrent:  true,
 		},
 		{
-			name:         "current when active_generation_id is NULL",
+			name:         "pending first generation defers when active_generation_id is NULL",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
 			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
 				"scope-123": row("", "pending", false),
 			}},
+			wantRetryable: true,
+		},
+		{
+			name:         "missing first generation keeps legacy current result",
+			scopeID:      "scope-123",
+			generationID: "gen-missing",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("", "", false),
+			}},
 			wantCurrent: true,
+		},
+		{
+			name:         "failed first generation is terminal despite NULL active pointer",
+			scopeID:      "scope-123",
+			generationID: "gen-failed",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("", "failed", false),
+			}},
+		},
+		{
+			name:         "superseded first generation is terminal despite NULL active pointer",
+			scopeID:      "scope-123",
+			generationID: "gen-superseded",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("", "superseded", false),
+			}},
 		},
 		{
 			name:         "error propagated from database",
@@ -142,6 +167,12 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 				return
 			}
 			assertGenerationNotYetActive(t, err, tt.scopeID, tt.generationID)
+			if tt.name == "pending first generation defers when active_generation_id is NULL" {
+				var typed reducercontract.GenerationNotYetActiveError
+				if !errors.As(err, &typed) || typed.ActiveGenerationID != "" {
+					t.Fatalf("first-generation deferral = %#v, want empty active generation ID", err)
+				}
+			}
 			// The runtime wraps the check error with %w before WorkSink.Fail;
 			// the classification must survive that wrapping.
 			assertGenerationNotYetActive(t, fmt.Errorf("generation freshness check: %w", err), tt.scopeID, tt.generationID)

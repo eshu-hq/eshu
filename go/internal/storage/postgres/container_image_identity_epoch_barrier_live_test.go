@@ -34,7 +34,8 @@ func (epochBarrierFactLoader) ListFacts(
 // and stubs the decision write: the write path is proven by the digest-v3
 // lifecycle test, while the barrier proof needs real epoch SQL semantics.
 type epochBarrierWriter struct {
-	store ContainerImageIdentityScopeStateStore
+	store  ContainerImageIdentityScopeStateStore
+	writes *int
 }
 
 func (w epochBarrierWriter) ContainerImageIdentityActivationEpoch(
@@ -44,10 +45,13 @@ func (w epochBarrierWriter) ContainerImageIdentityActivationEpoch(
 	return w.store.ContainerImageIdentityActivationEpoch(ctx, scopeID, generationID)
 }
 
-func (epochBarrierWriter) WriteContainerImageIdentityDecisions(
+func (w epochBarrierWriter) WriteContainerImageIdentityDecisions(
 	_ context.Context,
 	_ containerimage.ContainerImageIdentityWrite,
 ) (containerimage.ContainerImageIdentityWriteResult, error) {
+	if w.writes != nil {
+		(*w.writes)++
+	}
 	return containerimage.ContainerImageIdentityWriteResult{}, nil
 }
 
