@@ -327,6 +327,11 @@ tests:
     tag: ~
     class: scheduled
     reason: disposable PostgreSQL guarded-reader parity proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and explicit opt-in; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
+  - file: go/internal/query/code_topic_fleet_endpoint_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7033 disposable PostgreSQL 18 primary and physical-standby proof of the real code-topic HTTP endpoint under reader-pool pressure; the live-postgres-readiness runner requires both administrative DSNs and explicit disposable opt-in, and verifies every test PASS event; local focused three-repeat run took 17.527s and race run took 7.303s on 2026-10-09; fixture setup timing is reported by the runner"
+    runner: live-postgres-readiness
   - file: go/internal/query/codequery/chain/call_chain_grant_clause_live_test.go
     tag: live_nornicdb_call_chain
     class: scheduled
