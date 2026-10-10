@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func benchOCIManifestEnvelopes(n int) []facts.Envelope {
@@ -15,7 +16,7 @@ func benchOCIManifestEnvelopes(n int) []facts.Envelope {
 	for i := 0; i < n; i++ {
 		digest := fmt.Sprintf("sha256:%064d", i)
 		envelopes = append(envelopes, facts.Envelope{
-			FactKind: facts.OCIImageManifestFactKind,
+			FactKind: chain.OCIImageManifestFactKind,
 			FactID:   "fact-" + digest,
 			Payload: map[string]any{
 				"repository_id": "oci-registry://registry.example.com/checkout",

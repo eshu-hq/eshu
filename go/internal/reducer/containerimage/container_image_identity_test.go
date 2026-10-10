@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -319,11 +320,11 @@ func workflowImageEvidenceFact(factID string, repositoryID string, imageRef stri
 }
 
 func ociManifestFact(factID string, digest string) facts.Envelope {
-	return ociImageFact(factID, facts.OCIImageManifestFactKind, digest, map[string]any{})
+	return ociImageFact(factID, chain.OCIImageManifestFactKind, digest, map[string]any{})
 }
 
 func ociTagFact(factID string, tag string, digest string, mutated bool, previousDigest string) facts.Envelope {
-	return ociImageFact(factID, facts.OCIImageTagObservationFactKind, digest, map[string]any{
+	return ociImageFact(factID, chain.OCIImageTagObservationFactKind, digest, map[string]any{
 		"tag":             tag,
 		"resolved_digest": digest,
 		"mutated":         mutated,

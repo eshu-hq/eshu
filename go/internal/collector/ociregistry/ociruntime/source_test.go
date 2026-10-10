@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -87,11 +88,11 @@ func TestSourceNextEmitsCollectedGenerationForRegistryTarget(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		facts.OCIRegistryRepositoryFactKind,
-		facts.OCIImageTagObservationFactKind,
-		facts.OCIImageManifestFactKind,
-		facts.OCIImageDescriptorFactKind,
-		facts.OCIImageReferrerFactKind,
+		chain.OCIRegistryRepositoryFactKind,
+		chain.OCIImageTagObservationFactKind,
+		chain.OCIImageManifestFactKind,
+		chain.OCIImageDescriptorFactKind,
+		chain.OCIImageReferrerFactKind,
 	} {
 		if !slices.Contains(kinds, want) {
 			t.Fatalf("fact kinds = %v, want %q", kinds, want)
@@ -132,14 +133,14 @@ func TestSourceNextComputesDigestAndWarnsWhenManifestDigestHeaderIsMissing(t *te
 	}
 	envelopes := drainFacts(t, collected)
 	kinds := factKinds(envelopes)
-	if !slices.Contains(kinds, facts.OCIImageManifestFactKind) {
+	if !slices.Contains(kinds, chain.OCIImageManifestFactKind) {
 		t.Fatalf("fact kinds = %v, want manifest fact", kinds)
 	}
-	if !slices.Contains(kinds, facts.OCIImageTagObservationFactKind) {
+	if !slices.Contains(kinds, chain.OCIImageTagObservationFactKind) {
 		t.Fatalf("fact kinds = %v, want tag observation fact", kinds)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.OCIRegistryWarningFactKind {
+		if envelope.FactKind == chain.OCIRegistryWarningFactKind {
 			return
 		}
 	}

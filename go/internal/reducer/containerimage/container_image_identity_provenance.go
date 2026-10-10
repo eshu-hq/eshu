@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -20,7 +21,7 @@ func extractOCIConfigProvenanceRefs(envelopes []facts.Envelope) []containerImage
 	}
 	refs := make([]containerImageRefEvidence, 0)
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.OCIImageManifestFactKind {
+		if envelope.FactKind != chain.OCIImageManifestFactKind {
 			continue
 		}
 		labels := configLabelMap(envelope.Payload["config_labels"])
@@ -156,7 +157,7 @@ func extractOCIConfigBuildProvenanceRefs(envelopes []facts.Envelope) []container
 	}
 	refs := make([]containerImageRefEvidence, 0)
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.OCIImageManifestFactKind {
+		if envelope.FactKind != chain.OCIImageManifestFactKind {
 			continue
 		}
 		labels := configLabelMap(envelope.Payload["config_labels"])

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
@@ -55,7 +56,7 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 	if warningCode == WarningUnsupportedReferrersAPI {
 		referrersState = ReferrersUnsupported
 	}
-	stableKey := facts.StableID(facts.OCIRegistryWarningFactKind, map[string]any{
+	stableKey := facts.StableID(chain.OCIRegistryWarningFactKind, map[string]any{
 		"digest":       digest,
 		"repository":   repository.RepositoryID,
 		"warning_code": warningCode,
@@ -93,5 +94,5 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	return newEnvelope(repository, facts.OCIRegistryWarningFactKind, facts.OCIRegistryWarningSchemaVersion, stableKey, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, warningKey, payload), nil
+	return newEnvelope(repository, chain.OCIRegistryWarningFactKind, chain.OCIRegistryWarningSchemaVersion, stableKey, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, warningKey, payload), nil
 }

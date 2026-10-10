@@ -69,7 +69,7 @@ func TestBuildSBOMAttestationAttachmentReducerIntent(t *testing.T) {
 		for _, kind := range []string{
 			chain.SBOMDocumentFactKind,
 			chain.AttestationStatementFactKind,
-			facts.OCIImageReferrerFactKind,
+			chain.OCIImageReferrerFactKind,
 		} {
 			lookup := projectorintent.NewFactLookup([]facts.Envelope{
 				{FactID: "decoy-1", FactKind: chain.SBOMComponentFactKind},

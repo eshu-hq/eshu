@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -20,7 +21,7 @@ import (
 func k8sSourceManifestWithNode(factID, registry, repository, digest, descriptorID string, tombstone bool) facts.Envelope {
 	return facts.Envelope{
 		FactID:      factID,
-		FactKind:    facts.OCIImageManifestFactKind,
+		FactKind:    chain.OCIImageManifestFactKind,
 		IsTombstone: tombstone,
 		Payload: map[string]any{
 			"registry":      registry,

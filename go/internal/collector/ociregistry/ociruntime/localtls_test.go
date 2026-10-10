@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // tlsRegistryServer starts an httptest TLS server that speaks the minimum OCI
@@ -212,8 +213,8 @@ func TestTargetTLSModeResolution(t *testing.T) {
 func imageIdentityDigest(t *testing.T, envelopes []facts.Envelope) string {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.OCIImageManifestFactKind &&
-			envelope.FactKind != facts.OCIImageIndexFactKind {
+		if envelope.FactKind != chain.OCIImageManifestFactKind &&
+			envelope.FactKind != chain.OCIImageIndexFactKind {
 			continue
 		}
 		digest, ok := envelope.Payload["digest"].(string)
@@ -223,6 +224,6 @@ func imageIdentityDigest(t *testing.T, envelopes []facts.Envelope) string {
 		return digest
 	}
 	t.Fatalf("no image-identity (%q or %q) fact found in %d envelopes",
-		facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind, len(envelopes))
+		chain.OCIImageManifestFactKind, chain.OCIImageIndexFactKind, len(envelopes))
 	return ""
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestIsCanonicalSchemaVersion(t *testing.T) {
@@ -109,7 +110,7 @@ func TestSchemaVersionDispatchesToFamilies(t *testing.T) {
 		factKind string
 	}{
 		{"terraform state", cloud.TerraformStateFactKinds()[0]},
-		{"oci registry", OCIRegistryFactKinds()[0]},
+		{"oci registry", chain.OCIRegistryFactKinds()[0]},
 		{"aws", AWSFactKinds()[0]},
 		{"observability", ObservabilityFactKinds()[0]},
 	}

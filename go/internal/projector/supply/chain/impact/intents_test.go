@@ -72,8 +72,8 @@ func TestBuildSupplyChainImpactReducerIntentReasonBySourceKind(t *testing.T) {
 		{"package identity", facts.PackageRegistryPackageFactKind, "package registry identity observed"},
 		{"SBOM component", chain.SBOMComponentFactKind, "SBOM package evidence observed"},
 		{"suppression", chain.VulnerabilitySuppressionFactKind, "vulnerability suppression evidence observed"},
-		{"OCI manifest", facts.OCIImageManifestFactKind, "OCI image subject evidence observed"},
-		{"OCI referrer", facts.OCIImageReferrerFactKind, "OCI image subject evidence observed"},
+		{"OCI manifest", chain.OCIImageManifestFactKind, "OCI image subject evidence observed"},
+		{"OCI referrer", chain.OCIImageReferrerFactKind, "OCI image subject evidence observed"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

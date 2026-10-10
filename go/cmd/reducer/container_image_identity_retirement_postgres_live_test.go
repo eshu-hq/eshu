@@ -13,6 +13,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -345,7 +346,7 @@ func retirementLiveManifest(
 		factID,
 		retirementLiveRegistryScope,
 		generationID,
-		facts.OCIImageManifestFactKind,
+		chain.OCIImageManifestFactKind,
 		"oci_registry",
 		payload,
 		observedAt,
@@ -363,7 +364,7 @@ func retirementLiveTag(
 		factID,
 		retirementLiveRegistryScope,
 		generationID,
-		facts.OCIImageTagObservationFactKind,
+		chain.OCIImageTagObservationFactKind,
 		"oci_registry",
 		map[string]any{
 			"registry":        retirementLiveRegistry,
@@ -390,7 +391,7 @@ func retirementLiveWarning(
 		factID,
 		retirementLiveRegistryScope,
 		generationID,
-		facts.OCIRegistryWarningFactKind,
+		chain.OCIRegistryWarningFactKind,
 		"oci_registry",
 		map[string]any{
 			"repository_id": retirementLiveRegistryScope,
