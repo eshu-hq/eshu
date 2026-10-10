@@ -115,7 +115,7 @@ All proof ran against `postgres:18` on a disposable database.
   locking-clause counts before/after.
 - Regression: the claim/fence/supersede/ack live family green (79 tests,
   0 failures, including the #7469 guard set and the 1,000-iteration
-  marker-vs-sweep race); the live-tests ledger verifies (683 rows).
+  marker-vs-sweep race); the live-tests ledger verifies (684 rows).
 
 No-Regression Evidence: `TestProjectorClaimFullGuardContention` (16
 workers, 512 single-generation scopes, 5 interleaved rounds per variant, 0
