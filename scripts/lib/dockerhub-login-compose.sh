@@ -26,15 +26,26 @@ compose_max_depth=6
 # A build map without a context leaves the context empty, so an extending
 # service inherits the base's.
 compose_rows_expr='explode(.) as $r
-| ( (($r.include // []) | .[] | ((select(tag == "!!str") | [.]), (select(tag == "!!map") | .path | ((select(tag == "!!str") | [.]), (select(tag == "!!seq") | .)))) | .[] | "I|" + .),
+| ( ($r.include
+    | ((select(tag == "!!null") | []),
+       (select(tag == "!!str" or tag == "!!map") | [.]),
+       select(tag == "!!seq"),
+       (select(tag != "!!null" and tag != "!!str" and tag != "!!map" and tag != "!!seq") | ["@UNRESOLVED@"]))
+    | .[]
+    | ((select(tag == "!!str") | [.]),
+       (select(tag == "!!map") | .path
+         | ((select(tag == "!!str") | [.]), select(tag == "!!seq"),
+            (select(tag != "!!str" and tag != "!!seq") | ["@UNRESOLVED@"]))),
+       (select(tag != "!!str" and tag != "!!map") | ["@UNRESOLVED@"]))
+    | .[] | "I|" + .),
     (($r.services // {}) | to_entries | .[] | .key as $n | .value as $v
-      | "S|" + $n + "|" + ($v.image // "") + "|"
-        + (if ($v.build | tag) == "!!str" then $v.build elif ($v.build | tag) == "!!map" then ($v.build.context // "") else "" end) + "|"
-        + (if ($v.build | tag) == "!!map" then ($v.build.dockerfile // "") else "" end) + "|"
-        + (if ($v.extends | tag) == "!!map" then ($v.extends.file // "") else "" end) + "|"
-        + (if ($v.extends | tag) == "!!str" then $v.extends elif ($v.extends | tag) == "!!map" then ($v.extends.service // "") else "" end) + "|"
-        + (if ($v.build | tag) == "!!map" and $v.build.dockerfile_inline != null then "inline" else "" end) + "|"
-        + (if ($v | has("build")) then "build" else "" end)) )'
+      | "S|" + $n + "|" + (($v.image | select(tag == "!!str" and . != "")) // ("@UNRESOLVED@" | select($v | has("image"))) // "") + "|"
+        + (($v.build | select(tag == "!!str")) // ($v.build | select(tag == "!!map") | .context) // "") + "|"
+        + (($v.build | select(tag == "!!map") | .dockerfile) // "") + "|"
+        + (($v.extends | select(tag == "!!map") | .file) // "") + "|"
+        + (($v.extends | select(tag == "!!str" and . != "")) // ($v.extends | select(tag == "!!map") | .service | select(. != null and . != "")) // ("@UNRESOLVED@" | select($v | has("extends"))) // "") + "|"
+        + (("inline" | select((($v.build | tag) == "!!map" and $v.build.dockerfile_inline != null) or (($v | has("build")) and ($v.build | tag) != "!!str" and ($v.build | tag) != "!!map"))) // "") + "|"
+        + (("build" | select($v | has("build"))) // "")) )'
 
 # dir_join <dir> <relative path>: sets JOIN to the normalised repo-relative path
 # ("." for the root) or "" when the path is absolute or leaves the repo.

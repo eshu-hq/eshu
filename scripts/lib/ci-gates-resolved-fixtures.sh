@@ -1,20 +1,57 @@
 #!/usr/bin/env bash
 # Build temporary flat views for legacy text assertions after Go Load validates
 # the ordered registry fragments. Never commit these views as a second registry.
+ci_gates_fragment_paths() {
+  local root="$1" repo="$2"
+  (cd "${repo}/go" && go run ./cmd/ci-gates fragments --registry "${root}")
+}
+
 ci_gates_flat_view() {
-  local root="$1" output="$2" repo="$3" ref
-  if ! rg -q '^gate_fragments:' "${root}"; then
+  local root="$1" output="$2" repo="$3" code_repo refs ref spec_dir body flat
+  code_repo="${ESHU_CI_GATES_GO_REPO:-${repo}}"
+  refs="$(ci_gates_fragment_paths "${root}" "${code_repo}")" || return 1
+  if [[ -z "${refs}" ]]; then
     cp "${root}" "${output}"
     return
   fi
-  (cd "${repo}/go" && go run ./cmd/ci-gates layers --registry "${root}" >/dev/null) || return 1
-  awk '/^gate_fragments:/{exit}{print}' "${root}" >"${output}"
-  printf 'gates:\n' >>"${output}"
+  spec_dir="$(dirname "${root}")"
+  body="$(mktemp)" || return 1
+  flat="$(mktemp)" || { rm -f "${body}"; return 1; }
   while IFS= read -r ref; do
-    [[ -f "${repo}/specs/${ref}" ]] || return 1
-    sed -n '3,$p' "${repo}/specs/${ref}" >>"${output}"
-  done < <(awk '/^gate_fragments:/{active=1;next} active && /^  - ci-gates.d\//{print $2;next} active && /^[^ #]/{exit}' "${root}")
-  awk '/^hygiene_hooks:/{active=1} active{print}' "${root}" >>"${output}"
+    if [[ ! -f "${spec_dir}/${ref}" ]]; then
+      rm -f "${body}" "${flat}"
+      return 1
+    fi
+    sed -n '3,$p' "${spec_dir}/${ref}" >>"${body}"
+  done <<<"${refs}"
+  if ! awk -v body="${body}" -v sq="'" '
+    function fragments_key(line) {
+      return line ~ /^gate_fragments:/ || line ~ /^"gate_fragments":/ ||
+        line ~ ("^" sq "gate_fragments" sq ":")
+    }
+    fragments_key($0) {
+      found = 1
+      skipping = 1
+      print "gates:"
+      while ((getline line < body) > 0) print line
+      close(body)
+      next
+    }
+    skipping && /^[^ #][^:]*:/ { skipping = 0 }
+    !skipping { print }
+    END { if (!found) exit 1 }
+  ' "${root}" >"${flat}"; then
+    rm -f "${body}" "${flat}"
+    return 1
+  fi
+  if ! (cd "${code_repo}/go" && go run ./cmd/ci-gates compare --left "${root}" --right "${flat}" >/dev/null); then
+    rm -f "${body}" "${flat}"
+    return 1
+  fi
+  cp "${flat}" "${output}"
+  local result=$?
+  rm -f "${body}" "${flat}"
+  return "${result}"
 }
 
 ci_gates_static_workflow_view() {

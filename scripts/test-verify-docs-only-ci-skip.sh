@@ -50,7 +50,7 @@ ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${tmp}/specs/ci-gates.
 cp "${tmp}/specs/ci-gates.v1.yaml" "${tmp}/ci-gates-flat.original.yaml"
 chmod +x "${tmp}/scripts/verify-docs-only-ci-skip.sh"
 
-run_scratch() { (cd "${tmp}" && bash scripts/verify-docs-only-ci-skip.sh); }
+run_scratch() { (cd "${tmp}" && ESHU_CI_GATES_GO_REPO="${repo_root}" bash scripts/verify-docs-only-ci-skip.sh); }
 
 # --- baseline: the real, unmutated repo state is green. ---
 if out="$(run_scratch 2>&1)"; then

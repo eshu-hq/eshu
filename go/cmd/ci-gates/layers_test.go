@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
 // TestValidateSubcommand_RequiresPurpose proves `validate` wires in
@@ -17,7 +19,15 @@ func TestValidateSubcommand_RequiresPurpose(t *testing.T) {
 	t.Parallel()
 	bin := buildBinary(t)
 	root := repoRoot(t)
-	raw, err := os.ReadFile(filepath.Join(root, "specs", "ci-gates.v1.yaml"))
+	loaded, err := cigates.Load(filepath.Join(root, "specs", "ci-gates.v1.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := loaded.FragmentPaths()
+	if len(refs) == 0 {
+		t.Fatal("committed registry has no validated fragments")
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "specs", refs[0]))
 	if err != nil {
 		t.Fatal(err)
 	}

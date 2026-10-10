@@ -252,6 +252,106 @@ else
 	record_fail "a self-test-only gate rendered a bare em dash, hiding its real test_command: ${selftest_only_row}"
 fi
 
+# A quoted first fragment is valid YAML and must retain every gate in the
+# temporary flat view and the generated reference. The altered name proves
+# the generator read this fixture rather than the default registry.
+quoted_dir="${tmp_root}/quoted/specs"
+mkdir -p "${quoted_dir}"
+cp -R "${repo_root}/specs/ci-gates.d" "${quoted_dir}/ci-gates.d"
+awk '$0 == "  - ci-gates.d/gates-01.yaml" { print "  - \"ci-gates.d/gates-01.yaml\""; next } { print }' \
+  "${registry}" >"${quoted_dir}/ci-gates.v1.yaml"
+awk 'BEGIN { changed = 0 } !changed && /^    name:/ { sub(/name: /, "name: Quoted Fixture "); changed = 1 } { print }' \
+  "${quoted_dir}/ci-gates.d/gates-01.yaml" >"${tmp_root}/first-shard.yaml"
+cp "${tmp_root}/first-shard.yaml" "${quoted_dir}/ci-gates.d/gates-01.yaml"
+source "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+quoted_flat="${tmp_root}/quoted-flat.yaml"
+if ci_gates_flat_view "${quoted_dir}/ci-gates.v1.yaml" "${quoted_flat}" "${repo_root}" \
+  && [[ "$(rg -c '^  - id: ' "${quoted_flat}")" -eq "${gate_count}" ]]; then
+	record_pass "quoted first fragment retains all ${gate_count} gates in validated flat view"
+else
+	record_fail "quoted first fragment lost gates in validated flat view"
+fi
+quoted_doc="${tmp_root}/quoted-doc.md"
+if ESHU_CI_GATES_DOC_REGISTRY_PATH="${quoted_dir}/ci-gates.v1.yaml" \
+  ESHU_CI_GATES_DOC_OUTPUT_PATH="${quoted_doc}" bash "${generator}" >/dev/null \
+  && rg -q 'Quoted Fixture' "${quoted_doc}" \
+  && [[ "$(rg -c '^\| `' "${quoted_doc}")" -eq "${gate_count}" ]]; then
+	record_pass "generator uses all quoted fragment records from fixture registry"
+else
+	record_fail "generator ignored or truncated quoted fragment fixture"
+fi
+
+for invalid in missing empty escape malformed; do
+	bad_root="${tmp_root}/${invalid}/specs/ci-gates.v1.yaml"
+	mkdir -p "$(dirname "${bad_root}")"
+	case "${invalid}" in
+		missing) printf 'version: v1\ngate_fragments: [ci-gates.d/missing.yaml]\n' >"${bad_root}" ;;
+		empty) printf 'version: v1\ngate_fragments: []\n' >"${bad_root}" ;;
+		escape) printf 'version: v1\ngate_fragments: [../outside.yaml]\n' >"${bad_root}" ;;
+		malformed) printf 'version: v1\ngate_fragments: [\n' >"${bad_root}" ;;
+	esac
+	if ci_gates_flat_view "${bad_root}" "${tmp_root}/${invalid}-flat.yaml" "${repo_root}" >/dev/null 2>&1; then
+		record_fail "validated flat view accepted ${invalid} fragment input"
+	else
+		record_pass "validated flat view rejects ${invalid} fragment input"
+	fi
+	if ESHU_CI_GATES_DOC_REGISTRY_PATH="${bad_root}" \
+	  ESHU_CI_GATES_DOC_OUTPUT_PATH="${tmp_root}/${invalid}-doc.md" \
+	  bash "${generator}" >/dev/null 2>&1; then
+		record_fail "generator accepted ${invalid} fragment input"
+	else
+		record_pass "generator rejects ${invalid} fragment input"
+	fi
+done
+
+# Root-key quoting and inline lists are accepted by Go Load. The flat view
+# must preserve their gate model too; it must not depend on a literal line
+# spelled `gate_fragments:` or a block-style list.
+for style in quoted-key inline-list; do
+	style_dir="${tmp_root}/${style}/specs"
+	mkdir -p "${style_dir}/ci-gates.d"
+	cp "${repo_root}/specs/ci-gates.d/gates-01.yaml" "${style_dir}/ci-gates.d/first.yaml"
+	if [[ "${style}" == quoted-key ]]; then
+		printf 'version: v1\n"gate_fragments": [ci-gates.d/first.yaml]\n' >"${style_dir}/ci-gates.v1.yaml"
+	else
+		printf 'version: v1\ngate_fragments: [ci-gates.d/first.yaml]\n' >"${style_dir}/ci-gates.v1.yaml"
+	fi
+	if ci_gates_flat_view "${style_dir}/ci-gates.v1.yaml" "${tmp_root}/${style}-flat.yaml" "${repo_root}" \
+	  && [[ "$(rg -c '^  - id: ' "${tmp_root}/${style}-flat.yaml")" -eq "$(rg -c '^  - id: ' "${style_dir}/ci-gates.d/first.yaml")" ]]; then
+		record_pass "${style} retains the Go-validated gate model"
+	else
+		record_fail "${style} lost the Go-validated gate model"
+	fi
+done
+
+# Failure of the Go exporter must not turn into an empty, successful view.
+fake_bin="${tmp_root}/fake-bin"
+mkdir -p "${fake_bin}"
+printf '#!/bin/sh\nexit 42\n' >"${fake_bin}/go"
+chmod +x "${fake_bin}/go"
+if PATH="${fake_bin}:${PATH}" ci_gates_flat_view "${registry}" "${tmp_root}/export-failed.yaml" "${repo_root}" >/dev/null 2>&1 \
+  || [[ -e "${tmp_root}/export-failed.yaml" ]]; then
+	record_fail "flat view accepted an exporter failure or wrote a partial result"
+else
+	record_pass "flat view propagates exporter failure without partial output"
+fi
+
+# This shard is valid to Go Load but flow-formatted. A raw stitch cannot copy
+# its second line as a block list, so the normalized comparison must reject it.
+flow_dir="${tmp_root}/flow-shard/specs"
+mkdir -p "${flow_dir}/ci-gates.d"
+printf 'version: v1\ngate_fragments: [ci-gates.d/first.yaml]\n' >"${flow_dir}/ci-gates.v1.yaml"
+printf '%s\n' 'version: v1' \
+  'gates: [{id: openapi-surface, name: Verify OpenAPI Surface, category: exactness, tier: pre-pr, blocking: true, triggers: ["go/internal/query/openapi*.go"], local: {command: "bash scripts/verify-openapi.sh", test_command: "bash scripts/test-verify-openapi.sh"}, ci: {workflow: verify-openapi.yml, job: "Verify OpenAPI gate"}, requirements: [go], ci_only_reason: "", local_only_reason: ""}]' \
+  >"${flow_dir}/ci-gates.d/first.yaml"
+if ci_gates_fragment_paths "${flow_dir}/ci-gates.v1.yaml" "${repo_root}" >/dev/null \
+  && ! ci_gates_flat_view "${flow_dir}/ci-gates.v1.yaml" "${tmp_root}/flow-flat.yaml" "${repo_root}" >/dev/null 2>&1 \
+  && [[ ! -e "${tmp_root}/flow-flat.yaml" ]]; then
+	record_pass "normalized comparison rejects an omitted valid flow shard"
+else
+	record_fail "flat view silently accepted or partially wrote an omitted flow shard"
+fi
+
 if [[ "${FAIL}" -ne 0 ]]; then
 	printf 'test-generate-ci-gates-doc FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
 	exit 1

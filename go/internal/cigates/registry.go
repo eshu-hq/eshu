@@ -213,6 +213,7 @@ type Registry struct {
 	// RequiredStatusChecks is the repository-owned manifest of status contexts
 	// configured as required by the live GitHub ruleset.
 	RequiredStatusChecks []RequiredStatusCheck
+	gateFragments        []string
 }
 
 // validCategories is the closed set of allowed Category values.
@@ -271,7 +272,7 @@ func Load(path string) (*Registry, error) {
 		return nil, err
 	}
 
-	reg := &Registry{Version: parsed.Version}
+	reg := &Registry{Version: parsed.Version, gateFragments: append([]string(nil), parsed.GateFragments...)}
 	seenIDs := make(map[string]struct{}, len(parsed.Gates))
 
 	for i, gf := range parsed.Gates {

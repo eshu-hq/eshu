@@ -18,6 +18,12 @@ type gateFragmentFile struct {
 	Gates   []gateFile `yaml:"gates"`
 }
 
+// FragmentPaths returns the validated fragment paths in registry order.
+// A flat registry returns nil. The returned slice does not alias Registry.
+func (r *Registry) FragmentPaths() []string {
+	return append([]string(nil), r.gateFragments...)
+}
+
 // decodeRegistryFile validates the root YAML and expands its ordered fragments.
 func decodeRegistryFile(path string) (registryFile, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured gate registry under specs/.
@@ -66,7 +72,7 @@ func loadGateFragments(path string, parsed *registryFile) error {
 	seen := make(map[string]bool, len(parsed.GateFragments))
 	for _, ref := range parsed.GateFragments {
 		clean := filepath.Clean(ref)
-		if ref == "" || filepath.IsAbs(ref) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean != ref || !strings.HasPrefix(clean, "ci-gates.d"+string(filepath.Separator)) {
+		if ref == "" || strings.ContainsAny(ref, "\r\n") || filepath.IsAbs(ref) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean != ref || !strings.HasPrefix(clean, "ci-gates.d"+string(filepath.Separator)) {
 			return fmt.Errorf("ci-gates registry %s: invalid gate fragment %q", path, ref)
 		}
 		if seen[clean] {

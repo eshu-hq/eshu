@@ -95,7 +95,8 @@ registry_view_dir="$(mktemp -d)"
 registry_yml="${registry_view_dir}/ci-gates.v1.yaml"
 trap 'rm -rf "${registry_view_dir}"' EXIT
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/ci-gates-resolved-fixtures.sh"
-ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry_yml}" "${repo_root}"
+ESHU_CI_GATES_GO_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" \
+  ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry_yml}" "${repo_root}"
 
 # shellcheck source=scripts/lib/main-health-policy.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/main-health-policy.sh"
