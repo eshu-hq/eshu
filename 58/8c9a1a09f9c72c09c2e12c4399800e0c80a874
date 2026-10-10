@@ -1,0 +1,20 @@
+scripts/test-verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_ba90ffe06f09cd 183-185
+  s_29175cf8c573b8::t_0b8c29b9aa2d5e 174-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "588c9a1a09f9c72c09c2e12c4399800e0c80a874",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
