@@ -308,9 +308,9 @@ var orderedBootstrapDefinitionNames = []string{
 	"service_materialization_generations_active_service_idx_rescope",
 	"service_materialization_generations_active_service_idx_v2",
 	// migration 130 (#7115) adds projector_scope_claim_fences, the per-scope
-	// claim fence only the projector claim locks and bumps, with an AFTER
-	// INSERT trigger on ingestion_scopes and a backfill. Numbered 130, after
-	// #6475's 126-129.
+	// claim fence the projector claim locks and bumps (and, since #7819, the
+	// write-start marker), with an AFTER INSERT trigger on ingestion_scopes
+	// and a backfill. Numbered 130, after #6475's 126-129.
 	"projector_scope_claim_fences",
 	// #7237 adds ordered partial indexes for semantic code hints and repo paths.
 	"fact_records_semantic_code_hint_order_idx",

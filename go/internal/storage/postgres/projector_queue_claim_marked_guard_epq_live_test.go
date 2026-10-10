@@ -294,9 +294,13 @@ WHERE generation_id = 'gen-il1'
 
 // runMarkGuardSweepRaceMarker runs one racing marker attempt against
 // scope-il: lock the claim fence row, write the marker, bump the fence, and
-// commit. A busy fence defers (rollback, nil error), exactly like the shipped
-// MarkProjectionWriteStarted. The generation-row write is the modeled
-// markGuardSweepRaceMarker; the fence statements are the shipped consts.
+// commit. A busy fence defers (rollback, nil error), like the shipped
+// MarkProjectionWriteStarted. Unlike the shipped marker it bumps and
+// commits even when the modeled write marks no row; that is
+// assertion-neutral here (a post-hoc bump cannot move a completed claim,
+// and the absolute fence value is unused across iterations). The
+// generation-row write is the modeled markGuardSweepRaceMarker; the fence
+// statements are the shipped consts.
 func runMarkGuardSweepRaceMarker(ctx context.Context, t *testing.T, markerDB *sql.DB) error {
 	t.Helper()
 	tx, err := markerDB.BeginTx(ctx, nil)

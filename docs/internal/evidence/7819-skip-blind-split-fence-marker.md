@@ -99,9 +99,12 @@ All proof ran against `postgres:18` on a disposable database.
   modes; the claim's locking-clause counts are untouched.
 - Regression: the full `go/internal/storage/postgres` unit suite
   GREEN (live tests skip without DSNs); the marker/heartbeat ordering
-  family GREEN (5/5 subtests); the `go/internal/projector`
-  write-marker loop tests GREEN; the live-tests ledger verifies (689
-  rows).
+  family GREEN (5/5 subtests); the #7389
+  `TestProjectorHeartbeatWriteMarkerInterleave` exclusion proof GREEN
+  (1,000 races, marker-won 170, supersede-won 830, 0 deadlocks,
+  exactly-one-wins on every trial) against the changed marker; the
+  `go/internal/projector` write-marker loop tests GREEN; the
+  live-tests ledger verifies (689 rows).
 
 No-Regression Evidence: `TestProjectorClaimMarkedGuardContention` (16
 workers, 512 scopes, 5 rounds per variant, 2,560 claims): before
@@ -117,12 +120,19 @@ path is byte-identical.
 
 Observability Evidence: no new metric, span, log key, or status. A
 busy-fence deferral returns the existing
-`ErrWorkWriteMarkerDeferred`, so it lands on the #7470 write-marker
-`deferred` outcome label and the existing deferral log line, whose
-message names the fence (`claim fence busy or missing`). The fence
-bump rate is visible in the existing fence-row churn; a scope whose
-claims chronically skip on a hot fence shows as repeated claim
-no-ops, the same signal as today's contended scope.
+`ErrWorkWriteMarkerDeferred`, so the retry loop records it on the
+#7470 write-marker `retried` outcome (and `gave_up` if the bound
+exhausts) and the existing deferral log line fires — but neither
+carries the cause: the counter has no fence value and the log message
+stays "projector write marker waiting for busy generation row", so a
+fence-busy deferral is indistinguishable from a generation-row wait in
+both signals. The fence cause surfaces only in the returned error
+text (`claim fence busy or missing`), visible on terminal paths.
+Cause-aware enrichment is follow-up material (#7907, which also
+covers pacing the retry loop for ms-defers). The fence bump rate is
+visible in the existing fence-row
+churn; a scope whose claims chronically skip on a hot fence shows as
+repeated claim no-ops, the same signal as today's contended scope.
 
 ## Runner enrollment
 
