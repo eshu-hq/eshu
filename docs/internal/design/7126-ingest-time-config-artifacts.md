@@ -1,6 +1,6 @@
 # Derive repository config artifacts when content is written (#7126)
 
-Status: Accepted with changes (arbiter ruling, re-ruling and re-ruling 2,
+Status: Accepted with changes (arbiter ruling and re-rulings 1, 2 and 3,
 2026-10-10).
 Shims S0 and S2 ran locally and pass. S1, S3, S4 and S6 have not run. This
 record does not approve the schema, the migration number or any rollout.
@@ -119,6 +119,11 @@ sessions that do not derive.
    and returns nil. The stored version stays behind, so readers fall back.
 6. The reducer owns repair. Its walker runs the same derive protocol for
    reconcile, backfill and extractor version changes.
+7. A startup check guards the UTF8 invariant (re-ruling 3). Each deriving
+   binary and the API run `SHOW server_encoding` once. On a value other than
+   `UTF8` they skip every derive with outcome `encoding_unsupported` and
+   report the read model as `not_installed`. The Write proceeds, and reads
+   stay live.
 
 This departs from #6793. `deriveInfraInventory` fails the Write, which is
 right for a SQL-only copy. The config derive runs Go regexes and `yaml.v3`
@@ -149,9 +154,11 @@ summary:
   where `row_digest` is a stored generated SHA-256 column over the
   length-prefixed path, relative path and evidence kind, defined once in the
   schema. The four columns stay as data. A `row_too_wide` fallback and a
-  length precheck are rejected. The ruled expression uses `convert_to`, which
-  PostgreSQL 18.6 rejects as not immutable. The protocol companion (section
-  1) gives the test and a **Proposed** correction for the arbiter.
+  length precheck are rejected. `convert_to` is STABLE, so PostgreSQL 18.6
+  rejects it in a generated column. Re-ruling 3 adopted an IMMUTABLE wrapper,
+  `config_artifact_utf8`, which is true per database because
+  `server_encoding` cannot change. The protocol companion (section 1) has the
+  definition and the rejected alternatives.
 - The migration sets `autovacuum_vacuum_scale_factor` at most 0.02 on the
   rows table (re-ruling 2), because S2 measured +40% on the read after a
   rewrite with no vacuum.
@@ -260,19 +267,21 @@ states this number in its PR. A bump is a performance event, not a silent one.
 
 ### 3.5 Telemetry
 
-All names in this section are **Proposed**. G9 (the stage log fields) is
-ruled.
+All names in this section are **Proposed**, except what a ruling named: the
+G9 stage log fields, and from re-ruling 3 the log `postgres.server_encoding`,
+the derive outcome `encoding_unsupported` and the `not_installed` status with
+a reason.
 
 | Signal | Name | Answers |
 |---|---|---|
 | Counter | `eshu_dp_config_artifact_reads_total{source,reason}` | related repositories served stored or live, and why (`missing`, `stale_version`, `stale_extractor`, `failed`, `mode_live`) |
 | Counter | `eshu_dp_config_artifact_shadow_compare_total{outcome}` | `match`, `mismatch`, `stored_missing` |
-| Counter, histogram | `eshu_dp_config_artifact_derives_total{trigger,outcome}`, `eshu_dp_config_artifact_derive_duration_seconds{trigger}` | write, backfill and repair derives. `ok`, `superseded`, `error`, `panic`, `timeout` |
+| Counter, histogram | `eshu_dp_config_artifact_derives_total{trigger,outcome}`, `eshu_dp_config_artifact_derive_duration_seconds{trigger}` | write, backfill and repair derives. `ok`, `superseded`, `error`, `panic`, `timeout`, `encoding_unsupported` |
 | Counter | `eshu_dp_config_artifact_reconcile_total{outcome}` | `match`, `repaired`, `superseded`, `error`, `skipped` |
 | Gauge | `eshu_dp_config_artifact_stale_repos{reason}` | how far the read model is behind, from the dirty join |
 | Span | one `config_artifacts.load` span per request. One derive span per Write | replaces up to about 49,600 per-statement spans of an R1 story |
-| Log | `config_artifacts.derive.failed` at ERROR, `config_artifacts.shadow.mismatch`, `config_artifacts.reconcile.drift`, content-writer stage `derive_config_artifacts` | repository id, outcome, row and candidate counts |
-| Status | `/admin/status` field `config_artifacts`: `not_installed`, `backfilling`, `ready`, plus stale and skipped repository counts | whether stored reads are trusted |
+| Log | `postgres.server_encoding` at INFO (ERROR when not UTF8, re-ruling 3), `config_artifacts.derive.failed` at ERROR, `config_artifacts.shadow.mismatch`, `config_artifacts.reconcile.drift`, content-writer stage `derive_config_artifacts` | repository id, outcome, row and candidate counts |
+| Status | `/admin/status` field `config_artifacts`: `not_installed` (with a reason, such as a non-UTF8 database), `backfilling`, `ready`, plus stale and skipped repository counts | whether stored reads are trusted |
 
 The stage log line `deployment_artifacts` lacks N and statement counts today.
 PR3c adds `read_mode`, `related_repository_count`, `stored_repository_count`,
@@ -358,7 +367,7 @@ those stages change, which is outside PR3.
 | PR | Content | Starts | Proof |
 |---|---|---|---|
 | S0 test, version guard | The S0 name-free equality test (exists on the local branch `proof/7126-pr3-shims`, `953f68712e`) and the `extractor_version` digest guard, as new files | now | S0 passes (done locally). Seeded RED/GREEN for the guard |
-| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass and the arbiter rules on the generated-column correction | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences, and the three arm 7 cases. A test that no Go statement deletes version rows outside a documented retirement path |
+| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences, and the three arm 7 cases. A schema test that recomputes every seeded digest in SQL. A test that no Go statement deletes version rows outside a documented retirement path. The retention runner's single-flight property, stated from source. The startup encoding check |
 | PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort. Split `normalizeRepoScopedPath` into clean and strip | after PR1, PR1b and PR2 merge | Existing tests and the PR1 differential pass unchanged. Tie count. The S0 tests run against the strip step |
 | PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
 | PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. Ops-qa shadow then acceptance |
@@ -395,9 +404,11 @@ a table that grows with file count", and accepted the hash join.
 
 ## 9. Arbiter rulings of 2026-10-10
 
-The ruling, the re-ruling and re-ruling 2 bind. The re-ruling replaced the
-first fence. Re-ruling 2 decided the trigger lock order, the arm 6 count, the
-row key and the S2 bar. This table maps each item to its section here.
+The ruling and re-rulings 1, 2 and 3 bind. The re-ruling replaced the first
+fence. Re-ruling 2 decided the trigger lock order, the arm 6 count, the row
+key and the S2 bar. Re-ruling 3 adopted the IMMUTABLE wrapper and the UTF8
+startup check, stated the trigger timing again, and reduced arm 7 case 3 to a
+convergence check. This table maps each item to its section here.
 
 | Fork | Ruling | Where |
 |---|---|---|
@@ -412,8 +423,8 @@ row key and the S2 bar. This table maps each item to its section here.
 | G1 name binding (re-ruled, closed by S0 in re-ruling 2) | Rows stored name-free with the cleaned path. A strip-only read step on `name_scoped` rows. One merge across all sources, then dedup on the four-tuple and the four-key sort | 3.3, companion 4 |
 | G2, G6 | Write failure semantics, lock during parse | companion 3 |
 | G7 version bump | a sized fallback window | 3.4 |
-| G8 key width (re-ruling 2) | stored generated digest key. `row_too_wide` and a length precheck rejected. The expression needs an immutable conversion (open, companion 1) | 3.2, companion 1 |
-| Trigger lock order and arm 7 (re-ruling 2) | `ORDER BY r.repo_id` accepted. Arm 7 is a three-case correctness test in PR3b-1 | companion 2 and 6 |
+| G8 key width (re-rulings 2 and 3) | Stored generated digest key through the IMMUTABLE wrapper `config_artifact_utf8`. `row_too_wide` and a length precheck rejected. A UTF8 startup check | 3.1, 3.2, companion 1 |
+| Trigger lock order and arm 7 (re-rulings 2 and 3) | `ORDER BY r.repo_id` accepted. No prune-against-Write cycle under either DELETE shape. S3 cost alone picks the shape, with `OLD TABLE` as the tie-breaker. Arm 7 has three cases, case 3 a convergence check | companion 2 and 6 |
 | Arm 6 count and S2 bar (re-ruling 2) | one rewrite per content transaction. At most 5 ms and no scan that grows with file count | 8, companion 6 |
 | G9 stage log | the new fields land in PR3c | 3.5 |
 | R-1 and G3 (lost update) | decided: the version fence replaces the mark protocol | companion 7 |

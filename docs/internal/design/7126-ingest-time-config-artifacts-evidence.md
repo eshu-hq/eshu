@@ -151,5 +151,5 @@ revision, not in the repository.
 |---|---|
 | `provolatile` of `convert_to(text, name)` and `textsend(text)` | `s` (STABLE) for both. `sha256` and `length(text)` are `i` (IMMUTABLE) |
 | `CREATE TABLE` with the generated column of re-ruling 2 | `ERROR: generation expression is not immutable` |
-| Same column through an IMMUTABLE SQL wrapper over `convert_to(t, 'UTF8')` | table builds. 4 rows insert, 4 distinct digests, including `('a|b', 'c')` and `('a', 'b|c')`. The digest of `'3:a|b1:ck'` matches a manual `sha256(convert_to(...))` |
-| AFTER ROW DELETE trigger timing over 9 rows. BEFORE and AFTER row triggers log a sequence | all 9 BEFORE events (1-9) precede all 9 AFTER events (10-18). AFTER row triggers fire at the end of the statement |
+| Same column through an IMMUTABLE SQL wrapper over `convert_to(t, 'UTF8')` (adopted by re-ruling 3) | table builds. 4 rows insert, 4 distinct digests, including `('a|b', 'c')` and `('a', 'b|c')`. The digest of `'3:a|b1:ck'` matches a manual `sha256(convert_to(...))` |
+| AFTER ROW DELETE trigger timing over 9 rows. BEFORE and AFTER row triggers log a sequence | all 9 BEFORE events (1-9) precede all 9 AFTER events (10-18). AFTER row triggers fire at the end of the statement, as the PostgreSQL trigger documentation states. Re-ruling 3 adopted this |

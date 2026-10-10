@@ -3,11 +3,12 @@
 This companion belongs to
 [Derive repository config artifacts when content is written](7126-ingest-time-config-artifacts.md).
 It holds the tables, the content-version fence, the derive protocol, the
-walker, the shared SQL and the shim details. The arbiter ruling and re-ruling
-of 2026-10-10 and re-ruling 2 decided the fence, the derive protocol, the
-reader condition, the name step, the row key and the S3 arms. An item marked **Proposed** is the author's
-addition and is not part of either ruling. Section 7 keeps the lost-update
-sequence (R-1) that made the re-ruling replace the first fence.
+walker, the shared SQL and the shim details. Four arbiter rulings of
+2026-10-10 (the ruling, the re-ruling, re-ruling 2 and re-ruling 3) decided
+the fence, the derive protocol, the reader condition, the name step, the row
+key and the S3 arms. An item marked **Proposed** is the author's addition and
+is not part of any ruling. Section 7 keeps the lost-update sequence (R-1)
+that made the re-ruling replace the first fence.
 
 ## 1. Tables
 
@@ -54,31 +55,46 @@ Names are proposals. The migration number is chosen at build time.
   when a path reaches 2,610 incompressible bytes (2,609 passes). Index tuples
   are compressed, so a compressible path of 100,000 bytes still passes. The
   limit depends on the data, so a length limit is rejected.
-- Key (re-ruling 2): `(repo_id, row_digest)`, with `row_digest` a stored
-  generated column, defined once in the schema and never in Go:
+- Key (re-rulings 2 and 3): `(repo_id, row_digest)`, with `row_digest` a
+  stored generated column, defined once in the schema and never in Go:
 
   ```sql
-  row_digest BYTEA GENERATED ALWAYS AS (sha256(convert_to(
+  -- IMMUTABLE is true per database: server_encoding is fixed for the
+  -- lifetime of a database, and a dump and restore recomputes generated
+  -- columns on load, so a stored digest never crosses an encoding.
+  CREATE FUNCTION config_artifact_utf8(t text) RETURNS bytea
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
+  RETURN convert_to(t, 'UTF8');
+
+  row_digest BYTEA GENERATED ALWAYS AS (sha256(config_artifact_utf8(
       length(path)::text || ':' || path ||
       length(relative_path)::text || ':' || relative_path ||
-      evidence_kind, 'UTF8'))) STORED
+      evidence_kind))) STORED
   ```
 
   The fields are length-prefixed because a path can contain `|`. The four
-  columns stay as data. S2 measured the read at 2.14 ms for 300 ids (Bitmap
-  Heap Scan) and 5.2 MB for 17,175 rows, against 7.0 MB for the four-column
-  key. A `row_too_wide` fallback and a length precheck are rejected.
-  SQLSTATE classification into `last_error_class` stays as the generic
-  failure path. S3 arm 1 includes the cost of the generated column.
-- Finding after re-ruling 2 (tested on a throwaway local PostgreSQL 18.6):
-  the expression above fails with `generation expression is not immutable`.
-  `convert_to` is STABLE in `pg_proc`, and so is `textsend`. **Proposed**
-  correction, for the arbiter: wrap the conversion in an IMMUTABLE SQL function,
-  `config_artifact_utf8(t text) RETURNS bytea ... RETURN convert_to(t,
-  'UTF8')`, and use it in place of `convert_to`. This is sound only in a UTF8
-  database, which the content store already assumes. With the wrapper the
-  table builds, and the rows `('a|b', 'c')` and `('a', 'b|c')` get distinct
-  digests.
+  columns stay as data. A schema test recomputes the digest in SQL for every
+  seeded row and compares. No Go code computes it. S2 measured the read at
+  2.14 ms for 300 ids (Bitmap Heap Scan) and 5.2 MB for 17,175 rows, against
+  7.0 MB for the four-column key. S3 arm 1 includes the cost of the
+  generated column.
+- Why the wrapper: `convert_to` and `textsend` are STABLE, so the plain
+  expression fails with `generation expression is not immutable` (evidence
+  appendix, section 5). Rejected (re-ruling 3): a Go-filled column (two
+  writers of one row shape, and the schema cannot refuse a wrong digest),
+  `md5` (128 bits, and not available on the FIPS-style ops-qa build), a
+  `text::bytea` cast (none exists), `textsend` (STABLE), and pgcrypto (an
+  extension for one column). A `row_too_wide` fallback and a length
+  precheck are rejected (re-ruling 2). SQLSTATE classification into
+  `last_error_class` stays as the generic failure path.
+- UTF8 invariant (re-ruling 3): PR1 already assumes a UTF8 database. PR3 adds
+  one startup check. Each binary that derives (ingester, projector,
+  bootstrap-index, reducer) and the API run `SHOW server_encoding` once at
+  start and log `postgres.server_encoding` at INFO. On a value other than
+  `UTF8` they log at ERROR, skip every derive with
+  `derives_total{outcome=encoding_unsupported}`, and report
+  `config_artifacts = not_installed` with the reason in `/admin/status`. The
+  content Write proceeds, and reads stay live.
 - Autovacuum (re-ruling 2): each derive deletes and re-inserts a
   repository's rows. Without a vacuum, S2 measured the 300-id read at 2.47 ms
   against 1.76 ms (9,202 `Heap Fetches`), because an Index Only Scan needs the
@@ -119,15 +135,27 @@ WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
   locks of a multi-repository statement in the order of its `SELECT`. `ORDER
   BY r.repo_id` makes that order ascending, so two statement-level
   multi-repository statements cannot deadlock on version rows.
-- The `ORDER BY` does not help the row-level DELETE shape. There each deleted
-  row fires its own upsert, in delete order. Two concurrent multi-repository
-  row-level deleters can still deadlock on version rows, and PostgreSQL
-  aborts one. The only such deleter in production is the retention prune.
-- Cross-table order: a Write batch locks its `content_files` rows during the
-  statement and its version row in the AFTER STATEMENT trigger. The
-  `OLD TABLE` DELETE shape has the same order, content rows first and then
-  the version row, so a prune and a Write cannot form a cycle. S3's prune bar
-  still chooses between the row-level and `OLD TABLE` shapes.
+- Trigger timing (re-ruling 3): a row-level AFTER trigger fires at the end
+  of the statement, after the statement has locked every row it touches. So
+  every path that bumps a version row, under either DELETE shape, locks
+  content rows first and the version row last. A session that waits on a
+  version row holds only content rows. No prune-against-Write cycle exists,
+  with or without a shared doomed key.
+- Surviving hazard: two concurrent multi-repository statements that bump
+  through row-level triggers take version rows in their own row order, so
+  opposite orders can deadlock. PostgreSQL aborts one, and the loser retries
+  (a prune at its next cycle, a Write through the projector's retry of the
+  generation). The `ORDER BY` prevents this on every statement-level path.
+  The multi-repository deleters in production are the retention prune (one
+  wiring in `go/cmd/reducer/generation_retention_wiring.go`), TRUNCATE
+  (statement-level, so the `ORDER BY` applies) and manual SQL. Two
+  concurrent prunes exist only if two reducers run retention at once. PR3b-1
+  states the retention runner's single-flight property from source. A first
+  read of the wiring file found a poll interval and no explicit
+  single-flight lock, so this is open.
+- The DELETE shape is a cost choice only: S3 shape 3, at most 5% of the prune
+  phase. At equal cost prefer the `OLD TABLE` shape, because the `ORDER BY`
+  then covers the prune too.
 - The row lock lasts until the content transaction ends. For a Write that is
   one 500-row batch. For retention it lasts from the end of the prune's
   `content_files` DELETE statement to the end of the retention transaction.
@@ -359,12 +387,19 @@ PR3b-1 also adds live interleaving tests, run before the trigger ships:
   1. Two multi-repository inserts over overlapping repository sets, in
      opposite row orders.
   2. A prune and a Write of one repository with disjoint keys.
-  3. A prune and a Write that share one doomed key.
+  3. A prune and a Write that share one doomed key (re-ruling 3: a
+     convergence check). The Write batch waits (`pg_stat_activity`
+     `wait_event_type = 'Lock'`) until the retention transaction commits,
+     then proceeds. No deadlock. After the Write's derive,
+     `state.content_version` equals `versions.version` and the rows equal the
+     live answer. The test records in `pg_locks` which lock the Write waits
+     on: with a shared key the first wait is likely on the content row the
+     prune deleted, not on the version row.
 
-  The statement-level shapes must show 0 deadlocks. The row-level DELETE
-  shape must show 0 deadlocks, or every victim retried to a final state where
-  `state.content_version` equals `versions.version` and the rows equal the
-  live answer.
+  Cases 1 and 2 run under both DELETE shapes. The statement-level shape must
+  show 0 deadlocks. The row-level shape must show 0 deadlocks, or every
+  victim retried to a final state where `state.content_version` equals
+  `versions.version` and the rows equal the live answer.
 
 ## 7. Decided: R-1, the lost update that replaced the first fence
 
