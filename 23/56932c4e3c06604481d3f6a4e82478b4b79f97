@@ -1,0 +1,50 @@
+go/cmd/read-api-latency-gate/diagnostic_httptrace_test.go
+  s_29175cf8c573b8::t_fc930e63cd9635 1-75
+  s_29175cf8c573b8::t_ebe70674dcdd42 76-188
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_6303199e9d988a 58-63,68-72,128-139,146-151,178-186,203-224,254
+go/cmd/read-api-latency-gate/README.md
+  s_29175cf8c573b8::t_65c9d18329cbb1 112-120
+go/cmd/read-api-latency-gate/concurrent.go
+  s_29175cf8c573b8::t_3632c2e8b61d7c 9,32-37,52-55,59-63,73-77,87-91,93-100
+go/cmd/read-api-latency-gate/diagnostic_httptrace.go
+  s_29175cf8c573b8::t_6a069f4333ccf2 1-137
+go/cmd/read-api-latency-gate/sweep.go
+  s_29175cf8c573b8::t_eb7e1138bb85c1 255-258,268-270,272-274,277-279,297-299
+scripts/ci/h1-collector.yaml
+  s_29175cf8c573b8::t_c0e4d67c1348dd 1-29
+scripts/ci/h1-effective-config.py
+  s_29175cf8c573b8::t_6a9fecd33a6b42 1-53
+scripts/ci/h1-join-traces.py
+  s_29175cf8c573b8::t_56a548f4dfc3eb 1-131
+scripts/ci/h1-readyz-probe.sh
+  s_29175cf8c573b8::t_fdbed372e73479 1-10
+scripts/ci/h1-stage-sampler.sh
+  s_29175cf8c573b8::t_ed776fd6d7b0f9 1-21
+scripts/ci/test-h1-capture-wiring.py
+  s_29175cf8c573b8::t_fb8aeb3ca1c245 1-28
+scripts/ci/test-h1-effective-config.py
+  s_29175cf8c573b8::t_a59e3ebf831899 1-46
+scripts/ci/test-h1-join-traces.py
+  s_29175cf8c573b8::t_6ddeabf54d777f 1-101
+scripts/ci/test-h1-readyz-probe.py
+  s_29175cf8c573b8::t_df96a9650325c5 1-56
+scripts/verify-read-api-latency-gate.sh
+  s_29175cf8c573b8::t_b569e622b43a22 73,142-144,148-150,156,346-351,359-368,380-382,404-424,430-432
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2356932c4e3c06604481d3f6a4e82478b4b79f97",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
