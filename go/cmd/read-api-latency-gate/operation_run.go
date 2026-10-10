@@ -49,7 +49,11 @@ func pilotFailures(results []RouteLatency, operations map[string]Operation) []st
 	var failures []string
 	for _, result := range results {
 		if _, selected := operations[result.Route]; selected && (!result.Exercised || result.HardFailed) {
-			failures = append(failures, fmt.Sprintf("pilot operation %s was not successfully exercised (HTTP %d)", result.Route, result.Status))
+			status := fmt.Sprintf("HTTP %d", result.Status)
+			if result.Status == 0 {
+				status = "no response"
+			}
+			failures = append(failures, fmt.Sprintf("pilot operation %s was not successfully exercised (%s)", result.Route, status))
 		}
 	}
 	return failures
