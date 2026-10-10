@@ -17,20 +17,25 @@ type readinessWorkflow struct {
 	On map[string]struct {
 		Paths []string `yaml:"paths"`
 	} `yaml:"on"`
-	Jobs map[string]struct {
-		Name            string               `yaml:"name"`
-		If              string               `yaml:"if"`
-		Needs           yaml.Node            `yaml:"needs"`
-		ContinueOnError string               `yaml:"continue-on-error"`
-		Services        map[string]yaml.Node `yaml:"services"`
-		Steps           []readinessStep      `yaml:"steps"`
-	} `yaml:"jobs"`
+	Jobs map[string]readinessJob `yaml:"jobs"`
+}
+
+type readinessJob struct {
+	Name            string               `yaml:"name"`
+	If              string               `yaml:"if"`
+	Needs           yaml.Node            `yaml:"needs"`
+	ContinueOnError string               `yaml:"continue-on-error"`
+	Env             map[string]string    `yaml:"env"`
+	Services        map[string]yaml.Node `yaml:"services"`
+	Steps           []readinessStep      `yaml:"steps"`
 }
 
 type readinessStep struct {
-	Run             string `yaml:"run"`
-	If              string `yaml:"if"`
-	ContinueOnError string `yaml:"continue-on-error"`
+	Run             string            `yaml:"run"`
+	Uses            string            `yaml:"uses"`
+	If              string            `yaml:"if"`
+	ContinueOnError string            `yaml:"continue-on-error"`
+	With            map[string]string `yaml:"with"`
 }
 
 func checkReadinessSplit(workflow []byte, gate Gate) string {
@@ -82,6 +87,9 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 			return "missing live service " + service
 		}
 	}
+	if problem := checkReadinessDockerHubLogin(live); problem != "" {
+		return problem
+	}
 	counts := map[string]int{}
 	for _, job := range parsed.Jobs {
 		for _, step := range job.Steps {
@@ -108,6 +116,39 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	if !jobRuns(hermetic.Steps, "scripts/test-run-live-postgres-readiness-tests.sh") ||
 		!jobRuns(live.Steps, "scripts/run-live-postgres-readiness-tests.sh") {
 		return "proof runners must be in their designated jobs"
+	}
+	return ""
+}
+
+func checkReadinessDockerHubLogin(job readinessJob) string {
+	const enabled = "${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}"
+	if job.Env["DOCKERHUB_LOGIN_ENABLED"] != enabled {
+		return "Docker Hub login must require both secrets in the live job"
+	}
+	login, checkout, standby := -1, -1, -1
+	for i, step := range job.Steps {
+		if step.Uses == "actions/checkout@v5" {
+			checkout = i
+		}
+		if strings.Contains(step.Run, "live-postgres-standby-fixture.sh start") {
+			standby = i
+		}
+		if strings.HasPrefix(step.Uses, "docker/login-action@") {
+			if login != -1 {
+				return "Docker Hub login must run exactly once"
+			}
+			login = i
+			if step.Uses != "docker/login-action@v3" ||
+				step.If != "env.DOCKERHUB_LOGIN_ENABLED == 'true'" ||
+				step.ContinueOnError != "" || step.Run != "" ||
+				step.With["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
+				step.With["password"] != "${{ secrets.DOCKERHUB_TOKEN }}" {
+				return "Docker Hub login must be gated, fail closed, and use both secrets"
+			}
+		}
+	}
+	if checkout < 0 || standby < 0 || login <= checkout || login >= standby {
+		return "Docker Hub login must follow checkout and precede the standby pull"
 	}
 	return ""
 }
@@ -174,6 +215,12 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		{"waive hermetic proof step", "        run: bash scripts/test-run-live-postgres-readiness-tests.sh", "        continue-on-error: true\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh"},
 		{"skip live proof step", "        run: bash scripts/run-live-postgres-readiness-tests.sh", "        if: false\n        run: bash scripts/run-live-postgres-readiness-tests.sh"},
 		{"waive live proof step", "        run: bash scripts/run-live-postgres-readiness-tests.sh", "        continue-on-error: true\n        run: bash scripts/run-live-postgres-readiness-tests.sh"},
+		{"missing login flag", "      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}\n", ""},
+		{"username-only login flag", "secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''", "secrets.DOCKERHUB_USERNAME != ''"},
+		{"token-only login flag", "secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''", "secrets.DOCKERHUB_TOKEN != ''"},
+		{"missing login", "uses: docker/login-action@v3", "uses: actions/cache@v4"},
+		{"skip login", "if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "if: false"},
+		{"waive login failure", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n        continue-on-error: true"},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
 			if !strings.Contains(string(workflow), mutation.old) {
@@ -185,4 +232,21 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			}
 		})
 	}
+	t.Run("late login", func(t *testing.T) {
+		const loginStep = "      - name: Log in to Docker Hub for standby fixture\n" +
+			"        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n" +
+			"        uses: docker/login-action@v3\n" +
+			"        with:\n" +
+			"          username: ${{ secrets.DOCKERHUB_USERNAME }}\n" +
+			"          password: ${{ secrets.DOCKERHUB_TOKEN }}\n\n"
+		const standbyStep = "        run: bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}'\n"
+		if !strings.Contains(string(workflow), loginStep) || !strings.Contains(string(workflow), standbyStep) {
+			t.Fatal("mutation anchor missing")
+		}
+		changed := strings.Replace(string(workflow), loginStep, "", 1)
+		changed = strings.Replace(changed, standbyStep, standbyStep+"\n"+loginStep, 1)
+		if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
+			t.Fatal("late Docker Hub login passed")
+		}
+	})
 }
