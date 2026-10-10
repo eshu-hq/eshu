@@ -1452,6 +1452,7 @@ gates:
       - "go/internal/storage/postgres/migrations/**"
       - "scripts/verify-query-methodology.sh"
       - "scripts/test-verify-query-methodology.sh"
+      - "scripts/lib/test-verify-query-methodology-*.sh"
       - "scripts/lib/go-test-run-guard.sh"
       - "scripts/lib/live-gate-lock.sh"
     local:
@@ -1479,6 +1480,7 @@ gates:
       - "go/internal/storage/postgres/migrations/**"
       - "scripts/verify-query-methodology.sh"
       - "scripts/test-verify-query-methodology.sh"
+      - "scripts/lib/test-verify-query-methodology-*.sh"
       - "go/internal/storage/cypher/**"
       - "scripts/test-verify-query-plan-regression.sh"
       - "scripts/verify-query-plan-regression.sh"
@@ -2938,6 +2940,7 @@ gates:
       - "scripts/extend-read-api-work-budgets.sh"
       - "scripts/test-extend-read-api-work-budgets.sh"
       - "scripts/test-methodology-scale-resource-observer.sh"
+      - "scripts/lib/test-methodology-scale-resource-observer-*.sh"
     local:
       command: "bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh"
       test_command: ""

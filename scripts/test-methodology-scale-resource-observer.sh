@@ -6,6 +6,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/scripts" "$work/bin"
 workflow="$repo_root/.github/workflows/read-api-latency-gate.yml"
+rg -q "^      - 'scripts/lib/test-methodology-scale-resource-observer-\\*\\.sh'$" "$workflow" || { printf 'scale fixture paths do not select the workflow\n' >&2; exit 1; }
 start="$(rg -n -m1 '^      - name: Run scale and concurrent HTTP/MCP proof$' "$workflow" | cut -d: -f1)"
 end="$(rg -n -m1 '^      - name: Archive scale proof$' "$workflow" | cut -d: -f1)"
 [[ -n "$start" && -n "$end" && "$end" -gt "$start" ]] || { printf 'scale workflow step missing\n' >&2; exit 1; }
@@ -13,42 +14,9 @@ offset="$(sed -n "${start},${end}p" "$workflow" | rg -n -m1 '^        run: \|$' 
 [[ -n "$offset" ]] || { printf 'scale workflow run block missing\n' >&2; exit 1; }
 run_line=$((start + offset - 1))
 sed -n "$((run_line + 1)),$((end - 1))p" "$workflow" | sed 's/^          //' > "$work/step.sh"
-cat > "$work/scripts/verify-read-api-latency-gate.sh" <<'SH'
-#!/usr/bin/env bash
-if [[ "$DOCKER_MODE" == fail-after-sample ]]; then
- for _ in {1..100}; do
-  [[ ! -e "$RUNNER_TEMP/stats-failed" ]] || break
-  /bin/sleep 0.01
- done
- [[ -e "$RUNNER_TEMP/stats-failed" ]] || exit 24
-else
- /bin/sleep 0.15
-fi
-[[ "${GATE_MODE:-pass}" != fail ]] || exit 23
-SH
-cat > "$work/bin/docker" <<'SH'
-#!/usr/bin/env bash
-if [[ "$1" == ps ]]; then
- [[ "$*" == *'label=com.docker.compose.project=eshu-methodology-scale-ci'* ]] || exit 98
- printf 'postgres-id\nneo4j-id\n'
- exit 0
-fi
-[[ "$1" == stats ]] || exit 99
-[[ "$*" == *'postgres-id neo4j-id'* ]] || exit 97
-case "$DOCKER_MODE" in
- valid) printf 'eshu-methodology-scale-ci-postgres-1 CPU=1.00%% memory=10MiB / 1GiB\neshu-methodology-scale-ci-neo4j-1 CPU=1.00%% memory=10MiB / 1GiB\n' ;;
- empty) ;;
- unrelated) printf 'peer-service CPU=1.00%% memory=10MiB / 1GiB\n' ;;
- fail-after-sample)
-  if [[ -e "$RUNNER_TEMP/stats-seen" ]]; then touch "$RUNNER_TEMP/stats-failed"; exit 7; fi
-  touch "$RUNNER_TEMP/stats-seen"
-  printf 'eshu-methodology-scale-ci-postgres-1 CPU=1.00%% memory=10MiB / 1GiB\neshu-methodology-scale-ci-neo4j-1 CPU=1.00%% memory=10MiB / 1GiB\n' ;;
-esac
-SH
-cat > "$work/bin/sleep" <<'SH'
-#!/usr/bin/env bash
-/bin/sleep 0.005
-SH
+cp "$repo_root/scripts/lib/test-methodology-scale-resource-observer-gate.sh" "$work/scripts/verify-read-api-latency-gate.sh"
+cp "$repo_root/scripts/lib/test-methodology-scale-resource-observer-docker.sh" "$work/bin/docker"
+cp "$repo_root/scripts/lib/test-methodology-scale-resource-observer-sleep.sh" "$work/bin/sleep"
 chmod +x "$work/scripts/verify-read-api-latency-gate.sh" "$work/bin/docker" "$work/bin/sleep"
 run_case() {
  local name="$1" docker_mode="$2" gate_mode="$3" expected="$4" status=0

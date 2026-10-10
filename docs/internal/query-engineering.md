@@ -43,7 +43,7 @@ The manifest independently declares pilot membership. Removing a contract or
 required case must fail coverage. The generated `coverage.json` reports legacy
 and excluded families separately; pilot success is not universal query coverage.
 The executable schemas are `go/internal/queryplan/pilot_contract.go` and
-`pilot_evidence.go`; manifest entries link YAML contracts in `testdata/contracts/`.
+`pilot_evidence.go`; manifest entries link YAML contracts under the queryplan package’s testdata directory.
 
 | Manifest family | Backend | Variants | Parameter cases |
 |---|---|---:|---:|
