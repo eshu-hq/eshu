@@ -31,6 +31,7 @@ on:
       - 'go/internal/reducer/maintenance/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/internal/reducer/status/**'
+      - 'go/internal/cigates/readiness_job_split_test.go'
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
@@ -75,6 +76,7 @@ on:
       - 'go/internal/reducer/maintenance/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/internal/reducer/status/**'
+      - 'go/internal/cigates/readiness_job_split_test.go'
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
@@ -113,6 +115,28 @@ jobs:
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: live-postgres-readiness.yml
+
+  hermetic:
+    needs: queue-selection
+    name: live-postgres-readiness hermetic
+    runs-on: ubuntu-latest
+    # The fake-Go runner checks every ledger-selected proof and its fail-closed
+    # accounting. Keep it in a separate job so it cannot consume the live
+    # PostgreSQL/Neo4j job's 60-minute budget.
+    timeout-minutes: 20
+    steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
+      - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Check runner fail-closed behavior
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}
+        run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
   live-postgres-readiness:
     needs: queue-selection
@@ -188,10 +212,6 @@ jobs:
       - name: Install ripgrep for readiness fixture checks
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-
-      - name: Check runner fail-closed behavior
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
-        run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
       - name: Check physical-standby fixture fail-closed behavior
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
