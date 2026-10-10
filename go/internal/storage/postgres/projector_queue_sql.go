@@ -55,8 +55,36 @@ WHERE scope_id = $2
 // generation that already started writing (projection_write_started_at IS
 // NULL), like the claim sweep's first branch, so a marked generation Acked
 // past is left for its retry, replay, or the graph_dirty full snapshot.
+// #7820: the spare reads the marker at lock time, not from the statement
+// snapshot. The lock step takes each stale generation row non-blocking in
+// generation order, so a marker committed after the snapshot is caught by
+// the lock's EvalPlanQual recheck and a marker still in flight is skipped
+// without waiting (waiting would only reach the lock timeout and defer the
+// whole Ack). The work UPDATE then retires only rows whose generation the
+// lock step holds, re-applying the generation predicate for the recheck.
 const supersedeProjectorObsoleteGenerationsQuery = `
-WITH superseded_work AS (
+WITH locked_obsolete_stale_generations AS (
+    SELECT stale_generation.generation_id
+    FROM scope_generations AS stale_generation,
+         scope_generations AS current_generation
+    WHERE stale_generation.scope_id = $2
+      AND stale_generation.generation_id <> $3
+      AND stale_generation.status IN ('pending', 'failed')
+      AND stale_generation.projection_write_started_at IS NULL
+      AND current_generation.scope_id = $2
+      AND current_generation.generation_id = $3
+      AND current_generation.status IN ('pending', 'active')
+      AND (
+          stale_generation.ingested_at < current_generation.ingested_at
+          OR (
+              stale_generation.ingested_at = current_generation.ingested_at
+              AND stale_generation.generation_id < current_generation.generation_id
+          )
+      )
+    ORDER BY stale_generation.generation_id
+    FOR NO KEY UPDATE OF stale_generation SKIP LOCKED
+),
+superseded_work AS (
     UPDATE fact_work_items AS stale
     SET status = 'superseded',
         lease_owner = NULL,
@@ -72,14 +100,16 @@ WITH superseded_work AS (
             'generation_id', stale.generation_id,
             'current_generation_id', $3
         ) || ` + priorFailureStaleSQL + `
-    FROM scope_generations AS stale_generation,
+    FROM locked_obsolete_stale_generations AS locked,
+         scope_generations AS stale_generation,
          scope_generations AS current_generation
     WHERE stale.stage = 'projector'
       AND stale.scope_id = $2
       AND stale.generation_id <> $3
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+      AND stale.generation_id = locked.generation_id
       AND stale_generation.scope_id = stale.scope_id
-      AND stale_generation.generation_id = stale.generation_id
+      AND stale_generation.generation_id = locked.generation_id
       AND stale_generation.status IN ('pending', 'failed')
       AND stale_generation.projection_write_started_at IS NULL
       AND current_generation.scope_id = stale.scope_id
