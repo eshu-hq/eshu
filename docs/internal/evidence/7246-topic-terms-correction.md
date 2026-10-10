@@ -17,7 +17,7 @@ one correction.
 
 ## Theory evidence and limits
 
-A read-only candidate query on the current ops-qa PostgreSQL read replica used
+A read-only candidate query on the current QA PostgreSQL read replica used
 the same `showImage` repository argument and a single repeatable-read snapshot.
 The candidate selected only the requested topic term. All 11 returned rows
 matched `showimage`; zero matched only `change` or `surface`. The complete

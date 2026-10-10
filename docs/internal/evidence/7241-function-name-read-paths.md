@@ -74,7 +74,7 @@ before a sub-second endpoint claim or issue closure. After its PR merges,
 
 ## Post-deployment scoped content-search plan follow-up
 
-Performance Evidence: On the owner-deployed ops-qa image, an exact
+Performance Evidence: On the owner-deployed QA image, an exact
 single-repository entity-content page for the one-character `a` argument took
 60.591 seconds at the HTTP client, of which 60.470 seconds was the existing
 `postgres.query` span. The backend was in `DataFileRead` without a blocking

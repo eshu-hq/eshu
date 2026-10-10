@@ -3,7 +3,7 @@
 ## Problem
 
 `GET /api/v0/entities/{id}/context` and MCP `get_entity_context` took
-0.75-1.42s end to end on the ops-qa Neo4j deployment. #7006/#7118
+0.75-1.42s end to end on the QA Neo4j deployment. #7006/#7118
 (`7006-code-quality-context-anchor-fix.md`,
 `7006-live-answer-truth-fallback.md`) replaced the unlabeled
 `MATCH (e) WHERE e.id = $entity_id` with a per-label loop over
@@ -38,7 +38,7 @@ uid-constrained label whose id differs from its uid (or has no uid) misses its
 per-label read and still resolves through the unlabeled fallback. So the answer
 cannot change, only which read finds it.
 
-## Graph truth on ops-qa (read-only, 2026-09-25)
+## Graph truth on the QA environment (read-only, 2026-09-25)
 
 Neo4j Community 2026.08.1, 1,104,500 nodes. `SHOW CONSTRAINTS` matches the DDL
 for the anchor labels. Per label, the count of nodes whose id is set but whose
@@ -98,7 +98,7 @@ and WorkloadInstance, which were already id seeks.
 What is left after the fix: a hit at position 8 or later pays the Directory read,
 a `NodeByLabelScan` over 43,274 Directory nodes (about 86.5k db hits). The
 canonical writer (`canonicalNodeDirectoryNodeCypher`) keys Directory on `path`
-and sets no `id`, and no ops-qa Directory node carries one, so that read
+and sets no `id`, and no QA Directory node carries one, so that read
 cannot match on this corpus. A miss still pays the unlabeled fallback, an
 all-node scan (about 2.2M db hits), which #7118 kept for answer parity. Both
 are follow-ups and not part of this change. The end-to-end API time after the

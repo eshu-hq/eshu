@@ -21,7 +21,7 @@ It adds the proof and the operator signal that the second change depends on.
 
 ## The measurement behind the design
 
-A read-only census on ops-qa, image sha-57167b0, on 2026-10-08, counted the
+A read-only census on the QA environment, image sha-57167b0, on 2026-10-08, counted the
 graph by node, not by label:
 
 | Count | Nodes |
@@ -162,7 +162,7 @@ one poll interval (default one hour).
 
 Performance Evidence: the census adds one read-only `AllNodesScan` per pass per
 reducer replica, off the request path and off the scrape path. The same shape
-of scan took about 1.95 s over 1,130,424 nodes (898,874 with an id) on ops-qa,
+of scan took about 1.95 s over 1,130,424 nodes (898,874 with an id) on the QA environment,
 image sha-57167b0, on 2026-10-08, in one read transaction. At the default hourly
 interval that is under 0.1% of one core. The two-minute timeout is about 60
 times the measured scan, so a graph that grows several-fold still finishes and a
@@ -170,13 +170,13 @@ wedged read cannot hold the loop. The scan does not write, takes no lock the
 write path waits on under read-committed isolation, and needs no lease because
 each replica reports its own snapshot (read at its own time; alert on the
 maximum across replicas). The golden-corpus check runs the same statement once
-per Neo4j leg on a corpus far smaller than ops-qa.
+per Neo4j leg on a corpus far smaller than the QA environment.
 
 The statement was not re-profiled in this change: the figure above is the
 measured pass of the same pattern, and the Cypher here adds only the per-row
 label tests. The statement ran on a real Neo4j for the first time in this
 change (see Observability Evidence). `NOT_CHECKED`: the plan and db hits of this
-exact statement on a graph the size of ops-qa.
+exact statement on a graph the size of the QA environment.
 
 ## Observability Evidence
 
@@ -234,7 +234,7 @@ nodes=1`), which comes from the rewritten statement. `TestLiveIDAnchorCensusStar
 passed with the id-bearing gauge read beside the residual (`gauge=0 id_bearing=0`
 on the empty graph, then `gauge=1 id_bearing=3` with one id-only node planted).
 The `coalesce` mutation was not repeated. `NOT_CHECKED`: a running reducer process
-scraped over `/metrics`, and whether the ops-qa and ops-prod scrape
+scraped over `/metrics`, and whether the QA environment and production scrape
 configurations collect the gauge.
 
 ## What only CI exercises
@@ -276,7 +276,7 @@ The census is the authority, and four classes stay outside what it can see:
    once the second change removes the fallback, not for this change, which alters
    no query behavior.
 
-The hourly gauge on ops-qa and ops-prod covers class 1 for writers that have
+The hourly gauge on the QA environment and the production environment covers class 1 for writers that have
 already run there and class 2 wholesale. It does not pre-empt a future writer
 (class 1) and does not close class 4. An alert rule on the gauge is a follow-up for
 the second change.

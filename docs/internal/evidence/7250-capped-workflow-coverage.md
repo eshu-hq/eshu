@@ -54,7 +54,7 @@ split into `workflow_evidence.go` to keep the source file below 500 lines.
 
 Commands use a worktree-local cache, `GOFLAGS=-p=2`, and `GOMAXPROCS=2`.
 All fixtures are synthetic and require no Postgres, graph, Docker, provider
-credential, or ops-qa request.
+credential, or QA request.
 
 RED/GREEN evidence:
 

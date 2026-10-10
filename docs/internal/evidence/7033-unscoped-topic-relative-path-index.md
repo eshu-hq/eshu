@@ -38,8 +38,8 @@ rows.
 | Cold ingest | Baseline | +24.9% when built during ingest | Deferred by design |
 
 The cold-ingest cost is why the migration is not built during deferred
-bootstrap. These are local Postgres measurements, not an ops-qa endpoint
-claim. The earlier live ops-qa endpoint observation was 21.463 s before the
+bootstrap. These are local Postgres measurements, not a QA endpoint
+claim. The earlier live QA endpoint observation was 21.463 s before the
 approved path-index rollout. After that rollout, the exact canonical 16-term
 HTTP request took 11.521734 s on its first observed call, then 2.279568 s
 and 2.284533 s on two repeats. These are **not interleaved before/after**
@@ -50,7 +50,7 @@ below is separate from these historical calls and from the SQL shim.
 
 Two local API binaries built with Go 1.26.6 from the exact baseline parent
 `6f2672728` and candidate commit
-`968f7b8f94ad22d7f6de277a3aa7330e62f99d34` used the same live ops-qa
+`968f7b8f94ad22d7f6de277a3aa7330e62f99d34` used the same live QA
 Postgres corpus and Neo4j backend through loopback, direct-Pod port forwards.
 Their SHA-256 digests were respectively
 `62654830e7fa74d7cc403b1ab00b6151059de204f56951fdb1b92153826ddb95`
@@ -83,9 +83,9 @@ Behavior controls against those same built endpoints were:
 | `deployment`, limit 100 | 100 rows each, both truncated; response digest `8cfe4586be098b981642a791e37ef2b13c9f51b24886dc1f952a5c6cc70ef10c` on both | This capped sample happens to match; no general capped parity claim. |
 | Canonical 16 terms, limit 25 | 25 rows each, both truncated; baseline 25 matched files/zero matched symbols, candidate 20 matched files/25 matched symbols | Ranked pages differ. The conditional parity claim applies only when the candidate pool is not truncated. |
 
-This is a **local built-endpoint** comparison on live ops-qa data, not an
+This is a **local built-endpoint** comparison on live QA data, not an
 in-cluster canary acceptance measurement. The candidate `/readyz` returned
-503: ops-qa has the earlier path-index migration receipts but not that
+503: the QA environment has the earlier path-index migration receipts but not that
 pre-rebase binary's then-numbered migration 132. The exact path GIN exists
 and the prior substring-index state is `ready`. Baseline readiness returned
 200. No candidate schema migration was applied during this read-only proof;
@@ -99,7 +99,7 @@ The baseline binary was rebuilt from `c15539e80` (SHA-256
 the candidate was rebuilt from the rebased query commit `eef8c5331`
 (SHA-256 `efc4a13fda8c7b2e5ff092939d0f787d9014c74e9a2f55728a5ef89a534f4a8e`).
 Both used Go 1.26.6, the production query profile, local loopback listeners,
-the same direct-Pod port forwards to live ops-qa Postgres and Neo4j, and a
+the same direct-Pod port forwards to live QA Postgres and Neo4j, and a
 Postgres connection with `default_transaction_read_only=on`. The corpus
 fingerprint was identical before and after the timed run: 144,838
 `content_files`, 2,640,262 `content_entities`, and
@@ -157,7 +157,7 @@ identifies a likely long pole; its times are **not** endpoint timings or an
 interleaved before/after comparison.
 
 Two read-only entity-stage shims ran in separate three-block ABBA experiments
-inside repeatable-read snapshots on the same ops-qa corpus. Name-first with a
+inside repeatable-read snapshots on the same QA corpus. Name-first with a
 source-cache-only residual changed the entity-stage median from 716.057 to
 99.301 ms, but the capped canonical top 25 overlapped **0/25** and their
 scores fell from 5–7 to 2–3. Source-cache-first with a name-only residual
@@ -173,7 +173,7 @@ the capped canonical request **24 of the top 25** identities/scores/matched
 terms differed; the baseline score range was 4–12 and the shim's was 3–4.
 This fails the conservative capped-result quality gate, so no performance
 claim or implementation follows from that shape. All three shims were
-diagnostics only; no ops-qa schema or production code changed. The remaining
+diagnostics only; no QA schema or production code changed. The remaining
 <1 s acceptance must be checked on the approved same-topology canary, and a
 further query change still requires its own accuracy-safe theory proof.
 
@@ -206,7 +206,7 @@ This was **diagnostic only on an incomplete migration state**. Baseline
 the then-numbered migration 134 missing. Migration 132 was absent for both
 binaries. The live ledger held the earlier 130/131 path-index receipts but not
 the then-numbered 133/134. The last
-successful ops-qa schema-bootstrap Job used an image built before merged
+successful QA schema-bootstrap Job used an image built before merged
 PR #7276 introduced 132; its log reported `applied=0 skipped=151`.
 Neither canary binary was deployment-ready, and no migration was applied.
 
@@ -242,7 +242,7 @@ relevance. Both APIs shut down normally within the 20-minute measurement
 cap. The temporary Pod and dedicated NetworkPolicy were deleted and
 confirmed absent; the live API Deployment remained 1/1 Ready.
 
-A 2026-09-27 03:25 UTC read-only ops-qa diagnostic found neither
+A 2026-09-27 03:25 UTC read-only QA diagnostic found neither
 `pgstattuple`/`pageinspect` nor `pgstatginindex`/`gin_metapage_info` available.
 The existing `eshu` database role is not a superuser, cannot execute any
 `pg_read_binary_file` overload, and can resolve the target source GIN index.
@@ -250,7 +250,7 @@ An OS-level metapage read was rejected: it would bypass that database
 permission boundary and could observe a stale disk page rather than the
 buffer-locked state that `pgstatginindex` reads.
 
-An approved, isolated EBS copy of the same 2026-09-27 ops-qa PostgreSQL 18.3
+An approved, isolated EBS copy of the same 2026-09-27 QA PostgreSQL 18.3
 volume recovered WAL and ran with Unix-socket-only access, no application
 clients, autovacuum, replication, or network listener. `pgstattuple` was
 installed **only on the clone**. At approximately 04:53 UTC,
@@ -275,7 +275,7 @@ source-index time from a separate SQL profile cannot be subtracted from the
 endpoint median. No production change follows from the pending-list
 diagnostic alone.
 
-A subsequent read-only ops-qa screen generated the exact candidate SQL from
+A subsequent read-only QA screen generated the exact candidate SQL from
 the Go query builder for the same 16 explicit terms. Planner-only
 `EXPLAIN (FORMAT JSON, SETTINGS)` estimated total cost **45,912.78**, below
 the server's `jit_above_cost=100000`; disabling JIT therefore has no
@@ -289,9 +289,9 @@ increase has no observed spill to address. The differing cold/warm SQL runs
 are not comparable to the earlier interleaved HTTP canary, and none proves
 a subsecond endpoint candidate.
 
-## Existing ops-qa index admission proof
+## Existing QA index admission proof
 
-The earlier approved ops-qa index rollout left two full migration receipts:
+The earlier approved QA index rollout left two full migration receipts:
 `130_content_files_relative_path_trgm_index.sql` with checksum
 `ef395de0a2c1ad86fcbc1f82abcda08c83e689508a1197d6e2848695978a8e41`
 and `131_content_files_relative_path_trgm_index_lifecycle.sql` with checksum
@@ -301,18 +301,18 @@ index SQL, but a different tracked path; the new 135 lifecycle has different
 SQL bytes from the earlier 131 lifecycle. Both old receipts must remain in
 the ledger.
 
-A read-only admission shim on ops-qa compared both exact path, variant, and
+A read-only admission shim on the QA environment compared both exact path, variant, and
 checksum triples; checked that no then-candidate 133 receipt existed; checked
 the public index's table, single `relative_path` key, GIN access method, `gin_trgm_ops`,
 nonpartial/nonexpression shape, and valid/ready/live flags; and checked
 `content_substring_index_state=ready` with the current validator returning
-true. All five booleans were true, with exit 0. This proves that ops-qa meets
+true. All five booleans were true, with exit 0. This proves that the QA environment meets
 the proposed narrow legacy-adoption predicate. It does **not** apply 134/135,
 prove a future no-op, or authorize treating a different same-name index as
 equivalent. [PostgreSQL 18's `CREATE INDEX` documentation](https://www.postgresql.org/docs/18/sql-createindex.html)
 explicitly does not guarantee definition equality for `IF NOT EXISTS`.
 
-## Read-only ops-qa query-shape proof
+## Read-only QA query-shape proof
 
 The explicit representative terms were `config,content,deployment,environment,
 file,function,handler,module,package,path,repo,repository,resource,service,
@@ -456,7 +456,7 @@ Health, readiness, and the code-topic route returned HTTP 200; no governance
 audit event persisted during startup. This test does not prove an audit write
 was attempted. This is local startup
 proof, not a live after measurement. The owner separately approved a temporary
-isolated ops-qa canary for that proof.
+isolated QA canary for that proof.
 
 ## Observability Evidence
 

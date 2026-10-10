@@ -2,7 +2,7 @@
 
 ## Problem
 
-About 1.18M pending `code_calls` shared-projection intents on ops-qa sit on
+About 1.18M pending `code_calls` shared-projection intents on the QA environment sit on
 superseded scope generations (794 git scopes). Acceptance is keyed by source
 run and advance-only per key, so nothing ever marks those rows stale; once the
 quiescence gate stops wedging the lane (#7133), the code-call runner replays
@@ -83,7 +83,7 @@ pass; one bounded lookup over the cycle's distinct generation ids, skipped
 when the cycle has no rows. Worker/lease settings unchanged.
 
 Prove-the-theory-first shim (disposable Postgres 18, `/tmp/7165-drain-shim.sql`,
-since removed): one fat scope at the ops-qa mean shape (1,500 intents across
+since removed): one fat scope at the QA mean shape (1,500 intents across
 two full generations) plus 49 thin (full, delta) scopes. The candidate lookup
 returned the covered generation with 15 shared-buffer hits on the covering
 side (index scans on `scope_generations_scope_latest_lookup_idx` and

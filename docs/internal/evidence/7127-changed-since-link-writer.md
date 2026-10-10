@@ -246,7 +246,7 @@ lock.
 | `lockCursorQuery`, `advanceCursorQuery`, `ensureCursorQuery` | cursor PK equality | One row per scope |
 | `nextActivationQuery` | `changed_since_activations_scope_seq_idx` | `(scope_id, activation_seq)` with `LIMIT 1` |
 | `backlogScopesQuery` (the runner's candidate read) | journal and cursor only | Plan-checked in `TestLinkDeltaChainReadUsesPrimaryKey` at the 8.4 fixture size (5,000 journal rows, 500 cursors, a fifth backing off): it reads only those two tables, 1.62 ms execution |
-| `backlogStatsQuery`, `orphanScopesQuery` | full scan of the journal and the cursor | The journal holds one row per activation, bounded by generation retention once PR-3d lands (T0: about 5,161 activations per 7 days on ops-qa); the cursor has one row per scope |
+| `backlogStatsQuery`, `orphanScopesQuery` | full scan of the journal and the cursor | The journal holds one row per activation, bounded by generation retention once PR-3d lands (T0: about 5,161 activations per 7 days on the QA environment); the cursor has one row per scope |
 | `recordAttemptQuery`, `poisonActivationQuery`, `createCursorsQuery` | cursor PK equality; the journal's unique `(scope_id, generation_id)` probe | One row per scope |
 | `backfillChainsQuery`, `journalActiveGenerationsQuery` | `ingestion_scopes` scan, journal probes by the unique `(scope_id, generation_id)` | One row per scope |
 | `deleteOrphanScopeStatements` | each table's `scope_id` key prefix | Deleted scopes only |
@@ -333,7 +333,7 @@ after #7305 landed 134 and 135 (see the next section's first bullet).
   predicate on the target, plus a Go row-count invariant. P1-P8 pass on the
   fixed statement, and G8 now passes with 10 valid windows per n. Small
   fleets (about 100 scopes or fewer) or a `digest_version` change could hit
-  the defect; a fleet of ops-qa's size probably not in steady state.
+  the defect; a fleet of QA's size probably not in steady state.
 - G7 root/bare_b: median 1.841 passes 3x; one round reached 4.425.
 - Review P3(f) is fixed: the advisory-class collision test derives the
   two-integer lock classes from the code instead of a hand-kept list (six

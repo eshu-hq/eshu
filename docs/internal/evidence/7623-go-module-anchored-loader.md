@@ -134,7 +134,7 @@ page's scan to the producer scopes (`GoAnchorPagesPast500Rows`).
 
 ### The shared QA replica (read-only, 2026-10-09)
 
-The shim above is synthetic. The same statements were run on the ops-qa read
+The shim above is synthetic. The same statements were run on the QA read
 replica (PostgreSQL 18.3), `EXPLAIN (ANALYZE, TIMING OFF)`, for every
 repository in the QA corpus that has Go call keys (the corpus has 7 scopes with
 Go files and 8 stored go.mod rows). The three loads that were slow in the

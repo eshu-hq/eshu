@@ -15,8 +15,12 @@ which return no rows and one of which is capped. Which candidates fill a capped
 pool was already plan dependent and stays so. It is a statement-level change, and
 it does not by itself close #7246.
 
+`repo-A`, `repo-B`, `repo-G` to `repo-I`, and `repo-R` in this note are stable
+one-to-one placeholders for the measured repository ids; the mapping is held
+outside the repository.
+
 Performance Evidence: statement `scoped_one_term` (`$1` repository id, `$2` term,
-limit, offset), backend PostgreSQL on the ops-qa physical reader, run as
+limit, offset), backend PostgreSQL on the QA physical reader, run as
 `PREPARE` plus `SET plan_cache_mode=force_custom_plan` plus
 `EXPLAIN (ANALYZE, BUFFERS, TIMING) EXECUTE`, which mirrors pgx
 `QueryExecModeCacheDescribe`. The baseline text is the statement the `origin/main`
@@ -73,16 +77,16 @@ session.
 
 | Case | Class | Base median (range) | Fixed median (range) | Rows |
 | --- | --- | --- | --- | --- |
-| r_957cd853 `decode` L13 | winner class | 317.2 ms (301 to 567) | 321.8 ms (305 to 563) | 13 |
-| r_957cd853 `decode` L15 | winner class | 305.6 ms (302 to 340) | 312.5 ms (307 to 346) | 15 |
-| r_8946df89 `showimage` L10 | winner | 101.2 ms (97 to 104) | 53.4 ms (47 to 59) | 10 |
-| r_8946df89 `showimage` L11 | winner | 101.4 ms (96 to 105) | 52.0 ms (52 to 55) | 11 |
-| r_8946df89 `loadimage` L13 | winner | 672.5 ms (666 to 678) | 558.5 ms (554 to 562) | 13 |
-| r_4507b513 `featurestab` L13 | neutral | 34.9 ms | 34.9 ms | 6 |
-| r_4ff9d0b5 `checkprerequisites` L13 | neutral | 36.2 ms | 36.2 ms | 3 |
-| r_2645123f `createnewversion` L13 | neutral | 50.6 ms | 50.3 ms | 4 |
-| r_957cd853 `array` L13 | neutral, capped | 497.9 ms | 502.0 ms | 13, `pool_truncated` true on both |
-| r_8946df89 `user` L13 | neutral | 812.2 ms | 815.2 ms | 13 |
+| repo-A `decode` L13 | winner class | 317.2 ms (301 to 567) | 321.8 ms (305 to 563) | 13 |
+| repo-A `decode` L15 | winner class | 305.6 ms (302 to 340) | 312.5 ms (307 to 346) | 15 |
+| repo-B `showimage` L10 | winner | 101.2 ms (97 to 104) | 53.4 ms (47 to 59) | 10 |
+| repo-B `showimage` L11 | winner | 101.4 ms (96 to 105) | 52.0 ms (52 to 55) | 11 |
+| repo-B `loadimage` L13 | winner | 672.5 ms (666 to 678) | 558.5 ms (554 to 562) | 13 |
+| repo-R `featurestab` L13 | neutral | 34.9 ms | 34.9 ms | 6 |
+| repo-G `checkprerequisites` L13 | neutral | 36.2 ms | 36.2 ms | 3 |
+| repo-H `createnewversion` L13 | neutral | 50.6 ms | 50.3 ms | 4 |
+| repo-A `array` L13 | neutral, capped | 497.9 ms | 502.0 ms | 13, `pool_truncated` true on both |
+| repo-B `user` L13 | neutral | 812.2 ms | 815.2 ms | 13 |
 
 Saved argument sets 2, 3 and 7 are excluded: they are not the scoped one-term shape.
 A common three-letter term such as `set` has trigrams and takes the same hidden-plan
@@ -95,9 +99,9 @@ bitmap is paid anyway. This is the loser class and a bounded, accepted cost.
 
 | Repository (entities) | Base median | Fixed median | Delta | `content_entities_repo_idx` node |
 | --- | --- | --- | --- | --- |
-| r_8946df89 (241,726, largest) | 10.4 ms | 42.0 ms | +31.6 ms | 34.7 ms |
-| r_957cd853 (132,715) | 8.7 ms | 25.8 ms | +17.1 ms | 17.8 ms |
-| r_0cfe3508 (21,824) | 10.1 ms | 10.4 ms | +0.3 ms | 1.6 ms |
+| repo-B (241,726, largest) | 10.4 ms | 42.0 ms | +31.6 ms | 34.7 ms |
+| repo-A (132,715) | 8.7 ms | 25.8 ms | +17.1 ms | 17.8 ms |
+| repo-I (21,824) | 10.1 ms | 10.4 ms | +0.3 ms | 1.6 ms |
 
 Each delta equals its repository-bitmap node time within 10 ms, and every fixed
 median is below the 100 ms ceiling set for this trade. Repositories larger than
@@ -110,26 +114,26 @@ The guard treats a term with no run of three ASCII letters or digits as having n
 trigram. `db_`, `pg_`, `a_b`, `a%b` and a single character really have none, so
 pg_trgm has nothing to extract and both GIN scans return every row; hiding such a
 term from the planner is a large regression, and an independent replacement review
-found it. Measured read-only on the ops-qa reader, `PREPARE` plus
+found it. Measured read-only on the QA reader, `PREPARE` plus
 `force_custom_plan`, 25 s statement timeout, interleaved base, fixed, base (the
 fixed text is this change without the guard):
 
 | Term, repository (entities) | Base | Fixed (unguarded) |
 | --- | --- | --- |
-| `db_`, r_8946df89 (241,726) | 4,577 ms and 4,133 ms | 16,722 ms |
-| `pg_`, r_957cd853 (132,715) | 3,837 ms and 3,292 ms | 14,908 ms |
+| `db_`, repo-B (241,726) | 4,577 ms and 4,133 ms | 16,722 ms |
+| `pg_`, repo-A (132,715) | 3,837 ms and 3,292 ms | 14,908 ms |
 
 That is about 3.6 to 4 times slower, one fixed run per case.
 
 The guard is conservative for two more classes, which keep the plain statement
 (the base) at no cost. Non-ASCII characters count as word characters only when the
-database ctype is not C, and Eshu pins no locale (ops-qa runs `en_US.UTF-8`), so a
+database ctype is not C, and Eshu pins no locale (the QA environment runs `en_US.UTF-8`), so a
 purely non-ASCII term is treated as having none. A term such as `ab-cd` does have
 trigrams (pg_trgm pads a word next to punctuation); the guard over-rejects it,
 which is safe because the plain statement is the base. The 14.9 to 16.7 s figures
 were measured on `db_` and `pg_` only. On a 1M-row local
 PostgreSQL 18.6 shim the reviewer measured 4.5 to 137 ms plain against 3.8 to 5.8 s
-hidden. The base is already over 1 s on ops-qa for these terms, which this change
+hidden. The base is already over 1 s on the QA environment for these terms, which this change
 does not address. The guard (`codeTopicTermHasTrigram`) keeps the plain statement
 for them, so their SQL is byte-identical to the base; the test table
 `TestInvestigateCodeTopicHidesOnlyTermsTheTrigramIndexCanFilter` pins which terms

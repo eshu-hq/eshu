@@ -3,7 +3,7 @@
 Performance Evidence: The fixed 100 ms request-time setup attempt was replaced
 with a share of the *remaining* replay deadline for each eligible, untried
 member. This changes only the opt-in physical-reader fleet. A production
-one-reader ops-qa API scrape (image `sha-306eac0`) found 3,647 of 3,974
+one-reader QA API scrape (image `sha-306eac0`) found 3,647 of 3,974
 successful `reader_replay` stages at or below 100 ms: 327 (8.23%) exceeded
 that limit. Replay is only one part of four-connection snapshot setup; this
 metric rejects the old cap but does not estimate full fleet setup latency.
@@ -45,7 +45,7 @@ subsecond failover result. The earlier 16-term endpoint A/B on a 400-entity,
 200-file corpus is recorded in
 [the reader-fleet query-path proof](7033-reader-fleet-identity-final-source.md);
 these setup microbenchmarks use the same small administrative test database on
-both variants and do **not** prove a deployed ops-qa endpoint or 100,000-repo
+both variants and do **not** prove a deployed QA endpoint or 100,000-repo
 latency. #7033 remains open for a deployed two-reader endpoint measurement.
 
 Healthy raw ns/op observations:

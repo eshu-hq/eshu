@@ -26,7 +26,7 @@ the planner runs as one hash join over one scan per batch. This change does
 not claim to speed it up.
 
 This table is the outlier among the foreign-key children of
-`scope_generations`. On ops-qa the large children (`fact_records`,
+`scope_generations`. On the QA environment the large children (`fact_records`,
 `fact_work_items`, `eshu_search_index_documents`, `code_reachability_rows`,
 `admission_decisions`) already seek through their `(scope_id, generation_id,
 ...)` indexes (PostgreSQL 18 skip scans or bitmap scans in the generic cascade
@@ -37,7 +37,7 @@ Two sibling tables were considered and not indexed:
 `graph_projection_phase_repair_queue` and `fact_replay_events` (see
 "Tables not indexed").
 
-## ops-qa census (read-only, 2026-10-02 16:44-16:52Z)
+## QA census (read-only, 2026-10-02 16:44-16:52Z)
 
 PostgreSQL 18.3 (`postgres` pod, plans on the read replica, counters on the
 primary), session with `default_transaction_read_only=on`; no DDL, no writes.
@@ -55,11 +55,11 @@ primary), session with `default_transaction_read_only=on`; no DDL, no writes.
 hours; `scope_generations` shows 2,863 inserts against about 1,150 created per
 day, which agrees.
 
-`generation_retention_events` has 0 rows: no prune has run on ops-qa.
+`generation_retention_events` has 0 rows: no prune has run on the QA environment.
 `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE` is `87600h` there (default
 168h), and 21,489 superseded generations are waiting. Retention itself is on by
 default and the Helm chart refuses to render it off, so a config change is the
-only thing between ops-qa and draining that backlog. The saving below is
+only thing between the QA environment and draining that backlog. The saving below is
 therefore projected from churn, not observed.
 
 Plans on the replica (`EXPLAIN (ANALYZE, BUFFERS)`):
@@ -77,16 +77,16 @@ Plans on the replica (`EXPLAIN (ANALYZE, BUFFERS)`):
   `Hash Right Join` over a single `Seq Scan` of this table (31 to 45 ms in
   total with the candidate selection).
 
-The cascade `DELETE` itself cannot run on ops-qa read-only. Its cost is
+The cascade `DELETE` itself cannot run on QA read-only. Its cost is
 established by the plan above and the fixture below.
 
-## Fixture at the ops-qa shape (PostgreSQL 18.6)
+## Fixture at the QA shape (PostgreSQL 18.6)
 
 `postgres:18.6` in a throwaway container, real child DDL from migrations
 012 with stub parents and the foreign keys, 800 scopes, 22,309 generations, and
 91,503 `graph_projection_phase_state` rows over 10,167 generations (9 rows each),
 `VACUUM ANALYZE` after seeding. A full scan reads only the heap, and the
-fixture heap is smaller than ops-qa's 29 MB (3,687 pages), so ops-qa's
+fixture heap is smaller than QA's 29 MB (3,687 pages), so QA's
 per-generation scan cost is higher than the fixture's: 14.7 ms measured there
 against 5.2 ms here.
 
@@ -100,12 +100,12 @@ against 5.2 ms here.
 - with the index: 16.5, 15.3, 15.6, 15.1, 15.2, 15.3, 16.1, 15.2 (median 15.3)
 
 That is 5.22 ms per generation before and 0.031 ms after, about 170 times
-faster on the fixture. Draining the 21,489 ops-qa backlog would cost about 112 s
+faster on the fixture. Draining the 21,489 QA backlog would cost about 112 s
 of cascade scans without the index on the fixture's smaller table (about 316 s
-at ops-qa's 14.7 ms scan), against well under 1 s with it; in steady state
+at QA's 14.7 ms scan), against well under 1 s with it; in steady state
 (about 1,150 generations per day) that is 6 to 17 s of database time per day. A
 500-generation batch's cascade through this table adds about 2.6 s (up to 7 s
-at ops-qa's table size) to the time the retention transaction holds its scope
+at QA's table size) to the time the retention transaction holds its scope
 row locks without the index, and about 15 ms with it. The transaction holds
 those locks through every other step too (candidate selection, the row-count
 join, content prunes, and the cascades into the other children), so this is
@@ -143,7 +143,7 @@ one transaction, the batch writes 540.5 bytes per row without the index and
 row (an independent reviewer's repro measured about 140). A fresh index on the
 91,503 fixture rows is 1,608 kB.
 
-Production translation at ops-qa's 326,000 to 454,000 written rows per day,
+Production translation at QA's 326,000 to 454,000 written rows per day,
 97% conflict updates: 1.3 to 1.8 s of extra write CPU per day, and 43 to 64 MB
 of extra WAL per day (the primary wrote about 3,200 GB of WAL in the same 56
 hours, about 1.4 TB per day, so this is about 0.004%). At the production writer's batch of 250 rows
@@ -185,14 +185,14 @@ no-op. The shipped file was applied verbatim to the fixture.
 
 ## Not measured
 
-- The cascade `DELETE` time on ops-qa itself (read-only session; the proxy is
+- The cascade `DELETE` time on the QA environment itself (read-only session; the proxy is
   the generic plan plus the fixture).
 - The 250-row batch write delta (extrapolated from 2,000 rows).
-- Prune timings with retention running, because no prune has run on ops-qa;
+- Prune timings with retention running, because no prune has run on the QA environment;
   after the age knob is reset, `generation_retention_events` timings and
   `pg_stat_user_indexes.idx_scan` on the new index confirm the saving.
 - Which other deployments run the default 168h age.
-- `graph_projection_phase_state_updated_idx` (72 MB, `idx_scan` 0 on ops-qa) is
+- `graph_projection_phase_state_updated_idx` (72 MB, `idx_scan` 0 on the QA environment) is
   a separate question and is not part of this change.
 
 ## No-Regression Evidence
@@ -202,7 +202,7 @@ changes, so no reader gets a different result and the cascade deletes exactly
 the same rows, only reaching them by a seek. The cost is on the write side:
 +4.1 microseconds per conflict-updated row and +2.5 per inserted row on the
 PostgreSQL 18.6 fixture (+19.7% and +9.5% at 2,000 rows), 1.3 to 1.8 s of CPU
-and 43 to 64 MB of WAL per day at ops-qa's write rate. No lease, claim, queue,
+and 43 to 64 MB of WAL per day at QA's write rate. No lease, claim, queue,
 or transaction path changes.
 
 ## Observability Evidence

@@ -14,7 +14,7 @@ handler succeeded. The projector heartbeat loop
 (`go/internal/projector/service.go`) already guards the same race.
 
 Root-Cause Evidence: the retained `resolution-engine.previous.log` of the
-ops-qa pod shows `reducer lease heartbeat failed ... error="heartbeat reducer
+QA pod shows `reducer lease heartbeat failed ... error="heartbeat reducer
 work: heartbeat reducer work: context canceled"` at 00:20:56.000507, followed
 by `reducer ack failed status=ack_failed handler_duration_seconds=30.021349622`
 about 0.1 ms later in the log (00:20:56.000604). The handler ran 30.021 s

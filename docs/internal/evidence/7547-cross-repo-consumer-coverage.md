@@ -225,7 +225,7 @@ watermark stamped below 4 on a repository with code intents reads as a gap
 for any watermark below the current epoch. Pre-upgrade watermarks (epoch default
 0) are gaps for the same reason until rebuilt.
 
-When `older_epoch` is gone on ops-qa: the drain is done when the split census in
+When `older_epoch` is gone on the QA environment: the drain is done when the split census in
 `7547-reachability-loader-gate.md` (section "Interaction with the epoch-4
 drain") reports `residual` equal to `gated_out`. A residual above `gated_out`
 is a drain still running, and those repositories answer `older_epoch` with
@@ -303,7 +303,7 @@ carries `is_delta` through its `matched` CTE):
   commit in one transaction (`SharedIntentAcceptanceWriter.UpsertIntents`), so
   the window is only between the two handlers. It was not closed there; #7602
   closes it (see below). Net effect on
-  accuracy: the 278 repositories that were permanent false gaps on ops-qa leave
+  accuracy: the 278 repositories that were permanent false gaps on the QA environment leave
   the gap list.
 
 `CodeReachabilityVerdictSchemaEpoch` stays 4; no schema, response shape or

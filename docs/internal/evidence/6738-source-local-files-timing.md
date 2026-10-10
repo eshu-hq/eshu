@@ -1,6 +1,6 @@
 # Source-local File group timing for #6738
 
-Root-Cause Evidence: ops-qa source-local projector work has files-phase graph
+Root-Cause Evidence: QA source-local projector work has files-phase graph
 write timeouts, but the existing canonical-phase and grouped-query durations do
 not attribute them to one File statement template or to the transaction's
 post-callback interval. The timeout symptom does not establish a query or commit
@@ -16,7 +16,7 @@ machine, rerun after the final instrumentation edit, measured disabled
 10.140-10.837 microseconds/op with 63 allocations. The two harnesses
 are different and their totals must not be compared as a speedup or regression.
 The diagnostic is disabled by default. The local live test below checks graph
-truth for one fixture. Deployed performance and the ops-qa timeout cause require
+truth for one fixture. Deployed performance and the QA timeout cause require
 a bounded replay after the diagnostic image is deployed.
 
 Observability Evidence: `ESHU_NORNICDB_PROFILE_FILE_GROUPS=true` logs a fixed

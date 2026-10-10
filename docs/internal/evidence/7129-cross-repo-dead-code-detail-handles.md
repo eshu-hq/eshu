@@ -147,7 +147,7 @@ thin fixture measures 384,552 est2x (202,961 one copy; a review probe reported
 wrong: it compared a one-copy size to a two-copy bar.
 
 The pathological numbers are synthetic fixtures, not a live reply; the live
-ops-qa number is NOT_CHECKED (no ops-qa access in this worktree).
+QA number is NOT_CHECKED (no QA access in this worktree).
 
 Classification invariance:
 `TestCrossRepoDeadCodeHandlesDoesNotChangeClassification` runs the same request

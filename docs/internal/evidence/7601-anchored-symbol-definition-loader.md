@@ -5,6 +5,9 @@ loader change. `FactStore.LoadActiveCodeCallSymbolDefinitionFacts` in
 `go/internal/storage/postgres` now anchors `package:<package_id>#<export_name>`
 keys on their producer scopes. Every other key keeps the corpus-wide scan.
 
+`repo-A` and `repo-S` in this note are stable one-to-one placeholders for the
+measured repository ids; the mapping is held outside the repository.
+
 ## What changed
 
 The loader splits the requested keys (`splitCodeCallPackageSymbolKeys`).
@@ -108,7 +111,7 @@ No-Regression Evidence: run 2026-10-04 on this branch.
     `AnchorsPackageKeys` fails because `$5` also holds `scope:never-active` and
     `scope:pending-generation`. The join was restored after the run.
 
-Performance Evidence: measured 2026-10-04 on the ops-qa read replica
+Performance Evidence: measured 2026-10-04 on the QA read replica
 (PostgreSQL 18.3), read-only, `statement_timeout` 10 s (5 s for the old
 statement). Each statement was prepared from the shipped constant text. Plain
 `EXPLAIN` ran before `EXPLAIN (ANALYZE, BUFFERS)`, with three timed runs per
@@ -116,7 +119,7 @@ case and a unique nonce in each run's key array or comment. Replay lag stayed
 between 0.01 and 1.0 s, except 4.5 s right after the largest-producer runs.
 `confl_snapshot` stayed at 2 throughout.
 
-The consumer is `repository:r_e3c0ae60`, the worst consumer by key count. Its
+The consumer is `repository:repo-S`, the worst consumer by key count. Its
 real keys come from the active-generation `imports` rows: every named import of
 a bare, non-subpath specifier, which gives 237 `package:` keys over 106
 packages. Those packages resolve to 10 producer scopes with 2,101 active file
@@ -129,7 +132,7 @@ because default and namespace imports are included here.
 | Manifest read, shipped (MATERIALIZED CTE) | 20.5, 15.4, 15.1; generic plan 15.0 | One bitmap read on `content_files_relative_path_trgm_idx`, hash join to scopes; 469 rows, 3,497 buffers |
 | Anchored definition scan, custom plan | 481.9 (1,985 reads), 380.2, 373.7 | Index scan on `fact_records_scope_generation_idx`, index condition `scope_id = ANY($5)`; 2,101 file facts examined |
 | Anchored definition scan, `force_generic_plan` | 373.3, 375.8, 378.1 | Same index and condition |
-| Anchored scan, largest producer only (`r_957cd853`, 7,096 file facts) | 2,300.9, 2,109.0, 2,111.4 | Same index and condition |
+| Anchored scan, largest producer only (`repo-A`, 7,096 file facts) | 2,300.9, 2,109.0, 2,111.4 | Same index and condition |
 | Old unanchored statement, same 237 keys | canceled at 5,002.5 | Per-scope loop over every active file fact |
 
 - **The first draft missed the budget.** The manifest read began as a plain
@@ -157,7 +160,7 @@ Budget: the loader sub-step must stay at or under 500 ms on the worst consumer.
 - It holds warm (388 to 396 ms).
 - The single cold first touch came to 502 ms, 2 ms over.
 - It does not hold for a consumer that depends on a producer the size of
-  `r_957cd853`: about 2.1 s. That repository publishes WordPress theme and
+  `repo-A`: about 2.1 s. That repository publishes WordPress theme and
   plugin package names. Whether any consumer imports them is NOT_CHECKED,
   because answering it needs a corpus-wide `imports` scan.
 
@@ -214,7 +217,7 @@ Correctness proof (live, throwaway `postgres:18` container, run with
 - The case variant `Node_Modules-old/async/package.json` is excluded, and
   `my_node_modules/x/package.json` stays a producer.
 
-Performance Evidence: measured 2026-10-05 on the ops-qa read replica
+Performance Evidence: measured 2026-10-05 on the QA read replica
 (PostgreSQL 18.3), read-only, three interleaved `EXPLAIN ANALYZE` pairs of the
 shipped manifest CTE and the CTE with the predicate.
 
@@ -276,7 +279,7 @@ key field that is not a string, which the old text comparison does, and it
 matched package ids and export names as two sets, so it returned extra rows for
 package keys. A review on a real Postgres reproduced both.
 
-Performance Evidence: measured 2026-10-07 on the ops-qa read replica
+Performance Evidence: measured 2026-10-07 on the QA read replica
 (PostgreSQL 18.3), read-only. Each statement was prepared with real parameters
 and timed with `EXPLAIN (ANALYZE, TIMING OFF, BUFFERS)`, in interleaved rounds,
 warm. "Old" is the statement on `main` at `1277f0429`.
@@ -325,7 +328,7 @@ claim, queue, lock, or write path.
 NOT_CHECKED:
 
 - Post-deploy loader times in the reducer log. Capture them after the build is
-  pinned on ops-qa.
+  pinned on the QA environment.
 - Cold-cache timing of this change. The statements ran in rotating order, and
   only the first round started cold, so every figure here is warm.
 - The producer-manifest read costs 57 to 59 ms now (a nested loop of 802 passes

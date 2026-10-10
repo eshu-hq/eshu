@@ -28,7 +28,7 @@ snapshot and server address, zero in-use leases after close, failed readiness
 and snapshot setup after the frozen member epoch changed, and rejection of the
 primary as a reader. The ordinary non-live runtime/PostgreSQL package test
 passed. This live test uses explicit disposable-fixture DSNs and skips when
-they are absent; it does not run against ops-qa.
+they are absent; it does not run against the QA environment.
 
 The disposable primary initially had WAL insert `0/3000028` but WAL flush and
 standby replay `0/3000000`. The first live test correctly failed its replay
@@ -52,9 +52,9 @@ WAL insert LSN was unchanged throughout the run. Each path had 16 samples:
 
 This is a tiny, empty-database setup microbenchmark. The singleton median was
 0.222872 ms higher on this fixture. That narrow setup delta is **not** a
-16-term endpoint comparison, throughput test, or ops-qa `<1 s` acceptance
+16-term endpoint comparison, throughput test, or QA `<1 s` acceptance
 result. The earlier isolated
-ops-qa single-reader canary had a 0.6740565 s descriptive median, but its
+QA single-reader canary had a 0.6740565 s descriptive median, but its
 streaming corpus and unequal live/canary traffic prevent a causal speedup
 claim. The deployed Service's last recorded median remained 1.184 s.
 
@@ -71,8 +71,8 @@ for `singleton_test.go`.
 
 ## Deployment gate
 
-No deployment, read-DSN change, or ops-qa database mutation follows from this
-local proof. The ops-qa direct member must be checked for address, recovery
+No deployment, read-DSN change, or QA database mutation follows from this
+local proof. The QA direct member must be checked for address, recovery
 role, read-only mode, system/database identity, and postmaster epoch; the
 transport must have no pgx fallback. A reviewed image/config rollout, equal
 resources and traffic, interleaved canonical 16-term endpoint timings with

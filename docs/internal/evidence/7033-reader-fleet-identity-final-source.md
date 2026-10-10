@@ -42,7 +42,7 @@ The retained private harness and timing artifacts have SHA-256 values
 `2b0bde8de491bf1cf909a125b24f8f9ffd9b2c5f2efcf4b76f831ffb5d85f915`
 and `c0dace43b34fceab1b84b75c90644d1bd7d0dcb118052d22a77e5bb9ed596b21`.
 This small fixed-corpus comparison bounds the touched fleet path. It is not
-an ops-qa `<1 s` acceptance measurement or proof at 100,000 repositories.
+a QA `<1 s` acceptance measurement or proof at 100,000 repositories.
 The later `e54a85fd0` change affects bootstrap qualification cleanup and its
 tests, not the timed request path after `/readyz`. That commit was not rebuilt
 or re-timed in this A/B; the numbers above are tied to the stated source and

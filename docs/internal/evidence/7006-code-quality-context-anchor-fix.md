@@ -3,11 +3,11 @@
 Three Cypher shapes anchored on a broad or unlabeled node pattern and filtered
 repository/entity identity only after the traversal, so a repo-scoped or by-id
 call still paid a whole-corpus (or whole-graph) scan. **On the NornicDB
-backend ops-qa ran until 2026-09-24**, all three hit the 10s bounded
+backend the QA environment ran until 2026-09-24**, all three hit the 10s bounded
 graph-read deadline (`defaultGraphReadTimeout`,
 `go/internal/query/neo4j_read_policy.go`) on every request.
 
-**Scope of the latency claim.** ops-qa now runs Neo4j, where the deployed
+**Scope of the latency claim.** The QA environment now runs Neo4j, where the deployed
 statements were already under 1.5s and nothing timed out (last section).
 There the complexity list and `code/quality/inspect` rewrites are a no-op
 (identical db hits, byte-identical rows), `infra/relationships` is about 10x
@@ -31,7 +31,7 @@ NornicDB-specific; read the sections below with that scope.
 ## Fix
 
 1 and 2 above now seed the walk from `Repository` (a small, `id`-indexed
-label; `SHOW INDEXES` on ops-qa confirms `Repository.id` is indexed) whenever
+label; `SHOW INDEXES` on the QA environment confirms `Repository.id` is indexed) whenever
 a `repo_id` or scoped grant is known, matching the established
 "seed from the smaller/known identity first" pattern in this doc (catalog
 counts, relationship-story planner seed, file-import-cycle anchor). The fully
@@ -54,7 +54,7 @@ unchanged. `GetEntityContext` (3) is an anchor swap plus fallback: every read
 projects exactly the pre-fix columns from the pre-fix enrichment (Wave 5
 restored the Repository hop that Wave 3 had replaced).
 
-Backend: NornicDB via `kubectl port-forward` to the ops-qa deployment, image
+Backend: NornicDB via `kubectl port-forward` to the QA deployment, image
 `ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c`
 (`sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`), Bolt
 HTTP `tx/commit`, read-only `MATCH`/`RETURN` statements, varied params per run.
@@ -108,7 +108,7 @@ were investigated but not changed: both already anchor by-id lookups on a
 single resolved, label-indexed node (`deployment.ResolveImpactAnchorNode`,
 `internal/query/impact/deployment` since #7034's package move),
 and live timing against varied real `CloudResource`/`Workload` anchors on
-ops-qa (bounded `[*1..8]` traversal, `limit=51`) completed in 0.11-0.67s,
+the QA environment (bounded `[*1..8]` traversal, `limit=51`) completed in 0.11-0.67s,
 not reproducing the issue's deadline. Two structural risk factors remain
 unmeasured -- the untyped, unbounded-by-relationship-type variable-length
 traversal in `deployment.ImpactRepoPathCypher` (depth up to 20), and an
@@ -143,7 +143,7 @@ seeds `deployment.ImpactAnchorLabelDisjunction` -- the same disjunction the
 by-id impact reads already use -- instead of the code-entity set.
 
 Performance Evidence: the pre-fix shape did not return before a 12.0s client
-timeout for a real `CloudResource` id on ops-qa, matching the issue's
+timeout for a real `CloudResource` id on the QA environment, matching the issue's
 reproduced 10.0-10.1s deadline exactly. A labeled-anchor candidate was timed
 post-fix but under heavy concurrent backend load from an abandoned probe (pod
 CPU/RSS elevated); those readings (8.2s/10.4s, 0 rows for an id known to
@@ -154,7 +154,7 @@ one Wave 3 below proved silently returns zero rows on this pin and replaced
 with the per-label loop -- not the shipped per-label-loop shape. They were
 never valid latency evidence for what actually shipped, on top of already
 being disclaimed as contended. The shipped per-label-loop shape was measured
-on the ops-qa Neo4j backend that replaced NornicDB (last section), not on
+on the QA Neo4j backend that replaced NornicDB (last section), not on
 NornicDB. Proven: correctness (Accuracy Evidence below; the Wave 3 addendum's
 live per-label-loop reproduction on a real `Workload` id) and a hard upper
 bound -- every call is capped by the shared 10s deadline (Wave 4 addendum).
@@ -290,7 +290,7 @@ unstable repo's 2.7x higher function density.
 Disposition: not fixed this wave. Options recorded for the owner: (1) add an
 index on `Function.cyclomatic_complexity` and verify NornicDB can use it for
 an ordered/descending scan, not just equality (unverified; needs an isolated
-environment, cannot test schema DDL on ops-qa); (2) precompute a per-repo
+environment, cannot test schema DDL on the QA environment); (2) precompute a per-repo
 complexity ranking at reducer write time (schema/pipeline design decision);
 (3) accept the measured floor (reliably sub-1s to ~4s for sparse repos,
 occasionally 9-12s+ for dense ones) and document the residual risk, matching
@@ -314,7 +314,7 @@ Not fixed this wave: the obvious replacement (a single-label-per-MATCH loop,
 the same pattern now proven for `get_entity_context` and
 `infra_relationship_filter.go`) is very likely correct given this session's
 findings, but was not proven against these specific 14 impact labels before
-the remaining ops-qa budget ran out on the correctness fixes above. Flagged
+the remaining QA budget ran out on the correctness fixes above. Flagged
 as the concrete next step: replace `impactAnchorResolveCypher`'s
 `CALL{UNION}` with the same per-label-loop shape.
 
@@ -398,7 +398,7 @@ shared-deadline-loop behavior above (issue #7006 review round 3, F2).
 
 **F3 (measurement gap).** Neither `infra/relationships`' shipped per-label
 loop nor `code/quality/inspect` had a post-fix measurement; earlier claims
-borrowed numbers from other shapes. Closed by the ops-qa Neo4j measurement
+borrowed numbers from other shapes. Closed by the QA Neo4j measurement
 (last section). The 10s ceiling holds: the loop is bounded by the shared
 `WithBoundedGraphReadDeadline` budget; `code/quality/inspect` is one statement
 bounded at 10s by `Neo4jReader`'s own per-read policy.
@@ -435,9 +435,9 @@ itself is left uncommitted in each of those three worktrees, matching the
 existing ad hoc verification pattern already used there for #7014; it is not
 part of this repo's own commit history.
 
-## ops-qa Neo4j measurement (2026-09-24)
+## QA Neo4j measurement (2026-09-24)
 
-Closes review round 3 F3. ops-qa moved from NornicDB to Neo4j Community
+Closes review round 3 F3. The QA environment moved from NornicDB to Neo4j Community
 `2026.08.1` on 2026-09-24, so the NornicDB timings above cannot be re-taken;
 this measures all four rewritten routes on the current backend.
 

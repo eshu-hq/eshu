@@ -1,6 +1,6 @@
 # Git Sync Fault Isolation Evidence
 
-Issue #7001: on ops-qa (2026-09-23 11:42Z) one repository's
+Issue #7001: on the QA environment (2026-09-23 11:42Z) one repository's
 `git ls-remote` hit a 300 s DNS timeout. `syncGitRepositoriesWithLogger`
 returned that error for the whole cycle, the composite runner logged
 `composite_runner_fatal`, and the ingester exited, canceling in-flight graph
@@ -12,7 +12,7 @@ context cancellation (shutdown) still returns as fatal.
 No-Regression Evidence: `TestSyncGitRepositoriesIsolatesOneListRefsFailure`
 copied onto `origin/main` fails with
 `list remote git refs for ...: Resolving timed out after 300018 milliseconds, want nil`,
-the ops-qa incident error, and passes on this branch.
+the QA incident error, and passes on this branch.
 `TestSyncGitRepositoriesPropagatesCancellationDuringListRefs` cancels while a
 repository's `ls-remote` is in flight; deleting the `ctx.Err()` check in
 `resolveRepoRefsIsolated` makes it fail.

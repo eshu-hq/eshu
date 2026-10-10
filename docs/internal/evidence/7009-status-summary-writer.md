@@ -28,7 +28,7 @@ statement with that clock as `$1`, and one guarded single-row upsert. The pass
 has a deadline of two intervals. Passes never overlap or queue: the next pass
 starts on the first interval boundary after the previous one ends.
 
-The interval default is 10 s, minimum 5 s. The ops-qa read-replica probe
+The interval default is 10 s, minimum 5 s. The QA read-replica probe
 (2026-10-06) measured the active-work statement at a 1,020 ms median
 (1,013-1,028 ms, 160,522 shared hits). Labels for that figure: 1 warm-up plus 3
 timed runs, median of 3; `EXPLAIN (ANALYZE, BUFFERS)` timing with warm buffers;
@@ -104,7 +104,7 @@ isolation = "repeatable read"`.
 Performance Evidence: no before figure exists, because the writer is new and
 off by default; enabling it adds one active-work pass per interval on the
 primary. Its cost is the statement's: 300-440 ms per pass on the 2-CPU fixture
-shim and a 1,020 ms median on the ops-qa read replica (P4 probe above), at the
+shim and a 1,020 ms median on the QA read replica (P4 probe above), at the
 10 s default about 6 passes a minute. The live contention run is correctness
 evidence only: it ran at load1 23-33 on an 18-CPU shared laptop, so its claim
 rates and latencies (logged per run) are not a measurement. The deployed
@@ -154,7 +154,7 @@ the estimate.
 
 ## NOT_CHECKED
 
-- Writer pass cost on the ops-qa primary (the probe ran on the read replica).
+- Writer pass cost on the QA primary (the probe ran on the read replica).
 - Claim latency with the writer on, on a quiet host or deployed (PR-F).
 - The reader side: model selection, age correction, and fallback (PR-C).
 - Design change from the ruling (D4): the reducer-side

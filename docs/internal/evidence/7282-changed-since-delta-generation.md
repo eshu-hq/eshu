@@ -4,7 +4,7 @@ Changed-since diffed the raw `fact_records` of two generations and ignored
 `scope_generations.is_delta`. A delta generation holds only the changed files'
 facts plus tombstones. A window with a delta generation at either end therefore
 reported untouched keys as removed or superseded (delta current) or as added
-(delta baseline). On ops-qa, one delta generation holds 170 non-reducer keys
+(delta baseline). On the QA environment, one delta generation holds 170 non-reducer keys
 against 68,946 in the full generation before it. One delta generation is active
 there, and 899 more were active once.
 
@@ -16,7 +16,7 @@ baseline_not_comparable` and never runs `changedSinceDeltaQuery`.
 
 ## Evidence
 
-No-Regression Evidence: the only change to the hot statements is one extra column read in each resolution statement, taken from a row the statement already fetches. The old statement text is from `origin/main` `5583d45a64` and the new text from branch head `53cb0f0309`. Both ran against ops-qa's live PostgreSQL 18 data, read-only, at image `sha-1de13f4`, on the 12,402-file repository scope.
+No-Regression Evidence: the only change to the hot statements is one extra column read in each resolution statement, taken from a row the statement already fetches. The old statement text is from `origin/main` `5583d45a64` and the new text from branch head `53cb0f0309`. Both ran against QA's live PostgreSQL 18 data, read-only, at image `sha-1de13f4`, on the 12,402-file repository scope.
 
 - **Method:** `EXPLAIN (ANALYZE, BUFFERS)` of `EXECUTE` on prepared old and new statements. There were 6 rounds each, interleaved, and the first-runner alternated between rounds.
 - **Plans:** identical node for node.

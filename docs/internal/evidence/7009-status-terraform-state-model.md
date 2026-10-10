@@ -13,7 +13,7 @@ status reader serves the row behind the same two flags as PR-C
 environment variable was added. The pre-build rulings are in
 `7009-pre-terraform-decisions-ruling-20261007.md`.
 
-Why: on the ops-qa reader, statement 25 measured a median of 412.6 ms (probe
+Why: on the QA reader, statement 25 measured a median of 412.6 ms (probe
 P1). The design ruling made PR-E conditional on P1 above 100 ms. Statement 23
 stays live (24.2 ms).
 
@@ -61,7 +61,7 @@ stays live (24.2 ms).
   `live`/`flag_off`. A `TerraformStateSource` OpenAPI component carries the same
   enums, with a test of the enums and of the exact routes that declare it.
 
-## Measurements (private native PostgreSQL 18, no ops-qa access)
+## Measurements (private native PostgreSQL 18, no QA access)
 
 The fixture is the shim recipe (254k work rows, 1M shared-projection intents,
 about 26k generations) with 2.5M filler `fact_records` rows spread over every
@@ -87,20 +87,20 @@ Decision-16 bounds:
 - companion p95 at most interval/2 (5 s): worst 0.24 s. PASS.
 - sum p95 at most the interval (10 s): worst 0.53 s (the largest sum maximum is 0.71 s). PASS.
 
-The ops-qa P1 medians for the same pair (#4 1.02 s and #25 0.41 s, measured on
+The QA P1 medians for the same pair (#4 1.02 s and #25 0.41 s, measured on
 the reader, not the primary) sum to about 1.43 s, still inside the 2.5 s bound;
 the primary-side figures are NOT_CHECKED until PR-F.
 
 Caveat: on this fixture statement 25 takes 126 to 150 ms. Its plan is a bitmap
-index scan with 43 index searches, where ops-qa shows 13,475 skip-scan searches
+index scan with 43 index searches, where the QA environment shows 13,475 skip-scan searches
 on `fact_records_scope_generation_idx` and 83k buffers. The fixture does not
-reproduce that plan, so the fixture timings understate the ops-qa cost. The
+reproduce that plan, so the fixture timings understate the QA cost. The
 bounds hold with large margin even at P1's 809 ms cold first run.
 
 ### Payload size, TOAST, and the read buffers
 
-The realistic size is the ops-qa one: about 111 warning rows, which the
-ruling puts at about 35 KB. This proof's entries are larger than ops-qa's
+The realistic size is the QA one: about 111 warning rows, which the
+ruling puts at about 35 KB. This proof's entries are larger than QA's
 (about 490 bytes each with full 64-character hashes and generation ids), so
 two sizes were measured, each with 4,000 upserts and a `VACUUM` after each
 2,000. Both keep one heap page and 100% HOT updates. The dead-tuple count is a
@@ -136,7 +136,7 @@ every run.
 
 | payload | test | TOAST pages (round 1 / 2) | read buffers (plan / TOAST) | pinned at |
 | --- | --- | --- | --- | --- |
-| 34,583 bytes, 72 entries (the ops-qa size) | `TestStatusSummaryBloatTerraformOpsQaScaleLive` | 2,225 / 2,446 | 1 / 12 | 8 / 20 |
+| 34,583 bytes, 72 entries (the QA size) | `TestStatusSummaryBloatTerraformOpsQaScaleLive` | 2,225 / 2,446 | 1 / 12 | 8 / 20 |
 | 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 (identical in all 17 runs of this test with autovacuum disabled on the table, and in the full live-set run) | 1 / 13 | 8 / 30 |
 
 The `rows = CASE ...` option the ruling allowed was not needed.
@@ -147,7 +147,7 @@ heap 1 page, TOAST 2,894 pages after vacuum, 1 plan buffer and 151
 serialization buffers on read, pinned at most 300. The size is not capped by
 locator count (`rank <= 50` is per locator and git backend warnings are one
 locator per repo and path); the live response is unbounded the same way, so no
-cap was added. The realistic ops-qa figure is 111 rows.
+cap was added. The realistic QA figure is 111 rows.
 
 ### Decode cost and the PR-F ceiling
 
@@ -163,7 +163,7 @@ shows in the route latency and not in that label.
 
 PR-F records `row_count`, `pg_column_size(rows)`, the WAL written per pass (the
 row is rewritten every interval, so the write cost is NOT_CHECKED here) and the
-read p95 on ops-qa. A row over 1,000 entries or 500 KB, or more than 1 MB of WAL
+read p95 on the QA environment. A row over 1,000 entries or 500 KB, or more than 1 MB of WAL
 per pass, files an issue before the default flip. No new metric was added now.
 
 ## Proof
@@ -213,8 +213,8 @@ the 10 s interval and the ruling's 2.5 s, 5 s and 10 s bounds, with the table in
 the shape and bloat bounds above. With the flag on, the snapshot read replaces
 the two Terraform statements with one keyed read of 1 plan buffer plus 13 TOAST
 buffers at the realistic payload. With the flag off no summary SQL runs and the
-response differs only by the additive `terraform_state_source` key. The ops-qa
-figure for statement 25 is the P1 probe; this PR did not touch ops-qa. No
+response differs only by the additive `terraform_state_source` key. The QA
+figure for statement 25 is the P1 probe; this PR did not touch the QA environment. No
 deployed route p95 is claimed. The deployed A-B-A sweep and the primary-side
 pass cost are PR-F.
 
@@ -266,7 +266,7 @@ closed and the coverage rows are in
   contention-gate step time with the new live tests.
 - The golden-corpus and B-12 comparator (the key is additive and the comparator
   checks required fields).
-- The ops-qa plan for statement 25 and the primary-side pass cost (PR-F).
+- The QA plan for statement 25 and the primary-side pass cost (PR-F).
 - A server `statement_timeout` shorter than the companion budget.
 - `mkdocs build --strict` and the registry-selected gates on the final tree (the
   coordinator runs them).

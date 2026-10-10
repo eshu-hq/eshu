@@ -253,7 +253,7 @@ reference and the codemodel README are updated to the same contract.
 The 250,000-step walk budget from part 1 was set by a wall-time ceiling, not by a margin
 over a real import graph, and an arbiter condition on #7346 asked for that margin before this
 part merges. The named corpus (`trident-automation`, 4,522 edges over 626 files, 172 resolved
-in-repo) is an ops-qa graph that this lane may not read, so the measurement uses real public
+in-repo) is a QA graph that this lane may not read, so the measurement uses real public
 Python repositories as a labelled proxy. An arbiter accepted that on these terms: each proxy is
 chosen by reader-resolved edge count (at least 172), its rows are built through the projector's
 module-naming rule, and the bar is steps x 10 at most 250,000 on every qualifying proxy at

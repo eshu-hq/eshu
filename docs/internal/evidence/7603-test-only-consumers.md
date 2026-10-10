@@ -1,5 +1,9 @@
 # #7603 cross-repo dead-code `test_only_consumers`
 
+`repo-J`, `repo-M`, and `repo-S` to `repo-U` in this note are stable one-to-one
+placeholders for the measured repository ids; the mapping is held outside the
+repository.
+
 ## Scope
 
 Owner decision (#7603): a caller in a test file counts as a caller, and the
@@ -125,11 +129,11 @@ distinct ids, no read without a consumer root, and a failed read.
 
 ## Hand-check on real rows
 
-ops-qa replica, 2026-10-05, read-only. No cross-repo reachability row exists on
+QA replica, 2026-10-05, read-only. No cross-repo reachability row exists on
 the replica today (a join of `code_reachability_rows` with `content_entities` for
 `entity.repo_id <> row.repository_id` returned 0 rows), so the row-level check
 treats the producer entity's same-repository `code_reachability_rows` roots
-(repository `repository:r_a09c7db8`, 106,003 entities, 2,462 distinct roots) as
+(repository `repository:repo-M`, 106,003 entities, 2,462 distinct roots) as
 its consumers: the same statement shape, the same paths, the same rule. Of 341
 entities sampled, the rule flags 49 and leaves 292 unflagged. Twelve checked by
 hand against the root paths. Real class and file names from the QA codebase are
@@ -164,7 +168,7 @@ each run, `EXPLAIN` before `EXPLAIN (ANALYZE, BUFFERS)`, a distinct prepared
 statement per timed run, the exact shipped statement. Measured, not fixture.
 `content_entities` is about 3.36 million rows. Parameters: a page of 1,000
 distinct consumer root ids from `code_reachability_rows` of the largest
-repository (`repository:r_a09c7db8`, 106,003 entities) and that repository id,
+repository (`repository:repo-M`, 106,003 entities) and that repository id,
 the worst case for the repository bound. Plan class with bound values: Index
 Scan using `content_entities_repo_entity_idx` on `(repo_id, entity_id)`, both
 columns as index conditions, 379 index searches, 983 rows returned. Three runs:
@@ -174,7 +178,7 @@ execution 15.682, 12.496 and 12.724 ms; planning 2.0 to 2.2 ms; shared hits
 Index Scan using `content_entities_pkey` with `repo_id` as a filter, 923 index
 searches, three runs 19.881, 19.451 and 19.311 ms of execution (19.968, 19.536
 and 19.396 ms total with 1.7 ms planning), shared hits 4,677, no reads. Four
-repositories (`r_8ed4bb37`, `r_33474efb`, `r_e3c0ae60`, `r_dbeaff35`), 1,000
+repositories (`repo-T`, `repo-J`, `repo-S`, `repo-U`), 1,000
 roots, 873 rows, one run: primary-key Index Scan, 27.892 ms execution, shared
 hits 4,161 and 598 reads on a cold read. A typical request names far fewer
 roots (a default page is 25 candidates), and the statement is skipped when no
@@ -204,6 +208,6 @@ flag itself is visible in the response (`test_only_consumers`).
 - A consumer's root file is the evidence: a test caller that is not a
   reachability root for its language produces no consumer row, so it neither
   keeps a row live nor sets the flag.
-- The flag is not exercised end to end on ops-qa: the replica has no cross-repo
+- The flag is not exercised end to end on the QA environment: the replica has no cross-repo
   reachability rows today, so the real-data checks above use same-repository
   roots through the identical statement and rule.
