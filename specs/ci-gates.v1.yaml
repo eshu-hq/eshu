@@ -5554,6 +5554,37 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: dockerhub-login
+    name: Docker Hub login in image-pulling workflows
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when a workflow job that can pull Docker Hub images, directly or via a script it runs, has no gated login before its first pull (shared anonymous limit)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      # Scope is derived, not listed: every workflow, every local composite
+      # action, every shell script (.sh or .bash, anywhere in the tree) a
+      # workflow can reach, and every Dockerfile and compose file (at any depth)
+      # whose image registries decide whether a job pulls from Docker Hub.
+      # ".github/**" covers .github/workflows and .github/actions; "**/*.*sh"
+      # covers .sh and .bash (the matcher has no braces, and a trigger that
+      # matches no tracked file is rejected, so ".github/actions/**" and
+      # "**/*.bash" cannot be listed until such a file exists).
+      - ".github/**"
+      - "**/*.*sh"
+      - "scripts/lib/dockerhub-login-*.awk"
+      - "**/Dockerfile*"
+      - "**/docker-compose*.y*ml"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-dockerhub-login.sh"
+      test_command: "bash scripts/test-verify-dockerhub-login.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Docker Hub login gate"
+    requirements: []
+    ci_only_reason: ""
+
   - id: docker-image-promotion
     name: Moving image tag promotion
     category: build

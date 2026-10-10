@@ -611,9 +611,21 @@ jobs:
     # guess; pin it so the log-dump and teardown steps address the real stack.
     env:
       DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -674,9 +686,21 @@ jobs:
     # guess; pin it so the log-dump and teardown steps address the real stack.
     env:
       DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -774,6 +798,9 @@ jobs:
     timeout-minutes: 35
     env:
       FAULT_COMPOSE_PROJECT: eshu-ifa-fault-injection-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -781,6 +808,15 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v6

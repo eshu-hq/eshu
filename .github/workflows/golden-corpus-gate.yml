@@ -202,8 +202,23 @@ jobs:
     name: static mirror
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+
     steps:
       - uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Validate orchestrator contract
@@ -230,9 +245,21 @@ jobs:
       # the failure-dump and teardown steps address the same project with the
       # same per-backend compose file the script used.
       GATE_COMPOSE_PROJECT: eshu-golden-corpus-${{ matrix.graph_backend }}
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -279,9 +306,22 @@ jobs:
     # multi-leg quorum (#6782 slice 3, owner direction 2026-09-21). 150m
     # keeps slow runners from timing out loudly on a green oracle.
     timeout-minutes: 150
+    env:
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v6

@@ -100,12 +100,25 @@ jobs:
     name: live-postgres-readiness (postgres18)
     runs-on: ubuntu-latest
     # Budget for the ledger-selected live suite (130-143 tests, ~25-30m on CI
-    # runners as of #7842). Raise deliberately, not to mask a hang: runs that
-    # approach this cap again mean the gate needs splitting, not more budget.
-    timeout-minutes: 40
+    # runners as of #7842). Measured on 2026-10-10 (#7864): 58 successful jobs
+    # took 23-39m (seven took 38-39m) and 9 were cancelled at the old 40m cap.
+    # 60m is 1.5x the longest observed success. Raise deliberately, not to
+    # mask a hang: runs that approach this cap again mean the gate needs
+    # splitting, not more budget.
+    timeout-minutes: 60
+    env:
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     services:
       postgres:
         image: postgres:18.6-bookworm
+        # #7886: service images are pulled at job init, before any step, so a
+        # login step cannot cover them. The runner skips the login when either
+        # value is empty (fork and Dependabot PRs), so the pull stays anonymous.
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
         env:
           POSTGRES_DB: postgres
           POSTGRES_USER: postgres
@@ -119,6 +132,12 @@ jobs:
           --health-retries 20
       neo4j:
         image: neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+        # #7886: service images are pulled at job init, before any step, so a
+        # login step cannot cover them. The runner skips the login when either
+        # value is empty (fork and Dependabot PRs), so the pull stays anonymous.
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
         env:
           NEO4J_AUTH: neo4j/local-proof-only
           NEO4J_PLUGINS: '[]'
@@ -134,6 +153,18 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. The physical-standby fixture below runs
+      # `docker run postgres:18.6-bookworm`; the service images above are
+      # pulled at job init and carry their own credentials. Skipped, not
+      # failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v6

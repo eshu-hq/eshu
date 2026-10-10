@@ -188,6 +188,9 @@ jobs:
     if: github.event_name == 'merge_group' || needs.changes.outputs.image == 'true'
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     timeout-minutes: 45
     runs-on: ubuntu-latest
     permissions:
@@ -202,6 +205,15 @@ jobs:
       - name: Checkout repository
         if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         if: env.LANE_APPLIES == 'true'
@@ -354,6 +366,10 @@ jobs:
       needs.changes.outputs.image == 'true' &&
       needs.build-and-push-image.result == 'success' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
+    env:
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
@@ -364,6 +380,16 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      # #7886: setup-buildx bootstraps a moby/buildkit builder image from Docker
+      # Hub, so the login comes first. Skipped, not failed, when the secrets are
+      # absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -396,6 +422,9 @@ jobs:
     if: github.event_name == 'merge_group' || needs.changes.outputs.image == 'true'
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
@@ -404,6 +433,15 @@ jobs:
       - name: Checkout repository
         if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         if: env.LANE_APPLIES == 'true'

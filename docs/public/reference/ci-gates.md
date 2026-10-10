@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 141 gates. Local execution runs the primary
+The registry currently defines 142 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (44 gates)
+### Hygiene: Is the change well-formed? (45 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -81,6 +81,7 @@ results are derived from the inputs rather than written by hand. See
 - `trivy-image` (advisory): Scans the published GHCR container image for known vulnerabilities after publish.
 - `docker-image-build` (blocking): Smoke-tests that the Docker image still builds successfully in CI.
 - `docker-publish-shape` (blocking): Statically checks the publish workflow's per-sha concurrency, immutable build tags, promotion wiring, and per-sha scan resolver; it never pushes an image.
+- `dockerhub-login` (blocking): Fails when a workflow job that can pull Docker Hub images, directly or via a script it runs, has no gated login before its first pull (shared anonymous limit).
 - `docker-image-promotion` (advisory): Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish.
 - `helm-package` (blocking): Lints and packages the Helm chart to make sure it builds cleanly before publishing.
 - `root-cause-evidence` (advisory): Checks that any documented root-cause claim also records the observation that established it.
@@ -313,6 +314,7 @@ results are derived from the inputs rather than written by hand. See
 | `docker-image-build` | Docker image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / build-and-push-image | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
 | `docker-image-reproducibility` | Docker image reproducibility | build | ci-heavy | true | — (CI-only: requires two clean hosted Docker Buildx builds) | docker-publish.yml / verify-reproducibility | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
 | `docker-publish-shape` | Docker publish workflow shape | build | pre-pr | true | `bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh` | static-contract-gates.yml / Verify docker-publish shape gate | 10 path(s): .github/workflows/docker-publish.yml, .github/workflows/security-scan.yml, .github/workflows/static-contract-gates.yml, … |
+| `dockerhub-login` | Docker Hub login in image-pulling workflows | hygiene | pre-pr | true | `bash scripts/verify-dockerhub-login.sh`<br>then self-test: `bash scripts/test-verify-dockerhub-login.sh` | static-contract-gates.yml / Verify Docker Hub login gate | 6 path(s): .github/**, **/*.*sh, scripts/lib/dockerhub-login-*.awk, … |
 | `docker-image-promotion` | Moving image tag promotion | build | ci-heavy | false | — (CI-only: requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs) | docker-publish.yml / promote-moving-tags | 5 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `release-sbom-attach` | Release SBOM attach | release | ci-heavy | false | — (CI-only: attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group) | docker-publish.yml / attach-release-sbom | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
 | `apk-floors` | Alpine apk floors match the repository | exactness | pre-pr | true | `bash scripts/verify-apk-floors.sh`<br>then self-test: `bash scripts/test-verify-apk-floors.sh` | docker-publish.yml / verify-apk-floors | 5 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/verify-apk-floors.sh, … |
