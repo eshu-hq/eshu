@@ -159,10 +159,11 @@ func serviceStoryResolutionError(ctx context.Context, err error) (int, *querycon
 			},
 		}
 	}
-	if selector.IsNotFound(err) {
+	var notFound selector.NotFoundError
+	if errors.As(err, &notFound) {
 		return http.StatusNotFound, &querycontract.ErrorEnvelope{
 			Code:       querycontract.ErrorCodeScopeNotFound,
-			Message:    err.Error(),
+			Message:    notFound.Error(),
 			Capability: "platform_impact.context_overview",
 		}
 	}

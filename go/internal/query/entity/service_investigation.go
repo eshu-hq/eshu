@@ -81,13 +81,14 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-		if selector.IsNotFound(err) {
+		var notFound selector.NotFoundError
+		if errors.As(err, &notFound) {
 			writeServiceStoryEnvelopeError(
 				w,
 				r,
 				http.StatusNotFound,
 				querycontract.ErrorCodeScopeNotFound,
-				err.Error(),
+				notFound.Error(),
 				nil,
 			)
 			return
