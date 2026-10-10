@@ -3174,6 +3174,7 @@ gates:
       - "scripts/verify-live-tests-ledger.sh"
       - "scripts/test-verify-live-tests-ledger.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
       - ".github/workflows/live-postgres-readiness.yml"
       - ".github/workflows/required-gates.yml"
     local:
