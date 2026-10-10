@@ -212,11 +212,11 @@ golden_service_changed_since_compose_snapshot() {
 		--arg deployment_retired "${golden_service_changed_since_deployment_retired_sentinel}" \
 		--arg deployment_superseded "${golden_service_changed_since_deployment_superseded_sentinel}" \
 		'.query_shapes.mcp.get_service_changed_since.arguments.since_generation_id == $prior
-		 and .query_shapes.mcp.get_service_changed_since.required_json_values.since_generation_id == $prior
-		 and .query_shapes.mcp.get_service_changed_since.required_json_values.current_active_generation_id == $current
-		 and ([.query_shapes.mcp.get_service_changed_since.required_json_object_matches["categories[]"][]
+		 and .query_shapes.mcp.get_service_changed_since.required_json_values["data.since_generation_id"] == $prior
+		 and .query_shapes.mcp.get_service_changed_since.required_json_values["data.current_active_generation_id"] == $current
+		 and ([.query_shapes.mcp.get_service_changed_since.required_json_object_matches["data.categories[]"][]
 		       | select(.category == "deployment")] | length) == 1
-		 and (.query_shapes.mcp.get_service_changed_since.required_json_object_matches["categories[]"][]
+		 and (.query_shapes.mcp.get_service_changed_since.required_json_object_matches["data.categories[]"][]
 		      | select(.category == "deployment").counts) == {
 		        added: $deployment_added,
 		        updated: $deployment_updated,
@@ -235,9 +235,9 @@ golden_service_changed_since_compose_snapshot() {
 		--argjson deployment_retired "${golden_service_changed_since_deployment_retired_count}" \
 		--argjson deployment_superseded "${golden_service_changed_since_deployment_superseded_count}" \
 		'.query_shapes.mcp.get_service_changed_since.arguments.since_generation_id = $prior
-		 | .query_shapes.mcp.get_service_changed_since.required_json_values.since_generation_id = $prior
-		 | .query_shapes.mcp.get_service_changed_since.required_json_values.current_active_generation_id = $current
-		 | (.query_shapes.mcp.get_service_changed_since.required_json_object_matches["categories[]"][]
+		 | .query_shapes.mcp.get_service_changed_since.required_json_values["data.since_generation_id"] = $prior
+		 | .query_shapes.mcp.get_service_changed_since.required_json_values["data.current_active_generation_id"] = $current
+		 | (.query_shapes.mcp.get_service_changed_since.required_json_object_matches["data.categories[]"][]
 		    | select(.category == "deployment").counts) = {
 		      added: $deployment_added,
 		      updated: $deployment_updated,

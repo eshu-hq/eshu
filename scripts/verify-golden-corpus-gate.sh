@@ -252,6 +252,7 @@ build_bin reducer
 build_bin api
 build_bin mcp-server
 build_bin golden-corpus-gate
+build_bin eshu
 build_bin mock-prometheus-mimir
 build_bin mock-openai-compatible
 for spec in "${collector_specs[@]}"; do build_bin "${spec%%:*}"; done
@@ -413,8 +414,7 @@ golden_aggregate_counts_compose_snapshot \
 log "seed post-drain dead-letter query fixture"
 seed_golden_dead_letter_fixture
 
-log "seed post-drain documentation query fixture"
-seed_golden_documentation_fixture
+golden_documentation_run_proof
 
 log "start eshu-mcp-server (http) for MCP query truth"
 ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \

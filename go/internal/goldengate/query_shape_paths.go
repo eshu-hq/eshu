@@ -20,7 +20,8 @@ const jsonRequirementFailureSeparator = " | "
 
 func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) {
 	if len(shape.RequiredJSONPaths) == 0 && len(shape.RequiredJSONValues) == 0 &&
-		len(shape.RequiredJSONObjectMatches) == 0 && len(shape.RequiredAbsentWhenPresent) == 0 {
+		len(shape.RequiredJSONObjectMatches) == 0 && len(shape.RequiredAbsentWhenPresent) == 0 &&
+		len(shape.RequiredJSONArrayBounds) == 0 {
 		return true, ""
 	}
 	var root any
@@ -84,6 +85,11 @@ func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) 
 			}
 		}
 	}
+	for _, path := range sortedJSONArrayBoundPaths(shape.RequiredJSONArrayBounds) {
+		if failure := evaluateJSONArrayBound(root, path, shape.RequiredJSONArrayBounds[path]); failure != "" {
+			failures = append(failures, failure)
+		}
+	}
 	for _, absent := range shape.RequiredAbsentWhenPresent {
 		if ok, detail := evaluateAbsentWhenPresent(root, absent); !ok {
 			failures = append(failures, detail)
@@ -99,6 +105,15 @@ func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) 
 		sortedJSONObjectMatchPaths(shape.RequiredJSONObjectMatches),
 		len(shape.RequiredAbsentWhenPresent),
 	)
+}
+
+func sortedJSONArrayBoundPaths(bounds map[string]QueryArrayBound) []string {
+	paths := make([]string, 0, len(bounds))
+	for path := range bounds {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
 }
 
 // evaluateAbsentWhenPresent checks one AbsentWhenPresent mutual-exclusion

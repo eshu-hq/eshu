@@ -47,7 +47,7 @@ func TestGoldenHarnessSeedsDocumentationAfterFinalDrainBeforeQuery(t *testing.T)
 
 	drainAt := strings.Index(script, "\nrun_maintenance_drain_cycles\n")
 	suppressionDrainAt := strings.Index(script, "\ngolden_suppression_verify_producer_truth\n")
-	seedAt := strings.Index(script, "\nseed_golden_documentation_fixture\n")
+	seedAt := strings.Index(script, "\ngolden_documentation_run_proof\n")
 	queryAt := strings.Index(script, "start_bg mcp-server mcp_pid")
 	if drainAt < 0 || suppressionDrainAt < 0 || seedAt < 0 || queryAt < 0 {
 		t.Fatalf("missing ordered harness stages: maintenance=%d suppression=%d seed=%d query=%d", drainAt, suppressionDrainAt, seedAt, queryAt)
@@ -64,25 +64,29 @@ func TestGoldenHarnessSeedsDocumentationAfterFinalDrainBeforeQuery(t *testing.T)
 	helper := string(helperBody)
 	for _, want := range []string{
 		"seed_golden_documentation_fixture()",
-		"ON CONFLICT (fact_id) DO UPDATE",
-		"golden-documentation-section",
-		"golden-documentation-finding",
-		"golden-documentation-evidence-packet",
-		"documentation_section",
-		"documentation_finding",
-		"documentation_evidence_packet",
-		"'generated_at', NOW()",
+		"golden_documentation_run_proof()",
+		"docs verify",
+		"--persist",
+		"golden_documentation_verify_active",
+		"golden_documentation_compose_snapshot",
 	} {
 		if !strings.Contains(helper, want) {
 			t.Errorf("documentation fixture helper missing %q", want)
 		}
 	}
-	if strings.Contains(helper, "'generated_at', '2026-") {
-		t.Error("documentation fixture generated_at must be seeded at run time, not frozen to a calendar date")
+	for _, forbidden := range []string{
+		"'documentation_finding', 'golden-",
+		"'documentation_evidence_packet', 'golden-",
+		"UPDATE scope_generations SET status = 'active'",
+		"UPDATE ingestion_scopes SET active_generation_id",
+	} {
+		if strings.Contains(helper, forbidden) {
+			t.Errorf("documentation producer fixture contains manual fact or activation %q", forbidden)
+		}
 	}
 }
 
-func TestGoldenDocumentationFixtureMatchesRegisteredFactContracts(t *testing.T) {
+func TestGoldenDocumentationSectionReadModelFixtureUsesRegisteredContract(t *testing.T) {
 	t.Parallel()
 
 	helperPath := filepath.Join("..", "..", "..", "scripts", "lib", "golden-corpus-documentation-fixture.sh")
@@ -91,66 +95,13 @@ func TestGoldenDocumentationFixtureMatchesRegisteredFactContracts(t *testing.T) 
 		t.Fatalf("read %s: %v", helperPath, err)
 	}
 	helper := string(body)
-	sectionAt := strings.Index(helper, "'golden-documentation-section'::text AS fact_id")
-	findingAt := strings.Index(helper, "'golden-documentation-finding',")
-	packetAt := strings.Index(helper, "'golden-documentation-evidence-packet',")
-	insertAt := strings.Index(helper, "INSERT INTO fact_records (")
-	if sectionAt < 0 || findingAt <= sectionAt || packetAt <= findingAt || insertAt <= packetAt {
-		t.Fatalf("documentation fixture segments not ordered: section=%d finding=%d packet=%d insert=%d", sectionAt, findingAt, packetAt, insertAt)
+	version, ok := docs.SchemaVersion(docs.SectionFactKind)
+	if !ok {
+		t.Fatal("documentation section contract is not registered")
 	}
-
-	tests := []struct {
-		name           string
-		kind           string
-		segment        string
-		requiredFields []string
-	}{
-		{
-			name:           "section",
-			kind:           docs.SectionFactKind,
-			segment:        helper[sectionAt:findingAt],
-			requiredFields: []string{"document_id", "revision_id", "section_id"},
-		},
-		{
-			name:           "finding",
-			kind:           docs.FindingFactKind,
-			segment:        helper[findingAt:packetAt],
-			requiredFields: []string{"finding_id", "finding_version"},
-		},
-		{
-			name:           "evidence packet",
-			kind:           docs.EvidencePacketFactKind,
-			segment:        helper[packetAt:insertAt],
-			requiredFields: []string{"packet_id", "finding_id"},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			version, ok := docs.SchemaVersion(test.kind)
-			if !ok {
-				t.Fatalf("DocumentationSchemaVersion(%q) is not registered", test.kind)
-			}
-			for _, want := range []string{"'" + test.kind + "'", "'" + version + "'"} {
-				if !strings.Contains(test.segment, want) {
-					t.Errorf("fixture segment missing registered contract token %q", want)
-				}
-			}
-			for _, field := range test.requiredFields {
-				if !strings.Contains(test.segment, "'"+field+"'") {
-					t.Errorf("fixture segment missing required payload field %q", field)
-				}
-			}
-		})
-	}
-
-	for _, column := range []string{
-		"fact_id", "scope_id", "generation_id", "fact_kind", "stable_fact_key",
-		"schema_version", "collector_kind", "fencing_token", "source_confidence",
-		"source_system", "source_fact_key", "observed_at", "ingested_at",
-		"is_tombstone", "payload",
-	} {
-		if !strings.Contains(helper[insertAt:], column) {
-			t.Errorf("fact_records upsert missing required column %q", column)
+	for _, want := range []string{"'documentation_section'", "'" + version + "'", "'document_id'", "'revision_id'", "'section_id'"} {
+		if !strings.Contains(helper, want) {
+			t.Errorf("section read-model fixture missing %q", want)
 		}
 	}
 }
@@ -309,13 +260,13 @@ func TestGoldenSnapshotDocumentationFamilyIsNonVacuous(t *testing.T) {
 			tool:         "list_documentation_findings",
 			resultsField: "findings",
 			valuePath:    "findings[].finding_id",
-			value:        "documentation-finding:runtime-readiness",
+			value:        "__runtime_documentation_finding_id__",
 		},
 		{
 			tool:         "get_documentation_finding_inventory",
 			resultsField: "buckets",
 			valuePath:    "buckets[].value",
-			value:        "active",
+			value:        "valid",
 		},
 	}
 	for _, test := range listShapes {
@@ -340,8 +291,8 @@ func TestGoldenSnapshotDocumentationFamilyIsNonVacuous(t *testing.T) {
 	}{
 		{
 			tool:      "get_documentation_evidence_packet",
-			valuePath: "packet_id",
-			value:     "documentation-packet:runtime-readiness",
+			valuePath: "data.packet_id",
+			value:     "__runtime_documentation_packet_id__",
 		},
 		{
 			tool:      "count_documentation_findings",
@@ -350,7 +301,7 @@ func TestGoldenSnapshotDocumentationFamilyIsNonVacuous(t *testing.T) {
 		},
 		{
 			tool:      "check_documentation_evidence_packet_freshness",
-			valuePath: "freshness_state",
+			valuePath: "data.freshness_state",
 			value:     "fresh",
 		},
 	}

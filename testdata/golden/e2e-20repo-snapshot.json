@@ -5565,31 +5565,35 @@
       },
       "get_service_changed_since": {
         "description": "A second committed version of the public deployable-config fixture changes only its Backstage owner after the first drain. Existing bootstrap and reducer maintenance then create a distinct active materialization generation through the normal evidence path. Runtime composition replaces the two generation sentinels with the captured superseded and active IDs. The exact ownership add/supersede pair proves a real changed category, while deployment counts are captured from the same durable generations so later-settling derived evidence remains truthful.",
+        "envelope": true,
         "required_response_fields": [
-          "service_id",
-          "since_generation_id",
-          "current_active_generation_id",
-          "sample_limit",
-          "categories",
-          "unavailable"
+          "data",
+          "truth",
+          "error"
         ],
-        "minimum_results": 7,
-        "maximum_results": 7,
-        "results_field": "categories",
-        "result_item_required_fields": [
-          "category",
-          "counts",
-          "unavailable"
+        "minimum_results": 0,
+        "required_json_array_bounds": {
+          "data.categories": {
+            "minimum_results": 7,
+            "maximum_results": 7,
+            "result_item_required_fields": ["category", "counts", "unavailable"]
+          }
+        },
+        "required_json_paths": [
+          "data.categories[].category",
+          "data.categories[].counts"
         ],
         "required_json_values": {
-          "service_id": "component:default/deployable-config",
-          "since_generation_id": "__runtime_service_changed_since_prior_generation__",
-          "current_active_generation_id": "__runtime_service_changed_since_current_generation__",
-          "sample_limit": 10,
-          "unavailable": false
+          "data.service_id": "component:default/deployable-config",
+          "data.since_generation_id": "__runtime_service_changed_since_prior_generation__",
+          "data.current_active_generation_id": "__runtime_service_changed_since_current_generation__",
+          "data.sample_limit": 10,
+          "data.unavailable": false,
+          "truth.basis": "semantic_facts",
+          "truth.freshness.state": "fresh"
         },
         "required_json_object_matches": {
-          "categories[]": [
+          "data.categories[]": [
             {
               "category": "ownership",
               "counts": {
@@ -6068,7 +6072,7 @@
         }
       },
       "list_documentation_findings": {
-        "description": "Positive deployed readback for the public-safe runtime-readiness documentation finding inserted after the required drains.",
+        "description": "Positive readback of the actual docs verifier finding after Postgres commit and normal projector/reducer drain.",
         "required_response_fields": [
           "findings",
           "next_cursor"
@@ -6088,17 +6092,18 @@
           "evidence_packet_id"
         ],
         "required_json_values": {
-          "findings[].finding_id": "documentation-finding:runtime-readiness",
-          "findings[].finding_type": "runtime_readiness",
-          "findings[].status": "active",
-          "findings[].truth_level": "derived",
+          "findings[].finding_id": "__runtime_documentation_finding_id__",
+          "findings[].finding_type": "documentation_claim_verification",
+          "findings[].status": "valid",
+          "findings[].truth_level": "exact",
           "findings[].freshness_state": "fresh",
-          "findings[].evidence_packet_id": "documentation-packet:runtime-readiness"
+          "findings[].evidence_packet_id": "__runtime_documentation_packet_id__",
+          "findings[].claim_text": "GET /api/v0/documentation/findings"
         },
         "arguments": {
-          "finding_type": "runtime_readiness",
-          "source_id": "documentation-source:golden",
-          "status": "active",
+          "finding_type": "documentation_claim_verification",
+          "source_id": "__runtime_documentation_source_id__",
+          "status": "valid",
           "limit": 10
         }
       },
@@ -6142,56 +6147,66 @@
         }
       },
       "get_documentation_evidence_packet": {
-        "description": "Positive deployed readback for the public-safe runtime-readiness evidence packet inserted after the required drains.",
+        "description": "Verifier-emitted packet read through durable Postgres and real MCP; pins source citation, provenance, exact claim, and semantic truth.",
+        "envelope": true,
         "required_response_fields": [
-          "packet_id",
-          "packet_version",
-          "generated_at",
-          "finding_id",
-          "linked_entities",
-          "document",
-          "section",
-          "bounded_excerpt",
-          "current_truth"
+          "data",
+          "truth",
+          "error"
         ],
-        "results_field": "linked_entities",
-        "minimum_results": 1,
+        "minimum_results": 0,
         "required_json_paths": [
-          "linked_entities[]",
-          "bounded_excerpt.text"
+          "data.unified_evidence.citation.entity_id",
+          "data.unified_evidence.citation.content_hash",
+          "data.unified_evidence.provenance.rationale",
+          "data.evidence_refs[].source_uri"
         ],
         "required_json_values": {
-          "packet_id": "documentation-packet:runtime-readiness",
-          "packet_version": "golden-v1",
-          "finding_id": "documentation-finding:runtime-readiness",
-          "document.document_id": "documentation-document:runtime-readiness",
-          "section.section_id": "documentation-section:runtime-readiness",
-          "current_truth.claim_key": "runtime_readiness",
-          "current_truth.truth_level": "derived",
-          "current_truth.freshness_state": "fresh"
+          "data.packet_id": "__runtime_documentation_packet_id__",
+          "data.packet_version": "__runtime_documentation_packet_version__",
+          "data.finding_id": "__runtime_documentation_finding_id__",
+          "data.document.document_id": "__runtime_documentation_document_id__",
+          "data.document.canonical_uri": "__runtime_documentation_uri__",
+          "data.section.section_id": "__runtime_documentation_section_id__",
+          "data.bounded_excerpt.text": "GET /api/v0/documentation/findings",
+          "data.bounded_excerpt.text_hash": "bea0fe9cca6cbf227923ce2b749963f0d42dac67e1c99a36ced00106aa6eb469",
+          "data.current_truth.claim_key": "http_endpoint",
+          "data.current_truth.truth_level": "exact",
+          "data.current_truth.freshness_state": "fresh",
+          "data.unified_evidence.citation.entity_id": "__runtime_documentation_document_id__",
+          "data.unified_evidence.citation.content_hash": "bea0fe9cca6cbf227923ce2b749963f0d42dac67e1c99a36ced00106aa6eb469",
+          "data.unified_evidence.citation.byte_offset": 6,
+          "data.unified_evidence.citation.byte_length": 34,
+          "data.unified_evidence.provenance.source": "documentation_verifier",
+          "data.unified_evidence.provenance.basis": "derived",
+          "data.evidence_refs[].source_uri": "__runtime_documentation_uri__",
+          "truth.basis": "semantic_facts",
+          "truth.freshness.state": "fresh"
         },
         "arguments": {
-          "finding_id": "documentation-finding:runtime-readiness"
+          "finding_id": "__runtime_documentation_finding_id__"
         }
       },
       "check_documentation_evidence_packet_freshness": {
-        "description": "Positive deployed freshness readback for the public-safe runtime-readiness evidence packet inserted after the required drains. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
+        "description": "Freshness readback of the exact verifier-emitted packet version through real MCP and durable Postgres.",
+        "envelope": true,
         "required_response_fields": [
-          "packet_id",
-          "packet_version",
-          "freshness_state",
-          "latest_packet_version"
+          "data",
+          "truth",
+          "error"
         ],
         "minimum_results": 0,
         "required_json_values": {
-          "packet_id": "documentation-packet:runtime-readiness",
-          "packet_version": "golden-v1",
-          "freshness_state": "fresh",
-          "latest_packet_version": "golden-v1"
+          "data.packet_id": "__runtime_documentation_packet_id__",
+          "data.packet_version": "__runtime_documentation_packet_version__",
+          "data.freshness_state": "fresh",
+          "data.latest_packet_version": "__runtime_documentation_packet_version__",
+          "truth.basis": "semantic_facts",
+          "truth.freshness.state": "fresh"
         },
         "arguments": {
-          "packet_id": "documentation-packet:runtime-readiness",
-          "packet_version": "golden-v1"
+          "packet_id": "__runtime_documentation_packet_id__",
+          "packet_version": "__runtime_documentation_packet_version__"
         }
       },
       "list_query_playbooks": {
@@ -6428,7 +6443,7 @@
         }
       },
       "count_documentation_findings": {
-        "description": "Positive deployed aggregate count for the public-safe runtime-readiness documentation finding inserted after the required drains. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
+        "description": "Aggregate count for the valid verifier-produced documentation finding after its generation is active.",
         "required_response_fields": [
           "by_freshness_state",
           "by_status",
@@ -6439,19 +6454,19 @@
         "minimum_results": 0,
         "required_json_values": {
           "total_findings": 1,
-          "by_status.active": 1,
-          "by_truth_level.derived": 1,
+          "by_status.valid": 1,
+          "by_truth_level.exact": 1,
           "by_freshness_state.fresh": 1,
-          "scope.finding_type": "runtime_readiness",
-          "scope.source_id": "documentation-source:golden"
+          "scope.finding_type": "documentation_claim_verification",
+          "scope.source_id": "__runtime_documentation_source_id__"
         },
         "arguments": {
-          "finding_type": "runtime_readiness",
-          "source_id": "documentation-source:golden"
+          "finding_type": "documentation_claim_verification",
+          "source_id": "__runtime_documentation_source_id__"
         }
       },
       "get_documentation_finding_inventory": {
-        "description": "Positive deployed status inventory for the public-safe runtime-readiness documentation finding inserted after the required drains.",
+        "description": "Status inventory for the valid verifier-produced documentation finding.",
         "required_response_fields": [
           "buckets",
           "count",
@@ -6474,15 +6489,15 @@
           "count": 1,
           "group_by": "status",
           "buckets[].dimension": "status",
-          "buckets[].value": "active",
+          "buckets[].value": "valid",
           "buckets[].count": 1,
-          "scope.finding_type": "runtime_readiness",
-          "scope.source_id": "documentation-source:golden"
+          "scope.finding_type": "documentation_claim_verification",
+          "scope.source_id": "__runtime_documentation_source_id__"
         },
         "arguments": {
           "group_by": "status",
-          "finding_type": "runtime_readiness",
-          "source_id": "documentation-source:golden",
+          "finding_type": "documentation_claim_verification",
+          "source_id": "__runtime_documentation_source_id__",
           "limit": 10,
           "offset": 0
         }
