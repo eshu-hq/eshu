@@ -12,6 +12,15 @@
 # triggers, CI timeout) lives in lib/dockerhub-login-test-shapes.sh, sourced after
 # these cases, and the script-reference batch (env prefixes, path-qualified shells,
 # wrapper flags, several calls on a line) in lib/dockerhub-login-test-script-refs.sh.
+#
+# The login rule applies to jobs outside the queue path (#7886): a workflow whose
+# on: has merge_group or pull_request may not reach Docker Hub at all. The base
+# therefore holds verify-agent-hygiene.yml with its triggers replaced by tag push
+# and workflow_dispatch, and a legacy-hub.yml fixture with the Docker Hub login
+# shapes, so every login case runs on a non-queue workflow. The queue-path batch
+# (service image, compose image, Dockerfile FROM, docker run in a script,
+# setup-buildx, setup-qemu, expression run, trigger forms, leftover login wiring)
+# lives in lib/dockerhub-login-test-queue.sh.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,14 +45,24 @@ ci_gates_static_workflow_view "${repo_root}/.github/workflows/static-contract-ga
 # the first case), which keeps each verifier run to a few seconds.
 base="${tmp_root}/base"
 mkdir -p "${base}/.github/workflows"
-for wf in e2e-tests live-backend-tests reducer-contention-gate docker-publish verify-agent-hygiene verify-replay-tier; do
+for wf in verify-agent-hygiene verify-replay-tier; do
   cp "${repo_root}/.github/workflows/${wf}.yml" "${base}/.github/workflows/${wf}.yml"
 done
-cp -R "${repo_root}/scripts" "${base}/scripts"
+# The verifier reads its own libs from its repo, not from the tree under test, and
+# every case plants the scripts it needs, so the base holds an empty scripts/lib
+# (copying the whole scripts/ tree cost seconds per verifier run).
+mkdir -p "${base}/scripts/lib"
 cp "${repo_root}"/Dockerfile "${repo_root}"/docker-compose*.y*ml "${base}/"
+# verify-agent-hygiene.yml is the scratch workflow add_job fills; it runs on a tag
+# push and dispatch only so the Docker Hub login rule (not the queue-path rule)
+# governs its jobs.
+yq e -i 'del(.on) | .on.push.tags = ["v*"] | .on.workflow_dispatch = null' "${base}/.github/workflows/verify-agent-hygiene.yml"
 # Empty step lists and reusable jobs must not offset metadata/run identities.
 # Every scratch mutation below retains both shapes before the tested steps.
 yq e -i '.jobs.empty_step_fixture = {"runs-on": "ubuntu-latest", "steps": []}' "${base}/.github/workflows/verify-agent-hygiene.yml"
+# shellcheck source=lib/dockerhub-login-test-legacy.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-legacy.sh"
+legacy_workflow "${base}"
 
 new_case() { # <name>: prints the scratch repo dir
   local dir="${tmp_root}/$1"
@@ -100,41 +119,38 @@ add_job "${d}" verify-agent-hygiene fixture-docker 'docker pull postgres:18'
 expect_red direct-docker-job-without-login "${d}" 'verify-agent-hygiene.yml:fixture-docker: no Docker Hub docker/login-action@v3 step'
 
 d="$(new_case login-after-first-docker)"
-# Move the login to the end without depending on unrelated setup positions.
-yq e -i '.jobs.live-backend-shards.steps as $s | .jobs.live-backend-shards.steps = (($s | map(select(.uses != "docker/login-action@v3"))) + ($s | map(select(.uses == "docker/login-action@v3"))))' "${d}/.github/workflows/live-backend-tests.yml"
-login_index="$(yq e '.jobs.live-backend-shards.steps | length - 1' "${d}/.github/workflows/live-backend-tests.yml")"
-expect_red login-placed-after-first-docker-step "${d}" "live-backend-tests.yml:live-backend-shards: login steps[${login_index}] comes after the first Docker-reaching"
+# Move the login after the script-driven step that pulls (steps[5] runs the
+# script, steps[1] is the login in the committed workflow).
+yq e -i '.jobs.live-backend.steps as $s | .jobs.live-backend.steps = ($s[0:1] + $s[2:6] + [$s[1]] + $s[6:])' "${d}/.github/workflows/legacy-hub.yml"
+expect_red login-placed-after-first-docker-step "${d}" 'legacy-hub.yml:live-backend: login steps[5] comes after the first Docker-reaching steps[4]'
 
 d="$(new_case service-without-credentials)"
-yq e -i '.jobs.contention-gate.services.postgres.image = "docker.io/library/postgres:18"' "${d}/.github/workflows/reducer-contention-gate.yml"
-yq e -i 'del(.jobs.contention-gate.services.postgres.credentials)' "${d}/.github/workflows/reducer-contention-gate.yml"
-expect_red service-without-credentials "${d}" 'reducer-contention-gate.yml:contention-gate: service postgres'
+yq e -i 'del(.jobs.contention-gate.services.postgres.credentials)' "${d}/.github/workflows/legacy-hub.yml"
+expect_red service-without-credentials "${d}" 'legacy-hub.yml:contention-gate: service postgres'
 
 d="$(new_case ghcr-login-only)"
-yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .with.registry) = \"ghcr.io\"" "${d}/.github/workflows/e2e-tests.yml"
-expect_red login-to-ghcr-only "${d}" 'e2e-tests.yml:test: no Docker Hub docker/login-action@v3 step'
+yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .with.registry) = \"ghcr.io\"" "${d}/.github/workflows/legacy-hub.yml"
+expect_red login-to-ghcr-only "${d}" 'legacy-hub.yml:test: no Docker Hub docker/login-action@v3 step'
 
 d="$(new_case wrong-secret)"
-yq e -i "(.jobs.live-backend-shards.steps[] | select(${login_ref}) | .with.password) = \"x\"" "${d}/.github/workflows/live-backend-tests.yml"
-login_index="$(yq e '.jobs.live-backend-shards.steps | to_entries | .[] | select(.value.uses == "docker/login-action@v3") | .key' "${d}/.github/workflows/live-backend-tests.yml")"
-expect_red wrong-secret-names "${d}" "login steps[${login_index}] must use the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets"
+yq e -i "(.jobs.live-backend.steps[] | select(${login_ref}) | .with.password) = \"x\"" "${d}/.github/workflows/legacy-hub.yml"
+expect_red wrong-secret-names "${d}" 'login steps[1] must use the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets'
 
 d="$(new_case ungated-login)"
-yq e -i "del(.jobs.test.steps[] | select(${login_ref}) | .if)" "${d}/.github/workflows/e2e-tests.yml"
+yq e -i "del(.jobs.test.steps[] | select(${login_ref}) | .if)" "${d}/.github/workflows/legacy-hub.yml"
 expect_red ungated-login-step "${d}" 'must run only when DOCKERHUB_LOGIN_ENABLED is true'
 
 d="$(new_case missing-login)"
-yq e -i "del(.jobs.test.steps[] | select(${login_ref}))" "${d}/.github/workflows/e2e-tests.yml"
-expect_red missing-login-step "${d}" 'e2e-tests.yml:test: no Docker Hub docker/login-action@v3 step'
+yq e -i "del(.jobs.test.steps[] | select(${login_ref}))" "${d}/.github/workflows/legacy-hub.yml"
+expect_red missing-login-step "${d}" 'legacy-hub.yml:test: no Docker Hub docker/login-action@v3 step'
 
 d="$(new_case login-without-job-env)"
-yq e -i 'del(.jobs.test.env.DOCKERHUB_LOGIN_ENABLED)' "${d}/.github/workflows/e2e-tests.yml"
+yq e -i 'del(.jobs.test.env.DOCKERHUB_LOGIN_ENABLED)' "${d}/.github/workflows/legacy-hub.yml"
 expect_red login-without-job-env "${d}" 'job env must define DOCKERHUB_LOGIN_ENABLED'
 
 d="$(new_case build-push-without-login)"
-printf 'FROM docker.io/library/alpine:3.21\n' >"${d}/Dockerfile"
-yq e -i "del(.jobs.build-and-push-image.steps[] | select(${login_ref} and .with.registry == null))" "${d}/.github/workflows/docker-publish.yml"
-expect_red build-push-job-without-hub-login "${d}" 'docker-publish.yml:build-and-push-image: no Docker Hub docker/login-action@v3 step'
+yq e -i "del(.jobs.build-and-push-image.steps[] | select(${login_ref} and .with.registry == null))" "${d}/.github/workflows/legacy-hub.yml"
+expect_red build-push-job-without-hub-login "${d}" 'legacy-hub.yml:build-and-push-image: no Docker Hub docker/login-action@v3 step'
 
 d="$(new_case container-action-hub-image)"
 yq e -i '.jobs.fixture-action = {"runs-on": "ubuntu-latest", "steps": [{"uses": "docker://alpine:3.21"}]}' "${d}/.github/workflows/verify-agent-hygiene.yml"
@@ -146,6 +162,7 @@ add_job "${d}" verify-agent-hygiene fixture-run 'bash scripts/fixture-run.sh'
 expect_red script-docker-run-of-a-hub-default-image "${d}" 'verify-agent-hygiene.yml:fixture-run: no Docker Hub docker/login-action@v3 step'
 
 d="$(new_case direct-buildx-build)"
+printf 'FROM alpine:3.21\n' >"${d}/Dockerfile"
 add_job "${d}" verify-agent-hygiene fixture-build 'docker buildx build --platform linux/amd64 --no-cache .'
 expect_red buildx-build-of-hub-based-dockerfile "${d}" 'verify-agent-hygiene.yml:fixture-build: no Docker Hub docker/login-action@v3 step'
 
@@ -438,16 +455,15 @@ expect_green setup-qemu-ghcr-image-needs-no-login "${d}"
 
 # --- G3: a login step must not continue on error --------------------------------
 d="$(new_case login-continue-on-error)"
-yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = true" "${d}/.github/workflows/e2e-tests.yml"
-login_index="$(yq e '.jobs.test.steps | to_entries | .[] | select(.value.uses == "docker/login-action@v3") | .key' "${d}/.github/workflows/e2e-tests.yml")"
-expect_red login-with-continue-on-error "${d}" "e2e-tests.yml:test: login steps[${login_index}] sets continue-on-error (true)"
+yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = true" "${d}/.github/workflows/legacy-hub.yml"
+expect_red login-with-continue-on-error "${d}" 'legacy-hub.yml:test: login steps[1] sets continue-on-error (true)'
 
 d="$(new_case login-continue-on-error-expression)"
-yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = \"\${{ github.event_name == 'push' }}\"" "${d}/.github/workflows/e2e-tests.yml"
+yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = \"\${{ github.event_name == 'push' }}\"" "${d}/.github/workflows/legacy-hub.yml"
 expect_red login-with-continue-on-error-expression "${d}" 'sets continue-on-error'
 
 d="$(new_case login-continue-on-error-false)"
-yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = false" "${d}/.github/workflows/e2e-tests.yml"
+yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = false" "${d}/.github/workflows/legacy-hub.yml"
 expect_green login-with-continue-on-error-false-passes "${d}"
 
 # --- G5: the gate's triggers cover the files whose names it derives from --------
@@ -474,6 +490,10 @@ source "${repo_root}/scripts/lib/dockerhub-login-test-shapes.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-test-script-refs.sh"
 # shellcheck source=lib/dockerhub-login-test-expressions.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-expressions.sh"
+# shellcheck source=lib/dockerhub-login-test-queue.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-queue.sh"
+# shellcheck source=lib/dockerhub-login-test-triggers.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-triggers.sh"
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "test-verify-dockerhub-login: ${failures} case(s) failed" >&2

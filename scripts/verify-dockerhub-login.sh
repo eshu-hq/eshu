@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # verify-dockerhub-login.sh - fails when a workflow job that can pull Docker Hub
-# images has no authenticated pull path (#7886).
+# images has no authenticated pull path (#7886), and when any job of a
+# merge_group or pull_request workflow reaches Docker Hub at all (#7886).
 #
 # Hosted runners share one anonymous Docker Hub identity, so an unauthenticated
 # pull in a merge_group run can hit "toomanyrequests" and eject a green PR from
@@ -31,6 +32,20 @@
 # docker/login-action, docker/metadata-action, the docker/setup-* installers that
 # pull no image (setup-docker-action, setup-compose-action) and actions/* are not
 # Docker uses.
+#
+# Queue path (lib/dockerhub-login-queue.sh): one rule set, derived from each
+# workflow's on: and never from a list. A workflow is on the queue path when its
+# on: has merge_group, pull_request or pull_request_target; when it runs on
+# workflow_run and its workflows: list names (by name:, transitively, cycle-safe)
+# a queue-path workflow; or when a queue-path workflow calls it as a reusable
+# workflow. Both .yml and .yaml workflow files are read. EVERY job in a queue-path
+# workflow must not reach Docker Hub. Such a job fails when it reaches Docker
+# Hub by any class above, whether or not it keeps a login: a login does not make
+# a queue-path reach acceptable, and a login is not a finding here (a queue-path
+# job that reaches nothing and still carries one passes this rule). The login
+# rule below applies only to jobs of every other workflow (push, tag, schedule,
+# dispatch, or a workflow_run of a non-queue workflow only). There is no mode
+# flag.
 #
 # Finding docker: lib/dockerhub-login-lex.awk lexes the shell text (quotes,
 # comments, line continuations, ; & | ( ) and $(...)), so docker is recognised
@@ -74,7 +89,7 @@
 # inline Dockerfile, a build context that is a URL, an unparsable docker run, a
 # docker pull with no readable image, docker buildx create/bootstrap.
 #
-# A reaching job needs:
+# A reaching job outside the queue path needs:
 #   - services:/container: Hub images with credentials: from the DOCKERHUB_*
 #     secrets (pulled at job init, before any step, so a login cannot cover them);
 #   - for steps, a docker/login-action@v3 step with no registry: (or docker.io),
@@ -125,7 +140,8 @@ unresolved_rule="An image host that cannot be resolved statically, for example a
 case "${1:-}" in
   -h | --help)
     printf 'usage: verify-dockerhub-login.sh [-h|--help]\n'
-    printf 'Fails when a workflow job that can pull Docker Hub images has no gated Docker Hub login.\n'
+    printf 'Fails when a workflow job that can pull Docker Hub images has no gated Docker Hub login,\n'
+    printf 'and when any job of a merge_group or pull_request workflow reaches Docker Hub at all.\n'
     printf 'ESHU_DOCKERHUB_LOGIN_EXPLAIN=1 prints the derived scope table; ESHU_DOCKERHUB_LOGIN_ROOT selects a tree.\n'
     printf '%s\n' "${unresolved_rule}"
     exit 0 ;;
@@ -152,6 +168,16 @@ trap 'rm -rf "${tmp}"' EXIT
 failures=0
 fail() { printf 'verify-dockerhub-login: %s\n' "$1" >&2; failures=$((failures + 1)); }
 b64d() { base64 -d 2>/dev/null || base64 -D; }
+
+# queue_job_check <where> <init reasons> <first reach idx> <why>: one failure
+# naming every reach of a queue-path job (a job of a workflow that runs on
+# merge_group or pull_request).
+queue_job_check() {
+  local problems=""
+  [[ -z "$2" ]] || problems="${problems}${problems:+; }job init pulls Docker Hub image(s): $2"
+  [[ -z "$3" ]] || problems="${problems}${problems:+; }steps[$3]: $4"
+  [[ -z "${problems}" ]] || fail "$1: queue-path job (its workflow runs on merge_group or pull_request) must not reach Docker Hub: ${problems}"
+}
 
 # Regexes (Rust syntax; a # starts a comment only at line start or after
 # whitespace, so $# and ${x#y} are not comments). bare_re only selects which
@@ -194,10 +220,14 @@ done < <([[ "${#ref_inputs[@]}" -eq 0 ]] || LC_ALL=C awk -f "${refs_awk}" "${ref
 source "${repo_root}/scripts/lib/dockerhub-login-images.sh"
 # shellcheck source=lib/dockerhub-login-compose.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-compose.sh"
+# shellcheck source=lib/dockerhub-login-queue.sh disable=SC2034
+source "${repo_root}/scripts/lib/dockerhub-login-queue.sh"
 
-# check_job <workflow> <job> <workflow env>: evaluates one job.
+# check_job <workflow> <job> <workflow env> <queue 0|1>: evaluates one job. A job
+# of a queue-path workflow must not reach Docker Hub or keep any Docker Hub login
+# wiring; every other job needs the authenticated pull path.
 check_job() {
-  local name="$1" job="$2" wf_env="$3" where="$1:$2" job_env kind sname image cuser cpass reasons=""
+  local name="$1" job="$2" wf_env="$3" queue="$4" where="$1:$2" job_env kind sname image cuser cpass reasons="" qtag=""
   local seq idx uses cond reg user pass dfile dctx why first_reach="" first_why=""
   clear_tables
   load_envs "${job}"
@@ -207,10 +237,11 @@ check_job() {
 
   # Image pulls at job init: every Hub services:/container: image needs credentials.
   while IFS=$'\t' read -r kind _ sname image cuser cpass; do
-    [[ -n "${kind}" && -n "${image#x}" ]] && image_is_hub "${image#x}" || continue
+    [[ -n "${kind}" && -n "${image#x}" ]] || continue
     if [[ "${kind}" == S ]]; then sname="service ${sname}"; else sname="container"; fi
+    image_is_hub "${image#x}" || continue
     reasons="${reasons}${reasons:+; }${sname} ${image#x}"
-    if [[ "${cuser#x}" != "${user_expr}" || "${cpass#x}" != "${token_expr}" ]]; then
+    if [[ "${queue}" -eq 0 && ( "${cuser#x}" != "${user_expr}" || "${cpass#x}" != "${token_expr}" ) ]]; then
       fail "${where}: ${sname} (${image#x}) pulls from Docker Hub at job init without credentials: from secrets.DOCKERHUB_USERNAME and secrets.DOCKERHUB_TOKEN"
     fi
   done < <(awk -F'\t' -v j="${job}" '($1=="S" || $1=="C") && $2==j' "${tmp}/jobs.tsv")
@@ -306,9 +337,14 @@ check_job() {
     if [[ -n "${why}" && -z "${first_reach}" ]]; then first_reach="${idx}"; first_why="${why}"; fi
   done < <(awk -F'\t' -v j="${job}" '$2==j' "${tmp}/steps.tsv")
 
-  [[ -z "${reasons}" ]] || printf '%s\t%s\n' "${where}" "job init pulls Docker Hub image(s): ${reasons}" >>"${tmp}/scope.tsv"
-  [[ -z "${first_reach}" ]] || printf '%s\t%s\n' "${where}" "steps[${first_reach}]: ${first_why}" >>"${tmp}/scope.tsv"
+  qtag=""; [[ "${queue}" -eq 0 ]] || qtag="[queue-path] "
+  [[ -z "${reasons}" ]] || printf '%s\t%s\n' "${where}" "${qtag}job init pulls Docker Hub image(s): ${reasons}" >>"${tmp}/scope.tsv"
+  [[ -z "${first_reach}" ]] || printf '%s\t%s\n' "${where}" "${qtag}steps[${first_reach}]: ${first_why}" >>"${tmp}/scope.tsv"
   [[ -z "${reasons}" && -z "${first_reach}" ]] || reaching_jobs=$((reaching_jobs + 1))
+  if [[ "${queue}" -eq 1 ]]; then
+    queue_job_check "${where}" "${reasons}" "${first_reach}" "${first_why}"
+    return 0
+  fi
   [[ -n "${first_reach}" ]] || return 0
 
   if [[ -z "${login_idx}" ]]; then
@@ -336,13 +372,16 @@ check_job() {
 : >"${tmp}/scope.tsv"
 workflows_seen=0
 reaching_jobs=0
+queue_path_workflows
 
-for wf in "${root}"/.github/workflows/*.yml; do
+for wf in ${wf_files[@]+"${wf_files[@]}"}; do
   name="$(basename "${wf}")"
   workflows_seen=$((workflows_seen + 1))
   if ! yq e '.jobs | keys | .[]' "${wf}" >"${tmp}/jobs.list" 2>"${tmp}/yq.err"; then
     fail "${name}: cannot parse jobs ($(head -n 1 "${tmp}/yq.err"))"; continue
   fi
+  queue=0
+  [[ "${queue_wfs}" != *$'\n'"${name}"$'\n'* ]] || queue=1
   wf_env="$(yq e '(.env | select(type == "!!map") | .DOCKERHUB_LOGIN_ENABLED) // ""' "${wf}")"
   yq e '.jobs | to_entries | .[] | .key as $j | (
       (["J", $j, "x" + (((.value.env | select(type == "!!map") | .DOCKERHUB_LOGIN_ENABLED) // "") | tostring), "x" + (.value.uses // "")] | join("\t")),
@@ -389,7 +428,7 @@ for wf in "${root}"/.github/workflows/*.yml; do
   done < <({ rg -o -N --no-filename -e '[A-Za-z0-9_./-]+\.(sh|bash)\b' "${tmp}/runs" || true; } | sort -u)
 
   while IFS= read -r job; do
-    check_job "${name}" "${job}" "${wf_env}"
+    check_job "${name}" "${job}" "${wf_env}" "${queue}"
   done <"${tmp}/jobs.list"
   # Clear the per-workflow step ref variables.
   while IFS= read -r v; do unset "${v}"; done < <(compgen -v SR_ || true)
@@ -397,6 +436,7 @@ done
 
 if [[ -n "${explain}" ]]; then
   printf 'scope: %s Docker Hub-reaching job(s) derived from %s workflow file(s)\n' "${reaching_jobs}" "${workflows_seen}"
+  printf 'queue-path: %s workflow file(s) are on the queue path (merge_group, pull_request, pull_request_target, or following one); every job in them must pull from ghcr.io only\n' "$(printf '%s' "${queue_wfs}" | rg -c .)"
   sort "${tmp}/scope.tsv" | awk -F'\t' '{printf "  %s\t%s\n", $1, $2}'
   printf 'rule: %s\n' "${unresolved_rule}"
 fi

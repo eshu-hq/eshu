@@ -368,7 +368,7 @@ gates:
     name: Docker Hub login in image-pulling workflows
     category: hygiene
     layer: hygiene
-    purpose: "Fails when a workflow job that can pull Docker Hub images, directly or via a script it runs, has no gated login before its first pull (shared anonymous limit)."
+    purpose: "Fails when a merge_group or pull_request job reaches Docker Hub or keeps a login; other Docker Hub-pulling jobs need a gated login before their first pull."
     tier: pre-pr
     blocking: true
     triggers:

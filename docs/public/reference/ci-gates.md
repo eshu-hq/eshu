@@ -82,7 +82,7 @@ results are derived from the inputs rather than written by hand. See
 - `trivy-image` (advisory): Scans the published GHCR container image for known vulnerabilities after publish.
 - `docker-image-build` (blocking): Smoke-tests that the Docker image still builds successfully in CI.
 - `docker-publish-shape` (blocking): Statically checks the publish workflow's per-sha concurrency, immutable build tags, promotion wiring, and per-sha scan resolver; it never pushes an image.
-- `dockerhub-login` (blocking): Fails when a workflow job that can pull Docker Hub images, directly or via a script it runs, has no gated login before its first pull (shared anonymous limit).
+- `dockerhub-login` (blocking): Fails when a merge_group or pull_request job reaches Docker Hub or keeps a login; other Docker Hub-pulling jobs need a gated login before their first pull.
 - `docker-image-promotion` (advisory): Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish.
 - `helm-package` (blocking): Lints and packages the Helm chart to make sure it builds cleanly before publishing.
 - `root-cause-evidence` (advisory): Checks that any documented root-cause claim also records the observation that established it.
