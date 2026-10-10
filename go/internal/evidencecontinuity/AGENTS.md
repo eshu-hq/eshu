@@ -41,7 +41,7 @@
   package to `validatorCodeDeps` in `gatetriggers.go` in the same change, and
   give it a trigger in both sets above. The two invariants above watch what the
   validator reads; this one watches what it is built from. `cigates.MatchGlob`
-  and `cigates.DornyFilters` decide what `gate_trigger_gap` reports, so a
+  and `cigates.DornyFiltersFile` decide what `gate_trigger_gap` reports, so a
   trigger set that does not name `go/internal/cigates` would let a semantic
   change there land without ever running this gate. This invariant is
   mechanically enforced end to end, unlike the input list above:

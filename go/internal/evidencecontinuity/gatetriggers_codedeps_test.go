@@ -23,7 +23,7 @@ const firstPartyImportPrefix = "github.com/eshu-hq/eshu/"
 // anchor category: the packages this validator is built from.
 //
 // The other two categories watch data the validator reads. Neither watches its
-// code, so a change to cigates.MatchGlob or cigates.DornyFilters -- the
+// code, so a change to cigates.MatchGlob or cigates.DornyFiltersFile -- the
 // functions that decide what gate_trigger_gap reports -- selected no trigger at
 // all, and the validator's own package is named by no `go test` proof ref, so
 // the package half never demanded it either. Dropping either from both trigger

@@ -4,6 +4,19 @@
 # Sourced by the parent test, which owns repo_root, registry, fail(), and
 # require_path_line(); not intended to run standalone.
 
+check_parserrelationship_filter_self_triggers() {
+	local filter_block="$1" trigger
+	for trigger in \
+		'.github/workflows/static-contract-gates.yml' \
+		'specs/ci-gates.v1.yaml' \
+		'specs/ci-gates.d/**' \
+		'.github/static-contract-filters.yml'; do
+		printf '%s\n' "${filter_block}" |
+			rg --fixed-strings --line-regexp -- "              - '${trigger}'" >/dev/null ||
+			fail "static-contract-gates.yml parserrelationship filter omits ${trigger}"
+	done
+}
+
 check_parser_relationship_trigger_parity() {
 	local gate_block gate_job parserrelationship_filter ledger_path selection
 	local helper_path docs_path docs_trigger root_docs_path root_docs_trigger
@@ -17,6 +30,7 @@ check_parser_relationship_trigger_parity() {
 		sed -n '/^            parserrelationship:$/,/^            docsrefs:$/p' \
 			"${static_contract_workflow}"
 	)"
+	check_parserrelationship_filter_self_triggers "${parserrelationship_filter}"
 	gate_job="$(
 		sed -n '/^  gate:$/,$p' "${static_contract_workflow}"
 	)"
