@@ -6,30 +6,72 @@ on:
     branches:
       - main
   pull_request:
-    paths: [
-      'src/**', 'apps/console/**', 'index.html',
-      'package.json', 'package-lock.json', 'vite.config.ts',
-      'tsconfig*.json', 'wrangler.jsonc', '.nvmrc',
-      'CLOUDFLARE_PAGES.md', 'scripts/marketing-review.mjs', 'scripts/marketing-review-runtime.mjs',
-      'scripts/marketing-review-runtime.test.mjs', 'public/**', 'eslint.config.js',
-      '.prettierrc.json', '.prettierignore', 'tests/lint-fixture/**',
-      'scripts/test-eslint-config.sh', 'scripts/verify-eslint-config.sh', 'scripts/test-verify-frontend-format-changed.sh',
-      'scripts/verify-frontend-format-changed.sh', 'scripts/ci/install-apt-packages.sh', 'scripts/run-console-live-e2e.sh',
-      'scripts/run-console-retained-e2e.sh', 'scripts/test-run-console-live-e2e.sh', 'scripts/test-run-console-retained-e2e.sh',
-      'scripts/console-live-e2e-runtime.mjs', 'scripts/lib/console-retained-create-proof-schema.sql', 'scripts/lib/console-retained-verify-public-identity.sql',
-      'scripts/console-bundle-budget.mjs', 'scripts/console-bundle-budget.d.mts', 'scripts/console-bundle-report.mjs',
-      'scripts/console-bundle-report.d.mts', '.pre-commit-config.yaml', '.github/workflows/frontend.yml',
-      'scripts/lib/auth_e2e_cli.sh', 'scripts/test-auth-e2e-cli.sh', 'scripts/run-auth-e2e.sh',
-      'scripts/ci/go-mod-download-retry.sh', 'scripts/console-auth-e2e-runtime.mjs', 'docker-compose.e2e.yaml',
-      'docker-compose.neo4j.yml', 'docker-compose.yaml', 'Dockerfile',
-      'go/cmd/mock-oidc-idp/**', 'go/cmd/api/**', 'go/internal/oidclogin/**',
-      'scripts/run-auth-mcp-e2e.sh', 'scripts/auth-mcp-e2e-runtime.mjs', 'scripts/verify-auth-mcp-e2e-sensitivity.sh',
-      'scripts/verify-auth-mcp-e2e-manifest.sh', 'scripts/refresh-auth-mcp-e2e-baseline.sh', 'scripts/lib/auth_mcp_e2e_sensitivity.sh',
-      'scripts/lib/auth_mcp_e2e_manifest.sh', 'scripts/test-verify-auth-mcp-e2e-sensitivity.sh', 'scripts/test-verify-auth-mcp-e2e-manifest.sh',
-      'docker-compose.e2e.mutation.yaml', 'testdata/golden/auth-mcp-e2e-baseline.json', 'go/cmd/mock-github/**',
-      'go/cmd/mcp-server/**', 'go/internal/oidcbearer/**', 'go/internal/githublogin/**',
-      'go/internal/query/**', 'go/internal/mcp/**',
-    ]
+    paths:
+      - "src/**"
+      - "apps/console/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - "wrangler.jsonc"
+      - ".nvmrc"
+      - "CLOUDFLARE_PAGES.md"
+      - "scripts/marketing-review.mjs"
+      - "scripts/marketing-review-runtime.mjs"
+      - "scripts/marketing-review-runtime.test.mjs"
+      - "public/**"
+      - "eslint.config.js"
+      - ".prettierrc.json"
+      - ".prettierignore"
+      - "tests/lint-fixture/**"
+      - "scripts/test-eslint-config.sh"
+      - "scripts/verify-eslint-config.sh"
+      - "scripts/test-verify-frontend-format-changed.sh"
+      - "scripts/verify-frontend-format-changed.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/run-console-live-e2e.sh"
+      - "scripts/run-console-retained-e2e.sh"
+      - "scripts/test-run-console-live-e2e.sh"
+      - "scripts/test-run-console-retained-e2e.sh"
+      - "scripts/console-live-e2e-runtime.mjs"
+      - "scripts/lib/console-retained-create-proof-schema.sql"
+      - "scripts/lib/console-retained-verify-public-identity.sql"
+      - "scripts/console-bundle-budget.mjs"
+      - "scripts/console-bundle-budget.d.mts"
+      - "scripts/console-bundle-report.mjs"
+      - "scripts/console-bundle-report.d.mts"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/frontend.yml"
+      - "scripts/lib/auth_e2e_cli.sh"
+      - "scripts/test-auth-e2e-cli.sh"
+      - "scripts/run-auth-e2e.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/console-auth-e2e-runtime.mjs"
+      - "docker-compose.e2e.yaml"
+      - "docker-compose.neo4j.yml"
+      - "docker-compose.yaml"
+      - "Dockerfile"
+      - "go/cmd/mock-oidc-idp/**"
+      - "go/cmd/api/**"
+      - "go/internal/oidclogin/**"
+      - "scripts/run-auth-mcp-e2e.sh"
+      - "scripts/auth-mcp-e2e-runtime.mjs"
+      - "scripts/verify-auth-mcp-e2e-sensitivity.sh"
+      - "scripts/verify-auth-mcp-e2e-manifest.sh"
+      - "scripts/refresh-auth-mcp-e2e-baseline.sh"
+      - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
+      - "scripts/lib/auth_mcp_e2e_manifest.sh"
+      - "scripts/test-verify-auth-mcp-e2e-sensitivity.sh"
+      - "scripts/test-verify-auth-mcp-e2e-manifest.sh"
+      - "docker-compose.e2e.mutation.yaml"
+      - "testdata/golden/auth-mcp-e2e-baseline.json"
+      - "go/cmd/mock-github/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/oidcbearer/**"
+      - "go/internal/githublogin/**"
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
