@@ -1,5 +1,8 @@
 # Supply-Chain Readiness Snapshot: Dependency-Gap Scope Bound (#7007)
 
+`repo-V`, `repo-W`, and `repo-X` in this note are stable one-to-one placeholders
+for the measured repository ids; the mapping is held outside the repository.
+
 ## What was reported
 
 After #7037 bounded the impact findings read, the live QA API still logged
@@ -52,9 +55,9 @@ milliseconds (before / after):
 
 | Repository | Round 1 | Round 2 | Round 3 |
 | --- | --- | --- | --- |
-| r_3127d45a | 7990 / 189 | 9839 / 202 | 8653 / 69 |
-| r_90d01856 | 9718 / 107 | 5781 / 102 | 7069 / 144 |
-| r_68f8cff0 | 10068 / 111 | 5361 / 90 | 8216 / 66 |
+| repo-V | 7990 / 189 | 9839 / 202 | 8653 / 69 |
+| repo-W | 9718 / 107 | 5781 / 102 | 7069 / 144 |
+| repo-X | 10068 / 111 | 5361 / 90 | 8216 / 66 |
 
 Median before 8216 ms, median after 107 ms (about 77x, or 8.1 s saved per
 call). Caveat: the QA environment was draining a reprojection backlog during these runs,
