@@ -323,10 +323,14 @@ does not match. Missing or retired objects, absent inspection support, and
 inspection errors fail startup without graph DDL or a new marker. A matching
 or compatible marker still skips graph work. The flag rejects an invalid value,
 `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true`, and an explicit false or invalid
-`ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` before either store opens. It does not
-prevent Postgres migrations: they run before graph inspection and can commit
-even when graph adoption later fails. The inspection checks object names, not
-object definitions or index ONLINE state; check those before using this mode.
+`ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` before either store opens. It rejects
+`yes`, `on`, mixed-case `TrUe`, and whitespace alone. It accepts Go's
+boolean spellings (`1`, `t`, `T`, `TRUE`, `true`, `True`, `0`, `f`, `F`, `FALSE`,
+`false`, `False`), with optional surrounding whitespace. An unset value is
+false. It does not prevent Postgres migrations: they run before graph
+inspection and can commit even when graph adoption later fails. The inspection
+checks object names, not object definitions or index ONLINE state; check those
+before using this mode.
 
 ## Bootstrap Index
 

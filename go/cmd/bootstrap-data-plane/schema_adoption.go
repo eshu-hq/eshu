@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -26,9 +27,13 @@ const graphSchemaAdoptOnlyEnv = "ESHU_GRAPH_SCHEMA_ADOPT_ONLY"
 // Legacy adoption configuration keeps its existing behavior when this flag is
 // unset or false.
 func graphSchemaAdoptOnly(getenv func(string) string) (bool, error) {
-	only, valid := graphSchemaBoolean(getenv(graphSchemaAdoptOnlyEnv))
-	if !valid {
-		return false, fmt.Errorf("%s must be a boolean", graphSchemaAdoptOnlyEnv)
+	raw := getenv(graphSchemaAdoptOnlyEnv)
+	if raw == "" {
+		return false, nil
+	}
+	only, err := strconv.ParseBool(strings.TrimSpace(raw))
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean: %w", graphSchemaAdoptOnlyEnv, err)
 	}
 	if !only {
 		return false, nil

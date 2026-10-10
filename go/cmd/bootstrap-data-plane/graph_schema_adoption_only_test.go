@@ -11,8 +11,83 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/envregistry"
 	"github.com/eshu-hq/eshu/go/internal/graph"
 )
+
+func TestGraphSchemaAdoptOnlyBooleanMatchesRegistry(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		raw  string
+		want bool
+	}{
+		{"1", true},
+		{"t", true},
+		{"T", true},
+		{"TRUE", true},
+		{"true", true},
+		{"True", true},
+		{"0", false},
+		{"f", false},
+		{"F", false},
+		{"FALSE", false},
+		{"false", false},
+		{"False", false},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			t.Parallel()
+			if findings := envregistry.Default().Validate(map[string]string{graphSchemaAdoptOnlyEnv: tc.raw}, true); len(findings) != 0 {
+				t.Fatalf("registry rejects %q: %v", tc.raw, findings)
+			}
+			got, err := graphSchemaAdoptOnly(func(key string) string {
+				if key == graphSchemaAdoptOnlyEnv {
+					return tc.raw
+				}
+				return ""
+			})
+			if err != nil || got != tc.want {
+				t.Fatalf("graphSchemaAdoptOnly(%q) = %v, %v; want %v, nil", tc.raw, got, err, tc.want)
+			}
+		})
+	}
+	for _, raw := range []string{" true ", "\tFALSE\n"} {
+		t.Run("padded_"+strings.TrimSpace(raw), func(t *testing.T) {
+			t.Parallel()
+			_, err := graphSchemaAdoptOnly(func(key string) string {
+				if key == graphSchemaAdoptOnlyEnv {
+					return raw
+				}
+				return ""
+			})
+			if err != nil {
+				t.Fatalf("graphSchemaAdoptOnly(%q): %v", raw, err)
+			}
+		})
+	}
+	for _, raw := range []string{"", " ", "yes", "on", "TrUe"} {
+		t.Run("invalid_or_unset_"+raw, func(t *testing.T) {
+			t.Parallel()
+			got, err := graphSchemaAdoptOnly(func(key string) string {
+				if key == graphSchemaAdoptOnlyEnv {
+					return raw
+				}
+				return ""
+			})
+			if raw == "" {
+				if got || err != nil {
+					t.Fatalf("unset graphSchemaAdoptOnly() = %v, %v; want false, nil", got, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("graphSchemaAdoptOnly(%q) = %v, nil; want error", raw, got)
+			}
+			if findings := envregistry.Default().Validate(map[string]string{graphSchemaAdoptOnlyEnv: raw}, true); len(findings) == 0 {
+				t.Fatalf("registry accepts invalid value %q", raw)
+			}
+		})
+	}
+}
 
 // TestRunAdoptionOnlyRejectsIncompleteNeo4jSchemaWithoutDDL proves the
 // migration-only Job cannot silently turn a catalog mismatch into graph DDL.
@@ -88,6 +163,10 @@ func TestRunAdoptionOnlyRejectsInvalidConfigurationBeforeOpeningStores(t *testin
 		env  map[string]string
 	}{
 		{"invalid_only", map[string]string{"ESHU_GRAPH_SCHEMA_ADOPT_ONLY": "perhaps"}},
+		{"whitespace_only", map[string]string{"ESHU_GRAPH_SCHEMA_ADOPT_ONLY": " \t "}},
+		{"legacy_yes", map[string]string{"ESHU_GRAPH_SCHEMA_ADOPT_ONLY": "yes"}},
+		{"legacy_on", map[string]string{"ESHU_GRAPH_SCHEMA_ADOPT_ONLY": "on"}},
+		{"mixed_case", map[string]string{"ESHU_GRAPH_SCHEMA_ADOPT_ONLY": "TrUe"}},
 		{"forced_reapply", map[string]string{"ESHU_GRAPH_SCHEMA_ADOPT_ONLY": "true", graphSchemaForceReapplyEnv: "yes"}},
 		{"disabled_adoption", map[string]string{"ESHU_GRAPH_SCHEMA_ADOPT_ONLY": "true", graphSchemaAdoptExistingEnv: "false"}},
 		{"invalid_adoption", map[string]string{"ESHU_GRAPH_SCHEMA_ADOPT_ONLY": "true", graphSchemaAdoptExistingEnv: "perhaps"}},

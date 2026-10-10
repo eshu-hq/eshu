@@ -62,6 +62,10 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
   fails startup before graph DDL or a new graph marker. It accepts an unset or
   true `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING`, but rejects false or invalid values
   and a true `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY` before opening either store.
+  Its boolean values use Go's `strconv.ParseBool` spellings (`1`, `t`, `T`,
+  `TRUE`, `true`, `True`, `0`, `f`, `F`, `FALSE`, `false`, `False`) after trimming
+  surrounding whitespace. An unset value is false; whitespace alone, `yes`,
+  `on`, and mixed-case `TrUe` are invalid and fail before either store opens.
   An exact or compatible marker still takes the skip path after flag validation.
   The flag does not stop Postgres migrations, which run before graph inspection.
   Catalog inspection compares object names; it does not prove definitions or
