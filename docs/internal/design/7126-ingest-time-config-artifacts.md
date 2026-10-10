@@ -1,6 +1,7 @@
 # Derive repository config artifacts when content is written (#7126)
 
-Status: Accepted with changes (arbiter ruling and re-ruling 2026-10-10).
+Status: Accepted with changes (arbiter ruling, re-ruling and re-ruling 2,
+2026-10-10).
 Shims S0 and S2 ran locally and pass. S1, S3, S4 and S6 have not run. This
 record does not approve the schema, the migration number or any rollout.
 Each of those waits for the shims in section 8. Refs #7126.
@@ -138,16 +139,22 @@ summary:
   "derived, no artifacts". A missing state row, or one with no successful
   derive, means "not derived". The reader must not confuse the two.
 - Rows store the path of the build with no name (`raw_path`) verbatim, and
-  a `name_scoped` flag. The flag is a function of `evidence_kind`: S0 found 16
-  kinds, 10 scoped and 6 unscoped, none in both. A guard test pins one value
-  per kind.
+  a `name_scoped` flag set at the construction site. The flag is a function
+  of `evidence_kind`: S0 found 16 kinds, 10 scoped and 6 unscoped, none in
+  both. A guard test reads both call-site families from source and pins one
+  value per kind.
 - Row key (G8). S2 showed that a key of four TEXT columns fails with SQLSTATE
   54000 when a path reaches 2,610 incompressible bytes. A compressible path of
-  100,000 bytes still passes, so a length limit cannot predict the failure
-  and is rejected. **Proposed**: key on `(repo_id, row_digest)`, where
-  `row_digest` is the SHA-256 of the length-prefixed path, relative path and
-  evidence kind, and keep the four columns as data. The protocol companion
-  (section 1) gives the cost and the evidence that would flip this choice.
+  100,000 bytes still passes. Re-ruling 2: key on `(repo_id, row_digest)`,
+  where `row_digest` is a stored generated SHA-256 column over the
+  length-prefixed path, relative path and evidence kind, defined once in the
+  schema. The four columns stay as data. A `row_too_wide` fallback and a
+  length precheck are rejected. The ruled expression uses `convert_to`, which
+  PostgreSQL 18.6 rejects as not immutable. The protocol companion (section
+  1) gives the test and a **Proposed** correction for the arbiter.
+- The migration sets `autovacuum_vacuum_scale_factor` at most 0.02 on the
+  rows table (re-ruling 2), because S2 measured +40% on the read after a
+  rewrite with no vacuum.
 - The state row records the `content_version` the derive read, the
   `extractor_version`, and `candidate_count`, `candidates_read`,
   `files_listed` and `list_truncated` for every derive.
@@ -351,7 +358,7 @@ those stages change, which is outside PR3.
 | PR | Content | Starts | Proof |
 |---|---|---|---|
 | S0 test, version guard | The S0 name-free equality test (exists on the local branch `proof/7126-pr3-shims`, `953f68712e`) and the `extractor_version` digest guard, as new files | now | S0 passes (done locally). Seeded RED/GREEN for the guard |
-| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass. The tables after S2 | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences. A test that no Go statement deletes version rows outside a documented retirement path |
+| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass and the arbiter rules on the generated-column correction | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences, and the three arm 7 cases. A test that no Go statement deletes version rows outside a documented retirement path |
 | PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort. Split `normalizeRepoScopedPath` into clean and strip | after PR1, PR1b and PR2 merge | Existing tests and the PR1 differential pass unchanged. Tie count. The S0 tests run against the strip step |
 | PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
 | PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. Ops-qa shadow then acceptance |
@@ -372,7 +379,7 @@ note. Details are in section 6 of the protocol companion.
 |---|---|---|---|
 | S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names. The merged answer equals the live loader for two repositories with one graph name and for an anchor repeated in the related list | store the name in the state row and run S5. **Ran: PASS** for the per-repository part. The two loader-level cases did not run (they move to S4 and PR3c) |
 | S2 read plan | local PostgreSQL 18 | The reader's three-table join for 300 ids and the dirty join over 815 repositories. Each runs in at most 5 ms with a generic plan. No scan of a table that grows with `content_files` | change the key or the statement. **Ran: PASS**. Reader join 2.44 ms, dirty join 0.18 ms. See the evidence appendix, section 4 |
-| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction (a delta Write has two). **Proposed** arm 7: two overlapping multi-repository statements, 0 deadlocks | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
+| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write has two). Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1 | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
 | S6 cap census | ops-qa, read-only | counts recorded for the follow-up issue | none: input only |
 | S1 derive cost | local, PR1, PR1b and PR2 stacked | at most 10% of content-stage p95. At most 2 s for the worst repository | reopen F1 |
 | S4 equality | PR3b gate | symmetric difference `0/0` for every golden-corpus repository, plus the two loader-level cases of S0 | do not merge PR3b-2 |
@@ -383,13 +390,14 @@ The S2 bar first read "primary-key index scans only, no hash". The planner
 does not meet that wording: it seq-scans the 9-page versions table into a
 hash join. The plan that forces every primary key is slower (2.9-3.2 ms
 against 2.44 ms). The versions table grows with repositories, not with files.
-The bar is therefore time plus "no scan of a table that grows with
-`content_files`". This rewording is **Proposed**.
+Re-ruling 2 set the bar to "execution at most 5 ms at 300 ids and no scan of
+a table that grows with file count", and accepted the hash join.
 
-## 9. Arbiter ruling and re-ruling of 2026-10-10
+## 9. Arbiter rulings of 2026-10-10
 
-Both bind. The re-ruling replaced the first fence. This table maps each fork
-to its section here.
+The ruling, the re-ruling and re-ruling 2 bind. The re-ruling replaced the
+first fence. Re-ruling 2 decided the trigger lock order, the arm 6 count, the
+row key and the S2 bar. This table maps each item to its section here.
 
 | Fork | Ruling | Where |
 |---|---|---|
@@ -401,10 +409,12 @@ to its section here.
 | F6 package home | neutral package, plus one shared SQL constant and row mapper per `content_files` statement | 3.3, companion 5 |
 | F7 order | `evidence_kind` as the fourth key in both paths in PR3a | 3.3 |
 | F8 fallback | per repository and counted. The stored read takes the access-filtered set | 3.3 |
-| G1 name binding (re-ruled) | rows stored name-free. The name step applies to `name_scoped` rows only, then dedups on the four-tuple | 3.3, companion 4 |
+| G1 name binding (re-ruled, closed by S0 in re-ruling 2) | Rows stored name-free with the cleaned path. A strip-only read step on `name_scoped` rows. One merge across all sources, then dedup on the four-tuple and the four-key sort | 3.3, companion 4 |
 | G2, G6 | Write failure semantics, lock during parse | companion 3 |
 | G7 version bump | a sized fallback window | 3.4 |
-| G8 key width | S2 seeds long paths. Digest key or `row_too_wide`. S2 found the failure. The digest key is **Proposed** | 3.2, companion 1 |
+| G8 key width (re-ruling 2) | stored generated digest key. `row_too_wide` and a length precheck rejected. The expression needs an immutable conversion (open, companion 1) | 3.2, companion 1 |
+| Trigger lock order and arm 7 (re-ruling 2) | `ORDER BY r.repo_id` accepted. Arm 7 is a three-case correctness test in PR3b-1 | companion 2 and 6 |
+| Arm 6 count and S2 bar (re-ruling 2) | one rewrite per content transaction. At most 5 ms and no scan that grows with file count | 8, companion 6 |
 | G9 stage log | the new fields land in PR3c | 3.5 |
 | R-1 and G3 (lost update) | decided: the version fence replaces the mark protocol | companion 7 |
 

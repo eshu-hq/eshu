@@ -4,8 +4,8 @@ This companion belongs to
 [Derive repository config artifacts when content is written](7126-ingest-time-config-artifacts.md).
 It holds the tables, the content-version fence, the derive protocol, the
 walker, the shared SQL and the shim details. The arbiter ruling and re-ruling
-of 2026-10-10 decided the fence, the derive protocol, the reader condition,
-the name step and the S3 arms. An item marked **Proposed** is the author's
+of 2026-10-10 and re-ruling 2 decided the fence, the derive protocol, the
+reader condition, the name step, the row key and the S3 arms. An item marked **Proposed** is the author's
 addition and is not part of either ruling. Section 7 keeps the lost-update
 sequence (R-1) that made the re-ruling replace the first fence.
 
@@ -17,7 +17,7 @@ Names are proposals. The migration number is chosen at build time.
 |---|---|---|
 | `config_artifact_content_versions` | `repo_id` | `version` (BIGINT), `bumped_xid` (xid8), `bumped_at` |
 | `config_artifact_repo_state` | `repo_id` | `content_version` (the version the derive read before its list), `extractor_version` (integer), `row_count` (NULL until the first success), `files_listed`, `candidate_count`, `candidates_read`, `list_truncated`, `scope_id` and `generation_id` (advisory), `derived_at`, `failure_count`, `last_error_class`, `last_failure_at` |
-| `config_artifact_paths` | **Proposed**: `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped` |
+| `config_artifact_paths` | `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped`, `row_digest` (generated) |
 | `config_artifact_backfill_markers`, `config_artifact_reconcile_cursor` | name | as in migration 109 |
 
 - The migration seeds one version row with `version = 0` for each `SELECT
@@ -54,25 +54,37 @@ Names are proposals. The migration number is chosen at build time.
   when a path reaches 2,610 incompressible bytes (2,609 passes). Index tuples
   are compressed, so a compressible path of 100,000 bytes still passes. The
   limit depends on the data, so a length limit is rejected.
-- **Proposed** key: `(repo_id, row_digest)`. `row_digest` is the SHA-256 of
-  the path, relative path and evidence kind, each prefixed with its byte
-  length. A plain `|` separator is not safe, because `|` can occur in a path,
-  and two different rows could then share one digest. The four columns stay
-  as data. S2 measured the read at 2.14 ms for 300 ids (Bitmap Heap Scan,
-  against 1.74 ms for the Index Only Scan of the four-column key). The table
-  with its key is 5.2 MB for 17,175 rows, against 7.0 MB. The alternative is
-  to keep the four-column key and classify SQLSTATE 54000 as
-  `last_error_class = row_too_wide`, with a live fallback for that
-  repository. Evidence that would flip the choice: the reader's three-table
-  join with the digest key above 5 ms at 300 ids (not measured yet), or a
-  census showing no path near 2,600 bytes together with a read budget that
-  needs the Index Only Scan.
-- **Proposed** autovacuum setting: each derive deletes and re-inserts a
+- Key (re-ruling 2): `(repo_id, row_digest)`, with `row_digest` a stored
+  generated column, defined once in the schema and never in Go:
+
+  ```sql
+  row_digest BYTEA GENERATED ALWAYS AS (sha256(convert_to(
+      length(path)::text || ':' || path ||
+      length(relative_path)::text || ':' || relative_path ||
+      evidence_kind, 'UTF8'))) STORED
+  ```
+
+  The fields are length-prefixed because a path can contain `|`. The four
+  columns stay as data. S2 measured the read at 2.14 ms for 300 ids (Bitmap
+  Heap Scan) and 5.2 MB for 17,175 rows, against 7.0 MB for the four-column
+  key. A `row_too_wide` fallback and a length precheck are rejected.
+  SQLSTATE classification into `last_error_class` stays as the generic
+  failure path. S3 arm 1 includes the cost of the generated column.
+- Finding after re-ruling 2 (tested on a throwaway local PostgreSQL 18.6):
+  the expression above fails with `generation expression is not immutable`.
+  `convert_to` is STABLE in `pg_proc`, and so is `textsend`. **Proposed**
+  correction, for the arbiter: wrap the conversion in an IMMUTABLE SQL function,
+  `config_artifact_utf8(t text) RETURNS bytea ... RETURN convert_to(t,
+  'UTF8')`, and use it in place of `convert_to`. This is sound only in a UTF8
+  database, which the content store already assumes. With the wrapper the
+  table builds, and the rows `('a|b', 'c')` and `('a', 'b|c')` get distinct
+  digests.
+- Autovacuum (re-ruling 2): each derive deletes and re-inserts a
   repository's rows. Without a vacuum, S2 measured the 300-id read at 2.47 ms
-  against 1.76 ms (9,202 heap fetches), because an Index Only Scan needs the
-  visibility map. Set a per-table autovacuum threshold on
-  `config_artifact_paths`, for example `autovacuum_vacuum_scale_factor =
-  0.02`. The digest key reads the heap anyway, but dead tuples still cost.
+  against 1.76 ms (9,202 `Heap Fetches`), because an Index Only Scan needs the
+  visibility map. The migration sets `autovacuum_vacuum_scale_factor` at most
+  0.02 on `config_artifact_paths`. The digest key reads the heap anyway, but
+  dead tuples still cost.
 
 ## 2. The content-version trigger
 
@@ -86,8 +98,8 @@ pre-write mark and no mark table exist.
 - TRUNCATE: statement-level, bumps every version row through the same
   once-per-transaction guard.
 
-The body bumps each repository once per transaction. The `ORDER BY` is a
-**Proposed** addition to the re-ruled body (see the note below):
+The body bumps each repository once per transaction. Re-ruling 2 accepted
+the `ORDER BY`:
 
 ```sql
 INSERT INTO config_artifact_content_versions AS v (repo_id, version, bumped_xid, bumped_at)
@@ -103,11 +115,19 @@ WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
   and the content commit together. The first fence lacked this property.
 - `pg_current_xact_id()` is 64-bit, so the guard has no wraparound. It needs
   PostgreSQL 13 or later.
-- Lock order (**Proposed**): a statement that names several repositories
-  (the retention prune, TRUNCATE, a multi-repository insert) takes their
-  version row locks in the order the insert visits them. `ORDER BY
-  r.repo_id` makes that order ascending, so two such statements cannot
-  deadlock on version rows. S3 arm 7 tests it.
+- Lock order (re-ruling 2): a statement-level trigger takes the version row
+  locks of a multi-repository statement in the order of its `SELECT`. `ORDER
+  BY r.repo_id` makes that order ascending, so two statement-level
+  multi-repository statements cannot deadlock on version rows.
+- The `ORDER BY` does not help the row-level DELETE shape. There each deleted
+  row fires its own upsert, in delete order. Two concurrent multi-repository
+  row-level deleters can still deadlock on version rows, and PostgreSQL
+  aborts one. The only such deleter in production is the retention prune.
+- Cross-table order: a Write batch locks its `content_files` rows during the
+  statement and its version row in the AFTER STATEMENT trigger. The
+  `OLD TABLE` DELETE shape has the same order, content rows first and then
+  the version row, so a prune and a Write cannot form a cycle. S3's prune bar
+  still chooses between the row-level and `OLD TABLE` shapes.
 - The row lock lasts until the content transaction ends. For a Write that is
   one 500-row batch. For retention it lasts from the end of the prune's
   `content_files` DELETE statement to the end of the retention transaction.
@@ -282,10 +302,10 @@ today. Ownership, not a cycle, is the reason for the neutral package.
 2. **S2 read plan** (local PostgreSQL 18). Seed 815 repositories with about 21
    rows each, plus long paths. Use `PREPARE`/`EXECUTE` with
    `plan_cache_mode=force_generic_plan` for the reader's three-table join with
-   300 ids and for the dirty join over 815 repositories. Pass: execution at
-   most 5 ms, and no scan of a table that grows with `content_files`
-   (**Proposed** rewording). Without planner settings the plan does not meet
-   the first wording, "primary-key index scans only, no hash".
+   300 ids and for the dirty join over 815 repositories. Pass (re-ruling 2):
+   execution at most 5 ms at 300 ids, and no scan of a table that grows with
+   file count. The hash join over the versions table is accepted. Forced
+   primary-key plans were slower (2.9-3.2 ms).
 
    **Ran 2026-10-10: PASS** on time. Reader join 2.44 ms, paths read 1.74 ms,
    state read 0.85 ms, dirty join 0.18 ms. The planner seq-scans the 9-page
@@ -299,18 +319,19 @@ today. Ownership, not a cycle, is the reason for the neutral package.
 
    | Arm | Shape | Pass |
    |---|---|---|
-   | 1 | Full Write, 5,000 files, 500-row batches, production-width content | B at most A + 5% on Write wall time. A primary-key-only micro-shim at most 0.5 us per row |
+   | 1 | Full Write, 5,000 files, 500-row batches, production-width content. The derive's row insert includes the generated `row_digest` | B at most A + 5% on Write wall time. A primary-key-only micro-shim at most 0.5 us per row |
    | 2 | Delta Write, 1 file changed, 3 tombstones | B at most A + 5% |
    | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. The chosen shape at most 5% of the prune phase. Else the other shape. Else an explicit bump in retention |
    | 4 | One 50,000-row single-statement insert | B at most A + 5% |
    | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. Lock waits on the version row at most one batch time. 0 deadlocks in 20 rounds |
-   | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | Exactly one rewrite per repository per content transaction. Expected counts: arm 1 = 10 (ten upsert batches). Arm 2 = 2 (one tombstone delete transaction, then one upsert transaction). Arm 3 = 1 per affected repository (50). Arm 4 = 1 per repository in the statement |
-   | 7 (**Proposed**) | Two overlapping multi-repository statements, 20 rounds | 0 deadlocks. Arm 3 also records the Write lock wait against the ops-qa p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` |
+   | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). Expected counts: arm 1 = 10. Arm 2 = 2 (one tombstone delete chunk, one upsert batch), plus 1 if a full-snapshot reap adds a delete chunk. Arm 3 = 1 per affected repository. Arm 4 = 1 |
 
-   The re-ruling wrote "1 for shapes 2-4". That count is off for arm 2: a
-   delta Write deletes its tombstones and upserts its changed file in two
-   separate transactions (`deleteContentFilesBatch`, then
-   `upsertContentFileBatches`). The coordinator tells the arbiter.
+   Arm 3 also records the Write lock wait against the ops-qa p95 of
+   `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**).
+   The protocol needs two things only: every transaction that changes
+   `content_files` bumps at least once, together with its content, and the
+   derive reads `v0` after the Write's last content statement. The derive is
+   the last step of a Write, so the second holds.
 
 4. **S6 cap census** (ops-qa, read-only). For all 815 repositories, count
    repositories with more than 50 candidates and more than 5,000 files, and
@@ -326,11 +347,24 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    ops-qa, shadow mode plus an offline differential under its own
    authorization.
 
-PR3b-1 also adds live interleaving tests: the R-1 sequence of section 7 (a
-Write with three batches and a walker derive between batches 1 and 2), the
-two-scope sequence, and the prune sequence. After both sides finish, either
-the state version equals the current version with W's rows, or the state
-version is behind and the reader falls back.
+PR3b-1 also adds live interleaving tests, run before the trigger ships:
+
+- The R-1 sequence of section 7 (a Write with three batches and a walker
+  derive between batches 1 and 2), the two-scope sequence, and the prune
+  sequence. After both sides finish, either the state version equals the
+  current version with W's rows, or the state version is behind and the
+  reader falls back.
+- Arm 7 (re-ruling 2), a correctness test, not a timing arm, with three
+  cases:
+  1. Two multi-repository inserts over overlapping repository sets, in
+     opposite row orders.
+  2. A prune and a Write of one repository with disjoint keys.
+  3. A prune and a Write that share one doomed key.
+
+  The statement-level shapes must show 0 deadlocks. The row-level DELETE
+  shape must show 0 deadlocks, or every victim retried to a final state where
+  `state.content_version` equals `versions.version` and the rows equal the
+  live answer.
 
 ## 7. Decided: R-1, the lost update that replaced the first fence
 

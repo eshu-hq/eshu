@@ -140,3 +140,16 @@ that host and is not comparable to ops-qa. The OS cache was warm, also after a
 server restart. Path widths come from synthetic md5-derived components, not
 from R1's real paths. S2 set the versions directly, with no trigger. The S2
 reader condition also excluded repositories with a failed derive.
+
+## 5. Generated-column and trigger-timing checks (local, 2026-10-10)
+
+A throwaway PostgreSQL 18.6 cluster in the scratch directory, started for the
+check and deleted after it. No Eshu data. The SQL is in the handoff of this
+revision, not in the repository.
+
+| Check | Result |
+|---|---|
+| `provolatile` of `convert_to(text, name)` and `textsend(text)` | `s` (STABLE) for both. `sha256` and `length(text)` are `i` (IMMUTABLE) |
+| `CREATE TABLE` with the generated column of re-ruling 2 | `ERROR: generation expression is not immutable` |
+| Same column through an IMMUTABLE SQL wrapper over `convert_to(t, 'UTF8')` | table builds. 4 rows insert, 4 distinct digests, including `('a|b', 'c')` and `('a', 'b|c')`. The digest of `'3:a|b1:ck'` matches a manual `sha256(convert_to(...))` |
+| AFTER ROW DELETE trigger timing over 9 rows. BEFORE and AFTER row triggers log a sequence | all 9 BEFORE events (1-9) precede all 9 AFTER events (10-18). AFTER row triggers fire at the end of the statement |
