@@ -1,0 +1,62 @@
+go/internal/queryplan/pilot_evidence_validation.go
+  s_29175cf8c573b8::t_e8678e4f2fa691 280-290
+  s_29175cf8c573b8::t_ba0c373f1b0bf8 257-258,260-263,269-278,296-302,304-306
+  s_29175cf8c573b8::t_3cfe8c0388bdb4 259,264-268,279,291-295
+  s_29175cf8c573b8::t_5fc602b5afd0cd 303
+  s_29175cf8c573b8::t_0fd8811beea610 96
+  s_29175cf8c573b8::t_b5bda92cc0a2b1 307-308
+go/internal/queryplan/pilot_test.go
+  s_29175cf8c573b8::t_90d4f5af7489e9 55
+  s_29175cf8c573b8::t_28832252f1274e 53
+go/internal/query/methodology_postgres_capture_test.go
+  s_29175cf8c573b8::t_b0a3f8082f8610 339,363-366
+  s_29175cf8c573b8::t_effd92f03571b2 306-310,315,330,367
+  s_29175cf8c573b8::t_bc1e4d97292619 99,140-148
+  s_29175cf8c573b8::t_43a1db57a829c2 149-150
+  s_29175cf8c573b8::t_e8c4ec76d5ebb0 368
+go/internal/queryplan/pilot_evidence.go
+  s_29175cf8c573b8::t_56b7cc7ee0e913 287-288
+  s_29175cf8c573b8::t_75256f38e2440b 93
+  s_29175cf8c573b8::t_d79599fc36cab2 92,94-103
+go/internal/query/methodology_graph_artifact_live_test.go
+  s_29175cf8c573b8::t_886a96fdf39ebe 71,158-159
+  s_29175cf8c573b8::t_71f8830d032762 160
+go/internal/query/methodology_graph_artifact_test.go
+  s_29175cf8c573b8::t_499ee22baa8876 154-160,163,170
+  s_29175cf8c573b8::t_ffdb063ea884f3 151-153,161-162,164-169,171-175
+  s_29175cf8c573b8::t_cee5e298df30d0 19
+  s_b0d7e3abc26c5a::t_caa829bf1ee9c8 176
+go/internal/query/methodology_graph_measure_live_test.go
+  s_29175cf8c573b8::t_cee5e298df30d0 88,98-109
+  s_29175cf8c573b8::t_daf15e87bbb6af 29,51,53-54,56,75,97
+go/internal/queryplan/pilot_payload_test.go
+  s_29175cf8c573b8::t_d3720fa80ebfa0 14,33-38,47-54
+  s_29175cf8c573b8::t_b8195a7ba4678b 1-5,11-13,15-16,68-69
+  s_29175cf8c573b8::t_ffdb063ea884f3 39-43,45-46
+  s_29175cf8c573b8::t_460230bb2be36b 6,8-10,17-32
+  s_29175cf8c573b8::t_d794417aef9b03 7,44,55-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aa4f3af321c65a4146ae740c5307973bf9c02eaa",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
