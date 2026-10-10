@@ -1,0 +1,31 @@
+Timing is on.
+SET
+Time: 0.137 ms
+NOTICE:  table "_targets_new" does not exist, skipping
+DROP TABLE
+Time: 0.715 ms
+CREATE TABLE
+Time: 10.300 ms
+INSERT 0 6
+Time: 1.041 ms
+INSERT 0 25
+Time: 0.850 ms
+INSERT 0 70
+Time: 0.280 ms
+INSERT 0 101
+Time: 0.739 ms
+INSERT 0 101
+Time: 8.614 ms
+INSERT 0 261195
+Time: 6030.660 ms (00:06.031)
+UPDATE 101
+Time: 6.880 ms
+INSERT 0 261195
+Time: 10999.699 ms (00:11.000)
+INSERT 0 1044780
+Time: 58533.728 ms (00:58.534)
+UPDATE 101
+Time: 13.613 ms
+INSERT 0 101
+Time: 2.245 ms
+./psql.sh < sql/05_seed_targets_extra.sql  0.01s user 0.01s system 0% cpu 1:15.67 total

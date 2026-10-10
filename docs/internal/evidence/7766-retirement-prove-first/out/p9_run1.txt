@@ -1,0 +1,21 @@
+=== RUN   TestProof7766P9
+    proof7766_p9_test.go:175: P9 S0 control: acceptance present, generation active          err=<nil> processed=1 stale=0 writes=1 retracts=1 intent_exists=true intent_completed=true
+    proof7766_p9_test.go:175: P9 S1 control: acceptance points at a newer generation        err=<nil> processed=1 stale=1 writes=0 retracts=0 intent_exists=true intent_completed=true
+    proof7766_p9_test.go:175: P9 A  acceptance deleted before selection (cycle 1)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 A  acceptance deleted before selection (cycle 2)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 A  acceptance deleted before selection (cycle 3)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 A  acceptance deleted before selection (cycle 4)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 A  acceptance deleted before selection (cycle 5)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:218: P9 B  generation deleted: acceptance rows left by cascade = 0
+    proof7766_p9_test.go:175: P9 B  generation deleted before selection (cycle 1)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 B  generation deleted before selection (cycle 2)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 B  generation deleted before selection (cycle 3)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 B  generation deleted before selection (cycle 4)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 B  generation deleted before selection (cycle 5)           err=<nil> processed=0 stale=0 writes=0 retracts=0 intent_exists=true intent_completed=false
+    proof7766_p9_test.go:175: P9 C1 acceptance deleted mid-batch                            err=<nil> processed=1 stale=0 writes=1 retracts=1 intent_exists=true intent_completed=true
+    proof7766_p9_test.go:175: P9 C2 generation(+acceptance cascade) deleted mid-batch       err=<nil> processed=1 stale=0 writes=1 retracts=1 intent_exists=true intent_completed=true
+    proof7766_p9_test.go:175: P9 C3 intent row deleted mid-batch                            err=<nil> processed=1 stale=0 writes=1 retracts=1 intent_exists=false intent_completed=false
+    proof7766_p9_test.go:175: P9 D  after phase 1 (superseded gen, acceptance+intent kept)  err=<nil> processed=1 stale=0 writes=1 retracts=1 intent_exists=true intent_completed=true
+--- PASS: TestProof7766P9 (0.57s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	3.112s

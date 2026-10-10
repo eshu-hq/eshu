@@ -1,0 +1,13 @@
+# P1 blocking family=Bk79 variant=design runs=10 claimers=3x claim-shaped UPDATE + 2x heartbeat-shaped UPDATE + 1x enqueue-shaped INSERT against unrelated scopes
+run,group,generations,section_lock_req_to_commit_ms,lock_wait_ms,claims_total,claims_started_in_section,in_section_claim_max_ms,in_section_claim_p50_ms,baseline_claim_p50_ms,baseline_claim_p99_ms,baseline_claim_max_ms,claim_errors
+1,Bk79:01,79,451635.6,451585.3,792,6,451637.7,451635.4,3.3,11.3,54.5,0
+2,Bk79:02,79,4.8,0.7,1495,6,4.1,3.7,1.0,3.5,7.1,0
+3,Bk79:03,79,4.1,0.3,1621,6,4.0,2.4,0.8,2.9,4.8,0
+4,Bk79:04,79,3.7,0.1,1571,6,4.7,3.5,0.8,3.7,13.0,0
+5,Bk79:05,79,4.2,0.4,1628,6,4.8,3.2,0.8,2.7,5.0,0
+6,Bk79:06,79,4.8,1.0,1657,6,5.4,3.3,0.7,2.6,9.0,0
+7,Bk79:07,79,3.7,0.2,1667,6,4.2,3.3,0.7,2.6,4.5,0
+8,Bk79:08,79,3.4,0.1,1623,6,3.8,2.8,0.8,2.9,9.3,0
+9,Bk79:09,79,3.3,0.2,1639,6,4.2,2.5,0.8,2.6,6.1,0
+10,Bk79:10,79,4.0,0.9,1589,6,4.5,2.9,0.9,3.4,5.5,0
+# max in-section claim latency across runs: p50=4.2 max=451637.7 ms

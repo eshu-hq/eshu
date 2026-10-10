@@ -1,0 +1,8 @@
+Timing is on.
+SET
+Time: 0.241 ms
+INSERT 0 729462
+Time: 50541.539 ms (00:50.542)
+INSERT 0 1458924
+Time: 129174.952 ms (02:09.175)
+./psql.sh < sql/02_seed_background_work.sql  0.01s user 0.01s system 0% cpu 2:59.81 total

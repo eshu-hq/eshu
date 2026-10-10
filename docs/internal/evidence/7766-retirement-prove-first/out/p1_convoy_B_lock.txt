@@ -1,0 +1,9 @@
+Timing is on.
+SET
+Time: 0.166 ms
+BEGIN
+Time: 0.038 ms
+LOCK TABLE
+Time: 6975.070 ms (00:06.975)
+COMMIT
+Time: 0.969 ms
