@@ -48,14 +48,15 @@ var (
 		reason:  "catalog_changed",
 		message: "partition-scoped maintenance refused: repository catalog changed since active backward evidence was committed",
 	}
-	// ErrTargetedMaintenanceNoMemoBaseline refuses a pass because no active
-	// partition holds a memo row (a fresh install before its first whole pass,
-	// or an install whose every partition is ArgoCD-bearing). Without one the
-	// catalog-change guard cannot tell whether the catalog changed, so the pass
-	// waits for a whole pass to write the baseline.
+	// ErrTargetedMaintenanceNoMemoBaseline refuses a pass because neither
+	// an active partition nor an owed scope holds a memo row (a fresh
+	// install before its first whole pass, or an install whose every
+	// partition is ArgoCD-bearing). Without one the catalog-change guard
+	// cannot tell whether the catalog changed, so the pass waits for a
+	// whole pass to write the baseline.
 	ErrTargetedMaintenanceNoMemoBaseline = &TargetedMaintenanceError{
 		reason:  "no_memo_baseline",
-		message: "partition-scoped maintenance refused: no active partition holds a memo row to compare the catalog against",
+		message: "partition-scoped maintenance refused: no active partition or owed scope holds a memo row to compare the catalog against",
 	}
 	// ErrTargetedMaintenanceClosureTooDeep reports that promoting unprocessed
 	// dependent partitions did not settle within the round bound.

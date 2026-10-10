@@ -17,13 +17,31 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// targetedCatalogBaselineQuery reports, over the active partitions, whether
-// any memo row exists (the baseline the catalog guard needs) and whether any
-// memo row records a catalog fingerprint other than $1.
-const targetedCatalogBaselineQuery = latestGenerationCTE + `
+// targetedCatalogBaselineQuery reports whether any memo row exists (the
+// baseline the catalog guard needs) and whether any memo row records a
+// catalog fingerprint other than $1. Each arm reads the active partitions
+// first and falls back to the owed scopes' own latest memo, any generation
+// ($2, DISTINCT scope_ids): a quiet generation that advanced past its memo
+// still proves catalog currency when its scope's latest memo carries the
+// current fingerprint (#7638 item 9). The latest memo is the greatest
+// committed_at (generation_id breaks ties); memos publish only for the
+// active generation under lock, so same-scope memos commit in activation
+// order and committed_at tracks observation recency. If a future path ever
+// writes memos for non-active generations, this ordering argument must be
+// revisited.
+const targetedCatalogBaselineQuery = latestGenerationCTE + `,
+owed_latest_memo AS (
+    SELECT DISTINCT ON (memo.scope_id)
+        memo.scope_id,
+        memo.catalog_fingerprint
+    FROM deferred_backfill_partition_memo AS memo
+    WHERE memo.scope_id = ANY($2)
+    ORDER BY memo.scope_id, memo.committed_at DESC, memo.generation_id DESC
+)
 SELECT
     EXISTS (
         SELECT 1
@@ -31,6 +49,8 @@ SELECT
         JOIN latest_generations AS latest
           ON latest.scope_id = memo.scope_id
          AND latest.generation_id = memo.generation_id
+    ) OR EXISTS (
+        SELECT 1 FROM owed_latest_memo
     ),
     EXISTS (
         SELECT 1
@@ -39,6 +59,8 @@ SELECT
           ON latest.scope_id = memo.scope_id
          AND latest.generation_id = memo.generation_id
         WHERE memo.catalog_fingerprint <> $1
+    ) OR EXISTS (
+        SELECT 1 FROM owed_latest_memo WHERE catalog_fingerprint <> $1
     )
 `
 
@@ -86,10 +108,12 @@ type TargetedMaintenanceResult struct {
 //     active partition with no repository in the shipped active-repository
 //     read is inapplicable (no pass can publish its phase). Both are decided
 //     before the catalog guard, so neither is reported as a refusal.
-//   - catalog guard: refuse with ErrTargetedMaintenanceNoMemoBaseline when no
-//     active partition holds a memo row, and with
-//     ErrTargetedMaintenanceCatalogChanged when one records another catalog
-//     fingerprint. The epoch whole pass completes those obligations.
+//   - catalog guard: refuse with ErrTargetedMaintenanceNoMemoBaseline when
+//     neither an active partition nor an owed scope holds a memo row, and
+//     with ErrTargetedMaintenanceCatalogChanged when one records another
+//     catalog fingerprint. An owed scope's own latest memo, any generation,
+//     proves currency when it carries the current fingerprint (#7638). The
+//     epoch whole pass completes refused obligations.
 //   - affected set: resolveTargetedMaintenanceClosure, which adds inbound and
 //     cross-scope sources found by loadAnchorScopedRelationshipFacts.
 //   - fact load, writes and publication: the whole pass's memo-gated loader,
@@ -165,7 +189,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	}
 	params, hasAnchors := buildDeferredScopedFactQueryParams(catalog)
 	catalogFingerprint := deferredCatalogFingerprint(params)
-	switch refusal := s.targetedCatalogRefusal(ctx, catalogFingerprint); {
+	switch refusal := s.targetedCatalogRefusal(ctx, catalogFingerprint, owedScopeIDs(requested)); {
 	case refusal == nil:
 	case errors.Is(refusal, ErrTargetedMaintenanceCatalogChanged), errors.Is(refusal, ErrTargetedMaintenanceNoMemoBaseline):
 		if len(applicable) == 0 {
@@ -260,12 +284,14 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	return result, nil
 }
 
-// targetedCatalogRefusal returns ErrTargetedMaintenanceNoMemoBaseline when no
-// active partition holds a memo row, ErrTargetedMaintenanceCatalogChanged when
-// one records another fingerprint, nil when the catalog is unchanged, and the
-// query error otherwise.
-func (s IngestionStore) targetedCatalogRefusal(ctx context.Context, fingerprint string) error {
-	rows, err := s.database.QueryContext(ctx, targetedCatalogBaselineQuery, fingerprint)
+// targetedCatalogRefusal returns ErrTargetedMaintenanceNoMemoBaseline when
+// neither an active partition nor an owed scope holds a memo row,
+// ErrTargetedMaintenanceCatalogChanged when one records another
+// fingerprint, nil when the catalog is unchanged, and the query error
+// otherwise. owedScopeIDs carries the distinct scope_ids of the normalized
+// requested owed partitions; it must be non-empty.
+func (s IngestionStore) targetedCatalogRefusal(ctx context.Context, fingerprint string, owedScopeIDs []string) error {
+	rows, err := s.database.QueryContext(ctx, targetedCatalogBaselineQuery, fingerprint, array.StringArray(owedScopeIDs))
 	if err != nil {
 		return fmt.Errorf("check catalog fingerprint for partition-scoped maintenance: %w", err)
 	}
@@ -368,6 +394,21 @@ func recordTargetedMaintenance(
 		len(result.Loaded), len(result.Affected), len(result.SnapshotConflicts), result.EvidenceFacts,
 		result.Published, result.SkipSetUnavailable, duration,
 	)
+}
+
+// owedScopeIDs returns the distinct scope_ids of normalized owed partitions,
+// in first-seen order. The catalog guard's $2.
+func owedScopeIDs(requested []scopeGenerationPartition) []string {
+	seen := make(map[string]struct{}, len(requested))
+	scopeIDs := make([]string, 0, len(requested))
+	for _, partition := range requested {
+		if _, ok := seen[partition.ScopeID]; ok {
+			continue
+		}
+		seen[partition.ScopeID] = struct{}{}
+		scopeIDs = append(scopeIDs, partition.ScopeID)
+	}
+	return scopeIDs
 }
 
 // normalizeOwedPartitions trims, drops blank, de-duplicates and sorts owed.

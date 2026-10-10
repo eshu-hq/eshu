@@ -77,6 +77,69 @@ func TestTargetedMaintenanceOutcomesMatchWholePass(t *testing.T) {
 		}
 	})
 
+	t.Run("single_repo_catalog_change_refuses_catalog_changed", func(t *testing.T) {
+		// #7638 negative (i): the owed scope's latest memo is superseded
+		// and stale (a scope onboarded after the memo), so the wider
+		// baseline must refuse catalog_changed, not admit and not report
+		// no_memo_baseline.
+		p := newTargetedDiffPair(t)
+		p.gitRepo("git:only", "only-1", "repo-only", "solo-service")
+		p.workItems("git:only", "only-1")
+		p.prepass()
+		p.quietGeneration("git:only", "only-2", "repo-only", "solo-service")
+		p.gitRepo("git:new", "new-1", "repo-new", "inventory-svc")
+		p.workItems("git:new", "new-1")
+		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.ctx, nil, nil, owedPartitions("git:only", "only-2"))
+		if !errors.Is(err, ErrTargetedMaintenanceCatalogChanged) {
+			t.Fatalf("stale owed memo: error = %v, want ErrTargetedMaintenanceCatalogChanged", err)
+		}
+		if result.Outcomes[0].Kind != TargetedMaintenanceRetry {
+			t.Fatalf("refused owed outcome = %v, want retry", result.Outcomes)
+		}
+	})
+
+	t.Run("single_repo_without_any_memo_refuses_no_memo_baseline", func(t *testing.T) {
+		// #7638 negative (ii): no memo anywhere and the owed scope has
+		// none either, so the owed arm must not conjure a baseline.
+		p := newTargetedDiffPair(t)
+		p.gitRepo("git:only", "only-1", "repo-only", "solo-service")
+		p.workItems("git:only", "only-1")
+		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.ctx, nil, nil, owedPartitions("git:only", "only-1"))
+		if !errors.Is(err, ErrTargetedMaintenanceNoMemoBaseline) {
+			t.Fatalf("memoless owed scope: error = %v, want ErrTargetedMaintenanceNoMemoBaseline", err)
+		}
+		if result.Outcomes[0].Kind != TargetedMaintenanceRetry {
+			t.Fatalf("refused owed outcome = %v, want retry", result.Outcomes)
+		}
+	})
+
+	t.Run("multi_owed_one_stale_superseded_refuses_catalog_changed", func(t *testing.T) {
+		// #7638 negative (iii): two owed scopes, both superseded past
+		// their memos; git:a's latest memo is fresh but git:b's is
+		// stale, so the pass must refuse catalog_changed.
+		p := newTargetedDiffPair(t)
+		p.gitRepo("git:a", "a-1", "repo-a", "alpha-svc")
+		p.workItems("git:a", "a-1")
+		p.gitRepo("git:b", "b-1", "repo-b", "beta-svc")
+		p.workItems("git:b", "b-1")
+		p.prepass()
+		p.quietGeneration("git:a", "a-2", "repo-a", "alpha-svc")
+		p.quietGeneration("git:b", "b-2", "repo-b", "beta-svc")
+		p.exec(`UPDATE deferred_backfill_partition_memo SET catalog_fingerprint = 'stale-fingerprint' WHERE scope_id = 'git:b'`)
+		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.ctx, nil, nil, owedPartitions("git:a", "a-2", "git:b", "b-2"))
+		if !errors.Is(err, ErrTargetedMaintenanceCatalogChanged) {
+			t.Fatalf("one stale owed memo: error = %v, want ErrTargetedMaintenanceCatalogChanged", err)
+		}
+		for _, outcome := range result.Outcomes {
+			if outcome.Kind != TargetedMaintenanceRetry {
+				t.Fatalf("refused owed outcomes = %v, want all retry", result.Outcomes)
+			}
+		}
+	})
+
 	t.Run("null_active_pointer_after_projector_fail", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)

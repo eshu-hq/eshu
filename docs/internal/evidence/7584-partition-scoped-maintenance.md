@@ -37,10 +37,11 @@ install before its first whole pass, or an all-ArgoCD install). Both are held
 by the consumer until the next epoch whole pass writes the memos and the phase.
 For `catalog_changed` that pass is triggered by the ingestion commit that
 changed the catalog. For `no_memo_baseline` there may be no such commit: the
-hold lasts until any committed drain runs the whole pass. The same hold occurs
-after the first whole pass whenever every memo-bearing scope advanced past its
-memo, including a single-repository install's quiet generation; see #7638
-item 9. `ErrTargetedMaintenanceClosureTooDeep`
+hold lasts until any committed drain runs the whole pass. After the first whole
+pass the hold also fires when no owed scope's latest memo carries the current
+catalog fingerprint; an owed scope's own most recent memo with the current
+fingerprint admits the pass, so a single-repository install's quiet generation
+completes within one lease (see #7638 item 9). `ErrTargetedMaintenanceClosureTooDeep`
 reports a closure that did not settle in 8 promotion rounds. Every
 `TargetedMaintenanceError` has a stable `Reason()` used as the telemetry label.
 
@@ -218,6 +219,56 @@ refusal. The shared loader, memo gate, batch and fan-in code run with
 instruments off, so the whole pass's `eshu_dp_deferred_backfill_*` and reopen
 series count only the whole pass; the fixture `telemetry_counts_targeted_only`
 asserts both halves.
+
+### #7638 item 9: owed-scope baseline arm
+
+No-Regression Evidence (#7638 item 9): the guard widening (owed-scope
+latest-memo arm on the baseline and stale EXISTS, `committed_at DESC,
+generation_id DESC` tiebreaker) adds a constant +15 shared buffers per owed
+scope and no measurable wall change. Before/after `EXPLAIN (ANALYZE,
+BUFFERS)` on a disposable local PostgreSQL 18, one isolated bootstrap
+schema per case, N scopes x 25 retained generations with one memo per
+scope, 3 runs each, warm medians. Shapes: steady (memo on the active
+generation), resync (memo on superseded gen-24), mixed (even scopes fresh
+on active, odd scopes on gen-24, scope 3 stale); `$2` holds 1 owed scope
+except mixed, which holds 3.
+
+| Case | Before wall | After wall | Before bufs | After bufs |
+| --- | --- | --- | --- | --- |
+| steady-300 | 10.87 ms | 11.11 ms (+2.2%, shared-host noise: the cold run was fastest) | 844 | 859 (+15) |
+| steady-600 | 24.26 ms | 24.24 ms (-0.1%) | 1685 | 1700 (+15) |
+| steady-900 | 37.97 ms | 38.05 ms (+0.2%) | 2534 | 2549 (+15) |
+| resync-900 | 39.50 ms | 39.33 ms (-0.4%) | 2534 | 2549 (+15) |
+| mixed-300 | 11.19 ms | 11.23 ms (+0.4%) | 844 | 859 (+15) |
+| mixed-600 | 24.56 ms | 24.56 ms (+0.0%) | 1685 | 1715 (+30) |
+| mixed-900 | 38.30 ms | 38.24 ms (-0.2%) | 2534 | 2575 (+41) |
+
+Returned values flip exactly the hold case: resync goes from refusing to
+`(true,false)` (admits); mixed goes `(true,false)` to `(true,true)`, so
+the stale owed memo is detected (stricter, safe direction). The
+`owed_latest_memo` arm reads the memo PK (incremental sort at 600/900
+scopes, seqscan plus sort at 300); no new index. The whole-vs-targeted
+differential on the new head still shows targeted == whole committed
+rows, with the multi-owed case completing in one lease
+(`outcome=completed owed=2 published_owed=2`); the
+`TestTargetedMaintenance` family is 42 PASS / 0 FAIL / 0 SKIP in 80.218 s.
+Safe because the guard stays a read-only `SELECT` running once per
+targeted pass, the added cost is constant per owed scope against the
+pre-existing linear `latest_generations` sort, and the stale arm can only
+over-refuse into the designed hold path, which the epoch whole pass
+completes.
+
+No-Observability-Change (#7638 item 9): no instrument added, renamed, or
+relabeled, and the hold reason set is unchanged
+(`catalog_changed`, `no_memo_baseline`, `closure_too_deep`). Completed and
+held passes stay distinguishable in the existing
+`deferred_backfill_targeted_completed` /
+`deferred_backfill_targeted_refused` log lines and the
+`eshu_dp_deferred_backfill_targeted_duration_seconds{outcome}` /
+`eshu_dp_deferred_backfill_targeted_outcomes_total{outcome}` series, as
+observed in the live run above. The telemetry reference hold paragraph
+was updated in this change to describe the wider baseline; that is a doc
+correction, not a signal change.
 
 ## Known pre-existing behavior the pass reproduces
 

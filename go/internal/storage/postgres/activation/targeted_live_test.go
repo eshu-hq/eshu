@@ -26,26 +26,29 @@ import (
 // drives the production partition-scoped maintainer
 // through real refusals: a quiet generation of an existing repository is owed
 // while a new repository scope is onboarded. With a stable repository holding
-// a memo, the targeted pass refuses with catalog_changed; without one it
-// refuses with no_memo_baseline. Either way the consumer holds (one callback
-// per lease, nothing inside the lease), the epoch whole pass the onboarding
-// commit would trigger runs (here, by the test), and the next cycle after the
-// lease completes both obligations without another callback. The consumer
-// itself never runs a whole-corpus pass.
+// a memo, both targeted passes refuse with catalog_changed. Without one, the
+// owed quiet generation's own stale memo still counts as a baseline (#7638
+// item 9), so its pass refuses with catalog_changed while only the
+// brand-new scope's pass refuses with no_memo_baseline. Either way the
+// consumer holds (one callback per lease, nothing inside the lease), the
+// epoch whole pass the onboarding commit would trigger runs (here, by the
+// test), and the next cycle after the lease completes both obligations
+// without another callback. The consumer itself never runs a whole-corpus
+// pass.
 func TestActivationObligationRealCatalogChangeIsHeldThenCompletedLive(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		stableRepo bool
-		reason     string
+		holds      map[string]int
 	}{
-		{"catalog_changed", true, "catalog_changed"},
-		{"no_memo_baseline", false, "no_memo_baseline"},
+		{"catalog_changed", true, map[string]int{"catalog_changed": 2}},
+		{"no_memo_baseline", false, map[string]int{"catalog_changed": 1, "no_memo_baseline": 1}},
 	} {
-		t.Run(tc.name, func(t *testing.T) { runRealRefusalHold(t, tc.stableRepo, tc.reason) })
+		t.Run(tc.name, func(t *testing.T) { runRealRefusalHold(t, tc.stableRepo, tc.holds) })
 	}
 }
 
-func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
+func runRealRefusalHold(t *testing.T, stableRepo bool, holds map[string]int) {
 	t.Helper()
 	ctx, database := openActivationObligationProofDB(t, "activation_real_catalog")
 	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
@@ -99,8 +102,10 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 		t.Fatalf("callbacks inside one lease = %d, want 2 (one per owed generation)", got)
 	}
 	rm := collectRealCatalogMetrics(t, ctx, reader)
-	if got := counterValue(rm, "eshu_dp_activation_obligation_failures_total", "reason", reason); got != 2 {
-		t.Fatalf("%s holds = %d, want 2", reason, got)
+	for reason, want := range holds {
+		if got := counterValue(rm, "eshu_dp_activation_obligation_failures_total", "reason", reason); got != int64(want) {
+			t.Fatalf("%s holds = %d, want %d", reason, got, want)
+		}
 	}
 	if got := counterValue(rm, "eshu_dp_activation_obligation_failures_total", "reason", "maintenance"); got != 0 {
 		t.Fatalf("maintenance failures = %d, want 0 (a refusal is a hold)", got)
@@ -121,8 +126,10 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 	if got := histogramCount(rm, "eshu_dp_deferred_backfill_duration_seconds", ""); got != 0 {
 		t.Fatalf("whole-corpus passes on the consumer's instruments = %d, want 0", got)
 	}
-	if got := histogramCount(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", reason); got != 2 {
-		t.Fatalf("targeted %s refused passes = %d, want 2", reason, got)
+	for reason, want := range holds {
+		if got := histogramCount(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", reason); got != uint64(want) {
+			t.Fatalf("targeted %s refused passes = %d, want %d", reason, got, want)
+		}
 	}
 }
 

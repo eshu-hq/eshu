@@ -219,6 +219,47 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 		}
 	})
 
+	t.Run("single_repository_quiet_generation", func(t *testing.T) {
+		// Issue #7638 item 9: the only repository's generation advanced
+		// past its memo, so no ACTIVE partition holds a memo row. RED for
+		// the wider baseline: the targeted arm must publish the owed
+		// partition within one pass once the owed scope's own most recent
+		// memo (any generation, matching fingerprint) is accepted. Today
+		// the catalog guard refuses no_memo_baseline and the gap holds
+		// until a later commit runs the epoch whole pass.
+		p := newTargetedDiffPair(t)
+		p.gitRepo("git:only", "only-1", "repo-only", "solo-service")
+		p.workItems("git:only", "only-1")
+		p.prepass()
+		p.quietGeneration("git:only", "only-2", "repo-only", "solo-service")
+		p.run("single_repository_quiet_generation", targetedDiffCase{
+			owed:      owedPartitions("git:only", "only-2"),
+			compared:  partitionSet("git:only", "only-2"),
+			published: partitionSet("git:only", "only-2"),
+			reopened:  workIDs("only-2"),
+		})
+	})
+
+	t.Run("multi_owed_both_fresh_superseded", func(t *testing.T) {
+		// #7638 positive multi-scope: two owed scopes, both superseded
+		// past their memos, no active memo anywhere. The wider baseline
+		// admits both and the targeted arm must match the whole arm.
+		p := newTargetedDiffPair(t)
+		p.gitRepo("git:a", "a-1", "repo-a", "alpha-svc")
+		p.workItems("git:a", "a-1")
+		p.gitRepo("git:b", "b-1", "repo-b", "beta-svc")
+		p.workItems("git:b", "b-1")
+		p.prepass()
+		p.quietGeneration("git:a", "a-2", "repo-a", "alpha-svc")
+		p.quietGeneration("git:b", "b-2", "repo-b", "beta-svc")
+		p.run("multi_owed_both_fresh_superseded", targetedDiffCase{
+			owed:      owedPartitions("git:a", "a-2", "git:b", "b-2"),
+			compared:  partitionSet("git:a", "a-2", "git:b", "b-2"),
+			published: partitionSet("git:a", "a-2", "git:b", "b-2"),
+			reopened:  concatIDs(workIDs("a-2"), workIDs("b-2")),
+		})
+	})
+
 	t.Run("memo_hit_and_miss", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
