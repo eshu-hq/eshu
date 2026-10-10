@@ -61,6 +61,8 @@ on:
       - 'scripts/ci/h1-stage-sampler.sh'
       - 'scripts/ci/h1-readyz-probe.sh'
       - 'scripts/ci/h1-redact-log.py'
+      - 'scripts/ci/h1-validate-hosted-inputs.sh'
+      - 'scripts/ci/test-h1-validate-hosted-inputs.sh'
       - 'scripts/ci/test-h1-*.py'
       - 'docker-compose.yaml'
       - 'docker-compose.read-api-latency-gate.yaml'
@@ -254,7 +256,7 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep jq
 
       - name: Test the work budget refresh script
-        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh && python3 scripts/ci/test-h1-capture-wiring.py && python3 scripts/ci/test-h1-effective-config.py && python3 scripts/ci/test-h1-join-traces.py && python3 scripts/ci/test-h1-readyz-probe.py && python3 scripts/ci/test-h1-redact-log.py
+        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh && python3 scripts/ci/test-h1-capture-wiring.py && python3 scripts/ci/test-h1-effective-config.py && python3 scripts/ci/test-h1-join-traces.py && python3 scripts/ci/test-h1-readyz-probe.py && python3 scripts/ci/test-h1-redact-log.py && bash scripts/ci/test-h1-validate-hosted-inputs.sh
 
   # #6965 phase 6: scripts/compare-backend-latency.sh reads two -latency-report
   # JSON legs and never runs the live gate itself, so its formulas and

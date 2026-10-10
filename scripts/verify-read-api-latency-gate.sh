@@ -103,6 +103,9 @@ done
 
 log() { printf '\n=== %s ===\n' "$*"; }
 die() { printf 'verify-read-api-latency-gate: %s\n' "$*" >&2; exit 1; }
+if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+    bash "${repo_root}/scripts/ci/h1-validate-hosted-inputs.sh" || die "H1 diagnostic inputs rejected"
+fi
 
 command -v go >/dev/null 2>&1 || die "missing required tool: go"
 command -v curl >/dev/null 2>&1 || die "missing required tool: curl"
