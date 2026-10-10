@@ -43,6 +43,10 @@ on:
       - 'scripts/verify-read-api-latency-gate.sh'
       - 'scripts/refresh-read-api-work-budgets.sh'
       - 'scripts/test-refresh-read-api-work-budgets.sh'
+      - 'scripts/extend-read-api-work-budgets.sh'
+      - 'scripts/test-extend-read-api-work-budgets.sh'
+      - 'scripts/test-methodology-scale-resource-observer.sh'
+      - 'scripts/lib/test-methodology-scale-resource-observer-*.sh'
       - 'scripts/compare-backend-latency.sh'
       - 'scripts/test-compare-backend-latency.sh'
       - 'scripts/lib/test-compare-backend-latency-report.json'
@@ -79,6 +83,99 @@ permissions:
   contents: read
 
 jobs:
+  # Supported-backend scale/concurrency proof is a dedicated manual run.
+  # Existing NornicDB PR, push and merge-group checks retain their identity.
+  methodology-scale:
+    if: github.event_name == 'workflow_dispatch'
+    name: methodology scale (neo4j)
+    runs-on: ubuntu-latest
+    # Run 38032713508 reached its serial report after 30m8s from first job
+    # setup log, then the 30m job limit canceled the concurrent stage. Three
+    # operations x ceil(20 requests / 4 workers) x 30s allow 7m30s more;
+    # 45m leaves about 7m for normal scheduling and teardown variation.
+    timeout-minutes: 45
+    env:
+      GATE_COMPOSE_PROJECT: eshu-methodology-scale-ci
+      ESHU_GRAPH_BACKEND: neo4j
+      GATE_NEO4J_PASSWORD: change-me
+      GATE_POSTGRES_PASSWORD: change-me
+      GATE_CONCURRENT_WORKERS: 4
+      GATE_CONCURRENT_REQUESTS: 20
+      GATE_RUNS: 3
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Run scale and concurrent HTTP/MCP proof
+        env:
+          GATE_WORK_REPORT: ${{ runner.temp }}/methodology-work.json
+          GATE_LATENCY_REPORT: ${{ runner.temp }}/methodology-latency.json
+          GATE_CONCURRENT_REPORT: ${{ runner.temp }}/methodology-concurrency.json
+        run: |
+          resource_report="${RUNNER_TEMP}/methodology-resources.txt"
+          observer_stop="${RUNNER_TEMP}/.methodology-resource-observer-stop"
+          rm -f "$observer_stop"
+          {
+            printf 'logical_cpus='; nproc
+            printf 'start_load='; cat /proc/loadavg
+          } > "$resource_report"
+          (
+            while [[ ! -e "$observer_stop" ]]; do
+              date -u +%FT%TZ
+              cat /proc/loadavg
+              owned_ids="$(docker ps -q --filter "label=com.docker.compose.project=${GATE_COMPOSE_PROJECT}")"
+              if [[ -n "$owned_ids" ]]; then
+                mapfile -t containers <<< "$owned_ids"
+                timeout 20s docker stats --no-stream --format '{{.Name}} CPU={{.CPUPerc}} memory={{.MemUsage}}' "${containers[@]}"
+              fi
+              for _ in {1..10}; do
+                [[ ! -e "$observer_stop" ]] || break
+                sleep 1
+              done
+            done
+          ) >> "$resource_report" 2>&1 &
+          observer=$!
+          trap 'touch "$observer_stop"; kill "$observer" 2>/dev/null || true' EXIT
+          gate_status=0
+          bash scripts/verify-read-api-latency-gate.sh || gate_status=$?
+          touch "$observer_stop"
+          observer_status=0
+          wait "$observer" || observer_status=$?
+          trap - EXIT
+          rm -f "$observer_stop"
+          if [[ "$observer_status" -ne 0 ]]; then
+            printf 'methodology resource observer failed: exit %s\n' "$observer_status" >&2
+            [[ "$gate_status" -ne 0 ]] || gate_status=1
+          fi
+          for service in postgres neo4j; do
+            if ! rg -q "^${GATE_COMPOSE_PROJECT}-${service}-[0-9]+ CPU=[0-9]+([.][0-9]+)?% memory=[0-9]" "$resource_report"; then
+              printf 'methodology resource observer recorded no %s CPU/memory sample\n' "$service" >&2
+              [[ "$gate_status" -ne 0 ]] || gate_status=1
+            fi
+          done
+          exit "$gate_status"
+      - name: Archive scale proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodology-scale-${{ github.sha }}
+          path: ${{ runner.temp }}/methodology-*
+          if-no-files-found: error
+      - name: Dump supported-backend logs on failure
+        if: failure()
+        run: docker compose -p "$GATE_COMPOSE_PROJECT" -f docker-compose.neo4j.yml -f docker-compose.read-api-latency-gate.yaml logs --tail=200 || true
+      - name: Tear down supported-backend services
+        if: always()
+        run: docker compose -p "$GATE_COMPOSE_PROJECT" -f docker-compose.neo4j.yml -f docker-compose.read-api-latency-gate.yaml down -v || true
+
   # The work budget table's generator has a test mirror that the heavy job below
   # never runs (it only executes the live gate). It is cheap and needs no Docker,
   # so a change to the jq formula fails here instead of silently going unproven.
@@ -94,7 +191,7 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep jq
 
       - name: Test the work budget refresh script
-        run: bash scripts/test-refresh-read-api-work-budgets.sh
+        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh
 
   # #6965 phase 6: scripts/compare-backend-latency.sh reads two -latency-report
   # JSON legs and never runs the live gate itself, so its formulas and

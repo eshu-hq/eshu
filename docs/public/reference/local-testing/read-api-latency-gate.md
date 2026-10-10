@@ -78,6 +78,32 @@ lanes never exercise.
    exercised route the meter never read, a coverage-floor shortfall, or an
    explicitly-budgeted route dropping out of coverage.
 
+The #7881 pilot adds a seeded `GET /api/v0/status/ingesters/repository`,
+`POST /api/v0/relationships/catalog` with `{}`, and an actual MCP HTTP
+`tools/call` for `get_index_status`. Each selected operation must return
+HTTP 200 with the expected payload: the repository ingester identity and
+status sections; an exact 21-verb relationship catalog across six declared
+layers with zero edges; or a JSON-RPC result whose structured index status
+matches its resource block and the zero-repository graph seed. A malformed, empty,
+or mismatched 200 response fails the gate, including during warmup. Pilot
+latency includes reading and checking the response body. The MCP server is a
+separate process started by the runner and exercises the production tool dispatcher.
+The existing no-arg GET coverage and Postgres meter still run first.
+
+`GATE_CONCURRENT_WORKERS=2..16` enables a later, unmetered pass over those
+three operations. `GATE_CONCURRENT_REQUESTS` sets requests per operation
+(at least the worker count, at most 1000), and
+`GATE_CONCURRENT_REPORT=<path>` writes a version 1 JSON report with each
+operation's worker count,
+requested and successful response counts, every request status, peak client
+requests in flight, wall duration, throughput, samples, and p95. Every
+response is checked, so one wrong 200 or failed request fails the pass.
+Concurrent Postgres work is
+not attributed per request because the existing shared meter cannot assign
+overlapping statements to individual operations. Use the report with service
+CPU, memory, and backend observations from the dedicated run before drawing
+a capacity conclusion.
+
 **Sampling**: for each route, `SweepRoutes` issues 2 discarded warmup
 requests (a cold connection and cold Postgres/NornicDB caches make the
 first request unrepresentatively slow) and then `-iterations` counted
@@ -128,6 +154,34 @@ must not quietly stop being checked while the gate stays green.
 bash scripts/verify-read-api-latency-gate.sh
 ```
 
+For the supported Neo4j #7881 pilot, reserve an otherwise quiet runner and
+run the default scale with an explicit concurrent report:
+
+```bash
+ESHU_GRAPH_BACKEND=neo4j GATE_CONCURRENT_WORKERS=4 \
+  GATE_CONCURRENT_REQUESTS=20 GATE_RUNS=3 \
+  GATE_LATENCY_REPORT=/tmp/eshu-7881-api-latency.json \
+  GATE_CONCURRENT_REPORT=/tmp/eshu-7881-api-concurrency.json \
+  bash scripts/verify-read-api-latency-gate.sh
+```
+
+Record the actual Compose image digest, host load, API/MCP/Postgres/Neo4j
+CPU and memory, seed verification counts, and both report hashes alongside
+the command and exit status. The concurrent report shows offered load and
+client overlap; it does not measure backend resource use by itself. Keep the
+existing NornicDB CI lane under its current blocking policy while the
+supported-backend pilot is added.
+
+The dedicated manual Neo4j job allows 45 minutes for cold Compose startup,
+database migration and seeding, host builds, the serial sweep, and the later
+concurrent pass. In [run 38032713508](https://github.com/eshu-hq/eshu/actions/runs/38032713508),
+the serial report arrived 30m8s after the first job-setup log; the former
+30-minute job deadline canceled the remaining work. At 3 operations, 20
+requests each, 4 workers, and a 30-second request timeout, the normal
+concurrent request envelope is 7m30s before cleanup. This job deadline is
+separate from each route's latency and work budgets. The canceled run's raw
+artifacts are incomplete proof; a passing hosted rerun is still required.
+
 Flags mirror the golden corpus gate's: `--keep` leaves the stack up for
 debugging a breach, `--no-compose` assumes Postgres/NornicDB are already
 running. It shares the golden corpus gate's cross-run mutex
@@ -139,17 +193,18 @@ Tunables (env, matching the script's own defaults): `GATE_POSTGRES_PORT`
 `GATE_API_PORT` (18097), `GATE_TOTAL_SCOPES` (800), `GATE_NODES_PER_LABEL`
 (150000), `GATE_IAC_FACT_COUNT` (150000 seeded IaC facts), `GATE_ITERATIONS`
 (counted requests per route, 20), `GATE_RUNS` (independent counted sweeps per
-route, default 1 — run 1 is always the cold pass; runs 2.. are warm passes
-with no additional warmup), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
+route, default 1 — run 1 follows two discarded warmups; runs 2.. repeat
+without additional warmup), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
 `GATE_WORK_REPORT` (write the per-route measured work as JSON),
-`GATE_LATENCY_REPORT` (write the full per-route latency distribution — cold
+`GATE_LATENCY_REPORT` (write the full per-route latency distribution — first
 and warm samples, warm n/p50/p95/min/max/stddev, the per-run p95 spread, and
 an identity block — as JSON, before budget evaluation runs). `GATE_API_BIN=<path>`
 swaps in a pre-built `eshu-api` binary (built from a different commit, e.g.
 main with a candidate fix) instead of building one from this worktree, for a
-RED/GREEN comparison without rebasing. At default settings (`GATE_RUNS=1`,
-no `GATE_LATENCY_REPORT`), the gate's stdout and exit behavior are
-byte-for-byte identical to before either flag existed.
+RED/GREEN comparison without rebasing. The report retains the legacy `cold`
+name for run 1, but it does not prove a cold cache. The #7881 parameterized,
+POST and MCP checks add output and fail on invalid fixture responses even at
+default settings. Repeated sweeps preserve the existing route budgets.
 
 ## Cross-backend comparison (remote)
 
@@ -180,7 +235,7 @@ this run's data. Removing it first turns that failure mode into a loud one:
 or malformed file instead of quietly comparing against old numbers.
 
 ```bash
-# Leg A: NornicDB, 5 runs (1 cold + 4 warm).
+# Leg A: NornicDB, 5 counted passes after discarded warmups.
 rm -f /tmp/nornicdb.json
 ESHU_GRAPH_BACKEND=nornicdb GATE_RUNS=5 \
   GATE_LATENCY_REPORT=/tmp/nornicdb.json \
@@ -192,7 +247,7 @@ ESHU_GRAPH_BACKEND=neo4j GATE_RUNS=5 \
   GATE_LATENCY_REPORT=/tmp/neo4j.json \
   bash scripts/verify-read-api-latency-gate.sh || true
 
-# Drift sentinel: a second NornicDB leg with GATE_RUNS=2 -- one cold run plus
+# Drift sentinel: a second NornicDB leg with GATE_RUNS=2 -- one first pass plus
 # ONE warm run, just enough for the report to carry a warm p95
 # (LatencyReportWarmStats.p95_ms). Compare that single value by hand against
 # leg A's own per-run p95 BAND (run_p95_min_ms..run_p95_max_ms in
@@ -261,7 +316,7 @@ generated: run the gate on the runner class with `GATE_WORK_REPORT`, then
 the GREEN maximum. The five routes the #6794 fix did not change are guards for
 future regressions; the fix pair cannot prove them RED.
 
-**Floor.** No named work row is rendered below the `default` row (13 calls, 21
+**Floor.** No named work row is rendered below the current `default` row (13 calls, 18
 buffers, 14 rows). Routes that read almost nothing would otherwise get a budget
 of 0 rows and 3 buffers, and the meter window sums the whole database, so a
 single stray statement would be a blocking breach. The floor comes from
@@ -284,6 +339,22 @@ bash scripts/refresh-read-api-work-budgets.sh \
 
 Use GREEN reports from the runner class the gate enforces on, and commit the
 rendered file; do not edit a number by hand.
+
+When adding only a few routes, render their named rows from those GREEN reports
+into a temporary table, then append only those rows to the committed baseline:
+
+```bash
+git show HEAD:testdata/benchmarks/read-api-route-work-budgets.txt >baseline.txt
+bash scripts/refresh-read-api-work-budgets.sh --baseline /dev/null --out rendered.txt REPORT.json...
+bash scripts/extend-read-api-work-budgets.sh \
+  --baseline baseline.txt --rendered rendered.txt \
+  --route 'GET /api/v0/example' --provenance 'GREEN reports on the enforced runner class for #ISSUE' \
+  --out testdata/benchmarks/read-api-route-work-budgets.txt
+```
+
+The extension helper requires absent, unique, numeric renderer rows and preserves
+every baseline byte. It cannot determine whether an input report came from a
+passing gate; establish that from the gate result and retained run artifacts.
 
 **Non-goal.** This is a latency and work-ceiling gate: a work budget only ever
 fails on more reads, and the seed is verified so a shrunken corpus cannot pass

@@ -20,4 +20,14 @@
 // fail-closed: only repository-anchored graph shapes remain in the live PROFILE
 // family, while global name lookup is covered by its bounded Postgres SQL and
 // plan proof.
+//
+// The versioned #7881 pilot contract extends entries in the existing manifest.
+// It pins required emitted variant and parameter-case identities, structured
+// authorization and page bounds, workload and numeric budgets, and reproducible
+// evidence inputs. A scoped PostgreSQL call census is separate from the graph
+// Run/RunSingle inventory and marks unscoped files as excluded. JSON evidence
+// validation rejects missing or stale proof and requires independent oracle
+// provenance, paired base/candidate results and timings, full plans and work
+// metrics, and every required case. It makes no claim that static validation
+// alone proves database semantics or plan quality.
 package queryplan

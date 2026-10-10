@@ -135,7 +135,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          # The methodology proof validates exact event commits and ancestry.
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -178,10 +179,30 @@ jobs:
           scripts/test-verify-performance-evidence.sh
           scripts/verify-performance-evidence.sh
 
+      - name: Set up Python for query methodology hook proof
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install query methodology hook runner
+        run: python -m pip install pre-commit==4.6.2
+
       - name: Verify query-plan regression gate
         run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          python3 scripts/test-query-methodology-comparison-identity.py
+          python3 scripts/test-verify-query-methodology-live-contract.py
+          scripts/test-verify-query-methodology.sh
           scripts/test-verify-query-plan-regression.sh
           scripts/verify-query-plan-regression.sh
+
+      - name: Archive query methodology evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: query-methodology-${{ github.sha }}
+          path: .proof-artifacts/query-methodology/*.json
+          if-no-files-found: error
 
       - name: Verify scale corpus suite
         run: |

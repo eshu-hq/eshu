@@ -12,6 +12,9 @@ exact slow layer before any SQL, index, or transaction change.
 Add `eshu-performance-rigor` for any measured SQL/index optimization or
 before/after latency, throughput, bootstrap, or drain claim.
 
+For a covered query family, follow [Query Engineering](../../../docs/internal/query-engineering.md).
+Update its executable contract and run the linked production evidence runner.
+
 ## Required Classification
 
 Before proposing a fix, classify the symptom as one or more of:

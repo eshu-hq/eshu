@@ -1,0 +1,17 @@
+{
+  "run_id": 38032713508,
+  "job_id": 114156818706,
+  "head_sha": "3e06639be4af7160a309512eebcef25c42689cf8",
+  "source_url": "https://github.com/eshu-hq/eshu/actions/runs/38032713508/job/114156818706",
+  "job_started_at": "2026-10-10T06:57:11.6560466Z",
+  "serial_exercised_at": "2026-10-10T07:27:19.4388659Z",
+  "step_canceled_at": "2026-10-10T07:27:24.0183064Z",
+  "timeout_annotation": "The job has exceeded the maximum execution time of 30m0s",
+  "backend": "neo4j",
+  "runs": 3,
+  "workers": 4,
+  "requests_per_operation": 20,
+  "request_timeout_seconds": 30,
+  "estimated_cleanup_seconds": 20,
+  "required_replay_headroom_seconds": 420
+}

@@ -39,6 +39,18 @@ not own the routes themselves (`go/internal/query`), the surface inventory
   anonymous bulk `infraLabels` nodes
 - `NoArgGetRoutes` — the no-arg GET routes to sweep, derived from
   `capabilitycatalog.LoadSurfaceInventory`
+- `PilotOperations` — seeded representative parameterized GET and query POST
+  requests plus a real MCP `tools/call` request. The runner starts a separate
+  MCP HTTP server for this operation. Each pilot must return its seeded
+  result shape; an empty, unrelated, or inconsistent 200 payload fails.
+  An MCP JSON-RPC error or `result.isError` also fails.
+- `SweepConcurrentOperations` — optional bounded worker proof over the pilots
+  after the required sequential metered sweep. It rejects a work meter because
+  overlapping requests cannot be attributed to one operation. Its report
+  requires observed overlap (at least two client requests in flight) and
+  includes exact request/success counts, peak in-flight requests, wall time,
+  throughput, samples, and p95. Set `GATE_CONCURRENT_WORKERS=2..16` and
+  `GATE_CONCURRENT_REQUESTS` in the runner.
 - `SweepRoutes` — measures true nearest-rank p95 latency per route against a
   running eshu-api, over a warmup-discarded counted sample; flags any 5xx
   response as `HardFailed` regardless of latency and captures the first
@@ -46,15 +58,14 @@ not own the routes themselves (`go/internal/query`), the surface inventory
   the error envelope without re-running. `RouteQueryArgs` supplies
   representative selectors (seeded ids) so a route that needs one runs its
   real query instead of 400ing. `SweepOptions.Runs` (`-runs`, default 1) adds
-  independent repeat passes per route: run 1 is the cold pass
-  (`RouteLatency.Samples`), runs 2..Runs are warm passes with no additional
-  warmup (`RouteLatency.WarmSamples`/`WarmRunP95s`) — see
-  `docs/public/reference/local-testing/read-api-latency-gate.md`'s
-  cross-backend comparison recipe for why
+  independent repeat passes per route. The first counted pass
+  (`RouteLatency.Samples`) follows warmup probes and is not a cold-cache
+  measurement. Later passes have no additional warmup and populate
+  `RouteLatency.WarmSamples` and `WarmRunP95s`.
 - `BuildLatencyReport`, `WriteLatencyReport` — the `-latency-report` JSON
   report (schema version 1): an identity block (backend, best-effort eshu
   commit/api binary sha256, seed sizing, runs/iterations/warmups) plus every
-  route's cold/warm samples and warm distribution stats (n/p50/p95/min/max/
+  route's first/later samples and later distribution stats (n/p50/p95/min/max/
   stddev, and the per-run p95 min..max). Written before budget evaluation, so
   a breaching leg still yields a report. `scripts/compare-backend-latency.sh`
   is the reader: it renders a per-route markdown comparison table between two

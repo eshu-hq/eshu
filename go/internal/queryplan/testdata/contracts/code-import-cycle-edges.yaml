@@ -1,0 +1,26 @@
+version: 1
+result: "Exact ordered import identities and fields, with paging and cycle enumeration metadata, match the independent edge ledger."
+authorization: "Apply the caller grant in each relevant branch before scan or page bounds; all-scope access is declared per case."
+current_history: "Read repository-connected code; orphan history is outside the current repository graph."
+nulls: "Nullable import line/name/type fields follow declared projection defaults; absence must not invent an import."
+duplicates: "Preserve declared import edge multiplicity; deduplicate logical packages, scopes and cycles before paging."
+ordering: "Production stable identity order is checked against an independently ordered fixture ledger."
+pagination: "Apply grant and logical filtering before page boundaries; include unique tie breakers and sentinel rows."
+partial: "A cycle-cap terminal page has truncated=true, has_more=false and no invented next offset."
+patterns: ["Repository and Python-language anchor before bounded IMPORTS edge scan","Fetch ordered edge list once, then enumerate bounded simple cycles in Go"]
+rationale: "The edge fetch preserves paths needed for cycles; the Go walk reports caps and truthful partial results."
+alternatives: ["A reciprocal Cypher join was measured in the builder note at 1522 ms/5.5M DbHits versus 40 ms/27k for edge fetch; rejected.","Directional Cypher filtering could omit a cycle; rejected."]
+index_cost: "Initial 4-case Neo4j PROFILE reaches at most 2413 total operator DbHits; schema retains repository_id and path indexes. No index DDL is added, so incremental write/storage is zero by unchanged schema; absolute existing-index write cost and bytes were not measured."
+exceptions: []
+budget: {max_normal_ms: 2000, max_query_count: 1, max_work: {query_count: 1, total_operator_db_hits: 5000, root_output_rows: 1000}, noise_tolerance: "Same-host 282-case calibration observed at most 2413 total operator database hits and normal cold-plan times below 145 ms. The 5000-hit ceiling permits planner variation while bounding work; the two-second normal ceiling allows compilation noise. Bounded Cartesian products remain recorded exceptions, not blanket failures. Scale calibration is separate."}
+workload: {"cardinality":"142 nodes, 275 relationships, 134 IMPORTS candidates; four cases return at most 134 edges.","selectivity":"Repository/language selects at most 134 physical edges; cycle direction narrows only after the fetch.","skew":"Two same-named repository tenants, one cross-tenant CALLS edge, duplicate IMPORTS and 128 other-tenant skew files remain in the populated fixture.","depth":"Repository -> File -> IMPORTS -> Module; Go walk length <=8, cycles <=1000, steps <=250000.","fanout":"134 physical edge rows in the all-scope fixture.","payload":"Edge file paths, line and nullable import flags. Fresh payload calibration's largest full statement row-array JSON is 35057 bytes.","max_result_payload_bytes":35057,"query_count":"One bounded edge fetch per cycle request.","budgets":"One emitted statement, normal <=2000 ms, total operator DbHits <=5000 and root rows <=1000; 4 measured cases."}
+require_order: true
+require_limit: true
+environment: {"engine": "neo4j", "fixture": "import-edge-ledger-v1", "indexes": "physical indexes and full definitions captured per run", "oracle": "import-edge-ledger-v1", "runner": "TestImportDependencyMethodologyLive", "schema": "disposable declared fixture DDL", "version": "2026.08.1"}
+required_schema: ["repository_id", "path", "module_name_lookup", "function_uid_unique"]
+authorization_aliases: ["repo"]
+required_cases:
+  - {"case_id": "representative", "query_sha256": "d7c9e82091dd8d35f42604a0fc4a94f0f2550f75aacf1b10f3ccd26048e276ce", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+file_import_cycles+repo/cycle-edges"}
+  - {"case_id": "representative", "query_sha256": "b5e69dbdceabc62389bdbf28614db82ede276f8a44208a4cda789e4e6033bbcb", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+file_import_cycles+source-file/cycle-edges"}
+  - {"case_id": "representative", "query_sha256": "2713b2b53571471da8baadfb9a5c8033bfacc6ca229910bafb51ddb1189dcc93", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+file_import_cycles+repo/cycle-edges"}
+  - {"case_id": "representative", "query_sha256": "31cde3db95add9b7a36d257f77f6f86c0b9f8b74d70f59e39b93b86d7e0bc179", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+file_import_cycles+source-file/cycle-edges"}

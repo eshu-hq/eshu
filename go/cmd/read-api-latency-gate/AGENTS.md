@@ -77,11 +77,14 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   body, capped at `hardFailedBodyCap` bytes.** The first failure is the most
   informative; overwriting it with a later repeat discards the evidence an
   operator needs to root-cause a HardFailed route.
-- **The work meter is never skipped.** `SweepRoutes` resets the meter after the
+- **The sequential work meter is never skipped.** `SweepRoutes` resets the meter after the
   warmup requests and reads it after the counted ones; a meter error aborts the
   run, and `UnmeteredExercisedRoutes` fails the run on any exercised route the
   meter never read. Catching a meter/extension failure and continuing on
   latency alone is the exact failure the work budget exists to prevent.
+  The optional `SweepConcurrentOperations` runs only after that metered stage,
+  refuses a meter, validates every pilot response, and reports its own
+  request/success counts, worker count, and peak in-flight count.
 - **`testdata/benchmarks/read-api-route-work-budgets.txt` is generated.**
   Render it with `scripts/refresh-read-api-work-budgets.sh` from GREEN
   `-work-report` files (from the runner class the gate enforces on, not a local
@@ -182,21 +185,16 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 - **`ExercisedCoverageFloor` (`coverage.go`) is a ratchet.** Raise it only
   after a change (a new `RouteQueryArgs` entry, an auth fix) measurably
   increases the exercised count; never lower it.
-- **`-runs` defaults to 1 and must stay byte-for-byte identical to the
-  pre-`-runs` gate at that default.** `sweepRoute` (`sweep.go`) always runs
-  the warmup once, before run 1; run 1 alone backs `RouteLatency.P95`/
-  `Samples` when there is no warm pass. Do not move the warmup inside the
-  per-run loop (that would re-warm every run, which is not what "runs 2..R
-  are warm passes with no additional warmup" means) and do not let a
-  `Runs<=1` caller observe any behavior difference from before `-runs`
-  existed — CI's default invocation depends on this.
+- **`-runs` defaults to 1 and preserves the single-pass sample selection.**
+  `sweepRoute` (`sweep.go`) runs the warmup once, before run 1; run 1 alone
+  backs `RouteLatency.P95`/`Samples` when there is no later pass. Do not move
+  the warmup inside the per-run loop. The methodology pilot adds operations,
+  response checks and output; do not claim unchanged default output.
   `TestSweepRoutesRunsDefaultLeavesWarmDataEmpty` pins it.
-- **`RouteLatency.P95` is computed from the pooled warm samples when any
-  exist, and from the cold pass alone otherwise.** The cold pass's connection
-  and cache are cold by construction (the same reasoning `warmupRequests`
-  applies one level up); do not fold cold samples into the warm pool or
-  report the cold pass's own p95 as the route's official one once warm data
-  exists.
+- **`RouteLatency.P95` uses pooled later-pass samples when any exist, and
+  the first counted pass alone otherwise.** Both follow the initial warmups.
+  The legacy `cold_samples_ms` report field means the first counted pass;
+  it proves no cold-cache behavior. Keep first and later passes separate.
 - **`-latency-report` is written BEFORE budget evaluation** (`main.go`'s
   `run`, right after `writeWorkReportFile`). A breaching leg must still yield
   a report — the report is measurement, not a verdict. Do not move the write

@@ -1437,6 +1437,44 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: query-methodology-static
+    hook_id: query-methodology-static
+    name: Verify Query Methodology Contracts
+    category: exactness
+    layer: contract
+    purpose: "Checks pilot contracts, emitted production variants and PostgreSQL execution-site coverage."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/internal/mcp/methodology_live_test.go"
+      - "specs/live-tests.v1.yaml"
+      - ".github/workflows/test.yml"
+      - ".pre-commit-config.yaml"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/lib/verify-query-methodology-live-contract.py"
+      - "scripts/test-verify-query-methodology-live-contract.py"
+      - "scripts/lib/query-methodology-comparison-identity.py"
+      - "scripts/test-query-methodology-comparison-identity.py"
+      - "go/internal/queryplan/**"
+      - "go/internal/graph/schema*.go"
+      - "go/internal/storage/postgres/migrations/**"
+      - "scripts/verify-query-methodology.sh"
+      - "scripts/test-verify-query-methodology.sh"
+      - "scripts/lib/test-verify-query-methodology-*.sh"
+      - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/lib/live-gate-lock.sh"
+    local:
+      command: "bash scripts/verify-query-methodology.sh --static"
+      test_command: "python3 scripts/test-query-methodology-comparison-identity.py && python3 scripts/test-verify-query-methodology-live-contract.py && bash scripts/test-verify-query-methodology.sh"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: query-plan-regression
     name: Verify Query Plan Regression
     category: exactness
@@ -1446,16 +1484,32 @@ gates:
     blocking: true
     triggers:
       - "go/internal/query/**"
+      - "go/internal/mcp/methodology_live_test.go"
+      - "specs/live-tests.v1.yaml"
+      - ".github/workflows/test.yml"
+      - ".pre-commit-config.yaml"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/lib/verify-query-methodology-live-contract.py"
+      - "scripts/test-verify-query-methodology-live-contract.py"
+      - "scripts/lib/query-methodology-comparison-identity.py"
+      - "scripts/test-query-methodology-comparison-identity.py"
+      - "go/internal/queryplan/**"
+      - "go/internal/graph/schema*.go"
+      - "go/internal/storage/postgres/migrations/**"
+      - "scripts/verify-query-methodology.sh"
+      - "scripts/test-verify-query-methodology.sh"
+      - "scripts/lib/test-verify-query-methodology-*.sh"
       - "go/internal/storage/cypher/**"
       - "scripts/test-verify-query-plan-regression.sh"
       - "scripts/verify-query-plan-regression.sh"
       - "scripts/verify-query-plan-profile.sh"
       - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/lib/live-gate-lock.sh"
     local:
       command: "bash scripts/verify-query-plan-regression.sh"
       test_command: "bash scripts/test-verify-query-plan-regression.sh"
       pre_push: deferred
-      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 30s (Docker), ~8% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via test.yml's verify-contracts job (required-gates-complete). Run `make pre-pr` before a hot-path Cypher or graph-write change: this is the gate that proves the query plan did not regress."
+      pre_push_reason: "The expanded #7881 targeted stage took 291s (4m51s) in local calibration, including disposable PostgreSQL/Neo4j correctness, paired plans and timings, and legacy PROFILE proof. It is deferred from the fast floor, runs in `make pre-pr`/`make pre-pr-full`, and blocks merge via test.yml's verify-contracts job (required-gates-complete). Run this selected live stage before pushing a covered change."
     ci:
       workflow: test.yml
       job: "verify-contracts"
@@ -2866,6 +2920,8 @@ gates:
       - "scripts/verify-read-api-latency-gate.sh"
       - "scripts/refresh-read-api-work-budgets.sh"
       - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/extend-read-api-work-budgets.sh"
+      - "scripts/test-extend-read-api-work-budgets.sh"
       - "scripts/compare-backend-latency.sh"
       - "scripts/test-compare-backend-latency.sh"
       - "scripts/lib/live-gate-lock.sh"
@@ -2889,18 +2945,47 @@ gates:
       - docker
       - nornicdb
     ci_only_reason: ""
+  - id: query-methodology-scale-neo4j
+    name: Query Methodology Neo4j Scale Calibration
+    category: exactness
+    layer: performance
+    purpose: "Captures hosted Neo4j scale, concurrency and resource evidence for query methodology calibration."
+    tier: manual
+    blocking: false
+    triggers:
+      - "go/**"
+      - "scripts/verify-read-api-latency-gate.sh"
+      - "testdata/benchmarks/read-api-route-budgets.txt"
+      - "testdata/benchmarks/read-api-route-work-budgets.txt"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
+      - "docker-compose.read-api-latency-gate.yaml"
+      - ".github/workflows/read-api-latency-gate.yml"
+    ci:
+      workflow: read-api-latency-gate.yml
+      job: "methodology scale (neo4j)"
+    requirements:
+      - go
+      - docker
+      - postgres
+    ci_only_reason: "Manually dispatched hosted Neo4j scale/concurrency/resource evidence, not an automatic PR or merge-group check; claim-specific calibration remains required."
+
   - id: read-api-work-budget-mirror
     name: Read API work budget refresh mirror (static)
     category: hygiene
     layer: performance
-    purpose: "Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet."
+    purpose: "Self-tests work-budget rendering and selective extension: formulas, ratchets, and preservation of existing rows."
     tier: pre-pr
     blocking: true
     triggers:
       - "scripts/refresh-read-api-work-budgets.sh"
       - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/extend-read-api-work-budgets.sh"
+      - "scripts/test-extend-read-api-work-budgets.sh"
+      - "scripts/test-methodology-scale-resource-observer.sh"
+      - "scripts/lib/test-methodology-scale-resource-observer-*.sh"
     local:
-      command: "bash scripts/test-refresh-read-api-work-budgets.sh"
+      command: "bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh"
       test_command: ""
       pre_push: floor
     ci:

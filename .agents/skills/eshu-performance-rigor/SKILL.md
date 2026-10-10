@@ -9,6 +9,9 @@ This skill owns measured performance impact. Use
 [eshu-diagnostic-rigor](../eshu-diagnostic-rigor/SKILL.md) first when the cause or
 bottleneck is unknown; routine test execution alone does not need diagnosis.
 
+For a covered query family, follow [Query Engineering](../../../docs/internal/query-engineering.md).
+Update its executable contract and run the linked production evidence runner.
+
 ## Essential Contract
 
 Accuracy comes first, performance second, and concurrency third. A faster wrong
