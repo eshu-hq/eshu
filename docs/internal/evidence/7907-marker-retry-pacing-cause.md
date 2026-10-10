@@ -46,3 +46,30 @@ The pacing seam (`writeMarkerDeferralSleep`) defaults to a ctx-aware timer
 and swaps atomically for tests; the package suite installs an instant sleeper
 in TestMain so the 150-deferral exhaustion tests stay instant, while the
 pacing tests swap the real sleeper back in.
+
+No-Regression Evidence: the claim success path is byte-identical
+(`git diff origin/main..HEAD` on `projector_queue_claim_sql.go` and
+`projector_queue_sql.go` is empty), so the #7469/#7819 contention
+baselines still hold and no new claim benchmark is needed. The only
+added SQL is one lock-free PK EXISTS after a SKIP LOCKED fence miss
+(a path that already deferred): at 10,000 seeded fence rows on local
+Postgres 18.6 it probes the pkey index-only with 0 heap fetches,
+0.087 ms / 3 buffers on a hit and 0.012 ms / 2 buffers on a miss,
+returning 1 row. The retry pacing is the intended fix, not a
+regression: ~29 s over a full 150-deferral bound, inside the ~5
+minute caller budget, and the missing-fence refusal ends one
+deferral source in a single attempt (0.04 s live). Same-machine
+local-container comparison only; no absolute target is claimed.
+The change is safe because no success-path statement changed, the
+added read takes no lock and fires only where the marker already
+waited, and the live fence suites stay GREEN.
+
+Observability Evidence: no new metric, span, or status — the
+`retried`/`gave_up`/`shutdown` and wait outcomes are unchanged and
+pinned by the metric tests (including the single-count cancel pin).
+The existing deferral WARN gains the `deferral_cause` key
+(`generation_row` or `fence_busy`, asserted by
+`TestServiceWriteMarkerDeferralCauseIsLogged`), the fence-busy cause
+surfaces in the wrapped `ErrWorkWriteMarkerFenceBusy` error text,
+and the metrics reference documents the paced deferrals and the new
+log key.
