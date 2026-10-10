@@ -110,8 +110,8 @@ An independently seeded verifier check used the actual first-generation Go JSON
 events. With the real PASS event intact, `verify_results` returned 0 and
 reported `1/1 PASS`. Removing only that PASS event returned 1 with
 `missing or duplicate event (run=1, terminal=0)`. The new file has an exact
-`postgres_ci` ledger row and runner tuple. `verify-ledger` selects 81 files and
-185 tests after enrolling the failure, supersession, and service dispatch
+`postgres_ci` ledger row and runner tuple. `verify-ledger` selects 83 files and
+192 tests after enrolling the failure, supersession, and service dispatch
 regressions. This focused check is not a full readiness job result.
 
 A final real `go test -json` run emitted one RUN and one PASS for each of the
@@ -220,7 +220,7 @@ The actual readiness result verifier accepted the final four parent test events
 `4/4 PASS`. Removing only the barrier parent's PASS event, while preserving its
 RUN, subtest PASS events and package PASS, returned 1 with
 `missing or duplicate event (run=1, terminal=0)`. This is focused enrollment
-proof, not the full 185-test readiness job.
+proof, not the full 192-test readiness job.
 
 A separate focused command exited 0 for runtime typed deferral, lookup-error
 propagation and stale suppression; cloud typed deferral and stale suppression;
