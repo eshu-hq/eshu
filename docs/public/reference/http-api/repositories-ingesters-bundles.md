@@ -93,9 +93,9 @@ panel failed: `entry_points_read_degraded`, `relationships_read_degraded`,
 route already uses (below) rather than inventing a new one. None of those
 reads adds a `_truncated` reason (`api_surface` alone is bounded and discloses
 it as `detail_truncated` on its own panel). The deployment-artifact stage
-is not bounded, but a failed content read in it is named (#7126): both routes
-add `deployment_artifacts_read_degraded` (`partial_reasons` on context,
-`limitations` on story) and keep the artifacts read before the failure.
+is not bounded, but a failed content or graph read in it is named (#7126): both routes add
+`deployment_artifacts_read_degraded` (`partial_reasons` on context, `limitations` on story).
+The response keeps the artifacts of the loads that succeeded and lacks those of the failed load.
 
 `GET /api/v0/repositories` accepts `limit` and `offset` and returns
 `truncated=true` when more indexed repositories are available. If the graph

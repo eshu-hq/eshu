@@ -15,10 +15,11 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// deploymentArtifactsReadDegradedReason names a failed content read of the
-// deployment-artifact stage (#7126). The stage still answers with the
-// artifacts it read before the failure, as it always has; until this reason
-// existed the failure was dropped, so a partial answer looked complete.
+// deploymentArtifactsReadDegradedReason names a failed content or graph read
+// of the deployment-artifact stage (#7126). The stage still answers with the
+// artifacts from the loads that succeeded, as it always has, and lacks the
+// artifacts of the load that failed; until this reason existed the failure was
+// dropped, so a partial answer looked complete.
 // Story responses carry it in limitations and context responses in
 // partial_reasons, the same fields the other degraded reads use.
 const deploymentArtifactsReadDegradedReason = "deployment_artifacts_read_degraded"
@@ -83,5 +84,5 @@ func reportDeploymentArtifactsFailure(
 	}
 	attrs = append(attrs, deploymentArtifactsReadCountAttrs(stats)...)
 	attrs = append(attrs, slog.String("failure_class", deploymentArtifactsReadDegradedReason))
-	logger.LogAttrs(ctx, slog.LevelWarn, "repository deployment artifacts read failed; answering with the artifacts read so far", attrs...)
+	logger.LogAttrs(ctx, slog.LevelWarn, "repository deployment artifacts read failed; answering without the failed load's artifacts", attrs...)
 }

@@ -357,9 +357,9 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 			infrastructureOverview = deploymentOverview
 		}
 		if deploymentErr != nil {
-			// The stage answers with what it read before the failure; name
-			// the gap instead of presenting the partial overview as complete
-			// (#7126).
+			// The stage answers with the artifacts from the loads that
+			// succeeded and lacks the failed load's artifacts; name the gap
+			// instead of presenting the partial overview as complete (#7126).
 			storyLimitations = append(storyLimitations, deploymentArtifactsReadDegradedReason)
 			reportDeploymentArtifactsFailure(r.Context(), h.Logger, "repository_story", repoID, deploymentErr, deploymentStats)
 		}
