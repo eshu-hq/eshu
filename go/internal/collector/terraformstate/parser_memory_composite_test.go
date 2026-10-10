@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestParseStream_PeakMemoryGate_CompositeCapture is the ADR-named acceptance
@@ -46,7 +47,7 @@ func TestParseStream_PeakMemoryGate_CompositeCapture(t *testing.T) {
 			options,
 			terraformstate.FactSinkFunc(func(_ context.Context, envelope facts.Envelope) error {
 				count++
-				if envelope.FactKind == facts.TerraformStateResourceFactKind {
+				if envelope.FactKind == cloud.TerraformStateResourceFactKind {
 					resourceFacts++
 				}
 				return nil
@@ -121,7 +122,7 @@ func TestParserCapturesLargeScalarLeafUnderBoundedMemory(t *testing.T) {
 		}
 	})
 
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])

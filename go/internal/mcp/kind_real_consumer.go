@@ -163,11 +163,11 @@ var quotedLiteralPattern = regexp.MustCompile(`'([A-Za-z0-9_.]+)'`)
 // The qualifier alternation tracks the #6950 importer migration: `facts`
 // for families still on the root compat surface, then one entry per
 // migrated family spelling (`docs`, plus the `factsdocs` alias used where
-// the file already imports another docs package). Each #6950 batch extends
-// this list for the family spellings it introduces; the identifier still
-// resolves through factsConstValues, so an unknown spelling simply matches
-// nothing.
-var factsPackageIdentRefPattern = regexp.MustCompile(`(?:facts|docs|factsdocs)\.(\w*FactKind\w*)\b`)
+// the file already imports another docs package, plus `cloud` for the
+// batch-4 cloud families). Each #6950 batch extends this list for the
+// family spellings it introduces; the identifier still resolves through
+// factsConstValues, so an unknown spelling simply matches nothing.
+var factsPackageIdentRefPattern = regexp.MustCompile(`(?:facts|docs|factsdocs|cloud)\.(\w*FactKind\w*)\b`)
 
 // realConsumerEvidence is the computed set of fact kinds with a detectable
 // real consumer, derived from source rather than from registry metadata.

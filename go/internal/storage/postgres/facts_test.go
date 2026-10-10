@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -104,10 +105,10 @@ func TestFactStoreUpsertFactsAcceptsAllTerraformStateFactKinds(t *testing.T) {
 	db := &fakeExecQueryer{}
 	store := NewFactStore(db)
 	observedAt := time.Date(2026, time.May, 9, 10, 0, 0, 0, time.UTC)
-	kinds := facts.TerraformStateFactKinds()
+	kinds := cloud.TerraformStateFactKinds()
 	envelopes := make([]facts.Envelope, 0, len(kinds))
 	for _, kind := range kinds {
-		version, ok := facts.TerraformStateSchemaVersion(kind)
+		version, ok := cloud.TerraformStateSchemaVersion(kind)
 		if !ok {
 			t.Fatalf("TerraformStateSchemaVersion(%q) ok = false, want true", kind)
 		}
@@ -141,7 +142,7 @@ func TestFactStoreUpsertFactsAcceptsAllTerraformStateFactKinds(t *testing.T) {
 		if got := db.execs[0].args[offset+3]; got != kind {
 			t.Fatalf("row %d fact_kind arg = %v, want %q", i, got, kind)
 		}
-		wantVersion, ok := facts.TerraformStateSchemaVersion(kind)
+		wantVersion, ok := cloud.TerraformStateSchemaVersion(kind)
 		if !ok {
 			t.Fatalf("TerraformStateSchemaVersion(%q) ok = false, want true", kind)
 		}

@@ -20,6 +20,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -86,7 +87,7 @@ func TestParserLargeStateStreamsIgnoredTopLevelPayload(t *testing.T) {
 		}
 	})
 
-	requireFactKinds(t, result.Facts, facts.TerraformStateSnapshotFactKind)
+	requireFactKinds(t, result.Facts, cloud.TerraformStateSnapshotFactKind)
 	if got := len(result.Facts); got != 1 {
 		t.Fatalf("Parse() emitted %d facts, want 1", got)
 	}
@@ -112,7 +113,7 @@ func TestParserLargeStateStreamsResourceInstances(t *testing.T) {
 		}
 	})
 
-	requireFactKinds(t, result.Facts, facts.TerraformStateSnapshotFactKind, facts.TerraformStateResourceFactKind)
+	requireFactKinds(t, result.Facts, cloud.TerraformStateSnapshotFactKind, cloud.TerraformStateResourceFactKind)
 	if got := result.ResourceFacts; got != resourceInstances {
 		t.Fatalf("ResourceFacts = %d, want %d", got, resourceInstances)
 	}
@@ -161,7 +162,7 @@ func TestParseStream_PeakMemoryGate(t *testing.T) {
 			options,
 			terraformstate.FactSinkFunc(func(_ context.Context, envelope facts.Envelope) error {
 				count++
-				if envelope.FactKind == facts.TerraformStateResourceFactKind {
+				if envelope.FactKind == cloud.TerraformStateResourceFactKind {
 					resourceFacts++
 				}
 				return nil

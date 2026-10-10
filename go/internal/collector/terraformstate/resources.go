@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
@@ -217,7 +217,7 @@ func (p *stateParser) emitResourceInstance(resource resourceContext, instance in
 	if err := p.emitProviderBinding(address, resource.Provider); err != nil {
 		return err
 	}
-	if err := p.emitBodyFact(p.envelope(facts.TerraformStateResourceFactKind, "resource:"+address, payload, address)); err != nil {
+	if err := p.emitBodyFact(p.envelope(cloud.TerraformStateResourceFactKind, "resource:"+address, payload, address)); err != nil {
 		return err
 	}
 	p.resourceFacts++

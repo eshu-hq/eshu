@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestParserSummarizesUnsupportedCompositeAttributeWarnings(t *testing.T) {
@@ -68,7 +69,7 @@ func TestParserSummarizesUnsupportedCompositeAttributeWarnings(t *testing.T) {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
-	for _, resource := range factsByKind(result.Facts, facts.TerraformStateResourceFactKind) {
+	for _, resource := range factsByKind(result.Facts, cloud.TerraformStateResourceFactKind) {
 		attributes, ok := resource.Payload["attributes"].(map[string]any)
 		if !ok {
 			t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -88,7 +89,7 @@ func TestParserSummarizesUnsupportedCompositeAttributeWarnings(t *testing.T) {
 		}
 	}
 
-	warnings := factsByKind(result.Facts, facts.TerraformStateWarningFactKind)
+	warnings := factsByKind(result.Facts, cloud.TerraformStateWarningFactKind)
 	if got, want := len(warnings), 1; got != want {
 		t.Fatalf("warning fact count = %d, want %d: %#v", got, want, warnings)
 	}

@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestParserResourceKeysIncludeTerraformMode(t *testing.T) {
@@ -21,7 +22,7 @@ func TestParserResourceKeysIncludeTerraformMode(t *testing.T) {
 	]}`
 
 	result := parseFixtureFacts(t, state)
-	keys := stableKeysByKind(result, facts.TerraformStateResourceFactKind)
+	keys := stableKeysByKind(result, cloud.TerraformStateResourceFactKind)
 	if len(keys) != 2 {
 		t.Fatalf("resource stable keys count = %d, want 2: %#v", len(keys), keys)
 	}
@@ -47,14 +48,14 @@ func TestParserSensitiveCompositeOutputEmitsShapeNotNilMarker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	output := factByKind(t, result.Facts, facts.TerraformStateOutputFactKind)
+	output := factByKind(t, result.Facts, cloud.TerraformStateOutputFactKind)
 	if _, ok := output.Payload["value"]; ok {
 		t.Fatalf("output value = %#v, want omitted for sensitive composite", output.Payload["value"])
 	}
 	if got, want := output.Payload["value_shape"], "composite"; got != want {
 		t.Fatalf("output value_shape = %#v, want %q", got, want)
 	}
-	requireFactKinds(t, result.Facts, facts.TerraformStateWarningFactKind)
+	requireFactKinds(t, result.Facts, cloud.TerraformStateWarningFactKind)
 	assertNoRawSecret(t, result.Facts, "secret")
 }
 

@@ -6,7 +6,7 @@ package terraformstate_test
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestParserOmitsCorrelationAnchorsForRedactedAttributes pins the anchor
@@ -54,7 +54,7 @@ func TestParserOmitsCorrelationAnchorsForRedactedAttributes(t *testing.T) {
 	}]}`
 
 	result := parseFixtureFacts(t, state)
-	resource := factByKind(t, result, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result, cloud.TerraformStateResourceFactKind)
 
 	if _, ok := resource.Payload["correlation_anchors"]; ok {
 		t.Fatalf("correlation_anchors = %#v, want omitted when source attributes are redacted", resource.Payload["correlation_anchors"])

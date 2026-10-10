@@ -63,7 +63,7 @@ import (
 //
 // Callers restrict dirs to go/internal/reducer only, never the projector.
 // go/internal/projector/runtime/phase.go has a
-// `case facts.TerraformStateSnapshotFactKind, facts.TerraformStateWarningFactKind:`
+// `case cloud.TerraformStateSnapshotFactKind, cloud.TerraformStateWarningFactKind:`
 // clause that dispatches purely on the fact's KIND IDENTITY to publish a
 // graph-projection-readiness phase marker (canonicalGraphPhaseStates) — it
 // never reads the fact's Payload fields. Scanning the projector would make
@@ -121,8 +121,9 @@ func factsDispatchedKinds(dirs []string, factsConstValues map[string]string) (ma
 // factsConstValues. The qualifier tracks the #6950 importer migration:
 // `facts` for families still on the root compat surface, then one entry per
 // migrated family spelling (`docs`, plus the `factsdocs` alias used where
-// the file already imports another docs package). Each #6950 batch extends
-// factsPackageSelectorNames for the family spellings it introduces.
+// the file already imports another docs package, plus `cloud` for the
+// batch-4 cloud families). Each #6950 batch extends factsPackageSelectorNames
+// for the family spellings it introduces.
 func factsSelectorWireKind(expr ast.Expr, factsConstValues map[string]string) (string, bool) {
 	sel, ok := expr.(*ast.SelectorExpr)
 	if !ok {
@@ -143,6 +144,7 @@ var factsPackageSelectorNames = map[string]bool{
 	"facts":     true,
 	"docs":      true,
 	"factsdocs": true,
+	"cloud":     true,
 }
 
 // reducerSeamDir is the one entry in realConsumerDecodeSeamDirs that names a

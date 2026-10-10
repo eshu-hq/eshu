@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TerraformStateBackendExpressionWarningFactCount(repoID string, fileData []map[string]any) int {
@@ -116,16 +117,16 @@ func terraformStateBackendExpressionWarningEnvelope(
 			"GoGitCollectorFact",
 			map[string]any{
 				"fact_key":      factKey,
-				"fact_kind":     facts.TerraformStateWarningFactKind,
+				"fact_kind":     cloud.TerraformStateWarningFactKind,
 				"generation_id": generationID,
 				"scope_id":      scopeID,
 			},
 		),
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.TerraformStateWarningFactKind,
+		FactKind:         cloud.TerraformStateWarningFactKind,
 		StableFactKey:    factKey,
-		SchemaVersion:    facts.TerraformStateWarningSchemaVersion,
+		SchemaVersion:    cloud.TerraformStateWarningSchemaVersion,
 		CollectorKind:    "git",
 		SourceConfidence: facts.SourceConfidenceObserved,
 		ObservedAt:       observedAt,

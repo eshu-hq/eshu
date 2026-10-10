@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestParserEmitsTerraformStateModuleFacts(t *testing.T) {
@@ -22,8 +23,8 @@ func TestParserEmitsTerraformStateModuleFacts(t *testing.T) {
 
 	result := parseFixtureFacts(t, state)
 
-	requireFactKinds(t, result, facts.TerraformStateModuleFactKind)
-	modules := factsByKind(result, facts.TerraformStateModuleFactKind)
+	requireFactKinds(t, result, cloud.TerraformStateModuleFactKind)
+	modules := factsByKind(result, cloud.TerraformStateModuleFactKind)
 	if got, want := len(modules), 3; got != want {
 		t.Fatalf("module fact count = %d, want %d: %#v", got, want, modules)
 	}
@@ -35,7 +36,7 @@ func TestParserEmitsTerraformStateModuleFacts(t *testing.T) {
 	if got, want := api.Payload["resource_count"], int64(1); got != want {
 		t.Fatalf("api resource_count = %#v, want %d", got, want)
 	}
-	if got, want := api.SchemaVersion, facts.TerraformStateModuleSchemaVersion; got != want {
+	if got, want := api.SchemaVersion, cloud.TerraformStateModuleSchemaVersion; got != want {
 		t.Fatalf("api SchemaVersion = %q, want %q", got, want)
 	}
 	if strings.Contains(api.SourceRef.SourceURI, "s3://tfstate-prod/services/api/terraform.tfstate") ||
@@ -64,7 +65,7 @@ func TestParserModuleFactKeysAreStableAcrossResourceOrder(t *testing.T) {
 	firstFacts := parseFixtureFacts(t, first)
 	secondFacts := parseFixtureFacts(t, second)
 
-	if got, want := stableKeysByKind(firstFacts, facts.TerraformStateModuleFactKind), stableKeysByKind(secondFacts, facts.TerraformStateModuleFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
+	if got, want := stableKeysByKind(firstFacts, cloud.TerraformStateModuleFactKind), stableKeysByKind(secondFacts, cloud.TerraformStateModuleFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("module stable keys changed with order:\ngot  %#v\nwant %#v", got, want)
 	}
 }

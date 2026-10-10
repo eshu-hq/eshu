@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestParserEmitsTerraformStateProviderBindingFacts(t *testing.T) {
@@ -33,8 +34,8 @@ func TestParserEmitsTerraformStateProviderBindingFacts(t *testing.T) {
 
 	result := parseFixtureFacts(t, state)
 
-	requireFactKinds(t, result, facts.TerraformStateProviderBindingFactKind)
-	bindings := factsByKind(result, facts.TerraformStateProviderBindingFactKind)
+	requireFactKinds(t, result, cloud.TerraformStateProviderBindingFactKind)
+	bindings := factsByKind(result, cloud.TerraformStateProviderBindingFactKind)
 	if got, want := len(bindings), 2; got != want {
 		t.Fatalf("provider binding fact count = %d, want %d: %#v", got, want, bindings)
 	}
@@ -76,7 +77,7 @@ func TestParserProviderBindingFactKeysAreStableAcrossResourceOrder(t *testing.T)
 	firstFacts := parseFixtureFacts(t, first)
 	secondFacts := parseFixtureFacts(t, second)
 
-	if got, want := stableKeysByKind(firstFacts, facts.TerraformStateProviderBindingFactKind), stableKeysByKind(secondFacts, facts.TerraformStateProviderBindingFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
+	if got, want := stableKeysByKind(firstFacts, cloud.TerraformStateProviderBindingFactKind), stableKeysByKind(secondFacts, cloud.TerraformStateProviderBindingFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("provider binding stable keys changed with order:\ngot  %#v\nwant %#v", got, want)
 	}
 }
@@ -102,7 +103,7 @@ func TestParserDeduplicatesTerraformStateProviderBindingFacts(t *testing.T) {
 	]}`
 
 	result := parseFixtureFacts(t, state)
-	bindings := factsByKind(result, facts.TerraformStateProviderBindingFactKind)
+	bindings := factsByKind(result, cloud.TerraformStateProviderBindingFactKind)
 	if got, want := len(bindings), 1; got != want {
 		t.Fatalf("provider binding fact count = %d, want %d: %#v", got, want, bindings)
 	}

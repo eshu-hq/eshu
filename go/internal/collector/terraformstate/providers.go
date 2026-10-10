@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
@@ -63,7 +64,7 @@ func (p *stateParser) emitProviderBinding(resourceAddress string, providerAddres
 	}
 	stableKey := "provider_binding:" + binding.ResourceAddress + ":" + providerHash
 	sourceRecordID := binding.ResourceAddress + ":provider:" + providerHash
-	return p.emitBodyFact(p.envelope(facts.TerraformStateProviderBindingFactKind, stableKey, payload, sourceRecordID))
+	return p.emitBodyFact(p.envelope(cloud.TerraformStateProviderBindingFactKind, stableKey, payload, sourceRecordID))
 }
 
 func parseProviderBinding(resourceAddress string, providerAddress string) providerBinding {

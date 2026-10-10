@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
@@ -108,16 +109,16 @@ func terraformStateCandidateFactEnvelope(
 			"GoGitCollectorFact",
 			map[string]any{
 				"fact_key":      factKey,
-				"fact_kind":     facts.TerraformStateCandidateFactKind,
+				"fact_kind":     cloud.TerraformStateCandidateFactKind,
 				"generation_id": generationID,
 				"scope_id":      scopeID,
 			},
 		),
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.TerraformStateCandidateFactKind,
+		FactKind:         cloud.TerraformStateCandidateFactKind,
 		StableFactKey:    factKey,
-		SchemaVersion:    facts.TerraformStateCandidateSchemaVersion,
+		SchemaVersion:    cloud.TerraformStateCandidateSchemaVersion,
 		CollectorKind:    "git",
 		SourceConfidence: facts.SourceConfidenceObserved,
 		ObservedAt:       observedAt,

@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // ExtractTerraformStateRows projects committed terraform_state fact envelopes
@@ -56,7 +57,7 @@ func ExtractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 	for _, envelope := range envelopes {
 		var err error
 		switch envelope.FactKind {
-		case facts.TerraformStateResourceFactKind:
+		case cloud.TerraformStateResourceFactKind:
 			if row, ok, rowErr := terraformStateResourceRow(
 				mat.ScopeID,
 				snapshot,
@@ -68,13 +69,13 @@ func ExtractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 			} else {
 				err = rowErr
 			}
-		case facts.TerraformStateModuleFactKind:
+		case cloud.TerraformStateModuleFactKind:
 			if row, ok, rowErr := terraformStateModuleRow(mat.ScopeID, snapshot, envelope); ok {
 				moduleRows = append(moduleRows, row)
 			} else {
 				err = rowErr
 			}
-		case facts.TerraformStateOutputFactKind:
+		case cloud.TerraformStateOutputFactKind:
 			if row, ok, rowErr := terraformStateOutputRow(mat.ScopeID, snapshot, envelope); ok {
 				mat.TerraformStateOutputs = append(mat.TerraformStateOutputs, row)
 			} else {
@@ -120,7 +121,7 @@ func ExtractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 // fallback.
 func terraformStateSnapshot(envelopes []facts.Envelope) (terraformStateSnapshotContext, facts.Envelope, error) {
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.TerraformStateSnapshotFactKind {
+		if envelope.FactKind != cloud.TerraformStateSnapshotFactKind {
 			continue
 		}
 		snapshot, err := decode.TerraformStateSnapshot(envelope)
@@ -371,7 +372,7 @@ func terraformStateTagHashesByResource(envelopes []facts.Envelope) (map[string][
 	seen := map[string]struct{}{}
 	var quarantined []decode.QuarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.TerraformStateTagObservationFactKind {
+		if envelope.FactKind != cloud.TerraformStateTagObservationFactKind {
 			continue
 		}
 		observation, err := decode.TerraformStateTagObservation(envelope)
@@ -422,7 +423,7 @@ func terraformStateProviderBindingsByResource(envelopes []facts.Envelope) (map[s
 	bindings := map[string]terraformStateProviderBindingInfo{}
 	var quarantined []decode.QuarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.TerraformStateProviderBindingFactKind {
+		if envelope.FactKind != cloud.TerraformStateProviderBindingFactKind {
 			continue
 		}
 		binding, err := decode.TerraformStateProviderBinding(envelope)

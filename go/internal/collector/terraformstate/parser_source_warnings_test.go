@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestParserEmitsSourceWarnings(t *testing.T) {
@@ -31,7 +32,7 @@ func TestParserEmitsSourceWarnings(t *testing.T) {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
-	warning := factByKind(t, result.Facts, facts.TerraformStateWarningFactKind)
+	warning := factByKind(t, result.Facts, cloud.TerraformStateWarningFactKind)
 	if got, want := warning.Payload["warning_kind"], "state_in_vcs"; got != want {
 		t.Fatalf("warning_kind = %#v, want %#v", got, want)
 	}
