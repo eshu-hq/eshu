@@ -24,6 +24,21 @@ import (
 // projector Ack while its already-enqueued reducer intent executes. The
 // pending generation has no active predecessor and no activation epoch.
 func TestContainerImageIdentityFirstGenerationEpochBarrierLive(t *testing.T) {
+	for _, scenario := range []struct {
+		name             string
+		expireLease      bool
+		expectedAttempts int
+	}{
+		{name: "readiness_only", expectedAttempts: 1},
+		{name: "expired_lease", expireLease: true, expectedAttempts: 2},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			runFirstGenerationEpochBarrier(t, scenario.expireLease, scenario.expectedAttempts)
+		})
+	}
+}
+
+func runFirstGenerationEpochBarrier(t *testing.T, expireLease bool, expectedAttempts int) {
 	if dsn := strings.TrimSpace(os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN")); dsn != "" {
 		if os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE") != "1" {
 			t.Fatal("epoch proof DSN requires ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE=1")
@@ -110,7 +125,57 @@ INSERT INTO fact_work_items (
 	if *writeCalls != 0 {
 		t.Fatalf("pre-Ack writes = %d, want zero", *writeCalls)
 	}
-	for cycle := 0; cycle < 2; cycle++ {
+	if result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{work}); err != nil || result.Count != 0 {
+		t.Fatalf("duplicate pending Enqueue = (%+v, %v), want zero new rows", result, err)
+	}
+	var reducerRows int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_work_items WHERE scope_id = $1 AND stage = 'reducer'`, scopeID).Scan(&reducerRows); err != nil || reducerRows != 1 {
+		t.Fatalf("reducer rows after pending duplicate Enqueue = (%d, %v), want one", reducerRows, err)
+	}
+
+	if expireLease {
+		// A claimed retry is real execution, so reclaiming its expired lease
+		// spends one attempt. Readiness retries after that still freeze at two.
+		now = now.Add(time.Minute)
+		stale, claimed, err := queue.Claim(ctx)
+		if err != nil || !claimed || stale.IntentID != intent.IntentID || stale.AttemptCount != 1 {
+			t.Fatalf("claim before lease expiry = (%+v, %v, %v), want same intent at attempt 1", stale, claimed, err)
+		}
+		now = now.Add(2 * time.Minute)
+		reclaimed, claimed, err := queue.Claim(ctx)
+		if err != nil || !claimed || reclaimed.IntentID != intent.IntentID || reclaimed.AttemptCount != expectedAttempts ||
+			reclaimed.ClaimEpoch <= stale.ClaimEpoch {
+			t.Fatalf("claim after lease expiry = (%+v, %v, %v), want same intent at attempt %d with newer epoch than %d",
+				reclaimed, claimed, err, expectedAttempts, stale.ClaimEpoch)
+		}
+		if err := queue.Ack(ctx, stale, reducer.Result{}); !errors.Is(err, ErrReducerClaimRejected) {
+			t.Fatalf("stale Ack = %v, want ErrReducerClaimRejected", err)
+		}
+		if err := queue.Fail(ctx, stale, handleErr); !errors.Is(err, ErrReducerClaimRejected) {
+			t.Fatalf("stale Fail = %v, want ErrReducerClaimRejected", err)
+		}
+		if status, class, attempts := firstGenerationBarrierOutcome(t, ctx, db, intent.IntentID); status != "claimed" ||
+			class != reducercontract.GenerationActivationNotReadyFailureClass || attempts != expectedAttempts || *writeCalls != 0 {
+			t.Fatalf("after stale settlements = (%s, %s, %d, %d writes), want claimed/%s/%d/0",
+				status, class, attempts, *writeCalls, reducercontract.GenerationActivationNotReadyFailureClass, expectedAttempts)
+		}
+		_, reclaimedErr := handler.Handle(ctx, reclaimed)
+		if !errors.As(reclaimedErr, &pending) {
+			t.Fatalf("reclaimed pending Handle() error = %v, want GenerationNotYetActiveError", reclaimedErr)
+		}
+		if err := queue.Fail(ctx, reclaimed, reclaimedErr); err != nil {
+			t.Fatalf("reclaimed pending Fail: %v", err)
+		}
+		if status, class, attempts := firstGenerationBarrierOutcome(t, ctx, db, intent.IntentID); status != "retrying" ||
+			class != reducercontract.GenerationActivationNotReadyFailureClass || attempts != expectedAttempts || *writeCalls != 0 {
+			t.Fatalf("reclaimed pending settlement = (%s, %s, %d, %d writes), want retrying/%s/%d/0",
+				status, class, attempts, *writeCalls, reducercontract.GenerationActivationNotReadyFailureClass, expectedAttempts)
+		}
+		assertNoFirstGenerationReducerDeadLetters(t, ctx, db, scopeID)
+	}
+
+	// More retries than MaxAttempts must leave the readiness deferral non-counting.
+	for cycle := 0; cycle < 4; cycle++ {
 		now = now.Add(time.Minute)
 		retry, retryClaimed, claimErr := queue.Claim(ctx)
 		if claimErr != nil || !retryClaimed || retry.IntentID != intent.IntentID {
@@ -124,9 +189,9 @@ INSERT INTO fact_work_items (
 			t.Fatalf("pre-Ack retry %d Fail: %v", cycle, err)
 		}
 		if status, class, attempts := firstGenerationBarrierOutcome(t, ctx, db, intent.IntentID); status != "retrying" ||
-			class != reducercontract.GenerationActivationNotReadyFailureClass || attempts != 1 || *writeCalls != 0 {
-			t.Fatalf("pre-Ack retry %d = (%s, %s, %d, %d writes), want retrying/%s/1/0",
-				cycle, status, class, attempts, *writeCalls, reducercontract.GenerationActivationNotReadyFailureClass)
+			class != reducercontract.GenerationActivationNotReadyFailureClass || attempts != expectedAttempts || *writeCalls != 0 {
+			t.Fatalf("pre-Ack retry %d = (%s, %s, %d, %d writes), want retrying/%s/%d/0",
+				cycle, status, class, attempts, *writeCalls, reducercontract.GenerationActivationNotReadyFailureClass, expectedAttempts)
 		}
 		logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "repeated_deferral")
 	}
@@ -160,9 +225,26 @@ INSERT INTO fact_work_items (
 	if err := queue.Ack(ctx, replayed, result); err != nil {
 		t.Fatalf("Ack replayed reducer intent: %v", err)
 	}
-	if status, _, attempts := firstGenerationBarrierOutcome(t, ctx, db, intent.IntentID); status != "succeeded" || attempts != 1 || *writeCalls != 1 {
-		t.Fatalf("post-Ack reducer = (%s, %d attempts, %d writes), want succeeded/1/1", status, attempts, *writeCalls)
+	if status, _, attempts := firstGenerationBarrierOutcome(t, ctx, db, intent.IntentID); status != "succeeded" || attempts != expectedAttempts || *writeCalls != 1 {
+		t.Fatalf("post-Ack reducer = (%s, %d attempts, %d writes), want succeeded/%d/1", status, attempts, *writeCalls, expectedAttempts)
 	}
+	if result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{work}); err != nil || result.Count != 0 {
+		t.Fatalf("duplicate terminal Enqueue = (%+v, %v), want zero new rows", result, err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_work_items WHERE scope_id = $1 AND stage = 'reducer'`, scopeID).Scan(&reducerRows); err != nil || reducerRows != 1 {
+		t.Fatalf("reducer rows after duplicate Enqueue = (%d, %v), want one", reducerRows, err)
+	}
+	if status, _, attempts := firstGenerationBarrierOutcome(t, ctx, db, intent.IntentID); status != "succeeded" || attempts != expectedAttempts {
+		t.Fatalf("reducer after duplicate Enqueue = (%s, %d attempts), want succeeded/%d", status, attempts, expectedAttempts)
+	}
+	now = now.Add(time.Minute)
+	if _, claimed, err := queue.Claim(ctx); err != nil || claimed {
+		t.Fatalf("claim after duplicate terminal Enqueue = (%v, %v), want no work", claimed, err)
+	}
+	if *writeCalls != 1 {
+		t.Fatalf("writer calls after duplicate Enqueue = %d, want one", *writeCalls)
+	}
+	assertNoFirstGenerationReducerDeadLetters(t, ctx, db, scopeID)
 	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "after_reducer_ack")
 }
 

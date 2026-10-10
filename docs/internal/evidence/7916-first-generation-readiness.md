@@ -83,7 +83,7 @@ coordinator-held local proof bundle retains the benchmark source/overlay and
 raw baseline/candidate logs (SHA-256 `a198518ae398280528256c11e42e645213d927e4ed363d5a84140a9877300bcd`
 and `5064033f5a1bbc51102436a6770c1704ff13ec5a56af5837385671df3aa67224`).
 
-The post-change live first-generation proof uses real
+The initial post-change live first-generation proof used real
 `ReducerQueue.Enqueue/Claim/Fail`, the identity handler, and
 `ProjectorQueue.Ack`. Three pre-Ack handler attempts left the row `retrying`
 with class `generation_activation_not_ready`, attempt count 1, zero dead
@@ -103,8 +103,8 @@ handler entry or writer call, while the ready scope succeeded. Actual
 projector Ack established a positive epoch; the next service run entered the
 pending handler once and succeeded at attempt 1. The existing active-A/pending-B
 live barrier, missing activation epoch sentinel, and reducer pre-activation
-controls remain separate controls. Full built-binary determinism and corpus
-truth are NOT_CHECKED here.
+controls remain separate controls. The separate built-binary cassette proof below covers the complete unchanged
+determinism gate; deployed whole-workload corpus truth remains NOT_CHECKED.
 
 An independently seeded verifier check used the actual first-generation Go JSON
 events. With the real PASS event intact, `verify_results` returned 0 and
@@ -156,3 +156,82 @@ class, so no metric, span, log field, or cardinality was added. Batch service
 dispatch proves unrelated ready-work progress while the first generation is
 deferred. Same-scope contention beyond the controlled projector/reducer
 transitions is NOT_CHECKED here.
+
+## Complete built-binary cassette proof
+
+The unchanged `scripts/verify-ifa-determinism.sh --keep` gate passed with
+exit 0 at source head `702e406a11e6683c7bc12beb32bd9762f2ebf118`, tree
+`920c1d7bce592f9582e38f24ee36a390889ed26f`, on base
+`dc1cdff0085a93d43dc02a2f64316327c670853b`. It built the six normal host
+binaries with Go 1.26.9 and `CGO_CFLAGS=-std=gnu17`, used the gate's
+NornicDB/PostgreSQL Compose lane, and ran every N=1/2/4 cell and both standalone
+cells. Each N cell produced digest
+`5d23e7270963a2d0940900aeb44d7b88db78588f8e80d51dd38320d5af97449e`.
+
+The standalone `deployable_unit_edges` cell matched its exact one-edge set;
+the `repo_dependency` cell matched its exact seven-edge set. Their strict
+terminal drains reported zero fact residual, zero required nonterminal intents,
+zero nonterminal completion events and zero unroutable quarantined intents.
+The root wrapper independently captured gate exit 0, cleanup exit 0, identical
+before/after source identities and clean status, then confirmed no containers
+remained in its Compose project. The source was not edited during this run.
+
+The retained gate log has SHA-256
+`b1c369781d3ea145e3e6595d0e0a5792336116e7c4159d2e1bcfee8bb5ef4718`;
+the six-binary hash manifest has SHA-256
+`3468af302e1b63fe9b8250b0fd1ece98286a70f29d2701bf448796486b92ee39`.
+The tested reducer binary has SHA-256
+`b1e19f6e678fe26dc93dfac4a859c2a03fc15dfb0cb92aa660134ef20bd6b687`.
+This is backend-required cassette/replay correctness evidence, not a deployed
+full-corpus or qualified wall-time claim. Cell durations are diagnostic only.
+
+## Final focused coverage
+
+The final PostgreSQL 18.6 run of
+`go -C go test ./internal/storage/postgres -run '^TestContainerImageIdentityFirstGeneration.*$' -count=1 -json`
+passed all four enrolled tests with no skipped or failed events. The direct
+barrier parent passed both `readiness_only` and `expired_lease`; the service
+parent passed both `single` and `batch`. The event stream has SHA-256
+`5f9661a2bb5ec7890720b7e41165199917a8f6392e8a20123d469456f0c6cf3e`.
+
+The readiness-only case makes more deferrals than `MaxAttempts=3` and retains
+attempt 1 through success. Both service claim modes make four pre-Ack
+dispatches at `MaxAttempts=2`, retaining attempt 1, zero pending handler
+entries and zero reducer dead letters while the unrelated scope remains
+succeeded with one writer call. Duplicate enqueue during deferral and after
+success admits zero rows; the original row remains unique and terminal work
+stays unclaimable. Each direct scenario finishes with one writer call.
+
+The expired-lease case reclaims the same pending first-generation row through
+actual `ReducerQueue.Claim` with a higher claim epoch. Stale Ack and Fail are
+rejected. Reclaiming claimed execution consumes attempt 2 under the existing
+queue policy; subsequent typed readiness deferrals retain attempt 2, with zero
+writes and reducer dead letters until activation. Actual projector Ack then
+allows the current intent to succeed once. No lease or attempt policy changed.
+
+The initial extension incorrectly expected expired execution reclaim to stay
+at attempt 1. Its real PostgreSQL run failed at the attempt-2 assertion.
+`reducerClaimAttemptCountCaseSQL` exempts retrying readiness-class rows, not
+expired claimed execution. Only the test expectation and scenario structure
+changed; the corrected four-test command exited 0. This assertion failure is
+not a new production regression or a substitute for the original bug's RED.
+
+The actual readiness result verifier accepted the final four parent test events
+`4/4 PASS`. Removing only the barrier parent's PASS event, while preserving its
+RUN, subtest PASS events and package PASS, returned 1 with
+`missing or duplicate event (run=1, terminal=0)`. This is focused enrollment
+proof, not the full 185-test readiness job.
+
+A separate focused command exited 0 for runtime typed deferral, lookup-error
+propagation and stale suppression; cloud typed deferral and stale suppression;
+search pre-write and finalize lookup errors; repo-dependency freshness and stale
+replay; and the non-counting claim/Fail policy units. Its log has SHA-256
+`09456e1e48cce84a7696fb3ba95b984029e079d6b1705183011aca884e55441d`.
+
+The preceding combined PostgreSQL command recorded individual PASS results for
+the identity Ack reclaim/replay fence, stale/fresh batch Ack orderings, duplicate
+terminal reprojection enqueue, the cross-snapshot projector scope fence, the
+active-A/pending-B epoch barrier and the loud epoch-miss sentinel. That command
+exited 1 solely on the corrected lease-test expectation described above; it is
+not reported as a whole-command pass. These unchanged control receipts remain
+applicable to their own subjects.

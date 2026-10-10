@@ -123,6 +123,29 @@ func TestContainerImageIdentityFirstGenerationServiceDispatchLive(t *testing.T) 
 			}
 			assertNoFirstGenerationReducerDeadLetters(t, ctx, db, pendingScope)
 			logFirstGenerationBarrierSnapshot(t, ctx, db, pendingScope, pendingGen, pendingID, mode.name+"_before_ack")
+			// Each dispatch mode must remain retryable past MaxAttempts without
+			// entering the pending handler or repeating unrelated ready work.
+			for cycle := 0; cycle < 3; cycle++ {
+				now = now.Add(time.Minute)
+				if err := service.Run(ctx); err != nil {
+					t.Fatalf("Service.Run deferred cycle %d: %v", cycle, err)
+				}
+				if status, class, attempts := firstGenerationBarrierOutcome(t, ctx, db, pendingID); status != "retrying" ||
+					class != reducercontract.GenerationActivationNotReadyFailureClass || attempts != 1 {
+					t.Fatalf("deferred cycle %d pending work = (%s, %s, %d), want retrying/not_ready/1",
+						cycle, status, class, attempts)
+				}
+				if status, _, attempts := firstGenerationBarrierOutcome(t, ctx, db, readyID); status != "succeeded" ||
+					attempts != 1 || *writes != 1 {
+					t.Fatalf("deferred cycle %d unrelated ready work = (%s, %d attempts, %d writes), want succeeded/1/1",
+						cycle, status, attempts, *writes)
+				}
+				if pendingHandlerCalls.Load() != 0 || readyHandlerCalls.Load() != 1 {
+					t.Fatalf("deferred cycle %d handler entries = (pending %d, ready %d), want 0/1",
+						cycle, pendingHandlerCalls.Load(), readyHandlerCalls.Load())
+				}
+				assertNoFirstGenerationReducerDeadLetters(t, ctx, db, pendingScope)
+			}
 			projectorQueue := NewProjectorQueue(SQLDB{DB: db}, projOwner, time.Minute)
 			if err := projectorQueue.Ack(ctx, projector.ScopeGenerationWork{
 				Scope:        scope.IngestionScope{ScopeID: pendingScope},
