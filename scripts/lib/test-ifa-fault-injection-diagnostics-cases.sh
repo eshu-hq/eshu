@@ -369,101 +369,42 @@ STUB
 		|| fail "timed-out graph manifest published a completeness marker"
 )
 
-test_ifa_fault_failure_artifact_contract() {
-	local workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
-	local needle
-	for needle in \
-		'run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/4"' \
-		'uses: actions/upload-artifact@v4' \
-		'name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure' \
-		'/tmp/ifa-fault-injection.*/graph-*.dump' \
-		'/tmp/ifa-fault-injection.*/graph-manifest.tsv' \
-		'/tmp/ifa-fault-injection.*/work-items.csv' \
-		'/tmp/ifa-fault-injection.*/gcp-facts.jsonl' \
-		'/tmp/ifa-fault-injection.*/fault-restart-backend.json' \
-		'/tmp/ifa-fault-injection.*/restart-watch-result' \
-		'/tmp/ifa-fault-injection.*/fault-restart-backend.json.restart-sentinel.trigger.json' \
-		'/tmp/ifa-fault-injection.*/backend-image.txt' \
-		'/tmp/ifa-fault-injection.*/backend-compose-config.json' \
-		'/tmp/ifa-fault-injection.*/backend-container.json' \
-		'/tmp/ifa-fault-injection.*/backend-runtime-image.json' \
-		'/tmp/ifa-fault-injection.*/backend-provenance.json' \
-		'/tmp/ifa-fault-injection.*/nornicdb-environment.txt' \
-		'/tmp/ifa-fault-injection.*/diagnostics-manifest.tsv' \
-		'/tmp/ifa-fault-injection.*/diagnostics-complete' \
-		'/tmp/ifa-fault-injection.*/current-cell' \
-		'/tmp/ifa-fault-injection.*/logs/*.log' \
-		"if: failure() && steps.fault_matrix.outcome == 'failure'" \
-		'if-no-files-found: error' \
-		'retention-days: 7'; do
-		rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
-			|| fail "fault workflow does not preserve diagnostic artifact: ${needle}"
-	done
-	# #6162 follow-up: a literal per-cell name here (instead of the glob above)
-	# would silently drop every OTHER cell's graph-<cell>.dump (expirelease,
-	# killworker, etc.) from the uploaded artifact.
-	if rg --fixed-strings --quiet -- '/tmp/ifa-fault-injection.*/graph-baseline.dump' "${workflow}"; then
-		fail "fault workflow pins a literal per-cell dump name again instead of the graph-*.dump glob"
-	fi
-	rg --fixed-strings --quiet -- 'FAULT_COMPOSE_PROJECT: eshu-ifa-fault-injection-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}' "${workflow}" \
-		|| fail "fault job does not pin a stable per-shard Compose project"
-	rg --fixed-strings --quiet -- 'docker compose -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml down -v' "${workflow}" \
-		|| fail "workflow teardown does not target the retained fault stack"
-	rg --fixed-strings --quiet -- 'name: Verify fault-injection diagnostic completeness' "${workflow}" \
-		|| fail "workflow does not fail closed when diagnostic collection is incomplete"
-	local verify_line upload_line teardown_line
-	verify_line="$(rg -n --fixed-strings -- 'name: Verify fault-injection diagnostic completeness' "${workflow}" | cut -d: -f1)"
-	upload_line="$(rg -n --fixed-strings -- 'name: Upload fault-injection diagnostics' "${workflow}" | cut -d: -f1)"
-	teardown_line="$(rg -n --fixed-strings -- 'name: Tear down Docker services' "${workflow}" | tail -1 | cut -d: -f1)"
-	[[ "${verify_line}" -lt "${upload_line}" && "${upload_line}" -lt "${teardown_line}" ]] \
-		|| fail "diagnostic verify/upload/teardown ordering is unsafe"
-
-	rg --fixed-strings --quiet -- 'ifa_fault_capture_failure_preserving_status "${status}"' "${script}" \
-		|| fail "cleanup does not use the executable exit-status-preservation seam"
-	rg --fixed-strings --quiet -- '"${use_compose:-0}" "${ESHU_POSTGRES_DSN:-}" "${bin_dir:-}"' "${script}" \
-		|| fail "cleanup does not pass the built graph-dump binary to failure diagnostics"
-	rg --fixed-strings --quiet -- 'docker compose -p "${compose_project}" -f "${compose_file}" logs --no-color' "${diagnostics_lib}" \
-		|| fail "failure diagnostics do not retain complete Compose service logs"
-	rg --fixed-strings --quiet -- 'COPY (SELECT work_item_id, stage, domain, scope_id, generation_id, status, attempt_count, failure_class, failure_message' "${diagnostics_lib}" \
-		|| fail "failure diagnostics do not retain durable work-item state"
-	local envelope_field
-	for envelope_field in fact_id scope_id generation_id fact_kind stable_fact_key schema_version \
-		collector_kind fencing_token source_confidence source_system source_fact_key source_uri \
-		source_record_id observed_at ingested_at is_tombstone payload; do
-		rg --fixed-strings --quiet -- "'${envelope_field}', ${envelope_field}" "${diagnostics_lib}" \
-			|| fail "failure diagnostics omit fact envelope field ${envelope_field}"
-	done
-	rg --fixed-strings --quiet -- "fact_kind IN ('gcp_cloud_resource', 'gcp_cloud_relationship')" "${diagnostics_lib}" \
-		|| fail "failure diagnostics do not retain the durable GCP fact inputs"
-	rg --fixed-strings --quiet -- 'backend_source_revision: "unavailable"' "${diagnostics_lib}" \
-		|| fail "failure diagnostics do not record unavailable backend source revision honestly"
-	rg --fixed-strings --quiet -- 'fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1' "${diagnostics_lib}" \
-		|| fail "failure diagnostics do not require the proven immutable backend index"
-	rg --fixed-strings --quiet -- 'config --format json' "${diagnostics_lib}" \
-		|| fail "diagnostics do not derive backend provenance from rendered Compose config"
-	rg --fixed-strings --quiet -- 'NORNICDB_(NO_AUTH|DATA_DIR|HTTP_PORT|BOLT_PORT|ASYNC_WRITES_ENABLED|' "${diagnostics_lib}" \
-		|| fail "NornicDB environment capture is not an explicit allowlist"
-	rg --fixed-strings --quiet -- 'command -v gtimeout' "${diagnostics_lib}" \
-		|| fail "bounded diagnostics do not support macOS coreutils"
-	rg --fixed-strings --quiet -- "perl -e 'alarm shift; exec @ARGV or exit 127'" "${diagnostics_lib}" \
-		|| fail "bounded diagnostics do not support stock macOS"
-	if rg --fixed-strings --quiet -- "rg '^NORNICDB_'" "${diagnostics_lib}"; then
-		fail "NornicDB environment capture reverted to an open prefix match"
-	fi
-	rg --fixed-strings --quiet -- "'go/internal/storage/cypher/fault/executor/*.go'" "${workflow}" \
-		|| fail "workflow does not trigger on every fault-executor module"
-	rg --fixed-strings --quiet -- '"go/internal/storage/cypher/fault/executor/*.go"' "${repo_root}/specs/ci-gates.v1.yaml" \
-		|| fail "CI registry does not trigger on every fault-executor module"
-}
+# shellcheck source=scripts/lib/test-ifa-fault-injection-artifact-contract-cases.sh
+source "${repo_root}/scripts/lib/test-ifa-fault-injection-artifact-contract-cases.sh"
 
 # test_ifa_fault_injection_go_mod_prewarm (#6162 follow-up): pre-warm the Go
 # module cache with the shared download-only retry helper between setup-go and
 # the first build/test step, so a dropped proxy stream surfaces here instead
 # of as a fault- or race-shaped red (#6075's failure mode; runs 34627429845,
 # 34007134864, 33551099795, 34370706054).
+ifa_fault_prewarm_step_has_retry() {
+	local workflow_text="$1" step
+	step="$(printf '%s\n' "${workflow_text}" | awk '
+		/^      - name: Pre-warm Go modules$/ { inside = 1; step = ""; next }
+		inside && /^      - name: / { inside = 0 }
+		inside { step = step $0 "\n" }
+		END { printf "%s", step }
+	')"
+	printf '%s\n' "${step}" | rg --quiet --fixed-strings --line-regexp -- '        run: scripts/ci/go-mod-download-retry.sh'
+}
+
+test_ifa_fault_prewarm_step_mutation() {
+	local good bad earlier_good_fault_missing
+	good=$'      - name: Pre-warm Go modules\n        if: ${{ selected }}\n        run: scripts/ci/go-mod-download-retry.sh\n      - name: Run unit tests'
+	bad=$'      - name: Pre-warm Go modules\n        if: ${{ selected }}\n      - name: Later step\n        run: scripts/ci/go-mod-download-retry.sh'
+	earlier_good_fault_missing=$'      - name: Pre-warm Go modules\n        run: scripts/ci/go-mod-download-retry.sh\n      - name: Run other job\n      - name: Pre-warm Go modules\n        if: ${{ selected }}\n      - name: Run fault unit tests'
+	ifa_fault_prewarm_step_has_retry "${good}" || fail "pre-warm step with queue condition was rejected"
+	if ifa_fault_prewarm_step_has_retry "${bad}"; then
+		fail "a later step cannot satisfy the pre-warm retry-helper contract"
+	fi
+	if ifa_fault_prewarm_step_has_retry "${earlier_good_fault_missing}"; then
+		fail "an earlier job's pre-warm cannot satisfy the fault job's pre-warm contract"
+	fi
+}
+
 test_ifa_fault_injection_go_mod_prewarm() {
 	local workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
-	local setup_line prewarm_line unit_test_line shard_line prewarm_run_line
+	local setup_line prewarm_line unit_test_line shard_line
 	# fault-injection is the LAST Go-building job, so "Set up Go" / "Pre-warm Go
 	# modules" last-match here (same idiom as "Tear down Docker services"
 	# below); `|| true` stops pipefail turning a no-match rg into a set -e
@@ -476,12 +417,13 @@ test_ifa_fault_injection_go_mod_prewarm() {
 		|| fail "fault-injection job is missing one of: Set up Go / Pre-warm Go modules / tagged unit tests / matrix shard steps"
 	[[ "${setup_line}" -lt "${prewarm_line}" && "${prewarm_line}" -lt "${unit_test_line}" && "${unit_test_line}" -lt "${shard_line}" ]] \
 		|| fail "fault-injection job does not pre-warm Go modules between setup-go and its first go build/test step"
-	prewarm_run_line="$(sed -n "$((prewarm_line + 1))p" "${workflow}")"
-	[[ "${prewarm_run_line}" == *'run: scripts/ci/go-mod-download-retry.sh'* ]] \
-		|| fail "Pre-warm Go modules step does not run the shared retry helper (got: ${prewarm_run_line})"
+	ifa_fault_prewarm_step_has_retry "$(cat "${workflow}")" \
+		|| fail "Pre-warm Go modules step does not run the shared retry helper"
 }
 
 run_ifa_fault_injection_diagnostics_cases() {
+	test_ifa_fault_upload_condition_mutations
+	test_ifa_fault_prewarm_step_mutation
 	test_ifa_fault_capture_digest_reads_graph_once
 	test_ifa_fault_graph_manifest_describes_retained_bytes
 	test_ifa_fault_restart_failure_captures_unreachable_graph_dump
