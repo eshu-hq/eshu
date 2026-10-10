@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts/prefilter"
 )
 
 var (
@@ -57,6 +58,14 @@ func classifyHCLConfigFile(relativePath string) hclConfigFileKind {
 }
 
 func extractHCLConfigAssetRows(repoName string, files []querycontract.FileContent) []map[string]any {
+	return extractHCLConfigAssetRowsWith(hclScanPrefilters, repoName, files)
+}
+
+// extractHCLConfigAssetRowsWith runs the HCL scans, skipping each one whose
+// prefilter proves the file cannot match. The prefilters are a parameter so a
+// test can substitute deliberately wrong ones and watch the equality proof
+// fail; production always passes hclScanPrefilters.
+func extractHCLConfigAssetRowsWith(prefilters *prefilter.Set, repoName string, files []querycontract.FileContent) []map[string]any {
 	rows := make([]map[string]any, 0)
 	seen := map[string]struct{}{}
 	for _, file := range files {
@@ -68,53 +77,69 @@ func extractHCLConfigAssetRows(repoName string, files []querycontract.FileConten
 		default:
 			continue
 		}
-		localConfigAssignments := extractLocalConfigAssignments(file.RelativePath, file.Content)
-		for _, match := range terragruntDependencyConfigPathPattern.FindAllStringSubmatch(file.Content, -1) {
-			if len(match) < 2 {
-				continue
-			}
-			configPath := NormalizeConfigArtifactExpression(match[1], localConfigAssignments)
-			if configPath == "" {
-				continue
-			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_dependency_config_path")
+		plan := planHCLScans(prefilters, file.Content)
+		var localConfigAssignments map[string]string
+		if plan.needsLocalAssignments() {
+			localConfigAssignments = extractLocalConfigAssignments(file.RelativePath, file.Content)
 		}
-		for _, match := range terragruntReadConfigPattern.FindAllStringSubmatch(file.Content, -1) {
-			configPath := normalizeTerragruntParentConfigPath(match)
-			if configPath == "" {
-				continue
+		if plan.dependencyConfigPath {
+			for _, match := range terragruntDependencyConfigPathPattern.FindAllStringSubmatch(file.Content, -1) {
+				if len(match) < 2 {
+					continue
+				}
+				configPath := NormalizeConfigArtifactExpression(match[1], localConfigAssignments)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_dependency_config_path")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_read_config")
 		}
-		for _, match := range terragruntIncludePathPattern.FindAllStringSubmatch(file.Content, -1) {
-			configPath := normalizeTerragruntParentConfigPath(match)
-			if configPath == "" {
-				continue
+		if plan.readConfig {
+			for _, match := range terragruntReadConfigPattern.FindAllStringSubmatch(file.Content, -1) {
+				configPath := normalizeTerragruntParentConfigPath(match)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_read_config")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_include_path")
 		}
-		for _, match := range terragruntFindInParentFoldersPattern.FindAllStringSubmatch(file.Content, -1) {
-			configPath := normalizeTerragruntParentConfigPath(match)
-			if configPath == "" {
-				continue
+		if plan.includePath {
+			for _, match := range terragruntIncludePathPattern.FindAllStringSubmatch(file.Content, -1) {
+				configPath := normalizeTerragruntParentConfigPath(match)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_include_path")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_find_in_parent_folders")
 		}
-		for _, configPath := range extractConfigAssetFunctionPaths(file.Content, localConfigAssignments) {
-			if configPath == "" {
-				continue
+		if plan.findInParentFolders {
+			for _, match := range terragruntFindInParentFoldersPattern.FindAllStringSubmatch(file.Content, -1) {
+				configPath := normalizeTerragruntParentConfigPath(match)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_find_in_parent_folders")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "local_config_asset")
 		}
-		for _, match := range localTerraformModuleSourcePattern.FindAllStringSubmatch(file.Content, -1) {
-			if len(match) < 2 {
-				continue
+		if plan.configFunction {
+			for _, configPath := range extractConfigAssetFunctionPaths(file.Content, localConfigAssignments) {
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "local_config_asset")
 			}
-			configPath := NormalizeConfigArtifactExpression(match[1], localConfigAssignments)
-			if configPath == "" {
-				continue
+		}
+		if plan.moduleSource {
+			for _, match := range localTerraformModuleSourcePattern.FindAllStringSubmatch(file.Content, -1) {
+				if len(match) < 2 {
+					continue
+				}
+				configPath := NormalizeConfigArtifactExpression(match[1], localConfigAssignments)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terraform_module_source_path")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terraform_module_source_path")
 		}
 	}
 	return rows
@@ -192,7 +217,7 @@ func extractLocalConfigAssignments(relativePath, content string) map[string]stri
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if !inLocals {
-			if !strings.HasPrefix(trimmed, "locals") || !strings.Contains(trimmed, "{") {
+			if !strings.HasPrefix(trimmed, localsBlockKeyword) || !strings.Contains(trimmed, "{") {
 				continue
 			}
 			inLocals = true
