@@ -46,20 +46,24 @@ that another live agent holds is not yours; see
    there. Run the gate's own command instead:
 
    ```bash
+   # Run this block as one script. The trap fires when that shell exits.
    BASE_TREE=$(mktemp -d)
+   trap 'git worktree remove --force "$BASE_TREE"' EXIT
    git worktree add --detach "$BASE_TREE" "$NEW_BASE"
    # read the gate's local.command in specs/ci-gates.v1.yaml; run it from the
    # repo root of "$BASE_TREE", then from the branch worktree
-   git worktree remove --force "$BASE_TREE"
    ```
 
-   Remove `$BASE_TREE` even when the gate fails. If the gate runs `golangci-lint`,
+   The trap removes `$BASE_TREE` even when the gate fails. Set `NEW_BASE` in the
+   same script, because a new shell does not keep it. If the gate runs `golangci-lint`,
    build the custom plugins in `$BASE_TREE` first; see
    [the custom lint plugins](../../../../docs/internal/agent-verification-details.md#the-custom-lint-plugins).
 
    Do not run a gate twice when the registry marks it `ci-heavy` or CI-only, or
-   when it needs Docker or fixed host ports. Read the failing step in the CI log
-   and compare it with the same step in the base run.
+   when it needs Docker or fixed host ports. Find the base commit's run with
+   `gh run list --commit "$NEW_BASE"`. Read its failing step with
+   `gh run view <run-id> --log-failed`. Compare that step with the same step in
+   the branch's run.
 
    Compare the failing step and its message on both sides:
    - The same step and message on the base: `INHERITED`. Record the gate, its
