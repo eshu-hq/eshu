@@ -411,10 +411,10 @@ golden_aggregate_counts_compose_snapshot \
 	"${golden_relationship_runtime_snapshot}" \
 	"${golden_query_runtime_snapshot}"
 
+golden_documentation_run_proof
+
 log "seed post-drain dead-letter query fixture"
 seed_golden_dead_letter_fixture
-
-golden_documentation_run_proof
 
 log "start eshu-mcp-server (http) for MCP query truth"
 ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \

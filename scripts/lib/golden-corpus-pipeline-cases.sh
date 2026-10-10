@@ -159,6 +159,7 @@ require_in "explicit metrics instance id" "${metrics_source_lib}" \
 require_in "credential-free metrics tenant" "${metrics_source_lib}" 'tenant_id: "golden-corpus"'
 bash "${repo_root}/scripts/lib/test-golden-corpus-cassette-replay.sh" || fail "cassette replay helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-service-changed-since.sh" || fail "service changed-since helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-documentation-order.sh" || fail "documentation drain ordering tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-metrics-source.sh" || fail "metrics source helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-relationship-evidence.sh" || fail "relationship evidence helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-aggregate-counts.sh" || fail "aggregate count helper tests failed"

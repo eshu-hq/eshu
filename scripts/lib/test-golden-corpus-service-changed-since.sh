@@ -97,7 +97,7 @@ jq \
 	--arg retired "${golden_service_changed_since_deployment_retired_sentinel}" \
 	--arg superseded "${golden_service_changed_since_deployment_superseded_sentinel}" \
 	'.composition_marker = "preserved"
-	 | (.query_shapes.mcp.get_service_changed_since.required_json_object_matches["categories[]"][]
+	 | (.query_shapes.mcp.get_service_changed_since.required_json_object_matches["data.categories[]"][]
 	    | select(.category == "deployment").counts) = {
 	       added: $added,
 	       updated: $updated,
@@ -110,9 +110,9 @@ golden_service_changed_since_compose_snapshot "${input_snapshot}" "${output_snap
 jq -e '
   .composition_marker == "preserved"
   and .query_shapes.mcp.get_service_changed_since.arguments.since_generation_id == "service-gen:prior"
-  and .query_shapes.mcp.get_service_changed_since.required_json_values.since_generation_id == "service-gen:prior"
-  and .query_shapes.mcp.get_service_changed_since.required_json_values.current_active_generation_id == "service-gen:current"
-  and (.query_shapes.mcp.get_service_changed_since.required_json_object_matches["categories[]"][]
+  and .query_shapes.mcp.get_service_changed_since.required_json_values["data.since_generation_id"] == "service-gen:prior"
+  and .query_shapes.mcp.get_service_changed_since.required_json_values["data.current_active_generation_id"] == "service-gen:current"
+  and (.query_shapes.mcp.get_service_changed_since.required_json_object_matches["data.categories[]"][]
        | select(.category == "deployment").counts) == {
          added: 0,
          updated: 0,
@@ -123,7 +123,7 @@ jq -e '
 ' "${output_snapshot}" >/dev/null || fail "runtime snapshot composition lost a prior transform or generation ID"
 
 missing_sentinels_snapshot="${case_dir}/missing-sentinels-input.json"
-jq '(.query_shapes.mcp.get_service_changed_since.required_json_object_matches["categories[]"][]
+jq '(.query_shapes.mcp.get_service_changed_since.required_json_object_matches["data.categories[]"][]
      | select(.category == "deployment").counts.updated) = 0' \
 	"${repo_root}/testdata/golden/e2e-20repo-snapshot.json" >"${missing_sentinels_snapshot}"
 if (golden_service_changed_since_compose_snapshot \
