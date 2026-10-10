@@ -87,7 +87,7 @@ func (s ContentStore) UpsertFileBatch(
 			templateDialect,
 			iacRelevant,
 			indexedAt,
-			generationID,
+			contentFileTagParam(generationID),
 		); err != nil {
 			return fmt.Errorf("upsert content_files for %q: %w", record.Path, err)
 		}

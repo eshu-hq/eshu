@@ -3,6 +3,8 @@
 
 package postgres
 
+import "strings"
+
 // Batch-size and column-count constants for the content writer's multi-row
 // INSERT statements. The product must stay under the Postgres 65535
 // parameter limit: 500 file rows × 12 columns = 6000 params; 300 entity
@@ -64,6 +66,19 @@ SET commit_sha = EXCLUDED.commit_sha,
     indexed_at = EXCLUDED.indexed_at,
     generation_id = EXCLUDED.generation_id
 `
+
+// contentFileTagParam is the single blank-to-NULL rule for the
+// content_files generation tag (#7760). Both write paths (the batched
+// ContentWriter path and the single-row ContentStore path) bind through
+// it: a blank writing generation stores NULL, not an empty string. Both
+// read dirty (fail-safe), but only NULL stays eligible for the
+// migration-169 backfill guard.
+func contentFileTagParam(generationID string) any {
+	if strings.TrimSpace(generationID) == "" {
+		return nil
+	}
+	return generationID
+}
 
 // deleteContentFileQuery removes one file row for a tombstoned record.
 // The matching content_file_references rows are removed separately via
