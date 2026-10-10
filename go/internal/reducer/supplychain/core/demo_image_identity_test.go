@@ -106,7 +106,7 @@ func TestBuildSupplyChainImpactFindingsDemoImageIdentityHop(t *testing.T) {
 func demoImageIdentityCVEFact(factID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityCVEFactKind,
+		FactKind: chain.VulnerabilityCVEFactKind,
 		Payload: map[string]any{
 			"cve_id":         demoImageIdentityCVEID,
 			"advisory_id":    demoImageIdentityAdvisoryID,
@@ -121,7 +121,7 @@ func demoImageIdentityCVEFact(factID string) facts.Envelope {
 func demoImageIdentityAffectedPackageFact(factID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":            demoImageIdentityCVEID,
 			"advisory_id":       demoImageIdentityAdvisoryID,

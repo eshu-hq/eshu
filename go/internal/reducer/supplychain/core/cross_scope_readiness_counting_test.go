@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
@@ -261,7 +262,7 @@ func TestSupplyChainImpactCountsProducerFactsFromTheResolvedDigestStage(t *testi
 
 	osPackage := facts.Envelope{
 		FactID:       "dpkg-os-openssl-5709",
-		FactKind:     facts.VulnerabilityOSPackageFactKind,
+		FactKind:     chain.VulnerabilityOSPackageFactKind,
 		ScopeID:      scanScopeID,
 		GenerationID: scanGenerationID,
 		Payload: map[string]any{

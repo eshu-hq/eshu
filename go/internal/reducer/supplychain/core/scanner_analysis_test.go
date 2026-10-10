@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 )
 
@@ -60,7 +61,7 @@ func TestBuildSupplyChainImpactFindingsAnchorsOSPackageSubjectDigestOnScannerAna
 		),
 		{
 			FactID:       "dpkg-os-openssl-digest",
-			FactKind:     facts.VulnerabilityOSPackageFactKind,
+			FactKind:     chain.VulnerabilityOSPackageFactKind,
 			ScopeID:      scopeID,
 			GenerationID: generationID,
 			Payload: map[string]any{

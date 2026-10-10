@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -142,7 +143,7 @@ func TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope(t *t
 
 	osPackage := facts.Envelope{
 		FactID:       "dpkg-os-openssl-crossscope",
-		FactKind:     facts.VulnerabilityOSPackageFactKind,
+		FactKind:     chain.VulnerabilityOSPackageFactKind,
 		ScopeID:      scanScopeID,
 		GenerationID: scanGenerationID,
 		Payload: map[string]any{

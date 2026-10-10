@@ -136,7 +136,7 @@ func classifySupplyChainImpactPackage(
 		finding.PURL = payloadcore.FirstNonBlank(osPackage.PURL, finding.PURL)
 		finding.ObservedVersion = payloadcore.FirstNonBlank(osPackage.InstalledVersion, finding.ObservedVersion)
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.FactID)
-		finding.EvidencePath = append(finding.EvidencePath, facts.VulnerabilityOSPackageFactKind)
+		finding.EvidencePath = append(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 		// An os_package fact's ScopeID is an opaque scan-target locator, never a
 		// sha256 digest — it MUST NOT stand in for SubjectDigest. The real digest
 		// only exists on the sibling scanner_worker.analysis fact the same

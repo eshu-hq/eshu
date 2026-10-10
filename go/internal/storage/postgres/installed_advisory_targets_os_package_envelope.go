@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -226,7 +227,7 @@ func osPackageAdvisoryFactEnvelopeFromTarget(target workflow.OSPackageAdvisoryTa
 
 	return facts.Envelope{
 		FactID:       factID,
-		FactKind:     facts.VulnerabilityOSPackageFactKind,
+		FactKind:     chain.VulnerabilityOSPackageFactKind,
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Payload:      payload,

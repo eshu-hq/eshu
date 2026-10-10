@@ -12,10 +12,10 @@ import (
 
 // candidateFactKinds are the fact kinds triggerFact ever returns true for.
 var candidateFactKinds = []string{
-	facts.VulnerabilityCVEFactKind,
-	facts.VulnerabilityAffectedPackageFactKind,
-	facts.VulnerabilityEPSSScoreFactKind,
-	facts.VulnerabilityKnownExploitedFactKind,
+	chain.VulnerabilityCVEFactKind,
+	chain.VulnerabilityAffectedPackageFactKind,
+	chain.VulnerabilityEPSSScoreFactKind,
+	chain.VulnerabilityKnownExploitedFactKind,
 	chain.VulnerabilitySuppressionFactKind,
 	facts.SecurityAlertRepositoryAlertFactKind,
 	chain.PackageRegistryPackageFactKind,
@@ -55,10 +55,10 @@ func BuildSupplyChainImpactReducerIntent(
 
 func triggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
-	case facts.VulnerabilityCVEFactKind,
-		facts.VulnerabilityAffectedPackageFactKind,
-		facts.VulnerabilityEPSSScoreFactKind,
-		facts.VulnerabilityKnownExploitedFactKind,
+	case chain.VulnerabilityCVEFactKind,
+		chain.VulnerabilityAffectedPackageFactKind,
+		chain.VulnerabilityEPSSScoreFactKind,
+		chain.VulnerabilityKnownExploitedFactKind,
 		chain.VulnerabilitySuppressionFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,
 		chain.PackageRegistryPackageFactKind,

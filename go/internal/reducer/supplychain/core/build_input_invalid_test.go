@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
@@ -42,7 +43,7 @@ func TestBuildSupplyChainImpactFindingsQuarantinesOSPackageMissingInstalledVersi
 	// fact is the missing required field.
 	malformed := facts.Envelope{
 		FactID:   "malformed-os-package",
-		FactKind: facts.VulnerabilityOSPackageFactKind,
+		FactKind: chain.VulnerabilityOSPackageFactKind,
 		ScopeID:  "image://registry.example/malformed-app@sha256:deadbeef",
 		Payload: map[string]any{
 			// "installed_version_raw" intentionally absent.
@@ -131,7 +132,7 @@ func TestBuildSupplyChainImpactFindingsQuarantinesOSPackageMissingInstalledVersi
 		t.Fatalf("RuntimeReachability = %q, want image_os_package (the valid os_package evidence, not the malformed sibling)", got.RuntimeReachability)
 	}
 	path := strings.Join(got.EvidencePath, " -> ")
-	if !strings.Contains(path, facts.VulnerabilityOSPackageFactKind) {
+	if !strings.Contains(path, chain.VulnerabilityOSPackageFactKind) {
 		t.Fatalf("EvidencePath = %#v, want os package evidence", got.EvidencePath)
 	}
 }

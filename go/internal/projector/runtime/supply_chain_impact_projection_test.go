@@ -27,8 +27,8 @@ func TestBuildProjectionQueuesSupplyChainImpactForVulnerabilityEvidence(t *testi
 		FactID:        "fact-cve",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
-		FactKind:      facts.VulnerabilityCVEFactKind,
-		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+		FactKind:      chain.VulnerabilityCVEFactKind,
+		SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
 		SourceRef: facts.Ref{
 			SourceSystem: "vulnerability_intelligence",
 		},
@@ -203,8 +203,8 @@ func TestBuildProjectionSkipsSupplyChainImpactForSnapshotOnlyEvidence(t *testing
 		FactID:        "snapshot",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
-		FactKind:      facts.VulnerabilitySourceSnapshotFactKind,
-		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+		FactKind:      chain.VulnerabilitySourceSnapshotFactKind,
+		SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
 	}})
 	if err != nil {
 		t.Fatalf("buildProjection() error = %v, want nil", err)

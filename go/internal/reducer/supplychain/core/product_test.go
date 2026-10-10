@@ -75,7 +75,7 @@ func TestBuildSupplyChainImpactFindingsDerivesProductImpactFromSBOMCPE(t *testin
 		t.Fatalf("ObservedVersion = %q, want 1.4.2 from SBOM component", got.ObservedVersion)
 	}
 	for _, want := range []string{
-		facts.VulnerabilityAffectedProductFactKind,
+		chain.VulnerabilityAffectedProductFactKind,
 		chain.SBOMComponentFactKind,
 		reducercontract.SBOMAttestationAttachmentFactKind,
 		reducercontract.ContainerImageIdentityFactKind,
@@ -161,7 +161,7 @@ func TestBuildSupplyChainImpactFindingsRanksPackageEvidenceAboveProductEvidence(
 	if got.ProductCriteria != "" {
 		t.Fatalf("ProductCriteria = %q, want blank when package evidence wins", got.ProductCriteria)
 	}
-	if !strings.Contains(strings.Join(got.EvidencePath, " -> "), facts.VulnerabilityAffectedPackageFactKind) {
+	if !strings.Contains(strings.Join(got.EvidencePath, " -> "), chain.VulnerabilityAffectedPackageFactKind) {
 		t.Fatalf("EvidencePath = %#v, want affected_package evidence", got.EvidencePath)
 	}
 }
@@ -244,7 +244,7 @@ func vulnerabilityAffectedProductFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedProductFactKind,
+		FactKind: chain.VulnerabilityAffectedProductFactKind,
 		Payload: map[string]any{
 			"cve_id":            cveID,
 			"criteria":          criteria,

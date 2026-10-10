@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // This file is the fast, Docker-free framework proof for the B-7
@@ -95,7 +96,7 @@ func TestGoldenCassetteDebianOSPackageChainSynthesizesFinding(t *testing.T) {
 		t.Fatalf("FixedVersionSource = %q, want debian", got.FixedVersionSource)
 	}
 	path := strings.Join(got.EvidencePath, " -> ")
-	if !strings.Contains(path, facts.VulnerabilityOSPackageFactKind) {
+	if !strings.Contains(path, chain.VulnerabilityOSPackageFactKind) {
 		t.Fatalf("EvidencePath = %#v, want os package evidence", got.EvidencePath)
 	}
 
@@ -155,7 +156,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 	return []facts.Envelope{
 		{
 			FactID:   "debian-cve-scd-00010",
-			FactKind: facts.VulnerabilityCVEFactKind,
+			FactKind: chain.VulnerabilityCVEFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"collector_instance_id": "collector-vulnintel-scd",
@@ -178,7 +179,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 		},
 		{
 			FactID:   "debian-affected-package-scd-00010",
-			FactKind: facts.VulnerabilityAffectedPackageFactKind,
+			FactKind: chain.VulnerabilityAffectedPackageFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"cve_id":            "CVE-2026-00010",
@@ -193,7 +194,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 		},
 		{
 			FactID:   "debian-os-package-scd-00010",
-			FactKind: facts.VulnerabilityOSPackageFactKind,
+			FactKind: chain.VulnerabilityOSPackageFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"distro":                 "debian",
@@ -209,7 +210,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 		},
 		{
 			FactID:   "debian-epss-scd-00010",
-			FactKind: facts.VulnerabilityEPSSScoreFactKind,
+			FactKind: chain.VulnerabilityEPSSScoreFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"cve_id":      "CVE-2026-00010",
@@ -220,7 +221,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 		},
 		{
 			FactID:   "debian-kev-scd-00010",
-			FactKind: facts.VulnerabilityKnownExploitedFactKind,
+			FactKind: chain.VulnerabilityKnownExploitedFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"cve_id":                        "CVE-2026-00010",
@@ -239,7 +240,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 		},
 		{
 			FactID:   "debian-reference-scd-00010",
-			FactKind: facts.VulnerabilityReferenceFactKind,
+			FactKind: chain.VulnerabilityReferenceFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"url":                 "https://example.com/advisories/dsa-2026-00010",
@@ -252,7 +253,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 		},
 		{
 			FactID:   "debian-source-snapshot-scd-00010",
-			FactKind: facts.VulnerabilitySourceSnapshotFactKind,
+			FactKind: chain.VulnerabilitySourceSnapshotFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"source":                 "debian",
@@ -273,7 +274,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 			// affectedPackages entries). Still schema-valid and still raises
 			// per-kind coverage.
 			FactID:   "debian-affected-product-scd-00010",
-			FactKind: facts.VulnerabilityAffectedProductFactKind,
+			FactKind: chain.VulnerabilityAffectedProductFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"cve_id":            "CVE-2026-00010",
@@ -289,7 +290,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 			// raises kind coverage but joins no finding (per the task's
 			// explicit "do not force-fit" allowance for the two Go kinds).
 			FactID:   "debian-go-module-evidence-scd-00010",
-			FactKind: facts.VulnerabilityGoModuleEvidenceFactKind,
+			FactKind: chain.VulnerabilityGoModuleEvidenceFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"repository_id":    "repository:supply-chain-demo/example-go-service",
@@ -304,7 +305,7 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 			// Standalone, same rationale as go_module_evidence above: no
 			// matching go advisory/module pair exists in this cassette.
 			FactID:   "debian-go-call-reachability-scd-00010",
-			FactKind: facts.VulnerabilityGoCallReachabilityFactKind,
+			FactKind: chain.VulnerabilityGoCallReachabilityFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"repository_id":      "repository:supply-chain-demo/example-go-service",
@@ -328,11 +329,11 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 			},
 		},
 		{
-			// Standalone and schema-less (facts.VulnerabilityWarningFactKind is
+			// Standalone and schema-less (chain.VulnerabilityWarningFactKind is
 			// registry-only per go/internal/ifa/catalog_seed.go); no case in
 			// addSupplyChainImpactIndexEntry consumes it.
 			FactID:   "debian-warning-scd-00010",
-			FactKind: facts.VulnerabilityWarningFactKind,
+			FactKind: chain.VulnerabilityWarningFactKind,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"code":    "advisory_source_unavailable",

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
@@ -81,7 +82,7 @@ func crossScopeReadinessProofScopeFacts() []facts.Envelope {
 	return []facts.Envelope{
 		{
 			FactID:   "cve-6093",
-			FactKind: facts.VulnerabilityCVEFactKind,
+			FactKind: chain.VulnerabilityCVEFactKind,
 			Payload: map[string]any{
 				"cve_id":      "CVE-2026-6093",
 				"advisory_id": "CVE-2026-6093",
@@ -91,7 +92,7 @@ func crossScopeReadinessProofScopeFacts() []facts.Envelope {
 		},
 		{
 			FactID:   "affected-6093",
-			FactKind: facts.VulnerabilityAffectedPackageFactKind,
+			FactKind: chain.VulnerabilityAffectedPackageFactKind,
 			Payload: map[string]any{
 				"cve_id":            "CVE-2026-6093",
 				"advisory_id":       "CVE-2026-6093",

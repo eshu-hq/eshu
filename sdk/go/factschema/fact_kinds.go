@@ -220,10 +220,11 @@ const (
 	FactKindScannerWorkerWarning = "scanner_worker.warning"
 	// The vulnerability family fact-kind strings are DOTTED, like the incident
 	// family. The dots are part of the wire kind the collector already emits
-	// (go/internal/facts.Vulnerability*FactKind); the values here MATCH those
-	// wire strings byte-for-byte and never invent or rename the namespace.
-	// TestFactSchemaKindsMatchWireFactKinds (reducer side) asserts each stays
-	// byte-equal to its facts.*FactKind counterpart. vulnerability.suppression
+	// (go/internal/facts/supply/chain.VulnerabilityCVEFactKind and siblings);
+	// the values here MATCH those wire strings byte-for-byte and never invent
+	// or rename the namespace. TestFactSchemaKindsMatchWireFactKinds (reducer
+	// side) asserts each stays byte-equal to its chain.*FactKind counterpart.
+	// vulnerability.suppression
 	// belongs to the SEPARATE vulnerability_suppression registry family and is
 	// not declared here.
 

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
@@ -29,7 +30,7 @@ func osPackageFindingRowForRuntimeContext() impact.FindingRow {
 		SubjectDigest: "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789ab",
 		Status:        "affected_exact",
 		MatchReason:   "dpkg_exact_affected_version",
-		EvidencePath:  []string{facts.VulnerabilityOSPackageFactKind, facts.ScannerWorkerAnalysisFactKind},
+		EvidencePath:  []string{chain.VulnerabilityOSPackageFactKind, facts.ScannerWorkerAnalysisFactKind},
 	}
 }
 

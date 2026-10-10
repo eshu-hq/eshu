@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
@@ -77,7 +78,7 @@ func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) corre
 // input_invalid dead-letter.
 func supplyChainImpactManifestDependencyPackage(envelope facts.Envelope) (supplychainmodel.AffectedPackage, bool) {
 	switch envelope.FactKind {
-	case facts.VulnerabilityAffectedPackageFactKind:
+	case chain.VulnerabilityAffectedPackageFactKind:
 		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)
 		if err != nil {
 			return supplychainmodel.AffectedPackage{}, false

@@ -118,16 +118,16 @@ func awsPackOdu() familyodu.CatalogOdu {
 // vulnerability.warning kind are carried separately below so their ownership
 // shapes remain explicit.
 var vulnFamilySchemaBackedKinds = []string{
-	facts.VulnerabilityOSPackageFactKind,
-	facts.VulnerabilityCVEFactKind,
-	facts.VulnerabilityAffectedPackageFactKind,
-	facts.VulnerabilityAffectedProductFactKind,
-	facts.VulnerabilityEPSSScoreFactKind,
-	facts.VulnerabilityKnownExploitedFactKind,
-	facts.VulnerabilityGoModuleEvidenceFactKind,
-	facts.VulnerabilityGoCallReachabilityFactKind,
-	facts.VulnerabilityReferenceFactKind,
-	facts.VulnerabilitySourceSnapshotFactKind,
+	chain.VulnerabilityOSPackageFactKind,
+	chain.VulnerabilityCVEFactKind,
+	chain.VulnerabilityAffectedPackageFactKind,
+	chain.VulnerabilityAffectedProductFactKind,
+	chain.VulnerabilityEPSSScoreFactKind,
+	chain.VulnerabilityKnownExploitedFactKind,
+	chain.VulnerabilityGoModuleEvidenceFactKind,
+	chain.VulnerabilityGoCallReachabilityFactKind,
+	chain.VulnerabilityReferenceFactKind,
+	chain.VulnerabilitySourceSnapshotFactKind,
 }
 
 // vulnPackOdu carries one valid fixturepack payload per schema-backed
@@ -166,7 +166,7 @@ func vulnPackOdu() familyodu.CatalogOdu {
 	})
 	factsForOdu = append(factsForOdu, facts.Envelope{
 		ScopeID:  "vulnerability_intelligence:scanned-image",
-		FactKind: facts.VulnerabilityWarningFactKind,
+		FactKind: chain.VulnerabilityWarningFactKind,
 		Payload: map[string]any{
 			"code":    "advisory_source_unavailable",
 			"message": "advisory source temporarily unavailable during collection",

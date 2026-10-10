@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -119,5 +120,5 @@ func TestSupplyChainImpactHandlerLeavesRepositoryBlankWhenImageIdentitySourceRep
 	}
 	assertNotContainsString(t, got.EvidenceFactIDs, "identity-repo-anchor-ambiguous")
 	assertNotContainsString(t, got.EvidencePath, reducercontract.ContainerImageIdentityFactKind)
-	assertContainsString(t, got.EvidencePath, facts.VulnerabilityOSPackageFactKind)
+	assertContainsString(t, got.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 }

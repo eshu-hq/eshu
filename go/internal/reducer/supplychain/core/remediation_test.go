@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // TestBuildSupplyChainImpactFindingsRemediationDirectUpgradeAllowed proves that
@@ -428,7 +429,7 @@ func vulnerabilityAffectedPackageNoFixedVersionFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":       cveID,
 			"advisory_id":  cveID,
@@ -464,7 +465,7 @@ func multiSourceAffectedPackageFact(
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		FactKind: chain.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":         cveID,
 			"package_id":     packageID,

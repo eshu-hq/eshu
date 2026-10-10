@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestAnalyzerEmitsAnalysisCoverageForSupportedImageTarget(t *testing.T) {
@@ -80,7 +81,7 @@ func TestAnalyzerEmitsUnsupportedEvidenceForTagOnlyImageTarget(t *testing.T) {
 	if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {
 		t.Fatalf("ValidateFactOutput() error = %v, want nil", err)
 	}
-	if got := countFactsByKind(result.Output.Facts, facts.VulnerabilityOSPackageFactKind); got != 0 {
+	if got := countFactsByKind(result.Output.Facts, chain.VulnerabilityOSPackageFactKind); got != 0 {
 		t.Fatalf("os package facts = %d, want 0 when image digest identity is missing", got)
 	}
 	warning := firstFactByKind(t, result.Output.Facts, facts.ScannerWorkerWarningFactKind)
