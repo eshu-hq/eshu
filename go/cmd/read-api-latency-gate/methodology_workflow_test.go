@@ -118,7 +118,7 @@ func TestMethodologyScaleDeadlineContainsObservedWork(t *testing.T) {
 	if err := json.Unmarshal(fixtureBytes, &observed); err != nil {
 		t.Fatal(err)
 	}
-	if observed.SourceURL != fmt.Sprintf("https://github.com/eshu-hq/eshu/actions/runs/%d/jobs/%d", observed.RunID, observed.JobID) || len(observed.HeadSHA) != 40 {
+	if observed.SourceURL != fmt.Sprintf("https://github.com/eshu-hq/eshu/actions/runs/%d/job/%d", observed.RunID, observed.JobID) || len(observed.HeadSHA) != 40 {
 		t.Fatal("observed hosted run has no stable public identity")
 	}
 	parseTime := func(value string) time.Time {
