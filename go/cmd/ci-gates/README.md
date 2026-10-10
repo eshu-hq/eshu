@@ -292,6 +292,34 @@ validate those workflow arms statically; `TestStillRunningCodeMatchesAwaitContra
 and `TestGateCancelledCodeMatchesAwaitContract` pin the mirrors against this
 package's constants.
 
+### queue-select
+
+```bash
+ci-gates queue-select \
+  --registry specs/ci-gates.v1.yaml \
+  --trusted-registry /tmp/default-branch-ci-gates.v1.yaml \
+  --repo-root . --repo eshu-hq/eshu --base-ref main \
+  --merge-group-branch gh-readonly-queue/main/pr-42-<base-sha> \
+  --head-sha <merge-group-commit> --workflow test.yml \
+  [--job <registry-ci-job-or-concrete-check-name>]
+```
+
+Returns one JSON object: `{"selected":true,"jobs":["go-core"],"gates":["go-build"],"truncated":false}`.
+`jobs` contains registry `ci.job` identities, including a matrix parent. `--job`
+narrows the result by that identity or a concrete `ci.check_names` entry.
+An unselected but known workflow returns `selected:false` with empty arrays.
+Unknown workflow or job ownership exits nonzero, as do an empty or unreadable
+compare and a malformed queue branch.
+
+The selector shares `await`'s GitHub compare and fixed base SHA from the queue
+branch. It matches both names of a renamed file. The optional trusted registry
+unions its selected rows with the head registry, so an unmerged registry edit
+cannot remove a check required by the default-branch publisher. A compare at
+the API's 300-file cap, an edit to this workflow file, or an edit to the gate
+registry selects every gate owned by the requested workflow. Both blocking and
+advisory CI rows count, including gates with no local command. The command
+selects only; it does not run or await jobs.
+
 ### contexts
 
 ```bash
@@ -371,8 +399,8 @@ and changes nothing.
 
 This command owns CLI parsing, Git/GitHub boundary calls, polling, and output
 formatting. Selection, required-gate evaluation, validation, and glob matching
-live in `internal/cigates`. Only `await` requires network access and GitHub
-credentials; the other subcommands remain hermetic. This command does not own
+live in `internal/cigates`. `await` and `queue-select` require network access
+and GitHub credentials; the other subcommands remain hermetic. This command does not own
 fact emission, graph writes, or telemetry.
 
 ## Tests

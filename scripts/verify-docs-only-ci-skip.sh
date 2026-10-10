@@ -54,7 +54,8 @@ has() { rg -qF -- "$2" "$1"; }
 # line before the next 2-space job key.
 job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{print}' "$1"; }
 # job_gated <file> <job> — true if the job carries a `needs: changes` code gate.
-job_gated()    { job_block "$1" "$2" | rg -F 'needs: changes' >/dev/null; }
+job_needs() { job_block "$1" "$2" | rg -q "^[[:space:]]+needs:[[:space:]]*($3[[:space:]]*$|\\[[^]]*\\b$3\\b[^]]*\\])"; }
+job_gated() { job_needs "$1" "$2" changes; }
 job_alwayson() { ! job_gated "$1" "$2"; }
 
 # step_block and run_merge_group_checks (the merge_group / #5814 assertion
@@ -333,7 +334,8 @@ if has "${t}" 'code: ${{ steps.filter.outputs.code || steps.merge_group_code.out
 else
 	bad "test.yml exposes a changes.outputs.code from dorny/paths-filter"
 fi
-needs_n="$(rg -cF 'needs: changes' "${t}" || true)"; needs_n="${needs_n:-0}"
+needs_n=0; for j in verify-contracts go-core go-race; do
+	if job_gated "${t}" "${j}"; then needs_n=$((needs_n + 1)); fi; done
 guard_n="$(rg -cF "github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'" "${t}" || true)"; guard_n="${guard_n:-0}"
 if [[ "${needs_n}" -ge 3 && "${guard_n}" -ge 3 ]]; then
 	ok "all 3 heavy test.yml jobs gate on the changes job (needs×${needs_n}, guard×${guard_n})"
@@ -371,7 +373,7 @@ for umbrella in go-race-complete go-core-complete; do
 	go-core-complete) dep="go-core" ;;
 	esac
 	block="$(job_block "${t}" "${umbrella}")"
-	if rg -F "needs: [changes, ${dep}]" < <(printf '%s\n' "${block}") >/dev/null; then
+	if job_needs "${t}" "${umbrella}" changes && job_needs "${t}" "${umbrella}" "${dep}"; then
 		ok "${umbrella} depends on both changes and ${dep}"
 	else
 		bad "${umbrella} must declare needs: [changes, ${dep}]"

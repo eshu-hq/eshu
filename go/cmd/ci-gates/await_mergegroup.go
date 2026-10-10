@@ -67,9 +67,9 @@ func validateAwaitTarget(event string, pr int, baseRef, mergeGroupBranch string)
 // the moving baseRef branch: once the queue merges the group, baseRef IS the
 // group head and a compare against it is empty (#7281). The diff is three-dot
 // (merge base of the base SHA and the group head), so a late run evaluates the
-// same diff the queue evaluated. The leaf workflows select every gate on
-// merge_group, so this selection can never demand a gate a workflow
-// legitimately skipped.
+// same diff the queue evaluated. The leaf workflows use the same fixed-base selection and union the head
+// registry with the trusted default-branch policy. Unselected payload skips
+// expensive steps but retains check rows; selected payload must actually run.
 func runAwaitMergeGroup(
 	ctx context.Context,
 	runner ghRunner,

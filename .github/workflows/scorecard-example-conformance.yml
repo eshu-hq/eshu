@@ -36,15 +36,26 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: scorecard-example-conformance.yml
+
   test:
+    needs: queue-selection
     name: Scorecard example go test
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Scorecard example go test')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Scorecard example go test')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: examples/collector-extensions/scorecard/go.mod
@@ -56,8 +67,10 @@ jobs:
       # example is its own module (go.mod outside go/), so it warms its own
       # directory rather than the default go/.
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Scorecard example go test')) }}
         run: scripts/ci/go-mod-download-retry.sh examples/collector-extensions/scorecard
 
       - name: Run scorecard example tests
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Scorecard example go test')) }}
         working-directory: examples/collector-extensions/scorecard
         run: go test ./... -count=1

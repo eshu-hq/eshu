@@ -387,8 +387,8 @@ require_workflow_path "gate registry definition (#6988)" "specs/ci-gates.v1.yaml
 require_workflow_path "backend divergence allowlist (#6988)" "specs/backend-divergence-allowlist.v1.yaml"
 
 # --- #6965 phase 5 ------------------------------------------------------------
-# The differential job's capture-leg step is the blocking fail-closed check now
-# that Compare is advisory; its seeded RED/GREEN cases run the step's own text.
+# The capture job and required join both fail closed now that Compare is
+# advisory. Assert their helper wiring and run seeded staging cases.
 capture_leg_cases_lib="${repo_root}/scripts/lib/golden-corpus-capture-leg-cases.sh"
 [[ -f "${capture_leg_cases_lib}" ]] || fail "missing capture leg cases lib: ${capture_leg_cases_lib}"
 bash -n "${capture_leg_cases_lib}" || fail "golden-corpus-capture-leg-cases.sh has a syntax error"

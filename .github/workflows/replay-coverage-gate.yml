@@ -69,24 +69,42 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: replay-coverage-gate.yml
+
   static-mirror:
+    needs: queue-selection
     name: static mirror
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - uses: actions/checkout@v5
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Validate gate contract
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: bash scripts/test-verify-replay-coverage-gate.sh
 
   coverage-gate:
+    needs: queue-selection
     name: coverage-gate (blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - uses: actions/checkout@v5
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'coverage-gate (blocking)')) }}
       - uses: actions/setup-go@v5
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'coverage-gate (blocking)')) }}
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
@@ -94,13 +112,15 @@ jobs:
       # HERE, named for what it is, instead of surfacing as a coverage-gate
       # failure that never compiled anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'coverage-gate (blocking)')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run replay coverage gate (blocking)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'coverage-gate (blocking)')) }}
         env:
           RCOV_REPORT_OUT: replay-coverage-report.json
         run: bash scripts/verify-replay-coverage-gate.sh --blocking
       - name: Upload coverage report
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'coverage-gate (blocking)'))) && (always()) }}
         uses: actions/upload-artifact@v4
         with:
           name: replay-coverage-report

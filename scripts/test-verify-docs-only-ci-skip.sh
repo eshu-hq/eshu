@@ -289,7 +289,6 @@ needle = (
 	"        id: merge_group_code\n"
 	"        if: ${{ github.event_name == 'merge_group' }}\n"
 	"        run: echo \"code=true\" >> \"$GITHUB_OUTPUT\"\n"
-	"\n"
 )
 assert content.count(needle) == 1, "expected exactly one Force code=true on merge_group step"
 with open(path, "w") as f:

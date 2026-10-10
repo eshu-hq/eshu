@@ -49,10 +49,16 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: live-backend-tests.yml
+
   # The ledger validator, both seed harnesses, and the runner's static
   # probes are cheap and need no Docker, so a broken gate fails here in
   # seconds instead of after the heavy job below.
   static-mirror:
+    needs: queue-selection
     name: static-mirror (ledger and runner probes)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -61,7 +67,11 @@ jobs:
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         uses: actions/checkout@v5
 
       # #7886: the runner probe below runs scripts/run-live-backend-tests.sh in
@@ -76,18 +86,23 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Validate the live-test ledger
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: bash scripts/verify-live-tests-ledger.sh
 
       - name: Test the ledger validator
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: bash scripts/test-verify-live-tests-ledger.sh
 
       - name: Test the live-backend runner
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: bash scripts/test-run-live-backend-tests.sh
 
   live-backend:
+    needs: queue-selection
     name: live-backend (nornicdb and neo4j)
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -99,7 +114,11 @@ jobs:
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -112,22 +131,26 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run live-backend tests on both backends
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         run: bash scripts/run-live-backend-tests.sh --backend both
 
       - name: Tear down backend stacks
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)'))) && (always()) }}
         run: |
           docker compose -p eshu-live-backend -f docker-compose.live-backend-nornicdb.yml down -v || true
           docker compose -p eshu-live-backend -f docker-compose.live-backend-neo4j.yml down -v || true

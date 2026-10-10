@@ -4,8 +4,8 @@ name: Live PostgreSQL Readiness
 # activation obligation, targeted-maintenance, reindex watermark and #7209
 # projector zombie-heal proofs listed in scripts/lib/live_postgres_readiness_results.py
 # use EXPLAIN and correctness assertions against separately created disposable
-# databases. The merge queue always runs this job; PR and main-push events
-# select the paths that can change the proof.
+# databases. The merge queue retains the check and selects payload from the
+# registry; PR and main-push events use their existing path filters.
 on:
   merge_group:
     types: [checks_requested]
@@ -96,7 +96,13 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: live-postgres-readiness.yml
+
   live-postgres-readiness:
+    needs: queue-selection
     name: live-postgres-readiness (postgres18)
     runs-on: ubuntu-latest
     # Budget for the ledger-selected live suite (130-143 tests, ~25-30m on CI
@@ -149,7 +155,11 @@ jobs:
           --health-timeout 10s
           --health-retries 20
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -167,27 +177,34 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Install ripgrep for readiness fixture checks
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Check runner fail-closed behavior
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
       - name: Check physical-standby fixture fail-closed behavior
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/test-live-postgres-standby-fixture.sh
 
       - name: Start disposable physical standby
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}'
 
       - name: Run live readiness proofs
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         env:
           ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE: '1'
@@ -244,5 +261,5 @@ jobs:
         run: bash scripts/run-live-postgres-readiness-tests.sh
 
       - name: Stop disposable physical standby
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) && (always()) }}
         run: bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}'

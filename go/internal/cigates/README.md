@@ -15,6 +15,7 @@ It answers two related questions:
 | `select.go` | `(*Registry).Select` and `Gate.ShouldRunSelfTest` — pure path-trigger matchers |
 | `selftest.go` | Strict parsing for optional `self_test_triggers`; omission preserves always-run behavior |
 | `required.go` | `(*Registry).RequiredGates` — every path-selected blocking CI job, including CI-only and heavy tiers |
+| `queue_select.go` | `SelectQueueWorkflow` — pure merge-group workflow/job selection across head and trusted registries |
 | `validate.go` | `(*Registry).Validate` — script (command + test_command) + workflow existence checks, plus literal-trigger existence ([#6055](https://github.com/eshu-hq/eshu/issues/6055)) |
 | `globtrigger.go` | `trackedPaths` + `checkGlobTriggerResolves`, called from `Validate` — a glob trigger must select at least one tracked path, or it can never select its gate ([#6159](https://github.com/eshu-hq/eshu/issues/6159)) |
 | `drift.go` | `DriftCheck` — `.pre-commit-config.yaml` / `.github/workflows` lockstep ([#4220](https://github.com/eshu-hq/eshu/issues/4220)), plus `ci.job` check-name resolution ([#5010](https://github.com/eshu-hq/eshu/issues/5010)) |
@@ -81,6 +82,15 @@ declare `self_test_triggers`. This lets a product change run the product
 verifier without rerunning the verifier's own fixture suite.
 
 ## Required-gate semantics
+
+`SelectQueueWorkflow(registries, paths, truncated, workflow, job)` is a pure
+selection step for the merge queue. The CLI supplies the changed paths from the
+fixed-base compare; this package matches blocking rows through `RequiredGates`
+and advisory rows through the same trigger matcher. It unions the head and
+trusted default-branch registries. A 300-file-truncated compare or a change to
+the requested workflow or gate registry selects all of that workflow's rows.
+An unknown workflow or job has no CI owner and returns an error. The result
+contains registry `ci.job` names, selected gate IDs, and a `selected` boolean.
 
 The trusted `workflow_run` publisher checks that a pull-request source still
 has an open PR owning the head before writing its first status, then checks
