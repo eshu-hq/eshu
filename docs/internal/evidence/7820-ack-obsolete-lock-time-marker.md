@@ -7,10 +7,7 @@ supersede) reads `projection_write_started_at` from the statement
 snapshot only: the UPDATE locks just the work rows, and EvalPlanQual
 rechecks only the updated rows. A marker that commits after the
 statement's snapshot but before the scan reaches the row is missed,
-and the Ack retires a generation whose writer is in flight. (Neither
-UPDATE modifies a key column, so the in-flight wait is the generation
-UPDATE's plain row lock on the marker-held row, not a foreign-key
-check: PostgreSQL RI triggers skip unchanged keys.)
+and the Ack retires a generation whose writer is in flight.
 
 Root-Cause Evidence: on the base tree,
 `TestProjectorAckSeesLockTimeMarkerTruth/marker_commits_after_ack_snapshot`
@@ -19,8 +16,10 @@ the obsolete supersede before the marker commits) and gen-am1 lands
 `superseded` with the marker set. The statistical race retires a
 marked generation in 209 of 300 trials on the base tree. The sibling
 subtest shows the in-flight case defers the whole Ack instead: the
-UPDATE's foreign-key row check waits behind the marker's uncommitted
-generation write until the lock timeout.
+generation UPDATE's plain row lock waits behind the marker's
+uncommitted generation write until the lock timeout. (Neither UPDATE
+modifies a key column, so no foreign-key check is involved:
+PostgreSQL RI triggers skip unchanged keys.)
 
 ## Design decision (arbiter: Muse Spark)
 

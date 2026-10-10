@@ -56,7 +56,7 @@ func seedAckMarkerScope(t *testing.T, dsn string) (*sql.DB, ProjectorQueue, proj
 //   - inflight_marker_skips_without_waiting: the marker transaction stays
 //     open on gen-am1's generation row while gen-am2 Acks. The Ack must
 //     succeed at once and leave gen-am1 alone instead of timing out on the
-//     foreign-key row check behind the in-flight write.
+//     generation row lock behind the in-flight write.
 func TestProjectorAckSeesLockTimeMarkerTruth(t *testing.T) {
 	dsn := claimMaintenanceProofDSN(t)
 
