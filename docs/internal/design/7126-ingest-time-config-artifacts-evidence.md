@@ -75,14 +75,20 @@ Evidence (observed or read from source):
   repository's stored files.
 - The infra read model shows the derive, fence, backfill and reconcile pattern
   works in this content writer.
+- Name-free rows plus the read-side name step equal the named rows over the
+  S0 corpus (section 4).
+- The stored reads meet 5 ms at 300 ids on a laptop with synthetic paths
+  (S2, section 4).
+- A four-column TEXT key fails at a 2,610-byte incompressible path (S2).
 
 Theory (each has a shim in section 8 of the decision record):
 
 - The derive adds an acceptable cost to each content Write (S1).
-- The stored-row read is one primary-key statement under 5 ms (S2).
 - The fence trigger adds under 5% to a content upsert (S3).
 - Stored rows equal live rows for every repository (S4).
-- Name-free rows plus the read-side name step equal the named rows (S0).
+- The loader-level merge cases (two repositories with one graph name, an
+  anchor repeated in the related list) equal the live loader (S4, PR3c).
+- The reader join with the digest key stays under 5 ms (not measured).
 - The projector repository name equals the graph `Repository.name` (S5,
   optional after S0).
 - The stage drops to 0.25 s or less, the route to 1.0 s or less warm, and API
@@ -93,6 +99,44 @@ Theory (each has a shim in section 8 of the decision record):
   section 6). The R-1 lost update itself is a source-backed sequence, decided
   by the re-ruling.
 
-NOT_CHECKED: ops-prod, the related repositories the R1 body does not name,
+NOT_CHECKED: S2 on real R1 path widths, a disk-cold read, ops-prod, the related repositories the R1 body does not name,
 the cap census (S6), concurrent stories, and the cold route after a pod
 restart.
+
+## 4. S0 and S2 results (local, 2026-10-10)
+
+Source: local kit note `7126-pr3-shims-s0-s2-20261010.md` and its script
+directory, not in the repository. The S0 tests are on the local branch
+`proof/7126-pr3-shims` at `953f68712e`, not published.
+
+S0 (Go test, `go test -run TestS0`, exit 0, and exit 0 with `-race`):
+
+| Item | Result |
+|---|---|
+| Corpus | 42,948 name-to-file-set pairs, 684,948 row observations |
+| Scoped rows (10 HCL and compose kinds) | 162,609 observations, 0 differing |
+| Unscoped rows (6 kustomize and Ansible kinds) | 522,339 observations, 0 differing, 0 paths changed by the name |
+| Raw rows that collapse at read | 11, all in planted trees, 0 in natural corpora |
+| Seeded RED: name step on every kind | 10,068 differing rows |
+| Seeded RED: no read dedup | 11 differing rows |
+| Seeded RED: raw sort order | 386 order-only differences |
+| A second clean of a cleaned path | differs on 8,943 of 200,000 random strings, 0 over the corpus |
+
+S2 (PostgreSQL 18.6, generic plans, 5 runs, medians, 815 repositories,
+17,175 rows):
+
+| Statement, 300 ids | Median | Plan |
+|---|---|---|
+| Paths read, four-column key | 1.74 ms | Index Only Scan on the key |
+| Paths read after a rewrite with no VACUUM | 2.47 ms | Index Only Scan, 9,202 `Heap Fetches` |
+| Paths read, digest key | 2.14 ms | Bitmap Index Scan and Bitmap Heap Scan |
+| State read | 0.85 ms | Bitmap scan on the key |
+| Reader three-table join | 2.44 ms | Hash join over a seq scan of the 9-page versions table, then Index Only Scan on the paths key |
+| Reader join with every key index forced | 2.9-3.2 ms | Nested loop over index scans |
+| Dirty join, all 815 repositories | 0.18 ms | Hash join over two seq scans |
+
+Caveats: host load1 was 6-10 during S2, so every time is an upper bound for
+that host and is not comparable to ops-qa. The OS cache was warm, also after a
+server restart. Path widths come from synthetic md5-derived components, not
+from R1's real paths. S2 set the versions directly, with no trigger. The S2
+reader condition also excluded repositories with a failed derive.

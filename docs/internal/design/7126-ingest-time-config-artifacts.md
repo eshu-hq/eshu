@@ -1,8 +1,9 @@
 # Derive repository config artifacts when content is written (#7126)
 
 Status: Accepted with changes (arbiter ruling and re-ruling 2026-10-10).
-Shims S0-S6 have not run. This record does not approve the schema, the migration number or any
-rollout. Each of those waits for the shims in section 8. Refs #7126.
+Shims S0 and S2 ran locally and pass. S1, S3, S4 and S6 have not run. This
+record does not approve the schema, the migration number or any rollout.
+Each of those waits for the shims in section 8. Refs #7126.
 
 **Decision: compute the `config_paths` rows of each repository once, after the
 content writer commits that repository's content, and store them in Postgres
@@ -136,10 +137,17 @@ summary:
 - A state row with a current `extractor_version` and `row_count = 0` means
   "derived, no artifacts". A missing state row, or one with no successful
   derive, means "not derived". The reader must not confuse the two.
-- Rows carry the raw path, before any name step, and a `name_scoped` flag.
-  Row identity is `(repo_id, raw path, relative_path, evidence_kind)`. If a
-  key exceeds the btree entry limit, the key becomes a digest column. The
-  shim S2 decides this.
+- Rows store the path of the build with no name (`raw_path`) verbatim, and
+  a `name_scoped` flag. The flag is a function of `evidence_kind`: S0 found 16
+  kinds, 10 scoped and 6 unscoped, none in both. A guard test pins one value
+  per kind.
+- Row key (G8). S2 showed that a key of four TEXT columns fails with SQLSTATE
+  54000 when a path reaches 2,610 incompressible bytes. A compressible path of
+  100,000 bytes still passes, so a length limit cannot predict the failure
+  and is rejected. **Proposed**: key on `(repo_id, row_digest)`, where
+  `row_digest` is the SHA-256 of the length-prefixed path, relative path and
+  evidence kind, and keep the four columns as data. The protocol companion
+  (section 1) gives the cost and the evidence that would flip this choice.
 - The state row records the `content_version` the derive read, the
   `extractor_version`, and `candidate_count`, `candidates_read`,
   `files_listed` and `list_truncated` for every derive.
@@ -174,11 +182,18 @@ path is the oracle, so PR3 changes no extraction semantics.
   only inside the same repository's file index. No cross-repository input
   exists.
 - **Name at read time.** The derive stores rows without the name. At read
-  time the API sets `source_repo` to the graph `related.name` and applies
-  `normalizeRepoScopedPath` with that name to the `name_scoped` rows only.
-  Those are the HCL and compose rows built through `appendConfigArtifactRow`.
-  Kustomize and Ansible rows never pass through it. The shim S0 proves the
-  equality. A renamed repository therefore needs no re-derive.
+  time the API sets `source_repo` to the graph `related.name` and strips the
+  name prefix from the `name_scoped` rows only. Those are the HCL and compose
+  rows built through `appendConfigArtifactRow`. Kustomize and Ansible rows
+  never pass through it. S0 passed on 684,948 row observations with 0
+  differing rows. A renamed repository therefore needs no re-derive.
+- **Strip only.** `normalizeRepoScopedPath` cleans the path and then strips
+  the prefix. The clean (`CleanRepositoryRelativePath`) is not idempotent
+  when the cleaned result has leading or trailing whitespace: a second clean
+  changed 8,943 of 200,000 random strings (0 over the S0 corpus). PR3a splits
+  the function into a clean step and a strip step. The derive stores the
+  cleaned path, and the read step only strips. The read step must not clean
+  again.
 - **One merge, one dedup.** The live loader keeps one dedup map across the
   anchor and all related sources. The stored path does the same: the rows of
   every repository (anchor live, stored, live fallback) merge in source
@@ -335,9 +350,9 @@ those stages change, which is outside PR3.
 
 | PR | Content | Starts | Proof |
 |---|---|---|---|
-| S0 test, version guard | The S0 name-free equality test and the `extractor_version` digest guard, as new files | now | S0 passes. Seeded RED/GREEN for the guard |
+| S0 test, version guard | The S0 name-free equality test (exists on the local branch `proof/7126-pr3-shims`, `953f68712e`) and the `extractor_version` digest guard, as new files | now | S0 passes (done locally). Seeded RED/GREEN for the guard |
 | PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass. The tables after S2 | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences. A test that no Go statement deletes version rows outside a documented retirement path |
-| PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort | after PR1, PR1b and PR2 merge | existing tests and the PR1 differential pass unchanged. Tie count |
+| PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort. Split `normalizeRepoScopedPath` into clean and strip | after PR1, PR1b and PR2 merge | Existing tests and the PR1 differential pass unchanged. Tie count. The S0 tests run against the strip step |
 | PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
 | PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. Ops-qa shadow then acceptance |
 
@@ -355,14 +370,21 @@ note. Details are in section 6 of the protocol companion.
 
 | Shim | Where | Pass | On fail |
 |---|---|---|---|
-| S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names. The merged answer equals the live loader for two repositories with one graph name and for an anchor repeated in the related list | store the name in the state row and run S5 |
-| S2 read plan | local PostgreSQL 18 | the reader's three-table join for 300 ids and the dirty join over 815 repositories: primary-key index scans only, execution at most 5 ms, generic plan | change the key or the statement |
+| S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names. The merged answer equals the live loader for two repositories with one graph name and for an anchor repeated in the related list | store the name in the state row and run S5. **Ran: PASS** for the per-repository part. The two loader-level cases did not run (they move to S4 and PR3c) |
+| S2 read plan | local PostgreSQL 18 | The reader's three-table join for 300 ids and the dirty join over 815 repositories. Each runs in at most 5 ms with a generic plan. No scan of a table that grows with `content_files` | change the key or the statement. **Ran: PASS**. Reader join 2.44 ms, dirty join 0.18 ms. See the evidence appendix, section 4 |
 | S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction (a delta Write has two). **Proposed** arm 7: two overlapping multi-repository statements, 0 deadlocks | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
 | S6 cap census | ops-qa, read-only | counts recorded for the follow-up issue | none: input only |
 | S1 derive cost | local, PR1, PR1b and PR2 stacked | at most 10% of content-stage p95. At most 2 s for the worst repository | reopen F1 |
 | S4 equality | PR3b gate | symmetric difference `0/0` for every golden-corpus repository, plus the two loader-level cases of S0 | do not merge PR3b-2 |
 
-S5 (name binding, read-only) is optional after S0 passes.
+S5 (name binding, read-only) stays optional, because S0 passed.
+
+The S2 bar first read "primary-key index scans only, no hash". The planner
+does not meet that wording: it seq-scans the 9-page versions table into a
+hash join. The plan that forces every primary key is slower (2.9-3.2 ms
+against 2.44 ms). The versions table grows with repositories, not with files.
+The bar is therefore time plus "no scan of a table that grows with
+`content_files`". This rewording is **Proposed**.
 
 ## 9. Arbiter ruling and re-ruling of 2026-10-10
 
@@ -382,7 +404,7 @@ to its section here.
 | G1 name binding (re-ruled) | rows stored name-free. The name step applies to `name_scoped` rows only, then dedups on the four-tuple | 3.3, companion 4 |
 | G2, G6 | Write failure semantics, lock during parse | companion 3 |
 | G7 version bump | a sized fallback window | 3.4 |
-| G8 key width | S2 seeds long paths. Digest key or `row_too_wide` | 3.2, companion 1 |
+| G8 key width | S2 seeds long paths. Digest key or `row_too_wide`. S2 found the failure. The digest key is **Proposed** | 3.2, companion 1 |
 | G9 stage log | the new fields land in PR3c | 3.5 |
 | R-1 and G3 (lost update) | decided: the version fence replaces the mark protocol | companion 7 |
 

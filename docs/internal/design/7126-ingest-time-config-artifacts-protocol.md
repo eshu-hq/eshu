@@ -17,7 +17,7 @@ Names are proposals. The migration number is chosen at build time.
 |---|---|---|
 | `config_artifact_content_versions` | `repo_id` | `version` (BIGINT), `bumped_xid` (xid8), `bumped_at` |
 | `config_artifact_repo_state` | `repo_id` | `content_version` (the version the derive read before its list), `extractor_version` (integer), `row_count` (NULL until the first success), `files_listed`, `candidate_count`, `candidates_read`, `list_truncated`, `scope_id` and `generation_id` (advisory), `derived_at`, `failure_count`, `last_error_class`, `last_failure_at` |
-| `config_artifact_paths` | `(repo_id, raw_path, relative_path, evidence_kind)` | `name_scoped` |
+| `config_artifact_paths` | **Proposed**: `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped` |
 | `config_artifact_backfill_markers`, `config_artifact_reconcile_cursor` | name | as in migration 109 |
 
 - The migration seeds one version row with `version = 0` for each `SELECT
@@ -36,20 +36,43 @@ Names are proposals. The migration number is chosen at build time.
   table except a documented retirement path. The repository retirement design
   of #7766 (draft PR #7871) requires a disposition for every repo-keyed
   table. It must give the versions and state tables one shared disposition.
-- `raw_path` is the path value before `normalizeRepoScopedPath`. Each row's
-  construction site sets `name_scoped`: true in `appendConfigArtifactRow` (HCL
-  and compose), false elsewhere (kustomize and Ansible).
+- `raw_path` is the path of the build with no name, stored verbatim. For a
+  scoped row it is the cleaned path, before the strip step (section 4). Each
+  row's construction site sets `name_scoped`: true in
+  `appendConfigArtifactRow` (HCL and compose), false elsewhere (kustomize and
+  Ansible). The flag is a function of `evidence_kind`. S0 found 16 kinds, 10
+  scoped and 6 unscoped, none in both. A guard test reads both call-site
+  families from source and fails if a kind is in both sets or in neither.
 - The dirty set is a join, not a table: no state row, or
   `state.content_version` different from `version`, or an old
   `extractor_version`, or `failure_count > 0`. The walker uses it to find
   work. It is wider than the reader's test in section 4: a repository whose
   rows match the current version stays trusted after a later failed derive,
   because those rows are still exact.
-- Key width (G8): four TEXT columns can exceed the btree entry limit for a
-  pathological HCL expression. S2 seeds long paths. If any row exceeds the
-  limit, the key becomes a digest column and the four columns stay as data.
-  Otherwise the derive records `last_error_class = row_too_wide` and the
-  repository stays on the live path.
+- Key width (G8), measured by S2. A primary key of the four TEXT columns
+  fails with `54000 index row size 2712 exceeds btree version 4 maximum 2704`
+  when a path reaches 2,610 incompressible bytes (2,609 passes). Index tuples
+  are compressed, so a compressible path of 100,000 bytes still passes. The
+  limit depends on the data, so a length limit is rejected.
+- **Proposed** key: `(repo_id, row_digest)`. `row_digest` is the SHA-256 of
+  the path, relative path and evidence kind, each prefixed with its byte
+  length. A plain `|` separator is not safe, because `|` can occur in a path,
+  and two different rows could then share one digest. The four columns stay
+  as data. S2 measured the read at 2.14 ms for 300 ids (Bitmap Heap Scan,
+  against 1.74 ms for the Index Only Scan of the four-column key). The table
+  with its key is 5.2 MB for 17,175 rows, against 7.0 MB. The alternative is
+  to keep the four-column key and classify SQLSTATE 54000 as
+  `last_error_class = row_too_wide`, with a live fallback for that
+  repository. Evidence that would flip the choice: the reader's three-table
+  join with the digest key above 5 ms at 300 ids (not measured yet), or a
+  census showing no path near 2,600 bytes together with a read budget that
+  needs the Index Only Scan.
+- **Proposed** autovacuum setting: each derive deletes and re-inserts a
+  repository's rows. Without a vacuum, S2 measured the 300-id read at 2.47 ms
+  against 1.76 ms (9,202 heap fetches), because an Index Only Scan needs the
+  visibility map. Set a per-table autovacuum threshold on
+  `config_artifact_paths`, for example `autovacuum_vacuum_scale_factor =
+  0.02`. The digest key reads the heap anyway, but dead tuples still cost.
 
 ## 2. The content-version trigger
 
@@ -179,8 +202,11 @@ rows. Every other repository is served live and counted by reason:
 
 The read-side name step (G1) runs per repository:
 
-1. For a `name_scoped` row, `path = normalizeRepoScopedPath(raw_path, name)`.
-   For any other row, `path = raw_path`.
+1. For a `name_scoped` row, `path` is `raw_path` with the name prefix
+   stripped. The read step uses the strip half of `normalizeRepoScopedPath`
+   only. It must not clean again: the clean is not idempotent when the cleaned
+   result has leading or trailing whitespace. For any other row,
+   `path = raw_path`.
 2. Set `source_repo = name` on every row.
 
 The merge then follows the live loader, which keeps one dedup map across all
@@ -246,11 +272,25 @@ today. Ownership, not a cycle, is the reason for the neutral package.
 
    A second guard pins that each `evidence_kind` maps to exactly one
    `name_scoped` value. Pass: 0 differing rows.
+
+   **Ran 2026-10-10: PASS** (local branch `proof/7126-pr3-shims`,
+   `953f68712e`). 0 differing rows in 162,609 scoped and 522,339 unscoped row
+   observations. Seeded RED mutants: a name step on every kind gave 10,068
+   differing rows, no read dedup gave 11, raw sort order gave 386 order-only
+   differences. The two loader-level cases did not run. They move to S4 and
+   the PR3c tests.
 2. **S2 read plan** (local PostgreSQL 18). Seed 815 repositories with about 21
    rows each, plus long paths. Use `PREPARE`/`EXECUTE` with
    `plan_cache_mode=force_generic_plan` for the reader's three-table join with
-   300 ids and for the dirty join over 815 repositories. Pass: primary-key
-   index scans only, execution at most 5 ms, no sort or hash beyond the `ANY`.
+   300 ids and for the dirty join over 815 repositories. Pass: execution at
+   most 5 ms, and no scan of a table that grows with `content_files`
+   (**Proposed** rewording). Without planner settings the plan does not meet
+   the first wording, "primary-key index scans only, no hash".
+
+   **Ran 2026-10-10: PASS** on time. Reader join 2.44 ms, paths read 1.74 ms,
+   state read 0.85 ms, dirty join 0.18 ms. The planner seq-scans the 9-page
+   versions table into a hash join. Details and caveats are in section 4 of
+   the evidence appendix.
 3. **S3 fence cost** (local PostgreSQL 18, in the shape of
    `content_writer_infra_fence_bench_live_test.go`, interleaved rounds,
    medians with ranges, first round discarded). Arm A has no trigger. Arm B
