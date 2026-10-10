@@ -2927,6 +2927,31 @@ gates:
       - docker
       - nornicdb
     ci_only_reason: ""
+  - id: query-methodology-scale-neo4j
+    name: Query Methodology Neo4j Scale Calibration
+    category: exactness
+    layer: performance
+    purpose: "Captures hosted Neo4j scale, concurrency and resource evidence for query methodology calibration."
+    tier: manual
+    blocking: false
+    triggers:
+      - "go/**"
+      - "scripts/verify-read-api-latency-gate.sh"
+      - "testdata/benchmarks/read-api-route-budgets.txt"
+      - "testdata/benchmarks/read-api-route-work-budgets.txt"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
+      - "docker-compose.read-api-latency-gate.yaml"
+      - ".github/workflows/read-api-latency-gate.yml"
+    ci:
+      workflow: read-api-latency-gate.yml
+      job: "methodology scale (neo4j)"
+    requirements:
+      - go
+      - docker
+      - postgres
+    ci_only_reason: "Manually dispatched hosted Neo4j scale/concurrency/resource evidence, not an automatic PR or merge-group check; claim-specific calibration remains required."
+
   - id: read-api-work-budget-mirror
     name: Read API work budget refresh mirror (static)
     category: hygiene

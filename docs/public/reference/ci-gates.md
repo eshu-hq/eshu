@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 142 gates. Local execution runs the primary
+The registry currently defines 143 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -171,11 +171,12 @@ results are derived from the inputs rather than written by hand. See
 - `e2e-tests` (blocking): Boots the full Docker service stack and checks the whole system produces the right end-to-end results.
 - `auth-mcp-e2e` (blocking): Runs a real browser plus scripted OAuth flow against a fresh stack to prove MCP identity auth works end-to-end.
 
-### Performance: Do performance budgets hold on the supported backend? (8 gates)
+### Performance: Do performance budgets hold on the supported backend? (9 gates)
 
 - `query-plan-regression` (blocking): Runs a live Neo4j PROFILE proof plus manifest-binding tests to catch query-plan regressions and index misses.
 - `reducer-contention` (blocking): Runs real-Postgres concurrency tests proving reducer claim locking, lease expiry, and latency budgets hold under contention.
 - `read-api-latency-gate` (blocking): Runs the read API against Docker/NornicDB and fails if route latency or Postgres work exceeds committed budgets.
+- `query-methodology-scale-neo4j` (advisory): Captures hosted Neo4j scale, concurrency and resource evidence for query methodology calibration.
 - `read-api-work-budget-mirror` (blocking): Self-tests work-budget rendering and selective extension: formulas, ratchets, and preservation of existing rows.
 - `backend-latency-compare-mirror` (blocking): Self-tests the script that renders the NornicDB-vs-Neo4j latency comparison table; no live backend needed.
 - `live-postgres-readiness` (advisory): Runs the PostgreSQL proofs listed in live_postgres_readiness_results.py with explicit pass-event accounting; skips and missing tests fail.
@@ -281,6 +282,7 @@ results are derived from the inputs rather than written by hand. See
 | `golden-corpus-mirror` | Golden corpus gate mirror (static) | hygiene | pre-pr | true | `bash scripts/test-verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / static mirror | 6 path(s): scripts/verify-golden-corpus-gate.sh, scripts/test-verify-golden-corpus-gate.sh, scripts/lib/golden-corpus-*.sh, … |
 | `golden-corpus-gate` | Golden Corpus Gate on NornicDB (Docker) | exactness | ci-heavy | false | `bash scripts/verify-golden-corpus-gate.sh`<br>then self-test: `bash scripts/test-verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / corpus-gate (nornicdb) | 89 path(s): go/internal/collector/**, go/internal/parser/**, go/internal/projector/**, … |
 | `read-api-latency-gate` | Read API Latency Gate (Docker) | exactness | ci-heavy | true | `bash scripts/verify-read-api-latency-gate.sh` | read-api-latency-gate.yml / latency-gate (nornicdb) | 18 path(s): go/**, testdata/benchmarks/read-api-route-budgets.txt, testdata/benchmarks/read-api-route-work-budgets.txt, … |
+| `query-methodology-scale-neo4j` | Query Methodology Neo4j Scale Calibration | exactness | manual | false | — (CI-only: Manually dispatched hosted Neo4j scale/concurrency/resource evidence, not an automatic PR or merge-group check; claim-specific calibration remains required.) | read-api-latency-gate.yml / methodology scale (neo4j) | 8 path(s): go/**, scripts/verify-read-api-latency-gate.sh, testdata/benchmarks/read-api-route-budgets.txt, … |
 | `read-api-work-budget-mirror` | Read API work budget refresh mirror (static) | hygiene | pre-pr | true | `bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh` | read-api-latency-gate.yml / static-mirror (work budget refresh) | 6 path(s): scripts/refresh-read-api-work-budgets.sh, scripts/test-refresh-read-api-work-budgets.sh, scripts/extend-read-api-work-budgets.sh, … |
 | `backend-latency-compare-mirror` | Cross-backend latency comparator mirror (static) | hygiene | pre-pr | true | `bash scripts/test-compare-backend-latency.sh` | read-api-latency-gate.yml / static-mirror (backend latency comparator) | 3 path(s): scripts/compare-backend-latency.sh, scripts/test-compare-backend-latency.sh, scripts/lib/test-compare-backend-latency-report.json |
 | `golden-corpus-gate-neo4j` | Golden Corpus Gate on Neo4j (Docker) | exactness | ci-heavy | true | `ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`<br>then self-test: `bash scripts/test-verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / corpus-gate (neo4j) | 89 path(s): go/internal/collector/**, go/internal/parser/**, go/internal/projector/**, … |
