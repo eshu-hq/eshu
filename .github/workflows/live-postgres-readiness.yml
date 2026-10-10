@@ -135,9 +135,7 @@ jobs:
         # #7886: service images are pulled at job init, before any step, so a
         # login step cannot cover them. The runner skips the login when either
         # value is empty (fork and Dependabot PRs), so the pull stays anonymous.
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        credentials: ${{ fromJSON(secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' && format('{{"username":{0},"password":{1}}}', toJSON(secrets.DOCKERHUB_USERNAME), toJSON(secrets.DOCKERHUB_TOKEN)) || '{}') }}
         env:
           POSTGRES_DB: postgres
           POSTGRES_USER: postgres
@@ -154,9 +152,7 @@ jobs:
         # #7886: service images are pulled at job init, before any step, so a
         # login step cannot cover them. The runner skips the login when either
         # value is empty (fork and Dependabot PRs), so the pull stays anonymous.
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        credentials: ${{ fromJSON(secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' && format('{{"username":{0},"password":{1}}}', toJSON(secrets.DOCKERHUB_USERNAME), toJSON(secrets.DOCKERHUB_TOKEN)) || '{}') }}
         env:
           NEO4J_AUTH: neo4j/local-proof-only
           NEO4J_PLUGINS: '[]'
