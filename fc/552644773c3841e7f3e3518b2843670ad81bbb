@@ -1,0 +1,19 @@
+go/cmd/read-api-latency-gate/diagnostic_httptrace.go
+  s_29175cf8c573b8::t_8622ef668c0bf5 132,137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fc552644773c3841e7f3e3518b2843670ad81bbb",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
