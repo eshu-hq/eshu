@@ -61,7 +61,8 @@ tag_err="$(python3 "${targets}" "${seed_dir}/ledger.yaml" "${repo_root}" 2>&1)" 
 # ── RED: unquoted '#' in a reason fails extraction, not silent truncation ──
 # (a YAML `#` after whitespace opens a comment: the row regex sees the full
 # line while a real parser truncates it, so the extractor must fail loud)
-awk '/^    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job$/ && !changed { print "    reason: seeded RED for the truncation guard #7425"; changed = 1; next } { print }' "${flat_ledger}" >"${seed_dir}/ledger-truncated.yaml"
+awk '/^    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job$/ && !changed { print "    reason: seeded RED for the truncation guard #7425"; changed = 1; next } { print } END { if (!changed) exit 1 }' "${flat_ledger}" >"${seed_dir}/ledger-truncated.yaml" ||
+	fail "reason seed anchor not found in the flattened live-test ledger"
 trunc_err="$(python3 "${targets}" "${seed_dir}/ledger-truncated.yaml" "${repo_root}" 2>&1)" && fail "truncated-reason ci row accepted"
 [[ "${trunc_err}" == *"unquoted '#'"* ]] || fail "truncation rejection names no cause: ${trunc_err}"
 
