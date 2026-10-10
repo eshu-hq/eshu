@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -49,8 +49,8 @@ func TestEvaluateSupplyChainSuppressionEnvironmentScopeKeepsMultiEnvironmentAggr
 
 	decision := EvaluateSupplyChainSuppression(finding, []vulnerabilitySuppression{{
 		SuppressionID: "suppression-stage-only",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 7, 28, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         finding.CVEID,
@@ -83,8 +83,8 @@ func TestEvaluateSupplyChainSuppressionAmbiguousEnvironmentReasonPreservesVerifi
 	}
 	decision := EvaluateSupplyChainSuppression(finding, []vulnerabilitySuppression{{
 		SuppressionID: "suppression-verified-pair",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 7, 28, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         finding.CVEID,
@@ -112,8 +112,8 @@ func TestEvaluateSupplyChainSuppressionDeploymentContextDoesNotCrossVulnerabilit
 	}
 	suppressions := []vulnerabilitySuppression{{
 		SuppressionID: "suppression-other-cve",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 7, 28, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:       "CVE-2026-54661",
@@ -165,8 +165,8 @@ func TestEvaluateSupplyChainSuppressionSingleDeploymentDimensionRequiresSingleto
 
 			decision := EvaluateSupplyChainSuppression(finding, []vulnerabilitySuppression{{
 				SuppressionID: "suppression-" + tt.name,
-				Source:        facts.VulnerabilitySuppressionSourcePolicy,
-				Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+				Source:        chain.VulnerabilitySuppressionSourcePolicy,
+				Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 				AuthoredAt:    time.Date(2026, 7, 28, 0, 0, 0, 0, time.UTC),
 				Scope:         tt.scope,
 			}}, time.Date(2026, 7, 29, 0, 0, 0, 0, time.UTC))

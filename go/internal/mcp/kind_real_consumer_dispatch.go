@@ -122,7 +122,8 @@ func factsDispatchedKinds(dirs []string, factsConstValues map[string]string) (ma
 // `facts` for families still on the root compat surface, then one entry per
 // migrated family spelling (`docs`, plus the `factsdocs` alias used where
 // the file already imports another docs package, plus `cloud` for the
-// batch-4 cloud families). Each #6950 batch extends factsPackageSelectorNames
+// batch-4 cloud families and `chain` for the batch-4 supply-chain families).
+// Each #6950 batch extends factsPackageSelectorNames
 // for the family spellings it introduces.
 func factsSelectorWireKind(expr ast.Expr, factsConstValues map[string]string) (string, bool) {
 	sel, ok := expr.(*ast.SelectorExpr)
@@ -145,6 +146,7 @@ var factsPackageSelectorNames = map[string]bool{
 	"docs":      true,
 	"factsdocs": true,
 	"cloud":     true,
+	"chain":     true,
 }
 
 // reducerSeamDir is the one entry in realConsumerDecodeSeamDirs that names a

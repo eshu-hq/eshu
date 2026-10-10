@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"gopkg.in/yaml.v3"
 )
 
@@ -438,7 +439,7 @@ func liveFamilies() []liveFamily {
 		{"submodule", facts.SubmoduleFactKinds, facts.SubmoduleSchemaVersion},
 		{"terraform_state", cloud.TerraformStateFactKinds, cloud.TerraformStateSchemaVersion},
 		{"vulnerability_intelligence", facts.VulnerabilityIntelligenceFactKinds, facts.VulnerabilityIntelligenceSchemaVersion},
-		{"vulnerability_suppression", facts.VulnerabilitySuppressionFactKinds, facts.VulnerabilitySuppressionSchemaVersion},
+		{"vulnerability_suppression", chain.VulnerabilitySuppressionFactKinds, chain.VulnerabilitySuppressionSchemaVersion},
 		{"work_item", facts.WorkItemFactKinds, facts.WorkItemSchemaVersion},
 	}
 }

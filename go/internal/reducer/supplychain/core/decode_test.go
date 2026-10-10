@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestBuildVulnerabilitySuppressionsQuarantinesMissingIdentity(t *testing.T) {
@@ -14,14 +15,14 @@ func TestBuildVulnerabilitySuppressionsQuarantinesMissingIdentity(t *testing.T) 
 
 	valid := vulnerabilitySuppressionFactEnvelope(
 		"suppression-valid",
-		facts.VulnerabilitySuppressionSourcePolicy,
-		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		chain.VulnerabilitySuppressionSourcePolicy,
+		chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 		"shared_token",
 		"2026-07-27T12:00:00Z",
 		"",
 		map[string]any{"cve_id": "CVE-2026-00001"},
 	)
-	valid.SchemaVersion = facts.VulnerabilitySuppressionSchemaVersionV1
+	valid.SchemaVersion = chain.VulnerabilitySuppressionSchemaVersionV1
 	malformed := valid.Clone()
 	malformed.FactID = "suppression-malformed"
 	delete(malformed.Payload, "suppression_id")
@@ -47,14 +48,14 @@ func TestBuildVulnerabilitySuppressionsQuarantinesInvalidSourceJustificationPair
 
 	malformed := vulnerabilitySuppressionFactEnvelope(
 		"suppression-malformed-pair",
-		facts.VulnerabilitySuppressionSourceProviderDismissal,
-		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		chain.VulnerabilitySuppressionSourceProviderDismissal,
+		chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 		"provider:operator",
 		"2026-07-27T12:00:00Z",
 		"",
 		map[string]any{"cve_id": "CVE-2026-00001"},
 	)
-	malformed.SchemaVersion = facts.VulnerabilitySuppressionSchemaVersionV1
+	malformed.SchemaVersion = chain.VulnerabilitySuppressionSchemaVersionV1
 
 	suppressions, quarantined, err := BuildVulnerabilitySuppressions(
 		[]facts.Envelope{malformed},
@@ -78,13 +79,13 @@ func TestBuildVulnerabilitySuppressionsQuarantinesUnknownSourceAsSource(t *testi
 	malformed := vulnerabilitySuppressionFactEnvelope(
 		"suppression-unknown-source",
 		"external_unknown",
-		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 		"provider:operator",
 		"2026-07-27T12:00:00Z",
 		"",
 		map[string]any{"cve_id": "CVE-2026-00001"},
 	)
-	malformed.SchemaVersion = facts.VulnerabilitySuppressionSchemaVersionV1
+	malformed.SchemaVersion = chain.VulnerabilitySuppressionSchemaVersionV1
 
 	suppressions, quarantined, err := BuildVulnerabilitySuppressions([]facts.Envelope{malformed})
 	if err != nil {
@@ -105,8 +106,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesIgnoredWithoutExpiry(t *testin
 
 	malformed := vulnerabilitySuppressionFactEnvelope(
 		"suppression-ignored-without-expiry",
-		facts.VulnerabilitySuppressionSourcePolicy,
-		facts.VulnerabilitySuppressionJustificationIgnored,
+		chain.VulnerabilitySuppressionSourcePolicy,
+		chain.VulnerabilitySuppressionJustificationIgnored,
 		"shared_token",
 		"2026-07-27T12:00:00Z",
 		"",
@@ -132,8 +133,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesEvidencePathWithoutIdentityAnc
 
 	malformed := vulnerabilitySuppressionFactEnvelope(
 		"suppression-evidence-path-only",
-		facts.VulnerabilitySuppressionSourcePolicy,
-		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		chain.VulnerabilitySuppressionSourcePolicy,
+		chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 		"shared_token",
 		"2026-07-27T12:00:00Z",
 		"",
@@ -169,8 +170,8 @@ func TestBuildVulnerabilitySuppressionsQuarantinesDeploymentContextWithoutIdenti
 	} {
 		malformed := vulnerabilitySuppressionFactEnvelope(
 			"suppression-deployment-only",
-			facts.VulnerabilitySuppressionSourcePolicy,
-			facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+			chain.VulnerabilitySuppressionSourcePolicy,
+			chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 			"shared_token",
 			"2026-07-27T12:00:00Z",
 			"",

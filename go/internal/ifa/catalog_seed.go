@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
@@ -151,16 +152,16 @@ func vulnPackOdu() familyodu.CatalogOdu {
 			Payload:  payload,
 		})
 	}
-	suppressionPayload, ok := fixturepack.ValidPayload(facts.VulnerabilitySuppressionFactKind)
+	suppressionPayload, ok := fixturepack.ValidPayload(chain.VulnerabilitySuppressionFactKind)
 	if !ok {
 		panic(fmt.Sprintf(
 			"ifa: catalog_seed odu:vuln-pack: fixturepack has no valid payload example for %q",
-			facts.VulnerabilitySuppressionFactKind,
+			chain.VulnerabilitySuppressionFactKind,
 		))
 	}
 	factsForOdu = append(factsForOdu, facts.Envelope{
 		ScopeID:  "operator:vulnerability_suppressions",
-		FactKind: facts.VulnerabilitySuppressionFactKind,
+		FactKind: chain.VulnerabilitySuppressionFactKind,
 		Payload:  suppressionPayload,
 	})
 	factsForOdu = append(factsForOdu, facts.Envelope{

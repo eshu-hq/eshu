@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -449,7 +450,7 @@ func supplyChainImpactFactKinds() []string {
 		facts.VulnerabilityAffectedProductFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
-		facts.VulnerabilitySuppressionFactKind,
+		chain.VulnerabilitySuppressionFactKind,
 		facts.VulnerabilityGoModuleEvidenceFactKind,
 		facts.VulnerabilityGoCallReachabilityFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,

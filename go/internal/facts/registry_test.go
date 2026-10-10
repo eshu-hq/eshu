@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestCoreFactKindRegistryIncludesKnownFamilies(t *testing.T) {
@@ -20,7 +21,7 @@ func TestCoreFactKindRegistryIncludesKnownFamilies(t *testing.T) {
 		cloud.TerraformStateResourceFactKind,
 		ServiceCatalogScorecardResultFactKind,
 		SemanticCodeHintFactKind,
-		VulnerabilitySuppressionFactKind,
+		chain.VulnerabilitySuppressionFactKind,
 	} {
 		if !slices.Contains(kinds, want) {
 			t.Fatalf("CoreFactKinds() missing %q: %v", want, kinds)

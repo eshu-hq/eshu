@@ -5,6 +5,7 @@ package impact
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -15,7 +16,7 @@ var candidateFactKinds = []string{
 	facts.VulnerabilityAffectedPackageFactKind,
 	facts.VulnerabilityEPSSScoreFactKind,
 	facts.VulnerabilityKnownExploitedFactKind,
-	facts.VulnerabilitySuppressionFactKind,
+	chain.VulnerabilitySuppressionFactKind,
 	facts.SecurityAlertRepositoryAlertFactKind,
 	facts.PackageRegistryPackageFactKind,
 	facts.SBOMComponentFactKind,
@@ -58,7 +59,7 @@ func triggerFact(envelope facts.Envelope) bool {
 		facts.VulnerabilityAffectedPackageFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
-		facts.VulnerabilitySuppressionFactKind,
+		chain.VulnerabilitySuppressionFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,
 		facts.PackageRegistryPackageFactKind,
 		facts.SBOMComponentFactKind,
@@ -82,7 +83,7 @@ func reason(envelope facts.Envelope) string {
 	if envelope.FactKind == facts.SBOMComponentFactKind {
 		return "SBOM package evidence observed"
 	}
-	if envelope.FactKind == facts.VulnerabilitySuppressionFactKind {
+	if envelope.FactKind == chain.VulnerabilitySuppressionFactKind {
 		return "vulnerability suppression evidence observed"
 	}
 	switch envelope.FactKind {

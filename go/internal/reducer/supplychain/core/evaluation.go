@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // SupplyChainSuppressionState names the reducer decision for one finding
@@ -199,7 +199,7 @@ func EvaluateSupplyChainSuppression(
 			expiredMatch = preferredSuppression(expiredMatch, suppression)
 			continue
 		}
-		if suppression.Source == facts.VulnerabilitySuppressionSourceProviderDismissal {
+		if suppression.Source == chain.VulnerabilitySuppressionSourceProviderDismissal {
 			providerMatch = preferredSuppression(providerMatch, suppression)
 			continue
 		}

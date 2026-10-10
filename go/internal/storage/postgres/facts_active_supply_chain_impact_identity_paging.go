@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -245,7 +246,7 @@ func (state *supplyChainImpactPagingState) acceptLegacyFact(
 	envelope facts.Envelope,
 	stoppedBySentinel *bool,
 ) error {
-	isSuppression := envelope.FactKind == facts.VulnerabilitySuppressionFactKind
+	isSuppression := envelope.FactKind == chain.VulnerabilitySuppressionFactKind
 	if rank == 2 && !isSuppression {
 		return fmt.Errorf("list active supply chain impact facts: suppression stream fact kind = %q", envelope.FactKind)
 	}

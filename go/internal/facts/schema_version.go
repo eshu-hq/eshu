@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // schemaSemverPattern matches the MAJOR.MINOR.PATCH form every core fact family
@@ -100,7 +101,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{SubmoduleFactKinds, SubmoduleSchemaVersion},
 	{cloud.TerraformStateFactKinds, cloud.TerraformStateSchemaVersion},
 	{VulnerabilityIntelligenceFactKinds, VulnerabilityIntelligenceSchemaVersion},
-	{VulnerabilitySuppressionFactKinds, VulnerabilitySuppressionSchemaVersion},
+	{chain.VulnerabilitySuppressionFactKinds, chain.VulnerabilitySuppressionSchemaVersion},
 	{WorkItemFactKinds, WorkItemSchemaVersion},
 }
 

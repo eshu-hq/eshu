@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -66,8 +67,8 @@ func TestBuildProjectionQueuesSupplyChainImpactForSuppressionEvidence(t *testing
 		FactID:        "fact-suppression-1",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
-		FactKind:      facts.VulnerabilitySuppressionFactKind,
-		SchemaVersion: facts.VulnerabilitySuppressionSchemaVersionV1,
+		FactKind:      chain.VulnerabilitySuppressionFactKind,
+		SchemaVersion: chain.VulnerabilitySuppressionSchemaVersionV1,
 		SourceRef: facts.Ref{
 			SourceSystem: "eshu_policy",
 		},

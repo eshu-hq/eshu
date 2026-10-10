@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestEvaluateSupplyChainSuppressionActiveByDefault(t *testing.T) {
@@ -40,8 +41,8 @@ func TestEvaluateSupplyChainSuppressionAppliesNotAffectedWhenScopeMatches(t *tes
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-1",
-		Source:        facts.VulnerabilitySuppressionSourceVEX,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourceVEX,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		Author:        "vex:openvex/operator@example.com",
 		AuthoredAt:    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 		Reason:        "vulnerable function never called",
@@ -62,8 +63,8 @@ func TestEvaluateSupplyChainSuppressionAppliesNotAffectedWhenScopeMatches(t *tes
 	if decision.SuppressionID != "suppression-1" {
 		t.Fatalf("SuppressionID = %q, want suppression-1", decision.SuppressionID)
 	}
-	if decision.Source != facts.VulnerabilitySuppressionSourceVEX {
-		t.Fatalf("Source = %q, want %q", decision.Source, facts.VulnerabilitySuppressionSourceVEX)
+	if decision.Source != chain.VulnerabilitySuppressionSourceVEX {
+		t.Fatalf("Source = %q, want %q", decision.Source, chain.VulnerabilitySuppressionSourceVEX)
 	}
 	if decision.Reason == "" {
 		t.Fatalf("Reason = empty, want explanation")
@@ -83,8 +84,8 @@ func TestEvaluateSupplyChainSuppressionAppliesAcceptedRisk(t *testing.T) {
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-accepted",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationAcceptedRisk,
 		Author:        "eshu:policy/operator@acme.com",
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Reason:        "compensating control deployed at gateway",
@@ -109,8 +110,8 @@ func TestEvaluateSupplyChainSuppressionAppliesFalsePositive(t *testing.T) {
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-fp",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationFalsePositive,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationFalsePositive,
 		Author:        "eshu:policy/operator@acme.com",
 		AuthoredAt:    time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
@@ -135,8 +136,8 @@ func TestEvaluateSupplyChainSuppressionExpiredKeepsFindingVisible(t *testing.T) 
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID:    "suppression-expired",
-		Source:           facts.VulnerabilitySuppressionSourcePolicy,
-		Justification:    facts.VulnerabilitySuppressionJustificationIgnored,
+		Source:           chain.VulnerabilitySuppressionSourcePolicy,
+		Justification:    chain.VulnerabilitySuppressionJustificationIgnored,
 		AuthoredAt:       time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 		ExpiresAt:        time.Date(2026, 5, 14, 0, 0, 0, 0, time.UTC),
 		ExpiresAtRaw:     "2026-05-14T00:00:00Z",
@@ -171,8 +172,8 @@ func TestEvaluateSupplyChainSuppressionProviderDismissedKeepsFindingVisible(t *t
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-provider",
-		Source:        facts.VulnerabilitySuppressionSourceProviderDismissal,
-		Justification: facts.VulnerabilitySuppressionJustificationProviderDismissed,
+		Source:        chain.VulnerabilitySuppressionSourceProviderDismissal,
+		Justification: chain.VulnerabilitySuppressionJustificationProviderDismissed,
 		Author:        "github_dependabot:operator@acme.com",
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
@@ -201,8 +202,8 @@ func TestEvaluateSupplyChainSuppressionScopeMismatchKeepsFindingVisible(t *testi
 	}
 	mismatch := vulnerabilitySuppression{
 		SuppressionID: "suppression-mismatch",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:        "CVE-2026-0050",
@@ -235,8 +236,8 @@ func TestEvaluateSupplyChainSuppressionEvidencePathMismatchYieldsScopeMismatch(t
 	// is not in the finding's evidence path.
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-evidence",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:        "CVE-2026-0060",
@@ -262,8 +263,8 @@ func TestEvaluateSupplyChainSuppressionPrefersActiveOperatorOverExpired(t *testi
 	}
 	expired := vulnerabilitySuppression{
 		SuppressionID:    "suppression-expired",
-		Source:           facts.VulnerabilitySuppressionSourcePolicy,
-		Justification:    facts.VulnerabilitySuppressionJustificationIgnored,
+		Source:           chain.VulnerabilitySuppressionSourcePolicy,
+		Justification:    chain.VulnerabilitySuppressionJustificationIgnored,
 		AuthoredAt:       time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 		ExpiresAt:        time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		ExpiresAtRaw:     "2026-05-10T00:00:00Z",
@@ -276,8 +277,8 @@ func TestEvaluateSupplyChainSuppressionPrefersActiveOperatorOverExpired(t *testi
 	}
 	active := vulnerabilitySuppression{
 		SuppressionID: "suppression-active",
-		Source:        facts.VulnerabilitySuppressionSourceVEX,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourceVEX,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:        "CVE-2026-0070",
@@ -305,8 +306,8 @@ func TestEvaluateSupplyChainSuppressionEmptyScopeNeverHidesFindings(t *testing.T
 	}
 	emptyScope := vulnerabilitySuppression{
 		SuppressionID: "suppression-empty-scope",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		// Scope deliberately empty: a producer omitted scope entirely or
 		// shipped a malformed fact. The reducer MUST NOT silently apply
@@ -338,8 +339,8 @@ func TestEvaluateSupplyChainSuppressionInvalidExpiresAtNeverExtendsSuppression(t
 	// "no expiration" and let the suppression apply indefinitely.
 	suppression := vulnerabilitySuppression{
 		SuppressionID:        "suppression-invalid-expiry",
-		Source:               facts.VulnerabilitySuppressionSourcePolicy,
-		Justification:        facts.VulnerabilitySuppressionJustificationIgnored,
+		Source:               chain.VulnerabilitySuppressionSourcePolicy,
+		Justification:        chain.VulnerabilitySuppressionJustificationIgnored,
 		AuthoredAt:           time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		ExpiresAtRaw:         "2026-13-40T99:99:99Z",
 		ExpiresAtPresent:     true,
@@ -375,8 +376,8 @@ func TestEvaluateSupplyChainSuppressionScopeMismatchReasonIncludesAllAnchors(t *
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-mismatch-all",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:      "CVE-2026-0100",
@@ -403,8 +404,8 @@ func TestBuildVulnerabilitySuppressionsFromEnvelopesNormalizesPayload(t *testing
 	envelopes := []facts.Envelope{
 		vulnerabilitySuppressionFactEnvelope(
 			"vuln-suppression:1",
-			facts.VulnerabilitySuppressionSourceVEX,
-			facts.VulnerabilitySuppressionJustificationNotAffected,
+			chain.VulnerabilitySuppressionSourceVEX,
+			chain.VulnerabilitySuppressionJustificationNotAffected,
 			"vex:openvex/operator@example.com",
 			"2026-05-10T00:00:00Z",
 			"",
@@ -431,11 +432,11 @@ func TestBuildVulnerabilitySuppressionsFromEnvelopesNormalizesPayload(t *testing
 	if s.SuppressionID != "vuln-suppression:1" {
 		t.Fatalf("SuppressionID = %q, want vuln-suppression:1", s.SuppressionID)
 	}
-	if s.Source != facts.VulnerabilitySuppressionSourceVEX {
-		t.Fatalf("Source = %q, want %q", s.Source, facts.VulnerabilitySuppressionSourceVEX)
+	if s.Source != chain.VulnerabilitySuppressionSourceVEX {
+		t.Fatalf("Source = %q, want %q", s.Source, chain.VulnerabilitySuppressionSourceVEX)
 	}
-	if s.Justification != facts.VulnerabilitySuppressionJustificationNotAffected {
-		t.Fatalf("Justification = %q, want %q", s.Justification, facts.VulnerabilitySuppressionJustificationNotAffected)
+	if s.Justification != chain.VulnerabilitySuppressionJustificationNotAffected {
+		t.Fatalf("Justification = %q, want %q", s.Justification, chain.VulnerabilitySuppressionJustificationNotAffected)
 	}
 	if s.Scope.CVEID != "CVE-2026-0001" || s.Scope.PackageID != "pkg:npm/example" || s.Scope.RepositoryID != "repo://acme/api" {
 		t.Fatalf("Scope = %#v, want all anchors preserved", s.Scope)
@@ -470,8 +471,8 @@ func vulnerabilitySuppressionFactEnvelope(
 	}
 	return facts.Envelope{
 		FactID:        id,
-		FactKind:      facts.VulnerabilitySuppressionFactKind,
-		SchemaVersion: facts.VulnerabilitySuppressionSchemaVersionV1,
+		FactKind:      chain.VulnerabilitySuppressionFactKind,
+		SchemaVersion: chain.VulnerabilitySuppressionSchemaVersionV1,
 		Payload:       payload,
 	}
 }

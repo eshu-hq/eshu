@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -30,8 +30,8 @@ func TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnverifiedCom
 
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-cartesian",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         "CVE-2026-0600",
@@ -91,8 +91,8 @@ func TestEvaluateSupplyChainSuppressionMultiAnchorScopeMatchesTheOnlyPossibleCom
 
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-unambiguous-combo",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         "CVE-2026-0601",
@@ -138,8 +138,8 @@ func TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnpairedServi
 
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-unpaired-service-workload",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
+		Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:         "CVE-2026-0602",
@@ -241,8 +241,8 @@ func TestFinalizeSupplyChainImpactFindingPopulatesServiceWorkloadPairsForSuppres
 
 			decision := EvaluateSupplyChainSuppression(finding, []vulnerabilitySuppression{{
 				SuppressionID: suppression,
-				Source:        facts.VulnerabilitySuppressionSourcePolicy,
-				Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+				Source:        chain.VulnerabilitySuppressionSourcePolicy,
+				Justification: chain.VulnerabilitySuppressionJustificationNotAffected,
 				AuthoredAt:    now.Add(-time.Hour),
 				Scope: vulnerabilitySuppressionScope{
 					CVEID:         cveID,

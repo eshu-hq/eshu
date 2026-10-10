@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestEvaluateSupplyChainSuppressionUnknownJustificationStaysVisible(t *testing.T) {
@@ -20,7 +20,7 @@ func TestEvaluateSupplyChainSuppressionUnknownJustificationStaysVisible(t *testi
 	}
 	suppression := vulnerabilitySuppression{
 		SuppressionID: "suppression-unknown",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
 		Justification: "external_unknown",
 		AuthoredAt:    time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{

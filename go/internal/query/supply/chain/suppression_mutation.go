@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
@@ -197,14 +197,14 @@ func buildOperatorVulnerabilitySuppression(
 		}
 		normalized := parsed.UTC().Format(time.RFC3339)
 		expiresAt = &normalized
-	} else if request.Justification == facts.VulnerabilitySuppressionJustificationIgnored {
+	} else if request.Justification == chain.VulnerabilitySuppressionJustificationIgnored {
 		return vulnerabilitysuppressionv1.Suppression{}, fmt.Errorf("expires_at is required when justification is ignored")
 	}
 
 	reason := request.Reason
 	value := vulnerabilitysuppressionv1.Suppression{
 		SuppressionID: request.SuppressionID,
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
+		Source:        chain.VulnerabilitySuppressionSourcePolicy,
 		Justification: request.Justification,
 		Author:        vulnerabilitySuppressionAuthor(authCtx),
 		AuthoredAt:    authoredAtText,
@@ -221,10 +221,10 @@ func buildOperatorVulnerabilitySuppression(
 
 func operatorSuppressionJustificationAllowed(value string) bool {
 	switch value {
-	case facts.VulnerabilitySuppressionJustificationNotAffected,
-		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
-		facts.VulnerabilitySuppressionJustificationFalsePositive,
-		facts.VulnerabilitySuppressionJustificationIgnored:
+	case chain.VulnerabilitySuppressionJustificationNotAffected,
+		chain.VulnerabilitySuppressionJustificationAcceptedRisk,
+		chain.VulnerabilitySuppressionJustificationFalsePositive,
+		chain.VulnerabilitySuppressionJustificationIgnored:
 		return true
 	default:
 		return false
