@@ -1,0 +1,27 @@
+go/cmd/read-api-latency-gate/testdata/methodology-scale-timeout-38032713508.json
+  s_29175cf8c573b8::t_bc34de0997e5e4 1-14,17
+  s_29175cf8c573b8::t_255a2b51251c45 15-16
+go/cmd/read-api-latency-gate/methodology_workflow_test.go
+  s_29175cf8c573b8::t_255a2b51251c45 37-38,111-112,209,212
+  s_29175cf8c573b8::t_bc34de0997e5e4 1-36,39-110,113-208,210-211,213-214
+docs/public/reference/local-testing/read-api-latency-gate.md
+  s_29175cf8c573b8::t_7d3ba5aa3a9946 175-184
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_7d3ba5aa3a9946 92-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7d04957604fcb847604269169edacc8235eb713f",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
