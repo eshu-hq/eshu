@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // BenchmarkExtractPackageRegistryRows measures the typed-decode canonical
@@ -66,7 +67,7 @@ func benchPackageRegistryFacts(packageCount int) []facts.Envelope {
 			}
 		}
 		envelopes = append(envelopes,
-			base(facts.PackageRegistryPackageFactKind, facts.PackageRegistryPackageSchemaVersion, map[string]any{
+			base(chain.PackageRegistryPackageFactKind, chain.PackageRegistryPackageSchemaVersion, map[string]any{
 				"package_id":      packageID,
 				"ecosystem":       "npm",
 				"registry":        "https://registry.npmjs.org",
@@ -76,7 +77,7 @@ func benchPackageRegistryFacts(packageCount int) []facts.Envelope {
 				"package_manager": "npm",
 				"visibility":      "public",
 			}),
-			base(facts.PackageRegistryPackageVersionFactKind, facts.PackageRegistryPackageVersionSchemaVersion, map[string]any{
+			base(chain.PackageRegistryPackageVersionFactKind, chain.PackageRegistryPackageVersionSchemaVersion, map[string]any{
 				"package_id":    packageID,
 				"version_id":    versionID,
 				"version":       "1.0.0",
@@ -92,7 +93,7 @@ func benchPackageRegistryFacts(packageCount int) []facts.Envelope {
 				},
 				"checksums": map[string]any{"sha512": "sha512-bench"},
 			}),
-			base(facts.PackageRegistryPackageDependencyFactKind, facts.PackageRegistryPackageDependencySchemaVersion, map[string]any{
+			base(chain.PackageRegistryPackageDependencyFactKind, chain.PackageRegistryPackageDependencySchemaVersion, map[string]any{
 				"package_id":            packageID,
 				"version_id":            versionID,
 				"version":               "1.0.0",

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestPackageVersionObservationBuildsReportedVersionEnvelope(t *testing.T) {
@@ -43,11 +44,11 @@ func TestPackageVersionObservationBuildsReportedVersionEnvelope(t *testing.T) {
 		t.Fatalf("NewPackageVersionEnvelope() error = %v", err)
 	}
 
-	if envelope.FactKind != facts.PackageRegistryPackageVersionFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.PackageRegistryPackageVersionFactKind)
+	if envelope.FactKind != chain.PackageRegistryPackageVersionFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, chain.PackageRegistryPackageVersionFactKind)
 	}
-	if envelope.SchemaVersion != facts.PackageRegistryPackageVersionSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.PackageRegistryPackageVersionSchemaVersion)
+	if envelope.SchemaVersion != chain.PackageRegistryPackageVersionSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, chain.PackageRegistryPackageVersionSchemaVersion)
 	}
 	if envelope.SourceConfidence != facts.SourceConfidenceReported {
 		t.Fatalf("SourceConfidence = %q, want %q", envelope.SourceConfidence, facts.SourceConfidenceReported)

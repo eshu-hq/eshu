@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // NewRepositoryHostingEnvelope builds the durable provider topology fact for a
@@ -36,7 +37,7 @@ func NewRepositoryHostingEnvelope(observation RepositoryHostingObservation) (fac
 	repositoryType := strings.TrimSpace(observation.RepositoryType)
 	repositoryID := provider + "://" + registry + "/" + repository
 
-	stableFactKey := facts.StableID(facts.PackageRegistryRepositoryHostingFactKind, map[string]any{
+	stableFactKey := facts.StableID(chain.PackageRegistryRepositoryHostingFactKind, map[string]any{
 		"provider":        provider,
 		"registry":        registry,
 		"repository":      repository,
@@ -55,9 +56,9 @@ func NewRepositoryHostingEnvelope(observation RepositoryHostingObservation) (fac
 	}
 
 	envelope := newEnvelope(envelopeInput{
-		factKind:            facts.PackageRegistryRepositoryHostingFactKind,
+		factKind:            chain.PackageRegistryRepositoryHostingFactKind,
 		stableFactKey:       stableFactKey,
-		schemaVersion:       facts.PackageRegistryRepositoryHostingSchemaVersion,
+		schemaVersion:       chain.PackageRegistryRepositoryHostingSchemaVersion,
 		scopeID:             observation.ScopeID,
 		generationID:        observation.GenerationID,
 		collectorInstanceID: observation.CollectorInstanceID,

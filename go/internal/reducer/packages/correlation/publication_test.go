@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestBuildPackagePublicationDecisionsMatchesVersionToRepositoryHint(t *testing.T) {
@@ -152,7 +153,7 @@ func packageRegistryPackageVersionFact(
 	}
 	return facts.Envelope{
 		FactID:        factID,
-		FactKind:      facts.PackageRegistryPackageVersionFactKind,
+		FactKind:      chain.PackageRegistryPackageVersionFactKind,
 		ObservedAt:    observedAt,
 		IsTombstone:   false,
 		SourceRef:     facts.Ref{SourceSystem: "package_registry"},
