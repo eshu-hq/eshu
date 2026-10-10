@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -66,15 +67,19 @@ func TestGoldenDocumentationPacketShapeRejectsUnprovenReadback(t *testing.T) {
 		t.Fatalf("LoadSnapshot() error = %v", err)
 	}
 	shape := snapshot.QueryShapes.MCP["get_documentation_evidence_packet"]
+	documentPayload, err := goldenProducerDocument(packet.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for key, value := range map[string]any{
 		"data.packet_id":                           packet.PacketID,
 		"data.packet_version":                      packet.PacketVersion,
 		"data.finding_id":                          finding.FindingID,
 		"data.document.document_id":                finding.DocumentID,
-		"data.document.canonical_uri":              packet.Payload["document"].(map[string]any)["canonical_uri"],
+		"data.document.canonical_uri":              documentPayload["canonical_uri"],
 		"data.section.section_id":                  finding.SectionID,
 		"data.unified_evidence.citation.entity_id": finding.DocumentID,
-		"data.evidence_refs[].source_uri":          packet.Payload["document"].(map[string]any)["canonical_uri"],
+		"data.evidence_refs[].source_uri":          documentPayload["canonical_uri"],
 	} {
 		shape.RequiredJSONValues[key] = value
 	}
@@ -120,4 +125,39 @@ func TestGoldenDocumentationPacketShapeRejectsUnprovenReadback(t *testing.T) {
 	wrongTruth := clone()
 	wrongTruth["truth"].(map[string]any)["basis"] = "assertion"
 	assertShape("wrong response truth", wrongTruth, false)
+}
+
+func TestGoldenProducerDocument(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name    string
+		payload map[string]any
+		wantOK  bool
+	}{
+		{name: "missing"},
+		{name: "null", payload: map[string]any{"document": nil}},
+		{name: "scalar", payload: map[string]any{"document": "invalid"}},
+		{name: "array", payload: map[string]any{"document": []any{}}},
+		{name: "typed nil", payload: map[string]any{"document": map[string]any(nil)}},
+		{name: "object", payload: map[string]any{"document": map[string]any{"canonical_uri": "fixture"}}, wantOK: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			document, err := goldenProducerDocument(test.payload)
+			if (err == nil) != test.wantOK {
+				t.Fatalf("goldenProducerDocument() error = %v, want success=%t", err, test.wantOK)
+			}
+			if test.wantOK && document["canonical_uri"] != "fixture" {
+				t.Fatalf("document = %#v, want original object", document)
+			}
+		})
+	}
+}
+
+// goldenProducerDocument checks the producer's object before tests bind its URI.
+func goldenProducerDocument(payload map[string]any) (map[string]any, error) {
+	document, ok := payload["document"].(map[string]any)
+	if !ok || document == nil {
+		return nil, fmt.Errorf("verifier packet document = %T, want non-nil object", payload["document"])
+	}
+	return document, nil
 }
