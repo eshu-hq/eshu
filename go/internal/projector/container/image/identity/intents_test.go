@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -36,7 +37,7 @@ func TestBuildContainerImageIdentityReducerIntentFromOCIManifestFact(t *testing.
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file", Payload: map[string]any{"language": "go"}},
 		{
-			FactKind:      facts.OCIImageManifestFactKind,
+			FactKind:      chain.OCIImageManifestFactKind,
 			FactID:        "manifest-fact-1",
 			SourceRef:     facts.Ref{SourceSystem: "  registry.example.com  "},
 			CollectorKind: "oci_registry",
@@ -73,7 +74,7 @@ func TestBuildContainerImageIdentityReducerIntentSourceSystemFallsBackToCollecto
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
-			FactKind:      facts.OCIImageManifestFactKind,
+			FactKind:      chain.OCIImageManifestFactKind,
 			FactID:        "manifest-fact-2",
 			SourceRef:     facts.Ref{SourceSystem: "   "},
 			CollectorKind: "  oci_registry  ",

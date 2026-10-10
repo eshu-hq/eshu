@@ -156,7 +156,7 @@ func TestClaimedSourceUsesOCIReferrerTargetWithoutEmittingOCIFacts(t *testing.T)
 		t.Fatalf("provider ReferrerDigest = %q, want %q", got, want)
 	}
 	requireFactKind(t, collected, chain.SBOMDocumentFactKind)
-	if fact := optionalFactKind(collected, facts.OCIImageReferrerFactKind); fact.FactID != "" {
+	if fact := optionalFactKind(collected, chain.OCIImageReferrerFactKind); fact.FactID != "" {
 		t.Fatalf("runtime emitted OCI referrer fact %q; OCI collector owns those facts", fact.FactID)
 	}
 	doc := requireFactKind(t, collected, chain.SBOMDocumentFactKind)

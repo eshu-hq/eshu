@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
@@ -34,7 +34,7 @@ func TestWarningEnvelopeRedactsURLsAndCredentials(t *testing.T) {
 		t.Fatalf("NewWarningEnvelope() error = %v", err)
 	}
 
-	assertOCIEnvelope(t, envelope, facts.OCIRegistryWarningFactKind, facts.OCIRegistryWarningSchemaVersion)
+	assertOCIEnvelope(t, envelope, chain.OCIRegistryWarningFactKind, chain.OCIRegistryWarningSchemaVersion)
 	if got := envelope.Payload["warning_code"]; got != WarningUnsupportedReferrersAPI {
 		t.Fatalf("warning_code = %#v", got)
 	}

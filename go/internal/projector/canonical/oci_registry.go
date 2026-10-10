@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // OCIRegistryRepositoryRow carries one observed OCI registry repository for
@@ -154,37 +155,37 @@ func ExtractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Env
 	for _, envelope := range envelopes {
 		var err error
 		switch envelope.FactKind {
-		case facts.OCIRegistryRepositoryFactKind:
+		case chain.OCIRegistryRepositoryFactKind:
 			if row, ok, rowErr := ociRegistryRepositoryRow(envelope); ok {
 				mat.OCIRegistryRepository = &row
 			} else {
 				err = rowErr
 			}
-		case facts.OCIImageManifestFactKind:
+		case chain.OCIImageManifestFactKind:
 			if row, ok, rowErr := ociImageManifestRow(envelope); ok {
 				mat.OCIImageManifests = append(mat.OCIImageManifests, row)
 			} else {
 				err = rowErr
 			}
-		case facts.OCIImageIndexFactKind:
+		case chain.OCIImageIndexFactKind:
 			if row, ok, rowErr := ociImageIndexRow(envelope); ok {
 				mat.OCIImageIndexes = append(mat.OCIImageIndexes, row)
 			} else {
 				err = rowErr
 			}
-		case facts.OCIImageDescriptorFactKind:
+		case chain.OCIImageDescriptorFactKind:
 			if row, ok, rowErr := ociImageDescriptorRow(envelope); ok {
 				mat.OCIImageDescriptors = append(mat.OCIImageDescriptors, row)
 			} else {
 				err = rowErr
 			}
-		case facts.OCIImageTagObservationFactKind:
+		case chain.OCIImageTagObservationFactKind:
 			if row, ok, rowErr := ociImageTagObservationRow(envelope); ok {
 				mat.OCIImageTagObservations = append(mat.OCIImageTagObservations, row)
 			} else {
 				err = rowErr
 			}
-		case facts.OCIImageReferrerFactKind:
+		case chain.OCIImageReferrerFactKind:
 			if row, ok, rowErr := ociImageReferrerRow(envelope); ok {
 				mat.OCIImageReferrers = append(mat.OCIImageReferrers, row)
 			} else {

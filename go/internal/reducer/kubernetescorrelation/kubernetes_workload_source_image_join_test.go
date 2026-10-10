@@ -7,12 +7,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func ociManifestEnvelope(payload map[string]any, tombstone bool) facts.Envelope {
 	return facts.Envelope{
-		FactKind:    facts.OCIImageManifestFactKind,
+		FactKind:    chain.OCIImageManifestFactKind,
 		FactID:      "fact-" + payloadcore.AnyToString(payload["digest"]),
 		IsTombstone: tombstone,
 		Payload:     payload,
@@ -168,7 +169,7 @@ func TestSourceImageDigestJoinIndexIngestsImageIndexAndDescriptorFacts(t *testin
 	// resolve by digest to the canonical node uid.
 	envelopes := []facts.Envelope{
 		{
-			FactKind: facts.OCIImageIndexFactKind,
+			FactKind: chain.OCIImageIndexFactKind,
 			FactID:   "fact-index",
 			Payload: sampleManifestPayload(
 				"oci-registry://registry.example.com/checkout",
@@ -177,7 +178,7 @@ func TestSourceImageDigestJoinIndexIngestsImageIndexAndDescriptorFacts(t *testin
 			),
 		},
 		{
-			FactKind: facts.OCIImageDescriptorFactKind,
+			FactKind: chain.OCIImageDescriptorFactKind,
 			FactID:   "fact-descriptor",
 			Payload: sampleManifestPayload(
 				"oci-registry://registry.example.com/checkout",
@@ -212,7 +213,7 @@ func TestSourceImageDigestJoinIndexResolveNodeReturnsLabelPerKind(t *testing.T) 
 			"sha256:man",
 		), false),
 		{
-			FactKind: facts.OCIImageIndexFactKind,
+			FactKind: chain.OCIImageIndexFactKind,
 			FactID:   "fact-index",
 			Payload: sampleManifestPayload(
 				"oci-registry://registry.example.com/checkout",
@@ -221,7 +222,7 @@ func TestSourceImageDigestJoinIndexResolveNodeReturnsLabelPerKind(t *testing.T) 
 			),
 		},
 		{
-			FactKind: facts.OCIImageDescriptorFactKind,
+			FactKind: chain.OCIImageDescriptorFactKind,
 			FactID:   "fact-descriptor",
 			Payload: sampleManifestPayload(
 				"oci-registry://registry.example.com/checkout",

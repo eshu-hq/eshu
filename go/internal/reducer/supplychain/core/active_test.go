@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -473,7 +474,7 @@ func ociImageReferrerFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.OCIImageReferrerFactKind,
+		FactKind: chain.OCIImageReferrerFactKind,
 		Payload: map[string]any{
 			"subject_digest":      subjectDigest,
 			"referrer_digest":     referrerDigest,

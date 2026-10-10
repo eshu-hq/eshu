@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // TestExtractOCIRegistryRowsQuarantinesMissingManifestDigest is the flagship
@@ -42,8 +43,8 @@ func TestExtractOCIRegistryRowsQuarantinesMissingManifestDigest(t *testing.T) {
 		FactID:        "oci-manifest-bad",
 		ScopeID:       "oci-scope-1",
 		GenerationID:  "oci-generation-1",
-		FactKind:      facts.OCIImageManifestFactKind,
-		SchemaVersion: facts.OCIImageManifestSchemaVersion,
+		FactKind:      chain.OCIImageManifestFactKind,
+		SchemaVersion: chain.OCIImageManifestSchemaVersion,
 		Payload: map[string]any{
 			"repository_id": "oci-registry://registry.example.com/team/api",
 			// "digest" intentionally absent.
@@ -57,8 +58,8 @@ func TestExtractOCIRegistryRowsQuarantinesMissingManifestDigest(t *testing.T) {
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-digest manifest fact must be quarantined", len(quarantined))
 	}
-	if got := quarantined[0].FactKind; got != facts.OCIImageManifestFactKind {
-		t.Fatalf("quarantined fact kind = %q, want %q", got, facts.OCIImageManifestFactKind)
+	if got := quarantined[0].FactKind; got != chain.OCIImageManifestFactKind {
+		t.Fatalf("quarantined fact kind = %q, want %q", got, chain.OCIImageManifestFactKind)
 	}
 	if got := quarantined[0].Field; got != "digest" {
 		t.Fatalf("quarantined field = %q, want %q", got, "digest")
@@ -90,8 +91,8 @@ func TestExtractOCIRegistryRowsPresentButEmptyDigestIsDroppedNotQuarantined(t *t
 		FactID:        "oci-manifest-empty",
 		ScopeID:       "oci-scope-1",
 		GenerationID:  "oci-generation-1",
-		FactKind:      facts.OCIImageManifestFactKind,
-		SchemaVersion: facts.OCIImageManifestSchemaVersion,
+		FactKind:      chain.OCIImageManifestFactKind,
+		SchemaVersion: chain.OCIImageManifestSchemaVersion,
 		Payload: map[string]any{
 			"repository_id": "oci-registry://registry.example.com/team/api",
 			"digest":        "", // present but empty
@@ -135,8 +136,8 @@ func TestExtractOCIRegistryRowsWhitespaceDigestIsDroppedNotMaterialized(t *testi
 		FactID:        "oci-manifest-ws",
 		ScopeID:       "oci-scope-1",
 		GenerationID:  "oci-generation-1",
-		FactKind:      facts.OCIImageManifestFactKind,
-		SchemaVersion: facts.OCIImageManifestSchemaVersion,
+		FactKind:      chain.OCIImageManifestFactKind,
+		SchemaVersion: chain.OCIImageManifestSchemaVersion,
 		Payload: map[string]any{
 			"repository_id": "oci-registry://registry.example.com/team/api",
 			"digest":        "   ", // present but whitespace-only

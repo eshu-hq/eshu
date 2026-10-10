@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestRepositoryObservationBuildsReportedRepositoryEnvelope(t *testing.T) {
@@ -34,7 +35,7 @@ func TestRepositoryObservationBuildsReportedRepositoryEnvelope(t *testing.T) {
 		t.Fatalf("NewRepositoryEnvelope() error = %v", err)
 	}
 
-	assertOCIEnvelope(t, envelope, facts.OCIRegistryRepositoryFactKind, facts.OCIRegistryRepositorySchemaVersion)
+	assertOCIEnvelope(t, envelope, chain.OCIRegistryRepositoryFactKind, chain.OCIRegistryRepositorySchemaVersion)
 	if envelope.ScopeID != "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/team/api-service" {
 		t.Fatalf("ScopeID = %q", envelope.ScopeID)
 	}
@@ -92,7 +93,7 @@ func TestTagObservationBuildsWeakTagEnvelopeWithDigestIdentity(t *testing.T) {
 		t.Fatalf("NewTagObservationEnvelope() error = %v", err)
 	}
 
-	assertOCIEnvelope(t, envelope, facts.OCIImageTagObservationFactKind, facts.OCIImageTagObservationSchemaVersion)
+	assertOCIEnvelope(t, envelope, chain.OCIImageTagObservationFactKind, chain.OCIImageTagObservationSchemaVersion)
 	if got := envelope.Payload["tag"]; got != "Latest" {
 		t.Fatalf("tag = %#v", got)
 	}
@@ -178,7 +179,7 @@ func TestDescriptorEnvelopesPreserveDigestIdentityAndRedactUnknownAnnotations(t 
 		t.Fatalf("NewManifestEnvelope() error = %v", err)
 	}
 
-	assertOCIEnvelope(t, envelope, facts.OCIImageManifestFactKind, facts.OCIImageManifestSchemaVersion)
+	assertOCIEnvelope(t, envelope, chain.OCIImageManifestFactKind, chain.OCIImageManifestSchemaVersion)
 	if got := envelope.Payload["digest"]; got != sha256Digest {
 		t.Fatalf("digest = %#v", got)
 	}
@@ -238,7 +239,7 @@ func TestIndexDescriptorAndReferrerEnvelopeBuilders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewImageIndexEnvelope() error = %v", err)
 	}
-	assertOCIEnvelope(t, indexEnvelope, facts.OCIImageIndexFactKind, facts.OCIImageIndexSchemaVersion)
+	assertOCIEnvelope(t, indexEnvelope, chain.OCIImageIndexFactKind, chain.OCIImageIndexSchemaVersion)
 
 	descriptorEnvelope, err := NewDescriptorEnvelope(DescriptorObservation{
 		Repository: repository,
@@ -254,7 +255,7 @@ func TestIndexDescriptorAndReferrerEnvelopeBuilders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDescriptorEnvelope() error = %v", err)
 	}
-	assertOCIEnvelope(t, descriptorEnvelope, facts.OCIImageDescriptorFactKind, facts.OCIImageDescriptorSchemaVersion)
+	assertOCIEnvelope(t, descriptorEnvelope, chain.OCIImageDescriptorFactKind, chain.OCIImageDescriptorSchemaVersion)
 
 	referrerEnvelope, err := NewReferrerEnvelope(ReferrerObservation{
 		Repository: repository,
@@ -276,7 +277,7 @@ func TestIndexDescriptorAndReferrerEnvelopeBuilders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReferrerEnvelope() error = %v", err)
 	}
-	assertOCIEnvelope(t, referrerEnvelope, facts.OCIImageReferrerFactKind, facts.OCIImageReferrerSchemaVersion)
+	assertOCIEnvelope(t, referrerEnvelope, chain.OCIImageReferrerFactKind, chain.OCIImageReferrerSchemaVersion)
 	if got := referrerEnvelope.Payload["subject_digest"]; got != manifestDigest {
 		t.Fatalf("subject_digest = %#v", got)
 	}

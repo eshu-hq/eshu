@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestSourceNextDeclaresTagListTruncationInBand(t *testing.T) {
@@ -100,11 +101,11 @@ func TestSourceNextDeclaresTagListTruncationInBand(t *testing.T) {
 			var observedTags []string
 			for _, envelope := range drainFacts(t, collected) {
 				switch envelope.FactKind {
-				case facts.OCIRegistryWarningFactKind:
+				case chain.OCIRegistryWarningFactKind:
 					if envelope.Payload["warning_code"] == ociregistry.WarningTagListTruncated {
 						warnings = append(warnings, envelope)
 					}
-				case facts.OCIImageTagObservationFactKind:
+				case chain.OCIImageTagObservationFactKind:
 					if tag, ok := envelope.Payload["tag"].(string); ok {
 						observedTags = append(observedTags, tag)
 					}

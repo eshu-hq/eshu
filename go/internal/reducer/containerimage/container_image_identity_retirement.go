@@ -11,6 +11,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
@@ -83,7 +84,7 @@ func planContainerImageIdentityRetirement(
 	missingManifestRepositories := make(map[string]struct{})
 
 	for _, envelope := range warnings {
-		if envelope.FactKind != facts.OCIRegistryWarningFactKind {
+		if envelope.FactKind != chain.OCIRegistryWarningFactKind {
 			continue
 		}
 		warning, err := schemadecode.DecodeOCIRegistryWarning(envelope)
@@ -286,7 +287,7 @@ func containerImageIdentityConfigManifestDigests(
 ) map[containerImageIdentityRepositoryConfig][]containerImageIdentityRepositoryDigest {
 	out := make(map[containerImageIdentityRepositoryConfig][]containerImageIdentityRepositoryDigest)
 	for _, envelope := range evidence {
-		if envelope.FactKind != facts.OCIImageManifestFactKind {
+		if envelope.FactKind != chain.OCIImageManifestFactKind {
 			continue
 		}
 		manifest, ok := schemadecode.DecodeOCIImageManifestForIndex(envelope)

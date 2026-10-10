@@ -13,7 +13,7 @@ import (
 // sbomAttestationAttachmentCandidateFactKinds are the fact kinds
 // sbomAttestationAttachmentTriggerFact accepts.
 var sbomAttestationAttachmentCandidateFactKinds = []string{
-	chain.SBOMDocumentFactKind, chain.AttestationStatementFactKind, facts.OCIImageReferrerFactKind,
+	chain.SBOMDocumentFactKind, chain.AttestationStatementFactKind, chain.OCIImageReferrerFactKind,
 }
 
 // BuildSBOMAttestationAttachmentReducerIntent enqueues one reducer intent that
@@ -54,7 +54,7 @@ func BuildSBOMAttestationAttachmentReducerIntent(
 // carries both subject and referrer digests.
 func sbomAttestationAttachmentTriggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
-	case chain.SBOMDocumentFactKind, chain.AttestationStatementFactKind, facts.OCIImageReferrerFactKind:
+	case chain.SBOMDocumentFactKind, chain.AttestationStatementFactKind, chain.OCIImageReferrerFactKind:
 		return true
 	default:
 		return false

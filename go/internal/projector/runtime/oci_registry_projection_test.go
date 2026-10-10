@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -88,8 +89,8 @@ func TestBuildCanonicalMaterializationSkipsTagOnlyOCIIdentity(t *testing.T) {
 		FactID:        "oci-tag-only",
 		ScopeID:       "oci-scope-1",
 		GenerationID:  "oci-generation-1",
-		FactKind:      facts.OCIImageTagObservationFactKind,
-		SchemaVersion: facts.OCIImageTagObservationSchemaVersion,
+		FactKind:      chain.OCIImageTagObservationFactKind,
+		SchemaVersion: chain.OCIImageTagObservationSchemaVersion,
 		Payload: map[string]any{
 			"provider":      "ghcr",
 			"registry":      "registry.example.com",
@@ -125,7 +126,7 @@ func TestRuntimeProjectRejectsUnknownOCIRegistrySchemaVersion(t *testing.T) {
 			FactID:        "oci-manifest-1",
 			ScopeID:       "oci-scope-1",
 			GenerationID:  "oci-generation-1",
-			FactKind:      facts.OCIImageManifestFactKind,
+			FactKind:      chain.OCIImageManifestFactKind,
 			SchemaVersion: "2.0.0",
 			Payload: map[string]any{
 				"repository_id": "oci-registry://registry.example.com/team/api",
@@ -167,9 +168,9 @@ func ociRegistryFacts() []facts.Envelope {
 			FactID:           "oci-repository-1",
 			ScopeID:          "oci-scope-1",
 			GenerationID:     "oci-generation-1",
-			FactKind:         facts.OCIRegistryRepositoryFactKind,
+			FactKind:         chain.OCIRegistryRepositoryFactKind,
 			StableFactKey:    "oci-registry://registry.example.com/team/api",
-			SchemaVersion:    facts.OCIRegistryRepositorySchemaVersion,
+			SchemaVersion:    chain.OCIRegistryRepositorySchemaVersion,
 			CollectorKind:    "oci_registry",
 			SourceConfidence: facts.SourceConfidenceReported,
 			ObservedAt:       observedAt,
@@ -194,9 +195,9 @@ func ociRegistryFacts() []facts.Envelope {
 			FactID:           "oci-tag-1",
 			ScopeID:          "oci-scope-1",
 			GenerationID:     "oci-generation-1",
-			FactKind:         facts.OCIImageTagObservationFactKind,
+			FactKind:         chain.OCIImageTagObservationFactKind,
 			StableFactKey:    "oci-tag:prod",
-			SchemaVersion:    facts.OCIImageTagObservationSchemaVersion,
+			SchemaVersion:    chain.OCIImageTagObservationSchemaVersion,
 			CollectorKind:    "oci_registry",
 			SourceConfidence: facts.SourceConfidenceReported,
 			ObservedAt:       observedAt,
@@ -216,9 +217,9 @@ func ociRegistryFacts() []facts.Envelope {
 			FactID:           "oci-manifest-1",
 			ScopeID:          "oci-scope-1",
 			GenerationID:     "oci-generation-1",
-			FactKind:         facts.OCIImageManifestFactKind,
+			FactKind:         chain.OCIImageManifestFactKind,
 			StableFactKey:    ociManifestDescriptorID(),
-			SchemaVersion:    facts.OCIImageManifestSchemaVersion,
+			SchemaVersion:    chain.OCIImageManifestSchemaVersion,
 			CollectorKind:    "oci_registry",
 			SourceConfidence: facts.SourceConfidenceReported,
 			ObservedAt:       observedAt,
@@ -257,9 +258,9 @@ func ociRegistryFacts() []facts.Envelope {
 			FactID:           "oci-index-1",
 			ScopeID:          "oci-scope-1",
 			GenerationID:     "oci-generation-1",
-			FactKind:         facts.OCIImageIndexFactKind,
+			FactKind:         chain.OCIImageIndexFactKind,
 			StableFactKey:    ociIndexDescriptorID(),
-			SchemaVersion:    facts.OCIImageIndexSchemaVersion,
+			SchemaVersion:    chain.OCIImageIndexSchemaVersion,
 			CollectorKind:    "oci_registry",
 			SourceConfidence: facts.SourceConfidenceReported,
 			ObservedAt:       observedAt,

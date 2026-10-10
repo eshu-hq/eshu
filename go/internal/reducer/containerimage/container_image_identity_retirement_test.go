@@ -14,6 +14,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
@@ -232,7 +233,7 @@ func TestContainerImageIdentityHandlerFailsClosedOnMalformedRetirementWarning(t 
 		},
 		warnings: []facts.Envelope{{
 			FactID:   "warning-malformed",
-			FactKind: facts.OCIRegistryWarningFactKind,
+			FactKind: chain.OCIRegistryWarningFactKind,
 			Payload: map[string]any{
 				"repository_id": retirementTestRepositoryID,
 			},
@@ -359,7 +360,7 @@ func TestContainerImageIdentityHandlerFailsClosedOnIncompleteSafetyWarningTarget
 					},
 					warnings: []facts.Envelope{{
 						FactID:   "warning-incomplete-target",
-						FactKind: facts.OCIRegistryWarningFactKind,
+						FactKind: chain.OCIRegistryWarningFactKind,
 						Payload:  payload,
 					}},
 				},
@@ -402,7 +403,7 @@ func retirementTestWrite(decision ContainerImageIdentityDecision) ContainerImage
 func retirementManifestEnvelope() facts.Envelope {
 	return facts.Envelope{
 		FactID:   "manifest-5854",
-		FactKind: facts.OCIImageManifestFactKind,
+		FactKind: chain.OCIImageManifestFactKind,
 		Payload: map[string]any{
 			"repository_id": retirementTestRepositoryID,
 			"digest":        retirementTestDigest,
@@ -416,7 +417,7 @@ func retirementManifestEnvelope() facts.Envelope {
 func retirementWarningEnvelope(code string, digest string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "warning-" + code,
-		FactKind: facts.OCIRegistryWarningFactKind,
+		FactKind: chain.OCIRegistryWarningFactKind,
 		Payload: map[string]any{
 			"repository_id": retirementTestRepositoryID,
 			"warning_code":  code,

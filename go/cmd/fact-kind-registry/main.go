@@ -424,7 +424,7 @@ func liveFamilies() []liveFamily {
 		{"incident_routing", facts.IncidentRoutingFactKinds, facts.IncidentRoutingSchemaVersion},
 		{"kubernetes_live", cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},
 		{"observability", facts.ObservabilityFactKinds, facts.ObservabilitySchemaVersion},
-		{"oci_registry", facts.OCIRegistryFactKinds, facts.OCIRegistrySchemaVersion},
+		{"oci_registry", chain.OCIRegistryFactKinds, chain.OCIRegistrySchemaVersion},
 		{"package_registry", facts.PackageRegistryFactKinds, facts.PackageRegistrySchemaVersion},
 		{"rds_posture", cloud.RDSPostureFactKinds, cloud.RDSPostureSchemaVersion},
 		{"reducer_derived", facts.ReducerDerivedFactKinds, facts.ReducerDerivedSchemaVersion},

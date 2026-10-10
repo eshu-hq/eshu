@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // BenchmarkExtractOCIRegistryRows measures the typed-decode canonical extractor
@@ -66,14 +67,14 @@ func benchOCIRegistryFacts(repoCount int) []facts.Envelope {
 			}
 		}
 		envelopes = append(envelopes,
-			base(facts.OCIRegistryRepositoryFactKind, facts.OCIRegistryRepositorySchemaVersion, map[string]any{
+			base(chain.OCIRegistryRepositoryFactKind, chain.OCIRegistryRepositorySchemaVersion, map[string]any{
 				"repository_id": repoID,
 				"provider":      "ghcr",
 				"registry":      "registry.example.com",
 				"repository":    fmt.Sprintf("team/api-%05d", i),
 				"visibility":    "private",
 			}),
-			base(facts.OCIImageManifestFactKind, facts.OCIImageManifestSchemaVersion, map[string]any{
+			base(chain.OCIImageManifestFactKind, chain.OCIImageManifestSchemaVersion, map[string]any{
 				"repository_id": repoID,
 				"digest":        manifestDigest,
 				"media_type":    "application/vnd.oci.image.manifest.v1+json",
@@ -84,24 +85,24 @@ func benchOCIRegistryFacts(repoCount int) []facts.Envelope {
 					map[string]any{"digest": fmt.Sprintf("sha256:%064x", i*7+11)},
 				},
 			}),
-			base(facts.OCIImageIndexFactKind, facts.OCIImageIndexSchemaVersion, map[string]any{
+			base(chain.OCIImageIndexFactKind, chain.OCIImageIndexSchemaVersion, map[string]any{
 				"repository_id": repoID,
 				"digest":        indexDigest,
 				"media_type":    "application/vnd.oci.image.index.v1+json",
 				"manifests":     []any{map[string]any{"digest": manifestDigest}},
 			}),
-			base(facts.OCIImageDescriptorFactKind, facts.OCIImageDescriptorSchemaVersion, map[string]any{
+			base(chain.OCIImageDescriptorFactKind, chain.OCIImageDescriptorSchemaVersion, map[string]any{
 				"repository_id": repoID,
 				"digest":        manifestDigest,
 				"media_type":    "application/vnd.oci.image.manifest.v1+json",
 			}),
-			base(facts.OCIImageTagObservationFactKind, facts.OCIImageTagObservationSchemaVersion, map[string]any{
+			base(chain.OCIImageTagObservationFactKind, chain.OCIImageTagObservationSchemaVersion, map[string]any{
 				"repository_id":   repoID,
 				"tag":             "prod",
 				"resolved_digest": manifestDigest,
 				"media_type":      "application/vnd.oci.image.manifest.v1+json",
 			}),
-			base(facts.OCIImageReferrerFactKind, facts.OCIImageReferrerSchemaVersion, map[string]any{
+			base(chain.OCIImageReferrerFactKind, chain.OCIImageReferrerSchemaVersion, map[string]any{
 				"repository_id":   repoID,
 				"subject_digest":  subjectDigest,
 				"referrer_digest": referrerDigest,
