@@ -30,7 +30,8 @@
 # pattern scripts/x.sh) return ;;) in command position counts as that call: the
 # gate fails closed rather than parse case patterns and data tables.
 #
-# Quotes and comments, per line (the shell text is not joined across lines):
+# Quotes and comments, per logical line (a trailing backslash joins the next
+# line; any other line break ends the command):
 #   - a # that starts the line or follows white space opens a comment (so $# and
 #     ${x#y} are not comments);
 #   - a single-quoted string is data and is skipped;
@@ -65,8 +66,16 @@ BEGIN {
   for (i in t) SHELL[t[i]] = 1
 }
 
-FNR == 1 { fname = FILENAME }
-{ scan($0) }
+# A line that ends in a backslash continues on the next line, so the next line is
+# not in command position (a quoted path that starts a continuation line of a
+# for-list or an argument list is data). A line with a comment is never joined: a
+# backslash at the end of a comment does not continue it.
+FNR == 1 { if (buf != "") { scan(buf); buf = "" } fname = FILENAME }
+{
+  if ($0 ~ /\\$/ && $0 !~ /\\\\$/ && $0 !~ /(^|[ \t])#/) { buf = buf substr($0, 1, length($0) - 1) " "; next }
+  scan(buf $0); buf = ""
+}
+END { if (buf != "") scan(buf) }
 
 # first_special returns the index of the first quote, backslash or # in s, or 0.
 function first_special(s,   i, best, k, ch) {

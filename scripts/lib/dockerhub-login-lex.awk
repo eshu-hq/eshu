@@ -346,6 +346,9 @@ function end_cmd(w, n,   i, s, t, cw, k, d, m, v, nm, all, envw) {
     # A variable assigned only from this function's own positional parameter takes
     # its value from the caller's argument, which the B records settle.
     if (((FNCUR SUBSEP nm) in PARAM) && !(nm in XSET) && !(nm in DOCKNAME)) { note_invoke(PARAM[FNCUR SUBSEP nm]); return }
+    # Whatever the variable holds (docker, docker compose), a first argument that
+    # is a non-pulling subcommand (ps, exec, logs, down, ...) pulls nothing.
+    if (i < n && (unq(w[i + 1]) in CNOPULL || unq(w[i + 1]) in NOPULL)) return
     if (tolower(nm) ~ /docker|compose|^dc$|_dc$|^dc_/) { emit("U", w, 1, n); return }
     # Unresolved here: finish_file decides from every assignment in the file.
     VC_n++; VC_nm[VC_n] = nm; VC_txt[VC_n] = join_words(w, 1, n)
@@ -355,9 +358,9 @@ function end_cmd(w, n,   i, s, t, cw, k, d, m, v, nm, all, envw) {
   if (cw == "shift") { SHIFTED = 1; return }
   if (cw == "read") { note_read(w, i, n); return }
   if (cw in HARMLESS) return
-  # for NAME in WORDS and select NAME in WORDS: the loop variable is an
-  # assignment (the words fall through to the docker argument scan below).
-  if ((cw == "for" || cw == "select") && unq(w[i + 2]) == "in") note_for(w, i, n)
+  # for NAME in WORDS ... and select NAME in WORDS: the list words are data. A
+  # loop variable later invoked as a command is a V record on its own.
+  if ((cw == "for" || cw == "select") && unq(w[i + 2]) == "in") { note_for(w, i, n); return }
   # An unknown command (a wrapper such as retry 3 docker pull x, or a helper that
   # forwards its arguments) with docker among its arguments: the words from docker
   # on are read as the docker command the wrapper runs, so its subcommand and image
@@ -416,6 +419,11 @@ function parse_list(term,   w, n, cur, inw, c, nx, j, s, q, dash, run, k, nm, db
     if (c == "#" && !inw) {
       while (P <= N && A[P] != "\n") P++
       continue
+    }
+    if (c == "\n" && dbr) {
+      # A newline inside [[ ... ]] (after && or ||) continues the test.
+      if (inw) { n++; w[n] = cur; cur = ""; inw = 0 }
+      P++; continue
     }
     if (c == "\n" || c == ";" || (!dbr && (c == "|" || (c == "&" && substr(cur, length(cur)) != ">" && substr(cur, length(cur)) != "<")))) {
       if (inw) { n++; w[n] = cur; cur = ""; inw = 0 }

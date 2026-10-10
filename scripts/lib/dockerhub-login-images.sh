@@ -383,6 +383,8 @@ step_hub_why() {
       [[ "${line}" != *'$'* ]] || need_vars=1
     done <<<"${!cur:-}"
   done
+  # A compose step settles its -f operands from the same tables.
+  [[ "${need_compose}" -ne 1 ]] || need_vars=1
   clear_step_tables
   if [[ "${need_vars}" -eq 1 ]]; then
     if [[ -n "${env64}" ]]; then
@@ -410,7 +412,7 @@ step_hub_why() {
   done
   # Compose: every compose file the reached text names must derive non-Hub.
   if [[ "${need_compose}" -eq 1 ]] && compose_step_is_hub "${runf}" "${cfiles}"; then
-    HUBWHY="docker compose with compose files not provably non-Hub"
+    HUBWHY="docker compose with compose files not provably non-Hub: ${COMPOSE_HUB_FILES}"
     return 0
   fi
   # A variable invoked as a command (V) that is assigned a docker or an

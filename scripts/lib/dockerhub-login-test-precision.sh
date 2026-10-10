@@ -7,9 +7,9 @@
 # lib/dockerhub-login-test-queue.sh and the test's own expect_green.
 #
 # A queue-path job cannot be waived by a login, so every fail-closed guess of the
-# gate is a hard failure there. Each GREEN shape below is a variable or argument
-# that cannot run docker; each RED shape is its nearest real violation, so the
-# resolution is shown not to hide the true reach.
+# gate is a hard failure there. Each GREEN shape below used to be a false
+# positive of such a guess; each RED shape is its nearest real violation, so the
+# refinement is shown not to hide the true reach.
 #
 # shellcheck disable=SC2154  # failures, ghcr_digest come from the test
 
@@ -23,13 +23,31 @@ pscript() { # <dir> <name> <printf format> [args...]: writes scripts/<name>.sh
 # --- GREEN: refinements that must not over-reach ----------------------------------
 queue_tree precision-green
 d="${QUEUE_DIR}"
+# A full-line comment that names a Docker Hub compose file is not a command.
+pscript "${d}" fixture-p-comment-compose '#!/usr/bin/env bash\n# docker-compose.fixture-hub.yaml is the Hub variant; this script never uses it.\ndocker compose -f docker-compose.fixture-ghcr.yaml up -d\n'
+qjob "${d}" p-comment-compose-name "$(steps_run 'bash scripts/fixture-p-comment-compose.sh')"
+# A compose file named only as the default of a variable is still named.
+pscript "${d}" fixture-p-default-compose '#!/usr/bin/env bash\ncompose_file="${FIXTURE_COMPOSE:-docker-compose.fixture-ghcr.yaml}"\ndocker compose -f "${compose_file}" up -d\n'
+qjob "${d}" p-default-compose-name "$(steps_run 'bash scripts/fixture-p-default-compose.sh')"
+# docker in a for-in word list is data.
+pscript "${d}" fixture-p-for-list '#!/usr/bin/env bash\nfor tool in docker node go; do\n\tcommand -v "$tool" >/dev/null 2>&1 || exit 1\ndone\n'
+qjob "${d}" p-for-in-docker-word "$(steps_run 'bash scripts/fixture-p-for-list.sh')"
+# A [[ ]] test continued across lines is not a command in its second line.
+pscript "${d}" fixture-p-multiline-test '#!/usr/bin/env bash\ndocker ps -q\na=1; b=2\n[[ "${a}" -eq 1 &&\n\t"${b}" -eq 2 ]] || exit 1\n'
+qjob "${d}" p-multiline-test-after-docker "$(steps_run 'bash scripts/fixture-p-multiline-test.sh')"
 # A function-name variable beside docker is not docker.
 pscript "${d}" fixture-p-fn-var '#!/usr/bin/env bash\ndocker ps -q\nfail_fn="${1:?}"\n"${fail_fn}" "message"\n'
 qjob "${d}" p-function-variable-beside-docker "$(steps_run 'bash scripts/fixture-p-fn-var.sh fail_now')"
+# A variable invoked with a non-pulling subcommand pulls nothing.
+pscript "${d}" fixture-p-nopull-var '#!/usr/bin/env bash\ndocker ps -q\n"${COMPOSE_CMD[@]}" ps -a -q service\n"${COMPOSE_CMD[@]}" exec -T service true\n'
+qjob "${d}" p-variable-with-a-non-pulling-subcommand "$(steps_run 'bash scripts/fixture-p-nopull-var.sh')"
 # A wrapper around docker is read as the docker command it runs; a bare docker
 # word names the program only.
 pscript "${d}" fixture-p-wrapper '#!/usr/bin/env bash\nrequire_tool() { command -v "$1" >/dev/null 2>&1; }\nretry 3 docker pull %s\nrequire_tool docker\nrun_it docker compose -f docker-compose.fixture-ghcr.yaml exec -T db true\n' "${ghcr_digest}"
 qjob "${d}" p-wrapper-of-a-ghcr-docker-command "$(steps_run 'bash scripts/fixture-p-wrapper.sh')"
+# A path inside a backslash-continued for-list is data, not a command.
+pscript "${d}" fixture-p-for-continuation '#!/usr/bin/env bash\nfor entry in \\\n\t"${repo_root}/scripts/fixture-q-run-hub.sh:1" \\\n\t"${repo_root}/scripts/fixture-q-compose-hub.sh:2"; do\n\techo "${entry}"\ndone\n'
+qjob "${d}" p-script-path-in-a-continued-for-list "$(steps_run 'bash scripts/fixture-p-for-continuation.sh')"
 # A function-name variable beside real docker words (the golden-corpus gate shape):
 # the parameter is assigned from $1, and the bare docker is argument 2 of a callee
 # that invokes argument 1 only.
@@ -70,6 +88,12 @@ expect_green matrix-cells-that-are-all-ghcr-pass "${d}"
 # --- RED: the nearest real violations still fail ----------------------------------
 queue_tree precision-red
 d="${QUEUE_DIR}"
+# The compose file is named in code too; the comment does not hide it.
+pscript "${d}" fixture-p-comment-and-code '#!/usr/bin/env bash\n# the Hub variant: docker-compose.fixture-hub.yaml\ndocker compose -f docker-compose.fixture-hub.yaml up -d\n'
+qjob "${d}" p-compose-named-in-code-and-comment "$(steps_run 'bash scripts/fixture-p-comment-and-code.sh')"
+# A [[ ]] test continued across lines, then a real pull.
+pscript "${d}" fixture-p-multiline-then-pull '#!/usr/bin/env bash\na=1; b=2\n[[ "${a}" -eq 1 &&\n\t"${b}" -eq 2 ]] || exit 1\ndocker pull postgres:18\n'
+qjob "${d}" p-multiline-test-then-a-hub-pull "$(steps_run 'bash scripts/fixture-p-multiline-then-pull.sh')"
 # A wrapper around a Hub pull, and around a Hub compose file.
 pscript "${d}" fixture-p-wrapper-hub '#!/usr/bin/env bash\nretry 3 docker pull postgres:18\n'
 qjob "${d}" p-wrapper-of-a-hub-pull "$(steps_run 'bash scripts/fixture-p-wrapper-hub.sh')"
@@ -106,8 +130,8 @@ yq e -i '.jobs.p-docker-valued-variable-from-the-step-env.steps[1].env.RUNTIME =
 pscript "${d}" fixture-p-expr-env-user '#!/usr/bin/env bash\ndocker ps -q\n"${RUNTIME}" frobnicate target\n'
 qjob "${d}" p-unresolved-env-expression-beside-docker "$(steps_run 'bash scripts/fixture-p-expr-env-user.sh')"
 yq e -i '.jobs.p-unresolved-env-expression-beside-docker.env.RUNTIME = "${{ inputs.runtime }}"' "${d}/${queue_wf}"
-expect_queue_jobs_red queue-path-nearest-violations-still-fail "${d}" p-wrapper-of-a-hub-pull \
-  p-wrapper-of-a-hub-compose p-same-file-docker-assignment \
+expect_queue_jobs_red queue-path-nearest-violations-still-fail "${d}" p-compose-named-in-code-and-comment \
+  p-multiline-test-then-a-hub-pull p-wrapper-of-a-hub-pull p-wrapper-of-a-hub-compose p-same-file-docker-assignment \
   p-unresolvable-assignment-beside-docker p-bare-docker-to-a-script-that-invokes-its-first-argument \
   p-bare-docker-to-a-function-that-invokes-its-argument p-bare-docker-to-an-undefined-command \
   p-docker-valued-variable-from-a-sourced-lib p-docker-valued-variable-from-the-job-env \
