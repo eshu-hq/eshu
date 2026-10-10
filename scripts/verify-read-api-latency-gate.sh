@@ -151,6 +151,19 @@ cleanup() {
 	for pid in "${bg_pids[@]:-}"; do
 		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
 	done
+    if [[ -n "${GATE_H1_CAPTURE_DIR}" && -n "${api_pid:-}" ]]; then
+        # Let the API flush its OTLP batch on SIGTERM before the workflow
+        # stops the collector. This is after the measured requests.
+        api_exited=0
+        for _ in {1..40}; do
+            if [[ ! -e "/proc/${api_pid}" || "$(ps -o stat= -p "${api_pid}" 2>/dev/null || true)" == Z* ]]; then
+                api_exited=1
+                break
+            fi
+            sleep 0.25
+        done
+        if [[ "${api_exited}" -eq 1 ]]; then wait "${api_pid}" 2>/dev/null || true; fi
+    fi
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/api.log" ]]; then
 		cp "${work_dir}/logs/api.log" "${api_log_preserve_path}" 2>/dev/null || true
         if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then cp "${work_dir}/logs/api.log" "${GATE_H1_CAPTURE_DIR}/api.log" 2>/dev/null || true; fi
