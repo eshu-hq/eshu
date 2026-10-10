@@ -3,7 +3,10 @@
 
 package failure
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrWorkSuperseded reports that a claimed projector generation was replaced
 // by a newer same-scope generation and should stop without acking or failing.
@@ -35,3 +38,11 @@ var ErrWorkClaimConflict = errors.New("projector work claim conflict")
 // retiring it. The marker changed nothing and the attempt has not written the
 // graph, so the caller re-runs the marker while its heartbeat keeps the lease.
 var ErrWorkWriteMarkerDeferred = errors.New("projector work write marker deferred: generation row busy")
+
+// ErrWorkWriteMarkerFenceBusy reports that the projection write-start marker
+// found its scope's claim fence row busy (#7819): an in-flight claim owns the
+// scope, so the marker defers in milliseconds instead of committing a marker
+// the claim's snapshot cannot see. It wraps ErrWorkWriteMarkerDeferred, so
+// callers that only classify re-run versus refuse keep working; callers that
+// distinguish deferral causes match this first.
+var ErrWorkWriteMarkerFenceBusy = fmt.Errorf("projector work write marker deferred: claim fence busy: %w", ErrWorkWriteMarkerDeferred)

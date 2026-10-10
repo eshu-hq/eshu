@@ -3,6 +3,13 @@
 
 package postgres
 
+import (
+	"context"
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+)
+
 // lockProjectorMarkerFenceQuery is the first statement of the #7389
 // write-start marker's transaction (#7819). It locks the scope's
 // projector_scope_claim_fences row non-blocking, before the marker UPDATE
@@ -17,10 +24,10 @@ package postgres
 // keeps the marker out of every wait cycle: the marker already waits on the
 // generation row under lock_timeout, and waiting on the fence too would let
 // it join a cycle with a claim holding the fence and pulling generations.
-// A missing row defers the same as a busy one: a claimed work row implies a
-// fence row (the claim inner-joins it), so a missing row means the scope is
-// gone and classifyWriteMarkerRefusal would refuse the marker anyway; the
-// bounded retry loop caps the wait.
+// A missing row means the scope is gone (the trigger creates the fence with
+// the scope and the scope delete cascades to it), so the marker tells the two
+// apart with the existence read below and routes a missing row to
+// classifyWriteMarkerRefusal at once instead of spinning the deferral bound.
 //
 // $1 scope.
 const lockProjectorMarkerFenceQuery = `
@@ -29,6 +36,57 @@ FROM projector_scope_claim_fences
 WHERE scope_id = $1
 FOR NO KEY UPDATE SKIP LOCKED
 `
+
+// fenceProjectorMarkerFenceExistsQuery tells a busy fence row from a missing
+// one after the lock statement finds nothing (#7907). It takes no lock, so it
+// never waits.
+//
+// $1 scope.
+const fenceProjectorMarkerFenceExistsQuery = `
+SELECT EXISTS (
+    SELECT 1
+    FROM projector_scope_claim_fences
+    WHERE scope_id = $1
+)
+`
+
+// checkMarkerClaimFence locks the scope's claim fence row for the write-start
+// marker. It reports whether the lock landed and whether the row exists: a
+// row that exists but could not lock is busy (SKIP LOCKED) and the marker
+// defers, while a missing row means the scope is gone and the marker refuses
+// through the classifier instead of spinning the deferral bound. Neither read
+// waits.
+func checkMarkerClaimFence(ctx context.Context, tx db.Queryer, scopeID string) (locked, exists bool, err error) {
+	fenceRows, err := tx.QueryContext(ctx, lockProjectorMarkerFenceQuery, scopeID)
+	if err != nil {
+		return false, false, fmt.Errorf("mark projection write started: lock claim fence: %w", err)
+	}
+	locked = fenceRows.Next()
+	if err := fenceRows.Err(); err != nil {
+		_ = fenceRows.Close()
+		return false, false, fmt.Errorf("mark projection write started: lock claim fence: %w", err)
+	}
+	_ = fenceRows.Close()
+	if locked {
+		return true, true, nil
+	}
+	existsRows, err := tx.QueryContext(ctx, fenceProjectorMarkerFenceExistsQuery, scopeID)
+	if err != nil {
+		return false, false, fmt.Errorf("mark projection write started: check claim fence: %w", err)
+	}
+	if existsRows.Next() {
+		if err := existsRows.Scan(&exists); err != nil {
+			_ = existsRows.Close()
+			return false, false, fmt.Errorf("mark projection write started: check claim fence: scan: %w", err)
+		}
+	}
+	if err := existsRows.Err(); err != nil {
+		_ = existsRows.Close()
+		return false, false, fmt.Errorf("mark projection write started: check claim fence: %w", err)
+	}
+	_ = existsRows.Close()
+	return false, exists, nil
+}
 
 // bumpProjectorMarkerFenceQuery is the last statement of the marker's
 // transaction, run only when the marker set. The bump tells a claim whose
