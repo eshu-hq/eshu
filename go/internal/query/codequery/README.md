@@ -74,10 +74,11 @@ helpers and the message constants.
 A configuration-state sentinel (index not ready, backend not configured)
 answers 503 with the sentinel's own fixed text and no `Retry-After`, even
 when the store wraps it with detail. The code-flow routes no longer answer
-408 on a deadline; a cancel answers 499 and a deadline the graph layer does
-not classify answers the fixed 500. Call-chain endpoint resolution keeps its
-400 disambiguation answer, which quotes only the caller's selectors and
-candidate entity ids; a store or graph failure during that lookup is a 500
+408 on a client cancel; a cancel answers 499 and a deadline the graph layer
+does not classify answers the fixed 500. Call-chain endpoint resolution keeps
+its 400 disambiguation answer, which quotes the caller's selector, the
+repository id, and each candidate's entity id, path, and start line; a store
+or graph failure during that lookup is a 500
 (`call_chain_lookup.go`). The Cypher and visualize routes keep their
 `internal_error` envelope through `tracing.ServerFailureEnvelope`.
 `server_failure*_test.go` covers each route family with a canary fault, a

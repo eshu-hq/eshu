@@ -88,7 +88,8 @@ which answers 503 with the sentinel's own text. Declare a new step's message
 as a `const` in `read_failure.go`. Never write `err.Error()` or a message
 formatted with `err` to a 4xx/5xx body; the query error-text guard holds
 every file in this package at zero sites. Only client-built text (selectors,
-candidate ids, locally computed counts) may reach a 400/422 body; wrap a
+candidate ids with their paths and start lines, locally computed counts) may
+reach a 400/422 body; wrap a
 store error that shares a return path with such text, as
 `callChainLookupError` does. When a capability is computed by a call
 (`relationshipCapability`), call `WriteGraphReadError` inline rather than

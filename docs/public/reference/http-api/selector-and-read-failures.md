@@ -202,15 +202,18 @@ The `POST /api/v0/code/flow/*` routes no longer answer `408` on a client
 cancel; they answer `499` like the other routes below, and a read that fails
 any other way answers `500` `code-flow read failed`. A call-chain or
 path-comparison selector that matches several entities still answers `400`
-quoting only the caller's selector and the candidate ids, and a store failure
-while resolving it answers `500` `call chain endpoint resolution failed`. A
-service that is not found answers `404` with only the selector text.
+quoting the selector, the repository id, and each candidate's id, path, and
+start line, and a store failure while resolving it answers `500` `call chain
+endpoint resolution failed`. A service that is not found answers `404` with
+only the selector text. `POST /api/v0/code/language-query` is not converted
+yet: its reads still answer a client cancel with `500`.
 
 ## Client cancels
 
 A client that cancels its request while one of the post-selector reads above
 runs, while a selector lookup runs through the shared selector helper, or
-while a read on any route in the sections above runs, gets `499` with the
+while a read on any route in the sections above runs (except the
+`POST /api/v0/code/language-query` reads), gets `499` with the
 same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
