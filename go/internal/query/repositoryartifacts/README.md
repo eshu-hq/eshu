@@ -68,6 +68,31 @@ for them:
    `collectKustomizeResourceFiles` over the files and names the resource files
    the kustomizations reference; only those are fetched in a second pass.
 
+Both content reads (steps 1 and 3) go through `ContentStore.GetFileContents`,
+one statement per chunk of 10 paths (`chunkedRead`,
+`repository_artifact_hydration_batch.go`), with at most 8 chunk reads of one
+repository in flight (#7126 PR 2). A repository holds at most five chunks per
+read, because the cap is 50 files. Repositories are still visited one after
+another. The statement is `relative_path = ANY($2)`, equality on the repository
+and path key, so it uses the `content_files_repo_path_pattern_idx` index. A
+chunk, not a whole repository, because one statement detoasts its rows on one
+backend: a single statement for a 7.4 MB repository ran 2.4 times slower than
+the eight-way per-file reads it replaces.
+
+Row semantics are those of `GetFileContent`. A path with no stored row keeps
+the list row, which the loader drops as blank. List rows that share a path read
+the row once and each receive it. Rows are assigned by `RelativePath`, never by
+position. A failed chunk fails the repository and leaves the rows unchanged.
+Chunks are dispatched in list order, every dispatched chunk runs to completion,
+and no chunk is dispatched after a failure, so the error returned is that of
+the lowest-numbered failing chunk whatever the interleaving. The earlier
+per-file reader returned whichever failure arrived first.
+
+`HydrateRepositoryCandidateFiles` (exported, used by the controller, runtime,
+workflow and compose/GitHub Actions loaders for the anchor repository) still
+reads one file per statement. The related repositories, which dominate the
+statement count, go through the config-artifact load above.
+
 The output of `BuildRepositoryConfigArtifacts` is identical to reading every
 candidate. One read-path difference is intended: a read failure on a file no
 extractor reads no longer fails the repository, because that read is not
@@ -75,7 +100,8 @@ issued. Any read the extractors need still fails the repository load.
 
 `LoadDeploymentArtifactOverviewWithStats` returns `ConfigArtifactReadStats`
 (related repository count, files listed, hydrated and skipped, content
-statements, hydrated bytes, list, hydrate and parse seconds). The repository
+statements, batch statements, chunk size and chunks in flight, hydrated bytes,
+list, hydrate and parse seconds). The repository
 story and context handlers log them on the `deployment_artifacts` stage line.
 
 ## HCL scan prefilter (#7126)
