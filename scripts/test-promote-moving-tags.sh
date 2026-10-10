@@ -99,7 +99,7 @@ fresh_case() {
 	export STUB_REPO="eshu-hq/eshu"
 	export RACE_LOSE_ONCE=0
 	export STUB_REQUIRE_BEARER=1
-	export STUB_TOKEN_MODE=token STUB_REGISTRY_DENIED=0
+	export STUB_TOKEN_MODE=token STUB_REGISTRY_DENIED=0 STUB_MISSING_PATH=""
 	mkdir -p "${STUB_DIR}/tags" "${STUB_DIR}/revs"
 	: >"${STUB_DIR}/curl.log"
 	: >"${STUB_DIR}/docker.log"
@@ -269,6 +269,18 @@ run_promote "refs/heads/main" 1
 check '401 manifest with digest header cannot promote' "$([ "${PROMOTE_RC}" != 0 ] && [ "$(creates)" == 0 ] && echo 0 || echo 1)"
 check '401 manifest is reported as a registry read failure' "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'manifest read failed with HTTP 401' && echo 0 || echo 1)"
 check 'credentials never enter output' "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'fixture-registry-token|x-access-token:fake' && echo 1 || echo 0)"
+
+# An existing newer tag with missing nested data must never look absent.
+for missing_path in manifests/sha256:mf2222 blobs/sha256:cf2222; do
+ fresh_case nested-missing
+ printf '%s' "${D_NEWER}" >"${STUB_DIR}/tags/main"
+ printf '%s' "${SHA_NEWER}" >"${STUB_DIR}/revs/$(san "${D_NEWER}")"
+ printf '%s %s\n' "${SHA_NEWER}" "${MY_SHA}" >"${STUB_DIR}/ancestors"
+ export STUB_MISSING_PATH="${missing_path}"
+ run_promote "refs/heads/main" 1
+ check "${missing_path} fails closed without promotion" "$([ "${PROMOTE_RC}" != 0 ] && [ "$(creates)" == 0 ] && echo 0 || echo 1)"
+ check "${missing_path} preserves the newer tag" "$(tag_is main "${D_NEWER}" && echo 0 || echo 1)"
+done
 
 printf 'test-promote-moving-tags: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" == "0" ]

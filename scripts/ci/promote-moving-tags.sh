@@ -99,14 +99,14 @@ tag_revision() {
 			echo "promote: ${tag}: index has no linux/amd64 manifest" >&2
 			return 1
 		fi
-		doc="$(ghcr_get "/manifests/${platform_digest}")" || return $?
+		doc="$(ghcr_get "/manifests/${platform_digest}")" || return 1
 	fi
 	cfg="$(jq -r '.config.digest // empty' <<<"${doc}")"
 	if [[ -z "${cfg}" ]]; then
 		echo "promote: ${tag}: manifest has no config digest" >&2
 		return 1
 	fi
-	doc="$(ghcr_get "/blobs/${cfg}")" || return $?
+	doc="$(ghcr_get "/blobs/${cfg}")" || return 1
 	# No rg here: the publish runners are plain ubuntu-latest, so this script
 	# is limited to curl, jq, git, docker, and POSIX text tools.
 	rev="$(jq -r '.config.Labels["org.opencontainers.image.revision"] // empty' <<<"${doc}")"

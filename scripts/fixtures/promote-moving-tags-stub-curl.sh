@@ -30,6 +30,10 @@ if [[ "${STUB_REQUIRE_BEARER:-0}" == 1 && "${authorized}" != 1 || "${STUB_REGIST
  exit 0
 fi
 path="${url#https://ghcr.io/v2/${STUB_REPO}/}"
+if [[ -n "${STUB_MISSING_PATH:-}" && "${path}" == "${STUB_MISSING_PATH}" ]]; then
+ printf '{"errors":[{"code":"NOT_FOUND"}]}\n404'
+ exit 0
+fi
 san() { printf '%s' "$1" | tr -c 'A-Za-z0-9' '_'; }
 known_digest() {
 	local want="$1" f

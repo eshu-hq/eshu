@@ -423,6 +423,7 @@ dockerpublish:
   - 'scripts/ci/promote-moving-tags.sh'
   - 'scripts/ci/resolve-image-scan-ref.sh'
   - 'scripts/test-promote-moving-tags.sh'
+  - 'scripts/fixtures/promote-moving-tags-stub-curl.sh'
   - 'scripts/test-resolve-image-scan-ref.sh'
   - 'scripts/test-verify-docker-publish-pr-platforms.sh'
   - 'scripts/test-verify-docker-publish-moving-tags.sh'
