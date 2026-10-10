@@ -5,7 +5,7 @@ This appendix belongs to
 It holds the measurements the decision rests on, the source facts, and the
 split between evidence and theory. No new measurement was taken for this
 record. Every figure below comes from an earlier read-only probe or a local
-bench. Source lines are at `origin/main` `b7ca5f2f0a`.
+bench. Source facts are read at `origin/main` `b7ca5f2f0a`.
 
 ## 1. Measurements and their limits
 
@@ -33,22 +33,23 @@ verdicts: PR1 round 2 CLEAN at `fe1c35698f`, PR1b round 3 CLEAN at
 
 ## 2. Source facts behind the design
 
-| Fact | Location |
+Paths are under `go/internal/query/repositoryartifacts/` unless a row says
+otherwise. Each source names a symbol, not a line.
+
+| Fact | Source |
 |---|---|
-| Related repositories come from one Neo4j UNION over eight relationship types, then a grant filter, before any file is read | `go/internal/query/repositoryartifacts/repository_config_artifacts_loader.go:108-142` |
-| Related repositories are visited one at a time | same file, `for _, source := range sources` at line 177 |
-| A related repository lists its files with `querycontract.RepositorySemanticEntityLimit` (5,000), no sentinel | same file, line 185 |
-| The hydration set is the first 50 candidates in list order that carry no content, read 8 at a time | `repository_artifact_hydration.go:18-45` |
-| Blank content is dropped before the build | `repository_config_artifacts_loader.go:196-205` |
-| Rows are deduplicated on `path|source_repo|relative_path|evidence_kind` and sorted on `path`, `source_repo`, `relative_path` with `sort.Slice` | same file, lines 207-255 |
-| Each row has four fields. `source_repo` is the name passed in | `repository_config_artifacts.go:64-80`. Kustomize rows at `repository_config_artifacts_kustomize.go:51-56`. Ansible rows at `repository_config_artifacts_ansible.go:28-33` |
-| The extractors drop remote references and do not read them | `repository_config_artifacts_kustomize.go:130`, `repository_config_artifacts_compose.go:153`, `repository_config_artifacts_hcl.go:151` and `:405` |
-| The anchor repository passes its own file list. Compose and GitHub Actions files are read first, and a file with content is not counted against the 50 cap | `repository_deployment_artifacts_loader.go:24-46`, `repository_artifact_hydration.go:41` |
-| Three routes call the loader | `go/internal/query/repository/handler.go:346`, `repository/context.go:211`, `service/deployment_evidence.go:47` |
-| `content_files` is keyed on `(repo_id, relative_path)` and is latest-wins | `go/internal/storage/postgres/schema_content_store.go:15-28`. Migration `169_content_files_generation_id.sql` |
-| The content writer already derives a read model after its content statements | `go/internal/storage/postgres/content_writer_upserts.go`, `deriveInfraInventory` |
-| `ingester`, `projector` and `bootstrap-index` construct the content writer | `go/cmd/ingester/wiring.go:415`, `go/cmd/projector/runtime_wiring.go:168`, `go/cmd/bootstrap-index/wiring.go:139` |
-| The infra read model backfill runs in the API process today | `go/internal/query/cloud_resource_owner_backfill.go:248` |
+| Related repositories come from one Neo4j UNION over eight relationship types, then a grant filter, before any file is read | `QueryRelatedRepositoryArtifactSources` and `FilterRepositoryArtifactSourcesForAccess` in `repository_config_artifacts_loader.go` |
+| Related repositories are visited one at a time. Each lists its files with `querycontract.RepositorySemanticEntityLimit` (5,000) and no sentinel | `loadRepositoryConfigArtifactsForSources` in the same file |
+| The hydration set is the first 50 candidates in list order that carry no content, read 8 at a time | `HydrateRepositoryCandidateFiles`, `RepositoryArtifactHydrationLimit` and `repositoryArtifactHydrationConcurrency` in `repository_artifact_hydration.go` |
+| Blank content is dropped before the build. Rows are deduplicated on `path|source_repo|relative_path|evidence_kind` and sorted on `path`, `source_repo`, `relative_path` with `sort.Slice` | `loadRepositoryConfigArtifactsForSources` |
+| Each row has four fields. `source_repo` is the name passed in | `appendConfigArtifactRow` in `repository_config_artifacts.go`, `extractKustomizeConfigPathRows`, `extractAnsibleConfigPathRows` |
+| The extractors drop remote references and do not read them | `localKustomizeRefs`, `normalizeComposeLocalConfigPath`, `isLocalishConfigArtifactPath`, `normalizeLocalConfigAssetPathValue` |
+| The anchor repository passes its own file list. Compose and GitHub Actions files are read first, and a file with content is not counted against the 50 cap | `LoadDeploymentArtifactOverview` and `hydrateRepositoryArtifactFiles` in `repository_deployment_artifacts_loader.go`, `HydrateRepositoryCandidateFiles` |
+| Three routes call the loader | `getRepositoryStory` in `go/internal/query/repository/handler.go`, `getRepositoryContext` in `repository/context.go`, `loadServiceDeploymentEvidence` in `go/internal/query/service/deployment_evidence.go` |
+| `content_files` is keyed on `(repo_id, relative_path)` and is latest-wins | `contentStoreBaseSchemaSQL` in `go/internal/storage/postgres/schema_content_store.go`, migration `169_content_files_generation_id.sql` |
+| The content writer already derives a read model after its content statements | `deriveInfraInventory` in `go/internal/storage/postgres/content_writer_upserts.go` |
+| `ingester`, `projector` and `bootstrap-index` construct the content writer | `buildIngesterProjectorRuntime` in `go/cmd/ingester/wiring.go`, `buildProjectorRuntime` in `go/cmd/projector/runtime_wiring.go`, `buildBootstrapProjector` in `go/cmd/bootstrap-index/wiring.go` |
+| The infra read model backfill runs in the API process today | `StartInfraInventoryBackfill` in `go/internal/query/cloud_resource_owner_backfill.go` |
 | The newest migration on `origin/main` | `169_content_files_generation_id.sql`. No open PR adds a migration (checked with `gh pr list --state open` on 2026-10-10) |
 
 ## 3. Evidence versus theory
