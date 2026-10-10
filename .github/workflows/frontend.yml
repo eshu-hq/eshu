@@ -1,171 +1,79 @@
 name: Frontend
-
-# Gates for the JavaScript/TypeScript product surfaces that the Go-focused
-# `Build Test` workflow does not cover:
-#   * the root Vite marketing site (builds to `site-dist`, served by Cloudflare Pages)
-#   * the console package under `apps/console`
-#
-# The marketing-site and console jobs run in parallel so a failure in one is
-# clearly attributable in the checks list (distinct job/check names) instead of
-# being hidden inside a single combined log.
-#
-# The lint + format jobs (issue #3763 O3) catch unsafe / undisciplined TS
-# before it lands. The lint job is the eslint flat config at the repo root
-# applied to src/ + apps/console/src/. The format job is Prettier scoped to
-# the files touched by this PR, so existing drift in untouched files does
-# not block the gate while every new / modified file stays formatted.
-#
-# npm audit policy (see the `audit` job):
-#   CI fails on HIGH and CRITICAL advisories (`--audit-level=high`). Moderate and
-#   low advisories are reported but do not block, because the only known residual
-#   is a low, Windows-only, dev-server esbuild advisory that never ships in the
-#   production `site-dist` bundle (CI runs on Linux). Critical/high frontend
-#   supply-chain findings are NOT silently ignored — they break the build.
-
 on:
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
   merge_group:
     types: [checks_requested]
   push:
     branches:
       - main
   pull_request:
-    paths:
-      - "src/**"
-      - "apps/console/**"
-      - "index.html"
-      - "package.json"
-      - "package-lock.json"
-      - "vite.config.ts"
-      - "tsconfig*.json"
-      - "wrangler.jsonc"
-      # Cloudflare Pages build-Node pin and runbook (#5798). src/cloudflareConfig.test.ts
-      # asserts the two in lockstep (npm test, "Marketing site" job); a PR that
-      # touches only one of them must still run that assertion.
-      - ".nvmrc"
-      - "CLOUDFLARE_PAGES.md"
-      # Root vite.config.ts has no test `include` override, so vitest collects
-      # scripts/marketing-review-runtime.test.mjs from the repo root under
-      # `npm test` (the "Marketing site" job). It exercises the two sibling
-      # modules, so a change to any of the three must run this workflow (#5798).
-      - "scripts/marketing-review.mjs"
-      - "scripts/marketing-review-runtime.mjs"
-      - "scripts/marketing-review-runtime.test.mjs"
-      # Vite sets no publicDir/root, so public/ is copied verbatim into
-      # build.outDir ("site-dist") and wrangler.jsonc publishes that as the
-      # Cloudflare Pages artifact. It feeds `npm run build` directly (#5798).
-      - "public/**"
-      - "eslint.config.js"
-      - ".prettierrc.json"
-      - ".prettierignore"
-      - "tests/lint-fixture/**"
-      - "scripts/test-eslint-config.sh"
-      - "scripts/verify-eslint-config.sh"
-      - "scripts/test-verify-frontend-format-changed.sh"
-      - "scripts/verify-frontend-format-changed.sh"
-      - "scripts/ci/install-apt-packages.sh"
-      - "scripts/run-console-live-e2e.sh"
-      - "scripts/run-console-retained-e2e.sh"
-      - "scripts/test-run-console-live-e2e.sh"
-      - "scripts/test-run-console-retained-e2e.sh"
-      - "scripts/console-live-e2e-runtime.mjs"
-      - "scripts/lib/console-retained-create-proof-schema.sql"
-      - "scripts/lib/console-retained-verify-public-identity.sql"
-      # Console bundle-budget gate (#5798): `npm run console:build` (the
-      # "Console" job) runs both scripts, and apps/console/src/consoleBundleBudget.test.ts
-      # + consoleBundleReport.test.ts (the same job's `console:test`) import them
-      # directly, so a change to either — or to the adjacent hand-maintained type
-      # declarations the tests typecheck against — must re-run this gate.
-      - "scripts/console-bundle-budget.mjs"
-      - "scripts/console-bundle-budget.d.mts"
-      - "scripts/console-bundle-report.mjs"
-      - "scripts/console-bundle-report.d.mts"
-      - ".pre-commit-config.yaml"
-      - ".github/workflows/frontend.yml"
-      # SSO auth E2E (#4971) surfaces — the browser gate, its runtime, the
-      # Compose stack it owns and the base stack it extends, the image it builds,
-      # the mock OIDC IdP it drives, and the backend auth/OIDC/session handlers
-      # it exercises end to end. A regression in any of these must re-run the
-      # fresh-stack browser gate on that same PR rather than merge false-green.
-      - "scripts/lib/auth_e2e_cli.sh"
-      - "scripts/test-auth-e2e-cli.sh"
-      - "scripts/run-auth-e2e.sh"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - "scripts/console-auth-e2e-runtime.mjs"
-      - "docker-compose.e2e.yaml"
-      # docker-compose.e2e.yaml extends its neo4j graph service from this file.
-      - "docker-compose.neo4j.yml"
-      - "docker-compose.yaml"
-      - "Dockerfile"
-      - "go/cmd/mock-oidc-idp/**"
-      - "go/cmd/api/**"
-      - "go/internal/oidclogin/**"
-      # MCP-identity auth E2E (F-9, #5170) surfaces — the sibling browser+scripted
-      # gate, its sensitivity/manifest verifiers, the mutation override, the
-      # named baseline, the stubbed GitHub counterparty, the MCP transport, and
-      # the backend bearer/GitHub/auth handlers it exercises end to end. A
-      # regression in any of these must re-run the gate on that same PR.
-      # (apps/console/** above already covers the apps/console/e2e/** modules.)
-      - "scripts/run-auth-mcp-e2e.sh"
-      - "scripts/auth-mcp-e2e-runtime.mjs"
-      - "scripts/verify-auth-mcp-e2e-sensitivity.sh"
-      - "scripts/verify-auth-mcp-e2e-manifest.sh"
-      - "scripts/refresh-auth-mcp-e2e-baseline.sh"
-      - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
-      - "scripts/lib/auth_mcp_e2e_manifest.sh"
-      - "scripts/test-verify-auth-mcp-e2e-sensitivity.sh"
-      - "scripts/test-verify-auth-mcp-e2e-manifest.sh"
-      - "docker-compose.e2e.mutation.yaml"
-      - "testdata/golden/auth-mcp-e2e-baseline.json"
-      - "go/cmd/mock-github/**"
-      - "go/cmd/mcp-server/**"
-      - "go/internal/oidcbearer/**"
-      - "go/internal/githublogin/**"
-      # The query auth surface (public-route allowlist, transport-auth
-      # middleware, OAuth discovery/challenge, bearer resolution) and the MCP
-      # transport itself: a revert of the public-route fix or an MCP-transport
-      # auth regression MUST re-trigger this gate (design §7).
-      - "go/internal/query/**"
-      - "go/internal/mcp/**"
+    paths: [
+      'src/**', 'apps/console/**', 'index.html',
+      'package.json', 'package-lock.json', 'vite.config.ts',
+      'tsconfig*.json', 'wrangler.jsonc', '.nvmrc',
+      'CLOUDFLARE_PAGES.md', 'scripts/marketing-review.mjs', 'scripts/marketing-review-runtime.mjs',
+      'scripts/marketing-review-runtime.test.mjs', 'public/**', 'eslint.config.js',
+      '.prettierrc.json', '.prettierignore', 'tests/lint-fixture/**',
+      'scripts/test-eslint-config.sh', 'scripts/verify-eslint-config.sh', 'scripts/test-verify-frontend-format-changed.sh',
+      'scripts/verify-frontend-format-changed.sh', 'scripts/ci/install-apt-packages.sh', 'scripts/run-console-live-e2e.sh',
+      'scripts/run-console-retained-e2e.sh', 'scripts/test-run-console-live-e2e.sh', 'scripts/test-run-console-retained-e2e.sh',
+      'scripts/console-live-e2e-runtime.mjs', 'scripts/lib/console-retained-create-proof-schema.sql', 'scripts/lib/console-retained-verify-public-identity.sql',
+      'scripts/console-bundle-budget.mjs', 'scripts/console-bundle-budget.d.mts', 'scripts/console-bundle-report.mjs',
+      'scripts/console-bundle-report.d.mts', '.pre-commit-config.yaml', '.github/workflows/frontend.yml',
+      'scripts/lib/auth_e2e_cli.sh', 'scripts/test-auth-e2e-cli.sh', 'scripts/run-auth-e2e.sh',
+      'scripts/ci/go-mod-download-retry.sh', 'scripts/console-auth-e2e-runtime.mjs', 'docker-compose.e2e.yaml',
+      'docker-compose.neo4j.yml', 'docker-compose.yaml', 'Dockerfile',
+      'go/cmd/mock-oidc-idp/**', 'go/cmd/api/**', 'go/internal/oidclogin/**',
+      'scripts/run-auth-mcp-e2e.sh', 'scripts/auth-mcp-e2e-runtime.mjs', 'scripts/verify-auth-mcp-e2e-sensitivity.sh',
+      'scripts/verify-auth-mcp-e2e-manifest.sh', 'scripts/refresh-auth-mcp-e2e-baseline.sh', 'scripts/lib/auth_mcp_e2e_sensitivity.sh',
+      'scripts/lib/auth_mcp_e2e_manifest.sh', 'scripts/test-verify-auth-mcp-e2e-sensitivity.sh', 'scripts/test-verify-auth-mcp-e2e-manifest.sh',
+      'docker-compose.e2e.mutation.yaml', 'testdata/golden/auth-mcp-e2e-baseline.json', 'go/cmd/mock-github/**',
+      'go/cmd/mcp-server/**', 'go/internal/oidcbearer/**', 'go/internal/githublogin/**',
+      'go/internal/query/**', 'go/internal/mcp/**',
+    ]
   workflow_dispatch:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 permissions:
   contents: read
-
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: frontend.yml
   marketing-site:
+    needs: queue-selection
     name: Marketing site (root Vite)
     timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         uses: actions/checkout@v5
-
       - name: Set up Node.js
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies (clean, lockfile-pinned)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm ci
-
       - name: Typecheck root site
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm run typecheck
-
       - name: Test root site
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm test
-
       - name: Build root site
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm run build
-
   console:
+    needs: queue-selection
     name: Console (apps/console)
     timeout-minutes: 20
     runs-on: ubuntu-latest
@@ -175,7 +83,11 @@ jobs:
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -188,39 +100,40 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Node.js
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies (clean, lockfile-pinned)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm ci
-
       - name: Install live harness dependencies
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-
       - name: Verify live console harness contracts
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: |
           bash scripts/test-run-console-live-e2e.sh
           bash scripts/test-run-console-retained-e2e.sh
-
       - name: Typecheck console
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:typecheck
-
       - name: Test console
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:test
-
       - name: Build console
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:build
-
       - name: Install Playwright browsers
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npx playwright install chromium --with-deps
-
       - name: Run per-page e2e (mocked)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:e2e:mock
-
   auth-sso-e2e:
+    needs: queue-selection
     name: SSO auth E2E (browser, fresh stack)
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -230,7 +143,11 @@ jobs:
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -243,57 +160,45 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
       - name: Set up Node.js
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies (clean, lockfile-pinned)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: npm ci
-
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-
       - name: Verify the auth E2E CLI build contract
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: bash scripts/test-auth-e2e-cli.sh
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as an auth E2E
-      # failure that never built the CLI (#6615 follow-up to #6075). The
-      # contract test above uses a fake `go` and never touches the network;
-      # the real build happens inside run-auth-e2e.sh below.
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
       - name: Install Playwright browsers
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: npx playwright install chromium --with-deps
-
-      # scripts/run-auth-e2e.sh owns the docker-compose.e2e.yaml lifecycle
-      # (fresh `up --build --wait` then `down -v`), drives all 17 acceptance
-      # steps — first-run wizard, generated-credential claim/consumption,
-      # UI-configured OIDC provider, non-admin gating, require_sso + break-glass,
-      # and the item-6 negative-leakage scan — and exits non-zero on any failure.
-      # It reuses the existing browser gate rather than duplicating the console
-      # lane's mock-mode harness (#4971 acceptance; extends the #3326/#3328 lane).
       - name: Run the fresh-stack SSO auth E2E
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: bash scripts/run-auth-e2e.sh
-
       - name: Upload auth E2E artifacts
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)'))) && (always()) }}
         uses: actions/upload-artifact@v4
         with:
           name: auth-sso-e2e-artifacts
           path: e2e-artifacts/
           if-no-files-found: ignore
-
   auth-mcp-e2e:
+    needs: queue-selection
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -303,7 +208,11 @@ jobs:
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -316,171 +225,151 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
       - name: Set up Node.js
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies (clean, lockfile-pinned)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: npm ci
-
       - name: Install Playwright browsers
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: npx playwright install chromium --with-deps
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as an MCP auth E2E
-      # failure that never built the CLI (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
-      # Sibling of run-auth-e2e.sh (issue #4971), scoped to the MCP HTTP
-      # transport identity story (F-9, #5170): it owns the docker-compose.e2e.yaml
-      # lifecycle (fresh up --build --wait then down -v) and drives all three org
-      # shapes — token-only, GitHub (stubbed), OIDC (scripted RFC 9728 + PKCE) —
-      # plus the negative-leakage module, exiting non-zero on any failure.
-      # Distinct compose project + port block from run-auth-e2e.sh, so the two
-      # gates never collide.
       - name: Run the fresh-stack MCP-identity auth E2E
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: bash scripts/run-auth-mcp-e2e.sh
-
-      # Assert the runner's report matches the named baseline manifest (exact
-      # ordered step-id list, per-step status, runtime bound).
       - name: Verify the report against the named baseline manifest
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: bash scripts/verify-auth-mcp-e2e-manifest.sh
-
-      # Prove the negative credential-less module is live (real gate PASS ->
-      # mutated FAIL-on-gate -> restored PASS), on its own isolated stack.
       - name: Run the mutation-sensitivity gate
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: bash scripts/verify-auth-mcp-e2e-sensitivity.sh
-
       - name: Upload MCP-identity auth E2E artifacts
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)'))) && (always()) }}
         uses: actions/upload-artifact@v4
         with:
           name: auth-mcp-e2e-artifacts
           path: e2e-artifacts/
           if-no-files-found: ignore
-
   console-a11y:
+    needs: queue-selection
     name: Console a11y audit (axe-core)
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         uses: actions/checkout@v5
-
       - name: Set up Node.js
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies (clean, lockfile-pinned)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         run: npm ci
-
       - name: Install Playwright browsers
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         run: npx playwright install chromium --with-deps
-
       - name: Run a11y audit gate (critical + serious fail)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         run: npm run console:a11y
-
   lint:
+    needs: queue-selection
     name: "ESLint flat config (issue #3763)"
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         uses: actions/checkout@v5
-
       - name: Set up Node.js
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies (clean, lockfile-pinned)
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         run: npm ci
-
       - name: Lint (eslint flat config, src + apps/console/src)
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         run: scripts/verify-eslint-config.sh
-
       - name: Test eslint config catches no-console + no-unused-vars + import/order
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         run: scripts/test-eslint-config.sh
-
   format:
+    needs: queue-selection
     name: "Prettier format check (issue #3763)"
-    # The O3 acceptance contract is "the scan/lint runs in CI and fails on
-    # violation" — that contract is met by the `lint` job above. Prettier
-    # is wired up as `npm run format` / `format:check` for local use and
-    # surfaced as a non-blocking check here so contributors see drift in
-    # the PR logs without the gate refusing to merge a first-time
-    # Prettier introduction against the existing code base. Tighten
-    # `continue-on-error` to `false` once the existing drift is cleared
-    # by a follow-up formatting PR.
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Prettier format check (issue #3763)')) }}"
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
       - name: Set up Node.js
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Prettier format check (issue #3763)')) }}"
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies (clean, lockfile-pinned)
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Prettier format check (issue #3763)')) }}"
         run: npm ci
-
       - name: Prettier check on changed frontend files
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Prettier format check (issue #3763)')) }}"
         shell: bash
         run: scripts/verify-frontend-format-changed.sh
-
   audit:
+    needs: queue-selection
     name: npm audit (fail on high/critical)
-    # 20, not 10, because this job legitimately takes ~8 minutes and 10 left it
-    # about two minutes of headroom. Measured 2026-09-04: the two runs that
-    # finished took 8m00s (6479e9747) and 7m59s (32499ce28, on main), while four
-    # consecutive runs were killed at 10m14-15s. A timed-out job reports as
-    # `cancelled` rather than `failure`, so this read as flaky infrastructure
-    # instead of a gate running out of budget.
-    #
-    # npm's audit endpoint is the variable cost: it now prints "This endpoint is
-    # being retired" and has started returning 400s and long waits, which is
-    # enough to eat a two-minute margin. Every sibling job in this file already
-    # sits at 20-60 minutes; 10 was the outlier.
-    #
-    # This changes the budget only. `npm audit --audit-level=high` below is
-    # untouched, so high and critical advisories still fail the build.
     timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         uses: actions/checkout@v5
-
       - name: Set up Node.js
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Install dependencies (clean, lockfile-pinned)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         run: npm ci
-
       - name: Report all advisories (non-blocking)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         run: npm audit || true
-
       - name: Fail on high/critical advisories
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         run: npm audit --audit-level=high

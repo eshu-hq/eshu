@@ -393,6 +393,7 @@ gates:
       - ".github/workflows/**"
       - "scripts/verify-ci-gates-registry.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/queue-selection.yml"
     self_test_triggers:
       - "specs/ci-gates.v1.yaml"
       - "go/internal/cigates/**"

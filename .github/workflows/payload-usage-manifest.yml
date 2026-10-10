@@ -38,43 +38,58 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: payload-usage-manifest.yml
+
   test-mirror:
+    needs: queue-selection
     name: Verify payload-usage-manifest test mirror
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep and jq
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a payload-usage
       # test failure that never compiled (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run Go unit tests
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         working-directory: go
         run: go test ./internal/payloadusage/... ./cmd/payload-usage-manifest/... -count=1
 
       - name: Run shell test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         shell: bash
         run: |
           set -o pipefail
           bash scripts/test-verify-payload-usage-manifest.sh 2>&1 | tee /tmp/payload-usage-manifest-test.log
 
       - name: Upload test log on failure
-        if: failure()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate'))) && (failure()) }}
         uses: actions/upload-artifact@v4
         with:
           name: payload-usage-manifest-test-log
@@ -83,14 +98,19 @@ jobs:
 
   gate:
     name: Verify payload-usage-manifest gate
-    needs: test-mirror
+    needs: [queue-selection, test-mirror]
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
@@ -100,16 +120,18 @@ jobs:
       # HERE, named for what it is, instead of surfacing as a payload-usage
       # gate failure that never compiled (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run payload-usage-manifest gate
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate')) }}
         shell: bash
         run: |
           set -o pipefail
           bash scripts/verify-payload-usage-manifest.sh 2>&1 | tee /tmp/payload-usage-manifest-gate.log
 
       - name: Upload gate report on failure
-        if: failure()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify payload-usage-manifest gate'))) && (failure()) }}
         uses: actions/upload-artifact@v4
         with:
           name: payload-usage-manifest-report

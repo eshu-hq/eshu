@@ -1,63 +1,6 @@
 name: Security Scan
-
-# Per-issue #3764 + #3765 (Epic O O4 + O5): catch known CVEs in deps, in the
-# Go source (static analysis + supply-chain license posture), and in the
-# published container image before they reach customers. Five scan jobs run
-# side by side:
-#
-#   trivy-fs        — scans the working tree (every PR + push to main +
-#                     weekly schedule + manual dispatch) for vulnerable
-#                     dependencies, leaked secrets, and IaC
-#                     misconfigurations. Triggered from O4.
-#   trivy-image     — scans ghcr.io/eshu-hq/eshu:sha-<full triggering sha>
-#                     after docker-publish has actually pushed an image.
-#                     Triggered via workflow_run so we always scan the
-#                     digest that was just shipped; skips green when the
-#                     triggering run pushed no image (chart-only). Triggered
-#                     from O4.
-#   govulncheck     — `govulncheck ./...` on every PR; the canonical Go
-#                     vulnerability database (pkg.go.dev/vuln). Fails on
-#                     any known CVE the code imports, including transitive
-#                     stdlib calls. Triggered from O5.
-#   gosec           — `gosec ./...` static analysis on every PR; surfaces
-#                     hard-coded credentials, weak crypto, unsafe HTTP,
-#                     integer overflow, command-injection sinks, and the
-#                     rest of the OWASP-GoSec catalog. SARIF uploaded to
-#                     the Security tab. Triggered from O5.
-#   nancy           — `nancy sleuth` against the real dependency graph for
-#                     CVE + license drift; Sonatype's curated OSS Index.
-#                     Triggered from O5. ADVISORY, not blocking (#5791,
-#                     #5804): Sonatype's OSS Index currently 401s every
-#                     anonymous request and this repo has no
-#                     OSS_INDEX_USERNAME/OSS_INDEX_TOKEN secret configured,
-#                     so a real scan cannot succeed here today —
-#                     `continue-on-error` keeps the finding visible without
-#                     blocking the PR on a condition no contributor can
-#                     locally fix. Reclassify back to blocking once #5804
-#                     wires real credentials.
-#
-# All scanners except nancy (see above):
-#   * Use --exit-code 1 (or equivalent) so any reported finding fails the
-#     gate (the O4 + O5 acceptance contract).
-#   * Upload SARIF to the GitHub Security tab where the action supports it
-#     (trivy, gosec) so findings show up alongside CodeQL on the PR.
-#
-# Permission model: each job declares only the permissions it needs. The
-# trivy-fs + govulncheck + gosec + nancy jobs need `security-events: write`
-# to upload SARIF; trivy-image also needs `packages: read` to pull from
-# GHCR.
-
-# The image scan runs on workflow_run, and a workflow_run run reports main's
-# HEAD as its head_sha whatever fired it. The run name carries the TRIGGERING
-# run's branch and sha, the only place a run listing exposes them, so the
-# main-health watcher (scripts/ci/main-health.sh) judges only scans of main's
-# image at main's tip. For every other event this is a single space, the
-# whitespace-only case GitHub documents as keeping its default run name.
 run-name: "${{ github.event_name == 'workflow_run' && format('Security Scan: triggered by {0} @ {1}', github.event.workflow_run.head_branch, github.event.workflow_run.head_sha) || ' ' }}"
-
 on:
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
   merge_group:
     types: [checks_requested]
   pull_request:
@@ -68,41 +11,22 @@ on:
       - "v*"
   workflow_dispatch:
   schedule:
-    # Weekly Monday 06:00 UTC — catches newly-published CVEs in deps that
-    # were clean at PR time but flagged since. The PR + push triggers only
-    # re-run the gate when the working tree changes; the schedule is the
-    # long-stop for "dep was green last week, flagged this week" cases.
     - cron: "0 6 * * 1"
   workflow_run:
-    # Trigger after docker-publish finishes so the image scan always has a
-    # digest to pull. workflow_run only fires for runs the default branch
-    # token can see (so fork PRs land on trivy-fs / govulncheck / gosec /
-    # nancy only, never trivy-image).
     workflows: ["Publish Image and Helm Chart"]
     types: [completed]
-
-# Coalesce superseded PR runs, but never coalesce release image scans.
-# For workflow_run events GitHub sets github.ref to the default branch, so a
-# naive `${{ github.workflow }}-${{ github.ref }}` group would put every
-# trivy-image run in one group; GitHub keeps only a single pending run per
-# group (even with cancel-in-progress: false), so back-to-back image
-# publishes would drop the earlier shipped digest's scan. Keying on the
-# triggering run's head_sha gives each shipped digest its own group; PRs and
-# branch/tag pushes fall back to github.ref.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 permissions:
   contents: read
-
 jobs:
-  # Decide whether a PR changed any non-docs path, so the Go-specific scanners
-  # (govulncheck, gosec, nancy) can skip a docs-only PR. The filesystem scan
-  # (trivy-fs) below stays always-on regardless: it is the ONLY secret scanner
-  # over the whole checkout, and a secret can land in a docs path too. Non-PR
-  # events (push, schedule, dispatch) run the Go scanners unconditionally.
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: security-scan.yml
   changes:
+    needs: queue-selection
     name: Detect code changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -110,57 +34,20 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
-
-      # merge_group: skip the diff and let every selected job run, as
-      # test.yml's changes job does (#5814). Downstream `if:`s already run
-      # unconditionally on any non-pull_request event, and required-gates.yml
-      # decides which of those results a queue entry needs.
       - name: Filter changed paths
         id: filter
-        if: ${{ github.event_name != 'merge_group' }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)'))) && (github.event_name != 'merge_group') }}
         uses: dorny/paths-filter@v3
         with:
-          # Without this line the whole filter below is decorative. dorny
-          # compiles each pattern separately and, by default
-          # (predicate-quantifier: some), includes a file the moment ONE pattern
-          # matches it. `**` matches everything, so it short-circuits first and
-          # the five `!` negations can never subtract: the filter is exactly
-          # equivalent to `code: ['**']`, and every job it gates runs on every
-          # PR including a docs-only one. Confirmed against
-          # dorny/paths-filter@v3's own src/filter.ts, which defines precisely
-          # PredicateQuantifier { EVERY = 'every', SOME = 'some' } and falls
-          # through to `patterns.some(...)`; v3 has no SOME_WITH_EXCLUDES case
-          # (that arrived later on master), so 'every' is the only value that
-          # makes a negation mean anything here. #5896.
-          #
-          # This is also what #5818 actually needed. That fix added the
-          # `!.agents/**` negation below and it has been inert ever since —
-          # under `some` no negation subtracts, however it is anchored, so the
-          # root-anchoring of `!*.md` was never the operative cause of those
-          # ~118 wasted runner-minutes.
-          #
-          # Scoped deliberately to the three filters that HAVE negations. Do not
-          # copy this line to static-contract-gates.yml: its filters are all
-          # positive patterns, and 'every' would require a file to match every
-          # one of them at once, selecting almost nothing.
           predicate-quantifier: 'every'
-          # `code` is true when ANY changed file is outside the docs set. The
-          # bare `*.md` negation is ROOT-ANCHORED (no `/` in the pattern), so it
-          # only strips root-level markdown (README.md, CLAUDE.md, AGENTS.md,
-          # etc.) — nested markdown under go/**/*.md, sdk/**/*.md,
-          # tests/**/*.md, and skill-fragments/**/*.md still counts as code
-          # (deliberate: those trees are code-adjacent and tied to the Go
-          # build/test/security surface these three workflows gate). The one
-          # exception is `.agents/**`, negated explicitly: it holds
-          # agent-instruction skills/SKILL.md/reference markdown with no
-          # Go/build/lint/security consumer in this workflow — it is verified
-          # only by verify-agent-canon.sh (verify-agent-hygiene.yml) and
-          # verify-skill-roundtrip.sh (static-contract-gates.yml), neither of
-          # which this filter gates. See #5818.
           filters: |
             code:
               - '**'
@@ -169,73 +56,52 @@ jobs:
               - '!mkdocs.yml'
               - '!.github/**/*.md'
               - '!.agents/**'
-
   trivy-fs:
+    needs: queue-selection
     name: Trivy filesystem scan (vuln + secret + config)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Always-on (no code gate): this is the only secret + IaC-misconfig scan over
-    # the whole checkout, so a docs-only PR must still be scanned for an
-    # accidentally-committed token or key.
     if: github.event_name != 'workflow_run'
     permissions:
       contents: read
       security-events: write
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy filesystem scan (vuln + secret + config)')) }}
         uses: actions/checkout@v5
-
-      # scripts/lib/trivy-skip-dirs.sh is the single shared derivation of the
-      # skip-dirs list from specs/trivy-skip-dirs.txt (per-directory rationale
-      # lives there as comments); this and scripts/dev/trivy-fs-local.sh both
-      # invoke it, so local and CI scans cannot drift apart the way two
-      # separately-maintained derivation pipelines could. go/internal/cigates
-      # (checkTrivySkipDirsParity) asserts both sides stay wired to it.
       - name: Read trivy skip-dirs from scripts/lib/trivy-skip-dirs.sh
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy filesystem scan (vuln + secret + config)')) }}
         id: skipdirs
-        # Explicit `bash` (not the implicit `bash -e {0}` GHA defaults `run:`
-        # to) so this step runs under `-eo pipefail`: without pipefail, an
-        # unreadable specs file makes `sed` fail inside trivy_skip_dirs_csv's
-        # `sed | grep | grep | paste` pipeline below, but the pipeline's exit
-        # status is `paste`'s (0), so the step still exits 0 with an empty
-        # `dirs=` output, sending the scan red on unskipped fixtures instead of
-        # on the real cause -- the opposite of trivy-fs-local.sh's
-        # `set -euo pipefail`, which does fail loudly on the same condition
-        # (#5925 F12: local and CI must not diverge on failure mode).
         shell: bash
         run: |
           source scripts/lib/trivy-skip-dirs.sh
           dirs="$(trivy_skip_dirs_csv .)"
           echo "dirs=${dirs}" >> "${GITHUB_OUTPUT}"
-
       - name: Run Trivy filesystem scan (vuln + secret + config)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy filesystem scan (vuln + secret + config)')) }}
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           scanners: vuln,secret,misconfig
           severity: CRITICAL,HIGH
-          # With format: sarif, trivy-action does NOT apply `severity` to the
-          # SARIF or the exit code by default — it emits every severity and
-          # `exit-code: 1` then fires on MEDIUM/LOW findings too (e.g. the
-          # opinionated k8s/Docker hardening rules on our own charts). This
-          # flag applies the CRITICAL,HIGH threshold to the SARIF + exit code,
-          # so only CRITICAL/HIGH block the gate, matching the intent above.
           limit-severities-for-sarif: true
           exit-code: "1"
           ignore-unfixed: true
           format: sarif
           output: trivy-fs.sarif
           skip-dirs: ${{ steps.skipdirs.outputs.dirs }}
-
       - name: Upload Trivy fs SARIF to GitHub Security tab
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy filesystem scan (vuln + secret + config)'))) && (always()) }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
-
   trivy-image:
+    needs: queue-selection
     name: Trivy image scan (ghcr.io/eshu-hq/eshu)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -245,14 +111,18 @@ jobs:
       packages: read
       security-events: write
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Log in to GHCR
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)')) }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Resolve image reference from triggering workflow_run
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)')) }}
         id: image
         env:
           TRIGGER_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
@@ -260,145 +130,98 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci/resolve-image-scan-ref.sh
-
       - name: Run Trivy image scan
-        if: steps.image.outputs.skip != 'true'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)'))) && (steps.image.outputs.skip != 'true') }}
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: ${{ steps.image.outputs.ref }}
           severity: CRITICAL,HIGH
-          # See trivy-fs: apply the severity threshold to the SARIF + exit code
-          # so only CRITICAL/HIGH block the gate.
           limit-severities-for-sarif: true
           exit-code: "1"
           ignore-unfixed: true
           format: sarif
           output: trivy-image.sarif
-
       - name: Upload Trivy image SARIF to GitHub Security tab
-        # The outcome pin keeps a resolver failure from adding a second,
-        # confusing error about the missing SARIF file: the job is already
-        # red, and there is nothing to upload.
-        if: always() && steps.image.outputs.skip != 'true' && steps.image.outcome == 'success'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)'))) && (always() && steps.image.outputs.skip != 'true' && steps.image.outcome == 'success') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image
-
   govulncheck:
     name: govulncheck (Go vulnerability database)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Go-source scanner: skip a docs-only PR, run on every other event.
-    needs: changes
+    needs: [queue-selection, changes]
     if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         uses: actions/checkout@v5
-
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as a vulnerability
-      # scan failure that never scanned anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
       - name: Install govulncheck (pinned)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         run: scripts/ci/go-install-retry.sh golang.org/x/vuln/cmd/govulncheck@latest
-
       - name: Run govulncheck on every Go package
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         working-directory: go
-        # -scan package, not the default symbol mode. The symbol-level scan
-        # builds an SSA call graph via golang.org/x/tools, which panics on
-        # Go 1.26 generics ("ForEachElement called on type containing
-        # *types.TypeParam"); the bug is present in the latest released
-        # x/tools (v0.46.0) and on x/vuln master, so no govulncheck version
-        # survives symbol mode here yet. Package mode resolves vulnerable
-        # imports without the SSA call graph, so it does not panic. It is
-        # strictly more conservative than symbol mode (it flags an imported
-        # vulnerable package even when no vulnerable symbol is called), so it
-        # never hides a vulnerability the default mode would have caught.
         run: |
           set -euo pipefail
-          # Delegated to scripts/ci/run-scan-with-tee.sh (#5813): a scanner
-          # success (0) with a tee failure (e.g. disk full or an unwritable
-          # working directory) must not report success. Capturing the full
-          # PIPESTATUS array (not just PIPESTATUS[0]) is what tells the two
-          # apart; see the helper's own header comment and its executable
-          # regression suite, scripts/test-security-scan-tee-status.sh, which
-          # pins this exact case.
           ../scripts/ci/run-scan-with-tee.sh govulncheck govulncheck.out \
             'govulncheck: vulnerabilities found, see govulncheck.out above\n' \
             -- govulncheck -scan package ./...
-
       - name: Upload govulncheck output as workflow artifact
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)'))) && (always()) }}
         uses: actions/upload-artifact@v4
         with:
           name: govulncheck-output
           path: go/govulncheck.out
           if-no-files-found: ignore
-
   gosec:
     name: gosec (Go static analysis)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Go-source scanner: skip a docs-only PR, run on every other event.
-    needs: changes
+    needs: [queue-selection, changes]
     if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         uses: actions/checkout@v5
-
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as a static-analysis
-      # scan failure that never scanned anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
       - name: Install gosec (pinned)
-        # v2.27.1, not v2.22.0: gosec builds an SSA representation via
-        # golang.org/x/tools, which panics on Go 1.26 generics. v2.22.0 lets
-        # that panic abort the run; v2.27.1 recovers ("skipping SSA analysis")
-        # and continues with the AST-based rules. Two packages (reducer, query)
-        # whose generics trip the loader fall back to AST-only coverage; the
-        # rest get full coverage.
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@v2.27.1
-
       - name: Run gosec on every Go package (SARIF)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         working-directory: go
-        # Single pass. gosec is slow on Go 1.26 (it attempts SSA per package
-        # and recovers from the x/tools generics panic), so scanning the whole
-        # module twice — once for SARIF, once for text — pushed wall time past
-        # the timeout. Only the SARIF is consumed (uploaded to the Security
-        # tab), so emit SARIF only.
-        #
-        # `-no-fail` because gosec's bundled go/types loader cannot fully
-        # type-check some Go 1.26 generics (it logs "package <x> has type
-        # errors, skipping SSA analysis" for `query`/`reducer` and then exits
-        # non-zero) even when there are zero security findings. That exit is an
-        # analysis-tooling artifact, not a real finding. So we suppress gosec's
-        # own exit code and instead gate on the actual finding count in the
-        # SARIF: any reported result fails the job; the benign type-check
-        # errors (which carry no SARIF results) do not.
         run: |
           set -euo pipefail
           gosec -severity=low -confidence=low -no-fail -fmt=sarif -out gosec.sarif ./...
@@ -408,62 +231,43 @@ jobs:
             printf 'gosec: security findings present — see the SARIF / Security tab\n' >&2
             exit 1
           fi
-
       - name: Upload gosec SARIF to GitHub Security tab
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)'))) && (always()) }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: go/gosec.sarif
           category: gosec
-
   nancy:
     name: nancy (Sonatype dep CVE + license scan)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Go-source scanner: skip a docs-only PR, run on every other event.
-    needs: changes
+    needs: [queue-selection, changes]
     if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         uses: actions/checkout@v5
-
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as a dependency-scan
-      # failure that never scanned anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
       - name: Install nancy (pinned)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         run: scripts/ci/go-install-retry.sh github.com/sonatype-nexus-community/nancy@latest
-
       - name: Run nancy sleuth on go.sum
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         working-directory: go
-        # nancy returns non-zero whenever it finds a vulnerable module in
-        # the dependency graph; the CVE list is Sonatype's curated OSS
-        # Index, so this catches drift that govulncheck misses (e.g.
-        # indirect deps, older advisories).
-        #
-        # `nancy sleuth` reads the dependency graph from stdin — its
-        # documented usage is `go list -json -deps ./... | nancy sleuth`.
-        # This used to run a bare, unpiped `nancy sleuth`, which GitHub
-        # Actions' `run:` step feeds an empty-but-valid stdin pipe (not a
-        # TTY, not /dev/null); nancy silently reports that as "0
-        # dependencies audited" rather than erroring, so this job has never
-        # actually scanned anything despite reporting success (#5804).
-        # Piping the real graph in fixes that, but surfaces OSS Index's
-        # current 401-for-anonymous-requests state (see the job-level
-        # `continue-on-error` and #5804) — a `go list` failure is reported
-        # distinctly from a nancy failure so a build problem is never
-        # mislabeled as a dependency-CVE finding.
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -472,19 +276,11 @@ jobs:
             printf 'nancy: go list -json -deps ./... failed, see deps.err above\n' >&2
             exit 1
           fi
-          # Delegated to scripts/ci/run-scan-with-tee.sh (#5813): a sleuth
-          # success (0) with a tee failure (e.g. disk full or an unwritable
-          # working directory) must not report success. Capturing the full
-          # PIPESTATUS array (not just PIPESTATUS[0]) is what tells the two
-          # apart; see the helper's own header comment and its executable
-          # regression suite, scripts/test-security-scan-tee-status.sh, which
-          # pins this exact case.
           ../scripts/ci/run-scan-with-tee.sh nancy nancy.out \
             'nancy: sleuth exited %s, see nancy.out above (a real finding, or an OSS Index transport/auth failure — see #5804)\n' \
             -- nancy sleuth --no-color <deps.json
-
       - name: Upload nancy output as workflow artifact
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)'))) && (always()) }}
         uses: actions/upload-artifact@v4
         with:
           name: nancy-output

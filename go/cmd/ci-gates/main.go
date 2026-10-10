@@ -8,6 +8,7 @@
 //
 //	ci-gates select  --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--explain] [--json]
 //	ci-gates run     --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--json]
+//	ci-gates queue-select --registry <path> --repo-root <path> --repo <owner/name> --base-ref <branch> --merge-group-branch <branch> --head-sha <sha> --workflow <file>
 //	ci-gates audit-scripts --registry <path> --repo-root <path> [--unreferenced-only] [--json]
 //	ci-gates validate --registry <path> --repo-root <path>
 package main
@@ -40,6 +41,8 @@ func main() {
 		err = runRun(args)
 	case "await":
 		err = runAwait(args)
+	case "queue-select":
+		err = runQueueSelect(args)
 	case "contexts":
 		err = runContexts(args)
 	case "audit-scripts":

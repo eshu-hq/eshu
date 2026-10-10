@@ -22,7 +22,12 @@ permissions:
   pull-requests: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: static-contract-gates.yml
   changes:
+    needs: queue-selection
     name: Detect changed gate paths
     runs-on: ubuntu-latest
     outputs:
@@ -59,6 +64,9 @@ jobs:
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
         uses: actions/checkout@v5
       # merge_group: skip the diff and select every gate, exactly as push
@@ -80,6 +88,8 @@ jobs:
           filters: .github/static-contract-filters.yml
       - name: Build selected gate matrix
         id: gate-matrix
+        env:
+          QUEUE_JOBS: ${{ needs.queue-selection.outputs.jobs }}
         run: |
           matrix_items=""
           any=false
@@ -96,13 +106,18 @@ jobs:
             local gate="$5"
             local timeout="${6:-15}"
             local run_gate=true
+            local queue_selected=true
+            if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+              queue_selected=$(jq --arg job "${display}" 'index($job) != null' <<< "${QUEUE_JOBS}")
+              [[ "${queue_selected}" == true ]] || run_gate=false
+            fi
 
             if [[ "${test}" == "${gate}" ]]; then
               run_gate=false
             fi
 
             if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "merge_group" || "${selected}" == "true" ]]; then
-              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"timeout\":${timeout}}"
+              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"queue_selected\":${queue_selected},\"timeout\":${timeout}}"
               if [[ -n "${matrix_items}" ]]; then
                 matrix_items="${matrix_items},${item}"
               else
@@ -159,7 +174,7 @@ jobs:
 
   gate:
     name: ${{ matrix.display }}
-    needs: changes
+    needs: [queue-selection, changes]
     # merge_group lists every gate in the matrix (see append_gate), so `any`
     # is true there; the explicit arm lets ci-gates validate prove this job
     # always runs on a queue entry.
@@ -175,25 +190,31 @@ jobs:
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
       # on hosted runners. Skipped, not failed, when the secrets are absent.
       - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && env.DOCKERHUB_LOGIN_ENABLED == 'true' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Install ripgrep and jq
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing inside whichever
@@ -206,13 +227,15 @@ jobs:
       # 102442878753, 2026-09-09: "Verify factschema-diff test mirror" saved
       # cache 7497506231, 14,716,033 bytes, with zero `go: downloading`). The
       # non-Go static gates in this matrix are usually the fastest finishers,
-      # so skipping pre-warm for them would let that race lose again. Measured
+      # so every selected cell pre-warms before running its test. Measured
       # cost: 10-44s per job on the current 14 MB entry, median 12.5s over 16
       # go-race samples (runs 35228125254, 35224651204, 35232001790,
       # 35231720759); expected to drop once a warmed job saves the key.
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run test mirror (${{ matrix.key }})
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: ${{ matrix.test }}
       # #6979: feed the cassette-author identifier check from a repository
       # secret on same-repo PRs, merge-queue entries, and main pushes.
@@ -225,7 +248,7 @@ jobs:
       # unset/canary-only behavior, which exported vars would mask. The
       # secret value is never echoed; the gate prints only the loaded count.
       - name: Provide private identifiers for cassette-author gate
-        if: ${{ matrix.key == 'cassetteauthor' && (github.event_name == 'merge_group' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'eshu-hq/eshu') }}
+        if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && (matrix.key == 'cassetteauthor' && (github.event_name == 'merge_group' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'eshu-hq/eshu')) }}
         env:
           ESHU_PRIVATE_IDENTIFIERS: ${{ secrets.ESHU_PRIVATE_IDENTIFIERS }}
         run: |

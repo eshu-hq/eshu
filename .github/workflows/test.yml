@@ -1,6 +1,5 @@
 # Workflow rationale: test.comments.md (verbatim source comments).
 name: Build Test
-
 on:
   push:
     branches:
@@ -11,32 +10,36 @@ on:
   schedule:
     - cron: "30 18 * * *"
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: test.yml
   changes:
+    needs: queue-selection
     name: Detect code changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code || steps.merge_group_code.outputs.code }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
-
       - name: Force code=true on merge_group
         id: merge_group_code
         if: ${{ github.event_name == 'merge_group' }}
         run: echo "code=true" >> "$GITHUB_OUTPUT"
-
       - name: Filter changed paths
         id: filter
         if: ${{ github.event_name != 'merge_group' }}
@@ -51,24 +54,29 @@ jobs:
               - '!mkdocs.yml'
               - '!.github/**/*.md'
               - '!.agents/**'
-
   markdown-file-cap:
+    needs: queue-selection
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Verify Markdown file cap (go/ and docs/)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap')) }}
         run: |
           scripts/test-verify-markdown-line-cap.sh
           MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
-
   verify-contracts:
-    needs: changes
+    needs: [queue-selection, changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -77,199 +85,192 @@ jobs:
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
       - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) && env.DOCKERHUB_LOGIN_ENABLED == 'true' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
       - name: Verify CodeQL setup model
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-codeql-setup.sh
           scripts/verify-codeql-setup.sh
-
       - name: Verify Markdown file cap during registry rollout
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-markdown-line-cap.sh
           MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
-
       - name: Verify security-scan tee-status helper
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/test-security-scan-tee-status.sh
-
       - name: Verify hot-path evidence
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         env:
           ESHU_PERFORMANCE_EVIDENCE_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           scripts/test-verify-performance-evidence.sh
           scripts/verify-performance-evidence.sh
-
       - name: Verify query-plan regression gate
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-query-plan-regression.sh
           scripts/verify-query-plan-regression.sh
-
       - name: Verify scale corpus suite
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-scale-corpus-suite.sh
           scripts/verify-scale-corpus-suite.sh
-
       - name: Verify scale benchmark artifact
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-scale-benchmark-artifact.sh
           scripts/verify-scale-benchmark-artifact.sh
-
       - name: Verify capability budget proof
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-capability-budget-proof.sh
           scripts/verify-capability-budget-proof.sh
-
       - name: Verify package docs
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-package-docs.sh
           scripts/verify-package-docs.sh
-
       - name: Verify shipped migration immutability
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-migration-immutability.sh
           scripts/verify-migration-immutability.sh
-
       - name: Verify Go license headers
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-license-header.sh
           scripts/verify-license-header.sh
-
       - name: Verify generated collector entrypoints
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-collector-entrypoints-generated.sh
           scripts/verify-collector-entrypoints-generated.sh
-
       - name: Verify vulnerability parity fixtures
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/verify_vulnerability_parity_fixtures.sh
-
       - name: Verify accuracy golden gate
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/verify_accuracy_golden_gate.sh
-
       - name: Verify golden-corpus filter exhaustiveness
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
           scripts/test-verify-golden-corpus-filter-exhaustive.sh
           scripts/verify-golden-corpus-filter-exhaustive.sh
-
   go-core:
-    needs: changes
+    needs: [queue-selection, changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
-
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
-
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-
       - name: Verify CI apt/ripgrep installer test mirror
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: bash scripts/test-ci-install-apt-packages.sh
-
       - name: Verify go-mod-download-retry test mirror
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: bash scripts/test-ci-go-mod-download-retry.sh
-
       - name: Verify go-install-retry test mirror
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: bash scripts/test-ci-go-install-retry.sh
-
       - name: Pre-warm Go modules
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: scripts/ci/go-mod-download-retry.sh
-
       - name: Install golangci-lint
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
-
       - name: Pre-warm golangci-lint filelength plugin modules
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-filelength
-
       - name: Build golangci-lint filelength plugin
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: tools/golangci-lint-filelength
         run: make build
-
       - name: Test golangci-lint filelength plugin
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: tools/golangci-lint-filelength
         run: make test
-
       - name: Pre-warm golangci-lint dirgate plugin modules
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-dirgate
-
       - name: Build golangci-lint dirgate plugin
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: tools/golangci-lint-dirgate
         run: make build
-
       - name: Verify dirgate test mirrors
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh
-
       - name: Test dirgate plugin
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: tools/golangci-lint-dirgate
         run: go test ./... -count=1
-
       - name: Verify dirgate (bash mirror)
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: bash scripts/verify-dirgate.sh --all
-
       - name: Lint Go
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: go
         run: golangci-lint run ./...
-
       - name: Check gofumpt formatting
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: go
         run: golangci-lint fmt --diff
-
       - name: Build all Go binaries
-        if: ${{ !cancelled() }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         working-directory: go
         run: go build ./...
-
   go-core-complete:
-    needs: [changes, go-core]
+    needs: [queue-selection, changes, go-core]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Assert go-core passed
         run: |
           changes_result="${{ needs.changes.result }}"
@@ -284,9 +285,8 @@ jobs:
             echo "::error::go-core did not succeed (result=${result})"
             exit 1
           fi
-
   go-race:
-    needs: changes
+    needs: [queue-selection, changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     strategy:
       fail-fast: false
@@ -294,31 +294,34 @@ jobs:
         shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     timeout-minutes: 35
-
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
-
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
       - name: Set up Helm for race tests
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: azure/setup-helm@v5.0.0
         with:
           version: v4.2.3
-
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-
       - name: Run Go tests with race detector (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         working-directory: go
         env:
           SHARD_INDEX: ${{ matrix.shard }}
@@ -332,27 +335,16 @@ jobs:
           fi
           count="$(printf '%s\n' "${pkgs}" | wc -l | tr -d ' ')"
           echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
-          # -timeout is PER TEST BINARY, so this budget has to cover the single
-          # slowest package in the shard, not the shard's total. internal/ifa
-          # measures 107s under -race on a dev laptop and blew the old 300s on
-          # a CI runner (run 31249051543, shard 2/4: "panic: test timed out
-          # after 5m0s ... FAIL github.com/eshu-hq/eshu/go/internal/ifa
-          # 300.894s") -- the suite completes, the budget was just sized with
-          # no headroom for a slower, loaded runner.
-          #
-          # 900s keeps ~3x margin over that observed CI cost while still
-          # failing a genuine hang in minutes. It is a sizing fix, not a mask:
-          # ~78% of internal/ifa's race time is one test
-          # (TestRepoDependencyBackfillProofOduCanonicalBytesAreDeterministic,
-          # 83.4s for two CanonicalizeOdu calls), tracked separately in #5975.
           printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 900s -p 2
-
   go-race-complete:
-    needs: [changes, go-race]
+    needs: [queue-selection, changes, go-race]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Assert all race shards passed
         run: |
           changes_result="${{ needs.changes.result }}"
@@ -367,62 +359,66 @@ jobs:
             echo "::error::one or more go-race shards did not succeed (result=${result})"
             exit 1
           fi
-
   docs-helm-hygiene:
+    needs: queue-selection
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
-
       - name: Set up Go for validated registry fragments
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene') }}
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
           go-version-file: go/go.mod
           cache: false
 
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-
       - name: Verify docs-only CI carve-out wiring
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |
           scripts/test-verify-docs-only-ci-skip.sh
           scripts/verify-docs-only-ci-skip.sh
-
       - name: Verify docs catalog metadata
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |
           scripts/test-verify-docs-catalog.sh
           scripts/verify-docs-catalog.sh
-
       - name: Verify context and story reference layout
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |
           scripts/test-context-stories-doc-split.sh
           scripts/test-context-stories-markdown-visible.sh
-
       - name: Verify gate labelling annotations
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |
           scripts/test-issue-6184-gate-labelling.sh
-
       - name: Set up Helm
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         uses: azure/setup-helm@v5.0.0
         with:
           version: v4.2.3
-
       - name: Lint Helm chart
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: helm lint deploy/helm/eshu
-
       - name: Verify bundled NornicDB storage example
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |
           scripts/test-verify-storage-doc-bundled-nornicdb-example.sh
           scripts/verify-storage-doc-bundled-nornicdb-example.sh
-
       - name: Verify docs build
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |
           pip install mkdocs mkdocs-material pymdown-extensions
           mkdocs build --strict --clean --config-file docs/mkdocs.yml
-
       - name: Check whitespace hygiene
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: git show --check --format= HEAD

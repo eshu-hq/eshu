@@ -26,7 +26,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: e2e-tests.yml
+
   test:
+    needs: queue-selection
     name: test (${{ matrix.graph_backend }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -48,7 +54,11 @@ jobs:
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -61,6 +71,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
@@ -70,9 +81,11 @@ jobs:
       # HERE, named for what it is, instead of surfacing as an E2E failure
       # that never compiled anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Build Go binaries
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         working-directory: go
         run: |
           BIN_DIR="${GITHUB_WORKSPACE}/bin"
@@ -86,12 +99,14 @@ jobs:
           CGO_ENABLED=1 go build -ldflags "${LDFLAGS}" -o "${BIN_DIR}/eshu-reducer" ./cmd/reducer
 
       - name: Start Docker-backed graph and Postgres
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: docker compose -f "${{ matrix.compose_file }}" up -d "${{ matrix.graph_service }}" postgres
 
       - name: Wait for graph backend and Postgres
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
@@ -116,6 +131,7 @@ jobs:
           exit 1
 
       - name: Run live backend conformance
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
           NEO4J_URI: bolt://localhost:7687
@@ -127,6 +143,7 @@ jobs:
         run: ./scripts/verify_backend_conformance_live.sh
 
       - name: Run bootstrap-index against fixture ecosystems
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
           ESHU_QUERY_PROFILE: local_full_stack
@@ -149,6 +166,7 @@ jobs:
           eshu-bootstrap-index
 
       - name: Verify API health
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
           ESHU_QUERY_PROFILE: local_full_stack
@@ -179,5 +197,5 @@ jobs:
           kill $API_PID || true
 
       - name: Tear down Docker services
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test'))) && (always()) }}
         run: docker compose -f "${{ matrix.compose_file }}" down -v

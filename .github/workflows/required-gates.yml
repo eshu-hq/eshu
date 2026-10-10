@@ -67,7 +67,9 @@ jobs:
     # the ruleset's required status and the merge queue both read.
     if: ${{ github.event_name == 'workflow_run' && (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'merge_group') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Selection (10m) + longest payload (60m), with setup/publication margin.
+    # Keep the job below the live merge queue check-response budget (90m).
+    timeout-minutes: 85
     permissions:
       actions: read
       checks: read
@@ -206,7 +208,7 @@ jobs:
             "${target[@]}" \
             --head-sha "${HEAD_SHA}" \
             --poll-interval 30s \
-            --timeout 55m
+            --timeout 80m
           code=$?
           set -e
           # The code, not just success/failure, is what the publisher below

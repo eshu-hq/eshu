@@ -43,7 +43,13 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: reducer-contention-gate.yml
+
   contention-gate:
+    needs: queue-selection
     name: reducer contention gate
     runs-on: ubuntu-latest
     # main's runs of this job take 10-14 minutes (2026-09-26), so the old
@@ -78,10 +84,15 @@ jobs:
           --health-retries 20
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
@@ -91,9 +102,11 @@ jobs:
       # HERE, named for what it is, instead of surfacing as a contention-gate
       # failure that never claimed a row (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run reducer contention gate
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         working-directory: go
         env:
           ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
@@ -355,6 +368,7 @@ jobs:
         # untouched.
         run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows|TestActiveWorkSummaryMatchesPreHistoryGroupsOracle|TestActiveWorkSummaryOracleCatchesSeededHistoryMutations|TestActiveWorkSummaryGateMutationsAgainstOracle|TestActiveWorkSummaryGateResolvesTableByRegclass|TestStatusActiveFactWorkItemsCTEUsesGenerationIndex|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestGenerationLivenessProgressWindow|TestGenerationLivenessRefinalizeDuplicateProjectorRow|TestGenerationLivenessRepoDependencyOwnership|TestRecoverWedgedActiveGenerationsQueryDoesNotClobberConcurrentlyRenewedLease|TestProjectorStrandedRetryRecovery|TestProjectorStrandedRetryRecoveryLeaveLiveLease|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestReducerClaimFencedSiblingBecomesClaimableAfterAck|TestReducerFairnessIsolatedSchemaDerivesFromBootstrap|TestReducerFairnessIsolatedSchemaDefinitionDriftLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestCoveredByEmittedFullSuccessorShapesAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestSharedIntentUpsertCreatedAtLastWriterWinsLive|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive|TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive|TestGenerationRetentionPrunesMigratedSchemaLive|TestGenerationRetentionContentPrunesDeleteExactRowsLive|TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive|TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive|TestGenerationRetentionNarrowedCandidateTakenElsewhereLive|TestGenerationRetentionProbeMatchesGroupedPassLive|TestGenerationRetentionProbePlansStayOnKeyIndexesLive|TestGenerationRetentionRefusesWithoutValidKeyIndexLive|TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive|TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive|TestGenerationRetentionLockSetMatchesEligibleScopesLive|TestGenerationRetentionFairnessAcrossScopesLive|TestGenerationRetentionSkipsHeldScopeAndReplacesLive|TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive|TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive|TestServiceChangedSinceBindsGrantToLineageScopeLive|TestServiceCatalogCorpusFence[A-Za-z]*Live|TestProjectorHeartbeatWriteMarkerInterleave|TestProjectorWriteMarkerHeartbeatOrderingLive|TestProjectorHeartbeatWriteGateRowsLive|TestUncoveredProjectionWritersLive|TestReplayedFailedGenerationWritesAndActivatesLive|TestReplayAfterFullRecordsLatestWriteStartLive|TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal|TestSupplyChainImpact(Writer|CappedScope|StalePass|EmptyFresherPass|RetractsLegacy|UpsertGuard|FencingToken|SeedAdvances)[A-Za-z]*Live|TestListOSPackageAdvisoryFactEnvelopes[A-Za-z]*Live|TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive|TestAdvisoryOnlySuppressionHTTPStoreReducerQueryLive|TestAdvisorySuppressionIsolatedSchemaDerivesFromBootstrapLive|TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate|TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision|TestWorkloadReplayOutcomeReportsSupersededStableItem)' -race -count=1 -timeout 900s -v
       - name: Run status summary writer proofs
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         working-directory: go
         env:
           ESHU_STATUS_SUMMARY_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
@@ -375,6 +389,7 @@ jobs:
         # step with the proofs declared in the package's *_live_test.go files.
         run: go test ./internal/reducer/status/summary/ -run '^(TestWriterRowEqualsLiveStatementLive|TestWriterKilledMidPassKeepsTheOldRowLive|TestWriterCountsAGuardRejectionLive|TestWriterSkipsAMissingTableLive|TestWriterReplacesARowFromAnotherStatementLive|TestWriterPassRunsReadCommittedLive|TestSecondWriterSkipsWhileTheFirstHoldsTheLockLive|TestWritersBesideTheProductionClaimLoopLive|TestReaderServesWhatTheWriterStoredEqualToLiveLive|TestReaderFallsBackAndNeverMixesWhenTheRowIsStaleLive|TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive|TestScrapeStatementInventoryOnAnEmptyStoreLive|TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive|TestTerraformModelServedEqualToLiveLive|TestWriterKilledMidCompanionKeepsThePrimaryRowLive|TestWriterLiveProofsRunInTheReducerContentionGate|TestEnrollmentGuardRejectsAGapInTheGate|TestLiveProofMissingDSNFailsOnlyWhenRequired)$' -race -count=1 -timeout 600s -v
       - name: Run story target-support semantics proof
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         working-directory: go
         env:
           ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
@@ -385,6 +400,7 @@ jobs:
         # statements. The parity lives in SQL, so it needs real Postgres.
         run: go test ./internal/query/ -run '^TestServiceStoryTargetSupportSQLSemanticsLive$' -race -count=1 -timeout 180s -v
       - name: Run status summary store proofs
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'reducer contention gate')) }}
         working-directory: go
         env:
           ESHU_STATUS_SUMMARY_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable

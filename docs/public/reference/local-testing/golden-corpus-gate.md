@@ -147,14 +147,19 @@ other on one host.
 
 ### Differential oracle (NornicDB vs Neo4j)
 
-Beyond the per-backend snapshot, CI runs a **differential** job that replays
-the same corpus on both backends with statement capture on, then diffs the two
-recordings (`differential nornicdb vs neo4j` in `golden-corpus-gate.yml`,
+Beyond the per-backend snapshot, CI runs four isolated **differential capture**
+jobs (two pairings times two backends), each replaying the same corpus with
+statement capture on. A required join downloads the current attempt’s four
+artifacts and diffs the recordings (`differential nornicdb vs neo4j` in `golden-corpus-gate.yml`,
 registered as `golden-corpus-differential` in `specs/ci-gates.v1.yaml`). The
 comparison step is advisory discovery (#6965): a divergence becomes a warning
 and uploads the recordings, and it is filed as an issue rather than blocking
-the PR. The job's B-7 capture legs, its check that every leg wrote
-recordings, and its statement coverage check still block. Every
+the PR. The B-7 capture jobs, the join’s check that every producer succeeded and wrote
+nonempty recordings, and the statement/writer coverage checks still block.
+Capture jobs have 30-minute timeouts; the join has 15 minutes. A failed or
+cancelled producer, failed upload, or missing artifact cannot satisfy the join.
+Use **Re-run all jobs** after a capture failure: partial reruns do not recreate
+the other successful legs under the new attempt and the join rejects them. Every
 executed graph statement is fingerprinted (normalized text plus bound
 parameters) with a digest of its result rows; the comparison step fails on
 any statement whose digest differs, naming the statement so the warning points
@@ -259,7 +264,7 @@ Under capture (CI differential legs only) `BenchmarkRecordCallsite`
 measures ~0.77 us per recorded read on the same Apple M4 Pro for the
 `runtime.Callers` walk plus receiver canonicalization; the local B-7
 neo4j capture held 3,134 records, i.e. ~2.4 ms of attribution per leg
-against the 150-minute differential budget. The offline statement-coverage phase over those
+against the current 30-minute per-capture budget. The offline statement-coverage phase over those
 captures completes in 2.2 s wall (including `go run` startup) with a
 PASS verdict. The identity path is new in this change, so there is no
 old-identity baseline to compare against; the production comparison is
@@ -427,6 +432,8 @@ storage, the pipeline command binaries, the cassettes, or the snapshot). Its
 `corpus-gate (nornicdb)` is watch-only (`golden-corpus-gate`: `blocking: false`,
 layer `secondary`): a red NornicDB cell is a backend-drift signal to triage, and
 `required-gates-complete` does not wait for it. The `differential nornicdb vs
-neo4j` job also runs NornicDB and is unchanged: it stays blocking. The
+neo4j` join also consumes NornicDB captures and stays blocking. The four
+producer jobs run in parallel on separate hosted runners with fail-fast disabled;
+local runs sharing a host still use the cross-run lock and run serially. The
 replay-coverage manifest cites the Neo4j row as each entry's `proof_gate`,
 because the coverage gate rejects a proof gate that does not block.

@@ -313,6 +313,9 @@ gates:
       - "scripts/lib/test-golden-corpus-*.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "tests/fixtures/ecosystems/**"
+      - "scripts/lib/golden-corpus-capture-leg-cases.sh"
+      - "scripts/lib/stage-differential-capture.sh"
+      - "scripts/test-stage-differential-capture.sh"
     local:
       command: "bash scripts/test-verify-golden-corpus-gate.sh"
       test_command: ""

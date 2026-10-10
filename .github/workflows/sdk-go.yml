@@ -50,22 +50,34 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: sdk-go.yml
+
   sdk-go-collector:
+    needs: queue-selection
     name: "SDK Go: collector"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         uses: actions/checkout@v5
 
       - name: Set up Go
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         uses: actions/setup-go@v6
         with:
           go-version-file: sdk/go/collector/go.mod
           cache-dependency-path: sdk/go/collector/go.mod
 
       - name: Install ripgrep
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
@@ -75,21 +87,26 @@ jobs:
       # sdk/go/collector specifically -- warming go/ would not touch this
       # module's cache.
       - name: Pre-warm Go modules
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         run: scripts/ci/go-mod-download-retry.sh sdk/go/collector
 
       - name: Build
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         working-directory: sdk/go/collector
         run: go build ./...
 
       - name: Test
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         working-directory: sdk/go/collector
         run: go test ./... -count=1
 
       - name: Vet
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         working-directory: sdk/go/collector
         run: go vet ./...
 
       - name: Check gofmt formatting
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         working-directory: sdk/go/collector
         run: |
           set -euo pipefail
@@ -102,6 +119,7 @@ jobs:
           echo "gofmt clean"
 
       - name: Verify no dependency on go/internal
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: collector')) }}"
         working-directory: sdk/go/collector
         run: |
           set -euo pipefail
@@ -113,21 +131,28 @@ jobs:
           echo "no eshu-hq/eshu/go/internal dependency"
 
   sdk-go-factschema:
+    needs: queue-selection
     name: "SDK Go: factschema"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         uses: actions/checkout@v5
 
       - name: Set up Go
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         uses: actions/setup-go@v6
         with:
           go-version-file: sdk/go/factschema/go.mod
           cache-dependency-path: sdk/go/factschema/go.sum
 
       - name: Install ripgrep
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
@@ -137,21 +162,26 @@ jobs:
       # sdk/go/factschema specifically -- warming go/ would not touch this
       # module's cache.
       - name: Pre-warm Go modules
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         run: scripts/ci/go-mod-download-retry.sh sdk/go/factschema
 
       - name: Build
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         working-directory: sdk/go/factschema
         run: go build ./...
 
       - name: Test
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         working-directory: sdk/go/factschema
         run: go test ./... -count=1
 
       - name: Vet
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         working-directory: sdk/go/factschema
         run: go vet ./...
 
       - name: Check gofmt formatting
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         working-directory: sdk/go/factschema
         run: |
           set -euo pipefail
@@ -164,6 +194,7 @@ jobs:
           echo "gofmt clean"
 
       - name: Verify no dependency on go/internal
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         working-directory: sdk/go/factschema
         run: |
           set -euo pipefail
@@ -175,6 +206,7 @@ jobs:
           echo "no eshu-hq/eshu/go/internal dependency"
 
       - name: Verify go generate produces no drift
+        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SDK Go: factschema')) }}"
         working-directory: sdk/go/factschema
         run: |
           set -euo pipefail
