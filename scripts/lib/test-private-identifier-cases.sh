@@ -5,12 +5,15 @@
 # scripts/test-verify-agent-hygiene.sh, which supplies $repo_root, $tmp, ok()
 # and no().
 #
-# Every fixture builds its identifier strings from fragments at run time, so
-# this file carries no literal deny token. Each case runs the gate in a
-# throwaway git repository: RED cases plant a violation and must exit
-# non-zero, GREEN cases must exit zero.
+# Every fixture builds its identifier strings from fragments at run time, and
+# no label or comment spells a token, so this file carries no literal deny
+# token: the last block scans this file with the shared pattern and requires
+# zero hits. Each case runs the gate in a throwaway git repository: RED cases
+# plant a violation and must exit non-zero, GREEN cases must exit zero.
 
 pi_gate="$repo_root/scripts/verify-no-private-identifiers.sh"
+# shellcheck source=scripts/lib/private-identifier-pattern.sh
+source "$repo_root/scripts/lib/private-identifier-pattern.sh"
 
 # Identifier fragments. The hyphen, underscore and CamelCase spellings of the
 # QA and production environment names, and the organization name.
@@ -93,6 +96,17 @@ pi_expect() {
   fi
 }
 
+# pi_no_echo <label> <token>: the last gate output in $tmp/pi.out must not
+# contain <token> in any casing. A public match is reported as a location
+# (path:line or commit-message line N), never as the offending text.
+pi_no_echo() {
+  if rg -q -F -i -e "$2" "$tmp/pi.out"; then
+    no "private-identifier must not echo the matched text: $1"
+  else
+    ok "private-identifier does not echo the matched text: $1"
+  fi
+}
+
 # --- RED: a planted identifier in added content ---
 d="$tmp/pi-red-md"
 pi_new_repo "$d"
@@ -103,6 +117,7 @@ if rg -q 'docs/notes\.md:1' "$tmp/pi.out"; then
 else
   no "private-identifier must name docs/notes.md:1 in its output"
 fi
+pi_no_echo "public match in added content" "$pi_qa_h"
 
 d="$tmp/pi-red-go"
 pi_new_repo "$d"
@@ -133,6 +148,12 @@ d="$tmp/pi-red-message"
 pi_new_repo "$d"
 pi_commit "$d" docs/notes.md "A clean line." "fix: measured on ${pi_qa_h}"
 pi_expect red "environment token in a commit message" pi_range "$d"
+pi_no_echo "public match in a commit message" "$pi_qa_h"
+if rg -q 'commit-message line 1$' "$tmp/pi.out"; then
+  ok "private-identifier names the commit-message line only"
+else
+  no "private-identifier must print 'commit-message line 1' for a message hit"
+fi
 
 d="$tmp/pi-red-staged"
 pi_new_repo "$d"
@@ -141,10 +162,22 @@ git -C "$d" add staged.md
 pi_expect red "environment token in staged content" \
   env -u ESHU_PRIVATE_IDENTIFIER_FILE ESHU_PRIVATE_IDENTIFIER_REPO_ROOT="$d" \
   "$pi_gate" --staged
+pi_no_echo "public match in staged content" "$pi_prod_h"
+if rg -q 'staged\.md:1$' "$tmp/pi.out"; then
+  ok "private-identifier names the staged file and line only"
+else
+  no "private-identifier must print 'staged.md:1' for a staged hit"
+fi
 
 printf 'fix: measured on %s\n' "$pi_qa_h" >"$tmp/pi-msg-red"
 pi_expect red "environment token in a commit-message file" \
   env -u ESHU_PRIVATE_IDENTIFIER_FILE "$pi_gate" --message "$tmp/pi-msg-red"
+pi_no_echo "public match in a commit-message file" "$pi_qa_h"
+if rg -q 'commit-message line 1$' "$tmp/pi.out"; then
+  ok "private-identifier names the message-file line only"
+else
+  no "private-identifier must print 'commit-message line 1' for a message-file hit"
+fi
 
 # --- RED: private mode ---
 # The denylist lives outside the repository. One line is a blank, one a
@@ -237,27 +270,27 @@ pi_expect red "--staged outside a git repository fails closed" \
 d="$tmp/pi-red-camel-qa-upper"
 pi_new_repo "$d"
 pi_commit "$d" internal/x/x_test.go "func TestBloatTerraformOps""QAScaleLive() {}"
-pi_expect red "OpsQA initialism spelling" pi_range "$d"
+pi_expect red "camel casing 1 (upper initialism after a capital)" pi_range "$d"
 
 d="$tmp/pi-red-camel-lower-first"
 pi_new_repo "$d"
 pi_commit "$d" internal/x/x_test.go "var ${pi_qa_camel_upper}Host = 1"
-pi_expect red "opsQA unexported spelling" pi_range "$d"
+pi_expect red "camel casing 2 (lower first word, upper initialism)" pi_range "$d"
 
 d="$tmp/pi-red-camel-lower-qa"
 pi_new_repo "$d"
 pi_commit "$d" internal/x/x_test.go "var ${pi_qa_camel_lower}Host = 1"
-pi_expect red "opsQa unexported spelling" pi_range "$d"
+pi_expect red "camel casing 3 (lower first word, capitalised second)" pi_range "$d"
 
 d="$tmp/pi-red-camel-prod"
 pi_new_repo "$d"
 pi_commit "$d" internal/x/x_test.go "var ${pi_prod_camel}Host = 1"
-pi_expect red "OpsProd spelling" pi_range "$d"
+pi_expect red "camel casing 4 (production name, capitalised words)" pi_range "$d"
 
 d="$tmp/pi-red-spaced"
 pi_new_repo "$d"
 pi_commit "$d" docs/notes.md "Measured on the ops"" QA cluster."
-pi_expect red "spaced ops QA form" pi_range "$d"
+pi_expect red "spaced separator form" pi_range "$d"
 
 d="$tmp/pi-green-devops-camel"
 pi_new_repo "$d"
@@ -279,6 +312,15 @@ pi_expect green "passes a token that only sits on a git comment line" \
 printf 'feat: measured on %s\n\n# renamed: %s\n' "$pi_qa_h" "$pi_qa_h" >"$tmp/pi-msg-comment-red"
 pi_expect red "still fails a token on a non-comment line beside comment lines" \
   env -u ESHU_PRIVATE_IDENTIFIER_FILE "$pi_gate" --message "$tmp/pi-msg-comment-red"
+# The reported line number counts the file's own lines, comment lines included.
+printf '# a status comment\n# another\nfeat: measured on %s\n' "$pi_qa_h" >"$tmp/pi-msg-comment-num"
+pi_expect red "a token after comment lines is reported at its file line" \
+  env -u ESHU_PRIVATE_IDENTIFIER_FILE "$pi_gate" --message "$tmp/pi-msg-comment-num"
+if rg -q 'commit-message line 3$' "$tmp/pi.out"; then
+  ok "private-identifier numbers a message line by its file line"
+else
+  no "private-identifier must print 'commit-message line 3' after two comment lines"
+fi
 
 # --- F4: rename detection (-M) is what makes a move of a legacy file clean ---
 # git diff detects renames by default, so a mutation that drops -M from the gate
@@ -301,8 +343,88 @@ printf 'Also seen on %s.\n' "$pi_qa_h" >>"$d/docs/moved/new.md"
 git -C "$d" add -A
 git -C "$d" commit -q -m "docs: move and extend the note"
 pi_expect red "flags the added token line of a moved file" pi_range "$d"
-if rg -q 'docs/moved/new\.md:4:' "$tmp/pi.out" && ! rg -q 'docs/moved/new\.md:2:' "$tmp/pi.out"; then
+if rg -q 'docs/moved/new\.md:4$' "$tmp/pi.out" && ! rg -q 'docs/moved/new\.md:2$' "$tmp/pi.out"; then
   ok "private-identifier flags only the added line of a moved file"
 else
   no "private-identifier must flag docs/moved/new.md:4 and not the moved line 2"
+fi
+
+# --- T3: joined spellings in other casings, and the spellings that stay clean ---
+# Each RED line is a joined spelling of an environment name that the CamelCase
+# arm used to miss. The fragments keep this file free of the contiguous token.
+d="$tmp/pi-red-joined-caps"
+pi_new_repo "$d"
+pi_commit "$d" internal/x/x_test.go "const OPS""QA_HOST = 1"
+pi_expect red "joined all-caps QA name" pi_range "$d"
+
+d="$tmp/pi-red-joined-caps-prod"
+pi_new_repo "$d"
+pi_commit "$d" internal/x/x_test.go "const OPS""PROD_HOST = 1"
+pi_expect red "joined all-caps production name" pi_range "$d"
+
+d="$tmp/pi-red-joined-sentence"
+pi_new_repo "$d"
+pi_commit "$d" docs/notes.md "Measured on Ops""qa today."
+pi_expect red "joined sentence-case QA name" pi_range "$d"
+
+d="$tmp/pi-red-joined-sentence-prod"
+pi_new_repo "$d"
+pi_commit "$d" docs/notes.md "Measured on Ops""prod today."
+pi_expect red "joined sentence-case production name" pi_range "$d"
+
+# One repository per spelling: a line that carries several spellings would pass
+# on any one of them, so a missed casing would stay hidden.
+pi_joined_n=0
+for pi_form in "oPS|qa" "opS|QA" "oPs|Qa" "OpS|qA" "ops|pRod" "oPs|Prod" "opS|prod" "OPS|prod" "ops|PROD" "Ops|PRod"; do
+  pi_joined_n=$((pi_joined_n + 1))
+  d="$tmp/pi-red-joined-mixed-$pi_joined_n"
+  pi_new_repo "$d"
+  pi_commit "$d" internal/x/x_test.go "var x = ${pi_form%%|*}""${pi_form##*|} + 1"
+  pi_expect red "joined mixed-case form $pi_joined_n" pi_range "$d"
+done
+
+d="$tmp/pi-red-joined-lower-word"
+pi_new_repo "$d"
+pi_commit "$d" docs/notes.md "Measured on the ops""qa cluster."
+pi_expect red "joined all-lowercase word in prose" pi_range "$d"
+
+# A hit in a commit message goes through the same shared pattern.
+d="$tmp/pi-red-joined-message"
+pi_new_repo "$d"
+pi_commit "$d" docs/notes.md "A clean line." "fix: measured on OPS""QA"
+pi_expect red "joined all-caps name in a commit message" pi_range "$d"
+
+d="$tmp/pi-green-joined-clean"
+pi_new_repo "$d"
+pi_commit "$d" docs/notes.md "See DEV""OPS""QA, Dev""Ops""Prod, dev""ops""prod and the Ops""Product plan."
+pi_expect green "passes DevOps-prefixed joined forms and a longer English word" pi_range "$d"
+
+# The append-only ledger cites a measurement by an id that spells the name
+# joined, lowercase, between hyphens. A new ledger row or evidence note adds
+# such a line, and it must stay clean.
+d="$tmp/pi-green-ledger-citation"
+pi_new_repo "$d"
+pi_commit "$d" docs/internal/evidence/9999-note.md "The p95 is 0.5 s (ledger:9999-ops""qa-directory-api-warm-p95)."
+pi_commit "$d" docs/internal/evidence/9998-note.md "See [the run](9998-ops""qa-migration-run-20261003.md)."
+pi_expect green "passes a lowercase joined name between hyphens (ledger id shape)" pi_range "$d"
+
+# --- T1: this file must not carry a deny token itself ---
+# pi_lib_hits <file>: print the number of lines of <file> that match the shared
+# pattern. The mirror seeds one RED with a planted token, then requires the
+# real cases library to have none.
+pi_lib_hits() {
+  local n
+  n="$(rg -c -e "$PRIVATE_IDENTIFIER_PATTERN" "$1" || true)"
+  printf '%s\n' "${n:-0}"
+}
+printf 'a label that spells %s in full\n' "$pi_qa_h" >"$tmp/pi-lib-planted.txt"
+if [ "$(pi_lib_hits "$tmp/pi-lib-planted.txt")" -ge 1 ]; then
+  ok "private-identifier lib scan catches a planted token"
+else
+  no "private-identifier lib scan must catch a planted token"
+fi
+if [ "$(pi_lib_hits "$repo_root/scripts/lib/test-private-identifier-cases.sh")" -eq 0 ]; then
+  ok "private-identifier cases library carries no deny token"
+else
+  no "private-identifier cases library must carry no deny token"
 fi

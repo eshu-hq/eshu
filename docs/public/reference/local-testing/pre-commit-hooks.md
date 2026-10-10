@@ -71,5 +71,7 @@ the hooks never depend on the plugin's exact-toolchain build.
   so a file that already names an environment needs no exception. The script
   header of `scripts/verify-no-private-identifiers.sh` documents an optional
   local deny-list file for identifiers that cannot be listed in a public
-  repository; matches print as file and line, and CI never sets it.
+  repository, and CI never sets it. No match prints its text: a hit in added
+  content prints as file and line, and a hit in a commit message as
+  `commit-message line N`.
 - Implementation: `scripts/dev/precommit-go.sh` and `.pre-commit-config.yaml`.

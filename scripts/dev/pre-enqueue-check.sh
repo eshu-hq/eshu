@@ -289,11 +289,12 @@ done <<<"$(tr ',' '\n' <<<"${closing_references}")"
 attrib_hits="$(rg -oi -e "${AI_ATTRIBUTION_PATTERN}" <<<"${body}")"
 attrib_rc=$?
 attrib="$(sort -fu <<<"${attrib_hits}" | sed '/^$/d' | paste -sd, -)"
-# The private-identifier scan follows the same exit-code rule. The matches are
-# the public deny tokens, so naming them in the failure is not a new disclosure.
+# The private-identifier scan follows the same exit-code rule. The report names
+# the body line numbers only: the failure text reaches a terminal, a PR comment
+# and CI logs, and must not repeat the identifier it refuses.
 private_rc=0
-private_hits="$(rg -o -e "${PRIVATE_IDENTIFIER_PATTERN}" <<<"${body}")" || private_rc=$?
-private_ids="$(sort -fu <<<"${private_hits}" | sed '/^$/d' | paste -sd, -)"
+private_hits="$(rg -n -e "${PRIVATE_IDENTIFIER_PATTERN}" <<<"${body}")" || private_rc=$?
+private_lines="$(cut -d: -f1 <<<"${private_hits}" | sed '/^$/d' | paste -sd, -)"
 body_bad=()
 [[ -n "${closes}" || -n "${references}" ]] || body_bad+=("no issue reference (#N or Closes/Fixes/Resolves #N)")
 if [[ "${attrib_rc}" -gt 1 ]]; then
@@ -303,8 +304,8 @@ elif [[ -n "${attrib}" ]]; then
 fi
 if [[ "${private_rc}" -gt 1 ]]; then
 	body_bad+=("private-identifier scan failed (rg exit ${private_rc}); body not verified")
-elif [[ -n "${private_ids}" ]]; then
-	body_bad+=("environment or organization identifier: ${private_ids}")
+elif [[ -n "${private_lines}" ]]; then
+	body_bad+=("environment or organization identifier on body line(s) ${private_lines}")
 fi
 if [[ ${#body_bad[@]} -eq 0 ]]; then
 	body_note=""

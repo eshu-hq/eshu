@@ -29,6 +29,11 @@
 # "private denylist: not configured" and continues; CI never sets it. A set but
 # unusable file (missing, empty, inside the repo, invalid regex) fails the gate.
 #
+# Output never echoes a match. A hit in added content is reported as path:line
+# and a hit in a commit message as "commit-message line N", so the failure log
+# of a public CI run, a PR check and a pasted terminal does not repeat the
+# identifier it refuses.
+#
 # Exit 0 when clean; non-zero listing each offending location.
 set -euo pipefail
 
@@ -167,8 +172,8 @@ scan_public_diff() {
   fi
   scan_text -e "^[^:]+:[0-9]+:.*(?:${PRIVATE_IDENTIFIER_PATTERN})" <<<"$lines"
   if [ -n "$scan_out" ]; then
-    report "environment or organization identifier in $label:"
-    printf '%s\n' "$scan_out" >&2
+    report "environment or organization identifier in $label (location only):"
+    cut -d: -f1,2 <<<"$scan_out" >&2
     fail=1
   fi
 }
@@ -178,15 +183,15 @@ scan_message() {
   local label="$1" text="$2"
   scan_text -n -e "$PRIVATE_IDENTIFIER_PATTERN" <<<"$text"
   if [ -n "$scan_out" ]; then
-    report "environment or organization identifier in $label:"
-    printf '%s\n' "$scan_out" >&2
+    report "environment or organization identifier in $label (location only):"
+    cut -d: -f1 <<<"$scan_out" | sed 's/^/commit-message line /' >&2
     fail=1
   fi
   if [ "$private_count" -gt 0 ]; then
     scan_text -n -f "$private_plain" <<<"$text"
     if [ -n "$scan_out" ]; then
-      report "private denylist match in $label (line number only):"
-      cut -d: -f1 <<<"$scan_out" >&2
+      report "private denylist match in $label (location only):"
+      cut -d: -f1 <<<"$scan_out" | sed 's/^/commit-message line /' >&2
       fail=1
     fi
   fi
@@ -205,7 +210,9 @@ case "$mode" in
       # editor commit hands the commit-msg hook and are stripped from the
       # stored message. Scanning them would block the rename that removes a
       # token from a file name, so lines that start with # are not content.
-      msg_text="$(sed '/^#/d' "$msg_file")"
+      # They are blanked, not deleted, so a reported line number still counts
+      # the file's own lines.
+      msg_text="$(sed 's/^#.*$//' "$msg_file")"
       scan_message "the commit message" "$msg_text"
     fi
     ;;
