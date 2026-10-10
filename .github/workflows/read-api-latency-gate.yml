@@ -149,11 +149,12 @@ jobs:
 
       - name: Run scale and concurrent HTTP/MCP proof
         env:
+          CAPTURE_H1_TRACE: ${{ inputs.capture_h1_trace }}
           GATE_WORK_REPORT: ${{ runner.temp }}/methodology-work.json
           GATE_LATENCY_REPORT: ${{ runner.temp }}/methodology-latency.json
           GATE_CONCURRENT_REPORT: ${{ runner.temp }}/methodology-concurrency.json
         run: |
-          if [[ "${{ inputs.capture_h1_trace }}" == 'true' ]]; then
+          if [[ "${CAPTURE_H1_TRACE:-false}" == 'true' ]]; then
             export GATE_H1_CAPTURE_DIR="${RUNNER_TEMP}/methodology-h1"
             mkdir -p "$GATE_H1_CAPTURE_DIR"
             bash scripts/ci/h1-stage-sampler.sh "$GATE_H1_CAPTURE_DIR" "$GATE_COMPOSE_PROJECT" > "$GATE_H1_CAPTURE_DIR/sampler.log" 2>&1 &

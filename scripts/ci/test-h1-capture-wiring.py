@@ -35,6 +35,11 @@ required = {
         r"3bc07732530c87c53f9103b01a3afed972fdeba26087a590c1098781736e58c2",
         collector)),
     "diagnostic gate flag": "export GATE_H1_CAPTURE_DIR=" in run_gate,
+    "capture input through step env": (
+        "CAPTURE_H1_TRACE: ${{ inputs.capture_h1_trace }}" in run_gate
+        and "${CAPTURE_H1_TRACE:-false}" in run_gate
+        and '"${{ inputs.capture_h1_trace }}"' not in run_gate
+    ),
     "sampler": "bash scripts/ci/h1-stage-sampler.sh" in run_gate,
     "collector stop": "if: ${{ always() && inputs.capture_h1_trace == true }}" in stop,
     "failure archive": all(marker in archive for marker in (
