@@ -1,0 +1,19 @@
+docs/internal/evidence/7916-first-generation-readiness.md
+  s_29175cf8c573b8::t_31d41a98cda656 113-114,223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1058a3d1c69a38a86bc79b1c938ba24af064bf6",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
