@@ -1,0 +1,31 @@
+.github/workflows/test.yml
+  s_29175cf8c573b8::t_efba2f521fe41f 181-188
+.pre-commit-config.yaml
+  s_29175cf8c573b8::t_77c35bfe9af487 217
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_d40a04d6c312f2 242-243
+scripts/lib/verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_557cf46e82ce2b 191-194
+scripts/test-verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_7d831e9407828b 8,29,71-201
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_e22c95f077d3bf 74-75
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_49a10d7a7c55c1 1453,1488
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "814256232c9f909040503dbccb3c5cae916a99b8",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
