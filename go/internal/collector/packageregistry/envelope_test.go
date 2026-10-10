@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestPackageObservationBuildsReportedPackageEnvelope(t *testing.T) {
@@ -34,11 +35,11 @@ func TestPackageObservationBuildsReportedPackageEnvelope(t *testing.T) {
 		t.Fatalf("NewPackageEnvelope() error = %v", err)
 	}
 
-	if envelope.FactKind != facts.PackageRegistryPackageFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.PackageRegistryPackageFactKind)
+	if envelope.FactKind != chain.PackageRegistryPackageFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, chain.PackageRegistryPackageFactKind)
 	}
-	if envelope.SchemaVersion != facts.PackageRegistryPackageSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.PackageRegistryPackageSchemaVersion)
+	if envelope.SchemaVersion != chain.PackageRegistryPackageSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, chain.PackageRegistryPackageSchemaVersion)
 	}
 	if envelope.CollectorKind != CollectorKind {
 		t.Fatalf("CollectorKind = %q, want %q", envelope.CollectorKind, CollectorKind)

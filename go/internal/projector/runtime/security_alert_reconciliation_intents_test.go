@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -84,8 +85,8 @@ func TestBuildProjectionQueuesSecurityAlertReconciliationForPackageRegistryPacka
 		FactID:        "package-1",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
-		FactKind:      facts.PackageRegistryPackageFactKind,
-		SchemaVersion: facts.PackageRegistryPackageSchemaVersion,
+		FactKind:      chain.PackageRegistryPackageFactKind,
+		SchemaVersion: chain.PackageRegistryPackageSchemaVersion,
 		SourceRef: facts.Ref{
 			SourceSystem: "package_registry",
 		},

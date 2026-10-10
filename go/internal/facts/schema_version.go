@@ -87,7 +87,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},
 	{ObservabilityFactKinds, ObservabilitySchemaVersion},
 	{chain.OCIRegistryFactKinds, chain.OCIRegistrySchemaVersion},
-	{PackageRegistryFactKinds, PackageRegistrySchemaVersion},
+	{chain.PackageRegistryFactKinds, chain.PackageRegistrySchemaVersion},
 	{cloud.RDSPostureFactKinds, cloud.RDSPostureSchemaVersion},
 	{ReducerDerivedFactKinds, ReducerDerivedSchemaVersion},
 	{cloud.S3BucketPostureFactKinds, cloud.S3BucketPostureSchemaVersion},

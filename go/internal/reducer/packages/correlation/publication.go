@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -129,7 +130,7 @@ func extractPackageRegistryVersions(envelopes []facts.Envelope) []packageRegistr
 	out := make([]packageRegistryVersionIdentity, 0)
 	seen := make(map[string]struct{})
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.PackageRegistryPackageVersionFactKind || envelope.IsTombstone {
+		if envelope.FactKind != chain.PackageRegistryPackageVersionFactKind || envelope.IsTombstone {
 			continue
 		}
 		version := packageRegistryVersionIdentity{

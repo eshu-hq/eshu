@@ -454,7 +454,7 @@ func supplyChainImpactFactKinds() []string {
 		facts.VulnerabilityGoModuleEvidenceFactKind,
 		facts.VulnerabilityGoCallReachabilityFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,
-		facts.PackageRegistryPackageFactKind,
+		chain.PackageRegistryPackageFactKind,
 		chain.SBOMComponentFactKind,
 		chain.OCIImageManifestFactKind,
 		chain.OCIImageIndexFactKind,

@@ -243,7 +243,7 @@ func collectorFactKinds() map[string][]string {
 		string(scope.CollectorTerraformState):            cloud.TerraformStateFactKinds(),
 		string(scope.CollectorDocumentation):             docs.FactKinds(),
 		string(scope.CollectorOCIRegistry):               chain.OCIRegistryFactKinds(),
-		string(scope.CollectorPackageRegistry):           facts.PackageRegistryFactKinds(),
+		string(scope.CollectorPackageRegistry):           chain.PackageRegistryFactKinds(),
 		string(scope.CollectorVulnerabilityIntelligence): facts.VulnerabilityIntelligenceFactKinds(),
 		string(scope.CollectorSBOMAttestation):           chain.SBOMAttestationFactKinds(),
 		string(scope.CollectorSecurityAlert):             facts.SecurityAlertFactKinds(),

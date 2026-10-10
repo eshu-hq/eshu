@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
@@ -180,7 +181,7 @@ func TestRuntimeProjectRejectsUnknownPackageRegistrySchemaVersion(t *testing.T) 
 			FactID:        "package-registry-package-1",
 			ScopeID:       "package-registry-scope-1",
 			GenerationID:  "package-registry-generation-1",
-			FactKind:      facts.PackageRegistryPackageFactKind,
+			FactKind:      chain.PackageRegistryPackageFactKind,
 			SchemaVersion: "2.0.0",
 			Payload: map[string]any{
 				"package_id": packageRegistryPackageID(),
@@ -269,9 +270,9 @@ func packageRegistryFacts() []facts.Envelope {
 			FactID:           "package-registry-package-1",
 			ScopeID:          "package-registry-scope-1",
 			GenerationID:     "package-registry-generation-1",
-			FactKind:         facts.PackageRegistryPackageFactKind,
+			FactKind:         chain.PackageRegistryPackageFactKind,
 			StableFactKey:    packageRegistryPackageID(),
-			SchemaVersion:    facts.PackageRegistryPackageSchemaVersion,
+			SchemaVersion:    chain.PackageRegistryPackageSchemaVersion,
 			CollectorKind:    "package_registry",
 			SourceConfidence: facts.SourceConfidenceReported,
 			ObservedAt:       observedAt,
@@ -305,9 +306,9 @@ func packageRegistryFacts() []facts.Envelope {
 			FactID:           "package-registry-version-1",
 			ScopeID:          "package-registry-scope-1",
 			GenerationID:     "package-registry-generation-1",
-			FactKind:         facts.PackageRegistryPackageVersionFactKind,
+			FactKind:         chain.PackageRegistryPackageVersionFactKind,
 			StableFactKey:    packageRegistryVersionID(),
-			SchemaVersion:    facts.PackageRegistryPackageVersionSchemaVersion,
+			SchemaVersion:    chain.PackageRegistryPackageVersionSchemaVersion,
 			CollectorKind:    "package_registry",
 			SourceConfidence: facts.SourceConfidenceReported,
 			ObservedAt:       observedAt,
@@ -352,9 +353,9 @@ func packageRegistrySourceHintFact() facts.Envelope {
 		FactID:           "package-registry-source-hint-1",
 		ScopeID:          "package-registry-scope-1",
 		GenerationID:     "package-registry-generation-1",
-		FactKind:         facts.PackageRegistrySourceHintFactKind,
+		FactKind:         chain.PackageRegistrySourceHintFactKind,
 		StableFactKey:    "source-hint-1",
-		SchemaVersion:    facts.PackageRegistrySourceHintSchemaVersion,
+		SchemaVersion:    chain.PackageRegistrySourceHintSchemaVersion,
 		CollectorKind:    "package_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 13, 14, 0, 0, 0, time.UTC),
@@ -378,9 +379,9 @@ func packageRegistryDependencyFact() facts.Envelope {
 		FactID:           "package-registry-dependency-1",
 		ScopeID:          "package-registry-scope-1",
 		GenerationID:     "package-registry-generation-1",
-		FactKind:         facts.PackageRegistryPackageDependencyFactKind,
+		FactKind:         chain.PackageRegistryPackageDependencyFactKind,
 		StableFactKey:    "package-registry-dependency-1",
-		SchemaVersion:    facts.PackageRegistryPackageDependencySchemaVersion,
+		SchemaVersion:    chain.PackageRegistryPackageDependencySchemaVersion,
 		CollectorKind:    "package_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 13, 14, 0, 0, 0, time.UTC),
