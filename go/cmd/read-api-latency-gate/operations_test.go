@@ -57,6 +57,36 @@ func TestPilotOperationsAreImplementedInventoryRoutes(t *testing.T) {
 	}
 }
 
+func TestPilotFailuresDescribeMissingResponseAndHTTPStatuses(t *testing.T) {
+	const route = "GET /pilot"
+	operations := map[string]Operation{route: {Method: http.MethodGet, Path: "/pilot"}}
+	cases := []struct {
+		name   string
+		result RouteLatency
+		want   string
+	}{
+		{"timeout", RouteLatency{Route: route, Status: 0, HardFailed: true}, "pilot operation GET /pilot was not successfully exercised (no response)"},
+		{"client_error", RouteLatency{Route: route, Status: http.StatusForbidden}, "pilot operation GET /pilot was not successfully exercised (HTTP 403)"},
+		{"server_error", RouteLatency{Route: route, Status: http.StatusServiceUnavailable, HardFailed: true}, "pilot operation GET /pilot was not successfully exercised (HTTP 503)"},
+		{"successful_pilot", RouteLatency{Route: route, Status: http.StatusOK, Exercised: true}, ""},
+		{"unselected_route", RouteLatency{Route: "GET /other", Status: 0, HardFailed: true}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			failures := pilotFailures([]RouteLatency{tc.result}, operations)
+			if tc.want == "" {
+				if len(failures) != 0 {
+					t.Fatalf("pilotFailures() = %q, want no failures", failures)
+				}
+				return
+			}
+			if len(failures) != 1 || failures[0] != tc.want {
+				t.Fatalf("pilotFailures() = %q, want [%q]", failures, tc.want)
+			}
+		})
+	}
+}
+
 func TestConcurrentPilotSweepOverlapsRequestsWithoutMeter(t *testing.T) {
 	var active, peak int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
