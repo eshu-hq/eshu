@@ -129,9 +129,11 @@ func writeDiagnosticHTTPTrace(path string, records []diagnosticHTTPRecord) error
 	if err != nil {
 		return err
 	}
+	// #nosec G703 -- The local operator selects this diagnostic output path; HTTP input cannot select it.
 	return os.WriteFile(path, append(data, '\n'), 0o600)
 }
 
 func writeDiagnosticStageMarker(dir, name string) error {
+	// #nosec G703 -- The local operator selects dir; callers supply only fixed get_start/get_end marker names.
 	return os.WriteFile(filepath.Join(dir, name+".txt"), []byte(time.Now().UTC().Format(time.RFC3339Nano)+"\n"), 0o600)
 }
