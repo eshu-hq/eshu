@@ -8,7 +8,7 @@ backend. No NornicDB proof is proposed.
 
 ## Decision to make
 
-The unscoped 16-term full-response read on deployed ops-qa measured 1.232 s
+The unscoped 16-term full-response read on deployed QA measured 1.232 s
 median and 1.526 s p95 over ten clean timed requests after two warm-ups. The
 goal's under-1-s budget is not met. The relative-path trigram index (#7305)
 and parallel read (#7519) are already merged. The remaining entity-name/source
@@ -146,7 +146,7 @@ These are proposed **gates**, not measured capacity or approved spend:
 | Property | Admission gate before implementation |
 | --- | --- |
 | Accuracy | Exhaustive uncapped row/rank parity on the owned corpus; approved, deterministic capped delta; wildcard, Unicode, tie, empty, grant and file-priority cases. |
-| Endpoint latency | Identical source snapshot and backend, with only the candidate index as the intended storage difference; stable data/storage within each variant during interleaved full-body A/B. Under 1 s on the 16-term unscoped request, with median and p95 reported. A deployed ops-qa check remains separate. |
+| Endpoint latency | Identical source snapshot and backend, with only the candidate index as the intended storage difference; stable data/storage within each variant during interleaved full-body A/B. Under 1 s on the 16-term unscoped request, with median and p95 reported. A deployed QA check remains separate. |
 | Storage | Record source heap, indexes, TOAST, new structures and peak dual-version/backfill bytes. Set a measured bytes-per-repository and total-space ceiling from actual corpus distribution before choosing an engine. |
 | Writes | Measure sustained and burst mutations, index bytes and CPU per mutation, WAL amplification, contention, and collector/reducer throughput. No new write bottleneck at the target ingest rate. |
 | Freshness | Set a maximum source-to-search visibility lag, plus rebuild/retirement deadline, from a measured collector cadence and an owner-approved SLO. Failed/stale state is explicit. |
@@ -162,7 +162,7 @@ results; that rejects that physical shape, not every index architecture.
 
 ## Costed fixed-corpus test plan (not authorized to launch)
 
-The last read-only ops-qa sample estimated 2.67 million entity rows and
+The last read-only QA sample estimated 2.67 million entity rows and
 184,745 file rows, with about 10.23 GB of table-plus-index relation size for
 the selected content slice. Heap/TOAST data for three selected relations was
 about 4.23 GB before compression. These are point-in-time sizing inputs,
@@ -198,7 +198,7 @@ then reports median, p95, tail errors, CPU, memory and read I/O. After this
 fixed read window, a **separately authorized mutation replay** runs the same
 bounded insert/update/delete stream against both isolated writable copies.
 It compares committed-row truth, WAL bytes, ingest throughput, CPU, I/O,
-contention, recovery and index/delta lag, with no collector or ops-qa writer
+contention, recovery and index/delta lag, with no collector or QA writer
 connection. Recreate both copies from the immutable snapshot before any
 repeat of the read A/B; a post-replay database is not the fixed read corpus.
 The 24/48-hour estimates assume both phases finish inside that window; price
@@ -207,7 +207,7 @@ This storage replay does **not** establish collector/reducer throughput. A
 separate task-owned integration run through those services is required before
 implementation acceptance and needs its own topology, duration and cost
 approval; it is not included in this clone estimate.
-Finally, a read-only deployed ops-qa measurement checks the candidate on the
+Finally, a read-only deployed QA measurement checks the candidate on the
 live Neo4j/PostgreSQL topology. Neither the fixed-copy result nor a local
 sample alone closes #7033.
 
@@ -215,7 +215,7 @@ Execution packet for a separately approved run: freeze the exact snapshot ID,
 source Pod/volume identity, image digest, schema and row fingerprints, target
 account/AZ, two target volume IDs, host IDs, owners, TTL, quoted prices and
 maximum bill. Start from the isolated copies only after health and capacity
-preflights; deny outbound replication and writer routes to ops-qa. Run a
+preflights; deny outbound replication and writer routes to the QA environment. Run a
 bounded baseline control, build the candidate index with disk/WAL/CPU and
 source-health stop gates, then measure the interleaved A/B. On any guard or
 accuracy failure, stop only task-owned API/database instances and retain logs

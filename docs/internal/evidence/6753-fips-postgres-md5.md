@@ -2,7 +2,7 @@
 
 ## Failure and affected flow
 
-Ops-qa runs PostgreSQL 18.3 with OpenSSL FIPS enabled. A read-only
+The QA environment runs PostgreSQL 18.3 with OpenSSL FIPS enabled. A read-only
 `SELECT md5('foo')` returned `could not compute MD5 hash: unsupported` (exit 1).
 The old changed-since payload aggregation failed with the same error on a scope
 with 158 active facts. This was a production query, not a migration failure.
@@ -27,7 +27,7 @@ recognizes those refs, returns 409 with a list-and-retry instruction, and record
 a denied governance audit reason. It does not silently report an absent mapping.
 Page through the mapping list with `next_after_ref` as `after_ref` to obtain
 current refs even beyond the 500-row page limit; the underlying mapping rows
-and OIDC group resolution are unchanged. Ops-qa had zero rows in
+and OIDC group resolution are unchanged. The QA environment had zero rows in
 `identity_provider_group_role_mappings` at the time of this read-only check.
 Other deployments may have rows, so the client transition is documented in the
 HTTP API and OpenAPI. Unknown non-legacy refs retain the existing idempotent
@@ -44,7 +44,7 @@ retain their precedence. The digest remains `bytea` to avoid per-row hex
 encoding. This is a correctness change from the old `MIN(md5(...))` behavior,
 which could miss duplicate-group differences even without FIPS.
 
-## Isolated ops-qa proof
+## Isolated QA proof
 
 The changed-since and initial mapping-list checks used read-only transactions
 or `SELECT`. A later roundtrip used a transaction-scoped temporary table with
@@ -65,7 +65,7 @@ confirmed the temporary table was removed. No application rows were written.
   Wrong-tenant list and delete returned zero rows. Correct-tenant delete
   tombstoned one row; repeat delete returned zero. After `ROLLBACK`, the
   temporary table was absent. The roundtrip exited 0.
-- In the measured 18,238-row ops-qa generation, no `(fact_category,
+- In the measured 18,238-row QA generation, no `(fact_category,
   stable_fact_key)` pair had multiple active rows. This does not establish that
   the full corpus has no duplicate keys.
 - On a loaded 158-row scope, an initial encoded SHA-256 aggregate had 4.668 ms
@@ -80,13 +80,13 @@ confirmed the temporary table was removed. No application rows were written.
 
 A local non-FIPS PostgreSQL 18.6 instance ran both functions over the same
 18,238 synthetic JSONB payloads, with one long payload. The synthetic table
-averaged 1,064 stored bytes per payload; the measured ops-qa scope averaged
+averaged 1,064 stored bytes per payload; the measured QA scope averaged
 1,068 bytes (median 814, p95 1,794, p99 3,984, maximum 436,815). In two
 alternating `EXPLAIN (ANALYZE, BUFFERS)` reads, `MIN(md5(payload::text))`
 took 33.650 and 31.724 ms; `MIN(sha256(convert_to(payload::text, 'UTF8')))`
 took 16.752 and 16.834 ms. The local comparison uses one server, table, and
 query shape, so it supports no hash-function regression on this fixture. It
-cannot be compared as an end-to-end speedup against loaded ops-qa, whose CPU,
+cannot be compared as an end-to-end speedup against loaded the QA environment, whose CPU,
 storage, data distribution, and FIPS posture differ. The local fixture has a
 similar average stored width but does not reproduce every live payload shape.
 
@@ -96,7 +96,7 @@ source-extracted final count query took 396 and 371 ms, compared with 342 and
 336 ms for the simpler SHA-256 minimum-digest query on the same mostly-unique
 fixture (about 10–17% slower). A duplicate-heavy fixture of the same size took
 782 and 680 ms with the candidate multiset query. These are isolated SQL
-measurements, not endpoint latency or loaded ops-qa measurements. Ops-qa was
+measurements, not endpoint latency or loaded QA measurements. The QA environment was
 unreachable for a final live timing read after this change; rollout observation
 is still required.
 

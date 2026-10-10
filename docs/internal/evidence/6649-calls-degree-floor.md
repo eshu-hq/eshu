@@ -12,7 +12,7 @@ stay cheap at that degree.
 
 ## Method
 
-- Host: ops-qa. Backend: Neo4j Community 2026.08.1
+- Host: the QA environment. Backend: Neo4j Community 2026.08.1
   (`backend_version: 2026.08.1-community`). Commit: `5583d45`. Measured
   2026-09-26.
 - Corpus: 804 repositories, 540k `Function` nodes, 356,547 `CALLS` edges.
@@ -70,7 +70,7 @@ that drives this floor.
 ## PROFILE evidence: the covered reads stay cheap at the new floor
 
 All cells below ran against the pinned Neo4j binary (2026.08.1-community) on
-the ops-qa corpus, per the `cypher-query-rigor` proof requirement (test
+the QA corpus, per the `cypher-query-rigor` proof requirement (test
 against Neo4j, not NornicDB, for the accuracy/performance contract).
 
 | Reader | Direction / anchor | Plan | Time | DB hits | Rows |

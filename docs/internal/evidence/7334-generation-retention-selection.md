@@ -23,8 +23,8 @@ generations (rank never clears `MinSupersededGenerations`) could pass that
 check and consume the whole scope lock budget, starving scopes that sort
 later by `scope_id` but actually own an eligible generation.
 
-Arbiter measurement (`arb-7334.md` E1/E3-old, read-only ops-qa, no timing
-claimed): on the ops-qa shape (120 scopes with 3 old-but-retained superseded
+Arbiter measurement (`arb-7334.md` E1/E3-old, read-only the QA environment, no timing
+claimed): on the QA shape (120 scopes with 3 old-but-retained superseded
 generations each, 10 scopes with 30 each, ranks 25-30 eligible), the shipped
 statement returned **0 rows** against an independent oracle's **59** eligible
 generations, and its lock set was **100 unrelated scope rows** (`a000..a099`),
@@ -42,7 +42,7 @@ locking clause. Full statement and rationale: `arb-7334c.md` section 4 (the
 placeholder changes were needed) as the new
 `generationRetentionCandidateQuery`.
 
-T1 (`arb-7334c.md` section 4, read-only ops-qa plus a local PostgreSQL 18.6
+T1 (`arb-7334c.md` section 4, read-only QA plus a local PostgreSQL 18.6
 throwaway container, no timing claimed): the new statement's rows equal the
 oracle's for limit 100 and limit 3, with and without concurrently held
 scopes; its lock set is exactly the scopes owning an eligible generation. Its

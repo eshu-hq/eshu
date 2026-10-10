@@ -28,7 +28,7 @@ About 6x, with identical rows on all six runs (189 rows: bucket counts plus
 26 samples per bucket). The before flow's 8 statements are one counts statement
 and one samples statement for each of 7 non-empty buckets on this fixture. This
 is a single-host local proof: it is not a production wall-time claim. One diff
-is still O(generation size); ops-qa measured 20-45 s for one diff on a
+is still O(generation size); QA measured 20-45 s for one diff on a
 12,403-file repository, so the request path stays over budget for very large
 repositories until the precomputed-delta work in the #7127 ruling lands.
 

@@ -1,12 +1,15 @@
 # #7116 — all-scopes recovery skipped failed scopes without saying so
 
+`repo-AR` in this note is a stable placeholder for the measured repository id;
+the mapping is held outside the repository.
+
 `POST /api/v0/admin/recover-generations` with `all_scopes` (and the named-scope
 form of the same refinalize) selected only `ingestion_scopes` rows with
 `status = 'active'` and a non-null `active_generation_id`. A scope whose latest
 generation failed carries `status = 'failed'` and no active generation, so it
 was skipped, and the response gave no sign that anything was left out. After a
 graph-backend rebuild that repository was simply absent from the new graph. The
-real case was `repository:r_874801ea` on ops-qa: newest generation dead-lettered
+real case was `repository:repo-AR` on the QA environment: newest generation dead-lettered
 with `graph_write_timeout`, older generations superseded, and 810 items enqueued
 without it.
 
@@ -108,7 +111,7 @@ lateral `Index Scan using scope_generations_scope_latest_lookup_idx`, gated by
 lateral probe ran for 4,000 loops (the failed scopes) out of 100,000 outer rows
 and read 20,000 buffers in total; active scopes pay no `scope_generations` probe.
 The cost is a once-per-recovery read that grew from about 12 ms to about 60-110 ms
-at 100,000 scopes, 125x the size of the ops-qa estate (794 repository scopes).
+at 100,000 scopes, 125x the size of the QA estate (794 repository scopes).
 
 Row-set differential in the same database, old covered set versus the new one:
 `old_rows = 96000`, `new_covered = 99000`, `old_rows_not_identical_in_new = 0`,
@@ -138,8 +141,8 @@ in `docs/public/observability/telemetry-coverage.md`.
 
 ## Not proven here
 
-- A run against ops-qa data. The shim is synthetic and the live tests are fixtures;
-  the ops-qa scope `r_874801ea` was not touched.
+- A run against QA data. The shim is synthetic and the live tests are fixtures;
+  the QA scope `repo-AR` was not touched.
 - Per-scope work item counts for repositories with a very large number of
   non-superseded generations. The lateral stops at the first non-superseded
   generation per failed scope, and a failed scope has only a handful in practice.

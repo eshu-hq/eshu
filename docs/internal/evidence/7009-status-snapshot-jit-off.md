@@ -31,15 +31,15 @@ cost in #7265.
 
 Expected effect by state:
 
-- ops-qa idle shape (clean visibility map): none for the bundle statement.
-  `active_work_summary` plans at 62,530 on the ops-qa reader, below 100,000,
+- QA idle shape (clean visibility map): none for the bundle statement.
+  `active_work_summary` plans at 62,530 on the QA reader, below 100,000,
   so it never JITs today and the SET changes nothing for it.
 - Stale visibility map or busy states (a bootstrap or backfill that leaves
   pages not all-visible): the statement crosses the threshold and JIT off
   saves the compile (stale-VM rerun below).
 - `terraform_state` #25 (`terraformStateRecentWarningsQuery`): above the
-  threshold on ops-qa (1,579,838). JIT off cost it nothing on the fixture
-  (1.002x). Its ops-qa behavior is NOT measured; see the ops-qa inventory
+  threshold on the QA environment (1,579,838). JIT off cost it nothing on the fixture
+  (1.002x). Its QA behavior is NOT measured; see the QA inventory
   below for why the JIT compile there is not established.
 
 ## Performance Evidence:
@@ -120,14 +120,14 @@ On every valid clean-VM cell (0.1% to 100% live, plan cost 61-66k, 0 JIT
 functions) the same on/off ratio is 0.918-1.098: identical plans, so that
 range is the fixture's noise floor, and the SET changes nothing there.
 
-ops-qa reader inventory (ruling D1.6(iii), ops-qa half): one read-only
-`REPEATABLE READ` session on the ops-qa hot-standby reader (2026-10-06,
+QA reader inventory (ruling D1.6(iii), QA half): one read-only
+`REPEATABLE READ` session on the QA hot-standby reader (2026-10-06,
 status `CAPTURED_JIT_INVENTORY`), planning-only `EXPLAIN (FORMAT JSON)
 EXECUTE` of the same 26 statements with a forced custom plan. Settings:
 `jit=on`, `jit_above_cost=100000`, `jit_inline_above_cost=500000`,
 `jit_optimize_above_cost=500000`, `work_mem=64MB`, PostgreSQL 18.3.
 
-| statement | ops-qa Total Cost | above 100,000 | JIT section in the plan |
+| statement | QA Total Cost | above 100,000 | JIT section in the plan |
 |---|---:|---|---|
 | `active_work_summary` (#4) | 62,530 | no | none |
 | `terraform_state` recent warnings (#25) | 1,579,838 | yes | none |
@@ -138,9 +138,9 @@ A local probe on the pinned PostgreSQL 18.3 image (`pg_jit_available()` true)
 prints a JIT section (5 functions) for a planning-only `EXPLAIN (FORMAT JSON)
 EXECUTE` at cost 267,931, so planning-only EXPLAIN does report JIT when it is
 available. The absence is consistent with JIT not being available on the
-ops-qa reader (no loadable `jit_provider`), but that is a theory:
-`pg_jit_available()` and `jit_provider` on ops-qa are NOT_CHECKED. If JIT is
-unavailable there, the SET is a no-op on ops-qa in every state, and its value
+QA reader (no loadable `jit_provider`), but that is a theory:
+`pg_jit_available()` and `jit_provider` on the QA environment are NOT_CHECKED. If JIT is
+unavailable there, the SET is a no-op on the QA environment in every state, and its value
 is for deployments where JIT is available.
 
 ## No-Regression Evidence:
@@ -199,24 +199,24 @@ the attribute and the stage.
 ## Not proven
 
 - Deployed p95 of any status route: NOT_CHECKED.
-- JIT availability on the ops-qa reader (`pg_jit_available()`,
+- JIT availability on the QA reader (`pg_jit_available()`,
   `jit_provider`): NOT_CHECKED. Statement #25 planned at 1,579,838 with no JIT
   section; the cause is not established.
-- The JIT cost of statement #25 on ops-qa: NOT measured. The fixture showed
+- The JIT cost of statement #25 on the QA environment: NOT measured. The fixture showed
   no benefit from JIT (1.002x at cost 212,206); if JIT is available on
-  ops-qa, that statement would compile at its 1.58M cost whenever it runs.
+  the QA environment, that statement would compile at its 1.58M cost whenever it runs.
   The fixture cost sits below `jit_inline_above_cost` and
   `jit_optimize_above_cost` (500,000), so the fixture ratio does not cover
-  the inlining and optimization work JIT would do at the ops-qa cost.
-- JIT on/off timing of any statement on ops-qa: NOT measured (the inventory
+  the inlining and optimization work JIT would do at the QA cost.
+- JIT on/off timing of any statement on the QA environment: NOT measured (the inventory
   plans only).
-- The reader DSN `options=` on ops-qa: NOT_CHECKED. The inventory session
+- The reader DSN `options=` on the QA environment: NOT_CHECKED. The inventory session
   read `jit=on`; a DSN that sets `jit=off` would make the SET redundant but
   harmless.
 - Generic-plan costs (`plan_cache_mode=force_generic_plan`): not captured on
-  the fixture or on ops-qa; the deployed pgx path may plan generically after
+  the fixture or on the QA environment; the deployed pgx path may plan generically after
   five executions.
-- Byte equality of the 26 ops-qa inventory statements with the seeded-fixture
+- Byte equality of the 26 QA inventory statements with the seeded-fixture
   capture: NOT_CHECKED; the label sequence matched.
 - The full-read round trip at 1% resolution: unresolved at the load of those
   runs (load1 15 to 20). The single-statement read and the direct SET bound
@@ -225,5 +225,5 @@ the attribute and the stage.
   has no `terraform_state_warning` index and no active-generation filter. It
   walks `fact_records` for every git or Terraform-state scope: about 416 ms
   at 6.56M facts on this fixture, with or without JIT, and it plans at
-  1,579,838 on ops-qa. That cost is outside this change; its ops-qa run time
+  1,579,838 on the QA environment. That cost is outside this change; its QA run time
   is not measured.

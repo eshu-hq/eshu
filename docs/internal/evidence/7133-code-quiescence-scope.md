@@ -1,6 +1,6 @@
 # Code-Quiescence Gate Scope
 
-Issue #7133. On ops-qa (Neo4j, image `sha-fb08c0c`), the `code_calls` and
+Issue #7133. On the QA environment (Neo4j, image `sha-fb08c0c`), the `code_calls` and
 `repo_dependency` shared-projection lanes stopped draining at 2026-09-17
 23:03Z. `code_calls` stood at 1,526,208 pending intents in three snapshots
 between 15:04 and 15:10Z on 2026-09-25, a drain rate of 0/s. Neo4j held 0
@@ -12,10 +12,10 @@ is one lane-wide boolean that both runners check before claiming a lease.
 Its second branch holds any active generation with zero facts and no
 `code_entities_uid/canonical_nodes_committed` phase row. It did not restrict
 itself to scopes that can ever publish that phase. Two active scopes held it
-true on ops-qa: `aws:<account>:us-east-1:ecs` (source_system `aws`, kind
+true on the QA environment: `aws:<account>:us-east-1:ecs` (source_system `aws`, kind
 `region`, 17 generations since 2026-09-17 23:03:48Z, all with 0 facts) and the
 synthetic `eshu:global` scope from migration 115, whose migration-116 phase
-row was missing. Read-only counterfactual on ops-qa: the full predicate
+row was missing. Read-only counterfactual on the QA environment: the full predicate
 returned `true`, and the same predicate with those two scope_ids excluded
 returned `false`. No git scope was uncommitted (branch 1 returned 0 rows
 across 794 git scopes). The last `code_calls` completion (23:03:21Z) came 27 s
@@ -41,7 +41,7 @@ before the first empty ECS generation.
   (issue point 4) is left for that issue. It no longer affects this gate.
 - `deployable_unit_correlation` calls the same probe
   (`deployableUnitCanonicalReposReady`), so its non-counting
-  canonical-nodes-not-ready defers (486 retrying on ops-qa) clear with the
+  canonical-nodes-not-ready defers (486 retrying on the QA environment) clear with the
   same fix.
 
 Seeded RED/GREEN (postgres:16 container, `ApplyBootstrap` schema):
@@ -74,14 +74,14 @@ head constants.
 
 | State | base probe | head probe | head blocker sample |
 | --- | --- | --- | --- |
-| ops-qa shape (AWS zero-fact + eshu:global phase-less) | 1.64 ms, 144 blocks, **true** | 63.2 ms, 131,116 blocks, false | 63.3 ms |
+| QA shape (AWS zero-fact + eshu:global phase-less) | 1.64 ms, 144 blocks, **true** | 63.2 ms, 131,116 blocks, false | 63.3 ms |
 | steady (all committed) | 60.8 ms, 131,285 blocks, false | 60.6 ms, 131,117 blocks, false | 63.6 ms |
 | one git scope uncommitted (last in scan order) | 60.4 ms, 131,255 blocks, true | 58.5 ms, 131,112 blocks, true | 65.7 ms |
 
 A local PostgreSQL 18.6 cluster gave the same picture (steady: base 74.0 ms,
 head 72.0 ms, about 129.6k blocks each). The comparable steady and uncommitted
 states run at the same cost or slightly lower: the collector filter drops
-non-code scopes before either subquery runs. The base's 1.64 ms in the ops-qa
+non-code scopes before either subquery runs. The base's 1.64 ms in the QA
 shape is the wedge itself, a short-circuit on the wrong answer. The blocker
 sample is not on the per-cycle path. It runs only when a blocked episode
 starts and at most once a minute after that.
@@ -94,11 +94,11 @@ That comes to about one buffer per active git fact per call (119,894 active
 git facts in the fixture). A rolled-back shim that dropped that index made the
 planner use `fact_records_collector_status_active_idx`: 15.8 ms median over 5
 runs and about 9.5k buffers on postgres:16. The base plan is identical, so
-this is not a regression. On ops-qa the per-call cost scales with active git
-fact count. It needs its own proof on ops-qa-shaped data (partial index or
+this is not a regression. On the QA environment the per-call cost scales with active git
+fact count. It needs its own proof on QA-shaped data (partial index or
 extended statistics) before any change.
 
-ops-qa measurement of this PR's predicate (read-only `EXPLAIN (ANALYZE,
+QA measurement of this PR's predicate (read-only `EXPLAIN (ANALYZE,
 BUFFERS)` through a `default_transaction_read_only` session, 2026-09-25,
 78,614,620 `fact_records` rows, 794 active git scopes): the gate returns
 false, so the lane unblocks. Three warm runs took 166.5, 167.3 and 170.5 ms
@@ -130,7 +130,7 @@ signals:
   closes the episode.
 
 Scope ids appear only in logs, never as labels, so cardinality stays bounded
-by two domains and two reasons. On ops-qa the line would have named
+by two domains and two reasons. On the QA environment the line would have named
 `aws:<account>:us-east-1:ecs` and `eshu:global`. Proof:
 `TestCodeCallProjectionRunnerReportsQuiescenceBlock` (a mutation that drops
 the record call fails it), `...ReportsReducerGraphWorkBlock`,
@@ -180,7 +180,7 @@ runner select without it. The proposal:
    relationship-generation to scope-generation mapping only if that cost
    matters.
 3. Measure the drain on a scaled fixture before and after, then unblock
-   ops-qa.
+   the QA environment.
 
 ## Follow-up: blocked-lane sampler precedence and episode close
 

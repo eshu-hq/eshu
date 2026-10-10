@@ -7,7 +7,7 @@ relative path, entity type, name, and start line. It upserts `entities` before
 `helm_values_unique (path)`, `kustomize_unique (path)` and
 `tg_config_unique (path)` saw the moved block's new uid next to the old node and
 failed the delta with `Neo.ClientError.Schema.ConstraintValidationFailed`. That
-dead-lettered the repository on ops-qa.
+dead-lettered the repository on the QA environment.
 
 The Neo4j schema now drops those five constraints before any other statement
 (`DROP CONSTRAINT <name> IF EXISTS`). It adds non-unique `path` RANGE indexes

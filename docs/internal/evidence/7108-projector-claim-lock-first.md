@@ -1,6 +1,6 @@
 # #7108 projector claim: lock-first maintenance CTEs
 
-Root-Cause Evidence: the ops-qa Postgres log for 2026-09-24/25 shows four
+Root-Cause Evidence: the QA Postgres log for 2026-09-24/25 shows four
 `deadlock detected` reports on `fact_work_items`, and every participant is the
 projector claim statement (`WITH source_scoped_projector_work AS ...`). The
 03:11:07Z report is `ShareLock on transaction` edges plus one

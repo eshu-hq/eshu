@@ -39,10 +39,10 @@ removed), marker rows per write:
 | 10,000  | 5.9s      |
 | 25,000  | 13.9s     |
 | 50,000  | 19.6s     |
-| 25,000 (ops-qa shape repro) | 14.4s |
+| 25,000 (QA shape repro) | 14.4s |
 
 The 300s default is ~15x over the largest locally measured full write
-(19.6s at 50k markers) and matches the value ops-qa already sets explicitly,
+(19.6s at 50k markers) and matches the value the QA environment already sets explicitly,
 so no deployment that sets the variable to a valid value changes behavior.
 The arbiter (Muse Spark) confirmed the 300s default on these numbers.
 
@@ -96,7 +96,7 @@ Gauge query cost (`EXPLAIN (ANALYZE, BUFFERS)`, local `postgres:18`):
 Behavior change for Neo4j deployments that never set
 `ESHU_CANONICAL_WRITE_TIMEOUT`: writes are now bounded at 300s instead of
 unbounded, and the startup WARN no longer fires for them (it fires only on
-explicit opt-out). Deployments that set the variable to a valid value (including ops-qa at
+explicit opt-out). Deployments that set the variable to a valid value (including the QA environment at
 300s) see no change. If a deployment has legitimate writes over 300s, raise
 the variable or opt out explicitly with `0s` before upgrading.
 

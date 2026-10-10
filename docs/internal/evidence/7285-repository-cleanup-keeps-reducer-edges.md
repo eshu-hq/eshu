@@ -15,7 +15,7 @@ re-run the projector after the generation's reducers already succeeded:
 The delete removed every edge on the Repository node. The reducers are never
 re-armed: their re-enqueue is `ON CONFLICT (work_item_id) DO NOTHING`, and
 completed shared-projection intents are not reopened. `DEFINES` and every other
-reducer or cross-scope edge on the node stayed lost. On ops-qa that produced
+reducer or cross-scope edge on the node stayed lost. On the QA environment that produced
 the empty-shell workloads.
 
 Root-Cause Evidence: `TestLiveRepositoryRetryKeepsReducerEdges` on
@@ -68,7 +68,7 @@ executors, and the Repository element id changed.
   - `SET r = {...}` was not adopted: its semantics are unverified on NornicDB,
     the default backend, and would wipe any property a later writer adds.
   - Remaining gap: a property left on an existing node by an older release
-    persists. None is known, and ops-qa nodes were not inspected.
+    persists. None is known, and QA nodes were not inspected.
 
 ## Proof
 
@@ -309,5 +309,5 @@ Performance Evidence: `load_inputs` on a 50-repository scope with an intent keye
 - **Deadlock count.** Transient deadlock-detected counts for a projector atomic
   group racing reducer MERGEs, before and after the fix, were not measured.
 - **Repair of existing shells.** Edges already lost do not heal under B. The
-  re-run of the writers on ops-qa (`recover-generations` or a domain replay)
+  re-run of the writers on the QA environment (`recover-generations` or a domain replay)
   is an owner-consented mutation and is out of scope here.

@@ -1,5 +1,8 @@
 # #7389 remote no-regression runs (PR #7450)
 
+`repo-AA` to `repo-AC` in this note are stable one-to-one placeholders for the
+measured repository names; the mapping is held outside the repository.
+
 This file records the remote runs on the built binary for #7389. The design,
 the rulings and the local proofs stay in
 [7389-superseded-writer-overlay.md](7389-superseded-writer-overlay.md). The
@@ -237,12 +240,12 @@ after load_facts start (derived).
 
 | burst | repo | HEAD | BASE, canonical_write proxy | BASE, load_facts proxy |
 | --- | --- | --- | --- | --- |
-| 1 | api-node-datax | race-refused | race-refused | race-refused |
-| 2 | api-node-spam-fraud | race-refused | race-refused | race-refused |
-| 3 | api-node-user-management | race-refused | claim-superseded (G_D ingested 135 ms before canonical_write start) | race-refused |
-| 4 | api-node-datax | race-refused | claim-superseded (161 ms before) | race-refused |
-| 5 | api-node-spam-fraud | race-refused | race-refused | race-refused |
-| 6 | api-node-user-management | coalesced (burst-a and burst-b ingested as one generation) | coalesced | coalesced |
+| 1 | `repo-AA` | race-refused | race-refused | race-refused |
+| 2 | `repo-AB` | race-refused | race-refused | race-refused |
+| 3 | `repo-AC` | race-refused | claim-superseded (G_D ingested 135 ms before canonical_write start) | race-refused |
+| 4 | `repo-AA` | race-refused | claim-superseded (161 ms before) | race-refused |
+| 5 | `repo-AB` | race-refused | race-refused | race-refused |
+| 6 | `repo-AC` | coalesced (burst-a and burst-b ingested as one generation) | coalesced | coalesced |
 
 Both sides completed the G_B projection in all 5 non-coalesced bursts
 (measured, `projection succeeded`, 44,005 facts). The BASE "claim-superseded"

@@ -34,7 +34,7 @@ the fast-path reads plus the pre-fix statement. Unit tests
 `TestInfraRelationshipsFallsBackToUnlabeledAnchorAfterLabelMisses` failed
 before the fix and pass after; the live files above pass on both backends.
 
-No-Regression Evidence: not re-measured at scale. The ops-qa Neo4j numbers in the
+No-Regression Evidence: not re-measured at scale. The QA Neo4j numbers in the
 parent doc cover the Wave 3 entity-context shape and the infra miss path, neither
 of which ships now; the infra first-hit statement is unchanged. The restored
 two-hop enrichment is the statement main shipped.

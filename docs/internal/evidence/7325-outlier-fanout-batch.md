@@ -22,7 +22,7 @@ fan-out alone, leaving the wrapper-bypass evidence track's
   `docker run -d --name eshu-7325-neo4j -p 17325:7687 -e
   NEO4J_AUTH=neo4j/eshu-7325-pass
   neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`
-  -> Neo4j Kernel `2026.08.1`, log-confirmed, the pinned ops-qa image. Removed
+  -> Neo4j Kernel `2026.08.1`, log-confirmed, the pinned QA image. Removed
   (`docker rm -f eshu-7325-neo4j`) after each measurement run; no retained
   resources.
 - Harness base:
@@ -101,7 +101,7 @@ sizes.
 The base seed (`liveScaleSeedGraph`) was extended with a new write phase
 adding CALLS edges among the 45,050 noise `Function` members (the 11-node
 signal fixture's existing edges were left untouched), with out-degree shaped
-to approximate the #6649 ops-qa reference distribution (mean 2.71, p50 1,
+to approximate the #6649 QA reference distribution (mean 2.71, p50 1,
 p90 5, p99 21, max 521, `docs/internal/evidence/6649-calls-degree-floor.md`):
 most members get 1-5 callees, a small tail gets 20+, deterministically
 assigned by rank (no `math/rand`, for reproducibility) and targeted at a
@@ -360,6 +360,6 @@ unproven on NornicDB.
   not isolated as its own phase in either measurement.
 - **Single disposable local Neo4j container, no host contention** beyond
   the usual quiet-host check: absolute ms figures here are expected to be
-  smaller than ops-qa's real deployment numbers, per the #6929 precedent
+  smaller than QA's real deployment numbers, per the #6929 precedent
   for this same class of proof. The relative ranking and round-trip-count
   mechanism are the portable parts.

@@ -19,7 +19,7 @@ query shape, not a new-feature benchmark.
 
 - `machine_profile`: local development machine, macOS (Darwin 27.0.0), arm64.
 - Backend: pinned `neo4j@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`
-  (Neo4j 2026.08.1 community, what ops-qa runs), Docker container
+  (Neo4j 2026.08.1 community, what the QA environment runs), Docker container
   `eshu-6590oci-neo4j`, Bolt on host port 17590, `NEO4J_AUTH=none`,
   `dbms.memory.pagecache.size=512m`, no persistent volume, destroyed after the
   run. Eshu's real schema applied via `graph.EnsureSchemaWithBackendStrict`
@@ -85,7 +85,7 @@ measured plan retains `NodeIndexSeek` with `PartialTop` (matching the
 orchestrator's theory-proof `EXPLAIN`) on `container_image_tag_observation_ref`,
 never a `NodeByLabelScan`. The 3x fan-out headroom (`oci.RegistryTruthFanOut`)
 means the two below-bound cells are the common case in production (1
-observation/ref measured on in-tree corpora and ops-qa); the at-bound and
+observation/ref measured on in-tree corpora and the QA environment); the at-bound and
 overflow cells are the declared worst case this bound exists to disclose
 rather than silently corrupt.
 

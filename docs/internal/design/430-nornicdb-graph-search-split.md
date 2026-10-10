@@ -1,5 +1,8 @@
 # NornicDB Canonical Graph And Search Projection Split
 
+`repo-AQ` in this note is a stable placeholder for the measured repository id;
+the mapping is held outside the repository.
+
 Status: proposed decision for issue #430. Phase-1 graph-only startup
 stabilization is implemented in Compose, Helm, runtime contract tests, and
 operator docs. The curated search projection remains design- and
@@ -215,7 +218,7 @@ index rebuild.
 ### 5.1 Recorded benchmark (2026-06-13)
 
 First measured run via `go/cmd/search-bench` over a live content corpus
-(`repository:r_9a84f5f1`, 27,822 curated documents), Eshu commit `3d8dbb0e1`.
+(`repository:repo-AQ`, 27,822 curated documents), Eshu commit `3d8dbb0e1`.
 Full record:
 [searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md](../evidence/searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md).
 

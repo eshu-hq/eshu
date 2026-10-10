@@ -3,7 +3,7 @@
 Issue #7084: seven `_seconds` histograms were registered without explicit
 bucket boundaries and fell back to the OTel default set (0, 5, 10, 25, ...,
 10000), which is sized for milliseconds. For operations measured in seconds,
-every sub-second sample landed in `le="5"`. On ops-qa (reducer `sha-763c65e`,
+every sub-second sample landed in `le="5"`. On the QA environment (reducer `sha-763c65e`,
 2026-09-24), all 2,629 samples of `eshu_dp_queue_claim_duration_seconds` sat in
 that bucket (sum 1052.8 s, mean 0.40 s), so any `histogram_quantile` over the
 series returned an interpolated value between 0 and 5 unrelated to the real

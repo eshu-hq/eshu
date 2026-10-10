@@ -5,7 +5,7 @@ That record's `Proof limits / NOT_CHECKED` item 3 states the corpus-max
 degree tail (up to 1,125 callees per member) was never exercised: every
 #7325 measurement ran at max out-degree 64, while the registry row for
 `runOutlierGraphRows` carries `max_keys: 250, max_results: 281250`. This
-record closes that item at the ops-qa-shaped tail (max out-degree 521,
+record closes that item at the QA-shaped tail (max out-degree 521,
 `docs/internal/evidence/6649-calls-degree-floor.md`), plus the
 single-order limitation (item 2) for the fan-out comparison. No
 production code changed: the measurement holds the tail inside budget,
@@ -19,7 +19,7 @@ so per the issue's stop condition there is nothing to implement.
   `docker run -d --name eshu-7339-neo4j-$NONCE -p 17439:7687 -e
   NEO4J_AUTH=neo4j/eshu-7339-pass
   neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`
-  -> Neo4j Kernel `2026.08.1`, log-confirmed, the pinned ops-qa image.
+  -> Neo4j Kernel `2026.08.1`, log-confirmed, the pinned QA image.
   Nonces `151827fb` (run 1) and `aa326841` (run 2). Removed
   (`docker rm -f`) after each run; no retained resources.
 - Harness (committed, reproducible):
@@ -80,7 +80,7 @@ the tail perturbs no verdict). Byte-identical across nonces too.
 
 - **The tail stays inside budget: no code change.** The 250-key tail
   statement (11,471 rows, the worst single statement the committed
-  batching can emit at the ops-qa tail) costs ~45-63 ms warm in every
+  batching can emit at the QA tail) costs ~45-63 ms warm in every
   cell of both runs -- 15-19x under the 1 s budget, with the anchor
   plan unchanged. The issue's paging/truncation branch is not taken,
   deliberately: there is no breach to fix, and a silent partial result
@@ -145,7 +145,7 @@ behavior is expected but unproven on NornicDB.
 
 - The registry audit bound (250 x 1125 = 281,250 rows) remains an
   audit bound, not a measured cell: this record exercises 11,471 rows
-  (the ops-qa out-degree max 521), not the in-degree-floor-derived
+  (the QA out-degree max 521), not the in-degree-floor-derived
   281,250. A 250-key chunk of 1125-degree members would be an
   in-degree shape; this read fans out along outgoing CALLS, where 521
   is the measured corpus max.

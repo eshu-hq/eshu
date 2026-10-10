@@ -13,7 +13,7 @@ on MCP. These cumulative histograms identify the summary as the dominant
 status read; they are not paired endpoint samples.
 
 The deployed SQL materialized `payload`, `failure_class`, `failure_message`,
-and `failure_details` for every active work item. On ops-qa it processed about
+and `failure_details` for every active work item. On the QA environment it processed about
 122,715 work items, wrote 10,826 temporary 8-KiB blocks, and reread 43,304.
 Most rows are terminal history, so their wide detail is unused by the summary.
 This is a broad materialization and repeated temp-read cost, not evidence of
@@ -40,12 +40,12 @@ seeded `work.*` wildcard violation.
 
 ## Performance Evidence:
 
-Read-only ops-qa proof on 2026-09-28 used `~/eshu-latency-kit/pgro.sh`, which
+Read-only QA proof on 2026-09-28 used `~/eshu-latency-kit/pgro.sh`, which
 forces `default_transaction_read_only=on`. API and MCP served the same
 `sha-83cbf62` image. The summary SQL source at that image matches the current
 branch source before this edit. A temporary local package test emitted the
 edited Go query; `cmp` confirmed it was byte-for-byte the measured candidate.
-No ops-qa DDL, `ANALYZE`, index, deployment, or application mutation was
+No QA DDL, `ANALYZE`, index, deployment, or application mutation was
 performed; the wrapper set read-only mode for its session.
 
 One `REPEATABLE READ READ ONLY` transaction bound both prepared statements to
@@ -86,7 +86,7 @@ cold/warm sweep remain required before closing the issue.
 
 ## Follow-up status-only scan and terminal text (#7009, 2026-10-02)
 
-The later `sha-4274e83` ops-qa image still served a repository ingester-status
+The later `sha-4274e83` QA image still served a repository ingester-status
 request in 1.453011 seconds. Its server trace spent 1.349317 seconds in the
 status snapshot. The five-minute `active_work_summary` read histogram averaged
 1.318449 seconds on that API pod. The histogram is aggregated across requests;

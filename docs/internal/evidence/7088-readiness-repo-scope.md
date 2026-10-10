@@ -1,8 +1,8 @@
 # Readiness repository arm scope (#7088)
 
-The supply-chain impact readiness snapshot was slow on ops-qa for a
+The supply-chain impact readiness snapshot was slow on the QA environment for a
 repository-only anchor (`$11 = 'repository:r_…'`, `$20 = false`). Teammate
-measurements on ops-qa (PG 18.3, 2026-10-02, read-only): 6 of 7
+measurements on the QA environment (PG 18.3, 2026-10-02, read-only): 6 of 7
 repository-anchor calls on the cold read replica hit the 30 s client timeout
 (`readiness_snapshot` stage about 31 s), one stage took 52 s, and one call
 returned HTTP 500 after 2.09 s, which is the 2 s replay-fence bound and
@@ -38,7 +38,7 @@ pins it), and main's gap CTE already depended on it (#7007). But
 `source_key`, and `parserfixture.Emitter` builds scopes with no metadata, so
 a scope written that way would drop out of both arms. Evidence we have
 (teammate-reported, read-only, 2026-10-02): all 799 repository scopes on
-ops-qa satisfy `scope_id = 'git-repository-scope:' || source_key` and the
+the QA environment satisfy `scope_id = 'git-repository-scope:' || source_key` and the
 scope payload `repo_id` equals `source_key`; a 50-scope sample of 117,010
 active `content_entity` rows had 0 whose payload `repo_id` differs from the
 scope's `source_key`. NOT_CHECKED: a fleet-wide fact-level count (an unbounded
@@ -56,8 +56,8 @@ equal to those two readers' predicates joined by OR. The former
 consumer of the CTE requires a non-empty `$11` or `NOT $20`, and an empty `$11`
 arrives with a target anchor that sets `$20`.
 
-Rejected shapes, measured on a local scratch corpus modeled on ops-qa (803
-scopes, not an ops-qa count; the target with 16 superseded generations):
+Rejected shapes, measured on a local scratch corpus modeled on the QA environment (803
+scopes, not a QA count; the target with 16 superseded generations):
 
 - `fact.scope_id = ANY(ARRAY(...)) AND fact.generation_id = ANY(ARRAY(...))`.
   The planner chose migration 003's `fact_records_active_package_dependency_entity_idx`,
@@ -67,18 +67,18 @@ scopes, not an ops-qa count; the target with 16 superseded generations):
 - A plain join with the `source_key` pin and no LATERAL fence. The planner
   started from the repo-only Index Cond and heap-fetched every generation's
   rows: 9,362 fetched to keep 558 (30,263 buffers), the same shape as
-  ops-qa's 8,832 fetched to keep 552.
+  QA's 8,832 fetched to keep 552.
 - Pinning with `scope_id = 'git-repository-scope:' || $11`. This is not
   equivalent: it drops every `repository_ref` scope
   (`git-repository-scope:<repo>@<ref>`).
 
 ## Measurements
 
-Performance Evidence: The ops-qa figures below were reported by a teammate who
-ran read-only EXPLAIN (ANALYZE, BUFFERS) on ops-qa, PG 18.3, on 2026-10-02.
+Performance Evidence: The QA figures below were reported by a teammate who
+ran read-only EXPLAIN (ANALYZE, BUFFERS) on the QA environment, PG 18.3, on 2026-10-02.
 They were not re-measured for this note:
 
-Scope denominators: ops-qa had 819 active scopes in total at the 2026-10-02
+Scope denominators: the QA environment had 819 active scopes in total at the 2026-10-02
 measurement, of which 799 are repository scopes (loop counts and the 43 below
 use these). The ~803 and ~810 figures in older text came from earlier
 measurements (the #7007 read, and the local scratch corpus); their exact dates
@@ -130,18 +130,18 @@ and the advisory family), which filter on `fact_kind = ANY($n)` and, on this
 corpus, probe every active scope under a generic plan. #7088 does not change
 them.
 
-The 79-191 ms ops-qa figure above is an arm-level measurement of the three
+The 79-191 ms QA figure above is an arm-level measurement of the three
 dependency-variable reads only, so it says nothing about those other CTEs. The
-whole statement was measured separately on ops-qa (next section).
+whole statement was measured separately on the QA environment (next section).
 
-### Whole statement on ops-qa, new query text against the old schema
+### Whole statement on the QA environment, new query text against the old schema
 
 Measured by a teammate, read-only, 2026-10-02 18:25 to 18:28 UTC, on the read
 replica (PostgreSQL 18.3, in recovery, no peer activity at start or before the
 last runs; 819 active scopes, 799 of them repository scopes; `fact_records`
 about 137.9 M rows, 186 GB; `shared_buffers` 4 GiB). The query text is the
 shipped `ListReadinessQuery` of this branch with the 20 arguments bound as
-production binds them for a repository anchor. The schema is ops-qa's, which
+production binds them for a repository anchor. The schema is QA's, which
 does not have migration 159, so the manifest and gap reads scan the anchored
 scope as they did before the index; the figures are therefore without the new
 index. Custom plan = `PREPARE` plus `SET LOCAL plan_cache_mode =
@@ -179,7 +179,7 @@ Reading it:
   cost (3,732.90) was above the custom average (2,671.65). An anchor where that
   estimate flips was not tested. pgx's binary parameter typing was not
   exercised and could shift that cost comparison.
-- The ~1.07 M-buffer figure on the local corpus did not reproduce. On ops-qa
+- The ~1.07 M-buffer figure on the local corpus did not reproduce. On the QA environment
   the per-scope probes return 0 rows at about 5 buffers per scope; the local
   figure is about 1,650 buffers per scope. The cause of the local figure is not
   established. An earlier guess, that the local corpus holds rows of those fact
@@ -196,14 +196,14 @@ repositories is shown separately and its cache state was not controlled; psql te
 not pgx binary typing; CVE, package and digest anchors, a deployment whose
 per-scope probes are not index-bounded, the primary's plans and behaviour under
 concurrent load were not measured. This is not a measurement of the new index
-on ops-qa, and it does not replace the after-number the owner's deploy makes
+on the QA environment, and it does not replace the after-number the owner's deploy makes
 possible.
 
 The new index on the local corpus is 98,304 bytes, covering 1,621 of 281,816
 `fact_records` rows. The seed deliberately puts one legacy and one gap row in
 each of the 650 noise scopes. Migration 121's index is 245,760 bytes over
 10,162 rows. Before deployment, the teammate measured 0 arm-2 matches and
-17 gap matches on ops-qa and expected a small index. The deployed standby
+17 gap matches on the QA environment and expected a small index. The deployed standby
 size, measured later, is six 8 KiB pages as recorded below.
 
 Insert tax and build time, LOCAL measurement (2026-10-02, disposable
@@ -224,10 +224,10 @@ no-index runs, so this measurement cannot separate the tax from noise.
 `CREATE INDEX CONCURRENTLY` on the populated 200,000-row table took 0.058,
 0.058 and 0.059 s and produced a 16,384-byte index (16 predicate rows); the
 heap was 86,237,184 bytes. These are LOCAL numbers from a single-session
-insert, not an ops-qa build time. At the 2026-10-02 pre-deploy observation,
-the ops-qa heap was reported at about 183 GB and 138M rows. The later
+insert, not a QA build time. At the 2026-10-02 pre-deploy observation,
+the QA heap was reported at about 183 GB and 138M rows. The later
 standby size and deployed build duration are recorded below; build-attributable
-replica conflicts and the real ops-qa insert tax remain NOT_CHECKED. The
+replica conflicts and the real QA insert tax remain NOT_CHECKED. The
 local insert-run raw log is not committed. Every git
 `content_entity` insert or update also evaluates the partial predicate
 (a few JSONB extractions); only matching rows pay index maintenance.
@@ -239,7 +239,7 @@ The sanitized plan, endpoint sample, and material-data count inputs are in
 the measurements to the deployed image and query source without publishing
 repository identifiers or credentials.
 
-Migration 159 is deployed on ops-qa. The schema Job logged 1,221,522 ms
+Migration 159 is deployed on the QA environment. The schema Job logged 1,221,522 ms
 (20m21.522s) for its concurrent index build, completing at 03:08:09 UTC.
 The streaming reader's cumulative `confl_snapshot` counter was 7 when
 checked afterwards; without a before counter and a matching stats-reset
@@ -252,7 +252,7 @@ counter has no before-build comparator.
 A temporary, uncommitted Go diagnostic passed the shipped
 `ListReadinessQuery` and its production-shaped 20 repository arguments to
 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` in one read-only,
-repeatable-read transaction on the ops-qa PostgreSQL standby. It checked
+repeatable-read transaction on the QA PostgreSQL standby. It checked
 `pg_is_in_recovery()` before querying. Four deterministic repository
 anchors had approximately 1,113, 8,452, 19,804, and 36,678 active
 `content_entity` rows in earlier bounded counts. Each of the three
@@ -312,7 +312,7 @@ justified solely to measure a possible tax. The controlled interleaved
 200,000-row local insert run above found a +0.9% median difference inside
 its own spread, and the deployed index footprint is 49,152 bytes. Those
 facts support avoiding a disruptive live A/B; they do not establish zero
-predicate-evaluation or index-maintenance cost on the ops-qa writer.
+predicate-evaluation or index-maintenance cost on the QA writer.
 
 No-Observability-Change: No new runtime signal was added. The readiness read
 is already timed by the existing `readiness_snapshot` stage timing, and

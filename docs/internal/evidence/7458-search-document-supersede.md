@@ -205,7 +205,7 @@ buffers, 0.033 ms (custom plan) and 0.102 ms (generic plan) on 100,000 scopes an
 lease, batch size, claim query and lock order are unchanged. Not measured: the
 production 91 s and 289 s statement times from the #7450 audit are quoted, not
 reproduced, and this fixture uses small files, so the production saving per
-abandoned item is larger than the 2.8 s measured here; ops-qa was not used.
+abandoned item is larger than the 2.8 s measured here; the QA environment was not used.
 
 Observability Evidence: `eshu_dp_search_document_generation_superseded_total`
 by closed `phase` (`page`, `finalize`), emitted once per abandoned item with

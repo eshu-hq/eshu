@@ -2,7 +2,7 @@
 
 ## Observed failure
 
-ops-qa is moving its graph backend from NornicDB to Neo4j. On Neo4j,
+The QA environment is moving its graph backend from NornicDB to Neo4j. On Neo4j,
 `ESHU_CANONICAL_WRITE_TIMEOUT` had no effect: `canonicalTransactionTimeout`
 (ingester), `reducerTransactionTimeout` (reducer),
 `bootstrapCanonicalTransactionTimeout` (bootstrap-index), and
@@ -102,7 +102,7 @@ NornicDB.
 Before this change, `LockClientStopped` matched the transient `"LockClient"`
 substring in `classifyTransientNeo4jError`, so `RetryingExecutor` retried it
 in place up to three more times before requeueing it. Each retry waits one
-more full timeout while the caller still holds its lease. On ops-qa, with a
+more full timeout while the caller still holds its lease. On the QA environment, with a
 300s timeout, that is up to 20 minutes for one write.
 `lockClientStoppedRequeue` now matches the exact typed status before the
 substring check and requeues it at once. Every termination reason rolls the
@@ -121,13 +121,13 @@ its classification is unchanged.
 - The repo-dependency runner validates at startup that
   `LeaseTTL > CycleTimeout + GraphQuiescenceBudget + 30s`. The budget is
   `nornicDBCanonicalWriteTimeout(getenv)` on both backends, meaning the env
-  value or `30s`. ops-qa (`8m` lease, `45s` cycle, `300s` write) passes with
+  value or `30s`. The QA environment (`8m` lease, `45s` cycle, `300s` write) passes with
   `375s < 480s`. The runner also renews its lease with a heartbeat.
 - Code-call projection renews its lease with a heartbeat.
 - The value-flow stale cleanup (`5m`) and graph orphan sweep (`5m`) leases have
   no heartbeat and no startup check against the write timeout. With a 300s
   write timeout their TTL equals the write budget. This change does not add a
-  startup gate there, because such a gate would fail ops-qa's current
+  startup gate there, because such a gate would fail QA's current
   configuration at boot. It is left for the owner to decide.
 - With `ESHU_CANONICAL_WRITE_TIMEOUT` unset on Neo4j, writes stayed unbounded
   at the time of this change, while the repo-dependency check still counted a

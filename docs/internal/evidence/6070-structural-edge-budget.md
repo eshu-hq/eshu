@@ -1,5 +1,8 @@
 # Issue #6070 — structural-edge phase-group statement budget
 
+`repo-AP` in this note is a stable placeholder for the measured repository id;
+the mapping is held outside the repository.
+
 Validation record for giving the `structural_edges` canonical write phase its
 own statement budget.
 
@@ -19,7 +22,7 @@ projected.
 The chunker could not see it. `structural_edges` had no narrow phase budget, so
 it fell through to `DefaultPhaseGroupStatements` (500) while each of its
 statements carries up to the canonical writer's batch size (500) rows. The worst
-scope, `r_962c9686`, was 147 statements — far under the statement cap, and
+scope, `repo-AP`, was 147 statements — far under the statement cap, and
 roughly 73,500 rows in one transaction.
 
 ## Comparison
@@ -32,7 +35,7 @@ Both runs used the 896-repository corpus, NornicDB image
 | --- | --- | --- |
 | `context deadline exceeded` / `TransactionCommitFailed` | 4 scopes | 0 |
 | Dead-lettered scopes | 4 | 0 |
-| Worst scope `r_962c9686` transaction shape | 1 transaction, 147 statements, ~73,500 rows | 30 transactions, `chunk_count=30` observed 30 times |
+| Worst scope `repo-AP` transaction shape | 1 transaction, 147 statements, ~73,500 rows | 30 transactions, `chunk_count=30` observed 30 times |
 | Compose exit code | 1 | 0 |
 
 `147 / 5 = 30`, so the observed split is exactly the one the budget predicts. The
@@ -51,10 +54,10 @@ retained volumes (`nornic` database on the run's NornicDB):
 | Query | Result |
 | --- | --- |
 | `MATCH ()-[r:IMPORTS]->() RETURN count(r)` | 205,442 |
-| `MATCH (f:File {repo_id:"repository:r_962c9686"})-[r:IMPORTS]->() RETURN count(r)` | 36,069 |
-| `MATCH (f:File {repo_id:"repository:r_962c9686"})-[r:IMPORTS]->(m:Module) RETURN count(DISTINCT m)` | 36,069 |
+| `MATCH (f:File {repo_id:"repository:repo-AP"})-[r:IMPORTS]->() RETURN count(r)` | 36,069 |
+| `MATCH (f:File {repo_id:"repository:repo-AP"})-[r:IMPORTS]->(m:Module) RETURN count(DISTINCT m)` | 36,069 |
 
-`r_962c9686` is the worst previously-failing scope. The symptom of #6070 was
+`repo-AP` is the worst previously-failing scope. The symptom of #6070 was
 that its `File-[:IMPORTS]->Module` edges never reached the graph at all; it now
 carries 36,069 of them across as many distinct modules.
 

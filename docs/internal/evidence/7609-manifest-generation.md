@@ -51,7 +51,7 @@ per scope (SubPlan loops=2970 x 3030 rows). After (per-repo MAX LEFT JOIN +
 hashed IN semi-join + UNION ALL): ~10 ms, 367 buffers, every plan node at
 loops=1. Scope multiset identical to the EXISTS shape (3090=3090 rows); the
 10% never-activated-prevalence probe is flat at 9.7 ms, confirming the
-hashed build scales sublinearly in prevalence. Real ops-qa never-activated
+hashed build scales sublinearly in prevalence. Real QA never-activated
 prevalence was not measured (no production access); the 1% is a planted
 fixture value. The change is safe because the rewrite is scope-preserving
 (MAX >= t equals EXISTS >= t; the IN list includes the active row itself

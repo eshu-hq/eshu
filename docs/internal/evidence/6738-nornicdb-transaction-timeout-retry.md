@@ -2,7 +2,7 @@
 
 ## Observed failure
 
-Ops-qa's NornicDB v1.3.3 reducer reported
+QA's NornicDB v1.3.3 reducer reported
 `Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration` while
 writing the workload materializer's three-statement atomic `RUNS_ON` group.
 The deployed `ESHU_CANONICAL_WRITE_TIMEOUT` is 300 seconds. At the
@@ -78,7 +78,7 @@ timeout error. After the timeout-classifier edit, the revised median was 20.64 n
 (range 19.75–23.57). After the nested-wrapper guard edit, a fresh five-sample
 run measured 18.28 ns/op median (range 17.99–18.73). Both runs held at
 64 B/op and one allocation. These nanosecond samples are a local
-no-material-regression check, not an ops-qa throughput estimate.
+no-material-regression check, not a QA throughput estimate.
 
 ## Observability Evidence:
 
@@ -89,7 +89,7 @@ the operator signals; this change adds no raw Cypher or parameter logging.
 The 36 `source_local` files-phase dead letters at the same snapshot are a
 separate `GraphWriteTimeoutError` path and are not fixed by this classifier.
 
-A 30-second NornicDB CPU profile under ops-qa load showed overlapping
+A 30-second NornicDB CPU profile under QA load showed overlapping
 cumulative stacks in `evaluateNotExistsSubquery` and
 `BadgerTransaction.GetNodesByLabel`, and a block profile showed Badger read
 wait. The files-phase create-missing templates contain `NOT EXISTS`, but the

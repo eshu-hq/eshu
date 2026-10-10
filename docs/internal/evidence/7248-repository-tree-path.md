@@ -15,15 +15,15 @@ an empty 200. Unfiltered exact-file paths already returned 404.
 
 ## Theory and correctness proof
 
-On 2026-09-26 at 22:34 EDT (2026-09-27 02:34 UTC), a read-only ops-qa
+On 2026-09-26 at 22:34 EDT (2026-09-27 02:34 UTC), a read-only QA
 PostgreSQL query over 12,403 indexed files
 returned the same 52 ordered path rows and metadata for the broad and scoped
 forms (bidirectional `EXCEPT ALL` 0/0; matching SHA-256
 `a5d71a547d8944b84b2fead403ab5ff26427a6f5e96dcb2749373dd9e6f2d103`).
 Separate sequential warm `EXPLAIN (ANALYZE, BUFFERS)` samples measured 211.912 ms
 and 12,606 buffers for the broad listing versus 93.735 ms and 401 buffers for
-an anchored path query using an existing ops-qa index. These are SQL samples,
-not API or MCP latency. Ops-qa received no write, DDL, settings change, or
+an anchored path query using an existing QA index. These are SQL samples,
+not API or MCP latency. The QA environment received no write, DDL, settings change, or
 `ANALYZE`.
 
 A disposable PostgreSQL 18 fixture used 145,000 `content_files` rows, including

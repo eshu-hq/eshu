@@ -2,7 +2,7 @@
 
 ## What was reported
 
-One HTTP 500 from `GET /api/v0/supply-chain/impact/findings` on ops-qa left no
+One HTTP 500 from `GET /api/v0/supply-chain/impact/findings` on the QA environment left no
 attributable log line. This note records what the logs showed, what is not
 known, and what signal the change adds. It does not claim a cause.
 

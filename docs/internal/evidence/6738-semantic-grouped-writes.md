@@ -1,14 +1,17 @@
 # Semantic grouped-write split for oversized materializations (#6738)
 
+`repo-F`, `repo-K`, and `repo-L` in this note are stable one-to-one placeholders
+for the measured repository ids; the mapping is held outside the repository.
+
 ## Baseline
 
 `SemanticEntityWriter.WriteSemanticEntities` dispatched every retract and
 upsert statement of a materialization in one `ExecuteGroup` call — one atomic
-backend transaction. On ops-qa that single transaction exceeds the backend
+backend transaction. On the QA environment that single transaction exceeds the backend
 request ceiling for the largest scopes: three reducer dead letters with
 `Neo4jError ... Txn is too big to fit into one request`
-(`semantic_entity_materialization`, scopes r_087b3438, r_b0ff4ca0,
-r_c28df058), plus two `graph_write_timeout` dead letters on the same domain
+(`semantic_entity_materialization`, scopes repo-K, repo-F,
+repo-L), plus two `graph_write_timeout` dead letters on the same domain
 that burned a fourth attempt on retry. Per-statement row batching (500 rows,
 `DefaultBatchSize`) does not help because the group is still one transaction.
 
@@ -46,7 +49,7 @@ keeps small writes in one group, and surfaces the backend error with the
 failing group index. `go test ./internal/storage/cypher/ ./internal/reducer/code/semantic/`
 green, full `go build ./...` clean. Live proof pending rollout: republish,
 pin, then replay the five `semantic_entity_materialization` dead letters on
-ops-qa and watch them succeed; expected group counts in the completion log.
+the QA environment and watch them succeed; expected group counts in the completion log.
 
 Observability Evidence: `EntityWriteResult.Groups` counts grouped
 transactions dispatched, surfaced on the "semantic entity materialization

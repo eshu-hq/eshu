@@ -186,7 +186,7 @@ aggregate over `fact_records` and the three registry collector statements. These
 are structural counts and server-side figures on a fixture. No deployed scrape
 latency or rate is claimed here: that is PR-F's sweep.
 
-NOT_CHECKED: the cost of the four removed statements on ops-qa, how often
+NOT_CHECKED: the cost of the four removed statements on the QA environment, how often
 Prometheus scrapes each pod, and the effect of the replica replay lag on the
 scrape's age gauge.
 

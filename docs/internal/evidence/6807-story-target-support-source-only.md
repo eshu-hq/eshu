@@ -18,7 +18,7 @@ this change adds no index, join, or ordering change.
 
 ## Performance Evidence
 
-Performance Evidence: On ops-qa PostgreSQL 18.3, the exact aggregate ran
+Performance Evidence: On QA PostgreSQL 18.3, the exact aggregate ran
 five times per form with the same 12 fact kinds, interleaved in one read-only
 repeatable-read snapshot. Both forms used
 `fact_records_scope_generation_idx`, made 9,768 probes, and reported 49,469

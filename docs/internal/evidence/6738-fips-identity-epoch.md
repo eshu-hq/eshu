@@ -1,9 +1,9 @@
-# Ops-QA FIPS identity epoch probe
+# QA FIPS identity epoch probe
 
 Root-Cause Evidence: During the #6738 scratch-reset rollout on 2026-09-17,
 `container_image_identity` reducer work entered `dead_letter` with
 `probe identity epoch: ERROR: could not compute MD5 hash: unsupported`.
-The ops-qa PostgreSQL 18.3 container has `OPENSSL_FIPS=yes`. A read-only
+The QA PostgreSQL 18.3 container has `OPENSSL_FIPS=yes`. A read-only
 `SELECT md5('foo')` returned that same error; built-in SHA-256 returned the
 expected digest. The production `probeIdentityEpochQuery` called `md5()` on
 the active-generation mapping before loading identity facts, so the reducer
@@ -16,7 +16,7 @@ does not compare a new fingerprint with an older binary's cached digest.
 No cache lock, load, retry, or publication boundary changes.
 
 No-Regression Evidence: A read-only `EXPLAIN (ANALYZE, BUFFERS)` of the
-replacement aggregate on the live ops-qa corpus read 808 scopes in 2.135 ms
+replacement aggregate on the live QA corpus read 808 scopes in 2.135 ms
 with 797 shared-buffer hits. The old MD5 expression cannot complete on this
 FIPS server, so these values are not a before/after speed comparison.
 `TestIdentityEpochProbeOnFIPSPostgresLive` called the production probe over a

@@ -10,8 +10,12 @@ three cohort sources (interface, router, package). `coalesce()` defeats the
 `Function` node in the whole graph — a cost proportional to total platform
 Function population, not to the size of the repository being swept. The fix
 drops the `coalesce()` wrapper: `member.repo_id = $repo_id` is safe because
-`Function.repo_id` is proven non-null on both the ops-qa deployment and this
+`Function.repo_id` is proven non-null on both the QA deployment and this
 proof's own seeded graph, so the two forms select identical rows.
+
+`repo-A`, `repo-B`, `repo-M`, and `repo-N` in this note are stable one-to-one
+placeholders for the measured repository ids; the mapping is held outside the
+repository.
 
 ## Identity
 
@@ -21,7 +25,7 @@ proof's own seeded graph, so the two forms select identical rows.
   `specs/live-tests.v1.yaml`).
 - Base: `origin/main` `049be7161`.
 
-## ops-qa before/after (diagnosis phase, read-only, no code change on that host)
+## QA before/after (diagnosis phase, read-only, no code change on that host)
 
 Backend: Neo4j Community 2026.08.1, Cypher 25, slotted runtime. Corpus: 804
 repositories, 539,933 total `Function` nodes, 349,186 `CALLS` edges.
@@ -34,10 +38,10 @@ Package-cohort seed enumeration (`BuildOutlierCohortsCypher`,
 
 | repo | Functions | shipped (`coalesce`, `NodeByLabelScan`) | fixed (bare equality, `NodeIndexSeek`) |
 | --- | ---: | ---: | ---: |
-| websites-php-youboat (`r_8946df89`) | 45,495 | 700 / 725 / 662 ms, 1,506,338 db accesses | 247 / 252 / 242 ms, 471,967 db accesses |
-| portal-java-ycm (`r_a09c7db8`) | 44,991 | 582 ms, 1,563,839 db accesses | 228 ms, 528,964 db accesses |
-| wordpress (`r_957cd853`) | 42,714 | 552 ms, 1,456,170 db accesses | 201 ms, 419,018 db accesses |
-| (`r_144b09b9`, smallest repo) | 1 | 484 / 476 / 447 ms | 1 / 0 / 0 ms |
+| `repo-B` | 45,495 | 700 / 725 / 662 ms, 1,506,338 db accesses | 247 / 252 / 242 ms, 471,967 db accesses |
+| `repo-M` | 44,991 | 582 ms, 1,563,839 db accesses | 228 ms, 528,964 db accesses |
+| wordpress (`repo-A`) | 42,714 | 552 ms, 1,456,170 db accesses | 201 ms, 419,018 db accesses |
+| (`repo-N`, smallest repo) | 1 | 484 / 476 / 447 ms | 1 / 0 / 0 ms |
 
 The 1-Function repo row is the sharpest proof that the shipped statement's
 cost is decoupled from the queried repository's own size: it pays the same
@@ -45,10 +49,10 @@ cost is decoupled from the queried repository's own size: it pays the same
 45,495-Function repo pays, because both statements scan every `Function` in
 the graph before the `coalesce()`-wrapped filter drops the non-matching
 rows. Rows-equal: full sorted row dump of shipped vs. fixed for
-websites-php-youboat, 45,495 rows, byte-identical (`diff` produced no
+`repo-B`, 45,495 rows, byte-identical (`diff` produced no
 output). Full narrative, EXPLAIN/PROFILE plan text, and the growth-threshold
 arithmetic (~8-9M total Functions before this defect alone reaches the 10s
-per-statement deadline at ops-qa's measured per-node cost) are recorded in
+per-statement deadline at QA's measured per-node cost) are recorded in
 the diagnosis this fix acts on.
 
 ## Repo-scale Neo4j live proof (this PR, seeded graph)
@@ -59,7 +63,7 @@ registered in `specs/live-tests.v1.yaml` as `scheduled`) seeds a disposable
 Neo4j container to platform scale, applies the real production schema
 (`graph.EnsureSchemaWithBackendStrict`, including `function_repo_id`), and
 proves the fix against the real backend rather than only the diagnosis's
-read-only ops-qa access.
+read-only QA access.
 
 Container: `docker run -d --name eshu-6929-neo4j -p 17929:7687 -e
 NEO4J_AUTH=neo4j/eshu-6929-pass neo4j:2026-community`, image digest
@@ -98,7 +102,7 @@ mismatch or an all-empty old statement; it passed.
 | interface | `...DirectedRelationshipTypeScan` (unchanged) | `...DirectedRelationshipTypeScan` (unchanged) |
 | router | `...DirectedRelationshipTypeScan` (unchanged) | `...DirectedRelationshipTypeScan` (unchanged) |
 
-Matches the ops-qa diagnosis exactly: only the package-cohort read's anchor
+Matches the QA diagnosis exactly: only the package-cohort read's anchor
 plan changes (`NodeByLabelScan` -> `NodeIndexSeek` on `function_repo_id`);
 interface and router already anchor on the rare relationship type
 (`IMPLEMENTS`/`HANDLES_ROUTE`) regardless of the predicate form, so their
@@ -108,7 +112,7 @@ for those two sources.
 ### (c) Wall-time: cohort-read only, and the full production sweep
 
 The package-cohort read's own wall-time delta at this proof's total corpus
-size (505,061 Functions, close to ops-qa's 539,933) was measured directly
+size (505,061 Functions, close to QA's 539,933) was measured directly
 (cold run dropped, warm runs sorted, median reported) in two separate test
 executions on the same seeded data:
 
@@ -117,15 +121,15 @@ executions on the same seeded data:
 | contended (another branch's `make pre-push` running concurrently on the same host) | 335.4 ms | 332.5 ms | 2.8 ms |
 | clean (uncontended) | 166.4 ms | 157.6 ms | 8.7 ms |
 
-This delta is far smaller in absolute terms than ops-qa's ~300-500 ms
+This delta is far smaller in absolute terms than QA's ~300-500 ms
 per-statement saving at a comparable total corpus size. The plan-shape fix
 (`NodeByLabelScan` -> `NodeIndexSeek`) is identically proven on both hosts;
 what differs is the absolute per-node scan cost, which is far cheaper on
 this proof's disposable, fully-cached, empty-container local dataset than
-on ops-qa's real deployment. The mechanism this fix removes — cost coupled
+on QA's real deployment. The mechanism this fix removes — cost coupled
 to total platform Function population instead of the swept repository's
 size — is the same on both hosts; only the current severity differs by
-environment, and ops-qa's PROFILE numbers above remain the more
+environment, and QA's PROFILE numbers above remain the more
 representative real-world figure.
 
 The full production sweep (`CodeHandler.assembleOutlierTrack`, the current,
@@ -187,19 +191,19 @@ open item.
 ## Performance Evidence
 
 Performance Evidence: `BuildOutlierCohortsCypher` (`CohortPackage` source),
-Neo4j 2026.08.1 (ops-qa, read-only diagnosis) and Neo4j 2026.09.0 (this
+Neo4j 2026.08.1 (the QA environment, read-only diagnosis) and Neo4j 2026.09.0 (this
 proof's disposable container) both plan the pre-fix statement's anchoring
 `MATCH (member:Function) WHERE coalesce(member.repo_id, '') = $repo_id` as
 `NodeByLabelScan` over the whole `:Function` population (539,933 nodes on
-ops-qa, 505,061 on this proof) and the fixed statement's
+the QA environment, 505,061 on this proof) and the fixed statement's
 `WHERE member.repo_id = $repo_id` as `NodeIndexSeek RANGE INDEX
 member:Function(repo_id)` scoped to the queried repository alone (45,495 /
-44,991 / 42,714 rows on ops-qa's three measured repos, 45,061 rows on this
-proof's seeded repo). ops-qa per-statement warm timing: 700/725/662 ms
+44,991 / 42,714 rows on QA's three measured repos, 45,061 rows on this
+proof's seeded repo). QA per-statement warm timing: 700/725/662 ms
 (shipped) vs. 247/252/242 ms (fixed) on a 45,495-Function repo; 484/476/447
 ms (shipped) vs. 1/0/0 ms (fixed) on a 1-Function repo — cost decoupled from
 the swept repo's own size before the fix, coupled to it after. Row sets are
-proven identical (byte-identical sorted dump, ops-qa; sorted row-string
+proven identical (byte-identical sorted dump, the QA environment; sorted row-string
 comparison, this proof) on both hosts. `function_repo_id` (RANGE index on
 `Function.repo_id`) was `ONLINE` and 100% populated before every measured
 read on both hosts.
