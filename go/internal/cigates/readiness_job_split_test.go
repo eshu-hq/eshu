@@ -4,6 +4,8 @@
 package cigates
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,8 +34,10 @@ type readinessJob struct {
 }
 
 type readinessService struct {
-	Credentials map[string]string `yaml:"credentials"`
+	Credentials yaml.Node `yaml:"credentials"`
 }
+
+const readinessServiceCredentials = `${{ fromJSON(secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' && format('{{"username":{0},"password":{1}}}', toJSON(secrets.DOCKERHUB_USERNAME), toJSON(secrets.DOCKERHUB_TOKEN)) || '{}') }}`
 
 type readinessStep struct {
 	Name            string            `yaml:"name"`
@@ -96,9 +100,9 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		if !ok {
 			return "missing live service " + service
 		}
-		if configuration.Credentials["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
-			configuration.Credentials["password"] != "${{ secrets.DOCKERHUB_TOKEN }}" {
-			return service + " must authenticate its job-init image pull with both Docker Hub secrets"
+		if configuration.Credentials.Kind != yaml.ScalarNode ||
+			configuration.Credentials.Value != readinessServiceCredentials {
+			return service + " must use conditional, JSON-escaped job-init credentials"
 		}
 	}
 	if problem := checkReadinessDockerHubLogin(live); problem != "" {
@@ -273,9 +277,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			}
 		})
 	}
-	const credentials = "        credentials:\n" +
-		"          username: ${{ secrets.DOCKERHUB_USERNAME }}\n" +
-		"          password: ${{ secrets.DOCKERHUB_TOKEN }}\n"
+	const credentials = "        credentials: " + readinessServiceCredentials + "\n"
 	workflowText := string(workflow)
 	if strings.Count(workflowText, credentials) != 2 {
 		t.Fatal("expected one credential block for each live service")
@@ -286,8 +288,8 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	}{
 		{"missing postgres credentials", "", false},
 		{"missing neo4j credentials", "", true},
-		{"partial postgres credentials", "        credentials:\n          username: ${{ secrets.DOCKERHUB_USERNAME }}\n", false},
-		{"partial neo4j credentials", "        credentials:\n          password: ${{ secrets.DOCKERHUB_TOKEN }}\n", true},
+		{"partial postgres credentials", "        credentials: ${{ secrets.DOCKERHUB_USERNAME }}\n", false},
+		{"partial neo4j credentials", "        credentials: ${{ secrets.DOCKERHUB_TOKEN }}\n", true},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
 			index := strings.Index(workflowText, credentials)
@@ -317,4 +319,41 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			t.Fatal("late Docker Hub login passed")
 		}
 	})
+}
+
+func TestReadinessServiceCredentialsCases(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, username, password string
+		want                     map[string]string
+	}{
+		{"both present", "reader", "token", map[string]string{"username": "reader", "password": "token"}},
+		{"both absent", "", "", map[string]string{}},
+		{"missing username", "", "token", map[string]string{}},
+		{"missing token", "reader", "", map[string]string{}},
+		{"JSON escaping", `reader"\\`, "token\nline", map[string]string{"username": `reader"\\`, "password": "token\nline"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// This fixture exercises the JSON payload in the exact workflow
+			// expression pinned above; actionlint checks the runner syntax.
+			payload := "{}"
+			if test.username != "" && test.password != "" {
+				username, _ := json.Marshal(test.username)
+				password, _ := json.Marshal(test.password)
+				payload = fmt.Sprintf(`{"username":%s,"password":%s}`, username, password)
+			}
+			var got map[string]string
+			if err := json.Unmarshal([]byte(payload), &got); err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(test.want) {
+				t.Fatalf("credentials = %#v, want %#v", got, test.want)
+			}
+			for key, value := range test.want {
+				if got[key] != value {
+					t.Fatalf("credentials[%s] = %q, want %q", key, got[key], value)
+				}
+			}
+		})
+	}
 }
