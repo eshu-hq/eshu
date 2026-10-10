@@ -64,13 +64,13 @@ require "unique compose project default" 'REPLAY_DRIVE_COMPOSE_PROJECT:=eshu-rep
 # probes carry the same flag, so deleting `up -d` entirely left this pin green
 # with the gate never starting its stack (#6161). Same defect as the determinism
 # and dead-letter mirrors carried.
-require "compose -p flag on up" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres'
+require "compose -p flag on up" 'bash scripts/ci/compose.sh -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres'
 # Bind the TEARDOWN line for the same reason, which the round above missed: the
 # bare -p flag has five code occurrences (the project default, this teardown, the
 # bring-up, and two exec probes), so deleting the teardown outright left this pin
 # green on any of the other four. Losing it leaks the containers and the volume,
 # which is exactly the isolation the comment block above claims.
-require "compose -p flag on down" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" down -v'
+require "compose -p flag on down" 'bash scripts/ci/compose.sh -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" -- down -v'
 # The two readiness probes had no pin at all -- not a pin bound to the wrong
 # line, just an absent one. Deleting either left every gate in the tree green,
 # and the gate would then drive its cassette against a backend that has not

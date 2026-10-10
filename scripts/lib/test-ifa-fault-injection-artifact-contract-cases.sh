@@ -89,7 +89,7 @@ test_ifa_fault_failure_artifact_contract() {
 	fi
 	rg --fixed-strings --quiet -- 'FAULT_COMPOSE_PROJECT: eshu-ifa-fault-injection-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}' "${workflow}" \
 		|| fail "fault job does not pin a stable per-shard Compose project"
-	rg --fixed-strings --quiet -- 'docker compose -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml down -v' "${workflow}" \
+	rg --fixed-strings --quiet -- 'bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v' "${workflow}" \
 		|| fail "workflow teardown does not target the retained fault stack"
 	rg --fixed-strings --quiet -- 'name: Verify fault-injection diagnostic completeness' "${workflow}" \
 		|| fail "workflow does not fail closed when diagnostic collection is incomplete"
@@ -106,7 +106,7 @@ test_ifa_fault_failure_artifact_contract() {
 		|| fail "cleanup does not use the executable exit-status-preservation seam"
 	rg --fixed-strings --quiet -- '"${use_compose:-0}" "${ESHU_POSTGRES_DSN:-}" "${bin_dir:-}"' "${script}" \
 		|| fail "cleanup does not pass the built graph-dump binary to failure diagnostics"
-	rg --fixed-strings --quiet -- 'docker compose -p "${compose_project}" -f "${compose_file}" logs --no-color' "${diagnostics_lib}" \
+	rg --fixed-strings --quiet -- 'bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- logs --no-color' "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not retain complete Compose service logs"
 	rg --fixed-strings --quiet -- 'COPY (SELECT work_item_id, stage, domain, scope_id, generation_id, status, attempt_count, failure_class, failure_message' "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not retain durable work-item state"

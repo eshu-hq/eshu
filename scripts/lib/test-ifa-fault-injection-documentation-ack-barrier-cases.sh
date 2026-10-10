@@ -215,11 +215,13 @@ test_ifa_documentation_ack_barrier_sql_executes_on_postgres() (
 		"${compose_file}")" || fail "documentation ACK Postgres probe could not read server identity"
 	[[ "${server_identity}" =~ ^18\.[0-9]+[^|]*\|18[0-9]{4}$ ]] \
 		|| fail "documentation ACK Postgres probe used an unexpected server: ${server_identity@Q}"
-	container_id="$(docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" ps -q postgres)"
+	container_id="$(bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- ps -q postgres)"
 	[[ "${container_id}" =~ ^[0-9a-f]{12,64}$ ]] \
 		|| fail "documentation ACK Postgres probe could not resolve its exact container"
 	image_identity="$(docker inspect --format '{{.Config.Image}}|{{.Image}}' "${container_id}")"
-	[[ "${image_identity}" =~ ^postgres:18-alpine\|sha256:[0-9a-f]{64}$ ]] \
+	local expected_image="postgres:18-alpine"
+	if [[ "${ESHU_CI_IMAGES:-0}" == "1" ]]; then expected_image="${POSTGRES_IMAGE:?CI Postgres mirror pin required}"; fi
+	[[ "${image_identity}" == "${expected_image}|"* && "${image_identity}" =~ \|sha256:[0-9a-f]{64}$ ]] \
 		|| fail "documentation ACK Postgres probe used an unexpected image: ${image_identity@Q}"
 
 	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" 1 "${ESHU_POSTGRES_DSN}" \

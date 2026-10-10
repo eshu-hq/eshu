@@ -7,6 +7,9 @@ on:
       - main
   pull_request:
     paths:
+      - 'scripts/lib/ci-image-compose.sh'
+      - 'scripts/lib/ci_image_compose.py'
+      - 'specs/ci-images.v1.json'
       - "src/**"
       - "apps/console/**"
       - "index.html"
@@ -78,6 +81,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
+env:
+  ESHU_CI_IMAGES: "1"
+  POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+  NEO4J_IMAGE: ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+  ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
+  ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0
+  ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
+
 jobs:
   queue-selection:
     uses: ./.github/workflows/queue-selection.yml

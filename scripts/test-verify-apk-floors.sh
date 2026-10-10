@@ -232,6 +232,17 @@ make_mirror "${mirror}" v3.21 "foo=1.0-r0"
 run_verifier "${tmp_root}/stages.Dockerfile" "${mirror}"
 expect_rc 0 "floors on earlier stages are ignored (zzz is absent and not checked)"
 
+# Global defaults select the audited base; stage-local ARGs cannot change it.
+printf 'ARG BASE=alpine:3.21\nFROM ${BASE} AS early\nARG BASE=debian:12\nFROM ${BASE}\nRUN apk add --no-cache "foo>=1.0-r0"\n' >"${tmp_root}/global-arg.Dockerfile"
+run_verifier "${tmp_root}/global-arg.Dockerfile" "${tmp_root}/stages"
+expect_rc 0 "global image ARG defaults survive stage-local redefinition"
+printf 'ARG BASE\nFROM ${BASE}\nRUN apk add --no-cache "foo>=1.0-r0"\n' >"${tmp_root}/unknown-arg.Dockerfile"
+run_verifier "${tmp_root}/unknown-arg.Dockerfile" "${tmp_root}/stages"
+expect_rc 2 "an image ARG without a default fails closed"
+printf 'ARG BASE=debian:12\nFROM ${BASE}\nRUN apk add --no-cache "foo>=1.0-r0"\n' >"${tmp_root}/nonalpine-arg.Dockerfile"
+run_verifier "${tmp_root}/nonalpine-arg.Dockerfile" "${tmp_root}/stages"
+expect_rc 2 "a non-Alpine image ARG fails closed"
+
 # The verifier must not edit the Dockerfile.
 before="$(cksum <"${repo_dockerfile}")"
 mirror="${tmp_root}/green"

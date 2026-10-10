@@ -78,7 +78,7 @@ ifa_codeowners_start_fact_records_lock() {
 	local app_name="ifa_codeowners_lock_${cell}"
 	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE fact_records IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+		bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T postgres \
 			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -c "${lock_sql}" \
 			>"${log_dir}/codeowners-lock-${cell}.log" 2>&1 &
 	else

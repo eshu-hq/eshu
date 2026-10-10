@@ -151,6 +151,10 @@ gates:
       - "docker-compose*.yml"
       - "scripts/verify_backend_conformance_live.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/compose.sh"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
     ci:
       workflow: e2e-tests.yml
       job: "test"
@@ -194,6 +198,9 @@ gates:
       - "go/internal/query/**"
       - "go/internal/mcp/**"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
     local:
       command: "bash scripts/run-auth-mcp-e2e.sh"
       test_command: ""
@@ -239,6 +246,9 @@ gates:
       - "go/cmd/api/**"
       - "go/internal/oidclogin/**"
       - ".github/workflows/frontend.yml"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
     local:
       command: "bash scripts/run-auth-e2e.sh"
       test_command: ""
@@ -300,6 +310,8 @@ gates:
       - "Dockerfile"
       - ".dockerignore"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/build-reproducibility-image.sh"
+      - "specs/ci-images.v1.json"
     ci:
       workflow: docker-publish.yml
       job: "verify-reproducibility"

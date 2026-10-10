@@ -27,7 +27,7 @@ name="eshu-live-readiness-standby-${fixture_id}"
 volume="${name}-data"
 label='eshu.fixture=live-postgres-readiness'
 id_label="eshu.fixture-id=${fixture_id}"
-image='postgres:18.6-bookworm'
+image="${ESHU_LIVE_POSTGRES_IMAGE:-postgres:18.6-bookworm}"
 primary_port=15432
 standby_port=15433
 

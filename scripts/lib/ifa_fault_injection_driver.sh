@@ -43,12 +43,12 @@ fresh_stack() {
 		# teardown_cell's own `down -v` (below) stays best-effort: it is cleanup
 		# after a finished cell, not the freshness guarantee. This one is the
 		# guarantee, so it fails loudly.
-		if ! docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" down -v \
+		if ! bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- down -v \
 			>"${log_dir}/compose-down-${cell}.log" 2>&1; then
 			tail -20 "${log_dir}/compose-down-${cell}.log" >&2 || true
 			die "${cell}: docker compose down -v failed -- the stack is NOT fresh, and a stale stack makes this cell pass while proving nothing (see ${log_dir}/compose-down-${cell}.log)"
 		fi
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres
+		bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres
 		log "${cell}: wait for backends"
 		ifa_det_wait_for_backends "${FAULT_COMPOSE_PROJECT}" "${compose_file}" \
 			|| die "${cell}: Postgres + NornicDB did not become ready within budget"
@@ -311,7 +311,7 @@ teardown_cell() {
 	[[ "${barrier_cleanup_rc}" -ne 0 ]] || bg_pids=()
 	if [[ "${use_compose}" -eq 1 ]]; then
 		log "${cell}: tear down cell (fresh stack for the next cell)"
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
+		bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- down -v >/dev/null 2>&1 || true
 	fi
 	[[ "${barrier_cleanup_rc}" -eq 0 ]] \
 		|| die "${cell}: documentation ACK barrier teardown failed"

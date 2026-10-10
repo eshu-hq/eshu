@@ -109,10 +109,11 @@ cleanup() {
 		printf '\n[--keep] work dir retained: %s\n' "${work_dir}" >&2
 	else
 		if [[ "${use_compose}" -eq 1 ]]; then
-			docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
+			bash scripts/ci/compose.sh -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" -- down -v >/dev/null 2>&1 || true
 		fi
 		rm -rf "${work_dir}"
 	fi
+	if [[ "${keep}" -eq 0 ]] && declare -F eshu_ci_compose_cleanup >/dev/null; then eshu_ci_compose_cleanup; fi
 	exit "${status}"
 }
 trap cleanup EXIT
@@ -123,6 +124,11 @@ trap cleanup EXIT
 # hostnames docker-compose.yaml's own db-migrate service uses.
 # ----------------------------------------------------------------------------
 export ESHU_GRAPH_BACKEND=nornicdb
+# shellcheck source=scripts/lib/ci-image-compose.sh
+source "${repo_root}/scripts/lib/ci-image-compose.sh"
+if [[ "${use_compose}" -eq 1 ]]; then
+	eshu_ci_compose_prepare "${repo_root}" -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" || die "CI image overlay preflight failed"
+fi
 export NEO4J_URI="bolt://localhost:${NEO4J_BOLT_PORT}"
 export NEO4J_USERNAME=neo4j
 export NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}"
@@ -159,7 +165,7 @@ start_bg() {
 pg() {
 	local sql="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+		bash scripts/ci/compose.sh -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T postgres \
 			psql -U eshu -d eshu -tA -c "${sql}" 2>/dev/null
 	else
 		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"
@@ -176,14 +182,14 @@ build_bin golden-corpus-gate
 
 if [[ "${use_compose}" -eq 1 ]]; then
 	log "start Postgres + NornicDB (project ${REPLAY_DRIVE_COMPOSE_PROJECT})"
-	docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres
+	bash scripts/ci/compose.sh -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres
 
 	log "wait for backends"
 	backends_ready=false
 	for _ in $(seq 1 60); do
-		if docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" exec -T nornicdb \
+		if bash scripts/ci/compose.sh -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T nornicdb \
 			wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && \
-			docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+			bash scripts/ci/compose.sh -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T postgres \
 			pg_isready -U eshu -d eshu >/dev/null 2>&1; then
 			backends_ready=true
 			break

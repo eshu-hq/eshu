@@ -289,6 +289,10 @@ gates:
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/sql_relationship_*.go"
       - "go/internal/reducer/sqlrelationship/sql_relationship_*.go"
+      - "scripts/ci/compose.sh"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -356,6 +360,10 @@ gates:
       # renamed off the prefix and then sourced would still go dark, here and
       # under the wider form alike.
       - "scripts/lib/ifa_determinism_common*.sh"
+      - "scripts/ci/compose.sh"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
     local:
       command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
       test_command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"

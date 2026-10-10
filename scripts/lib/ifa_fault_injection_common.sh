@@ -222,7 +222,7 @@ ifa_fault_start_shared_intent_lock() {
 	local log_namespace="${namespace//_/-}"
 	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE shared_projection_intents IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+		bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T postgres \
 			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -c "${lock_sql}" \
 			>"${log_dir}/${log_namespace}-lock-${cell}.log" 2>&1 &
 	else
@@ -405,7 +405,7 @@ ifa_fault_watch_restart_sentinel() {
 		if [[ -f "${sentinel_path}" ]]; then
 			printf 'fired\n' >"${result_file}"
 			printf 'ifa_fault_watch_restart_sentinel: sentinel seen (%s); restarting nornicdb\n' "${sentinel_path}" >&2
-			docker compose -p "${compose_project}" -f "${compose_file}" restart nornicdb >/dev/null 2>&1
+			bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- restart nornicdb >/dev/null 2>&1
 			ifa_det_wait_for_backends "${compose_project}" "${compose_file}" >/dev/null 2>&1 \
 				|| echo "ifa_fault_watch_restart_sentinel: backends did not report ready after restart" >&2
 			rm -f "${sentinel_path}"

@@ -297,7 +297,7 @@ ifa_fault_capture_failure_diagnostics() {
 		if ifa_fault_capture_command "${manifest}" backend-compose-config \
 			"${work_root}/backend-compose-config.json" \
 			bash -o pipefail -c \
-			'docker compose -p "$1" -f "$2" config --format json 2>/dev/null | jq -e '\''{services: {nornicdb: {image: .services.nornicdb.image, platform: .services.nornicdb.platform}}} | select(.services.nornicdb.image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1" and .services.nornicdb.platform == "linux/amd64")'\''' \
+			'bash scripts/ci/compose.sh -p "$1" -f "$2" -- config --format json 2>/dev/null | jq -e '\''{services: {nornicdb: {image: .services.nornicdb.image, platform: .services.nornicdb.platform}}} | select(.services.nornicdb.image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1" and .services.nornicdb.platform == "linux/amd64")'\''' \
 			_ "${compose_project}" "${compose_file}"; then
 			backend_selection="$(ifa_fault_backend_selection \
 				"${work_root}/backend-compose-config.json")" || true
@@ -318,10 +318,10 @@ ifa_fault_capture_failure_diagnostics() {
 	gcp_facts_sql="SELECT jsonb_build_object('fact_id', fact_id, 'scope_id', scope_id, 'generation_id', generation_id, 'fact_kind', fact_kind, 'stable_fact_key', stable_fact_key, 'schema_version', schema_version, 'collector_kind', collector_kind, 'fencing_token', fencing_token, 'source_confidence', source_confidence, 'source_system', source_system, 'source_fact_key', source_fact_key, 'source_uri', source_uri, 'source_record_id', source_record_id, 'observed_at', observed_at, 'ingested_at', ingested_at, 'is_tombstone', is_tombstone, 'payload', payload) FROM fact_records WHERE fact_kind IN ('gcp_cloud_resource', 'gcp_cloud_relationship') ORDER BY scope_id, generation_id, observed_at, fact_id;"
 	if [[ "${use_compose}" -eq 1 && -n "${backend_selection}" ]]; then
 		ifa_fault_capture_command "${manifest}" work-items "${work_root}/work-items.csv" \
-			docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
+			bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- exec -T postgres \
 			psql -U eshu -d eshu -tA -c "${work_items_sql}" || complete=0
 		ifa_fault_capture_command "${manifest}" gcp-facts "${work_root}/gcp-facts.jsonl" \
-			docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
+			bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- exec -T postgres \
 			psql -U eshu -d eshu -tA -c "${gcp_facts_sql}" || complete=0
 	elif [[ "${use_compose}" -eq 0 ]]; then
 		ifa_fault_capture_command "${manifest}" work-items "${work_root}/work-items.csv" \
@@ -337,11 +337,11 @@ ifa_fault_capture_failure_diagnostics() {
 	if [[ "${use_compose}" -eq 1 ]]; then
 		if [[ -n "${backend_selection}" ]]; then
 			ifa_fault_capture_command "${manifest}" compose-logs "${logs}/compose-services.log" \
-				docker compose -p "${compose_project}" -f "${compose_file}" logs --no-color || complete=0
+				bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- logs --no-color || complete=0
 			ifa_fault_capture_command "${manifest}" backend-image "${work_root}/backend-image.txt" \
-				docker compose -p "${compose_project}" -f "${compose_file}" images nornicdb || complete=0
+				bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- images nornicdb || complete=0
 			container_id="$(ifa_fault_run_bounded \
-				docker compose -p "${compose_project}" -f "${compose_file}" ps -q nornicdb 2>/dev/null)" || true
+				bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- ps -q nornicdb 2>/dev/null)" || true
 		fi
 		if [[ -n "${backend_selection}" && -n "${container_id}" ]]; then
 			ifa_fault_capture_command "${manifest}" backend-container "${work_root}/backend-container.json" \

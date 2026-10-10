@@ -91,6 +91,14 @@ for tool in docker node go; do
   }
 done
 
+compose_args=(-p "$project" -f docker-compose.e2e.yaml)
+# shellcheck source=scripts/lib/ci-image-compose.sh
+source "$repo_root/scripts/lib/ci-image-compose.sh"
+eshu_ci_compose_prepare "$repo_root" "${compose_args[@]}"
+if [[ -n "$ESHU_CI_COMPOSE_OVERLAY" ]]; then
+  compose_args+=(-f "$ESHU_CI_COMPOSE_OVERLAY")
+fi
+
 # The catalog sweep's expected outcomes come from the Go route policy, not a
 # hand-copied list: derive them before any stack work so a table that no longer
 # matches the registered tools (a new tool without arguments, a route no ledger
@@ -121,10 +129,11 @@ teardown() {
     exit "$exit_code"
   fi
   echo "run-auth-mcp-e2e: tearing down project $project"
-  if ! docker compose -p "$project" -f docker-compose.e2e.yaml down -v --remove-orphans >/dev/null 2>&1; then
+  if ! docker compose "${compose_args[@]}" down -v --remove-orphans >/dev/null 2>&1; then
     echo "run-auth-mcp-e2e: Compose teardown failed for project $project" >&2
     exit_code=1
   fi
+  eshu_ci_compose_cleanup
   exit "$exit_code"
 }
 trap teardown EXIT
@@ -136,7 +145,7 @@ echo "run-auth-mcp-e2e: building the exact-source eshu CLI"
 auth_e2e_cli_build "$repo_root"
 
 echo "run-auth-mcp-e2e: bringing up a FRESH stack (project $project) — zero identities/providers required at boot"
-docker compose -p "$project" -f docker-compose.e2e.yaml up -d --build --wait \
+docker compose "${compose_args[@]}" up -d --build --wait \
   postgres neo4j db-migrate workspace-setup eshu mcp-server mock-oidc-idp mock-oidc-idp-admin mock-github
 
 api_base="http://${bind_addr}:${api_port}"

@@ -93,7 +93,7 @@ ifa_documentation_start_ack_holder() {
 	local holder_app_name="ifa_documentation_ack_holder_${ifa_documentation_ack_run_id}"
 	local lock_sql="SET application_name = '${holder_app_name}'; SELECT CASE WHEN pg_catalog.pg_try_advisory_lock(5998, 5994) THEN pg_catalog.pg_sleep(180) ELSE pg_catalog.pg_advisory_lock(5998, 5994) END;"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+		bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T postgres \
 			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -c "${lock_sql}" \
 			>"${log_dir}/documentation-ack-holder-${cell}.log" 2>&1 &
 	else

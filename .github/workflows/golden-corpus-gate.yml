@@ -1,11 +1,9 @@
 name: Golden Corpus Gate
-
 # B-7 golden end-to-end corpus gate (#3800). Runs the full pipeline over a
 # minimal repo corpus with the B-10 cassette collectors and diffs the result
 # against the B-12 golden snapshot. Required on every PR that touches a pipeline
 # phase (sync/discover/parse/collect/reduce/query), because those are exactly the
 # changes that can silently break end-to-end behaviour.
-
 on:
   # Merge-queue entries (#7111): every job runs, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
@@ -16,6 +14,10 @@ on:
   pull_request:
     branches: [ main ]
     paths:
+      - 'scripts/ci/compose.sh'
+      - 'scripts/lib/ci-image-compose.sh'
+      - 'scripts/lib/ci_image_compose.py'
+      - 'specs/ci-images.v1.json'
       - 'scripts/lib/stage-differential-capture.sh'
       - 'scripts/test-stage-differential-capture.sh'
       - 'scripts/lib/golden-corpus-capture-leg-cases.sh'
@@ -192,21 +194,24 @@ on:
       # joins against.
       - 'go/internal/queryplan/**'
       - '.github/workflows/golden-corpus-gate.yml'
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 # Least privilege: the gate only checks out and reads the repo.
 permissions:
   contents: read
-
+env:
+  ESHU_CI_IMAGES: "1"
+  POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+  NEO4J_IMAGE: ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+  ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
+  ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0
+  ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 jobs:
   queue-selection:
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: golden-corpus-gate.yml
-
   static-mirror:
     needs: queue-selection
     name: static mirror
@@ -216,14 +221,12 @@ jobs:
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
-
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
         run: test "${{ needs.queue-selection.result }}" = success
       - uses: actions/checkout@v5
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
-
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
       # on hosted runners. Skipped, not failed, when the secrets are absent.
       - name: Log in to Docker Hub
@@ -232,7 +235,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
         run: scripts/ci/install-apt-packages.sh ripgrep
@@ -242,7 +244,6 @@ jobs:
       - name: Validate differential capture staging
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
         run: bash scripts/test-stage-differential-capture.sh
-
   corpus-gate:
     needs: queue-selection
     name: corpus-gate (${{ matrix.graph_backend }})
@@ -275,7 +276,6 @@ jobs:
       - name: Check out code
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate') }}
         uses: actions/checkout@v5
-
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
       # on hosted runners. Skipped, not failed, when the secrets are absent.
       - name: Log in to Docker Hub
@@ -313,11 +313,11 @@ jobs:
 
       - name: Dump service logs on failure
         if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate')) && (failure()) }}
-        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" logs --tail=200 || true
+        run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" -- logs --tail=200 || true
 
       - name: Tear down Docker services
         if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate')) && (always()) }}
-        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" down -v || true
+        run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" -- down -v || true
 
   # Four independent B-7 recordings run on separate hosted runners. Every
   # backend/pairing retains its own capture; a failed leg or upload blocks the
@@ -395,11 +395,11 @@ jobs:
 
       - name: Dump service logs on failure
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j'))) && (failure()) }}
-        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" logs --tail=200 || true
+        run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" -- logs --tail=200 || true
 
       - name: Tear down Docker services
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j'))) && (always()) }}
-        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" down -v || true
+        run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" -- down -v || true
 
   differential:
     name: differential nornicdb vs neo4j

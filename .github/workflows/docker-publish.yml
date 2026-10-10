@@ -16,6 +16,7 @@ on:
     branches:
       - main
     paths: [
+      'scripts/ci/build-reproducibility-image.sh', 'specs/ci-images.v1.json',
       'Dockerfile', '.dockerignore', 'deploy/helm/**',
       '.github/workflows/docker-publish.yml', 'scripts/verify-apk-floors.sh', 'scripts/test-verify-apk-floors.sh',
       'scripts/fixtures/apk-floors/**',
@@ -40,6 +41,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
+  CI_BUILDKIT_IMAGE: ghcr.io/eshu-hq/ci-mirror-buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
+  ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
+  ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0
+  ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   CHART_PATH: deploy/helm/eshu
@@ -170,8 +175,6 @@ jobs:
       (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
-      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     timeout-minutes: 45
     runs-on: ubuntu-latest
@@ -190,8 +193,6 @@ jobs:
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'attach-release-sbom') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'build-and-push-image') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         uses: actions/checkout@v5
 
-      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
-      # on hosted runners. Skipped, not failed, when the secrets are absent.
       - name: Log in to Docker Hub
         if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
         uses: docker/login-action@v3
@@ -202,6 +203,8 @@ jobs:
       - name: Set up Docker Buildx
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'attach-release-sbom') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'build-and-push-image') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ env.CI_BUILDKIT_IMAGE }}
       - name: Log in to Container Registry
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'attach-release-sbom') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'build-and-push-image') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (github.event_name != 'pull_request' && github.event_name != 'merge_group') }}
         uses: docker/login-action@v3
@@ -242,6 +245,9 @@ jobs:
           file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' && github.event_name != 'merge_group' }}
           build-args: |
+            ESHU_XX_IMAGE=${{ env.ESHU_XX_IMAGE }}
+            ESHU_GO_IMAGE=${{ env.ESHU_GO_IMAGE }}
+            ESHU_ALPINE_IMAGE=${{ env.ESHU_ALPINE_IMAGE }}
             ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
           provenance: false
@@ -316,8 +322,6 @@ jobs:
       needs.build-and-push-image.result == 'success' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
     env:
-      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
@@ -334,9 +338,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # #7886: setup-buildx bootstraps a moby/buildkit builder image from Docker
-      # Hub, so the login comes first. Skipped, not failed, when the secrets are
-      # absent.
       - name: Log in to Docker Hub
         if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
         uses: docker/login-action@v3
@@ -347,6 +348,8 @@ jobs:
       - name: Set up Docker Buildx
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags')) }}
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ env.CI_BUILDKIT_IMAGE }}
       - name: Log in to Container Registry
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags')) }}
         uses: docker/login-action@v3
@@ -375,8 +378,6 @@ jobs:
       (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
-      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -390,8 +391,6 @@ jobs:
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         uses: actions/checkout@v5
 
-      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
-      # on hosted runners. Skipped, not failed, when the secrets are absent.
       - name: Log in to Docker Hub
         if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
         uses: docker/login-action@v3
@@ -402,6 +401,8 @@ jobs:
       - name: Set up Docker Buildx
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=${{ env.CI_BUILDKIT_IMAGE }}
       - name: Compute source date epoch
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         id: epoch
@@ -409,25 +410,11 @@ jobs:
       - name: Build image (first)
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            --build-arg SOURCE_DATE_EPOCH="${{ steps.epoch.outputs.epoch }}" \
-            --build-arg ESHU_VERSION=reproducibility-test \
-            --provenance=false \
-            --no-cache \
-            --output type=local,dest=/tmp/out1 \
-            .
+          bash scripts/ci/build-reproducibility-image.sh /tmp/out1 "${{ steps.epoch.outputs.epoch }}"
       - name: Build image (second, no cache)
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            --build-arg SOURCE_DATE_EPOCH="${{ steps.epoch.outputs.epoch }}" \
-            --build-arg ESHU_VERSION=reproducibility-test \
-            --provenance=false \
-            --no-cache \
-            --output type=local,dest=/tmp/out2 \
-            .
+          bash scripts/ci/build-reproducibility-image.sh /tmp/out2 "${{ steps.epoch.outputs.epoch }}"
       - name: Compare builds
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         run: |

@@ -160,7 +160,7 @@ ifa_det_pg() {
 	local errfile rc
 	errfile="$(mktemp)"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
+		bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- exec -T postgres \
 			psql -U eshu -d eshu -tA -c "${sql}" 2>"${errfile}"
 		rc=$?
 	else
@@ -191,9 +191,9 @@ ifa_det_wait_for_backends() {
 	local compose_file="${2:-docker-compose.yaml}"
 	local _
 	for _ in $(seq 1 60); do
-		if docker compose -p "${compose_project}" -f "${compose_file}" exec -T nornicdb \
+		if bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- exec -T nornicdb \
 			wget --spider -q http://localhost:7474/health >/dev/null 2>&1 &&
-			docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
+			bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- exec -T postgres \
 				pg_isready -U eshu -d eshu >/dev/null 2>&1; then
 			return 0
 		fi

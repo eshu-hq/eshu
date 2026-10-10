@@ -42,6 +42,9 @@ cleanup() {
 		fi
 		rm -rf "${work_dir}"
 	fi
+	if [[ "${keep}" -ne 1 ]] && declare -F eshu_ci_compose_cleanup >/dev/null; then
+		eshu_ci_compose_cleanup
+	fi
 	# Last, and only while still the recorded holder (see the lib). A --keep run
 	# retains the stack on the fixed ports, so it retains the mutex with it.
 	if [[ "${keep}" -eq 1 ]]; then

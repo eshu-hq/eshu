@@ -115,10 +115,11 @@ cleanup() {
 		printf '\n[--keep] work dir retained: %s\n' "${work_dir}" >&2
 	else
 		if [[ "${use_compose}" -eq 1 ]]; then
-			docker compose -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
+			bash scripts/ci/compose.sh -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" -- down -v >/dev/null 2>&1 || true
 		fi
 		rm -rf "${work_dir}"
 	fi
+	if [[ "${keep}" -eq 0 ]] && declare -F eshu_ci_compose_cleanup >/dev/null; then eshu_ci_compose_cleanup; fi
 	exit "${status}"
 }
 trap cleanup EXIT
@@ -130,6 +131,11 @@ export NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}"
 export NEO4J_DATABASE=nornic
 export ESHU_NEO4J_DATABASE=nornic
 export DEFAULT_DATABASE=nornic
+# shellcheck source=scripts/lib/ci-image-compose.sh
+source "${repo_root}/scripts/lib/ci-image-compose.sh"
+if [[ "${use_compose}" -eq 1 ]]; then
+	eshu_ci_compose_prepare "${repo_root}" -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" || die "CI image overlay preflight failed"
+fi
 export ESHU_POSTGRES_DSN="postgresql://eshu:${ESHU_POSTGRES_PASSWORD}@localhost:${ESHU_POSTGRES_PORT}/eshu"
 export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 export ESHU_LISTEN_ADDR="127.0.0.1:0"
@@ -153,7 +159,7 @@ start_bg() {
 pg() {
 	local sql="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+		bash scripts/ci/compose.sh -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T postgres \
 			psql -U eshu -d eshu -tA -c "${sql}" 2>/dev/null
 	else
 		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"
@@ -194,14 +200,14 @@ esac
 
 if [[ "${use_compose}" -eq 1 ]]; then
 	log "start Postgres + NornicDB (project ${DEADLETTER_COMPOSE_PROJECT})"
-	docker compose -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres
+	bash scripts/ci/compose.sh -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres
 
 	log "wait for backends"
 	backends_ready=false
 	for _ in $(seq 1 60); do
-		if docker compose -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" exec -T nornicdb \
+		if bash scripts/ci/compose.sh -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T nornicdb \
 			wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && \
-			docker compose -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+			bash scripts/ci/compose.sh -p "${DEADLETTER_COMPOSE_PROJECT}" -f "${compose_file}" -- exec -T postgres \
 			pg_isready -U eshu -d eshu >/dev/null 2>&1; then
 			backends_ready=true
 			break
