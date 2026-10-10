@@ -11,6 +11,13 @@ trap 'rm -rf "${scratch}"' EXIT
 fail() { printf 'test-live-postgres-standby-fixture: %s\n' "$*" >&2; exit 1; }
 
 [[ -f "${helper}" ]] || fail 'fixture helper missing'
+install_step="$(rg -n -m1 '^[[:space:]]+run: scripts/ci/install-apt-packages\.sh ripgrep$' "${workflow}" || true)"
+fixture_step="$(rg -n -m1 -F 'name: Check physical-standby fixture fail-closed behavior' "${workflow}" || true)"
+start_step="$(rg -n -m1 -F 'name: Start disposable physical standby' "${workflow}" || true)"
+[[ -n "${install_step}" && -n "${fixture_step}" && -n "${start_step}" ]] ||
+  fail 'workflow does not install ripgrep before the standby fixture steps'
+[[ "${install_step%%:*}" -lt "${fixture_step%%:*}" && "${install_step%%:*}" -lt "${start_step%%:*}" ]] ||
+  fail 'workflow installs ripgrep after a standby fixture step'
 rg -q 'job.services.postgres.id' "${workflow}" || fail 'workflow does not pass its exact primary container ID'
 rg -q 'ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN:' "${workflow}" || fail 'workflow does not pass direct standby DSN'
 rg -q 'ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE:' "${workflow}" || fail 'workflow does not opt into disposable DBs'

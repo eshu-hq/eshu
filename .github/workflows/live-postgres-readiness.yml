@@ -136,6 +136,9 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
+      - name: Install ripgrep for readiness fixture checks
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
       - name: Check runner fail-closed behavior
         run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
