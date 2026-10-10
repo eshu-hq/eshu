@@ -31,6 +31,7 @@ func LoadPilotComparisonIdentity(path string) (PilotComparisonIdentity, error) {
 	if path == "" {
 		return identity, fmt.Errorf("missing ESHU_QUERY_METHODOLOGY_IDENTITY path")
 	}
+	// #nosec G304 -- test callers pass the dedicated runner's local identity.json sidecar, not an HTTP/MCP request path
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return identity, fmt.Errorf("read methodology identity: %w", err)
