@@ -217,9 +217,8 @@ func goSpaceCharacterSet() string {
 // unicode.IsSpace accepts, so content is blank in SQL exactly when
 // strings.TrimSpace(content) is empty in Go. A byte-order mark (U+FEFF) and
 // U+200B are not in the set, as in Go: a file holding only one is non-blank.
-// The set holds multibyte characters, so the database encoding must be UTF8;
-// Eshu's content store is created UTF8 and a multibyte btrim under another
-// encoding would match byte-wise.
+// The set holds multibyte characters, so the statement assumes a UTF8 database
+// (a SQL_ASCII database trims byte-wise; LATIN1 errors on non-Latin content).
 func (cr *ContentReader) NonBlankRepoFilePaths(ctx context.Context, repoID string, relativePaths []string) ([]string, error) {
 	if len(relativePaths) == 0 {
 		return nil, nil
