@@ -1,0 +1,23 @@
+docs/internal/evidence/7916-first-generation-readiness.md
+  s_29175cf8c573b8::t_5eb315e4abf123 86,106-107,159-237
+go/internal/storage/postgres/container_image_identity_first_generation_live_test.go
+  s_29175cf8c573b8::t_22b4243f19881d 27-41,128-178,192-194,228-245,247
+go/internal/storage/postgres/container_image_identity_first_generation_service_live_test.go
+  s_29175cf8c573b8::t_be1f4d3e05aba2 126-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01a728680cbcce5a36e9b450ad8a6fc273a50fe0",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
