@@ -181,6 +181,7 @@ jobs:
       - name: Verify query-plan regression gate
         run: |
           git fetch --no-tags origin main:refs/remotes/origin/main
+          python3 scripts/test-verify-query-methodology-live-contract.py
           scripts/test-verify-query-methodology.sh
           scripts/test-verify-query-plan-regression.sh
           scripts/verify-query-plan-regression.sh

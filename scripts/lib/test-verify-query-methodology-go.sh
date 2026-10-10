@@ -19,3 +19,10 @@ case "$*" in
  *'-run ^TestImportDependencyMethodologyMCPTerminalCapLive$'*)
   [[ -n "$ESHU_NEO4J_URI" ]] || exit 14 ;;
 esac
+if [[ "$*" == *'-json '* && "$*" =~ -run\ \^([A-Za-z0-9_]+)\$ ]]; then
+ root_name="${BASH_REMATCH[1]}"
+ if [[ "${SHIM_EVENT:-}" != zero ]]; then
+  printf '{"Action":"run","Test":"%s"}\n' "$root_name"
+  printf '{"Action":"%s","Test":"%s"}\n' "${SHIM_EVENT:-pass}" "$root_name"
+ fi
+fi

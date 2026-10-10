@@ -38,11 +38,19 @@ for path, tag, cls, reason, runner, backends in rows:
         sys.exit(f"duplicate ledger row: {path}")
     seen_files.add(path)
     classes[path] = cls
-    if cls not in ("ci", "postgres_ci", "scheduled", "retired"):
+    if cls not in ("ci", "postgres_ci", "dedicated_ci", "scheduled", "retired"):
         sys.exit(f"invalid class {cls!r} for {path}")
     if cls == "postgres_ci":
         if runner != "live-postgres-readiness" or tag.strip() != "~" or backends:
             sys.exit(f"PostgreSQL CI row needs its verified runner and untagged test: {path}")
+    elif cls == "dedicated_ci":
+        if runner != "query-methodology":
+            sys.exit(f"dedicated CI row needs its verified runner: {path}")
+        if path.endswith("methodology_postgres_live_test.go"):
+            if backends:
+                sys.exit(f"PostgreSQL dedicated row cannot claim graph backends: {path}")
+        elif backends != "neo4j":
+            sys.exit(f"Neo4j dedicated row needs its truthful backend pin: {path}")
     elif runner:
         sys.exit(f"unexpected runner {runner!r} for {cls} row: {path}")
     if cls == "scheduled":
@@ -50,9 +58,9 @@ for path, tag, cls, reason, runner, backends in rows:
     # Backend targeting defaults to both; a row naming a backend-specific
     # test pins the backends it can run on so the runner never schedules
     # a hardcoded-"nornic" test against Neo4j.
-    if not backends:
+    if not backends and cls != "dedicated_ci":
         backends = "both"
-    if backends not in ("nornicdb", "neo4j", "both"):
+    if backends and backends not in ("nornicdb", "neo4j", "both"):
         sys.exit(f"invalid backends {backends!r} for {path}")
     # A YAML `#` after whitespace opens a comment, so an unquoted reason
     # containing ` #` (or starting with `#`) is silently truncated (or

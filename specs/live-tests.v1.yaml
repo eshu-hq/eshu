@@ -20,7 +20,7 @@ legacy_scheduled_exemptions:
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
-  legacy-scheduled exemption, or retired with
+  dedicated CI, legacy-scheduled exemption, or retired with
   a reason and explicit execution or exemption ownership. The graph
   live-backend CI job runs every ci-class row on its selected backend; the
   PostgreSQL readiness job runs the postgres_ci rows. The ledger
@@ -35,6 +35,7 @@ purpose: >
 design: >
   One row per *_live_test.go file. class is ci (graph live-backend CI
   job, selected backends), postgres_ci (the named PostgreSQL runner),
+  dedicated_ci (the closed query-methodology isolated runner contract),
   scheduled (an exact-file legacy exemption from this ledger's verified
   runner mapping, tracked by issue 7533; independently owned blocking
   runners may exist, but a reason does not prove execution), or retired (a
@@ -52,6 +53,65 @@ design: >
   in the reason.
 
 tests:
+  - file: go/internal/mcp/methodology_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: isolated Neo4j MCP terminal-cap root; required PASS event in blocking query-plan-regression
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_artifact_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j artifact helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_cases_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j case helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_cycle_cap_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j cycle-cap helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_fixture_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j fixture helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: isolated Neo4j import-dependency graph root; required PASS event in blocking query-plan-regression
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_measure_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j measurement helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_oracle_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j oracle helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_profile_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j PROFILE helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_postgres_live_test.go
+    tag: integration
+    class: dedicated_ci
+    reason: isolated PostgreSQL emitted-statement root; required PASS event in blocking query-plan-regression
+    runner: query-methodology
   - file: go/cmd/api/issue7033_canary_startup_live_test.go
     tag: issue7033_canary_startup
     class: scheduled

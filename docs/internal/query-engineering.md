@@ -172,6 +172,17 @@ artifacts must validate as a complete set. `scripts/test-verify-query-methodolog
 plants absent output and failed producers and exercises the real selector with
 query-only, each backend's schema-only, and combined-tree paths.
 
+The live-test ledger classifies the ten methodology files as `dedicated_ci`
+under the closed `query-methodology` runner. Seven are helper-only files that
+compile with the graph root; the other three own the PostgreSQL, Neo4j graph,
+and MCP roots. The blocking `verify-contracts` route runs them with disposable
+PostgreSQL and Neo4j containers. Its static contract verifies actual file tags,
+packages, root names, invocation arguments, gate selection, and workflow call.
+Each root must emit a Go JSON run and PASS event; zero matches, skips, and
+failures stop the proof even when `go test` exits successfully. PostgreSQL has
+an explicit DSN binding and no graph-backend claim. Graph and MCP files are
+Neo4j-only because their fixture and PROFILE proof use that backend.
+
 The dedicated `methodology scale (neo4j)` manual job runs the existing latency
 fixture at its default scale with four concurrent workers, twenty requests per
 operation and three sequential samples. It archives latency, concurrency,
