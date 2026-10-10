@@ -9,7 +9,10 @@ import (
 	"fmt"
 	"slices"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // PackageManifestsQuery reads every stored package.json
@@ -24,45 +27,37 @@ import (
 // Discovery already prunes the exact node_modules directory; this covers the
 // renamed backups it does not.
 //
-// content_files holds the latest projected content of each repository and has
-// no generation column, so a stored manifest can be ahead of the active
-// generation: written by a generation that never activated (#7609). The
-// active generation's manifest is then unrecoverable from content_files, so
-// the producer set is the manifest match UNION ALL the dirty scopes: a scope
-// with a never-activated generation, an unstamped activation, or a manifest
-// newer than its activation. Extra scopes only add candidates the anchored scan
-// still gates on each definition's own package_id, so the union keeps the
+// content_files holds the latest projected content of each repository, stamped
+// with the writing generation (#7760). A stored manifest can be ahead of the
+// active generation: written by a generation that never activated (#7609).
+// The active generation's manifest is then unrecoverable from content_files,
+// so each manifest resolves by its tag: content is used only when the tag's
+// generation row exists with activated_at set. Any other tag state (NULL
+// legacy, dangling or retention-pruned, empty, or never-activated) fails safe
+// to a dirty NULL row. Per-row tags cannot see row-less scopes, so the
+// manifest-less leg keeps the never-activated-generation signal for repository
+// scopes with no stored manifest. Extra scopes only add candidates the anchored
+// scan still gates on each definition's own package_id, so dirty rows keep the
 // ambiguity rule exact while a dropped scope would bypass it. UNION ALL is safe:
 // the consumer sorts and compacts scope ids in Go, and NULL dirty rows can never
 // equal non-NULL manifest rows (content is NOT NULL).
 //
-// The dirty predicate is status-agnostic on purpose: Ack supersedes a refused
+// The tag rule is status-agnostic on purpose: Ack supersedes a refused
 // generation at the next activation, and a delta that does not touch package.json
-// leaves the refused content stored, so "pending/failed" or "newer than active"
-// both miss the supersede-then-delta hole. Generations outside the delta-baseline
-// chain are exactly the never-activated ones. Do NOT compare superseded_at to
-// activated_at: Ack stamps the prior active with the same clock, which would dirty
-// every scope with two activations.
+// leaves the refused content stored, so the tag's activated_at (never the status)
+// decides. A tag from an older activated generation is clean by carry-forward:
+// the active generation never rewrote the path, so the stored bytes are still
+// the active truth. Do NOT compare superseded_at to activated_at: Ack stamps
+// the prior active with the same clock, which would dirty every scope with two
+// activations.
 //
-// Both dirty legs are joins, not correlated EXISTS: the timestamp leg reads a
-// per-repository MAX(indexed_at) aggregate (MAX >= t is exactly EXISTS >= t) and
-// the generation leg is an IN semi-join the planner hashes once. manifest_max MUST
-// stay a LEFT JOIN so manifest-less scopes still evaluate the generation leg. The IN
-// list includes the active row itself when unstamped; the first disjunct covers it.
-//
-// Bounds on the timestamp leg: indexed_at and activated_at are app clocks
-// (ContentWriter.now / ProjectorQueue.now) that may live on different hosts,
-// so skew beyond the inter-generation gap can false-negative; a missing
-// activated_at fails safe to dirty. Residual: a manifest deleted by a write
-// with no generation row leaves no indexed_at trace and is uncatchable;
-// accepted as second-order (requires a crash-window write plus an
-// ambiguity-relevant load). Third residual: retention prunes superseded
-// never-activated generation rows regardless of activated_at
-// (generation_retention_sql.go), so once the signal row ages out, a post-hole
-// scope (stale manifest; deltas never rewrite the untouched path) goes clean
-// on both legs and returns to RED. The window opens only past the retention
-// horizon with an ambiguity-relevant load inside it. The permanent fix is the
-// generation tag on content_files (#7760).
+// Residual: a manifest deleted by a write with no generation row leaves no row
+// and no tag, and is uncatchable; accepted as second-order (requires a
+// crash-window write plus an ambiguity-relevant load). Second residual: the
+// migration-169 backfill attributes rows by indexed_at against the activation,
+// so a behind-skewed writer clock on a post-retention-hole scope can wrong-clean
+// exactly as the timestamp leg this tag replaces could; live unactivated
+// generations are still caught by the tag regardless of skew.
 //
 // The manifest read is a MATERIALIZED CTE on purpose. Inlined, the planner
 // estimates the scope join at one row and probes content_files once per
@@ -73,80 +68,146 @@ import (
 // docs/internal/evidence/7601-anchored-symbol-definition-loader.md.
 const PackageManifestsQuery = `
 WITH manifest AS MATERIALIZED (
-    SELECT repo_id, content, indexed_at
+    SELECT repo_id, content, generation_id
     FROM content_files
     WHERE (relative_path = 'package.json' OR relative_path LIKE '%/package.json')
       AND relative_path !~* '(^|/)node_modules[^/]*/'
 ),
-manifest_max AS (
-    SELECT repo_id, MAX(indexed_at) AS max_indexed_at FROM manifest GROUP BY repo_id
-),
-dirty AS (
-    SELECT scope.scope_id
-    FROM ingestion_scopes AS scope
-    JOIN scope_generations AS active
-      ON active.scope_id = scope.scope_id
-     AND active.generation_id = scope.active_generation_id
-    LEFT JOIN manifest_max
-      ON manifest_max.repo_id = scope.source_key
-    WHERE scope.scope_kind = 'repository'
-      AND active.status = 'active'
-      AND (
-        active.activated_at IS NULL
-        OR scope.scope_id IN (SELECT scope_id FROM scope_generations WHERE activated_at IS NULL)
-        OR manifest_max.max_indexed_at >= active.activated_at
-      )
+tagged AS (
+    SELECT manifest.repo_id, manifest.content, manifest.generation_id AS tag,
+           tag.generation_id AS tag_row_id, tag.activated_at AS tag_activated_at
+    FROM manifest
+    LEFT JOIN scope_generations AS tag ON tag.generation_id = manifest.generation_id
 )
 SELECT
     scope.scope_id,
-    manifest.content
-FROM manifest
+    CASE WHEN tagged.tag_activated_at IS NOT NULL THEN tagged.content END,
+    CASE WHEN tagged.tag_activated_at IS NOT NULL THEN 'clean'
+         WHEN tagged.tag IS NULL THEN 'null_tag'
+         WHEN tagged.tag_row_id IS NULL THEN 'dangling_tag'
+         ELSE 'unactivated_tag' END
+FROM tagged
 JOIN ingestion_scopes AS scope
-  ON scope.source_key = manifest.repo_id
+  ON scope.source_key = tagged.repo_id
  AND scope.scope_kind = 'repository'
 JOIN scope_generations AS generation
   ON generation.scope_id = scope.scope_id
  AND generation.generation_id = scope.active_generation_id
  AND generation.status = 'active'
 UNION ALL
-SELECT dirty.scope_id, NULL
-FROM dirty
+SELECT scope.scope_id, NULL, 'manifest_less'
+FROM ingestion_scopes AS scope
+JOIN scope_generations AS active
+  ON active.scope_id = scope.scope_id
+ AND active.generation_id = scope.active_generation_id
+ AND active.status = 'active'
+WHERE scope.scope_kind = 'repository'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM manifest
+    WHERE manifest.repo_id = scope.source_key
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM scope_generations AS pending
+    WHERE pending.scope_id = scope.scope_id
+      AND pending.activated_at IS NULL
+  )
 `
 
 // GoModuleManifestsQuery reads every stored go.mod manifest
 // of a repository scope that has an active generation. It mirrors the
-// package.json manifest read, including the MATERIALIZED CTE: inlined, the
-// planner probes content_files once per repository scope. Unlike the
-// package.json read it excludes no path: discovery already prunes vendor/
-// trees, and the reducer's Go module index honors every remaining module
-// root, so every stored go.mod is a candidate producer.
+// package.json manifest read, including the MATERIALIZED CTE and the
+// generation-tag rule (#7760): content resolves only when the writing
+// generation activated, and any other tag state fails safe to a dirty NULL
+// row the anchored scan always visits. Unlike the package.json read it
+// excludes no path: discovery already prunes vendor/ trees, and the
+// reducer's Go module index honors every remaining module root, so every
+// stored go.mod is a candidate producer. Behavior change versus the blind
+// predecessor: ahead go.mod content no longer resolves alone.
 const GoModuleManifestsQuery = `
 WITH manifest AS MATERIALIZED (
-    SELECT repo_id, content
+    SELECT repo_id, content, generation_id
     FROM content_files
     WHERE (relative_path = 'go.mod' OR relative_path LIKE '%/go.mod')
+),
+tagged AS (
+    SELECT manifest.repo_id, manifest.content, manifest.generation_id AS tag,
+           tag.generation_id AS tag_row_id, tag.activated_at AS tag_activated_at
+    FROM manifest
+    LEFT JOIN scope_generations AS tag ON tag.generation_id = manifest.generation_id
 )
 SELECT
     scope.scope_id,
-    manifest.content
-FROM manifest
+    CASE WHEN tagged.tag_activated_at IS NOT NULL THEN tagged.content END,
+    CASE WHEN tagged.tag_activated_at IS NOT NULL THEN 'clean'
+         WHEN tagged.tag IS NULL THEN 'null_tag'
+         WHEN tagged.tag_row_id IS NULL THEN 'dangling_tag'
+         ELSE 'unactivated_tag' END
+FROM tagged
 JOIN ingestion_scopes AS scope
-  ON scope.source_key = manifest.repo_id
+  ON scope.source_key = tagged.repo_id
  AND scope.scope_kind = 'repository'
 JOIN scope_generations AS generation
   ON generation.scope_id = scope.scope_id
  AND generation.generation_id = scope.active_generation_id
  AND generation.status = 'active'
+UNION ALL
+SELECT scope.scope_id, NULL, 'manifest_less'
+FROM ingestion_scopes AS scope
+JOIN scope_generations AS active
+  ON active.scope_id = scope.scope_id
+ AND active.generation_id = scope.active_generation_id
+ AND active.status = 'active'
+WHERE scope.scope_kind = 'repository'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM manifest
+    WHERE manifest.repo_id = scope.source_key
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM scope_generations AS pending
+    WHERE pending.scope_id = scope.scope_id
+      AND pending.activated_at IS NULL
+  )
 `
 
 // Store reads the producer manifests over an injected database handle.
 type Store struct {
-	database db.Queryer
+	database    db.Queryer
+	instruments *telemetry.Instruments
 }
 
 // New returns a Store over database.
 func New(database db.Queryer) Store {
 	return Store{database: database}
+}
+
+// WithInstruments returns a copy that records manifest tag outcomes.
+func (s Store) WithInstruments(instruments *telemetry.Instruments) Store {
+	s.instruments = instruments
+	return s
+}
+
+// recordTagOutcomes adds one counter sample per tag outcome observed in a
+// manifest read. It no-ops without instruments. The reads pass "package" and
+// "go module"; the label is normalized to the closed pair (package|gomod),
+// never the error text.
+func (s Store) recordTagOutcomes(ctx context.Context, kind string, outcomes map[string]int64) {
+	if s.instruments == nil {
+		return
+	}
+	metricKind := "package"
+	if kind != "package" {
+		metricKind = "gomod"
+	}
+	for outcome, count := range outcomes {
+		s.instruments.ProducerManifestTagOutcomes.Add(ctx, count, metric.WithAttributes(
+			telemetry.AttrKind(metricKind),
+			telemetry.AttrOutcome(outcome),
+		))
+	}
 }
 
 // PackageScopeIDs resolves package:<id>#<export> keys to the sorted, distinct
@@ -197,8 +258,10 @@ func (s Store) GoModuleScopeIDs(ctx context.Context, goKeys []string) ([]string,
 
 // scopeIDsWhere runs one manifest read and returns the sorted, distinct scope
 // ids whose manifest content satisfies match. A NULL manifest marks a dirty
-// scope (#7609) and is always included; only the package read returns NULL
-// rows (content_files.content is NOT NULL, so the go.mod read never does).
+// scope (#7609, #7760) and is always included: its tag is unknown, dangling,
+// or never-activated, so the anchored scan must visit it. Each row's tag
+// outcome is counted into ProducerManifestTagOutcomes once per read when the
+// store carries instruments.
 func (s Store) scopeIDsWhere(ctx context.Context, query, kind string, match func(content string) bool) ([]string, error) {
 	rows, err := s.database.QueryContext(ctx, query)
 	if err != nil {
@@ -206,13 +269,16 @@ func (s Store) scopeIDsWhere(ctx context.Context, query, kind string, match func
 	}
 	defer func() { _ = rows.Close() }()
 
+	outcomes := make(map[string]int64)
 	scopeIDs := make([]string, 0)
 	for rows.Next() {
 		var scopeID string
 		var content sql.NullString
-		if err := rows.Scan(&scopeID, &content); err != nil {
+		var outcome string
+		if err := rows.Scan(&scopeID, &content, &outcome); err != nil {
 			return nil, fmt.Errorf("list code call %s producer manifests: %w", kind, err)
 		}
+		outcomes[outcome]++
 		if !content.Valid {
 			scopeIDs = append(scopeIDs, scopeID)
 			continue
@@ -224,6 +290,7 @@ func (s Store) scopeIDsWhere(ctx context.Context, query, kind string, match func
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list code call %s producer manifests: %w", kind, err)
 	}
+	s.recordTagOutcomes(ctx, kind, outcomes)
 
 	slices.Sort(scopeIDs)
 	return slices.Compact(scopeIDs), nil

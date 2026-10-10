@@ -43,7 +43,7 @@ func TestReducerContentionGateActiveCodeCallSymbolGoAnchorEqualsCorpusScan(t *te
 	}
 
 	scope("scope:lib", "repository:r_lib")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_lib", "go.mod", "github.com/acme/lib", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_lib", "go.mod", "github.com/acme/lib", "generation-scope:lib", now)
 	fact("fact-lib-root", "scope:lib", "lib.go", "scip-go gomod github.com/acme/lib New().", 1)
 	fact("fact-lib-client", "scope:lib", "client/client.go", "scip-go gomod github.com/acme/lib/client Client#Request().", 2)
 	// A v2/ subdirectory of the root module: its import path continues the root
@@ -54,52 +54,52 @@ func TestReducerContentionGateActiveCodeCallSymbolGoAnchorEqualsCorpusScan(t *te
 
 	// A caller in another repository: its own module, no definition of the keys.
 	scope("scope:app", "repository:r_app")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_app", "go.mod", "github.com/acme/app", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_app", "go.mod", "github.com/acme/app", "generation-scope:app", now)
 	fact("fact-app-main", "scope:app", "main.go", "scip-go gomod github.com/acme/app Run().", 4)
 
 	// A /v2 module declared by its own repository.
 	scope("scope:lib-v2", "repository:r_lib_v2")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_lib_v2", "go.mod", "github.com/acme/lib/v2", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_lib_v2", "go.mod", "github.com/acme/lib/v2", "generation-scope:lib-v2", now)
 	fact("fact-lib-v2", "scope:lib-v2", "y/y.go", "scip-go gomod github.com/acme/lib/v2/y Mod().", 5)
 
 	// A multi-module repository: a root module and a nested one in sub/go.mod.
 	scope("scope:mono", "repository:r_mono")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_mono", "go.mod", "github.com/acme/mono", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_mono", "sub/go.mod", "github.com/acme/mono/sub", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_mono", "go.mod", "github.com/acme/mono", "generation-scope:mono", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_mono", "sub/go.mod", "github.com/acme/mono/sub", "generation-scope:mono", now)
 	fact("fact-mono-tools", "scope:mono", "tools/run.go", "scip-go gomod github.com/acme/mono/tools Run().", 6)
 	fact("fact-mono-sub", "scope:mono", "sub/api/api.go", "scip-go gomod github.com/acme/mono/sub/api Serve().", 7)
 
 	// One module declared by two repositories: both load, so the reducer keeps
 	// the key unresolved.
 	scope("scope:fork-a", "repository:r_fork_a")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_fork_a", "go.mod", "github.com/acme/forked", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_fork_a", "go.mod", "github.com/acme/forked", "generation-scope:fork-a", now)
 	fact("fact-fork-a", "scope:fork-a", "f.go", "scip-go gomod github.com/acme/forked Thing().", 8)
 	scope("scope:fork-b", "repository:r_fork_b")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_fork_b", "go.mod", "github.com/acme/forked", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_fork_b", "go.mod", "github.com/acme/forked", "generation-scope:fork-b", now)
 	fact("fact-fork-b", "scope:fork-b", "f.go", "scip-go gomod github.com/acme/forked Thing().", 9)
 
 	// A copy kept under third_party with its own go.mod: discovery does not
 	// prune that directory, so it is a producer like any other module.
 	scope("scope:third", "repository:r_third")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_third", "third_party/lib/go.mod", "github.com/acme/thirdcopy", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_third", "third_party/lib/go.mod", "github.com/acme/thirdcopy", "generation-scope:third", now)
 	fact("fact-third", "scope:third", "third_party/lib/t.go", "scip-go gomod github.com/acme/thirdcopy Copy().", 10)
 
 	// A lookalike module that shares only a string prefix with github.com/acme/lib.
 	scope("scope:ext", "repository:r_ext")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_ext", "go.mod", "github.com/acme/libext", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_ext", "go.mod", "github.com/acme/libext", "generation-scope:ext", now)
 	fact("fact-ext", "scope:ext", "e.go", "scip-go gomod github.com/acme/libext Other().", 11)
 
 	// A module whose path is only a string prefix of a requested import path
 	// (github.com/acme/mon against github.com/acme/mono/tools): with no path
 	// boundary it would be pulled into $5.
 	scope("scope:short", "repository:r_short")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_short", "go.mod", "github.com/acme/mon", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_short", "go.mod", "github.com/acme/mon", "generation-scope:short", now)
 	fact("fact-short", "scope:short", "s.go", "scip-go gomod github.com/acme/mon Short().", 13)
 
 	// A scope whose go.mod is stored but whose active generation is no longer
 	// active: it must stay out of the producer scopes passed as $5.
 	scope("scope:frozen", "repository:r_frozen")
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_frozen", "go.mod", "github.com/acme/frozen", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_frozen", "go.mod", "github.com/acme/frozen", "generation-scope:frozen", now)
 	fact("fact-frozen", "scope:frozen", "z.go", "scip-go gomod github.com/acme/frozen Old().", 12)
 	if _, err := database.ExecContext(ctx, `UPDATE scope_generations SET status = 'superseded' WHERE generation_id = 'generation-scope:frozen'`); err != nil {
 		t.Fatalf("supersede frozen generation: %v", err)
@@ -158,7 +158,7 @@ func TestReducerContentionGateActiveCodeCallSymbolGoAnchorStdlibKeysIssueNoDefin
 	ctx, database := openActiveCodeCallSymbolContentSchema(t)
 	now := time.Now().UTC()
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:lib", "repository:r_lib", "generation-lib", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_lib", "go.mod", "github.com/acme/lib", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_lib", "go.mod", "github.com/acme/lib", "generation-lib", now)
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib", "scope:lib", "generation-lib", "lib.go", "scip-go gomod github.com/acme/lib New().", now)
 	// A definition stored under a standard library key, in a scope with no
 	// go.mod: only the corpus-wide scan could find it.
@@ -193,7 +193,7 @@ func TestReducerContentionGateActiveCodeCallSymbolGoAnchorPagesPast500Rows(t *te
 	ctx, database := openActiveCodeCallSymbolContentSchema(t)
 	now := time.Now().UTC()
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:pages", "repository:r_pages", "generation-pages", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_pages", "go.mod", "github.com/acme/pages", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_pages", "go.mod", "github.com/acme/pages", "generation-pages", now)
 	if _, err := database.ExecContext(ctx, `
 INSERT INTO fact_records (
     fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
@@ -261,11 +261,11 @@ func TestReducerContentionGateActiveCodeCallSymbolThreeLegPartitionDedupes(t *te
 	const goKey = "scip-go gomod github.com/acme/lib New()."
 
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:logging", "repository:r_logging", "generation-logging", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_logging", "package.json", `{"name":"@acme/logging"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_logging", "package.json", `{"name":"@acme/logging"}`, "generation-logging", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-logging", "scope:logging", "generation-logging", "src/logger.js", "@acme/logging", "Logger", now)
 
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:lib", "repository:r_lib", "generation-lib", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_lib", "go.mod", "github.com/acme/lib", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_lib", "go.mod", "github.com/acme/lib", "generation-lib", now)
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib", "scope:lib", "generation-lib", "lib.go", goKey, now.Add(time.Second))
 	// One file that defines both a Go key and a key only the corpus scan serves.
 	if _, err := database.ExecContext(ctx, `

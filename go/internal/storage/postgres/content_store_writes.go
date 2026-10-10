@@ -11,10 +11,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
 
-// UpsertFileBatch persists file content records in batches.
+// UpsertFileBatch persists file content records in batches, tagging every
+// row with the writing generation (#7760) so active-generation reads can
+// tell current content from ahead writes.
 func (s ContentStore) UpsertFileBatch(
 	ctx context.Context,
 	repoID string,
+	generationID string,
 	files []content.Record,
 ) error {
 	if s.database == nil {
@@ -84,6 +87,7 @@ func (s ContentStore) UpsertFileBatch(
 			templateDialect,
 			iacRelevant,
 			indexedAt,
+			contentFileTagParam(generationID),
 		); err != nil {
 			return fmt.Errorf("upsert content_files for %q: %w", record.Path, err)
 		}

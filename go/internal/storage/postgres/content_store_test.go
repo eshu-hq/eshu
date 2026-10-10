@@ -318,7 +318,7 @@ func TestContentStoreUpsertFileBatchInsertsRows(t *testing.T) {
 		{Path: "util.go", Body: "package util\n", Metadata: map[string]string{"language": "go"}},
 	}
 
-	if err := store.UpsertFileBatch(context.Background(), "repo-1", files); err != nil {
+	if err := store.UpsertFileBatch(context.Background(), "repo-1", "generation-1", files); err != nil {
 		t.Fatalf("UpsertFileBatch() error = %v, want nil", err)
 	}
 	if got, want := len(db.execs), 2; got != want {
@@ -341,7 +341,7 @@ func TestContentStoreUpsertFileBatchDeletesTombstoned(t *testing.T) {
 		{Path: "deleted.go", Deleted: true},
 	}
 
-	if err := store.UpsertFileBatch(context.Background(), "repo-1", files); err != nil {
+	if err := store.UpsertFileBatch(context.Background(), "repo-1", "generation-1", files); err != nil {
 		t.Fatalf("UpsertFileBatch() error = %v, want nil", err)
 	}
 	if got, want := len(db.execs), 2; got != want {
@@ -360,7 +360,7 @@ func TestContentStoreUpsertFileBatchRejectsEmptyRepoID(t *testing.T) {
 
 	store := NewContentStore(&fakeExecQueryer{})
 
-	err := store.UpsertFileBatch(context.Background(), "", []content.Record{{Path: "a.go"}})
+	err := store.UpsertFileBatch(context.Background(), "", "generation-1", []content.Record{{Path: "a.go"}})
 	if err == nil {
 		t.Fatal("UpsertFileBatch() error = nil, want non-nil")
 	}
@@ -371,9 +371,33 @@ func TestContentStoreUpsertFileBatchRejectsEmptyPath(t *testing.T) {
 
 	store := NewContentStore(&fakeExecQueryer{})
 
-	err := store.UpsertFileBatch(context.Background(), "repo-1", []content.Record{{Path: ""}})
+	err := store.UpsertFileBatch(context.Background(), "repo-1", "generation-1", []content.Record{{Path: ""}})
 	if err == nil {
 		t.Fatal("UpsertFileBatch() error = nil, want non-nil")
+	}
+}
+
+func TestContentStoreUpsertFileBatchBindsNullForBlankGeneration(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewContentStore(db)
+
+	files := []content.Record{{Path: "main.go", Body: "package main\n"}}
+	if err := store.UpsertFileBatch(context.Background(), "repo-1", "   ", files); err != nil {
+		t.Fatalf("UpsertFileBatch() error = %v, want nil", err)
+	}
+	if got := len(db.execs); got != 1 {
+		t.Fatalf("exec count = %d, want 1", got)
+	}
+	// generation_id is the 12th bound arg; a blank writing generation must
+	// bind NULL (backfill-eligible), not an empty string (#7889 review).
+	args := db.execs[0].args
+	if got := len(args); got != 12 {
+		t.Fatalf("arg count = %d, want 12", got)
+	}
+	if args[11] != nil {
+		t.Fatalf("generation_id arg = %v, want nil", args[11])
 	}
 }
 
@@ -383,7 +407,7 @@ func TestContentStoreUpsertFileBatchSkipsEmpty(t *testing.T) {
 	db := &fakeExecQueryer{}
 	store := NewContentStore(db)
 
-	if err := store.UpsertFileBatch(context.Background(), "repo-1", nil); err != nil {
+	if err := store.UpsertFileBatch(context.Background(), "repo-1", "generation-1", nil); err != nil {
 		t.Fatalf("UpsertFileBatch() error = %v, want nil", err)
 	}
 	if got := len(db.execs); got != 0 {

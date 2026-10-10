@@ -398,4 +398,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 168 (#7777) adds the webhook trigger claim fencing token and
 	// stale-claim reap index that only the store's EnsureSchema created.
 	"webhook_refresh_triggers_claim_fencing",
+	// Migration 169 (#7760) adds the content_files generation tag and
+	// backfills legacy rows to the scope's active generation where the
+	// fail-safe guard clauses hold.
+	"content_files_generation_id",
 }

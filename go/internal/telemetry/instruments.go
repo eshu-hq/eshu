@@ -1973,6 +1973,16 @@ type Instruments struct {
 	CodeCallEdgeBatches                metric.Int64Counter
 	CodeCallEdgeDuration               metric.Float64Histogram
 
+	// ProducerManifestTagOutcomes counts code-call producer manifest rows by
+	// generation-tag outcome (#7760), labeled by a closed kind
+	// (package|gomod) and outcome
+	// (clean|null_tag|dangling_tag|unactivated_tag|manifest_less). A nonzero
+	// dirty rate is normal during migration convergence (legacy NULL tags);
+	// a sustained unactivated_tag rate afterwards means ahead writes keep
+	// landing, and a dangling_tag rate means generation rows are pruned
+	// while their content survives.
+	ProducerManifestTagOutcomes metric.Int64Counter
+
 	CanonicalProjectionDuration metric.Float64Histogram
 
 	// Canonical atomic write metrics
@@ -5581,6 +5591,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CodeCallEdgeDuration histogram: %w", err)
+	}
+
+	inst.ProducerManifestTagOutcomes, err = meter.Int64Counter(
+		"eshu_dp_producer_manifest_tag_outcomes_total",
+		metric.WithDescription("Code-call producer manifest rows by generation-tag outcome, labeled by kind (package|gomod) and outcome (clean|null_tag|dangling_tag|unactivated_tag|manifest_less) (#7760)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProducerManifestTagOutcomes counter: %w", err)
 	}
 
 	inst.CanonicalAtomicWrites, err = meter.Int64Counter(

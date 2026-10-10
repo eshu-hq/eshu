@@ -343,6 +343,7 @@ prerequisite-phase stall signal, distinct from backoff.
 | `eshu_dp_canonical_projection_duration_seconds` | histogram | Canonical projection phase cost. |
 | `eshu_dp_graph_write_backpressure_engaged_total` | counter | Graph writes that blocked for an in-flight permit (write-path backpressure engaged), labeled by operation and gate (`canonical` or `semantic`; the projector has a single pool and always reports `canonical`). |
 | `eshu_dp_graph_write_backpressure_wait_seconds` | histogram | Time a graph write blocked waiting for an in-flight permit, labeled by operation and gate (`canonical` or `semantic`). |
+| `eshu_dp_producer_manifest_tag_outcomes_total` | counter | Code-call producer manifest rows by generation-tag outcome (#7760). Labeled by `kind` (`package` or `gomod`) and `outcome` (`clean`, `null_tag`, `dangling_tag`, `unactivated_tag`, or `manifest_less`); one sample per row each manifest read sees. A rising non-clean share means tags are failing safe to dirty NULL rows the anchored scan still visits. Post-deploy diagnostic: wrap either manifest query as `SELECT outcome, count(*) FROM (<query>) AS q(scope_id, content, outcome) GROUP BY 1 ORDER BY 1;` (see `docs/internal/evidence/7760-generation-tag.md`). |
 
 Use graph/storage metrics before tuning NornicDB row caps, Neo4j batch sizes, or
 worker counts. A non-zero `eshu_dp_graph_write_backpressure_engaged_total` rate

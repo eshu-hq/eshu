@@ -10,13 +10,18 @@ import (
 	"reflect"
 	"testing"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// fakeRows serves (scope_id, content) pairs. A nil content models the NULL
-// manifest of a dirty scope (#7609).
+// fakeRows serves (scope_id, content, tag_outcome) triples. A nil content
+// models the NULL manifest of a dirty scope (#7609); the outcome names the
+// tag rule that produced it (#7760).
 type fakeRows struct {
-	rows [][2]any
+	rows [][3]any
 	next int
 	err  error
 }
@@ -37,6 +42,7 @@ func (f *fakeRows) Scan(dest ...any) error {
 	default:
 		return errors.New("fakeRows supports *string and *sql.NullString destinations")
 	}
+	*(dest[2].(*string)) = row[2].(string)
 	return nil
 }
 func (f *fakeRows) Err() error   { return f.err }
@@ -44,7 +50,7 @@ func (f *fakeRows) Close() error { return nil }
 
 type fakeQueryer struct {
 	queries []string
-	rows    [][2]any
+	rows    [][3]any
 	err     error
 }
 
@@ -59,14 +65,14 @@ func (f *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (d
 func TestGoModuleScopeIDsMatchesModuleOrPathPrefix(t *testing.T) {
 	t.Parallel()
 
-	q := &fakeQueryer{rows: [][2]any{
-		{"scope-lib", "module github.com/acme/lib\n"},
-		{"scope-lib", "module github.com/acme/lib\n"}, // nested go.mod of the same repository
-		{"scope-v2", "module github.com/acme/lib/v2\n"},
-		{"scope-ext", "module github.com/acme/libext\n"},
-		{"scope-mono", "module github.com/acme/mono\r\n"},
-		{"scope-broken", "go 1.24\n"},
-		{"scope-commented", "module github.com/acme/lib // old\n"},
+	q := &fakeQueryer{rows: [][3]any{
+		{"scope-lib", "module github.com/acme/lib\n", "clean"},
+		{"scope-lib", "module github.com/acme/lib\n", "clean"}, // nested go.mod of the same repository
+		{"scope-v2", "module github.com/acme/lib/v2\n", "clean"},
+		{"scope-ext", "module github.com/acme/libext\n", "clean"},
+		{"scope-mono", "module github.com/acme/mono\r\n", "clean"},
+		{"scope-broken", "go 1.24\n", "clean"},
+		{"scope-commented", "module github.com/acme/lib // old\n", "clean"},
 	}}
 	got, err := New(q).GoModuleScopeIDs(context.Background(), []string{
 		"scip-go gomod github.com/acme/lib/client Client#Request().",
@@ -87,11 +93,11 @@ func TestGoModuleScopeIDsMatchesModuleOrPathPrefix(t *testing.T) {
 func TestPackageScopeIDsMatchesManifestName(t *testing.T) {
 	t.Parallel()
 
-	q := &fakeQueryer{rows: [][2]any{
-		{"scope-a", `{"name":"@acme/logging"}`},
-		{"scope-b", `{"name":"@acme/other"}`},
-		{"scope-c", `{"name":"@acme/logging"}`},
-		{"scope-bad", `{"name":`},
+	q := &fakeQueryer{rows: [][3]any{
+		{"scope-a", `{"name":"@acme/logging"}`, "clean"},
+		{"scope-b", `{"name":"@acme/other"}`, "clean"},
+		{"scope-c", `{"name":"@acme/logging"}`, "clean"},
+		{"scope-bad", `{"name":`, "clean"},
 	}}
 	got, err := New(q).PackageScopeIDs(context.Background(), []string{"package:@acme/logging#Logger"})
 	if err != nil {
@@ -105,9 +111,9 @@ func TestPackageScopeIDsMatchesManifestName(t *testing.T) {
 func TestPackageScopeIDsIncludesNullDirtyScopes(t *testing.T) {
 	t.Parallel()
 
-	q := &fakeQueryer{rows: [][2]any{
-		{"scope-dirty", nil},
-		{"scope-other", `{"name":"@acme/unrelated"}`},
+	q := &fakeQueryer{rows: [][3]any{
+		{"scope-dirty", nil, "dangling_tag"},
+		{"scope-other", `{"name":"@acme/unrelated"}`, "clean"},
 	}}
 	got, err := New(q).PackageScopeIDs(context.Background(), []string{"package:@acme/shared#Thing"})
 	if err != nil {
@@ -150,9 +156,9 @@ func TestScopeIDsWrapQueryErrors(t *testing.T) {
 func TestGoModuleScopeIDsRequiresPathBoundary(t *testing.T) {
 	t.Parallel()
 
-	q := &fakeQueryer{rows: [][2]any{
-		{"scope-lib", "module github.com/acme/lib\n"},
-		{"scope-ext", "module github.com/acme/libext\n"},
+	q := &fakeQueryer{rows: [][3]any{
+		{"scope-lib", "module github.com/acme/lib\n", "clean"},
+		{"scope-ext", "module github.com/acme/libext\n", "clean"},
 	}}
 	got, err := New(q).GoModuleScopeIDs(context.Background(), []string{"scip-go gomod github.com/acme/libext/x Do()."})
 	if err != nil {
@@ -160,5 +166,61 @@ func TestGoModuleScopeIDsRequiresPathBoundary(t *testing.T) {
 	}
 	if want := []string{"scope-ext"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("scopes = %v, want %v", got, want)
+	}
+}
+
+// TestScopeIDsRecordTagOutcomes proves each manifest read counts every row it
+// saw under kind and the tag outcome the SQL rule assigned, so an operator
+// can watch dirty-tagged manifests without reading the database (#7760). It
+// covers both reads, pinning that "go module" normalizes to gomod.
+func TestScopeIDsRecordTagOutcomes(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	q := &fakeQueryer{rows: [][3]any{
+		{"scope-clean", `{"name":"@acme/shared"}`, "clean"},
+		{"scope-dirty", nil, "dangling_tag"},
+		{"scope-less", nil, "manifest_less"},
+	}}
+	if _, err := New(q).WithInstruments(instruments).PackageScopeIDs(context.Background(), []string{"package:@acme/shared#Thing"}); err != nil {
+		t.Fatalf("PackageScopeIDs() error = %v, want nil", err)
+	}
+	// The go.mod read passes "go module" and must still land on gomod.
+	g := &fakeQueryer{rows: [][3]any{
+		{"scope-lib", "module github.com/acme/lib\n", "clean"},
+		{"scope-dirty", nil, "unactivated_tag"},
+	}}
+	if _, err := New(g).WithInstruments(instruments).GoModuleScopeIDs(context.Background(), []string{"scip-go gomod github.com/acme/lib/client Client#Request()."}); err != nil {
+		t.Fatalf("GoModuleScopeIDs() error = %v, want nil", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	got := map[string]int64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "eshu_dp_producer_manifest_tag_outcomes_total" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("%s data = %T, want Sum[int64]", m.Name, m.Data)
+			}
+			for _, point := range sum.DataPoints {
+				kind, _ := point.Attributes.Value(telemetry.MetricDimensionKind)
+				outcome, _ := point.Attributes.Value(telemetry.MetricDimensionOutcome)
+				got[kind.AsString()+"/"+outcome.AsString()] += point.Value
+			}
+		}
+	}
+	want := map[string]int64{"package/clean": 1, "package/dangling_tag": 1, "package/manifest_less": 1, "gomod/clean": 1, "gomod/unactivated_tag": 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("tag outcomes = %v, want %v", got, want)
 	}
 }

@@ -26,10 +26,15 @@ and `internal/parser/go_package_module_import_path.go`.
 - `PackageName` and `PackageManifestName` do the same for `package:` keys and
   package.json manifests.
 - `New(db.Queryer)` returns a `Store` with `PackageScopeIDs` and
-  `GoModuleScopeIDs`. The package read also returns every dirty scope (a
-  stored manifest possibly ahead of the active generation, #7609) as a NULL
-  row, so the producer set never drops a candidate; see
-  `docs/internal/evidence/7609-manifest-generation.md`.
+  `GoModuleScopeIDs`. Both reads bind stored content to the writing
+  generation through the `content_files` generation tag (#7760): a row whose
+  tag names no activated generation returns as a NULL row, so the producer
+  set never drops a candidate; scopes with no stored manifest but a
+  never-activated generation resolve dirty through a manifest-less leg. See
+  `docs/internal/evidence/7760-generation-tag.md` (and its predecessor,
+  `docs/internal/evidence/7609-manifest-generation.md`).
+- `WithInstruments` counts every row each read sees into
+  `eshu_dp_producer_manifest_tag_outcomes_total` by `kind` and `outcome`.
 
 ## Why the Go rule is exact
 

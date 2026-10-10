@@ -190,7 +190,7 @@ func (s FactStore) loadCodeCallSymbolDefinitionLegs(
 	packageKeys, goKeys, otherKeys []string,
 	load *codeCallSymbolLoadStats,
 ) ([]facts.Envelope, error) {
-	producers := producerstore.New(s.database)
+	producers := producerstore.New(s.database).WithInstruments(s.instruments)
 
 	var loaded []facts.Envelope
 	if len(otherKeys) > 0 {

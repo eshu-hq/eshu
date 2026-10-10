@@ -121,9 +121,9 @@ func buildReducerService(
 	resolutionsComplete := postgres.NewRelationshipGenerationsCompleteLookup(relationshipStore)
 	// Best-effort holder list for fence deferral errors (#6730).
 	incompleteScopes := postgres.NewRelationshipGenerationsIncompleteScopesLookup(relationshipStore)
-	factStore := postgres.NewFactStore(database)
+	factStore := postgres.NewFactStore(database).WithInstruments(instruments)
 	if identityCache != nil {
-		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache)
+		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache).WithInstruments(instruments)
 	}
 	admissionDecisionWriter := newAdmissionDecisionWriter(database)
 	codeCallIntentWriter := postgres.NewCodeCallIntentWriterWithInstruments(database, instruments)

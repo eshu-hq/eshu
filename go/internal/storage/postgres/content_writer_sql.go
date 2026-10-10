@@ -3,13 +3,15 @@
 
 package postgres
 
+import "strings"
+
 // Batch-size and column-count constants for the content writer's multi-row
 // INSERT statements. The product must stay under the Postgres 65535
-// parameter limit: 500 file rows × 11 columns = 5500 params; 300 entity
+// parameter limit: 500 file rows × 12 columns = 6000 params; 300 entity
 // rows × 16 columns = 4800 params; both comfortable.
 const (
 	contentFileBatchSize    = 500
-	columnsPerContentFile   = 11
+	columnsPerContentFile   = 12
 	contentEntityBatchSize  = 300 // 16 columns × 300 = 4800 params, under 65535
 	columnsPerContentEntity = 16
 	columnsPerRepositoryRef = 7
@@ -18,14 +20,15 @@ const (
 // upsertContentFileQuery is the single-row upsert used by callers that
 // write one file at a time (not the batched path). Kept alongside the
 // batch prefix/suffix so the conflict update list cannot drift between
-// the two shapes.
+// the two shapes. generation_id is the writing generation (#7760): readers
+// that pin content to the active generation fail safe on it.
 const upsertContentFileQuery = `
 INSERT INTO content_files (
     repo_id, relative_path, commit_sha, content, content_hash,
     line_count, language, artifact_type, template_dialect,
-    iac_relevant, indexed_at
+    iac_relevant, indexed_at, generation_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 )
 ON CONFLICT (repo_id, relative_path) DO UPDATE
 SET commit_sha = EXCLUDED.commit_sha,
@@ -36,7 +39,8 @@ SET commit_sha = EXCLUDED.commit_sha,
     artifact_type = EXCLUDED.artifact_type,
     template_dialect = EXCLUDED.template_dialect,
     iac_relevant = EXCLUDED.iac_relevant,
-    indexed_at = EXCLUDED.indexed_at
+    indexed_at = EXCLUDED.indexed_at,
+    generation_id = EXCLUDED.generation_id
 `
 
 // upsertContentFileBatchPrefix and upsertContentFileBatchSuffix bracket
@@ -46,7 +50,7 @@ SET commit_sha = EXCLUDED.commit_sha,
 const upsertContentFileBatchPrefix = `INSERT INTO content_files (
     repo_id, relative_path, commit_sha, content, content_hash,
     line_count, language, artifact_type, template_dialect,
-    iac_relevant, indexed_at
+    iac_relevant, indexed_at, generation_id
 ) VALUES `
 
 const upsertContentFileBatchSuffix = `
@@ -59,8 +63,22 @@ SET commit_sha = EXCLUDED.commit_sha,
     artifact_type = EXCLUDED.artifact_type,
     template_dialect = EXCLUDED.template_dialect,
     iac_relevant = EXCLUDED.iac_relevant,
-    indexed_at = EXCLUDED.indexed_at
+    indexed_at = EXCLUDED.indexed_at,
+    generation_id = EXCLUDED.generation_id
 `
+
+// contentFileTagParam is the single blank-to-NULL rule for the
+// content_files generation tag (#7760). Both write paths (the batched
+// ContentWriter path and the single-row ContentStore path) bind through
+// it: a blank writing generation stores NULL, not an empty string. Both
+// read dirty (fail-safe), but only NULL stays eligible for the
+// migration-169 backfill guard.
+func contentFileTagParam(generationID string) any {
+	if strings.TrimSpace(generationID) == "" {
+		return nil
+	}
+	return generationID
+}
 
 // deleteContentFileQuery removes one file row for a tombstoned record.
 // The matching content_file_references rows are removed separately via
