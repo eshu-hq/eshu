@@ -1,0 +1,28 @@
+.agents/skills/eshu-publish/scripts/test-check-shape.sh
+  s_b0d7e3abc26c5a::t_76d677c2c54668 92-97,100-101
+  s_b0d7e3abc26c5a::t_21cb46c8db76ab 98-99,102-103
+.agents/skills/eshu-publish/SKILL.md
+  s_b0d7e3abc26c5a::t_4c1e1fb3245131 83-84,103-104
+.agents/skills/eshu-publish/references/pull-request.md
+  s_b0d7e3abc26c5a::t_4c1e1fb3245131 19-20
+.agents/skills/eshu-publish/scripts/check-shape.sh
+  s_b0d7e3abc26c5a::t_a8d58ee1dfe2c8 127-130
+AGENTS.md
+  s_b0d7e3abc26c5a::t_4c1e1fb3245131 98-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "650fb7957d96431fe030b96746dc8969b1cc97eb",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
