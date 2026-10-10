@@ -1,0 +1,423 @@
+version: v1
+gates:
+  - id: sdk-go-factschema
+    name: "SDK Go: factschema build/test/vet/fmt/boundary/generate"
+    category: exactness
+    layer: contract
+    purpose: "Builds, tests, and regenerates the factschema SDK module, failing if generated artifacts don't match committed source."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "sdk/go/factschema/**"
+      - ".github/workflows/sdk-go.yml"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "cd sdk/go/factschema && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal' && go generate ./... && test -z \"$(git status --porcelain -- .)\""
+      test_command: ""
+    ci:
+      workflow: sdk-go.yml
+      job: "SDK Go: factschema"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # #4602: same rationale as sdk-go-collector, plus a go generate drift
+    # check — factschema's derived JSON Schema/Go artifacts must match their
+    # source, or a schema edit without regeneration ships a stale artifact.
+
+  - id: mcp-schema-drift
+    name: MCP Schema Drift
+    category: exactness
+    layer: contract
+    purpose: "Fails when MCP tool or capability schemas drift from the capability catalog and surface-inventory specs."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/mcp/**"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/surface-inventory.v1.yaml"
+      - "specs/product-claims.v1.yaml"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "bash scripts/dev/precommit-go.sh surface"
+      pre_push: floor
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify capability inventory"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # Note: capability-surface-inventory hook also runs this surface check at
+    # commit time; hook_id is on capability-surface-inventory gate below.
+
+  # Owner rows for the `Verify ReadOnlyTools count` and `Full MCP test suite`
+  # jobs of mcp-schema-drift.yml. Both had no row, so a failing MCP test never
+  # blocked a merge. Their `if:` skips them on a docs-only pull request and
+  # runs them on merge_group and push; the triggers are go/** and sdk/go/**
+  # because the MCP package tests import the rest of the Go module and the two
+  # SDK modules it replaces from ../sdk. Green across the 90 most recent runs
+  # of the workflow (merge_group, push and pull_request), and no merge_group
+  # failure in the failed-run history.
+  - id: mcp-tool-count
+    name: MCP ReadOnlyTools count
+    category: exactness
+    layer: contract
+    purpose: "Fails when the number of read-only MCP tools differs from the count the contract test pins."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "sdk/go/**"
+      - "scripts/go-test-run-guard.sh"
+      - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/mcp-schema-drift.yml"
+    local:
+      command: "cd go && go test ./internal/mcp/ -run '^TestReadOnlyTools$' -count=1"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify ReadOnlyTools count"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: mcp-test-suite
+    name: Full MCP test suite
+    category: exactness
+    layer: unit
+    purpose: "Runs every test under the MCP server packages so a broken tool handler or envelope fails before merge."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "sdk/go/**"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/mcp-schema-drift.yml"
+    local:
+      command: "cd go && go test ./internal/mcp/... -count=1 -timeout 120s"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Full MCP test suite"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: capability-inventory
+    name: Capability Inventory Verify
+    category: exactness
+    layer: contract
+    purpose: "Runs the capability-inventory tool in verify mode to check the capability catalog matches the code."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/cmd/capability-inventory/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/mcp/**"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "specs/surface-inventory.v1.yaml"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "cd go && go run ./cmd/capability-inventory -mode verify"
+      pre_push: floor
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify capability inventory"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: capability-inventory-docs
+    name: Capability Inventory Docs/Product Claims Verify
+    category: exactness
+    layer: contract
+    purpose: "Runs the capability-inventory tool in docs mode to check public docs and README match the capability catalog."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/cmd/capability-inventory/**"
+      - "go/internal/capabilitycatalog/**"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "specs/product-claims.v1.yaml"
+      - "docs/**"
+      - "README.md"
+    local:
+      command: "cd go && go run ./cmd/capability-inventory -mode docs"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify capability inventory"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: parser-relationship-kit
+    name: Verify Parser Relationship Kit
+    category: exactness
+    layer: contract
+    purpose: "Checks parser-documented test commands, language-parity ledgers, and dead-code maturity data still match the parser code."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - "docs/**/*.md"
+      - "*.md"
+      - "go/internal/parser/**"
+      - "go/internal/relationships/**"
+      - "specs/language-feature-parity-ledger.v1.yaml"
+      - "specs/parser-backing-ledger.v1.yaml"
+      - "scripts/lib/gate-diff-base.sh"
+      - "scripts/lib/parser_documented_test_commands.sh"
+      - "scripts/lib/parser_documented_test_goflags.sh"
+      - "scripts/lib/parser_documented_test_preamble_assignments.sh"
+      - "scripts/lib/parser_documented_test_scan.sh"
+      - "scripts/lib/parser_documented_test_selector.sh"
+      - "scripts/lib/parser_documented_test_workdir.sh"
+      - "scripts/lib/parser_selector_matcher.go"
+      - "scripts/lib/parser_relationship_language_ledger.sh"
+      - "scripts/lib/parser_relationship_comment_only_diff.sh"
+      - "scripts/lib/parser_relationship_dead_code_maturity.sh"
+      - "go/cmd/token-diff/**"
+      - "scripts/lib/test-verify-parser-relationship-kit-*"
+      - "scripts/test-verify-parser-relationship-kit.sh"
+      - "scripts/verify-parser-relationship-kit.sh"
+    self_test_triggers:
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/parser-backing-ledger.v1.yaml"
+      - "scripts/lib/gate-diff-base.sh"
+      - "scripts/lib/parser_documented_test_commands.sh"
+      - "scripts/lib/parser_documented_test_goflags.sh"
+      - "scripts/lib/parser_documented_test_preamble_assignments.sh"
+      - "scripts/lib/parser_documented_test_scan.sh"
+      - "scripts/lib/parser_documented_test_selector.sh"
+      - "scripts/lib/parser_documented_test_workdir.sh"
+      - "scripts/lib/parser_selector_matcher.go"
+      - "scripts/lib/parser_relationship_language_ledger.sh"
+      - "scripts/lib/parser_relationship_comment_only_diff.sh"
+      - "scripts/lib/parser_relationship_dead_code_maturity.sh"
+      - "go/cmd/token-diff/**"
+      - "scripts/lib/test-verify-parser-relationship-kit-*"
+      - "scripts/test-verify-parser-relationship-kit.sh"
+      - "scripts/verify-parser-relationship-kit.sh"
+    local:
+      command: "bash scripts/verify-parser-relationship-kit.sh"
+      test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 45s, ~6% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete)."
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify parser relationship kit gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: accuracy-golden-gate
+    name: Verify Accuracy Golden Gate
+    category: exactness
+    layer: truth
+    purpose: "Fails when parser/reducer accuracy metrics (complexity, call resolution, correlation precision) drop below the published baseline floor."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/parser/**"
+      - "go/internal/relationships/**"
+      - "testdata/golden/**"
+      - "scripts/verify_accuracy_golden_gate.sh"
+    local:
+      command: "bash scripts/verify_accuracy_golden_gate.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: heredoc-budget
+    name: Heredoc Budget (bash 5.1+ pipe-buffer deadlock guard)
+    category: exactness
+    layer: hygiene
+    purpose: "Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/static-contract-filters.yml"
+      - "scripts/**/*.sh"
+      - "scripts/heredoc-budget-baseline.txt"
+      - "go/cmd/heredoc-budget/**"
+    local:
+      command: "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
+      test_command: "cd go && go test ./cmd/heredoc-budget -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify heredoc budget gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: query-plan-regression
+    name: Verify Query Plan Regression
+    category: exactness
+    layer: performance
+    purpose: "Runs a live Neo4j PROFILE proof plus manifest-binding tests to catch query-plan regressions and index misses."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "go/internal/query/**"
+      - "go/internal/storage/cypher/**"
+      - "scripts/test-verify-query-plan-regression.sh"
+      - "scripts/verify-query-plan-regression.sh"
+      - "scripts/verify-query-plan-profile.sh"
+      - "scripts/lib/go-test-run-guard.sh"
+    local:
+      command: "bash scripts/verify-query-plan-regression.sh"
+      test_command: "bash scripts/test-verify-query-plan-regression.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 30s (Docker), ~8% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via test.yml's verify-contracts job (required-gates-complete). Run `make pre-pr` before a hot-path Cypher or graph-write change: this is the gate that proves the query plan did not regress."
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: scale-corpus-suite
+    name: Verify Scale Corpus Suite
+    category: exactness
+    layer: contract
+    purpose: "Validates the public scale-lab corpus spec has the required structure and contains no private data before use."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/parser/**"
+      - "specs/scale-lab-corpus.v1.yaml"
+      - "scripts/test-verify-scale-corpus-suite.sh"
+      - "scripts/verify-scale-corpus-suite.sh"
+      - "scripts/lib/test-verify-scale-corpus-suite-missing-pathological.yaml"
+    self_test_triggers:
+      - "specs/scale-lab-corpus.v1.yaml"
+      - "scripts/test-verify-scale-corpus-suite.sh"
+      - "scripts/verify-scale-corpus-suite.sh"
+      - "scripts/lib/test-verify-scale-corpus-suite-missing-pathological.yaml"
+    local:
+      command: "bash scripts/verify-scale-corpus-suite.sh"
+      test_command: "bash scripts/test-verify-scale-corpus-suite.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: scale-benchmark-artifact
+    name: Verify Scale Benchmark Artifact
+    category: exactness
+    layer: contract
+    purpose: "Validates the scale-benchmark artifact contract spec and, if given a result file, that it has the required metric fields."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/reducer/**"
+      - "specs/scale-benchmark-artifact.v1.yaml"
+      - "scripts/test-verify-scale-benchmark-artifact.sh"
+      - "scripts/verify-scale-benchmark-artifact.sh"
+    local:
+      command: "bash scripts/verify-scale-benchmark-artifact.sh"
+      test_command: "bash scripts/test-verify-scale-benchmark-artifact.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: capability-budget-proof
+    name: Verify Capability Budget Proof
+    category: exactness
+    layer: contract
+    purpose: "Validates the capability performance-budget proof contract matches the capability catalog spec."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/mcp/**"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-budget-proof.v1.yaml"
+      - "scripts/test-verify-capability-budget-proof.sh"
+      - "scripts/verify-capability-budget-proof.sh"
+    local:
+      command: "bash scripts/verify-capability-budget-proof.sh"
+      test_command: "bash scripts/test-verify-capability-budget-proof.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: collector-entrypoints-generated
+    name: Verify Generated Collector Entrypoints
+    category: exactness
+    layer: contract
+    purpose: "Fails when the generated collector entrypoints file is out of sync with the collector fact contract spec."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/cmd/ingester/**"
+      - "specs/collector_fact_contract.v1.yaml"
+      - "scripts/test-verify-collector-entrypoints-generated.sh"
+      - "scripts/verify-collector-entrypoints-generated.sh"
+    local:
+      command: "bash scripts/verify-collector-entrypoints-generated.sh"
+      test_command: "bash scripts/test-verify-collector-entrypoints-generated.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: capability-surface-inventory
+    name: Capability Surface Inventory drift
+    category: exactness
+    layer: contract
+    purpose: "Fails when the generated MCP capability surface-inventory JSON drifts from the actual command/tool surface."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/cmd/**"
+      - "go/internal/mcp/**"
+      - "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
+      - "specs/surface-inventory.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "bash scripts/dev/precommit-go.sh surface"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify capability inventory"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: capability-surface-inventory
+
+  # ─── TELEMETRY ─────────────────────────────────────────────────────────────

@@ -1,0 +1,422 @@
+version: v1
+gates:
+  - id: live-backend-static-mirror
+    name: Live backend static mirrors (ledger and runner probes)
+    category: exactness
+    layer: contract
+    purpose: "Validates the live-test ledger against every live test under go/ and probes the live-backend runner script without Docker."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
+      - "scripts/lib/live_tests_registry.py"
+      - "scripts/test-live-tests-registry.py"
+      - "scripts/lib/live_postgres_readiness_inventory.py"
+      - "scripts/run-live-backend-tests.sh"
+      - "scripts/test-run-live-backend-tests.sh"
+      - "scripts/verify-live-tests-ledger.sh"
+      - "scripts/test-verify-live-tests-ledger.sh"
+      - "scripts/lib/live_backend_test_targets.py"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "docker-compose.live-backend-nornicdb.yml"
+      - "docker-compose.live-backend-neo4j.yml"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
+      - ".github/workflows/live-backend-tests.yml"
+    local:
+      command: "bash scripts/verify-live-tests-ledger.sh"
+      test_command: "bash scripts/test-verify-live-tests-ledger.sh"
+    ci:
+      workflow: live-backend-tests.yml
+      job: "static-mirror (ledger and runner probes)"
+    requirements: []
+    ci_only_reason: ""
+
+  # #7529 staging row. The trusted publisher reads main's registry, so the
+  # new check first lands non-blocking and flips after a green main run.
+  - id: live-postgres-readiness
+    name: Live PostgreSQL Readiness (disposable PostgreSQL 18)
+    category: exactness
+    layer: performance
+    purpose: "Runs the PostgreSQL proofs listed in live_postgres_readiness_results.py with explicit pass-event accounting; skips and missing tests fail."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "go/internal/query/supply/chain/impact/**"
+      - "go/internal/query/admin/**"
+      - "go/internal/query/code_topic*.go"
+      - "go/internal/query/content_reader_code_topic.go"
+      - "go/internal/query/content_reader_search_page.go"
+      - "go/internal/query/codetopicparallel/**"
+      - "go/internal/runtime/postgres/**"
+      - "go/internal/query/content_reader_dead_code*.go"
+      - "go/internal/query/status*.go"
+      - "go/internal/query/search/unscoped/**"
+      - "go/internal/query/content_reader_search*.go"
+      - "go/internal/query/contentread/content_handler*.go"
+      - "go/internal/status/**"
+      - "go/internal/storage/postgres/**"
+      - "go/cmd/reducer/**"
+      - "go/internal/reducer/maintenance/**"
+      - "go/internal/testutil/postgresproof/**"
+      - "go/internal/reducer/status/**"
+      - "go/go.mod"
+      - "go/go.sum"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
+      - "scripts/lib/live_tests_registry.py"
+      - "scripts/test-live-tests-registry.py"
+      - "scripts/lib/live_postgres_readiness_inventory.py"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - "scripts/run-live-postgres-readiness-tests.sh"
+      - "scripts/test-run-live-postgres-readiness-tests.sh"
+      - "scripts/ci/live-postgres-standby-fixture.sh"
+      - "scripts/test-live-postgres-standby-fixture.sh"
+      - "scripts/lib/live_postgres_readiness_results.py"
+      - "scripts/lib/live_postgres_readiness_events.py"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/verify-live-tests-ledger.sh"
+      - "scripts/test-verify-live-tests-ledger.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - ".github/workflows/live-postgres-readiness.yml"
+      - ".github/workflows/required-gates.yml"
+    local:
+      command: "bash scripts/test-run-live-postgres-readiness-tests.sh"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: live-postgres-readiness.yml
+      job: "live-postgres-readiness (postgres18)"
+      check_names:
+        - "live-postgres-readiness (postgres18)"
+    requirements:
+      - go
+      - postgres
+    ci_only_reason: ""
+
+  - id: golden-corpus-differential
+    name: Differential NornicDB vs Neo4j oracle (Docker)
+    category: exactness
+    layer: truth
+    purpose: "Runs the golden corpus on NornicDB and Neo4j with capture; failed runs, empty captures, missing coverage or unanchored id writers block, row diffs are advisory."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/internal/graph/**"
+      - "go/internal/backendconformance/**"
+      - "go/internal/queryplan/**"
+      - "go/cmd/golden-corpus-gate/**"
+      - "go/cmd/projector/**"
+      - "go/cmd/reducer/**"
+      - "go/cmd/bootstrap-index/**"
+      - "go/cmd/api/**"
+      - "go/cmd/mcp-server/**"
+      - "docker-compose.yaml"
+      - "specs/backend-divergence-allowlist.v1.yaml"
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/test-verify-golden-corpus-gate.sh"
+      - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/test-golden-corpus-*.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/golden-corpus-gate.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+    local:
+      command: "rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml && go run ./cmd/golden-corpus-gate -phase=statement-coverage -coverage-manifest=internal/queryplan/testdata/statement-builders.yaml -coverage-dirs=/tmp/diff-capture/neo4j && go run ./cmd/golden-corpus-gate -phase=writer-coverage -coverage-dirs=/tmp/diff-capture/nornicdb,/tmp/diff-capture/neo4j)"
+      test_command: "bash scripts/test-verify-golden-corpus-gate.sh && (cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff|TestStatementCoverage|TestRunStatementCoverage|TestWriterCoverage|TestAnchorCensus' -count=1 && go test ./internal/graph/anchor -count=1 && go test ./internal/backendconformance -run 'TestComputeStatementCoverage' -count=1 && go test ./internal/queryplan -run 'TestDiscoverStatementBuilders|TestValidateBuilderManifest|TestStatementBuildersManifestMatchesProduction' -count=1)"
+    ci:
+      workflow: golden-corpus-gate.yml
+      job: "differential nornicdb vs neo4j"
+      check_names:
+        - "differential nornicdb vs neo4j"
+    requirements:
+      - go
+      - docker
+    ci_only_reason: "needs two live graph backends (NornicDB and Neo4j) side by side; the static mirror plus the gate's seeded RED/GREEN unit pair are the local proof"
+    # #6965 phase 5: the comparison step ("Compare backend recordings") is
+    # advisory discovery -- continue-on-error, a warning annotation and step
+    # summary, and the capture upload when it fails. This row stays blocking
+    # for the rest of the job: the four B-7 capture legs, the check that
+    # every leg wrote recordings (which keeps a one-sided capture loss
+    # failing closed now that Compare's own check is advisory), and the
+    # #6783 statement coverage check (Neo4j-only per #7331: coverage-dirs
+    # names the neo4j capture only; NornicDB is not a coverage target).
+    # Per-backend truth is asserted by blocking
+    # gates (golden-corpus-gate-neo4j on Neo4j, and the backendconformance
+    # WantRows the e2e-tests live lanes run on both backends), so a reproduced
+    # divergence is filed as an issue (e.g. #6968), not a merge blocker.
+    # #6782: the differential oracle. It replays the same B-7
+    # corpus on both backends with differential capture on and fails on any
+    # divergence the committed allowlist does not excuse (advisory since #6965
+    # phase 5, above). A silently dropped capture cannot false-green: the
+    # capture-leg step fails closed on any leg without recordings (Compare's
+    # own both-backends check is advisory now), and the failure upload
+    # carries the recordings.
+    # Multi-leg quorum (owner direction 2026-09-21): CI runs two
+    # pairings (-diff-left2/-diff-right2) and fails only on divergences
+    # reproducing across both; pairing-local scheduling noise is advisory.
+    # Execution-count and row-total divergences with agreeing results (the
+    # executions and rowcount kinds) are advisory even when reproduced
+    # (#6782 permanent dispositions, 2026-09-21/22): the backends drain at
+    # different speeds, so per-statement allowlist excuses were open-ended;
+    # results/missing still fail unless allowlisted. Divergences on registered
+    # transient-state reads (transient_reads, #6782 option 1) are excluded
+    # into their own advisory finding, and reproduced transient exclusions
+    # count toward the ceiling below.
+    # #6941: that advisory total was unbounded, so a backend regression that
+    # tripled drain passes would still pass green. CI's quorum invocation
+    # (.github/workflows/golden-corpus-gate.yml, "Compare backend
+    # recordings") now passes -diff-executions-advisory-max=200 -- observed
+    # totals on this corpus were 12-70 across nine CI runs and four replayed
+    # capture artifacts (run IDs in docs/internal/evidence/
+    # 6782-executions-advisory.md, "Calibration"), so 200 is a
+    # systemic-regression tripwire (~2.9x observed max), not a tuning target.
+    # local.command above stays single-pair (-diff-left/-diff-right only, no
+    # -diff-left2/-diff-right2): single-pair mode has no quorum and never
+    # reaches runBackendDiffQuorum, so the ceiling flag has nothing to bound
+    # there and is intentionally not added to this command.
+
+  # #5538 task 4 root-cause fix: three review rounds each found more packages
+  # missing from golden-corpus-gate's own path filter because completeness was
+  # maintained by hand. This gate makes it converge -- it derives the real
+  # compiled-package set with `go list -deps` and fails when a package is
+  # neither covered by that filter nor listed in the exclusions file. Its own
+  # triggers include its own script/lib/workflow paths (not just the filter it
+  # checks), so an edit to the checker itself is never a false green -- the
+  # #5873 self-trigger gap this is written to avoid repeating.
+  - id: golden-corpus-filter-exhaustive
+    name: Golden corpus PR path filter exhaustiveness
+    category: hygiene
+    layer: contract
+    purpose: "Checks that the golden-corpus-gate CI path filter lists every Go package the gate actually compiles."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - ".github/workflows/golden-corpus-gate.yml"
+      - "scripts/verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/test-verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/lib/golden-corpus-filter-exclusions.txt"
+      - "go/cmd/golden-corpus-gate/main.go"
+    self_test_triggers:
+      - ".github/workflows/golden-corpus-gate.yml"
+      - "scripts/verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/test-verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/lib/golden-corpus-filter-exclusions.txt"
+      - "go/cmd/golden-corpus-gate/main.go"
+    local:
+      command: "bash scripts/verify-golden-corpus-filter-exhaustive.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-golden-corpus-filter-exhaustive.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: replay-coverage-gate
+    name: C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate
+    category: exactness
+    layer: contract
+    purpose: "Checks that every surface Eshu claims to support has a recorded, non-stale replay scenario in the coverage manifest."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/cmd/replay-coverage-gate/**"
+      - "go/cmd/eshu/**"
+      - "go/internal/cli/**"
+      - "go/internal/replaycoverage/**"
+      - "go/internal/cigates/**"
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "go/internal/scopedtoken/**"
+      - "go/internal/goldengate/**"
+      - "go/internal/replay/parserfixture/**"
+      - "go/internal/replay/inputtape/**"
+      - "go/internal/replay/schedulereplay/**"
+      - "go/internal/replay/crashreplay/**"
+      - "go/internal/replay/costcounting/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/facts/**"
+      - "go/internal/storage/cypher/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "specs/capability-budget-proof.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "specs/product-claims.v1.yaml"
+      - "specs/replay-coverage-manifest.v1.yaml"
+      - "specs/replay-depth-requirements.v1.yaml"
+      - "specs/authorization-catalog.v1.yaml"
+      - "specs/authorization-replay-coverage.v1.yaml"
+      - "specs/parser-backing-ledger.v1.yaml"
+      - "specs/language-feature-parity-ledger.v1.yaml"
+      - "specs/fact-kind-registry.v1.yaml"
+      - "specs/surface-inventory.v1.yaml"
+      - "testdata/golden/e2e-20repo-snapshot.json"
+      - "testdata/cassettes/**"
+      - "scripts/test-verify-replay-coverage-gate.sh"
+      - "scripts/verify-replay-coverage-gate.sh"
+      - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "bash scripts/verify-replay-coverage-gate.sh --blocking"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-replay-coverage-gate.sh"
+    ci:
+      workflow: replay-coverage-gate.yml
+      job: "coverage-gate (blocking)"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # Owner row for the `static mirror` job of replay-coverage-gate.yml (see
+  # ifa-static-mirror for why an unowned job never blocked a merge). The job
+  # runs scripts/test-verify-replay-coverage-gate.sh, which the
+  # replay-coverage-gate row already runs locally as its test_command, so this
+  # row is CI-only. The mirror also reads docs/public/reference/replay-coverage.md
+  # and docs/mkdocs.yml, which the workflow's paths: filter does not list; they
+  # are left out of the triggers because a trigger the workflow does not start
+  # on would select a check that never arrives (checkOwnerRowTriggers enforces
+  # this). scripts/lib/go-test-run-guard.sh is left out for the same reason: the
+  # mirror never reads it.
+  - id: replay-coverage-static-mirror
+    name: Replay coverage static mirror
+    category: exactness
+    layer: contract
+    purpose: "Checks the replay coverage verifier, workflow and registry rows still agree on the gate contract, without a Go build."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/test-verify-replay-coverage-gate.sh"
+      - "scripts/verify-replay-coverage-gate.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "specs/replay-coverage-manifest.v1.yaml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/workflows/replay-coverage-gate.yml"
+    ci:
+      workflow: replay-coverage-gate.yml
+      job: "static mirror"
+    requirements: []
+    ci_only_reason: "the replay-coverage-gate row runs the same scripts/test-verify-replay-coverage-gate.sh locally as its test_command; this row only owns the CI job"
+
+  - id: ifa-contract-layer
+    name: Ifa contract-layer Odù skeleton
+    category: exactness
+    layer: contract
+    purpose: "Runs the Ifá contract-layer test suite, verifying the Odù catalog, coverage manifest, and reducer code stay in lockstep."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/ifa/**"
+      - "go/internal/reducer/**"
+      - "go/cmd/ifa/**"
+      - "go/internal/synth/gcp/**"
+      - "docs/internal/design/4389-ifa-conformance-platform.md"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - "specs/ifa-coverage-manifest.v1.yaml"
+      - "specs/fact-kind-registry.v1.yaml"
+      - "specs/replay-coverage-manifest.v1.yaml"
+      - "testdata/golden/e2e-20repo-snapshot.json"
+    local:
+      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
+      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Ifa contract-layer gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: content-entity-bucket-sync
+    name: Content-entity bucket<->label sync and projector-label totality (#5531, #6206)
+    category: exactness
+    layer: contract
+    purpose: "Checks that collector content-entity buckets, projector label maps, and the drift ledger all agree with each other and the code."
+    tier: pre-pr
+    blocking: true
+    # Triggers name all three source files the gate reads, not just the package
+    # it runs from. A bucket added to the collector's twin or a label added to
+    # the projector map must select this gate — those are exactly the edits it
+    # exists to catch, and triggering only on the shape package would leave the
+    # two most likely edits unguarded.
+    #
+    # The -run list is hand-maintained, so a new gate test in that package is
+    # not run here until it is named. TestEveryProjectorLabelHasASource (#6206)
+    # walks projector -> bucket, the reverse of
+    # TestContentEntityLabelsHaveProjectorLabels, and catches a registry entry
+    # no bucket can ever feed. It ran only incidentally, under
+    # race-graph-writes' unfiltered ./internal/content/shape/... , until it was
+    # added below; one narrowing of that race gate's package list and the
+    # coverage would have vanished with nothing red.
+    triggers:
+      - "go/internal/content/shape/**"
+      - "go/internal/collector/repo/git/snapshot_entity_buckets.go"
+      - "go/internal/projector/canonical/materialization.go"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1"
+      test_command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify content-entity bucket sync gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── REPO-WIDE SWEEP TESTS (#7111 F5) ──────────────────────────────────────
+  # Each of these Go tests reads source far outside its own package, so the
+  # floor's changed-package `go test` never runs it when only an input changes.
+  # CI runs them inside go-core's `go test ./...`; these rows select them
+  # locally from their real inputs. Triggers are derived from what each test
+  # reads (named in its comment) plus its own package, which it compiles.
+
+  - id: index-key-guard-sweep
+    name: Production indexed-write Cypher literals are guarded (#7058)
+    category: exactness
+    layer: contract
+    purpose: "Scans production Cypher literals across storage, reducer, projector, collector, and cmd code to keep indexed writes schema-guarded."
+    tier: pre-pr
+    blocking: true
+    # TestProductionCypherLiteralsAreGuarded scans the non-test Go literals
+    # under sweepDirs (go/internal/graph/index_key_guard_sweep_test.go):
+    # internal/storage, internal/reducer, internal/projector,
+    # internal/collector, and cmd. The analyzer and schema it checks against
+    # live in internal/graph.
+    triggers:
+      - "go/internal/graph/**"
+      - "go/internal/storage/**"
+      - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/collector/**"
+      - "go/cmd/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "cd go && go test ./internal/graph -run '^TestProductionCypherLiteralsAreGuarded$' -count=1"
+      test_command: "cd go && go test ./internal/graph -run '^(TestSweepFlagsSeededViolations|TestSweepReadsJoinedLabelTemplateWhole)$' -count=1"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""

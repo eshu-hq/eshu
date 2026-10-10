@@ -91,7 +91,12 @@ dry_run="${MAIN_HEALTH_DRY_RUN:-false}"
 label="main-health"
 status_context="main-health"
 aggregator_yml="${repo_root}/.github/workflows/required-gates.yml"
-registry_yml="${repo_root}/specs/ci-gates.v1.yaml"
+registry_view_dir="$(mktemp -d)"
+registry_yml="${registry_view_dir}/ci-gates.v1.yaml"
+trap 'rm -rf "${registry_view_dir}"' EXIT
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/ci-gates-resolved-fixtures.sh"
+ESHU_CI_GATES_GO_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" \
+  ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry_yml}" "${repo_root}"
 
 # shellcheck source=scripts/lib/main-health-policy.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/main-health-policy.sh"
@@ -133,7 +138,7 @@ write() {
 # per run (classification and the issue body share it). An unreadable listing
 # is an empty array, which classify_run treats as blocking.
 cache_dir="$(mktemp -d)"
-trap 'rm -rf "${cache_dir}"' EXIT
+trap 'rm -rf "${cache_dir}" "${registry_view_dir}"' EXIT
 run_jobs() {
 	local f="${cache_dir}/jobs-$1.json"
 	if [[ ! -f "${f}" ]]; then

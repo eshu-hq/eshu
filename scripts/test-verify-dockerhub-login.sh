@@ -22,6 +22,13 @@ done
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
 failures=0
+# These assertions inspect the same Go-validated registry and resolved hosted
+# filter model that the production drift check uses.
+source "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+registry_view="${tmp_root}/ci-gates-flat.yaml"
+static_workflow_view="${tmp_root}/static-contract-gates.yml"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry_view}" "${repo_root}"
+ci_gates_static_workflow_view "${repo_root}/.github/workflows/static-contract-gates.yml" "${static_workflow_view}" "${repo_root}"
 
 # One scratch base copy; each case copies it. The verifier reads the workflows,
 # the scripts they invoke, the compose files and the Dockerfile. The base keeps
@@ -233,6 +240,19 @@ base_hub=$'services:\n  base:\n    image: postgres:18\n'
 base_ghcr=$'services:\n  base:\n    image: ghcr.io/eshu-hq/eshu:main\n'
 extends_base=$'services:\n  db:\n    extends:\n      file: docker-compose.fixture-base.yaml\n      service: base\n'
 
+# Malformed service shapes must remain unresolved so Hub login is required.
+compose_case compose-services-false $'services: false\n'
+expect_red services-false-counts-as-hub "${CASE_DIR}" "${no_login}"
+
+compose_case compose-services-empty-list $'services: []\n'
+expect_red services-empty-list-counts-as-hub "${CASE_DIR}" "${no_login}"
+
+compose_case compose-service-false $'services:\n  api: false\n'
+expect_red service-false-counts-as-hub "${CASE_DIR}" "${no_login}"
+
+compose_case compose-service-empty-map $'services:\n  api: {}\n'
+expect_red service-empty-map-counts-as-hub "${CASE_DIR}" "${no_login}"
+
 compose_case compose-extends-hub-base-file "${extends_base}"
 printf '%s' "${base_hub}" >"${CASE_DIR}/docker-compose.fixture-base.yaml"
 expect_red extends-follows-a-hub-image-in-the-base-file "${CASE_DIR}" "${no_login}"
@@ -427,12 +447,12 @@ expect_green login-with-continue-on-error-false-passes "${d}"
 # The registry row and the static-contract-gates path filter must both list the
 # nested Dockerfile and compose globs (the lockstep gate keeps them equal).
 for glob in '**/Dockerfile*' '**/docker-compose*.y*ml'; do
-  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${repo_root}/specs/ci-gates.v1.yaml" | rg -qFx -- "${glob}"; then
+  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -qFx -- "${glob}"; then
     echo "ok - registry row triggers include ${glob}"
   else
     echo "not ok - registry row triggers include ${glob}"; failures=$((failures + 1))
   fi
-  if yq e '.jobs.changes.steps[] | select(.id == "filter") | .with.filters' "${repo_root}/.github/workflows/static-contract-gates.yml" |
+  if yq e '.jobs.changes.steps[] | select(.id == "filter") | .with.filters' "${static_workflow_view}" |
     yq e '.dockerhublogin[]' - | rg -qFx -- "${glob}"; then
     echo "ok - path filter dockerhublogin includes ${glob}"
   else

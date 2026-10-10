@@ -2,7 +2,7 @@ name: Live PostgreSQL Readiness
 
 # The readiness, dead-code incoming, status route-selection, quiet-generation,
 # activation obligation, targeted-maintenance, reindex watermark and #7209
-# projector zombie-heal proofs listed in scripts/lib/live_postgres_readiness_results.py
+# projector zombie-heal proofs listed in scripts/lib/live_postgres_readiness_inventory.py
 # use EXPLAIN and correctness assertions against separately created disposable
 # databases. The merge queue always runs this job; PR and main-push events
 # select the paths that can change the proof.
@@ -34,12 +34,17 @@ on:
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
+      - 'specs/live-tests.d/**'
       - 'specs/ci-gates.v1.yaml'
+      - 'specs/ci-gates.d/**'
       - 'scripts/run-live-postgres-readiness-tests.sh'
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
+      - 'scripts/lib/live_postgres_readiness_inventory.py'
       - 'scripts/lib/live_postgres_readiness_events.py'
+      - 'scripts/lib/live_tests_registry.py'
       - 'scripts/lib/verify-live-tests-ledger.py'
+      - 'scripts/test-live-tests-registry.py'
       - 'scripts/verify-live-tests-ledger.sh'
       - 'scripts/test-verify-live-tests-ledger.sh'
       - 'scripts/ci/go-mod-download-retry.sh'
@@ -73,12 +78,17 @@ on:
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
+      - 'specs/live-tests.d/**'
       - 'specs/ci-gates.v1.yaml'
+      - 'specs/ci-gates.d/**'
       - 'scripts/run-live-postgres-readiness-tests.sh'
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
+      - 'scripts/lib/live_postgres_readiness_inventory.py'
       - 'scripts/lib/live_postgres_readiness_events.py'
+      - 'scripts/lib/live_tests_registry.py'
       - 'scripts/lib/verify-live-tests-ledger.py'
+      - 'scripts/test-live-tests-registry.py'
       - 'scripts/verify-live-tests-ledger.sh'
       - 'scripts/test-verify-live-tests-ledger.sh'
       - 'scripts/ci/go-mod-download-retry.sh'

@@ -50,7 +50,7 @@ run_ifa_fault_injection_shard_cases() {
 	script="${repo_root}/scripts/verify-ifa-fault-injection.sh"
 	shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
 	workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
-	registry="${repo_root}/specs/ci-gates.v1.yaml"
+	registry="$(rg -l --glob "gates-*.yaml" --line-regexp "  - id: ifa-fault-injection" "${repo_root}/specs/ci-gates.d")"
 
 	[[ -f "${script}" ]] || test_ifa_fault_shard_cases_fail "missing ${script}"
 	[[ -f "${shard_lib}" ]] || test_ifa_fault_shard_cases_fail "missing ${shard_lib}"

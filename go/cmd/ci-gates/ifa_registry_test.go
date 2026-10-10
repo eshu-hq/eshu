@@ -288,7 +288,10 @@ func coverageGateDornyFilter(t *testing.T, root string, gate cigates.Gate) ([]st
 	if err != nil {
 		t.Fatalf("read %s: %v", gate.CI.Workflow, err)
 	}
-	filters, every := cigates.DornyFilters(raw)
+	filters, every, err := cigates.DornyFiltersFile(filepath.Join(root, ".github", "workflows", filepath.Base(gate.CI.Workflow)))
+	if err != nil {
+		t.Fatalf("resolve %s dorny filters: %v", gate.CI.Workflow, err)
+	}
 	if len(filters) == 0 {
 		t.Fatalf("%s exposes no dorny paths-filter; this check cannot prove CI schedules the gate", gate.CI.Workflow)
 	}

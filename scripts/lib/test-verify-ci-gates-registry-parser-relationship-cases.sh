@@ -42,12 +42,8 @@ check_parser_relationship_trigger_parity() {
 	require "parser relationship static-contract output" \
 		'parserrelationship: ${{ steps.filter.outputs.parserrelationship }}' \
 		"${static_contract_workflow}"
-	rg --multiline --fixed-strings -- \
-		"            parserrelationship:
-              - '.github/workflows/static-contract-gates.yml'
-              - 'specs/ci-gates.v1.yaml'
-              - '${docs_trigger}'" \
-		"${static_contract_workflow}" >/dev/null ||
+	printf '%s\n' "${parserrelationship_filter}" |
+		rg --fixed-strings --line-regexp "              - '${docs_trigger}'" >/dev/null ||
 		fail "static-contract-gates.yml parserrelationship filter omits ${docs_trigger}"
 	require "parser relationship static-contract matrix entry" \
 		'append_gate "${{ steps.filter.outputs.parserrelationship }}" "parserrelationship" "Verify parser relationship kit gate" "bash scripts/test-verify-parser-relationship-kit.sh" "bash scripts/verify-parser-relationship-kit.sh"' \

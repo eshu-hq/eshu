@@ -1,0 +1,423 @@
+tests:
+  - file: go/internal/storage/postgres/status/summary/select_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proof of the status summary reader's decision (Select) inside a REPEATABLE READ READ ONLY transaction: a missing table is a typed fallback that leaves the transaction usable, a missing row, a foreign digest or schema version, an undecodable payload, a row_count mismatch and a row older than the limit fall back with their reason, and a fresh row is served with its age taken from the database clock and added to the stored ages"
+    runner: live-postgres-readiness
+  - file: go/internal/reducer/status/summary/runner_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proofs of the reducer status summary writer: after a pass the stored row equals the live active-work statement at its as_of in one snapshot at 0.2, 50 and 100 percent live work and when empty (with a non-vacuity mutation), a backend killed between the statement and the upsert leaves the old row whole, a newer stored row is kept (rejected_guard), a missing table is skipped until migration 161 applies, a row from another statement digest is replaced, the pass runs READ COMMITTED under a REPEATABLE READ database default, and a second writer skips while the first holds the advisory lock; the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there"
+    runner: live-postgres-readiness
+  - file: go/internal/reducer/status/summary/contention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proof that two status summary writers at the production 5 s cadence for 30 s beside two workers claiming and Acking through the production ReducerQueue (80 to 100 percent live spike) cause zero claim errors and zero writer-attributable lock waits, keep the stored as_of monotone, never compute at once, and count overruns only for passes over the interval; the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there"
+    runner: live-postgres-readiness
+  - file: go/internal/reducer/status/summary/reader_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proofs of the status summary reader against the production writer: a row written by a writer pass and read back by the stored-summary reader inside a REPEATABLE READ READ ONLY snapshot equals the live active-work statement at the same data and clock at 0.2, 50 and 100 percent live work and when empty (the age add is load-bearing: dropping it fails the comparison, and a changed work item shows the comparison can differ), and a stale row, a row from another statement digest, and a dropped table each fall back to the whole live answer with the right reason and without aborting the transaction"
+    runner: live-postgres-readiness
+  - file: go/internal/reducer/status/summary/scrape_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proofs of the runtime /metrics scrape path in autocommit, the shape of every hosted runtime: a row written by the production writer is served equal to the live active-work statement at the same data and clock; once the row is stale, missing, or its table is dropped, the process keeps serving its last row as stale with an age that keeps growing; a process that restarts into a stale but decodable row serves that row as stale, and a process that restarts with the table dropped serves the zero summary (the empty-table and foreign or undecodable row cases are proven hermetically, not by this live file); the live active-work statement runs zero times; the statement inventory on an empty store through the production status store is 24 statements before, 20 with the reader off, and 21 with the reader on (no active-work statement); and the scrape renders identical bytes through the production handler with the metrics selection and the broader selection over a database whose collector fact-evidence, registry collector, and coordinator sections are populated (with a planted violation); the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there"
+    runner: live-postgres-readiness
+  - file: go/internal/reducer/status/summary/terraform_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proof of the terraform_state summary model: a row written by the production writer pass (each model row is its own transaction under the same advisory lock, reads its own database clock after the active-work row commits so the terraform_state as_of is not earlier than the active-work as_of, and carries its own digest) and read back by the production stored-summary reader inside a REPEATABLE READ READ ONLY snapshot equals what the two live Terraform-state statements return at an empty database, a few state scopes, past the per-locator rank cap of 50, and with Git backend warnings plus state scopes whose generation ids carry no serial; a warning written after the pass shows the comparison can differ; TestWriterKilledMidCompanionKeepsThePrimaryRowLive terminates the companion's backend between its statements and its upsert and shows the active-work row advances while the terraform_state row keeps its old as_of and still serves equal to live"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 mutable-ref proof over a 513-digest set, enrolled in the live-postgres-readiness runner; local six-proof runner passed in 28s suite time (1.84s for this proof) on postgres:18.6-alpine on 2026-10-03"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7088 disposable PostgreSQL 18 package-scope proof, enrolled in the #7529 readiness runner; local run passed in 0.61s of test time on postgres:18.6-bookworm on 2026-10-02"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_package_manifest_repo_scope_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 readiness plan and truth proof; local four-test run passed in 41.3s on 2026-10-02"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 scan-tier plan and truth proofs; local four-test run passed in 41.3s on 2026-10-02"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 proofs of the runtime-environment evidence read, enrolled in the live-postgres-readiness runner: the hot digest (about 1,000,199 seeded rows, 200 candidates) keeps one artifact-index probe per candidate at the seeded active scope/generation pair count with analyzed statistics, and the truth matrix admits only current, authorized, accepted facts. Pair-count scaling is pinned by the #7552 many-pairs proof (901 active pairs, one artifact-index probe per candidate, deploy_event fold). Upper-bound timing: local eight-proof runner passed in 90s suite time (50.7s hot digest, dominated by the seed; 0.63s truth matrix) on postgres:18-alpine with host load average 65 to 94 on 12 CPUs on 2026-10-03; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated by ESHU_POSTGRES_TEST_DSN and not enrollable as-is: its absolute wall-clock ceilings (origin/main medians from an unnamed host, #5856, times 1.10) fail docs/internal/timing-proof-rules.md rule 2 and are not a regression signal; 5 of 5 runs on a loaded laptop failed the direct_list ceiling at 195 to 202 ms against the 177.170 ms constant (194.9 ms ceiling) on unchanged code; steward linuxdynasty; reshape to plan and buffer assertions tracked in #7553"
+  - file: go/internal/query/supply/chain/impact/suppression_plan_proof_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "helper-only file (no Test function) holding the EXPLAIN decoders and query arguments that TestSupplyChainSuppressionPathsPerformanceLive uses; it runs only through that proof, which is not enrolled for the reasons on its own row (absolute wall-clock ceilings, #5856, timing-proof-rules rule 2; reshape tracked in #7553); steward linuxdynasty"
+  - file: go/internal/query/supply/chain/runtime_context_scope_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/runtime_filter_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/runtime_filter_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/runtime_filter_workload_id_shape_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/runtime_normalization_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/runtime_repository_precedence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/suppression_authority_adversarial_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/suppression_authority_assertions_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/suppression_authority_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply/chain/suppression_authority_scoped_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/supply_chain_impact_kubernetes_runtime_probe_performance_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/query/supply_chain_impact_kubernetes_runtime_probe_performance_postgres_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/query/supply_chain_impact_runtime_digest_route_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/query/tag_history_nornicdb_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/tag_history_refill_scale_neo4j_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#6705 corpus-scale Neo4j proof for the tag-history refill loop: seeds 5,000 and 10,000 ContainerImage nodes plus 850-observation withheld and granted histories, so it costs real wall time to seed and is env-gated by ESHU_TAG_HISTORY_REFILL_SCALE_LIVE rather than a build tag — promote to blocking with repeated timing evidence"
+    backends: neo4j
+  - file: go/internal/reducer/cloud_resource_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/code/value/affected/gate_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/reducer/code/value/cloud_sink_loader_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/reducer/code/value/cloud_sink_red_case_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: scheduled
+    reason: "stale RED case for the B-7 sl-value-flow-cloud-sink row; the pre-6761 shape returns the correct row on the fix-500 pin (#6690 not reproduced on a fresh DB 2026-09-23) — re-target under #6787 before promoting to blocking"
+  - file: go/internal/reducer/containerimage/container_image_identity_cte_theory_live_test.go
+    tag: perf5854_theory
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/reducer/containerimage/container_image_identity_cutover_cache_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_cutover_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_held_cutover_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_legacy_cutover_performance_helpers_live_test.go
+    tag: perf5854_legacy
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/reducer/containerimage/container_image_identity_legacy_cutover_performance_live_test.go
+    tag: perf5854_legacy
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/reducer/containerimage/container_image_identity_support_writer_demotion_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_support_writer_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_unmapped_config_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_writer_atomic_multichunk_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_writer_atomic_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_writer_deadlock_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/containerimage/container_image_identity_writer_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/deployable_unit_retract_scope_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #7306 retract-scope proof through the real DeployableUnitCorrelationHandler and EdgeWriter; a matching and a foreign-keyed deployable_unit_correlation intent in both orders and racing (10 trials) must leave only the admitted CORRELATES_DEPLOYABLE_UNIT edge, a foreign-keyed intent must change nothing, and a matching intent must retract a disappeared edge; local neo4j:2026-community runs took 1.11s warm and 19.2s with a cold schema apply on a shared host; runs on both backends in the live-backend CI job"
+  - file: go/internal/reducer/freshness/links/lock_timeout_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since runner non-counting generation_lock_timeout (#7127 PR-3e, arbiter ruling arb-7127-3e-wait W5, G16b extended) with its planted RED classifier; untagged and gated by env Skip; about 5s
+  - file: go/internal/reducer/freshness/links/process_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link runner two-process race proof (#7127 PR-3a gates G9/G16d), spawns two copies of the compiled test binary against one cloned database; gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/reducer/freshness/links/retention_process_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since ledger retention against the link runner and a non-key updater in OS processes of the test binary (#7127 PR-3d P7, PR-3e W10 of arbiter ruling arb-7127-3e-wait), untagged and gated by env Skip; about 15-25s; scheduled, never blocking
+  - file: go/internal/reducer/freshness/links/runner_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link runner poison and non-counting proofs (#7127 PR-3a gates G12/G16a/G16b), each with its planted RED; gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/reducer/provenance_replay_tombstone_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/repository_edge_retract_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #7285 B1 stale DEFINES/EXPOSES_ENDPOINT retract proof through the real WorkloadMaterializationHandler; local neo4j:2026-community runs took 0.64s-1.13s per test (1.8s-2.2s package) on a shared host; runs on both backends in the live-backend CI job"
+  - file: go/internal/reducer/repository_edge_scope_keep_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #7285 retract-scope proof (arbiter option B) through the real CorrelatedWorkloadProjectionInputLoader; a matching and a foreign-keyed workload_materialization intent in both orders and racing (10 trials) must leave one final DEFINES and EXPOSES_ENDPOINT set, and a foreign-keyed intent must still retract a disappeared workload; local neo4j:2026-community runs took 1.18s for the test (15.7s for the #7285 live package set) on a shared host; runs on both backends in the live-backend CI job"
+  - file: go/internal/reducer/repository_path_conflict_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #7324 proof that the canonical writer's path-conflict Repository retirement reports what it deleted (the canonical repository retired WARN and eshu_dp_canonical_repository_retirements_total{outcome=dropped_relationships}, relationships_deleted equal to the retired node's full degree, 11 seeded incoming plus 9 projector edges) under the atomic-group and phase-group executors, that a steady-state retry records nothing, and (#7446, helpers in repository_stub_live_test.go) that the stub the edge writers then re-create under the retired id is counted and the harness cleanup removes it (#7445); it reads Bolt summary delete counters, which NornicDB is measured not to report reliably, so it is pinned to Neo4j, the supported graph backend; local neo4j:2026-community runs took 6.7s-8.7s for the test on a shared host"
+    backends: neo4j
+  - file: go/internal/reducer/repository_retry_concurrency_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "nonce-scoped #7285 concurrency matrix rows 2, 3, 5 and 6 (phase-boundary interleaving, zombie attempt, 50-session first-creation MERGE, cross-scope retract race); every interleaving has one required end state, so the assertions are deterministic; local neo4j:2026-community runs took 8.9s-26.4s for the file on a shared host at load average 54-86 (the 50-session MERGE race pays driver deadlock-retry backoff); runs on both backends in the live-backend CI job"
+  - file: go/internal/reducer/repository_retry_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #7285 projector-retry proof (every reducer edge family survives a same-generation re-projection under the atomic-group and phase-group executors; property map equals a fresh projection); local neo4j:2026-community runs took 2.5s warm and 26.9s with a cold schema apply on a loaded shared host; runs on both backends in the live-backend CI job"
+  - file: go/internal/reducer/repository_stub_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #7446 proof that the path-less Repository stub the repo_dependency and submodule_pin writers MERGE-create under a retired id is counted (eshu_dp_canonical_repository_stubs_created_total{writer=repo_dependency} = 1, the canonical repository stub created INFO log, 0 for a write to a live target), never puts two Repository nodes at one path, is what QueryRepoDependencies returns, and is reaped by the Repository orphan sweep once both owners retract by evidence_source; it reads Bolt summary NodesCreated counters and is pinned to Neo4j, the supported graph backend, so the counter has no NornicDB live proof; local neo4j:2026-community runs took 0.35s-0.42s for the lifecycle test on a shared host"
+    backends: neo4j
+  - file: go/internal/reducer/workload_instance_retraction_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/canonical_file_edge_writeloss_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/canonical_import_edge_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/canonical_refresh_edge_writeloss_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_canonical_flux_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_canonical_kustomize_extends_base_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/import_cycle_flags_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "deterministic #7346 graph-truth proof for the flag-consuming file_import_cycles reader; seeds IMPORTS edges with the projector's flag properties plus one legacy edge with none and reads them through the production imports.CycleRows and response shaper; a never-written flag property must come back as unknown (flags_unknown), never runtime, and type-only, deferred and ./x cases must close no cycle; env-gated by ESHU_REPLAY_TIER_LIVE; local NornicDB v1.3.3 run took 2.93s and the pinned Neo4j run 1.62s at the head rebased onto the merged carriage change — promote to blocking with timing evidence"
+  - file: go/internal/replay/offlinetier/delta_tier_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_entity_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_file_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_gitlab_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_crossplane_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_kubernetes_namespace_absent_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_kubernetes_namespace_environment_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/delta_tier_survivor_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/nornicdb_function_projection_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/repo_dependency_ifa_cleanup_live_test.go
+    tag: ifarepodependencyproof
+    class: scheduled
+    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+  - file: go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_live_test.go
+    tag: ifarepodependencyproof
+    class: scheduled
+    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+  - file: go/internal/replay/offlinetier/repo_dependency_ifa_database_guard_live_test.go
+    tag: ifarepodependencyproof
+    class: scheduled
+    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+  - file: go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go
+    tag: ifarepodependencyproof
+    class: scheduled
+    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+  - file: go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go
+    tag: ifarepodependencyproof
+    class: scheduled
+    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+  - file: go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go
+    tag: ifarepodependencyproof
+    class: scheduled
+    reason: covered by the dedicated Ifá fault-injection/determinism lanes; the live-backend job does not duplicate them
+  - file: go/internal/replay/offlinetier/repo_dependency_keyed_concurrency_prove_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/repo_dependency_proof_database_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/tfstate_dispatch_order_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/runtime/data_stores_writer_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/canonical_file_create_missing_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/cypher/canonical_index_key_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; proves oversized indexed values (canonical, Terraform state, reducer semantic entities, two generations) are skipped instead of failing atomic graph writes on Neo4j (#7058); local runs on neo4j 2026.08.1 took 4.54s cold (schema creation) and 0.23s warm — promote to blocking with repeated timing evidence

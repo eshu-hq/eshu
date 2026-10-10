@@ -1,0 +1,429 @@
+version: v1
+gates:
+  - id: agent-canon
+    name: Agent canon check
+    category: hygiene
+    layer: hygiene
+    purpose: "Checks every agent/Claude/Codex skill and hook is wired and reachable, and that Claude/Codex/Muse stay in parity."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - ".agents/**"
+      - ".claude/skills/**"
+      - ".claude/agents/**"
+      - ".codex/skills/**"
+      - ".codex/agents/**"
+      - ".codex/config.toml"
+      - ".codex/hooks.json"
+      # verify-agent-canon.sh reads .claude/hooks/skill-nudge.sh to prove every
+      # skill is reachable from a routing arm. Without this trigger a hook-only
+      # edit would not select the gate that validates it, which is the same
+      # silent rot the check exists to catch.
+      - ".claude/hooks/**"
+      # settings.json for the same reason: test-agent-hooks.sh asserts the
+      # (event, matcher, command) triple in it, so a wiring-only edit -- moving
+      # a hook to the wrong event -- must select the gate that would catch it.
+      - ".claude/settings.json"
+      # The Muse port: wrappers in .muse/hooks/ translate the Muse envelope
+      # onto the same .claude files, and .muse/hooks.json carries Muse's own
+      # (event, matcher, command) wiring, asserted by test-muse-hooks.sh.
+      - ".muse/hooks/**"
+      - ".muse/hooks.json"
+      - "scripts/test-muse-hooks.sh"
+      - ".opencode/agent/**"
+      - ".cursor/agents/**"
+      - "AGENTS.md"
+      - "scripts/verify-agent-canon.sh"
+      - "scripts/agent-roles.py"
+      - "scripts/test-agent-roles.py"
+      - "scripts/guard-codex-spawn.py"
+      - "scripts/test-codex-spawn-guard.py"
+      - "scripts/goal-role-router.py"
+      - "scripts/test-goal-role-router.py"
+      - "scripts/test-verify-agent-hygiene.sh"
+      - "scripts/test-agent-hooks.sh"
+      - "scripts/test-goal-*cases*.sh"
+      - "scripts/test-goal-continue-hook.sh"
+      # The Stop-hook mirror's later suites live in a sourced companion file,
+      # so it is a trigger path in its own right -- otherwise deleting a case
+      # from it would not select the gate that runs it.
+      - "scripts/test-goal-continue-hook-cases.sh"
+      # The Stop mirror's budget suite, split out when its sibling crossed the
+      # 500-line cap. Trigger path for the same reason as every companion.
+      - "scripts/test-goal-continue-hook-budget-cases.sh"
+      - "scripts/test-goal-refresh-hook.sh"
+      # Same reason as the Stop mirror's companion above: the refresh mirror's
+      # later suites are sourced from their own file, which must select this
+      # gate on its own.
+      - "scripts/test-goal-refresh-hook-cases.sh"
+      # The refresh mirror needed a second companion when the first crossed the
+      # 500-line cap; it is a trigger path for the same reason as its sibling.
+      - "scripts/test-goal-refresh-hook-guard-cases.sh"
+      # The cross-hook parity matrix: both hooks parse the same goal-file
+      # format, and two PR reviewers found them disagreeing on check ORDER
+      # after eleven rounds of per-hook review. It is a trigger path so
+      # editing it alone selects the gate that runs it.
+      - "scripts/test-goal-refresh-hook-parity-cases.sh"
+      # The workflow itself, so removing a test STEP selects the gate
+      # that asserts the step is there. Without this a workflow-only
+      # edit re-opens the local/CI parity gap silently.
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - ".pre-commit-config.yaml"
+      - "scripts/verify-no-ai-attribution.sh"
+      # The Cursor port: .cursor/hooks.json routes Cursor events through
+      # scripts/cursor-hook.py onto the same .claude/hooks files, asserted by
+      # test-cursor-hooks.sh. Trigger paths for the same reason as Muse's.
+      - ".cursor/hooks.json"
+      - "scripts/cursor-hook.py"
+      - "scripts/test-cursor-hooks.sh"
+      # The adapter's helper-link and worktree module, and the mirror's sourced
+      # companion (split out at the 500-line cap): trigger paths in their own
+      # right, so editing either alone selects the gate that runs them.
+      - "scripts/cursor_hook_family.py"
+      - "scripts/test-cursor-hooks-helper-cases.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    self_test_triggers:
+      - ".agents/**"
+      - ".claude/skills/**"
+      - ".claude/agents/**"
+      - ".codex/skills/**"
+      - ".codex/agents/**"
+      - ".codex/config.toml"
+      - ".codex/hooks.json"
+      - ".claude/hooks/**"
+      - ".claude/settings.json"
+      - ".muse/hooks/**"
+      - ".muse/hooks.json"
+      - "scripts/test-muse-hooks.sh"
+      - ".opencode/agent/**"
+      - ".cursor/agents/**"
+      - "AGENTS.md"
+      - "scripts/verify-agent-canon.sh"
+      - "scripts/agent-roles.py"
+      - "scripts/test-agent-roles.py"
+      - "scripts/guard-codex-spawn.py"
+      - "scripts/test-codex-spawn-guard.py"
+      - "scripts/goal-role-router.py"
+      - "scripts/test-goal-role-router.py"
+      - "scripts/test-verify-agent-hygiene.sh"
+      - "scripts/test-agent-hooks.sh"
+      - "scripts/test-goal-*cases*.sh"
+      - "scripts/test-goal-continue-hook.sh"
+      - "scripts/test-goal-continue-hook-cases.sh"
+      - "scripts/test-goal-continue-hook-budget-cases.sh"
+      - "scripts/test-goal-refresh-hook.sh"
+      - "scripts/test-goal-refresh-hook-cases.sh"
+      - "scripts/test-goal-refresh-hook-guard-cases.sh"
+      - "scripts/test-goal-refresh-hook-parity-cases.sh"
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - ".pre-commit-config.yaml"
+      - "scripts/verify-no-ai-attribution.sh"
+      - ".cursor/hooks.json"
+      - "scripts/cursor-hook.py"
+      - "scripts/test-cursor-hooks.sh"
+      - "scripts/cursor_hook_family.py"
+      - "scripts/test-cursor-hooks-helper-cases.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-agent-canon.sh"
+      pre_push: floor
+      # Both mirrors. .claude/hooks/** is a trigger for this gate, so a hook
+      # change selects it -- but running only the canon mirror would skip the
+      # behavioural hook suite, and an exit-code or routing regression would
+      # first appear in Actions despite being credential-free.
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-cursor-hooks.sh"
+    ci:
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: agent-canon
+
+  - id: no-diff-fragments
+    name: No diff fragments or conflict markers in source
+    category: hygiene
+    layer: hygiene
+    purpose: "Scans every tracked file for leftover diff fragments or unresolved merge-conflict markers."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # Tree mode scans every tracked file, so any non-empty PR must wait for
+      # it. The corruption this catches lands in a file the PR need not touch
+      # -- it is introduced at commit time on the author machine -- so a
+      # path-scoped trigger would miss exactly the case it exists for (#5612).
+      - "**"
+    local:
+      command: "bash scripts/verify-no-diff-fragments.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-no-diff-fragments.sh"
+    ci:
+      # Runs in verify-agent-hygiene.yml's gate job alongside agent-canon and
+      # the AI-attribution check; same workflow, same job, one more step.
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: no-diff-fragments
+
+  - id: filename-stutter
+    name: No filename or directory stutter in added/renamed paths
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when a newly added or renamed path repeats its own directory name (filename stutter)."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # The gate checks naming rules 2 and 3 on every Added/Renamed path of
+      # any file type: a file stem repeating its directory, or a new
+      # directory repeating its parent (#6821). A docs-only or YAML-only PR
+      # can introduce either, so the trigger is repo-wide; a Go-path trigger
+      # would let those PRs skip local promotion and first fail in CI (#5535
+      # precedent). Legacy names are never scanned, only newly introduced
+      # ones, so the wide trigger cannot block unrelated work.
+      - "**"
+    local:
+      # Default mode: merge-base range plus staged files. --staged alone
+      # false-greens here because promotion runs on committed trees with a
+      # clean index; --staged stays on the pre-commit hook only.
+      command: "bash scripts/verify-filename-stutter.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-filename-stutter.sh"
+    ci:
+      # Runs in verify-agent-hygiene.yml's gate job alongside agent-canon and
+      # the AI-attribution check; same workflow, same job, one more step.
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: filename-stutter
+
+  - id: no-ai-attribution
+    name: No AI attribution in commits/docs
+    category: hygiene
+    layer: hygiene
+    purpose: "Scans commit messages and added diff lines for AI-attribution text and blocks it."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # The CI check scans every commit message and every added diff line, so
+      # required-gate selection must wait for it on every non-empty PR.
+      - "**"
+    local:
+      command: "bash scripts/verify-no-ai-attribution.sh"
+      pre_push: floor
+      test_command: ""
+    ci:
+      # The AI-attribution check runs in verify-agent-hygiene.yml's "No AI
+      # attribution" step, not in test.yml's docs-helm-hygiene job, which has
+      # no such step. Matches the sibling agent-canon gate in the same
+      # workflow (#5748).
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: no-ai-attribution-content
+
+  - id: license-header
+    name: Go license header verification
+    category: hygiene
+    layer: hygiene
+    purpose: "Checks every .go file in the repo carries the required license header."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # Must match the scope verify-license-header.sh actually scans -- every
+      # .go file in the repo, not only go/**. 312 tracked .go files live under
+      # sdk/go/** and examples/collector-extensions/**, and while the trigger
+      # read "go/**" a PR touching only those passed `make pre-pr` and first
+      # failed in CI's verify-contracts job (#5535). Keyed on *.go rather than
+      # a directory list so a future top-level Go directory is covered the day
+      # it is added; this also stops a non-Go change under go/ (a README, a
+      # fixture) from selecting a gate that would not inspect it.
+      - "**/*.go"
+      - "scripts/test-verify-license-header.sh"
+      - "scripts/verify-license-header.sh"
+      - "scripts/add-license-header.sh"
+    self_test_triggers:
+      - "scripts/test-verify-license-header.sh"
+      - "scripts/verify-license-header.sh"
+      - "scripts/add-license-header.sh"
+    local:
+      command: "bash scripts/verify-license-header.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-license-header.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: ci-install-apt-packages
+    name: CI apt/ripgrep installer test mirror
+    category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/test-ci-install-apt-packages.sh"
+      # The fixtures/assertion-helper lib is a trigger for the same reason as
+      # the mirror itself: the mirror sources it, so a change confined to
+      # this file changes what the gate actually exercises even though the
+      # mirror's own file did not change. A gate must trigger on the files it
+      # reads (#6174 review).
+      - "scripts/lib/test-ci-install-apt-packages-fixtures.sh"
+      # The workflow is a trigger because the mirror asserts its own CI
+      # wiring. Seven gates share test.yml's go-core job, and the registry
+      # drift check skips per-gate CI attribution for a shared bucket, so
+      # deleting the step that runs this mirror would otherwise leave every
+      # check green while CI stopped enforcing the installer's guards. Without
+      # this trigger a workflow-only edit does not select the gate, and the
+      # assertion never runs in exactly the case it exists for.
+      - ".github/workflows/test.yml"
+      # This registry file is this gate's other CI-wiring assertion input:
+      # test_mirror_is_wired_into_ci reads BOTH .github/workflows/test.yml and
+      # this file (it checks the registry references the mirror, the same way
+      # it checks the workflow runs it). A registry-only edit that drops or
+      # breaks that reference must select this gate for the same reason the
+      # workflow does.
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      # install-apt-packages.sh has no separate "verify" mode of its own --
+      # it is an installer (it downloads a pinned ripgrep release, verifies
+      # its checksum, and installs it, or shells out to apt-get for anything
+      # else), and running it for real would mutate the machine it runs on
+      # (system-wide /usr/local/bin writes, sudo, apt-get). The 34-assertion
+      # test mirror IS this gate's verification: it drives the same code
+      # paths (bounded-transfer curl flags, fail-closed checksum verify,
+      # arch-support guard, apt fallback) hermetically, off the network,
+      # via ESHU_CI_APT_RIPGREP_URL file:// fixtures and
+      # ESHU_CI_APT_SKIP_INSTALL/ESHU_CI_APT_NO_SUDO. Mirrors the
+      # golden-corpus-mirror gate's shape (a static/hermetic mirror gate
+      # whose `local.command` IS the test script, with no separate
+      # test_command) rather than the usual real-command/test-command split
+      # every other gate uses, because there is no non-mutating "real"
+      # command to pair it with.
+      command: "bash scripts/test-ci-install-apt-packages.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: ci-go-mod-download-retry
+    name: CI Go module pre-warm retry-script test mirror
+    category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/test-ci-go-mod-download-retry.sh"
+      # The workflow is a trigger for the same reason as
+      # ci-install-apt-packages above: this mirror asserts its own CI wiring,
+      # and a workflow-only edit that dropped the step must still select this
+      # gate.
+      - ".github/workflows/test.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      # go-mod-download-retry.sh has no separate verify mode either -- it is
+      # a thin `go mod download` retry wrapper, and every job in this repo
+      # that compiles Go now depends on it (#6615). The test mirror
+      # IS this gate's verification: hermetic, off the network, via a fake
+      # `go` on PATH that records invocation directory and attempt count.
+      # Mirrors ci-install-apt-packages' shape (a static/hermetic mirror gate
+      # whose local.command IS the test script, no separate test_command)
+      # for the same reason: there is no non-mutating "real" command to pair
+      # it with that would not itself hit proxy.golang.org.
+      command: "bash scripts/test-ci-go-mod-download-retry.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: ci-go-install-retry
+    name: CI Go tool install retry-script test mirror
+    category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the go-install retry wrapper and fails if any workflow runs a bare go install instead of it."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/go-install-retry.sh"
+      - "scripts/test-ci-go-install-retry.sh"
+      - "scripts/lib/test-ci-go-install-retry-fake-go.sh"
+      # Every workflow is a trigger: the mirror rejects a bare `go install`
+      # in any of them, so a workflow-only edit that adds one must still
+      # select this gate.
+      - ".github/workflows/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      # Same shape as ci-go-mod-download-retry above: a thin retry wrapper
+      # with no non-mutating "real" command (any real run would hit
+      # proxy.golang.org), so the hermetic mirror, via a fake `go` on PATH,
+      # IS this gate's verification.
+      command: "bash scripts/test-ci-go-install-retry.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: main-health-watcher
+    name: Post-merge main-health watcher test mirror
+    category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the post-merge main-health watcher's logic for opening and closing its tracking issue."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/main-health.sh"
+      - "scripts/lib/main-health-policy.sh"
+      - "scripts/test-main-health.sh"
+      - "scripts/lib/test-main-health-*"
+      # The mirror asserts the watcher workflow's trigger list equals the
+      # aggregator's, its least-privilege permissions and action pinning, so
+      # an edit to either workflow must select it.
+      - ".github/workflows/main-health.yml"
+      - ".github/workflows/required-gates.yml"
+      # The mirror asserts Security Scan's run-name stamp, which the
+      # watcher parses to judge only scans of main's image at the tip.
+      - ".github/workflows/security-scan.yml"
+      # The required-workflow list is derived from this file's
+      # required_status_checks; a registry edit can change the derivation.
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      # The mirror's wiring assertion reads verify-ci-gate-registry.yml.
+      - ".github/workflows/verify-ci-gate-registry.yml"
+    local:
+      # main-health.sh has no non-mutating "real" mode against GitHub that a
+      # local run could use (it reads and writes issues and statuses), so the
+      # hermetic mirror IS the verification: a fake `gh` on PATH that honors
+      # the Actions API query filters serves recorded JSON for red, green,
+      # flapping, superseded, pending, cancelled, truncated and multi-event
+      # (workflow_run image scan) shapes; the cases assert the upsert/close
+      # decisions, zero writes in dry-run on every path, the bounded API
+      # calls, and the workflow's allow-list guard and concurrency group. The
+      # live check is the workflow's dry-run dispatch (docs/public/reference/
+      # local-testing/main-health-watcher.md).
+      command: "bash scripts/test-main-health.sh"
+      test_command: ""
+    ci:
+      workflow: verify-ci-gate-registry.yml
+      job: "Verify ci-gate registry test mirror"
+    requirements: []
+    ci_only_reason: ""

@@ -1,0 +1,418 @@
+version: v1
+gates:
+  - id: golden-corpus-gate
+    name: Golden Corpus Gate on NornicDB (Docker)
+    category: exactness
+    layer: secondary
+    purpose: "Runs the golden-corpus pipeline on NornicDB, the secondary backend, to watch for backend drift; Neo4j is the blocking golden gate."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "go/internal/collector/**"
+      - "go/internal/parser/**"
+      - "go/internal/projector/**"
+      - "go/internal/reducer/**"
+      - "go/internal/query/**"
+      - "go/internal/relationships/**"
+      - "go/internal/workloadid/**"
+      - "go/internal/storage/**"
+      - "sdk/go/factschema/**"
+      # #5538: this registry entry had drifted from the workflow's own
+      # on.pull_request.paths — missing the go/cmd/* binaries the gate builds
+      # and every package below. Brought back into lockstep here; a general
+      # registry-vs-workflow drift CHECK (so this cannot silently reopen) is
+      # tracked separately as #5546, not added by this change.
+      - "go/cmd/bootstrap-index/**"
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
+      - "go/cmd/reducer/**"
+      # #6159: this read "go/cmd/collector-**", copied verbatim from the
+      # workflow's on.pull_request.paths. GitHub's "**" crosses "/", so the
+      # pattern works there; the registry's own matcher treats "**" as a whole
+      # segment, so "collector-**" was a single-segment wildcard that matched
+      # the DIRECTORY "go/cmd/collector-tempo" and no file under it. A change
+      # to any collector command selected none of this gate's triggers. The
+      # workflow copy is correct in its own dialect and is left alone.
+      - "go/cmd/collector-*/**"
+      - "go/cmd/api/**"
+      - "go/cmd/golden-corpus-gate/**"
+      - "go/cmd/mock-prometheus-mimir/**"
+      - "go/cmd/mock-openai-compatible/**"
+      - "go/internal/demospec/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/mcp/**"
+      - "go/internal/goldengate/**"
+      - "go/internal/graph/**"
+      - "go/internal/graphowner/**"
+      - "go/internal/graphschemacompat/**"
+      - "go/internal/graphbackpressure/**"
+      - "go/internal/facts/**"
+      - "go/internal/queue/**"
+      - "go/internal/replay/**"
+      - "go/internal/content/**"
+      - "go/internal/contentrefs/**"
+      - "go/internal/codeprovenance/**"
+      - "go/internal/packageidentity/**"
+      - "go/internal/repositoryidentity/**"
+      - "go/internal/sourcetool/**"
+      - "go/internal/terraformschema/**"
+      - "go/internal/environment/**"
+      - "go/internal/exposure/**"
+      - "go/internal/doctruth/**"
+      - "go/internal/serviceintel/**"
+      - "go/internal/serviceintelhttp/**"
+      # #5538 review follow-up: mirrors the workflow's own correction of two
+      # wrong exclusions ("reducer correlation" and "workflowimage") plus the
+      # search/semantic family and the iacreachability/rubycontroller checks --
+      # see scripts/lib/golden-corpus-mirror-workflow-paths.sh for the evidence.
+      - "go/internal/correlation/**"
+      - "go/internal/truth/**"
+      - "go/internal/scope/**"
+      - "go/internal/factenvelope/**"
+      - "go/internal/ghactionsref/**"
+      - "go/internal/workflowimage/**"
+      - "go/internal/searchretrieval/**"
+      - "go/internal/searchdocs/**"
+      - "go/internal/searchbench/**"
+      - "go/internal/searchdecay/**"
+      - "go/internal/searchhybrid/**"
+      - "go/internal/searchrerank/**"
+      - "go/internal/searchembed/**"
+      - "go/internal/searchembedprovider/**"
+      - "go/internal/searchembedruntime/**"
+      - "go/internal/searchvector/**"
+      - "go/internal/semanticqueue/**"
+      - "go/internal/semanticpolicy/**"
+      - "go/internal/semanticguard/**"
+      - "go/internal/semanticprofile/**"
+      - "go/internal/iacreachability/**"
+      - "go/internal/rubycontroller/**"
+      # #5538 second review round: capability/status/version surface --
+      # mirrors the workflow's own addition. See
+      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the per-package
+      # import evidence, and for why internal/component stays excluded.
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/extraction/**"
+      - "go/internal/governanceaudit/**"
+      - "go/internal/status/**"
+      - "go/internal/buildinfo/**"
+      # #5877 review: two corrected exclusions -- see the workflow's own
+      # comment and scripts/lib/golden-corpus-mirror-workflow-paths.sh for the
+      # per-package import evidence (boundedset.DedupeSortCap shapes asserted
+      # SBOM attachment fields; tfstatewarning.Classify shapes get_index_status's
+      # required "terraform_state" field).
+      - "go/internal/boundedset/**"
+      - "go/internal/tfstatewarning/**"
+      - "go/internal/ask/**"
+      - "go/internal/askwiring/**"
+      - "go/internal/answerguardrail/**"
+      - "go/internal/answernarration/**"
+      # #4045: query/evidence_bundle_live.go composes GET /api/v0/evidence/bundle
+      # from internal/evidencebundle, and the snapshot asserts that response. The
+      # workflow gained this entry then; the registry did not, so local gate
+      # selection has been missing it since. Restored here alongside the #6119
+      # entry below, in the same block, because the two lists are meant to agree.
+      - "go/internal/evidencebundle/**"
+      # #6119: internal/urlredact reaches this gate on the static-parse path --
+      # internal/collector/git_service_catalog_facts.go parses catalog-info.yaml
+      # from the repo corpus into servicecatalog.BackstageManifestEnvelopes, whose
+      # URL sanitizers call urlredact.CarriesUserinfo, against the
+      # deployable-config/catalog-info.yaml fixture this gate already loads. See
+      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the full evidence,
+      # including why internal/redact stays excluded and this does not.
+      - "go/internal/urlredact/**"
+      - "testdata/golden/**"
+      - "testdata/cassettes/**"
+      - "tests/fixtures/ecosystems/**"
+      - "specs/demo-first-answers.v1.yaml"
+      # The orchestrator and the libs it sources, including the live-gate mutex:
+      # an edit to any of them changes what this gate does.
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/test-verify-golden-corpus-gate.sh"
+      - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/test-golden-corpus-*.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      # The Neo4j matrix leg boots from this file (compose_file), which pins
+      # the Neo4j image digest; a digest-only bump must re-run the gate too
+      # (#6782 round-4 review P3-4).
+      - "docker-compose.neo4j.yml"
+      - ".github/workflows/golden-corpus-gate.yml"
+    local:
+      command: "bash scripts/verify-golden-corpus-gate.sh"
+      test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
+    ci:
+      workflow: golden-corpus-gate.yml
+      job: "corpus-gate"
+      check_names:
+        - "corpus-gate (nornicdb)"
+    requirements:
+      - go
+      - docker
+      - nornicdb
+    ci_only_reason: ""
+
+  - id: read-api-latency-gate
+    name: Read API Latency Gate (Docker)
+    category: exactness
+    layer: performance
+    purpose: "Runs the read API against Docker/NornicDB and fails if route latency or Postgres work exceeds committed budgets."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      # cmd/api compiles 363 of the repo's 558 internal packages (go list
+      # -deps ./cmd/api, 2026-09). A narrower,
+      # hand-picked package list drifts silently as eshu-api's own imports
+      # grow — exactly the gap such a list left (go/internal/status, go.mod/go.sum,
+      # and ~280 other compiled-in packages were missing). "go/**" mirrors
+      # the golden-corpus-filter-exhaustive gate's own trigger below, which
+      # covers the same whole-module-compile-in problem the same way.
+      - "go/**"
+      - "testdata/benchmarks/read-api-route-budgets.txt"
+      - "testdata/benchmarks/read-api-route-work-budgets.txt"
+      - "scripts/verify-read-api-latency-gate.sh"
+      - "scripts/refresh-read-api-work-budgets.sh"
+      - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/compare-backend-latency.sh"
+      - "scripts/test-compare-backend-latency.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/lib/golden-corpus-host-helpers.sh"
+      - "scripts/lib/compose_verification_runtime_common.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "docker-compose.yaml"
+      - "docker-compose.read-api-latency-gate.yaml"
+      - ".github/workflows/read-api-latency-gate.yml"
+    local:
+      command: "bash scripts/verify-read-api-latency-gate.sh"
+      test_command: ""
+    ci:
+      workflow: read-api-latency-gate.yml
+      job: "latency-gate (nornicdb)"
+      check_names:
+        - "latency-gate (nornicdb)"
+    requirements:
+      - go
+      - docker
+      - nornicdb
+    ci_only_reason: ""
+  - id: read-api-work-budget-mirror
+    name: Read API work budget refresh mirror (static)
+    category: hygiene
+    layer: performance
+    purpose: "Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/refresh-read-api-work-budgets.sh"
+      - "scripts/test-refresh-read-api-work-budgets.sh"
+    local:
+      command: "bash scripts/test-refresh-read-api-work-budgets.sh"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: "read-api-latency-gate.yml"
+      job: "static-mirror (work budget refresh)"
+    requirements: []
+  # #6965 phase 6: the cross-backend comparator (scripts/compare-backend-latency.sh)
+  # reads -latency-report JSON but never runs the live gate itself, so its
+  # formulas and identity-mismatch/non-comparable refusals get the same
+  # hermetic static-mirror treatment as read-api-work-budget-mirror above.
+  - id: backend-latency-compare-mirror
+    name: Cross-backend latency comparator mirror (static)
+    category: hygiene
+    layer: performance
+    purpose: "Self-tests the script that renders the NornicDB-vs-Neo4j latency comparison table; no live backend needed."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/compare-backend-latency.sh"
+      - "scripts/test-compare-backend-latency.sh"
+      - "scripts/lib/test-compare-backend-latency-report.json"
+    local:
+      command: "bash scripts/test-compare-backend-latency.sh"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: "read-api-latency-gate.yml"
+      job: "static-mirror (backend latency comparator)"
+    requirements: []
+  # #6782 slice 1 added the B-7 golden corpus on Neo4j as the second cell of
+  # golden-corpus-gate.yml's corpus-gate matrix. It landed non-blocking because
+  # required-gates judges a PR with main's registry: a new blocking check_name
+  # cannot be introduced in the PR that first produces it. #7362 (#7331 phase 2)
+  # flips it to blocking: it passed 60 of 60 main runs from 2026-09-27 to
+  # 2026-09-29 (the NornicDB leg failed 2 of those 60). Triggers mirror
+  # golden-corpus-gate exactly.
+  - id: golden-corpus-gate-neo4j
+    name: Golden Corpus Gate on Neo4j (Docker)
+    category: exactness
+    layer: truth
+    purpose: "Runs the full pipeline over the fixed golden corpus on Neo4j, the supported backend, and fails if queues don't drain or the graph differs from the snapshot."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "go/internal/collector/**"
+      - "go/internal/parser/**"
+      - "go/internal/projector/**"
+      - "go/internal/reducer/**"
+      - "go/internal/query/**"
+      - "go/internal/relationships/**"
+      - "go/internal/workloadid/**"
+      - "go/internal/storage/**"
+      - "sdk/go/factschema/**"
+      - "go/cmd/bootstrap-index/**"
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
+      - "go/cmd/reducer/**"
+      - "go/cmd/collector-*/**"
+      - "go/cmd/api/**"
+      - "go/cmd/golden-corpus-gate/**"
+      - "go/cmd/mock-prometheus-mimir/**"
+      - "go/cmd/mock-openai-compatible/**"
+      - "go/internal/demospec/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/mcp/**"
+      - "go/internal/goldengate/**"
+      - "go/internal/graph/**"
+      - "go/internal/graphowner/**"
+      - "go/internal/graphschemacompat/**"
+      - "go/internal/graphbackpressure/**"
+      - "go/internal/facts/**"
+      - "go/internal/queue/**"
+      - "go/internal/replay/**"
+      - "go/internal/content/**"
+      - "go/internal/contentrefs/**"
+      - "go/internal/codeprovenance/**"
+      - "go/internal/packageidentity/**"
+      - "go/internal/repositoryidentity/**"
+      - "go/internal/sourcetool/**"
+      - "go/internal/terraformschema/**"
+      - "go/internal/environment/**"
+      - "go/internal/exposure/**"
+      - "go/internal/doctruth/**"
+      - "go/internal/serviceintel/**"
+      - "go/internal/serviceintelhttp/**"
+      - "go/internal/correlation/**"
+      - "go/internal/truth/**"
+      - "go/internal/scope/**"
+      - "go/internal/factenvelope/**"
+      - "go/internal/ghactionsref/**"
+      - "go/internal/workflowimage/**"
+      - "go/internal/searchretrieval/**"
+      - "go/internal/searchdocs/**"
+      - "go/internal/searchbench/**"
+      - "go/internal/searchdecay/**"
+      - "go/internal/searchhybrid/**"
+      - "go/internal/searchrerank/**"
+      - "go/internal/searchembed/**"
+      - "go/internal/searchembedprovider/**"
+      - "go/internal/searchembedruntime/**"
+      - "go/internal/searchvector/**"
+      - "go/internal/semanticqueue/**"
+      - "go/internal/semanticpolicy/**"
+      - "go/internal/semanticguard/**"
+      - "go/internal/semanticprofile/**"
+      - "go/internal/iacreachability/**"
+      - "go/internal/rubycontroller/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/extraction/**"
+      - "go/internal/governanceaudit/**"
+      - "go/internal/status/**"
+      - "go/internal/buildinfo/**"
+      - "go/internal/boundedset/**"
+      - "go/internal/tfstatewarning/**"
+      - "go/internal/ask/**"
+      - "go/internal/askwiring/**"
+      - "go/internal/answerguardrail/**"
+      - "go/internal/answernarration/**"
+      - "go/internal/evidencebundle/**"
+      - "go/internal/urlredact/**"
+      - "testdata/golden/**"
+      - "testdata/cassettes/**"
+      - "tests/fixtures/ecosystems/**"
+      - "specs/demo-first-answers.v1.yaml"
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/test-verify-golden-corpus-gate.sh"
+      - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/test-golden-corpus-*.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      # The Neo4j matrix leg boots from this file (compose_file), which pins
+      # the Neo4j image digest; a digest-only bump must re-run the gate too
+      # (#6782 round-4 review P3-4).
+      - "docker-compose.neo4j.yml"
+      - ".github/workflows/golden-corpus-gate.yml"
+    local:
+      command: "ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh"
+      test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
+    ci:
+      workflow: golden-corpus-gate.yml
+      job: "corpus-gate"
+      check_names:
+        - "corpus-gate (neo4j)"
+    requirements:
+      - go
+      - docker
+    ci_only_reason: ""
+
+  # #6784 slice B: every CI-class row from specs/live-tests.v1.yaml runs on
+  # NornicDB and Neo4j. It landed non-blocking because required-gates judges
+  # a PR with main's registry: a new blocking check_name cannot be
+  # introduced in the PR that first produces it. Blocking flipped to true in
+  # the follow-up once main went green on this job (run 35901630978 on the
+  # slice-B merge commit). Triggers mirror the workflow
+  # paths (whole-module go/**: the ledger validator scans every go package
+  # for live tests, so any Go change can add an unclassified live test).
+  - id: live-backend-tests
+    name: Live Backend Tests on NornicDB and Neo4j (Docker)
+    category: exactness
+    layer: truth
+    purpose: "Runs the CI-class tests from the live-test ledger against NornicDB and Neo4j in Docker and fails on a wrong answer."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/**"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
+      - "scripts/lib/live_tests_registry.py"
+      - "scripts/test-live-tests-registry.py"
+      - "scripts/lib/live_postgres_readiness_inventory.py"
+      - "scripts/run-live-backend-tests.sh"
+      - "scripts/test-run-live-backend-tests.sh"
+      - "scripts/verify-live-tests-ledger.sh"
+      - "scripts/test-verify-live-tests-ledger.sh"
+      - "scripts/lib/live_backend_test_targets.py"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "docker-compose.live-backend-nornicdb.yml"
+      - "docker-compose.live-backend-neo4j.yml"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
+      - ".github/workflows/live-backend-tests.yml"
+    local:
+      command: "bash scripts/run-live-backend-tests.sh --backend both"
+      test_command: "bash scripts/test-run-live-backend-tests.sh"
+    ci:
+      workflow: live-backend-tests.yml
+      job: "live-backend (nornicdb and neo4j)"
+      check_names:
+        - "live-backend (nornicdb and neo4j)"
+    requirements:
+      - go
+      - docker
+      - nornicdb
+    ci_only_reason: ""
+
+  # Owner row for the `static-mirror (ledger and runner probes)` job of
+  # live-backend-tests.yml. Without a row a failing ledger or runner probe did
+  # not block a merge (see ifa-static-mirror). The job needs no Docker: it
+  # validates specs/live-tests.v1.yaml against every live test under go/ and
+  # exercises the runner script, so its triggers are the workflow paths, as the
+  # live-backend-tests row above.

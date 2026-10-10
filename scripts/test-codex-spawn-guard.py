@@ -129,7 +129,17 @@ class CodexSpawnGateWiringTests(unittest.TestCase):
     """Keep local and hosted verification connected to the guard."""
 
     def test_gate_wiring_covers_guard_and_its_test(self) -> None:
-        registry = (ROOT / "specs/ci-gates.v1.yaml").read_text()
+        with tempfile.TemporaryDirectory() as directory:
+            flat_view = Path(directory) / "ci-gates-flat.yaml"
+            subprocess.run(
+                ["bash", "-c",
+                 'source scripts/lib/ci-gates-resolved-fixtures.sh; '
+                 'ci_gates_flat_view "$1" "$2" "$3"',
+                 "bash", str(ROOT / "specs/ci-gates.v1.yaml"),
+                 str(flat_view), str(ROOT)],
+                cwd=ROOT, check=True,
+            )
+            registry = flat_view.read_text()
         agent_gate = registry.split("  - id: agent-canon\n", 1)[1].split(
             "  - id: no-diff-fragments\n", 1)[0]
         for path in ("scripts/guard-codex-spawn.py", "scripts/test-codex-spawn-guard.py"):
