@@ -76,6 +76,36 @@ func TestProjectorClaimFullSurvivesNewerDelta(t *testing.T) {
 	}
 }
 
+// TestProjectorClaimFailedFullStillHoldsDelta pins the #7473 fail-safe
+// direction: gen-fg1 is a full whose generation failed but whose work is
+// still pending, with a newer pending delta behind it. The hold admits
+// generation status pending and failed, so the failed full must still be
+// handed out first; only dead-lettered work stops holding.
+func TestProjectorClaimFailedFullStillHoldsDelta(t *testing.T) {
+	dsn := claimMaintenanceProofDSN(t)
+	database := openClaimDeadlockProofDB(t, dsn, 2)
+	at := time.Now().UTC().Truncate(time.Second)
+	fullGuardSeedScope(t, database, at, "pending", at.Add(-2*time.Hour), at.Add(-2*time.Hour), false, true)
+	if _, err := database.Exec(
+		`UPDATE scope_generations SET status = 'failed' WHERE generation_id = 'gen-fg1'`); err != nil {
+		t.Fatalf("mark gen-fg1 failed: %v", err)
+	}
+	queue := NewProjectorQueue(SQLDB{DB: database}, "claimer", time.Minute)
+	queue.Now = func() time.Time { return at }
+
+	work, ok, err := queue.Claim(context.Background())
+	if err != nil || !ok || work.Generation.GenerationID != "gen-fg1" {
+		t.Fatalf("Claim() = (%q, %v, %v), want the failed gen-fg1 full first",
+			work.Generation.GenerationID, ok, err)
+	}
+	if got := generationState(t, database, "gen-fg1"); got != "failed" {
+		t.Fatalf("gen-fg1 generation = %q, want failed", got)
+	}
+	if status, _, _ := workState(t, database, "scope-fg", "gen-fg2"); status != "pending" {
+		t.Fatalf("gen-fg2 work = %s, want pending behind the failed full", status)
+	}
+}
+
 // TestProjectorClaimHoldsDeltaBehindBackoffFull is the #7473 admission guard:
 // gen-fg1 is a full backing off a retryable failure while the newer delta
 // gen-fg2 is ready. The claim must neither supersede the full nor hand out

@@ -66,10 +66,12 @@ statement only.
   generation order in row-form (`(ingested_at, generation_id) < (...)`),
   identical to the OR tiebreak in branch 1, and restricts the held side
   to deltas: a newer full supersedes the older one instead of waiting
-  behind it, so no claim round is wasted. Terminal (`failed`,
-  `dead_letter`) fulls never hold: they cannot become claimable on their
-  own, and the collector's next reconcile decision (not the queue) heals
-  them.
+  behind it, so no claim round is wasted. Dead-lettered fulls never
+  hold: they cannot become claimable on their own, and the collector's
+  next reconcile decision (not the queue) heals them. A `failed`
+  generation with waiting work still holds its delta (the hold admits
+  generation status `pending` and `failed`): holding is the fail-safe
+  direction, pinned by a live test.
 - No lock-clause change: the additions lock no rows (pinned by unit test).
 - The statement outgrew the 500-line file cap (530 lines), so the const
   split at the sweep/pool CTE boundary into `claimProjectorWorkSweepSQL`
@@ -86,9 +88,12 @@ statement only.
 
 All proof ran against `postgres:18` on a disposable database.
 
-- Functional: the four RED tests above are GREEN with the fix; the three
+- Functional: the five RED tests above are GREEN with the fix; the three
   controls stay GREEN on both trees. Genuine supersedes keep
-  `failure_class` `projector_superseded_by_newer_generation`.
+  `failure_class` `projector_superseded_by_newer_generation`. The fifth
+  RED (`TestProjectorClaimFailedFullStillHoldsDelta`: main claimed
+  gen-fg2 first) pins that a `failed` generation with waiting work still
+  holds its delta.
 - EvalPlanQual: `TestProjectorClaimDropsFullHolderClaimedAfterSnapshot` (a
   full another worker claimed and committed between snapshot and lock is
   dropped at lock time, with no fall-through to the held delta) and
@@ -151,7 +156,7 @@ candidate-time re-verification of older generations; not pursued here.
 
 The four `projector_queue_claim_full_guard_*_live_test.go` proofs are
 `postgres_ci` rows in `specs/live-tests.v1.yaml`, enrolled in the
-live-postgres-readiness runner with their 13 test names pinned in
+live-postgres-readiness runner with their 14 test names pinned in
 `scripts/lib/live_postgres_readiness_results.py`. They reuse the existing
 `ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN` proof database (each test mints
 and drops its own `claim_deadlock_proof_*` schema), already wired into

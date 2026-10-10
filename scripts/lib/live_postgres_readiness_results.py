@@ -85,6 +85,7 @@ PACKAGES = {
         ),
         "go/internal/storage/postgres/projector_queue_claim_full_guard_live_test.go": (
             "TestProjectorClaimFullSurvivesNewerDelta",
+            "TestProjectorClaimFailedFullStillHoldsDelta",
             "TestProjectorClaimHoldsDeltaBehindBackoffFull",
             "TestProjectorClaimRunsDriftedFullBeforeNewerDelta",
             "TestProjectorClaimStillSupersedesFullBehindNewerFull",
