@@ -14,9 +14,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// seededBranchMarker is the content marker of the planted extractor branch in
+// seededContentReadingBuild. It sits in poisonContents so the unread-class
+// guard meets it, which is what lets the guard's own seeded leg go RED.
+const seededBranchMarker = "SEEDED_BRANCH"
+
 // poisonContents holds content that moves a different extractor each. Any
 // file may receive any of them, so a file class whose content an extractor
-// would read in a new way meets content that makes the read matter.
+// would read in a new way meets content that makes the read matter. The guards
+// fire only for content in this list: a new extractor branch must add content
+// that moves it, or the guards cannot see it.
 var poisonContents = []string{
 	"config_path = \"../shared/terragrunt.hcl\"\nmodule \"m\" {\n  source = \"./modules/m\"\n}\n",
 	"include {\n  path = find_in_parent_folders()\n}\n",
@@ -25,6 +32,7 @@ var poisonContents = []string{
 	"resources:\n  - a.yaml\n  - ../b\n  - c.json\n",
 	"Statement:\n  - Resource: arn:aws:ssm:us-east-1:1:parameter/configd/poison/*\n",
 	`{"Resource": "/api/poison/*"}`,
+	`{"marker": "` + seededBranchMarker + `"}`,
 	"key: value\n",
 	"not: [valid",
 	"",
@@ -274,7 +282,7 @@ func seededContentReadingBuild(repoName string, files []querycontract.FileConten
 	result := buildRepositoryConfigArtifacts(repoName, files)
 	rows := querycontract.MapSliceValue(result, "config_paths")
 	for _, file := range files {
-		if strings.HasSuffix(strings.ToLower(file.RelativePath), ".json") && strings.Contains(file.Content, "SEEDED_BRANCH") {
+		if strings.HasSuffix(strings.ToLower(file.RelativePath), ".json") && strings.Contains(file.Content, seededBranchMarker) {
 			rows = append(rows, map[string]any{
 				"path": "/seeded", "source_repo": repoName,
 				"relative_path": file.RelativePath, "evidence_kind": "seeded",
@@ -288,16 +296,18 @@ func seededContentReadingBuild(repoName string, files []querycontract.FileConten
 }
 
 // TestNeededContentHydrationGuardCatchesUnplannedContentRead is the
-// seeded-violation RED/GREEN pair for the equality harness. GREEN: the real
-// extractors and the real plan agree with full hydration on content that
-// would move any branch. RED: the same harness, given an extractor that reads
-// content of a class the plan skips, reports a difference. A new extractor
-// branch that reads such content fails the generated-tree test the same way.
+// seeded-violation RED/GREEN pair for the equality harness on one fixture.
+// GREEN: the real extractors and the real plan agree with full hydration on
+// content that would move any branch. RED: the same harness, given an
+// extractor that reads content of a class the plan skips, reports a
+// difference. The generated-tree test reports a difference the same way only
+// for content in poisonContents; the unread-class guard has its own pair in
+// TestConfigArtifactExtractorsIgnoreContentOfUnreadClassesSeededPair.
 func TestNeededContentHydrationGuardCatchesUnplannedContentRead(t *testing.T) {
 	t.Parallel()
 
 	files := []querycontract.FileContent{
-		fileRow("web/data.json", `{"marker": "SEEDED_BRANCH"}`),
+		fileRow("web/data.json", `{"marker": "`+seededBranchMarker+`"}`),
 		fileRow("infra/main.tf", "# nothing\n"),
 	}
 	newStore := func() *hydrationStore { return newHydrationStore(files...) }
@@ -325,15 +335,14 @@ func TestNeededContentHydrationGuardCatchesUnplannedContentRead(t *testing.T) {
 	})
 }
 
-// TestConfigArtifactExtractorsIgnoreContentOfUnreadClasses is the unit-level
-// guard: for every path in the class corpus that configArtifactReadsContent
-// rejects, the extractors must produce the same rows for any non-blank
-// content. A branch that starts reading content for such a path fails here,
-// before the loader would silently stop fetching it.
-func TestConfigArtifactExtractorsIgnoreContentOfUnreadClasses(t *testing.T) {
-	t.Parallel()
-
-	checked := 0
+// unreadClassContentChange walks every path in the class corpus that
+// configArtifactReadsContent rejects and reports the first path whose build
+// output depends on its content, together with the number of paths checked.
+// build is the extractor under test, so a seeded leg can run a planted branch
+// through the guard itself. It sees only content in poisonContents.
+func unreadClassContentChange(
+	build func(repoName string, files []querycontract.FileContent) map[string]any,
+) (changedPath string, checked int) {
 	for _, dir := range pathDirs {
 		for _, stem := range pathStems {
 			relativePath := dir + stem
@@ -346,19 +355,56 @@ func TestConfigArtifactExtractorsIgnoreContentOfUnreadClasses(t *testing.T) {
 				if strings.TrimSpace(content) == "" {
 					continue
 				}
-				got := fmt.Sprint(buildRepositoryConfigArtifacts("svc", []querycontract.FileContent{fileRow(relativePath, content)}))
+				got := fmt.Sprint(build("svc", []querycontract.FileContent{fileRow(relativePath, content)}))
 				if !haveBaseline {
 					baseline, haveBaseline = got, true
 					continue
 				}
 				if got != baseline {
-					t.Fatalf("extractors read the content of %q, which configArtifactReadsContent rejects: %s vs %s", relativePath, baseline, got)
+					return relativePath, checked
 				}
 			}
 			checked++
 		}
 	}
+	return "", checked
+}
+
+// TestConfigArtifactExtractorsIgnoreContentOfUnreadClasses is the unit-level
+// guard: for every path in the class corpus that configArtifactReadsContent
+// rejects, the extractors must produce the same rows for any non-blank content
+// in poisonContents. A branch whose content is in that list and that starts
+// reading content for such a path fails here, before the loader would silently
+// stop fetching it. Content outside the list is invisible to the guard.
+func TestConfigArtifactExtractorsIgnoreContentOfUnreadClasses(t *testing.T) {
+	t.Parallel()
+
+	changed, checked := unreadClassContentChange(buildRepositoryConfigArtifacts)
+	if changed != "" {
+		t.Fatalf("extractors read the content of %q, which configArtifactReadsContent rejects", changed)
+	}
 	if checked < 100 {
 		t.Fatalf("checked only %d unread-class paths; the corpus is too small to guard the plan", checked)
+	}
+}
+
+// TestConfigArtifactExtractorsIgnoreContentOfUnreadClassesSeededPair is the
+// seeded-violation RED/GREEN pair for the unread-class guard itself. GREEN:
+// the real extractors pass the guard on the clean tree. RED: the planted
+// branch (seededContentReadingBuild, which reads .json content marked
+// SEEDED_BRANCH) goes through the same guard function and is reported, because
+// the marker is in poisonContents.
+func TestConfigArtifactExtractorsIgnoreContentOfUnreadClassesSeededPair(t *testing.T) {
+	t.Parallel()
+
+	if changed, _ := unreadClassContentChange(buildRepositoryConfigArtifacts); changed != "" {
+		t.Fatalf("green leg: guard flagged the real extractors at %q", changed)
+	}
+	changed, checked := unreadClassContentChange(seededContentReadingBuild)
+	if changed == "" {
+		t.Fatalf("red leg: guard did not flag the planted branch after checking %d unread-class paths", checked)
+	}
+	if !strings.HasSuffix(strings.ToLower(changed), ".json") {
+		t.Fatalf("red leg: guard flagged %q, want the .json path the planted branch reads", changed)
 	}
 }

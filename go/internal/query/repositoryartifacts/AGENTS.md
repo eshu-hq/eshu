@@ -15,8 +15,10 @@
   extractor branch that reads `file.Content` must add its selector to
   `configArtifactReadsContent` (`repository_config_artifacts_hydration.go`) and
   to the unread-class corpus in
-  `repository_config_artifacts_hydration_differential_test.go`; the generated
-  tree test fails when an extractor reads content the plan does not fetch.
+  `repository_config_artifacts_hydration_differential_test.go`. The generated
+  tree test and the unread-class guard fire only for content in
+  `poisonContents`; a new extractor branch must add content that moves it, or
+  the guards cannot see the read.
 - Artifact predicates feed access decisions (`filter...ForAccess` callers);
   keep the fail-closed behavior and bounded limits exactly as they are.
 
