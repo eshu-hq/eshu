@@ -240,6 +240,19 @@ base_hub=$'services:\n  base:\n    image: postgres:18\n'
 base_ghcr=$'services:\n  base:\n    image: ghcr.io/eshu-hq/eshu:main\n'
 extends_base=$'services:\n  db:\n    extends:\n      file: docker-compose.fixture-base.yaml\n      service: base\n'
 
+# Malformed service shapes must remain unresolved so Hub login is required.
+compose_case compose-services-false $'services: false\n'
+expect_red services-false-counts-as-hub "${CASE_DIR}" "${no_login}"
+
+compose_case compose-services-empty-list $'services: []\n'
+expect_red services-empty-list-counts-as-hub "${CASE_DIR}" "${no_login}"
+
+compose_case compose-service-false $'services:\n  api: false\n'
+expect_red service-false-counts-as-hub "${CASE_DIR}" "${no_login}"
+
+compose_case compose-service-empty-map $'services:\n  api: {}\n'
+expect_red service-empty-map-counts-as-hub "${CASE_DIR}" "${no_login}"
+
 compose_case compose-extends-hub-base-file "${extends_base}"
 printf '%s' "${base_hub}" >"${CASE_DIR}/docker-compose.fixture-base.yaml"
 expect_red extends-follows-a-hub-image-in-the-base-file "${CASE_DIR}" "${no_login}"

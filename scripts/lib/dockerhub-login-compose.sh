@@ -26,7 +26,7 @@ compose_max_depth=6
 # A build map without a context leaves the context empty, so an extending
 # service inherits the base's.
 compose_rows_expr='explode(.) as $r
-| ( ($r.include
+| ( (("S|@UNRESOLVED@|@UNRESOLVED@||||||" | select(($r | tag) != "!!map" or (($r | has("services")) and ($r.services | tag) != "!!map")))), ($r.include
     | ((select(tag == "!!null") | []),
        (select(tag == "!!str" or tag == "!!map") | [.]),
        select(tag == "!!seq"),
@@ -39,7 +39,7 @@ compose_rows_expr='explode(.) as $r
        (select(tag != "!!str" and tag != "!!map") | ["@UNRESOLVED@"]))
     | .[] | "I|" + .),
     (($r.services // {}) | to_entries | .[] | .key as $n | .value as $v
-      | "S|" + $n + "|" + (($v.image | select(tag == "!!str" and . != "")) // ("@UNRESOLVED@" | select($v | has("image"))) // "") + "|"
+      | "S|" + $n + "|" + (("@UNRESOLVED@" | select(($v | tag) != "!!map" or (($v | has("image")) == false and ($v | has("build")) == false and ($v | has("extends")) == false))) // ($v.image | select(tag == "!!str" and . != "")) // ("@UNRESOLVED@" | select($v | has("image"))) // "") + "|"
         + (($v.build | select(tag == "!!str")) // ($v.build | select(tag == "!!map") | .context) // "") + "|"
         + (($v.build | select(tag == "!!map") | .dockerfile) // "") + "|"
         + (($v.extends | select(tag == "!!map") | .file) // "") + "|"
