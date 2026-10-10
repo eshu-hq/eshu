@@ -190,6 +190,7 @@ workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 assert_prewarm_before_run() {
 	local job_name="$1" start_needle="$2" end_needle="$3" run_needle="$4"
 	local start_line end_line setup_line prewarm_line run_line prewarm_run
+	local anchor_line first_alias_line
 	# `|| true` throughout: under pipefail a no-match rg would otherwise abort
 	# this whole script via set -e before the fail() checks below can run.
 	start_line="$(rg -n --fixed-strings -- "${start_needle}" "${workflow}" | cut -d: -f1)" || true
@@ -208,6 +209,10 @@ assert_prewarm_before_run() {
 		|| fail "${job_name}: module prefetch is not wired between setup-go and the matrix invocation"
 	prewarm_run="$(sed -n "$((start_line + prewarm_line - 1)),$((start_line + prewarm_line))p" "${workflow}")"
 	if [[ "${prewarm_run}" == *'*prewarm_go'* ]]; then
+		anchor_line="$(rg -n '^      - &prewarm_go .*run: scripts/ci/go-mod-download-retry.sh' "${workflow}" | cut -d: -f1 | head -1)" || true
+		first_alias_line="$(rg -n '^      - \*prewarm_go$' "${workflow}" | cut -d: -f1 | head -1)" || true
+		[[ -n "${anchor_line}" && -n "${first_alias_line}" && "${anchor_line}" -lt "${first_alias_line}" ]] \
+			|| fail "${job_name}: prewarm anchor is not defined before its first alias use"
 		rg -q '^      - &prewarm_go .*run: scripts/ci/go-mod-download-retry.sh' "${workflow}" \
 			|| fail "${job_name}: prewarm alias lacks the shared retry helper"
 	else

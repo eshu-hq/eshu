@@ -22,7 +22,7 @@
 // and its fragments, the generated surface inventory, and the two files the
 // check itself reads — the CI gate registry and the workflow; they are listed
 // in validatorInputs, which a new input must be added to. The built-from
-// packages are this one and internal/cigates, whose MatchGlob and DornyFilters
+// packages are this one and internal/cigates, whose MatchGlob and DornyFiltersFile
 // decide what the check reports; they are listed in validatorCodeDeps, which a
 // test derives from this package's own imports.
 // Before #6131 those trigger sets were disjoint from the referenced packages,
