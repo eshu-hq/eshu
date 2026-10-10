@@ -106,6 +106,7 @@ login_index="$(yq e '.jobs.live-backend.steps | length - 1' "${d}/.github/workfl
 expect_red login-placed-after-first-docker-step "${d}" "live-backend-tests.yml:live-backend: login steps[${login_index}] comes after the first Docker-reaching"
 
 d="$(new_case service-without-credentials)"
+yq e -i '.jobs.contention-gate.services.postgres.image = "docker.io/library/postgres:18"' "${d}/.github/workflows/reducer-contention-gate.yml"
 yq e -i 'del(.jobs.contention-gate.services.postgres.credentials)' "${d}/.github/workflows/reducer-contention-gate.yml"
 expect_red service-without-credentials "${d}" 'reducer-contention-gate.yml:contention-gate: service postgres'
 
@@ -131,6 +132,7 @@ yq e -i 'del(.jobs.test.env.DOCKERHUB_LOGIN_ENABLED)' "${d}/.github/workflows/e2
 expect_red login-without-job-env "${d}" 'job env must define DOCKERHUB_LOGIN_ENABLED'
 
 d="$(new_case build-push-without-login)"
+printf 'FROM docker.io/library/alpine:3.21\n' >"${d}/Dockerfile"
 yq e -i "del(.jobs.build-and-push-image.steps[] | select(${login_ref} and .with.registry == null))" "${d}/.github/workflows/docker-publish.yml"
 expect_red build-push-job-without-hub-login "${d}" 'docker-publish.yml:build-and-push-image: no Docker Hub docker/login-action@v3 step'
 
@@ -470,6 +472,8 @@ done
 source "${repo_root}/scripts/lib/dockerhub-login-test-shapes.sh"
 # shellcheck source=lib/dockerhub-login-test-script-refs.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-script-refs.sh"
+# shellcheck source=lib/dockerhub-login-test-expressions.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-expressions.sh"
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "test-verify-dockerhub-login: ${failures} case(s) failed" >&2

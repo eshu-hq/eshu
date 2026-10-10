@@ -237,6 +237,9 @@
       "licenses": "Bundled Ubuntu package licenses; retain package notices and source access."
     }
   ],
+  "runtime_allowlist": [
+    "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+  ],
   "tools": {
     "destination": "ghcr.io/eshu-hq/ci-tools",
     "digest": "sha256:195eb6d12b37a3eb1f35686b92beeeeba101d479146ef7396ece84f51c4994a4",

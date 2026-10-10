@@ -202,8 +202,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Cache Go modules and build artifacts
-        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
+      - if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         uses: actions/cache@v4
         with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
       - name: Pre-warm Go modules

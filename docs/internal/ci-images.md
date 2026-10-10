@@ -16,7 +16,8 @@ add labels to an upstream mirror. Those acts change the content identity.
 The existing PostgreSQL and main Neo4j mirror packages are reused by digest.
 The refresh process must not change their tags, visibility, or access settings.
 The other mirrors use dedicated `ci-mirror-*` packages. The NornicDB reference
-keeps its existing GHCR digest.
+keeps its existing GHCR digest in the separate `runtime_allowlist` ledger field;
+it is an existing runtime dependency, not an image published by this mirror job.
 
 The tools image serves the static contract gate matrix. Live Docker stacks run
 on the host runner. The tools image contains Ubuntu, Go, and the CLI tools that
@@ -48,6 +49,8 @@ Dockerfile identities fail before a build starts. There is no Docker Hub
 fallback in CI mode. Normal product Compose files and Dockerfile defaults keep
 their original upstream references when CI mode is off. `GATE_STACK_DIR`
 changes the explicit stack root; it does not change the helper's trusted ledger.
+The Compose helper accepts NornicDB only at the exact repository, tag, and digest
+listed in `runtime_allowlist`; an overridden NornicDB image fails preflight.
 
 The PostgreSQL readiness fixture uses `ESHU_LIVE_POSTGRES_IMAGE`. The query-plan
 profile uses `ESHU_QUERYPLAN_PROFILE_IMAGE`. These separate consumers must match

@@ -32,6 +32,7 @@ on:
       - 'scripts/ci/compose.sh'
       - 'scripts/lib/ci-image-compose.sh'
       - 'scripts/lib/ci_image_compose.py'
+      - 'scripts/lib/ci_image_compose_signature.py'
       - 'specs/ci-images.v1.json'
       # cmd/api compiles 363 of the repo's 558 internal packages (go list
       # -deps ./cmd/api, 2026-09) — a narrower,

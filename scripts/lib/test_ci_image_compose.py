@@ -12,6 +12,10 @@ import unittest
 SCRIPT = pathlib.Path(__file__).with_name("ci_image_compose.py")
 SUPPORTED_DOCKERFILE = SCRIPT.parents[2] / "Dockerfile"
 DIGEST = "a" * 64
+NORNICDB_IMAGE = (
+    "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:"
+    "74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+)
 
 
 class CiImageComposeTest(unittest.TestCase):
@@ -48,10 +52,13 @@ class CiImageComposeTest(unittest.TestCase):
         }
 
     def render(self, config: dict | None = None, images: list | None = None,
-               environment: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+               environment: dict[str, str] | None = None,
+               runtime_allowlist: list[str] | None = None) -> subprocess.CompletedProcess[str]:
         """Run the generator with synthetic effective Compose JSON."""
         self.ledger.write_text(
-            json.dumps({"version": 1, "images": images if images is not None else self.images}),
+            json.dumps({"version": 1, "images": images if images is not None else self.images,
+                        "runtime_allowlist": ([NORNICDB_IMAGE] if runtime_allowlist is None
+                                              else runtime_allowlist)}),
             encoding="utf-8",
         )
         return subprocess.run(
@@ -93,6 +100,21 @@ class CiImageComposeTest(unittest.TestCase):
         config["services"]["postgres"]["image"] = "example.com/custom:latest"
         self.assertNotEqual(self.render(config=config).returncode, 0)
 
+    def test_only_committed_nornicdb_pin_is_accepted(self) -> None:
+        """An arbitrary digest or repository must not bypass CI image review."""
+        config = json.loads(json.dumps(self.config))
+        config["services"]["nornicdb"] = {"image": NORNICDB_IMAGE}
+        self.assertEqual(self.render(config=config).returncode, 0)
+        self.assertNotEqual(self.render(config=config, runtime_allowlist=[]).returncode, 0)
+        for image in (
+            NORNICDB_IMAGE.replace("74a8ed7b", "00000000"),
+            NORNICDB_IMAGE.replace("nornicdb-amd64-cpu", "nornicdb-other"),
+            NORNICDB_IMAGE.replace("fix-500-e022384c", "unreviewed"),
+        ):
+            with self.subTest(image=image):
+                config["services"]["nornicdb"]["image"] = image
+                self.assertNotEqual(self.render(config=config).returncode, 0)
+
     def test_wrong_dockerfile_fails_closed(self) -> None:
         config = json.loads(json.dumps(self.config))
         config["services"]["api"]["build"]["dockerfile"] = "Otherfile"
@@ -121,6 +143,27 @@ class CiImageComposeTest(unittest.TestCase):
 
 class RealComposeParityTest(unittest.TestCase):
     """Prove the final overlay changes only approved image/build arguments."""
+
+    @unittest.skipUnless(shutil.which("docker"), "Docker Compose unavailable")
+    def test_real_nornicdb_override_fails_preflight(self) -> None:
+        """Compose interpolation must not turn an override into approval."""
+        root = SCRIPT.parents[2]
+        wrong_image = NORNICDB_IMAGE.replace("74a8ed7b", "00000000")
+        environment = {**os.environ, "NORNICDB_IMAGE": wrong_image}
+        rendered = subprocess.run(
+            ["docker", "compose", "-f", "docker-compose.yaml", "--profile", "*",
+             "config", "--format", "json"],
+            cwd=root, env=environment, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(rendered.returncode, 0, "Compose render failed")
+        result = subprocess.run(
+            ["python3", str(SCRIPT), "--root", str(root), "--ledger",
+             str(root / "specs/ci-images.v1.json")],
+            cwd=root, env=environment, input=rendered.stdout,
+            capture_output=True, text=True, check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
 
     @unittest.skipUnless(shutil.which("docker"), "Docker Compose unavailable")
     def test_effective_stack_parity(self) -> None:

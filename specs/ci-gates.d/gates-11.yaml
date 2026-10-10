@@ -293,6 +293,7 @@ gates:
       - "scripts/lib/ci-image-compose.sh"
       - "scripts/lib/ci_image_compose.py"
       - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -364,6 +365,7 @@ gates:
       - "scripts/lib/ci-image-compose.sh"
       - "scripts/lib/ci_image_compose.py"
       - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
       test_command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"

@@ -9,6 +9,7 @@ on:
     paths:
       - 'scripts/lib/ci-image-compose.sh'
       - 'scripts/lib/ci_image_compose.py'
+      - 'scripts/lib/ci_image_compose_signature.py'
       - 'specs/ci-images.v1.json'
       - "src/**"
       - "apps/console/**"

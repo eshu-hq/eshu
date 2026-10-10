@@ -144,6 +144,7 @@ gates:
       - "scripts/lib/ci-image-compose.sh"
       - "scripts/lib/ci_image_compose.py"
       - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "bash scripts/verify-golden-corpus-gate.sh"
       test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
@@ -193,6 +194,7 @@ gates:
       - "scripts/lib/ci-image-compose.sh"
       - "scripts/lib/ci_image_compose.py"
       - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "bash scripts/verify-read-api-latency-gate.sh"
       test_command: ""
@@ -359,6 +361,7 @@ gates:
       - "scripts/lib/ci-image-compose.sh"
       - "scripts/lib/ci_image_compose.py"
       - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh"
       test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
@@ -412,6 +415,7 @@ gates:
       - "scripts/lib/ci-image-compose.sh"
       - "scripts/lib/ci_image_compose.py"
       - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "bash scripts/run-live-backend-tests.sh --backend both"
       test_command: "bash scripts/test-run-live-backend-tests.sh"

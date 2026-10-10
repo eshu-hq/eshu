@@ -25,12 +25,28 @@ done < <(python3 -c 'import json; x=json.load(open("specs/ci-images.v1.json")); 
 source scripts/lib/ci-image-compose.sh
 mkdir -p "${test_dir}/helper/scripts/lib" "${test_dir}/helper/specs" "${test_dir}/external-stack"
 cp scripts/lib/ci-image-compose.sh "${test_dir}/helper/scripts/lib/ci-image-compose.sh"
+cp scripts/lib/ci_image_compose.py "${test_dir}/helper/scripts/lib/ci_image_compose.py"
 cp specs/ci-images.v1.json "${test_dir}/helper/specs/ci-images.v1.json"
+cp scripts/lib/ci_image_compose_signature.py "${test_dir}/helper/scripts/lib/ci_image_compose_signature.py"
 signature_before="$(bash -c 'source "$1"; eshu_ci_compose_signature "$2" -f docker-compose.yaml' _ "${test_dir}/helper/scripts/lib/ci-image-compose.sh" "${test_dir}/external-stack")"
 printf '\n' >>"${test_dir}/helper/specs/ci-images.v1.json"
 signature_after="$(bash -c 'source "$1"; eshu_ci_compose_signature "$2" -f docker-compose.yaml' _ "${test_dir}/helper/scripts/lib/ci-image-compose.sh" "${test_dir}/external-stack")"
 [[ "${signature_before}" != "${signature_after}" ]] || {
     echo "helper ledger changes must invalidate an external stack overlay" >&2
+    exit 1
+}
+signature_before="$(bash -c 'source "$1"; eshu_ci_compose_signature "$2" -f docker-compose.yaml' _ "${test_dir}/helper/scripts/lib/ci-image-compose.sh" "${test_dir}/external-stack")"
+printf '\n# changed helper\n' >>"${test_dir}/helper/scripts/lib/ci_image_compose_signature.py"
+signature_after="$(bash -c 'source "$1"; eshu_ci_compose_signature "$2" -f docker-compose.yaml' _ "${test_dir}/helper/scripts/lib/ci-image-compose.sh" "${test_dir}/external-stack")"
+[[ "${signature_before}" != "${signature_after}" ]] || {
+    echo "signature helper mutation must invalidate prepared overlay" >&2
+    exit 1
+}
+signature_before="$(bash -c 'source "$1"; eshu_ci_compose_signature "$2" -f docker-compose.yaml' _ "${test_dir}/helper/scripts/lib/ci-image-compose.sh" "${test_dir}/external-stack")"
+printf '\n# changed generator\n' >>"${test_dir}/helper/scripts/lib/ci_image_compose.py"
+signature_after="$(bash -c 'source "$1"; eshu_ci_compose_signature "$2" -f docker-compose.yaml' _ "${test_dir}/helper/scripts/lib/ci-image-compose.sh" "${test_dir}/external-stack")"
+[[ "${signature_before}" != "${signature_after}" ]] || {
+    echo "overlay generator mutation must invalidate prepared overlay" >&2
     exit 1
 }
 # shellcheck disable=SC2016  # Literal Compose interpolation syntax.
@@ -83,4 +99,24 @@ if FAKE_DOCKER_FAIL_RENDER=1 bash -c 'source scripts/lib/ci-image-compose.sh; es
     echo "failed Compose render must stop before a runtime command" >&2
     exit 1
 fi
+mkdir -p "${test_dir}/auth/scripts/lib" "${test_dir}/auth/go"
+cp scripts/run-auth-mcp-e2e.sh "${test_dir}/auth/scripts/run-auth-mcp-e2e.sh"
+cp scripts/lib/auth_e2e_cli.sh "${test_dir}/auth/scripts/lib/auth_e2e_cli.sh"
+cp scripts/lib/ci-image-compose.sh "${test_dir}/auth/scripts/lib/ci-image-compose.sh"
+cat >"${test_dir}/bin/go" <<'SH'
+#!/usr/bin/env bash
+printf 'called\n' >>"${MOCK_GO_CALLS:?}"
+exit 19
+SH
+printf '#!/usr/bin/env bash\nexit 0\n' >"${test_dir}/bin/node"
+chmod +x "${test_dir}/bin/go" "${test_dir}/bin/node"
+if MOCK_GO_CALLS="${test_dir}/go-calls" FAKE_DOCKER_CALLS="${test_dir}/auth-docker-calls" \
+    bash "${test_dir}/auth/scripts/run-auth-mcp-e2e.sh" --module catalog-sweep >/dev/null 2>&1; then
+    echo "failed catalog policy unexpectedly succeeded" >&2
+    exit 1
+fi
+[[ -s "${test_dir}/go-calls" && ! -e "${test_dir}/auth-docker-calls" ]] || {
+    echo "catalog policy failure must precede CI overlay preparation" >&2
+    exit 1
+}
 echo "test-ci-image-compose: PASS"

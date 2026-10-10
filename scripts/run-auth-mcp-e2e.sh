@@ -91,14 +91,6 @@ for tool in docker node go; do
   }
 done
 
-compose_args=(-p "$project" -f docker-compose.e2e.yaml)
-# shellcheck source=scripts/lib/ci-image-compose.sh
-source "$repo_root/scripts/lib/ci-image-compose.sh"
-eshu_ci_compose_prepare "$repo_root" "${compose_args[@]}"
-if [[ -n "$ESHU_CI_COMPOSE_OVERLAY" ]]; then
-  compose_args+=(-f "$ESHU_CI_COMPOSE_OVERLAY")
-fi
-
 # The catalog sweep's expected outcomes come from the Go route policy, not a
 # hand-copied list: derive them before any stack work so a table that no longer
 # matches the registered tools (a new tool without arguments, a route no ledger
@@ -114,6 +106,14 @@ if [[ "$runner_module" == "catalog-sweep" ]]; then
     exit 1
   fi
   export ESHU_E2E_CATALOG_SWEEP_POLICY="$policy_out"
+fi
+
+compose_args=(-p "$project" -f docker-compose.e2e.yaml)
+# shellcheck source=scripts/lib/ci-image-compose.sh
+source "$repo_root/scripts/lib/ci-image-compose.sh"
+eshu_ci_compose_prepare "$repo_root" "${compose_args[@]}"
+if [[ -n "$ESHU_CI_COMPOSE_OVERLAY" ]]; then
+  compose_args+=(-f "$ESHU_CI_COMPOSE_OVERLAY")
 fi
 
 teardown() {

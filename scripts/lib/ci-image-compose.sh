@@ -6,43 +6,7 @@
 eshu_ci_compose_signature() {
     local helper_root
     helper_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-    python3 - "${helper_root}" "$@" <<'PY'
-import hashlib
-import os
-import pathlib
-import re
-import sys
-
-helper_root = pathlib.Path(sys.argv[1]).resolve()
-root = pathlib.Path(sys.argv[2]).resolve()
-arguments = sys.argv[3:]
-hasher = hashlib.sha256()
-hasher.update(repr((str(root), arguments)).encode())
-files = set(root.glob("docker-compose*.yaml")) | set(root.glob("docker-compose*.yml"))
-files.update({root / "Dockerfile", root / ".env", helper_root / "specs/ci-images.v1.json"})
-for index, argument in enumerate(arguments[:-1]):
-    if argument in {"-f", "--file", "--env-file"}:
-        files.add(pathlib.Path(arguments[index + 1]).resolve())
-for argument in arguments:
-    if argument.startswith(("--file=", "--env-file=")):
-        files.add(pathlib.Path(argument.split("=", 1)[1]).resolve())
-for path in sorted(files):
-    hasher.update(str(path).encode())
-    if path.is_file():
-        content = path.read_bytes()
-        hasher.update(content)
-        for name in re.findall(rb"\$(?:\{)?([A-Za-z_][A-Za-z0-9_]*)", content):
-            hasher.update(repr((name.decode(), os.environ.get(name.decode()))).encode())
-    else:
-        hasher.update(b"<missing>")
-for name, value in sorted(os.environ.items()):
-    if name.startswith(("COMPOSE_", "DOCKER_")) or name in {
-        "ESHU_CI_IMAGES", "POSTGRES_IMAGE", "NEO4J_IMAGE", "ESHU_XX_IMAGE",
-        "ESHU_GO_IMAGE", "ESHU_ALPINE_IMAGE", "NORNICDB_IMAGE",
-    }:
-        hasher.update(repr((name, value)).encode())
-print(hasher.hexdigest())
-PY
+    python3 "${helper_root}/scripts/lib/ci_image_compose_signature.py" "${helper_root}" "$@"
 }
 
 eshu_ci_compose_prepare() {

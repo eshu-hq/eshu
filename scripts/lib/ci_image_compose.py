@@ -29,8 +29,10 @@ def _object(value: Any, label: str) -> dict[str, Any]:
     return value
 
 
-def _approved_images(ledger: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
-    """Validate ledger pins and return runtime and build mappings."""
+def _approved_images(
+    ledger: dict[str, Any]
+) -> tuple[dict[str, str], dict[str, str], frozenset[str]]:
+    """Validate ledger pins and return runtime, build, and existing-image sets."""
     if ledger.get("version") != 1 or not isinstance(ledger.get("images"), list):
         raise OverlayError("unsupported CI image ledger")
     ids: set[str] = set()
@@ -71,7 +73,17 @@ def _approved_images(ledger: dict[str, Any]) -> tuple[dict[str, str], dict[str, 
         "ESHU_XX_IMAGE", "ESHU_GO_IMAGE", "ESHU_ALPINE_IMAGE"
     }:
         raise OverlayError("required CI mirror pins are missing")
-    return runtime, build_args
+    raw_allowlist = ledger.get("runtime_allowlist")
+    if not isinstance(raw_allowlist, list) or not raw_allowlist:
+        raise OverlayError("runtime image allowlist is missing")
+    allowlist: set[str] = set()
+    for image in raw_allowlist:
+        if (not isinstance(image, str) or not _PIN.fullmatch(image)
+                or not image.startswith("ghcr.io/eshu-hq/nornicdb-")
+                or image in allowlist):
+            raise OverlayError("invalid or duplicate runtime image allowlist entry")
+        allowlist.add(image)
+    return runtime, build_args, frozenset(allowlist)
 
 
 def _is_docker_hub(image: str) -> bool:
@@ -86,7 +98,7 @@ def build_overlay(
     config: dict[str, Any], ledger: dict[str, Any], root: pathlib.Path
 ) -> dict[str, Any]:
     """Map every covered runtime and canonical local build in the rendered stack."""
-    runtime, build_args = _approved_images(ledger)
+    runtime, build_args, allowed_existing = _approved_images(ledger)
     services = _object(config.get("services"), "rendered services")
     if not services:
         raise OverlayError("rendered stack has no services")
@@ -109,7 +121,7 @@ def build_overlay(
                 pass  # Already approved, as with an explicit pin override.
             elif _is_docker_hub(image):
                 raise OverlayError(f"uncovered Docker Hub image in service {name}")
-            elif not (image.startswith("ghcr.io/eshu-hq/nornicdb-") and _PIN.fullmatch(image)):
+            elif image not in allowed_existing:
                 raise OverlayError(f"unapproved image in service {name}")
         build = service.get("build")
         if build is not None:
