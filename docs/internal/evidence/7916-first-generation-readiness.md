@@ -29,12 +29,17 @@ That error already carries the `generation_activation_not_ready` failure class.
 The queue already treats the class as a non-counting retry. The classifier keeps
 the existing one-statement SQL, joins, and active-generation ordering. There
 is no added database query, lock, transaction, queue policy, timeout, or worker
-limit.
+limit. A same-scope generation that becomes `failed` through projector Fail or
+`superseded` through the projector Claim sweep while the active pointer remains
+NULL now returns `(false, nil)`, so runtime dispatch can terminalize its
+deferred reducer intent as superseded before handler entry. The direct identity
+handler proof enters the handler and reads the epoch before its freshness check.
 
 | Snapshot state | Freshness result | Safety status |
 | --- | --- | --- |
 | Known scope, NULL active, same-scope pending intent | typed deferral | Proved in live queue/handler/Ack path |
-| Known scope, NULL active, missing/failed/superseded intent | legacy `(true, nil)` | NOT_CHECKED as safe; see failed replay below |
+| Known scope, NULL active, failed/superseded intent | `(false, nil)` | Proved through actual projector failure/supersession and reducer replay |
+| Known scope, NULL active, missing/other intent status | legacy `(true, nil)` | Compatibility preserved; safety NOT_CHECKED |
 | Unknown scope | legacy `(true, nil)` | Compatibility preserved; handler-specific safety NOT_CHECKED |
 | Exact active generation | `(true, nil)` | Existing contract |
 | Non-NULL active, newer pending intent | typed deferral | Existing #6686 regression |
@@ -42,6 +47,41 @@ limit.
 | Active generation without identity epoch | handler hard error | Existing corruption control |
 
 ## No-Regression Evidence
+
+No-Regression Evidence: PostgreSQL 18.6 on a disposable local container;
+the classifier uses the same one-statement SQL over one scope row and the
+same-scope generation row. The bounded matched baseline/candidate timing is
+recorded below. The controlled live queue rows each begin with one reducer
+intent and one projector work item. No extra query, lock, queue retry policy,
+or worker reduction was added.
+
+A disposable PostgreSQL 18.6 classifier benchmark compiled the original
+`generation_freshness.go` from base commit
+`2640c1d21f18ca123fa9861104c37a61912a5221` (source SHA-256
+`1574641a6b67a0beaaa93c652a2627ca9b666b2969bc3136c37fb4a027060d89`)
+through a Go source overlay, then compiled the candidate source (SHA-256
+`f2ec8ff2bb18f5dd30dadd699cdf0cce5453e60546916f98baa71481f9502d7b`)
+against separate schemas with identical four-row input shapes. Each
+case made three runs of 200 measured database calls (600 measured calls plus
+three one-call Go benchmark calibrations per state and variant). Median
+wall time per call was:
+
+| Scope state | Baseline ns/op | Candidate ns/op | Candidate outcome |
+| --- | ---: | ---: | --- |
+| Active exact generation | 87,599 | 78,590 | current |
+| Pending, NULL active | 78,630 | 82,085 | typed deferral |
+| Failed, NULL active | 72,082 | 84,237 | terminal |
+| Superseded, NULL active | 81,571 | 77,727 | terminal |
+
+The baseline classified all three NULL-active cases as current. Candidate
+allocations matched the baseline for active and terminal cases (28 and 26
+allocations per call respectively); the typed pending deferral used 27 versus
+26. The samples overlap and the failed-case median rose, so these small
+local samples do not establish a speedup or a regression budget. The SQL is
+byte-identical and no extra database round trip was introduced. The
+coordinator-held local proof bundle retains the benchmark source/overlay and
+raw baseline/candidate logs (SHA-256 `a198518ae398280528256c11e42e645213d927e4ed363d5a84140a9877300bcd`
+and `5064033f5a1bbc51102436a6770c1704ff13ec5a56af5837385671df3aa67224`).
 
 The post-change live first-generation proof uses real
 `ReducerQueue.Enqueue/Claim/Fail`, the identity handler, and
@@ -54,41 +94,65 @@ stub for decision writes; it does not prove a full built reducer binary or
 graph projection. A real Go JSON event recorded the test's PASS, elapsed
 2.31 seconds, at `firstgen-real-go-final.jsonl` in the coordinator-held local proof bundle.
 
-The `go test` unit matrix pins the legacy and new freshness outcomes and the
-typed error's empty active ID. The existing active-A/pending-B live barrier,
-missing activation epoch sentinel, and reducer pre-activation controls remain
-separate controls. The full built binary determinism, corpus truth, and matched
-performance evidence are NOT_CHECKED here.
+The `go test` unit matrix pins the NULL-active pending, failed, superseded,
+missing, and unknown-scope outcomes and the typed error's empty active ID.
+Actual sequential and batch `Service.Run` each processed a pending first
+generation and an unrelated ready scope: before Ack, the pending row was
+`retrying/generation_activation_not_ready`, attempt 1, no dead letter, no
+handler entry or writer call, while the ready scope succeeded. Actual
+projector Ack established a positive epoch; the next service run entered the
+pending handler once and succeeded at attempt 1. The existing active-A/pending-B
+live barrier, missing activation epoch sentinel, and reducer pre-activation
+controls remain separate controls. Full built-binary determinism and corpus
+truth are NOT_CHECKED here.
 
 An independently seeded verifier check used the actual first-generation Go JSON
 events. With the real PASS event intact, `verify_results` returned 0 and
 reported `1/1 PASS`. Removing only that PASS event returned 1 with
 `missing or duplicate event (run=1, terminal=0)`. The new file has an exact
-`postgres_ci` ledger row and runner tuple. `verify-ledger` selects 80 files and
-182 tests. This focused check is not a full readiness job result.
+`postgres_ci` ledger row and runner tuple. `verify-ledger` selects 81 files and
+185 tests after enrolling the failure, supersession, and service dispatch
+regressions. This focused check is not a full readiness job result.
 
-## Known failed-first-generation exit
+A final real `go test -json` run emitted one RUN and one PASS for each of the
+four newly enrolled tests (elapsed 1.39, 1.43, 2.99, and 1.47 seconds). The
+focused result verifier, using the runner's actual package/file tuples,
+accepted those events `4/4 PASS`. Removing only the supersession test's real
+PASS event made it fail with `run=1, terminal=0`. The rest of the real event
+stream, including its package PASS, was preserved in that seeded RED. The
+coordinator-held `all-firstgen-real-go.jsonl` and
+`all-firstgen-event-verifier.log` receipts have SHA-256
+`bbbed4df191b503b2e8620d846188f64b09fd588f7e43e946d461f2a63aa64f7`
+and `5c2a3b5040677c2d62dcb72f7d21636e6672ad069adb32519693ce4420758834`.
 
-A separate controlled probe deferred the same first-generation intent, then
-used actual `ProjectorQueue.Fail` to mark that generation `failed` while the
-active pointer remained `NULL`. The next `Claim/Handle/Fail` read the absent
-epoch and dead-lettered the reducer intent as `projection_bug`, attempt 1.
-This is a demonstrated limitation of the legacy NULL-active/non-pending result,
-not a claimed safe terminal exit. The temporary probe source and RED log are
-preserved in the coordinator-held local proof bundle as
-`failed-firstgen-probe-source.txt`
-(SHA-256 `ac7ea9e9c46ac0d06155b493e2c14bf9a504095b6ab6962bd60adf30cab5dc26`)
-and `failed-firstgen-probe-red.log`
-(SHA-256 `705e8d22070e19f1bab4e5aaa25b45bc7db656f4aaee938c91ae42583006d328`).
-Changing that outcome requires a separate semantic ruling.
+## Terminal first-generation exits
+
+A permanent controlled RED deferred a first-generation reducer intent, used
+actual `ProjectorQueue.Fail` to mark that generation `failed` while active
+remained NULL, and observed the replay's absent-epoch hard error. With the
+failed tuple classified terminal, the same replay returned superseded with
+zero canonical writes; real reducer Ack left the row succeeded, attempt 1,
+unclaimable, and with zero reducer dead letters. The projector dead letter
+remained intact.
+
+A second permanent controlled RED deferred an older pending first generation,
+added a newer full generation, and used actual `ProjectorQueue.Claim` to
+supersede the older projector work and generation. The active pointer remained
+SQL NULL and no epoch existed; the older reducer retry hit the absent-epoch
+hard error. With the superseded tuple classified terminal, the retry returned
+superseded with zero writes and Ack left it succeeded, attempt 1, unclaimable,
+with zero reducer dead letters. These are exact same-scope terminal tuples;
+missing and unknown lifecycle rows keep their compatibility outcomes.
 
 ## Concurrency and operator signals
 
-The classifier reads one statement snapshot and takes no explicit locks. Its
-new branch only maps one result tuple to the existing typed deferral. Projector
-Ack retains ownership of activation and epoch creation; a reducer retry cannot
-force activation. The durable row records `retrying`,
-`failure_class=generation_activation_not_ready`, and a stable attempt count.
-The existing retry surge counter carries that failure class, so this change
-adds no metric, span, log field, or cardinality. Same-scope contention and
-unrelated ready-work progress under concurrent workers are NOT_CHECKED here.
+The classifier reads one statement snapshot and takes no explicit locks.
+Projector Ack retains ownership of activation and epoch creation; a reducer
+retry cannot force activation. No-Observability-Change: the durable reducer
+row records `retrying`, `failure_class=generation_activation_not_ready`, and a
+stable attempt count while pending; terminal replay records `succeeded` with
+its superseded result. The existing retry surge counter carries the deferral
+class, so no metric, span, log field, or cardinality was added. Batch service
+dispatch proves unrelated ready-work progress while the first generation is
+deferred. Same-scope contention beyond the controlled projector/reducer
+transitions is NOT_CHECKED here.

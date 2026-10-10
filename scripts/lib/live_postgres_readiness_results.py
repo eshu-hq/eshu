@@ -162,6 +162,11 @@ PACKAGES = {
         ),
         "go/internal/storage/postgres/container_image_identity_first_generation_live_test.go": (
             "TestContainerImageIdentityFirstGenerationEpochBarrierLive",
+            "TestContainerImageIdentityFirstGenerationFailureExitsLive",
+        ),
+        "go/internal/storage/postgres/container_image_identity_first_generation_service_live_test.go": (
+            "TestContainerImageIdentityFirstGenerationServiceDispatchLive",
+            "TestContainerImageIdentityFirstGenerationSupersededWhileNullLive",
         ),
         "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
             "TestProjectorZombieHealRestoresCanonicalNodesLive",

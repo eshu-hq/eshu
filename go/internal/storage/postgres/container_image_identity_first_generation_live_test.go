@@ -201,3 +201,109 @@ WHERE scope.scope_id = $1
 		stage, at.Format(time.RFC3339Nano), active.String, generationStatus.String, epoch.Int64, epoch.Valid,
 		workStatus.String, failureClass.String, attemptCount, deadLetters)
 }
+
+// TestContainerImageIdentityFirstGenerationFailureExitsLive proves that a
+// deferred first-generation intent terminates when its projector fails.
+func TestContainerImageIdentityFirstGenerationFailureExitsLive(t *testing.T) {
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("epoch proof DSN requires disposable=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
+	db := openContainerImageIdentityAckCapabilityProofDB(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+	const scopeID = "repository:7916-failed-probe"
+	const generationID = "generation:7916-failed-probe"
+	seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, is_delta, observed_at, ingested_at, status)
+VALUES ($1, $2, 'synthetic', FALSE, clock_timestamp(), clock_timestamp(), 'pending')
+`, generationID, scopeID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status,
+  attempt_count, lease_owner, claim_until, payload, created_at, updated_at)
+VALUES ($1, $2, $3, 'projector', 'source_local', 'running',
+  1, 'projector-7916-failed-probe', clock_timestamp() + INTERVAL '2 minutes', '{}'::jsonb,
+  clock_timestamp(), clock_timestamp())
+`, projectorWorkItemID(scopeID, generationID), scopeID, generationID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	queue := ReducerQueue{
+		database: SQLDB{DB: db}, LeaseOwner: "reducer-7916-failed-probe",
+		LeaseDuration: time.Minute, RetryDelay: time.Second, MaxAttempts: 3,
+		ClaimDomains: []reducer.Domain{reducer.DomainContainerImageIdentity}, Now: func() time.Time { return now },
+	}
+	work := runtime.ReducerIntent{
+		ScopeID: scopeID, GenerationID: generationID,
+		Domain: reducer.DomainContainerImageIdentity, EntityKey: "identity:7916-failed-probe",
+		Reason: "failed-firstgen probe", FactID: "fact:7916-failed-probe", SourceSystem: "git",
+	}
+	if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{work}); err != nil {
+		t.Fatal(err)
+	}
+	intent, claimed, err := queue.Claim(ctx)
+	if err != nil || !claimed {
+		t.Fatalf("claim = (%v, %v)", claimed, err)
+	}
+	store := NewContainerImageIdentityScopeStateStore(SQLDB{DB: db})
+	writeCalls := new(int)
+	handler := containerimage.ContainerImageIdentityHandler{
+		FactLoader: epochBarrierFactLoader{}, Writer: epochBarrierWriter{store: store, writes: writeCalls},
+		GenerationCheck: NewGenerationFreshnessCheck(SQLDB{DB: db}),
+	}
+	_, firstErr := handler.Handle(ctx, intent)
+	var pending reducercontract.GenerationNotYetActiveError
+	if !errors.As(firstErr, &pending) {
+		t.Fatalf("initial error = %v, want deferral", firstErr)
+	}
+	if err := queue.Fail(ctx, intent, firstErr); err != nil {
+		t.Fatal(err)
+	}
+	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "before_projector_failure")
+	projectorQueue := NewProjectorQueue(SQLDB{DB: db}, "projector-7916-failed-probe", time.Minute)
+	projectorQueue.MaxAttempts = 1
+	if err := projectorQueue.Fail(ctx, projector.ScopeGenerationWork{
+		Scope:        scope.IngestionScope{ScopeID: scopeID},
+		Generation:   scope.ScopeGeneration{GenerationID: generationID, ScopeID: scopeID},
+		AttemptCount: 1,
+	}, errors.New("projection failed permanently")); err != nil {
+		t.Fatal(err)
+	}
+	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "after_projector_failure")
+	now = now.Add(time.Minute)
+	replay, claimed, err := queue.Claim(ctx)
+	if err != nil || !claimed {
+		t.Fatalf("claim failed generation = (%v, %v)", claimed, err)
+	}
+	result, replayErr := handler.Handle(ctx, replay)
+	if replayErr != nil {
+		t.Fatalf("failed first-generation replay error = %v, want superseded result", replayErr)
+	}
+	if result.Status != reducercontract.ResultStatusSuperseded || result.CanonicalWrites != 0 || *writeCalls != 0 {
+		t.Fatalf("failed replay result = (%s, %d canonical writes, %d writer calls), want superseded/0/0", result.Status, result.CanonicalWrites, *writeCalls)
+	}
+	if err := queue.Ack(ctx, replay, result); err != nil {
+		t.Fatalf("Ack superseded replay: %v", err)
+	}
+	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "after_failed_replay_ack")
+	if status, _, attempts := firstGenerationBarrierOutcome(t, ctx, db, intent.IntentID); status != "succeeded" || attempts != 1 {
+		t.Fatalf("failed replay work = (%s, %d attempts), want succeeded/1", status, attempts)
+	}
+	var reducerDeadLetters int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_work_items WHERE scope_id = $1 AND stage = 'reducer' AND status = 'dead_letter'`, scopeID).Scan(&reducerDeadLetters); err != nil || reducerDeadLetters != 0 {
+		t.Fatalf("reducer dead letters = (%d, %v), want zero", reducerDeadLetters, err)
+	}
+	now = now.Add(time.Minute)
+	if _, claimed, err := queue.Claim(ctx); err != nil || claimed {
+		t.Fatalf("claim after terminal Ack = (%v, %v), want no work", claimed, err)
+	}
+	var projectorStatus string
+	if err := db.QueryRowContext(ctx, `SELECT status FROM fact_work_items WHERE work_item_id = $1`, projectorWorkItemID(scopeID, generationID)).Scan(&projectorStatus); err != nil || projectorStatus != "dead_letter" {
+		t.Fatalf("projector work = (%s, %v), want preserved dead_letter", projectorStatus, err)
+	}
+}

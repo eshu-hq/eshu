@@ -115,22 +115,20 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			wantCurrent: true,
 		},
 		{
-			name:         "failed first generation keeps legacy current result",
+			name:         "failed first generation is terminal despite NULL active pointer",
 			scopeID:      "scope-123",
 			generationID: "gen-failed",
 			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
 				"scope-123": row("", "failed", false),
 			}},
-			wantCurrent: true,
 		},
 		{
-			name:         "superseded first generation keeps legacy current result",
+			name:         "superseded first generation is terminal despite NULL active pointer",
 			scopeID:      "scope-123",
 			generationID: "gen-superseded",
 			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
 				"scope-123": row("", "superseded", false),
 			}},
-			wantCurrent: true,
 		},
 		{
 			name:         "error propagated from database",
