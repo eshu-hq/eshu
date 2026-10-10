@@ -93,7 +93,9 @@ All proof ran against `postgres:18` on a disposable database.
   `failure_class` `projector_superseded_by_newer_generation`. The fifth
   RED (`TestProjectorClaimFailedFullStillHoldsDelta`: main claimed
   gen-fg2 first) pins that a `failed` generation with waiting work still
-  holds its delta.
+  holds its delta. The shape is drifted (failed full sorts after the
+  delta), so only the hold keeps the delta back: dropping `failed` from
+  the hold predicate fails the test.
 - EvalPlanQual: `TestProjectorClaimDropsFullHolderClaimedAfterSnapshot` (a
   full another worker claimed and committed between snapshot and lock is
   dropped at lock time, with no fall-through to the held delta) and

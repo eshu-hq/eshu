@@ -77,15 +77,18 @@ func TestProjectorClaimFullSurvivesNewerDelta(t *testing.T) {
 }
 
 // TestProjectorClaimFailedFullStillHoldsDelta pins the #7473 fail-safe
-// direction: gen-fg1 is a full whose generation failed but whose work is
-// still pending, with a newer pending delta behind it. The hold admits
+// direction for a failed holder: gen-fg1 is a full whose generation failed
+// but whose retry is still waiting, with a newer pending delta behind it.
+// The shape is drifted — gen-fg1 failed after gen-fg2 was enqueued, so its
+// updated_at sorts after the delta and oldest-ready order alone would hand
+// out gen-fg2: only the hold keeps the delta back. The hold admits
 // generation status pending and failed, so the failed full must still be
 // handed out first; only dead-lettered work stops holding.
 func TestProjectorClaimFailedFullStillHoldsDelta(t *testing.T) {
 	dsn := claimMaintenanceProofDSN(t)
 	database := openClaimDeadlockProofDB(t, dsn, 2)
 	at := time.Now().UTC().Truncate(time.Second)
-	fullGuardSeedScope(t, database, at, "pending", at.Add(-2*time.Hour), at.Add(-2*time.Hour), false, true)
+	fullGuardSeedScope(t, database, at, "retrying", at.Add(-time.Minute), at, false, true)
 	if _, err := database.Exec(
 		`UPDATE scope_generations SET status = 'failed' WHERE generation_id = 'gen-fg1'`); err != nil {
 		t.Fatalf("mark gen-fg1 failed: %v", err)
