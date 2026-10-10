@@ -28,15 +28,15 @@ that another live agent holds is not yours; see
    conflicts, stop and report each conflicting file. Do not resolve a semantic
    conflict by guessing. Never `git stash`.
 
-3. **Prove the patch set is unchanged.** Run the three checks that
-   [eshu-code-review](../../eshu-code-review/SKILL.md#promotion-and-evidence-reuse)
-   defines: the cumulative patch-id, the file overlap with `main`, and
+3. **Prove the content did not change.** Run the content tests that
+   [eshu-code-review](../../eshu-code-review/SKILL.md#rebase-waiver) defines:
    `git range-diff "$OLD_BASE..$OLD_HEAD" "$NEW_BASE..HEAD"` with every commit
-   `=`. Use `$OLD_BASE`, `$OLD_HEAD`, and `$NEW_BASE` as its old and new bases.
+   `=`, the cumulative patch-id, and the reversion scan. Use `$OLD_BASE`,
+   `$OLD_HEAD`, and `$NEW_BASE` as its old and new bases.
 
-4. **Choose the proof to rerun.** Follow the branches in that same section: the
-   scoped re-review when its conditions hold, the full proof set and a full
-   review otherwise. Do not restate them here.
+4. **Choose the proof to rerun.** Follow the decision table in that same
+   section: a waiver note, the scoped re-review, or the full review. Do not
+   restate it here.
 
    A subagent runs focused proof and the registry-selected static gates its role
    names. Only the coordinator runs `make pre-push` or `make pre-pr`.
@@ -79,9 +79,9 @@ that another live agent holds is not yours; see
 Your report must contain:
 
 - `$OLD_BASE`, `$NEW_BASE`, `$OLD_HEAD`, and the new `HEAD`
-- the range-diff summary, both patch-ids, and the overlap result
+- the range-diff summary, both patch-ids, and the reversion scan result
 - each gate's command, exit code, and class: `PASS`, `BRANCH`, `INHERITED`, or `ENV`
-- the proof you reran because of the overlap, and why
+- the table row you took, the proof you reran because of it, and why
 - anything `NOT_CHECKED`, with the reason
 
 Include the head line described in

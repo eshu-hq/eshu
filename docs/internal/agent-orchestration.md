@@ -446,7 +446,8 @@ Use focused local proof for discovery and reserve the expensive promotion gate
 for a branch that has already survived design review. The order is:
 
 1. Executor completes TDD implementation and focused local proof.
-2. Run a preliminary full `eshu-code-review` on the final rebased diff. Fix every
+2. Run a preliminary full `eshu-code-review` on the final rebased diff. A rebase
+   may follow the Rebase Waiver table in that skill instead. Fix every
    P0, P1, and blocking P2 finding and repeat until the verdict is
    `P0=0, P1=0, P2-blocking=0`, with every deferred P2 tracked in a linked
    issue with the owner's agreement quoted in the PR, and named there with its
@@ -456,7 +457,8 @@ for a branch that has already survived design review. The order is:
    (add `make pre-pr` for the risky change classes in `AGENTS.md`).
 5. Verify the receipt against the exact post-preflight inputs. A match replaces
    a duplicate full semantic review. Any changed base, diff, worktree, claims,
-   packet, or verdict invalidates it and restarts the affected proof and review.
+   packet, or verdict invalidates it. A rebase follows the Rebase Waiver table in
+   `eshu-code-review`. Any other change restarts the affected proof and review.
    A deferred P2 is already tracked and a P3 is cosmetic; neither does.
 6. Push the reviewed diff, open or update the PR, then use CI and external
    reviews as authoritative post-push gates. No edit may occur between the final

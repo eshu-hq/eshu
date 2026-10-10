@@ -61,7 +61,7 @@ func runReviewAttest(args []string) error {
 	base := fs.String("base", "origin/main", "review base ref")
 	claims := fs.String("claims-file", "", "file containing the exact PR title and body bytes")
 	packet := fs.String("review-packet", "", "file containing the reviewed diff packet")
-	verdict := fs.String("verdict", "", "file containing the full semantic review verdict")
+	verdict := fs.String("verdict", "", "file containing the review verdict, or the rebase waiver note")
 	receipt := fs.String("receipt", "", "local JSON receipt path")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
@@ -100,7 +100,7 @@ func runReviewAttest(args []string) error {
 		return err
 	}
 	if field, before, after := firstReviewAttestationChange(stored, current); field != "" {
-		return fmt.Errorf("%s changed (%s -> %s); repeat the full semantic review", field, shortHash(before), shortHash(after))
+		return fmt.Errorf("%s changed (%s -> %s), so the receipt is void and eshu-code-review names the review that follows", field, shortHash(before), shortHash(after))
 	}
 	_, _ = fmt.Fprintln(os.Stdout, "PASS: review attestation matches exact inputs")
 	return nil

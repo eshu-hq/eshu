@@ -147,6 +147,10 @@ full semantic review. The attestation cannot find, grade, or disposition a
 finding. It proves only that the inputs already reviewed are still the inputs
 being pushed.
 
+A rebase has its own decision table. See [Rebase Waiver](../SKILL.md#rebase-waiver)
+and the [waiver note](verdict.md#waiver-note). It holds the waiver conditions and
+the open-finding definition, which the deferred-P2 rule above feeds.
+
 ## Stating it
 
 The verdict carries `P0`, `P1`, `P2-blocking`, `P2-deferred` and `P3` counts.

@@ -90,8 +90,9 @@
 // Review-attest capture writes a local mode-0600 receipt for the exact base,
 // head, diff, commit range, clean worktree, submodules, PR claims, review packet,
 // and semantic verdict. Verify recomputes those inputs after preflight. A match
-// proves the reviewed inputs did not change; a mismatch requires a new full
-// semantic review. Git execution stays at this CLI boundary.
+// proves the reviewed inputs did not change. A mismatch voids the receipt, and
+// the eshu-code-review skill names the review that follows. Git execution stays
+// at this CLI boundary.
 //
 // When a gate command shells out to "bash scripts/verify-*.sh", run resolves
 // a bash >= 4.4 (checking PATH, then /opt/homebrew/bin/bash, then

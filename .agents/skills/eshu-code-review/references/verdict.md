@@ -89,3 +89,47 @@ The verdict is `blocked` when any of these are true:
 - review comments exist on the latest head and are unresolved;
 - CI/check evidence does not match the changed surface.
 - an existing PR lacks a current live check-rollup snapshot after its last push or rebase.
+
+## Waiver Note
+
+A rebase that applies with no conflicts, with every commit `=` in
+`git range-diff` and no open finding, carries no new verdict. Write a waiver
+note in its place and pass it as `--verdict` to
+`ci-gates review-attest capture`. The table in "Rebase Waiver" in
+[SKILL.md](../SKILL.md#rebase-waiver) decides when a note applies. The attest
+tool hashes the file. It does not read it, so the note MUST be truthful by its
+own words.
+
+The note MUST NOT claim a new review happened. It carries no finding counts for
+the rebased head and no "clean" or "ready" statement. Write it only after
+`make pre-push` exits 0 on the rebased head. It states these fields, one
+per line:
+
+- `rule`: `conflict-free rebase waiver`, `eshu-code-review` Rebase Waiver. Add
+  the owner confirmation: 2026-10-09 21:53 EDT, coordinator session.
+- `prior verdict`: the file or PR comment that holds the clean verdict for the
+  old head (P0=0, P1=0, P2-blocking=0), and the head SHA it covers. After an
+  earlier waiver, name that note and the verdict it rests on.
+- `old base`, `new base`, `old head`, `new head`: the four SHAs.
+- `range-diff`: the command and its output. Every line is `=`, and the commit
+  count is the same on both sides. This test covers the commit messages.
+- `patch-id`: the value before and after the rebase. The two values are equal.
+- `open findings`: the sources read (review threads, review bodies, issue
+  comments, CI jobs, and the prior verdict) and a count of 0. Before a PR exists,
+  write `no PR exists yet` and the prior verdict's count.
+- `reversion scan`: the command, the files both sides touched, and the result.
+  No hunk reverts or drops a line the new base added. The scan is textual.
+- `claims and affected proof`: the PR title and body re-read against the diff at
+  the `new head`, with head-bound SHAs and counts current (or stated as not
+  head-bound), and the focused proof the rebase can affect rerun with its exit
+  codes, or `none affected` and why. Do this before capture: the receipt hashes
+  the claims file.
+- `make pre-push`: exit code 0 and the head SHA it ran on. That head equals the
+  `new head`.
+- `CI wave`: `pending, recorded in the PR after push`. Fill in the head SHA,
+  the query, and two stable reads in the PR before merge. The receipt cannot
+  hold this value, because the push comes after capture.
+
+`--review-packet`, `--claims-file`, and `--base` are the same as for a
+verdict. Name the packet in the note. Any edit to the note voids the receipt,
+like an edit to a verdict.
