@@ -1,0 +1,33 @@
+go/internal/queryplan/source_coverage_file_test.go
+  s_29175cf8c573b8::t_d39b8c3304c799 1-110
+  s_29175cf8c573b8::t_9c72fe449b3dda 111-120
+go/internal/queryplan/validator.go
+  s_29175cf8c573b8::t_7fa3fbf759b9fd 38,94
+  s_29175cf8c573b8::t_c3e110d706ba66 95-96
+go/internal/queryplan/README.md
+  s_29175cf8c573b8::t_d28edc894810d5 15-23,96-97
+go/internal/queryplan/source_coverage_file.go
+  s_29175cf8c573b8::t_26fca656e7bb4d 1-167
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_29175cf8c573b8::t_b38e8d47b1534e 3-5
+go/internal/queryplan/testdata/source-coverage/first.yaml
+  s_29175cf8c573b8::t_6f8ba08b20fca0 1-377
+go/internal/queryplan/testdata/source-coverage/second.yaml
+  s_29175cf8c573b8::t_2460402cd0b785 1-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d066177feae7fcaf466ca1d7376eecf42fffbb63",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
