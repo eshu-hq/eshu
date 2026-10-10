@@ -1,11 +1,13 @@
 # Evidence for the config-artifact derive decision (#7126)
 
 This appendix belongs to
-[Derive repository config artifacts when content is written](7126-ingest-time-config-artifacts.md).
+[Derive repository config artifacts when content is written](7126-ingest-time-config-artifacts.md)
+and its [protocol companion](7126-ingest-time-config-artifacts-protocol.md).
 It holds the measurements the decision rests on, the source facts, and the
 split between evidence and theory. No new measurement was taken for this
-record. Every figure below comes from an earlier read-only probe or a local
-bench. Source facts are read at `origin/main` `b7ca5f2f0a`.
+record. Every figure below comes from an earlier read-only probe, a local
+bench, or the arbiter ruling of 2026-10-10. Source facts are read at
+`origin/main` `b7ca5f2f0a`.
 
 ## 1. Measurements and their limits
 
@@ -29,7 +31,8 @@ All ops-qa figures are read-only probes of 2026-10-10 on one repository story
 
 The PR1 and PR1b figures in the decision record come from their review
 verdicts: PR1 round 2 CLEAN at `fe1c35698f`, PR1b round 3 CLEAN at
-`5d4cda0767`. Neither branch is merged on 2026-10-10.
+`5d4cda0767`. PR2 was at `c269c4c213` (a chunked content read) when this
+record was revised. None of the three is merged on 2026-10-10.
 
 ## 2. Source facts behind the design
 
@@ -50,6 +53,12 @@ otherwise. Each source names a symbol, not a line.
 | The content writer already derives a read model after its content statements | `deriveInfraInventory` in `go/internal/storage/postgres/content_writer_upserts.go` |
 | `ingester`, `projector` and `bootstrap-index` construct the content writer | `buildIngesterProjectorRuntime` in `go/cmd/ingester/wiring.go`, `buildProjectorRuntime` in `go/cmd/projector/runtime_wiring.go`, `buildBootstrapProjector` in `go/cmd/bootstrap-index/wiring.go` |
 | The infra read model backfill runs in the API process today | `StartInfraInventoryBackfill` in `go/internal/query/cloud_resource_owner_backfill.go` |
+| Rows from HCL and compose pass through `normalizeRepoScopedPath`. Kustomize and Ansible rows do not | `appendConfigArtifactRow` and its callers in `repository_config_artifacts_hcl.go` and `repository_config_artifacts_compose.go`, against `extractKustomizeConfigPathRows` and `extractAnsibleConfigPathRows` |
+| The anchor list is read with limit+1 and sets a truncated flag | `loadRepositorySemanticOverview` in `go/internal/query/repository/semantics.go` |
+| `content_files` batches run one after another inside one Write | `upsertContentFileBatches` in `go/internal/storage/postgres/content_writer_upserts.go` |
+| Generation retention deletes `content_files` rows, and only the reducer wires retention | `pruneContentFilesForGenerationsQuery` in `go/internal/storage/postgres/generation_retention_sql.go`, `go/cmd/reducer/generation_retention_wiring.go` |
+| Migration 109 uses statement-level INSERT and UPDATE triggers with transition tables and a row-level DELETE trigger | `109_infra_resource_entities.sql` |
+| No import cycle blocks a shared package | `go list -deps` on `./internal/query/querycontract`, `./internal/query/repositoryartifacts`, `./internal/content` and `./internal/storage/postgres` at `b7ca5f2f0a` |
 | The newest migration on `origin/main` | `169_content_files_generation_id.sql`. No open PR adds a migration (checked with `gh pr list --state open` on 2026-10-10) |
 
 ## 3. Evidence versus theory
@@ -64,17 +73,20 @@ Evidence (observed or read from source):
 - The infra read model shows the derive, fence, backfill and reconcile pattern
   works in this content writer.
 
-Theory (each has a shim in section 9 of the decision record):
+Theory (each has a shim in section 8 of the decision record):
 
 - The derive adds an acceptable cost to each content Write (S1).
 - The stored-row read is one primary-key statement under 5 ms (S2).
 - The fence trigger adds under 5% to a content upsert (S3).
 - Stored rows equal live rows for every repository (S4).
-- The projector repository name equals the graph `Repository.name` (S5).
+- Name-free rows plus the read-side name step equal the named rows (S0).
+- The projector repository name equals the graph `Repository.name` (S5,
+  optional after S0).
 - The stage drops to 0.25 s or less, the route to 1.0 s or less warm, and API
   CPU to 0.7 CPU-s or less per R1 story. These targets are a budget built from
   the contributor list, not a measurement.
-- The arbiter estimate of 2.5-4.5 s for PR1 plus PR2 on ops-qa.
+- The estimate of 2.5-4.5 s for PR1 plus PR2 on ops-qa.
+- The correction proposed for open issue R-1 (protocol companion section 7).
 
 NOT_CHECKED: ops-prod, the related repositories the R1 body does not name,
 the cap census (S6), concurrent stories, and the cold route after a pod
