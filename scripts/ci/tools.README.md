@@ -16,7 +16,7 @@ publication time, because Ubuntu security repository dependencies can advance.
 ```bash
 empty_context="$(mktemp -d)"
 docker buildx build --platform linux/amd64 \
-  --build-arg BASE_IMAGE='ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55' \
+  --build-arg BASE_IMAGE='ghcr.io/eshu-hq/ci-mirror-ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55' \
   -f scripts/ci/tools.Dockerfile -t eshu-ci-tools:candidate --load "${empty_context}"
 rmdir "${empty_context}"
 bash scripts/ci/test-tools-image.sh eshu-ci-tools:candidate
@@ -31,6 +31,13 @@ start nested containers. If a later gate does, set `CI_TOOLS_DOCKER_SOCKET=1`
 on a Linux Docker host to check socket access and a nested bind mount of the
 checkout at the exact path visible inside the job container. Docker's daemon
 resolves bind paths on the host, even when the client runs in a container.
+
+The static workflow uses the ledger's `ci-tools` index only for selected gate
+jobs. An idle merge-group cell receives an empty container expression and does
+not pull the image. Go module and build caches live under `/tmp/eshu-ci` inside
+the container and use `actions/cache`. `GOTOOLCHAIN=local` makes a `go.mod`
+toolchain bump fail the blocking check until this image is rebuilt, published,
+and pinned to the matching Go version.
 
 Pinned upstream inputs: Go 1.26.9 Linux amd64 tar SHA-256
 `42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d`;

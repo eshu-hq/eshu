@@ -8,6 +8,8 @@ queue selection, backend selection, or release attestations.
 
 `specs/ci-images.v1.json` records the upstream source, approved GHCR destination,
 index digest, platforms, source records, and notice policy for each mirror.
+Its separate `tools` record pins the rebuilt CI tools index, recipe hash,
+platform manifests, and package inventory digests consumed by the static gate.
 Copy the full upstream index. Do not rebuild, retag a single-platform pull, or
 add labels to an upstream mirror. Those acts change the content identity.
 

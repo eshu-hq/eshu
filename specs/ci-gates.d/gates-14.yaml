@@ -379,6 +379,9 @@ gates:
       - "**/docker-compose*.y*ml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
+      - "scripts/ci/tools.Dockerfile"
+      - "scripts/ci/test-tools-workflow.py"
+      - "specs/ci-images.v1.json"
     local:
       command: "bash scripts/verify-dockerhub-login.sh"
       test_command: "bash scripts/test-verify-dockerhub-login.sh"

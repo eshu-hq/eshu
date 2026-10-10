@@ -434,6 +434,9 @@ dockerpublish:
   - 'scripts/dev/test-publish-ci-image-mirrors.sh'
   - 'scripts/dev/test-docker-publish-ci-mirror-mode.sh'
 dockerhublogin:
+  - "scripts/ci/tools.Dockerfile"
+  - "scripts/ci/test-tools-workflow.py"
+  - "specs/ci-images.v1.json"
   - '.github/**'
   - '**/*.*sh'
   - 'scripts/lib/dockerhub-login-*.awk'

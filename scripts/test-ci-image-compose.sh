@@ -47,7 +47,7 @@ signature_after="$(bash -c 'source "$1"; eshu_ci_compose_signature "$2" --file="
 }
 eshu_ci_compose_prepare "${repo_root}" -f docker-compose.yaml
 overlay_path="${ESHU_CI_COMPOSE_OVERLAY}"
-[[ "$(stat -f %Lp "${ESHU_CI_COMPOSE_OVERLAY}" 2>/dev/null || stat -c %a "${ESHU_CI_COMPOSE_OVERLAY}")" == "600" ]]
+[[ "$(stat -c %a "${ESHU_CI_COMPOSE_OVERLAY}" 2>/dev/null || stat -f %Lp "${ESHU_CI_COMPOSE_OVERLAY}")" == "600" ]]
 bash scripts/ci/compose.sh -f docker-compose.yaml -- ps
 bash scripts/ci/compose.sh -f docker-compose.yaml -- exec -T postgres true
 rg --fixed-strings --quiet -- "-f docker-compose.yaml -f ${overlay_path} ps" "${FAKE_DOCKER_CALLS}"
