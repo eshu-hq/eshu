@@ -98,6 +98,9 @@ jobs:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
         run: test "${{ needs.queue-selection.result }}" = success
+YAML
+	# Keep each static fixture fragment below the 512-byte heredoc pipe budget.
+	cat >>"${fixture_dir}/queued.yml" <<'YAML'
       - name: Verify Markdown file cap
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap') }}
         run: |
