@@ -98,6 +98,9 @@ PACKAGES = {
             "TestProjectorClaimFullGuardPlanShapeAtScale",
             "TestProjectorClaimFullGuardLockSet",
         ),
+        "go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go": (
+            "TestMarkProjectionWriteStartedFenceSync",
+        ),
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),

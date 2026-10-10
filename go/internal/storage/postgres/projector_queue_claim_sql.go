@@ -32,11 +32,14 @@ package postgres
 // Protocol invariant: any statement that creates a projector live lease
 // (status claimed or running with a future claim_until) must lock the scope's
 // projector_scope_claim_fences row and bump fence in the same transaction.
-// Nothing else may lock or update that table, no table may reference it, and
-// this statement must not lock ingestion_scopes. Paths that only remove or
-// renew an existing lease (Ack, Fail, retry, reclaim, heartbeat) do not touch
-// the fence. Fence rows come from the ingestion_scopes AFTER INSERT trigger and
-// the migration 130 backfill; a scope without one is unclaimable, which
+// The write-start marker (#7819) is the only other writer: it locks the fence
+// row SKIP LOCKED before the generation row and bumps fence when the marker
+// sets, so the marker commit and a claim's fence lock serialize. Nothing else
+// may lock or update that table, no table may reference it, and this statement
+// must not lock ingestion_scopes. Paths that only remove or renew an existing
+// lease (Ack, Fail, retry, reclaim, heartbeat) do not touch the fence. Fence
+// rows come from the ingestion_scopes AFTER INSERT trigger and the migration
+// 130 backfill; a scope without one is unclaimable, which
 // eshu_dp_projector_scopes_missing_claim_fence reports. Any other insert into
 // the table must carry a NOT EXISTS guard, because INSERT ... ON CONFLICT waits
 // on an in-flight bump of the conflicting row. The claim itself must never
