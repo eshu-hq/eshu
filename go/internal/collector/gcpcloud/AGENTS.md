@@ -90,7 +90,7 @@ valid.
 
 ## Common Changes
 
-- Add a new GCP fact family only after `internal/facts` exposes the fact kind and
+- Add a new GCP fact family only after `internal/facts/cloud` exposes the fact kind and
   schema version via `GCPFactKinds()` / `GCPSchemaVersion(kind)` and registers it
   in `CoreFactKinds()`.
 - Keep every source file under 500 lines; split into a sibling before the cap.
