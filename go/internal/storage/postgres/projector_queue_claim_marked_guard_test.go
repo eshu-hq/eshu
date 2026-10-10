@@ -222,3 +222,33 @@ func TestProjectorClaimMarkedGuardAddsNoLockClauses(t *testing.T) {
 		}
 	}
 }
+
+// TestAckObsoleteSupersedeLocksStaleGenerations pins the #7820
+// lock-then-update shape of Ack's obsolete-generation supersede: a lock step
+// takes each stale generation row non-blocking in generation order (so a
+// marker committed after the snapshot is caught by the lock's EvalPlanQual
+// recheck and an in-flight marker is skipped without waiting), and the work
+// UPDATE retires only rows whose generation the lock step holds,
+// re-applying the marker gate for the recheck.
+func TestAckObsoleteSupersedeLocksStaleGenerations(t *testing.T) {
+	t.Parallel()
+	q := supersedeProjectorObsoleteGenerationsQuery
+	for _, want := range []string{
+		"WITH locked_obsolete_stale_generations AS (",
+		"ORDER BY stale_generation.generation_id",
+		"FOR NO KEY UPDATE OF stale_generation SKIP LOCKED",
+		"FROM locked_obsolete_stale_generations AS locked,",
+		"AND stale.generation_id = locked.generation_id",
+		"AND stale_generation.generation_id = locked.generation_id",
+	} {
+		if !strings.Contains(q, want) {
+			t.Errorf("Ack obsolete query lacks %q", want)
+		}
+	}
+	if got := strings.Count(q, markGuardAckGate); got != 2 {
+		t.Errorf("Ack obsolete query carries the marker gate %d times, want 2 (lock step plus re-applied UPDATE predicate)", got)
+	}
+	if strings.Contains(q, "FOR UPDATE OF stale") || strings.Contains(q, "FOR NO KEY UPDATE OF stale ") {
+		t.Error("Ack obsolete query must not add a work-row locking clause; the UPDATE's own row locks suffice")
+	}
+}

@@ -2379,6 +2379,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_ack_obsolete_marker_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7820 Ack lock-time marker proof (deterministic marker-commit-after-Ack-snapshot spare, in-flight skip without waiting, 300-trial commit race with zero marked retirements), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 8s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_attempt_fence_live_test.go
     tag: ~
     class: scheduled

@@ -96,6 +96,10 @@ PACKAGES = {
             "TestProjectorClaimFullGuardPlanShapeAtScale",
             "TestProjectorClaimFullGuardLockSet",
         ),
+        "go/internal/storage/postgres/projector_queue_ack_obsolete_marker_live_test.go": (
+            "TestProjectorAckSeesLockTimeMarkerTruth",
+            "TestProjectorAckMarkerCommitRace",
+        ),
         "go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go": (
             "TestMarkProjectionWriteStartedFenceSync",
         ),
