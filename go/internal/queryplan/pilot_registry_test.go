@@ -103,7 +103,7 @@ func TestPilotEvidenceRejectsOversizeResultPayload(t *testing.T) {
 	}
 	manifest.Entries[0].Contract.Workload.MaxResultPayloadBytes = 22
 	evidence.Entries[0].ContractSHA256 = PilotContractSHA256(*manifest.Entries[0].Contract)
-	if err := ValidatePilotEvidence(manifest, &evidence); err == nil || !strings.Contains(err.Error(), "result payload") {
+	if err := ValidatePilotEvidence(manifest, &evidence); err == nil || !strings.Contains(err.Error(), "exceeds declared") {
 		t.Fatalf("oversize result payload accepted: %v", err)
 	}
 }
