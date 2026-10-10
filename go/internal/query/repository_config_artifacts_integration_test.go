@@ -69,6 +69,15 @@ resources:
 			},
 		},
 		{
+			// The needed-content pass asks which of the files no extractor
+			// reads are non-blank, in one statement per repository (#7126).
+			columns: []string{"relative_path"},
+			rows:    [][]driver.Value{{"deploy/policy.yaml"}},
+			queryContains: []string{
+				"btrim(content",
+			},
+		},
+		{
 			columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content",
 				"content_hash", "line_count", "language", "artifact_type",
@@ -117,6 +126,15 @@ resources:
 `,
 					"hash-k3", int64(5), "yaml", "yaml",
 				},
+			},
+		},
+		{
+			// The needed-content pass asks which of the files no extractor
+			// reads are non-blank, in one statement per repository (#7126).
+			columns: []string{"relative_path"},
+			rows:    [][]driver.Value{{"deploy/policy.yaml"}},
+			queryContains: []string{
+				"btrim(content",
 			},
 		},
 		{

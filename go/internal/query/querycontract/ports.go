@@ -70,6 +70,17 @@ type ContentStore interface {
 	SearchEntitiesByExactNameAnyRepo(ctx context.Context, entityType, name string, limit int) ([]EntityContent, error)
 	SearchEntitiesReferencingComponent(ctx context.Context, repoID, componentName string, limit int) ([]EntityContent, error)
 	ListRepoFiles(ctx context.Context, repoID string, limit int) ([]FileContent, error)
+	// NonBlankRepoFilePaths returns the subset of relativePaths whose stored
+	// content is not blank under strings.TrimSpace (Unicode White_Space): a
+	// file holding only whitespace, or nothing, is blank; a byte-order mark is
+	// not whitespace. The decision is made where the content lives, so no
+	// content bytes cross the wire (#7126). A path with no stored row is
+	// absent from the result, the same as a blank file: GetFileContent returns
+	// no row for it. The result order is unspecified and carries no
+	// duplicates. Callers pass a bounded set (the config-artifact hydration cap
+	// is 50); the implementation must reject no input, but it is not a bulk
+	// read.
+	NonBlankRepoFilePaths(ctx context.Context, repoID string, relativePaths []string) ([]string, error)
 	ListRepoEntities(ctx context.Context, repoID string, limit int) ([]EntityContent, error)
 	ListRepoEntitiesByType(ctx context.Context, repoID, entityType string, limit int) ([]EntityContent, error)
 	// ListRepoEntitiesByTypes returns entities filtered to a SET of

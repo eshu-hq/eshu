@@ -44,6 +44,40 @@ preserve the candidate marker and add `static_workflow_coverage_unknown` to
 `missing_evidence` only for a capped scan; this does not backfill the typed
 API's other historical missing-evidence entries into uncapped stories.
 
+## Content is fetched only for the consumed set
+
+The config-artifact load (`LoadSharedRepositoryConfigArtifacts`) fetches file
+content only for files an extractor reads (#7126). The selection is the first
+50 candidates in `relative_path` order, as before; the rest is what is read
+for them:
+
+1. `configArtifactReadsContent` names the files an extractor reads by itself:
+   kustomization files, Docker Compose artifacts, `terragrunt.hcl`/`.tf`/`.hcl`
+   files, and a conventional Ansible playbook name the path rules leave to the
+   content heuristic. Its single source is the selectors the extractors branch
+   on (`isKustomizationIndexPath`, `IsDockerComposeArtifact`,
+   `classifyHCLConfigFile`, `ansiblePlaybookReadsContent`); a new extractor
+   branch that reads content must add its selector there.
+2. The other selected files keep an empty `Content`. The loader drops a blank
+   file before building, and a path-only row (var files, Ansible inventory,
+   vars, role and task paths) exists only for a non-blank file, so they get one
+   `ContentStore.NonBlankRepoFilePaths` statement per repository. It decides
+   `strings.TrimSpace(content) != ""` where the content lives and returns no
+   bytes.
+3. `planKustomizeResourceReads` runs the kustomize walk's own
+   `collectKustomizeResourceFiles` over the files and names the resource files
+   the kustomizations reference; only those are fetched in a second pass.
+
+The output of `BuildRepositoryConfigArtifacts` is identical to reading every
+candidate. One read-path difference is intended: a read failure on a file no
+extractor reads no longer fails the repository, because that read is not
+issued. Any read the extractors need still fails the repository load.
+
+`LoadDeploymentArtifactOverviewWithStats` returns `ConfigArtifactReadStats`
+(related repository count, files listed, hydrated and skipped, content
+statements, hydrated bytes, list, hydrate and parse seconds). The repository
+story and context handlers log them on the `deployment_artifacts` stage line.
+
 ## Dependencies
 
 Standard library, `querycontract`, and content-parsing libraries, plus

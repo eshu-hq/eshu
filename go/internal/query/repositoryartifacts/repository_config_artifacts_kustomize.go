@@ -19,7 +19,11 @@ var (
 	ssmParameterARNPattern = regexp.MustCompile(`(?i):parameter((?:/(?:configd|api)/[A-Za-z0-9._*/-]+))`)
 )
 
-func extractKustomizeConfigPathRows(repoName string, files []querycontract.FileContent) []map[string]any {
+// buildKustomizeIndex keys files by their cleaned repository-relative path.
+// When two files clean to the same path the later one in files wins. The
+// extractor and the needed-content planner both build the index through it, so
+// they agree on which file a kustomize reference resolves to.
+func buildKustomizeIndex(files []querycontract.FileContent) map[string]querycontract.FileContent {
 	index := make(map[string]querycontract.FileContent, len(files))
 	for _, file := range files {
 		cleaned := CleanRepositoryRelativePath(file.RelativePath)
@@ -28,11 +32,26 @@ func extractKustomizeConfigPathRows(repoName string, files []querycontract.FileC
 		}
 		index[cleaned] = file
 	}
+	return index
+}
+
+// isKustomizationIndexPath reports whether a cleaned index path names a
+// kustomization file by base name. It is the selector the kustomize extractor
+// walks from.
+func isKustomizationIndexPath(cleanedPath string) bool {
+	return isKustomizationBaseName(strings.ToLower(path.Base(cleanedPath)))
+}
+
+func isKustomizationBaseName(lowerBase string) bool {
+	return lowerBase == "kustomization.yaml" || lowerBase == "kustomization.yml" || lowerBase == "kustomization"
+}
+
+func extractKustomizeConfigPathRows(repoName string, files []querycontract.FileContent) []map[string]any {
+	index := buildKustomizeIndex(files)
 
 	kustomizationFiles := make([]string, 0)
 	for relativePath := range index {
-		base := strings.ToLower(path.Base(relativePath))
-		if base == "kustomization.yaml" || base == "kustomization.yml" || base == "kustomization" {
+		if isKustomizationIndexPath(relativePath) {
 			kustomizationFiles = append(kustomizationFiles, relativePath)
 		}
 	}
@@ -218,8 +237,7 @@ func isKustomizeResourceFile(relativePath string) bool {
 }
 
 func isKustomizationFile(relativePath string) bool {
-	base := strings.ToLower(path.Base(relativePath))
-	return base == "kustomization.yaml" || base == "kustomization.yml" || base == "kustomization"
+	return isKustomizationBaseName(strings.ToLower(path.Base(relativePath)))
 }
 
 func extractPolicyDocumentConfigPaths(content string) []string {

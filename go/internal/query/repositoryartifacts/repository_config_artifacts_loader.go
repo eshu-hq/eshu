@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -27,6 +28,18 @@ func LoadSharedRepositoryConfigArtifacts(
 	repoName string,
 	files []querycontract.FileContent,
 ) (map[string]any, error) {
+	return loadSharedRepositoryConfigArtifacts(ctx, graph, reader, repoID, repoName, files, &ConfigArtifactReadStats{})
+}
+
+func loadSharedRepositoryConfigArtifacts(
+	ctx context.Context,
+	graph querycontract.GraphQuery,
+	reader querycontract.ContentStore,
+	repoID string,
+	repoName string,
+	files []querycontract.FileContent,
+	stats *ConfigArtifactReadStats,
+) (map[string]any, error) {
 	if graph == nil || reader == nil || repoID == "" {
 		return nil, nil
 	}
@@ -43,8 +56,9 @@ func LoadSharedRepositoryConfigArtifacts(
 		return nil, err
 	}
 	sources = append(sources, relatedSources...)
+	stats.RelatedRepositoryCount = len(relatedSources)
 
-	configArtifacts, err := loadRepositoryConfigArtifactsForSources(ctx, reader, sources)
+	configArtifacts, err := loadRepositoryConfigArtifactsForSources(ctx, reader, sources, stats, productionConfigArtifactPasses)
 	if err != nil {
 		return nil, err
 	}
@@ -163,10 +177,37 @@ func FilterRepositoryArtifactSourcesForAccess(
 	return filtered
 }
 
+// configArtifactPasses are the two per-repository steps of the config-artifact
+// load: choose and read the files, then extract rows from them. Production
+// wires hydrateConfigArtifactFiles and buildRepositoryConfigArtifacts. The
+// equality tests substitute a pass that reads every candidate in full, and a
+// builder that reads content a new way, and compare through this same loader.
+type configArtifactPasses struct {
+	hydrate configFileHydrator
+	build   func(repoName string, files []querycontract.FileContent) map[string]any
+}
+
+var productionConfigArtifactPasses = configArtifactPasses{
+	hydrate: hydrateConfigArtifactFiles,
+	build:   buildRepositoryConfigArtifacts,
+}
+
+// configFileHydrator returns the files BuildRepositoryConfigArtifacts should
+// see for one repository: candidates with non-blank content.
+type configFileHydrator func(
+	ctx context.Context,
+	reader querycontract.ContentStore,
+	repoID string,
+	files []querycontract.FileContent,
+	stats *ConfigArtifactReadStats,
+) ([]querycontract.FileContent, error)
+
 func loadRepositoryConfigArtifactsForSources(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	sources []repositoryArtifactSource,
+	stats *ConfigArtifactReadStats,
+	passes configArtifactPasses,
 ) (map[string]any, error) {
 	if reader == nil || len(sources) == 0 {
 		return nil, nil
@@ -182,29 +223,25 @@ func loadRepositoryConfigArtifactsForSources(
 		files := source.Files
 		if !source.HasFileList {
 			var err error
+			listStarted := time.Now()
 			files, err = reader.ListRepoFiles(ctx, source.RepoID, querycontract.RepositorySemanticEntityLimit)
+			stats.ListDuration += time.Since(listStarted)
 			if err != nil {
 				return nil, fmt.Errorf("list config artifact files for %q: %w", source.RepoID, err)
 			}
 		}
+		stats.FilesListed += len(files)
 
-		hydratedFiles, err := HydrateRepositoryCandidateFiles(ctx, reader, source.RepoID, files, isConfigArtifactCandidate)
+		hydrateStarted := time.Now()
+		contentFiles, err := passes.hydrate(ctx, reader, source.RepoID, files, stats)
+		stats.HydrateDuration += time.Since(hydrateStarted)
 		if err != nil {
 			return nil, fmt.Errorf("hydrate config artifact files for %q: %w", source.RepoID, err)
 		}
 
-		contentFiles := make([]querycontract.FileContent, 0, len(hydratedFiles))
-		for _, file := range hydratedFiles {
-			if !isConfigArtifactCandidate(file) {
-				continue
-			}
-			if strings.TrimSpace(file.Content) == "" {
-				continue
-			}
-			contentFiles = append(contentFiles, file)
-		}
-
-		artifacts := buildRepositoryConfigArtifacts(source.RepoName, contentFiles)
+		parseStarted := time.Now()
+		artifacts := passes.build(source.RepoName, contentFiles)
+		stats.ParseDuration += time.Since(parseStarted)
 		for _, row := range querycontract.MapSliceValue(artifacts, "config_paths") {
 			key := strings.Join([]string{
 				querycontract.StringVal(row, "path"),

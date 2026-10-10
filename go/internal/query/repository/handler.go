@@ -343,7 +343,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		}
 		infrastructureOverview = buildRepositoryInfrastructureOverview(infrastructure, files)
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "deployment_artifacts")
-		deploymentOverview, _ := artifacts.LoadDeploymentArtifactOverview(
+		deploymentOverview, deploymentStats, deploymentErr := artifacts.LoadDeploymentArtifactOverviewWithStats(
 			r.Context(),
 			h.Neo4j,
 			h.Content,
@@ -356,7 +356,14 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		if deploymentOverview != nil {
 			infrastructureOverview = deploymentOverview
 		}
-		timer.Done(r.Context(), slog.Bool("found", deploymentOverview != nil))
+		if deploymentErr != nil {
+			// The stage answers with what it read before the failure; name
+			// the gap instead of presenting the partial overview as complete
+			// (#7126).
+			storyLimitations = append(storyLimitations, deploymentArtifactsReadDegradedReason)
+			reportDeploymentArtifactsFailure(r.Context(), h.Logger, "repository_story", repoID, deploymentErr, deploymentStats)
+		}
+		timer.Done(r.Context(), deploymentArtifactsStageAttrs(deploymentOverview != nil, deploymentErr, deploymentStats)...)
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "narrative_files")
 		narrativeFiles, err = hydrateRepositoryNarrativeFiles(r.Context(), h.Content, repoID, files)
 		timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(narrativeFiles)))

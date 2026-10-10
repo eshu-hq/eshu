@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
@@ -182,4 +184,82 @@ func (cr *ContentReader) ListRepoFilesByPath(ctx context.Context, repoID, pathPr
 		return results, err
 	}
 	return results, nil
+}
+
+var (
+	goSpaceCharactersOnce sync.Once
+	goSpaceCharacters     string
+)
+
+// goSpaceCharacterSet returns every rune for which unicode.IsSpace holds, the
+// exact set strings.TrimSpace trims. It is derived by enumeration so the SQL
+// predicate below cannot drift from the Go standard library: a Unicode table
+// update in a later Go release changes the set with the toolchain.
+func goSpaceCharacterSet() string {
+	goSpaceCharactersOnce.Do(func() {
+		var builder strings.Builder
+		for r := rune(0); r <= unicode.MaxRune; r++ {
+			if unicode.IsSpace(r) {
+				builder.WriteRune(r)
+			}
+		}
+		goSpaceCharacters = builder.String()
+	})
+	return goSpaceCharacters
+}
+
+// NonBlankRepoFilePaths returns the paths among relativePaths whose content is
+// not blank under strings.TrimSpace, without moving any content bytes (#7126).
+//
+// The statement trims with an explicit character set instead of the default
+// btrim, which trims only U+0020, and instead of a regular expression class,
+// whose whitespace meaning follows the database locale. The set is every rune
+// unicode.IsSpace accepts, so content is blank in SQL exactly when
+// strings.TrimSpace(content) is empty in Go. A byte-order mark (U+FEFF) and
+// U+200B are not in the set, as in Go: a file holding only one is non-blank.
+// The set holds multibyte characters, so the database encoding must be UTF8;
+// Eshu's content store is created UTF8 and a multibyte btrim under another
+// encoding would match byte-wise.
+func (cr *ContentReader) NonBlankRepoFilePaths(ctx context.Context, repoID string, relativePaths []string) ([]string, error) {
+	if len(relativePaths) == 0 {
+		return nil, nil
+	}
+
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "non_blank_repo_file_paths"),
+			attribute.String("db.sql.table", "content_files"),
+		),
+	)
+	defer span.End()
+
+	rows, err := cr.db.QueryContext(ctx, `
+		SELECT relative_path
+		FROM content_files
+		WHERE repo_id = $1
+		  AND relative_path = ANY($2::text[])
+		  AND btrim(content, $3::text) <> ''
+	`, repoID, array.StringArray(relativePaths), goSpaceCharacterSet())
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("non-blank repo file paths: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	nonBlank := make([]string, 0, len(relativePaths))
+	for rows.Next() {
+		var relativePath string
+		if err := rows.Scan(&relativePath); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan non-blank repo file path: %w", err)
+		}
+		nonBlank = append(nonBlank, relativePath)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("non-blank repo file paths: %w", err)
+	}
+	return nonBlank, nil
 }

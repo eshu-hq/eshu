@@ -61,6 +61,21 @@ by the pass line that follows (`deferred_backfill_targeted_completed` or
 `generation_id`, `claim_token`, `outcome` and any `hold_reason` or
 `failure_reason`.
 
+The repository story `deployment_artifacts` stage line
+(`repository_query.stage_completed`, `stage=deployment_artifacts`) carries the
+read counts of the deployment-artifact load (#7126): `related_repository_count`,
+`files_listed`, `files_hydrated` (config candidates whose content was fetched),
+`files_skipped` (candidates inside the 50-file cap whose content no extractor
+reads), `hydrated_bytes` and `statements` (every content-store list, get and
+non-blank check of the stage), `blank_check_statements`, `list_seconds`,
+`hydrate_seconds`, `parse_seconds`, and `error`. The repository context
+`content_infrastructure_overview` line carries the same counts. A failed load
+also logs `repository_query.deployment_artifacts_degraded` (WARN) with the
+error text and the same counts, sets an error status on the request span, and
+adds `deployment_artifacts_read_degraded` to the response `limitations`
+(story) or `partial_reasons` (context). No metric was added; the counts are
+log fields.
+
 `graph.write_timeout.unbounded` is a startup WARN from the ingester, reducer,
 projector, and bootstrap-index when the graph backend is Neo4j and the
 effective `ESHU_CANONICAL_WRITE_TIMEOUT` is zero, which since #7471 happens

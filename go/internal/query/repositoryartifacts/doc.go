@@ -8,5 +8,6 @@
 // and workflow artifacts (GitHub Actions), plus the shared candidate-file
 // hydration and the config/deployment/workflow artifact loaders. It imports
 // only the standard library, querycontract, and content-parsing libraries,
-// never the query root.
+// never the query root. The config-artifact load fetches file content only for
+// the files an extractor reads (#7126); see README.md.
 package repositoryartifacts

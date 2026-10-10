@@ -1,0 +1,257 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package repositoryartifacts
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+// configArtifactReadsContent reports whether BuildRepositoryConfigArtifacts
+// reads this file's own content. Every selector it consults is the one the
+// matching extractor branches on, so the set of files the loader fetches
+// cannot drift from the set the extractors read (#7126):
+//
+//   - kustomization files, which the kustomize walk decodes for references;
+//   - Docker Compose artifacts, which the compose extractor decodes;
+//   - terragrunt.hcl, .tf and .hcl files, which the HCL extractor scans;
+//   - a conventional Ansible playbook name that the path rules leave to the
+//     content heuristic.
+//
+// A file that returns false still contributes path-only rows (a var file, an
+// Ansible inventory, vars or role path) when its content is not blank. A
+// resource file a kustomization references is read too; that set depends on
+// other files' content and is planned by planKustomizeResourceReads.
+func configArtifactReadsContent(file querycontract.FileContent) bool {
+	if isKustomizationIndexPath(CleanRepositoryRelativePath(file.RelativePath)) {
+		return true
+	}
+	if IsDockerComposeArtifact(file) {
+		return true
+	}
+	if classifyHCLConfigFile(file.RelativePath) == hclConfigSourceFile {
+		return true
+	}
+	if lowerPath, lowerBase, ok := ansiblePathKeys(file); ok && ansiblePlaybookReadsContent(lowerPath, lowerBase) {
+		return true
+	}
+	return false
+}
+
+// planKustomizeResourceReads returns the relative paths of the resource files
+// the kustomize walk will decode for these files. It runs the walk's own
+// collectKustomizeResourceFiles from every kustomization in the same index
+// the extractor builds, so it names exactly the files the extractor reads.
+// The kustomization files must carry their content; resource files need not.
+func planKustomizeResourceReads(files []querycontract.FileContent) map[string]struct{} {
+	index := buildKustomizeIndex(files)
+	kustomizationPaths := make([]string, 0)
+	for relativePath := range index {
+		if isKustomizationIndexPath(relativePath) {
+			kustomizationPaths = append(kustomizationPaths, relativePath)
+		}
+	}
+	sort.Strings(kustomizationPaths)
+
+	reads := make(map[string]struct{})
+	for _, kustomizationPath := range kustomizationPaths {
+		for _, resource := range collectKustomizeResourceFiles(index, kustomizationPath) {
+			reads[resource.RelativePath] = struct{}{}
+		}
+	}
+	return reads
+}
+
+// hydrateConfigArtifactFiles returns the files BuildRepositoryConfigArtifacts
+// should see for one repository: every config artifact candidate with
+// non-blank content, in list order. It produces the same extractor output as
+// reading every candidate in full, while fetching content only for files an
+// extractor reads (#7126):
+//
+//  1. Select the hydration set exactly as the full pass does (first 50
+//     candidates in list order that carry no content yet).
+//  2. Fetch the content of the files configArtifactReadsContent accepts.
+//  3. For the other selected files, ask the store which are non-blank without
+//     moving content. The loader drops a blank file before building, and a
+//     path-only row exists only for a non-blank file, so non-blankness is the
+//     whole of what the extractors need from them.
+//  4. Fetch the resource files the kustomizations reference, which phase 2
+//     can name only once the kustomization content is known.
+//
+// A file whose content was not fetched keeps an empty Content; no extractor
+// reads it. Any read error fails the repository, as in the full pass.
+func hydrateConfigArtifactFiles(
+	ctx context.Context,
+	reader querycontract.ContentStore,
+	repoID string,
+	files []querycontract.FileContent,
+	stats *ConfigArtifactReadStats,
+) ([]querycontract.FileContent, error) {
+	return productionConfigHydration.hydrate(ctx, reader, repoID, files, stats)
+}
+
+// configHydrationPolicy names the two decisions the needed-content pass makes
+// about content: which files an extractor reads by itself, and which resource
+// files the kustomizations pull in. Production uses productionConfigHydration.
+// The field seam exists so the equality tests can run the same pass with one
+// decision removed and watch the output diverge.
+type configHydrationPolicy struct {
+	readsContent  func(querycontract.FileContent) bool
+	planResources func([]querycontract.FileContent) map[string]struct{}
+}
+
+var productionConfigHydration = configHydrationPolicy{
+	readsContent:  configArtifactReadsContent,
+	planResources: planKustomizeResourceReads,
+}
+
+func (policy configHydrationPolicy) hydrate(
+	ctx context.Context,
+	reader querycontract.ContentStore,
+	repoID string,
+	files []querycontract.FileContent,
+	stats *ConfigArtifactReadStats,
+) ([]querycontract.FileContent, error) {
+	hydrated := append([]querycontract.FileContent(nil), files...)
+	var (
+		deferred    = map[int]bool{}
+		selected    int
+		fetchedFull int
+	)
+	if reader != nil && repoID != "" && len(files) > 0 {
+		indexes := selectHydrationIndexes(hydrated, isConfigArtifactCandidate)
+		selected = len(indexes)
+		needed := make([]int, 0, len(indexes))
+		for _, index := range indexes {
+			if policy.readsContent(hydrated[index]) {
+				needed = append(needed, index)
+				continue
+			}
+			deferred[index] = false
+		}
+
+		if err := hydrateFileIndexes(ctx, reader, repoID, hydrated, needed); err != nil {
+			return nil, err
+		}
+		fetchedFull += len(needed)
+
+		if len(deferred) > 0 {
+			if err := markNonBlankDeferredFiles(ctx, reader, repoID, hydrated, deferred); err != nil {
+				return nil, err
+			}
+			stats.BlankCheckStatements++
+		}
+	}
+
+	// working holds the files the extractors may see, with the position of
+	// each in hydrated so a phase 2 read can write its row back.
+	type workingFile struct {
+		position int
+		file     querycontract.FileContent
+	}
+	working := make([]workingFile, 0, len(hydrated))
+	for position, file := range hydrated {
+		if !isConfigArtifactCandidate(file) {
+			continue
+		}
+		if isDeferredNonBlank(deferred, position) || strings.TrimSpace(file.Content) != "" {
+			working = append(working, workingFile{position: position, file: file})
+		}
+	}
+
+	if reader != nil && repoID != "" && len(working) > 0 {
+		visible := make([]querycontract.FileContent, len(working))
+		for i, item := range working {
+			visible[i] = item.file
+		}
+		reads := policy.planResources(visible)
+		positions := make([]int, 0, len(reads))
+		for _, item := range working {
+			if item.file.Content != "" {
+				continue
+			}
+			if _, ok := reads[item.file.RelativePath]; ok {
+				positions = append(positions, item.position)
+			}
+		}
+		if err := hydrateFileIndexes(ctx, reader, repoID, hydrated, positions); err != nil {
+			return nil, err
+		}
+		fetchedFull += len(positions)
+		for _, position := range positions {
+			// The row is read now; the usual blank rule decides on its content,
+			// so a row that vanished or went blank after the store's answer is
+			// dropped as it is in the full pass.
+			delete(deferred, position)
+		}
+	}
+
+	contentFiles := make([]querycontract.FileContent, 0, len(working))
+	for _, item := range working {
+		file := hydrated[item.position]
+		if !isConfigArtifactCandidate(file) {
+			continue
+		}
+		if isDeferredNonBlank(deferred, item.position) && file.Content == "" {
+			// Not fetched, and the store reported it non-blank.
+			contentFiles = append(contentFiles, file)
+			continue
+		}
+		if strings.TrimSpace(file.Content) == "" {
+			continue
+		}
+		contentFiles = append(contentFiles, file)
+	}
+
+	stats.FilesHydrated += fetchedFull
+	stats.FilesSkipped += selected - fetchedFull
+	return contentFiles, nil
+}
+
+// isDeferredNonBlank reports whether the position was selected for hydration,
+// not fetched, and reported non-blank by the store.
+func isDeferredNonBlank(deferred map[int]bool, position int) bool {
+	nonBlank, ok := deferred[position]
+	return ok && nonBlank
+}
+
+// markNonBlankDeferredFiles asks the store, in one statement, which of the
+// deferred files hold non-blank content, and records the answer in deferred.
+func markNonBlankDeferredFiles(
+	ctx context.Context,
+	reader querycontract.ContentStore,
+	repoID string,
+	hydrated []querycontract.FileContent,
+	deferred map[int]bool,
+) error {
+	paths := make([]string, 0, len(deferred))
+	seen := make(map[string]struct{}, len(deferred))
+	for position := range deferred {
+		relativePath := hydrated[position].RelativePath
+		if _, ok := seen[relativePath]; ok {
+			continue
+		}
+		seen[relativePath] = struct{}{}
+		paths = append(paths, relativePath)
+	}
+	sort.Strings(paths)
+
+	nonBlankPaths, err := reader.NonBlankRepoFilePaths(ctx, repoID, paths)
+	if err != nil {
+		return fmt.Errorf("check artifact file content: %w", err)
+	}
+	nonBlank := make(map[string]struct{}, len(nonBlankPaths))
+	for _, relativePath := range nonBlankPaths {
+		nonBlank[relativePath] = struct{}{}
+	}
+	for position := range deferred {
+		_, ok := nonBlank[hydrated[position].RelativePath]
+		deferred[position] = ok
+	}
+	return nil
+}

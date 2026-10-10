@@ -194,6 +194,11 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	if h.Content != nil {
 		timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "content_infrastructure_overview")
 		const fileLimit = querycontract.RepositorySemanticEntityLimit
+		var (
+			deploymentStats artifacts.ConfigArtifactReadStats
+			deploymentErr   error
+			deploymentRan   bool
+		)
 		files, err := h.Content.ListRepoFiles(ctx, repoID, fileLimit+1)
 		filesTruncated := err == nil && len(files) > fileLimit
 		if err != nil {
@@ -208,7 +213,9 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 				files = []querycontract.FileContent{}
 			}
 			overview := buildRepositoryInfrastructureOverview(result["infrastructure"].([]map[string]any), files)
-			deploymentOverview, _ := artifacts.LoadDeploymentArtifactOverview(
+			var deploymentOverview map[string]any
+			deploymentRan = true
+			deploymentOverview, deploymentStats, deploymentErr = artifacts.LoadDeploymentArtifactOverviewWithStats(
 				ctx,
 				h.Neo4j,
 				h.Content,
@@ -221,6 +228,10 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 			if deploymentOverview != nil {
 				overview = deploymentOverview
 			}
+			if deploymentErr != nil {
+				partialReasons = append(partialReasons, deploymentArtifactsReadDegradedReason)
+				reportDeploymentArtifactsFailure(ctx, h.Logger, "repository_context", repoID, deploymentErr, deploymentStats)
+			}
 			if overview != nil {
 				if deploymentArtifacts := querycontract.MapValue(overview, "deployment_artifacts"); len(deploymentArtifacts) > 0 {
 					result["deployment_artifacts"] = deploymentArtifacts
@@ -231,6 +242,17 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		fileReadAttrs := []slog.Attr{slog.Bool("error", err != nil), slog.Int("file_count", len(files)), slog.Bool("truncated", filesTruncated)}
 		if err != nil {
 			fileReadAttrs = append(fileReadAttrs, slog.String("failure_class", contextFileReadDegradedReason))
+		}
+		if deploymentRan {
+			// The deployment-artifact load runs inside this stage; carry its
+			// read counts on the same line (#7126). It runs only when the file
+			// read succeeded, so its failure cannot collide with the file
+			// read's own failure_class.
+			fileReadAttrs = append(fileReadAttrs, deploymentArtifactsReadCountAttrs(deploymentStats)...)
+			fileReadAttrs = append(fileReadAttrs, slog.Bool("deployment_artifacts_error", deploymentErr != nil))
+			if deploymentErr != nil {
+				fileReadAttrs = append(fileReadAttrs, slog.String("failure_class", deploymentArtifactsReadDegradedReason))
+			}
 		}
 		timer.Done(ctx, fileReadAttrs...)
 	}
