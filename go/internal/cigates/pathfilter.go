@@ -369,7 +369,12 @@ func checkPathFilterCoverage(repoRoot string, reg *Registry) []error {
 		every := everyCache[g.CI.Workflow]
 		hostJob := hostJobCache[g.CI.Workflow]
 		if !cached {
-			filters, every, hostJob = dornyFilters(raw)
+			var filterErr error
+			filters, every, hostJob, filterErr = dornyFiltersFile(filepath.Join(wfDir, filepath.Base(g.CI.Workflow)))
+			if filterErr != nil {
+				errs = append(errs, fmt.Errorf("drift: workflow %q dorny filters: %w", g.CI.Workflow, filterErr))
+				continue
+			}
 			filtersCache[g.CI.Workflow] = filters
 			everyCache[g.CI.Workflow] = every
 			hostJobCache[g.CI.Workflow] = hostJob

@@ -9,7 +9,7 @@ refinalize prelude adds a `refinalize_<scope>_<gen>` row beside the canonical
 `projector_<scope>_<gen>` row, and `fact_work_items` has no uniqueness on that
 tuple. The fix reads the counter with `MAX(...)`.
 
-Performance Evidence: baseline and after were both read-only runs on ops-qa
+Performance Evidence: baseline and after were both read-only runs on QA
 Postgres (image `sha-763c65e`, Neo4j graph backend, 2026-09-24 ~22:10Z, during a
 post-cutover reprojection drain). Input shape: 12,844 (scope, generation) groups
 with one projector/source_local row and 809 with two, 806 of them on active

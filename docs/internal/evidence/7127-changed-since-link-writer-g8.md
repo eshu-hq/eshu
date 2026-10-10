@@ -146,7 +146,7 @@ most-common-values list: a fleet of at most about 100 scopes with a scope
 below the autoanalyze threshold, any scope deleted and re-created between
 two `ANALYZE` runs, or a `digest_version` change that re-roots every scope.
 With 421 scopes the arbiter measured a 319-row estimate for an absent scope
-and a linear Hash Join, so a fleet of ops-qa's size (814 scopes) is probably
+and a linear Hash Join, so a fleet of QA's size (814 scopes) is probably
 not exposed in steady state; small fleets are exposed deterministically.
 
 ## G8 fix (arbiter ruling arb-7127-g8)

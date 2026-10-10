@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -133,9 +134,9 @@ func (i SourceImageDigestJoinIndex) Len() int {
 
 func isOCIDigestSourceFactKind(factKind string) bool {
 	switch factKind {
-	case facts.OCIImageManifestFactKind,
-		facts.OCIImageIndexFactKind,
-		facts.OCIImageDescriptorFactKind:
+	case chain.OCIImageManifestFactKind,
+		chain.OCIImageIndexFactKind,
+		chain.OCIImageDescriptorFactKind:
 		return true
 	default:
 		return false
@@ -149,9 +150,9 @@ func isOCIDigestSourceFactKind(factKind string) bool {
 // fallback rather than an empty (un-MATCHable) label.
 func sourceImageNodeLabel(factKind string) string {
 	switch factKind {
-	case facts.OCIImageIndexFactKind:
+	case chain.OCIImageIndexFactKind:
 		return sourceImageNodeLabelIndex
-	case facts.OCIImageDescriptorFactKind:
+	case chain.OCIImageDescriptorFactKind:
 		return sourceImageNodeLabelDescriptor
 	default:
 		return sourceImageNodeLabelManifest

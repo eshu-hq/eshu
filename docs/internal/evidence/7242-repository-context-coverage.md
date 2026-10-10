@@ -2,7 +2,7 @@
 
 ## Root-Cause Evidence
 
-The 2026-09-26 ops-qa sweep on the deployed `sha-518f9dd` image measured
+The 2026-09-26 QA sweep on the deployed `sha-518f9dd` image measured
 `GET /api/v0/repositories/{repo_id}/context` at 12.49 s cold, 0.54 s warm
 p50, and 7.15 s warm p95. MCP `get_repo_context` measured 1.98 s cold and
 0.98 s warm p95. The largest argument has 12,403 indexed files. The issue's
@@ -12,7 +12,7 @@ These are baseline measurements, not post-change endpoint results.
 The context handler called `RepositoryCoverage`, which computes entity counts,
 entity type groups, and maximum index time even though context reads only file
 count and language groups. Read-only `EXPLAIN (ANALYZE, BUFFERS)` on the same
-ops-qa repository found the `content_entities` aggregate scanned 241,726
+QA repository found the `content_entities` aggregate scanned 241,726
 rows: 7,301 ms on its first observed call, then 6,645/311/191 ms. Its first
 plan used 88,332 shared buffers, including 83,369 reads. A file-only language
 group query returned the same 12,403-file count and seven language groups in
@@ -23,7 +23,7 @@ observation supports the unnecessary entity scan as a major cause.
 
 The existing entry-point query found 59 rows through a global name-trigram
 bitmap path: 23,925 bitmap candidates, 7,980 rechecks, and 2,778 repository
-or type filters on the ops-qa profile. It took 2,217 ms first and
+or type filters on the QA profile. It took 2,217 ms first and
 196/125/125 ms later. An isolated 300,000-entity PostgreSQL fixture showed
 that the exact-predicate partial index in migration 133 changes this query to
 an index-only scan. The fixture returned the same 59 rows in the same order.
@@ -42,7 +42,7 @@ have identical total cost.
 
 ## Performance Evidence:
 
-On ops-qa, the file-only language query's exact plan was an index-only scan
+On the QA environment, the file-only language query's exact plan was an index-only scan
 using `content_files_language_repo_idx`, but visibility checks fetched 8,486
 heap rows. The first measured call read 5,222 buffers and took 2,499 ms; a
 repeat hit 6,300 buffers and took 8.6 ms. A local synthetic candidate index
@@ -57,7 +57,7 @@ Go methods in one process. `RepositoryCoverage` took 59.601 ms and the new
 `RepositoryContextCoverage` took 1.766 ms in that sequence. File count and
 ordered language groups matched exactly; an empty repository matched too.
 This is a local, warm fixture measurement. It is not comparable to the
-ops-qa cold total or a deployed handler p95.
+QA cold total or a deployed handler p95.
 
 A disposable Neo4j Community 2026.09 graph with 12,403 synthetic files
 confirmed the fallback count returned 12,403 and its language query returned
@@ -85,7 +85,7 @@ A deliberately failed concurrent unique-index build left an invalid index;
 path drops such an index before retrying. Migration 133 is one standalone
 `CREATE INDEX CONCURRENTLY` statement, and the local bootstrap applied it.
 
-**Target status:** a changed API/MCP binary has not been deployed to ops-qa.
+**Target status:** a changed API/MCP binary has not been deployed to the QA environment.
 Cold and warm endpoint p95 under 1 s are NOT_CHECKED and must not be claimed
 from the local SQL improvements. In particular, the measured cold language
 read and file-derived overview may still exceed the cold target. #7242 stays

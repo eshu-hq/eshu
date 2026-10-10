@@ -31,7 +31,7 @@ not merely on "idle vs. active":
   distinction, so it reproduces the cancellation regardless of isolation
   level or table touched.)
 
-ops-qa's own samples (3 of 3, 20 s apart, 2026-09-23 12:04Z, longest 84.2 s)
+QA's own samples (3 of 3, 20 s apart, 2026-09-23 12:04Z, longest 84.2 s)
 showed client transactions older than 5 s; that observation was never
 classified into (A)/(B)/(C) shapes above, so it is cited only as "a
 transaction was open," not as evidence for which shape it was.
@@ -73,7 +73,7 @@ the default 5 s `lock_timeout` and the default 3 m `ESHU_SCHEMA_LOCK_RETRY_BUDGE
 Before the fix this statement retried with doubling backoff
 (`bootstrap.postgres.migration.lock_wait` / `.lock_recovered`) every time it
 hit `lock_timeout`, and each retry restarts the index build's table scan from
-zero — on ops-qa's `fact_work_items` (113) and `fact_records` (118) targets,
+zero — on QA's `fact_work_items` (113) and `fact_records` (118) targets,
 with client transactions older than 5 s observed on 3 of 3 samples 20 s
 apart (longest 84.2 s, 2026-09-23 12:04Z), that retry loop cannot converge
 before the 3 m budget runs out.

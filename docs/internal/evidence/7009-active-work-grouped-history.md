@@ -5,7 +5,7 @@
 `StatusStore.ReadStatusSnapshotFiltered` reads stage counts, domain backlog,
 queue state, conflict blockage, and the latest failure from one statement,
 `activeWorkSummaryQuery` (`read="active_work_summary"`). Before #7009 the
-statement joined every `fact_work_items` row (about 254,000 on the ops-qa
+statement joined every `fact_work_items` row (about 254,000 on the QA
 capture of 2026-10-05) to its scope state and generation, materialized the
 joined set, and counted `fact_work_items` a second time for `total_count`. Most
 rows are succeeded history, which the summary reads only as `(stage, status)`
@@ -154,8 +154,8 @@ limitation: the standalone `stageCountsQuery` check still rejects any
 ## Performance Evidence:
 
 LOCAL FIXTURE evidence only, from the S5 shim run 2 (2026-10-06 00:51-01:40
-EDT). Not ops-qa, no endpoint p95. PostgreSQL 18.3 primary and streaming hot
-standby, `--cpus 2 --memory 1536m`, ops-qa row counts, statements on the
+EDT). Not the QA environment, no endpoint p95. PostgreSQL 18.3 primary and streaming hot
+standby, `--cpus 2 --memory 1536m`, QA row counts, statements on the
 standby with `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)`, rotating first mover,
 CPU canary before every sample, load1 3.2-8.8 on 18 CPUs (the 8.8 maximum in
 cell C35r). Every cell was valid twice (5 then 7 repetitions). Equality
@@ -208,7 +208,7 @@ D2).
   EXPLAIN ANALYZE sample, host load1 about 20; not a timing claim).
 
 JIT dependency. The a2v statement costs 114-249k on the fixture, above the
-default `jit_above_cost` of 100,000. The ops-qa reader inventory (run
+default `jit_above_cost` of 100,000. The QA reader inventory (run
 c5544da49fcd5c68) reads `jit=on`, `jit_above_cost=100000`, `work_mem=64MB`,
 and costs the pre-#7009 `active_work_summary` at 62,530, below the JIT
 threshold. Every a2v number above is at `jit=off`. PR-1 (#7639), merged as
@@ -244,11 +244,11 @@ is no status read log line, so no log key was added.
 
 ## Not proven
 
-- The ops-qa plan shape and timing of `a2v`, and the ops-qa compare packet
+- The QA plan shape and timing of `a2v`, and the QA compare packet
   (S5 ruling D5.8) against the new pin.
 - Endpoint or bundle p95, and the API/MCP transport time.
-- A built-binary or deployed run, and the ops-qa `jit` setting after PR-1.
-- The share of ops-qa or production time above T, the ops-qa statistics
+- A built-binary or deployed run, and the QA `jit` setting after PR-1.
+- The share of the QA environment or production time above T, the QA statistics
   replay lag, and a bootstrap-state visibility map.
 - The stats window beyond one sample.
 - The mode section's cost on the shim fixture.

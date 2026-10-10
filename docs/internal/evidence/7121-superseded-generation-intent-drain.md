@@ -10,7 +10,7 @@ materialization, which never runs for a superseded generation. The acceptance
 filter (`FilterAuthoritativeIntents`) only stales a row when the acceptance row
 for the SAME `(scope, acceptance_unit, source_run_id)` names a different
 generation; a new source run has its own acceptance row, so the orphan is never
-stale. Read-only ops-qa observation (orchestrator, 2026-09-25): every pending
+stale. Read-only QA observation (orchestrator, 2026-09-25): every pending
 `runs_in` (128) and `handles_route` (128) row had
 `scope_generations.status = 'superseded'`, and none was on an active
 generation.
@@ -217,7 +217,7 @@ graph_projection_phase_repair_queue_pkey`, `Index Cond: scope_id = g.scope_id AN
 generation_id = g.generation_id`, 200 loops, `Buffers: shared hit=1012`,
 `Execution Time: 1.332 ms`; 1,000 ids: `shared hit=5022`, `Execution Time:
 3.657 ms`; 200 ids with no repair rows: `Execution Time: 0.585 ms`. About 3 us per
-probe, served by the primary key; no new index. Expected backlog effect (not yet measured on ops-qa): the drain stops the
+probe, served by the primary key; no new index. Expected backlog effect (not yet measured on the QA environment): the drain stops the
 permanent rescan of the 128 + 128 orphaned pending rows on every partition cycle.
 
 Observability Evidence: `eshu_dp_shared_projection_stale_intents_total` gains a

@@ -230,7 +230,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 					extractionReason: derefString(component.ExtractionReason),
 				})
 			}
-		case facts.OCIImageReferrerFactKind:
+		case chain.OCIImageReferrerFactKind:
 			referrer := sbomReferrerFromEnvelope(envelope)
 			if referrer.referrerDigest != "" {
 				index.referrers[referrer.referrerDigest] = append(index.referrers[referrer.referrerDigest], referrer)

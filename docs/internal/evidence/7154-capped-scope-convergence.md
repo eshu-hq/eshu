@@ -269,7 +269,7 @@ targets is above.
 
 Not checked: the golden-corpus gate's maximum `evidence_envelopes` per pass
 (the ruling asks it stay under 10% of the default budget; that gate runs in CI
-only) and any ops-qa scope distribution. This lane has no ops-qa access; the
+only) and any QA scope distribution. This lane has no QA access; the
 budget default rests on the memory arithmetic above.
 
 Observed, not proven on main and not filed: the arbiter read that live OSV

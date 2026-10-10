@@ -78,7 +78,7 @@ no Tier writer exists yet to enforce anything in the schema).
   (the `tier_name` constraint in `schemaConstraints`, `go/internal/graph/schema_tables.go`) and this read itself. A
   constraint on `Tier.name` says nothing about how many `Tier` nodes a given
   `Repository` can be `CONTAINS`-linked from.
-- ops-qa read-only status (owner's issue comment, 2026-09-26/27): **0 `:Tier`
+- QA read-only status (owner's issue comment, 2026-09-26/27): **0 `:Tier`
   nodes and 0 `(:Tier)-[:CONTAINS]->(:Repository)` edges** in the reference
   corpus. The assumption of at most one tier per repo holds only vacuously
   today.

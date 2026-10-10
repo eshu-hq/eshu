@@ -10,7 +10,7 @@ index, statistics, or `plan_cache_mode` change is warranted at 5x scale. This
 note covers acceptance 1 (the sixth-execution probe, both arms); acceptance 2
 and 3 need reference-corpus runs and stay open on the issue.
 
-## Shim (local only, no ops-qa)
+## Shim (local only, no QA environment)
 
 `postgres:18` in a throwaway container (18.6), tables per migrations 111 + 117
 (band PK, lookup index; fingerprint PK, repo index), entity index per migration

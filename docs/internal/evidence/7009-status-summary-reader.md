@@ -53,7 +53,7 @@ keeps running), and a follower whose leader failed runs its own statement.
 never served, and `reason: stale` names it.
 
 The default `ESHU_STATUS_SUMMARY_STALE_AFTER` is 33 s: three 10 s writer
-intervals plus the 2.09 s replay-lag p95 measured on the ops-qa read replica
+intervals plus the 2.09 s replay-lag p95 measured on the QA read replica
 (32.09 s), rounded up. Values below 10 s are rejected while the reader is on.
 
 The settings and the `Flight` are resolved once per process, not per store. The
@@ -198,7 +198,7 @@ the report; it must be closed before the default of
 
 ## NOT_CHECKED
 
-- Any deployed behavior: ops-qa route latency, the real fallback rate, and the
+- Any deployed behavior: QA route latency, the real fallback rate, and the
   effect of the replica replay lag (PR-F).
 - Reader behavior under `hot_standby_feedback = off` standby conflicts (a
   cancelled snapshot read is a normal status read error).

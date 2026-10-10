@@ -26,7 +26,7 @@ runtime tests assert one transaction, commit, and rollback on SQL failure.
 Before implementation, a read-only scratch theory probe used the actual
 exported semantic SQL and decoder, `StatusStore`, production status handler,
 and response envelope under one PostgreSQL read-only repeatable-read snapshot
-on the ops-qa standby. The full-first pair took 3.676271583 seconds for the
+on the QA standby. The full-first pair took 3.676271583 seconds for the
 full read and 0.034205792 seconds for the semantic SQL path. The narrow-first
 pair took 0.038045167 seconds for semantic and 2.707573125 seconds for full.
 Complete response data and truth matched in both orders, with response hash

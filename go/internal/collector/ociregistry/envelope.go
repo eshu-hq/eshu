@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
@@ -61,7 +62,7 @@ func NewRepositoryEnvelope(observation RepositoryObservation) (facts.Envelope, e
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	return newEnvelope(repository, facts.OCIRegistryRepositoryFactKind, facts.OCIRegistryRepositorySchemaVersion, repository.RepositoryID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, repository.RepositoryID, payload), nil
+	return newEnvelope(repository, chain.OCIRegistryRepositoryFactKind, chain.OCIRegistryRepositorySchemaVersion, repository.RepositoryID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, repository.RepositoryID, payload), nil
 }
 
 // NewTagObservationEnvelope builds the durable mutable tag observation fact.
@@ -120,12 +121,12 @@ func NewTagObservationEnvelope(observation TagObservation) (facts.Envelope, erro
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.OCIImageTagObservationFactKind, map[string]any{
+	stableKey := facts.StableID(chain.OCIImageTagObservationFactKind, map[string]any{
 		"digest":        digest,
 		"repository_id": repository.RepositoryID,
 		"tag":           tag,
 	})
-	return newEnvelope(repository, facts.OCIImageTagObservationFactKind, facts.OCIImageTagObservationSchemaVersion, stableKey, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, repository.RepositoryID+"#"+tag, payload), nil
+	return newEnvelope(repository, chain.OCIImageTagObservationFactKind, chain.OCIImageTagObservationSchemaVersion, stableKey, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, repository.RepositoryID+"#"+tag, payload), nil
 }
 
 // NewManifestEnvelope builds the durable image manifest fact for one digest.
@@ -160,7 +161,7 @@ func NewManifestEnvelope(observation ManifestObservation) (facts.Envelope, error
 	if annotations := redactedAnnotations(observation.Descriptor.Annotations); len(annotations) > 0 {
 		payload["annotations"] = annotations
 	}
-	return newEnvelope(repository, facts.OCIImageManifestFactKind, facts.OCIImageManifestSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
+	return newEnvelope(repository, chain.OCIImageManifestFactKind, chain.OCIImageManifestSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
 }
 
 // NewImageIndexEnvelope builds the durable image index fact for one digest.
@@ -191,7 +192,7 @@ func NewImageIndexEnvelope(observation IndexObservation) (facts.Envelope, error)
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	return newEnvelope(repository, facts.OCIImageIndexFactKind, facts.OCIImageIndexSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
+	return newEnvelope(repository, chain.OCIImageIndexFactKind, chain.OCIImageIndexSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
 }
 
 // NewDescriptorEnvelope builds the durable reusable descriptor fact.
@@ -219,7 +220,7 @@ func NewDescriptorEnvelope(observation DescriptorObservation) (facts.Envelope, e
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	return newEnvelope(repository, facts.OCIImageDescriptorFactKind, facts.OCIImageDescriptorSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
+	return newEnvelope(repository, chain.OCIImageDescriptorFactKind, chain.OCIImageDescriptorSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
 }
 
 // NewReferrerEnvelope builds the durable referrer fact for one subject and
@@ -236,7 +237,7 @@ func NewReferrerEnvelope(observation ReferrerObservation) (facts.Envelope, error
 	if err := validateBoundary(observation.GenerationID, observation.CollectorInstanceID, "oci referrer observation"); err != nil {
 		return facts.Envelope{}, err
 	}
-	stableKey := facts.StableID(facts.OCIImageReferrerFactKind, map[string]any{
+	stableKey := facts.StableID(chain.OCIImageReferrerFactKind, map[string]any{
 		"referrer_digest": referrer.Digest,
 		"repository_id":   repository.RepositoryID,
 		"subject_digest":  subjectDigest,
@@ -277,7 +278,7 @@ func NewReferrerEnvelope(observation ReferrerObservation) (facts.Envelope, error
 	}); err != nil {
 		return facts.Envelope{}, err
 	}
-	return newEnvelope(repository, facts.OCIImageReferrerFactKind, facts.OCIImageReferrerSchemaVersion, stableKey, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, subjectDigest+"->"+referrer.Digest, payload), nil
+	return newEnvelope(repository, chain.OCIImageReferrerFactKind, chain.OCIImageReferrerSchemaVersion, stableKey, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, subjectDigest+"->"+referrer.Digest, payload), nil
 }
 
 func newEnvelope(repository NormalizedRepositoryIdentity, factKind, schemaVersion, stableKey, generationID, collectorInstanceID string, fencingToken int64, observedAt time.Time, sourceURI, sourceRecordID string, payload map[string]any) facts.Envelope {

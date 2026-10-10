@@ -20,7 +20,7 @@ inventory confirms that only the two Terraform statements are omitted.
 
 ## Performance Evidence:
 
-On the ops-qa reader snapshot, the Terraform serial query took 0.671 ms for
+On the QA reader snapshot, the Terraform serial query took 0.671 ms for
 four rows, and the recent-warning query took 360.839 ms for 92 rows. Those
 statements are absent from the repository detail response's input selection,
 so this change removes them from that route. These are individual SQL timings;

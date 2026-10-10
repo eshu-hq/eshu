@@ -1,9 +1,9 @@
-# #7516 ops-qa code-topic budget validation, 2026-10-04
+# #7516 QA code-topic budget validation, 2026-10-04
 
 ## Claim boundary
 
 This record validates the unscoped 16-term
-`POST /api/v0/code/topics/investigate` endpoint against the deployed ops-qa
+`POST /api/v0/code/topics/investigate` endpoint against the deployed QA
 `<1 s` budget after the #7033 candidate merge (#7519). The accepted
 exact-source fixed-corpus relative result is the current guarded-reader
 comparison in

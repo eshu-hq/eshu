@@ -10,7 +10,7 @@ Since #6809 the row count and the three prunes each decided "is this content
 key still held by a retained generation?" with a grouped pass: one aggregate
 over every live fact of a kind (`content_entity` or `file`). That pass costs
 O(`fact_records`), and it ran up to four times per cycle while the scope locks
-were held. On ops-qa `fact_records` holds 93.9M rows in a 115 GB heap; a plain
+were held. On the QA environment `fact_records` holds 93.9M rows in a 115 GB heap; a plain
 `EXPLAIN` of the entity prune there shows a `Seq Scan on fact_records`
 estimated at 48.8M rows feeding a 64-partition `HashAggregate`.
 
@@ -88,7 +88,7 @@ run.
   row (two per key); both are bounded by the batch.
 - At 1x the probe reads more buffers than the grouped pass: this batch is about
   12% of the fixture's facts, above the roughly 10% crossover the perf
-  diagnosis measured. On ops-qa the first backlog batch is about 300k of 47M
+  diagnosis measured. On the QA environment the first backlog batch is about 300k of 47M
   entity facts (0.6%).
 - A run where the bystanders straddled a btree level boundary showed the entity
   probe rising from 5.6 to 6.6 buffers per key: a log-scale step, not linear
@@ -125,7 +125,7 @@ against 1.0-1.2 s on the probe; the concurrent FK insert waited 17.8 s and
 | next long pole in the lock window | - | `delete_scope_generations` 182-237 ms | - | phase log |
 
 Classification: phase wall-clock win for the retention lock window; the
-ops-qa wall-clock effect is not measured (see Limits).
+QA wall-clock effect is not measured (see Limits).
 
 ## Plan stability
 
@@ -148,7 +148,7 @@ The `inventory` repository statements (`LockRepositoriesForGenerations`,
 `DeleteOrphanedRows`) still read `generation_id = ANY($1)`. Under the same
 conditions plus an analyzed custom plan, their plans are index skip scans over
 the `(scope_id, generation_id)` indexes, with no `Seq Scan`; the diagnosis
-measured them on ops-qa at 18k buffers and 667 index searches. Per the
+measured them on the QA environment at 18k buffers and 667 index searches. Per the
 diagnosis they stay unchanged unless a plan guard shows a sequential scan.
 
 ## Exactness
@@ -197,16 +197,16 @@ row (a leak), and the `fact_records` count omits that fact although the FK
 cascade still removes it, so `BatchRowLimit` is weaker by the number of
 mismatched facts. A mismatched fact in a kept generation still protects its key,
 because the retained probe matches on `generation_id` only. The perf diagnosis
-found 0 mismatches in 1,559,239 ops-qa facts across the 300 generations it
+found 0 mismatches in 1,559,239 QA facts across the 300 generations it
 sampled.
 
 ## Write cost
 
 The perf fixture could not tell index maintenance from host noise: 60k-row
 inserts took 2.90 / 2.38 / 3.72 s with the two indexes and 2.61 / 3.74 / 3.48 s
-without, at load average 20-37. ops-qa `fact_records` already carries 105
+without, at load average 20-37. QA `fact_records` already carries 105
 indexes, and these two apply only to `content_entity` and `file` rows. The
-projected ops-qa sizes are 1-2 GB for the entity index and 0.1-0.2 GB for the
+projected QA sizes are 1-2 GB for the entity index and 0.1-0.2 GB for the
 file index (a projection from key lengths, not a measurement).
 
 ## Refusal
@@ -222,7 +222,7 @@ issues no lock, count, or delete.
 
 ## Limits
 
-- Not measured on ops-qa: the probe half of the statements (it needs the index),
+- Not measured on the QA environment: the probe half of the statements (it needs the index),
   the concurrent build time on a 115 GB heap (it reads the heap about twice and
   waits out old snapshots), and the real index sizes. Take a quiet-window
   `EXPLAIN (ANALYZE, BUFFERS)` of the four statements after the indexes exist.

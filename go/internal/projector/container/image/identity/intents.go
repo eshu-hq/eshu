@@ -27,10 +27,10 @@ const containerImageIdentityFileFactKind = "file"
 // open-registry probes) because it names concrete, closed fact-kind
 // constants — the same set triggerFact's switch already enumerates.
 var candidateFactKinds = []string{
-	facts.OCIImageManifestFactKind,
-	facts.OCIImageIndexFactKind,
-	facts.OCIImageTagObservationFactKind,
-	facts.OCIImageReferrerFactKind,
+	chain.OCIImageManifestFactKind,
+	chain.OCIImageIndexFactKind,
+	chain.OCIImageTagObservationFactKind,
+	chain.OCIImageReferrerFactKind,
 	facts.AWSImageReferenceFactKind,
 	cloud.AzureImageReferenceFactKind,
 	facts.GCPImageReferenceFactKind,
@@ -74,10 +74,10 @@ func BuildContainerImageIdentityReducerIntent(
 
 func triggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
-	case facts.OCIImageManifestFactKind,
-		facts.OCIImageIndexFactKind,
-		facts.OCIImageTagObservationFactKind,
-		facts.OCIImageReferrerFactKind:
+	case chain.OCIImageManifestFactKind,
+		chain.OCIImageIndexFactKind,
+		chain.OCIImageTagObservationFactKind,
+		chain.OCIImageReferrerFactKind:
 		return true
 	case facts.AWSImageReferenceFactKind:
 		return true

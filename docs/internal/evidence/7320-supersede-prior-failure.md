@@ -19,7 +19,7 @@ A claimed or running row is not clean: the retry path writes the generic class
 `projection_retryable` (`projector_queue.go`) and the claim does not clear it,
 so the cause lives in the retry's message and details, and the supersede erased
 those too. `attempt_count`, `last_attempt_at` and `created_at` were never
-touched, which is why 3,436 ops-qa superseded projector rows still show
+touched, which is why 3,436 QA superseded projector rows still show
 `attempt_count = 3`.
 
 Nothing downstream could recover the cause. `list_dead_letter_work_items` reads
@@ -157,7 +157,7 @@ Performance Evidence: the plan, the bytes and pages the fold writes, and the
 memory it holds are proven by counts that do not depend on host load. Wall time
 was measured on a quiet host (rule PD met: load1 below half the CPU count at
 start, end and maximum; a control canary in every pair; two sets of nine pairs;
-block below). At the ops-qa worst case of 3,500 superseded rows with 800-byte
+block below). At the QA worst case of 3,500 superseded rows with 800-byte
 details the fold adds about 7 to 8 microseconds per superseded row in every claim
 statement: +0.8% on the projector claim (2.925 to 2.948 s) and +22 to +26% on
 the reducer claims (0.106 to 0.134 s). This is a measured cost of keeping the
@@ -168,7 +168,7 @@ defaults (shared_buffers 128 MB, wal_buffers 4 MB). The shipped Compose profile
 is larger and was not measured.
 
 Setup: PostgreSQL 18.6, worst case of 3,500 dead-lettered rows with 800-byte
-details, each on its own scope, all superseded by one claim (ops-qa has one dead
+details, each on its own scope, all superseded by one claim (the QA environment has one dead
 letter with 793-byte details and 122,734 work rows), plus a stress case of 500
 rows with 64 KB details. The "before" statement is the shipped text with the
 fold cut out, derived by the test from the constant, so it cannot drift.
@@ -219,7 +219,7 @@ expected shape for the same expression over the same input.
 At 64 KB details (500 rows, projector claim, steady): WAL 3,574 to 73,730 bytes
 a row (+70,156), WAL records 47 to 113, TOAST rows written 0 to 33 a row,
 buffers dirtied +8.33 a row. The same fold, the same expression; the details
-text is simply 80 times larger. 64 KB is not an observed size: the one ops-qa
+text is simply 80 times larger. 64 KB is not an observed size: the one QA
 dead letter has 793-byte details. It is not excluded either, because the Fail
 path set no limit on the details it stored when this was measured. #7407 has
 since bounded them at the writer (4096 bytes; see `7407-failure-text-bound.md`).
@@ -275,7 +275,7 @@ the reducer claim and 386 times in the projector claim, against none without the
 fold. At 64 KB details it is about 1.9 ms a row (500 rows: +0.95 s), which is 70
 KB more WAL and 33 to 34 TOAST rows per row.
 
-64 KB is not an observed size: the one ops-qa dead letter has 793-byte details. It
+64 KB is not an observed size: the one QA dead letter has 793-byte details. It
 is not excluded either, because the Fail path sets no limit on the details it
 stored when this was measured. The fold does not truncate. #7407 set the bound at
 the Fail-time writer, so that the stored evidence and its copy stay equal.
@@ -398,15 +398,15 @@ No-Observability-Change: `eshu_dp_superseded_generation_fence_total` and
 `eshu_dp_poison_dead_letter_items` keep their meaning and labels. The new
 evidence is row-level: `failure_details.prior_failure` on the superseded work
 row, read with the recipe above. A supersede-over-a-failure counter was
-rejected: 95.0% of ops-qa projector supersedes happen in the claim sweep, whose
+rejected: 95.0% of QA projector supersedes happen in the claim sweep, whose
 result carries only the claimed row, so counting there means changing the claim
 statement's result shape, and counting only the other writers would cover 5% and
 mislead. The operator gap is at Fail time, not here (#7386).
 
-## Ops-qa attribution of the 3,436 rows (issue item 2)
+## QA attribution of the 3,436 rows (issue item 2)
 
 The rows cannot be recovered per row: class, message, details, status and the
-generation's `failed` status are gone. Read-only ops-qa facts, measured
+generation's `failed` status are gone. Read-only QA facts, measured
 2026-09-28: 9,980 superseded projector rows, of which 9,483 (95.0%) came from the
 claim sweep, 497 (5.0%) from Heartbeat and none from the Ack writers. The issue's
 3,436 rows with `attempt_count = 3` split 3,317 claim sweep and 119 Heartbeat;
@@ -430,7 +430,7 @@ for 3,317 rows. Logs and Prometheus history for 09-18 to 09-24 are NOT_CHECKED.
   `projector_stale_scope_reclaim` and the operator note replacing
   `failure_details`.
 - #7407: queue: `failure_details` has no size bound at the Fail-time writer;
-  measure the real widths on ops-qa first, and put any bound at the writer.
+  measure the real widths on the QA environment first, and put any bound at the writer.
 - #7408: projector: the claim sweep costs 0.84 ms per superseded row, 28 times the
   reducer sweep; rank it by measurement before any work.
 

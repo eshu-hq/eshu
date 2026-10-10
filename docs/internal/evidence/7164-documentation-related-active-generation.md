@@ -19,7 +19,7 @@ labels, truth freshness, and grant-safe empty states.
 
 ## Performance Evidence
 
-Read-only ops-qa PostgreSQL 18 observations on 2026-09-26 found 57,909 claim
+Read-only QA PostgreSQL 18 observations on 2026-09-26 found 57,909 claim
 candidate rows across 368 scopes and 139,666 entity mentions across 620
 scopes. One busy scope held 10,705 target rows across 20 generations: 568
 active and 10,137 superseded. On a 51-row scoped target read, the retained
@@ -35,14 +35,14 @@ The active scope join returned the same 11 active rows in 216.337 ms with
 12,890 hits and 533 reads. Thus the implementation uses the join for anchored
 or otherwise filtered unscoped pages. The unfiltered findings page keeps the
 existing bounded page probe shape. This plan comparison is not a deployed
-before/after measurement: ops-qa was read-only and the new binary was not
+before/after measurement: the QA environment was read-only and the new binary was not
 installed there.
 
 The endpoint sweep named `post-518f9dd` is context, not a comparable
 before/after baseline: documentation facts API cold was 24.2228 s and warm
 p95 was 0.575 s; MCP list_documentation_facts cold was 30.0902 s and warm
 p95 was 25.6142 s with one timeout. These routes were fixed under #7128.
-Ops-qa contained no documentation findings or semantic rows, so it cannot
+The QA environment contained no documentation findings or semantic rows, so it cannot
 establish a deployed p95 for those routes. The requested cold and warm p95
 below one second remains unproved until deployment and a matching sweep.
 

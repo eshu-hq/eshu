@@ -1,8 +1,8 @@
-# 6704 / 6541: the directory language query on Neo4j at ops-qa scale
+# 6704 / 6541: the directory language query on Neo4j at QA scale
 
 This record measures `buildDirectoryCypher` (`go/internal/query/language/cypher.go`)
 and its handler, `Handler.directoryRowsByLanguage`
-(`go/internal/query/language/directory.go`), on the backend ops-qa runs. It
+(`go/internal/query/language/directory.go`), on the backend that the QA environment runs. It
 answers the open question in both issues. #6704 predicted that the unscoped
 Directory read fans out `len(repoIDs) * limit` rows and misses the 10 s
 deadline at reference scale. #6541 asked for a corpus-scale timing with
@@ -11,7 +11,7 @@ cardinality.
 Every earlier measurement of this statement
 ([6541 corpus timing](6541-directory-query-s2-corpus-timing.md),
 [6541 S2](6541-directory-query-s2.md)) ran on pinned NornicDB against a
-synthetic 50-repository corpus. This run uses Neo4j and the real ops-qa graph.
+synthetic 50-repository corpus. This run uses Neo4j and the real QA graph.
 
 ## Result
 
@@ -29,8 +29,8 @@ Go-side bound stays as it is; this record changes no code.
 
 ## Identity
 
-- Cluster: ops-qa, namespace `eshu`. Identity checked with
-  `aws sts get-caller-identity --profile ops-qa` before the run. Account and
+- Cluster: the QA environment, namespace `eshu`. Identity checked with
+  `aws sts get-caller-identity --profile <qa-environment>` before the run. Account and
   repository identifiers are omitted.
 - API and MCP image: `ghcr.io/eshu-hq/eshu:sha-5583d45@sha256:e4014933cfd00bdf0da38b11d01153a32936988210a4826f18b22c7cbc5e9b27`.
   `git diff 5583d45 origin/main` over `language/cypher.go`, `language/directory.go`
@@ -46,13 +46,13 @@ Go-side bound stays as it is; this record changes no code.
   --access-mode read` on the Neo4j pod. HTTP and MCP calls were the read-only
   `POST /api/v0/code/language-query` and `tools/call execute_language_query`,
   made with the unscoped admin key over `kubectl port-forward`.
-- `absolute_target_applicable: true` for ops-qa. It holds 804 repositories,
+- `absolute_target_applicable: true` for the QA environment. It holds 804 repositories,
   against the 896 of the reference profile. Repository count is not the cost
   axis. The cost follows directory and CONTAINS volume (see
-  [Width slope](#width-slope)), and ops-qa's volume per repository is not
+  [Width slope](#width-slope)), and QA's volume per repository is not
   known to match the reference profile's. The applicability rests on headroom
   instead: the unscoped statement uses about a third of the 1 s budget, so a
-  reference corpus up to about 2.9 times ops-qa's directory and edge volume
+  reference corpus up to about 2.9 times QA's directory and edge volume
   still fits.
 
 ## Plan
@@ -119,7 +119,7 @@ The MCP tool was the slowest surface in this run, at 0.817 s warm p95
 (ledger:6704-opsqa-directory-mcp-warm-p95). The MCP figure includes the tool
 server's own envelope and resource rendering on top of the same HTTP route.
 Three read-only diagnosis probes for other issues were running against
-ops-qa's Neo4j during that run.
+QA's Neo4j during that run.
 
 Repeated with thirty warm calls:
 
@@ -202,7 +202,7 @@ candidate, and it would need its own theory proof.
   the deployment's backend is Neo4j.
 
 Performance Evidence: `buildDirectoryCypher` as shipped at `049be7161` ran on
-ops-qa Neo4j 2026.08.1-community against 804 repositories, 43,281 directories
+QA Neo4j 2026.08.1-community against 804 repositories, 43,281 directories
 and 144,010 files, with the `directory_repo_id` index ONLINE. An unscoped php
 read at limit 200 made 772,706 db hits in 311-318 ms of server time. Through
 HTTP, cold was 0.345-0.439 s and warm p95 0.382-0.530 s over ten cells. Through

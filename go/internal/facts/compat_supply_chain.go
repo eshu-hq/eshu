@@ -20,64 +20,6 @@ package facts
 
 import "github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 
-// Stanza: oci_registry.go (moved to chain/oci_registry.go).
-const (
-	// OCIImageDescriptorFactKind identifies one reusable OCI descriptor. See
-	// [chain.OCIImageDescriptorFactKind].
-	OCIImageDescriptorFactKind = chain.OCIImageDescriptorFactKind
-	// OCIImageDescriptorSchemaVersion is the first descriptor fact schema. See
-	// [chain.OCIImageDescriptorSchemaVersion].
-	OCIImageDescriptorSchemaVersion = chain.OCIImageDescriptorSchemaVersion
-	// OCIImageIndexFactKind identifies one digest-addressed image index. See
-	// [chain.OCIImageIndexFactKind].
-	OCIImageIndexFactKind = chain.OCIImageIndexFactKind
-	// OCIImageIndexSchemaVersion is the first image-index fact schema. See
-	// [chain.OCIImageIndexSchemaVersion].
-	OCIImageIndexSchemaVersion = chain.OCIImageIndexSchemaVersion
-	// OCIImageManifestFactKind identifies one digest-addressed image manifest.
-	// See [chain.OCIImageManifestFactKind].
-	OCIImageManifestFactKind = chain.OCIImageManifestFactKind
-	// OCIImageManifestSchemaVersion is the first manifest fact schema. See
-	// [chain.OCIImageManifestSchemaVersion].
-	OCIImageManifestSchemaVersion = chain.OCIImageManifestSchemaVersion
-	// OCIImageReferrerFactKind identifies one descriptor reported as a referrer.
-	// See [chain.OCIImageReferrerFactKind].
-	OCIImageReferrerFactKind = chain.OCIImageReferrerFactKind
-	// OCIImageReferrerSchemaVersion is the first referrer fact schema. See
-	// [chain.OCIImageReferrerSchemaVersion].
-	OCIImageReferrerSchemaVersion = chain.OCIImageReferrerSchemaVersion
-	// OCIImageTagObservationFactKind identifies one mutable tag-to-digest
-	// observation. See [chain.OCIImageTagObservationFactKind].
-	OCIImageTagObservationFactKind = chain.OCIImageTagObservationFactKind
-	// OCIImageTagObservationSchemaVersion is the first tag fact schema. See
-	// [chain.OCIImageTagObservationSchemaVersion].
-	OCIImageTagObservationSchemaVersion = chain.OCIImageTagObservationSchemaVersion
-	// OCIRegistryRepositoryFactKind identifies one OCI registry repository
-	// configured for observation. See [chain.OCIRegistryRepositoryFactKind].
-	OCIRegistryRepositoryFactKind = chain.OCIRegistryRepositoryFactKind
-	// OCIRegistryRepositorySchemaVersion is the first repository fact schema. See
-	// [chain.OCIRegistryRepositorySchemaVersion].
-	OCIRegistryRepositorySchemaVersion = chain.OCIRegistryRepositorySchemaVersion
-	// OCIRegistryWarningFactKind identifies one non-fatal OCI registry warning.
-	// See [chain.OCIRegistryWarningFactKind].
-	OCIRegistryWarningFactKind = chain.OCIRegistryWarningFactKind
-	// OCIRegistryWarningSchemaVersion is the first warning fact schema. See
-	// [chain.OCIRegistryWarningSchemaVersion].
-	OCIRegistryWarningSchemaVersion = chain.OCIRegistryWarningSchemaVersion
-)
-
-// OCIRegistryFactKinds returns the accepted OCI registry fact kinds in their
-// emission order. See [chain.OCIRegistryFactKinds].
-func OCIRegistryFactKinds() []string {
-	return chain.OCIRegistryFactKinds()
-}
-
-// OCIRegistrySchemaVersion returns the schema version for an OCI registry fact
-// kind. See [chain.OCIRegistrySchemaVersion].
-func OCIRegistrySchemaVersion(factKind string) (string, bool) {
-	return chain.OCIRegistrySchemaVersion(factKind)
-}
-
 // Stanza: package_registry.go (moved to chain/package_registry.go).
 const (
 	// PackageRegistryPackageArtifactFactKind identifies one package artifact

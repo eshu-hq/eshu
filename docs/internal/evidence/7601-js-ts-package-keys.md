@@ -260,13 +260,13 @@ The state heals at that repository's next successful generation. Tracked in
 The arbiter ruling on #7601 (2026-10-05) accepted each of these deviations.
 
 - Direct graph read of the cross-repository edge: NOT_CHECKED, deferred to the
-  ops-qa read after deploy. B-7 counted `CALLS` going 32 to 33 with only this
+  QA read after deploy. B-7 counted `CALLS` going 32 to 33 with only this
   edge as the difference, and the route classified `formatPrice` as
   `live_by_consumer`.
 - Loader before and after, after deploy: `load_symbol_definitions_duration_seconds`
   on the same JS/TS scopes, with one Go scope unchanged. Rollback trigger: the
   worst consumer above 500 ms, or above 2.1 s absolute. NOT_CHECKED until then.
-- ops-qa 40-edge recheck, after deploy, on the post-fix candidate set: the bar
+- QA 40-edge recheck, after deploy, on the post-fix candidate set: the bar
   is 0 false among at least 40 resolved edges. NOT_CHECKED until then.
 - Replica shape split of the investigation's 2,602 strict calls: NOT_CHECKED.
   The split above, from parser output on 22 repositories, stands in for it.

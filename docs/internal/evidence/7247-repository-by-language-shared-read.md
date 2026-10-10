@@ -17,7 +17,7 @@ sentinel so a zero-match or high-offset page still returns the aggregate.
 The repository/scope grant must filter `content_files` before either
 aggregation or pagination.
 
-Read-only ops-qa PostgreSQL 18 `EXPLAIN (ANALYZE, BUFFERS)` used the recorded
+Read-only QA PostgreSQL 18 `EXPLAIN (ANALYZE, BUFFERS)` used the recorded
 PHP family, unscoped, page probe limit 101, offset 0. Two interleaved warm
 baseline reads took 275.160 ms for the aggregate plus 185.059/187.064 ms for
 the page, about 460–462 ms together. The single combined read took
@@ -74,7 +74,7 @@ GOCACHE=<7247-worktree>/.gocache go test \
 ```
 
 A temporary Go test in `internal/query` then called the built
-`ContentReader` methods through `pgx` against ops-qa PostgreSQL via a local
+`ContentReader` methods through `pgx` against QA PostgreSQL via a local
 port forward. Its session was forced read-only and verified
 `default_transaction_read_only=on` before querying. The one-off command
 used the pod credential in `PGPASSWORD` and the isolated worktree Go cache:

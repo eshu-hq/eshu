@@ -2,13 +2,13 @@
 
 ## Contract and cause
 
-`GET /api/v0/repositories/language-inventory` reads global `content_files` language counts unless a scoped token supplies repository or scope grants. The repository named in the latency sweep labels its argument set; it does not filter this route. The handler requests `limit+1` rows and reports truncation. On ops-qa PostgreSQL 18, the previous `COUNT(DISTINCT repo_id)` plan sorted all 145,050 file rows by normalized language and repository before computing 33 language groups. Its warm sort used 14,362 kB. A limit of 21 could not bound that scan or sort.
+`GET /api/v0/repositories/language-inventory` reads global `content_files` language counts unless a scoped token supplies repository or scope grants. The repository named in the latency sweep labels its argument set; it does not filter this route. The handler requests `limit+1` rows and reports truncation. On QA PostgreSQL 18, the previous `COUNT(DISTINCT repo_id)` plan sorted all 145,050 file rows by normalized language and repository before computing 33 language groups. Its warm sort used 14,362 kB. A limit of 21 could not bound that scan or sort.
 
 The replacement groups by normalized language and repository first, then counts those groups and sums their file counts by language. The grant predicate remains inside the first grouping, before any count or timestamp is computed. The query stays one statement and one content-index snapshot. `content_files.repo_id` is non-null, so one row per `(language, repo_id)` group yields the same repository count as `COUNT(DISTINCT repo_id)`. `SUM(file_count)::bigint` retains the old `COUNT(*)` scan type. Normalization, `MAX(indexed_at)`, ordering, offset, and limit are unchanged. PostgreSQL can use two hash aggregates rather than the large distinct-count sort. No schema, index, or writer path changes.
 
 ## Theory proof before code
 
-A read-only ops-qa same-statement differential compared old and proposed SQL, with `EXCEPT ALL` in both directions over language, repository count, file count, and last indexed time. The global result was 33 old rows, 33 new rows, zero differences, and an equal ordered top-21 page. A scoped grant for the recorded 21-file repository returned six rows on both sides, zero differences, and the same ordered page. The full SQL and commands are retained in the user-local `7247-language-inventory-two-stage-probe.md` packet.
+A read-only QA same-statement differential compared old and proposed SQL, with `EXCEPT ALL` in both directions over language, repository count, file count, and last indexed time. The global result was 33 old rows, 33 new rows, zero differences, and an equal ordered top-21 page. A scoped grant for the recorded 21-file repository returned six rows on both sides, zero differences, and the same ordered page. The full SQL and commands are retained in the user-local `7247-language-inventory-two-stage-probe.md` packet.
 
 On 145,050 files, warm `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)` A/B/B/A samples with all heap buffers hit were:
 
@@ -23,7 +23,7 @@ The two-stage hash used 793 kB and 32 kB for its aggregate stages. Both statemen
 
 The regression assertion failed before the SQL edit on the old `COUNT(DISTINCT repo_id)` path, then passed after the edit. `TestRepositoryLanguageInventoryTwoStageLive` ran the built `ContentReader` against a disposable PostgreSQL 18 database with the production bootstrap schema. It passed global count and tie order, null/empty language normalization, overlapping repository and scope grants without double count, first page, offset page, high offset, and empty grant. The disposable database was dropped by the test; the isolated local container and its anonymous volume were removed after proof.
 
-A second read-only ops-qa A/B/B/A probe extracted the previous and edited SQL directly from `content_reader_language_inventory.go` and ran them in one psql session. After the first cold/warming statements, all four measured plans reported 28,830 shared heap hits and no heap reads:
+A second read-only QA A/B/B/A probe extracted the previous and edited SQL directly from `content_reader_language_inventory.go` and ran them in one psql session. After the first cold/warming statements, all four measured plans reported 28,830 shared heap hits and no heap reads:
 
 | Statement | First warm | Second warm |
 | --- | ---: | ---: |

@@ -175,7 +175,7 @@ keeps its `role`, `stage`, and `outcome` labels and its buckets.
 
 ## Unchecked
 
-Whether ops-qa exports traces, whether its log pipeline keeps the new
+Whether the QA environment exports traces, whether its log pipeline keeps the new
 attributes, and the deployed share of `impact_findings_query` time by stage are
 NOT_CHECKED. This change makes the next slow call attributable; it does not
 explain the 1,439 ms in #7545 and does not close it.

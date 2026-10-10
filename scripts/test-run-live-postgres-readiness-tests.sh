@@ -307,11 +307,13 @@ selection="$(python3 "${checker}" verify-ledger "${ledger}" "${repo_root}")" ||
   fail "clean postgres_ci ledger mapping rejected"
 [[ "${selection}" == *"${total} tests selected"* && "${selection}" != *"PASS"* ]] ||
   fail "ledger selection claimed a test pass before Go ran: ${selection}"
-sed 's/class: postgres_ci/class: scheduled/g' "${ledger}" >"${seed_dir}/ledger-missing.yaml"
+flat_ledger="${seed_dir}/flat-ledger.yaml"
+python3 "${repo_root}/scripts/lib/live_tests_registry.py" flatten "${ledger}" >"${flat_ledger}"
+sed 's/class: postgres_ci/class: scheduled/g' "${flat_ledger}" >"${seed_dir}/ledger-missing.yaml"
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-missing.yaml" "${repo_root}" 2>&1)" &&
   fail "missing postgres_ci ledger row passed"
 [[ "${out}" == *"ledger files differ"* ]] || fail "ledger drift not named: ${out}"
-sed 's/runner: live-postgres-readiness/runner: unrelated/g' "${ledger}" >"${seed_dir}/ledger-wrong-runner.yaml"
+sed 's/runner: live-postgres-readiness/runner: unrelated/g' "${flat_ledger}" >"${seed_dir}/ledger-wrong-runner.yaml"
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-wrong-runner.yaml" "${repo_root}" 2>&1)" &&
   fail "wrong postgres_ci runner passed"
 [[ "${out}" == *"unexpected runner"* ]] || fail "wrong runner not named: ${out}"
@@ -324,10 +326,14 @@ tree="${seed_dir}/tree"
 mkdir -p "${tree}/scripts/lib" "${tree}/specs"
 cp "${runner}" "${tree}/scripts/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${tree}/scripts/lib/"
+cp "${repo_root}/scripts/lib/live_tests_registry.py" "${tree}/scripts/lib/"
+cp "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${tree}/scripts/lib/"
+cp "${checker}" "${tree}/scripts/lib/"
 ln -s "${repo_root}/go" "${tree}/go"
 tree_runner="${tree}/scripts/$(basename "${runner}")"
 tree_checker="${tree}/scripts/lib/$(basename "${checker}")"
-cp "${ledger}" "${tree}/specs/live-tests.v1.yaml"
+tree_inventory="${tree}/scripts/lib/live_postgres_readiness_inventory.py"
+cp "${flat_ledger}" "${tree}/specs/live-tests.v1.yaml"
 # Remove the last PACKAGES entry (from its "    NAME: {" line through the
 # next "    }," line) and list the test files it carried in dropped-files.
 awk -v list="${seed_dir}/dropped-files" '
@@ -345,7 +351,8 @@ awk -v list="${seed_dir}/dropped-files" '
       print line[i]
     }
   }
-' "${checker}" >"${tree_checker}"
+' "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${tree_inventory}.seed"
+mv "${tree_inventory}.seed" "${tree_inventory}"
 [[ -s "${seed_dir}/dropped-files" ]] || fail "seeded verifier dropped no package files"
 load_proofs "${tree_checker}"
 dropped_total="${#proofs[@]}"
@@ -370,8 +377,8 @@ awk -v list="${seed_dir}/dropped-files" '
   ($0 in drop) { hit = 1 }
   hit && $0 == "    class: postgres_ci" { print "    class: scheduled"; hit = 0; next }
   { print }
-' "${ledger}" >"${tree}/specs/live-tests.v1.yaml"
-cmp -s "${ledger}" "${tree}/specs/live-tests.v1.yaml" && fail "seeded ledger reclassification changed nothing"
+' "${flat_ledger}" >"${tree}/specs/live-tests.v1.yaml"
+cmp -s "${flat_ledger}" "${tree}/specs/live-tests.v1.yaml" && fail "seeded ledger reclassification changed nothing"
 load_proofs "${tree_checker}"
 write_events
 : >"${fake}/calls"
@@ -384,14 +391,19 @@ runner="${repo_root}/scripts/run-live-postgres-readiness-tests.sh"
 load_proofs "${checker}"
 
 # list-packages fails closed on an empty or malformed PACKAGES.
-cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${seed_dir}/"
+mkdir -p "${seed_dir}/empty" "${seed_dir}/malformed"
+for location in empty malformed; do
+  cp "${checker}" "${seed_dir}/${location}/live_postgres_readiness_results.py"
+  cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${seed_dir}/${location}/"
+  cp "${repo_root}/scripts/lib/live_tests_registry.py" "${seed_dir}/${location}/"
+done
 awk '/^PACKAGES = \{/ { print "PACKAGES = {}"; skip = 1; next } skip && /^\}$/ { skip = 0; next } !skip' \
-  "${checker}" >"${seed_dir}/empty.py"
-out="$(python3 "${seed_dir}/empty.py" list-packages 2>&1)" && fail "empty PACKAGES listed"
+  "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${seed_dir}/empty/live_postgres_readiness_inventory.py"
+out="$(python3 "${seed_dir}/empty/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "empty PACKAGES listed"
 [[ "${out}" == *"PACKAGES is empty"* ]] || fail "empty PACKAGES not named: ${out}"
-sed "s/\"${last_proof}\"/\"not a test\"/" "${checker}" >"${seed_dir}/malformed.py"
-cmp -s "${checker}" "${seed_dir}/malformed.py" && fail "malformed seed changed nothing"
-out="$(python3 "${seed_dir}/malformed.py" list-packages 2>&1)" && fail "malformed test name listed"
+sed "s/\"${last_proof}\"/\"not a test\"/" "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" >"${seed_dir}/malformed/live_postgres_readiness_inventory.py"
+cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${seed_dir}/malformed/live_postgres_readiness_inventory.py" && fail "malformed seed changed nothing"
+out="$(python3 "${seed_dir}/malformed/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "malformed test name listed"
 [[ "${out}" == *"malformed test"* ]] || fail "malformed test not named: ${out}"
 
 printf 'test-run-live-postgres-readiness-tests: PASS\n'

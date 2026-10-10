@@ -8,13 +8,13 @@ aggregate and ordering behavior needs separate live proof.
 
 ## Theory and measured query cost
 
-Performance Evidence: On the same archived ops-qa Neo4j repository with
+Performance Evidence: On the same archived QA Neo4j repository with
 45,495 Functions and 39,649 physical `CALLS` edges, the raw edge read took
 632/680 ms and 878,988 DbHits; the guarded aggregate took 458/377 ms and
 550,060 DbHits in alternating read-only `PROFILE` samples. This is query-level
 evidence only; built API/MCP cold and warm p95 is **NOT_CHECKED**.
 
-The read-only ops-qa Neo4j proof used the largest archived argument set: a
+The read-only QA Neo4j proof used the largest archived argument set: a
 repository with 12,403 files, 45,495 Functions, and 39,649 physical `CALLS`
 edges. All 45,495 Function UIDs were present and distinct. The raw result had
 39,649 distinct UID pairs. Go's ranking of those rows and the exact production
@@ -29,7 +29,7 @@ The candidate with the raw-edge count and missing-UID guard took 458 and
 462 ms in a separate sample. These samples support a smaller graph read and
 response, but are not built API/MCP latency or a cold/warm p95 claim. The
 remote `cypher-shell` client wall time includes several seconds of Kubernetes
-exec and process startup and is not an API latency comparison. Ops-qa received
+exec and process startup and is not an API latency comparison. The QA environment received
 no graph write, DDL, settings change, deploy, or `ANALYZE`.
 
 ## Local Go hub-ranking benchmark
@@ -37,7 +37,7 @@ no graph write, DDL, settings change, deploy, or `ANALYZE`.
 Performance Evidence: The retained Go hub-ranking path was measured with the
 same benchmark fixture on `origin/main` `62176d64f6` and this branch. The
 fixture has 12,403 distinct Function keys, 39,649 edge rows, and a 25-item
-page; this is synthetic and is not an ops-qa endpoint measurement. On an
+page; this is synthetic and is not a QA endpoint measurement. On an
 Apple M5 Max with `GOMAXPROCS=2` and `GOFLAGS=-p=2`, six warmed samples per
 revision in base/current/current/base order (`-benchtime=3x -count=3`) gave
 49.58 ms/op median for the old row-before-sort path (44.74-57.38 ms) and

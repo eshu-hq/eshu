@@ -197,18 +197,23 @@ assert_prewarm_before_run() {
 	[[ -n "${start_line}" && -n "${end_line}" && "${end_line}" -gt "${start_line}" ]] \
 		|| fail "${job_name}: could not locate its job block in ${workflow}"
 	setup_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
-		| rg -n --fixed-strings -- 'name: Set up Go' | cut -d: -f1)" || true
+		| rg -n -- 'name: Set up Go|\*setup_go' | cut -d: -f1)" || true
 	prewarm_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
-		| rg -n --fixed-strings -- 'name: Pre-warm Go modules' | cut -d: -f1)" || true
+		| rg -n -- 'name: Pre-warm Go modules|\*prewarm_go' | cut -d: -f1)" || true
 	run_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
 		| rg -n --fixed-strings -- "${run_needle}" | cut -d: -f1)" || true
 	[[ -n "${setup_line}" && -n "${prewarm_line}" && -n "${run_line}" ]] \
 		|| fail "${job_name}: missing Set up Go / Pre-warm Go modules / matrix invocation step"
 	[[ "${setup_line}" -lt "${prewarm_line}" && "${prewarm_line}" -lt "${run_line}" ]] \
 		|| fail "${job_name}: module prefetch is not wired between setup-go and the matrix invocation"
-	prewarm_run="$(sed -n "$((start_line + prewarm_line))p" "${workflow}")"
-	[[ "${prewarm_run}" == *'run: scripts/ci/go-mod-download-retry.sh'* ]] \
-		|| fail "${job_name}: Pre-warm Go modules step does not run the shared retry helper (got: ${prewarm_run})"
+	prewarm_run="$(sed -n "$((start_line + prewarm_line - 1)),$((start_line + prewarm_line))p" "${workflow}")"
+	if [[ "${prewarm_run}" == *'*prewarm_go'* ]]; then
+		rg -q '^      - &prewarm_go .*run: scripts/ci/go-mod-download-retry.sh' "${workflow}" \
+			|| fail "${job_name}: prewarm alias lacks the shared retry helper"
+	else
+		[[ "${prewarm_run}" == *'run: scripts/ci/go-mod-download-retry.sh'* ]] \
+			|| fail "${job_name}: Pre-warm Go modules step does not run the shared retry helper (got: ${prewarm_run})"
+	fi
 }
 
 assert_prewarm_before_run determinism-matrix \

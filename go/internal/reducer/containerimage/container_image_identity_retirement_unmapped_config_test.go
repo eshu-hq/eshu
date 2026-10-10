@@ -10,6 +10,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestPlanContainerImageIdentityRetirementHoldsOnlyRepositoryWithUnmappedConfigWarning(
@@ -87,7 +88,7 @@ func TestPlanContainerImageIdentityRetirementRejectsMalformedManifestDigestMappi
 		write,
 		[]facts.Envelope{{
 			FactID:   "manifest-malformed-digest-5854",
-			FactKind: facts.OCIImageManifestFactKind,
+			FactKind: chain.OCIImageManifestFactKind,
 			Payload: map[string]any{
 				"repository_id": retirementTestRepositoryID,
 				"digest":        "sha256:not-a-usable-manifest-digest",

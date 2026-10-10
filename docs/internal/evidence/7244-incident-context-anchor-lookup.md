@@ -1,6 +1,6 @@
 # Incident-context anchor lookup (#7244)
 
-The ops-qa read sweep on 2026-09-28, against API image `sha-83cbf62`, measured
+The QA read sweep on 2026-09-28, against API image `sha-83cbf62`, measured
 7.064 s for the first API incident-context call and 0.166 s warm p95 over eight
 calls. The first MCP call followed the API call for the same incident and took
 0.184 s. These are endpoint observations, not a before/after comparison of
@@ -8,7 +8,7 @@ this change. The read-only sweep returned the same 12 rows for the first and
 repeated calls; response size does not explain the first-call difference.
 
 The anchor SQL used an `OR` between `provider_incident_id` and its legacy
-`source_record_id` fallback. On the real ops-qa scope and incident ID,
+`source_record_id` fallback. On the real QA scope and incident ID,
 `EXPLAIN (ANALYZE, BUFFERS)` showed an index scan constrained by source system
 and scope, followed by 16,236 rows removed by the identity filter. Its first
 measured execution took 353.401 ms and read 16,522 shared blocks. That SQL

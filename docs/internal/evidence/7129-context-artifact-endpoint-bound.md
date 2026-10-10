@@ -4,7 +4,7 @@
 
 After #7169 capped hostnames and entrypoints, `get_workload_context` and
 `get_service_context` were still over the 256 KiB MCP response budget on
-populated ops-qa services. The last ops-qa re-measure (issue comment of
+populated QA services. The last QA re-measure (issue comment of
 2026-09-27, image `sha-1de13f4`) put two workloads with 72 and 78 endpoint
 edges at 344,412 and 287,308 bytes (est2x, both wire copies counted), and named
 `deployment_evidence.artifacts` and a byte-identical `api_surface.endpoints`
@@ -17,7 +17,7 @@ What the code does with those lists:
 - `deployment_evidence.artifacts` comes from the Postgres read model when it has
   rows (`LoadRepositoryDeploymentEvidence`), capped at 50 in total across both
   directions. Only when the read model has no rows does the graph fallback run,
-  and it reads 50 outgoing plus 50 incoming rows. Which path the two ops-qa
+  and it reads 50 outgoing plus 50 incoming rows. Which path the two QA
   workloads took is NOT_CHECKED.
 - `delivery_paths`, `delivery_workflows` and `shared_config_paths`
   (content-derived) had no cap on the context routes.
@@ -72,7 +72,7 @@ No-Regression Evidence:
   `entity/context_evidence_detail_test.go` drive the real handlers. The fixture
   combines the 671-hostname outlier (50 hostnames, 50 entrypoints and 50 network
   paths through the real enrichment path), 78 endpoint edges (50 rows read) and
-  every artifact column populated. Fixture figures, not ops-qa figures:
+  every artifact column populated. Fixture figures, not QA figures:
   - graph fallback shape (100 artifact rows), caps only: 309,454 est2x;
   - read-model shape (50 artifact rows), `evidence_detail` full: 290,354 on the
     workload route and 290,352 on the service route, both over budget;
@@ -93,11 +93,11 @@ No-Regression Evidence:
 - A review comment pointed out that the budget guarantee did not cover those
   families; dropping them under `handles` is the fix, and the unit tests are
   the proof. No `full`-mode figure is claimed for a service heavy in them.
-- NOT_CHECKED: an ops-qa re-measure of `get_workload_context` and
+- NOT_CHECKED: a QA re-measure of `get_workload_context` and
   `get_service_context`, including which artifact read path the two outlier
   workloads took. The host was unreachable from the development laptop on
   2026-10-02 (connection timeout). The fixture figures above are not a claim
-  that either ops-qa workload now fits; the post-deploy re-measure is owed and
+  that either QA workload now fits; the post-deploy re-measure is owed and
   #7129 stays open until it runs.
 
 No-Observability-Change: no metric, span or log changes. The operator-visible
@@ -107,7 +107,7 @@ signal is in the response: `partial_reasons`, `result_limits.truncated` and
 (`eshu_dp_mcp_response_bytes`, `eshu_dp_mcp_response_over_budget_total`) show
 whether either tool still crosses the budget.
 
-## Follow-up: infrastructure rows (measured on ops-qa after #7520 deployed)
+## Follow-up: infrastructure rows (measured on the QA environment after #7520 deployed)
 
 A scan of all 809 indexed repositories on build 4274e83 found 25 services still
 over the MCP budget at default arguments. In all 25 the largest field is
@@ -119,10 +119,10 @@ caps did not cover the list. The change cuts it to 50 rows with the total on
 
 No-Regression Evidence: unit tests on the cap and its within-limit and story-surface
 cases; no query changes. The effect on the 25 services is NOT_CHECKED until this
-build is deployed to ops-qa and they are re-measured.
+build is deployed to the QA environment and they are re-measured.
 No-Observability-Change: the signal is in the response (`partial_reasons`, `result_limits`).
 
-## Follow-up: entrypoint_candidates rows (measured on ops-qa with #7528 merged)
+## Follow-up: entrypoint_candidates rows (measured on the QA environment with #7528 merged)
 
 The largest `get_service_context` response read over the HTTP route was
 240,068 bytes against the 262,144 byte budget, with `result_limits.truncated`
@@ -149,6 +149,6 @@ own measurement before a cap.
 No-Regression Evidence: unit tests on the cut, the within-limit case, the story
 surface and the source slice; no query changes. With the cap call disabled the
 cut test fails (`entrypoint_candidates len = 357, want 50`). The effect on the
-largest service is NOT_CHECKED until this build is deployed to ops-qa and it is
+largest service is NOT_CHECKED until this build is deployed to the QA environment and it is
 re-measured.
 No-Observability-Change: the signal is in the response (`partial_reasons`, `result_limits`).

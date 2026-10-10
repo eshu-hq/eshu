@@ -11,12 +11,12 @@ Nothing else changes: no verdict, row, schema, SQL, or queue semantics.
 The arbiter ruling for #7547 allowed this bump on its own PR once the PR
 carries the measured QA numbers, a write-side proxy, a drain estimate, a watch
 plan, and a rollback statement. The end-to-end drain time is measured by the
-ops-qa deploy watch below. That watch must finish before any production pin.
+QA deploy watch below. That watch must finish before any production pin.
 It is not a pre-merge gate.
 
 ## Where the numbers come from
 
-Every QA figure here is verified on one data copy: the ops-qa read replica
+Every QA figure here is verified on one data copy: the QA read replica
 (PostgreSQL 18.3, read-only session, statement timeout set), read by the #7547
 measurement agent on 2026-10-04. Live data moved between reads (795 and 796
 watermark rows appear), so treat the counts as one snapshot. Nothing here is a
@@ -67,7 +67,7 @@ loads its edges in 360 to 413 ms and its roots in 296 to 888 ms (`j3b.out`).
 The BFS and the DELETE and INSERT of its reachability rows come on top and are
 not measured here.
 
-Write-side proxy, from the ops-qa reducer logs: five
+Write-side proxy, from the QA reducer logs: five
 `code reachability projection completed` lines from the resolution-engine pod,
 read-only `kubectl logs`, 2026-10-04 10:24 to 10:25 UTC. They show
 `input_count` 1 to 7, `row_count` 3 to 17, `snapshots_truncated` 0, and
@@ -95,7 +95,7 @@ per-repository project time. Estimated range: about 1 to 12 minutes, which
 leaves out the full delete and re-insert of about 844,577 rows described under
 write-path properties below, so treat it as a lower-bound-style estimate, not a
 ceiling. It is an estimate from the pieces above, not an observation. The
-ops-qa deploy watch is the measurement.
+QA deploy watch is the measurement.
 
 Memory: the loader reads roots and edges for all 100 candidates of a cycle
 before projecting. In the worst case a batch holds up to the corpus total of
@@ -194,14 +194,14 @@ The deploy watch uses signals that already exist:
   intent. A residual above 0 after the completion log lines stop means
   non-candidates, not a stuck drain.
 
-Deploy path and stop lever. ops-qa deploys by an owner pin commit in the
-GitOps repository. Automated sync is currently paused on the ops-qa
+Deploy path and stop lever. The QA environment deploys by an owner pin commit in the
+GitOps repository. Automated sync is currently paused on the QA
 Application (`autoSync: false` in its config, paused for the NornicDB to Neo4j
 cutover), so merging the pin changes Git only: the owner runs a manual sync of
 the Application to deploy, and the same holds for a rollback. `selfHeal` is
 configured but is a sub-option of automated sync, so it does nothing while
 automated sync is off. Merging the epoch bump to `main` does not deploy it.
-ops-prod is a separate overlay pinned separately.
+The production environment is a separate overlay pinned separately.
 
 Stop levers. The fast lever is scaling the reducer deployment to 0 by hand
 (`kubectl -n eshu scale deployment/eshu-resolution-engine --replicas=0`; confirm the name with `kubectl -n eshu get deploy`). It stays at 0 while automated sync is off, the
@@ -220,11 +220,11 @@ re-pinning the previous image as the durable fallback) if reader-fence 503s
 (replay lag over the 2 s fence) persist for 2 consecutive minutes, if the
 reducer restarts or exits with a projection error, if reducer RSS exceeds 50%
 of `GOMEMLIMIT`, or if the census has not reached 0 within 60 minutes of the
-pod start. The owner may tighten these. The ops-prod pin waits for a completed
-ops-qa drain (census 0) with a flat API-wide 503 rate.
+pod start. The owner may tighten these. The production pin waits for a completed
+QA drain (census 0) with a flat API-wide 503 rate.
 
 Concurrency of the burst: up to 8 concurrent per-repository rewrite
-transactions on ops-qa (`ESHU_REDUCER_WORKERS` is 8 in the ops-qa values and is
+transactions on the QA environment (`ESHU_REDUCER_WORKERS` is 8 in the QA values and is
 clamped to the CPU count; when it is unset the runner uses min(CPUs, 4) on Neo4j). The
 runner takes no lease or claim, so two reducer replicas would select the same
 100 candidates and both run the full delete and re-insert on the same
@@ -235,7 +235,7 @@ Interaction with the loader restructure (a separate performance PR, slice D).
 Merge order between the two is free. It shortens each cycle's candidate
 selection from about 4.7 s to about 0.7 s, which removes the natural pause
 between 100-repository write bursts. Total write volume is the same either
-way, and pacing is not a mechanism this change relies on. Pin ops-qa once with
+way, and pacing is not a mechanism this change relies on. Pin the QA environment once with
 both, so the no-pause case is the one measured, and say which was measured. The
 loader gate also narrows candidates (delta generations and incomplete
 materialization), so with it the census residual can include gated-out runs
@@ -275,10 +275,10 @@ binary re-selects it, so this is bounded.
   on a 50,000-node graph; the older benchmark
   moving about 2% as well suggests code layout or the extra branch, not the new
   scan alone. It is well under the repo's 10% stop-and-profile bar and small against
-  the ops-qa drain cycles (about 5 s on average, 15.7 s slowest). The
+  the QA drain cycles (about 5 s on average, 15.7 s slowest). The
   earlier laptop result ("no significant difference") was taken on a noisy
   machine and is superseded by this one.
-- The end-to-end drain on ops-qa ran on 2026-10-04 after the owner pinned and
+- The end-to-end drain on the QA environment ran on 2026-10-04 after the owner pinned and
   synced the build: 795 active watermarks at epoch 4 and none below, 8 cycles
   in about 42 seconds (slowest cycle 15.7 s), 77,825 rows written, 384
   truncation stamps (379 `no_roots`, 5 `max_depth`, no `max_visited`), no
@@ -287,4 +287,4 @@ binary re-selects it, so this is bounded.
 
 NOT_CHECKED for the drain: dead tuples and autovacuum on the rewritten tables
 (the replica's statistics views were empty), and the loader's `LIMIT 100`
-and generic-plan behavior on ops-qa.
+and generic-plan behavior on the QA environment.

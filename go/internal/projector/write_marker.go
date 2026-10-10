@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
@@ -71,7 +72,10 @@ func (writeMarkerRetryableError) Retryable() bool { return true }
 // graph or content write (#7389). It re-runs the marker while it reports
 // failure.ErrWorkWriteMarkerDeferred, up to DefaultWriteMarkerMaxAttempts, and
 // relies on the caller's heartbeat to keep the lease meanwhile. onDeferred,
-// when set, is called with the retry number after each deferral.
+// when set, is called with the retry number and the deferral cause after each
+// deferral. Deferrals are paced (#7907): the loop waits out
+// writeMarkerDeferralBackoff before re-running, since a fence-busy deferral
+// lands in milliseconds and would otherwise burn the bound in under a second.
 //
 // When instruments is set, each deferral increments
 // eshu_dp_projector_write_marker_deferrals_total and a marker that waited
@@ -88,7 +92,7 @@ func MarkProjectionWriteStarted(
 	marker ProjectionWriteMarker,
 	work ScopeGenerationWork,
 	instruments *telemetry.Instruments,
-	onDeferred func(retry int),
+	onDeferred func(retry int, cause string),
 ) (err error) {
 	if marker == nil {
 		return errWriteMarkerMissing
@@ -131,11 +135,78 @@ func MarkProjectionWriteStarted(
 			return writeMarkerRetryableError{fmt.Errorf("mark projection write started after %d attempts: %w", attempt, err)}
 		}
 		deferrals++
-		recordWriteMarkerDeferral(ctx, instruments, writeMarkerOutcomeRetried)
+		cause := writeMarkerDeferralCause(err)
 		if onDeferred != nil {
-			onDeferred(attempt)
+			onDeferred(attempt, cause)
 		}
+		if sleepErr := (*writeMarkerDeferralSleep.Load())(ctx, writeMarkerDeferralBackoff(deferrals)); sleepErr != nil {
+			stopOutcome = writeMarkerOutcomeShutdown
+			recordWriteMarkerDeferral(ctx, instruments, stopOutcome)
+			return fmt.Errorf("mark projection write started: %w", errors.Join(ctx.Err(), err))
+		}
+		recordWriteMarkerDeferral(ctx, instruments, writeMarkerOutcomeRetried)
 	}
+}
+
+// writeMarkerDeferralBackoff bounds.
+const (
+	// writeMarkerDeferralInitialBackoff is the wait after the first deferral.
+	writeMarkerDeferralInitialBackoff = 10 * time.Millisecond
+	// writeMarkerDeferralMaxBackoff caps the doubling wait. A full bound of
+	// millisecond deferrals then waits about 29 s, inside the caller's
+	// ~5 minute budget, instead of giving up in under a second.
+	writeMarkerDeferralMaxBackoff = 200 * time.Millisecond
+)
+
+// writeMarkerDeferralBackoff paces consecutive deferrals: 10 ms, doubling per
+// deferral, capped at 200 ms. deferral counts from 1.
+func writeMarkerDeferralBackoff(deferral int) time.Duration {
+	backoff := writeMarkerDeferralInitialBackoff
+	for i := 1; i < deferral && backoff < writeMarkerDeferralMaxBackoff; i++ {
+		backoff *= 2
+	}
+	if backoff > writeMarkerDeferralMaxBackoff {
+		backoff = writeMarkerDeferralMaxBackoff
+	}
+	return backoff
+}
+
+// writeMarkerSleepFunc waits out a deferral backoff, returning ctx.Err() when
+// the wait ends early.
+type writeMarkerSleepFunc func(ctx context.Context, backoff time.Duration) error
+
+// writeMarkerDeferralSleep is the loop's pacing seam. It defaults to a
+// ctx-aware timer; tests swap it atomically.
+var writeMarkerDeferralSleep atomic.Pointer[writeMarkerSleepFunc]
+
+func init() {
+	real := writeMarkerSleepFunc(func(ctx context.Context, backoff time.Duration) error {
+		timer := time.NewTimer(backoff)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return nil
+		}
+	})
+	writeMarkerDeferralSleep.Store(&real)
+}
+
+// Closed deferral causes for the marker wait log. A fence-busy deferral wraps
+// failure.ErrWorkWriteMarkerFenceBusy; anything else deferred is a generation
+// row wait, the only deferral cause before #7819.
+const (
+	writeMarkerDeferralCauseFenceBusy     = "fence_busy"
+	writeMarkerDeferralCauseGenerationRow = "generation_row"
+)
+
+// writeMarkerDeferralCause classifies a deferral error for the wait log.
+func writeMarkerDeferralCause(err error) string {
+	if errors.Is(err, failure.ErrWorkWriteMarkerFenceBusy) {
+		return writeMarkerDeferralCauseFenceBusy
+	}
+	return writeMarkerDeferralCauseGenerationRow
 }
 
 // Closed outcome values for the write-marker wait metrics.
@@ -231,24 +302,26 @@ func (s Service) markProjectionWriteStarted(
 }
 
 // writeMarkerDeferredLogEvery spaces repeated deferral logs; with the Postgres
-// queue's 2 s lock timeout this is roughly one line per minute of waiting.
+// queue's 2 s lock timeout this is roughly one line per minute of waiting on
+// a generation row, and about one line per few seconds once paced fence-busy
+// deferrals reach the backoff cap.
 const writeMarkerDeferredLogEvery = 30
 
 // WriteMarkerDeferredLogger returns an onDeferred callback for
 // MarkProjectionWriteStarted that logs WARN on the first marker deferral and
 // every writeMarkerDeferredLogEvery retries after, with the scope, generation,
-// attempt and retry count, so a generation row held for a long time is
-// visible without a line per lock timeout. A nil logger returns nil.
-func WriteMarkerDeferredLogger(ctx context.Context, logger *slog.Logger, work ScopeGenerationWork, workerID int) func(int) {
+// attempt, retry count and deferral cause, so a row held for a long time is
+// visible without a line per deferral. A nil logger returns nil.
+func WriteMarkerDeferredLogger(ctx context.Context, logger *slog.Logger, work ScopeGenerationWork, workerID int) func(int, string) {
 	if logger == nil {
 		return nil
 	}
-	return func(retry int) {
+	return func(retry int, cause string) {
 		if retry != 1 && retry%writeMarkerDeferredLogEvery != 0 {
 			return
 		}
 		scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
-		attrs := make([]any, 0, len(scopeAttrs)+5)
+		attrs := make([]any, 0, len(scopeAttrs)+6)
 		for _, attr := range scopeAttrs {
 			attrs = append(attrs, attr)
 		}
@@ -256,9 +329,14 @@ func WriteMarkerDeferredLogger(ctx context.Context, logger *slog.Logger, work Sc
 			log.Queue("projector"),
 			slog.Int("marker_retry", retry),
 			slog.Int("attempt_count", work.AttemptCount),
+			slog.String("deferral_cause", cause),
 			log.WorkerID(fmt.Sprintf("%d", workerID)),
 			telemetry.PhaseAttr(telemetry.PhaseProjection),
 		)
-		logger.WarnContext(context.WithoutCancel(ctx), "projector write marker waiting for busy generation row", attrs...)
+		msg := "projector write marker waiting for busy generation row"
+		if cause == writeMarkerDeferralCauseFenceBusy {
+			msg = "projector write marker waiting for busy claim fence"
+		}
+		logger.WarnContext(context.WithoutCancel(ctx), msg, attrs...)
 	}
 }

@@ -169,11 +169,11 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			// other fact kind.
 			digests = append(digests, payloadcore.PayloadStr(envelope.Payload, "image_digest"))
 			imageRefs = append(imageRefs, payloadcore.PayloadStr(envelope.Payload, "image_reference"))
-		case facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind:
+		case chain.OCIImageManifestFactKind, chain.OCIImageIndexFactKind:
 			digests = append(digests, payloadcore.PayloadStr(envelope.Payload, "digest"))
 			repositoryIDs = append(repositoryIDs, payloadcore.OCIRepositoryID(envelope.Payload))
 			imageRefs = append(imageRefs, ociRegistryImageRef(envelope.Payload, payloadcore.PayloadStr(envelope.Payload, "source_tag")))
-		case facts.OCIImageTagObservationFactKind:
+		case chain.OCIImageTagObservationFactKind:
 			digests = append(
 				digests,
 				payloadcore.PayloadStr(envelope.Payload, "resolved_digest"),
@@ -185,7 +185,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 				payloadcore.PayloadStr(envelope.Payload, "image_ref"),
 				ociRegistryImageRef(envelope.Payload, payloadcore.PayloadStr(envelope.Payload, "tag")),
 			)
-		case facts.OCIImageReferrerFactKind:
+		case chain.OCIImageReferrerFactKind:
 			digests = append(
 				digests,
 				payloadcore.PayloadStr(envelope.Payload, "subject_digest"),

@@ -1,6 +1,6 @@
 # #6738 admin replay and container image identity fences
 
-Root-Cause Evidence: After the `sha-f89b050` image reached ops-qa on 2026-09-18,
+Root-Cause Evidence: After the `sha-f89b050` image reached the QA environment on 2026-09-18,
 145 `container_image_identity` reducer items remained in `dead_letter` with the
 old FIPS MD5 failure. A forced, exact-item `POST /api/v0/admin/replay` failed
 with SQLSTATE 23514 on `fact_work_items_container_image_identity_v2_status_check`.
@@ -46,7 +46,7 @@ For the operator-only UPDATE cost, eight paired `EXPLAIN (ANALYZE, BUFFERS)`
 passes on the same local PostgreSQL 18 Alpine container reset 145 unguarded
 terminal rows before each old/new statement. Median execution time was
 0.171 ms old and 0.1745 ms new. This measures the added assignments and target
-predicate on a small, warm, unguarded fixture; it is not an ops-qa throughput or
+predicate on a small, warm, unguarded fixture; it is not a QA throughput or
 full-corpus result. The selector order, row cap, worker settings, and queue
 claim path are unchanged.
 
@@ -62,7 +62,7 @@ Observability Evidence: Existing `admin_replay_requests` and `fact_replay_events
 record replay attempts and outcomes. Skip returns the count and changed rows,
 so an operator can see a partial action and repeat it after in-flight work
 settles. `/admin/status` exposes queue and per-domain dead-letter counts; reducer queue telemetry exposes claim, retry,
-and completion. The ops-qa replay and terminal-state readback remain a separate
+and completion. The QA replay and terminal-state readback remain a separate
 deployed verification step after this change reaches the cluster.
 
 For skip selection, a scratch `EXPLAIN (ANALYZE, BUFFERS)` on 13,263 local

@@ -14,7 +14,7 @@ Migration `151_code_fingerprint_band_entity_idx.sql` adds
 `code_fingerprint_band_entity_idx ON code_fingerprint_band (repo_id,
 entity_id)` as a sole `CREATE INDEX CONCURRENTLY IF NOT EXISTS` statement.
 
-## Fixture (local only, no ops-qa)
+## Fixture (local only, no QA environment)
 
 `postgres:16.15` in a throwaway container, loaded with the migration 111
 table and lookup index plus a minimal `content_entities`
@@ -357,7 +357,7 @@ arms), and ordinary variance on one heavy repository (`r_de3355a0`, 241,726
 `upsert_fingerprints` rows). A shim of that size cannot settle it: the WITHOUT
 arm's own item took 2,201 s. NOT_CHECKED: the plan of that exact
 statement on the heavy repository inside the corpus run (that run did not log
-plans), an `EXPLAIN` on production data (the ops-qa session this needed had expired), repeat corpus
+plans), an `EXPLAIN` on production data (the QA session this needed had expired), repeat corpus
 runs, and a second WITHOUT run to bound the tail.
 
 ## Migration build strategy (acceptance 4)

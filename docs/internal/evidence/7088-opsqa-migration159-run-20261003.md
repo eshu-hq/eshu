@@ -1,4 +1,4 @@
-# Ops-qa migration 159 read-only run, 2026-10-03
+# QA migration 159 read-only run, 2026-10-03
 
 This is the sanitized input record for the deployed after-index section of
 `7088-readiness-repo-scope.md`. It contains no repository IDs, fact payloads,
@@ -122,6 +122,6 @@ none. Its `EXPLAIN (ANALYZE, BUFFERS)` took 4,321.415 ms, with 66,776
 shared hits and 19,227 shared reads. It was not widened into a fleet scan.
 
 Cold first-call cache conditions, an approximately 59k-row anchor,
-independent all-family truth, populated non-repository cases on ops-qa,
+independent all-family truth, populated non-repository cases on the QA environment,
 build-attributable replica conflicts, and deployed writer insert A/B remain
 unmeasured. The corresponding issues remain open.

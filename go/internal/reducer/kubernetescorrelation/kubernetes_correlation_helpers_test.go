@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // fakeWorkloadIdentityExecer is this package's own copy of the root's
@@ -194,7 +195,7 @@ func k8sWarningFact(factID, reason, resourceScope string) facts.Envelope {
 func k8sSourceManifestFact(factID, registry, repository, digest string, tombstone bool) facts.Envelope {
 	return facts.Envelope{
 		FactID:      factID,
-		FactKind:    facts.OCIImageManifestFactKind,
+		FactKind:    chain.OCIImageManifestFactKind,
 		IsTombstone: tombstone,
 		Payload: map[string]any{
 			"registry":   registry,
@@ -209,7 +210,7 @@ func k8sSourceManifestFact(factID, registry, repository, digest string, tombston
 func k8sSourceTagFact(factID, registry, repository, tag, digest, previousDigest string, mutated bool) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.OCIImageTagObservationFactKind,
+		FactKind: chain.OCIImageTagObservationFactKind,
 		Payload: map[string]any{
 			"registry":        registry,
 			"repository":      repository,

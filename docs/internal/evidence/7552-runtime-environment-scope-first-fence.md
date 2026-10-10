@@ -11,7 +11,7 @@ tools; 200 candidates max) joins each candidate's `fact_records` rows to
 Fixture: local `postgres:18.6`, production schema via `ApplyBootstrap`,
 901 active scope/generation pairs (900 seeded + the `eshu:global` seed pair),
 200 candidate digests x 10 matching `reducer_ci_cd_run_correlation` facts each,
-200,000 background facts, all three tables `ANALYZE`d. This exceeds ops-qa's
+200,000 background facts, all three tables `ANALYZE`d. This exceeds QA's
 819 pairs from the issue.
 
 Before (unfenced production query), `EXPLAIN (ANALYZE, BUFFERS)`, 3 runs:
@@ -22,7 +22,7 @@ Before (unfenced production query), `EXPLAIN (ANALYZE, BUFFERS)`, 3 runs:
 - Execution: 21,850.7 / 21,187.4 / 21,175.9 ms (shared host; shape, not time,
   is the signal). Buffers: shared hit 41,188,757, read 2,460.
 - The scope-pair hash join estimates rows=1 for 901 actual rows (901x
-  misestimate, same defect as ops-qa's rows=1 for 819).
+  misestimate, same defect as QA's rows=1 for 819).
 
 A concentrated variant (all facts in one scope) also plans scope-first:
 180,200 artifact-index probes, ~1,009 ms, shared hit 545,817.

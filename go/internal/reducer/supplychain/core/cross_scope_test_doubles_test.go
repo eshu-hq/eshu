@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -278,7 +279,7 @@ func ciArtifactFact(factID, runID, digest string) facts.Envelope {
 // root/core seam (issue #6061). The bodies are identical by construction, and
 // must stay that way.
 func ociManifestFact(factID string, digest string) facts.Envelope {
-	return ociImageFact(factID, facts.OCIImageManifestFactKind, digest, map[string]any{})
+	return ociImageFact(factID, chain.OCIImageManifestFactKind, digest, map[string]any{})
 }
 
 func ociImageFact(factID string, kind string, digest string, extra map[string]any) facts.Envelope {

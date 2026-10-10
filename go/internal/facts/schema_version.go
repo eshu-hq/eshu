@@ -86,7 +86,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{IncidentRoutingFactKinds, IncidentRoutingSchemaVersion},
 	{cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},
 	{ObservabilityFactKinds, ObservabilitySchemaVersion},
-	{OCIRegistryFactKinds, OCIRegistrySchemaVersion},
+	{chain.OCIRegistryFactKinds, chain.OCIRegistrySchemaVersion},
 	{PackageRegistryFactKinds, PackageRegistrySchemaVersion},
 	{cloud.RDSPostureFactKinds, cloud.RDSPostureSchemaVersion},
 	{ReducerDerivedFactKinds, ReducerDerivedSchemaVersion},

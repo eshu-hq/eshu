@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -151,9 +152,9 @@ func buildKubernetesCorrelationIndex(envelopes []facts.Envelope) (kubernetesCorr
 			err = index.ingestRelationship(env)
 		case cloud.KubernetesWarningFactKind:
 			err = index.ingestWarning(env)
-		case facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind:
+		case chain.OCIImageManifestFactKind, chain.OCIImageIndexFactKind:
 			index.ingestSourceManifest(env)
-		case facts.OCIImageTagObservationFactKind:
+		case chain.OCIImageTagObservationFactKind:
 			index.ingestSourceTag(env)
 		}
 		if err != nil {

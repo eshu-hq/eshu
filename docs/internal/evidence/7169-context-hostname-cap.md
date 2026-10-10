@@ -3,7 +3,7 @@
 ## Problem
 
 `get_workload_context`, `get_service_context` and `trace_deployment_chain`
-went over the MCP response budget on one ops-qa service. That service carries
+went over the MCP response budget on one QA service. That service carries
 671 `hostnames` and 671 `entrypoints`. Before this change,
 `buildServiceDeploymentOverviewWithContext`
 (`go/internal/query/service/story_overview.go`) copied both arrays into
@@ -43,7 +43,7 @@ No-Regression Evidence:
   no allocation, query or round trip.
 - Backend: none. The tests use fake graph readers, and the change runs after
   the reads.
-- NOT_CHECKED: an ops-qa re-measure of the outlier service after deploy.
+- NOT_CHECKED: a QA re-measure of the outlier service after deploy.
 
 No-Observability-Change: no metric, span or log changes. The operator-visible
 signal is in the response itself:

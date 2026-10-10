@@ -86,10 +86,11 @@ const (
 
 	// The oci_registry family fact-kind strings are DOTTED, like the incident
 	// family. The dots are part of the wire kind the collector already emits
-	// (go/internal/facts.OCIRegistryRepositoryFactKind and siblings); the
-	// values here MATCH those wire strings byte-for-byte and never invent or
-	// rename the namespace. TestFactSchemaKindsMatchWireFactKinds (reducer side)
-	// asserts each stays byte-equal to its facts.*FactKind counterpart.
+	// (go/internal/facts/supply/chain.OCIRegistryRepositoryFactKind and
+	// siblings); the values here MATCH those wire strings byte-for-byte and
+	// never invent or rename the namespace.
+	// TestFactSchemaKindsMatchWireFactKinds (reducer side) asserts each stays
+	// byte-equal to its chain.*FactKind counterpart.
 
 	// FactKindOCIRegistryRepository is the "oci_registry.repository" fact kind.
 	FactKindOCIRegistryRepository = "oci_registry.repository"

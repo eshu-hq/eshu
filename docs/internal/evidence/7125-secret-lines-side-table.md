@@ -1,7 +1,7 @@
 # #7125 hardcoded-secret investigation: derive findings at write time
 
 `POST /api/v0/code/security/secrets/investigate` and the MCP tool
-`investigate_hardcoded_secrets` took 33 s median (49 s max) unscoped on ops-qa,
+`investigate_hardcoded_secrets` took 33 s median (49 s max) unscoped on the QA environment,
 and 3.9 s even scoped to the largest repository. This change moves the detection
 from every read to the content write: migration 138 adds a
 `content_file_secret_lines` side table that Postgres triggers keep current, and
@@ -16,7 +16,7 @@ finalizer", and "Merge bar" record why and how it was proven.
 ## Classification
 
 - Wrong layer before: the read scanned about 92% of `content_files` per call
-  (bitmap heap recheck 33.6 s plus a 15.6 s per-file line split on ops-qa,
+  (bitmap heap recheck 33.6 s plus a 15.6 s per-file line split on the QA environment,
   145k files). No index can help: the discriminating part of the pattern has no
   trigrams, and the line split remains even with a perfect file prefilter.
 - Change layer: schema DDL, statement-level triggers, and one read query.
@@ -104,10 +104,10 @@ finalizer", and "Merge bar" record why and how it was proven.
 ## Read-path proof
 
 Performance Evidence: local PostgreSQL 18.6, 155,000 `content_files` rows
-(about 95 MB) with 19,046 side rows (the ruling's shim had 19,369; ops-qa has
+(about 95 MB) with 19,046 side rows (the ruling's shim had 19,369; the QA environment has
 10,161), `EXPLAIN (ANALYZE, BUFFERS)` Execution Time, alternating legacy and new,
-box load average 22 to 50 from other agents. The corpus is small next to ops-qa's
-1.1 GB, so the legacy figures here understate the ops-qa cost (49.3 s default,
+box load average 22 to 50 from other agents. The corpus is small next to QA's
+1.1 GB, so the legacy figures here understate the QA cost (49.3 s default,
 3.9 s repo-scoped, measured by the arbiter, read-only); the new path does not
 depend on content size.
 
@@ -435,13 +435,13 @@ clone/fetch (never rsync), per the `eshu-remote-validation` skill:
 
 Migration 138 takes `SHARE ROW EXCLUSIVE` on `content_files` from the foreign key
 until its transaction commits, so the backfill blocks content writes (not reads).
-About 0.27 ms per file, 38 s at 145k files on ops-qa, linear. A fresh install
+About 0.27 ms per file, 38 s at 145k files on the QA environment, linear. A fresh install
 backfills nothing. This is the upgrade path only: a bulk load never runs the
 migration's backfill on a populated table, it uses the finalizer (batched,
 repository-partitioned, row locks only, no table lock). The migration's own single-transaction
 backfill on an already-populated table is unchanged: above roughly 500k files it approaches
 the 3 minute ownership wait, and a batched variant of it is not built because it is not
-needed at ops-qa scale. Operator note: `docs/public/deployment/service-runtimes-bootstrap.md`. The migration
+needed at QA scale. Operator note: `docs/public/deployment/service-runtimes-bootstrap.md`. The migration
 is one implicit transaction, so a failure rolls back completely and the retry is safe.
 
 ## Observability
@@ -469,5 +469,5 @@ where it is still paid (steady-state ingester writes), lands in the existing con
 
 ## Side finding
 
-`content_files_repo_path_idx` (21 MB on ops-qa) duplicates `content_files_pkey`
+`content_files_repo_path_idx` (21 MB on the QA environment) duplicates `content_files_pkey`
 (arbiter note; not touched here).

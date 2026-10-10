@@ -105,7 +105,7 @@ itself (not a hand copy, per `eshu-postgres-rigor`) wrapped in
 
 **`changed_since_scope_cursor` holds one row per scope, not per generation or
 fact** (unlike `changed_since_key_state`/`changed_since_link_deltas`, which
-are per-key and sized in the millions on ops-qa per the #7127 shim). A "few
+are per-key and sized in the millions on QA per the #7127 shim). A "few
 thousand" cursor rows is close to full production scale for this table, not
 a small sample of something much larger.
 

@@ -1,0 +1,403 @@
+version: v1
+gates:
+  - id: telemetry-coverage
+    name: Verify Telemetry Coverage
+    category: telemetry
+    layer: contract
+    purpose: "Fails when OTEL instrumentation in code doesn't match what the telemetry-coverage doc claims is instrumented."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/**"
+      - "go/cmd/**"
+      - "docs/public/observability/telemetry-coverage.md"
+      - "scripts/*verify-telemetry-coverage*.sh"
+      - "scripts/lib/telemetry-coverage-bucket-check.sh"
+      - "scripts/lib/telemetry-coverage-row-check.sh"
+      - "scripts/lib/test-verify-telemetry-coverage-*"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    self_test_triggers:
+      - "scripts/*verify-telemetry-coverage*.sh"
+      - "scripts/lib/telemetry-coverage-bucket-check.sh"
+      - "scripts/lib/telemetry-coverage-row-check.sh"
+      - "scripts/lib/test-verify-telemetry-coverage-*"
+    local:
+      command: "bash scripts/verify-telemetry-coverage.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-telemetry-coverage.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify telemetry coverage gate"
+    # #6615 review: verify-telemetry-coverage.sh and its sourced
+    # scripts/lib/telemetry-coverage-{row,bucket}-check.sh statically diff
+    # instruments.go against the doc via rg; no go toolchain invocation
+    # anywhere in the chain (traced two levels).
+    requirements: []
+    ci_only_reason: ""
+    hook_id: go-telemetry-coverage
+
+  - id: operator-dashboard
+    name: Generate Operator Dashboard
+    category: telemetry
+    layer: contract
+    purpose: "Fails when the committed operator Grafana dashboard JSON no longer matches what the generator template would produce."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "docs/public/observability/**"
+      - "scripts/generate-operator-dashboard.sh"
+      - "scripts/lib/operator-dashboard-*.json.tmpl"
+      - "scripts/lib/operator-dashboard-metrics.sh"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - "scripts/test-generate-operator-dashboard.sh"
+      - "docs/public/observability/dashboards/eshu-operator-overview.json"
+    self_test_triggers:
+      - "scripts/generate-operator-dashboard.sh"
+      - "scripts/lib/operator-dashboard-*.json.tmpl"
+      - "scripts/lib/operator-dashboard-metrics.sh"
+      - "scripts/test-generate-operator-dashboard.sh"
+      - "docs/public/observability/dashboards/eshu-operator-overview.json"
+    local:
+      command: "bash scripts/generate-operator-dashboard.sh"
+      test_command: "bash scripts/test-generate-operator-dashboard.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify generate-operator-dashboard gate"
+    # #6615 review: generate-operator-dashboard.sh and its sourced
+    # scripts/lib/operator-dashboard-metrics.sh render dashboard JSON from
+    # templates; no go toolchain invocation in the chain.
+    requirements: []
+    ci_only_reason: ""
+
+  - id: env-registry-doc
+    name: Generate Environment Variable Registry Reference
+    category: exactness
+    layer: contract
+    purpose: "Fails when the environment-variable reference doc is out of date with the actual env registry in code."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/static-contract-filters.yml"
+      - "go/internal/envregistry/**"
+      - "docs/public/reference/env-registry.md"
+      - "go/internal/envregistry/README.md"
+      - "scripts/generate-env-registry-doc.sh"
+      - "scripts/verify-env-registry-doc.sh"
+      - "scripts/test-generate-env-registry-doc.sh"
+    local:
+      command: "bash scripts/verify-env-registry-doc.sh"
+      test_command: "bash scripts/test-generate-env-registry-doc.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify environment registry reference gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── RACE ──────────────────────────────────────────────────────────────────
+
+  - id: race-graph-writes
+    name: Race detector — graph writes
+    category: race
+    layer: unit
+    purpose: "Runs the graph-write code paths (ingester, projector, reducer, storage) under Go's race detector."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
+      - "go/internal/storage/cypher/**"
+      - "go/internal/storage/nornicdb/**"
+      - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/correlation/**"
+      - "go/internal/content/shape/**"
+      - "go/internal/relationships/**"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/race-graph-writes.yml"
+    local:
+      command: "cd go && go test -race -count=1 -timeout 600s ./cmd/ingester/... ./cmd/projector/... ./internal/storage/cypher/... ./internal/storage/nornicdb/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/..."
+      test_command: ""
+    ci:
+      workflow: race-graph-writes.yml
+      job: "race"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: reducer-contention
+    name: Reducer Contention Gate (real Postgres)
+    category: race
+    layer: performance
+    purpose: "Runs real-Postgres concurrency tests proving reducer claim locking, lease expiry, and latency budgets hold under contention."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/storage/postgres/**"
+      - "go/internal/reducer/**"
+      - "schema/data-plane/postgres/**"
+      - "go/internal/query/service_story_target_support*.go"
+      - "scripts/ci/go-mod-download-retry.sh"
+    ci:
+      workflow: reducer-contention-gate.yml
+      job: "reducer contention gate"
+    requirements:
+      - go
+      - postgres
+    ci_only_reason: "needs Postgres service container (GitHub Actions)"
+
+  # The supply-chain impact retraction, fencing and capped-evidence proofs need
+  # real Postgres (advisory locks, row locks, snapshots, plans), so they run as
+  # steps of the reducer contention gate's job rather than in a job of their
+  # own. This row is what keeps them there: the local command is the hermetic
+  # enrollment guard, which reads the real workflow filter and the real test
+  # files, and its RED/GREEN pair proves the guard can fail. The live proofs
+  # themselves run only in CI, on the contention gate's Postgres service (#7141).
+  - id: supply-chain-impact-live
+    name: Supply-chain impact live proofs (real Postgres)
+    category: exactness
+    layer: truth
+    purpose: "Keeps the supply-chain impact retraction, fencing and capped-evidence proofs enrolled in the reducer contention gate so they run on real Postgres."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/reducer/supplychain/**"
+      - "go/internal/storage/postgres/**"
+      - ".github/workflows/reducer-contention-gate.yml"
+      - "go/internal/storage/postgres/supply_chain_impact_gate_enrollment_test.go"
+      - "go/internal/storage/postgres/supply_chain_impact_live_dsn_test.go"
+    self_test_triggers:
+      - "go/internal/storage/postgres/supply_chain_impact_gate_enrollment_test.go"
+      - "go/internal/storage/postgres/supply_chain_impact_live_dsn_test.go"
+    local:
+      command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate)$' -count=1"
+      test_command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision)$' -count=1"
+    ci:
+      workflow: reducer-contention-gate.yml
+      job: "reducer contention gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── DOCS ──────────────────────────────────────────────────────────────────
+
+  - id: claude-rules-scope
+    name: Claude path-scoped rules
+    category: exactness
+    layer: hygiene
+    purpose: "Lints .claude/rules files for correct path-scoping so agent rules apply only where intended."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".claude/rules/**"
+      - "scripts/dev/claude-rules-lint.sh"
+      - "scripts/test-claude-rules-lint.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "bash scripts/dev/claude-rules-lint.sh"
+      test_command: "bash scripts/test-claude-rules-lint.sh"
+    ci:
+      workflow: "static-contract-gates.yml"
+      job: "Verify Claude path-scoped rules gate"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: docs-catalog-metadata
+    name: Docs catalog metadata
+    category: exactness
+    layer: hygiene
+    purpose: "Checks that public docs pages carry the required catalog metadata (nav/front-matter fields)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/**"
+      - "docs/mkdocs.yml"
+      - "scripts/verify-docs-catalog.sh"
+      - "scripts/test-verify-docs-catalog.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/verify-docs-catalog.sh"
+      test_command: "bash scripts/test-verify-docs-catalog.sh"
+    ci:
+      workflow: test.yml
+      job: "docs-helm-hygiene"
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: ""
+
+  - id: storage-doc-bundled-nornicdb-example
+    name: Storage doc bundled-NornicDB Helm example renders
+    category: exactness
+    layer: contract
+    purpose: "Fails when the bundled-NornicDB Helm example shown in the storage doc no longer renders against the real Helm chart."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/deploy/kubernetes/storage.md"
+      - "deploy/helm/eshu/**"
+      - "scripts/verify-storage-doc-bundled-nornicdb-example.sh"
+      - "scripts/test-verify-storage-doc-bundled-nornicdb-example.sh"
+      - "scripts/lib/test-verify-storage-doc-bundled-nornicdb-example-bad.md"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/verify-storage-doc-bundled-nornicdb-example.sh"
+      test_command: "bash scripts/test-verify-storage-doc-bundled-nornicdb-example.sh"
+    ci:
+      workflow: test.yml
+      job: "docs-helm-hygiene"
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: ""
+
+  - id: docs-prose-quality
+    name: Docs prose quality advisory
+    category: docs
+    layer: secondary
+    purpose: "Advisory check that flags weak prose quality in public docs as a burn-down baseline, not a merge gate."
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "docs/public/**"
+      - "docs/mkdocs.yml"
+      - "scripts/verify-docs-prose-quality.sh"
+      - "scripts/test-verify-docs-prose-quality.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/verify-docs-prose-quality.sh"
+      test_command: "bash scripts/test-verify-docs-prose-quality.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: "Advisory baseline for #5016; flip DOCS_PROSE_ENFORCE=true and blocking=true after the human-doc baseline is clean."
+
+  - id: docs-contradiction
+    name: Docs self-contradiction advisory
+    category: exactness
+    layer: secondary
+    purpose: "Advisory scan for self-contradicting statements across public docs, run as a burn-down baseline."
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "docs/public/**"
+      - "docs/mkdocs.yml"
+      - "scripts/verify-docs-contradiction.sh"
+      - "scripts/test-verify-docs-contradiction.sh"
+      - "scripts/lib/docs-contradiction-checks.awk"
+      - "scripts/docs-contradiction-baseline.txt"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/verify-docs-contradiction.sh"
+      test_command: "bash scripts/test-verify-docs-contradiction.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: "Advisory baseline for #5340; runs locally via pre-pr's exactness lane (category exactness + tier pre-pr + blocking false, the code-coverage-report precedent). Flip DOCS_CONTRADICTION_ENFORCE=true + blocking=true and wire the static-contract-gates.yml CI job (docs-refs pattern) once the burn-down baseline is clean."
+
+  - id: docs-refs
+    name: Docs script reference existence
+    category: exactness
+    layer: hygiene
+    purpose: "Fails when a docs page cites a scripts/*.sh, .py, or .awk path that doesn't actually exist."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/**"
+      - "docs/mkdocs.yml"
+      - "scripts/verify-docs-refs.sh"
+      - "scripts/test-verify-docs-refs.sh"
+      - "scripts/docs-refs-baseline.txt"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    # Keep the self-test fail-closed: it regenerates the committed baseline
+    # from the real docs tree, an invariant the primary check does not cover.
+    local:
+      command: "bash scripts/verify-docs-refs.sh"
+      test_command: "bash scripts/test-verify-docs-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify docs-refs gate"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: docs-cli-env-refs
+    name: Docs CLI and environment reference truth
+    category: exactness
+    layer: contract
+    purpose: "Rebuilds the real CLI and env registry to check docs' CLI commands and environment variables match what exists."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/**"
+      - "go/cmd/eshu/**"
+      - "go/internal/cli/**"
+      - "go/internal/envregistry/**"
+      - "go/cmd/docs-cli-env-refs/**"
+      - "scripts/verify-docs-cli-env-refs.sh"
+      - "scripts/test-verify-docs-cli-env-refs.sh"
+      - "scripts/lib/test-verify-docs-cli-env-refs-segment-cases.sh"
+      - "scripts/docs-cli-env-refs-baseline.txt"
+      - "scripts/docs-cli-env-refs-ceiling.txt"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    # Keep the self-test fail-closed: it rebuilds the real CLI/checker and
+    # regenerates the committed baseline, beyond the primary check's coverage.
+    local:
+      command: "bash scripts/verify-docs-cli-env-refs.sh"
+      test_command: "bash scripts/test-verify-docs-cli-env-refs.sh"
+      # #7111 F5: promoted from deferred. #7048 reached CI with an unregistered
+      # env var this gate catches. Measured alone: 34.9s on a cold worktree
+      # (the gate keeps its own .gocache-docs-cli-env-refs-* caches) and 7.2s
+      # warm. The 62s median the old deferral cited was measured inside full
+      # `make pre-pr` runs.
+      pre_push: floor
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify docs CLI/env refs gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: query-doc-commit-refs
+    name: Query doc commit reference guard
+    category: exactness
+    layer: hygiene
+    purpose: "Blocks query-package docs from citing abbreviated git commit hashes, which squash-merges make unstable."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/*.md"
+      - "go/internal/queryplan/*.md"
+      - "scripts/verify-query-doc-commit-refs.sh"
+      - "scripts/test-verify-query-doc-commit-refs.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - ".github/workflows/static-contract-gates.yml"
+    local:
+      command: "bash scripts/verify-query-doc-commit-refs.sh"
+      test_command: "bash scripts/test-verify-query-doc-commit-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify query-doc-commit-refs gate"
+    requirements: []
+    ci_only_reason: ""

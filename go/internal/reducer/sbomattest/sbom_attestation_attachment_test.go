@@ -480,7 +480,7 @@ func ociImageReferrerFact(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.OCIImageReferrerFactKind,
+		FactKind: chain.OCIImageReferrerFactKind,
 		Payload: map[string]any{
 			"subject_digest":      subjectDigest,
 			"referrer_digest":     referrerDigest,

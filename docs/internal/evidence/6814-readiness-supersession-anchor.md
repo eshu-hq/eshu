@@ -13,7 +13,7 @@ restarted every generation and the bounded fallback never fired.
   `supply_chain_impact`): YES, can persist. A producer scope that never
   runs, stays failed, or never ingests for a consumer scope keeps every
   new consumer generation deferring; coordinator cadence (30s default)
-  turns generations far faster than the 30m bound. Ops-qa
+  turns generations far faster than the 30m bound. QA
   `/admin/status` shows the turnover is real (3281 superseded
   generations observed).
 - AWS runtime-drift state-pending defer: YES, can persist. A
@@ -77,5 +77,5 @@ ledger statements and the supersede CTE are live-proven by the #6785 suite
 - `telemetry-coverage.md` rows for both gates extended with the new stage
   files; `scripts/verify-telemetry-coverage.sh` green.
 - Follow-on after deploy: watch for `abandoned`/settle outcomes in the
-  defer logs on ops-qa; per-gate live-Postgres supersession remains
+  defer logs on the QA environment; per-gate live-Postgres supersession remains
   composed (not re-proven) coverage.

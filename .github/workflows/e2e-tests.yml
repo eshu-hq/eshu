@@ -42,10 +42,23 @@ jobs:
             compose_file: docker-compose.neo4j.yml
             graph_service: neo4j
             database: neo4j
+    env:
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v6

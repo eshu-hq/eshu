@@ -114,6 +114,15 @@ reported `1/1 PASS`. Removing only that PASS event returned 1 with
 192 tests after enrolling the failure, supersession, and service dispatch
 regressions. This focused check is not a full readiness job result.
 
+After local integration on structural registry commit `340df95ec00af326caff91e8378babf72fadb22e`,
+the authoritative inventory lives in `scripts/lib/live_postgres_readiness_inventory.py`
+and the two #7916 ledger rows live in `specs/live-tests.d/live-tests-04.yaml`.
+The integrated `verify-ledger` selects 83 files and 193 tests: the historical
+192-test snapshot above predates the current main projector marker proof.
+The structural ledger's 692 baseline rows and its 571-exemption policy digest
+are preserved; the two activation rows raise the ledger total to 694.
+This count is an enrollment check, not a 193-test live readiness run.
+
 A final real `go test -json` run emitted one RUN and one PASS for each of the
 four newly enrolled tests (elapsed 1.39, 1.43, 2.99, and 1.47 seconds). The
 focused result verifier, using the runner's actual package/file tuples,

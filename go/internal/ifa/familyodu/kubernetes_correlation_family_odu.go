@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
@@ -378,13 +379,13 @@ func KubernetesCorrelationFamilyOdu() CatalogOdu {
 	for _, fixture := range kubernetesCorrelationFamilySources {
 		repositoryID := kubernetesCorrelationFamilyRepositoryID(fixture.Repository)
 		descriptorID := kubernetesCorrelationFamilyDescriptorID(fixture.Repository, fixture.Digest)
-		factKind := facts.OCIImageManifestFactKind
-		schemaVersion := facts.OCIImageManifestSchemaVersion
+		factKind := chain.OCIImageManifestFactKind
+		schemaVersion := chain.OCIImageManifestSchemaVersion
 		var payload map[string]any
 		var err error
 		if fixture.Index {
-			factKind = facts.OCIImageIndexFactKind
-			schemaVersion = facts.OCIImageIndexSchemaVersion
+			factKind = chain.OCIImageIndexFactKind
+			schemaVersion = chain.OCIImageIndexSchemaVersion
 			payload, err = factschema.EncodeOCIImageIndex(ociregistryv1.ImageIndex{
 				RepositoryID: repositoryID,
 				Digest:       fixture.Digest,
@@ -430,9 +431,9 @@ func KubernetesCorrelationFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          kubernetesCorrelationFamilyScopeID,
 			GenerationID:     kubernetesCorrelationFamilyGenerationID,
-			FactKind:         facts.OCIImageTagObservationFactKind,
+			FactKind:         chain.OCIImageTagObservationFactKind,
 			StableFactKey:    kubernetesCorrelationFamilyStableTagKey(fixture),
-			SchemaVersion:    facts.OCIImageTagObservationSchemaVersion,
+			SchemaVersion:    chain.OCIImageTagObservationSchemaVersion,
 			CollectorKind:    kubernetesCorrelationFamilyOCICollectorKind,
 			SourceConfidence: kubernetesCorrelationFamilySourceConfidence,
 			Payload:          payload,

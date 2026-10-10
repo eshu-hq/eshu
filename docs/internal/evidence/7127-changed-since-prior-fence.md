@@ -48,7 +48,7 @@ outcome="linked"}`, counted as `Linked` so the scope keeps draining, plus one
 
 The probe scans the link, activation and bucket-count tables. It was
 measured on a fixture of 25,000 generations, 25,000 links, 192,000 bucket
-rows and 25,000 activations (1,000 scopes × 25, about ops-qa's retained
+rows and 25,000 activations (1,000 scopes × 25, about QA's retained
 scale). Five runs took 93-105 ms with JIT on; three took 54-65 ms with JIT
 off. The plan is three hash anti joins. Busy runner cycles follow each other
 at once, so the probe runs at most once per `orphanProbeInterval` (one
@@ -210,7 +210,7 @@ No-Regression Evidence: a full link now runs two primary-key statements on
 SKIP LOCKED` lock. With pgbench in the container (`-M prepared -c 1 -T 5`,
 25,000 generations, three interleaved rounds) the two added 0.044-0.053 ms
 per transaction over an empty-transaction control (0.054-0.064 ms against
-0.010-0.011 ms). The smallest link measured here takes 7.5 ms, and ops-qa's
+0.010-0.011 ms). The smallest link measured here takes 7.5 ms, and QA's
 largest takes about 13 s. The lock dirties the prior's row as the activating
 generation's lock already does. A rebase writes the same state rows as an
 incremental link of the pair and no delta or bucket rows, so it writes less

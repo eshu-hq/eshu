@@ -8,7 +8,7 @@ code-topic reader's existing fenced single-statement fallback. It does not
 change pool sizes, deadlines, SQL text, result ranking, the HTTP contract, or the
 healthy snapshot-set path. #7033 remains open for deployed acceptance.
 
-Root-Cause Evidence: On ops-qa, the 2026-10-06 code-topic request returned
+Root-Cause Evidence: On the QA environment, the 2026-10-06 code-topic request returned
 HTTP 500 after `connection_reservation_wait_ms=2001`, with no successful
 `reserved_connections`; the exact resource holder was not established
 ([issue observation](https://github.com/eshu-hq/eshu/issues/7033#issuecomment-6016326058)).
@@ -70,7 +70,7 @@ candidate p95 is higher in this small sample, so this is not a tail-latency
 proof. Contended latency is dominated by Go timer scheduling around a 100 us
 requested deadline; the marker adds two allocations and about 56 bytes per
 contended operation. These profiles do not prove PostgreSQL or HTTP latency.
-The separate deployed ops-qa read-only warm endpoint windows before this
+The separate deployed QA read-only warm endpoint windows before this
 change measured 0.836949 s and 0.763618 s medians
 ([window one](https://github.com/eshu-hq/eshu/issues/7033#issuecomment-6082041820),
 [window two](https://github.com/eshu-hq/eshu/issues/7033#issuecomment-6082079671));
@@ -87,4 +87,4 @@ window's 2.284438 s discarded warmup remain unattributed.
 
 Next proof before #7033 closure: a rebuilt candidate endpoint run on a fixed
 corpus with a controlled capacity case, plus a separate read-only deployed
-ops-qa check after review and rollout. Neither is claimed here.
+QA check after review and rollout. Neither is claimed here.

@@ -29,8 +29,8 @@ from: the only observed dead letter is 793 B of details and 645 B of message,
 and the repository's existing dead-letter message bound is 4,096
 (`storage/postgres/collector_generation_dead_letter.go`).
 
-NOT_CHECKED: the read-only ops-qa `octet_length` percentiles the issue asks for.
-ops-qa access is held by another lane and was not probed, so the ruled defaults
+NOT_CHECKED: the read-only QA `octet_length` percentiles the issue asks for.
+QA access is held by another lane and was not probed, so the ruled defaults
 ship unchanged. Raise the details limit only if a legitimate p99 is over 4,096.
 
 ## Proof
@@ -93,7 +93,7 @@ writers:
 
 At the bound the fold's worst-case WAL per superseded row is about 15 times
 lower than at 64 KB, and its dirtied pages about 12 times lower. The 800 B
-ops-qa-scale rows are below the bound and unchanged (+986 WAL bytes per row for
+QA-scale rows are below the bound and unchanged (+986 WAL bytes per row for
 Ack refusal). Wall-clock cost was deliberately not used: the host load average
 was 26 to 44 during the session, so the harness's timing run was abandoned and
 only byte counts are reported. The other three writers were not re-measured.

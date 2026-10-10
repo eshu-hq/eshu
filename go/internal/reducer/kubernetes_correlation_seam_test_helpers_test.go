@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -58,7 +59,7 @@ func seamExactDigestEdgeFixture() []facts.Envelope {
 		},
 		{
 			FactID:   "seam-oci-1",
-			FactKind: facts.OCIImageManifestFactKind,
+			FactKind: chain.OCIImageManifestFactKind,
 			Payload: map[string]any{
 				"registry":      seamK8sRegistry,
 				"repository":    seamK8sRepository,

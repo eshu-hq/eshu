@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -286,8 +287,8 @@ func ociRegistryManifestEnvelope(factID, scopeID, generationID string) facts.Env
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.OCIImageManifestFactKind,
-		SchemaVersion:    facts.OCIImageManifestSchemaVersion,
+		FactKind:         chain.OCIImageManifestFactKind,
+		SchemaVersion:    chain.OCIImageManifestSchemaVersion,
 		CollectorKind:    "oci_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
@@ -309,8 +310,8 @@ func ociRegistryReferrerEnvelope(factID, scopeID, generationID string) facts.Env
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.OCIImageReferrerFactKind,
-		SchemaVersion:    facts.OCIImageReferrerSchemaVersion,
+		FactKind:         chain.OCIImageReferrerFactKind,
+		SchemaVersion:    chain.OCIImageReferrerSchemaVersion,
 		CollectorKind:    "oci_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.June, 6, 10, 0, 0, 0, time.UTC),
@@ -335,8 +336,8 @@ func ociRegistryTagEnvelope(factID, scopeID, generationID string) facts.Envelope
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.OCIImageTagObservationFactKind,
-		SchemaVersion:    facts.OCIImageTagObservationSchemaVersion,
+		FactKind:         chain.OCIImageTagObservationFactKind,
+		SchemaVersion:    chain.OCIImageTagObservationSchemaVersion,
 		CollectorKind:    "oci_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),

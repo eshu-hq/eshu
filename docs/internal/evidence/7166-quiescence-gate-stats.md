@@ -57,7 +57,7 @@ re-measured: ship statistics + telemetry, drop the rewrite.
 
 ## Transfer caveats (NOT_CHECKED from here)
 
-- The shim holds ~150 phases per generation; migration 156's ops-qa
+- The shim holds ~150 phases per generation; migration 156's QA
   census reports ~9 (91,558 rows / 10,167 generations). The shim's
   absolute win (11x) need not transfer; the mechanism (repaired
   rows estimate restoring the pkey pushdown) is distribution-shaped.

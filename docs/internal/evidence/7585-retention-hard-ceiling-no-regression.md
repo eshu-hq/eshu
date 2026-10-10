@@ -35,7 +35,7 @@ row-limit/ledger counting.
 - Why safe: the OR-branch reuses the same indexed `superseded_at` range
   predicate and keeps every non-age guard (status, active-generation id,
   NOT NULL, live-work anti-join) outside the branch, so the ceiling bypasses
-  only the count preference — exactly the #7585 contract. The ops-qa census
+  only the count preference — exactly the #7585 contract. The QA census
   in the issue found no superseded history older than 90 days, so the
   eligible set on current data is identical with the default ceiling;
   eligibility only widens as data ages past it, through the existing bounded

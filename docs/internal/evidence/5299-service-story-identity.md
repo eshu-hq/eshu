@@ -1,10 +1,13 @@
 # Service Story identity and narrative evidence (#5299)
 
+`repo-Y` in this note is a stable placeholder for the measured repository name;
+the mapping is held outside the repository.
+
 ## Scope and retained input
 
 Issue #5299 changes the existing Service Story read and visualization transform;
 it does not add a graph write, queue, worker, or unbounded query. Measurements
-use base commit `c5fb1de4e8` and the same retained `api-node-boats` corpus on both
+use base commit `c5fb1de4e8` and the same retained `repo-Y` corpus on both
 sides. The retained topology contains 887 repositories and uses the NornicDB
 PR-261 compatibility build (snapshot `149245885258`) over Bolt with Postgres as
 the content/read-model store.
@@ -17,7 +20,7 @@ counts remain below the 60-node and 120-edge packet limits.
 ## Measurements
 
 Performance Evidence: ten sequential warm retained requests measured the same
-start and terminal events for `GET /api/v0/services/api-node-boats/story` and
+start and terminal events for `GET /api/v0/services/repo-Y/story` and
 `POST /api/v0/visualizations/derive`. Story latency was 299 ms median and
 723.4 ms p95; derive latency was 4.6 ms median and 6.5 ms p95; the combined
 interactive path was 303.8 ms median and 729.9 ms p95. The route stayed inside
@@ -74,7 +77,7 @@ allocation and sort changes keep the existing response assertions and
 deterministic-order tests green.
 
 Authenticated retained-browser proof shows exactly one hero node labeled
-`api-node-boats` with role `workload service`; the source repository remains a
+`repo-Y` with role `workload service`; the source repository remains a
 separate source-backed node; Helm, Argo, runtime, and downstream roles are
 distinct; noncanonical equal-label observations expose privacy-safe hashed
 scope disambiguation; relationship sentences lead with human labels and

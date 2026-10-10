@@ -1,5 +1,8 @@
 # Exposure Service Selection Evidence
 
+`repo-Y` in this note is a stable placeholder for the measured repository name;
+the mapping is held outside the repository.
+
 This note records the focused correctness and performance proof for issue
 #5265. The change makes Exposure Path resolve human input to a canonical
 workload before loading service context, while keeping ambiguous, unauthorized,
@@ -13,7 +16,7 @@ ownership is instead represented by `w.repo_id` and, for legacy or shared
 workloads, `Repository-[:DEFINES]->Workload`.
 
 The old and proposed property-anchored shapes were run on the same retained
-NornicDB corpus with `name=api-node-boats`, `type=Workload`, and `limit=11`:
+NornicDB corpus with `name=repo-Y`, `type=Workload`, and `limit=11`:
 
 | Query | Result | Duration |
 | --- | --- | ---: |
@@ -60,7 +63,7 @@ repositories. It contained 5,232 indexed entities, including 76 workloads,
 332 modules, and 3,737 cloud resources.
 
 The exact-branch authenticated browser-session route proof selected
-`api-node-boats`. The combined submit flow completed in 3.000s and recorded:
+`repo-Y`. The combined submit flow completed in 3.000s and recorded:
 
 - `POST /api/v0/entities/resolve` -> HTTP 200;
 - `GET /api/v0/services/:service/context` -> HTTP 200;
@@ -84,7 +87,7 @@ npm run typecheck
 
 The retained proof used `scripts/run-console-retained-e2e.sh` with an isolated
 auth schema and exact API sidecar, `ESHU_E2E_ROUTE_PATHS=/exposure`, and
-`ESHU_E2E_SERVICE_NAME=api-node-boats`. It passed 1/1 selected routes. The
+`ESHU_E2E_SERVICE_NAME=repo-Y`. It passed 1/1 selected routes. The
 proof runner hash was
 `aabf0f1fc69f0cd2ab2ea7b08191a427037060940c0171d9d8c6112dc7b78338`.
 

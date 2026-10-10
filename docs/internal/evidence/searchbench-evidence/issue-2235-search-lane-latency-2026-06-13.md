@@ -1,5 +1,8 @@
 # Issue #2235 — Search-lane latency benchmark (2026-06-13)
 
+`repo-AQ` in this note is a stable placeholder for the measured repository id;
+the mapping is held outside the repository.
+
 Measured run of `go/cmd/search-bench` comparing the current Postgres
 content-search baseline against the in-process curated hybrid lane
 (`internal/searchhybrid`) for keyword retrieval over a live Eshu content corpus.
@@ -19,7 +22,7 @@ JSON record: the v1 schema requires a NornicDB arm, which is not measurable here
 
 ## Corpus
 
-- Repository: `repository:r_9a84f5f1` (largest by entity count).
+- Repository: `repository:repo-AQ` (largest by entity count).
 - Entity rows scanned: 27,583; file rows scanned: 1,122.
 - Curated documents indexed: **27,822** (overflow 0).
 - Skipped sensitive (secret-term match): 883; skipped excluded: 0; skipped

@@ -71,7 +71,7 @@ clip; this table uses 12 KiB bodies.
 
 - Other `metadata` fields are not clipped. A row whose metadata is large for
   another reason can still exceed the budget and fails closed as before.
-- No production or ops-qa numbers: docstring length distribution on the
+- No production or QA numbers: docstring length distribution on the
   reference corpus was not measured (local fixture only). The 512 ceiling is a
   size decision, not a measured percentile.
 - No golden or cassette data carries the touched response fields

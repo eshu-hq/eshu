@@ -4,9 +4,9 @@
 
 The built four-session code-topic read was faster than a built single-query
 baseline on one preserved Neo4j/PostgreSQL test corpus. This record does not
-establish the deployed ops-qa `<1 s` endpoint budget. A comparable deployed
+establish the deployed QA `<1 s` endpoint budget. A comparable deployed
 or isolated read-replica endpoint measurement remains pending; do not infer
-that the dedicated test instance represents current ops-qa load.
+that the dedicated test instance represents current QA load.
 
 The query-shape theory and earlier relative-path index rollout are recorded in
 [the preceding #7033 evidence](7033-unscoped-topic-relative-path-index.md).
@@ -66,7 +66,7 @@ content_files|149277|14721|155817|0|155826|0|0|125476864|2026-09-29 10:31:51.825
 The retained A/B artifact ends at the post-request fingerprint; it does not
 record candidate cleanup or post-cleanup health. The measured comparison uses
 the same corpus and backend instance with unchanged content-table state, not
-a deployed ops-qa before/after.
+a deployed QA before/after.
 
 ## Exact-source ABBA comparison on the dedicated test instance
 
@@ -118,7 +118,7 @@ loopback-only API containers. Source and the recorded single-host/four-reader
 configuration imply the candidate's four-partition shared-snapshot path for
 this 16-term request; no trace export directly captured the execution-mode
 attribute. This is an exact-source relative result for those two SHAs on a
-test stack, not an ops-qa run or a measurement of the later permit/fallback
+test stack, not a QA run or a measurement of the later permit/fallback
 changes.
 
 Two warmups per variant preceded two eight-request baseline control sets.
@@ -161,7 +161,7 @@ one best-effort bootstrap audit INSERT (SQLSTATE 42501) per container before
 timing; no bootstrap audit row persisted, and no later store error appeared.
 The containers, role, and temporary images were removed; PostgreSQL and
 Neo4j remained healthy. Thus this result proves neither rollout readiness
-nor audit integrity, and it does not establish the deployed ops-qa
+nor audit integrity, and it does not establish the deployed QA
 `<1 s` budget.
 
 ## Current guarded-reader fixed-corpus comparison, 2026-10-02
@@ -177,7 +177,7 @@ They used the same preserved PostgreSQL 18/Neo4j stack and loopback-only
 API containers, each limited to four CPUs and 2 GiB memory, with the same
 eight-connection total/four-reader PostgreSQL pool settings. The canonical
 16-term request, limit 25, offset 0, was unchanged. This is a dedicated
-test-instance comparison, not deployed ops-qa acceptance.
+test-instance comparison, not deployed QA acceptance.
 
 Two warmups per variant preceded two eight-request baseline control sets.
 Their medians were 0.781043 and 0.768598 s; the frozen control bound was
@@ -212,13 +212,13 @@ row or later store error. The restricted temporary role, canaries, images,
 source worktrees, and credential file were removed after the successful run;
 the preserved databases remained healthy. The result satisfies the
 current-source relative merge measurement, but **does not** establish the
-deployed ops-qa `<1 s` budget or rollout readiness.
+deployed QA `<1 s` budget or rollout readiness.
 
-## Deployed ops-qa endpoint-only diagnostic, 2026-10-02
+## Deployed QA endpoint-only diagnostic, 2026-10-02
 
 Performance Evidence: an isolated two-container Pod compared baseline
 `f5400edbe56e67cfa31b9f7b8a5e033da5a25372` with candidate
-`f932f95056163bc42aa3a895f88451776b051783` on the same pinned ops-qa
+`f932f95056163bc42aa3a895f88451776b051783` on the same pinned QA
 PostgreSQL read replica and Neo4j backend. Each API container had a 1 CPU /
 2 GiB limit. The request was the canonical 16-term topic phrase above with
 limit 25 and offset 0. Both APIs returned HTTP 200 and the same complete
@@ -280,18 +280,18 @@ kept the cumulative patch ID
 `bff2709b7f3ac9033218ebea8bdc1a76de3c7747` unchanged, with no changed-path
 overlap; the local live test was not rerun on the rebased commit.
 
-## Deployed ops-qa acceptance
+## Deployed QA acceptance
 
 NOT_CHECKED for the current guarded-reader candidate on the deployed
 topology. The current-source fixed-corpus comparison above is accepted as
 the relative merge measurement, not deployed endpoint acceptance. The current
-source includes migration 155. Ops-qa's migration ledger was last observed at
+source includes migration 155. QA's migration ledger was last observed at
 152 on 2026-10-02; this record does not establish a later ledger state. An
 earlier exact-source attempt on 2026-10-02 aborted during
 storage-digest/cleanup validation and yielded no accepted endpoint timing
 evidence. The owner approved using the fixed-corpus remote comparison for
 the merge measurement, with the deployed
-ops-qa `<1 s` check tracked separately in #7516. Do not claim the deployed
+QA `<1 s` check tracked separately in #7516. Do not claim the deployed
 budget from this remote result.
 
 ## Reader-fleet follow-up, 2026-10-03
@@ -300,7 +300,7 @@ The fleet routing branch does not change the code-topic SQL. Its new contract is
 that one four-connection snapshot set stays on a qualified physical standby,
 and a whole read can retry after that member is lost. The measurements below
 separate the legacy endpoint from the opt-in fleet path. Neither is deployed
-ops-qa acceptance or a 100k-repository capacity result.
+QA acceptance or a 100k-repository capacity result.
 
 ### Preserved-corpus legacy route
 
@@ -390,7 +390,7 @@ The query-path comparison after the #7565 query-identity integration is in
 
 ### Current deployed acceptance boundary
 
-On ops-qa's newly rolled API image `sha-ebce60b` (2026-10-03), three
+On QA's newly rolled API image `sha-ebce60b` (2026-10-03), three
 read-only canonical 16-term requests returned HTTP 200 in 1.323721,
 1.189914, and 1.155378 s (median 1.189914 s). Their within-run response
 digest matched. Tempo traces for those requests reported
@@ -403,7 +403,7 @@ target remains unmet; they are not a controlled before/after comparison with
 the separate preserved corpus or a candidate deployed fleet result. #7033
 remains open.
 
-A later ops-qa deployment change pinned the API and MCP to image
+A later QA deployment change pinned the API and MCP to image
 `sha-306eac0`; ArgoCD reported Synced/Healthy, and the API, MCP, writer, and
 single reader were Ready. Three further read-only requests on that now-deployed
 API returned HTTP 200 in 1.241450, 1.122866, and 1.127621 s (median
@@ -442,4 +442,4 @@ database and verifies the backend's proof-database name before termination.
 A planted missing-ownership violation failed before database creation. The
 owned containers, volumes, and network were removed after the run. This is a
 physical failure/retry proof, not an interleaved latency comparison, a deployed
-ops-qa fleet result, or evidence that #7033 meets the `<1 s` budget.
+QA fleet result, or evidence that #7033 meets the `<1 s` budget.

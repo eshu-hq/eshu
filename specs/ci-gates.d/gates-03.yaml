@@ -1,0 +1,423 @@
+version: v1
+gates:
+  - id: pre-enqueue-check
+    name: Pre-enqueue merge-queue check test mirror
+    category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the pre-enqueue check, which confirms the reviewed head, merge cleanliness, checks and review threads before a PR joins the queue."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/dev/pre-enqueue-check.sh"
+      - "scripts/dev/test-pre-enqueue-check.sh"
+      - "scripts/lib/test-pre-enqueue-check-*"
+      - "scripts/lib/ai-attribution-pattern.sh"
+    local:
+      # pre-enqueue-check.sh only reads GitHub, but a real run needs a live PR
+      # and network, so the hermetic mirror IS the verification: a fake `gh`
+      # on PATH serves per-case JSON and a local bare repository stands in for
+      # origin, so each fail-closed arm (head, merge-tree vs main and vs the
+      # queue tip, checks, required-gates-complete, merge state, threads,
+      # issue reference or closing keyword, attribution) has a seeded RED
+      # beside one all-green case
+      # (docs/public/reference/local-testing/pre-enqueue-check.md).
+      command: "bash scripts/dev/test-pre-enqueue-check.sh"
+      test_command: ""
+    ci:
+      workflow: verify-ci-gate-registry.yml
+      job: "Verify ci-gate registry test mirror"
+    requirements: []
+    ci_only_reason: ""
+
+  # ─── EXACTNESS / CONTRACT ──────────────────────────────────────────────────
+
+  - id: openapi-surface
+    name: Verify OpenAPI Surface
+    category: exactness
+    layer: contract
+    purpose: "Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/static-contract-filters.yml"
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "go/internal/serviceintelhttp/**"
+      - "specs/surface-inventory.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "scripts/lib/*verify-openapi*.sh"
+      - ".github/openapi-known-drift.txt"
+      - "scripts/test-verify-openapi.sh"
+      - "scripts/test-verify-openapi-subpackage.sh"
+      - "scripts/verify-openapi.sh"
+    self_test_triggers:
+      - "scripts/lib/*verify-openapi*.sh"
+      - "scripts/test-verify-openapi.sh"
+      - "scripts/test-verify-openapi-subpackage.sh"
+      - "scripts/verify-openapi.sh"
+    local:
+      command: "bash scripts/verify-openapi.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify OpenAPI gate"
+    # #6615 review: verify-openapi.sh and its test mirrors only grep/rg-parse
+    # HandleFunc registrations and OpenAPI fragments; nothing in this gate's
+    # command or test_command chain (traced two levels, including sourced
+    # scripts/lib/test-verify-openapi-*-cases.sh) invokes the go toolchain.
+    requirements: []
+    ci_only_reason: ""
+
+  - id: route-coverage
+    name: Verify Route Coverage
+    category: exactness
+    layer: contract
+    purpose: "Fails when a registered HTTP route has no test that actually references it."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/static-contract-filters.yml"
+      - "go/internal/query/**"
+      - "go/cmd/api/**"
+      - "scripts/test-verify-route-coverage.sh"
+      - "scripts/verify-route-coverage.sh"
+    self_test_triggers:
+      - "scripts/test-verify-route-coverage.sh"
+      - "scripts/verify-route-coverage.sh"
+    local:
+      command: "bash scripts/verify-route-coverage.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-route-coverage.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify route coverage gate"
+    # #6615 review: verify-route-coverage.sh statically compares HandleFunc
+    # registrations against *_test.go references via rg; no go toolchain
+    # invocation anywhere in its command/test_command chain.
+    requirements: []
+    ci_only_reason: ""
+
+  - id: edge-source-tool-coverage
+    name: Verify Edge Source-Tool Coverage
+    category: exactness
+    layer: contract
+    purpose: "Fails when a relationship-edge evidence kind has no covering collector or source tool."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/static-contract-filters.yml"
+      - "go/internal/relationships/**"
+      - "go/internal/collector/**"
+      - "go/internal/reducer/crossrepo/cross_repo_evidence_type.go"
+      - "specs/surface-inventory.v1.yaml"
+      - "scripts/test-verify-edge-source-tool-coverage.sh"
+      - "scripts/verify-edge-source-tool-coverage.sh"
+    self_test_triggers:
+      - "scripts/test-verify-edge-source-tool-coverage.sh"
+      - "scripts/verify-edge-source-tool-coverage.sh"
+      - "go/internal/reducer/crossrepo/cross_repo_evidence_type.go"
+    local:
+      command: "bash scripts/verify-edge-source-tool-coverage.sh"
+      test_command: "bash scripts/test-verify-edge-source-tool-coverage.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify edge source-tool coverage gate"
+    # #6615 review: verify-edge-source-tool-coverage.sh auto-discovers
+    # EvidenceKind constants via rg and cross-references the classifier
+    # source directly; no go toolchain invocation in its command/test_command
+    # chain.
+    requirements: []
+    ci_only_reason: ""
+
+  - id: evidence-continuity
+    name: Verify Evidence Continuity
+    category: exactness
+    layer: contract
+    purpose: "Fails when the evidence-continuity spec references a Go package or test the code no longer has."
+    tier: pre-pr
+    blocking: true
+    # The triggers cover every package the spec's `go test` proof refs name,
+    # every file the validator reads -- the contract spec, the capability matrix
+    # and its fragments, the generated surface inventory, and this registry plus
+    # the workflow that carries the gate's path filter -- and every package the
+    # validator is built from: its own, plus internal/cigates, whose MatchGlob
+    # and DornyFilters decide what the trigger check below reports.
+    # Before #6131 the go/ triggers were disjoint from the referenced set, so
+    # renaming a referenced test never selected this gate and CI on unrelated
+    # PRs was the first place the stale ref failed. The validator now asserts
+    # this coverage itself (gate_trigger_gap in go/internal/evidencecontinuity),
+    # so a spec edit that references an uncovered package fails this gate
+    # instead of creating a new blind spot.
+    triggers:
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - "specs/evidence-continuity.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "go/cmd/eshu/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/cigates/**"
+      - "go/internal/cli/**"
+      - "go/internal/collector/**"
+      - "go/internal/evidencecontinuity/**"
+      - "go/internal/facts/**"
+      - "go/internal/mcp/**"
+      - "go/internal/query/**"
+      - "go/internal/relationships/**"
+      - "scripts/test-verify-evidence-continuity.sh"
+      - "scripts/verify-evidence-continuity.sh"
+    local:
+      command: "bash scripts/verify-evidence-continuity.sh"
+      test_command: "bash scripts/test-verify-evidence-continuity.sh"
+      # #7111 F5: 1.2s/0.6s (first/second run) measured locally; #7053 reached
+      # CI with a stale proof ref this gate catches.
+      pre_push: floor
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify evidence continuity gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: skill-roundtrip
+    name: Verify Skill Roundtrip
+    category: exactness
+    layer: contract
+    purpose: "Fails when generated skill fragments no longer match their committed baseline output."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/static-contract-filters.yml"
+      - "go/cmd/skillgen/**"
+      # The package is under internal/extensions/; the previous
+      # internal/skillgen/** never matched a real path, so edits to the
+      # adapters did not select the gate that guards them (#4059).
+      - "go/internal/extensions/skillgen/**"
+      - ".agents/skills/**"
+      # The gate compares fragments against the committed baseline, so a
+      # change to either input is exactly when it needs to run.
+      - "skill-fragments/**"
+      - "expected/**"
+      - "scripts/test-verify-skill-roundtrip.sh"
+      - "scripts/verify-skill-roundtrip.sh"
+    local:
+      command: "bash scripts/verify-skill-roundtrip.sh"
+      test_command: "bash scripts/test-verify-skill-roundtrip.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify skillgen roundtrip gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: skill-workflow-refs
+    name: Verify Skill Workflow References
+    category: exactness
+    layer: contract
+    purpose: "Fails when a skill references a GitHub workflow that doesn't exist, or vice versa."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".agents/skills/**"
+      - ".github/workflows/**"
+      - "scripts/verify-skill-workflow-refs.sh"
+      - "scripts/test-verify-skill-workflow-refs.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "bash scripts/verify-skill-workflow-refs.sh"
+      test_command: "bash scripts/test-verify-skill-workflow-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify skill workflow refs gate"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: fact-kind-registry
+    name: Verify Fact-Kind Registry
+    category: exactness
+    layer: contract
+    purpose: "Fails when the fact-kind registry spec drifts from the fact kinds actually defined in Go code."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/static-contract-filters.yml"
+      - "go/internal/facts/**"
+      - "specs/fact-kind-registry.v1.yaml"
+      - "scripts/test-verify-fact-kind-registry.sh"
+      - "scripts/verify-fact-kind-registry.sh"
+    local:
+      command: "bash scripts/verify-fact-kind-registry.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-fact-kind-registry.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify contract source-of-truth gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: contract-source-of-truth
+    name: Contract Source of Truth (generate + drift)
+    category: exactness
+    layer: contract
+    purpose: "Regenerates and diffs the collector fact contract to catch drift between the spec and generated code."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/static-contract-filters.yml"
+      - "go/internal/facts/**"
+      - "go/internal/collector/conformance/contract/**"
+      - "specs/fact-kind-registry.v1.yaml"
+      - "specs/collector_fact_contract.v1.yaml"
+      - "scripts/test-verify-contracttest.sh"
+      - "scripts/verify-contracttest.sh"
+    local:
+      command: "bash scripts/verify-contracttest.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-contracttest.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify contract source-of-truth gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: factschema-diff
+    name: Fact Schema Diff (breaking-change gate)
+    category: exactness
+    layer: contract
+    purpose: "Diffs generated JSON Schemas against a baseline and fails on a breaking field change without a version bump."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "sdk/go/factschema/schema/**"
+      - "sdk/go/factschema/aws/v1/**"
+      - "sdk/go/factschema/internal/schemagen/**"
+      - "go/cmd/factschema-diff/**"
+      - "scripts/*verify-factschema-diff*.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "bash scripts/verify-factschema-diff.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-factschema-diff.sh"
+    ci:
+      workflow: factschema-diff.yml
+      job: "Verify factschema-diff gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # Contract System v1 §6 enforcement gate 1: diffs generated JSON Schemas
+    # under sdk/go/factschema/schema/ against a baseline git ref (default:
+    # merge-base against origin/main, since no factschema-* release tag
+    # exists yet), comparing the union of baseline and current schema files.
+    # Fails on a removed/renamed field (required, or optional under a
+    # fail-closed additionalProperties:false schema), a narrowed type
+    # (including nested map-value/array-item types), a widened required set, a
+    # newly added required field, or a deleted schema file — all without a
+    # corresponding major version bump. See go/cmd/factschema-diff/README.md.
+
+  - id: payload-usage-manifest
+    name: Payload Usage Manifest (reverse contract gate)
+    category: exactness
+    layer: contract
+    purpose: "Fails when code reads a payload field that no checked-in JSON Schema declares."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/query/**"
+      - "go/internal/storage/postgres/**"
+      - "go/internal/relationships/**"
+      - "go/internal/replay/**"
+      - "sdk/go/factschema/**"
+      - "go/internal/payloadusage/**"
+      - "go/cmd/payload-usage-manifest/**"
+      - "scripts/*verify-payload-usage-manifest*.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "bash scripts/verify-payload-usage-manifest.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-payload-usage-manifest.sh"
+    ci:
+      workflow: payload-usage-manifest.yml
+      job: "Verify payload-usage-manifest gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # Contract System v1 §6 enforcement gate 2: derives, from typed
+    # factschema.Decode* seams across reducer/projector/query/loader/
+    # relationships/replay, which declared payload fields typed-decoded
+    # handlers actually read (go/internal/payloadusage), and fails when a
+    # handler reads a field no checked-in JSON Schema
+    # (sdk/go/factschema/schema/*.json) declares. It also ratchets new raw
+    # payload reads on loader/relationships/replay behind explicit exemptions.
+    # This is the REVERSE direction from factschema-diff (a schema breaking its
+    # own declared shape): a consumer starting to require a field no schema
+    # promises. See go/internal/payloadusage/README.md and
+    # go/internal/reducer/payload_usage_manifest_test.go
+    # (TestPayloadUsageManifest).
+
+  - id: scorecard-example-conformance
+    name: Scorecard example go test
+    category: exactness
+    layer: contract
+    purpose: "Runs the external scorecard example's own test suite to prove it still conforms to the pinned SDK fixture pack."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "examples/collector-extensions/scorecard/**"
+      - "sdk/go/collector/**"
+      - "sdk/go/factschema/**"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "cd examples/collector-extensions/scorecard && go test ./... -count=1"
+      test_command: ""
+    ci:
+      workflow: scorecard-example-conformance.yml
+      job: "Scorecard example go test"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # #4583 / #4572: runs the out-of-tree scorecard example's own `go test
+    # ./...` (its own go.mod, resolved via replace directives against the SDK
+    # module paths in-repo) so "the external collector proves conformance in
+    # its own CI" is a real running gate on any PR touching the example or
+    # either public SDK module, not a manual command a contributor could
+    # forget. See examples/collector-extensions/scorecard/README.md
+    # ("Pinning story") and fixturepack_pin_test.go for the pinned
+    # fixture-pack conformance proof this gate protects.
+
+  - id: sdk-go-collector
+    name: "SDK Go: collector build/test/vet/fmt/boundary"
+    category: exactness
+    layer: contract
+    purpose: "Builds, tests, vets, and formats the standalone collector SDK module, and blocks it from importing internal-only code."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "sdk/go/collector/**"
+      - ".github/workflows/sdk-go.yml"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "cd sdk/go/collector && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal'"
+      test_command: ""
+    ci:
+      workflow: sdk-go.yml
+      job: "SDK Go: collector"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # #4602: sdk/go/collector is its own go.mod, resolved independently of the
+    # go/ app module that test.yml's working-directory: go covers. Without
+    # this gate a PR could go all-green while the collector SDK module failed
+    # to build/test, drifted from gofmt, or started importing go/internal
+    # (which the SDK, shipped to external collectors, must never depend on).

@@ -70,11 +70,11 @@ change.
 
 ## Performance Evidence:
 
-The full status snapshot has 26 statements. In the ops-qa reader plan
+The full status snapshot has 26 statements. In the QA reader plan
 inventory (run `c5544da49fcd5c68`, plain EXPLAIN on PostgreSQL 18.3),
 statement #25 has a planner total cost of 1,579,838.23. The next most
 expensive statement, #4 `active_work_summary`, costs 62,529.82. These are
-planner cost units, not time. An earlier ops-qa reader sample in
+planner cost units, not time. An earlier QA reader sample in
 [7009-status-detail-selection.md](7009-status-detail-selection.md) measured
 the recent-warning statement at 360.839 ms for 92 rows. That is a single
 three-day-old sample. Local fixtures measured the statement at about 416 ms
@@ -82,7 +82,7 @@ to 597 ms. The fixtures differ in hardware, data, and storage state, so those
 totals are not comparable. This change removes statements #24 and #25 from the
 routes listed above.
 
-NOT_CHECKED: endpoint p95 on ops-qa for any route, whether and how often
+NOT_CHECKED: endpoint p95 on the QA environment for any route, whether and how often
 Prometheus scrapes runtime `/metrics`, cold-read latency, and concurrent-user
 capacity. No endpoint speedup is claimed. Pipeline and index status still pay
 for #25. The planned partial index on `terraform_state_warning` facts is a

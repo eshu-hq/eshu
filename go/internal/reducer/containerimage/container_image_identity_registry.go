@@ -10,6 +10,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
@@ -41,7 +42,7 @@ func buildContainerImageRegistryIndex(envelopes []facts.Envelope) containerImage
 	}
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind:
+		case chain.OCIImageManifestFactKind, chain.OCIImageIndexFactKind:
 			obs, ok := ociDigestObservation(envelope)
 			if !ok {
 				continue
@@ -52,7 +53,7 @@ func buildContainerImageRegistryIndex(envelopes []facts.Envelope) containerImage
 			existing.repositoryID = obs.repositoryID
 			existing.factIDs = append(existing.factIDs, obs.factIDs...)
 			index.digests[key] = existing
-		case facts.OCIImageTagObservationFactKind:
+		case chain.OCIImageTagObservationFactKind:
 			tag, ok := ociTagObservation(envelope)
 			if !ok {
 				continue
@@ -211,13 +212,13 @@ func imageRefFromOCIRepositoryID(repositoryID string, digest string) string {
 func ociDigestObservation(envelope facts.Envelope) (containerImageDigestObservation, bool) {
 	var digest string
 	switch envelope.FactKind {
-	case facts.OCIImageManifestFactKind:
+	case chain.OCIImageManifestFactKind:
 		manifest, ok := schemadecode.DecodeOCIImageManifestForIndex(envelope)
 		if !ok {
 			return containerImageDigestObservation{}, false
 		}
 		digest = manifest.Digest
-	case facts.OCIImageIndexFactKind:
+	case chain.OCIImageIndexFactKind:
 		index, ok := schemadecode.DecodeOCIImageIndexForIndex(envelope)
 		if !ok {
 			return containerImageDigestObservation{}, false

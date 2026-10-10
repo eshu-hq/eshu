@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 func TestSourceNextPreservesImageConfigProvenanceLabels(t *testing.T) {
@@ -64,7 +65,7 @@ func TestSourceNextPreservesImageConfigProvenanceLabels(t *testing.T) {
 		t.Fatal("Next() ok = false, want true")
 	}
 	envelopes := drainFacts(t, collected)
-	manifest := requireFactKind(t, envelopes, facts.OCIImageManifestFactKind)
+	manifest := requireFactKind(t, envelopes, chain.OCIImageManifestFactKind)
 	labels, ok := manifest.Payload["config_labels"].(map[string]string)
 	if !ok {
 		t.Fatalf("config_labels = %#v, want map[string]string", manifest.Payload["config_labels"])
@@ -168,7 +169,7 @@ func TestSourceNextWarnsForUnavailableAndOversizedImageConfig(t *testing.T) {
 			if !slices.Contains(warnings, tc.wantWarning) {
 				t.Fatalf("warning codes = %#v, want %q", warnings, tc.wantWarning)
 			}
-			manifest := requireFactKind(t, envelopes, facts.OCIImageManifestFactKind)
+			manifest := requireFactKind(t, envelopes, chain.OCIImageManifestFactKind)
 			if labels := manifest.Payload["config_labels"]; labels != nil {
 				t.Fatalf("config_labels = %#v, want nil for %s", labels, tc.name)
 			}
@@ -255,7 +256,7 @@ func requireFactKind(t *testing.T, envelopes []facts.Envelope, kind string) fact
 func warningCodes(envelopes []facts.Envelope) []string {
 	var out []string
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.OCIRegistryWarningFactKind {
+		if envelope.FactKind != chain.OCIRegistryWarningFactKind {
 			continue
 		}
 		if code, ok := envelope.Payload["warning_code"].(string); ok && code != "" {

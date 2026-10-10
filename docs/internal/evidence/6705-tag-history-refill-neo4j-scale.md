@@ -105,7 +105,7 @@ Written and verified by `refillScaleGraph.seed` in
 - N background `ContainerImage {digest}` nodes (digest prefix
   `sha256:6705-corpus-<N>-`), unconnected -- sizing the
   `container_image_digest` index to the scale the #6705 claim comment's
-  ops-qa probe measured against (a 400-key `NodeIndexSeek`, 0-1ms, on a real
+  QA probe measured against (a 400-key `NodeIndexSeek`, 0-1ms, on a real
   store rather than an empty one).
 - One `image_ref` ("withheld") carrying 850 `ContainerImageTagObservation`
   rows (> 4*`taghistory.MaxLimit` = 800) whose `resolved_digest` values have
@@ -198,7 +198,7 @@ across the whole loop.
 ## Confirmation on the repo-pinned image
 
 The three runs above used the floating `neo4j:2026-community` tag, which
-resolved to Neo4j `2026.09.0`. ops-qa and the repo's compose files pin
+resolved to Neo4j `2026.09.0`. The QA environment and the repo's compose files pin
 `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`,
 which reports `2026.08.1`. One further run on that pinned digest, same test,
 same seed shape, fresh container (`eshu-6705-neo4j`, port 17705, removed

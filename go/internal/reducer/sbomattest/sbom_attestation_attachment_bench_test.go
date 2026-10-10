@@ -58,7 +58,7 @@ func benchmarkSBOMAttachmentCorpus(documentCount int) []facts.Envelope {
 			},
 			facts.Envelope{
 				FactID:   docID + "-referrer",
-				FactKind: facts.OCIImageReferrerFactKind,
+				FactKind: chain.OCIImageReferrerFactKind,
 				Payload: map[string]any{
 					"subject_digest":      subjectDigest,
 					"referrer_digest":     fmt.Sprintf("sha256:%064x", i+1),

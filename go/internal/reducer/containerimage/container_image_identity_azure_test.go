@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 const testAzureImageRepository = "contoso.azurecr.io/team/api"
@@ -36,7 +37,7 @@ func TestBuildContainerImageIdentityDecisionsConsumesAzureDigestReference(t *tes
 		),
 		ociImageFactForRepository(
 			"azure-oci-manifest",
-			facts.OCIImageManifestFactKind,
+			chain.OCIImageManifestFactKind,
 			"contoso.azurecr.io",
 			"team/api",
 			testContainerDigest,
@@ -67,7 +68,7 @@ func TestBuildContainerImageIdentityDecisionsResolvesAzureTagOnlyWithRegistryEvi
 		azureImageReferenceFact("azure-image-tag", testAzureImageRepository+":prod", "", "tag"),
 		ociImageFactForRepository(
 			"azure-oci-tag",
-			facts.OCIImageTagObservationFactKind,
+			chain.OCIImageTagObservationFactKind,
 			"contoso.azurecr.io",
 			"team/api",
 			testContainerDigest,

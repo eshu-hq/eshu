@@ -2,7 +2,7 @@
 
 ## Observed read
 
-A read-only ops-qa plan on the 12,403-file repository used
+A read-only QA plan on the 12,403-file repository used
 `fact_records_workload_identity_workload_idx` to visit 6,291 retained
 `reducer_workload_identity` facts, then filtered approximately 6,283 facts
 from other scopes to return eight target rows. The first observed statement
@@ -30,7 +30,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_workload_names_scope_idx
 
 A disposable PostgreSQL 18 fixture had 62,910 interleaved fact rows, including
 6,291 workload identities and eight matching target-scope workload rows. The
-fixture removed its generic scope index to reproduce the *observed* ops-qa
+fixture removed its generic scope index to reproduce the *observed* QA
 baseline plan: a global workload-index bitmap scan followed by scope filtering.
 The real database retains `fact_records_scope_generation_idx` (scope, then
 generation and kind) and the migration 099 scope/generation keyset index. The

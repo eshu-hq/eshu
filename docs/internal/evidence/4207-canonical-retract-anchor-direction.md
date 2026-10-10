@@ -1,5 +1,8 @@
 # 4207 — canonical retract scanned the Directory label once per input path
 
+`repo-AD` to `repo-AO` in this note are stable one-to-one placeholders for the
+measured repository ids; the mapping is held outside the repository.
+
 ## The problem
 
 A full-corpus run ended with 11 `projector`/`source_local` work items dead-lettered
@@ -176,17 +179,17 @@ statements, the same budget.
 
 | Scope | Retract statements | Before | After |
 | --- | ---: | ---: | ---: |
-| `r_0a682efa` | 7 | 120.012 s timeout | **53.645 s** |
-| `r_225deaee` | 7 | 120.018 s timeout | **53.622 s** |
-| `r_3ab2a45c` | 7 | 120.006 s timeout | **53.645 s** |
-| `r_481e6111` | 7 | 120.017 s timeout | **53.300 s** |
-| `r_7d847de0` | 6 | 120.022 s timeout | **52.938 s** |
-| `r_879aeab2` | 8 | 120.026 s timeout | **52.952 s** |
-| `r_b0d5beed` | 123 | 122.775 s timeout | **1036.950 s (17m16.950s)** |
-| `r_da7154c8` | 6 | 120.023 s timeout | **52.936 s** |
-| `r_db17141a` | 6 | 120.025 s timeout | **47.306 s** |
-| `r_e4d34c93` | 6 | 120.015 s timeout | **47.343 s** |
-| `r_f48003a5` | 6 | 120.029 s timeout | **47.051 s** |
+| `repo-AD` | 7 | 120.012 s timeout | **53.645 s** |
+| `repo-AE` | 7 | 120.018 s timeout | **53.622 s** |
+| `repo-AF` | 7 | 120.006 s timeout | **53.645 s** |
+| `repo-AG` | 7 | 120.017 s timeout | **53.300 s** |
+| `repo-AH` | 6 | 120.022 s timeout | **52.938 s** |
+| `repo-AI` | 8 | 120.026 s timeout | **52.952 s** |
+| `repo-AJ` | 123 | 122.775 s timeout | **1036.950 s (17m16.950s)** |
+| `repo-AK` | 6 | 120.023 s timeout | **52.936 s** |
+| `repo-AL` | 6 | 120.025 s timeout | **47.306 s** |
+| `repo-AM` | 6 | 120.015 s timeout | **47.343 s** |
+| `repo-AN` | 6 | 120.029 s timeout | **47.051 s** |
 
 Eleven of eleven retract phases completed, and all eleven work items went on to
 `succeeded`. Zero `phase-group retract statement … timed out` lines, against 44
@@ -205,7 +208,7 @@ MATCH (n:CloudFormationExport) WHERE n.repo_id = $repo_id AND …
 ```
 
 Each is a full label scan filtered afterwards, each drained 0 rows, and each
-costs ~26–28 s against this graph. `r_b0d5beed` runs 123 of them, which is the
+costs ~26–28 s against this graph. `repo-AJ` runs 123 of them, which is the
 whole 17 minutes. No single statement exceeds the 120 s per-statement budget, so
 none of this dead-letters — it is slow, not broken. It is the same defect family
 as the one fixed here at a different set of statements, and it is not addressed
@@ -253,7 +256,7 @@ mode, statement count and duration per scope. Both remain unchanged.
   sweep's own upsert clause, because a clean drain never wedges a generation and
   so never triggers the sweep. The re-projection it produced is the production
   path; how the work item got back to `pending` is not.
-- `bootstrap-index` exited 1 in the after arm. One repository (`r_dc9bd67e`,
+- `bootstrap-index` exited 1 in the after arm. One repository (`repo-AO`,
   158,615 facts) hit the 120 s budget once on a `structural_edges` chunk —
   `MATCH (c:Class {name: row.class_name, path: row.file_path…})`, a different
   phase and a different statement — and succeeded on retry. The queue ended

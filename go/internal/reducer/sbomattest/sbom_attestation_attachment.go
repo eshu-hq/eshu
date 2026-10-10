@@ -348,7 +348,7 @@ func sbomAttestationAttachmentFactKinds() []string {
 		chain.AttestationSLSAProvenanceFactKind,
 		chain.AttestationSignatureVerificationFactKind,
 		chain.SBOMWarningFactKind,
-		facts.OCIImageReferrerFactKind,
+		chain.OCIImageReferrerFactKind,
 		reducercontract.ContainerImageIdentityFactKind,
 	}
 }
@@ -443,7 +443,7 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 				payloadcore.PayloadString(envelope.Payload, "document_id"),
 				payloadcore.PayloadString(envelope.Payload, "statement_id"),
 			)
-		case facts.OCIImageReferrerFactKind:
+		case chain.OCIImageReferrerFactKind:
 			keys = append(
 				keys,
 				payloadcore.PayloadString(envelope.Payload, "subject_digest"),

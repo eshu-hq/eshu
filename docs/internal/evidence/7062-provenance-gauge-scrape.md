@@ -10,7 +10,7 @@ called their observers synchronously inside the OpenTelemetry observable-gauge
 callback. The callback runs on the meter collection goroutine while the reader
 holds its collection lock. `neo4jSessionRunner.Run` (`go/cmd/reducer/neo4j_wiring.go`)
 sets no transaction timeout and the collection context carries no deadline, so
-one stuck Bolt read held the lock forever. On ops-qa (reducer `sha-a49323c`,
+one stuck Bolt read held the lock forever. On the QA environment (reducer `sha-a49323c`,
 NornicDB) about 1630 scrape handlers queued behind it, the target went `up=0`,
 and no `eshu_dp_*` reducer series reached the metrics backend.
 
@@ -41,7 +41,7 @@ No schema, index, Cypher shape, or graph write changes.
 ## Regression proof (RED then GREEN)
 
 `TestProvenanceGaugesDoNotBlockMetricsCollection` registers the gauges over a
-graph reader whose `Run` blocks until its context is done (the ops-qa shape) and
+graph reader whose `Run` blocks until its context is done (the QA shape) and
 calls `ManualReader.Collect(context.Background())`.
 
 RED, on the unfixed wiring (`registerProvenanceCoverageGauges` calling the

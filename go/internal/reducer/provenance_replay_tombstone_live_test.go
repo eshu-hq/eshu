@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
@@ -455,7 +456,7 @@ func assertProvenanceReplayEndpoints(t *testing.T, envelopes []facts.Envelope) {
 			want["package:"+replayPayloadString(envelope.Payload, "package_id")] = true
 		case facts.PackageRegistryPackageVersionFactKind:
 			want["version:"+replayPayloadString(envelope.Payload, "version_id")] = true
-		case facts.OCIImageManifestFactKind:
+		case chain.OCIImageManifestFactKind:
 			want["digest:"+replayPayloadString(envelope.Payload, "digest")] = true
 		}
 	}

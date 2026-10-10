@@ -6,13 +6,19 @@
 #
 # Usage: live_backend_test_targets.py <ledger_path> <repo_root>
 import os
+from pathlib import Path
 import re
 import sys
+
+from live_tests_registry import load_ledger_text
 
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
 ledger_path, repo_root = sys.argv[1], sys.argv[2]
-text = open(ledger_path).read()
+try:
+    text = load_ledger_text(Path(ledger_path))
+except ValueError as error:
+    sys.exit(str(error))
 
 # The runner invokes go test with ESHU_LIVE_RUNNER tags defaulting to this
 # build tag: a CI-class row carrying any other tag would match zero tests

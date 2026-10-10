@@ -52,14 +52,16 @@ probe --backend >/dev/null 2>&1 && fail "missing --backend value passed"
 # tests and exit 0; the extractor rejects it so promotion stays a ledger edit)
 seed_dir="$(mktemp -d)"
 trap 'rm -rf "${seed_dir}"' EXIT
-printf 'version: 1\nrows:\n  - file: go/cmd/golden-corpus-gate/graph_row_tokens_live_test.go\n    tag: bogus_future_tag\n    class: ci\n    reason: seeded RED for the tag guard\n' >"${seed_dir}/ledger.yaml"
+flat_ledger="${seed_dir}/flat-ledger.yaml"
+python3 "${repo_root}/scripts/lib/live_tests_registry.py" flatten "${ledger}" >"${flat_ledger}"
+sed 's/^    tag: live_nornicdb_answer_truth$/    tag: bogus_future_tag/' "${flat_ledger}" >"${seed_dir}/ledger.yaml"
 tag_err="$(python3 "${targets}" "${seed_dir}/ledger.yaml" "${repo_root}" 2>&1)" && fail "wrong-tag ci row accepted"
 [[ "${tag_err}" == *"unexpected tag"* ]] || fail "wrong-tag rejection names no tag: ${tag_err}"
 
 # ── RED: unquoted '#' in a reason fails extraction, not silent truncation ──
 # (a YAML `#` after whitespace opens a comment: the row regex sees the full
 # line while a real parser truncates it, so the extractor must fail loud)
-printf 'version: 1\nrows:\n  - file: go/cmd/golden-corpus-gate/graph_row_tokens_live_test.go\n    tag: live_nornicdb_answer_truth\n    class: ci\n    reason: seeded RED for the truncation guard #7425\n' >"${seed_dir}/ledger-truncated.yaml"
+awk '/^    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job$/ && !changed { print "    reason: seeded RED for the truncation guard #7425"; changed = 1; next } { print }' "${flat_ledger}" >"${seed_dir}/ledger-truncated.yaml"
 trunc_err="$(python3 "${targets}" "${seed_dir}/ledger-truncated.yaml" "${repo_root}" 2>&1)" && fail "truncated-reason ci row accepted"
 [[ "${trunc_err}" == *"unquoted '#'"* ]] || fail "truncation rejection names no cause: ${trunc_err}"
 
@@ -166,7 +168,7 @@ for line in "${lines[@]}"; do
 		*) fail "target line pins no valid backends: ${line}" ;;
 	esac
 done
-ci_rows="$(python3 - "${ledger}" <<'EOF'
+ci_rows="$(python3 - "${flat_ledger}" <<'EOF'
 import re, sys
 print(sum(1 for _, cls in re.findall(r"^  - file: (\S+)\n    tag: .*\n    class: (\S+)\n", open(sys.argv[1]).read(), re.M) if cls == "ci"))
 EOF
@@ -202,7 +204,7 @@ awk '
 	target && /^    backends: neo4j$/ { print "    backends: both"; found = 1; next }
 	{ print }
 	END { if (!found) exit 1 }
-' "${ledger}" >"${seed_root}/specs/live-tests.v1.yaml" || fail "could not seed workload-count backend drift"
+' "${flat_ledger}" >"${seed_root}/specs/live-tests.v1.yaml" || fail "could not seed workload-count backend drift"
 seeded_plan="$(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${seed_root}/scripts/run-live-backend-tests.sh" --backend nornicdb)" ||
 	fail "could not plan misclassified workload-count row"
 assert_workload_count_neo4j_only "${seeded_plan}" &&

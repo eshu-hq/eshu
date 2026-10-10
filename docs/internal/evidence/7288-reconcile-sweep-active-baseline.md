@@ -26,7 +26,7 @@ and counted `status IN ('active', 'completed', 'superseded')` with no
 
 - The sweep's read ignored `pending`, so a forced full generation that was still
   queued or running left its scope overdue. Each selection cycle (about six
-  minutes on ops-qa) forced another full snapshot of the same commit, and the
+  minutes on the QA environment) forced another full snapshot of the same commit, and the
   projector claim superseded the older ones before they activated. A superseded
   generation then satisfied the sweep for a full interval although it never
   reached the graph.
@@ -34,7 +34,7 @@ and counted `status IN ('active', 'completed', 'superseded')` with no
   diffed against that commit skipped every change between the active commit and
   it until the next activated full reconciliation.
 
-A read-only ops-qa review on 2026-09-27 confined the stacking to 2026-09-18
+A read-only QA review on 2026-09-27 confined the stacking to 2026-09-18
 through 2026-09-24, while the projector ran behind the selection cycle. From
 2026-09-25 the fleet writes about one reconcile full per scope per day and
 nearly all activate. That window also holds 3,028 reconcile fulls that made
@@ -144,7 +144,7 @@ or a sort.
 
 No-Regression Evidence: focused `go test` and `go test -race` pass on the
 collector, storage, scope, and telemetry packages; the plan table above shows
-no scan or sort regression. The ops-qa before/after comparison is a no-regression check only. Stacking has
+no scan or sort regression. The QA before/after comparison is a no-regression check only. Stacking has
 been near zero since 2026-09-25, so it cannot show a reduction, and projector lag
 must not be induced there to demonstrate one. After deploy, over a window of at
 least 48 hours, the acceptance is:

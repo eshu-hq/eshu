@@ -421,7 +421,7 @@ dedicated ci.job."
 	# The registry row is the other half: a workflow step with no row is not
 	# selected locally by make pre-pr, and a row pointing at a job that does not
 	# run the command is the same silence in the other direction.
-	local registry="${repo_root}/specs/ci-gates.v1.yaml"
+	local registry="${repo_root}/specs/ci-gates.d"
 	assert_output_has "${registry}" "scripts/test-ci-install-apt-packages.sh" \
 		"ci-wiring: ci-gates registry references this mirror" \
 		"ci-wiring: specs/ci-gates.v1.yaml does not reference scripts/test-ci-install-apt-packages.sh, so make pre-pr will not select it"

@@ -9,6 +9,10 @@ repository (12,402 files) that is 263,186 paths, the labels() filter was
 a cheap `impacted:Label` conjunct ahead of those terms and names the read in
 telemetry. It changes no returned row.
 
+`repo-A`, `repo-B`, `repo-G`, `repo-H`, `repo-J`, `repo-M`, and `repo-O` to
+`repo-Q` in this note are stable one-to-one placeholders for the measured
+repository ids; the mapping is held outside the repository.
+
 Performance Evidence: query shape `MATCH path = (start:Repository {id:
 $target_id})-[*1..4]->(impacted) WHERE impacted.id <> $target_id AND (...)
 RETURN ... ORDER BY depth, name, id LIMIT $limit` (`changeSurfaceLegacyCypher`,
@@ -131,32 +135,32 @@ the whole cost is the filter.
 
 | Repository | Files | Paths | Before ms | After ms | Faster | Before DB hits | After DB hits | Fewer hits | Rows |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| r_8946df89 | 12402 | 0 | 552 (546-574) | 145 (141-151) | 3.80x | 2,251,956 | 672,840 | 3.35x | 0 |
-| r_957cd853 (wordpress) | 7096 | 0 | 306 (302-311) | 89 (84-91) | 3.44x | 1,237,476 | 387,996 | 3.19x | 0 |
-| r_a09c7db8 | 3906 | 223 | 2172 (2150-2423) | 500 (491-507) | 4.34x | 9,104,374 | 2,540,923 | 3.58x | 11 |
-| r_33474efb | 3504 | 171 | 740 (731-769) | 174 (172-179) | 4.24x | 3,330,889 | 922,192 | 3.61x | 11 |
-| r_413930a8 | 1499 | 240 | 86 (84-87) | 24 (22-24) | 3.64x | 385,202 | 112,002 | 3.44x | 11 |
-| r_20871f7f | 1053 | 48,152 | 3833 (3815-4084) | 825 (819-839) | 4.65x | 19,801,576 | 5,301,721 | 3.73x | 11 |
-| r_0a05b11a | 369 | 116,510 | 12444 (12168-16187) | 2618 (2594-2870) | 4.75x | 60,738,803 | 16,233,176 | 3.74x | 11 |
-| r_2645123f | 146 | 644 | 88 (81-95) | 20 (19-33) | 4.29x | 266,282 | 76,258 | 3.49x | 11 |
-| r_4ff9d0b5 | 70 | 364 | 50 (49-51) | 13 (12-13) | 3.81x | 161,709 | 47,443 | 3.41x | 11 |
+| repo-B | 12402 | 0 | 552 (546-574) | 145 (141-151) | 3.80x | 2,251,956 | 672,840 | 3.35x | 0 |
+| repo-A (wordpress) | 7096 | 0 | 306 (302-311) | 89 (84-91) | 3.44x | 1,237,476 | 387,996 | 3.19x | 0 |
+| repo-M | 3906 | 223 | 2172 (2150-2423) | 500 (491-507) | 4.34x | 9,104,374 | 2,540,923 | 3.58x | 11 |
+| repo-J | 3504 | 171 | 740 (731-769) | 174 (172-179) | 4.24x | 3,330,889 | 922,192 | 3.61x | 11 |
+| repo-O | 1499 | 240 | 86 (84-87) | 24 (22-24) | 3.64x | 385,202 | 112,002 | 3.44x | 11 |
+| repo-P | 1053 | 48,152 | 3833 (3815-4084) | 825 (819-839) | 4.65x | 19,801,576 | 5,301,721 | 3.73x | 11 |
+| repo-Q | 369 | 116,510 | 12444 (12168-16187) | 2618 (2594-2870) | 4.75x | 60,738,803 | 16,233,176 | 3.74x | 11 |
+| repo-H | 146 | 644 | 88 (81-95) | 20 (19-33) | 4.29x | 266,282 | 76,258 | 3.49x | 11 |
+| repo-G | 70 | 364 | 50 (49-51) | 13 (12-13) | 3.81x | 161,709 | 47,443 | 3.41x | 11 |
 
 Row sets: for all nine repositories, the before and after path sets are equal
 in both directions in all four reads, and the 11-row output is identical in
-order. A first equivalence pass showed 24,285 extra paths for `r_0a05b11a`
+order. A first equivalence pass showed 24,285 extra paths for `repo-Q`
 on the after side. That repository was ingesting: the same statement read
 84,368, then 108,653, then 116,510 paths over a few minutes. The repeat above
 reads each variant twice and the four sets match, so the difference was graph
 growth, not the change.
 
 Order effect: running second was not uniformly faster or slower. The largest
-gap is `r_2645123f`, where the after statement had a median of 27 ms as first
+gap is `repo-H`, where the after statement had a median of 27 ms as first
 mover and 20 ms as second (3 runs each, with the 33 ms outlier among the
 first-mover runs). Comparing the before and after medians within the same
 position (first mover with first mover, second with second) gives 3.2x to 4.8x
 across the nine repositories, so the ordering does not explain the gain.
 
-`r_0a05b11a` (369 files, 116,510 paths) took 12.4 s before. That is past the
+`repo-Q` (369 files, 116,510 paths) took 12.4 s before. That is past the
 10 s `DefaultGraphReadTimeout`, so on today's data the shipped statement can
 hit the bounded-read deadline for it. After the change it is 2.6 s. The
 remaining cost there is the expansion itself, which this change does not
@@ -237,7 +241,7 @@ same rows.
 - No deployed latency. The request-time effect needs a rebuilt image replayed
   against the same corpus; only statement server time is measured here.
 - The expansion cost is unchanged: every path of up to four hops is still
-  enumerated. For `r_8946df89` the remaining 145 ms is that expansion.
+  enumerated. For `repo-B` the remaining 145 ms is that expansion.
 - A cheap emptiness pre-check (a pruned BFS before the enumeration) was
   measured at 57 to 66 ms in the diagnosis and is not part of this change.
 - The scoped-grant outgoing statement and environment-filtered or non-default

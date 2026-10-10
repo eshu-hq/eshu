@@ -96,13 +96,13 @@ that file. These bounded logs let an operator distinguish a long first replay
 from a skip-only restart and see which file stopped. No new metric label or
 steady-state span was added.
 
-## Ops-QA first rollout limit
+## QA first rollout limit
 
-The existing ops-qa database has no ledger and is about 92 GB. Its replay time
+The existing QA database has no ledger and is about 92 GB. Its replay time
 and data-transform cost have not been measured. Before running this version
 there, preserve a recoverable database copy and rehearse the replay against it
 with a 30-minute abort cutoff. Quiesce application reads and writes before the
 live schema Job, verify receipts and a skip-only rerun, then restore workloads.
 The cutoff is a decision point, not a completion estimate. A graph marker, a
 synced Argo revision, and an empty local fixture do not establish that the
-ops-qa corpus is ready. No live ops-qa mutation was performed for this note.
+QA corpus is ready. No live QA mutation was performed for this note.

@@ -45,8 +45,12 @@ func TestMarkProjectionWriteStartedFenceSync(t *testing.T) {
 			t.Fatalf("hold the fence row: %v", err)
 		}
 		queue := NewProjectorQueue(SQLDB{DB: control}, "proof-worker", time.Minute)
-		if err := queue.MarkProjectionWriteStarted(ctx, work); !errors.Is(err, failure.ErrWorkWriteMarkerDeferred) {
+		err = queue.MarkProjectionWriteStarted(ctx, work)
+		if !errors.Is(err, failure.ErrWorkWriteMarkerDeferred) {
 			t.Fatalf("MarkProjectionWriteStarted on a held fence row = %v, want ErrWorkWriteMarkerDeferred", err)
+		}
+		if !errors.Is(err, failure.ErrWorkWriteMarkerFenceBusy) {
+			t.Fatalf("MarkProjectionWriteStarted on a held fence row = %v, want the fence-busy cause", err)
 		}
 		if err := holder.Rollback(); err != nil {
 			t.Fatalf("release holder: %v", err)
@@ -89,4 +93,31 @@ func TestMarkProjectionWriteStartedFenceSync(t *testing.T) {
 			t.Fatalf("fence = %d, want unchanged at %d", after, before)
 		}
 	})
+}
+
+// TestMarkProjectionWriteStartedMissingFenceRefuses is the #7907 missing-fence
+// proof: a scope whose fence row is gone is itself gone (the fence trigger
+// creates the row with the scope and the scope delete cascades to it), so the
+// marker refuses immediately through the refusal classifier instead of
+// spinning the deferral bound like a busy fence.
+func TestMarkProjectionWriteStartedMissingFenceRefuses(t *testing.T) {
+	control := heartbeatProofDB(t, writeMarkerInterleaveSeed)
+	work := heartbeatProofWork("gen-il")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if _, err := control.ExecContext(ctx, `DELETE FROM ingestion_scopes WHERE scope_id = 'scope-hb'`); err != nil {
+		t.Fatalf("delete scope-hb: %v", err)
+	}
+	if _, ok := fenceRow(t, control, "scope-hb"); ok {
+		t.Fatal("scope-hb still has a claim fence row after the scope delete")
+	}
+	queue := NewProjectorQueue(SQLDB{DB: control}, "proof-worker", time.Minute)
+	start := time.Now()
+	err := queue.MarkProjectionWriteStarted(ctx, work)
+	if !errors.Is(err, failure.ErrWorkSuperseded) {
+		t.Fatalf("MarkProjectionWriteStarted on a gone scope = %v, want ErrWorkSuperseded without deferring", err)
+	}
+	if got := time.Since(start); got > 10*time.Second {
+		t.Fatalf("missing-fence refusal took %v, want one immediate attempt", got)
+	}
 }

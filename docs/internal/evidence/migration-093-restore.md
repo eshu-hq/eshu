@@ -4,7 +4,7 @@ Issue #7002: #6785 and #6923 edited migration
 `093_cross_scope_completion_queue.sql` after it had shipped and been applied.
 The bootstrap checksum guard in `applySchemaMigrations`
 (`go/internal/storage/postgres/schema_bootstrap_lock.go`) then refused to run
-on any database that had recorded the original 093. On ops-qa that stopped
+on any database that had recorded the original 093. On the QA environment that stopped
 schema bootstrap at migration 111, so migrations 112-119 never ran and the
 `sha-a49323c` rollout's pods failed `/readyz`. The change restores 093 to its
 shipped bytes (sha256 `c95cae27…`) and accepts the two edited checksums

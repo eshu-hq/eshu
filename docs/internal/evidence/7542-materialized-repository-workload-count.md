@@ -140,7 +140,7 @@ event without a repository ID attribute. No queue or write path runs here.
 
 Performance Evidence: before this change, a replay of the original saved
 argument sets (cold on set 0, then ten warm, concurrency 1, 22 calls, all HTTP
-200) on the ops-qa image `sha-2f0388b` measured `GET /api/v0/repositories/{repo_id}/context`
+200) on the QA image `sha-2f0388b` measured `GET /api/v0/repositories/{repo_id}/context`
 at cold 2.828 s and warm p95 (max of ten samples) 5.109 s, and MCP `get_repo_context` at cold 1.139 s and
 warm p95 4.150 s. The slow sets were the 7,097-file repository (4.0 to 5.1 s) and
 the 12,403-file repository (1.1 to 2.8 s); the other seven sets were 0.15 to 0.50 s.
@@ -150,7 +150,7 @@ The two slowest `eshu-api` request traces (Tempo trace ids beginning `4af8bc35` 
 remaining 155 ms and about 980 ms are the coverage read (11 and 48 ms) and the
 graph and other reads, which this note does not break down further.
 
-Statement timings on the ops-qa physical reader (read-only session, 15 s statement
+Statement timings on the QA physical reader (read-only session, 15 s statement
 timeout, `PREPARE` plus `EXPLAIN (ANALYZE, BUFFERS)`, one warm-up round then four
 rounds with alternating order): the names read this change removes from context took
 a median 842.4 ms (834.5 to 850.7) on the 12,403-file repository and 3,805.3 ms

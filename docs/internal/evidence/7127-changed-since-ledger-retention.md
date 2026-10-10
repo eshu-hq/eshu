@@ -343,7 +343,7 @@ Other results:
 
 ## Not measured
 
-- The same statements on ops-qa. The writer stays off there until this
+- The same statements on the QA environment. The writer stays off there until this
   merges; the orphan probe is to be run by hand during the dark window (ruling
   8.7 addition).
 - The orphan rate. Its source, the prior-fence fix, is PR-3e.

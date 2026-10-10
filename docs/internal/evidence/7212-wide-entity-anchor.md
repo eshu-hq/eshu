@@ -61,7 +61,7 @@ fallback. The bound parameters are `$entity_id` and the grant lists only.
 
 ## Baseline
 
-The baseline is the image before this change, on ops-qa, 2026-10-07. A step-1a
+The baseline is the image before this change, on the QA environment, 2026-10-07. A step-1a
 warm sweep sent 20 calls for each cell and computed the nearest-rank p95:
 
 | id class | API p95 | MCP p95 |
@@ -70,16 +70,16 @@ warm sweep sent 20 calls for each cell and computed the nearest-rank p95:
 | absent id | 1.137 s | 1.202 s |
 | id on an old anchor label | 0.109 s | 0.111 s |
 
-On ops-qa, 29.7% of id-bearing nodes are fallback-only (263,344 of 886,253).
+On the QA environment, 29.7% of id-bearing nodes are fallback-only (263,344 of 886,253).
 Most of them are on uid-constrained labels outside the old list. For each of
 those ids, the shipped path sends two statements, and the second statement is an
 AllNodesScan.
 
 ## Performance Evidence
 
-Performance Evidence: a read-only ops-qa PROFILE (run 558cb48fdede) planned the widened anchor as 124 NodeUniqueIndexSeek operators with no scan, at 124 db hits on a miss, and answered fallback-only ids in 1 to 2 ms server time (result_consumed_after) against 940 to 1235 ms for the shipped fallback, with an identical row; the local cost bench (run cf7541cb485f, bar set B2, PASS) measured the cold compile at a 226 ms median and the cached-plan cost at +0.593 ms.
+Performance Evidence: a read-only QA PROFILE (run 558cb48fdede) planned the widened anchor as 124 NodeUniqueIndexSeek operators with no scan, at 124 db hits on a miss, and answered fallback-only ids in 1 to 2 ms server time (result_consumed_after) against 940 to 1235 ms for the shipped fallback, with an identical row; the local cost bench (run cf7541cb485f, bar set B2, PASS) measured the cold compile at a 226 ms median and the cached-plan cost at +0.593 ms.
 
-### Plan, miss cost, and row identity (ops-qa, read-only PROFILE)
+### Plan, miss cost, and row identity (the QA environment, read-only PROFILE)
 
 Run 558cb48fdede, 2026-10-07, Neo4j Bolt read mode. It is not a latency sweep.
 PROFILE inflates server time. There is one observation per round, in 3 rounds,
@@ -151,7 +151,7 @@ does, each schema ensure starts an epoch.
 
 | candidate | expected saving | cheapest proof | old | new | accuracy | concurrency | disposition |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| widen the Neo4j anchor to all 124 constrained labels | about 1.1 s per fallback-only request | ops-qa PROFILE 558cb48fdede and local bench cf7541cb485f | 940 to 1235 ms (fallback, PROFILE, result_consumed_after) | 1 to 2 ms (anchor, PROFILE, result_consumed_after) | same row (P3) | read-only; no lock, queue, or worker | proven |
+| widen the Neo4j anchor to all 124 constrained labels | about 1.1 s per fallback-only request | QA PROFILE 558cb48fdede and local bench cf7541cb485f | 940 to 1235 ms (fallback, PROFILE, result_consumed_after) | 1 to 2 ms (anchor, PROFILE, result_consumed_after) | same row (P3) | read-only; no lock, queue, or worker | proven |
 | ranked top-40 cut | smaller compile | same bench, informational | not applicable | 133 ms / 93 ms cold t_first | same row | read-only | rejected: labels below the cut keep paying about 1.1 s each request |
 
 Classification: handler win for fallback-only ids, on the plan and server-time
@@ -216,9 +216,9 @@ widened anchor.
 
 NOT_CHECKED:
 
-- The R (restart) and P (production) plan-epoch regimes on ops-qa: epoch
+- The R (restart) and P (production) plan-epoch regimes on the QA environment: epoch
   frequency, replan events, and cache evictions.
-- How many nodes the 110 extra labels hold on ops-qa. The PROFILE checked the
+- How many nodes the 110 extra labels hold on the QA environment. The PROFILE checked the
   five most populated fallback-only labels.
-- The entity-context request mix on ops-qa (the fallback-only and miss shares).
+- The entity-context request mix on the QA environment (the fallback-only and miss shares).
 - Whether the schema ensure clears the plan caches (see the per-epoch model).

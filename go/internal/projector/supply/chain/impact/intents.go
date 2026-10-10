@@ -20,10 +20,10 @@ var candidateFactKinds = []string{
 	facts.SecurityAlertRepositoryAlertFactKind,
 	facts.PackageRegistryPackageFactKind,
 	chain.SBOMComponentFactKind,
-	facts.OCIImageManifestFactKind,
-	facts.OCIImageIndexFactKind,
-	facts.OCIImageTagObservationFactKind,
-	facts.OCIImageReferrerFactKind,
+	chain.OCIImageManifestFactKind,
+	chain.OCIImageIndexFactKind,
+	chain.OCIImageTagObservationFactKind,
+	chain.OCIImageReferrerFactKind,
 }
 
 // BuildSupplyChainImpactReducerIntent enqueues one supply_chain_impact
@@ -63,10 +63,10 @@ func triggerFact(envelope facts.Envelope) bool {
 		facts.SecurityAlertRepositoryAlertFactKind,
 		facts.PackageRegistryPackageFactKind,
 		chain.SBOMComponentFactKind,
-		facts.OCIImageManifestFactKind,
-		facts.OCIImageIndexFactKind,
-		facts.OCIImageTagObservationFactKind,
-		facts.OCIImageReferrerFactKind:
+		chain.OCIImageManifestFactKind,
+		chain.OCIImageIndexFactKind,
+		chain.OCIImageTagObservationFactKind,
+		chain.OCIImageReferrerFactKind:
 		return true
 	default:
 		return false
@@ -87,10 +87,10 @@ func reason(envelope facts.Envelope) string {
 		return "vulnerability suppression evidence observed"
 	}
 	switch envelope.FactKind {
-	case facts.OCIImageManifestFactKind,
-		facts.OCIImageIndexFactKind,
-		facts.OCIImageTagObservationFactKind,
-		facts.OCIImageReferrerFactKind:
+	case chain.OCIImageManifestFactKind,
+		chain.OCIImageIndexFactKind,
+		chain.OCIImageTagObservationFactKind,
+		chain.OCIImageReferrerFactKind:
 		return "OCI image subject evidence observed"
 	}
 	return "supply-chain vulnerability evidence observed"

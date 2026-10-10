@@ -5,6 +5,9 @@ results and the request includes `language` or `exact=true`. This is a
 follow-up to the merged #7237 read-path work in
 `7237-query-read-paths.md`; the deployed endpoint target remains separate.
 
+`repo-B` in this note is a stable placeholder for the measured repository id;
+the mapping is held outside the repository.
+
 ## Failure and local fix proof
 
 The old handler fetched `limit+1` name and source rows from Postgres, then
@@ -33,8 +36,8 @@ zero. Warm alternating `EXPLAIN ANALYZE` samples were about 0.05–0.06 ms for
 both source shapes; this small fixture is a correctness proof, not a latency
 estimate for the deployed corpus. The owned fixture was removed.
 
-Read-only ops-qa `EXPLAIN (ANALYZE, BUFFERS)` checked the recorded
-`showImage`/JavaScript request in `repository:r_8946df89` with SQL probe limit
+Read-only QA `EXPLAIN (ANALYZE, BUFFERS)` checked the recorded
+`showImage`/JavaScript request in `repository:repo-B` with SQL probe limit
 11 and a 3-second statement timeout. The warm name read was 6.37 ms baseline
 versus 6.46 ms with language in SQL, both at 828 buffer hits and eight rows.
 The warm source read was 81.77 versus 81.79 ms, both at 2,988 hits and 11

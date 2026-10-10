@@ -23,16 +23,21 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-registry="${repo_root}/specs/ci-gates.v1.yaml"
+registry="${ESHU_CI_GATES_DOC_REGISTRY_PATH:-${repo_root}/specs/ci-gates.v1.yaml}"
 lib_dir="${repo_root}/scripts/lib"
 output_path="${ESHU_CI_GATES_DOC_OUTPUT_PATH:-${repo_root}/docs/public/reference/ci-gates.md}"
+# shellcheck source=lib/ci-gates-resolved-fixtures.sh
+source "${lib_dir}/ci-gates-resolved-fixtures.sh"
 
 [[ -f "${registry}" ]] || {
 	printf 'generate-ci-gates-doc: registry not found: %s\n' "${registry}" >&2
 	exit 1
 }
 
-gate_count="$(rg -c '^  - id: ' "${registry}")"
+flat_registry="$(mktemp)"
+trap 'rm -f "${flat_registry}"' EXIT
+ci_gates_flat_view "${registry}" "${flat_registry}" "${repo_root}" || exit 1
+gate_count="$(awk '/^gates:/{inside=1;next} inside && /^  - id: /{n++} inside && /^[^ #]/{exit} END{print n+0}' "${flat_registry}")"
 
 {
 	printf '# CI Gates Reference\n\n'
@@ -66,7 +71,7 @@ gate_count="$(rg -c '^  - id: ' "${registry}")"
 	printf '| Gate id | Name | Category | Tier | Blocking | Local execution | CI workflow / job | Triggers |\n'
 	printf '| --- | --- | --- | --- | --- | --- | --- | --- |\n'
 
-	awk -f "${lib_dir}/ci-gates-doc-parse.awk" "${registry}"
+	awk -f "${lib_dir}/ci-gates-doc-parse.awk" "${flat_registry}"
 } >"${output_path}"
 
 printf 'generate-ci-gates-doc: wrote %s (%s gates)\n' "${output_path}" "${gate_count}"

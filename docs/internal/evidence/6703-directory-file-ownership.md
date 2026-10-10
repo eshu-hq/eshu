@@ -60,13 +60,13 @@ it deletes only its nonce-tagged nodes and asserts no fixture residue. The
 live-test ledger registers this fixture as a Neo4j-only CI row under the
 runner's existing shared `live_nornicdb_answer_truth` build tag, so the
 blocking live-backend workflow executes it on a fresh Neo4j store.
-This local correctness fixture is separate from the read-only ops-qa timing
+This local correctness fixture is separate from the read-only QA timing
 corpus below.
 
 ## Before and after
 
 Performance Evidence: five interleaved same-store/same-corpus query-shim
-measurements on NornicDB v1.3.1, v1.3.3, and ops-qa Neo4j. The NornicDB figures are HTTP query
+measurements on NornicDB v1.3.1, v1.3.3, and QA Neo4j. The NornicDB figures are HTTP query
 response medians on the synthetic fixture above, not full-handler timings or
 planner output. Its `EXPLAIN` and `PROFILE` endpoints returned no usable plan
 or timing. Both tested releases improved on this fixture; no NornicDB
@@ -77,7 +77,7 @@ does not make a latency claim.
 | --- | ---: | ---: | --- |
 | NornicDB v1.3.3, two repositories, limit 50 | 110 ms | 63 ms | 100 rows, count 2 → 1 |
 | NornicDB v1.3.1, two repositories, limit 50 | 137 ms | 99 ms | 100 rows, count 2 → 1 |
-| ops-qa Neo4j 2026.08.1, one PHP repository, limit 50 | 16 ms | 21 ms | 50 rows, unchanged on live data |
+| QA Neo4j 2026.08.1, one PHP repository, limit 50 | 16 ms | 21 ms | 50 rows, unchanged on live data |
 
 The Neo4j measurements used read-only `PROFILE` on the same populated graph
 with `directory_repo_id` `ONLINE`: 9,260 matching File edges in the selected
@@ -114,7 +114,7 @@ The local NornicDB source checkout at `orneryd/NornicDB` commit `81542d88`
 shows top-level `UNWIND` routing in `pkg/cypher/unwind_routing.go` and
 traversal predicate evaluation in `pkg/cypher/traversal.go`; it is not
 proven to be the source of every tested image, so image behavior above is
-authoritative. The ops-qa Neo4j `PROFILE` comparison was read-only. The local
+authoritative. The QA Neo4j `PROFILE` comparison was read-only. The local
 disposable Neo4j regression seeded and removed only its nonce-tagged nodes.
-Disposable test containers and the temporary ops-qa port-forward were removed
+Disposable test containers and the temporary QA port-forward were removed
 after proof.

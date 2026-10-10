@@ -139,6 +139,6 @@ in any order.
 - The pinned `postgres@sha256:54451ecb...` image: the proofs ran on native
   PostgreSQL 18.6 because the Docker host is swept by other sessions.
 - Behaviour under real autovacuum timing for the TOAST relation.
-- The production payload size and compressibility on ops-qa.
+- The production payload size and compressibility on the QA environment.
 - The model read plan on a table with real statistics (the proof table has one
   row).

@@ -3,7 +3,7 @@
 ## Problem
 
 `find_cross_repo_dead_code` at default arguments returned
-`mcp_response_over_budget` (761,090 bytes against 262,144) for one ops-qa
+`mcp_response_over_budget` (761,090 bytes against 262,144) for one QA
 repository. In a 10-row page the `unknown` rows were about 13 KB each and
 12,381 bytes of each was `consumer_evidence`: the same 20 repository-level
 boundary items, byte-identical on every row.
@@ -67,7 +67,7 @@ unchanged by this rule (187,776), because every row there uses the fallback.
 The seeded violation puts the per-row evidence back but keeps the new response keys (the hoisted list and the per-row `consumer_evidence_source` and `consumer_evidence_count`), so it carries the boundary evidence twice. That is why it is larger than HEAD, which has neither; the test fails in both because both are over budget.
 
 The 824,864 figure is a synthetic fixture, not the live 761,090-byte reply; the
-live number is NOT_CHECKED after this change (no ops-qa access in this
+live number is NOT_CHECKED after this change (no QA access in this
 worktree).
 
 Classification invariance:

@@ -11,6 +11,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 const testGCPImageRepository = "us-docker.pkg.dev/team-artifacts/apps/api"
@@ -35,7 +36,7 @@ func TestBuildContainerImageIdentityDecisionsConsumesGCPDigestReference(t *testi
 		),
 		ociImageFactForRepository(
 			"gcp-oci-manifest",
-			facts.OCIImageManifestFactKind,
+			chain.OCIImageManifestFactKind,
 			"us-docker.pkg.dev",
 			"team-artifacts/apps/api",
 			testContainerDigest,
@@ -69,7 +70,7 @@ func TestBuildContainerImageIdentityDecisionsResolvesGCPTagOnlyWithRegistryEvide
 		gcpImageReferenceFact("gcp-image-tag", testGCPImageRepository+":prod", "", "tag"),
 		ociImageFactForRepository(
 			"gcp-oci-tag",
-			facts.OCIImageTagObservationFactKind,
+			chain.OCIImageTagObservationFactKind,
 			"us-docker.pkg.dev",
 			"team-artifacts/apps/api",
 			testContainerDigest,

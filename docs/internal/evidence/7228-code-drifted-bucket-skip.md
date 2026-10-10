@@ -6,7 +6,7 @@ band bucket. One repository's `code_drifted` item ran the pairs query for
 60+ minutes on CPU with no wait event and outlived its lease. This note
 records the shim proof, the three settled questions, and the fix.
 
-## Shim (local only, no ops-qa)
+## Shim (local only, no QA environment)
 
 `postgres:18` in a throwaway container, tables per migrations 111 + 117 +
 151 (band PK, lookup index, entity index). One repo `r_shim`: 4,181

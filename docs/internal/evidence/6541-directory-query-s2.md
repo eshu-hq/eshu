@@ -7,8 +7,8 @@ it. Corpus-scale timing was measured on the remote host and is summarised in
 [Corpus timing](#corpus-timing-measured-on-the-remote-host); the full run record
 is in [6541 corpus timing](6541-directory-query-s2-corpus-timing.md). Those
 figures are NornicDB on a synthetic 50-repository corpus. The same statement on
-Neo4j at ops-qa scale (804 repositories) is measured in
-[6704 / 6541 on Neo4j](6704-directory-query-neo4j-ops-qa.md). There the row
+Neo4j at QA scale (804 repositories) is measured in
+[6704 / 6541 on Neo4j](6704-directory-query-neo4j-qa-scale.md). There the row
 bound is global and the unscoped read answers in under 1 s.
 
 ## The change
