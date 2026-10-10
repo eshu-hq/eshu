@@ -70,6 +70,7 @@ cd "${repo_root}"
 : "${GATE_CONCURRENT_WORKERS:=0}"
 : "${GATE_CONCURRENT_REQUESTS:=20}"
 : "${GATE_CONCURRENT_REPORT:=}"
+: "${GATE_H1_CAPTURE_DIR:=}"
 : "${GATE_BUDGETS:=testdata/benchmarks/read-api-route-budgets.txt}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
 : "${GATE_WORK_REPORT:=}"
@@ -138,14 +139,21 @@ stack_up=0
 # it to the same rm -rf that clears everything else.
 api_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-api.log"
 mcp_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-mcp.log"
+if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+    mkdir -p "${GATE_H1_CAPTURE_DIR}"
+fi
 
 cleanup() {
 	local status=$?
+    if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+        printf '%s\n' "$status" > "${GATE_H1_CAPTURE_DIR}/script-exit.txt" 2>/dev/null || true
+    fi
 	for pid in "${bg_pids[@]:-}"; do
 		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
 	done
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/api.log" ]]; then
 		cp "${work_dir}/logs/api.log" "${api_log_preserve_path}" 2>/dev/null || true
+        if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then cp "${work_dir}/logs/api.log" "${GATE_H1_CAPTURE_DIR}/api.log" 2>/dev/null || true; fi
 	fi
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/mcp-server.log" ]]; then
 		cp "${work_dir}/logs/mcp-server.log" "${mcp_log_preserve_path}" 2>/dev/null || true
@@ -335,7 +343,12 @@ log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-labe
 	|| die "seed failed (see the reason printed above)"
 
 log "start eshu-api"
-start_bg api api_pid "${bin_dir}/eshu-api"
+if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+    # This environment assignment applies only to the spawned API process.
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:14317 start_bg api api_pid "${bin_dir}/eshu-api"
+else
+    start_bg api api_pid "${bin_dir}/eshu-api"
+fi
 if command -v lsof >/dev/null 2>&1; then
 	sleep 0.2 # give the process a moment to finish exec() before lsof inspects it
 	log "eshu-api binary provenance (lsof -p ${api_pid})"
@@ -343,8 +356,16 @@ if command -v lsof >/dev/null 2>&1; then
 fi
 api_ready=false
 for _ in $(seq 1 240); do
-	if curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1; then
-		api_ready=true
+	if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+        if bash "${repo_root}/scripts/ci/h1-readyz-probe.sh" "http://localhost:${GATE_API_PORT}/readyz" "${GATE_H1_CAPTURE_DIR}/readyz-canary.txt"; then
+            api_ready=true
+        else
+            api_ready=false
+        fi
+    elif curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1; then
+        api_ready=true
+    fi
+    if [[ "${api_ready}" == true ]]; then
 		break
 	fi
 	sleep 1
@@ -356,6 +377,9 @@ done
 # unique to this gate (see the port comment above), but this is a cheap extra
 # check that the process we started is still the one alive.
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
+if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+    python3 "${repo_root}/scripts/ci/h1-effective-config.py" "${api_pid}" "${GATE_H1_CAPTURE_DIR}/effective-config.json"
+fi
 
 log "start MCP HTTP transport"
 start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server"
@@ -377,11 +401,35 @@ else
 	log "sweep (${GATE_ITERATIONS} requests/route x ${GATE_RUNS} run(s))"
 fi
 gate_status=0
+if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+    {
+      printf 'source_sha=%s\n' "$(git rev-parse HEAD)"
+      printf 'api_binary_sha256=%s\n' "$(sha256sum "${bin_dir}/eshu-api" | awk '{print $1}')"
+      printf 'runner_binary_sha256=%s\n' "$(sha256sum "${bin_dir}/eshu-read-api-latency-gate" | awk '{print $1}')"
+      printf 'latency_budget_sha256=%s\n' "$(sha256sum "${GATE_BUDGETS}" | awk '{print $1}')"
+      printf 'work_budget_sha256=%s\n' "$(sha256sum "${GATE_WORK_BUDGETS}" | awk '{print $1}')"
+      printf 'seed_scopes=%s\nseed_nodes_per_label=%s\nseed_iac_facts=%s\nseed_shared_intents=%s\n' "${GATE_TOTAL_SCOPES}" "${GATE_NODES_PER_LABEL}" "${GATE_IAC_FACT_COUNT}" "${GATE_SHARED_INTENT_COUNT}"
+      printf 'workers=%s\nrequests_per_operation=%s\nruns=%s\n' "${GATE_CONCURRENT_WORKERS}" "${GATE_CONCURRENT_REQUESTS}" "${GATE_RUNS}"
+      printf 'go_version=%s\n' "$(go version)"
+      for service in postgres "${ESHU_GRAPH_BACKEND}"; do
+        container_id="$(docker compose "${compose_args[@]}" ps -q "$service")"
+        if [[ -n "$container_id" ]]; then
+          docker inspect "$container_id" --format "${service}_image_id={{.Image}}"
+          docker inspect "$container_id" --format "${service}_image_reference={{.Config.Image}}"
+        fi
+      done
+    } > "${GATE_H1_CAPTURE_DIR}/manifest.txt"
+fi
+ESHU_DIAG_HTTPTRACE_REPORT="${GATE_H1_CAPTURE_DIR:+${GATE_H1_CAPTURE_DIR}/httptrace.json}" \
+ESHU_DIAG_STAGE_DIR="${GATE_H1_CAPTURE_DIR}" \
 "${bin_dir}/eshu-read-api-latency-gate" "${gate_common_args[@]}" -skip-seed \
 	-budgets "${GATE_BUDGETS}" \
 	-work-budgets "${GATE_WORK_BUDGETS}" \
 	${gate_report_args[@]+"${gate_report_args[@]}"} || gate_status=$?
 
+if [[ -n "${GATE_H1_CAPTURE_DIR}" ]]; then
+    printf '%s\n' "${gate_status}" > "${GATE_H1_CAPTURE_DIR}/gate-exit.txt"
+fi
 if [[ "${gate_status}" -ne 0 ]]; then
 	# main.go already printed the specific reason (budget breach, coverage
 	# floor, or a required route not exercised) to stderr above; this

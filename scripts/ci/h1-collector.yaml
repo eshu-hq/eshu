@@ -1,0 +1,29 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:14317
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 32
+
+exporters:
+  file/traces:
+    path: /evidence/traces.jsonl
+    format: json
+  file/metrics:
+    path: /evidence/metrics.jsonl
+    format: json
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/metrics]

@@ -252,6 +252,10 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 // an error: that means eshu-api itself never came up, which is a gate setup
 // problem, not a per-route latency signal.
 func sweepOperation(client *http.Client, url, apiKey string, op Operation) (time.Duration, int, string, error) {
+	return sweepOperationTrace(client, url, apiKey, op, nil)
+}
+
+func sweepOperationTrace(client *http.Client, url, apiKey string, op Operation, capture *diagnosticHTTPTrace) (time.Duration, int, string, error) {
 	req, err := http.NewRequest(op.Method, url, bytes.NewBufferString(op.Body))
 	if err != nil {
 		return 0, 0, "", fmt.Errorf("build request: %w", err)
@@ -261,9 +265,18 @@ func sweepOperation(client *http.Client, url, apiKey string, op Operation) (time
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	if capture != nil {
+		req = capture.attach(req)
+	}
 	start := time.Now()
+	if capture != nil {
+		capture.setStart(start)
+	}
 	resp, err := client.Do(req)
 	elapsed := time.Since(start)
+	if capture != nil {
+		capture.setHeaders(elapsed)
+	}
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
@@ -281,6 +294,9 @@ func sweepOperation(client *http.Client, url, apiKey string, op Operation) (time
 		const maxMCPResponseBytes = 8 << 20
 		b, readErr := io.ReadAll(io.LimitReader(resp.Body, maxMCPResponseBytes+1))
 		elapsed = time.Since(start)
+		if capture != nil {
+			capture.setBody(elapsed)
+		}
 		if readErr != nil || len(b) > maxMCPResponseBytes {
 			return elapsed, http.StatusInternalServerError, "pilot response body could not be read within 8 MiB", nil
 		}

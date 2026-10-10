@@ -55,10 +55,21 @@ on:
       - 'scripts/lib/compose_verification_runtime_common.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - 'scripts/ci/go-mod-download-retry.sh'
+      - 'scripts/ci/h1-collector.yaml'
+      - 'scripts/ci/h1-effective-config.py'
+      - 'scripts/ci/h1-join-traces.py'
+      - 'scripts/ci/h1-stage-sampler.sh'
+      - 'scripts/ci/h1-readyz-probe.sh'
+      - 'scripts/ci/test-h1-*.py'
       - 'docker-compose.yaml'
       - 'docker-compose.read-api-latency-gate.yaml'
       - '.github/workflows/read-api-latency-gate.yml'
   workflow_dispatch:
+    inputs:
+      capture_h1_trace:
+        type: boolean
+        default: false
+        description: Capture H1 request, API and database timing for diagnosis
     # Manual trigger, for calibrating budgets on the CI runner class. There is
     # deliberately no api_ref input: an earlier version built an
     # operator-supplied ref here to produce a RED run on the runner class, but
@@ -114,12 +125,30 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+      - name: Start H1 diagnostic collector
+        if: ${{ inputs.capture_h1_trace == true }}
+        run: |
+          capture_dir="${RUNNER_TEMP}/methodology-h1"
+          mkdir -p "$capture_dir"
+          docker run -d --name eshu-h1-collector --network host \
+            -v "$capture_dir:/evidence" \
+            -v "${GITHUB_WORKSPACE}/scripts/ci/h1-collector.yaml:/etc/otelcol-contrib/config.yaml:ro" \
+            otel/opentelemetry-collector-contrib:0.143.0@sha256:3bc07732530c87c53f9103b01a3afed972fdeba26087a590c1098781736e58c2 \
+            --config=/etc/otelcol-contrib/config.yaml > "$capture_dir/collector-id.txt"
+          docker inspect eshu-h1-collector --format '{{.Image}}' > "$capture_dir/collector-image-id.txt"
+
       - name: Run scale and concurrent HTTP/MCP proof
         env:
           GATE_WORK_REPORT: ${{ runner.temp }}/methodology-work.json
           GATE_LATENCY_REPORT: ${{ runner.temp }}/methodology-latency.json
           GATE_CONCURRENT_REPORT: ${{ runner.temp }}/methodology-concurrency.json
         run: |
+          if [[ "${{ inputs.capture_h1_trace }}" == 'true' ]]; then
+            export GATE_H1_CAPTURE_DIR="${RUNNER_TEMP}/methodology-h1"
+            mkdir -p "$GATE_H1_CAPTURE_DIR"
+            bash scripts/ci/h1-stage-sampler.sh "$GATE_H1_CAPTURE_DIR" "$GATE_COMPOSE_PROJECT" > "$GATE_H1_CAPTURE_DIR/sampler.log" 2>&1 &
+            h1_sampler=$!
+          fi
           resource_report="${RUNNER_TEMP}/methodology-resources.txt"
           observer_stop="${RUNNER_TEMP}/.methodology-resource-observer-stop"
           rm -f "$observer_stop"
@@ -146,6 +175,15 @@ jobs:
           trap 'touch "$observer_stop"; kill "$observer" 2>/dev/null || true' EXIT
           gate_status=0
           bash scripts/verify-read-api-latency-gate.sh || gate_status=$?
+          if [[ -n "${GATE_H1_CAPTURE_DIR:-}" ]]; then
+            touch "$GATE_H1_CAPTURE_DIR/sampler-stop"
+            h1_sampler_status=0
+            wait "$h1_sampler" || h1_sampler_status=$?
+            printf '%s\n' "$h1_sampler_status" > "$GATE_H1_CAPTURE_DIR/sampler-exit.txt"
+            if [[ "$h1_sampler_status" -ne 0 && "$gate_status" -eq 0 ]]; then
+              gate_status=1
+            fi
+          fi
           touch "$observer_stop"
           observer_status=0
           wait "$observer" || observer_status=$?
@@ -162,6 +200,28 @@ jobs:
             fi
           done
           exit "$gate_status"
+      - name: Stop H1 diagnostic collector
+        if: ${{ always() && inputs.capture_h1_trace == true }}
+        run: |
+          capture_dir="${RUNNER_TEMP}/methodology-h1"
+          mkdir -p "$capture_dir"
+          docker stop --time 10 eshu-h1-collector > "$capture_dir/collector-stop.txt" 2>&1 || true
+          docker logs eshu-h1-collector > "$capture_dir/collector.log" 2>&1 || true
+          docker rm eshu-h1-collector > "$capture_dir/collector-rm.txt" 2>&1 || true
+          cp "${TMPDIR:-/tmp}/read-api-latency-gate-api.log" "$capture_dir/api.log" 2>/dev/null || true
+          printf 'collector_stop_utc=%s\n' "$(date -u +%FT%T.%NZ)" > "$capture_dir/collector-stop-utc.txt"
+      - name: Join H1 client and server traces
+        if: ${{ always() && inputs.capture_h1_trace == true }}
+        run: |
+          capture_dir="${RUNNER_TEMP}/methodology-h1"
+          python3 scripts/ci/h1-join-traces.py "$capture_dir" || true
+      - name: Archive H1 diagnostic capture
+        if: ${{ always() && inputs.capture_h1_trace == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodology-h1-${{ github.sha }}
+          path: ${{ runner.temp }}/methodology-h1/
+          if-no-files-found: error
       - name: Archive scale proof
         if: always()
         uses: actions/upload-artifact@v4
@@ -191,7 +251,7 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep jq
 
       - name: Test the work budget refresh script
-        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh
+        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh && python3 scripts/ci/test-h1-capture-wiring.py && python3 scripts/ci/test-h1-effective-config.py && python3 scripts/ci/test-h1-join-traces.py && python3 scripts/ci/test-h1-readyz-probe.py
 
   # #6965 phase 6: scripts/compare-backend-latency.sh reads two -latency-report
   # JSON legs and never runs the live gate itself, so its formulas and
