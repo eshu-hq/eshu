@@ -119,6 +119,40 @@ package. The collector, reducer, projector, storage, ifa, and mcp telemetry that
 reads and writes facts of these kinds is untouched; operator signals are
 identical before and after.
 
+No-Regression Evidence (#6950 batch 4e, supply-chain sbom_attestation stanza): this change
+moves the eleven `chain.*` sbom_attestation compat entries' Go importers (nine fact-kind
+and schema-version constants plus the `<Family>FactKinds`/
+`<Family>SchemaVersion` accessors) off the transitional `facts.SBOM*` and
+`facts.Attestation*` compat spellings and deletes the emptied stanza from
+`compat_supply_chain.go`. No fact-kind string, payload shape, registry entry, or executable
+statement changes: across 55 Go files, every production hunk requalifies an identifier or
+import path only, every other hunk is a package-doc link rewording, a ledger row, or the
+compat stanza's own deletion, and the build resolves with no dangling reference.
+Measurement: identical before/after outcomes (ledger:6950-supply-batch4e-before, ledger:6950-supply-batch4e-after). The command is `go test -count=1`
+over the 7 affected package targets (per-side counts in the
+cited rows) on baseline `652af9751a` vs measurement commit `d286fc683b`
+(this Evidence note and the two ledger rows are the only later changes):
+607 packages ok with the same single pre-existing #7865 failure on both sides, with the
+ok-package set byte-identical after timing strip. `go test -list` inventory is identical
+on both sides (9657 Test names plus 143 benchmarks). Backend/version:
+go1.26.9 linux/amd64, in-memory; no backend touched. Input shape: n/a (no
+runtime input). Terminal queue/row counts: none — no queue, lease, Cypher,
+or SQL path is touched. Contract gates green on the branch:
+`verify-fact-kind-registry.sh` (generated artifacts byte-identical),
+`verify-factschema-diff.sh` (no breaking changes),
+`verify-payload-usage-manifest.sh`, and `verify-contracttest.sh`,
+plus `precommit-go.sh surface` (no MCP tool-surface drift). The change
+is safe because it cannot alter runtime behavior: the compiler resolves the
+same constants through their new paths, and the compat deletion is
+compile-enforced total — any missed caller would fail the build.
+
+No-Observability-Change (#6950 batch 4e, supply-chain sbom_attestation stanza): this package
+carries no instrumentation (see Telemetry above) and the move adds, removes,
+or renames no metric, span, structured log, or status field in any touched
+package. The collector, reducer, projector, and cmd telemetry that
+reads and writes facts of these kinds is untouched; operator signals are
+identical before and after.
+
 ## Related docs
 
 - `docs/public/reference/fact-schema-versioning.md`
