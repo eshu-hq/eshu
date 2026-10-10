@@ -3,6 +3,12 @@
 # Standard and coverage boundary: docs/internal/query-engineering.md.
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Git hooks export repository-local variables that change how nested Git
+# commands resolve this checkout. Resolve the proof from its script location.
+git_local_vars="$(git rev-parse --local-env-vars)"
+while IFS= read -r git_local_var; do
+ [[ -z "$git_local_var" ]] || unset "$git_local_var"
+done <<< "$git_local_vars"
 mode="${1:---live}"
 case "$mode" in --static|--live) ;; *) printf 'usage: %s [--static|--live]\n' "$0" >&2; exit 2 ;; esac
 artifact_dir="${ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR:-$repo_root/.proof-artifacts/query-methodology}"
