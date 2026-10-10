@@ -159,9 +159,16 @@ func TestMarkedGuardBeforeTextReversesTheChange(t *testing.T) {
 		}
 	}
 	code := markGuardCommentPattern.ReplaceAllString(before, "")
-	for _, gone := range []string{"marker_spared", "waiting_generation", "projection_write_started_at"} {
+	for _, gone := range []string{"marker_spared", "projection_write_started_at"} {
 		if strings.Contains(code, gone) {
 			t.Fatalf("before text still contains %q outside comments", gone)
+		}
+	}
+	// waiting_generation stays: the #7473 delta hold reuses the alias. The
+	// #7469 holds must be gone as blocks instead.
+	for _, gone := range []string{markGuardSnapshotHold, markGuardLockTimeHold} {
+		if strings.Contains(before, gone) {
+			t.Fatalf("before text still contains a #7469 hold block")
 		}
 	}
 	roundTrip := before
@@ -184,6 +191,9 @@ func TestMarkedGuardBeforeTextReversesTheChange(t *testing.T) {
 	if strings.Count(roundTrip, holdsAnchor) != 1 {
 		t.Fatalf("holds anchor occurs %d times, want 1", strings.Count(roundTrip, holdsAnchor))
 	}
+	// The #7473 delta hold persists in the before text after this anchor,
+	// so re-applying the #7469 holds ahead of it reproduces the shipped
+	// query without naming it.
 	roundTrip = strings.Replace(roundTrip, holdsAnchor,
 		holdsAnchor+markGuardSnapshotHold+markGuardLockTimeHold, 1)
 	if roundTrip != claimProjectorWorkQuery {

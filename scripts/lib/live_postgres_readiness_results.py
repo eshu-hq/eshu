@@ -76,6 +76,28 @@ PACKAGES = {
             "TestProjectorClaimMarkedGuardPlanShapeAtScale",
             "TestProjectorClaimMarkedGuardLockSet",
         ),
+        "go/internal/storage/postgres/projector_queue_claim_full_guard_contention_live_test.go": (
+            "TestProjectorClaimFullGuardContention",
+        ),
+        "go/internal/storage/postgres/projector_queue_claim_full_guard_epq_live_test.go": (
+            "TestProjectorClaimDropsFullHolderClaimedAfterSnapshot",
+            "TestProjectorClaimFullGuardAgreesWithFenceAcrossClocks",
+        ),
+        "go/internal/storage/postgres/projector_queue_claim_full_guard_live_test.go": (
+            "TestProjectorClaimFullSurvivesNewerDelta",
+            "TestProjectorClaimFailedFullStillHoldsDelta",
+            "TestProjectorClaimHoldsDeltaBehindBackoffFull",
+            "TestProjectorClaimRunsDriftedFullBeforeNewerDelta",
+            "TestProjectorClaimStillSupersedesFullBehindNewerFull",
+            "TestProjectorClaimStillSupersedesDeltaBehindNewerDelta",
+            "TestProjectorClaimClaimsDeltaBehindTerminalFull",
+            "TestProjectorAckStillSupersedesFullBehindAckedDelta",
+        ),
+        "go/internal/storage/postgres/projector_queue_claim_full_guard_plan_live_test.go": (
+            "TestProjectorClaimFullGuardPlanShape",
+            "TestProjectorClaimFullGuardPlanShapeAtScale",
+            "TestProjectorClaimFullGuardLockSet",
+        ),
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),
