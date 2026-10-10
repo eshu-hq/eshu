@@ -337,8 +337,19 @@ guard is but with 525,000 active identity rows: 1,051 pages, 1,051 custom plans,
 0 generic plans in `pg_prepared_statements`, about 5 ms per page. The guard
 repeats the walk on its smaller seed (151 pages, 75,000 rows) and fails if
 `generic_plans` is not 0; with `force_generic_plan` set on that walk it fails
-with 151 of 151 executions generic. The 525,000-row run was a throwaway probe
-and is not committed.
+with 151 of 151 executions generic. Captures, in the capture directory
+`r3-on-761498/` beside `final-r10/`: `plan-guard-green.txt` (the live test at
+the final head, with the `auto mode: 151 pages, 75000 rows, generic_plans=0
+custom_plans=151` line), `plan-guard-red-force-generic.txt` (the same test with
+`force_generic_plan` set on the auto walk: the 151 of 151 failure), and
+`plan-guard-probe-525k-auto.txt` (the 525,000-row walk). The 525,000-row run
+was a separate throwaway probe, not a committed test: the guard's own seed is
+75,000 rows and its walk is capped at 1,000 pages.
+
+The identity cache metric section lives on its own page,
+`docs/public/reference/telemetry/metrics-identity-cache.md`, and the reducer
+and storage page keeps its previous text plus one pointer line. The earlier
+re-wrap that brought that section under the line cap is therefore moot.
 
 Correctness: `TestIdentityEpochIgnoresSupersededGenerationRowsLive` shows a
 delete on a superseded generation leaves the epoch unchanged and an insert or

@@ -21,7 +21,7 @@ Use this route map instead of reading every telemetry page front to back.
 | Which metric names should I graph? | [Metrics](metrics.md) |
 | Which headline panels should I import into Grafana? | The `eshu-operator-overview.json` dashboard under `docs/public/observability/dashboards/` (also linked in the Observability nav, top of this page) |
 | Which collector or ingestion counter changed? | [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) |
-| Which reducer, graph, storage, or correlation metric changed? | [Reducer And Storage Metrics](metrics-reducer-storage.md) |
+| Which reducer, graph, storage, or correlation metric changed? | [Reducer And Storage Metrics](metrics-reducer-storage.md); identity fact cache: [Identity Fact Cache Metrics](metrics-identity-cache.md) |
 | Where did time go for one request, scope, or graph write? | [Traces](traces.md) |
 | What exact error, repo, work item, or retry happened? | [Logs](logs.md) |
 | How do I stitch async service work together? | [Cross-Service Correlation](cross-service-correlation.md) |
