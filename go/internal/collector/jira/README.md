@@ -150,6 +150,29 @@ Service, ServiceMonitor, NetworkPolicy, and PodDisruptionBudget. Runtime
 credentials stay in Secret-backed environment variables referenced from
 `jiraCollector.extraEnv`.
 
+## Order-only search regression (#7926)
+
+No-Regression Evidence: `TestBoundedJQLPreservesOrderOnlyTargets` and
+`TestSearchIssuesAcceptsOrderOnlyTarget` fail on the pre-fix builder and pass
+after the fix. They cover the outbound search POST, explicit descending order,
+filtered targets, blank targets, and a successful empty window. Focused Jira
+and collector-command tests and race tests pass. The correction adds no
+provider requests, queue work, locks, or database/graph operations.
+
+Performance Evidence: `BenchmarkBoundedJQLFilteredTarget` uses the same
+`project = OPS ORDER BY priority DESC` target and one-hour UTC window before
+and after the correction. On Go 1.27.1, darwin/arm64, Apple M1 Max, three
+samples measured 958.8–1058 ns/op before and 932.7–1001 ns/op after. Both
+versions allocate 336 B/op in 10 allocations. These shared-host timings are
+descriptive; no speedup is claimed. This helper measurement does
+not establish provider latency, collection throughput, or downstream recovery.
+
+No-Observability-Change: the same bounded search uses `jira.fetch`, provider
+request/failure metrics, and workflow status. No provider response, credential,
+site, or issue identifier is added to logs, facts, or metric labels. Live
+scheduled collection and downstream MCP freshness remain to be verified after
+the reviewed rollout; local tests do not prove that terminal failures cleared.
+
 ## Related docs
 
 - `docs/public/reference/jira-evidence.md`
