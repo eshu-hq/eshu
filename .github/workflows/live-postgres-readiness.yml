@@ -31,6 +31,7 @@ on:
       - 'go/internal/reducer/maintenance/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/internal/reducer/status/**'
+      - 'go/internal/cigates/readiness_job_split_test.go'
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
@@ -70,6 +71,7 @@ on:
       - 'go/internal/reducer/maintenance/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/internal/reducer/status/**'
+      - 'go/internal/cigates/readiness_job_split_test.go'
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
@@ -96,6 +98,22 @@ permissions:
   contents: read
 
 jobs:
+  hermetic:
+    name: live-postgres-readiness hermetic
+    runs-on: ubuntu-latest
+    # The fake-Go runner checks every ledger-selected proof and its fail-closed
+    # accounting. Keep it in a separate job so it cannot consume the live
+    # PostgreSQL/Neo4j job's 60-minute budget.
+    timeout-minutes: 30
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Check runner fail-closed behavior
+        run: bash scripts/test-run-live-postgres-readiness-tests.sh
+
   live-postgres-readiness:
     name: live-postgres-readiness (postgres18)
     runs-on: ubuntu-latest
@@ -108,7 +126,8 @@ jobs:
     timeout-minutes: 60
     env:
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      # PRs get none). Only job-wide env exposes this boolean; service
+      # credentials and the login action receive the secrets directly.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     services:
       postgres:
@@ -177,9 +196,6 @@ jobs:
 
       - name: Install ripgrep for readiness fixture checks
         run: scripts/ci/install-apt-packages.sh ripgrep
-
-      - name: Check runner fail-closed behavior
-        run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
       - name: Check physical-standby fixture fail-closed behavior
         run: bash scripts/test-live-postgres-standby-fixture.sh

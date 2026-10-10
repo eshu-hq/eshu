@@ -3163,6 +3163,7 @@ gates:
       - "go/internal/reducer/maintenance/**"
       - "go/internal/testutil/postgresproof/**"
       - "go/internal/reducer/status/**"
+      - "go/internal/cigates/readiness_job_split_test.go"
       - "go/go.mod"
       - "go/go.sum"
       - "specs/live-tests.v1.yaml"
@@ -3188,6 +3189,7 @@ gates:
       workflow: live-postgres-readiness.yml
       job: "live-postgres-readiness (postgres18)"
       check_names:
+        - "live-postgres-readiness hermetic"
         - "live-postgres-readiness (postgres18)"
     requirements:
       - go
