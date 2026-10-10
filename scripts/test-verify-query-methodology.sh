@@ -14,6 +14,8 @@ run_shim() {
 }
 run_shim static --static
 [[ -s "$work/static-artifacts/identity.json" ]] || { printf 'static proof omitted frozen comparison identity\n' >&2; exit 1; }
+GIT_DIR="$work/missing-git" GIT_WORK_TREE=. GIT_PREFIX=go/internal/query/ run_shim inherited-git-env --static
+cmp "$work/static-artifacts/identity.json" "$work/inherited-git-env-artifacts/identity.json" || { printf 'hook Git environment changed frozen comparison identity\n' >&2; exit 1; }
 if rg -q '^docker ' "$work/static.log"; then printf 'static stage touched Docker\n' >&2; exit 1; fi
 if SHIM_OMIT=coverage run_shim missing-coverage --static; then printf 'missing coverage passed\n' >&2; exit 1; fi
 run_shim stale-coverage --static
