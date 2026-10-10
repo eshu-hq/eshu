@@ -55,7 +55,7 @@ references those forwarders alongside the posture accessors, which it
 reaches directly. The posture forwarders (`compat_cloud_posture.go`) were
 retired in #6950 once the last caller moved to the `cloud.<Name>` spelling.
 Every external caller that uses `facts.AWSFactKinds` /
-`facts.AzureFactKinds` / etc. — `go/cmd/capability-inventory/surfaces.go`,
+`cloud.AzureFactKinds` / etc. — `go/cmd/capability-inventory/surfaces.go`,
 `go/cmd/fact-kind-registry/main.go`,
 `go/cmd/eshu/component_schema_versions_test.go`,
 `go/internal/storage/postgres/facts_test.go`, and
@@ -187,6 +187,46 @@ No-Observability-Change (#6950 batch 4b, cloud terraform_state stanza): this
 package carries no instrumentation (see Telemetry above) and the move adds,
 removes, or renames no metric, span, structured log, or status field in any
 touched package. The collector, reducer, projector, and query telemetry that
+reads and writes facts of these kinds is untouched; operator signals are
+identical before and after.
+
+No-Regression Evidence (#6950 batch 4c, cloud azure stanza): this change
+moves the eighteen `cloud.*` azure compat entries' Go importers (sixteen
+fact-kind and schema-version constants plus the `AzureFactKinds` /
+`AzureSchemaVersion` accessors) off the transitional `facts.Azure*` compat
+spellings and deletes the emptied stanza from `compat_cloud.go`. No
+fact-kind string, payload shape, registry entry, or executable statement
+changes: across 77 files (76 code and guidance files plus the ledger
+rows; this note extends the README hunk), every production hunk
+requalifies an identifier or import path only; the mcp route marker
+for the azure inventory domain names the
+`cloud.` spelling the migration introduces (per the batch-3 `docs.` marker
+precedent); every other hunk is this note, a ledger row, a stale-comment or
+guidance reword, or the stanza's own deletion; and the build resolves with
+no dangling reference.
+Measurement: identical before/after outcomes (ledger:6950-cloud-batch4c-before, ledger:6950-cloud-batch4c-after). The command is `go test -count=1`
+over the 10 affected package targets (per-side counts in the
+cited rows) on baseline `aa3f6c9e5a` vs measurement commit `49a260851b`
+(this Evidence note and the two ledger rows are the only later changes):
+690 packages ok plus the same single pre-existing host-only
+`TestFetchChurnZombiesDrainedByReaper` failure (#7865, fails identically on
+the clean base) on both sides, with the ok-package set byte-identical
+after timing strip. `go test -list` inventory is identical on both sides
+(15658 names). Backend/version: go1.26.9 linux/amd64, in-memory; no
+backend touched. Input shape: n/a (no runtime input). Terminal queue/row
+counts: none — no queue, lease, Cypher, or SQL path is touched. Contract
+gates green on the branch: `verify-fact-kind-registry.sh` (generated
+artifacts byte-identical), `verify-factschema-diff.sh` (no breaking
+changes), `verify-payload-usage-manifest.sh`, and `verify-contracttest.sh`,
+plus `precommit-go.sh surface` (no MCP tool-surface drift). The change
+is safe because it cannot alter runtime behavior: the compiler resolves the
+same constants through their new paths, and the compat deletion is
+compile-enforced total — any missed caller would fail the build.
+
+No-Observability-Change (#6950 batch 4c, cloud azure stanza): this package
+carries no instrumentation (see Telemetry above) and the move adds, removes,
+or renames no metric, span, structured log, or status field in any touched
+package. The collector, reducer, projector, storage, and mcp telemetry that
 reads and writes facts of these kinds is untouched; operator signals are
 identical before and after.
 

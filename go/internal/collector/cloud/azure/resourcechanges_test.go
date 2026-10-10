@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func resourceChangesBoundary() Boundary {
@@ -58,11 +59,11 @@ func TestCollectResourceChangesEmitsBoundedFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("collect changes: %v", err)
 	}
-	changes := factsOfKind(result.Facts, facts.AzureResourceChangeFactKind)
+	changes := factsOfKind(result.Facts, cloud.AzureResourceChangeFactKind)
 	if len(changes) != 2 {
 		t.Fatalf("emitted %d change facts, want 2", len(changes))
 	}
-	if len(factsOfKind(result.Facts, facts.AzureCloudResourceFactKind)) != 0 {
+	if len(factsOfKind(result.Facts, cloud.AzureCloudResourceFactKind)) != 0 {
 		t.Fatal("resource-change lane must not emit azure_cloud_resource facts")
 	}
 	if result.ResourceChangeCount != 2 {

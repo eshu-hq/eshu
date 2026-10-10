@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 )
 
@@ -51,7 +52,7 @@ func TestPostgresCloudInventoryEvidenceLoaderExtractsPerProviderAccountID(t *tes
 					"asset_type":"compute.googleapis.com/Instance",
 					"project_id":"synthetic-gcp-project"
 				}`)},
-				{facts.AzureCloudResourceFactKind, azureID, []byte(`{
+				{cloud.AzureCloudResourceFactKind, azureID, []byte(`{
 					"arm_resource_id":"` + azureID + `",
 					"resource_type":"microsoft.compute/virtualmachines",
 					"subscription_id":"11111111-2222-3333-4444-555555555555",
@@ -131,14 +132,14 @@ func TestPostgresCloudInventoryEvidenceLoaderRejectsMalformedRequiredIdentityFor
 					"account_id":123456789012
 				}`)},
 				// subscription_id entirely absent.
-				{facts.AzureCloudResourceFactKind, azureMissingSubscriptionID, []byte(`{
+				{cloud.AzureCloudResourceFactKind, azureMissingSubscriptionID, []byte(`{
 					"arm_resource_id":"` + azureMissingSubscriptionID + `",
 					"resource_type":"microsoft.compute/virtualmachines",
 					"location":"eastus"
 				}`)},
 				// subscription_id present but a JSON bool, not a string. The old
 				// coerceJSONString(true) would have returned "true".
-				{facts.AzureCloudResourceFactKind, azureNonStringSubscriptionID, []byte(`{
+				{cloud.AzureCloudResourceFactKind, azureNonStringSubscriptionID, []byte(`{
 					"arm_resource_id":"` + azureNonStringSubscriptionID + `",
 					"resource_type":"microsoft.compute/virtualmachines",
 					"location":"eastus",

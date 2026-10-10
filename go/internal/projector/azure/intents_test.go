@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -29,7 +30,7 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 			name: "resource prefers source ref",
 			fact: facts.Envelope{
 				FactID:        "azure-resource-1",
-				FactKind:      facts.AzureCloudResourceFactKind,
+				FactKind:      cloud.AzureCloudResourceFactKind,
 				CollectorKind: "azure-collector",
 				SourceRef:     facts.Ref{SourceSystem: " azure-resource-graph "},
 			},
@@ -43,7 +44,7 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 			name: "relationship falls back to collector",
 			fact: facts.Envelope{
 				FactID:        "azure-relationship-1",
-				FactKind:      facts.AzureCloudRelationshipFactKind,
+				FactKind:      cloud.AzureCloudRelationshipFactKind,
 				CollectorKind: " azure-collector ",
 			},
 			build:         BuildRelationshipMaterializationReducerIntent,

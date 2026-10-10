@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -191,7 +192,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 
 		{
 			FactID: "azure-resource-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.AzureCloudResourceFactKind, SchemaVersion: facts.AzureCloudResourceSchemaVersion,
+			FactKind: cloud.AzureCloudResourceFactKind, SchemaVersion: cloud.AzureCloudResourceSchemaVersion,
 			CollectorKind: "azure", SourceRef: facts.Ref{SourceSystem: "azure"},
 			Payload: map[string]any{
 				"arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm",
@@ -200,7 +201,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		},
 		{
 			FactID: "azure-relationship-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.AzureCloudRelationshipFactKind, SchemaVersion: facts.AzureCloudRelationshipSchemaVersion,
+			FactKind: cloud.AzureCloudRelationshipFactKind, SchemaVersion: cloud.AzureCloudRelationshipSchemaVersion,
 			CollectorKind: "azure", SourceRef: facts.Ref{SourceSystem: "azure"},
 			Payload: map[string]any{
 				"source_arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm",

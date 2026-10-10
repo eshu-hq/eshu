@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
@@ -91,7 +92,7 @@ func decodeAzureCloudResourceForCloudInventory(env facts.Envelope) (azurev1.Clou
 // (postgresDefaultSchemaMajorVersion) rather than reading
 // fact_records.schema_version, which this loader's SQL does not select: both
 // collectors emit only major 1 today (facts.AWSResourceSchemaVersion,
-// facts.AzureCloudResourceSchemaVersion = "1.0.0"), and this loader already
+// cloud.AzureCloudResourceSchemaVersion = "1.0.0"), and this loader already
 // hardcodes v1 payload key names throughout (account_id, resource_id,
 // region, resource_type, ...), so this adds no new versioning assumption. A
 // future schema major bump for either fact kind needs this loader's SQL,
@@ -113,7 +114,7 @@ func cloudInventoryResolveAccountID(
 			return "", false
 		}
 		return strings.TrimSpace(resource.AccountID), true
-	case facts.AzureCloudResourceFactKind:
+	case cloud.AzureCloudResourceFactKind:
 		resource, err := decodeAzureCloudResourceForCloudInventory(facts.Envelope{
 			FactKind:      factKind,
 			SchemaVersion: postgresDefaultSchemaMajorVersion,

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // BenchmarkExtractAzureCloudResourceNodeRows measures the in-memory projection
@@ -21,7 +22,7 @@ func BenchmarkExtractAzureCloudResourceNodeRows(b *testing.B) {
 	envelopes := make([]facts.Envelope, 0, resourceCount)
 	for i := 0; i < resourceCount; i++ {
 		envelopes = append(envelopes, facts.Envelope{
-			FactKind: facts.AzureCloudResourceFactKind,
+			FactKind: cloud.AzureCloudResourceFactKind,
 			Payload: map[string]any{
 				"arm_resource_id":        fmt.Sprintf("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-%d", i),
 				"normalized_resource_id": fmt.Sprintf("/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm-%d", i),
@@ -61,7 +62,7 @@ func BenchmarkExtractAzureRelationshipEdgeRows(b *testing.B) {
 		armID := fmt.Sprintf("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-%d", i)
 		normalizedID := fmt.Sprintf("/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm-%d", i)
 		resourceEnvelopes = append(resourceEnvelopes, facts.Envelope{
-			FactKind: facts.AzureCloudResourceFactKind,
+			FactKind: cloud.AzureCloudResourceFactKind,
 			Payload: map[string]any{
 				"arm_resource_id":        armID,
 				"normalized_resource_id": normalizedID,
@@ -73,7 +74,7 @@ func BenchmarkExtractAzureRelationshipEdgeRows(b *testing.B) {
 		if i%2 == 1 {
 			prevNormalizedID := fmt.Sprintf("/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm-%d", i-1)
 			relationshipEnvelopes = append(relationshipEnvelopes, facts.Envelope{
-				FactKind: facts.AzureCloudRelationshipFactKind,
+				FactKind: cloud.AzureCloudRelationshipFactKind,
 				Payload: map[string]any{
 					"source_arm_resource_id":        armID,
 					"target_arm_resource_id":        fmt.Sprintf("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-%d", i-1),

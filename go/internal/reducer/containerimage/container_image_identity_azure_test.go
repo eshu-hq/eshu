@@ -11,6 +11,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const testAzureImageRepository = "contoso.azurecr.io/team/api"
@@ -18,8 +19,8 @@ const testAzureImageRepository = "contoso.azurecr.io/team/api"
 func TestContainerImageIdentityFactKindsIncludesAzureImageReferences(t *testing.T) {
 	t.Parallel()
 
-	if !slices.Contains(containerImageIdentityFactKinds(), facts.AzureImageReferenceFactKind) {
-		t.Fatalf("containerImageIdentityFactKinds() missing %q", facts.AzureImageReferenceFactKind)
+	if !slices.Contains(containerImageIdentityFactKinds(), cloud.AzureImageReferenceFactKind) {
+		t.Fatalf("containerImageIdentityFactKinds() missing %q", cloud.AzureImageReferenceFactKind)
 	}
 }
 
@@ -96,8 +97,8 @@ func azureImageReferenceFact(
 		FactID:           factID,
 		ScopeID:          "azure:tenant:subscription:demo:containerapps:global:resources",
 		GenerationID:     "generation-azure",
-		FactKind:         facts.AzureImageReferenceFactKind,
-		SchemaVersion:    facts.AzureImageReferenceSchemaVersion,
+		FactKind:         cloud.AzureImageReferenceFactKind,
+		SchemaVersion:    cloud.AzureImageReferenceSchemaVersion,
 		CollectorKind:    "azure",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.June, 13, 12, 0, 0, 0, time.UTC),

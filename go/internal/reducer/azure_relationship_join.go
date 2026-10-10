@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
@@ -48,7 +49,7 @@ func buildAzureCloudResourceJoinIndex(envelopes []facts.Envelope) (azureCloudRes
 	index := azureCloudResourceJoinIndex{byResourceID: make(map[string]string, len(envelopes))}
 	var quarantined []quarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.AzureCloudResourceFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AzureCloudResourceFactKind || env.IsTombstone {
 			continue
 		}
 		_, uid, resourceID, ok, err := azureCloudResourceNodeRow(env)
@@ -166,7 +167,7 @@ func ExtractAzureRelationshipEdgeRows(
 	rows := make([]map[string]any, 0, len(relationshipEnvelopes))
 
 	for _, env := range relationshipEnvelopes {
-		if env.FactKind != facts.AzureCloudRelationshipFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AzureCloudRelationshipFactKind || env.IsTombstone {
 			continue
 		}
 		relationship, err := decodeAzureCloudRelationship(env)

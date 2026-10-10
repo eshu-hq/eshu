@@ -10,7 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -152,7 +153,7 @@ func TestSmokeFixtureBackedSourceYieldsGeneration(t *testing.T) {
 	}
 	var resources int
 	for env := range collected.Facts {
-		if env.FactKind == facts.AzureCloudResourceFactKind {
+		if env.FactKind == cloud.AzureCloudResourceFactKind {
 			resources++
 		}
 	}
@@ -196,9 +197,9 @@ func TestSmokeFixtureBackedSourceYieldsResourceChangeGeneration(t *testing.T) {
 	var changes, resources int
 	for env := range collected.Facts {
 		switch env.FactKind {
-		case facts.AzureResourceChangeFactKind:
+		case cloud.AzureResourceChangeFactKind:
 			changes++
-		case facts.AzureCloudResourceFactKind:
+		case cloud.AzureCloudResourceFactKind:
 			resources++
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
@@ -78,7 +79,7 @@ func NewDNSRecordEnvelope(observation DNSRecordObservation, key redact.Key) (fac
 	}
 	targets, targetsTruncated := fingerprintDNSTargets(observation.Targets, recordType, key)
 
-	stableKey := facts.StableID(facts.AzureDNSRecordFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AzureDNSRecordFactKind, map[string]any{
 		"zone_normalized_id": zone.Normalized,
 		"record_type":        recordType,
 		"record_name":        recordName,
@@ -118,8 +119,8 @@ func NewDNSRecordEnvelope(observation DNSRecordObservation, key redact.Key) (fac
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AzureDNSRecordFactKind,
-		facts.AzureDNSRecordSchemaVersion,
+		cloud.AzureDNSRecordFactKind,
+		cloud.AzureDNSRecordSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, zone.Normalized+"|"+recordType+"|"+recordName),
 		observation.SourceURI,

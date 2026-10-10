@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func testRelationshipObservation() RelationshipObservation {
@@ -32,10 +32,10 @@ func TestNewRelationshipEnvelopeBuildsContractFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRelationshipEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.AzureCloudRelationshipFactKind {
-		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.AzureCloudRelationshipFactKind)
+	if env.FactKind != cloud.AzureCloudRelationshipFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, cloud.AzureCloudRelationshipFactKind)
 	}
-	if env.SchemaVersion != facts.AzureCloudRelationshipSchemaVersion {
+	if env.SchemaVersion != cloud.AzureCloudRelationshipSchemaVersion {
 		t.Fatalf("SchemaVersion = %q", env.SchemaVersion)
 	}
 	if env.CollectorKind != CollectorKind {

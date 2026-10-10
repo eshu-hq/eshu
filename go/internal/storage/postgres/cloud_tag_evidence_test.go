@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestPostgresCloudTagEvidenceLoaderMapsTagFacts proves the loader reads
@@ -29,13 +30,13 @@ func TestPostgresCloudTagEvidenceLoaderMapsTagFacts(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.AzureTagObservationFactKind, armID, []byte(`{
+				{cloud.AzureTagObservationFactKind, armID, []byte(`{
 					"arm_resource_id":"` + armID + `",
 					"normalized_resource_id":"` + armID + `",
 					"resource_type":"Microsoft.Compute/virtualMachines",
 					"tag_value_fingerprints":{"env":"az-env-marker","owner":"az-owner-marker"}
 				}`)},
-				{facts.AzureTagObservationFactKind, noTagsID, []byte(`{
+				{cloud.AzureTagObservationFactKind, noTagsID, []byte(`{
 					"arm_resource_id":"` + noTagsID + `",
 					"normalized_resource_id":"` + noTagsID + `",
 					"resource_type":"Microsoft.Storage/storageAccounts"
@@ -135,7 +136,7 @@ func TestPostgresCloudTagEvidenceLoaderDropsNonStringFingerprintValues(t *testin
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.AzureTagObservationFactKind, armID, []byte(`{
+				{cloud.AzureTagObservationFactKind, armID, []byte(`{
 					"arm_resource_id":"` + armID + `",
 					"normalized_resource_id":"` + armID + `",
 					"resource_type":"Microsoft.Compute/virtualMachines",

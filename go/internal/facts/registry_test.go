@@ -16,7 +16,7 @@ func TestCoreFactKindRegistryIncludesKnownFamilies(t *testing.T) {
 	kinds := CoreFactKinds()
 	for _, want := range []string{
 		AWSResourceFactKind,
-		AzureCloudResourceFactKind,
+		cloud.AzureCloudResourceFactKind,
 		cloud.TerraformStateResourceFactKind,
 		ServiceCatalogScorecardResultFactKind,
 		SemanticCodeHintFactKind,

@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 type mockLiveARMFallbackClient struct {
@@ -87,7 +88,7 @@ func TestExplicitLiveProviderARMFallbackEnrichesAllowlistedRows(t *testing.T) {
 		t.Fatalf("fallback call = %+v, want resource id and API version", call)
 	}
 
-	resource := factsOfKind(result.Facts, facts.AzureCloudResourceFactKind)[0]
+	resource := factsOfKind(result.Facts, cloud.AzureCloudResourceFactKind)[0]
 	extension := resource.Payload["extension"].(map[string]any)
 	data := extension["data"].(map[string]any)
 	fallback := data["armFallback"].(map[string]any)
@@ -173,7 +174,7 @@ func TestExplicitLiveProviderARMFallbackSkippedForUnallowlistedRows(t *testing.T
 	if len(armFallback.calls) != 0 {
 		t.Fatalf("arm fallback calls = %d, want 0", len(armFallback.calls))
 	}
-	warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+	warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 	if len(warnings) != 1 {
 		t.Fatalf("warnings = %d, want 1", len(warnings))
 	}
@@ -262,7 +263,7 @@ func TestExplicitLiveProviderARMFallbackFailuresOutrankSkippedRows(t *testing.T)
 			if err != nil {
 				t.Fatalf("Collect() error = %v, want nil", err)
 			}
-			warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+			warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 			if len(warnings) != 1 {
 				t.Fatalf("warnings = %d, want 1", len(warnings))
 			}
@@ -278,7 +279,7 @@ func TestExplicitLiveProviderARMFallbackFailuresOutrankSkippedRows(t *testing.T)
 			if len(armFallback.calls) != 1 {
 				t.Fatalf("arm fallback calls = %d, want 1", len(armFallback.calls))
 			}
-			resource := factsOfKind(result.Facts, facts.AzureCloudResourceFactKind)[1]
+			resource := factsOfKind(result.Facts, cloud.AzureCloudResourceFactKind)[1]
 			extension := resource.Payload["extension"].(map[string]any)
 			data := extension["data"].(map[string]any)
 			_, saved := data["armFallback"]
@@ -321,7 +322,7 @@ func TestExplicitLiveProviderARMFallbackSkipsInvalidResourceID(t *testing.T) {
 	if len(armFallback.calls) != 0 {
 		t.Fatalf("arm fallback calls = %d, want 0", len(armFallback.calls))
 	}
-	warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+	warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 	if len(warnings) != 1 {
 		t.Fatalf("warnings = %d, want 1", len(warnings))
 	}
@@ -380,7 +381,7 @@ func TestExplicitLiveProviderARMFallbackThrottleAndTimeoutAreWarnings(t *testing
 			if err != nil {
 				t.Fatalf("Collect() error = %v, want nil", err)
 			}
-			warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+			warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 			if len(warnings) != 1 {
 				t.Fatalf("warnings = %d, want 1", len(warnings))
 			}
@@ -428,13 +429,13 @@ func TestExplicitLiveProviderARMFallbackRejectsOversizedExtension(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
-	resource := factsOfKind(result.Facts, facts.AzureCloudResourceFactKind)[0]
+	resource := factsOfKind(result.Facts, cloud.AzureCloudResourceFactKind)[0]
 	extension := resource.Payload["extension"].(map[string]any)
 	data := extension["data"].(map[string]any)
 	if _, ok := data["armFallback"]; ok {
 		t.Fatalf("oversized arm fallback extension persisted: %#v", data["armFallback"])
 	}
-	warning := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)[0]
+	warning := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)[0]
 	if got := warning.Payload["warning_kind"]; got != azure.WarningRedaction {
 		t.Fatalf("warning_kind = %v, want redaction", got)
 	}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // BenchmarkCloudTagEvidenceRecordFromRow measures cloudTagEvidenceRecordFromRow
@@ -35,7 +36,7 @@ func BenchmarkCloudTagEvidenceRecordFromRow(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, ok := cloudTagEvidenceRecordFromRow(facts.AzureTagObservationFactKind, azureID, azurePayload); !ok {
+		if _, ok := cloudTagEvidenceRecordFromRow(cloud.AzureTagObservationFactKind, azureID, azurePayload); !ok {
 			b.Fatal("azure row unexpectedly dropped")
 		}
 		if _, ok := cloudTagEvidenceRecordFromRow(facts.GCPTagObservationFactKind, gcpID, gcpPayload); !ok {

@@ -6,7 +6,7 @@ package azure
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -30,7 +30,7 @@ func TestNewImageReferenceEnvelopeDigestFirstConfidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewImageReferenceEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.AzureImageReferenceFactKind {
+	if env.FactKind != cloud.AzureImageReferenceFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
 	if env.Payload["tag_digest_confidence"] != ImageConfidenceDigest {

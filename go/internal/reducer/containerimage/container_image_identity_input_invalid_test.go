@@ -10,6 +10,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // This file is the flagship regression suite for the cross-provider
@@ -65,7 +66,7 @@ func TestContainerImageIdentityHandlerQuarantinesAzureImageReferenceMissingOwnin
 
 	malformed := facts.Envelope{
 		FactID:   "malformed-azure-image",
-		FactKind: facts.AzureImageReferenceFactKind,
+		FactKind: cloud.AzureImageReferenceFactKind,
 		Payload: map[string]any{
 			// "owning_arm_resource_id" intentionally absent.
 			"owning_normalized_id":  "/subscriptions/demo/resourcegroups/rg/providers/microsoft.app/containerapps/api",

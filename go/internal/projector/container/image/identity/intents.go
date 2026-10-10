@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -30,7 +31,7 @@ var candidateFactKinds = []string{
 	facts.OCIImageTagObservationFactKind,
 	facts.OCIImageReferrerFactKind,
 	facts.AWSImageReferenceFactKind,
-	facts.AzureImageReferenceFactKind,
+	cloud.AzureImageReferenceFactKind,
 	facts.GCPImageReferenceFactKind,
 	facts.AWSRelationshipFactKind,
 	facts.CICDArtifactFactKind,
@@ -79,7 +80,7 @@ func triggerFact(envelope facts.Envelope) bool {
 		return true
 	case facts.AWSImageReferenceFactKind:
 		return true
-	case facts.AzureImageReferenceFactKind:
+	case cloud.AzureImageReferenceFactKind:
 		return true
 	case facts.GCPImageReferenceFactKind:
 		return true

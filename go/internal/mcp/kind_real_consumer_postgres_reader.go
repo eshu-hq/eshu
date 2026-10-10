@@ -24,8 +24,8 @@ import (
 //
 // This is round 2 of the #5474 review's storage/postgres blind spot: files
 // like cloud_identity_policy_evidence.go and cloud_resource_change_evidence.go
-// compare `factKind != facts.AzureIdentityObservationFactKind` /
-// `facts.AzureResourceChangeFactKind`, then json.Unmarshal the raw payload
+// compare `factKind != cloud.AzureIdentityObservationFactKind` /
+// `cloud.AzureResourceChangeFactKind`, then json.Unmarshal the raw payload
 // bytes and read specific fields (identity_type, role_class,
 // principal_fingerprint, operation, client_type, change_type, ...) — genuine
 // consumers with no typed decode seam and no locally-declared const (they

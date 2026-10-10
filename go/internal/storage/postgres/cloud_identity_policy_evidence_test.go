@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestPostgresCloudIdentityPolicyEvidenceLoaderMapsAzureIdentityFacts proves
@@ -29,7 +30,7 @@ func TestPostgresCloudIdentityPolicyEvidenceLoaderMapsAzureIdentityFacts(t *test
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
 				{
-					facts.AzureIdentityObservationFactKind,
+					cloud.AzureIdentityObservationFactKind,
 					armID,
 					"identity-stable-1",
 					[]byte(`{
@@ -42,7 +43,7 @@ func TestPostgresCloudIdentityPolicyEvidenceLoaderMapsAzureIdentityFacts(t *test
 					}`),
 				},
 				{
-					facts.AzureIdentityObservationFactKind,
+					cloud.AzureIdentityObservationFactKind,
 					"not-an-arm-id",
 					"identity-stable-ambiguous",
 					[]byte(`{

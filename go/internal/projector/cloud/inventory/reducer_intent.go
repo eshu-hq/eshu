@@ -5,6 +5,7 @@ package inventory
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -16,7 +17,7 @@ import (
 var cloudInventoryAdmissionSourceFactKinds = map[string]struct{}{
 	facts.AWSResourceFactKind:        {},
 	facts.GCPCloudResourceFactKind:   {},
-	facts.AzureCloudResourceFactKind: {},
+	cloud.AzureCloudResourceFactKind: {},
 }
 
 // BuildReducerIntent enqueues one reducer intent that

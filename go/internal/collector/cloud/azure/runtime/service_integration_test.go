@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -92,7 +93,7 @@ func TestServiceCommitsFactsAndGenerationState(t *testing.T) {
 		t.Fatalf("generation scope id %q != scope id %q", generationValue.ScopeID, scopeValue.ScopeID)
 	}
 	committedFacts := committer.factsByScope[scopeValue.ScopeID]
-	if len(factsOfKind(committedFacts, facts.AzureCloudResourceFactKind)) != 2 {
+	if len(factsOfKind(committedFacts, cloud.AzureCloudResourceFactKind)) != 2 {
 		t.Fatalf("committed %d resource facts, want 2", len(committedFacts))
 	}
 	for _, env := range committedFacts {

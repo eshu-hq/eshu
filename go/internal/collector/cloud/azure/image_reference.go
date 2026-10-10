@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
@@ -85,7 +86,7 @@ func NewImageReferenceEnvelope(observation ImageReferenceObservation, key redact
 		confidence = ImageConfidenceDigest
 	}
 
-	stableKey := facts.StableID(facts.AzureImageReferenceFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AzureImageReferenceFactKind, map[string]any{
 		"owning_normalized_id": owning.Normalized,
 		"image_reference":      imageReference,
 		"image_digest":         imageDigest,
@@ -117,8 +118,8 @@ func NewImageReferenceEnvelope(observation ImageReferenceObservation, key redact
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AzureImageReferenceFactKind,
-		facts.AzureImageReferenceSchemaVersion,
+		cloud.AzureImageReferenceFactKind,
+		cloud.AzureImageReferenceSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, owning.Normalized+"|"+imageReference+"|"+imageDigest),
 		observation.SourceURI,

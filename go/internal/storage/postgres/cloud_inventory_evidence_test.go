@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 )
 
@@ -41,7 +42,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 					"full_resource_name":"` + gcpName + `",
 					"asset_type":"compute.googleapis.com/Instance"
 				}`)},
-				{facts.AzureCloudResourceFactKind, azureID, []byte(`{
+				{cloud.AzureCloudResourceFactKind, azureID, []byte(`{
 					"arm_resource_id":"` + azureID + `",
 					"resource_type":"microsoft.compute/virtualmachines",
 					"subscription_id":"11111111-2222-3333-4444-555555555555",
@@ -78,7 +79,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 		t.Fatalf("gcp record = %#v", gcp)
 	}
 	azure := byProvider["azure"]
-	if azure.FactKind != facts.AzureCloudResourceFactKind || azure.RawIdentity != azureID || azure.ResourceType != "microsoft.compute/virtualmachines" {
+	if azure.FactKind != cloud.AzureCloudResourceFactKind || azure.RawIdentity != azureID || azure.ResourceType != "microsoft.compute/virtualmachines" {
 		t.Fatalf("azure record = %#v", azure)
 	}
 
@@ -100,7 +101,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 	for _, kind := range []string{
 		facts.AWSResourceFactKind,
 		facts.GCPCloudResourceFactKind,
-		facts.AzureCloudResourceFactKind,
+		cloud.AzureCloudResourceFactKind,
 	} {
 		if !strings.Contains(q.query, kind) {
 			t.Fatalf("query missing source fact kind %q:\n%s", kind, q.query)
@@ -128,7 +129,7 @@ func TestPostgresCloudInventoryEvidenceLoaderSkipsBlankAndMalformedRows(t *testi
 				// Blank raw identity: dropped.
 				{facts.GCPCloudResourceFactKind, "", []byte(`{"full_resource_name":"","asset_type":"x"}`)},
 				// Undecodable payload: dropped.
-				{facts.AzureCloudResourceFactKind, "x", []byte(`{not json`)},
+				{cloud.AzureCloudResourceFactKind, "x", []byte(`{not json`)},
 			}},
 		},
 	}

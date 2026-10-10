@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -127,7 +128,7 @@ func TestSourceYieldsGenerationFromFixturePages(t *testing.T) {
 		t.Fatalf("generation invalid for scope: %v", err)
 	}
 	envs := drain(t, collected)
-	resources := factsOfKind(envs, facts.AzureCloudResourceFactKind)
+	resources := factsOfKind(envs, cloud.AzureCloudResourceFactKind)
 	if len(resources) != 2 {
 		t.Fatalf("emitted %d resource facts, want 2", len(resources))
 	}
@@ -203,7 +204,7 @@ func TestSourcePartialScopeAccounting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Next: %v", err)
 	}
-	warnings := factsOfKind(drain(t, collected), facts.AzureCollectionWarningFactKind)
+	warnings := factsOfKind(drain(t, collected), cloud.AzureCollectionWarningFactKind)
 	if len(warnings) != 1 {
 		t.Fatalf("emitted %d warnings, want 1", len(warnings))
 	}

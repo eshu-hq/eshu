@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -43,7 +44,7 @@ func TestBuildReducerIntent(t *testing.T) {
 		// order picks the anchor, not a per-kind priority.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			{FactID: "decoy-1", FactKind: "file"},
-			admissionEnvelope("fact-azure-1", facts.AzureCloudResourceFactKind, "azure", ""),
+			admissionEnvelope("fact-azure-1", cloud.AzureCloudResourceFactKind, "azure", ""),
 			admissionEnvelope("fact-gcp-1", facts.GCPCloudResourceFactKind, "gcp", ""),
 		})
 		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
@@ -67,7 +68,7 @@ func TestBuildReducerIntent(t *testing.T) {
 		for kind, provider := range map[string]string{
 			facts.AWSResourceFactKind:        "aws",
 			facts.GCPCloudResourceFactKind:   "gcp",
-			facts.AzureCloudResourceFactKind: "azure",
+			cloud.AzureCloudResourceFactKind: "azure",
 		} {
 			lookup := projectorintent.NewFactLookup([]facts.Envelope{
 				{FactID: "decoy-1", FactKind: "file"},
