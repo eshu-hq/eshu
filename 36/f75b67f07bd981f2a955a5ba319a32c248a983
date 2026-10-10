@@ -1,0 +1,19 @@
+go/internal/storage/postgres/generation_freshness_test.go
+  s_29175cf8c573b8::t_4c43e600dc0d33 40,92,102,171,174,179,192-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "36f75b67f07bd981f2a955a5ba319a32c248a983",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
