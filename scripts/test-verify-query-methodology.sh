@@ -5,35 +5,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin"
-cat > "$work/bin/go" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >> "$SHIM_LOG"
-if [[ "$*" == *'-list '* ]]; then
- printf '%s\n' TestMethodologyRequiredProductionVariants TestHandlerQueryplanManifestBindsProductionBuilders TestLegacyQueryplanManifestBindsProductionQueries
- exit 0
-fi
-case "$*" in
- *'test ./internal/queryplan -count=1'*)
-  if [[ "${SHIM_OMIT:-}" != coverage ]]; then printf '{"families":[]}\n' > "$ESHU_QUERY_METHODOLOGY_COVERAGE"; fi ;;
- *'-run ^TestQueryMethodologyPostgresLive$'*)
-  [[ -n "$ESHU_POSTGRES_TEST_DSN" && -n "$ESHU_QUERY_METHODOLOGY_POSTGRES_IMAGE" ]] || exit 11
-  [[ "${SHIM_FAIL:-}" != postgres ]] || exit 12
-  if [[ "${SHIM_OMIT:-}" != postgres ]]; then printf '{"engine":"postgresql"}\n' > "$ESHU_QUERY_METHODOLOGY_POSTGRES_ARTIFACT"; fi ;;
- *'-run ^TestImportDependencyMethodologyLive$'*)
-  [[ "$ESHU_QUERY_METHODOLOGY_LIVE" == 1 && "$ESHU_QUERYPLAN_PROFILE_ISOLATED" == 1 && "$ESHU_QUERY_METHODOLOGY_CALIBRATED" == 1 ]] || exit 13
-  printf '{"engine":"neo4j"}\n' > "$ESHU_QUERY_METHODOLOGY_GRAPH_ARTIFACT"
-  if [[ "${SHIM_OMIT:-}" != graph-cases ]]; then printf '{"cases":[]}\n' > "$ESHU_QUERY_METHODOLOGY_REPORT"; fi ;;
- *'-run ^TestImportDependencyMethodologyMCPTerminalCapLive$'*)
-  [[ -n "$ESHU_NEO4J_URI" ]] || exit 14 ;;
-esac
-SH
-cat > "$work/bin/docker" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-printf 'docker %s\n' "$*" >> "$SHIM_LOG"
-case "$1" in logs) printf 'Started.\n' ;; port) printf '127.0.0.1:12345\n' ;; esac
-SH
+cp "$repo_root/scripts/lib/test-verify-query-methodology-go.sh" "$work/bin/go"
+cp "$repo_root/scripts/lib/test-verify-query-methodology-docker.sh" "$work/bin/docker"
 chmod +x "$work/bin/go" "$work/bin/docker"
 run_shim() {
  local name="$1" mode="$2"
@@ -78,5 +51,19 @@ for helper in scripts/extend-read-api-work-budgets.sh scripts/test-extend-read-a
   jq -e --arg gate "$gate" 'any(.selected[]; .id == $gate)' "$work/selection.json" >/dev/null || { printf '%s failed to select %s\n' "$helper" "$gate" >&2; exit 1; }
  done
  printf 'selection %s: static mirror selected\n' "$helper"
+done
+for fixture in scripts/lib/test-verify-query-methodology-go.sh scripts/lib/test-verify-query-methodology-docker.sh; do
+ printf '%s\n' "$fixture" > "$work/paths"
+ "$work/ci-gates" select --registry "$repo_root/specs/ci-gates.v1.yaml" --tier pre-pr --paths-from "$work/paths" --json > "$work/selection.json"
+ for gate in query-methodology-static query-plan-regression; do
+  jq -e --arg gate "$gate" 'any(.selected[]; .id == $gate)' "$work/selection.json" >/dev/null || { printf '%s failed to select %s\n' "$fixture" "$gate" >&2; exit 1; }
+ done
+ printf 'selection %s: static and live proof selected\n' "$fixture"
+done
+for fixture in scripts/lib/test-methodology-scale-resource-observer-gate.sh scripts/lib/test-methodology-scale-resource-observer-docker.sh scripts/lib/test-methodology-scale-resource-observer-sleep.sh; do
+ printf '%s\n' "$fixture" > "$work/paths"
+ "$work/ci-gates" select --registry "$repo_root/specs/ci-gates.v1.yaml" --tier pre-pr --paths-from "$work/paths" --json > "$work/selection.json"
+ jq -e 'any(.selected[]; .id == "read-api-work-budget-mirror")' "$work/selection.json" >/dev/null || { printf '%s failed to select read-api-work-budget-mirror\n' "$fixture" >&2; exit 1; }
+ printf 'selection %s: resource mirror selected\n' "$fixture"
 done
 printf 'test-verify-query-methodology: pass\n'

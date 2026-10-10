@@ -46,6 +46,7 @@ on:
       - 'scripts/extend-read-api-work-budgets.sh'
       - 'scripts/test-extend-read-api-work-budgets.sh'
       - 'scripts/test-methodology-scale-resource-observer.sh'
+      - 'scripts/lib/test-methodology-scale-resource-observer-*.sh'
       - 'scripts/compare-backend-latency.sh'
       - 'scripts/test-compare-backend-latency.sh'
       - 'scripts/lib/test-compare-backend-latency-report.json'
