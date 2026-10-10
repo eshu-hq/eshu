@@ -178,3 +178,10 @@ also covers ServiceMonitor, NetworkPolicy, PodDisruptionBudget,
 schema-bootstrap Job, Helm manifest, pprof, queue, log, and resource snapshot
 evidence. The runbook lives at
 `docs/public/reference/security-intelligence-release-gate.md`.
+
+`ci/promote-moving-tags.sh` reads GHCR through a pull-scoped Bearer token
+from the fixed GHCR token endpoint. Each retry refreshes the token, checks
+the per-commit digest, and preserves the existing ancestry guard before
+changing moving tags. Registry errors fail closed; they cannot become an
+absent-tag decision. `test-promote-moving-tags.sh` covers the protocol and
+ancestry cases without network access or tag writes.

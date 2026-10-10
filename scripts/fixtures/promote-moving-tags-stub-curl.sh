@@ -2,13 +2,33 @@
 set -euo pipefail
 url=""
 head_mode=0
+authorized=0
 for a in "$@"; do
 	case "${a}" in
 	https://*) url="${a}" ;;
+	"Authorization: Bearer fixture-registry-token") authorized=1 ;;
 	-D) head_mode=1 ;;
 	esac
 done
 echo "curl ${url} head=${head_mode}" >>"${STUB_DIR}/curl.log"
+if [[ "${url}" == https://ghcr.io/token ]]; then
+ case "${STUB_TOKEN_MODE:-token}" in
+ denied) exit 22 ;;
+ empty) printf '{"token":""}' ;;
+ malformed) printf 'not-json' ;;
+ access_token) printf '{"access_token":"fixture-registry-token"}' ;;
+ *) printf '{"token":"fixture-registry-token"}' ;;
+ esac
+ exit 0
+fi
+if [[ "${STUB_REQUIRE_BEARER:-0}" == 1 && "${authorized}" != 1 || "${STUB_REGISTRY_DENIED:-0}" == 1 ]]; then
+ if [[ "${head_mode}" == 1 ]]; then
+  printf 'HTTP/2 401\r\ndocker-content-digest: sha256:1111\r\nWWW-Authenticate: Bearer realm="https://ghcr.io/token",service="ghcr.io"\r\n\r\n'
+ else
+  printf '{"errors":[{"code":"UNAUTHORIZED"}]}\n401'
+ fi
+ exit 0
+fi
 path="${url#https://ghcr.io/v2/${STUB_REPO}/}"
 san() { printf '%s' "$1" | tr -c 'A-Za-z0-9' '_'; }
 known_digest() {

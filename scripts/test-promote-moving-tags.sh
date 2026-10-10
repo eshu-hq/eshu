@@ -98,6 +98,8 @@ fresh_case() {
 	export STUB_DIR
 	export STUB_REPO="eshu-hq/eshu"
 	export RACE_LOSE_ONCE=0
+	export STUB_REQUIRE_BEARER=1
+	export STUB_TOKEN_MODE=token STUB_REGISTRY_DENIED=0
 	mkdir -p "${STUB_DIR}/tags" "${STUB_DIR}/revs"
 	: >"${STUB_DIR}/curl.log"
 	: >"${STUB_DIR}/docker.log"
@@ -120,13 +122,13 @@ run_promote() {
 	set -e
 }
 
-creates() { grep -c '^docker ' "${STUB_DIR}/docker.log" || true; }
-curl_calls() { grep -c '^curl ' "${STUB_DIR}/curl.log" || true; }
+creates() { rg -c '^docker ' "${STUB_DIR}/docker.log" || printf '0\n'; }
+curl_calls() { rg -c '^curl ' "${STUB_DIR}/curl.log" || printf '0\n'; }
 tag_is() { [ -f "${STUB_DIR}/tags/$1" ] && [ "$(cat "${STUB_DIR}/tags/$1")" == "$2" ]; }
 single_dual_tag_create() {
 	# The one create call must move BOTH tags in one command.
 	[ "$(creates)" == "1" ] &&
-		grep -q -- '-t ghcr.io/eshu-hq/eshu:main -t ghcr.io/eshu-hq/eshu:latest' "${STUB_DIR}/docker.log"
+		rg -q -- '-t ghcr.io/eshu-hq/eshu:main -t ghcr.io/eshu-hq/eshu:latest' "${STUB_DIR}/docker.log"
 }
 
 # 1. Absent :main promotes.
@@ -134,6 +136,7 @@ fresh_case absent
 run_promote "refs/heads/main" 3
 check "absent main exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
 check "absent main moves both tags in one create" "$(single_dual_tag_create && echo 0 || echo 1)"
+check "registry reads exchange a scoped token" "$(rg -q 'curl https://ghcr.io/token' "${STUB_DIR}/curl.log" && echo 0 || echo 1)"
 check "absent main leaves tags on the digest" "$(tag_is main "${D_MINE}" && tag_is latest "${D_MINE}" && echo 0 || echo 1)"
 
 # 2. Already current is a no-op.
@@ -176,7 +179,7 @@ printf '%s %s\n%s %s\n' "${MY_SHA}" "${SHA_OLD}" "${SHA_X}" "${SHA_OLD}" >"${STU
 run_promote "refs/heads/main" 3
 check "unrelated main exits non-zero (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" != "0" ] && echo 0 || echo 1)"
 check "unrelated main pushes nothing" "$([ "$(creates)" == "0" ] && echo 0 || echo 1)"
-check "unrelated main says why" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'unrelated' && echo 0 || echo 1)"
+check "unrelated main says why" "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'unrelated' && echo 0 || echo 1)"
 
 # 6. A lost race re-evaluates: the first push does not stick, the loop sees
 # the concurrent winner's newer commit and skips green.
@@ -188,7 +191,7 @@ run_promote "refs/heads/main" 3
 check "lost race exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
 check "lost race attempted one create" "$([ "$(creates)" == "1" ] && echo 0 || echo 1)"
 check "lost race leaves the winner's tags alone" "$(tag_is main "${D_NEWER}" && tag_is latest "${D_NEWER}" && echo 0 || echo 1)"
-check "lost race reports the newer commit" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'newer commit' && echo 0 || echo 1)"
+check "lost race reports the newer commit" "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'newer commit' && echo 0 || echo 1)"
 
 # 7. The sha sanity check fails closed: a sha tag pointing anywhere else
 # never promotes, and the attempts exhaust loudly.
@@ -197,7 +200,7 @@ printf '%s' "${D_OTHER}" >"${STUB_DIR}/tags/sha-${MY_SHA}"
 run_promote "refs/heads/main" 2
 check "sha mismatch exits non-zero (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" != "0" ] && echo 0 || echo 1)"
 check "sha mismatch pushes nothing" "$([ "$(creates)" == "0" ] && echo 0 || echo 1)"
-check "sha mismatch reports non-convergence" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'did not converge' && echo 0 || echo 1)"
+check "sha mismatch reports non-convergence" "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'did not converge' && echo 0 || echo 1)"
 
 # 8. Tag pushes promote nothing and touch neither GHCR nor docker.
 fresh_case tagref
@@ -210,7 +213,7 @@ check "tag ref makes no GHCR or docker calls" "$([ "$(curl_calls)" == "0" ] && [
 fresh_case dispatch
 run_promote "refs/heads/feature/x" 3
 check "dispatch branch exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
-check "dispatch branch pushes the sanitized tag once" "$([ "$(creates)" == "1" ] && grep -q -- '-t ghcr.io/eshu-hq/eshu:feature-x ' "${STUB_DIR}/docker.log" && echo 0 || echo 1)"
+check "dispatch branch pushes the sanitized tag once" "$([ "$(creates)" == "1" ] && rg -q -- '-t ghcr.io/eshu-hq/eshu:feature-x ' "${STUB_DIR}/docker.log" && echo 0 || echo 1)"
 check "dispatch branch reads nothing" "$([ "$(curl_calls)" == "0" ] && echo 0 || echo 1)"
 
 # 10. An image without a revision label cannot be ancestry-checked: fail
@@ -233,8 +236,8 @@ printf '%s %s\n' "${SHA_NEWER}" "${MY_SHA}" >"${STUB_DIR}/fetch-add"
 run_promote "refs/heads/main" 3
 check "stale clone exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
 check "stale clone pushes nothing" "$([ "$(creates)" == "0" ] && echo 0 || echo 1)"
-check "stale clone refreshed before deciding" "$(grep -q '^git fetch' "${STUB_DIR}/git.log" && echo 0 || echo 1)"
-check "stale clone reports the newer commit" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'newer commit' && echo 0 || echo 1)"
+check "stale clone refreshed before deciding" "$(rg -q '^git fetch' "${STUB_DIR}/git.log" && echo 0 || echo 1)"
+check "stale clone reports the newer commit" "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'newer commit' && echo 0 || echo 1)"
 
 # 12. A commit that never resolves is a transient fetch problem, not proof
 # of unrelated history: the attempts exhaust as non-convergence.
@@ -245,8 +248,27 @@ printf '%s %s\n' "${MY_SHA}" "${SHA_OLD}" >"${STUB_DIR}/ancestors"
 run_promote "refs/heads/main" 2
 check "ghost main exits non-zero (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" != "0" ] && echo 0 || echo 1)"
 check "ghost main pushes nothing" "$([ "$(creates)" == "0" ] && echo 0 || echo 1)"
-check "ghost main reports non-convergence" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'did not converge' && echo 0 || echo 1)"
-check "ghost main never claims unrelated" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'unrelated' && echo 1 || echo 0)"
+check "ghost main reports non-convergence" "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'did not converge' && echo 0 || echo 1)"
+check "ghost main never claims unrelated" "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'unrelated' && echo 1 || echo 0)"
+
+# Authentication failures must never be interpreted as absent tags or promoted.
+for token_mode in denied empty malformed; do
+	fresh_case "token-${token_mode}"
+	export STUB_TOKEN_MODE="${token_mode}"
+	run_promote "refs/heads/main" 1
+	check "${token_mode} token fails closed" "$([ "${PROMOTE_RC}" != 0 ] && [ "$(creates)" == 0 ] && echo 0 || echo 1)"
+	check "${token_mode} token reports authentication failure" "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'token exchange failed|token response has no valid token' && echo 0 || echo 1)"
+done
+fresh_case access-token
+export STUB_TOKEN_MODE=access_token
+run_promote "refs/heads/main" 1
+check 'access_token response is supported' "$([ "${PROMOTE_RC}" == 0 ] && single_dual_tag_create && echo 0 || echo 1)"
+fresh_case registry-denied
+export STUB_REGISTRY_DENIED=1
+run_promote "refs/heads/main" 1
+check '401 manifest with digest header cannot promote' "$([ "${PROMOTE_RC}" != 0 ] && [ "$(creates)" == 0 ] && echo 0 || echo 1)"
+check '401 manifest is reported as a registry read failure' "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'manifest read failed with HTTP 401' && echo 0 || echo 1)"
+check 'credentials never enter output' "$(printf '%s' "${PROMOTE_OUTPUT}" | rg -q 'fixture-registry-token|x-access-token:fake' && echo 1 || echo 0)"
 
 printf 'test-promote-moving-tags: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" == "0" ]
