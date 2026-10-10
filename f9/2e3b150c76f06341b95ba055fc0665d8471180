@@ -1,0 +1,19 @@
+scripts/ci/test-h1-validate-hosted-inputs.sh
+  s_29175cf8c573b8::t_26c0e0af6bae2a 34,38,45-46,48-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f92e3b150c76f06341b95ba055fc0665d8471180",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
