@@ -12,10 +12,15 @@ for query shape regressions and backend caveat drift; live `EXPLAIN` or
 
 ## Source Coverage Contract
 
-`testdata/query-source-coverage.yaml` records every direct `Run` or
-`RunSingle` call in non-test Go source recursively beneath `internal/query`. Each
-record is keyed by source file and enclosing function or method, includes the
-exact call count, and has exactly one disposition:
+`testdata/query-source-coverage.yaml` is the stable entry point for every direct
+`Run` or `RunSingle` call in non-test Go source recursively beneath
+`internal/query`. Its explicit `source_coverage_files` list loads version 1 YAML
+fragments from `testdata/source-coverage/` in order. Each fragment contains
+`source_coverage` records. The loader rejects missing, duplicate, malformed,
+or escaping references, mixed inline records and references, and duplicate
+file/symbol call identities. Flat manifests remain valid for test fixtures.
+Each record is keyed by source file and enclosing function or method, includes
+the exact call count, and has exactly one disposition:
 
 - `entry_ids` links a registered hot callsite to one or more query-plan entries.
   Every hot callsite freezes the full production execution symbol with
@@ -88,8 +93,8 @@ output or capture the query emitted by the production execution path, verify the
 fingerprints, and run the full anchor, traversal, ordering, schema, and plan
 validation against those production-owned bytes.
 
-The inventory still contains 14 pre-existing `non_hot_reason` entries (count
-with `rg -c 'non_hot_reason:' testdata/query-source-coverage.yaml`; the compare
+The inventory still contains 10 pre-existing `non_hot_reason` entries (count
+with `rg -o --no-filename 'non_hot_reason:' testdata/source-coverage | wc -l`; the compare
 move for #6642 converted its two to typed `keyed_support`). They are
 immutable migration debt rather than an open classification path, and the count
 is meant to fall only as entries convert to the typed form. That direction is

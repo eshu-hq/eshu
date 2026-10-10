@@ -35,6 +35,7 @@ type Manifest struct {
 	Entries                     []Entry                  `yaml:"entries"`
 	GrandfatheredNonHotBaseline string                   `yaml:"grandfathered_non_hot_baseline,omitempty"`
 	SourceCoverage              []SourceCoverage         `yaml:"source_coverage"`
+	SourceCoverageFiles         []string                 `yaml:"source_coverage_files,omitempty"`
 	PostgresCoverage            []PostgresSourceCoverage `yaml:"postgres_coverage,omitempty"`
 	PilotPostgresFiles          []string                 `yaml:"pilot_postgres_files,omitempty"`
 }
@@ -88,6 +89,9 @@ func LoadManifestFile(path string) (Manifest, error) {
 	}
 	var manifest Manifest
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		return Manifest{}, err
+	}
+	if err := loadSourceCoverageFiles(path, data, &manifest); err != nil {
 		return Manifest{}, err
 	}
 	for i := range manifest.Entries {
