@@ -3,6 +3,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged disposable PostgreSQL proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1; one local PostgreSQL 18 run took 1.60 s, and the graph live-backend job has no PostgreSQL DSN — promote after CI provisioning and timing evidence
+  - file: go/internal/query/content_reader_file_contents_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof that the batched file-content statement returns the rows N single-file reads return (ASCII, multibyte, empty, blank, 2 MB, paths with spaces, quotes, percent, underscore, backslash and non-ASCII, absent, duplicated and cross-repository paths, array sizes 0, 1, 10 and all stored) and that its plan uses an index scan on a small and a 50-file repository under a generic and a custom plan; one local PostgreSQL 18 run took about 1.5 s"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_nonblank_live_test.go
     tag: ~
     class: postgres_ci
