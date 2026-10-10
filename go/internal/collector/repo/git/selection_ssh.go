@@ -4,6 +4,7 @@
 package git
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -36,7 +37,11 @@ func buildSSHCommand(config RepoSyncConfig) string {
 // process environment, auth settings for config's method, and LC_ALL=C.
 // Callers match git stderr by its English text (gitMissingRemoteRef,
 // recoverStaleGitShallowLock), so messages must never be translated.
-func gitCommandEnv(config RepoSyncConfig, token string) []string {
+//
+// repoPath is the managed checkout the command runs against (or clones
+// into). Token auth derives the remote's provider from it, so the credential
+// header is scoped to the host the remote URL was built for and to no other.
+func gitCommandEnv(config RepoSyncConfig, token string, repoPath string) []string {
 	env := append(os.Environ(), "LC_ALL=C")
 	authMethod := strings.ToLower(strings.TrimSpace(config.GitAuthMethod))
 	switch authMethod {
@@ -44,11 +49,23 @@ func gitCommandEnv(config RepoSyncConfig, token string) []string {
 		if strings.TrimSpace(token) == "" {
 			return env
 		}
+		// A GitHub App installation token only authenticates to GitHub, so
+		// it is never offered to another provider's host.
+		provider, ok := "github", true
+		if authMethod == "token" {
+			provider, ok = tokenAuthProvider(config, repoPath)
+		}
+		if !ok {
+			// Not a managed checkout: no remote URL was built for this path,
+			// so no host is owed the credential. Fail closed instead of
+			// defaulting to github.com.
+			return env
+		}
 		env = append(
 			env,
 			fmt.Sprintf("GIT_CONFIG_COUNT=%d", 1),
-			"GIT_CONFIG_KEY_0=http.https://github.com/.extraheader",
-			"GIT_CONFIG_VALUE_0="+githubHTTPExtraHeader(token),
+			"GIT_CONFIG_KEY_0=http.https://"+repoProviderHost(provider)+"/.extraheader",
+			"GIT_CONFIG_VALUE_0="+httpBasicExtraHeader(tokenAuthUsername(provider), token),
 		)
 	case "ssh":
 		command := buildSSHCommand(config)
@@ -57,4 +74,48 @@ func gitCommandEnv(config RepoSyncConfig, token string) []string {
 		}
 	}
 	return env
+}
+
+// tokenAuthProvider returns the provider whose host a token-auth git command
+// talks to, derived from the managed checkout path exactly as repoRemoteURL
+// derives the remote: <ReposDir>/<provider>/<slug> names its provider, and a
+// path with no provider prefix is a GitHub repository.
+//
+// The second result is false when the path is not a checkout the collector
+// would clone, judged by the same repoCheckoutName rule the clone path uses:
+// a path outside ReposDir yields no repository ID, and the reserved .eshu-
+// namespace that holds ref worktrees is never cloned. Such a command gets no
+// credential at all rather than a header a wrong host could receive.
+func tokenAuthProvider(config RepoSyncConfig, repoPath string) (string, bool) {
+	repoID := repoIDFromManagedPath(config.ReposDir, repoPath)
+	if _, err := repoCheckoutName(repoID); err != nil {
+		return "", false
+	}
+	provider, _ := repoProviderAndSlug(repoID)
+	if provider == "" {
+		return "github", true
+	}
+	return provider, true
+}
+
+// tokenAuthUsername returns the HTTP Basic username each provider expects
+// alongside an access token: GitHub's x-access-token, GitLab's documented
+// oauth2 (accepted for personal, group, and project access tokens), and
+// Bitbucket's x-token-auth for repository access tokens.
+func tokenAuthUsername(provider string) string {
+	switch provider {
+	case "gitlab":
+		return "oauth2"
+	case "bitbucket":
+		return "x-token-auth"
+	default:
+		return "x-access-token"
+	}
+}
+
+// httpBasicExtraHeader renders the http.<url>.extraheader value that sends
+// username and token as HTTP Basic credentials.
+func httpBasicExtraHeader(username string, token string) string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(username + ":" + token))
+	return "AUTHORIZATION: basic " + encoded
 }
