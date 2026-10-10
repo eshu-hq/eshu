@@ -58,7 +58,7 @@ fi
 
 # Case 4: row count matches the registry's own gate count. This is the
 # cross-link between "the source of truth changed" and "the artifact kept up".
-gate_count="$(rg -c '^  - id: ' "${registry}")"
+gate_count="$(rg '^  - id: ' "${repo_root}/specs/ci-gates.d" "${registry}" --no-filename | wc -l | tr -d ' ')"
 row_count="$(rg -c '^\| `' "${expected_path}")"
 if [[ "${gate_count}" == "${row_count}" ]]; then
 	record_pass "table row count (${row_count}) matches the registry gate count"

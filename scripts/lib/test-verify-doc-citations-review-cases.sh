@@ -169,7 +169,7 @@ test_query_string_line_permalinks_follow_ref_contract() {
 }
 
 test_public_gate_name_states_recurrence_scope() {
-  local registry="${repo_root}/specs/ci-gates.v1.yaml"
+  local registry="${registry_flat}"
   local generated="${repo_root}/docs/public/reference/ci-gates.md"
   local name='Doc test/fixture existence and raw-line recurrence guard'
   assert_contains "name: ${name}" "${registry}" \

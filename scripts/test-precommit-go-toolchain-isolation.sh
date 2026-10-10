@@ -345,7 +345,10 @@ fi
 # in YAML and no amount of running this script would otherwise notice it going
 # missing.
 # ---------------------------------------------------------------------------
-registry="${repo_root}/specs/ci-gates.v1.yaml"
+registry="$(mktemp)"
+trap 'rm -f "${registry}"' EXIT
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry}" "${repo_root}"
 if [ -f "${registry}" ]; then
 	# Gate commands that cd into a non-go/ module and then invoke `go`.
 	outside_go="$(rg -c 'cd tools/[^ ]* && [^"]*\bgo (test|build|run|install)\b' "${registry}" 2>/dev/null || printf '0')"

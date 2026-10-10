@@ -13,14 +13,20 @@
 # Usage: verify-live-tests-ledger.py <ledger_path> <repo_root>
 import hashlib
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
 
+from live_tests_registry import load_ledger_text
+
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
 ledger_path, repo_root = sys.argv[1], sys.argv[2]
-text = open(ledger_path).read()
+try:
+    text = load_ledger_text(Path(ledger_path))
+except ValueError as error:
+    sys.exit(str(error))
 
 rows = re.findall(
     r"^  - file: (\S+)\n    tag: (.*)\n    class: (\S+)\n    reason: ([^\n]*)(?:\n    runner: (\S+))?(?:\n    backends: (\S+))?",

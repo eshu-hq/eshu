@@ -3,7 +3,7 @@
 # quiet-generation, activation obligation, #7584 targeted-maintenance,
 # reindex watermark plan/correctness, container image identity epoch-gate,
 # #7209 projector zombie-heal, and #7471 marked-write-age signal proofs
-# listed in scripts/lib/live_postgres_readiness_results.py on disposable
+# listed in scripts/lib/live_postgres_readiness_inventory.py on disposable
 # PostgreSQL 18
 # (plus a disposable Neo4j for the zombie-heal graph proof when its env is
 # configured; without one the graph proofs are excused and named in the

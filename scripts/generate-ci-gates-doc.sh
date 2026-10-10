@@ -32,7 +32,18 @@ output_path="${ESHU_CI_GATES_DOC_OUTPUT_PATH:-${repo_root}/docs/public/reference
 	exit 1
 }
 
-gate_count="$(rg -c '^  - id: ' "${registry}")"
+fragment_files=()
+while IFS= read -r fragment; do
+	fragment_files+=("${repo_root}/specs/${fragment}")
+done < <(awk '/^gate_fragments:/{active=1;next} active && /^  - ci-gates.d\//{print $2;next} active && /^[^ #]/{exit}' "${registry}")
+if [[ ${#fragment_files[@]} -eq 0 ]]; then
+	fragment_files=("${registry}")
+fi
+gate_count=0
+for fragment in "${fragment_files[@]}"; do
+	count="$(rg -c '^  - id: ' "${fragment}")"
+	gate_count=$((gate_count + count))
+done
 
 {
 	printf '# CI Gates Reference\n\n'
@@ -66,7 +77,7 @@ gate_count="$(rg -c '^  - id: ' "${registry}")"
 	printf '| Gate id | Name | Category | Tier | Blocking | Local execution | CI workflow / job | Triggers |\n'
 	printf '| --- | --- | --- | --- | --- | --- | --- | --- |\n'
 
-	awk -f "${lib_dir}/ci-gates-doc-parse.awk" "${registry}"
+	awk -f "${lib_dir}/ci-gates-doc-parse.awk" "${fragment_files[@]}" "${registry}"
 } >"${output_path}"
 
 printf 'generate-ci-gates-doc: wrote %s (%s gates)\n' "${output_path}" "${gate_count}"

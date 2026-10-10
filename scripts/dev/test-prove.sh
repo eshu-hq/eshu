@@ -113,7 +113,7 @@ forbid "select failure must not be recorded as a SKIP" "SKIP (ci-gates select"
 # No new gate id is registered anywhere in this diff: prove.sh is a thin
 # composition over existing gates, not a new one (per the design brief).
 forbid "must not register a new ifa-prove gate id" "id: ifa-prove"
-if rg --fixed-strings --quiet -- "id: ifa-prove" "${repo_root}/specs/ci-gates.v1.yaml"; then
+if rg --fixed-strings --quiet --glob '*.yaml' "id: ifa-prove" "${repo_root}/specs/ci-gates.v1.yaml" "${repo_root}/specs/ci-gates.d"; then
 	fail "specs/ci-gates.v1.yaml must not gain a new ifa-prove gate id"
 fi
 

@@ -452,7 +452,7 @@ test_ifa_fault_failure_artifact_contract() {
 	fi
 	rg --fixed-strings --quiet -- "'go/internal/storage/cypher/fault/executor/*.go'" "${workflow}" \
 		|| fail "workflow does not trigger on every fault-executor module"
-	rg --fixed-strings --quiet -- '"go/internal/storage/cypher/fault/executor/*.go"' "${repo_root}/specs/ci-gates.v1.yaml" \
+	rg --fixed-strings --quiet --glob "gates-*.yaml" '"go/internal/storage/cypher/fault/executor/*.go"' "${repo_root}/specs/ci-gates.d" \
 		|| fail "CI registry does not trigger on every fault-executor module"
 }
 

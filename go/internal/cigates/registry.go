@@ -5,11 +5,8 @@ package cigates
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Tier is the ordered stage at which a gate runs.
@@ -269,15 +266,9 @@ var validRequirements = map[Requirement]struct{}{
 // that a blocking:false gate with no CI backstop (ci.workflow and ci.job
 // both empty) has a non-empty local_only_reason.
 func Load(path string) (*Registry, error) {
-	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured gate registry under specs/, not external input
+	parsed, err := decodeRegistryFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read ci-gates registry %s: %w", path, err)
-	}
-	var parsed registryFile
-	decoder := yaml.NewDecoder(strings.NewReader(string(raw)))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&parsed); err != nil {
-		return nil, fmt.Errorf("parse ci-gates registry %s: %w", path, err)
+		return nil, err
 	}
 
 	reg := &Registry{Version: parsed.Version}

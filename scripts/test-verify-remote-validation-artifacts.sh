@@ -311,22 +311,22 @@ fi
 
 # Case 11: source, generator, and every allowed evidence-source family stay
 # wired to both the registry selector and the CI workflow path filter.
-if rg -q --fixed-strings 'scripts/generate-remote-validation-inventory.sh' "${repo_root}/specs/ci-gates.v1.yaml" &&
-	rg -q --fixed-strings "'scripts/generate-remote-validation-inventory.sh'" "${repo_root}/.github/workflows/static-contract-gates.yml" &&
-	rg -q --fixed-strings 'docs/internal/remote-validation/**' "${repo_root}/specs/ci-gates.v1.yaml" &&
-	rg -q --fixed-strings "'docs/internal/remote-validation/**'" "${repo_root}/.github/workflows/static-contract-gates.yml"; then
+if rg -q --fixed-strings 'scripts/generate-remote-validation-inventory.sh' -g "gates-*.yaml" "${repo_root}/specs/ci-gates.d" &&
+	rg -q --fixed-strings "'scripts/generate-remote-validation-inventory.sh'" "${repo_root}/.github/static-contract-filters.yml" &&
+	rg -q --fixed-strings 'docs/internal/remote-validation/**' -g "gates-*.yaml" "${repo_root}/specs/ci-gates.d" &&
+	rg -q --fixed-strings "'docs/internal/remote-validation/**'" "${repo_root}/.github/static-contract-filters.yml"; then
 	record_pass "generated inventory and source changes trigger the static contract gate"
 else
 	record_fail "generated inventory and source changes trigger the static contract gate"
 fi
 
-case11_registry="${repo_root}/specs/ci-gates.v1.yaml"
+case11_registry="$(rg -l --glob "gates-*.yaml" --line-regexp "  - id: remote-validation-artifacts" "${repo_root}/specs/ci-gates.d")"
 case11_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
 case11_registry_gate="$(
 	sed -n '/^  - id: remote-validation-artifacts$/,/^  - id:/p' "${case11_registry}"
 )"
 case11_workflow_filter="$(
-	sed -n '/^[[:space:]]*remotevalidation:$/,/^[[:space:]]*claudrules:$/p' "${case11_workflow}"
+	sed -n '/^[[:space:]]*remotevalidation:$/,/^[[:space:]]*claudrules:$/p' "${repo_root}/.github/static-contract-filters.yml" | sed 's/^/            /'
 )"
 case11_workflow_gate="$(
 	rg --fixed-strings 'append_gate "${{ steps.filter.outputs.remotevalidation }}"' "${case11_workflow}"

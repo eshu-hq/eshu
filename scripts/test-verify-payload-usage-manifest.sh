@@ -126,7 +126,9 @@ fi
 
 # --- (d) trigger coverage: every checked source surface wakes the gate ---
 workflow="${repo_root}/.github/workflows/payload-usage-manifest.yml"
-registry="${repo_root}/specs/ci-gates.v1.yaml"
+registry="${tmp_root}/ci-gates.flat.yaml"
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry}" "${repo_root}"
 triggers_ok=0
 for watched_path in \
   'go/internal/reducer/**' \
