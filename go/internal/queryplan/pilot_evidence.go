@@ -352,6 +352,8 @@ func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage
 	return violations
 }
 
+// ValidatePilotEvidenceForBackend checks one artifact against the required
+// cases and contracts for its declared backend.
 func ValidatePilotEvidenceForBackend(manifest Manifest, artifact *PilotEvidenceArtifact) error {
 	if artifact == nil {
 		return errors.New("missing pilot backend artifact")
