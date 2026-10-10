@@ -46,14 +46,18 @@ statement for the whole related set.
 
 ### What PR1, PR1b and PR2 already change
 
-PR3 keeps these changes and does not redo them. None of them is merged on
-2026-10-10.
+PR3 keeps these changes and does not redo them. On 2026-10-10 all three are
+local branches with clean or pending reviews. None is merged, and none is
+published as a PR.
 
 | PR | Branch | Change on the read path | Measured effect |
 |---|---|---|---|
 | PR1 | `fix/7126-needed-content-hydration` | Reads content only for files an extractor reads, asks `NonBlankRepoFilePaths` for the rest, adds read stats to the stage log, adds the `deployment_artifacts_read_degraded` reason | laptop bench CPU -6.8% / -9.1% (overlapping ranges) |
 | PR1b | `perf/7126-hcl-required-literal-gate` (stacked on PR1) | Skips an HCL regex scan when a file lacks the scan's required literal | 25x-34x on plain files. The whole-set saving is a projection (5.1x-5.4x less regex work) |
 | PR2 | `perf/7126-batched-content-read` (sibling of PR1b on PR1, in progress) | A batched, chunked content read per repository | laptop bench -20% CPU (arm D) |
+
+The measured effects come from the PR1 and PR1b review verdicts and the CPU
+bench. Those are local kit notes, not in the repository.
 
 An earlier estimate put PR1 plus PR2 at 2.5-4.5 s for the stage on ops-qa.
 That is a theory until it is measured after the roll.
@@ -75,7 +79,7 @@ flowchart LR
 | Option | Cost | Verdict |
 |---|---|---|
 | A. Ingester parse stage emits the rows as facts | A new fact kind and contract. A delta generation sees only changed files, but the 50-candidate window and the kustomize walk need the whole stored file set. An extractor change needs a re-parse of every repository. | Rejected. The input differs from what the query reads. |
-| B. Content-writer derive in the source-local projector | One bounded list, read and parse per repository content Write. Needs a fence for writers that do not derive. | Accepted with changes. Same input as the query path, no added lag. |
+| B. Content-writer derive in the source-local projector | One bounded list, read and parse per repository content Write. Needs a content-version fence, because retention and manual SQL change `content_files` without a derive. | Accepted with changes. Same input as the query path, no added lag. |
 | C. New reducer domain per repository generation | A new intent, queue domain and lease contract. Freshness lags the reducer backlog. | Not chosen for the write path. The reducer walker repairs and backfills. |
 | A separate worker after projection | A new runtime stage, the same lag as C, no owner today. | Rejected. |
 
@@ -106,7 +110,8 @@ sessions that do not derive.
    superseded. Readers trust the rows only when the stored version equals the
    current version.
 5. A derive error never fails the Write. The derive recovers a panic and runs
-   under a deadline (`ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`, default 10 s). On
+   under a deadline (default 10 s, **Proposed** name
+   `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`). On
    any failure it counts the outcome, records `failure_count` and
    `last_error_class` on the state row, logs at ERROR with the repository id,
    and returns nil. The stored version stays behind, so readers fall back.
@@ -141,7 +146,9 @@ summary:
 - The dirty set is a join of state and versions, not a
   table.
 - Size: R1 shows about 21 rows per repository. For the 815 repositories
-  ops-qa lists, that gives roughly 17,000 rows. This is an extrapolation.
+  ops-qa listed on 2026-10-10, that gives roughly 17,000 rows. This is an
+  extrapolation. The count 815 comes from the local kit note
+  `7126-story-span-probe-20261010.md`, which is not in the repository.
 
 Retention: the rows mirror latest-wins `content_files`, not a generation.
 `Write` tombstones and the full-snapshot reap run before the derive, so the
@@ -170,16 +177,21 @@ path is the oracle, so PR3 changes no extraction semantics.
   time the API sets `source_repo` to the graph `related.name` and applies
   `normalizeRepoScopedPath` with that name to the `name_scoped` rows only.
   Those are the HCL and compose rows built through `appendConfigArtifactRow`.
-  Kustomize and Ansible rows never pass through it. The step then
-  deduplicates on the four-tuple, because two raw scoped paths can normalize
-  to one path. The shim S0 proves the equality. A renamed repository
-  therefore needs no re-derive.
+  Kustomize and Ansible rows never pass through it. The shim S0 proves the
+  equality. A renamed repository therefore needs no re-derive.
+- **One merge, one dedup.** The live loader keeps one dedup map across the
+  anchor and all related sources. The stored path does the same: the rows of
+  every repository (anchor live, stored, live fallback) merge in source
+  order, then one dedup on `(path, source_repo, relative_path,
+  evidence_kind)` and one sort. Two related repositories that share a graph
+  name, or an anchor that also appears in the related list, then collapse
+  exactly as they do live. S0, S4 and the PR3c tests include both cases.
 - **Caps.** Both caps stay exactly: the first 5,000 files by `relative_path`,
   then the first 50 config candidates. The related-repository list has no
   sentinel, so a larger repository is cut without a label. That is an
-  accuracy defect of the live path, not of PR3. It is filed separately with
-  the S6 census as a follow-up. Changing the caps inside PR3 would destroy the
-  oracle.
+  accuracy defect of the live path, not of PR3. It is to be filed as a
+  separate issue with the S6 census. Changing the caps inside PR3 would
+  destroy the oracle.
 - **Anchor.** The anchor repository stays live. Its list is read with
   limit+1 and a truncated flag, and its pre-read compose and GitHub Actions
   files do not count toward the 50-candidate cap. Its window therefore
@@ -195,19 +207,22 @@ path is the oracle, so PR3 changes no extraction semantics.
   repository ids as its parameter. It never reads all related rows before the
   grant filter (#5167 W3 P0). PR3c plants an out-of-grant related repository
   with stored rows and asserts that it is absent from the body.
-- **Fallback.** A repository with no state, an old content version, an old
-  extractor version or a failed last derive is served live for that
-  repository only, and counted.
+- **Fallback.** A repository with no state, no version row, an old content
+  version, an old extractor version, or no successful derive is served live
+  for that repository only, and counted. The reader uses an inner join, so a
+  missing version row means a live fallback with reason `missing`.
   Nothing is dropped, so a fallback cannot hide a wrong result.
 
 ### 3.4 Rollout
 
 1. PR3a merges: no behavior change except the tie order.
-2. PR3b deploys: the migration creates empty tables, writers derive, the
-   walker backfills. `ESHU_CONFIG_ARTIFACT_READ_MODE` stays `live`.
+2. PR3b deploys: the migration creates the tables and seeds one version row
+   per repository, writers derive, and the walker backfills. The read mode
+   stays `live`. **Proposed** variable name: `ESHU_CONFIG_ARTIFACT_READ_MODE`,
+   with the values `live`, `shadow` and `stored`.
 3. ops-qa runs `shadow`: each request computes both answers, compares them per
    repository, logs a mismatch, and serves the live answer.
-4. Cut over to `stored` when all of these hold:
+4. Cut over to `stored` when all of these hold (**Proposed** gates):
    - The backfill marker exists.
    - The dirty join is empty outside active Writes.
    - Shadow mode shows zero mismatches over the #7098 read sweep, R1 and R2.
@@ -222,6 +237,9 @@ window is about (S1 per-repository derive time) x 815 / K. Each version bump
 states this number in its PR. A bump is a performance event, not a silent one.
 
 ### 3.5 Telemetry
+
+All names in this section are **Proposed**. G9 (the stage log fields) is
+ruled.
 
 | Signal | Name | Answers |
 |---|---|---|
@@ -269,8 +287,11 @@ Bad:
    backfill to operate.
 3. An extractor version bump sends every related repository to the live path
    until the walker catches up.
+4. A repository whose derive fails 5 times in a row stays on the live path
+   until an operator acts or the extractor changes (protocol companion,
+   section 3).
 
-Follow-ups, filed as separate issues:
+Follow-ups, to be filed as separate issues by the coordinator:
 
 1. The silent truncation of the related-repository list and the
    50-candidate cap, with the S6 census.
@@ -281,13 +302,17 @@ Follow-ups, filed as separate issues:
 Measure the same R1 and R2 with the same method as the 2026-10-10 probes:
 serial story requests, `/metrics` deltas, stage log lines, cAdvisor CPU deltas.
 
-| Measure | Before | Target in `stored` mode |
+| Measure | Before | Target in `stored` mode (theory until measured on the roll) |
 |---|---|---|
 | `deployment_artifacts` stage, warm calls | 6.63-6.75 s | at most 0.25 s |
 | Route time, warm calls | 6.92-7.04 s | at most 1.0 s |
-| API CPU per R1 story | 6.70-6.88 CPU-s | at most 0.7 CPU-s (theory) |
+| API CPU per R1 story | 6.70-6.88 CPU-s | at most 0.7 CPU-s |
 | Postgres reader statements per R1 story | 8,255-8,258 | at most 60, and the stage count does not grow with N |
 | `config_paths` | 2,986 rows, 141 source repositories | the same multiset in `live` and `stored` on the same storage state. Other body fields byte-equal |
+
+The statement target comes from R2: its whole story used 34 reader
+statements. R1 adds the stored read and the anchor's bounded reads to that
+shape. This is an estimate, not a measurement.
 
 Remaining contributors in the stage, as a budget (theory until measured):
 
@@ -295,14 +320,15 @@ Remaining contributors in the stage, as a budget (theory until measured):
 |---|---|---|
 | Neo4j UNION and the other graph reads | 0.010 s warm, 0.143 s first call | issue comment 6097810983 |
 | Stored-row read, 3 round trips | at most 0.02 s | 0.82 ms per statement observed. S2 shim |
-| `ListRepoFiles` of related repositories | 0 (gone) | the 2026-10-10 trace prefix held 128 lists, 0.242 s in sum |
+| `ListRepoFiles` of related repositories | 0 (gone) | 128 lists, 0.242 s in sum in the 2026-10-10 trace prefix (local kit note `7126-story-span-probe-20261010.md`, not in the repository) |
 | Anchor live work | at most 0.05 s | R2 whole stage 0.004 s. R1 anchor has 1 file |
 | Name step, merge, dedup, sort of about 3,000 rows | at most 0.02 s | not measured |
 | Live fallback | 0 at steady state | each fallback repository costs its old share |
 
 If the corpus changed between the baseline and the roll, re-baseline the body
 in `live` mode first. The first call of R1 had 1.016 s outside this stage
-(`target_documentation` 0.498 s cold). The cold route stays above 1 s unless
+(`target_documentation` 0.498 s cold, from the same local kit note). The cold
+route stays above 1 s unless
 those stages change, which is outside PR3.
 
 ## 7. PR breakdown and sequencing
@@ -310,10 +336,10 @@ those stages change, which is outside PR3.
 | PR | Content | Starts | Proof |
 |---|---|---|---|
 | S0 test, version guard | The S0 name-free equality test and the `extractor_version` digest guard, as new files | now | S0 passes. Seeded RED/GREEN for the guard |
-| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass. The tables after S2 | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences |
+| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass. The tables after S2 | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences. A test that no Go statement deletes version rows outside a documented retirement path |
 | PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort | after PR1, PR1b and PR2 merge | existing tests and the PR1 differential pass unchanged. Tie count |
-| PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, telemetry | after PR3a | S1, then S4 |
-| PR3c | Read mode flag, name step, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | handler tests per fallback reason. Out-of-grant test. Ops-qa shadow then acceptance |
+| PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
+| PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. Ops-qa shadow then acceptance |
 
 PR3a waits because PR1 edits the loader, hydration, kustomize, HCL and
 Ansible files, PR1b edits the HCL files and adds `prefilter/`, and PR2 edits
@@ -329,12 +355,12 @@ note. Details are in section 6 of the protocol companion.
 
 | Shim | Where | Pass | On fail |
 |---|---|---|---|
-| S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names | store the name in the state row and run S5 |
+| S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names. The merged answer equals the live loader for two repositories with one graph name and for an anchor repeated in the related list | store the name in the state row and run S5 |
 | S2 read plan | local PostgreSQL 18 | the reader's three-table join for 300 ids and the dirty join over 815 repositories: primary-key index scans only, execution at most 5 ms, generic plan | change the key or the statement |
-| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per transaction per repository | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
+| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction (a delta Write has two). **Proposed** arm 7: two overlapping multi-repository statements, 0 deadlocks | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
 | S6 cap census | ops-qa, read-only | counts recorded for the follow-up issue | none: input only |
 | S1 derive cost | local, PR1, PR1b and PR2 stacked | at most 10% of content-stage p95. At most 2 s for the worst repository | reopen F1 |
-| S4 equality | PR3b gate | symmetric difference `0/0` for every golden-corpus repository | do not merge PR3b-2 |
+| S4 equality | PR3b gate | symmetric difference `0/0` for every golden-corpus repository, plus the two loader-level cases of S0 | do not merge PR3b-2 |
 
 S5 (name binding, read-only) is optional after S0 passes.
 
