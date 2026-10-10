@@ -88,6 +88,9 @@ class ContractTest(unittest.TestCase):
         )[0]
         self.assertIn("uses: actions/setup-python@v6", job)
         self.assertIn("python -m pip install pre-commit==4.6.2", job)
+        self.assertIn("fetch-depth: 0", job)
+        self.assertIn("python3 scripts/test-query-methodology-comparison-identity.py", job)
+        self.assertIn("path: .proof-artifacts/query-methodology/*.json", job)
 
     def test_hook_selects_every_owned_input(self) -> None:
         """A change to any proof input must invoke the static hook."""
@@ -107,6 +110,8 @@ class ContractTest(unittest.TestCase):
             "scripts/verify-query-methodology.sh",
             "scripts/test-verify-query-methodology.sh",
             "scripts/lib/go-test-run-guard.sh",
+            "scripts/lib/query-methodology-comparison-identity.py",
+            "scripts/test-query-methodology-comparison-identity.py",
             "scripts/lib/live-gate-lock.sh",
             "scripts/lib/test-verify-query-methodology-go.sh",
             "scripts/lib/test-verify-query-methodology-docker.sh",
@@ -133,6 +138,8 @@ class ContractTest(unittest.TestCase):
             "scripts/lib/verify-live-tests-ledger.py",
             "scripts/test-verify-query-methodology-live-contract.py",
             "scripts/lib/go-test-run-guard.sh",
+            "scripts/lib/query-methodology-comparison-identity.py",
+            "scripts/test-query-methodology-comparison-identity.py",
         ):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -144,8 +151,25 @@ class ContractTest(unittest.TestCase):
         )
         fake_go.chmod(0o755)
         (self.root / "scripts/verify-query-methodology.sh").chmod(0o755)
-        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
-        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        def git(*arguments: str) -> str:
+            result = subprocess.run(
+                ["git", *arguments], cwd=self.root, capture_output=True,
+                text=True, check=True,
+            )
+            return result.stdout.strip()
+
+        git("init", "-q", "--initial-branch=main")
+        git("config", "user.name", "Eshu Test")
+        git("config", "user.email", "eshu-test@example.invalid")
+        (self.root / "comparison-seed.txt").write_text("committed baseline\n")
+        git("add", "comparison-seed.txt")
+        git("commit", "-q", "-m", "baseline")
+        base = git("rev-parse", "HEAD")
+        git("branch", "feature")
+        git("checkout", "-q", "feature")
+        git("add", ".")
+        git("commit", "-q", "-m", "candidate proof sources")
+        git("update-ref", "refs/remotes/origin/main", base)
         environment = os.environ.copy()
         environment["PATH"] = f"{fake_go.parent}:{environment['PATH']}"
         environment["SHIM_LOG"] = str(self.root / "go-shim.log")
@@ -182,6 +206,8 @@ class ContractTest(unittest.TestCase):
             "scripts/lib/verify-live-tests-ledger.py",
             "scripts/lib/verify-query-methodology-live-contract.py",
             "scripts/test-verify-query-methodology-live-contract.py",
+            "scripts/lib/query-methodology-comparison-identity.py",
+            "scripts/test-query-methodology-comparison-identity.py",
         ):
             with self.subTest(path=name):
                 result = run_hook(name)
@@ -297,6 +323,25 @@ class ContractTest(unittest.TestCase):
             'export ESHU_QUERY_METHODOLOGY_LIVE=1',
         )
         self.assertNotEqual(self.check().returncode, 0)
+
+    def test_removed_frozen_identity_resolution(self) -> None:
+        self.mutate(
+            "scripts/verify-query-methodology.sh",
+            'python3 "$repo_root/scripts/lib/query-methodology-comparison-identity.py" --root "$repo_root" --output "$ESHU_QUERY_METHODOLOGY_IDENTITY"',
+            "true # planted missing identity resolution",
+        )
+        self.assertNotEqual(self.check().returncode, 0)
+
+    def test_removed_required_identity_or_standalone_parity(self) -> None:
+        for old in (
+            "export ESHU_QUERY_METHODOLOGY_REQUIRED=1",
+            "go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
+        ):
+            with self.subTest(line=old):
+                original = (self.root / "scripts/verify-query-methodology.sh").read_text()
+                self.mutate("scripts/verify-query-methodology.sh", old, "true # planted bypass")
+                self.assertNotEqual(self.check().returncode, 0)
+                (self.root / "scripts/verify-query-methodology.sh").write_text(original)
 
     def test_real_go_json_events(self) -> None:
         """Check Go's actual run, zero-match, skip, and fail event shapes."""

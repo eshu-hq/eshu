@@ -6,6 +6,7 @@
 package query
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -20,29 +21,67 @@ import (
 )
 
 // The pilot has no production query rewrite. These helpers bind paired runs
-// to identical shipped source on the base and candidate, rather than calling
-// a candidate query a baseline without checking its provenance.
-func methodologyGitCommit(t *testing.T, ref string) string {
+// to identical shipped source on the frozen base and candidate.
+func methodologyComparisonIdentity(t *testing.T) queryplan.PilotComparisonIdentity {
 	t.Helper()
-	output, err := exec.Command("git", "rev-parse", "--verify", ref+"^{commit}").Output()
+	identity, err := queryplan.LoadPilotComparisonIdentity(os.Getenv("ESHU_QUERY_METHODOLOGY_IDENTITY"))
 	if err != nil {
-		t.Fatalf("resolve proof commit %s: %v", ref, err)
+		t.Fatal(err)
 	}
-	return strings.TrimSpace(string(output))
+	if err := identity.VerifyCandidateCheckout(); err != nil {
+		t.Fatal(err)
+	}
+	return identity
 }
 
-func methodologyVerifySameProduction(t *testing.T, base string, paths []string) {
+func methodologyRepositoryRoot(t *testing.T) string {
 	t.Helper()
+	directory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(directory, ".git")); err == nil {
+			return directory
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("inspect methodology repository root: %v", err)
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			t.Fatalf("methodology repository root not found from %s", directory)
+		}
+		directory = parent
+	}
+}
+
+func methodologyVerifySameProduction(t *testing.T, base, candidate string, paths []string) {
+	t.Helper()
+	root := methodologyRepositoryRoot(t)
 	for _, path := range paths {
+		baseEntry, err := exec.Command("git", "ls-tree", "--full-tree", base, "--", path).Output()
+		if err != nil {
+			t.Fatalf("read base production entry %s: %v", path, err)
+		}
+		candidateEntry, err := exec.Command("git", "ls-tree", "--full-tree", candidate, "--", path).Output()
+		if err != nil {
+			t.Fatalf("read candidate production entry %s: %v", path, err)
+		}
+		if len(baseEntry) == 0 || !bytes.Equal(baseEntry, candidateEntry) {
+			t.Fatalf("production source %s committed mode or blob differs from base", path)
+		}
 		baseline, err := exec.Command("git", "show", base+":"+path).Output()
 		if err != nil {
 			t.Fatalf("read base production source %s: %v", path, err)
 		}
-		candidate, err := os.ReadFile(filepath.Join("../../..", path))
+		committed, err := exec.Command("git", "show", candidate+":"+path).Output()
+		if err != nil {
+			t.Fatalf("read candidate production source %s: %v", path, err)
+		}
+		working, err := os.ReadFile(filepath.Join(root, path))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if string(baseline) != string(candidate) {
+		if !bytes.Equal(baseline, committed) || !bytes.Equal(committed, working) {
 			t.Fatalf("production source %s differs from base: this unchanged-query paired runner cannot measure a rewrite; run separate base/candidate binaries", path)
 		}
 	}
@@ -50,24 +89,45 @@ func methodologyVerifySameProduction(t *testing.T, base string, paths []string) 
 
 // methodologyVerifySameProductionTree binds every matching source at both
 // revisions, including files added or removed since the base revision.
-func methodologyVerifySameProductionTree(t *testing.T, base, directory, pattern string) {
+func methodologyVerifySameProductionTree(t *testing.T, base, candidate, directory, pattern string) {
 	t.Helper()
-	output, err := exec.Command("git", "ls-tree", "-r", "--name-only", base, "--", directory).Output()
-	if err != nil {
-		t.Fatalf("list base production sources in %s: %v", directory, err)
-	}
-	paths := make(map[string]struct{})
-	for _, path := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		name := filepath.Base(path)
-		matched, err := filepath.Match(pattern, name)
+	root := methodologyRepositoryRoot(t)
+	entries := func(commit string) map[string]string {
+		t.Helper()
+		output, err := exec.Command("git", "ls-tree", "-r", "--full-tree", "-z", commit, "--", directory).Output()
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("list production sources at %s in %s: %v", commit, directory, err)
 		}
-		if matched && !strings.HasSuffix(name, "_test.go") {
-			paths[path] = struct{}{}
+		matchedEntries := make(map[string]string)
+		for _, record := range bytes.Split(bytes.TrimSuffix(output, []byte{0}), []byte{0}) {
+			if len(record) == 0 {
+				continue
+			}
+			parts := bytes.SplitN(record, []byte{'\t'}, 2)
+			if len(parts) != 2 {
+				t.Fatalf("malformed git tree entry at %s: %q", commit, record)
+			}
+			path := string(parts[1])
+			name := filepath.Base(path)
+			matched, err := filepath.Match(pattern, name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if matched && !strings.HasSuffix(name, "_test.go") {
+				matchedEntries[path] = string(parts[0])
+			}
 		}
+		return matchedEntries
 	}
-	current, err := filepath.Glob(filepath.Join("../../..", directory, pattern))
+	baseEntries, candidateEntries := entries(base), entries(candidate)
+	paths := make(map[string]struct{})
+	for path := range baseEntries {
+		paths[path] = struct{}{}
+	}
+	for path := range candidateEntries {
+		paths[path] = struct{}{}
+	}
+	current, err := filepath.Glob(filepath.Join(root, directory, pattern))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +136,7 @@ func methodologyVerifySameProductionTree(t *testing.T, base, directory, pattern 
 		if strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		relative, err := filepath.Rel("../../..", path)
+		relative, err := filepath.Rel(root, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -90,13 +150,26 @@ func methodologyVerifySameProductionTree(t *testing.T, base, directory, pattern 
 	if len(selected) == 0 {
 		t.Fatalf("no production sources match %s/%s", directory, pattern)
 	}
-	methodologyVerifySameProduction(t, base, selected)
+	for _, path := range selected {
+		before, baseExists := baseEntries[path]
+		after, candidateExists := candidateEntries[path]
+		if !baseExists || !candidateExists {
+			t.Fatalf("production source %s inventory differs: base=%t candidate=%t", path, baseExists, candidateExists)
+		}
+		if before != after {
+			t.Fatalf("production source %s committed mode or blob differs from base", path)
+		}
+	}
+	methodologyVerifySameProduction(t, base, candidate, selected)
 }
 
 func TestMethodologyProductionSourceTreesMatchBase(t *testing.T) {
-	base := methodologyGitCommit(t, "origin/main")
-	methodologyVerifySameProductionTree(t, base, "go/internal/graph", "schema*.go")
-	methodologyVerifySameProductionTree(t, base, "go/internal/storage/postgres/migrations", "*.sql")
+	if os.Getenv("ESHU_QUERY_METHODOLOGY_IDENTITY") == "" && os.Getenv("ESHU_QUERY_METHODOLOGY_REQUIRED") != "1" {
+		t.Skip("dedicated methodology runner supplies frozen comparison identity")
+	}
+	identity := methodologyComparisonIdentity(t)
+	methodologyVerifySameProductionTree(t, identity.Base, identity.Candidate, "go/internal/graph", "schema*.go")
+	methodologyVerifySameProductionTree(t, identity.Base, identity.Candidate, "go/internal/storage/postgres/migrations", "*.sql")
 }
 
 func methodologyBuild(t *testing.T, commit string, schema, migrations, indexes []string) queryplan.PilotBuildIdentity {

@@ -13,6 +13,7 @@ run_shim() {
  SHIM_LOG="$work/$name.log" ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR="$work/$name-artifacts" ESHU_SKIP_LIVE_GATE_LOCK=1 PATH="$work/bin:$PATH" bash "$repo_root/scripts/verify-query-methodology.sh" "$mode" > "$work/$name.out" 2>&1
 }
 run_shim static --static
+[[ -s "$work/static-artifacts/identity.json" ]] || { printf 'static proof omitted frozen comparison identity\n' >&2; exit 1; }
 if rg -q '^docker ' "$work/static.log"; then printf 'static stage touched Docker\n' >&2; exit 1; fi
 if SHIM_OMIT=coverage run_shim missing-coverage --static; then printf 'missing coverage passed\n' >&2; exit 1; fi
 run_shim stale-coverage --static
@@ -71,6 +72,8 @@ for fixture in \
  go/internal/query/methodology_postgres_live_test.go \
  scripts/lib/verify-query-methodology-live-contract.py \
  scripts/test-verify-query-methodology-live-contract.py \
+ scripts/lib/query-methodology-comparison-identity.py \
+ scripts/test-query-methodology-comparison-identity.py \
  .github/workflows/test.yml \
  .pre-commit-config.yaml; do
  printf '%s\n' "$fixture" > "$work/paths"

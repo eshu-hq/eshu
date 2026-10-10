@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 )
@@ -20,19 +19,19 @@ func TestPilotArtifactFiles(t *testing.T) {
 	if postgresPath == "" && graphPath == "" {
 		t.Skip("live runner supplies PostgreSQL and Neo4j artifacts")
 	}
+	identity, err := LoadPilotComparisonIdentity(os.Getenv("ESHU_QUERY_METHODOLOGY_IDENTITY"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.VerifyCandidateCheckout(); err != nil {
+		t.Fatal(err)
+	}
 	manifest, err := LoadManifestFile("testdata/handler-hot-cypher.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	artifacts := make([]PilotEvidenceArtifact, 0, 2)
-	commit := func(ref string) string {
-		output, err := exec.Command("git", "rev-parse", "--verify", ref+"^{commit}").Output()
-		if err != nil {
-			t.Fatalf("resolve artifact commit %s: %v", ref, err)
-		}
-		return strings.TrimSpace(string(output))
-	}
-	base, candidate := commit("origin/main"), commit("HEAD")
+	base, candidate := identity.Base, identity.Candidate
 	for _, path := range []string{postgresPath, graphPath} {
 		if path == "" {
 			t.Fatal("missing required backend artifact path")
@@ -67,6 +66,10 @@ func TestPilotArtifactCommitIdentityRejectsStaleBuilds(t *testing.T) {
 	}
 	if err := pilotArtifactCommitIdentity(artifact, base, strings.Repeat("c", 40)); err == nil {
 		t.Fatal("accepted stale candidate commit")
+	}
+	otherBackend := PilotEvidenceArtifact{Base: PilotBuildIdentity{Commit: strings.Repeat("c", 40)}, Candidate: PilotBuildIdentity{Commit: candidate}}
+	if err := pilotArtifactCommitIdentity(otherBackend, base, candidate); err == nil {
+		t.Fatal("accepted mismatched backend baseline")
 	}
 }
 

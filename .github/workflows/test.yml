@@ -140,7 +140,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          # The methodology proof validates exact event commits and ancestry.
+          fetch-depth: 0
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
       # on hosted runners. Skipped, not failed, when the secrets are absent.
@@ -203,6 +204,7 @@ jobs:
       - name: Verify query-plan regression gate
         run: |
           git fetch --no-tags origin main:refs/remotes/origin/main
+          python3 scripts/test-query-methodology-comparison-identity.py
           python3 scripts/test-verify-query-methodology-live-contract.py
           scripts/test-verify-query-methodology.sh
           scripts/test-verify-query-plan-regression.sh

@@ -172,6 +172,17 @@ artifacts must validate as a complete set. `scripts/test-verify-query-methodolog
 plants absent output and failed producers and exercises the real selector with
 query-only, each backend's schema-only, and combined-tree paths.
 
+The runner resolves `identity.json` before static coverage or either backend
+producer. It freezes the executed checkout (`candidate`), the captured target
+branch commit (`target`), and the comparison commit (`base`). A local feature
+run compares against the unique merge base with its captured target; PR and
+merge-group runs use the event's exact base with the combined checkout as the
+candidate. Main-branch manual and scheduled runs use the candidate's first
+parent. Every source check, backend artifact, and final validator consumes
+these frozen IDs. Missing history, changed source bytes or inventory, and
+artifact IDs that disagree with the sidecar fail the proof. The archived
+sidecar identifies the exact comparison used by the run.
+
 The live-test ledger classifies the ten methodology files as `dedicated_ci`
 under the closed `query-methodology` runner. Seven are helper-only files that
 compile with the graph root; the other three own the PostgreSQL, Neo4j graph,
