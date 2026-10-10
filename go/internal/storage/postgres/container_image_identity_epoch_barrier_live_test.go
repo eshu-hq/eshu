@@ -13,10 +13,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // epochBarrierFactLoader serves no facts: the barrier proof exercises epoch
@@ -325,4 +328,159 @@ func TestContainerImageIdentityActivationEpochMissIsSentinelLive(t *testing.T) {
 	assertMiss(scopeID, genA)
 	assertMiss(scopeID, "generation:6502-epoch-sentinel-missing")
 	assertMiss("repository:6502-epoch-sentinel-unknown", genA)
+}
+
+// TestContainerImageIdentityFirstGenerationEpochBarrierLive holds the first
+// projector Ack while its already-enqueued reducer intent executes. The
+// pending generation has no active predecessor and no activation epoch.
+func TestContainerImageIdentityFirstGenerationEpochBarrierLive(t *testing.T) {
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("epoch proof DSN requires ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
+	db := openContainerImageIdentityAckCapabilityProofDB(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	const (
+		scopeID        = "repository:7916-first-generation-barrier"
+		generationID   = "generation:7916-first-generation-barrier"
+		owner          = "reducer-7916-first-generation-barrier"
+		projectorOwner = "projector-7916-first-generation-barrier"
+	)
+	seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, is_delta, observed_at, ingested_at, status
+) VALUES ($1, $2, 'synthetic', FALSE, clock_timestamp(), clock_timestamp(), 'pending')
+`, generationID, scopeID); err != nil {
+		t.Fatalf("seed pending first generation: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status,
+    attempt_count, lease_owner, claim_until, payload, created_at, updated_at
+) VALUES ($1, $2, $3, 'projector', 'source_local', 'running',
+          1, $4, clock_timestamp() + INTERVAL '2 minutes', '{}'::jsonb,
+          clock_timestamp(), clock_timestamp())
+`, projectorWorkItemID(scopeID, generationID), scopeID, generationID, projectorOwner); err != nil {
+		t.Fatalf("seed claimed projector work: %v", err)
+	}
+
+	now := time.Now().UTC()
+	queue := ReducerQueue{
+		database: SQLDB{DB: db}, LeaseOwner: owner,
+		LeaseDuration: time.Minute, RetryDelay: time.Second,
+		MaxAttempts: 3, ClaimDomains: []reducer.Domain{reducer.DomainContainerImageIdentity},
+		Now: func() time.Time { return now },
+	}
+	work := runtime.ReducerIntent{
+		ScopeID: scopeID, GenerationID: generationID,
+		Domain: reducer.DomainContainerImageIdentity, EntityKey: "identity:7916",
+		Reason: "first-generation barrier proof", FactID: "fact:7916",
+		SourceSystem: "git",
+	}
+	if result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{work}); err != nil || result.Count != 1 {
+		t.Fatalf("enqueue first-generation intent = (%+v, %v), want one", result, err)
+	}
+	intent, claimed, err := queue.Claim(ctx)
+	if err != nil || !claimed {
+		t.Fatalf("claim before projector Ack = (%v, %v), want claimed", claimed, err)
+	}
+	if intent.GenerationID != generationID {
+		t.Fatalf("claimed generation = %q, want %q", intent.GenerationID, generationID)
+	}
+	store := NewContainerImageIdentityScopeStateStore(SQLDB{DB: db})
+	handler := containerimage.ContainerImageIdentityHandler{
+		FactLoader:      epochBarrierFactLoader{},
+		Writer:          epochBarrierWriter{store: store},
+		GenerationCheck: NewGenerationFreshnessCheck(SQLDB{DB: db}),
+	}
+	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "before_reducer")
+	_, handleErr := handler.Handle(ctx, intent)
+	var pending reducercontract.GenerationNotYetActiveError
+	if !errors.As(handleErr, &pending) {
+		t.Errorf("pending first-generation Handle() error = %v, want GenerationNotYetActiveError", handleErr)
+	}
+	if handleErr == nil {
+		t.Fatal("pending first-generation Handle() succeeded, want deferral")
+	}
+	if err := queue.Fail(ctx, intent, handleErr); err != nil {
+		t.Fatalf("Fail before projector Ack: %v", err)
+	}
+	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "after_reducer_fail")
+	if status, class, attempts := firstGenerationBarrierOutcome(t, ctx, db, intent.IntentID); status != "retrying" ||
+		class != reducercontract.GenerationActivationNotReadyFailureClass || attempts != 1 {
+		t.Errorf("pre-Ack outcome = (%s, %s, %d), want (retrying, %s, 1)",
+			status, class, attempts, reducercontract.GenerationActivationNotReadyFailureClass)
+	}
+
+	projectorQueue := NewProjectorQueue(SQLDB{DB: db}, projectorOwner, time.Minute)
+	if err := projectorQueue.Ack(ctx, projector.ScopeGenerationWork{
+		Scope:        scope.IngestionScope{ScopeID: scopeID},
+		Generation:   scope.ScopeGeneration{GenerationID: generationID, ScopeID: scopeID},
+		AttemptCount: 1,
+	}, runtime.Result{}); err != nil {
+		t.Fatalf("ProjectorQueue.Ack(first generation): %v", err)
+	}
+	epoch, err := store.ContainerImageIdentityActivationEpoch(ctx, scopeID, generationID)
+	if err != nil || epoch <= 0 {
+		t.Fatalf("epoch after projector Ack = (%d, %v), want positive", epoch, err)
+	}
+	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "after_projector_ack")
+	now = now.Add(time.Minute)
+	replayed, claimed, err := queue.Claim(ctx)
+	if err != nil || !claimed {
+		t.Errorf("reclaim after projector Ack = (%v, %v), want same intent", claimed, err)
+		return
+	}
+	if replayed.IntentID != intent.IntentID {
+		t.Fatalf("reclaimed intent = %q, want %q", replayed.IntentID, intent.IntentID)
+	}
+	result, err := handler.Handle(ctx, replayed)
+	if err != nil {
+		t.Fatalf("Handle after projector Ack: %v", err)
+	}
+	if err := queue.Ack(ctx, replayed, result); err != nil {
+		t.Fatalf("Ack replayed reducer intent: %v", err)
+	}
+	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "after_reducer_ack")
+}
+
+func firstGenerationBarrierOutcome(t *testing.T, ctx context.Context, db *sql.DB, workID string) (string, string, int) {
+	t.Helper()
+	var status string
+	var class sql.NullString
+	var attempts int
+	if err := db.QueryRowContext(ctx, `
+SELECT status, failure_class, attempt_count FROM fact_work_items WHERE work_item_id = $1
+`, workID).Scan(&status, &class, &attempts); err != nil {
+		t.Fatalf("read first-generation reducer outcome: %v", err)
+	}
+	return status, class.String, attempts
+}
+
+func logFirstGenerationBarrierSnapshot(t *testing.T, ctx context.Context, db *sql.DB, scopeID, generationID, workID, stage string) {
+	t.Helper()
+	var active, generationStatus, workStatus, failureClass sql.NullString
+	var attemptCount, deadLetters int
+	var epoch sql.NullInt64
+	var at time.Time
+	if err := db.QueryRowContext(ctx, `
+SELECT clock_timestamp(), scope.active_generation_id, generation.status,
+       state.activation_epoch, work.status, work.failure_class, work.attempt_count,
+       (SELECT count(*) FROM fact_work_items WHERE scope_id = $1 AND stage = 'reducer' AND status = 'dead_letter')
+FROM ingestion_scopes AS scope
+JOIN scope_generations AS generation ON generation.scope_id = scope.scope_id AND generation.generation_id = $2
+JOIN fact_work_items AS work ON work.work_item_id = $3
+LEFT JOIN container_image_identity_scope_state AS state ON state.scope_id = scope.scope_id
+WHERE scope.scope_id = $1
+`, scopeID, generationID, workID).Scan(&at, &active, &generationStatus, &epoch, &workStatus, &failureClass, &attemptCount, &deadLetters); err != nil {
+		t.Fatalf("snapshot %s: %v", stage, err)
+	}
+	t.Logf("barrier=%s db_time=%s active=%q generation=%q epoch=%d epoch_valid=%t work=%q class=%q attempts=%d dead_letters=%d",
+		stage, at.Format(time.RFC3339Nano), active.String, generationStatus.String, epoch.Int64, epoch.Valid,
+		workStatus.String, failureClass.String, attemptCount, deadLetters)
 }
