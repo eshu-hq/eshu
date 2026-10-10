@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
@@ -89,7 +90,7 @@ func NewIAMPolicyObservationEnvelope(obs IAMPolicyObservation, key redact.Key) (
 	}
 	conditionFingerprint := fingerprintIAMCondition(obs.ConditionFingerprintInput, key)
 
-	stableKey := facts.StableID(facts.GCPIAMPolicyObservationFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.GCPIAMPolicyObservationFactKind, map[string]any{
 		"full_resource_name":    fullName,
 		"asset_type":            assetType,
 		"role":                  role,
@@ -122,8 +123,8 @@ func NewIAMPolicyObservationEnvelope(obs IAMPolicyObservation, key redact.Key) (
 
 	return newEnvelope(
 		obs.Boundary,
-		facts.GCPIAMPolicyObservationFactKind,
-		facts.GCPIAMPolicyObservationSchemaVersion,
+		cloud.GCPIAMPolicyObservationFactKind,
+		cloud.GCPIAMPolicyObservationSchemaVersion,
 		stableKey,
 		sourceRecordID(obs.SourceRecordID, fullName+"|"+role),
 		obs.SourceURI,

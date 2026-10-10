@@ -13,7 +13,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -44,7 +43,7 @@ type PostgresCloudTagEvidenceLoader struct {
 // in lockstep.
 var cloudTagEvidenceFactMappings = map[string]string{
 	cloud.AzureTagObservationFactKind: cloudinventory.ProviderAzure,
-	facts.GCPTagObservationFactKind:   cloudinventory.ProviderGCP,
+	cloud.GCPTagObservationFactKind:   cloudinventory.ProviderGCP,
 }
 
 // LoadCloudTagEvidence implements reducercloudinventory.CloudTagEvidenceLoader. It returns the
@@ -143,7 +142,7 @@ func tagValueFingerprintsForFactKind(factKind string, payload map[string]any) (m
 	switch factKind {
 	case cloud.AzureTagObservationFactKind:
 		return azureTagValueFingerprints(payload)
-	case facts.GCPTagObservationFactKind:
+	case cloud.GCPTagObservationFactKind:
 		return gcpTagValueFingerprints(payload)
 	default:
 		return nil, false
@@ -172,8 +171,8 @@ func azureTagValueFingerprints(payload map[string]any) (map[string]string, bool)
 // azureTagValueFingerprints for the decode-failure contract.
 func gcpTagValueFingerprints(payload map[string]any) (map[string]string, bool) {
 	observation, err := decodeGCPTagObservation(factschema.Envelope{
-		FactKind:      facts.GCPTagObservationFactKind,
-		SchemaVersion: facts.GCPTagObservationSchemaVersion,
+		FactKind:      cloud.GCPTagObservationFactKind,
+		SchemaVersion: cloud.GCPTagObservationSchemaVersion,
 		Payload:       payload,
 	})
 	if err != nil {

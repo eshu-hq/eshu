@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -205,7 +206,7 @@ func (s *Source) staleGeneration(
 		return collector.CollectedGeneration{}, fmt.Errorf("build gcp stale warning for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
 	}
 	s.recordWarning(ctx, gcpcloud.WarningKindStale, gcpcloud.OutcomeStale)
-	s.recordFactsEmitted(ctx, facts.GCPCollectionWarningFactKind, scopeCfg.ParentScopeKind, 1)
+	s.recordFactsEmitted(ctx, cloud.GCPCollectionWarningFactKind, scopeCfg.ParentScopeKind, 1)
 	s.recordClaim(ctx, gcpcloud.ClaimStatusPartial)
 
 	scopeValue, generationValue := s.scopeAndGeneration(scopeCfg, generationID, observedAt)

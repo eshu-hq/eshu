@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
@@ -94,7 +95,7 @@ func repoDependencySourceRowCount(input []facts.Envelope, alias string) int {
 	repoID := repoDependencyRepoID(alias)
 	count := 0
 	for _, fact := range input {
-		if fact.FactKind != familyodu.ContentFactKind && fact.FactKind != "file" && fact.FactKind != facts.GCPCloudRelationshipFactKind {
+		if fact.FactKind != familyodu.ContentFactKind && fact.FactKind != "file" && fact.FactKind != cloud.GCPCloudRelationshipFactKind {
 			continue
 		}
 		if fact.Payload["repo_id"] == repoID {

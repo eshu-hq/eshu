@@ -81,7 +81,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{CICDRunFactKinds, CICDRunSchemaVersion},
 	{CodeownersFactKinds, CodeownersSchemaVersion},
 	{cloud.EC2InstancePostureFactKinds, cloud.EC2InstancePostureSchemaVersion},
-	{GCPFactKinds, GCPSchemaVersion},
+	{cloud.GCPFactKinds, cloud.GCPSchemaVersion},
 	{IncidentContextFactKinds, IncidentContextSchemaVersion},
 	{IncidentRoutingFactKinds, IncidentRoutingSchemaVersion},
 	{cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},

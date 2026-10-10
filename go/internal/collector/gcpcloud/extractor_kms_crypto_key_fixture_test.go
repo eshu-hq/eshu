@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -46,7 +46,7 @@ func TestKMSCryptoKeyOfflineFixtureEndToEnd(t *testing.T) {
 	var signKeyAttrs map[string]any
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			switch env.Payload["full_resource_name"] {
 			case kmsCryptoKeyFullResourceName:
@@ -54,7 +54,7 @@ func TestKMSCryptoKeyOfflineFixtureEndToEnd(t *testing.T) {
 			case "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/sig-rk/cryptoKeys/sign-key":
 				signKeyAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeCryptoKeyInKeyRing {
 				keyRingEdges++
 			}

@@ -164,7 +164,7 @@ emission path — see the module `README.md`'s no-observability-change note.
 ## Gotchas / invariants
 
 - `Resource`'s schema version is pinned at 1.1.0
-  (`facts.GCPCloudResourceSchemaVersion`), one minor ahead of the rest of this
+  (`cloud.GCPCloudResourceSchemaVersion`), one minor ahead of the rest of this
   family's 1.0.0 kinds. The decode seam still dispatches on the schema-version
   MAJOR only, so this is a version-artifact detail, not a second decode path.
 - `gcp_iam_principal`, `gcp_iam_trust_policy`, and `gcp_iam_permission_policy`

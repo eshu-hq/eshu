@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -47,12 +47,12 @@ func TestRouteOfflineFixtureEndToEnd(t *testing.T) {
 	const defaultRouteFullName = "//compute.googleapis.com/projects/demo-project/global/routes/default-route"
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == defaultRouteFullName {
 				defaultAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			switch stringOrEmpty(env.Payload["relationship_type"]) {
 			case relationshipTypeRouteInNetwork:
 				networkEdges++

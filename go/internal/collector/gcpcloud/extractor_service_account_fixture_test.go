@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -49,7 +49,7 @@ func TestServiceAccountOfflineFixtureEndToEnd(t *testing.T) {
 	var noDataEmailAttrs map[string]any
 	var noDataEmailAnchors []string
 	for _, env := range envelopes {
-		if env.FactKind != facts.GCPCloudResourceFactKind {
+		if env.FactKind != cloud.GCPCloudResourceFactKind {
 			continue
 		}
 		resourceCount++

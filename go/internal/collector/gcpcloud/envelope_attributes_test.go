@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -44,8 +44,8 @@ func TestNewCloudResourceEnvelopeEmitsAttributesAndAnchors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build envelope: %v", err)
 	}
-	if env.SchemaVersion != facts.GCPCloudResourceSchemaVersion {
-		t.Errorf("schema version = %q, want %q", env.SchemaVersion, facts.GCPCloudResourceSchemaVersion)
+	if env.SchemaVersion != cloud.GCPCloudResourceSchemaVersion {
+		t.Errorf("schema version = %q, want %q", env.SchemaVersion, cloud.GCPCloudResourceSchemaVersion)
 	}
 
 	gotAttrs, ok := env.Payload["attributes"].(map[string]any)
@@ -86,7 +86,7 @@ func TestNewCloudResourceEnvelopeOmitsEmptyTypedDepth(t *testing.T) {
 }
 
 func TestGCPCloudResourceSchemaVersionBumpedForTypedDepth(t *testing.T) {
-	if facts.GCPCloudResourceSchemaVersion == "1.0.0" {
+	if cloud.GCPCloudResourceSchemaVersion == "1.0.0" {
 		t.Fatalf("schema version must bump past 1.0.0 when attributes/correlation_anchors are added")
 	}
 }

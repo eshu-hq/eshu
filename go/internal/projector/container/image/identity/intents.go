@@ -33,7 +33,7 @@ var candidateFactKinds = []string{
 	chain.OCIImageReferrerFactKind,
 	facts.AWSImageReferenceFactKind,
 	cloud.AzureImageReferenceFactKind,
-	facts.GCPImageReferenceFactKind,
+	cloud.GCPImageReferenceFactKind,
 	facts.AWSRelationshipFactKind,
 	facts.CICDArtifactFactKind,
 	facts.CICDWorkflowImageEvidenceFactKind,
@@ -83,7 +83,7 @@ func triggerFact(envelope facts.Envelope) bool {
 		return true
 	case cloud.AzureImageReferenceFactKind:
 		return true
-	case facts.GCPImageReferenceFactKind:
+	case cloud.GCPImageReferenceFactKind:
 		return true
 	case facts.AWSRelationshipFactKind:
 		return awsRelationshipTargetsContainerImage(envelope)

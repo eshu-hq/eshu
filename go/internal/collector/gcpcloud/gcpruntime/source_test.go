@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -154,16 +155,16 @@ func TestSourceYieldsGenerationFromFixturePages(t *testing.T) {
 		t.Fatalf("generation/scope identity invalid: %v", err)
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 3 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 3 {
 		t.Fatalf("resource fact count = %d, want 3", got)
 	}
-	if got := countKind(envs, facts.GCPTagObservationFactKind); got != 2 {
+	if got := countKind(envs, cloud.GCPTagObservationFactKind); got != 2 {
 		t.Fatalf("tag fact count = %d, want 2", got)
 	}
-	if got := countKind(envs, facts.GCPCollectionWarningFactKind); got != 0 {
+	if got := countKind(envs, cloud.GCPCollectionWarningFactKind); got != 0 {
 		t.Fatalf("warning fact count = %d, want 0", got)
 	}
-	tag := firstEnvelopeKind(t, envs, facts.GCPTagObservationFactKind)
+	tag := firstEnvelopeKind(t, envs, cloud.GCPTagObservationFactKind)
 	readTime, ok := tag.Payload["read_time"].(time.Time)
 	if !ok {
 		t.Fatalf("tag read_time = %#v, want time.Time", tag.Payload["read_time"])
@@ -193,7 +194,7 @@ func TestSourcePaginationResumesFromContinuationToken(t *testing.T) {
 		t.Fatalf("Next: ok=%v err=%v", ok, err)
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 3 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 3 {
 		t.Fatalf("resource fact count = %d, want 3", got)
 	}
 	if len(provider.tokens) != 2 {
@@ -270,10 +271,10 @@ func TestSourceStaleGenerationEmitsWarning(t *testing.T) {
 		t.Fatal("stale scan should still yield a warning generation")
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 0 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 0 {
 		t.Fatalf("stale scan emitted %d resource facts, want 0", got)
 	}
-	if got := countKind(envs, facts.GCPCollectionWarningFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCollectionWarningFactKind); got != 1 {
 		t.Fatalf("stale warning fact count = %d, want 1", got)
 	}
 	if envs[0].Payload["warning_kind"] != gcpcloud.WarningKindStale {
@@ -303,10 +304,10 @@ func TestSourcePageTokenExpiredWarning(t *testing.T) {
 		t.Fatalf("Next: ok=%v err=%v", ok, err)
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 2 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 2 {
 		t.Fatalf("resource fact count = %d, want 2", got)
 	}
-	if got := countKind(envs, facts.GCPCollectionWarningFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCollectionWarningFactKind); got != 1 {
 		t.Fatalf("page-token-expired warning count = %d, want 1", got)
 	}
 }
@@ -329,10 +330,10 @@ func TestSourceProviderWarningEmitsCollectionWarning(t *testing.T) {
 		t.Fatalf("Next: ok=%v err=%v", ok, err)
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 0 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 0 {
 		t.Fatalf("resource facts = %d, want 0", got)
 	}
-	warning := firstEnvelopeKind(t, envs, facts.GCPCollectionWarningFactKind)
+	warning := firstEnvelopeKind(t, envs, cloud.GCPCollectionWarningFactKind)
 	if warning.Payload["warning_kind"] != gcpcloud.WarningKindQuota {
 		t.Fatalf("warning_kind = %v, want quota", warning.Payload["warning_kind"])
 	}

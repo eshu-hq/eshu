@@ -237,7 +237,7 @@ func collectorFactKinds() map[string][]string {
 		),
 		string(scope.CollectorAzure): cloud.AzureFactKinds(),
 		string(scope.CollectorGCP): appendFactKinds(
-			facts.GCPFactKinds(),
+			cloud.GCPFactKinds(),
 			filterFactKinds(facts.SecretsIAMFactKinds(), "gcp_"),
 		),
 		string(scope.CollectorTerraformState):            cloud.TerraformStateFactKinds(),

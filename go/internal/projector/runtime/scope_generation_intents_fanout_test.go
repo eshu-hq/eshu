@@ -150,7 +150,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		// azure_cloud_resource facts placed later below.
 		{
 			FactID: "gcp-resource-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.GCPCloudResourceFactKind, SchemaVersion: facts.GCPCloudResourceSchemaVersion,
+			FactKind: cloud.GCPCloudResourceFactKind, SchemaVersion: cloud.GCPCloudResourceSchemaVersion,
 			CollectorKind: "gcp_cloud", SourceRef: facts.Ref{SourceSystem: "gcp"},
 			Payload: map[string]any{
 				"project_id": "demo", "asset_type": "run.googleapis.com/Service",
@@ -230,7 +230,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 
 		{
 			FactID: "gcp-relationship-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.GCPCloudRelationshipFactKind, SchemaVersion: facts.GCPCloudRelationshipSchemaVersion,
+			FactKind: cloud.GCPCloudRelationshipFactKind, SchemaVersion: cloud.GCPCloudRelationshipSchemaVersion,
 			CollectorKind: "gcp_cloud", SourceRef: facts.Ref{SourceSystem: "gcp"},
 			Payload: map[string]any{
 				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/api",

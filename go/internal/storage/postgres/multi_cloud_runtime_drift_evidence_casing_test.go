@@ -66,7 +66,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderAzureStateCaseInsensitiveJo
 			// Observed inventory facts carry the mixed-case identities.
 			{rows: [][]any{
 				{facts.AWSResourceFactKind, awsObservedARN, []byte(`{"arn":"` + awsObservedARN + `","resource_type":"aws_s3_bucket"}`)},
-				{facts.GCPCloudResourceFactKind, gcpObservedName, []byte(`{"full_resource_name":"` + gcpObservedName + `","asset_type":"compute.googleapis.com/Instance"}`)},
+				{cloud.GCPCloudResourceFactKind, gcpObservedName, []byte(`{"full_resource_name":"` + gcpObservedName + `","asset_type":"compute.googleapis.com/Instance"}`)},
 				{cloud.AzureCloudResourceFactKind, azureObservedID, []byte(`{"arm_resource_id":"` + azureObservedID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
 			}},
 			// Active Terraform state rows carry the differently-cased identities.

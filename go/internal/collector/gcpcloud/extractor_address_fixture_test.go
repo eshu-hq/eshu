@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -49,7 +49,7 @@ func TestAddressOfflineFixtureEndToEnd(t *testing.T) {
 	const webIPFullName = "//compute.googleapis.com/projects/demo-project/regions/us-central1/addresses/web-ip"
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == webIPFullName {
 				attrs, ok := env.Payload["attributes"].(map[string]any)
@@ -58,7 +58,7 @@ func TestAddressOfflineFixtureEndToEnd(t *testing.T) {
 				}
 				webAttrs = attrs
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			switch stringOrEmpty(env.Payload["relationship_type"]) {
 			case relationshipTypeAddressUsedByForwardingRule:
 				forwardingRuleEdges++

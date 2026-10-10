@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // BenchmarkCloudInventoryRecordFromRowAWSAllowlist measures
@@ -71,7 +72,7 @@ func BenchmarkCloudInventoryRecordFromRowGCPPassthrough(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, ok := cloudInventoryRecordFromRow(facts.GCPCloudResourceFactKind, gcpName, payload); !ok {
+		if _, ok := cloudInventoryRecordFromRow(cloud.GCPCloudResourceFactKind, gcpName, payload); !ok {
 			b.Fatal("gcp row unexpectedly dropped")
 		}
 	}

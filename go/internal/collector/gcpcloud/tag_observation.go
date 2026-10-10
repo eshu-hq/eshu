@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
@@ -71,7 +72,7 @@ func NewTagObservationEnvelope(obs TagObservation, key redact.Key) (facts.Envelo
 		return facts.Envelope{}, fmt.Errorf("gcp tag observation requires at least one tag")
 	}
 
-	stableKey := facts.StableID(facts.GCPTagObservationFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.GCPTagObservationFactKind, map[string]any{
 		"full_resource_name": fullName,
 		"asset_type":         assetType,
 		"content_family":     obs.Boundary.ContentFamily,
@@ -101,8 +102,8 @@ func NewTagObservationEnvelope(obs TagObservation, key redact.Key) (facts.Envelo
 
 	return newEnvelope(
 		obs.Boundary,
-		facts.GCPTagObservationFactKind,
-		facts.GCPTagObservationSchemaVersion,
+		cloud.GCPTagObservationFactKind,
+		cloud.GCPTagObservationSchemaVersion,
 		stableKey,
 		sourceRecordID(obs.SourceRecordID, fullName),
 		obs.SourceURI,

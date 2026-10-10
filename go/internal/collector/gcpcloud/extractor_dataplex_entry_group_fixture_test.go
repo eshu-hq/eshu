@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -44,12 +44,12 @@ func TestDataplexEntryGroupOfflineFixtureEndToEnd(t *testing.T) {
 	var analyticsAttrs map[string]any
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == dataplexEntryGroupFullName {
 				analyticsAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			relationshipCount++
 		}
 	}

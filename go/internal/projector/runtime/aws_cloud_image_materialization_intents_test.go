@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -196,8 +197,8 @@ func TestBuildProjectionSkipsAWSCloudImageMaterializationWithoutAWSResourceFacts
 	intents := appendScopeGenerationReducerIntents(nil, scopeValue, generation, []facts.Envelope{
 		{
 			FactID:        "fact-gcp-resource-1",
-			FactKind:      facts.GCPCloudResourceFactKind,
-			SchemaVersion: facts.GCPCloudResourceSchemaVersion,
+			FactKind:      cloud.GCPCloudResourceFactKind,
+			SchemaVersion: cloud.GCPCloudResourceSchemaVersion,
 			SourceRef:     facts.Ref{SourceSystem: "gcp"},
 			Payload: map[string]any{
 				"full_resource_name": "//compute.googleapis.com/projects/demo/zones/us-central1-a/instances/demo",

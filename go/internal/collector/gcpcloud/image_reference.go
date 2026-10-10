@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
@@ -79,7 +80,7 @@ func NewImageReferenceEnvelope(obs ImageReferenceObservation, key redact.Key) (f
 		confidence = ImageConfidenceDigest
 	}
 
-	stableKey := facts.StableID(facts.GCPImageReferenceFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.GCPImageReferenceFactKind, map[string]any{
 		"owning_full_resource_name": owningName,
 		"image_reference":           imageReference,
 		"image_digest":              imageDigest,
@@ -107,8 +108,8 @@ func NewImageReferenceEnvelope(obs ImageReferenceObservation, key redact.Key) (f
 
 	return newEnvelope(
 		obs.Boundary,
-		facts.GCPImageReferenceFactKind,
-		facts.GCPImageReferenceSchemaVersion,
+		cloud.GCPImageReferenceFactKind,
+		cloud.GCPImageReferenceSchemaVersion,
 		stableKey,
 		sourceRecordID(obs.SourceRecordID, owningName+"|"+imageReference+"|"+imageDigest),
 		obs.SourceURI,

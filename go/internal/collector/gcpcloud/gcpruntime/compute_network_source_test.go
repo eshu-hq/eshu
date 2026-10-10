@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestSourceEmitsComputeNetworkTypedDepthFromFixture proves the collector runtime
@@ -32,15 +32,15 @@ func TestSourceEmitsComputeNetworkTypedDepthFromFixture(t *testing.T) {
 	}
 
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
 	// 2 subnetwork edges + 1 peering edge.
-	if got := countKind(envs, facts.GCPCloudRelationshipFactKind); got != 3 {
+	if got := countKind(envs, cloud.GCPCloudRelationshipFactKind); got != 3 {
 		t.Fatalf("relationship fact count = %d, want 3 (2 subnets, 1 peering)", got)
 	}
 
-	resource := firstEnvelopeKind(t, envs, facts.GCPCloudResourceFactKind)
+	resource := firstEnvelopeKind(t, envs, cloud.GCPCloudResourceFactKind)
 	attrs, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource fact carried no attributes map: %#v", resource.Payload["attributes"])

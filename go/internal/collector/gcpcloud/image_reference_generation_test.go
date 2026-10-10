@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -46,14 +46,14 @@ func TestGenerationBuildEmitsImageReferenceObservationsForRuntimeContainers(t *t
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envelopes, facts.GCPImageReferenceFactKind); got != 2 {
+	if got := countKind(envelopes, cloud.GCPImageReferenceFactKind); got != 2 {
 		t.Fatalf("image reference fact count = %d, want 2", got)
 	}
 
-	image := firstFactKind(t, envelopes, facts.GCPImageReferenceFactKind)
+	image := firstFactKind(t, envelopes, cloud.GCPImageReferenceFactKind)
 	if image.Payload["read_time"] == nil {
 		t.Fatal("read_time missing from image reference observation")
 	}
@@ -83,10 +83,10 @@ func TestGenerationBuildSkipsImageReferenceObservationsWithoutRedactionKey(t *te
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envelopes, facts.GCPImageReferenceFactKind); got != 0 {
+	if got := countKind(envelopes, cloud.GCPImageReferenceFactKind); got != 0 {
 		t.Fatalf("image reference fact count = %d, want 0", got)
 	}
 }

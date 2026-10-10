@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -134,7 +135,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.GCPCloudResourceFactKind, facts.GCPCloudRelationshipFactKind},
+		[]string{cloud.GCPCloudResourceFactKind, cloud.GCPCloudRelationshipFactKind},
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for gcp relationship materialization: %w", err)
@@ -249,8 +250,8 @@ func (h GCPRelationshipMaterializationHandler) recordMetrics(
 	if h.Instruments == nil {
 		return
 	}
-	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPRelationshipMaterialization, facts.GCPCloudResourceFactKind, timing.resourceFactCount)
-	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPRelationshipMaterialization, facts.GCPCloudRelationshipFactKind, timing.relationshipCount)
+	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPRelationshipMaterialization, cloud.GCPCloudResourceFactKind, timing.resourceFactCount)
+	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPRelationshipMaterialization, cloud.GCPCloudRelationshipFactKind, timing.relationshipCount)
 	recordGCPMaterializationGraphWrites(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "edge", timing.edgeCount)
 	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "load_facts", timing.loadDuration)
 	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "extract", timing.extractDuration)
@@ -327,9 +328,9 @@ func (h GCPRelationshipMaterializationHandler) recordTally(ctx context.Context, 
 func splitGCPFactEnvelopes(envelopes []facts.Envelope) (resources, relationships []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resources = append(resources, env)
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			relationships = append(relationships, env)
 		}
 	}

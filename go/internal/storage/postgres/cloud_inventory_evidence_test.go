@@ -38,7 +38,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 					"resource_id":"managed-bucket",
 					"region":"us-east-1"
 				}`)},
-				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{
+				{cloud.GCPCloudResourceFactKind, gcpName, []byte(`{
 					"full_resource_name":"` + gcpName + `",
 					"asset_type":"compute.googleapis.com/Instance"
 				}`)},
@@ -75,7 +75,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 		t.Fatalf("aws record = %#v", aws)
 	}
 	gcp := byProvider["gcp"]
-	if gcp.FactKind != facts.GCPCloudResourceFactKind || gcp.RawIdentity != gcpName || gcp.ResourceType != "compute.googleapis.com/Instance" {
+	if gcp.FactKind != cloud.GCPCloudResourceFactKind || gcp.RawIdentity != gcpName || gcp.ResourceType != "compute.googleapis.com/Instance" {
 		t.Fatalf("gcp record = %#v", gcp)
 	}
 	azure := byProvider["azure"]
@@ -100,7 +100,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 	}
 	for _, kind := range []string{
 		facts.AWSResourceFactKind,
-		facts.GCPCloudResourceFactKind,
+		cloud.GCPCloudResourceFactKind,
 		cloud.AzureCloudResourceFactKind,
 	} {
 		if !strings.Contains(q.query, kind) {
@@ -127,7 +127,7 @@ func TestPostgresCloudInventoryEvidenceLoaderSkipsBlankAndMalformedRows(t *testi
 			{rows: [][]any{
 				{facts.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket","account_id":"111111111111","resource_id":"ok","region":"us-east-1"}`)},
 				// Blank raw identity: dropped.
-				{facts.GCPCloudResourceFactKind, "", []byte(`{"full_resource_name":"","asset_type":"x"}`)},
+				{cloud.GCPCloudResourceFactKind, "", []byte(`{"full_resource_name":"","asset_type":"x"}`)},
 				// Undecodable payload: dropped.
 				{cloud.AzureCloudResourceFactKind, "x", []byte(`{not json`)},
 			}},
@@ -352,7 +352,7 @@ func TestCloudInventoryRecordFromRowExtractsAttributes(t *testing.T) {
 		}
 	}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.GCPCloudResourceFactKind, gcpName, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.GCPCloudResourceFactKind, gcpName, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}
@@ -375,7 +375,7 @@ func TestCloudInventoryRecordFromRowNoAttributesYieldsNilAttributes(t *testing.T
 	gcpName := "//compute.googleapis.com/projects/p/zones/z/instances/i"
 	payload := []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.GCPCloudResourceFactKind, gcpName, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.GCPCloudResourceFactKind, gcpName, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}

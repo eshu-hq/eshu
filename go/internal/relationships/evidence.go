@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // CatalogEntry maps one repository to its known aliases for matching.
@@ -103,7 +104,7 @@ func discoverFromEnvelopeWithIndex(
 	contentIndex evidenceContentIndex,
 	stats *DiscoveryStats,
 ) []EvidenceFact {
-	if envelope.FactKind == facts.GCPCloudRelationshipFactKind {
+	if envelope.FactKind == cloud.GCPCloudRelationshipFactKind {
 		return discoverGCPCloudRelationshipEvidence(envelope, matcher, seen)
 	}
 

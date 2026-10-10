@@ -169,7 +169,7 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 		accountIDKey:       "account_id",
 		attributeAllowlist: &awsCloudInventoryAttributeAllowlist,
 	},
-	facts.GCPCloudResourceFactKind: {
+	cloud.GCPCloudResourceFactKind: {
 		provider:           cloudinventory.ProviderGCP,
 		resourceTypeKey:    "asset_type",
 		accountIDKey:       "project_id",

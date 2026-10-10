@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
@@ -65,7 +66,7 @@ const gcpRelationshipPersistedVersionlessSchemaVersion = "0.0.0"
 func decodeGCPCloudRelationship(envelope facts.Envelope) (gcpv1.Relationship, bool) {
 	schemaVersion := envelope.SchemaVersion
 	if schemaVersion == "" || schemaVersion == gcpRelationshipPersistedVersionlessSchemaVersion {
-		schemaVersion = facts.GCPCloudRelationshipSchemaVersion
+		schemaVersion = cloud.GCPCloudRelationshipSchemaVersion
 	}
 	relationship, err := factschema.DecodeGCPCloudRelationship(factschema.Envelope{
 		FactKind:      envelope.FactKind,
@@ -96,7 +97,7 @@ func discoverGCPCloudRelationshipEvidence(
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
-	if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
+	if envelope.IsTombstone || envelope.FactKind != cloud.GCPCloudRelationshipFactKind {
 		return nil
 	}
 	relationship, ok := decodeGCPCloudRelationship(envelope)
@@ -124,7 +125,7 @@ func discoverGCPCloudRelationshipEvidence(
 	}
 
 	details := map[string]any{
-		"gcp_fact_kind":         facts.GCPCloudRelationshipFactKind,
+		"gcp_fact_kind":         cloud.GCPCloudRelationshipFactKind,
 		"gcp_relationship_type": relationshipType,
 		"gcp_support_state":     supportState,
 		"source_asset_type":     trimDerefString(relationship.SourceAssetType),
@@ -189,7 +190,7 @@ func ResolveGCPRelationshipRepoLinks(
 	links := make([]GCPRelationshipRepoLink, 0)
 	for i := range envelopes {
 		envelope := envelopes[i]
-		if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
+		if envelope.IsTombstone || envelope.FactKind != cloud.GCPCloudRelationshipFactKind {
 			continue
 		}
 		relationship, ok := decodeGCPCloudRelationship(envelope)
@@ -228,7 +229,7 @@ func ResolveGCPRelationshipRepoLinks(
 func hasSupportedGCPRelationshipFact(envelopes []facts.Envelope) bool {
 	for i := range envelopes {
 		envelope := envelopes[i]
-		if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
+		if envelope.IsTombstone || envelope.FactKind != cloud.GCPCloudRelationshipFactKind {
 			continue
 		}
 		relationship, ok := decodeGCPCloudRelationship(envelope)

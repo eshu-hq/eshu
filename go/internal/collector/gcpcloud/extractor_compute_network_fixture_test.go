@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -45,7 +45,7 @@ func TestComputeNetworkOfflineFixtureEndToEnd(t *testing.T) {
 	var prodAnchors []any
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc" {
 				prodAttrs, _ = env.Payload["attributes"].(map[string]any)
@@ -55,7 +55,7 @@ func TestComputeNetworkOfflineFixtureEndToEnd(t *testing.T) {
 					}
 				}
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			relTypes[stringOrEmpty(env.Payload["relationship_type"])]++
 		}
 	}

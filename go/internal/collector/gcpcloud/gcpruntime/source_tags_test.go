@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestSourceEmitsOptInDirectAndEffectiveTagFacts(t *testing.T) {
@@ -53,12 +54,12 @@ func TestSourceEmitsOptInDirectAndEffectiveTagFacts(t *testing.T) {
 		t.Fatal("Next returned ok=false, want a generation")
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPTagObservationFactKind); got != 2 {
+	if got := countKind(envs, cloud.GCPTagObservationFactKind); got != 2 {
 		t.Fatalf("tag fact count = %d, want 2 direct/effective facts", got)
 	}
 	seen := map[string]facts.Envelope{}
 	for _, env := range envs {
-		if env.FactKind != facts.GCPTagObservationFactKind {
+		if env.FactKind != cloud.GCPTagObservationFactKind {
 			continue
 		}
 		payloadText := stringify(env.Payload)
@@ -112,10 +113,10 @@ func TestSourceTagProviderWarningBecomesCollectionWarning(t *testing.T) {
 		t.Fatal("Next returned ok=false, want a generation")
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCollectionWarningFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCollectionWarningFactKind); got != 1 {
 		t.Fatalf("warning fact count = %d, want 1", got)
 	}
-	warning := firstEnvelopeKind(t, envs, facts.GCPCollectionWarningFactKind)
+	warning := firstEnvelopeKind(t, envs, cloud.GCPCollectionWarningFactKind)
 	if got := warning.Payload["warning_kind"]; got != gcpcloud.WarningKindPartialPermission {
 		t.Fatalf("warning_kind = %v, want partial_permission", got)
 	}
@@ -166,10 +167,10 @@ func TestSourceMergesPaginatedTagPagesIntoOneFact(t *testing.T) {
 		t.Fatal("Next returned ok=false, want a generation")
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPTagObservationFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPTagObservationFactKind); got != 1 {
 		t.Fatalf("tag fact count = %d, want one merged effective fact", got)
 	}
-	tag := firstEnvelopeKind(t, envs, facts.GCPTagObservationFactKind)
+	tag := firstEnvelopeKind(t, envs, cloud.GCPTagObservationFactKind)
 	fingerprints, ok := tag.Payload["tag_value_fingerprints"].(map[string]string)
 	if !ok || len(fingerprints) != 2 {
 		t.Fatalf("tag_value_fingerprints = %#v, want two merged entries", tag.Payload["tag_value_fingerprints"])

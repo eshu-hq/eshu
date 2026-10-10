@@ -11,6 +11,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
@@ -19,8 +20,8 @@ const testGCPImageRepository = "us-docker.pkg.dev/team-artifacts/apps/api"
 func TestContainerImageIdentityFactKindsIncludesGCPImageReferences(t *testing.T) {
 	t.Parallel()
 
-	if !slices.Contains(containerImageIdentityFactKinds(), facts.GCPImageReferenceFactKind) {
-		t.Fatalf("containerImageIdentityFactKinds() missing %q", facts.GCPImageReferenceFactKind)
+	if !slices.Contains(containerImageIdentityFactKinds(), cloud.GCPImageReferenceFactKind) {
+		t.Fatalf("containerImageIdentityFactKinds() missing %q", cloud.GCPImageReferenceFactKind)
 	}
 }
 
@@ -100,8 +101,8 @@ func gcpImageReferenceFact(
 		FactID:           factID,
 		ScopeID:          "gcp:project:demo:run:resource:global",
 		GenerationID:     "generation-gcp",
-		FactKind:         facts.GCPImageReferenceFactKind,
-		SchemaVersion:    facts.GCPImageReferenceSchemaVersion,
+		FactKind:         cloud.GCPImageReferenceFactKind,
+		SchemaVersion:    cloud.GCPImageReferenceSchemaVersion,
 		CollectorKind:    "gcp",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.June, 13, 11, 0, 0, 0, time.UTC),

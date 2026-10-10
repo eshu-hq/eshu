@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
@@ -83,8 +84,8 @@ func benchmarkDiscoverGCPCloudRelationshipEvidence(b *testing.B, padKeys int) {
 			b.Fatalf("EncodeGCPCloudRelationship: %v", err)
 		}
 		envelopes = append(envelopes, facts.Envelope{
-			FactKind:      facts.GCPCloudRelationshipFactKind,
-			SchemaVersion: facts.GCPCloudRelationshipSchemaVersion,
+			FactKind:      cloud.GCPCloudRelationshipFactKind,
+			SchemaVersion: cloud.GCPCloudRelationshipSchemaVersion,
 			ScopeID:       "gcp:project:demo:relationship:global",
 			StableFactKey: fmt.Sprintf("gcp-rel-%04d", i),
 			Payload:       payload,

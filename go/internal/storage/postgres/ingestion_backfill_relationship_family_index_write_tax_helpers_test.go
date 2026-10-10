@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 )
 
@@ -171,7 +172,7 @@ func relationshipFamilyWriteTaxFixture(t *testing.T) []facts.Envelope {
 		switch {
 		case strings.HasPrefix(fact.StableFactKey, "backfill-generic-distractor:"):
 			genericTemplates = append(genericTemplates, fact)
-		case fact.FactKind == "content" || fact.FactKind == "file" || fact.FactKind == facts.GCPCloudRelationshipFactKind:
+		case fact.FactKind == "content" || fact.FactKind == "file" || fact.FactKind == cloud.GCPCloudRelationshipFactKind:
 			familyTemplates = append(familyTemplates, fact)
 		}
 	}
@@ -216,7 +217,7 @@ func assertRelationshipFamilyWriteTaxFixture(t *testing.T, fixture []facts.Envel
 	}
 	sourceRows := 0
 	for _, fact := range fixture {
-		if fact.FactKind == "content" || fact.FactKind == "file" || fact.FactKind == facts.GCPCloudRelationshipFactKind {
+		if fact.FactKind == "content" || fact.FactKind == "file" || fact.FactKind == cloud.GCPCloudRelationshipFactKind {
 			sourceRows++
 		}
 	}

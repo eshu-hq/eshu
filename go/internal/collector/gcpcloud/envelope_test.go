@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
@@ -50,10 +51,10 @@ func TestNewCloudResourceEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCloudResourceEnvelope: %v", err)
 	}
-	if env.FactKind != facts.GCPCloudResourceFactKind {
-		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.GCPCloudResourceFactKind)
+	if env.FactKind != cloud.GCPCloudResourceFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, cloud.GCPCloudResourceFactKind)
 	}
-	if env.SchemaVersion != facts.GCPCloudResourceSchemaVersion {
+	if env.SchemaVersion != cloud.GCPCloudResourceSchemaVersion {
 		t.Fatalf("SchemaVersion = %q", env.SchemaVersion)
 	}
 	if env.CollectorKind != CollectorKind {
@@ -303,7 +304,7 @@ func TestNewCollectionWarningEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCollectionWarningEnvelope: %v", err)
 	}
-	if env.FactKind != facts.GCPCollectionWarningFactKind {
+	if env.FactKind != cloud.GCPCollectionWarningFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
 	if env.Payload["warning_kind"] != WarningKindPartialPermission {

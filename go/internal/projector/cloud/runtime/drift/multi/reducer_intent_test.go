@@ -36,7 +36,7 @@ func TestBuildReducerIntentFromGCPCandidate(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:  facts.GCPCloudResourceFactKind,
+		FactKind:  cloud.GCPCloudResourceFactKind,
 		FactID:    "fact-gcp-1",
 		SourceRef: facts.Ref{SourceSystem: "gcp"},
 	}})
@@ -91,7 +91,7 @@ func TestBuildReducerIntentEarliestAcrossKinds(t *testing.T) {
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: cloud.AzureCloudResourceFactKind, FactID: "fact-azure-first"},
-		{FactKind: facts.GCPCloudResourceFactKind, FactID: "fact-gcp-second"},
+		{FactKind: cloud.GCPCloudResourceFactKind, FactID: "fact-gcp-second"},
 	})
 	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
@@ -110,7 +110,7 @@ func TestBuildReducerIntentSourceSystemFallsBackToCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:      facts.GCPCloudResourceFactKind,
+		FactKind:      cloud.GCPCloudResourceFactKind,
 		FactID:        "fact-gcp-2",
 		CollectorKind: "  gcp_cloud  ",
 	}})

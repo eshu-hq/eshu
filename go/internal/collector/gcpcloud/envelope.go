@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
@@ -48,7 +49,7 @@ func NewCloudResourceEnvelope(boundary Boundary, obs ResourceObservation, key re
 	projectID := strings.TrimSpace(ProjectIDFromFullName(fullName))
 	updateTime := obs.UpdateTime.UTC()
 
-	stableKey := facts.StableID(facts.GCPCloudResourceFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.GCPCloudResourceFactKind, map[string]any{
 		"asset_type":         assetType,
 		"content_family":     boundary.ContentFamily,
 		"full_resource_name": fullName,
@@ -105,8 +106,8 @@ func NewCloudResourceEnvelope(boundary Boundary, obs ResourceObservation, key re
 
 	return newEnvelope(
 		boundary,
-		facts.GCPCloudResourceFactKind,
-		facts.GCPCloudResourceSchemaVersion,
+		cloud.GCPCloudResourceFactKind,
+		cloud.GCPCloudResourceSchemaVersion,
 		stableKey,
 		sourceRecordID(obs.SourceRecordID, fullName),
 		obs.SourceURI,
@@ -128,7 +129,7 @@ func NewCollectionWarningEnvelope(obs WarningObservation) (facts.Envelope, error
 		return facts.Envelope{}, fmt.Errorf("gcp warning observation has invalid outcome %q", obs.Outcome)
 	}
 
-	stableKey := facts.StableID(facts.GCPCollectionWarningFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.GCPCollectionWarningFactKind, map[string]any{
 		"asset_type_family": obs.Boundary.AssetTypeFamily,
 		"content_family":    obs.Boundary.ContentFamily,
 		"generation_id":     obs.Boundary.GenerationID,
@@ -154,8 +155,8 @@ func NewCollectionWarningEnvelope(obs WarningObservation) (facts.Envelope, error
 
 	return newEnvelope(
 		obs.Boundary,
-		facts.GCPCollectionWarningFactKind,
-		facts.GCPCollectionWarningSchemaVersion,
+		cloud.GCPCollectionWarningFactKind,
+		cloud.GCPCollectionWarningSchemaVersion,
 		stableKey,
 		sourceRecordID(obs.SourceRecordID, obs.WarningKind+":"+obs.Outcome),
 		obs.SourceURI,

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -49,7 +49,7 @@ func TestCloudBuildTriggerOfflineFixtureEndToEnd(t *testing.T) {
 	var repoTriggerAttrs, githubTriggerAttrs, pubsubTriggerAttrs map[string]any
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			switch env.Payload["full_resource_name"] {
 			case cloudBuildTriggerFullNameConst:
@@ -59,7 +59,7 @@ func TestCloudBuildTriggerOfflineFixtureEndToEnd(t *testing.T) {
 			case "//cloudbuild.googleapis.com/projects/demo-project/locations/us-central1/triggers/trigger-pubsub-repo":
 				pubsubTriggerAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			switch stringOrEmpty(env.Payload["relationship_type"]) {
 			case relationshipTypeTriggerSourceRepo:
 				repoEdges++
