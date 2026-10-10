@@ -1,0 +1,21 @@
+go/internal/query/work_item_alias.go
+  s_e8ab01ccdfa8e2::t_f07219425e288c 75-89
+go/internal/query/workitem/README.md
+  s_e8ab01ccdfa8e2::t_7b3c9628cd01f5 98,102-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "deae36be934c7728b46ddb7687f4524696c6e2d2",
+  "prompts": {},
+  "sessions": {
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

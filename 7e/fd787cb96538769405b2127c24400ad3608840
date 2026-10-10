@@ -1,0 +1,22 @@
+go/internal/runtime/postgres/legacy_writer_budget_test.go
+  s_b0d7e3abc26c5a::t_bf8ff8c6d582b2 11,13,92-95,123-126,130,141-150
+  s_b0d7e3abc26c5a::t_26fb2f6fd66c1a 116-122,127-129,131-140,151
+go/internal/runtime/postgres/read_store.go
+  s_b0d7e3abc26c5a::t_072485ff07f5cd 66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7efd787cb96538769405b2127c24400ad3608840",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

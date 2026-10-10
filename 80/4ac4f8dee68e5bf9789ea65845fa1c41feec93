@@ -1,0 +1,25 @@
+go/cmd/bootstrap-data-plane/graph_schema_marker_test.go
+  s_f2f7fbb6f30866::t_5aa44d513e312c 9,272-323
+go/cmd/bootstrap-data-plane/README.md
+  s_f2f7fbb6f30866::t_d904193f8d5d47 40
+go/cmd/bootstrap-data-plane/main_test_support_test.go
+  s_f2f7fbb6f30866::t_63614d24020887 114-118,121,123-127
+go/cmd/bootstrap-data-plane/main.go
+  s_f2f7fbb6f30866::t_6cb5bc623d8ba7 155-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "804ac4f8dee68e5bf9789ea65845fa1c41feec93",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

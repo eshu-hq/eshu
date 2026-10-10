@@ -1,0 +1,19 @@
+.agents/skills/eshu-mcp-call-rigor/SKILL.md
+  s_bdaf44668b73dc::t_0d015d59c2b4a5 14,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "070b904ee7e9259fa7a16f068424bc7b01fcbb16",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

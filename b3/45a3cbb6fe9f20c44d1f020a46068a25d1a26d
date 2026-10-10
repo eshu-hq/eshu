@@ -1,0 +1,19 @@
+docs/internal/agent-hooks-codex-goal.md
+  s_bc720f29f5e0fd::t_2c69d67c8b01d8 47-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b345a3cbb6fe9f20c44d1f020a46068a25d1a26d",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,52 @@
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 248-262
+go/internal/capabilitycatalog/data/surface-inventory.generated.json
+  h_78a442cba0b3e6 3596-3600
+go/internal/reducer/aws_resource_materialization.go
+  h_78a442cba0b3e6 13-14,96-98
+go/internal/reducer/aws_resource_refresh.go
+  h_78a442cba0b3e6 28-32,37-38,41-44,47
+go/internal/reducer/defaults.go
+  h_78a442cba0b3e6 14,209-217
+go/internal/reducer/defaults_additive_domains_cloud_nodes.go
+  h_78a442cba0b3e6 26
+go/internal/reducer/defaults_additive_domains_cloud_posture.go
+  h_78a442cba0b3e6 119
+go/internal/reducer/defaults_additive_domains_cloud_relationships.go
+  h_78a442cba0b3e6 58-59
+go/internal/reducer/defaults_additive_domains_refresh_test.go
+  h_78a442cba0b3e6 7,9-10,44-180
+go/internal/reducer/defaults_domain_catalog.go
+  h_78a442cba0b3e6 79-81
+go/internal/reducer/value_flow_refresh_telemetry.go
+  h_78a442cba0b3e6 1-76
+go/internal/reducer/value_flow_refresh_telemetry_test.go
+  h_78a442cba0b3e6 1-114
+go/internal/reducer/workload_cloud_relationship_materialization.go
+  h_78a442cba0b3e6 13,88-90
+go/internal/reducer/workload_cloud_relationship_refresh.go
+  h_78a442cba0b3e6 29-33,38-39,42-45,48
+go/internal/reducer/workload_materialization_handler.go
+  h_78a442cba0b3e6 11-12,15,112-118
+go/internal/reducer/workload_materialization_refresh.go
+  h_78a442cba0b3e6 29-47
+go/internal/telemetry/contract.go
+  h_78a442cba0b3e6 483-486
+go/internal/telemetry/instruments.go
+  h_78a442cba0b3e6 574-585,3012-3019
+scripts/lib/dirgate-grandfather.tsv
+  h_78a442cba0b3e6 88
+tools/golangci-lint-dirgate/grandfather.go
+  h_78a442cba0b3e6 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6a55c53c668d0d864b3cd2b8719494fc49b06c80",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

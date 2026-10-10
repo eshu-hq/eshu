@@ -1,0 +1,24 @@
+scripts/lib/remote_e2e_security_alerts.sh
+  s_f2f7fbb6f30866::t_0931b8ef51a6ff 57-61,63,105
+docs/public/reference/remote-e2e-runtime-state.md
+  s_f2f7fbb6f30866::t_f1e42118271232 154-155,162-165
+scripts/test-verify-remote-e2e-target-story.sh
+  s_f2f7fbb6f30866::t_a2e524cb11538c 260-267,269-273
+  s_f2f7fbb6f30866::t_0a72355eb3cc4d 231,243,250,258-259,268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e9e0f09ac81bf35611f7487f9f1b365cfb608448",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

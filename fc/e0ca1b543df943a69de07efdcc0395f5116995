@@ -1,0 +1,63 @@
+go/internal/reducer/code_call_projection_runner.go
+  s_bdaf44668b73dc::t_a5853d9deea88e 51-56,113,186-197,49-50
+  s_bdaf44668b73dc::t_b2aa743f4a7ec7 45-48
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_20efcba52555b7 17-18
+  s_bdaf44668b73dc::t_ce2e93aa9d8517 13-15
+  s_bdaf44668b73dc::t_4346a67aee732e 16
+  s_bdaf44668b73dc::t_a8c35db77bf59a 19-20
+  s_bdaf44668b73dc::t_1af29042de5696 27
+  s_bdaf44668b73dc::t_22c12c98874b61 21-26
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_20efcba52555b7 169-170,174,176-179,182-184
+  s_bdaf44668b73dc::t_2b3eea933682fb 171-173
+  s_bdaf44668b73dc::t_ffe860fcdb8ff4 175
+  s_bdaf44668b73dc::t_bef3d8359cceca 150-157
+  s_bdaf44668b73dc::t_d773741b62830f 158,211,217-221,192,231
+  s_bdaf44668b73dc::t_105f73a206a287 159-161
+  s_bdaf44668b73dc::t_4346a67aee732e 166-167
+  s_bdaf44668b73dc::t_44fd3db334015d 186-191,225-230
+  s_bdaf44668b73dc::t_31666b1326f578 212-216,358-362
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_2c6c4141c4e57f 15
+  s_bdaf44668b73dc::t_775c21ded3fef3 20-23
+  s_bdaf44668b73dc::t_0f203362723d21 24-26
+go/internal/storage/postgres/shared_intents_history.go
+  s_bdaf44668b73dc::t_2b4f1b686dd835 22-34,65-93
+go/internal/storage/postgres/shared_intents_test.go
+  s_bdaf44668b73dc::t_9867eb0edf81b9 289-290,312,316
+  s_bdaf44668b73dc::t_926c3a47b56ba5 476-541,615-634
+go/internal/reducer/code_call_projection_retract_skip_test.go
+  s_bdaf44668b73dc::t_d05187195e9248 96-138
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_9bc7f71f71d5a4 23,204-206,68,124,132
+  s_bdaf44668b73dc::t_029e393c9c1c56 117-121
+  s_bdaf44668b73dc::t_753b2672c8e22c 122,123,125-131,194-196,340-344
+  s_bdaf44668b73dc::t_8e99e5cab25c06 207
+  s_bdaf44668b73dc::t_5f4d2617860240 61,329,331-332
+  s_bdaf44668b73dc::t_574e7d8d1973c2 62,330
+  s_bdaf44668b73dc::t_775c21ded3fef3 63-67,163,193,333-339
+go/internal/reducer/code_call_projection_work_test.go
+  s_bdaf44668b73dc::t_c1bf2a5e62eb03 10,38,43-47
+go/internal/reducer/code_call_projection_test_helpers_test.go
+  s_bdaf44668b73dc::t_1bcb1d9a1d3ee4 30-38,59-60
+  s_bdaf44668b73dc::t_c80953537eeee1 25-27,50-58
+go/internal/reducer/code_call_projection_work.go
+  s_bdaf44668b73dc::t_2fcceb9dbbb3bc 26,54-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "fce0ca1b543df943a69de07efdcc0395f5116995",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

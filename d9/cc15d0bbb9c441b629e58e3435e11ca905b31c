@@ -1,0 +1,107 @@
+go/internal/projector/code/taint/evidence/reducer_intent_test.go
+  s_4a0f86aa680964::t_f3f55d9a51d084 4,14,18,23,27,32,39,59,66,83,90,104,113
+  s_4a0f86aa680964::t_1418e1042aced9 57-58,81-82,102-103
+go/internal/projector/code/function/AGENTS.md
+  s_4a0f86aa680964::t_9f1518771cdca4 1-7
+go/internal/projector/code/function/summary/factschema_decode.go
+  s_4a0f86aa680964::t_1418e1042aced9 29-30
+  s_4a0f86aa680964::t_6f9f0bee04bcaa 4,16,24,31,39,41,43
+go/internal/projector/code/AGENTS.md
+  s_4a0f86aa680964::t_9f1518771cdca4 1-12
+sdk/go/factschema/codedataflow/v1/dataflow_scanned.go
+  s_4a0f86aa680964::t_46c7abc951e898 16-18
+go/internal/projector/code/function/summary/repo_id_derivation_test.go
+  s_4a0f86aa680964::t_f3f55d9a51d084 4,15,32,50,52,71,88,98
+  s_4a0f86aa680964::t_1418e1042aced9 13-14,51,60,86-87
+go/internal/projector/code/interproc/evidence/doc.go
+  s_4a0f86aa680964::t_6f9f0bee04bcaa 4,21
+go/internal/projector/code/interproc/README.md
+  s_4a0f86aa680964::t_9f1518771cdca4 1-6
+go/internal/projector/code/taint/evidence/AGENTS.md
+  s_4a0f86aa680964::t_073e110e510219 1,6-9,13-25,29-33
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_27f7ba5dd8a44a 830,848,867
+go/internal/projector/code/doc.go
+  s_4a0f86aa680964::t_9f1518771cdca4 1-6
+go/internal/projector/code/function/summary/reducer_intent_test.go
+  s_4a0f86aa680964::t_f3f55d9a51d084 4,14,17,22,33,51,61,70,80
+go/internal/projector/code/taint/evidence/README.md
+  s_4a0f86aa680964::t_073e110e510219 1-42
+go/internal/projector/code/interproc/doc.go
+  s_4a0f86aa680964::t_9f1518771cdca4 1-6
+go/internal/projector/code/function/README.md
+  s_4a0f86aa680964::t_9f1518771cdca4 1-5
+go/internal/projector/code/taint/evidence/reducer_intent.go
+  s_4a0f86aa680964::t_6f9f0bee04bcaa 4,14,27,32,47-48,53
+go/internal/projector/code/taint/README.md
+  s_4a0f86aa680964::t_9f1518771cdca4 1-5
+go/internal/projector/code/function/summary/README.md
+  s_4a0f86aa680964::t_9c93750a177462 1-51
+go/internal/projector/code/interproc/evidence/README.md
+  s_4a0f86aa680964::t_36249ae08688b3 1,5-8,10,12-15,17-19,21,23-29,31-32,36-37,39,41-43
+go/internal/projector/code/interproc/AGENTS.md
+  s_4a0f86aa680964::t_9f1518771cdca4 1-7
+go/internal/projector/code/function/summary/doc.go
+  s_4a0f86aa680964::t_6f9f0bee04bcaa 4,33
+go/internal/projector/code/taint/doc.go
+  s_4a0f86aa680964::t_9f1518771cdca4 1-6
+go/internal/projector/code_taint_evidence_projection_test.go
+  s_4a0f86aa680964::t_36e8400a49a0f9 14
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_d8b1567c91fc5d 84-86
+docs/internal/design/4786-contract-integration-matrix.md
+  s_4a0f86aa680964::t_bab7fd51fd1a4e 37
+go/internal/projector/code/taint/evidence/doc.go
+  s_4a0f86aa680964::t_6f9f0bee04bcaa 4,19
+go/internal/projector/code/interproc/evidence/reducer_intent_test.go
+  s_4a0f86aa680964::t_1418e1042aced9 57-58,71-72,95-96,116-117
+  s_4a0f86aa680964::t_f3f55d9a51d084 4,14,18,23,27,32,39,59,66,73,80,97,104,118,127
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_0a9cda8adb37ef 69,343
+go/internal/projector/code/function/summary/AGENTS.md
+  s_4a0f86aa680964::t_9c93750a177462 1,6-9,13-36
+go/internal/projector/code/function/summary/reducer_intent.go
+  s_4a0f86aa680964::t_6f9f0bee04bcaa 4,14,19,44,51,71,77,83,89
+go/internal/projector/README.md
+  s_4a0f86aa680964::t_4b9a41865be602 250
+go/internal/projector/iamcanassume/README.md
+  s_4a0f86aa680964::t_dfa4bba7cd6012 99
+go/internal/projector/doc.go
+  s_4a0f86aa680964::t_54e2bbcac13183 54
+go/internal/storage/postgres/evidence-notes.md
+  s_4a0f86aa680964::t_95d0f08e8cce7f 99-100
+go/internal/projector/incidentrouting/README.md
+  s_4a0f86aa680964::t_dfa4bba7cd6012 79
+go/internal/projector/AGENTS.md
+  s_4a0f86aa680964::t_76430c64b7ef6e 146-147,150
+go/internal/projector/code/README.md
+  s_4a0f86aa680964::t_9f1518771cdca4 1-12
+go/internal/projector/code/interproc/evidence/reducer_intent.go
+  s_4a0f86aa680964::t_6f9f0bee04bcaa 4,14,29,34,49-50,56
+go/internal/projector/code/function/doc.go
+  s_4a0f86aa680964::t_9f1518771cdca4 1-6
+go/internal/projector/code/interproc/evidence/AGENTS.md
+  s_4a0f86aa680964::t_36249ae08688b3 1,6-9,13-26,30-34
+go/internal/projector/code_interproc_evidence_projection_test.go
+  s_4a0f86aa680964::t_002820f33d78b4 15
+go/internal/projector/code/taint/AGENTS.md
+  s_4a0f86aa680964::t_9f1518771cdca4 1-7
+go/internal/projector/scope_generation_intents.go
+  s_4a0f86aa680964::t_dfa4bba7cd6012 18-20,112,115,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d9cc15d0bbb9c441b629e58e3435e11ca905b31c",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

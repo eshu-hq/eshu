@@ -1,0 +1,21 @@
+go/internal/reducer/platform_materialization_test_helpers_test.go
+  s_20be138600ef1b::t_e75572450a1973 6-9,38,62-63,81-82
+docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md
+  s_20be138600ef1b::t_8b907679b6badd 347-351,359-361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "47b3b52f7735115b09d9185c7903f6de90472515",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

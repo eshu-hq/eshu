@@ -1,0 +1,67 @@
+go/cmd/api/AGENTS.md
+  s_20be138600ef1b::t_acb636708dbdea 52-55,71-76
+docs/public/operate/graph-rebuild-from-facts.md
+  s_20be138600ef1b::t_a0bba44ce547dd 267-271
+  s_20be138600ef1b::t_51ed1a23bcd7e0 306-312
+  s_20be138600ef1b::t_3c88e734f423a5 141,144,153-158,186-196
+  s_20be138600ef1b::t_e9e8529826f1f6 265-266,297-304
+  s_20be138600ef1b::t_0ed6b47b12bb54 256-263
+  s_20be138600ef1b::t_63b70fa8022ed5 197
+  s_20be138600ef1b::t_eea3be9992759e 264
+  s_20be138600ef1b::t_6c1c65f30dfbac 305
+go/internal/storage/postgres/rebuildreset/AGENTS.md
+  s_20be138600ef1b::t_6f8ba54f21c70a 75-80
+go/cmd/api/main.go
+  s_20be138600ef1b::t_b9a14f7ee317cc 22,26-27,91,121-133
+  s_20be138600ef1b::t_9b1ae11b2e6aa3 134-135
+go/cmd/api/main_test.go
+  s_20be138600ef1b::t_1a269b7eac5694 10,15,21-30
+  s_20be138600ef1b::t_97c74734daba34 31
+docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md
+  s_20be138600ef1b::t_a0bba44ce547dd 143-182,193-200
+  s_20be138600ef1b::t_cee552aeb336e3 5-7
+scripts/lib/graph_rebuild_runtime.sh
+  s_20be138600ef1b::t_78623b988a6b06 48-167
+  s_20be138600ef1b::t_89fd5da06e8743 38-47
+  s_20be138600ef1b::t_c23dbb3f794f7b 5-7
+  s_20be138600ef1b::t_d75735a05eea29 11,18-23,25-27,35
+go/cmd/api/README.md
+  s_20be138600ef1b::t_acb636708dbdea 41,92-98,279-282
+go/internal/reducer/crossrepo/doc.go
+  s_20be138600ef1b::t_b45bf29571d13d 44-49
+go/cmd/api/doc.go
+  s_20be138600ef1b::t_a0bba44ce547dd 30-31
+docs/public/reference/performance-slo-contract.md
+  s_20be138600ef1b::t_51ed1a23bcd7e0 180-187
+scripts/verify-graph-rebuild-from-facts.sh
+  s_20be138600ef1b::t_c23dbb3f794f7b 422
+  s_20be138600ef1b::t_686b8eec521f4e 427
+  s_20be138600ef1b::t_89fd5da06e8743 272-283,285,371,374,417,419,428
+go/cmd/reducer/deployable_unit_quiescence_wiring_test.go
+  s_20be138600ef1b::t_753d591f4361eb 1-17,23-24,27-45,47-48,51,55-56,60-67,70-78,80-85,90-146
+  s_20be138600ef1b::t_c4ae8e1a04a460 25-26,49-50,52-54,57-59,68-69,79,86-89
+  s_20be138600ef1b::t_da59e9253a8d8a 18-22,46
+docs/public/reference/telemetry/metrics-reducer-storage.md
+  s_20be138600ef1b::t_b45bf29571d13d 154
+scripts/test-verify-graph-rebuild-from-facts.sh
+  s_20be138600ef1b::t_65db6e85c2dd3c 220-239
+  s_20be138600ef1b::t_eb0b9a8b300812 173-174,176-177,190,192
+  s_20be138600ef1b::t_aa7bc1c5990a44 197-219,240-241
+  s_20be138600ef1b::t_40725d4b825810 167-172,175,178-189,191,193-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c3dbbaa5c464d3265a558d2fcac38a626f2ab25e",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

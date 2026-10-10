@@ -1,0 +1,191 @@
+apps/console/src/grid/EvidenceGrid.tsx
+  s_a259424f603ccc::t_5e015fa83564d9 9-36
+  s_a259424f603ccc::t_43a10847ce5fd0 1-8,37-38
+apps/console/src/api/repository.test.ts
+  s_a259424f603ccc::t_8c017c279332b6 101-104,106,194
+  s_a259424f603ccc::t_08b8a71c73d747 1-45,47-48,284
+  s_a259424f603ccc::t_27abcf754197cb 46
+  s_a259424f603ccc::t_56bd3e0fad28dd 197-283
+  s_a259424f603ccc::t_c06bd273943a51 122-193,195-196
+  s_a259424f603ccc::t_fcb51338fb7cd4 56-67,100,105
+  s_a259424f603ccc::t_d4e9b05ea502e0 49-55,68-99,120-121
+  s_a259424f603ccc::t_2a31b4333916f2 107-119
+apps/console/src/test/setup.ts
+  s_a259424f603ccc::t_2e7e63f743e6d4 32-34,39
+  s_a259424f603ccc::t_ecb4621259c195 1
+  s_a259424f603ccc::t_2981282e696858 2,35-38
+  s_a259424f603ccc::t_08517afa3fa16a 3-31
+apps/console/src/pages/FindingsPage.tsx
+  s_a259424f603ccc::t_4abef605113b9a 2-5,8,10-30,47-50
+  s_a259424f603ccc::t_76638d6fd15cb0 6,63-73,75-84
+  s_a259424f603ccc::t_ba6ef6c0abfa91 7,43-45,85-87
+  s_a259424f603ccc::t_aa4dd33a383d70 1,9,31-42,46,51-62,74
+apps/console/src/config/environment.ts
+  s_a259424f603ccc::t_deab758b77d7a3 14-15
+  s_a259424f603ccc::t_a24e931b73c5df 1-13,16-63
+apps/console/src/components/StatusStrip.tsx
+  s_a259424f603ccc::t_ba6ef6c0abfa91 1-30
+apps/console/src/App.tsx
+  s_a259424f603ccc::t_ba6ef6c0abfa91 2,4,6-13,18-21,23,49-61,63-74
+  s_a259424f603ccc::t_b7787b7e86d195 5,14,22
+  s_a259424f603ccc::t_a466b059713bf0 1,3,15-17,24-48,62
+apps/console/tsconfig.app.json
+  s_a259424f603ccc::t_ecb4621259c195 1-20
+apps/console/src/pages/FindingsPage.test.tsx
+  s_a259424f603ccc::t_0fcc81a04f86a2 1-2,11-42,44,48-52,58-65
+  s_a259424f603ccc::t_a77c05bb2c3742 3,7-9,43,45-47,56
+  s_a259424f603ccc::t_a5c7d7dfad0585 10
+  s_a259424f603ccc::t_2a31b4333916f2 55
+  s_a259424f603ccc::t_dba34420493a60 57
+  s_a259424f603ccc::t_d51b0acac88ad4 4-6,53-54,66-67
+apps/console/src/api/client.ts
+  s_a259424f603ccc::t_425c178d7e04e2 2,32-38,49-60,65,69-71,75-85,94-118
+  s_a259424f603ccc::t_f0fcd727ab71c8 22
+  s_a259424f603ccc::t_a24e931b73c5df 1,3-21,23-31,39-48,61-64,66-68,72-74,86-93,119-125
+docs/docs/adrs/README.md
+  s_a259424f603ccc::t_52e2a11a9e8e3a 55
+apps/console/src/pages/WorkspacePage.tsx
+  s_a259424f603ccc::t_ba6ef6c0abfa91 10,65,118-120
+  s_a259424f603ccc::t_1845ce7d0436d4 8,72-79,89-95,97-98
+  s_a259424f603ccc::t_2c8446307d375b 1,3-6,12-15,17-55,60
+  s_a259424f603ccc::t_43a10847ce5fd0 2,7,9,11,16,56-59,61-64,66-71,80-88,96,99-117
+apps/console/src/pages/WorkspacePage.test.tsx
+  s_a259424f603ccc::t_121738363bc36d 3,7-12,25-43,45,52
+  s_a259424f603ccc::t_6c2161042210fb 1-2,4-6,44,46-51,54-55,61-62
+  s_a259424f603ccc::t_dba34420493a60 53
+  s_a259424f603ccc::t_aa9199e427adc6 13-24,56-59
+  s_a259424f603ccc::t_252bd1978bcf46 60
+apps/console/src/components/SearchCommand.test.tsx
+  s_a259424f603ccc::t_6c2161042210fb 1-23
+apps/console/src/pages/DashboardPage.tsx
+  s_a259424f603ccc::t_cb9795b88e523b 1-5,8,11-23,26-27,29,31-34,39-40,44,46
+  s_a259424f603ccc::t_ba6ef6c0abfa91 7,35-38,70-71,92
+  s_a259424f603ccc::t_09d5bc7cab6783 9,24,47-53,56,59-69,72-84
+  s_a259424f603ccc::t_76638d6fd15cb0 6,45,54-55,57-58
+  s_a259424f603ccc::t_89801559a73e7e 10,25,28,30,41-43,85-91
+apps/console/src/App.test.tsx
+  s_a259424f603ccc::t_ea2135e12723a1 1-30
+apps/console/src/styles.css
+  s_a259424f603ccc::t_ba6ef6c0abfa91 1-93,96-153,473-486,493-494
+  s_a259424f603ccc::t_43a10847ce5fd0 94-95,154-242,389-395,487-489,492
+  s_a259424f603ccc::t_76638d6fd15cb0 396-402,406-411,423-424,452-472,490-491
+  s_a259424f603ccc::t_bcacc56e83a342 243-279,281-388,403-405,412-422,425-451
+  s_a259424f603ccc::t_94c153b7207811 280
+apps/console/src/pages/HomePage.test.tsx
+  s_a259424f603ccc::t_9a2dbf768ada05 1-2,4-6,24-33,35,37-40
+  s_a259424f603ccc::t_3a9dcd039358a8 3,7-23,34,36
+apps/console/src/components/StatusStrip.test.tsx
+  s_a259424f603ccc::t_ea2135e12723a1 1-26
+apps/console/src/api/liveData.ts
+  s_a259424f603ccc::t_506bf792aff426 112
+  s_a259424f603ccc::t_8f83a55201f08c 2,130,146
+  s_a259424f603ccc::t_e6b065f0e50447 125-129,131-135,137-142
+  s_a259424f603ccc::t_c17dec38ed0224 1,3-111,113-124,136,143-145,147-177
+vite.config.ts
+  s_a259424f603ccc::t_de33dbe5dc16ed 11
+apps/console/src/api/liveData.test.ts
+  s_a259424f603ccc::t_db07d60269d12f 122-151
+  s_a259424f603ccc::t_4361b9f6ef6f89 78
+  s_a259424f603ccc::t_6589b79c410f40 1-77,79-121,152
+package.json
+  s_a259424f603ccc::t_ecb4621259c195 11-13
+apps/console/src/pages/CatalogPage.test.tsx
+  s_a259424f603ccc::t_7bae17a2bcdea0 3,7-28,38
+  s_a259424f603ccc::t_2a31b4333916f2 37,49
+  s_a259424f603ccc::t_039e9d436169f4 36
+  s_a259424f603ccc::t_8d48bdf4648afb 1-2,29-33,39-48
+  s_a259424f603ccc::t_d51b0acac88ad4 4-6,34-35,50-51
+apps/console/src/api/mockData.ts
+  s_a259424f603ccc::t_6e2f0c6a45da44 22,25-32,34
+  s_a259424f603ccc::t_b884b62d3084ec 14-15,18,21,23-24,33,35-54,56,63,77,116-140,164-168,175-185,198-202,220,227
+  s_a259424f603ccc::t_76638d6fd15cb0 69-76,78-89,207-219,221-226,228-239
+  s_a259424f603ccc::t_43a10847ce5fd0 1-13,16-17,19-20,55,57-62,64-68,90-115,141-163,169-174,186-197,203-206,240-255
+apps/console/src/api/repository.ts
+  s_a259424f603ccc::t_e43605d374a16e 2,9,11,13,16,27,34,42,63-68,71-73,119-120,141,147,152,155-156,208-233,235-237,243,245,248
+  s_a259424f603ccc::t_806cf5f7a43efe 100
+  s_a259424f603ccc::t_be6bc5c2630539 10,12,14-15,17-26,28-33,36-41,43-44,46-62,74-75,77,79-95,97-99,101-118,142,153,158-159,181-197,238-242,244,246-247,250-251,253,277-330,334-341,343-387,400-411
+  s_a259424f603ccc::t_2a31b4333916f2 331-333,342
+  s_a259424f603ccc::t_6e2f0c6a45da44 4-5,8,45,76,78,96,143-144,146,148,154,160-180,249,252,254-276,388-399
+  s_a259424f603ccc::t_8eeaa51a52c5c6 1,3,6-7,35,69-70,121-140,145,149-151,157,198-207,234
+apps/console/vite.config.ts
+  s_a259424f603ccc::t_f50d4f90d8ab22 23-27
+  s_a259424f603ccc::t_83c1b35a2719f2 2,5-6,12,28,30
+  s_a259424f603ccc::t_ecb4621259c195 1,3-4,7-11,21-22,29,31-32
+  s_a259424f603ccc::t_ca1b334f7fb9ad 13-20
+apps/console/src/visualization/DeploymentGraphView.tsx
+  s_a259424f603ccc::t_806cf5f7a43efe 86-89,98-129,131-133,135
+  s_a259424f603ccc::t_94c153b7207811 10,36,130,134,156-167
+  s_a259424f603ccc::t_8c017c279332b6 82-85
+  s_a259424f603ccc::t_c9a0d55d51711d 1-9,11-35,37-81,90-97,136-155,168
+apps/console/src/api/deploymentGraph.ts
+  s_a259424f603ccc::t_6e2f0c6a45da44 1-241
+apps/console/src/config/environment.test.ts
+  s_a259424f603ccc::t_66e60ace3b6601 1-11,13,16-36
+  s_a259424f603ccc::t_5e2841d7fae575 12,14-15
+apps/console/src/api/client.test.ts
+  s_a259424f603ccc::t_334ee6acdbc590 2,57-82
+  s_a259424f603ccc::t_66e60ace3b6601 1,3-32,84
+  s_a259424f603ccc::t_05101e46cefba6 33-56,83
+docs/docs/adrs/2026-05-13-eshu-console-read-only-product-surface.md
+  s_a259424f603ccc::t_52e2a11a9e8e3a 1-73,79-143,146-148,150-152
+  s_a259424f603ccc::t_9cd7de35cbd82a 74-78,144-145,149
+apps/console/src/api/envelope.test.ts
+  s_a259424f603ccc::t_66e60ace3b6601 1-42
+apps/console/src/consoleMarker.ts
+  s_a259424f603ccc::t_8477d24b6c2037 1
+apps/console/tsconfig.json
+  s_a259424f603ccc::t_ecb4621259c195 1-11
+docs/superpowers/plans/2026-05-13-eshu-console-pr1.md
+  s_a259424f603ccc::t_52e2a11a9e8e3a 1-276
+apps/console/tsconfig.node.json
+  s_a259424f603ccc::t_ecb4621259c195 1-13
+apps/console/src/main.tsx
+  s_a259424f603ccc::t_ba6ef6c0abfa91 1-18
+apps/console/src/components/SearchCommand.tsx
+  s_a259424f603ccc::t_43a10847ce5fd0 1-50
+apps/console/src/api/envelope.ts
+  s_a259424f603ccc::t_a24e931b73c5df 1-72
+apps/console/src/pages/HomePage.tsx
+  s_a259424f603ccc::t_1b4bbc081e6fdb 1,3-5,7,11-14,16-32,42-44,46
+  s_a259424f603ccc::t_ba2a01e0795ad3 2,6,8,10,15,45,47-50
+  s_a259424f603ccc::t_ba6ef6c0abfa91 9,33-41,51-53
+apps/console/src/visualization/PathMap.tsx
+  s_a259424f603ccc::t_43a10847ce5fd0 1-13
+apps/console/src/pages/CatalogPage.tsx
+  s_a259424f603ccc::t_0b06097bce62ac 1-2,10,32-41,45,50-74,85-94
+  s_a259424f603ccc::t_76638d6fd15cb0 7,75-84,95-101
+  s_a259424f603ccc::t_ba6ef6c0abfa91 8,42-44,102-104
+  s_a259424f603ccc::t_c0b75a344674e3 3-6,9,11-31,46-49
+apps/console/package.json
+  s_a259424f603ccc::t_ecb4621259c195 1-13,16-32
+  s_a259424f603ccc::t_bcacc56e83a342 14-15
+apps/console/README.md
+  s_a259424f603ccc::t_0e805722f0aec9 14-15,24-27,73,76
+  s_a259424f603ccc::t_7350478214f9cb 1-13,16-23,28-72,74-75,77-81
+apps/console/src/pages/DashboardPage.test.tsx
+  s_a259424f603ccc::t_1392971f5b10d5 31-45
+  s_a259424f603ccc::t_67bd4ff8c37b04 1,22,24-27
+  s_a259424f603ccc::t_d51b0acac88ad4 3-5,18-20,30,46
+  s_a259424f603ccc::t_3511b36328e4eb 2,6-17,21,23
+  s_a259424f603ccc::t_ce62de54ec894a 28-29
+apps/console/src/consoleMarker.test.ts
+  s_a259424f603ccc::t_ecb4621259c195 1-7
+apps/console/index.html
+  s_a259424f603ccc::t_ecb4621259c195 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3f95a0798d22bd1cf3ce0a00e264328df7cbe00a",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

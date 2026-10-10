@@ -1,0 +1,23 @@
+go/cmd/eshu/graph_test.go
+  e700b1f344f033fb 276-283,457-467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "85f20ba5ac493cf9aca4c6b8d45e3cdf704eb13a",
+  "prompts": {
+    "e700b1f344f033fb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df929-9810-71a1-829b-d1bfbec7d9ea",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria",
+      "messages": [],
+      "total_additions": 319,
+      "total_deletions": 3,
+      "accepted_lines": 319,
+      "overriden_lines": 0
+    }
+  }
+}

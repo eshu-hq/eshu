@@ -1,0 +1,25 @@
+go/internal/doctruth/verifier_terraform_test.go
+  s_f2f7fbb6f30866::t_47f00d8a0011ad 79-80
+go/cmd/eshu/docs_terraform_test.go
+  s_f2f7fbb6f30866::t_47f00d8a0011ad 88-124
+go/internal/doctruth/verifier_terraform.go
+  s_f2f7fbb6f30866::t_b39b73629130da 22
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_b39b73629130da 93-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "51b2df9ec2fdfb27f05905da7340384b543e499e",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

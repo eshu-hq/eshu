@@ -1,0 +1,61 @@
+specs/capability-matrix.v1.yaml
+  0fdb6fbe5bc880aa 130-131,138,151-152,165-166,173
+docs/docs/reference/capability-conformance-spec.md
+  0fdb6fbe5bc880aa 282-290,316-324
+docs/docs/reference/http-api.md
+  0fdb6fbe5bc880aa 86-87,114
+go/internal/query/compare.go
+  0fdb6fbe5bc880aa 44
+go/cmd/eshu/local_graph_embedded_nornicdb_test.go
+  0fdb6fbe5bc880aa 76-101,142-173
+go/internal/query/infra.go
+  0fdb6fbe5bc880aa 104,270,348
+go/internal/query/infra_capability_test.go
+  0fdb6fbe5bc880aa 1-68
+go/internal/query/impact_trace_deployment.go
+  0fdb6fbe5bc880aa 42
+go/cmd/eshu/README.md
+  0fdb6fbe5bc880aa 65-68
+go/internal/query/entity.go
+  0fdb6fbe5bc880aa 442
+go/internal/query/contract.go
+  0fdb6fbe5bc880aa 237,240,244,247,258,261,265,268,279,282
+go/internal/query/doc.go
+  0fdb6fbe5bc880aa 10-13
+go/cmd/eshu/local_graph_embedded_nornicdb.go
+  0fdb6fbe5bc880aa 159-160
+go/internal/query/impact.go
+  0fdb6fbe5bc880aa 43,153,232
+docs/docs/reference/truth-label-protocol.md
+  0fdb6fbe5bc880aa 181,250
+go/internal/query/repository.go
+  0fdb6fbe5bc880aa 123
+go/cmd/eshu/doc.go
+  0fdb6fbe5bc880aa 10-13
+go/internal/query/README.md
+  0fdb6fbe5bc880aa 194-199
+docs/docs/guides/mcp-guide.md
+  0fdb6fbe5bc880aa 37-38
+go/internal/query/contract_matrix_test.go
+  0fdb6fbe5bc880aa 102-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "5b87a1314450657a4734093997743d608e1dd228",
+  "prompts": {
+    "0fdb6fbe5bc880aa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfda7-b67d-7d01-abd4-1370d870116b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria",
+      "messages": [],
+      "total_additions": 231,
+      "total_deletions": 39,
+      "accepted_lines": 231,
+      "overriden_lines": 0
+    }
+  }
+}

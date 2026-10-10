@@ -1,0 +1,19 @@
+go/internal/query/content_reader.go
+  s_bc720f29f5e0fd::t_06b488f352a5c8 16,24-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6479ccacf241f6770d8382404b62c1f4d302e88a",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

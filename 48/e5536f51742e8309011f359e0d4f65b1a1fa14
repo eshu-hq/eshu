@@ -1,0 +1,18 @@
+go/internal/graph/capture/AGENTS.md
+  h_78a442cba0b3e6 1-48
+go/internal/graph/capture/README.md
+  h_78a442cba0b3e6 1-63
+go/internal/graph/capture/differential_live_test.go
+  h_78a442cba0b3e6 1-284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "48e5536f51742e8309011f359e0d4f65b1a1fa14",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

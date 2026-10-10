@@ -1,0 +1,24 @@
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_120bf9500a2cf0 1064-1065
+  s_f2f7fbb6f30866::t_3fa3d776dd39a3 1063
+go/internal/reducer/supply_chain_impact_test.go
+  s_f2f7fbb6f30866::t_329e3529c02b66 274-362
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_68cafc4392ca7f 137,153-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "6b9c81dd708a14e131db3c84ab77cfa1ee950f45",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

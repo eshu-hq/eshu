@@ -1,0 +1,38 @@
+docs/internal/design/6785-value-flow-cloud-sink-refresh.md
+  h_78a442cba0b3e6 124,221-227
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 3-9,241-242
+go/internal/reducer/aws_resource_refresh.go
+  h_78a442cba0b3e6 28,30,37,41,44,47
+go/internal/reducer/code/value/affected/gate_live_test.go
+  h_78a442cba0b3e6 155-162
+go/internal/reducer/code/value/affected/gate_test.go
+  h_78a442cba0b3e6 92-109
+go/internal/reducer/code/value/affected/refresh_gate_telemetry.go
+  h_78a442cba0b3e6 4,13,18-21,23,25-28,30,33,36,40,43-44,48-50,59,61
+go/internal/reducer/iamcan/iam_can_perform_refresh.go
+  h_78a442cba0b3e6 30-48
+go/internal/reducer/iamcan/iam_can_perform_refresh_telemetry_test.go
+  h_78a442cba0b3e6 1-106
+go/internal/reducer/workload_cloud_relationship_refresh.go
+  h_78a442cba0b3e6 29,31,38,42,45,48
+go/internal/reducer/workload_materialization_refresh.go
+  h_78a442cba0b3e6 29,31,37,41,44,47
+scripts/lib/dirgate-grandfather.tsv
+  h_78a442cba0b3e6 88
+testdata/golden/e2e-20repo-snapshot.json
+  h_78a442cba0b3e6 2168
+tools/golangci-lint-dirgate/grandfather.go
+  h_78a442cba0b3e6 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dd3f1fec7744768f10374c0aaf1b053292562add",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

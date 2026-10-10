@@ -1,0 +1,14 @@
+docs/internal/docs-file-index-modified.md
+  h_78a442cba0b3e6 110-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ad77f29e79ae1f97cafc86b5417490ca0b18d5b6",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

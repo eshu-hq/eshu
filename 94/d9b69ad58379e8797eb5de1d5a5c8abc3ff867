@@ -1,0 +1,57 @@
+go/internal/runtime/postgres/reader_fleet.go
+  s_b0d7e3abc26c5a::t_d1526407ebf4af 106
+docs/public/reference/telemetry/metrics.md
+  s_b0d7e3abc26c5a::t_3dbda1bfaec6b3 44-53
+  s_b0d7e3abc26c5a::t_58271a791bbe96 54-58
+go/internal/runtime/postgres/reader_members.go
+  s_b0d7e3abc26c5a::t_7d37052c319618 223,251-253,267-268
+  s_b0d7e3abc26c5a::t_3943e84b1b9e7e 269
+go/internal/runtime/postgres/telemetry.go
+  s_b0d7e3abc26c5a::t_3a763702f2d847 21-23,42-63
+  s_b0d7e3abc26c5a::t_26ddabbbae5990 11,150-153,155-158,160-163,165-168,192-219,221
+  s_b0d7e3abc26c5a::t_68aaee97ddebf0 121-132
+  s_b0d7e3abc26c5a::t_e9d29c31a98bff 149,154,159,164
+go/internal/runtime/postgres/access.go
+  s_b0d7e3abc26c5a::t_9cc47dc80f4290 265-266,269,273-274
+  s_b0d7e3abc26c5a::t_f1650af292088c 267-268,270,272
+  s_b0d7e3abc26c5a::t_7da355ff4b0e87 50-53,58-68,70-71,258-263,275-277,287
+  s_b0d7e3abc26c5a::t_66439217534292 271
+  s_b0d7e3abc26c5a::t_b0c42720603aa1 69,150
+  s_b0d7e3abc26c5a::t_61d775235e430b 264
+docs/public/observability/telemetry-coverage.md
+  s_b0d7e3abc26c5a::t_5e840207b2b85e 803
+  s_b0d7e3abc26c5a::t_c773ac8250164e 804
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_9aef0c48021a07 214
+  s_b0d7e3abc26c5a::t_c97e3ddbbe2ded 215
+  s_b0d7e3abc26c5a::t_6864eb9f55562f 216-217
+go/internal/runtime/postgres/reader_member_telemetry_test.go
+  s_b0d7e3abc26c5a::t_25db22e662dbe9 10,12,16,19-39,41-57,70-75,77-93,127,149
+  s_b0d7e3abc26c5a::t_375b6df7e72544 94-126
+  s_b0d7e3abc26c5a::t_01f91bfdf0bbac 9,14,58-61
+  s_b0d7e3abc26c5a::t_2d454b17011bf0 40,182-199,201-207
+  s_b0d7e3abc26c5a::t_1edef88fc05064 1-8,11,13,15,18,128-148,150-181,208-248
+  s_b0d7e3abc26c5a::t_bce41396964bc6 17,76,200
+  s_b0d7e3abc26c5a::t_ff149cd40e405c 62-69
+go/internal/runtime/postgres/telemetry_contract.go
+  s_b0d7e3abc26c5a::t_110ba4d7ad679d 9-14,16-17,21-24,26-27
+  s_b0d7e3abc26c5a::t_7f1171a1ce5ccd 15,25
+go/internal/runtime/postgres/reader_allocator.go
+  s_b0d7e3abc26c5a::t_60a8856f254ff4 53-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "94d9b69ad58379e8797eb5de1d5a5c8abc3ff867",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

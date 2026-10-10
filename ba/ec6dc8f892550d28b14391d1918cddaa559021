@@ -1,0 +1,34 @@
+go/cmd/reducer/canonical_graph_writers.go
+  h_78a442cba0b3e6 154-167,170,172,174-177,179-181,183-188
+go/cmd/reducer/fake_startup_db_test.go
+  h_78a442cba0b3e6 53-55
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 181-184,388,483-490
+go/cmd/reducer/main_test.go
+  h_78a442cba0b3e6 438-441
+go/cmd/reducer/writer_shape_upgrade_test.go
+  h_78a442cba0b3e6 1-72
+go/internal/recovery/writer_shape_upgrade_runner.go
+  h_78a442cba0b3e6 1-146
+go/internal/recovery/writer_shape_upgrade_runner_test.go
+  h_78a442cba0b3e6 1-228
+go/internal/reducer/service.go
+  h_78a442cba0b3e6 140-149
+go/internal/reducer/service_side_runners.go
+  h_78a442cba0b3e6 65-67
+go/internal/storage/cypher/repo_dependency_source_tool_live_test.go
+  h_78a442cba0b3e6 51,99
+go/internal/storage/cypher/unwind_row_keys_live_test.go
+  h_78a442cba0b3e6 31,57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "baec6dc8f892550d28b14391d1918cddaa559021",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

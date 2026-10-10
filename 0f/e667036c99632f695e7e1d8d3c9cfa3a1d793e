@@ -1,0 +1,116 @@
+go/internal/query/graph_read_error_secrets_iam_test.go
+  s_d637cfd83869a5::t_ec164df818c5ed 1-78
+go/internal/query/secrets/grant_posture_test.go
+  s_d637cfd83869a5::t_8b0d0cc3b4ee5d 4,76,115,129,134,144,156
+go/internal/query/packagereg/package_registry_aggregates.go
+  s_d637cfd83869a5::t_a8bc6f8890c600 206
+go/internal/query/secrets/README.md
+  s_a47104ad9f346b::t_8ce46d78eb3679 65-78
+  s_a47104ad9f346b::t_228126170ecc98 111-112
+  s_d637cfd83869a5::t_85ab6a35456f64 1-64,79-110,113-118
+go/internal/query/secrets/handler.go
+  s_d637cfd83869a5::t_00b847f8082b24 4,11,16-25,28-29,35-40,45-46,49-53,71,79,81,86,91,95-96,101-102,104,112-119,123,130,135-136,138,145,152,154,167,169-170,176,178,183
+go/internal/mcp/route_serves_data_registry.go
+  s_e8ab01ccdfa8e2::t_df276295720ef4 124-125,128
+go/internal/query/secrets/authz.go
+  s_d637cfd83869a5::t_ff50de48194426 4,8-9,13,18
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_e8ab01ccdfa8e2::t_79d70d68e0ba83 50-52,56,59,63-65,67,69-72,78,80-81,87,89,105,112,119
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_d637cfd83869a5::t_d667fb6427c269 542,544-545
+go/internal/query/secrets/doc.go
+  s_d637cfd83869a5::t_e67ac32c106712 1-26,28-30
+  s_a47104ad9f346b::t_471dee11007330 27
+tools/golangci-lint-dirgate/grandfather.go
+  s_d637cfd83869a5::t_a93e57bd84b8e8 33
+go/internal/query/secrets/grant_posture.go
+  s_d637cfd83869a5::t_5ddb83aaf8035c 4,10-11,21,29,33-38,41,43-44,47,51-52,55,57-58,101,122,125,127,130,137,140,146,149,152,155,160,164,169,171-173,179,195
+docs/internal/design/4784-reducer-derived-fact-governance.md
+  s_a47104ad9f346b::t_2aa1460c416629 97
+  s_a47104ad9f346b::t_79041abc0ee3fe 94
+  s_a47104ad9f346b::t_5004361a01d052 96
+go/internal/query/secrets/handler_tracing.go
+  s_a47104ad9f346b::t_fdedc756984252 16
+  s_d637cfd83869a5::t_8c711eda7afabf 1-15,17-23
+go/internal/query/capability_matrix_secrets_iam_test.go
+  s_f10b8247b430b4::t_b9d302fa915353 54
+  s_d637cfd83869a5::t_b6f0ef271948c9 7,12-13,16-53
+go/internal/query/secrets/trust_chain.go
+  s_d637cfd83869a5::t_4f3f50e4226570 4,11-12,17,23-24,27,31,42,45,66,69,73,75,77-78,84,86-87,116,159,170,173,175,177-189
+go/internal/query/secrets/handler_test.go
+  s_d637cfd83869a5::t_0f089af9d131a3 4,14-15,19-20,25-26,28,34,61,76,102-106,129,131,140,148,156,164,221-222,234-235
+docs/internal/design/4786-contract-integration-matrix.md
+  s_a47104ad9f346b::t_c547589da12c9f 82
+  s_a47104ad9f346b::t_658b2f353b2d72 83
+  s_a47104ad9f346b::t_b1da459aee1a6d 85
+  s_a47104ad9f346b::t_8acf0074b04036 84
+  s_a47104ad9f346b::t_e358e852c7b16d 153
+  s_a47104ad9f346b::t_d0a3306d375477 158
+  s_a47104ad9f346b::t_29832db189def7 51
+go/internal/query/secrets/summary_test.go
+  s_d637cfd83869a5::t_c612bf263fb56c 4,14-15,19,25,33,49-51,54,69-70,83,98,102,115,123,130,133,142,144-145,151,154,160,172,193,201,206,225,233,236
+go/internal/query/secrets/posture_stores.go
+  s_d637cfd83869a5::t_85533c83e612ec 4,11-12,30,34-35,38,41,51,53,64,66,70,72,74-75,80,82-83,111,122,124-130,162,168,170-171,174,177,187-188,200,202,206,208,210-211,216,218-219,247,258,260-267,299,305,307-308,311,314,324-325,336,338,342,344,346-347,352,354-355,383,394,396-402,434
+go/internal/query/secrets/posture_handlers.go
+  s_d637cfd83869a5::t_abfc393cf2533a 4,9,14-21,24-29,40-42,44,56,58-60,71,76,80-81,83-84,91-97,101,108,110-111,117,124,126,139-140,145,150,154-155,157-158,165-171,175,182,184-185,191,198,200,213-214,219,224,228-229,231-232,239-245,249,256,258-259,265,272,274,287-288
+go/internal/query/secrets/main_test.go
+  s_d637cfd83869a5::t_64a3454bb1d1ae 1-56
+go/internal/query/secrets/AGENTS.md
+  s_a47104ad9f346b::t_c5bfb77d9bcbbe 37,44-53
+  s_a47104ad9f346b::t_14277727414a77 85-86
+  s_a47104ad9f346b::t_bd781cede11347 79-83
+  s_d637cfd83869a5::t_452a05c56b2824 1-36,38-43,54-78,84
+go/internal/query/secrets/posture_test.go
+  s_d637cfd83869a5::t_5c9f27821f94ba 4,13-14,18-19,23-24,26,30-31,35-36,38,42-43,47-48,50,56,91,96,115-117,131,135,155,172-173,178,186,191,223-224,229-230,235-236
+scripts/lib/dirgate-grandfather.tsv
+  s_d637cfd83869a5::t_3b22d4645984d1 87
+docs/internal/design/5584-route-serves-data-registry.md
+  s_a47104ad9f346b::t_54216ccb5cc279 126-127
+  s_a47104ad9f346b::t_ccde10fbec4824 118
+go/internal/query/secrets_alias.go
+  s_d637cfd83869a5::t_3fc0bf15895673 1-6,10-13,15-38,40
+  s_a47104ad9f346b::t_2b04873ba642aa 14
+  s_d637cfd83869a5::t_920fd74a27740a 7-9,39,41-98
+go/internal/query/secrets/summary.go
+  s_d637cfd83869a5::t_82542c11f9bd28 4,11,15-17,19,22,27,32-37,44,47,49-50,53,55,59,61-62,67,70,72,75,78,81,84,87,90,93,108,113,124,133,163-164,169,173-174,176-177,180,182,189,191-192,198,204,207,218,221,224,227-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0fe667036c99632f695e7e1d8d3c9cfa3a1d793e",
+  "prompts": {},
+  "sessions": {
+    "s_a47104ad9f346b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d034463-c797-4982-bbd8-464f3c541daa",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_d637cfd83869a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cda073a9-ec98-49b8-8e02-27503c28103f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_f10b8247b430b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71ce7be8-3a7b-4b59-9642-670f58a2d5e1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

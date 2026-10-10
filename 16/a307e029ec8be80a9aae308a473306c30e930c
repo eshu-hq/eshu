@@ -1,0 +1,31 @@
+docs/public/reference/http-api/catalog-workload-selection.md
+  s_b5f07da5ebaf13::t_23331cf28f5031 41-54
+go/internal/query/repository/README.md
+  s_b5f07da5ebaf13::t_4106791b6a0e93 53-79
+docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md
+  s_b5f07da5ebaf13::t_c4e8600a2cc9f9 210,222-299,332-342
+go/internal/query/repository/catalog.go
+  s_b5f07da5ebaf13::t_f53c305785b93c 175-177
+go/internal/query/repository/dependency_edge_unscoped.go
+  s_b5f07da5ebaf13::t_37b59deca5a3d3 13-58
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_b5f07da5ebaf13::t_425be8225b7b08 961,964,980,983
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_b5f07da5ebaf13::t_a53dcc9042276a 602,605
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16a307e029ec8be80a9aae308a473306c30e930c",
+  "prompts": {},
+  "sessions": {
+    "s_b5f07da5ebaf13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a95afaee-c156-45ca-bec3-f07a3341492a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

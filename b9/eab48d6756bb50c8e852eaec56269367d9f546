@@ -1,0 +1,25 @@
+docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
+  s_b0d7e3abc26c5a::t_9fc403e58577b1 115-116,122-125
+  s_b0d7e3abc26c5a::t_1ea44a1fa752b9 117-118,126-127,135-136
+go/internal/storage/postgres/issue7033_scoped_rollout_live_test.go
+  s_b0d7e3abc26c5a::t_bacc2a5743c150 111-113,138-140
+go/internal/storage/postgres/issue7033_scoped_rollout_test.go
+  s_b0d7e3abc26c5a::t_64198be04d36ae 132-165
+  s_b0d7e3abc26c5a::t_847ce4767450d1 56-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b9eab48d6756bb50c8e852eaec56269367d9f546",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

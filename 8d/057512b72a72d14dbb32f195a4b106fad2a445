@@ -1,0 +1,32 @@
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 248
+go/cmd/reducer/reducer_executor_adapters.go
+  h_78a442cba0b3e6 115-128,137-149
+go/internal/graphbackpressure/materializer_backpressure.go
+  h_78a442cba0b3e6 41-58
+go/internal/reducer/workload_materializer.go
+  h_78a442cba0b3e6 9,44-48,187-192
+go/internal/reducer/workload_materializer_deployment_source_guard.go
+  h_78a442cba0b3e6 1-130
+go/internal/reducer/workload_materializer_deployment_source_guard_test.go
+  h_78a442cba0b3e6 1-148
+go/internal/storage/cypher/edge_writer_deployable_unit_target_presence_test.go
+  h_78a442cba0b3e6 1-121
+go/internal/storage/cypher/edge_writer_unroutable.go
+  h_78a442cba0b3e6 132,144-146,206-219
+scripts/lib/dirgate-grandfather.tsv
+  h_78a442cba0b3e6 88
+tools/golangci-lint-dirgate/grandfather.go
+  h_78a442cba0b3e6 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8d057512b72a72d14dbb32f195a4b106fad2a445",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

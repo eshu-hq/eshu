@@ -1,0 +1,62 @@
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 352
+docs/public/reference/telemetry/metrics-reducer-storage.md
+  h_78a442cba0b3e6 99-102
+docs/public/reference/telemetry/shared-write-operations.md
+  h_78a442cba0b3e6 21,25-43
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 127-128,234,243
+go/internal/reducer/correlated_workload_projection_input_loader.go
+  h_78a442cba0b3e6 57-64,68,73-86,113-116,156-160,164-171,182-205,472,475,477,480-484,486
+go/internal/reducer/correlated_workload_projection_input_loader_test.go
+  h_78a442cba0b3e6 909,941,951-990
+go/internal/reducer/deployable_unit_correlation.go
+  h_78a442cba0b3e6 46-49,95,108-113
+go/internal/reducer/deployable_unit_correlation_edges.go
+  h_78a442cba0b3e6 39-45,49,54-66,126,129,139-140,144-151
+go/internal/reducer/deployable_unit_correlation_readiness_test.go
+  h_78a442cba0b3e6 332,363,376-533
+go/internal/reducer/maintenance/accepted_generation_active_gate.go
+  h_78a442cba0b3e6 49-80
+go/internal/storage/cypher/edge_writer.go
+  h_78a442cba0b3e6 265,277
+go/internal/storage/cypher/edge_writer_deployable_unit_target_presence_test.go
+  h_78a442cba0b3e6 122-175
+go/internal/storage/cypher/edge_writer_metrics.go
+  h_78a442cba0b3e6 15-21,25,33
+go/internal/storage/cypher/edge_writer_target_presence_test.go
+  h_78a442cba0b3e6 153-160,166,170-172,174-181,237-272
+go/internal/storage/cypher/edge_writer_telemetry_test.go
+  h_78a442cba0b3e6 325,360,491-604
+go/internal/storage/cypher/edge_writer_unroutable.go
+  h_78a442cba0b3e6 187-191,201-204,266-291,294-297,315,323-328,357-364,383,385-399,432-438,444-447,449-450
+go/internal/storage/postgres/accepted_generation.go
+  h_78a442cba0b3e6 8,27-34,47-55,69-70,74-117,120-126,201-204
+go/internal/storage/postgres/relationship_generations_complete_test.go
+  h_78a442cba0b3e6 8-10,186,192,196-323
+go/internal/storage/postgres/relationship_schema.go
+  h_78a442cba0b3e6 206-212,238-244,248-256
+go/internal/storage/postgres/relationship_store_test.go
+  h_78a442cba0b3e6 821-823,894-933
+go/internal/telemetry/README.md
+  h_78a442cba0b3e6 56-58,96-97
+go/internal/telemetry/contract.go
+  h_78a442cba0b3e6 34-37
+go/internal/telemetry/contract_test.go
+  h_78a442cba0b3e6 25
+go/internal/telemetry/instruments.go
+  h_78a442cba0b3e6 4326,4367,4378,5327-5336
+go/internal/telemetry/registry.go
+  h_78a442cba0b3e6 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "58c8fc48d60632e940b42ae8c12f699a38db754c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

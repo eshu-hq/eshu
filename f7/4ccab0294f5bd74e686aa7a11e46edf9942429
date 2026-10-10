@@ -1,0 +1,20 @@
+docs/internal/evidence/6162-nornicdb-v133-alignment.md
+  h_78a442cba0b3e6 53-74,82,86,90,99-101
+go/internal/query/codequery/relationships/enrich.go
+  h_78a442cba0b3e6 26
+go/internal/query/language_query_grant_nornicdb_negative_control_live_test.go
+  h_78a442cba0b3e6 120,124
+go/internal/replay/offlinetier/canonical_import_edge_live_test.go
+  h_78a442cba0b3e6 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f74ccab0294f5bd74e686aa7a11e46edf9942429",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

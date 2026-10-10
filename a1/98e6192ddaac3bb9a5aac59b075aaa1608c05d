@@ -1,0 +1,44 @@
+scripts/test-goal-role-router.py
+  s_bc720f29f5e0fd::t_fb9c645b62080e 10,32-38
+  s_bc720f29f5e0fd::t_a76e0095cbdd96 31
+docs/internal/agent-hooks.md
+  s_bc720f29f5e0fd::t_0674d8ea88ab8d 91-93
+docs/internal/agent-hooks-codex-goal.md
+  s_bc720f29f5e0fd::t_a76e0095cbdd96 27-28
+  s_bc720f29f5e0fd::t_9e8a9c42261aa6 29-30
+  s_bc720f29f5e0fd::t_0674d8ea88ab8d 23-26,31-38
+docs/internal/agent-orchestration.md
+  s_bc720f29f5e0fd::t_0674d8ea88ab8d 252-253,257-261
+  s_bc720f29f5e0fd::t_3165254f1b06e2 254-256
+.codex/config.toml
+  s_bc720f29f5e0fd::t_8958d0535ffdbd 5-11
+  s_bc720f29f5e0fd::t_3165254f1b06e2 1-2
+  s_bc720f29f5e0fd::t_0674d8ea88ab8d 4
+scripts/test-codex-spawn-guard.py
+  s_bc720f29f5e0fd::t_5be7e18344fc8d 100-107
+  s_bc720f29f5e0fd::t_8e17c3f4e21110 62,66-82
+  s_bc720f29f5e0fd::t_76938ca410e95c 25,83-95
+  s_bc720f29f5e0fd::t_b76da13621baf4 1-24,26-61,63-65,96-99,108-119
+.codex/hooks.json
+  s_bc720f29f5e0fd::t_fcc2e6b5e1f484 5
+  s_bc720f29f5e0fd::t_8958d0535ffdbd 3-4,6-8,10-14
+  s_bc720f29f5e0fd::t_4a624fc1396e6a 9
+scripts/guard-codex-spawn.py
+  s_bc720f29f5e0fd::t_fcc2e6b5e1f484 1-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a198e6192ddaac3bb9a5aac59b075aaa1608c05d",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

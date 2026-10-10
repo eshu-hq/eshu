@@ -1,0 +1,33 @@
+go/internal/mcp/methodology_live_test.go
+  s_29175cf8c573b8::t_b0e229901ee9b8 11,59-60,62-65,67-77,80
+go/internal/query/methodology_graph_artifact_live_test.go
+  s_29175cf8c573b8::t_a1e58d90d377c0 1-232
+go/internal/query/methodology_graph_artifact_rows_test.go
+  s_29175cf8c573b8::t_0130802063d68b 1-189
+go/internal/query/methodology_graph_artifact_test.go
+  s_29175cf8c573b8::t_1c6245d53fce47 1-149
+go/internal/query/methodology_graph_cases_live_test.go
+  s_29175cf8c573b8::t_a7bc7768a3ca8d 1-87
+go/internal/query/methodology_graph_fixture_live_test.go
+  s_29175cf8c573b8::t_e5dd1004797705 10-12,16,150-154,158-243,264-267,272-275
+go/internal/query/methodology_graph_live_test.go
+  s_29175cf8c573b8::t_c97d7cb31a3fc4 13,44,52-53,59-61,66,71-78,99,105-112,114,116-117,120,134-142,144-146,152-164,168-187,207-216,301,303-305,316,320,348-356,404-408,432-433
+go/internal/query/methodology_graph_measure_live_test.go
+  s_29175cf8c573b8::t_e19f4fe67d2022 12,28,50-57,72,85-95,101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b2b70fa043dc48e59e608941b9f2a7d5ee9c9c2d",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

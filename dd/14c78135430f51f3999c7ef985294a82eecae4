@@ -1,0 +1,31 @@
+go/internal/mcp/tools_ecosystem.go
+  s_09ee6306ad72bc::t_f67bf899232736 44,127
+go/internal/mcp/tools_change_surface_test.go
+  s_09ee6306ad72bc::t_5b95201c11d766 3-6,99-100,102-103
+go/internal/mcp/tools_import_dependencies_test.go
+  s_09ee6306ad72bc::t_0c50f4e524b3b0 3-6,52-56
+go/internal/mcp/tools_openai_contract_test.go
+  s_09ee6306ad72bc::t_978408f7689c05 1-27
+go/internal/mcp/tools_no_cache_contract_test.go
+  s_09ee6306ad72bc::t_ba3e6ac9940e02 3-6,30,35-36,38-40,42-46
+go/internal/mcp/tools_iac.go
+  s_09ee6306ad72bc::t_e988ac00fa8e35 6,14,22
+go/internal/mcp/tools_codebase.go
+  s_09ee6306ad72bc::t_2c6fd2d2f5f4c0 99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "dd14c78135430f51f3999c7ef985294a82eecae4",
+  "prompts": {},
+  "sessions": {
+    "s_09ee6306ad72bc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2de8-f667-7fd0-b949-d056bf986910",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md
+  s_1e5d8a653a4ee7::t_48d9a9f8702490 141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "df4a5da0a9328afa0715338f407ed4f6cd3bf867",
+  "prompts": {},
+  "sessions": {
+    "s_1e5d8a653a4ee7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b439ad40-11c6-4924-9243-1ef7dd2cc094",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

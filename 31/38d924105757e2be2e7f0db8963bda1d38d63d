@@ -1,0 +1,21 @@
+docs/internal/evidence/6689-6690-nornicdb-v133-answer-truth.md
+  s_02cd429498e265::t_8fae7e9006469d 162-166,170-172
+  s_02cd429498e265::t_3171a9d69ef51f 149-150
+  s_02cd429498e265::t_5aab89dd48b8d6 173-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3138d924105757e2be2e7f0db8963bda1d38d63d",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

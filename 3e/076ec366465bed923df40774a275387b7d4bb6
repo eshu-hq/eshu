@@ -1,0 +1,25 @@
+go/cmd/scanner-worker/sbom_lockfile_parser.go
+  s_f2f7fbb6f30866::t_4acb75d8772311 186
+go/cmd/scanner-worker/README.md
+  s_f2f7fbb6f30866::t_dd233fbd7155e8 157
+go/cmd/scanner-worker/sbom_source_test.go
+  s_f2f7fbb6f30866::t_ab89e6d8121ad3 217-242,262-263,267-268
+go/cmd/scanner-worker/sbom_npm_lockfile_test.go
+  s_f2f7fbb6f30866::t_1d9ae8b161ffc0 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3e076ec366465bed923df40774a275387b7d4bb6",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

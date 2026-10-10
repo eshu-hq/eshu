@@ -1,0 +1,56 @@
+go/internal/mcp/dispatch_cicd.go
+  s_f2f7fbb6f30866::t_8a88a86e1155e5 11
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_731a3a940cf3fe 444-447
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_f2f7fbb6f30866::t_6c32475a659bdc 80-82
+go/internal/query/ci_cd_run_correlation_aggregates_test.go
+  s_f2f7fbb6f30866::t_93c0433ea753a4 132-155,202-222
+go/internal/query/ci_cd_run_correlations_test.go
+  s_f2f7fbb6f30866::t_becefa3775468b 120-143,211-216
+go/internal/mcp/tools_cicd_aggregates.go
+  s_f2f7fbb6f30866::t_5a86c9d0f31375 36-39,69
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_3dae3e5bef3066 117-119,361-362,369-370
+go/internal/mcp/dispatch_cicd_test.go
+  s_f2f7fbb6f30866::t_1d798592c0b4b6 14,34,44-66
+scripts/test-verify-remote-e2e-target-story.sh
+  s_f2f7fbb6f30866::t_0f85da62ab79e5 52-54,64-66,188-195,197-198
+  s_f2f7fbb6f30866::t_076b96c577df30 196
+go/internal/mcp/tools_cicd.go
+  s_f2f7fbb6f30866::t_7d6f6b379344e3 7,35-37
+go/internal/query/ci_cd.go
+  s_f2f7fbb6f30866::t_61426596e1826d 94,101
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_237c5094815fb1 119,130-136
+go/internal/query/ci_cd_run_correlations.go
+  s_f2f7fbb6f30866::t_edd2a0a5843261 26,96,144-147,149,158,167
+go/internal/query/openapi_paths_cicd_aggregate.go
+  s_f2f7fbb6f30866::t_683271c8b40d51 14,50
+go/internal/query/ci_cd_run_correlation_aggregates.go
+  s_f2f7fbb6f30866::t_161afcebc21b4f 56,116-118,138-140,161-163,166,185,271
+go/internal/query/ci_cd_run_correlation_aggregates_handler.go
+  s_f2f7fbb6f30866::t_a2756150949b13 182,205-206
+go/internal/mcp/dispatch_cicd_aggregates.go
+  s_f2f7fbb6f30866::t_204be517d9b048 12,30
+scripts/verify_remote_e2e_target_story.sh
+  s_f2f7fbb6f30866::t_4d7184043daf91 337-338
+go/internal/query/openapi_paths_cicd.go
+  s_f2f7fbb6f30866::t_14303a99242d68 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "659c044b884632020f700c54ab24541691364df4",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+docs/internal/evidence/6162-nornicdb-v133-alignment.md
+  h_78a442cba0b3e6 91
+docs/public/reference/nornicdb-path-predicate-pitfalls.md
+  h_78a442cba0b3e6 20-26
+docs/public/reference/nornicdb-query-pitfalls.md
+  h_78a442cba0b3e6 23-26
+specs/capability-matrix.v1.yaml
+  h_78a442cba0b3e6 133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "24d757ac7a17e06628eebc04153fa5f2b8f9e7c6",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

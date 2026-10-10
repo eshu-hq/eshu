@@ -1,0 +1,187 @@
+go/cmd/read-api-latency-gate/AGENTS.md
+  s_29175cf8c573b8::t_f42e0a683389a5 80,85-86
+go/cmd/read-api-latency-gate/concurrent_report.go
+  s_29175cf8c573b8::t_d0ce63a36ee880 1-42
+  s_29175cf8c573b8::t_b5a04e441907fa 43-50
+go/cmd/read-api-latency-gate/latency_report.go
+  s_29175cf8c573b8::t_26a4e0a874efe4 40-48,229-231,242-246
+  s_29175cf8c573b8::t_9fc3d963a7090f 228
+  s_29175cf8c573b8::t_97bc572566dcf7 70-72,144-146
+go/internal/query/methodology_postgres_live_test.go
+  s_29175cf8c573b8::t_969c4aaa9a2e4f 11,36-44
+  s_29175cf8c573b8::t_0b8008e6184d35 1-10,12-35,45-46
+go/internal/query/methodology_identity_test.go
+  s_29175cf8c573b8::t_be74b3dc1081b9 1-95
+  s_29175cf8c573b8::t_600a0693c792d4 96-99
+go/internal/queryplan/pilot_registry_test.go
+  s_29175cf8c573b8::t_0da91b80d34b59 1-51
+go/internal/queryplan/pilot_query.go
+  s_29175cf8c573b8::t_6c2c73d450b421 178-180
+  s_29175cf8c573b8::t_caa44e776360d2 1-6,8-11,48-68,74-80,86-110,112-122,124-127,194
+  s_29175cf8c573b8::t_b3f9d63e319dfa 69-73,81-85,111,123,128-177,181-193
+  s_29175cf8c573b8::t_d47fb182b123eb 195-372,376-393
+  s_29175cf8c573b8::t_df74fc88738763 7,12-47
+  s_29175cf8c573b8::t_727adbd49538cd 373-375
+go/internal/queryplan/validator.go
+  s_29175cf8c573b8::t_9a4a0fd3d87161 39
+  s_29175cf8c573b8::t_9b6147f9c25d67 34-38,59,152-153
+  s_29175cf8c573b8::t_f32326bee886d7 10,60,93-116
+  s_29175cf8c573b8::t_4b0ac507f7d8f7 32-33,117,154
+go/internal/queryplan/pilot_evidence.go
+  s_29175cf8c573b8::t_61dda1d51808ca 152,258
+  s_29175cf8c573b8::t_df74fc88738763 73,247-249
+  s_29175cf8c573b8::t_7d73d5a52fc4e4 153-154,190-191,226,277-279
+  s_29175cf8c573b8::t_f0170f95103851 1-6,8-10,12-32,35,37,39,41,44-53,57-72,74,78-91,93-98,103-142,144-148,155-174,177-189,192-193,212-213,222-225,227-246,250,261-273,280,283-291,293,295-297,304,310-313,315-317,333-334,402
+  s_29175cf8c573b8::t_a7c3f02d0e5f41 11,143,314,400-401
+  s_29175cf8c573b8::t_cf49fce4b1ad9f 281-282,292,318-332,335-336
+  s_29175cf8c573b8::t_f40cbcbe5b6e94 76-77,92,254-257,259-260,274-276
+  s_29175cf8c573b8::t_420704be795f71 33-34,36,38,40,194-211
+  s_29175cf8c573b8::t_a34e074fc1ab02 100,294,299-301,305-307
+  s_29175cf8c573b8::t_7bff5748f9150e 7,42-43,54-56,75,99,101-102,149-151,175-176,214-221,251-253,298,302-303,308-309,337-399
+go/internal/queryplan/doc.go
+  s_29175cf8c573b8::t_2c88a6d21c2da3 23-32
+go/internal/queryplan/pilot_test.go
+  s_29175cf8c573b8::t_c854d76c1b24ff 108,132-135
+  s_29175cf8c573b8::t_467625ca76e8c4 176-189
+  s_29175cf8c573b8::t_61dda1d51808ca 52,73
+  s_29175cf8c573b8::t_51da9cb04c70e1 1-6,10-18,83-104,157-175,190
+  s_29175cf8c573b8::t_7d73d5a52fc4e4 55-57,67
+  s_29175cf8c573b8::t_cf49fce4b1ad9f 31,53
+  s_29175cf8c573b8::t_e11ccb9e90e61c 7-9,19-30,32,34-46,51,54,58-61,68-71,74-82
+  s_29175cf8c573b8::t_df74fc88738763 33,72
+  s_29175cf8c573b8::t_3678f2b71656d5 47-50,62-66
+  s_29175cf8c573b8::t_819c915725b4fc 105-107,109-131,136-138
+  s_29175cf8c573b8::t_3bf9f6a841a958 139-156
+  s_29175cf8c573b8::t_ee33511fcea15b 191
+go/internal/queryplan/README.md
+  s_29175cf8c573b8::t_2c88a6d21c2da3 37-73,76-80
+  s_29175cf8c573b8::t_806ae0ad6a2a3f 74-75
+go/internal/queryplan/pilot_contract.go
+  s_29175cf8c573b8::t_df74fc88738763 90,209-210,212-214
+  s_29175cf8c573b8::t_6c2c73d450b421 216-218
+  s_29175cf8c573b8::t_7db2d0a4fd5b03 1-34,36-38,40-64,74-89,91-192,202-208,211,215,219-234,237-239
+  s_29175cf8c573b8::t_a7c3f02d0e5f41 235-236
+  s_29175cf8c573b8::t_b3f9d63e319dfa 39
+  s_29175cf8c573b8::t_52081ecd76fe27 35,65-73,193-201
+go/cmd/read-api-latency-gate/doc.go
+  s_29175cf8c573b8::t_e1dc713be724d0 12-14,39-40
+go/cmd/read-api-latency-gate/main.go
+  s_29175cf8c573b8::t_c862bf5cadb50f 152-154,482
+  s_29175cf8c573b8::t_4f329a99bbbe2e 48,52-76,78,86-110,112
+  s_29175cf8c573b8::t_97d3bb7b110fc4 46-47,77,111
+  s_29175cf8c573b8::t_0a5f28c9d35ca8 28
+  s_29175cf8c573b8::t_e46b795a062a22 118-119,156,160-161,251,256-258,480-481,483-495
+go/internal/query/methodology_graph_cycle_cap_live_test.go
+  s_29175cf8c573b8::t_9411b87a0cd11d 1-9,14-16,18-55,70
+  s_29175cf8c573b8::t_974a3af4a625b1 10-13,17,56-69
+  s_29175cf8c573b8::t_cb03062756bca3 71-74
+go/internal/queryplan/postgres_coverage.go
+  s_29175cf8c573b8::t_0eb40129ee5a66 41-67,178,180-185,189,210-211,237-244
+  s_29175cf8c573b8::t_9a4a0fd3d87161 1-40,68-177,179,186-188,190-209,212-236,245-261
+go/cmd/read-api-latency-gate/budget.go
+  s_29175cf8c573b8::t_fe31814f177f6a 22-25
+go/cmd/read-api-latency-gate/sweep.go
+  s_29175cf8c573b8::t_2d930128e74028 138-139
+  s_29175cf8c573b8::t_2c74359d70af22 49-50,108-110,114-118,162,174-176,197-198,210,234,253-254,259,289-291,297,299,301
+  s_29175cf8c573b8::t_71d7c967ba91d6 7,9,20-27,45-46,52-53,105-107,111-113,120,125,141,143,169,288,292-296,303
+  s_29175cf8c573b8::t_f4aa712d18dff3 129
+  s_29175cf8c573b8::t_e71a14f5470771 276-282,284
+  s_29175cf8c573b8::t_83357f2f1ae005 260-261,283,298,302
+go/cmd/read-api-latency-gate/operations.go
+  s_29175cf8c573b8::t_57b1c226be48ab 1-41
+docs/internal/query-engineering.md
+  s_29175cf8c573b8::t_cc6fe2170cbcdf 1-145
+go/cmd/read-api-latency-gate/concurrent.go
+  s_29175cf8c573b8::t_5d11cc99bbbbbe 50
+  s_29175cf8c573b8::t_d8a6e5b77f5392 1-49,51-63
+  s_29175cf8c573b8::t_fde0637ad6f048 64-79
+go/internal/query/methodology_graph_live_test.go
+  s_29175cf8c573b8::t_d2677fcbfe4add 14,65-68
+  s_29175cf8c573b8::t_60806da38f151e 12,15,79-83,85-86,92,108-109,112-114,118-120,137-138,146,153-154,165-166,183-188,192,199,306,341-343,347,351-359,363-365
+  s_29175cf8c573b8::t_94900d02d05935 326,329
+  s_29175cf8c573b8::t_b960f07591c3c1 89,93-101
+  s_29175cf8c573b8::t_4468d8917c5c87 110,135-136,140-142,147-151,156-162,246-249,254-256,337-339
+  s_29175cf8c573b8::t_e8909210825131 1-11,13,16-46,50-53,56-64,73,75-78,84,87-88,102-107,111,200-245,251-253,258-287,289-305,307-325,327-328,330-331
+  s_29175cf8c573b8::t_b0a0a7d48f7823 115-117,121-122,129-134,167-182,189-191,193-198,344-346,348-350,360-362
+  s_29175cf8c573b8::t_c91c765b5b043a 74,366
+  s_29175cf8c573b8::t_377509eb2e528e 152,155,163-164,332-336,340
+  s_29175cf8c573b8::t_49db13e9e66a8b 69
+  s_29175cf8c573b8::t_9d20c5b8034339 47-49,54-55,70-72,90-91,123-128,139,143-145,250,257,288
+go/cmd/read-api-latency-gate/operation_run.go
+  s_29175cf8c573b8::t_8590c391f5f7b2 1-8,12,27,34-44,51,55-64
+  s_29175cf8c573b8::t_75a7d62a961ee6 45-50,52-54
+  s_29175cf8c573b8::t_455b7ae1b4872f 28-33
+  s_29175cf8c573b8::t_5f46c780b44052 9-11,13-26
+  s_29175cf8c573b8::t_d104b27f6bcc4b 65-76
+go/cmd/read-api-latency-gate/operations_test.go
+  s_29175cf8c573b8::t_fe5044aeffa2ae 1-7,9-10,12-13,17-34,87-105
+  s_29175cf8c573b8::t_80c088890df6ae 11,16,40-42,44-49,59-64,106-115
+  s_29175cf8c573b8::t_10db7a84ec8602 8,14,73-86
+  s_29175cf8c573b8::t_cd3d8989a44672 15,35-39,43,50-51
+  s_29175cf8c573b8::t_dc2ff0bbf7abab 52-58,65-72
+  s_29175cf8c573b8::t_971fc17dbadb01 116-119
+go/internal/query/methodology_postgres_capture_test.go
+  s_29175cf8c573b8::t_1062e6d278c50d 198-200,202,230,247
+  s_29175cf8c573b8::t_9de7360fb72fb6 1-58,68-102,104-106,110-118,128-197,201,203-229,231-246,248-272,277-286
+  s_29175cf8c573b8::t_9a7c7f971e19eb 59-63,107,119-123,126-127,273-276
+  s_29175cf8c573b8::t_41bde5b314a43a 64-67,103,108-109,124-125
+go/cmd/read-api-latency-gate/README.md
+  s_29175cf8c573b8::t_0b64d7107a17f8 42-49
+  s_29175cf8c573b8::t_080c69317d7f64 57-60
+scripts/verify-read-api-latency-gate.sh
+  s_29175cf8c573b8::t_bc271706fd425c 72,304-305
+  s_29175cf8c573b8::t_e3f958793b5941 57,152,201-202,269,321,362-373
+  s_29175cf8c573b8::t_9c4b30fe4e891b 140,150-151
+  s_29175cf8c573b8::t_d3b6c4b435febe 70-71,329-330
+  s_29175cf8c573b8::t_8fe76d00dbf251 306,374
+go/internal/mcp/methodology_live_test.go
+  s_29175cf8c573b8::t_826934c27348b8 1-158
+go/internal/query/methodology_graph_fixture_live_test.go
+  s_29175cf8c573b8::t_232d1d78209f5f 1-197
+go/internal/query/methodology_graph_measure_live_test.go
+  s_29175cf8c573b8::t_0bb25beeddd7ec 1-85
+go/internal/query/methodology_graph_oracle_live_test.go
+  s_29175cf8c573b8::t_42884a3e12e1e0 1-154
+go/internal/query/queryplan_production_binding_test.go
+  s_29175cf8c573b8::t_5a92830274124c 92
+go/internal/queryplan/pilot_evidence_validation.go
+  s_29175cf8c573b8::t_fa044bdf409bd2 1-172
+go/internal/queryplan/pilot_query_lex.go
+  s_29175cf8c573b8::t_8ce95b62b2e3e8 1-224
+go/internal/queryplan/testdata/contracts/cloud-resource-identity-page.yaml
+  s_29175cf8c573b8::t_2fd42a1b44d8b8 1-119
+go/internal/queryplan/testdata/contracts/code-import-cross-module-calls.yaml
+  s_29175cf8c573b8::t_1d4410747eb61a 1-146
+go/internal/queryplan/testdata/contracts/code-import-cycle-edges.yaml
+  s_29175cf8c573b8::t_8b9a9aacbb6996 1-26
+go/internal/queryplan/testdata/contracts/code-import-packages.yaml
+  s_29175cf8c573b8::t_ce801cc47c9c58 1-82
+go/internal/queryplan/testdata/contracts/code-import-rows-repository.yaml
+  s_29175cf8c573b8::t_dfae472340375c 1-50
+go/internal/queryplan/testdata/contracts/code-import-source-module-files.yaml
+  s_29175cf8c573b8::t_be258983b976df 1-38
+go/internal/queryplan/testdata/contracts/code-import-source-module-rows.yaml
+  s_29175cf8c573b8::t_b73aabaec5954c 1-54
+go/internal/queryplan/testdata/contracts/code-import-target-module-files.yaml
+  s_29175cf8c573b8::t_0d590e4e50d35f 1-38
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_29175cf8c573b8::t_2eec6fbbc81760 6,30-46,97-110,112,127,142,157,172,187,252
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_29175cf8c573b8::t_593819f50b4d29 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3cfed4d48acf44ef0d0d01fcd6007f1a38cff86d",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

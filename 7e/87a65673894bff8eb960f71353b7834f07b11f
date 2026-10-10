@@ -1,0 +1,66 @@
+go/internal/projector/incident/routing/reducer_intent.go
+  s_4a0f86aa680964::t_c87015ff86a897 12-18
+  s_4a0f86aa680964::t_1de1593930bb9c 4,19
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_2cdedd23bd14a5 62
+go/internal/projector/incident/README.md
+  s_4a0f86aa680964::t_1de1593930bb9c 1-13
+go/internal/projector/scope_generation_intents.go
+  s_4a0f86aa680964::t_2cdedd23bd14a5 27,109
+docs/internal/evidence/6627-projector-incident-routing-intent-package-move.md
+  s_4a0f86aa680964::t_4540e6b82c96d5 77-79
+  s_4a0f86aa680964::t_75754ef3da92a1 91,96-113
+  s_4a0f86aa680964::t_957037838faeec 68-76,80-90
+  s_4a0f86aa680964::t_aa4e67bc03e9d7 1-19,39-50,54-56,59-67
+  s_4a0f86aa680964::t_9ff076cf0de14c 57-58
+  s_4a0f86aa680964::t_b753eb2ff8eafe 51-53
+  s_4a0f86aa680964::t_fd306201765437 92-95
+  s_4a0f86aa680964::t_41f39ce3991b8e 20-38
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_2cdedd23bd14a5 92
+go/internal/projector/doc.go
+  s_4a0f86aa680964::t_2cdedd23bd14a5 75
+go/internal/projector/README.md
+  s_4a0f86aa680964::t_faf1696050ea8c 323
+  s_4a0f86aa680964::t_bac22b21ebf675 324
+  s_4a0f86aa680964::t_2cdedd23bd14a5 250
+go/internal/projector/incident/doc.go
+  s_4a0f86aa680964::t_1de1593930bb9c 1-7
+go/internal/projector/observabilitycoverage/README.md
+  s_4a0f86aa680964::t_2cdedd23bd14a5 94
+go/internal/projector/incident/routing/README.md
+  s_4a0f86aa680964::t_1de1593930bb9c 23,79
+  s_4a0f86aa680964::t_c3c3b60e6b56c6 72-78,80-83,87-90
+  s_4a0f86aa680964::t_c87015ff86a897 6-9
+go/internal/projector/incident/routing/AGENTS.md
+  s_4a0f86aa680964::t_1de1593930bb9c 6-8,13
+  s_4a0f86aa680964::t_b6dd4f76c202a4 34-36
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_c3c3b60e6b56c6 743-744
+go/internal/projector/incident/routing/reducer_intent_test.go
+  s_4a0f86aa680964::t_c87015ff86a897 38-41
+  s_4a0f86aa680964::t_6412c3d85dc6bc 4,37,42,51,73,92,106,120
+go/internal/projector/incident_routing_projection_test.go
+  s_4a0f86aa680964::t_1de1593930bb9c 15-16
+go/internal/projector/incident/AGENTS.md
+  s_4a0f86aa680964::t_1de1593930bb9c 1-22
+go/internal/projector/incident/routing/doc.go
+  s_4a0f86aa680964::t_c87015ff86a897 6-10
+  s_4a0f86aa680964::t_1de1593930bb9c 4,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7e87a65673894bff8eb960f71353b7834f07b11f",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

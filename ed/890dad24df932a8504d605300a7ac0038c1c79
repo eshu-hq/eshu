@@ -1,0 +1,339 @@
+go/internal/coordinator/componentactivation/config_test.go
+  s_4a0f86aa680964::t_773d0329ee84b0 9,12-13
+go/internal/coordinator/planner/aws/scheduled/planner.go
+  s_4a0f86aa680964::t_47cd55eae0d886 1-303
+go/internal/coordinator/componentactivation/doc.go
+  s_4a0f86aa680964::t_773d0329ee84b0 10-13,16
+docs/internal/design/restructure-research.md
+  s_4a0f86aa680964::t_b49c2e4d21f907 100,146
+  s_4a0f86aa680964::t_26929e88e5778e 105
+go/internal/coordinator/planner/aws/freshness/planner_test.go
+  s_4a0f86aa680964::t_47cd55eae0d886 1-157
+go/internal/coordinator/service_aws_freshness_test.go
+  s_4a0f86aa680964::t_47cd55eae0d886 16-17,24,32,53,59,71,77,82,97,126,128,137,163,195,197,206,238,270,272,281,292
+  s_4a0f86aa680964::t_95e8cf86f922ca 317,319,328,389
+go/internal/coordinator/planner/component/README.md
+  s_4a0f86aa680964::t_f7a88a0712525d 11-14
+  s_4a0f86aa680964::t_454397aacdff8d 1-10,15-42
+go/internal/coordinator/planner/aws/AGENTS.md
+  s_4a0f86aa680964::t_454397aacdff8d 1-14,17-22
+  s_4a0f86aa680964::t_ebc2d79de2e9be 15-16
+go/internal/coordinator/sbomattestation/AGENTS.md
+  s_4a0f86aa680964::t_ebc2d79de2e9be 8
+go/internal/coordinator/componentactivation/README.md
+  s_4a0f86aa680964::t_773d0329ee84b0 10-11,27-35,97
+docs/internal/design/4588-collector-claim-pacing.md
+  s_4a0f86aa680964::t_26929e88e5778e 72,74
+go/internal/coordinator/planner/aws/scheduled/doc.go
+  s_4a0f86aa680964::t_ebc2d79de2e9be 1-20
+go/internal/coordinator/planner/aws/README.md
+  s_4a0f86aa680964::t_ebc2d79de2e9be 12-14,33-34
+  s_4a0f86aa680964::t_454397aacdff8d 1-11,15-32,35-40
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_b49c2e4d21f907 1065,1077,1082,1091,1097,1104-1105,1112,1126-1127,1133,1153-1155,1929
+  s_4a0f86aa680964::t_6d5dbea56fb5c4 1156-1157
+go/internal/coordinator/planner/aws/doc.go
+  s_4a0f86aa680964::t_454397aacdff8d 1-9
+go/internal/coordinator/planner/component/AGENTS.md
+  s_4a0f86aa680964::t_454397aacdff8d 1-14,16-22
+  s_4a0f86aa680964::t_e756dc01424227 15
+go/internal/coordinator/service_aws_freshness.go
+  s_4a0f86aa680964::t_47cd55eae0d886 13-14,46,53,56,60,64-65,68,138,144,151,167,174,178,196
+  s_4a0f86aa680964::t_c13d88883ca647 226,258
+go/internal/coordinator/planner/component/doc.go
+  s_4a0f86aa680964::t_454397aacdff8d 1-10
+go/internal/coordinator/planner/AGENTS.md
+  s_4a0f86aa680964::t_454397aacdff8d 1-30
+go/internal/coordinator/ociregistry/AGENTS.md
+  s_4a0f86aa680964::t_ebc2d79de2e9be 12
+go/internal/coordinator/planner/aws/freshness/AGENTS.md
+  s_4a0f86aa680964::t_f7a88a0712525d 1-69
+go/cmd/workflow-coordinator/main.go
+  s_4a0f86aa680964::t_47cd55eae0d886 24-34,103,183,194-199
+  s_4a0f86aa680964::t_ae047c6d248b13 200,202,207,209,216
+go/internal/coordinator/service_incident_freshness_test.go
+  s_4a0f86aa680964::t_47cd55eae0d886 16-17,28,45,58-59,95,144,151-152,196,203-204,317,342
+  s_4a0f86aa680964::t_e2ec73cc4345f8 334
+go/internal/coordinator/planner/aws/freshness/planner.go
+  s_4a0f86aa680964::t_47cd55eae0d886 1-334
+go/internal/coordinator/componentactivation/AGENTS.md
+  s_4a0f86aa680964::t_773d0329ee84b0 11,13-15,26,29-30,35-36,39,51,53,71-72,79
+go/internal/coordinator/AGENTS.md
+  s_4a0f86aa680964::t_26929e88e5778e 15,19,22,26,30,35,44,48-49,63,71,74,83-84,86,91,100-101,104-106,111,133,135,143,145,158,161,173,196,209
+go/internal/coordinator/scannerworker/AGENTS.md
+  s_4a0f86aa680964::t_ebc2d79de2e9be 8
+go/internal/coordinator/planner/component/extension/README.md
+  s_4a0f86aa680964::t_f7a88a0712525d 1-100
+go/internal/coordinator/planner/README.md
+  s_4a0f86aa680964::t_454397aacdff8d 1-41
+go/internal/coordinator/componentactivation/config.go
+  s_4a0f86aa680964::t_773d0329ee84b0 24-25
+go/internal/coordinator/planner/aws/scheduled/README.md
+  s_4a0f86aa680964::t_ebc2d79de2e9be 1-46
+go/internal/coordinator/planner/aws/scheduled/AGENTS.md
+  s_4a0f86aa680964::t_ebc2d79de2e9be 1-30
+go/internal/coordinator/planner/doc.go
+  s_4a0f86aa680964::t_454397aacdff8d 1-10
+go/internal/coordinator/vaultlive/AGENTS.md
+  s_4a0f86aa680964::t_ebc2d79de2e9be 8
+go/internal/coordinator/README.md
+  s_4a0f86aa680964::t_26929e88e5778e 12,24,27,119,163,166,169,175,179,186,191,193,204,213,223,232-237,359,500
+docker-compose.tier2-tfstate-v25.yaml
+  s_4a0f86aa680964::t_e66e080563fd5e 22
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_3b7a05a15eb151 670-671,673-678
+docs/public/reference/jira-evidence.md
+  s_4a0f86aa680964::t_9345eb1f00849e 322
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_74efb3911803be 21-22,25-32,36-37
+go/cmd/workflow-coordinator/README.md
+  s_4a0f86aa680964::t_6b98163120c335 63-65,142,144,146,148,150,156,158,160,162
+go/cmd/workflow-coordinator/doc.go
+  s_4a0f86aa680964::t_de153960b6fcdc 14-16
+go/internal/coordinator/aws_scheduled_service.go
+  s_4a0f86aa680964::t_5d9797402d2dbd 12,29,39
+go/internal/coordinator/aws_scheduled_service_run_test.go
+  s_4a0f86aa680964::t_9f875ce3d8a013 11,18,47,97,144
+go/internal/coordinator/cicdrun/AGENTS.md
+  s_4a0f86aa680964::t_afaf4595041e5d 11,31,39
+go/internal/coordinator/cicdrun/README.md
+  s_4a0f86aa680964::t_cd85a1870648e5 27,61
+go/internal/coordinator/cicdrun/planner.go
+  s_4a0f86aa680964::t_16860a826819e6 14,94
+go/internal/coordinator/component_extension_service.go
+  s_4a0f86aa680964::t_733aea06056ad8 13,19,62
+go/internal/coordinator/config.go
+  s_4a0f86aa680964::t_f888da5ee01fca 14,254
+go/internal/coordinator/doc.go
+  s_4a0f86aa680964::t_72a94f41b13ec2 37,40,45,50,55,58,61-62,68,81,90,92,98,108,119
+go/internal/coordinator/extension_egress_policy.go
+  s_4a0f86aa680964::t_1da92d69ab9056 11,190,197
+go/internal/coordinator/gcp_service.go
+  s_4a0f86aa680964::t_32e3f25291d35e 12,20,38
+go/internal/coordinator/grafana_service.go
+  s_4a0f86aa680964::t_bfb7d5b6736fdc 12,20,38
+go/internal/coordinator/jira_service.go
+  s_4a0f86aa680964::t_234571c36017ea 12,19,37
+go/internal/coordinator/loki_service.go
+  s_4a0f86aa680964::t_627298863b0bde 12,20,42
+go/internal/coordinator/ociregistry/README.md
+  s_4a0f86aa680964::t_a06735d2d3aae3 19,40
+go/internal/coordinator/ociregistry/planner.go
+  s_4a0f86aa680964::t_2881208c995a8d 22,114
+go/internal/coordinator/package_registry_scheduler.go
+  s_4a0f86aa680964::t_2e1c490cb9d8bd 14,125
+go/internal/coordinator/pagerduty_service.go
+  s_4a0f86aa680964::t_6ec9661a001b45 13,21,39
+go/internal/coordinator/planner/aws/freshness/README.md
+  s_4a0f86aa680964::t_01a8602e7afb96 5,21,38,50,59,63,75,120
+go/internal/coordinator/planner/aws/freshness/aws_bindings_test.go
+  s_4a0f86aa680964::t_03b96a066f2262 4,7
+go/internal/coordinator/planner/aws/freshness/doc.go
+  s_4a0f86aa680964::t_68d03ac801a79d 4,17,21
+go/internal/coordinator/planner/aws/scheduled/aws_bindings_test.go
+  s_4a0f86aa680964::t_9daac9756b28e4 4,7-8,17
+go/internal/coordinator/planner/aws/scheduled/planner_test.go
+  s_4a0f86aa680964::t_3cc31299e680f1 4
+go/internal/coordinator/planner/component/extension/AGENTS.md
+  s_4a0f86aa680964::t_ceea0277f44f5f 10,13,16,63
+go/internal/coordinator/planner/component/extension/doc.go
+  s_4a0f86aa680964::t_eef727a4a7ce6e 4,20
+go/internal/coordinator/planner/component/extension/planner.go
+  s_4a0f86aa680964::t_3ca8a2ba4b319f 4,15,75
+go/internal/coordinator/planner/component/extension/planner_contract_test.go
+  s_4a0f86aa680964::t_e0125e09ba0bea 4
+go/internal/coordinator/planner/component/extension/planner_validation_test.go
+  s_4a0f86aa680964::t_913f48b0c96ff4 4
+go/internal/coordinator/planner/contract/AGENTS.md
+  s_4a0f86aa680964::t_260ecbce7807fb 5-7,26
+go/internal/coordinator/planner/contract/README.md
+  s_4a0f86aa680964::t_d4be1cf437048e 5,57
+go/internal/coordinator/planner/contract/doc.go
+  s_4a0f86aa680964::t_566790d2af78f8 4,12
+go/internal/coordinator/planner/contract/plan_key.go
+  s_4a0f86aa680964::t_4274703d0eb66a 4
+go/internal/coordinator/planner/contract/plan_key_test.go
+  s_4a0f86aa680964::t_a161335ad1574f 4
+go/internal/coordinator/planner/gcp/AGENTS.md
+  s_4a0f86aa680964::t_2dba78d54674fc 14-15,17,40,69
+go/internal/coordinator/planner/gcp/README.md
+  s_4a0f86aa680964::t_8162cd06da7827 5,47
+go/internal/coordinator/planner/gcp/doc.go
+  s_4a0f86aa680964::t_8e8beb723075a7 4,19
+go/internal/coordinator/planner/gcp/planner.go
+  s_4a0f86aa680964::t_ad9f7f7beeaf33 4,16,116
+go/internal/coordinator/planner/gcp/planner_contract_test.go
+  s_4a0f86aa680964::t_3cd24281532d23 4
+go/internal/coordinator/planner/gcp/planner_edge_test.go
+  s_4a0f86aa680964::t_0252d414e3f56a 4
+go/internal/coordinator/planner/gcp/planner_validation_test.go
+  s_4a0f86aa680964::t_7761fc88f61052 4
+go/internal/coordinator/planner/grafana/AGENTS.md
+  s_4a0f86aa680964::t_6ad6d91fdbb151 8-9,44
+go/internal/coordinator/planner/grafana/README.md
+  s_4a0f86aa680964::t_1151c5ea2c7935 5,31
+go/internal/coordinator/planner/grafana/doc.go
+  s_4a0f86aa680964::t_354e7979d537ff 4,12
+go/internal/coordinator/planner/grafana/planner.go
+  s_4a0f86aa680964::t_db7efe14b1c141 4,14,108
+go/internal/coordinator/planner/grafana/planner_contract_test.go
+  s_4a0f86aa680964::t_e121dfb852642a 4
+go/internal/coordinator/planner/grafana/planner_edge_test.go
+  s_4a0f86aa680964::t_6a0e58187dc6d0 4
+go/internal/coordinator/planner/grafana/planner_validation_test.go
+  s_4a0f86aa680964::t_c2cbb667338a2d 4
+go/internal/coordinator/planner/jira/AGENTS.md
+  s_4a0f86aa680964::t_9b86e457dd3e22 11-12,14,50
+go/internal/coordinator/planner/jira/README.md
+  s_4a0f86aa680964::t_0b7c3c1d4de714 5,36
+go/internal/coordinator/planner/jira/doc.go
+  s_4a0f86aa680964::t_7df6859bbd8e34 4,14
+go/internal/coordinator/planner/jira/planner.go
+  s_4a0f86aa680964::t_7e9f042106fde4 4,14,99
+go/internal/coordinator/planner/jira/planner_contract_test.go
+  s_4a0f86aa680964::t_8c901ac13a59e2 4
+go/internal/coordinator/planner/jira/planner_edge_test.go
+  s_4a0f86aa680964::t_f91e78b0d65a36 4
+go/internal/coordinator/planner/loki/AGENTS.md
+  s_4a0f86aa680964::t_d3dfbe74025b8e 1,7-8
+go/internal/coordinator/planner/loki/README.md
+  s_4a0f86aa680964::t_afe72d3b870c1f 5,26
+go/internal/coordinator/planner/loki/doc.go
+  s_4a0f86aa680964::t_173166a7d47107 4,10
+go/internal/coordinator/planner/loki/planner.go
+  s_4a0f86aa680964::t_d36ee21a8cade0 4,14,110
+go/internal/coordinator/planner/loki/planner_contract_test.go
+  s_4a0f86aa680964::t_b1e0fc8e0977c6 4
+go/internal/coordinator/planner/loki/planner_edge_test.go
+  s_4a0f86aa680964::t_7e28b6609e22b5 4
+go/internal/coordinator/planner/loki/planner_validation_test.go
+  s_4a0f86aa680964::t_fbdc78cfb0e221 4
+go/internal/coordinator/planner/metrics/AGENTS.md
+  s_4a0f86aa680964::t_6e51654107a78f 1,7-8
+go/internal/coordinator/planner/metrics/README.md
+  s_4a0f86aa680964::t_91ebdd4167d582 5,26
+go/internal/coordinator/planner/metrics/doc.go
+  s_4a0f86aa680964::t_2ff71ce46bad83 4,11
+go/internal/coordinator/planner/metrics/planner.go
+  s_4a0f86aa680964::t_53e4b883800993 4,14,114
+go/internal/coordinator/planner/metrics/planner_contract_test.go
+  s_4a0f86aa680964::t_9e02c081584615 4
+go/internal/coordinator/planner/metrics/planner_edge_test.go
+  s_4a0f86aa680964::t_8617fe67a3bd46 4
+go/internal/coordinator/planner/metrics/planner_validation_test.go
+  s_4a0f86aa680964::t_81a45631eda28d 4
+go/internal/coordinator/planner/pagerduty/AGENTS.md
+  s_4a0f86aa680964::t_b09029d1f0d160 11-12,14,50
+go/internal/coordinator/planner/pagerduty/README.md
+  s_4a0f86aa680964::t_1bb999bab73163 5,36
+go/internal/coordinator/planner/pagerduty/doc.go
+  s_4a0f86aa680964::t_f42f1a7f94668b 4,14
+go/internal/coordinator/planner/pagerduty/planner.go
+  s_4a0f86aa680964::t_e726f3463f071d 4,14,100
+go/internal/coordinator/planner/pagerduty/planner_contract_test.go
+  s_4a0f86aa680964::t_1432594dcbd97a 4
+go/internal/coordinator/planner/pagerduty/planner_edge_test.go
+  s_4a0f86aa680964::t_bedbc7e70474af 4
+go/internal/coordinator/planner/pagerduty/planner_validation_test.go
+  s_4a0f86aa680964::t_c160905704f687 4
+go/internal/coordinator/planner/tempo/AGENTS.md
+  s_4a0f86aa680964::t_53f0400707c378 1,7-8
+go/internal/coordinator/planner/tempo/README.md
+  s_4a0f86aa680964::t_46a25508da7617 5,26
+go/internal/coordinator/planner/tempo/doc.go
+  s_4a0f86aa680964::t_9fc8915d166dcb 4,11
+go/internal/coordinator/planner/tempo/planner.go
+  s_4a0f86aa680964::t_62ed2ee97b58d5 4,14,108
+go/internal/coordinator/planner/tempo/planner_contract_test.go
+  s_4a0f86aa680964::t_03ce18aa5a415f 4
+go/internal/coordinator/planner/tempo/planner_edge_test.go
+  s_4a0f86aa680964::t_c6062edc7efa52 4
+go/internal/coordinator/planner/tempo/planner_validation_test.go
+  s_4a0f86aa680964::t_e72dbeca982953 4
+go/internal/coordinator/planner/tfstate/AGENTS.md
+  s_4a0f86aa680964::t_81ed6bd0577f3e 1,8,10,13,29,47,68
+go/internal/coordinator/planner/tfstate/README.md
+  s_4a0f86aa680964::t_e89362a4138183 5,54,72,105
+go/internal/coordinator/planner/tfstate/doc.go
+  s_4a0f86aa680964::t_f9dfb1416008f7 4,16
+go/internal/coordinator/planner/tfstate/planner.go
+  s_4a0f86aa680964::t_166d3249925057 4
+go/internal/coordinator/planner/tfstate/planner_test.go
+  s_4a0f86aa680964::t_c20892015e6b9a 4
+go/internal/coordinator/prometheus_mimir_service.go
+  s_4a0f86aa680964::t_2c47156c670a7e 12,20,42
+go/internal/coordinator/sbomattestation/README.md
+  s_4a0f86aa680964::t_8e90ccef2a6738 22
+go/internal/coordinator/sbomattestation/planner.go
+  s_4a0f86aa680964::t_8f80134adc1b4e 14,97
+go/internal/coordinator/scannerworker/README.md
+  s_4a0f86aa680964::t_6cbccd5e28d5f7 26
+go/internal/coordinator/scannerworker/planner.go
+  s_4a0f86aa680964::t_d268a38882e63b 15,104
+go/internal/coordinator/securityalert/AGENTS.md
+  s_4a0f86aa680964::t_1ea7421ebd8a51 12,32,40
+go/internal/coordinator/securityalert/README.md
+  s_4a0f86aa680964::t_fa4d8d74fa68e0 28,63
+go/internal/coordinator/securityalert/planner.go
+  s_4a0f86aa680964::t_d7be1827e1f05a 14,94
+go/internal/coordinator/service.go
+  s_4a0f86aa680964::t_84d141c60f70e3 13-14,49,88
+go/internal/coordinator/service_collector_egress_test.go
+  s_4a0f86aa680964::t_372b3ee1835d78 15,219
+go/internal/coordinator/service_component_extension_test.go
+  s_4a0f86aa680964::t_eedf3a6ccf27b3 11,63,130,177,244,313,358
+go/internal/coordinator/service_freshness_claim_lease_test.go
+  s_4a0f86aa680964::t_5193f7dc0af586 16-17,23,32,38,49,55,424,426
+go/internal/coordinator/service_gcp_freshness.go
+  s_4a0f86aa680964::t_8b48aae569e7e8 15,255,314,338
+go/internal/coordinator/service_gcp_freshness_multi_instance_test.go
+  s_4a0f86aa680964::t_7b9869f000e11e 13,136,245
+go/internal/coordinator/service_gcp_freshness_test.go
+  s_4a0f86aa680964::t_3f27fd26c12241 17,186,304,403
+go/internal/coordinator/service_gcp_test.go
+  s_4a0f86aa680964::t_b2efe6ec69d5c8 12,18,26,155,206,251
+go/internal/coordinator/service_grafana_test.go
+  s_4a0f86aa680964::t_12fa08f1bb0062 12,18,40,126
+go/internal/coordinator/service_incident_freshness.go
+  s_4a0f86aa680964::t_269cb603912a6c 13-14,149,151,181,203
+go/internal/coordinator/service_jira_test.go
+  s_4a0f86aa680964::t_7d90f68919b3a2 12,18,40,123,128-129
+go/internal/coordinator/service_loki_test.go
+  s_4a0f86aa680964::t_985fa56ff09cf8 12,18,26,98
+go/internal/coordinator/service_pagerduty_test.go
+  s_4a0f86aa680964::t_b67e0d0e900010 12,18,40,123,128-129
+go/internal/coordinator/service_prometheus_mimir_test.go
+  s_4a0f86aa680964::t_5665122b136352 12,18,26,112
+go/internal/coordinator/service_tempo_test.go
+  s_4a0f86aa680964::t_398183fc05861c 12,18,26,97
+go/internal/coordinator/service_tfstate_test.go
+  s_4a0f86aa680964::t_10157675cfb3cb 12,18,26
+go/internal/coordinator/tempo_service.go
+  s_4a0f86aa680964::t_6fa35b2f897cc2 12,20,38
+go/internal/coordinator/tfstate_service.go
+  s_4a0f86aa680964::t_04643eb6d4ab13 13,33
+go/internal/coordinator/vaultlive/README.md
+  s_4a0f86aa680964::t_a1874d3f6f385e 23
+go/internal/coordinator/vaultlive/planner.go
+  s_4a0f86aa680964::t_d656802d8d93c3 15,97
+go/internal/coordinator/vulnerability_intelligence_scheduler.go
+  s_4a0f86aa680964::t_50c3dfbe0d171d 14,130
+scripts/verify_tfstate_drift_compose_tier2_v25.sh
+  s_4a0f86aa680964::t_de5edea47579a0 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ed890dad24df932a8504d605300a7ac0038c1c79",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

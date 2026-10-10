@@ -1,0 +1,42 @@
+go/internal/collector/securityalerts/github_client.go
+  s_f2f7fbb6f30866::t_12aaa1f6281f25 208,210,217-218,236-244,248,256,265,273,281,332-337,342,346
+  s_f2f7fbb6f30866::t_9036ad43d02114 278,326-330,338-341,344
+go/internal/runtime/compose_defaults_test.go
+  s_f2f7fbb6f30866::t_a951aed52e0f5b 21
+go/internal/runtime/compose_remote_e2e_test.go
+  s_f2f7fbb6f30866::t_f0de454cec6bae 328-359
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_a06596ce58f0c1 179-183,209-219
+go/internal/storage/postgres/workflow_control_helpers.go
+  s_f2f7fbb6f30866::t_2f065c282455c3 136,147-151,158
+go/internal/collector/securityalerts/README.md
+  s_f2f7fbb6f30866::t_9c5bb2e67fd724 61-64,79-80
+go/internal/storage/postgres/workflow_control_sql.go
+  s_f2f7fbb6f30866::t_c3a2f12db1787e 301,303-306,308-309
+  s_f2f7fbb6f30866::t_67e130f76725f2 317-318,321,331-332
+go/internal/collector/securityalerts/github_client_pagination_test.go
+  s_f2f7fbb6f30866::t_0cba4a1132a2b6 12,15,20-21,23-32,42,46,49,55-56
+  s_f2f7fbb6f30866::t_3cd555c26f9cf6 102-133
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_70c6501d59ff24 317,321,323-327
+go/internal/storage/postgres/workflow_control_failure_test.go
+  s_f2f7fbb6f30866::t_fbaecc6de4c476 1-148
+go/internal/storage/postgres/workflow_control.go
+  s_f2f7fbb6f30866::t_c6aec67bce5c8a 205,210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "2376ab3305c88863d1a02a93b5821b20adaf19ff",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

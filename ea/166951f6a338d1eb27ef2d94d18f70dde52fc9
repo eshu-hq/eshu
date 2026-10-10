@@ -1,0 +1,234 @@
+go/internal/query/code_dead_code_language_maturity_test.go
+  s_bdaf44668b73dc::t_71a4f77462694a 65
+go/internal/reducer/code_call_materialization_cross_file_python_test.go
+  s_bdaf44668b73dc::t_90ba8e4fd4c41e 174-259
+  s_bdaf44668b73dc::t_af472a81a1610d 260-304,338-346
+  s_bdaf44668b73dc::t_4fa6d9e6e8d190 305-337
+go/internal/query/content_reader_test.go
+  s_bdaf44668b73dc::t_0af3fd0268d74c 557-561
+go/internal/query/code_dead_code_python_roots.go
+  s_bdaf44668b73dc::t_4443b8a45643a1 26-27
+  s_bdaf44668b73dc::t_6e1d74fb92c806 30-31
+  s_bdaf44668b73dc::t_278985251a8c66 28
+  s_bdaf44668b73dc::t_86e8e13f5ddb58 29
+  s_bdaf44668b73dc::t_d6ee70a3c73b07 37-57
+  s_bdaf44668b73dc::t_b0b8993b2c6e62 21-23
+  s_bdaf44668b73dc::t_b867f821496812 24-25
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_71cb56d66a08f9 57-59,61-65,112-114
+  s_bdaf44668b73dc::t_2b3eea933682fb 70-71
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 72-73
+  s_bdaf44668b73dc::t_1eea9e41bd64d4 74-77
+  s_bdaf44668b73dc::t_1d03788e16e3e0 69
+  s_bdaf44668b73dc::t_a6c8238a795897 66-68
+go/internal/query/code_dead_code_analysis.go
+  s_bdaf44668b73dc::t_b867f821496812 61-63
+  s_bdaf44668b73dc::t_6e1d74fb92c806 68,100
+  s_bdaf44668b73dc::t_c4f52e174a997b 59
+  s_bdaf44668b73dc::t_6a68db20e15bd6 56-58,60
+  s_bdaf44668b73dc::t_27e511a5732f1f 46,69-70,113
+  s_bdaf44668b73dc::t_4443b8a45643a1 64-65,95-98,101,117
+  s_bdaf44668b73dc::t_278985251a8c66 66
+  s_bdaf44668b73dc::t_86e8e13f5ddb58 67,99
+go/internal/parser/engine_python_call_semantics_test.go
+  s_bdaf44668b73dc::t_ec657e9ab7d393 1-7,39-80
+  s_bdaf44668b73dc::t_b3a5807d59374e 8-38
+  s_bdaf44668b73dc::t_f98e0367bd3cd1 81-112
+go/internal/parser/python_language.go
+  s_bdaf44668b73dc::t_b867f821496812 58,92-98,102-104,127-128,138-139,149,215-217,223-225
+  s_bdaf44668b73dc::t_799a51be55dad2 59,131-137
+  s_bdaf44668b73dc::t_278985251a8c66 141-143
+  s_bdaf44668b73dc::t_f04b0769a2cf7c 106,148
+  s_bdaf44668b73dc::t_4443b8a45643a1 60,105,107,140,147
+  s_bdaf44668b73dc::t_86e8e13f5ddb58 144-146
+  s_bdaf44668b73dc::t_82972234cedffe 18,57,129-130,150,218-220,247
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_cfb9761575c852 25-28
+  s_bdaf44668b73dc::t_96b96b63538e9c 17
+  s_bdaf44668b73dc::t_71cb56d66a08f9 16
+  s_bdaf44668b73dc::t_8879d62f0716db 19-23
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 18
+  s_bdaf44668b73dc::t_48a1835e00431a 24
+go/internal/query/code_dead_code_scan_test.go
+  s_bdaf44668b73dc::t_230ecf85956759 28-29,31-32,34-35,51-54,64-73,75-105,109-110
+  s_bdaf44668b73dc::t_4756951073f4ef 30,33,36,50,55-63,106-108
+  s_bdaf44668b73dc::t_893dd3f8ceeade 27,49,74
+  s_bdaf44668b73dc::t_ca7f118e026cda 37-48
+  s_bdaf44668b73dc::t_3790ec18df910a 13-26
+  s_bdaf44668b73dc::t_05b6b1a2dffb74 214
+go/internal/reducer/code_call_materialization_index.go
+  s_bdaf44668b73dc::t_b867f821496812 82
+go/internal/query/code_dead_code.go
+  s_bdaf44668b73dc::t_b90924d4e739cc 274-276
+  s_bdaf44668b73dc::t_5f4e818a8c0376 22-23
+  s_bdaf44668b73dc::t_5f7137e9943f88 27,83-89,91-92,95-96,114-116,122-130
+  s_bdaf44668b73dc::t_073072c0282f1f 82
+  s_bdaf44668b73dc::t_ecc279d4b6fb4a 99,106,113,117-120
+  s_bdaf44668b73dc::t_1abd89fa24bd91 121
+  s_bdaf44668b73dc::t_8f09981484232c 277-279
+go/internal/parser/engine.go
+  s_bdaf44668b73dc::t_82972234cedffe 303
+go/internal/parser/python_lambda_roots.go
+  s_bdaf44668b73dc::t_41fe339a72410e 4,126,130-133,146-149,151-152
+  s_bdaf44668b73dc::t_82972234cedffe 1-3,5-125,127-129,134-145,150,153-165
+tests/fixtures/deadcode/python/README.md
+  s_bdaf44668b73dc::t_96b96b63538e9c 16
+  s_bdaf44668b73dc::t_874d33bc788088 5
+  s_bdaf44668b73dc::t_04826a5607b513 6-7,14,17
+go/internal/parser/python_notebook.go
+  s_bdaf44668b73dc::t_68fbf9e16f9151 1-75
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_e0eaf5973462af 81
+  s_bdaf44668b73dc::t_2b3eea933682fb 72
+  s_bdaf44668b73dc::t_1d03788e16e3e0 76-79
+  s_bdaf44668b73dc::t_71cb56d66a08f9 71
+  s_bdaf44668b73dc::t_23c2411c4c58e2 80,243
+  s_bdaf44668b73dc::t_858debd4150705 74-75,241-242
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 73
+  s_bdaf44668b73dc::t_0170299fe825ee 82-88,244-246
+go/internal/query/code_dead_code_contract_test.go
+  s_bdaf44668b73dc::t_6370f312869242 256,259-260
+  s_bdaf44668b73dc::t_ddd416804c3572 15-16,28-37,311,332
+go/internal/query/code_dead_code_java_roots_test.go
+  s_bdaf44668b73dc::t_b74992205a8474 70
+  s_bdaf44668b73dc::t_b5ad0921492074 1-69,71-78
+tests/fixtures/deadcode/python/template.yaml
+  s_bdaf44668b73dc::t_874d33bc788088 1-9
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_f7395718f35b8b 63,97-174
+go/internal/parser/engine_python_dead_code_semantics_test.go
+  s_bdaf44668b73dc::t_f98e0367bd3cd1 35-37,72-77
+  s_bdaf44668b73dc::t_9bb865167fdc8e 1-15,17-22,24-34,38-71,78-83
+  s_bdaf44668b73dc::t_b8e2b1cf5a1308 16,23
+go/internal/parser/python_call_inference.go
+  s_bdaf44668b73dc::t_278985251a8c66 23-25
+  s_bdaf44668b73dc::t_82972234cedffe 1-22,26-38,40-69,71-77,79-90
+  s_bdaf44668b73dc::t_41fe339a72410e 39,70,78
+  s_bdaf44668b73dc::t_b867f821496812 91-111
+tests/fixtures/deadcode/README.md
+  s_bdaf44668b73dc::t_96b96b63538e9c 54
+tests/fixtures/deadcode/python/app.py
+  s_bdaf44668b73dc::t_874d33bc788088 37-47,78-80
+  s_bdaf44668b73dc::t_96b96b63538e9c 11-12
+  s_bdaf44668b73dc::t_c03e2f4106d368 81-85
+  s_bdaf44668b73dc::t_04826a5607b513 1-2,13-30,60-62
+go/internal/parser/python_public_api_roots.go
+  s_bdaf44668b73dc::t_8ec151214f1341 88
+  s_bdaf44668b73dc::t_583e01af53cd8d 4,166
+  s_bdaf44668b73dc::t_4443b8a45643a1 1-3,5-27,29-87,89-156,235-246
+  s_bdaf44668b73dc::t_f04b0769a2cf7c 157-165,167-174
+  s_bdaf44668b73dc::t_86e8e13f5ddb58 175-180,182-185,233-234
+  s_bdaf44668b73dc::t_6e1d74fb92c806 28,181,186-232
+go/internal/query/code_relationships_graph_test.go
+  s_bdaf44668b73dc::t_fc9226e50c0f5c 27-29,36,38-44
+  s_bdaf44668b73dc::t_0b75450d441f5f 37
+  s_bdaf44668b73dc::t_072cec538e13c2 15-17,21-26
+go/internal/query/content_reader_dead_code_test.go
+  s_bdaf44668b73dc::t_68c2fb3429bc38 1-76
+go/internal/parser/python_dead_code_roots.go
+  s_bdaf44668b73dc::t_b867f821496812 3,5-9,42-43,49-74,93-94,138-143
+  s_bdaf44668b73dc::t_f3ab5864ff888c 4,10,75-92
+  s_bdaf44668b73dc::t_278985251a8c66 149-156
+  s_bdaf44668b73dc::t_54aec783aff3a5 144-147
+go/internal/reducer/code_call_materialization_helpers.go
+  s_bdaf44668b73dc::t_b867f821496812 55-57,92-103
+go/internal/query/content_reader_dead_code.go
+  s_bdaf44668b73dc::t_81b0111f9cf904 1-104
+go/internal/parser/java_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_6f2c7545668ea3 1-49
+go/internal/query/code_dead_code_go_roots_test.go
+  s_bdaf44668b73dc::t_e27bcb606f44ac 224-228,237-238
+  s_bdaf44668b73dc::t_880294da33d3e7 232-233
+  s_bdaf44668b73dc::t_70109ab4cf9fec 234
+  s_bdaf44668b73dc::t_0441cec2625343 235
+  s_bdaf44668b73dc::t_56faca7f7b4084 236
+  s_bdaf44668b73dc::t_293b462de17577 229-231
+docs/docs/reference/dead-code-reachability-spec.md
+  s_bdaf44668b73dc::t_1d03788e16e3e0 198-200,221-224
+  s_bdaf44668b73dc::t_874d33bc788088 192-197,218,228-229
+  s_bdaf44668b73dc::t_2ddae54983eafc 23
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 73-76,203-204,220
+  s_bdaf44668b73dc::t_2b3eea933682fb 201,219
+  s_bdaf44668b73dc::t_96b96b63538e9c 70-71,77-78,202,226-227
+  s_bdaf44668b73dc::t_6e459d7b8eeed4 72,205
+go/internal/parser/engine_python_module_semantics_test.go
+  s_bdaf44668b73dc::t_d18d7ba5c7c7fd 1-36
+go/internal/query/code_dead_code_graph_policy_test.go
+  s_bdaf44668b73dc::t_a0104ce2abfb39 8,15-16,25-26,29
+  s_bdaf44668b73dc::t_83ac1a116c7736 13
+  s_bdaf44668b73dc::t_3927785a271f09 34,37,39-41,46-48
+  s_bdaf44668b73dc::t_2bfc8728f17eff 22-24,27-28,30-33,35-36,38,42-45,49
+  s_bdaf44668b73dc::t_48cfb9e102f78a 14
+  s_bdaf44668b73dc::t_61ea707cb950c5 55
+go/internal/query/code_dead_code_python_roots_test.go
+  s_bdaf44668b73dc::t_1d5892d2ccfdfc 234,323-405
+  s_bdaf44668b73dc::t_fec32c2d8b0975 235-322
+  s_bdaf44668b73dc::t_95073a1562fa22 406-509
+go/internal/reducer/code_call_materialization_relationship.go
+  s_bdaf44668b73dc::t_b867f821496812 17-18
+docs/docs/languages/java.md
+  s_bdaf44668b73dc::t_23f98814baa468 30,36-38
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_20efcba52555b7 156-157,161,163-166,168-171
+  s_bdaf44668b73dc::t_ffe860fcdb8ff4 162
+  s_bdaf44668b73dc::t_2b3eea933682fb 158-160
+go/internal/query/code_dead_code_java_roots.go
+  s_bdaf44668b73dc::t_c63abba838e5c0 1-23
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_2b3eea933682fb 10-11
+  s_bdaf44668b73dc::t_20efcba52555b7 12-17
+go/internal/query/code_dead_code_language_maturity.go
+  s_bdaf44668b73dc::t_9b519a602f9524 17
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_9fe93159e784bb 20-23
+  s_bdaf44668b73dc::t_71cb56d66a08f9 8,16-19
+  s_bdaf44668b73dc::t_1d03788e16e3e0 9,14-15
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 11
+  s_bdaf44668b73dc::t_2b3eea933682fb 10
+  s_bdaf44668b73dc::t_1eea9e41bd64d4 12-13
+go/internal/query/code_dead_code_python_public_roots_test.go
+  s_bdaf44668b73dc::t_c0e80ccdf8f385 129-204
+  s_bdaf44668b73dc::t_ccc05971602e99 1-28,37-62,83-128
+  s_bdaf44668b73dc::t_380c7a5b583cd7 33-36,73-82
+  s_bdaf44668b73dc::t_3b5f98a580ef3c 29-32,63-72
+go/internal/query/code_dead_code_scan.go
+  s_bdaf44668b73dc::t_cb86410d115f86 25-37,39-46,51-57,59-60,62-64,145-146,161
+  s_bdaf44668b73dc::t_e9be211e819b96 74
+  s_bdaf44668b73dc::t_9c859dcf1ae5ac 47-50,71,73,75-77,86-89,91,93-94,96,98,147-160,162
+  s_bdaf44668b73dc::t_b75b1b4d72cb75 3-6,79-85,99,101-114,116-118,120-121,123-124,126-130,132-144
+  s_bdaf44668b73dc::t_4df2841858184c 38,58,61
+  s_bdaf44668b73dc::t_8d59b6d0b76ba9 69,72,78,92,97
+go/internal/parser/python_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_ccc05971602e99 247-263,269-297,316-324
+  s_bdaf44668b73dc::t_6e1d74fb92c806 298-303
+  s_bdaf44668b73dc::t_3b5f98a580ef3c 304,311-315
+  s_bdaf44668b73dc::t_60a5d7c638515b 156-195
+  s_bdaf44668b73dc::t_f023b797b7fa27 196-246
+  s_bdaf44668b73dc::t_14568de0c85fe9 264-268,305-310
+docs/docs/languages/python.md
+  s_bdaf44668b73dc::t_96b96b63538e9c 20,24
+  s_bdaf44668b73dc::t_6e459d7b8eeed4 48,53
+  s_bdaf44668b73dc::t_926090dae3b220 25,45-47
+  s_bdaf44668b73dc::t_874d33bc788088 44,54
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 49-52
+  s_bdaf44668b73dc::t_2b3eea933682fb 55-59
+go/internal/parser/python_class_context.go
+  s_bdaf44668b73dc::t_b867f821496812 4,21-42
+  s_bdaf44668b73dc::t_82972234cedffe 1-3,5-20,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "ea166951f6a338d1eb27ef2d94d18f70dde52fc9",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

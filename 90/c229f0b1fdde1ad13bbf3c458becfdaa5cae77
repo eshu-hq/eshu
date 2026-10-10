@@ -1,0 +1,21 @@
+docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
+  s_b0d7e3abc26c5a::t_8ab438f038ad87 276-288
+  s_b0d7e3abc26c5a::t_210485a30cecc2 249-274
+  s_b0d7e3abc26c5a::t_7e6767f6babdc6 275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "90c229f0b1fdde1ad13bbf3c458becfdaa5cae77",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

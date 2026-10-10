@@ -1,0 +1,31 @@
+scripts/lib/remote_e2e_security_alerts.sh
+  s_f2f7fbb6f30866::t_096050bd774a8a 92,110
+  s_f2f7fbb6f30866::t_99184fb8ac7070 124-125
+  s_f2f7fbb6f30866::t_034b08101c33d5 1-91,93-109,111-123,126-127
+scripts/test-verify-remote-e2e-target-story.sh
+  s_f2f7fbb6f30866::t_4f63bc98150111 237-263
+  s_f2f7fbb6f30866::t_d7362b4d5f1941 281-303
+  s_f2f7fbb6f30866::t_6bbdf86d7ef3df 147-159,230-236,264-278
+scripts/verify_remote_e2e_target_story.sh
+  s_f2f7fbb6f30866::t_32eba4ad0eb423 11-14,280,291,312-323,336,353,355-363,464,468
+docs/public/reference/remote-e2e-runtime-state.md
+  s_f2f7fbb6f30866::t_34bb7175ec9a3c 233
+  s_f2f7fbb6f30866::t_22b01b7bafb269 117,149-163,221,230-231
+  s_f2f7fbb6f30866::t_14c85f43937ee4 222-223,232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "12293f94581dd85927cfc7741e92370a515d078a",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

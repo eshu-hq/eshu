@@ -1,0 +1,53 @@
+docs/public/reference/nornicdb-pitfalls.md
+  s_e8ab01ccdfa8e2::t_b4d2606fbbdb77 525,640
+go/internal/mcp/route_serves_data_registry.go
+  s_e8ab01ccdfa8e2::t_258d44ccb83660 119
+go/internal/query/AGENTS.md
+  s_e8ab01ccdfa8e2::t_0da519aaa3fd9c 196-197
+go/internal/query/auth_scoped_routes_supply_chain_infra.go
+  s_e8ab01ccdfa8e2::t_f96131fd3705a1 211
+go/internal/query/factschema_decode_supplychain.go
+  s_e8ab01ccdfa8e2::t_f57474bdf5eed4 40
+go/internal/query/graph_read_error_package_registry_test.go
+  s_e8ab01ccdfa8e2::t_1ef239711e34d0 26,81,103,127,150,172,195,219,242
+go/internal/query/graph_read_error_selector_test.go
+  s_e8ab01ccdfa8e2::t_f075f419209e1c 24
+go/internal/query/handlers.go
+  s_e8ab01ccdfa8e2::t_79cd7f58541e31 14
+go/internal/query/package/registry/AGENTS.md
+  s_e8ab01ccdfa8e2::t_f491af8d2286b8 80
+go/internal/query/package/registry/README.md
+  s_e8ab01ccdfa8e2::t_655475ec6e826f 46,221-224,246
+go/internal/query/package/registry/aggregates.go
+  s_e8ab01ccdfa8e2::t_095ea4cee27b3a 42,44-45,47-48,50-51,54-55,57,123,311,313,315,317,319
+go/internal/query/package/registry/aggregates_handler.go
+  s_e8ab01ccdfa8e2::t_6388b76c1b8e61 18,136,236-240
+go/internal/query/package/registry/aggregates_scoped_test.go
+  s_e8ab01ccdfa8e2::t_747710174cebfd 98
+go/internal/query/package/registry/aggregates_store_test.go
+  s_e8ab01ccdfa8e2::t_d1f411fc6783a5 105,148-152
+go/internal/query/package/registry/aggregates_test.go
+  s_e8ab01ccdfa8e2::t_9e8a4b4b3c615b 142-143,157,188,359,423-427
+go/internal/query/package/registry/correlations_sql_schema_lockstep_test.go
+  s_e8ab01ccdfa8e2::t_2e0e0d3587b6c1 51
+go/internal/query/package_registry_auth_middleware_test.go
+  s_e8ab01ccdfa8e2::t_b596bb7d324870 12
+go/internal/query/read-models.md
+  s_e8ab01ccdfa8e2::t_fa39890eb0f415 59,588,590
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6b0552c4c9135476331da7a5ed7043120ddb9f9a",
+  "prompts": {},
+  "sessions": {
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

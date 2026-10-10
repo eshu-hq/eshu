@@ -1,0 +1,28 @@
+go/internal/query/repository/language_inventory.go
+  s_f6a79aa2bc39c6::t_559c29b572ddbd 221-228
+go/internal/query/repository/readmodel/list_page.go
+  s_f6a79aa2bc39c6::t_f18a0a2c503bb9 73-77
+  s_f6a79aa2bc39c6::t_b4b5c159bd3372 13-15,17-18,20-25,28-29,35-38
+go/internal/query/repository/readmodel/refs.go
+  s_f6a79aa2bc39c6::t_430f77c9e973f9 72-81
+  s_f6a79aa2bc39c6::t_d62a307573e18c 22-26
+  s_f6a79aa2bc39c6::t_42ce1f7aa51e4e 38-41
+go/internal/query/repository/coverage.go
+  s_f6a79aa2bc39c6::t_e97c2eede1acae 203-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dc2c646c9767f8b804502a5fe4a28b14af9410d2",
+  "prompts": {},
+  "sessions": {
+    "s_f6a79aa2bc39c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1b90b00-dcbf-4bb6-8e68-08bc29b6bfaf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

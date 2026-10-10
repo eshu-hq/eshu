@@ -1,0 +1,50 @@
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  s_4a0f86aa680964::t_854bdd6a16a12f 23
+go/cmd/ifa/graph_dump.go
+  s_4a0f86aa680964::t_9b697dcb60d2d8 76-77,90
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_4a0f86aa680964::t_9b697dcb60d2d8 52,59-61
+  s_4a0f86aa680964::t_6fa3d0b251a40d 346
+go/cmd/ifa/graph_dump_test.go
+  s_4a0f86aa680964::t_d8b22d4adf3399 9-10,13-14,114-147
+  s_4a0f86aa680964::t_9f1f15968d3bb0 148
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_shapes_test.go
+  s_4a0f86aa680964::t_e7f20c414d2394 25,39-42,131,151-152
+  s_4a0f86aa680964::t_2931bedb2db8bb 153,166,169,172,175-176
+  s_4a0f86aa680964::t_e470a2eff956a7 291-302
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_test.go
+  s_4a0f86aa680964::t_578df33b5c79a4 25,43,116,136,158
+  s_4a0f86aa680964::t_278096f6298f0a 24,42
+  s_4a0f86aa680964::t_7fdb666f5dcdff 26,44,117,146
+  s_4a0f86aa680964::t_878143c14f1ee8 87,121
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_strings_test.go
+  s_4a0f86aa680964::t_4dc6be937beec6 1-11,13-200,206-212,218-223,235-239,250-254,256-258,260-261,277
+  s_4a0f86aa680964::t_e2bc359bfd3ea2 12,262-276
+  s_4a0f86aa680964::t_7fdb666f5dcdff 255,259
+  s_4a0f86aa680964::t_eb1ac13898229b 201-205,213-217,224-234,240-249
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_types_test.go
+  s_4a0f86aa680964::t_578df33b5c79a4 220,226-232,256-264,301,315,323,331,386-387,390-391
+  s_4a0f86aa680964::t_4fe9bfebae535f 135-140,392
+go/internal/ifa/materializededges/materialized_edges_direct_family_blindness_test.go
+  s_4a0f86aa680964::t_a39ac2c8124f3b 105,107
+.github/workflows/ifa-determinism-gate.yml
+  s_4a0f86aa680964::t_6fa3d0b251a40d 729
+go/internal/storage/cypher/fault-injection-restart-evidence.md
+  s_4a0f86aa680964::t_b6762fbcbe8f0e 19-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2352e5da99a5da5db159db4842c41dcd14284fd8",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

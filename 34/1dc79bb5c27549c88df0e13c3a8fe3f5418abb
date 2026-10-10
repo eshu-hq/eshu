@@ -1,0 +1,21 @@
+apps/console/src/api/liveData.test.ts
+  s_a259424f603ccc::t_59368e1128cc5a 89-112
+apps/console/src/api/liveData.ts
+  s_a259424f603ccc::t_4c8310427a1488 125,145,245,254-265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "341dc79bb5c27549c88df0e13c3a8fe3f5418abb",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

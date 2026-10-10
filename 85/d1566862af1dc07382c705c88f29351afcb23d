@@ -1,0 +1,152 @@
+go/internal/query/repository/catalog_enrichment_test.go
+  s_e12652dd125e98::t_6dceac471c6ac7 59,136
+go/internal/query/repository/stats.go
+  s_e12652dd125e98::t_a023af59669f78 19,22-24,32,85,118,143,307
+go/internal/query/repository/api_surface.go
+  s_e12652dd125e98::t_3be8bf06afa9cc 13,16,18
+go/internal/query/repository_infrastructure_openapi_family_test.go
+  s_e12652dd125e98::t_a1a05123622a35 38,93
+go/internal/query/repository_language_inventory_test.go
+  s_e12652dd125e98::t_8c7af612e9670c 410,412
+go/internal/mcp/route_serves_data_registry_routes.go
+  s_e12652dd125e98::t_b14ed228c75130 127
+  s_4a0f86aa680964::t_be7e0d990b853e 119
+go/internal/query/repository/doc.go
+  s_e12652dd125e98::t_8854c9e66fff1d 5
+go/internal/query/repository/catalog.go
+  s_e12652dd125e98::t_488db40363f702 77,81,138,160,179,195,202,240
+go/internal/query/repository/freshness_test.go
+  s_e12652dd125e98::t_db68316496fe0a 19-20,288,314
+go/internal/query/repository/list_count_error_test.go
+  s_e12652dd125e98::t_e2b4c3055f56c9 32,57
+go/internal/query/repository/story_infrastructure_truncated_fold_test.go
+  s_e12652dd125e98::t_a2641c1b7b092d 36
+go/internal/query/repository/infrastructure.go
+  s_e12652dd125e98::t_c4330d6bbafda1 13,16,18,20,34,370
+go/internal/query/service_story_spec_count_test.go
+  s_e12652dd125e98::t_f0b823827f2bc7 79
+go/internal/query/repository_coverage_test.go
+  s_e8ab01ccdfa8e2::t_181c8efa319ed5 131,136,138,141
+go/internal/query/repository/branches_paging_test.go
+  s_e12652dd125e98::t_92687036c8a4b6 50,87,133,192,223-224,266-267,351,399,453
+go/internal/query/querytestutil/freshnessreader.go
+  s_e12652dd125e98::t_ac27473809400e 14
+go/internal/query/repository/catalog_test.go
+  s_e12652dd125e98::t_ad24ca544cc951 78,138,186,223,244,376,421
+go/internal/query/repository/stats_test.go
+  s_e12652dd125e98::t_188e77bb2d19b5 38,126,187
+go/internal/query/repository/branches.go
+  s_e12652dd125e98::t_a61c931ecf6906 25,29,150
+go/internal/query/repository_envelope_test.go
+  s_e12652dd125e98::t_95c041c13e1dd3 141
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_e12652dd125e98::t_f23cac99a1d448 6,10,15-16,477-478,482,500,514,538
+go/internal/query/repository/tree_language_pushdown_test.go
+  s_e12652dd125e98::t_f17e1bf6e52d65 65,76-77,91,111
+go/internal/query/repository/deployment_evidence.go
+  s_e12652dd125e98::t_178e1a3169764e 17,21,23
+go/internal/query/repository/local_fallback_test.go
+  s_e12652dd125e98::t_e60470dcda6600 19,69
+go/internal/query/repository_infrastructure_truncated_test.go
+  s_e12652dd125e98::t_69f3f1710557f5 23,68-69
+go/internal/query/service_query_performance_test.go
+  s_e12652dd125e98::t_ab4323c6a70c8e 95-96,173,203
+go/internal/query/repository/branches_test.go
+  s_e12652dd125e98::t_93c4387e5fc271 18,32,71,140,229,309,360,391,412,447
+go/internal/query/repository/tree.go
+  s_e12652dd125e98::t_1ddb2a9f3a8cd3 22,25,27,48,52
+go/internal/query/repository/handler.go
+  s_e12652dd125e98::t_86199facc571b5 23-24,38,44,59,134,227,249,253
+go/internal/query/repository_alias.go
+  s_e12652dd125e98::t_6f893c11316e8d 15
+go/internal/query/repository/story_deployment_evidence_read_model_test.go
+  s_e12652dd125e98::t_a98ea8e4513baf 21
+go/internal/query/repository/list_dependency_marker_test.go
+  s_e12652dd125e98::t_57439e355aea1c 45,105
+go/internal/query/content_reader_coverage.go
+  s_e8ab01ccdfa8e2::t_a7cd289b4759c1 48,53
+go/internal/query/repository/language_inventory_test.go
+  s_e12652dd125e98::t_61a1c53891ae54 36,50,90
+go/internal/query/repository_deployment_evidence_read_model.go
+  s_e12652dd125e98::t_cc9887d9dcb5a0 40
+go/internal/query/repository/deployment_evidence_store.go
+  s_e12652dd125e98::t_57150dbebf6dec 12,18,28
+go/internal/query/repository/stats_limits.go
+  s_e12652dd125e98::t_7fc80439991c4f 17,20,22
+go/internal/query/repository_content_test.go
+  s_e12652dd125e98::t_e41e92a712c86c 189,207-208
+go/internal/query/repository/dependency_cluster_test.go
+  s_e12652dd125e98::t_23f0479719ffba 217,286
+go/internal/query/repository/content.go
+  s_e12652dd125e98::t_30b40c8c29c151 21,24,26,37,41
+go/internal/query/repository/language_inventory.go
+  s_e12652dd125e98::t_139bab79eb9ab9 33,37,109,113,158,185,221,267,269
+go/internal/query/repository/catalog_workload_environments.go
+  s_e12652dd125e98::t_56282b6a684dd0 115,170
+go/internal/query/repository/main_test.go
+  s_e12652dd125e98::t_65f102c3e52853 23
+go/internal/query/repository/story_coverage.go
+  s_e12652dd125e98::t_780fd0b6a124ec 12
+go/internal/query/repository/selectors.go
+  s_e12652dd125e98::t_79fd021b107390 16,51,64
+go/internal/query/repository/authz_test.go
+  s_e12652dd125e98::t_233f42b2ea13f6 48,102,157,201,226,252,277
+go/internal/query/repository/tree_test.go
+  s_e12652dd125e98::t_12eec7330cf614 25-26,63,180,200,220,240,290,309,328
+go/internal/query/repository/list_contract_test.go
+  s_e12652dd125e98::t_99b4409ed75ccb 20,71,122
+go/internal/query/repository/README.md
+  s_e12652dd125e98::t_bdb3f7591d8fdf 11
+  s_e12652dd125e98::t_9dc71c65bf0e8c 5
+  s_e8ab01ccdfa8e2::t_2079f4f4c3bafd 87-100
+go/internal/query/repository_stats_timeout_test.go
+  s_e12652dd125e98::t_219c4bdf7d77d7 163
+go/internal/query/service_read_model_workload_context_test.go
+  s_e12652dd125e98::t_7ec9dd86bed67f 126,206
+go/internal/query/entity/entity_workload_context_test.go
+  s_e12652dd125e98::t_69f63037832d64 38,70,79,115
+go/internal/query/context_story_limits_test.go
+  s_e12652dd125e98::t_4bc9b6a9ccc2b3 293,323-324,334,386,400
+go/internal/query/repository/story_coverage_test.go
+  s_e12652dd125e98::t_1a25cd65d38b89 22,114
+go/internal/query/repository/freshness.go
+  s_e12652dd125e98::t_b4bc90e30af935 17,22,36,40
+go/internal/query/repository_stats_limits_test.go
+  s_e12652dd125e98::t_c59459c312ecc1 50
+go/internal/query/repository/context.go
+  s_e12652dd125e98::t_704746118bed24 18,22
+go/internal/query/repository/coverage.go
+  s_e8ab01ccdfa8e2::t_5f769145aa012c 18-19,23-24,28-29,32,41,45,133,155,184,203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "85d1566862af1dc07382c705c88f29351afcb23d",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e12652dd125e98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfa61548-bd3f-4e35-ad25-9184b4192684",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+docs/internal/evidence/6782-unwind-missing-row-key-audit.md
+  h_78a442cba0b3e6 155-165
+scripts/lib/golden-corpus-host-helpers.sh
+  h_78a442cba0b3e6 50-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "15829577d54d1bb68fb4153172bd1c8d4d55f338",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+docs/public/reference/fact-envelope-reference.md
+  s_f2f7fbb6f30866::t_661e8e47750e2f 87-94
+go/internal/collector/ospackagevulnerability/README.md
+  s_f2f7fbb6f30866::t_a72dc414206e2b 53,174-175
+  s_f2f7fbb6f30866::t_661e8e47750e2f 7-9,13-14,34-36,55,79-88,95-99,104-106,108-109,115-116,138-139,141-144,153-163
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_661e8e47750e2f 487-505
+go/internal/collector/ospackagevulnerability/apk_parser.go
+  s_f2f7fbb6f30866::t_854a7faa21a155 160,174-175
+go/internal/reducer/supply_chain_impact_os_package_test.go
+  s_f2f7fbb6f30866::t_44aa3175c07cc1 116
+  s_f2f7fbb6f30866::t_30ab09a52aa3cf 1-115,119-129
+  s_f2f7fbb6f30866::t_a72dc414206e2b 117-118
+go/internal/collector/ospackagevulnerability/dpkg_parser.go
+  s_f2f7fbb6f30866::t_854a7faa21a155 145,160-161
+go/internal/reducer/supply_chain_impact_version_match.go
+  s_f2f7fbb6f30866::t_280936c16ae701 18-19,78-79
+  s_f2f7fbb6f30866::t_44aa3175c07cc1 65-69
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_661e8e47750e2f 162-167,211-213,219-232
+go/internal/collector/ospackagevulnerability/envelope_test.go
+  s_f2f7fbb6f30866::t_854a7faa21a155 39,55,105-106
+go/internal/collector/ospackagevulnerability/testdata/rpm_queryformat_redhat_9.tsv
+  s_f2f7fbb6f30866::t_30ab09a52aa3cf 1-5
+go/internal/reducer/supply_chain_impact_rpm_version.go
+  s_f2f7fbb6f30866::t_280936c16ae701 1-204
+go/internal/collector/ospackagevulnerability/rpm_parser_test.go
+  s_f2f7fbb6f30866::t_854a7faa21a155 85-87
+  s_f2f7fbb6f30866::t_30ab09a52aa3cf 1-84,88-153
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_661e8e47750e2f 319-328
+go/internal/collector/ospackagevulnerability/rpm_parser.go
+  s_f2f7fbb6f30866::t_854a7faa21a155 191,207-208
+  s_f2f7fbb6f30866::t_6ede19da5b41bf 1-190,192-206,209-305
+go/internal/collector/ospackagevulnerability/types.go
+  s_f2f7fbb6f30866::t_6ede19da5b41bf 17-28,40-41,86-93,126-128,135-139,189-206,260-261
+  s_f2f7fbb6f30866::t_854a7faa21a155 263-266
+go/internal/reducer/supply_chain_impact_profile.go
+  s_f2f7fbb6f30866::t_d6c6d3e69d978b 62-64
+go/internal/collector/ospackagevulnerability/envelope.go
+  s_f2f7fbb6f30866::t_854a7faa21a155 94-95
+go/internal/collector/ospackagevulnerability/doc.go
+  s_f2f7fbb6f30866::t_661e8e47750e2f 2-6,11-14,22-25
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_280936c16ae701 79-96,221-251,254-259
+  s_f2f7fbb6f30866::t_033e09d169aa69 252-253
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_407296a53f0e20 69-83,138,153,180-184,241,269-275,298-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3a38569f88818b5a4f4d6a6466086c3b5b81e722",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

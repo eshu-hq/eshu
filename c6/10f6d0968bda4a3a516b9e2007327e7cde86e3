@@ -1,0 +1,131 @@
+go/internal/query/doc.go
+  s_a79c2ea6ebf4c5::t_00ae85e53abe14 404-428
+go/internal/query/capability_lockstep_freshness_test.go
+  s_a79c2ea6ebf4c5::t_8152080226cbf8 1-88
+go/internal/query/freshness/capabilities.go
+  s_a79c2ea6ebf4c5::t_17235ef2683e1d 1-79,81-106
+  s_a79c2ea6ebf4c5::t_bee1a21587565e 80
+go/internal/query/auth_all_scope_bearer_two_tenant_test.go
+  s_a79c2ea6ebf4c5::t_081479cf8f14ae 32-37
+  s_a79c2ea6ebf4c5::t_f8d46c8708c1c2 11-12,65-66,94,97,100,118,124,127,149-150,169,172,195,198,205,219,222
+go/internal/query/freshness/changed_since.go
+  s_a79c2ea6ebf4c5::t_8be981d9d5a2a0 4,12,18,28,32-33,37,40,44-45,50-51,53,64,69-70,72,84,91,97,102-103,105,112,117-118,120,149,152,154-156,160,164,167,174,187-188,192,194,200-201,203-204,209,212,215,218,220
+go/internal/query/freshness/generations_two_tenant_test.go
+  s_a79c2ea6ebf4c5::t_92840df01c169c 14,17,24-25,36,46,59,66,77,85,91,99-100,102,113,120,125,128
+  s_e8ab01ccdfa8e2::t_929c8c1995c3f3 4,12-13
+go/internal/query/freshness/changed_since_scope_test.go
+  s_a79c2ea6ebf4c5::t_bffb34ca9baad3 4,12-13
+  s_4a0f86aa680964::t_9ceab112b49753 43,52-54,78
+  s_a79c2ea6ebf4c5::t_55a694430cc02e 87
+  s_a79c2ea6ebf4c5::t_ed880c6b622d62 88
+go/internal/query/freshness/generations_scope_test.go
+  s_4a0f86aa680964::t_4460a135a75efc 4,12-13,42,51-53,78,83
+  s_a79c2ea6ebf4c5::t_28113f55ebadcd 84
+go/internal/query/freshness/generations_test.go
+  s_a79c2ea6ebf4c5::t_52963240a7b2e1 4,13,35,44,50,52,83,114,184,200,216,267
+go/internal/query/freshness_alias.go
+  s_a79c2ea6ebf4c5::t_1f9262436ee57e 65-81
+  s_a79c2ea6ebf4c5::t_5739ed7ae49dde 9
+  s_a79c2ea6ebf4c5::t_229319efff0710 82-86,93,101-103,106-113
+  s_a79c2ea6ebf4c5::t_71b801bb278a7e 1-8,10-64,89-92,98-100,104-105,114,122-140
+  s_e8ab01ccdfa8e2::t_1eb551e6aea426 87-88,94-97,115-121
+go/internal/query/freshness/generations.go
+  s_a79c2ea6ebf4c5::t_435b7ab1968e34 4,11-12,18,27,31,43-44,48-51,54,56,61,65-66,70-71,76-77,79,94-98,104,109-110,112,123,130,137,143,145,158,161-162,164-165,169,175-176,180,182,188-189,194,218,220,222
+docs/internal/remote-validation/prod-freshness-changed-since.md
+  s_a79c2ea6ebf4c5::t_6e96d03d89a517 36
+  s_a79c2ea6ebf4c5::t_fb73648704b66a 45
+docs/internal/remote-validation/prod-freshness-service-changed-since.md
+  s_a79c2ea6ebf4c5::t_709e17462e9d50 46
+  s_a79c2ea6ebf4c5::t_57f7813db6a72c 37
+go/internal/query/freshness/doc.go
+  s_a79c2ea6ebf4c5::t_e6ddb2e6c2e36c 1-36
+go/internal/query/freshness/causality.go
+  s_a79c2ea6ebf4c5::t_7fac819e298957 4,10-11,13-14,16,18-25,28-29,33-34,38-39,43-47
+docs/public/reference/truth-label-protocol.md
+  s_a79c2ea6ebf4c5::t_e35e94b32f1ec9 103
+go/internal/query/freshness/main_test.go
+  s_a79c2ea6ebf4c5::t_1b7c2a4be362f0 1-57
+go/internal/query/freshness/changed_since_two_tenant_test.go
+  s_e8ab01ccdfa8e2::t_b332d468ebfcdb 4,12-13
+  s_a79c2ea6ebf4c5::t_ee74f87990ac43 14,17-21,25,28-29,43,46-47,49,71,82,95,104,109,127,145,152,156,170,173,176,179,196,209
+docs/internal/remote-validation/prod-freshness-generation-lifecycle.md
+  s_a79c2ea6ebf4c5::t_d372ea5c2a9590 35
+  s_a79c2ea6ebf4c5::t_11fd244cbd1b23 45
+docs/public/reference/incremental-freshness-model.md
+  s_a79c2ea6ebf4c5::t_76e784e93fa8ee 276
+go/internal/query/freshness/service_changed_since_telemetry_test.go
+  s_a79c2ea6ebf4c5::t_51a2f0a013d986 4,12-16,22-74,76,83-90,103-104,135-140,145-146,153-155,163-165,170-172,177-179,184-186,193-195,199,234
+  s_a79c2ea6ebf4c5::t_faf8aa4dfceadd 91-93,95-101
+  s_a79c2ea6ebf4c5::t_590564351f1473 8-9
+  s_e8ab01ccdfa8e2::t_93e1899a905fa6 102
+scripts/lib/dirgate-grandfather.tsv
+  s_a79c2ea6ebf4c5::t_25d4cb4c2be37e 87
+tools/golangci-lint-dirgate/grandfather.go
+  s_a79c2ea6ebf4c5::t_5fcb6aa61ead0f 33
+go/internal/query/freshness/AGENTS.md
+  s_a79c2ea6ebf4c5::t_f70325e0a7e926 1-134
+go/internal/query/querytestutil/freshnessreader.go
+  s_e8ab01ccdfa8e2::t_db7aa84e633a83 8-10,13,61-287
+go/internal/query/freshness/causality_report_test.go
+  s_a79c2ea6ebf4c5::t_225aefaeadbbfc 85
+  s_a79c2ea6ebf4c5::t_772f3832859b4d 114
+  s_4a0f86aa680964::t_4df0dd3f6b0178 57,60,107,115-117
+  s_a79c2ea6ebf4c5::t_f76b73e226bd60 4,13,21
+go/internal/query/freshness/service_changed_since.go
+  s_a79c2ea6ebf4c5::t_178083c0ddf1df 4,11-12,19,30,34-35,39-40,45-46,48,59,64-65,67,78,90,95-96,98,120,212,217,238,247,267,293,310,315,320-321,323,327,329-330,334,338,351-352,354-355,360,362,364,366
+docs/internal/supply-chain-impact-canonical-dedup-materialization-design.md
+  s_a79c2ea6ebf4c5::t_162a10376a0149 201
+go/internal/query/freshness/README.md
+  s_a79c2ea6ebf4c5::t_56905da1e920bb 1-171
+go/internal/query/querycontract/answer_packet.go
+  s_a79c2ea6ebf4c5::t_f6abf732fc7ca4 312-313
+go/internal/query/repository/freshness.go
+  s_a79c2ea6ebf4c5::t_d121b9e1626928 86
+go/internal/query/freshness/changed_since_test.go
+  s_a79c2ea6ebf4c5::t_53b8b987d38c50 54,82,159,190,196-197,232,248,270,328
+  s_a79c2ea6ebf4c5::t_5786afa12f9c76 4,12
+go/internal/query/freshness/causality_test.go
+  s_a79c2ea6ebf4c5::t_4b0c5c9e19d2a2 4,6-10,15,18,26-28,30-31,45-47,49,61-63,65,77,84-87,89-90,101-103,111-113,121-123
+go/internal/query/freshness/service_changed_since_test.go
+  s_a79c2ea6ebf4c5::t_b11488e710698d 4,11,33,58,82,105
+go/internal/reducer/search-and-runtime-projections.md
+  s_a79c2ea6ebf4c5::t_eccdb38db7d723 335
+go/internal/query/freshness/handler_tracing.go
+  s_a79c2ea6ebf4c5::t_1600b1d927f241 1-23
+scripts/moved-file-refs-allowlist.txt
+  s_e8ab01ccdfa8e2::t_f07f371cd7ad03 46-54
+go/internal/query/freshness/causality_report.go
+  s_a79c2ea6ebf4c5::t_2c8042ce0e66d6 4,27-28,32,36,38,40,43,46,48-49,53,56,58,66,68,74-75,87-88,93,96-100,103,106,174-179,181-184,187,189,194,207-214,217-218,227-228,230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c610f6d0968bda4a3a516b9e2007327e7cde86e3",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_a79c2ea6ebf4c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1438a9ed-5e22-460b-be83-2ce7e31dc6cb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

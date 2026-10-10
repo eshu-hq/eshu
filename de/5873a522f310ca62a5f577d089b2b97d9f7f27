@@ -1,0 +1,36 @@
+go/internal/terraformschema/schemas/README.md
+  s_f2f7fbb6f30866::t_150faaf1c2e40e 3-7
+go/internal/collector/terraformstate/types.go
+  s_f2f7fbb6f30866::t_0a387a93fce7d8 73-79,88-89
+go/internal/collector/terraformstate/parser_packaged_composite_test.go
+  s_f2f7fbb6f30866::t_722edd6c522810 1-30,32-33,35-79,83-145
+  s_f2f7fbb6f30866::t_1ae8eb525f2272 31,34,80-82
+go/internal/collector/terraformstate/doc.go
+  s_f2f7fbb6f30866::t_fabfdcffd70ff6 4-5
+go/internal/collector/terraformstate/schema_resolver_test.go
+  s_f2f7fbb6f30866::t_7f48cfb8880b88 126-128,140-141
+  s_f2f7fbb6f30866::t_3e227c604e857f 43-63,66-106
+  s_f2f7fbb6f30866::t_3c389ff80ce8bd 64-65
+go/internal/collector/terraformstate/schema_resolver.go
+  s_f2f7fbb6f30866::t_fc95418ef45c88 64-65
+  s_f2f7fbb6f30866::t_6c58546068b732 29-32,45-46,66-69,162-164,177-179,190-193
+  s_f2f7fbb6f30866::t_7641b0161af6d5 25,37,54,75,88,93-94,99,102
+go/internal/collector/terraformstate/README.md
+  s_f2f7fbb6f30866::t_32d247fe1ce897 87-96,157-160,220-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "de5873a522f310ca62a5f577d089b2b97d9f7f27",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

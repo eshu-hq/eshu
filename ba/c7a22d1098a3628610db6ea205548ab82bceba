@@ -1,0 +1,26 @@
+go/internal/proof/scheduling/timing_test.go
+  s_b0d7e3abc26c5a::t_628b9d84b2ca57 206-216
+  s_b0d7e3abc26c5a::t_80a5bb5649722b 8,173-174,201-202
+  s_b0d7e3abc26c5a::t_2c28d55095e201 178-200,203-205
+  s_b0d7e3abc26c5a::t_2598cd8a101ce0 160-172,175-177
+go/internal/proof/scheduling/timing.go
+  s_b0d7e3abc26c5a::t_51fed39a8be116 9,119,136,139,161
+  s_b0d7e3abc26c5a::t_6fa9eff0e9527e 24-26,30-35,115-116,137
+  s_b0d7e3abc26c5a::t_c39f37169c43d5 117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bac7a22d1098a3628610db6ea205548ab82bceba",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

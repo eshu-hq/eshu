@@ -1,0 +1,14 @@
+go/internal/graph/capture/allowlist.go
+  h_78a442cba0b3e6 136-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ffd8b131cb89107318b8fc7be97f4d40e447c0d3",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

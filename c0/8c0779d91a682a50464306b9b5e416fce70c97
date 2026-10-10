@@ -1,0 +1,298 @@
+go/internal/query/impact_seam_export_test.go
+  s_23f908ca4ae9dd::t_262638818e482b 105-106
+  s_23f908ca4ae9dd::t_682e6bda39b26c 70-71
+  s_23f908ca4ae9dd::t_f27d4e23702915 152-153
+go/internal/query/auth_scoped_routes_impact.go
+  s_23f908ca4ae9dd::t_bfb573a6c14dbc 38
+  s_23f908ca4ae9dd::t_ae5bd920cec6d9 19,21,25
+  s_bccf20a74a7846::t_acf58294e917fa 30
+docs/console-handoff.md
+  s_23f908ca4ae9dd::t_c8eb8f6da30fd9 147
+go/internal/query/auth_scoped_routes_pending_row_filtering.go
+  s_23f908ca4ae9dd::t_1328a303cd7b1a 108-110
+go/internal/query/auth_scoped_routes_impact_change_surface_test.go
+  s_23f908ca4ae9dd::t_151f06c785f661 186
+  s_23f908ca4ae9dd::t_96bf40e241caee 361
+go/internal/query/handlers.go
+  s_23f908ca4ae9dd::t_836e6c2fabae4b 12
+go/internal/query/impact/README.md
+  s_23f908ca4ae9dd::t_ec9a5305591b30 5,15
+  s_23f908ca4ae9dd::t_6cc9b61bbfec24 194
+  s_23f908ca4ae9dd::t_5ce31423b1a182 77-188
+go/internal/query/service/query_truncation_wiring_test.go
+  s_23f908ca4ae9dd::t_09c939cc8e7111 167
+  s_46a60626fbea69::t_0dd4ae8cef3d50 120,243
+go/internal/query/querycontract/edge_materialization_coverage.go
+  s_23f908ca4ae9dd::t_79c7a3d5ab46c1 26
+go/internal/query/codequery/auth_scoped_code_topic_grant_test.go
+  s_23f908ca4ae9dd::t_053bce3676dc07 25
+go/internal/query/auth_scoped_routes_impact_test.go
+  s_23f908ca4ae9dd::t_8646ed0d305bdc 256
+go/internal/query/queryplan_builder_execution_test.go
+  s_23f908ca4ae9dd::t_62f4665299e3c6 237
+go/internal/query/codequery/interface_export_tripwire_test.go
+  s_23f908ca4ae9dd::t_ac0d03cb0510f4 116
+go/internal/query/family_impact_shim.go
+  s_23f908ca4ae9dd::t_808166cc23edd1 29
+go/internal/query/impact/seam.go
+  s_23f908ca4ae9dd::t_ecda8d0e902ddc 122-126
+  s_23f908ca4ae9dd::t_e425a3668e2a67 14,21,53,55,127,230-231,238
+docs/public/reference/edge-source-tool-provenance.md
+  s_23f908ca4ae9dd::t_35686c9404683d 281
+docs/internal/aws-relationship-edge-materialization-design.md
+  s_23f908ca4ae9dd::t_4061d794a7d7a6 37,403
+docs/internal/design/5007-cross-scope-node-ownership.md
+  s_23f908ca4ae9dd::t_9111a66660442c 159
+docs/internal/design/5385-workload-identity-key.md
+  s_23f908ca4ae9dd::t_2f9b95acc92e2b 549,670,688,690-691,694,729,738,748,1190,1202,1325
+docs/internal/design/5435-workload-instance-runtime-admission.md
+  s_23f908ca4ae9dd::t_8601540e4193cc 56,104,114,436
+docs/internal/design/5472-graph-projection-policy.md
+  s_23f908ca4ae9dd::t_a231f59ae08cb5 45
+docs/public/languages/argocd.md
+  s_23f908ca4ae9dd::t_25b9aba3da07b0 30
+docs/public/languages/flux.md
+  s_23f908ca4ae9dd::t_f3731991658f89 40
+docs/public/languages/kubernetes.md
+  s_23f908ca4ae9dd::t_4e30a097de49a3 25
+docs/public/observability/telemetry-coverage.md
+  s_23f908ca4ae9dd::t_489a52d2123dd5 887-889
+docs/public/reference/cypher-performance.md
+  s_23f908ca4ae9dd::t_33380033196a9b 205,209,1666,1680,1719
+docs/public/reference/local-testing/quick-verification-matrix.md
+  s_23f908ca4ae9dd::t_aee37bc7895ae3 58-59
+docs/public/reference/nornicdb-query-pitfalls.md
+  s_23f908ca4ae9dd::t_a1e0c534330f23 487,669,721,734,750,762-763
+docs/public/reference/parity-closure-matrix.md
+  s_23f908ca4ae9dd::t_44f66d9bb95f4e 63
+docs/public/reference/read-surface-consumer-existence-gate.md
+  s_23f908ca4ae9dd::t_b01fe9d36cb1ed 127,129,175,183,185
+go/.golangci.yml
+  s_e8ab01ccdfa8e2::t_d931119c8b4ef1 106,467
+go/cmd/api/wiring_router_completeness_test.go
+  s_23f908ca4ae9dd::t_955f26c7a7c92a 191-193
+go/cmd/mcp-server/wiring_router_completeness_test.go
+  s_23f908ca4ae9dd::t_8eb4f090090704 215-217
+go/internal/query/AGENTS.md
+  s_23f908ca4ae9dd::t_366e541c6f3e1d 282
+go/internal/query/compare.go
+  s_23f908ca4ae9dd::t_509cb011397fb0 116
+go/internal/query/compare_story.go
+  s_23f908ca4ae9dd::t_7845cd5c072493 458,462-463
+go/internal/query/family_impact_change_surface_code.go
+  s_23f908ca4ae9dd::t_07c8d45b4fcbb9 45,160
+go/internal/query/family_impact_path_probe_adapter.go
+  s_23f908ca4ae9dd::t_84c43a3142504d 14,26,30,39,44,49,54
+go/internal/query/impact/capabilities.go
+  s_23f908ca4ae9dd::t_528c16287b2024 4,18-19,28-30,38-40,48-50,58-60,68-70,78-80,88-90,98-100,108-110,118-120,128-130,141-143
+go/internal/query/impact/change_surface_investigation.go
+  s_23f908ca4ae9dd::t_573f807a6933c8 63,266
+go/internal/query/impact/change_surface_investigation_test.go
+  s_23f908ca4ae9dd::t_fba35a3d50ffc9 62,109,175,225,273,317,373,425
+go/internal/query/impact/change_surface_label_whitelist_test.go
+  s_23f908ca4ae9dd::t_38377cadd97b81 19,28
+go/internal/query/impact/change_surface_legacy.go
+  s_23f908ca4ae9dd::t_27c2794e3380cd 37,140
+go/internal/query/impact/change_surface_legacy_test.go
+  s_23f908ca4ae9dd::t_1daa6f723062cd 117,218,305,342,386,442,479
+go/internal/query/impact/change_surface_response.go
+  s_23f908ca4ae9dd::t_0942c556d6406c 56,146
+go/internal/query/impact/change_surface_semantics_test.go
+  s_23f908ca4ae9dd::t_c22658d5e82d52 26,53,94
+go/internal/query/impact/change_surface_traversal.go
+  s_23f908ca4ae9dd::t_eac1969bcbf5ed 59,99,133
+go/internal/query/impact/contract_impact.go
+  s_23f908ca4ae9dd::t_4c895ef3c0973e 45,131
+go/internal/query/impact/contract_impact_test.go
+  s_23f908ca4ae9dd::t_191ad7fce80557 53,85,109,139,173,207,283,299
+go/internal/query/impact/deployment_config_influence.go
+  s_23f908ca4ae9dd::t_f1ab95642004f6 27,94
+go/internal/query/impact/deployment_config_influence_test.go
+  s_23f908ca4ae9dd::t_8e1f8dad2c0fe7 234-235,262,304,322,434
+go/internal/query/impact/developer_change_plan.go
+  s_23f908ca4ae9dd::t_58654b98054737 16
+go/internal/query/impact/doc.go
+  s_23f908ca4ae9dd::t_a361d7fc0017e5 5
+go/internal/query/impact/edge_materialization_gate.go
+  s_23f908ca4ae9dd::t_982a070a7861b2 64,72-74,76,100-101,106,112,114,129
+go/internal/query/impact/edge_materialization_gate_test.go
+  s_23f908ca4ae9dd::t_a8b875f24adbcc 58,60,66,71,80,82,104,107,120,136,139,143,182,189,200
+go/internal/query/impact/entity_map.go
+  s_23f908ca4ae9dd::t_16ec7ddea4241e 59
+go/internal/query/impact/entity_map_repository_test.go
+  s_23f908ca4ae9dd::t_a9582d911d45d4 33,108,189,247,293
+go/internal/query/impact/entity_map_resolver.go
+  s_23f908ca4ae9dd::t_c7544678392eba 13
+go/internal/query/impact/entity_map_test.go
+  s_23f908ca4ae9dd::t_c15eab7b79a8b1 73,159,259,310,358,442
+go/internal/query/impact/entity_map_traversal.go
+  s_23f908ca4ae9dd::t_42bfbf6567eefe 51
+go/internal/query/impact/exposure_path.go
+  s_23f908ca4ae9dd::t_3a1213c6456f3e 51,145,164,182
+go/internal/query/impact/exposure_path_mapping.go
+  s_23f908ca4ae9dd::t_82decc058cb7d4 188
+go/internal/query/impact/exposure_path_mount_test.go
+  s_23f908ca4ae9dd::t_f9c42fe89adf7a 21
+go/internal/query/impact/handler.go
+  s_23f908ca4ae9dd::t_7dffcf3739c41b 17,19,28,52,67,72,76,78,80-81,84,91,98,114,139,145,166,182,192,290
+go/internal/query/impact/legacy_bounds_test.go
+  s_23f908ca4ae9dd::t_0d45bb60e7ada2 21,81,127
+go/internal/query/impact/path_probe_test.go
+  s_23f908ca4ae9dd::t_5ae0ee636e9742 33,66,127,158
+go/internal/query/impact/prechange_impact.go
+  s_23f908ca4ae9dd::t_f190dfea967e95 53,290
+go/internal/query/impact/prechange_impact_test.go
+  s_23f908ca4ae9dd::t_81956b8e8df3cb 42,133,196,230,251,274,301,331
+go/internal/query/impact/resource_investigation.go
+  s_23f908ca4ae9dd::t_dfb611d2dbbb15 58,147
+go/internal/query/impact/resource_investigation_flux_helm_release_test.go
+  s_23f908ca4ae9dd::t_0da8f49c8b764a 66
+go/internal/query/impact/resource_investigation_reads.go
+  s_23f908ca4ae9dd::t_98d979b9071ea5 136,210,265
+go/internal/query/impact/resource_investigation_selector.go
+  s_23f908ca4ae9dd::t_7eca8e1bf935e9 63,100
+go/internal/query/impact/resource_investigation_selector_slo_live_test.go
+  s_23f908ca4ae9dd::t_20b0942d78d355 99,246,372
+go/internal/query/impact/resource_investigation_selector_test.go
+  s_23f908ca4ae9dd::t_3aba8333c2a38a 95,114,133,152,213,298
+go/internal/query/impact/resource_investigation_test.go
+  s_23f908ca4ae9dd::t_d8f663ee3e24bd 23,138,223,303,395,418,456,491
+go/internal/query/impact/trace_cloud_resource_limits_test.go
+  s_23f908ca4ae9dd::t_e5012d9de3b458 34,61,98,138,168,207,257,303
+go/internal/query/impact/trace_deployment.go
+  s_23f908ca4ae9dd::t_761a90dba8063e 30-31,36,54-55,87
+go/internal/query/impact/trace_deployment_argocd_test.go
+  s_23f908ca4ae9dd::t_37687af7463f60 83
+go/internal/query/impact/trace_deployment_cloud_limits_test.go
+  s_23f908ca4ae9dd::t_0ec4002b1185a8 35,89
+go/internal/query/impact/trace_deployment_config_bounds_test.go
+  s_23f908ca4ae9dd::t_43e8685cc446be 65
+go/internal/query/impact/trace_deployment_controllers.go
+  s_23f908ca4ae9dd::t_d11ae847fe44eb 16,45,77
+go/internal/query/impact/trace_deployment_flux_test.go
+  s_23f908ca4ae9dd::t_099a190e1d3184 149,218,273
+go/internal/query/impact/trace_deployment_gitops_limits_handler_test.go
+  s_23f908ca4ae9dd::t_39b98861803658 27,58
+go/internal/query/impact/trace_deployment_gitops_own_repo_test.go
+  s_23f908ca4ae9dd::t_a3bdf1df01c0b8 85,198,260,319
+go/internal/query/impact/trace_deployment_k8s_limits_test.go
+  s_23f908ca4ae9dd::t_6f4643207e718f 67,122,144
+go/internal/query/impact/trace_deployment_k8s_select.go
+  s_23f908ca4ae9dd::t_1f65f69c6ff020 19,51,96,168
+go/internal/query/impact/trace_deployment_k8s_select_truncation_test.go
+  s_23f908ca4ae9dd::t_299d4c3c5c964e 48
+go/internal/query/impact/trace_deployment_k8s_select_widening_test.go
+  s_23f908ca4ae9dd::t_c7d7f586e313ff 117,156,182,224,273,296,329
+go/internal/query/impact/trace_deployment_k8s_tristate_test.go
+  s_23f908ca4ae9dd::t_487609ce7398cc 31,66
+go/internal/query/impact/trace_deployment_live_evidence.go
+  s_23f908ca4ae9dd::t_1e1d1c2f47f092 60
+go/internal/query/impact/trace_deployment_live_evidence_count.go
+  s_23f908ca4ae9dd::t_4ef2d4d71ad693 12,97
+go/internal/query/impact/trace_deployment_live_evidence_count_test.go
+  s_23f908ca4ae9dd::t_5cba161bcec701 65,83,105,128,145,169,202,238,278,309,333,372,430,452
+go/internal/query/impact/trace_deployment_live_evidence_count_truncation_test.go
+  s_23f908ca4ae9dd::t_bae685aba170fb 5,52,79,117,141,171
+go/internal/query/impact/trace_deployment_live_evidence_declared_test.go
+  s_23f908ca4ae9dd::t_df476c7bc9e56f 28,95,129
+go/internal/query/impact/trace_deployment_live_evidence_test.go
+  s_23f908ca4ae9dd::t_d3a507d965955d 214,228,253,279,299,354,396,405,425,472
+go/internal/query/impact/trace_deployment_oci.go
+  s_23f908ca4ae9dd::t_79e796e77bad26 31
+go/internal/query/impact/trace_deployment_resources.go
+  s_23f908ca4ae9dd::t_29f47846209943 31,143,155
+go/internal/query/impact/trace_deployment_sources.go
+  s_23f908ca4ae9dd::t_e112bb04a1a7d5 23
+go/internal/query/impact/trace_deployment_test.go
+  s_23f908ca4ae9dd::t_257f2aa4c63b75 33,82
+go/internal/query/impact_trace_deployment_live_evidence_truncation_test.go
+  s_23f908ca4ae9dd::t_04c2701eee2daf 6
+go/internal/query/impacttrace/impact_access_filter.go
+  s_e8ab01ccdfa8e2::t_5f823f4acce970 42
+go/internal/query/read-models.md
+  s_23f908ca4ae9dd::t_63860983e33e06 763,766
+go/internal/query/repository/context_helpers.go
+  s_23f908ca4ae9dd::t_be0e9a4ebf74f2 259,297
+go/internal/query/service/evidence_file_bound_test.go
+  s_23f908ca4ae9dd::t_a7a1f271d92c77 222
+go/internal/query/w3_scoped_grant_filter_bench_test.go
+  s_23f908ca4ae9dd::t_dda0a271c20ff7 115
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_23f908ca4ae9dd::t_223d5190803c79 302,318,334,345
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_23f908ca4ae9dd::t_a6b3365a551f41 516-518,546-548,576-578,606-608
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_23f908ca4ae9dd::t_191c54a699c6a0 174,201,204,233,265,267-268,272,274,278,281-282,284,288,291,293-295,298,300-303,311,319,324,326
+go/internal/truth/AGENTS.md
+  s_23f908ca4ae9dd::t_5beeb2538d22b1 53
+go/internal/workloadid/README.md
+  s_23f908ca4ae9dd::t_8ad6643f807ec5 52
+go/internal/workloadid/evidence-notes.md
+  s_23f908ca4ae9dd::t_dd84c73836d0cc 82
+specs/language-feature-parity-ledger.v1.yaml
+  s_23f908ca4ae9dd::t_d8c90e300903c5 113-114
+go/internal/query/graph_read_error_gap_b_test.go
+  s_bccf20a74a7846::t_1117d6f80a8338 79,104,152,179
+go/internal/query/graph_read_error_impact_test.go
+  s_bccf20a74a7846::t_d8fe400a04f1af 15,39,63,86,110
+go/internal/query/impact/AGENTS.md
+  s_bccf20a74a7846::t_1dfdaf704fb260 14,49
+go/internal/query/impact/blast_radius.go
+  s_bccf20a74a7846::t_5e173cf6f47ae4 300,416,463
+go/internal/query/impact/blast_radius_coverage_test.go
+  s_bccf20a74a7846::t_79afe5f99b0cdc 93,176,251
+go/internal/query/impact/blast_radius_grant_before_limit_test.go
+  s_bccf20a74a7846::t_ab98facd5ea4aa 134
+go/internal/query/impact/blast_radius_rows.go
+  s_bccf20a74a7846::t_e78ff43d4387bb 14
+go/internal/query/impact/blast_radius_test.go
+  s_bccf20a74a7846::t_d690fc29f5533c 130,220,280,325
+go/internal/query/impact/bounds.go
+  s_bccf20a74a7846::t_4f0af0d2bc666f 7-8,13,15-16
+go/internal/query/impact/candidate_access_filter.go
+  s_bccf20a74a7846::t_380f9f9598c511 11,21,43
+go/internal/query/impact/change_surface_code.go
+  s_bccf20a74a7846::t_9289809a3d751a 11,13,17
+go/internal/query/impact/change_surface_grant_before_limit_test.go
+  s_bccf20a74a7846::t_fb800a2c72be16 25,86,121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c08c0779d91a682a50464306b9b5e416fce70c97",
+  "prompts": {},
+  "sessions": {
+    "s_23f908ca4ae9dd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c56dc11-7620-479e-bf87-5aec0f52f04a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_46a60626fbea69": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e553981-e246-4fa1-b753-22bab6ca1630",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bccf20a74a7846": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "34e8c821-1dc1-4ef5-9e40-8438348fbce2",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

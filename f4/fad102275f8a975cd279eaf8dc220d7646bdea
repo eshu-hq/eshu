@@ -1,0 +1,20 @@
+docs/internal/evidence/6703-directory-file-ownership.md
+  s_b0d7e3abc26c5a::t_14acd352ac3c31 43
+  s_b0d7e3abc26c5a::t_d8bd245b4b5240 117-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f4fad102275f8a975cd279eaf8dc220d7646bdea",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,75 @@
+scripts/README.md
+  s_c8e18fa25bdd71::t_e85631b6dd45aa 26-37
+docs/docs/reference/cypher-performance.md
+  s_c8e18fa25bdd71::t_c35accd4d08cd9 121-165
+.agents/skills/concurrency-deadlock-rigor/SKILL.md
+  s_c8e18fa25bdd71::t_3e11fee98611ad 55-72
+.github/workflows/test.yml
+  s_c8e18fa25bdd71::t_3c2ce073a83fae 31-40
+.agents/skills/eshu-folder-doc-keeper/SKILL.md
+  s_c8e18fa25bdd71::t_d9cd4db25456a0 12-22,158,168-173
+docs/docs/guides/collector-authoring.md
+  s_c8e18fa25bdd71::t_c3f06557ac354d 135-162
+.agents/skills/eshu-mcp-call-rigor/SKILL.md
+  s_c8e18fa25bdd71::t_722f1e7bf65d74 71-87
+docs/docs/reference/local-performance-envelope.md
+  s_c8e18fa25bdd71::t_eb10f898589a16 79-85,221-225
+docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md
+  s_c8e18fa25bdd71::t_8de34e23ed4a6f 231-244
+go/cmd/collector-aws-cloud/AGENTS.md
+  s_c8e18fa25bdd71::t_ee51ca8de32fe3 44
+  s_c8e18fa25bdd71::t_aa752885f54a0d 39-43
+scripts/test-verify-performance-evidence.sh
+  s_c8e18fa25bdd71::t_351858c990669b 27-29
+  s_c8e18fa25bdd71::t_9183d8cde1402f 91,96-104
+  s_c8e18fa25bdd71::t_09b3bece8ff8b3 1-26,30-90,92-95,105-106
+go/internal/collector/AGENTS.md
+  s_c8e18fa25bdd71::t_8ce9847502ea5c 93-97,99-100
+  s_c8e18fa25bdd71::t_65ca91385ceab9 98
+go/internal/collector/awscloud/AGENTS.md
+  s_c8e18fa25bdd71::t_7a0dec3af9a948 51
+  s_c8e18fa25bdd71::t_e215dc3f89e0d9 46-50,52-53
+go/cmd/collector-terraform-state/AGENTS.md
+  s_c8e18fa25bdd71::t_14441e3b8834f6 38
+  s_c8e18fa25bdd71::t_8b84c46a1fcb8e 31-37,39-40
+scripts/verify-package-docs.sh
+  s_c8e18fa25bdd71::t_9560715ec839ba 1-86
+scripts/verify-performance-evidence.sh
+  s_c8e18fa25bdd71::t_73df6db9ce9dc7 1-3,9-115,127-130,132-135,137-139,143,147-151
+  s_c8e18fa25bdd71::t_5843a1ec882c9e 4-8
+  s_c8e18fa25bdd71::t_1cb8206995384a 116-126,131,136,140-142,144-146
+scripts/test-verify-package-docs.sh
+  s_c8e18fa25bdd71::t_36e478f523e071 1-74
+.agents/skills/eshu-correlation-truth/SKILL.md
+  s_c8e18fa25bdd71::t_54e34ccd41bdba 90-95
+.agents/skills/eshu-diagnostic-rigor/SKILL.md
+  s_c8e18fa25bdd71::t_b597d44a916033 88-108
+.agents/skills/golang-engineering/SKILL.md
+  s_c8e18fa25bdd71::t_e1e7a05c48c524 31-36,58-60
+.agents/skills/cypher-query-rigor/SKILL.md
+  s_c8e18fa25bdd71::t_541dafee4083a8 53-68
+docs/docs/reference/telemetry/index.md
+  s_c8e18fa25bdd71::t_c75f64861e5bee 16-41
+CLAUDE.md
+  s_c8e18fa25bdd71::t_4a5a0bfc7cfb24 435-479,645-648
+docs/docs/reference/local-testing.md
+  s_c8e18fa25bdd71::t_731ea6f6a6c2bf 279-280
+AGENTS.md
+  s_c8e18fa25bdd71::t_7f96ee68b69596 435-479,645-648
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ba12b3a35d2b6dac8ee186dae474298c75086362",
+  "prompts": {},
+  "sessions": {
+    "s_c8e18fa25bdd71": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e23b7-1ff1-7ff2-b1cd-9ade95ecd516",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

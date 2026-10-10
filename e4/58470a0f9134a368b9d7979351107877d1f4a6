@@ -1,0 +1,66 @@
+go/cmd/api/wiring.go
+  h_78a442cba0b3e6 20,55-60,158-160,162,231,486-491
+go/cmd/api/wiring_graph.go
+  h_78a442cba0b3e6 8-9,15,21-59
+go/cmd/api/wiring_test.go
+  h_78a442cba0b3e6 452-464
+go/cmd/bootstrap-index/differential_capture_test.go
+  h_78a442cba0b3e6 1-93
+go/cmd/bootstrap-index/nornicdb_canonical_gate_fanout_test.go
+  h_78a442cba0b3e6 112,207,318
+go/cmd/bootstrap-index/nornicdb_entity_phase_concurrency_test.go
+  h_78a442cba0b3e6 49,78
+go/cmd/bootstrap-index/nornicdb_grouped_4027_test.go
+  h_78a442cba0b3e6 36
+go/cmd/bootstrap-index/nornicdb_wiring.go
+  h_78a442cba0b3e6 16,71,84-85,126-130
+go/cmd/bootstrap-index/nornicdb_wiring_test.go
+  h_78a442cba0b3e6 52
+go/cmd/bootstrap-index/wiring.go
+  h_78a442cba0b3e6 8,21,206-212,252,307,432-435,439-443
+go/cmd/mcp-server/wiring.go
+  h_78a442cba0b3e6 21,54-60,237-239,245,280,357-362
+go/cmd/mcp-server/wiring_test.go
+  h_78a442cba0b3e6 339-351
+go/cmd/projector/differential_capture_test.go
+  h_78a442cba0b3e6 1-87
+go/cmd/projector/executor_wiring.go
+  h_78a442cba0b3e6 1-89
+go/cmd/projector/nornicdb_canonical_gate_probe_test.go
+  h_78a442cba0b3e6 103
+go/cmd/projector/nornicdb_wiring_test.go
+  h_78a442cba0b3e6 230,274
+go/cmd/projector/runtime_wiring.go
+  h_78a442cba0b3e6 19,186-192,230,246
+go/cmd/projector/runtime_wiring_concurrency_test.go
+  h_78a442cba0b3e6 31,78
+go/cmd/projector/runtime_wiring_test.go
+  h_78a442cba0b3e6 89,127,156,186,210
+go/cmd/reducer/neo4j_wiring.go
+  h_78a442cba0b3e6 8,17,213-216,220-223,225,229-241,262-268,280-282,284-285
+go/cmd/reducer/neo4j_wiring_test.go
+  h_78a442cba0b3e6 22,207,229,246,498-577
+go/cmd/reducer/reducer_cypher_platform_retry_test.go
+  h_78a442cba0b3e6 25
+go/cmd/reducer/reducer_executor_adapters.go
+  h_78a442cba0b3e6 13,106-110,113
+go/cmd/reducer/runs_on_pair_isolation_nornicdb_live_test.go
+  h_78a442cba0b3e6 58,134
+go/cmd/reducer/workload_runs_on_retry_test.go
+  h_78a442cba0b3e6 86,126,209
+go/internal/graph/capture/decorate.go
+  h_78a442cba0b3e6 10,71-87
+go/internal/graph/capture/decorate_test.go
+  h_78a442cba0b3e6 111-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e458470a0f9134a368b9d7979351107877d1f4a6",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

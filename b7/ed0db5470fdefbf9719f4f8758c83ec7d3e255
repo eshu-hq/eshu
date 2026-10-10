@@ -1,0 +1,28 @@
+go/internal/query/service_story_overview.go
+  s_f2f7fbb6f30866::t_9807ecca657bec 64-66
+  s_f2f7fbb6f30866::t_e63f19eb03644f 12,16
+go/internal/query/service_story_api_surface_test.go
+  s_f2f7fbb6f30866::t_b676e2b274f53e 125-128
+  s_f2f7fbb6f30866::t_d64849e960c320 113-115
+docs/public/reference/http-api/context-and-stories.md
+  s_f2f7fbb6f30866::t_ef3fb7f284166b 164,169-170
+go/internal/query/entity_helpers.go
+  s_f2f7fbb6f30866::t_b3f6cbeeacc9fb 79-80
+  s_f2f7fbb6f30866::t_17d1bc0875d8c6 75-78,81,104,134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b7ed0db5470fdefbf9719f4f8758c83ec7d3e255",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

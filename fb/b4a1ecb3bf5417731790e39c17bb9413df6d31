@@ -1,0 +1,19 @@
+docs/internal/evidence/6818-query-package-moves.md
+  s_384f6fde172125::t_4b18788da33415 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fbb4a1ecb3bf5417731790e39c17bb9413df6d31",
+  "prompts": {},
+  "sessions": {
+    "s_384f6fde172125": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9197ee7-0780-486c-9086-bfed1fa16ded",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

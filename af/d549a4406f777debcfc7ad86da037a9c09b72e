@@ -1,0 +1,29 @@
+go/internal/query/service_story_supply_chain.go
+  s_f2f7fbb6f30866::t_e2fb3bf8d7120a 8-9,130-131,139-153
+  s_f2f7fbb6f30866::t_9c195d5ccfe04e 133-135,154-182
+docs/public/reference/http-api/context-and-stories.md
+  s_f2f7fbb6f30866::t_fe5230887462a3 292-298
+  s_f2f7fbb6f30866::t_be745b3b6a9d61 291
+go/internal/query/service_story_supply_chain_test.go
+  s_f2f7fbb6f30866::t_14ee4e729b3dca 335-345,347-356,358-372,378-379
+  s_f2f7fbb6f30866::t_5b9198f5410da8 320-321,346,373-376
+  s_f2f7fbb6f30866::t_1b47e2fe1846f4 314-319,322-329,331-334
+  s_f2f7fbb6f30866::t_82656654088363 377
+  s_f2f7fbb6f30866::t_86697884779eb9 14-16,330,357
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "afd549a4406f777debcfc7ad86da037a9c09b72e",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

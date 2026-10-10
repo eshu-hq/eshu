@@ -1,0 +1,14 @@
+go/internal/query/codequery/metrics/call_graph_contract_test.go
+  h_78a442cba0b3e6 632-636,641-642
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "41160924904b486f3fdb1196246a652a5901f82c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

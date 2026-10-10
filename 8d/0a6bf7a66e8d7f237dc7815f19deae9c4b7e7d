@@ -1,0 +1,27 @@
+scripts/dev/test-docker-publish-ci-mirror-mode.sh
+  s_b0d7e3abc26c5a::t_15994ea70fc2a1 28-38,100-102,104-120
+  s_b0d7e3abc26c5a::t_114d6236959018 89-92,97-99
+  s_b0d7e3abc26c5a::t_2a83e63e5adfa3 11-12
+  s_b0d7e3abc26c5a::t_c6bf819c6e4594 148-160,202-212
+  s_b0d7e3abc26c5a::t_7dcfa9f2556a5c 68-70
+  s_b0d7e3abc26c5a::t_02e39f34d86e16 187-190
+  s_b0d7e3abc26c5a::t_ab59f9612715f6 191-194
+  s_b0d7e3abc26c5a::t_16b869da53dfb3 195-199
+  s_b0d7e3abc26c5a::t_378dffbf134c67 200-201,213-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d0a6bf7a66e8d7f237dc7815f19deae9c4b7e7d",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

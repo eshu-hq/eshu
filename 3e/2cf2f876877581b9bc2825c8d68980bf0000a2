@@ -1,0 +1,16 @@
+go/internal/query/auth.go
+  h_78a442cba0b3e6 221,240,248-250,261-262
+go/internal/query/auth_audit.go
+  h_78a442cba0b3e6 290,303-304,310,315,317-318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3e2cf2f876877581b9bc2825c8d68980bf0000a2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

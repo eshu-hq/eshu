@@ -1,0 +1,45 @@
+go/internal/reducer/crossscope/README.md
+  s_cd24245ce16b3a::t_d9358e6a94a039 101-103,105-107,110-112
+go/internal/reducer/crossscope/readiness_wait.go
+  s_cd24245ce16b3a::t_b7652b1e024d5f 47,49-54,69-72,79-91,97-99,101-102,104-111,135-136,140-145,147-149,169-176,200-203,205,270,276
+go/internal/reducer/crossscope/readiness_wait_epoch_test.go
+  s_cd24245ce16b3a::t_f842d86e0a212b 1-68
+go/internal/reducer/iamcan/perform_readiness_wait_test.go
+  s_cd24245ce16b3a::t_ff9028bb593e7c 42,47-55,57,62,66-75,194-195
+go/internal/reducer/workload_cloud_relationship_instance_wait_test.go
+  s_cd24245ce16b3a::t_cbeac2fae30197 32,35-43,45,50-60,126-129
+go/internal/reducer/workloadinstance/wait_test.go
+  s_cd24245ce16b3a::t_6eb4f4418e19a6 28,31-39,41,46,48-57
+go/internal/storage/postgres/migrations/109_reducer_readiness_waits.sql
+  s_cd24245ce16b3a::t_dc09479515a255 13-19,35-36,40-42
+go/internal/storage/postgres/readiness/wait/AGENTS.md
+  s_cd24245ce16b3a::t_b0f77f2e038d80 6,10-11,13-17
+go/internal/storage/postgres/readiness/wait/README.md
+  s_cd24245ce16b3a::t_4def03b4cf3233 21,26-27,35-71,74-75
+go/internal/storage/postgres/readiness/wait/doc.go
+  s_cd24245ce16b3a::t_cc1e146f35fe4b 13-17
+go/internal/storage/postgres/readiness/wait/store.go
+  s_cd24245ce16b3a::t_b52246eb55acc2 11,17,24,29-37,42-43,46,56-59,62-64,66-78,114,118,127,131-134,146,149-151,154,158-161,165-177,179,183-201
+go/internal/storage/postgres/readiness/wait/store_fence_live_test.go
+  s_cd24245ce16b3a::t_eba75b64719def 1-96
+go/internal/storage/postgres/readiness/wait/store_live_test.go
+  s_cd24245ce16b3a::t_f6e68d55ae89f3 74,96,110-113,120,129-130,139-141,145-150
+go/internal/storage/postgres/readiness/wait/store_test.go
+  s_cd24245ce16b3a::t_2ce3e989ab8435 62-63,83,91,93,106-130,138,147,164,167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cc282f7ef5c36367ebba65117f2959df35d52de1",
+  "prompts": {},
+  "sessions": {
+    "s_cd24245ce16b3a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff5b0e60-84a1-476b-8cc2-eb86e0ac8318",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

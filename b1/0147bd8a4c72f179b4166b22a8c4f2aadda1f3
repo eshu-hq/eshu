@@ -1,0 +1,22 @@
+go/internal/runtime/postgres/reader_fleet_query_identity_edges_test.go
+  s_b0d7e3abc26c5a::t_8bad2a19378265 14-17,129-185,195
+  s_b0d7e3abc26c5a::t_5cd83265a0c828 186-194
+  s_b0d7e3abc26c5a::t_464bd716df53f7 114-118,121
+  s_b0d7e3abc26c5a::t_b63a61c1b782c3 1-13,18-113,119-120,122-128,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b10147bd8a4c72f179b4166b22a8c4f2aadda1f3",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

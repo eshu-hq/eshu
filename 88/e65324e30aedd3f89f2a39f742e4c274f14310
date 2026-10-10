@@ -1,0 +1,21 @@
+go/internal/runtime/postgres/access.go
+  s_b0d7e3abc26c5a::t_5fdb728e14d05a 146-153
+go/internal/runtime/postgres/read_reservation_test.go
+  s_b0d7e3abc26c5a::t_39d285705e8825 100-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "88e65324e30aedd3f89f2a39f742e4c274f14310",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+docs/public/reference/telemetry/code-topic-probes.md
+  s_b0d7e3abc26c5a::t_b986407aeeb2e1 15
+  s_b0d7e3abc26c5a::t_c2cc8abf4e8dce 1-14
+docs/public/observability/telemetry-coverage.md
+  s_b0d7e3abc26c5a::t_c27be6d0f3b0fc 803
+docs/public/reference/telemetry/index.md
+  s_b0d7e3abc26c5a::t_c2cc8abf4e8dce 37
+docs/mkdocs.yml
+  s_b0d7e3abc26c5a::t_c2cc8abf4e8dce 320
+docs/internal/evidence/7033-code-topic-partition-tracing.md
+  s_b0d7e3abc26c5a::t_059b118f8b3729 42
+  s_b0d7e3abc26c5a::t_cadbb38043b475 1-41
+docs/public/reference/telemetry/traces.md
+  s_b0d7e3abc26c5a::t_8b9d508e830f5a 63-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "54f559537bc59f0880097281955eb889507c290b",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

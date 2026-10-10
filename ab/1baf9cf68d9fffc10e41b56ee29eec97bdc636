@@ -1,0 +1,19 @@
+docs/public/reference/nornicdb-query-pitfalls.md
+  s_13513e1653f60b::t_c6487c42770d64 601-605,619-624,632-637
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab1baf9cf68d9fffc10e41b56ee29eec97bdc636",
+  "prompts": {},
+  "sessions": {
+    "s_13513e1653f60b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be54da3d-092b-4f0e-960b-90e822f671a3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

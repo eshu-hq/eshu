@@ -1,0 +1,79 @@
+go/cmd/webhook-listener/handler.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-5,7-10,12-13,15,19-25,32-33,59-69,73-76,85,87-89,91-94,101-102,104-106,108-110,119,121-123,125-128,141-142,189-191,193-197,205-207,209,211-212,225-226,228,231,235-244,246,252-257,259-265,419-423,103,181-183,186,202,40,280,308,326,350,367,375,382,389,396,403,410,417
+  s_d3259c8df205fa::t_496f505e9dfe1c 129-134
+  s_d3259c8df205fa::t_4e279797d2e86c 11,95
+  s_d3259c8df205fa::t_5383d4197f6eba 96,98,135-136,138,70-71,150,159,163,165,169-171,173-174,176,179-180
+  s_d3259c8df205fa::t_96f7f714d4eb80 99-100,139-140,72,161-162,166-168,172,177-178,184,187,14,16-18,26-31,34-39,41-58,77-84,86,90,97,107,111-118,120,124,137,147,151-158,160,164,175,185,188,192,201,204,208,210,213-224,227,229-230,232-234,245,247-251,258,268-276,278-279,281-289,293-295,299-307,309-319,323-325,327-335,339-349,351-360,366,368-374,376-381,383-388,390-395,397-402,404-409,411-416,418
+  s_d3259c8df205fa::t_40ca183e2a784c 6,198-200,203
+  s_d3259c8df205fa::t_58225217d8b65e 277,290-292,296-298,320-322,336-338,361-365
+go/internal/telemetry/contract.go
+  s_d3259c8df205fa::t_514095cdd61ead 49-52,160-161,286-289,329-330
+go/cmd/webhook-listener/README.md
+  s_d3259c8df205fa::t_386c544b37aaa0 1-3,15-19,21-30,32-33,35-37,45-50
+  s_d3259c8df205fa::t_b42d8988b47abf 38,39-40
+  s_d3259c8df205fa::t_7cd7c2ec39687b 8-12
+  s_d3259c8df205fa::t_ea79cb1a401791 4-6,13-14,20,31,34
+  s_d3259c8df205fa::t_77214e041c2139 44,51-64
+  s_d3259c8df205fa::t_1d31abd3ad24f9 41-43
+docs/docs/deployment/service-runtimes.md
+  s_d3259c8df205fa::t_816cb52a261680 65,185-186
+go/cmd/webhook-listener/main.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-48,60-65,72-75,77-79,87-125,86
+  s_d3259c8df205fa::t_2146c1c36d743b 49-59,66-71,76
+  s_d3259c8df205fa::t_6a908abc5e50e4 80-85
+go/cmd/webhook-listener/doc.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1,3-5,18
+  s_d3259c8df205fa::t_0463a98824256e 6-7
+  s_d3259c8df205fa::t_ea79cb1a401791 2,8
+  s_d3259c8df205fa::t_b42d8988b47abf 9-10
+  s_d3259c8df205fa::t_1d31abd3ad24f9 11-12
+  s_d3259c8df205fa::t_eeb3fb7741c2c9 13-14
+  s_d3259c8df205fa::t_c47336e899a3a9 15-17
+go/internal/telemetry/contract_test.go
+  s_d3259c8df205fa::t_013fd48ed6b7ee 32-35,89-90
+docs/docs/reference/telemetry/traces.md
+  s_d3259c8df205fa::t_77214e041c2139 47-48,126-140,160-168,208-219
+docs/docs/reference/telemetry/metrics.md
+  s_d3259c8df205fa::t_77214e041c2139 179-237,518-524
+docs/docs/adrs/2026-05-12-webhook-triggered-repository-refresh.md
+  s_d3259c8df205fa::t_55b27548ce491b 1-3,5-41,44-49,53-77,80-125,129-225,229-353,357-416,419-422,426
+  s_d3259c8df205fa::t_4476bd48cefddd 4,424-425
+  s_d3259c8df205fa::t_6fcc37ce944607 427-430,435-437,440-441,445-455,228
+  s_d3259c8df205fa::t_7433d056ef6428 42-43,50-52,78-79,126-128,226-227,354-356,417-418,431-434,438-439
+  s_d3259c8df205fa::t_816cb52a261680 442-444
+go/cmd/webhook-listener/AGENTS.md
+  s_d3259c8df205fa::t_386c544b37aaa0 1-7,11-26,29-37
+  s_d3259c8df205fa::t_eeb3fb7741c2c9 8-10,27-28
+go/internal/telemetry/instruments.go
+  s_d3259c8df205fa::t_38fbdb72f43f80 126-136,180-181,475-498,544-562
+  s_d3259c8df205fa::t_8088ff72b39b1c 1328-1347
+docs/docs/reference/telemetry/index.md
+  s_d3259c8df205fa::t_816cb52a261680 26,140-153,373-375,388-389,441-444,464-465
+go/cmd/webhook-listener/handler_observability_test.go
+  s_d3259c8df205fa::t_76dffaa2ae74c9 1-185
+go/internal/telemetry/README.md
+  s_d3259c8df205fa::t_816cb52a261680 114-116,126-127,190-191
+  s_d3259c8df205fa::t_c47336e899a3a9 227-229
+go/internal/telemetry/doc.go
+  s_d3259c8df205fa::t_eeb3fb7741c2c9 11-12
+  s_d3259c8df205fa::t_c47336e899a3a9 13-14
+go/internal/telemetry/instruments_test.go
+  s_d3259c8df205fa::t_013fd48ed6b7ee 44-46,76-77
+  s_d3259c8df205fa::t_8088ff72b39b1c 170-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "de6db5249d4cea41654e37dede2f6c31a5d8fbf1",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,45 @@
+apps/console/src/api/deploymentConfigInfluence.test.ts
+  s_a259424f603ccc::t_47ac81984e20ec 1-159
+apps/console/src/api/repository.test.ts
+  s_a259424f603ccc::t_19c44b8ffc5bd7 46-49,333-371,429-432
+apps/console/src/pages/ServiceSpotlightPanel.test.tsx
+  s_a259424f603ccc::t_5791aca4c9c280 7-8,10,15,79,252-257
+  s_a259424f603ccc::t_25ae80aa3743ad 42-45,47,272-364
+  s_a259424f603ccc::t_c4b8e75184a8b8 46
+docs/superpowers/plans/2026-05-13-eshu-console-pr1.md
+  s_a259424f603ccc::t_41b7272a243e27 235,247-251,258-259,269,274,289-291,295-296,317,322-332
+apps/console/src/api/repository.ts
+  s_a259424f603ccc::t_1fa6003bd791c2 161-166,182-183,191-208
+  s_a259424f603ccc::t_dea645dbba7d7e 2,7
+docs/superpowers/specs/2026-05-14-eshu-console-storytelling-contract-field-map-design.md
+  s_a259424f603ccc::t_bf9e5affc9f4ee 60-64,110-132,272-273,300-301
+apps/console/src/api/repositoryText.ts
+  s_a259424f603ccc::t_0c2d463bc22060 1-31
+apps/console/src/serviceSpotlight.css
+  s_a259424f603ccc::t_23359ae4171482 197-276
+apps/console/src/api/serviceSpotlight.ts
+  s_a259424f603ccc::t_8be476e7bc23e5 2,24,217-218,244
+apps/console/src/pages/ServiceConfigInfluencePanel.tsx
+  s_a259424f603ccc::t_10dd993c83835a 1-103
+apps/console/src/api/deploymentConfigInfluence.ts
+  s_a259424f603ccc::t_f1d93ccc99b33d 1-167
+apps/console/src/pages/ServiceSpotlightPanel.tsx
+  s_a259424f603ccc::t_1bf7828ebc2c16 13,55
+  s_a259424f603ccc::t_4e02c0e1df847e 166-167,180-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "55b3395813d7f4c1e5c048804d18882b559298b1",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

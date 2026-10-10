@@ -1,0 +1,33 @@
+go/cmd/projector/main_test.go
+  s_072c5984f68e14::t_6da9bdb9c3a2c5 114-123
+  s_072c5984f68e14::t_dedf704c592ce6 149-151
+go/internal/status/status_health_stalled_test.go
+  s_072c5984f68e14::t_2917d9d9740e36 45-74
+  s_072c5984f68e14::t_50ff21e1101102 1-44
+go/cmd/projector/runtime_wiring.go
+  s_072c5984f68e14::t_c2fe56fb0a8322 55-59
+go/internal/status/status_health.go
+  s_072c5984f68e14::t_756d89f50e44d2 35-51,178-188
+docs/docs/run-locally/docker-compose.md
+  s_072c5984f68e14::t_9de4da91656ff9 232-233
+  s_072c5984f68e14::t_13fb3363c94a6d 129-132
+  s_072c5984f68e14::t_ea309b8f0e520f 203
+scripts/test-verify-remote-e2e-runtime-state.sh
+  s_072c5984f68e14::t_92a554b7d40934 225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "37cbbc60347220e5f7d341f39bfb2a9c2b9ed294",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

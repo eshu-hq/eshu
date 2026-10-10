@@ -1,0 +1,25 @@
+scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh
+  s_bc720f29f5e0fd::t_5405e673401448 219-220
+scripts/lib/ifa_fault_generic_runner_wait.sh
+  s_bc720f29f5e0fd::t_5405e673401448 339,341,345,347,349
+scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh
+  s_bc720f29f5e0fd::t_5405e673401448 60-63,77,121,136,144
+  s_bc720f29f5e0fd::t_898ae73a25b3a2 156
+  s_bc720f29f5e0fd::t_8c0ccfc4e3223f 11,160-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6aa99d47de8fb4df592a7bbb6ccf067fe56a27d6",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

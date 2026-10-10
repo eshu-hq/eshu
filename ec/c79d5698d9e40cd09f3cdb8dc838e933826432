@@ -1,0 +1,28 @@
+go/internal/telemetry/registration.go
+  s_b0d7e3abc26c5a::t_af76fb0c425bae 67,76-84
+  s_b0d7e3abc26c5a::t_887f24f9b22bd0 85-86
+go/internal/telemetry/compat_contract.go
+  s_b0d7e3abc26c5a::t_af76fb0c425bae 109
+go/internal/telemetry/contract_test.go
+  s_b0d7e3abc26c5a::t_42a6ac75ebefe4 191
+go/internal/telemetry/README.md
+  s_b0d7e3abc26c5a::t_8b9d508e830f5a 31
+go/internal/telemetry/contract/query_spans.go
+  s_b0d7e3abc26c5a::t_af76fb0c425bae 6-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ecc79d5698d9e40cd09f3cdb8dc838e933826432",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+docs/internal/evidence/6782-unwind-missing-row-key-audit.md
+  h_78a442cba0b3e6 155-162,164-168
+go/cmd/reducer/canonical_graph_writers.go
+  h_78a442cba0b3e6 14,20,154-181
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 178-184
+go/internal/recovery/README.md
+  h_78a442cba0b3e6 103-107
+go/internal/recovery/writer_shape.go
+  h_78a442cba0b3e6 1-123
+go/internal/recovery/writer_shape_test.go
+  h_78a442cba0b3e6 1-173
+go/internal/storage/cypher/payload_accessors.go
+  h_78a442cba0b3e6 11-23
+go/internal/storage/postgres/writershape/AGENTS.md
+  h_78a442cba0b3e6 1-14
+go/internal/storage/postgres/writershape/README.md
+  h_78a442cba0b3e6 1-52
+go/internal/storage/postgres/writershape/doc.go
+  h_78a442cba0b3e6 1-16
+go/internal/storage/postgres/writershape/marker.go
+  h_78a442cba0b3e6 1-161
+go/internal/storage/postgres/writershape/marker_live_test.go
+  h_78a442cba0b3e6 1-96
+go/internal/storage/postgres/writershape/marker_test.go
+  h_78a442cba0b3e6 1-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f07edd3fa44a5835ec2eb09f03cd42feeeb99ddb",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

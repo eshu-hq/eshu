@@ -1,0 +1,21 @@
+docs/internal/design/7033-exact-code-topic-retrieval.md
+  s_b0d7e3abc26c5a::t_7fb42d6e467787 31-35,114-118
+  s_b0d7e3abc26c5a::t_8cfe026159c051 70-71
+  s_b0d7e3abc26c5a::t_93a2e7edecd5b5 72-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cdcf4ae6ae7db5bea2a630ffe04700bd7e01441e",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

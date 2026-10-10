@@ -1,0 +1,21 @@
+scripts/test-extend-read-api-work-budgets.sh
+  s_29175cf8c573b8::t_ff2f474ff2d2c8 37-38
+scripts/extend-read-api-work-budgets.sh
+  s_29175cf8c573b8::t_bd1d3f4f80cbfe 46-50,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2dba824b9ca031dcef3cf52955382d173d2592e6",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

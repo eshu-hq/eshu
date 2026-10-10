@@ -1,0 +1,21 @@
+docs/public/deployment/service-runtimes-bootstrap.md
+  s_bc720f29f5e0fd::t_e1e40f0e1e5d8e 73,75
+go/internal/storage/postgres/secret/lines/session.go
+  s_bc720f29f5e0fd::t_e1e40f0e1e5d8e 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "51f914f83dbf25ca4b0b52b688aef058ff05271f",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

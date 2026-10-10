@@ -1,0 +1,19 @@
+docs/public/observability/telemetry-coverage.md
+  s_20be138600ef1b::t_1fd11ca723d0cd 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1ecfcf1019a5c2e31caf883a9a71ee713a16b05b",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

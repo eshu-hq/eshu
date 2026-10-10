@@ -1,0 +1,43 @@
+go/internal/proof/scheduling/diagnostic_run.go
+  s_b0d7e3abc26c5a::t_57a650e7ea6233 1-8,11-18,20-30,45-61,63-70,72-75,77-89,91-115,117-120,122-128,130,141-147,149-170,172-173,178-242,244-251,253-258
+  s_b0d7e3abc26c5a::t_e6e33ae2098ded 19,31-44,62,71,76,90
+  s_b0d7e3abc26c5a::t_6e2c187bc94f94 132,139,148,171,174-177,243,252
+  s_b0d7e3abc26c5a::t_1f9b0f153d022f 9-10,116,121,129,131,133-138,140
+go/internal/proof/scheduling/fixed.go
+  s_b0d7e3abc26c5a::t_b2007ec17e54c2 48-49,63-64,80-83,115-123,165-167
+go/internal/proof/scheduling/README.md
+  s_b0d7e3abc26c5a::t_8a7488a7e574a4 8-10,26-37
+go/internal/proof/scheduling/doc.go
+  s_b0d7e3abc26c5a::t_8a7488a7e574a4 7-10
+go/internal/proof/scheduling/fixed_diagnostic_test.go
+  s_b0d7e3abc26c5a::t_8a28a4bc4dc08f 20-28,72,97,99,106,115-116,132,134
+  s_b0d7e3abc26c5a::t_e9e754a74134fb 1-19,29-71,73-96,98,100-105,107-114,117-131,133,135-138
+  s_b0d7e3abc26c5a::t_5f3b96d926f29b 139-167
+  s_b0d7e3abc26c5a::t_95857c22d46602 168-174
+go/internal/proof/scheduling/main_test.go
+  s_b0d7e3abc26c5a::t_e9e754a74134fb 38-40
+go/internal/proof/scheduling/main.go
+  s_b0d7e3abc26c5a::t_b2007ec17e54c2 153-154,181-188
+go/internal/proof/scheduling/diagnostic_summary.go
+  s_b0d7e3abc26c5a::t_0267fce48578a2 1-173
+go/internal/proof/scheduling/fixed_test.go
+  s_b0d7e3abc26c5a::t_e9e754a74134fb 48,77
+  s_b0d7e3abc26c5a::t_45428653596067 199-202
+  s_b0d7e3abc26c5a::t_5f3b96d926f29b 194-198,203-211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff75bbb7d37601ed11053fcc7800c10e3466b8af",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

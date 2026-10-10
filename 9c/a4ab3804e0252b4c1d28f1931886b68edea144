@@ -1,0 +1,126 @@
+go/internal/query/tracing/README.md
+  s_cd68771743f6d2::t_1e24e607b62f21 9-11
+  s_3d761bb140daa9::t_c41d9f9d386809 38
+docs/internal/design/package-restructure.md
+  s_cd68771743f6d2::t_264c80b8b1b38b 1907-1908
+docs/public/observability/telemetry-coverage.md
+  s_cd68771743f6d2::t_6de8a6784da579 862
+docs/public/reference/source-layout.md
+  s_cd68771743f6d2::t_55bcbc6d5ca8db 124,195
+go/internal/query/codemodel/AGENTS.md
+  s_cd68771743f6d2::t_82dd440d3e8a83 18,23
+go/internal/query/codemodel/README.md
+  s_cd68771743f6d2::t_6345a515440dd1 12
+go/internal/query/codemodel/doc.go
+  s_cd68771743f6d2::t_10defa9069b906 15
+go/internal/query/codeowners/AGENTS.md
+  s_cd68771743f6d2::t_a1a0232ff70295 11,19
+go/internal/query/codeowners/README.md
+  s_cd68771743f6d2::t_edd91c0193afcb 91,97-98,107
+go/internal/query/codeowners/doc.go
+  s_cd68771743f6d2::t_da65cbfd498a48 25
+go/internal/query/codeowners/handler_tracing.go
+  s_cd68771743f6d2::t_1f51c1091bd901 27-29,35
+go/internal/query/codequery/doc.go
+  s_cd68771743f6d2::t_31b0331961e4fc 19
+go/internal/query/contentread/AGENTS.md
+  s_cd68771743f6d2::t_7ba2b6995a8856 16
+go/internal/query/decode/README.md
+  s_cd68771743f6d2::t_ce32540e9fd8ea 30
+go/internal/query/freshness/AGENTS.md
+  s_cd68771743f6d2::t_14729fa31240e5 25
+go/internal/query/freshness/README.md
+  s_cd68771743f6d2::t_db7413ad8f2186 162
+go/internal/query/freshness/doc.go
+  s_cd68771743f6d2::t_28df4675deaf2a 26
+go/internal/query/handler_tracing.go
+  s_cd68771743f6d2::t_84516841319ae7 23-27
+go/internal/query/iac/README.md
+  s_cd68771743f6d2::t_be51b3ce791134 42,175
+go/internal/query/iac/doc.go
+  s_cd68771743f6d2::t_32215531713e45 39
+go/internal/query/impact/README.md
+  s_cd68771743f6d2::t_a1d529f1f917c3 51
+go/internal/query/incident/AGENTS.md
+  s_cd68771743f6d2::t_990cb49f3b94ed 19-20,24
+go/internal/query/incident/README.md
+  s_cd68771743f6d2::t_779fdfad9cc179 28
+go/internal/query/incident/doc.go
+  s_cd68771743f6d2::t_2adba932957832 11
+go/internal/query/language/README.md
+  s_cd68771743f6d2::t_6cdf0ba83eca3c 104
+go/internal/query/language/doc.go
+  s_cd68771743f6d2::t_48f7ddf43eb347 38
+go/internal/query/local/AGENTS.md
+  s_cd68771743f6d2::t_86c94fcdc0f3b4 115,118
+go/internal/query/package/registry/AGENTS.md
+  s_cd68771743f6d2::t_ef6bc3e775fdb8 9,21
+go/internal/query/package/registry/README.md
+  s_cd68771743f6d2::t_659acebdd21bce 116,142-143,163,182,185
+go/internal/query/package/registry/doc.go
+  s_cd68771743f6d2::t_b27608d904e747 16
+go/internal/query/package/registry/handler_tracing.go
+  s_cd68771743f6d2::t_74aa79fe0bfbbb 24
+go/internal/query/playbook/AGENTS.md
+  s_cd68771743f6d2::t_3338d8360c7adc 51
+go/internal/query/playbook/README.md
+  s_cd68771743f6d2::t_be30e28b48238b 231,233
+go/internal/query/querycontract/README.md
+  s_cd68771743f6d2::t_e46abddf2e1ad2 114
+go/internal/query/queryselector/README.md
+  s_cd68771743f6d2::t_0295b1b903d839 38
+go/internal/query/secrets/AGENTS.md
+  s_cd68771743f6d2::t_cac6253837bc3d 24,38
+go/internal/query/secrets/README.md
+  s_cd68771743f6d2::t_49a048ac90f6ca 20,113
+go/internal/query/secrets/doc.go
+  s_cd68771743f6d2::t_cb6111c0a062f5 24
+go/internal/query/semanticsearch/AGENTS.md
+  s_cd68771743f6d2::t_8cdc2fa5382531 11,15
+go/internal/query/semanticsearch/README.md
+  s_cd68771743f6d2::t_e08aa886e92aa9 18,70,133,135,163
+go/internal/query/semanticsearch/doc.go
+  s_cd68771743f6d2::t_01d5a888cb5772 16
+go/internal/query/semanticsearch/handler_tracing.go
+  s_cd68771743f6d2::t_7c9a3ecbae9d57 24-26
+go/internal/query/supply/chain/AGENTS.md
+  s_cd68771743f6d2::t_9d862b5fd67b65 11,17
+go/internal/query/supply/chain/README.md
+  s_cd68771743f6d2::t_a5ece9163f34e9 82,124
+go/internal/query/supply/chain/doc.go
+  s_cd68771743f6d2::t_9f957f30523543 20
+go/internal/query/supply/chain/handler_tracing.go
+  s_cd68771743f6d2::t_93f1973a846479 27-29
+go/internal/query/tracing/AGENTS.md
+  s_cd68771743f6d2::t_18560189e2bf60 1
+go/internal/query/workitem/AGENTS.md
+  s_cd68771743f6d2::t_28da8b0985b95c 24
+go/internal/query/workitem/README.md
+  s_cd68771743f6d2::t_822e53a46a5add 116
+go/internal/query/workitem/doc.go
+  s_cd68771743f6d2::t_416153e371c835 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9ca4ab3804e0252b4c1d28f1931886b68edea144",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_cd68771743f6d2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea6dc2bb-5d66-4caf-9d80-b18c09f31179",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

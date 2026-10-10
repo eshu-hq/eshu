@@ -1,0 +1,55 @@
+go/internal/projector/package_source_correlation_intents_test.go
+  s_072c5984f68e14::t_b2d9609560148b 36,81-91
+  s_072c5984f68e14::t_08dbab7692cb4f 48-70,72-80,92-93,114-132
+  s_072c5984f68e14::t_7acd28f810722f 71
+go/internal/collector/packageregistry/packageruntime/http_provider_test.go
+  s_072c5984f68e14::t_a9b5f9ae9b9ffe 6,44-88,275-282
+go/internal/reducer/supply_chain_impact_product_test.go
+  s_072c5984f68e14::t_9d1cfa75426db9 198
+go/internal/projector/README.md
+  s_072c5984f68e14::t_e91eeb11ef1abd 151-157
+go/internal/projector/doc.go
+  s_072c5984f68e14::t_2d0b78f06cd8d5 21-23
+go/internal/projector/supply_chain_impact_intents.go
+  s_072c5984f68e14::t_1240d50e3f6097 38-39
+  s_072c5984f68e14::t_72d9279a38bf14 25,46-50
+go/internal/collector/packageregistry/packageruntime/http_provider.go
+  s_072c5984f68e14::t_72a76134b53bde 19,100-101
+go/internal/projector/supply_chain_impact_intents_test.go
+  s_072c5984f68e14::t_ac37e41c13e372 50-79
+go/internal/reducer/supply_chain_impact_test.go
+  s_072c5984f68e14::t_54b2909d5f1123 228-230
+  s_072c5984f68e14::t_7c3227a6a19eff 22-26,51-56,186,201-208,225,227,231-232
+  s_072c5984f68e14::t_17061502a72b95 194-200,209-224,226,233-242,441-449
+go/cmd/collector-package-registry/README.md
+  s_072c5984f68e14::t_d4db6486f42d4e 60-65
+go/internal/reducer/supply_chain_impact.go
+  s_072c5984f68e14::t_ec6bc51206f777 132,134-138,179-201
+  s_072c5984f68e14::t_f4c16f07017920 127-128,133
+  s_072c5984f68e14::t_3a68fcf66b9f2e 301,369-370
+  s_072c5984f68e14::t_abf71d3365ab4c 204-231
+go/internal/projector/package_source_correlation_intents.go
+  s_072c5984f68e14::t_5c2a40da830180 30-43
+go/internal/collector/packageregistry/packageruntime/README.md
+  s_072c5984f68e14::t_c703e4ddd09c9b 33-36,74-77,83-84,87
+docs/public/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_ce632e52a27be9 54,143-187
+go/internal/reducer/README.md
+  s_072c5984f68e14::t_3acff10d0c9af2 309-313,319-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "0865e6939d27bc79de6ec49d6a4efe50ad122b5c",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

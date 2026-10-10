@@ -1,0 +1,99 @@
+go/internal/storage/postgres/issue7033_scoped_rollout_test.go
+  s_b0d7e3abc26c5a::t_bdbf58585064f2 99,120,171,184,218,232,252,270
+  s_b0d7e3abc26c5a::t_8e671010a10aee 1-85,88-97,100-119,121-153,155-156,158-170,172-183,185-217,219-231,233-251,253-269,271-295
+  s_b0d7e3abc26c5a::t_7ecffc00a6cc97 98
+  s_b0d7e3abc26c5a::t_c7e0e95c9038e1 86-87,154,157
+go/internal/storage/postgres/schema_order_test.go
+  s_b0d7e3abc26c5a::t_4c0b66d169eef9 321-324
+  s_b0d7e3abc26c5a::t_577d51f571fda4 320
+go/internal/storage/postgres/content_files_relative_path_index_live_test.go
+  s_b0d7e3abc26c5a::t_8e671010a10aee 1-19,21-83,85-94,96-98,100-138,140-145,147-221
+  s_b0d7e3abc26c5a::t_7ecffc00a6cc97 20,84,99,139
+  s_b0d7e3abc26c5a::t_6b59194c4402a2 95
+  s_b0d7e3abc26c5a::t_c7e0e95c9038e1 146
+docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
+  s_b0d7e3abc26c5a::t_fcb4431f6d9485 41-47
+  s_b0d7e3abc26c5a::t_955e9df0ae8938 1-18,23-40,48,81-85,88-89,91-94,137-146
+  s_b0d7e3abc26c5a::t_909eb063164fc7 86-87,90,95-111,116-118,128-131
+  s_b0d7e3abc26c5a::t_3375df8819697d 112-115,119-122,135-136
+  s_b0d7e3abc26c5a::t_c945e9c838e039 123-127
+  s_b0d7e3abc26c5a::t_de66804a19158f 19-22,132-134
+  s_b0d7e3abc26c5a::t_55b53bc004418e 49-80
+go/internal/storage/postgres/content_files_relative_path_skipped_125_live_test.go
+  s_b0d7e3abc26c5a::t_8e671010a10aee 1-37,39-41,43-58,60-61,63-92
+  s_b0d7e3abc26c5a::t_c7e0e95c9038e1 38,42,59,62
+go/internal/query/code_topic_path_first_live_test.go
+  s_b0d7e3abc26c5a::t_c8b9355b06ee9f 1-101
+go/internal/storage/postgres/migrations/135_content_files_relative_path_trgm_index_lifecycle.sql
+  s_b0d7e3abc26c5a::t_bdbf58585064f2 1-4,6-113
+  s_b0d7e3abc26c5a::t_c0474106ab3490 5
+go/internal/query/code_topic_test.go
+  s_b0d7e3abc26c5a::t_b2a5e9b4a58a22 149
+  s_b0d7e3abc26c5a::t_f739d9d59f995c 176-199,204-221,224-232,251,253-256,260-262,265-271,274-277
+  s_b0d7e3abc26c5a::t_a57d975554d983 146-148,150-163,166,233-250
+  s_b0d7e3abc26c5a::t_03863368391d88 222-223
+  s_b0d7e3abc26c5a::t_ea2109ac709b6c 264
+  s_b0d7e3abc26c5a::t_4897fe881295ef 9
+  s_b0d7e3abc26c5a::t_88c5d10ffdd613 200-203,252,257-259
+  s_b0d7e3abc26c5a::t_5374c9e3aaad78 263,272-273
+go/cmd/api/issue7033_canary_startup_live_test.go
+  s_b0d7e3abc26c5a::t_de66804a19158f 1-141
+go/internal/query/content_reader_search_page.go
+  s_b0d7e3abc26c5a::t_2c1996457d3e68 11-12,139-189
+go/internal/query/content_reader_code_topic.go
+  s_b0d7e3abc26c5a::t_8693c315d18b4b 92,111
+  s_b0d7e3abc26c5a::t_f4b5583f7f597f 8,191-200,220,229,231
+  s_b0d7e3abc26c5a::t_220ecd9f7d4d34 54-58,93-110
+go/internal/storage/postgres/issue7033_scoped_rollout_live_test.go
+  s_b0d7e3abc26c5a::t_ae48a98a1be578 1-32,34-35,38-65,67-158,160-163,165-166,168-336,338-344,346-458
+  s_b0d7e3abc26c5a::t_7ecffc00a6cc97 66
+  s_b0d7e3abc26c5a::t_c7e0e95c9038e1 33,36-37,159,164,167,337,345
+go/internal/storage/postgres/README.md
+  s_b0d7e3abc26c5a::t_2c1996457d3e68 71-72,946-947
+docs/public/reference/env-registry.md
+  s_b0d7e3abc26c5a::t_acbb5a33e09c63 338
+docs/public/reference/telemetry/index.md
+  s_b0d7e3abc26c5a::t_268695e911575f 254
+docs/public/run-locally/docker-compose.md
+  s_b0d7e3abc26c5a::t_c5484d223c1a54 49
+go/internal/envregistry/entries.go
+  s_b0d7e3abc26c5a::t_e5ac52b449d781 27
+  s_b0d7e3abc26c5a::t_569b22bb84d94a 27
+go/internal/storage/postgres/AGENTS.md
+  s_b0d7e3abc26c5a::t_abbc599747673d 859
+go/internal/storage/postgres/content_files_relative_path_index_schema_test.go
+  s_b0d7e3abc26c5a::t_0ac633067b774c 1-70
+go/internal/storage/postgres/content_search_index_finalize_live_test.go
+  s_b0d7e3abc26c5a::t_450f62750c4a83 47,145,360
+go/internal/storage/postgres/content_search_index_finalize_test.go
+  s_b0d7e3abc26c5a::t_699a47a6f52a92 19,32,44-45
+go/internal/storage/postgres/migrations/134_content_files_relative_path_trgm_index.sql
+  s_b0d7e3abc26c5a::t_38b6b0acb3cba0 1-17
+go/internal/storage/postgres/schema.go
+  s_b0d7e3abc26c5a::t_addfebd3c76504 65,71-73,249-252,337
+go/internal/storage/postgres/schema_content_store.go
+  s_b0d7e3abc26c5a::t_13db9ac41a6218 87-91,106-110
+go/internal/storage/postgres/schema_test.go
+  s_b0d7e3abc26c5a::t_ec66c970aabcad 297,311-313,322-323,342-344
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_b0d7e3abc26c5a::t_577d51f571fda4 37-38,45
+  s_b0d7e3abc26c5a::t_140e86e557153a 39
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_577d51f571fda4 186-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8576b8e504919185fd12b51305737215c6b28cc6",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

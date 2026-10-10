@@ -1,0 +1,16 @@
+go/internal/backendconformance/differential_normalize.go
+  h_78a442cba0b3e6 181-184,186,197-201,278-284
+go/internal/backendconformance/differential_normalize_test.go
+  h_78a442cba0b3e6 264-338
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dd6736ec8f00fa25a36d55a346ac1b7a03a2814d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

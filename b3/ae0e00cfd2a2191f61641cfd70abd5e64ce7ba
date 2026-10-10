@@ -1,0 +1,32 @@
+go/internal/query/repository/dependency_cluster_test.go
+  s_1e5d8a653a4ee7::t_6349f97db5e0e7 11
+  s_1e5d8a653a4ee7::t_de28eecd6775b8 190-215
+go/internal/query/codequery/relationship_repo_anchor_test.go
+  s_1e5d8a653a4ee7::t_8c517f855ddf51 8,15-20
+  s_1e5d8a653a4ee7::t_9e079524bf7f4c 66-68
+  s_0328684b451b6b::t_ca1cf17eea6927 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b3ae0e00cfd2a2191f61641cfd70abd5e64ce7ba",
+  "prompts": {},
+  "sessions": {
+    "s_0328684b451b6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22956e3d-93a2-490b-ba95-830405a3edf2",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_1e5d8a653a4ee7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b439ad40-11c6-4924-9243-1ef7dd2cc094",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

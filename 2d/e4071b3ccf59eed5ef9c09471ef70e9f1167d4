@@ -1,0 +1,49 @@
+docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md
+  s_3d761bb140daa9::t_9713599962ddc2 423-460
+docs/public/observability/telemetry-coverage.md
+  s_3d761bb140daa9::t_c3a7c30bd2c5c6 893
+go/internal/query/entity/README.md
+  s_3d761bb140daa9::t_f651162251c6c8 52-56,62-66
+go/internal/query/entity/grant_cap_telemetry_test.go
+  s_3d761bb140daa9::t_3d58036dbe721f 1-85
+go/internal/query/entity/scoped_grant_telemetry.go
+  s_3d761bb140daa9::t_8e66da13f01274 8,12,35-60
+go/internal/query/entity/service_name_bound_test.go
+  s_3d761bb140daa9::t_341d3250680e11 28,39
+go/internal/query/entity/workload_lookup.go
+  s_3d761bb140daa9::t_b38892da1192f2 68-71,74-75
+go/internal/query/impacttrace/README.md
+  s_3d761bb140daa9::t_da155bd976de69 25-33
+go/internal/query/impacttrace/grant_cap_telemetry_test.go
+  s_3d761bb140daa9::t_a63cc1741c63a3 1-69
+go/internal/query/impacttrace/scoped_grant_telemetry.go
+  s_3d761bb140daa9::t_c97be6005d146b 8,12,35-58
+go/internal/query/impacttrace/workload_selection.go
+  s_3d761bb140daa9::t_dc7534cfd8b7b3 43-46,110-112,116
+go/internal/query/querycontract/README.md
+  s_3d761bb140daa9::t_3d796d2975cce2 81-85
+go/internal/query/querycontract/workload_grant.go
+  s_3d761bb140daa9::t_820b1c8c8c943f 57-62
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_3d761bb140daa9::t_1933fa3f2ab46e 215
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_3d761bb140daa9::t_78b95ee01c0325 220,379
+go/internal/telemetry/instruments.go
+  s_3d761bb140daa9::t_d4cb5809d64afe 703-705
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2de4071b3ccf59eed5ef9c09471ef70e9f1167d4",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

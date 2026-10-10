@@ -1,0 +1,28 @@
+docs/internal/evidence/6786-nornicdb-400-409-exposure.md
+  s_1e5d8a653a4ee7::t_55a4136e550140 67
+  s_1e5d8a653a4ee7::t_d530003340fb5d 81
+  s_1e5d8a653a4ee7::t_f1a7734487f410 95
+  s_1e5d8a653a4ee7::t_3aa391cb7a54db 98-119
+go/cmd/reducer/workload_instance_retraction_lookup_test.go
+  s_1e5d8a653a4ee7::t_344465fbb00a6d 1-112
+go/cmd/reducer/nornicdb_workload_instance_retraction_lookup_live_test.go
+  s_1e5d8a653a4ee7::t_9d9580f5aa4f34 1-258
+go/cmd/reducer/workload_instance_retraction_lookup.go
+  s_1e5d8a653a4ee7::t_e962356a533a0e 36-45,47-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "941439465f0cf3f923bec513e70afb0d3e2a9539",
+  "prompts": {},
+  "sessions": {
+    "s_1e5d8a653a4ee7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b439ad40-11c6-4924-9243-1ef7dd2cc094",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

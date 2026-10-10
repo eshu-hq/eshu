@@ -1,0 +1,163 @@
+go/internal/storage/postgres/schema_order_test.go
+  s_bc720f29f5e0fd::t_6cd50d22e7b8af 317-319
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_bc720f29f5e0fd::t_525d5b431f6b99 45
+  s_bc720f29f5e0fd::t_fabe8cfab72647 39
+  s_bc720f29f5e0fd::t_6cd50d22e7b8af 36-38
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_bc720f29f5e0fd::t_6cd50d22e7b8af 185-186
+.github/workflows/ifa-determinism-gate.yml
+  s_bc720f29f5e0fd::t_e57053d99b41bb 108,468,471
+docs/internal/evidence/6228-iam-can-assume-determinism.md
+  s_bc720f29f5e0fd::t_ba0290d29b76e1 1-48
+docs/internal/evidence/6929-outlier-cohort-index-seek.md
+  s_bc720f29f5e0fd::t_04a09b443b608b 1-214
+docs/internal/evidence/7125-secret-lines-side-table.md
+  s_bc720f29f5e0fd::t_dfb9b6ffc8f513 6,259,274,436
+docs/internal/evidence/7241-function-name-read-paths.md
+  s_bc720f29f5e0fd::t_e84bf5a54526e7 1-73
+docs/internal/evidence/7242-repository-context-coverage.md
+  s_bc720f29f5e0fd::t_78e44c2e3fa8b6 1-117
+docs/public/reference/ci-gates.md
+  s_bc720f29f5e0fd::t_15a12334c6e9d5 121
+docs/public/reference/http-api.md
+  s_bc720f29f5e0fd::t_d644cf5ed66652 49-52,120
+docs/public/reference/http-api/iac-content-infra.md
+  s_bc720f29f5e0fd::t_8c49bfb52c6475 664-665
+docs/public/reference/http-api/repositories-ingesters-bundles.md
+  s_bc720f29f5e0fd::t_a8f92a79148ef5 67-75
+go/internal/ifa/direct_family_cassette.go
+  s_bc720f29f5e0fd::t_5728c8e6138522 19,29,31-33,42,110-123
+go/internal/ifa/familyodu/iam_can_assume_family_odu.go
+  s_bc720f29f5e0fd::t_86da57818b5706 46-57,93
+go/internal/ifa/materializededges/direct_family_cassette_test.go
+  s_bc720f29f5e0fd::t_58678567f1599c 60,70,78-79,106-111
+go/internal/mcp/dispatch_service_story_noop_content_store_test.go
+  s_bc720f29f5e0fd::t_8a3b29da6dc16f 10,96-103
+go/internal/query/README.md
+  s_bc720f29f5e0fd::t_1d2ae3a309b97a 1156,1160
+go/internal/query/codequery/outlier.go
+  s_bc720f29f5e0fd::t_cc961ba966a6be 39-46
+go/internal/query/codequery/outlier_cypher_test.go
+  s_bc720f29f5e0fd::t_48612492ba3934 59-95
+go/internal/query/codequery/outlier_repo_scale_live_test.go
+  s_bc720f29f5e0fd::t_b507b164de2d0f 1-745
+go/internal/query/content_reader_by_key_test.go
+  s_bc720f29f5e0fd::t_6046aad411cd0c 1-104
+go/internal/query/content_reader_context_coverage_live_test.go
+  s_bc720f29f5e0fd::t_a5b4f4be800e8e 1-80
+go/internal/query/content_reader_context_coverage_test.go
+  s_bc720f29f5e0fd::t_8a664fbcdb0440 1-55
+go/internal/query/content_reader_coverage.go
+  s_bc720f29f5e0fd::t_7ed2cc681e8d91 28-37,71,130-171
+go/internal/query/content_reader_entities_by_ids.go
+  s_bc720f29f5e0fd::t_afe53b8125d638 9,11,67-144
+go/internal/query/content_reader_entity_page_order_test.go
+  s_bc720f29f5e0fd::t_31e8ce050065a4 1-22
+go/internal/query/content_reader_entity_search_page.go
+  s_bc720f29f5e0fd::t_94f96e0f297501 76
+go/internal/query/content_reader_security_secrets.go
+  s_bc720f29f5e0fd::t_07b8950a95c8c6 48,249
+go/internal/query/entity/README.md
+  s_bc720f29f5e0fd::t_0a45b81fc92fc8 75-90
+go/internal/query/entity/metadata.go
+  s_bc720f29f5e0fd::t_6a2f64f12d96b1 11-13,16-25,30-31,33,42-43,49-66,68,72-82,85-96,99-103,105-111,113-124,127,130-155
+go/internal/query/entity_metadata_bounded_test.go
+  s_bc720f29f5e0fd::t_7c3267ec516895 1-127
+go/internal/query/entity_metadata_fixture_test.go
+  s_bc720f29f5e0fd::t_1980279a27ba42 1-26
+go/internal/query/entity_metadata_test.go
+  s_bc720f29f5e0fd::t_47065a1cc11bd1 17,95,165,209
+go/internal/query/entity_metadata_tsx_semantics_test.go
+  s_bc720f29f5e0fd::t_d8b7d745b3d5f2 17,68,119
+go/internal/query/entity_metadata_typescript_semantics_test.go
+  s_bc720f29f5e0fd::t_6ed608b88e96ef 93,147,201,252
+go/internal/query/hardcoded_secret_migration_binding_test.go
+  s_bc720f29f5e0fd::t_c28176626b7ca6 28
+go/internal/query/openapi/paths/repository/routes.go
+  s_bc720f29f5e0fd::t_5a26986e64d0de 245,301
+go/internal/query/openapi/paths/search/content.go
+  s_bc720f29f5e0fd::t_aaae2a2bdd0733 190
+go/internal/query/ports_k8s_select_candidates_test.go
+  s_bc720f29f5e0fd::t_846929c57d2adf 6-10,27-34
+go/internal/query/querycontract/content.go
+  s_bc720f29f5e0fd::t_41b389a889a1d3 29-42
+go/internal/query/querycontract/ports.go
+  s_bc720f29f5e0fd::t_8ff565effb76c1 83-87,133-140
+go/internal/query/repository/context.go
+  s_bc720f29f5e0fd::t_ab93b70efbc5af 48-56,195-200,202-205,230-234
+go/internal/query/repository/context_counts.go
+  s_bc720f29f5e0fd::t_30f04747a1fbd8 141,143,145-150,152-158
+go/internal/query/repository/context_coverage_fast_path_test.go
+  s_bc720f29f5e0fd::t_20bc010d3aa6e7 1-284
+go/internal/query/repository/context_degrade.go
+  s_bc720f29f5e0fd::t_889fcbded6d203 33-35
+go/internal/query/testutil/content/port_store_key.go
+  s_bc720f29f5e0fd::t_e62685f7d8f40d 1-50
+go/internal/query/testutil/content/port_store_key_test.go
+  s_bc720f29f5e0fd::t_217bbe4090582a 1-72
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_bc720f29f5e0fd::t_4b20681a51ddc2 628
+go/internal/queryplan/testdata/statement-builders.yaml
+  s_bc720f29f5e0fd::t_6eb279dcd823fa 323-324,326-327
+go/internal/storage/postgres/content_file_secret_lines_live_test.go
+  s_bc720f29f5e0fd::t_e388f9ddabf47e 87,124
+go/internal/storage/postgres/content_file_secret_lines_writebench_live_test.go
+  s_bc720f29f5e0fd::t_5c9d86c17c39a2 113
+go/internal/storage/postgres/migrations/133_repository_entry_points_index.sql
+  s_bc720f29f5e0fd::t_da2b9a9a633b21 1-22
+go/internal/storage/postgres/repository_entry_points_index_schema_test.go
+  s_bc720f29f5e0fd::t_a60fa1b95ae6b1 1-36
+go/internal/storage/postgres/secret/lines/README.md
+  s_bc720f29f5e0fd::t_3730e9c2e53a9b 7,108
+go/internal/storage/postgres/secret/lines/doc.go
+  s_bc720f29f5e0fd::t_98ed6f9ca7fa23 8
+go/internal/storage/postgres/secret/lines/helpers_test.go
+  s_bc720f29f5e0fd::t_ebfeeaa95c053f 24
+go/internal/storage/postgres/secret/lines/session.go
+  s_bc720f29f5e0fd::t_8d770dc2592b22 15,22
+go/internal/storage/postgres/secret/lines/session_binding_test.go
+  s_bc720f29f5e0fd::t_efd2aaca77ee07 14,25
+go/internal/storage/postgres/secret/lines/session_test.go
+  s_bc720f29f5e0fd::t_b715893daa4c98 17
+scripts/lib/ifa_direct_family_live.sh
+  s_bc720f29f5e0fd::t_d941ae2b3c5674 3-5,12-15,17,19-20,51,54,173-204
+scripts/lib/ifa_family_fixtures.sh
+  s_bc720f29f5e0fd::t_91a03a061a745e 130-134,136,138-139,145-146,148-155,160-161,204-205
+scripts/lib/ifa_family_registry/rows/14_iam_can_assume.sh
+  s_bc720f29f5e0fd::t_ad7434b5701982 1-70
+scripts/lib/ifa_family_registry_pins/iam_can_assume.sh
+  s_bc720f29f5e0fd::t_d9ededbdd4ecf8 1-44
+scripts/lib/ifa_live_gate_determinism_only_cases.sh
+  s_bc720f29f5e0fd::t_a2287948c2e614 48-55
+scripts/lib/test-ifa-determinism-family-cases.sh
+  s_bc720f29f5e0fd::t_f98bac199cbe0b 269-274,276-281,287,318,390-394,397,421-429,442-443,447-450
+scripts/lib/test-ifa-family-registry-derived-pins-cases.sh
+  s_bc720f29f5e0fd::t_ba75298c862c7a 87
+scripts/verify-ifa-determinism.sh
+  s_bc720f29f5e0fd::t_1221dbfafe9f8a 425-429
+specs/ci-gates.v1.yaml
+  s_bc720f29f5e0fd::t_41aeb3bcd3e32d 3494,3503,3506
+specs/ifa-materialized-edge-coverage-direct.v1.yaml
+  s_bc720f29f5e0fd::t_18b2a8c7825b4a 246,251
+specs/live-tests.v1.yaml
+  s_bc720f29f5e0fd::t_c0574f263ea4c4 295-298,356-359
+testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json
+  s_bc720f29f5e0fd::t_dc7bc46bb48b25 1-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab1b3feeb2d32a44ae4f06159346d20bb29a7cbc",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

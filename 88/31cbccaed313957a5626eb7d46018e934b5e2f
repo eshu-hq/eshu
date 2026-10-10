@@ -1,0 +1,28 @@
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_94a9963be16623 118-119,125,128-132,136-152
+scripts/verify-query-methodology.sh
+  s_29175cf8c573b8::t_00f477eb2812c5 11,16,71
+scripts/test-methodology-scale-resource-observer.sh
+  s_29175cf8c573b8::t_cc6082ceccf4ed 1-17,27-34,39-42,44-58,61-62
+  s_29175cf8c573b8::t_1fe33c8901a595 18-26,36
+  s_29175cf8c573b8::t_8b9d1d1d8bb6b1 35,37-38,59-60
+  s_29175cf8c573b8::t_b5b7407494b895 43
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_9d210a39307c6b 17-18,25-26,44-46,55-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8831cbccaed313957a5626eb7d46018e934b5e2f",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

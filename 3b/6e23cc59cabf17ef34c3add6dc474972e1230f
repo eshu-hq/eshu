@@ -1,0 +1,26 @@
+go/cmd/golden-corpus-gate/README.md
+  s_bc720f29f5e0fd::t_be064763ceb742 207-210
+go/cmd/golden-corpus-gate/mcp.go
+  s_bc720f29f5e0fd::t_713d6bf84fbabe 69-76,81-83,130-135,139-173
+go/cmd/golden-corpus-gate/AGENTS.md
+  s_bc720f29f5e0fd::t_be064763ceb742 101-103
+go/cmd/golden-corpus-gate/mcp_resource_test.go
+  s_bc720f29f5e0fd::t_d7c45e0a7419fc 1-89,104-161
+  s_bc720f29f5e0fd::t_eea724685a39cc 90-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3b6e23cc59cabf17ef34c3add6dc474972e1230f",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

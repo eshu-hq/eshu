@@ -1,0 +1,80 @@
+go/cmd/ingester/wiring.go
+  s_d3259c8df205fa::t_3e655901215a87 148-149,154-155
+  s_d3259c8df205fa::t_5dd58a248816ab 123
+go/cmd/ingester/README.md
+  s_d3259c8df205fa::t_739046494288d5 47-49
+  s_d3259c8df205fa::t_c94f8f4addda97 58-61
+go/cmd/collector-git/README.md
+  s_d3259c8df205fa::t_f366a2b110858b 38-40
+  s_d3259c8df205fa::t_75b1be983f709f 63-65
+go/internal/webhook/normalizer_edge_test.go
+  s_d3259c8df205fa::t_d333e99a458f96 1-132
+go/internal/collector/doc.go
+  s_d3259c8df205fa::t_32b7ee078d1a82 30-32
+go/internal/storage/postgres/README.md
+  s_d3259c8df205fa::t_60924a411fd129 157-161
+go/internal/webhook/doc.go
+  s_d3259c8df205fa::t_c60ea49f5cdca0 8-10
+go/internal/storage/postgres/webhook_trigger_store.go
+  s_d3259c8df205fa::t_9120ae7ab7b189 154-155,184,187-188,303-341
+go/cmd/webhook-listener/doc.go
+  s_d3259c8df205fa::t_0463a98824256e 6-10
+go/cmd/webhook-listener/README.md
+  s_d3259c8df205fa::t_7cd7c2ec39687b 8-13
+go/internal/storage/postgres/doc.go
+  s_d3259c8df205fa::t_5a0bd66ac7a3d1 88-91
+go/cmd/collector-git/doc.go
+  s_d3259c8df205fa::t_4e97f5d00d4adc 9
+go/cmd/webhook-listener/handler_test.go
+  s_d3259c8df205fa::t_62c70c69c4aa99 75-103,139-165
+docs/docs/deploy/kubernetes/helm-values.md
+  s_d3259c8df205fa::t_1aab400f087b0d 96-99
+go/cmd/ingester/doc.go
+  s_d3259c8df205fa::t_c2ef67ff60fb96 7-9
+  s_d3259c8df205fa::t_0e342a589b8ea9 25-29
+go/internal/storage/postgres/webhook_trigger_store_test.go
+  s_d3259c8df205fa::t_b6037a1eb0d023 71-73,186-216,234-238
+go/internal/collector/README.md
+  s_d3259c8df205fa::t_db4ea75a986f47 130-132,144-145
+go/internal/webhook/normalizer.go
+  s_d3259c8df205fa::t_40bfd4417301e8 83-87,129-133,190-194,199-201
+deploy/helm/eshu/values.schema.json
+  s_d3259c8df205fa::t_fab2dee338beec 194-214
+go/internal/webhook/README.md
+  s_d3259c8df205fa::t_a73a837ab333fa 42-43
+go/internal/webhook/types.go
+  s_d3259c8df205fa::t_6b6a5357917ef3 49-52
+go/cmd/collector-git/service.go
+  s_d3259c8df205fa::t_b42a0597d3228d 35-36,41-42
+go/internal/collector/webhook_trigger_selector.go
+  s_d3259c8df205fa::t_0f2c6b016ed053 16-21,66-74,77,91,121-135
+go/internal/collector/webhook_trigger_handoff_config.go
+  s_d3259c8df205fa::t_8ff4d16dbd7959 1-54
+go/cmd/webhook-listener/handler.go
+  s_d3259c8df205fa::t_7a810f3c1f5a09 81-82
+  s_d3259c8df205fa::t_4e279797d2e86c 10,51-55,58,83-85
+go/internal/collector/webhook_trigger_selector_test.go
+  s_d3259c8df205fa::t_9d6139fa447437 128-248,253-256,285,287-288,291-301,303
+  s_d3259c8df205fa::t_1d03e7015a687d 106,286,302
+go/internal/storage/postgres/webhook_trigger_store_sql.go
+  s_d3259c8df205fa::t_c1dddd4847f476 43-47,112,115-117,121,124-127
+go/cmd/ingester/composite_runner.go
+  s_d3259c8df205fa::t_965ab9b954a221 1-14,19-37
+  s_d3259c8df205fa::t_8325cc038750c1 15-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "32df53f42013dd0d4cea11e6d4b9fbf7ea27a06f",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+scripts/test-verify-remote-e2e-runtime-state.sh
+  s_f2f7fbb6f30866::t_07a19a58607868 1-214
+docs/docs/reference/remote-e2e-runtime-state.md
+  s_f2f7fbb6f30866::t_e93363b42153b9 1-75
+docs/mkdocs.yml
+  s_f2f7fbb6f30866::t_57874aa940ec67 74
+scripts/verify_remote_e2e_runtime_state.sh
+  s_f2f7fbb6f30866::t_b408878c619436 1-152
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_8d032c55c73d28 68
+  s_f2f7fbb6f30866::t_d6db65e5506355 63-67
+scripts/README.md
+  s_f2f7fbb6f30866::t_7f263a9d64c394 27-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "dd186e07485981ca41428a9d284147357da58655",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

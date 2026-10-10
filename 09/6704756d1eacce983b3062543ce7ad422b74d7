@@ -1,0 +1,32 @@
+go/internal/collector/README.md
+  s_0fd19061762ced::t_cb0211b5dfd27c 31-32,43-45,170
+  s_0fd19061762ced::t_26c2ef918c1ac3 171
+go/internal/collector/AGENTS.md
+  s_0fd19061762ced::t_815b4af9975e94 50-54
+go/internal/collector/service_observability_test.go
+  s_0fd19061762ced::t_4c85b53a9d81c5 1-92
+go/internal/collector/service.go
+  s_0fd19061762ced::t_7180ab9c56c2f2 10,137-141,143,150,163-165,168,173,178-185,187-203,205,234
+go/internal/collector/service_metric_test_helpers_test.go
+  s_0fd19061762ced::t_890af9b0572ce1 1-58
+go/internal/collector/doc.go
+  s_0fd19061762ced::t_1d1ddaf74687f7 26-27
+go/internal/collector/service_test.go
+  s_0fd19061762ced::t_33dbe13377ccf7 365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "096704756d1eacce983b3062543ce7ad422b74d7",
+  "prompts": {},
+  "sessions": {
+    "s_0fd19061762ced": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1d42-6b58-7843-9a2d-1c8df56ad1e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

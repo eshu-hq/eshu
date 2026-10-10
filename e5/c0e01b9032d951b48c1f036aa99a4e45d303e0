@@ -1,0 +1,25 @@
+go/internal/parser/java_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_de2d776b658fa4 97-155
+  s_bdaf44668b73dc::t_e453ac111e6705 6-7
+go/internal/parser/java_call_inference.go
+  s_bdaf44668b73dc::t_4a75e7079935a4 9-98,102-106,122-127,134-165,232-244,246,250-253,256-258
+  s_bdaf44668b73dc::t_11c2783e7643cd 255
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_b87278a06b9236 38,79,81,180-186,190-196,201-215,288-293,329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "e5c0e01b9032d951b48c1f036aa99a4e45d303e0",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

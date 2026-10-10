@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-05-16-service-atlas-story-drilldown-design.md
+  s_09ee6306ad72bc::t_14f80f480f8190 1-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "36cc31df9295615248c33a9d7f9a61a2074c48b2",
+  "prompts": {},
+  "sessions": {
+    "s_09ee6306ad72bc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2de8-f667-7fd0-b949-d056bf986910",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+go/internal/proof/scheduling/timing_test.go
+  s_b0d7e3abc26c5a::t_da51431ea9242e 251,256
+go/internal/proof/scheduling/dynamic.go
+  s_b0d7e3abc26c5a::t_64182fa0f354c4 36
+go/internal/proof/scheduling/fixed.go
+  s_b0d7e3abc26c5a::t_da51431ea9242e 40
+go/internal/proof/scheduling/main_test.go
+  s_b0d7e3abc26c5a::t_64182fa0f354c4 52
+  s_b0d7e3abc26c5a::t_99e17c5c84d275 53,61-63
+  s_b0d7e3abc26c5a::t_87b942791c0610 64
+go/internal/proof/scheduling/timing.go
+  s_b0d7e3abc26c5a::t_da51431ea9242e 87
+  s_b0d7e3abc26c5a::t_64182fa0f354c4 91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bddf3caf9423dac2f1252966d2100c51bcb9a1e1",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

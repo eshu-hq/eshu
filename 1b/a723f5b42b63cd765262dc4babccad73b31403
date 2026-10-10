@@ -1,0 +1,18 @@
+go/internal/backendconformance/differential_normalize.go
+  h_78a442cba0b3e6 50
+go/internal/graph/capture/sink.go
+  h_78a442cba0b3e6 63,83,149
+go/internal/graph/capture/sink_test.go
+  h_78a442cba0b3e6 141-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1ba723f5b42b63cd765262dc4babccad73b31403",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,117 @@
+docs/docs/adrs/2026-05-10-oci-container-registry-collector.md
+  s_00a320afddcac7::t_cfc23b865c8672 13,16,50-53
+  s_00a320afddcac7::t_ff1f842cf66ed4 230
+  s_00a320afddcac7::t_2eed09e987af7f 243,56,59,68,72,244-257
+  s_00a320afddcac7::t_5fc578cd491d89 55,57-58,60-64,69-71
+  s_00a320afddcac7::t_0c456145f59378 342-343,350-353
+  s_00a320afddcac7::t_7191ffec9a340f 65-67,344-349
+  s_00a320afddcac7::t_e9a43d3f96777f 276-277
+go/internal/collector/ociregistry/doc.go
+  s_00a320afddcac7::t_3cc688a27f9de7 1-6,15
+  s_00a320afddcac7::t_c472642257ebcc 14
+  s_00a320afddcac7::t_e763a55b57fb49 7-13
+go/internal/collector/ociregistry/ociruntime/source_test.go
+  s_00a320afddcac7::t_62a0c7600e0b7b 1-9,11-38,46-95,97-127,135-139,141-192,194-208
+  s_00a320afddcac7::t_71f05bcd0a18bc 10,193
+  s_00a320afddcac7::t_8303ff4c9f96c7 39-45,96,128-134,140
+docs/docs/reference/telemetry/metrics.md
+  s_00a320afddcac7::t_d0cb1bcb978403 152-200
+go/internal/telemetry/README.md
+  s_00a320afddcac7::t_4203d6302a5b43 107-110,132,194
+docs/docs/reference/telemetry/traces.md
+  s_00a320afddcac7::t_5e43fcd4c2551f 49-50,82-88
+go/internal/collector/ociregistry/README.md
+  s_00a320afddcac7::t_3cc688a27f9de7 1-17,23-62,69-73,84-85,98-101,104,107-111,117-123,75,83,88,96
+  s_00a320afddcac7::t_f2c352ae811678 63-65,68,112-113
+  s_00a320afddcac7::t_e8381bf3c67593 66-67,102-103
+  s_00a320afddcac7::t_c481ef2a669036 74,76-78,81-82
+  s_00a320afddcac7::t_b8797244d36863 18-19,79-80,105-106
+  s_00a320afddcac7::t_df4dd25994e869 20-22,86-87,89-95,97
+  s_00a320afddcac7::t_060b9169cbec98 114-116
+docs/docs/deployment/service-runtimes.md
+  s_00a320afddcac7::t_1d9a128dd5e51e 121,137-142
+go/internal/scope/scope.go
+  s_00a320afddcac7::t_f2d631a56e9378 27-28,45-46
+go/internal/collector/README.md
+  s_00a320afddcac7::t_3afd3e6198be5a 167-169
+  s_00a320afddcac7::t_15d3ac64aed34c 170-171
+go/internal/collector/ociregistry/types.go
+  s_00a320afddcac7::t_be46d9f747c528 1-11,14-15,18-51,58-64,68-215
+  s_00a320afddcac7::t_87cf460df855e7 12-13,16-17
+  s_00a320afddcac7::t_9473a2a53e9fc2 52-57
+  s_00a320afddcac7::t_c2d8d56197fef5 65-67
+go/cmd/collector-oci-registry/README.md
+  s_00a320afddcac7::t_dd78c337ed407f 1-57,72-92
+  s_00a320afddcac7::t_4793dbc7ae9785 58-71
+go/internal/telemetry/instruments.go
+  s_00a320afddcac7::t_8e394a8f02bfe4 63-66,167
+  s_00a320afddcac7::t_44146bfe60b152 440-471
+  s_00a320afddcac7::t_b78c7a102c296f 602-612
+  s_00a320afddcac7::t_46d630d870f9e7 1376-1378,1394-1410
+go/cmd/collector-oci-registry/config_test.go
+  s_00a320afddcac7::t_2ad2bb6aecd279 1-39,41-53,55-67
+  s_00a320afddcac7::t_b62dbf9ddd31d8 40,54
+go/internal/telemetry/contract.go
+  s_00a320afddcac7::t_49c03e44cca347 49,53-55,165-166,339-340
+go/internal/collector/ociregistry/ociruntime/doc.go
+  s_00a320afddcac7::t_d3a485a8847666 1-4
+  s_00a320afddcac7::t_c63e7a14f0d547 5-9
+  s_00a320afddcac7::t_7a580ef446bb3e 10
+go/cmd/collector-oci-registry/config.go
+  s_00a320afddcac7::t_2d694a06afb998 1-161
+go/cmd/collector-oci-registry/main.go
+  s_00a320afddcac7::t_41a627275ced6e 1-79,81-103
+  s_00a320afddcac7::t_9cbdc275097da8 80
+go/internal/scope/README.md
+  s_00a320afddcac7::t_539adc980ccd2f 43-44,46
+go/internal/collector/ociregistry/ociruntime/manifest.go
+  s_00a320afddcac7::t_1d26dd43cd9c4e 1-126
+go/internal/collector/ociregistry/ociruntime/AGENTS.md
+  s_00a320afddcac7::t_df2c68ef629088 1-18,22-39
+  s_00a320afddcac7::t_672a57b2a22687 19-21
+go/internal/collector/ociregistry/ociruntime/source.go
+  s_00a320afddcac7::t_9184adca3c1a3b 1-198,207-213,221,223-225,227-427,429-460
+  s_00a320afddcac7::t_23feb5223e07bb 199-204
+  s_00a320afddcac7::t_b43a69e1c3e360 205-206,214-220,222,226
+  s_00a320afddcac7::t_004c38e395f3ea 428
+go/internal/collector/ociregistry/ociruntime/README.md
+  s_00a320afddcac7::t_491b59c01000ac 1-28,33-58,62-71
+  s_00a320afddcac7::t_37cc7db4bfc56e 29-32
+  s_00a320afddcac7::t_7721319cb1af04 59
+  s_00a320afddcac7::t_20e20376417bab 60-61
+go/internal/collector/ociregistry/ociruntime/config.go
+  s_00a320afddcac7::t_b8fbb8d85f2400 1-27,30,34-38,43-101,104,108-112,117-127
+  s_00a320afddcac7::t_b5cd9621f575bc 28-29,31-33,39-42,102-103,105-107,113-116
+go/cmd/collector-oci-registry/AGENTS.md
+  s_00a320afddcac7::t_a4511b876f6c6d 1-38
+go/cmd/collector-oci-registry/service.go
+  s_00a320afddcac7::t_5e4c4d19876d85 1-24,26-30,32-106
+  s_00a320afddcac7::t_b3d5ccbf2c6e17 25,31
+go/cmd/collector-oci-registry/doc.go
+  s_00a320afddcac7::t_ae3b956c47bab7 1-6
+go/internal/scope/doc.go
+  s_00a320afddcac7::t_35390f53c4b886 5-7
+docs/docs/reference/telemetry/index.md
+  s_00a320afddcac7::t_f30a7f0f7f42fc 376-379,394,467-468
+go/internal/collector/ociregistry/AGENTS.md
+  s_00a320afddcac7::t_3cc688a27f9de7 1-7,10-28,31-37
+  s_00a320afddcac7::t_6ebb4e7749e3e4 8-9,29-30
+go/internal/telemetry/contract_test.go
+  s_00a320afddcac7::t_e282a72bf45291 94-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "7c160bf078b9daa60a10342b20a3059ce758a73b",
+  "prompts": {},
+  "sessions": {
+    "s_00a320afddcac7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c52-fa77-7391-8873-a102dce078ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

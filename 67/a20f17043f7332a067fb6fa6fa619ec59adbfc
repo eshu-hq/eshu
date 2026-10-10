@@ -1,0 +1,40 @@
+go/internal/runtime/compose_remote_e2e_test.go
+  s_f2f7fbb6f30866::t_f0b56a131e0455 1-19,22-39,57-100
+  s_f2f7fbb6f30866::t_15e66e271d56f1 20,40-56
+  s_f2f7fbb6f30866::t_30a28e6ad9c2b8 21
+.env.remote-e2e.example
+  s_f2f7fbb6f30866::t_1e04fe9c426a0f 5-9
+go/internal/runtime/compose_defaults_test.go
+  s_f2f7fbb6f30866::t_f0b56a131e0455 19-20,24
+docs/docs/run-locally/docker-compose.md
+  s_f2f7fbb6f30866::t_57952a04ac45a4 153-166
+  s_f2f7fbb6f30866::t_6eb03ea37e1888 170-172
+  s_f2f7fbb6f30866::t_1e04fe9c426a0f 129,139,143-147,149,167-169,173
+  s_f2f7fbb6f30866::t_b4ed5ff193ed06 148,150-151
+docs/docs/reference/environment-variables.md
+  s_f2f7fbb6f30866::t_1e04fe9c426a0f 248-250
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_1e04fe9c426a0f 174,176-182,184-185,204-210,260-261
+  s_f2f7fbb6f30866::t_6eb03ea37e1888 175
+  s_f2f7fbb6f30866::t_6fa8621352919a 183,186
+scripts/remote-e2e-corpus-preflight.sh
+  s_f2f7fbb6f30866::t_15e66e271d56f1 1-74
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_7890005ce83921 88-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "67a20f17043f7332a067fb6fa6fa619ec59adbfc",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

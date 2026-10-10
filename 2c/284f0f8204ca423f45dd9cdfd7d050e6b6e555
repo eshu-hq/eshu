@@ -1,0 +1,27 @@
+docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md
+  s_7deca246baab33::t_f1ea722bf5ae27 296-373
+docs/public/observability/telemetry-coverage.md
+  s_7deca246baab33::t_7357ec2d3d86d6 893
+go/internal/query/entity/scoped_grant_live_test.go
+  s_7deca246baab33::t_70acfe49fe02d0 78-83,97-98,310-375
+go/internal/telemetry/README.md
+  s_7deca246baab33::t_61eddee7bcd571 251
+go/internal/telemetry/instruments.go
+  s_7deca246baab33::t_58fa3bde06e823 713-719
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2c284f0f8204ca423f45dd9cdfd7d050e6b6e555",
+  "prompts": {},
+  "sessions": {
+    "s_7deca246baab33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c6c6328-6cdc-426c-9806-b59928285a23",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

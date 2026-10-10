@@ -1,0 +1,28 @@
+go/internal/backendconformance/differential.go
+  h_78a442cba0b3e6 178-182,184-186,201-207
+go/internal/backendconformance/differential_read.go
+  h_78a442cba0b3e6 1-71
+go/internal/backendconformance/differential_test.go
+  h_78a442cba0b3e6 597-615
+go/internal/graph/capture/decorate.go
+  h_78a442cba0b3e6 51-58,79-82
+go/internal/graph/capture/decorate_test.go
+  h_78a442cba0b3e6 68-110
+go/internal/graph/capture/doc.go
+  h_78a442cba0b3e6 12-17
+go/internal/graph/capture/sink.go
+  h_78a442cba0b3e6 39-40,49-53,78-80,82,92,95-101,106-117,121-123
+go/internal/graph/capture/sink_test.go
+  h_78a442cba0b3e6 82-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0f1c4facdedd47ad808e8e34173ce7ee83154679",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

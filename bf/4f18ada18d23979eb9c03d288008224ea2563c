@@ -1,0 +1,41 @@
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_shapes_test.go
+  s_4a0f86aa680964::t_d20b711e2dd687 10-11,15-44,49-71
+  s_4a0f86aa680964::t_9cc4eb2473afcf 45-48
+  s_76eb48722aa6e6::t_86d964595537a6 72
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_test.go
+  s_4a0f86aa680964::t_b396176ddcba39 41-46,50-51,96-101,116-119,125,175,181-184,186-190,355-361,363,365,370-386,403-416
+go/internal/storage/cypher/fault_executor_restart_record_test.go
+  s_4a0f86aa680964::t_661b68875bc8d4 9,21-31,35-37,43,47-51,60-69,72,84-85,105,108-119
+scripts/lib/ifa_live_gate_selector_cases.sh
+  s_4a0f86aa680964::t_304e52a8e2ccd0 472
+scripts/test-verify-ifa-fault-injection.sh
+  s_4a0f86aa680964::t_2988cdaa907a6d 85
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_4a0f86aa680964::t_2988cdaa907a6d 248-250
+scripts/lib/test-ifa-fault-injection-diagnostics-fake-docker.sh
+  s_4a0f86aa680964::t_2988cdaa907a6d 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bf4f18ada18d23979eb9c03d288008224ea2563c",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_76eb48722aa6e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c63352b-88be-4713-bba6-7be0c462d10d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

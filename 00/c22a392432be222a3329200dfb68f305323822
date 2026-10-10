@@ -1,0 +1,21 @@
+Dockerfile
+  s_679a0c699c968e::t_c35b508c7c6db8 30
+  s_679a0c699c968e::t_1bb78fc38c32ba 3-6,9,11,14-16,27-28,32-48
+  s_679a0c699c968e::t_20f6d1ac9323f8 8,20,22,29,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "00c22a392432be222a3329200dfb68f305323822",
+  "prompts": {},
+  "sessions": {
+    "s_679a0c699c968e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7ddd8c0-ad6b-4c66-88b6-c8614c6b11c9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

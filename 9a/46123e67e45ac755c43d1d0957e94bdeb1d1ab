@@ -1,0 +1,14 @@
+docs/internal/evidence/7516-opsqa-code-topic-budget.md
+  h_78a442cba0b3e6 1-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a46123e67e45ac755c43d1d0957e94bdeb1d1ab",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

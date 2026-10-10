@@ -1,0 +1,21 @@
+apps/console/src/pages/ObservabilityPage.tsx
+  s_f2f7fbb6f30866::t_1a30a5a4ef5b3b 36-41,43-45,66
+apps/console/src/pages/ObservabilityPage.test.tsx
+  s_f2f7fbb6f30866::t_18cc82d0e25ded 27-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "9b2a6f7ba7b15fa9b893a75ee31949c19db66775",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

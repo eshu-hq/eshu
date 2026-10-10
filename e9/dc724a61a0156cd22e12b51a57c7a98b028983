@@ -1,0 +1,35 @@
+docs/internal/evidence/7419-generation-prune-generation-idx.md
+  s_b0d7e3abc26c5a::t_e1c6634e68d985 1-106
+go/internal/storage/postgres/generation_prune_generation_index_schema_test.go
+  s_b0d7e3abc26c5a::t_6eb6350b624108 1-58
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_6a05f596b695c0::t_95a762b065ec21 56-60,66
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_9bd93480c115de 208-210
+go/internal/storage/postgres/schema_order_test.go
+  s_b0d7e3abc26c5a::t_6ba7d6e660b5cb 361-367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e9dc724a61a0156cd22e12b51a57c7a98b028983",
+  "prompts": {},
+  "sessions": {
+    "s_6a05f596b695c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fcf8-fbb0-7241-adb7-e55ac7fee028",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

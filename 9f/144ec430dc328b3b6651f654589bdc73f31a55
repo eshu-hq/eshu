@@ -1,0 +1,25 @@
+go/internal/envregistry/registry_test.go
+  s_b0d7e3abc26c5a::t_6f659b6e974dd9 43-54
+go/internal/envregistry/entries.go
+  s_b0d7e3abc26c5a::t_6c7cc28656a058 44
+docs/public/reference/environment-runtime-storage.md
+  s_b0d7e3abc26c5a::t_0d8004451b8b4a 142
+docs/public/reference/env-registry.md
+  s_b0d7e3abc26c5a::t_bb776be480ba53 323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f144ec430dc328b3b6651f654589bdc73f31a55",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

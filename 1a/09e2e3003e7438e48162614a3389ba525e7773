@@ -1,0 +1,19 @@
+docs/internal/evidence/7125-secret-lines-side-table.md
+  s_bc720f29f5e0fd::t_4850dd01949057 389-392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1a09e2e3003e7438e48162614a3389ba525e7773",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

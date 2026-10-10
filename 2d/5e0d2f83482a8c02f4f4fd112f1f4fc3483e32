@@ -1,0 +1,34 @@
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 122-126,225-232,235-239
+go/internal/reducer/correlated_workload_projection_input_loader.go
+  h_78a442cba0b3e6 85-90,119-121,128-136,370-422
+go/internal/reducer/correlated_workload_projection_input_loader_test.go
+  h_78a442cba0b3e6 8,898-950
+go/internal/reducer/deployable_unit_correlation.go
+  h_78a442cba0b3e6 40-45,90-92
+go/internal/reducer/deployable_unit_correlation_edges.go
+  h_78a442cba0b3e6 12,100-107,110-115,117-123,454-465
+go/internal/reducer/deployable_unit_correlation_readiness_test.go
+  h_78a442cba0b3e6 321-375
+go/internal/reducer/maintenance/accepted_generation_active_gate.go
+  h_78a442cba0b3e6 38-50
+go/internal/storage/postgres/accepted_generation.go
+  h_78a442cba0b3e6 8,38-55,112-136
+go/internal/storage/postgres/relationship_generations_complete_test.go
+  h_78a442cba0b3e6 1-124
+go/internal/storage/postgres/relationship_schema.go
+  h_78a442cba0b3e6 179-201
+go/internal/storage/postgres/relationship_store_test.go
+  h_78a442cba0b3e6 641-648,659,796-798,829-851,1046-1047
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2d5e0d2f83482a8c02f4f4fd112f1f4fc3483e32",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

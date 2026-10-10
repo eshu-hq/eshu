@@ -1,0 +1,31 @@
+go/internal/query/evidence_citation_unified_test.go
+  s_e8ab01ccdfa8e2::t_0ad0ce73e18773 71,73
+go/internal/query/querycontract/README.md
+  s_e8ab01ccdfa8e2::t_0b72a6aaaf8245 28
+go/internal/query/evidence_citation_unified.go
+  s_e8ab01ccdfa8e2::t_6bfd83980685db 10,14-17,71-77
+go/internal/query/evidence_citation.go
+  s_e8ab01ccdfa8e2::t_201cfa45ed1c96 40-44,46-47,49-51
+go/internal/query/querycontract/doc.go
+  s_e8ab01ccdfa8e2::t_1a43180833d630 32-34
+go/internal/query/querycontract/evidence_citation.go
+  s_e8ab01ccdfa8e2::t_05f7961bcf4379 1-76
+go/internal/query/README.md
+  s_e8ab01ccdfa8e2::t_7af4a4b26d541c 996
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef597b5e56f2e4ad444aee905b59fd509ccf65d2",
+  "prompts": {},
+  "sessions": {
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

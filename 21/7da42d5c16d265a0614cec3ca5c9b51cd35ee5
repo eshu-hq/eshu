@@ -1,0 +1,48 @@
+go/cmd/collector-security-alerts/README.md
+  s_f2f7fbb6f30866::t_09db800aa373a4 20-26,30-34
+go/internal/collector/securityalerts/alertruntime/README.md
+  s_f2f7fbb6f30866::t_6a148d22b451ec 12-14,45-47,66-68
+docs/public/reference/environment-collectors.md
+  s_f2f7fbb6f30866::t_70b27af296ca5a 142-147
+go/internal/collector/securityalerts/alertruntime/source_test.go
+  s_f2f7fbb6f30866::t_894c6022b2d942 221-267,281-294
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_fc05774c4b8512 43-50,67-70
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_ed3a8ee0540367 77
+go/cmd/collector-security-alerts/config_test.go
+  s_f2f7fbb6f30866::t_21b3c91d0f6765 168,170
+  s_f2f7fbb6f30866::t_67fb423e05f217 4,8-9,89-115,130-165,169,171
+  s_f2f7fbb6f30866::t_8c2059706e3161 166-167
+  s_f2f7fbb6f30866::t_6daa58b5fc82ec 116-129
+go/internal/runtime/compose_remote_e2e_test.go
+  s_f2f7fbb6f30866::t_45e74b7708c547 252-261
+scripts/test-remote-e2e-hosted-compose-render.sh
+  s_f2f7fbb6f30866::t_331dd05c81f418 53
+  s_f2f7fbb6f30866::t_a169ba8c35cf3f 82
+  s_f2f7fbb6f30866::t_e4318c7bf850c2 52,54
+go/internal/collector/securityalerts/alertruntime/source.go
+  s_f2f7fbb6f30866::t_c71627ab591c01 7,48,96-101,152-193
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_52b835d8a295d3 471-483,507
+go/cmd/collector-security-alerts/preflight.go
+  s_f2f7fbb6f30866::t_3ab2e489113dbe 1-44
+go/cmd/collector-security-alerts/main.go
+  s_f2f7fbb6f30866::t_b8b8fd7098a769 28-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "217da42d5c16d265a0614cec3ca5c9b51cd35ee5",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

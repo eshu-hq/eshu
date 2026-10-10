@@ -1,0 +1,20 @@
+go/internal/cigates/readiness_job_split_test.go
+  s_b0d7e3abc26c5a::t_e27e791fbf2969 26,30-35,96-98,115
+  s_b0d7e3abc26c5a::t_99c0dbcc8673cd 173-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1e5d1911059e9bbc46ba7979f2e9d8fef5eba952",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

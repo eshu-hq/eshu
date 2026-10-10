@@ -1,0 +1,16 @@
+docs/internal/evidence/6782-rowcount-advisory.md
+  h_78a442cba0b3e6 44
+go/internal/graph/capture/allowlist_test.go
+  h_78a442cba0b3e6 202-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2c027eccc55c9cbf95dab6ac9c7ce8eb69a2c5a9",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

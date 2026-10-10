@@ -1,0 +1,51 @@
+go/internal/storage/postgres/schema_order_test.go
+  s_b0d7e3abc26c5a::t_1544e324cb52f4 296-300
+go/internal/storage/postgres/content_files_relative_path_index_schema_test.go
+  s_b0d7e3abc26c5a::t_b7f638d19e58eb 9-10,28-29
+  s_b0d7e3abc26c5a::t_d982c2696aa070 1-8,11-27,30-31
+  s_b0d7e3abc26c5a::t_1546e94c5b2195 32-70
+go/internal/storage/postgres/content_search_index_finalize_live_test.go
+  s_b0d7e3abc26c5a::t_8f2c5d9de7f78c 47,145
+go/internal/storage/postgres/schema_content_store.go
+  s_b0d7e3abc26c5a::t_b7f638d19e58eb 87-91
+  s_b0d7e3abc26c5a::t_64d4fbd736801f 106-110
+go/internal/storage/postgres/content_files_relative_path_index_live_test.go
+  s_b0d7e3abc26c5a::t_b25dd1d45dcdae 26-30,32
+  s_b0d7e3abc26c5a::t_8f2c5d9de7f78c 1-8,10-18,20-25,31,33-41,45-50,52-62,64-122
+  s_b0d7e3abc26c5a::t_06f9a64d84152f 9,19,42-44,51,63
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_1544e324cb52f4 178
+  s_b0d7e3abc26c5a::t_863d7cca20c0f4 177
+go/internal/storage/postgres/content_search_index_finalize_test.go
+  s_b0d7e3abc26c5a::t_1546e94c5b2195 19,32,44-45
+go/internal/storage/postgres/schema_test.go
+  s_b0d7e3abc26c5a::t_1546e94c5b2195 297,311-312
+  s_b0d7e3abc26c5a::t_f7b7969435bcba 313
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_b0d7e3abc26c5a::t_7fd529b846ae5d 30-32,39
+  s_b0d7e3abc26c5a::t_4a3f91fee498fb 33
+go/internal/storage/postgres/migrations/126_content_files_relative_path_trgm_index_lifecycle.sql
+  s_b0d7e3abc26c5a::t_64d4fbd736801f 1-113
+go/internal/storage/postgres/schema.go
+  s_b0d7e3abc26c5a::t_64d4fbd736801f 65,71-73,337
+  s_b0d7e3abc26c5a::t_b7f638d19e58eb 249-252
+go/internal/storage/postgres/migrations/125_content_files_relative_path_trgm_index.sql
+  s_b0d7e3abc26c5a::t_64d4fbd736801f 1-6,8-17
+  s_b0d7e3abc26c5a::t_9296d209f19253 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2edd96ce310f7046158b5d74c15173dc470abd2",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

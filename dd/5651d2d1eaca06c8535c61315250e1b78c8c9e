@@ -1,0 +1,51 @@
+deploy/helm/eshu/values.yaml
+  s_f2f7fbb6f30866::t_cb3f9cd53e373e 19
+go/cmd/collector-package-registry/README.md
+  s_f2f7fbb6f30866::t_fdc9574b7624eb 48-50
+go/internal/collector/packageregistry/packageruntime/source_test.go
+  s_f2f7fbb6f30866::t_ef0a0fdbf2402b 302,325-337,339-340
+docs/docs/deploy/kubernetes/helm-values.md
+  s_f2f7fbb6f30866::t_b46290f6849f27 291-315
+  s_f2f7fbb6f30866::t_ef0721bf16d4a1 25-29,71-76
+deploy/helm/eshu/values.schema.json
+  s_f2f7fbb6f30866::t_1249f8152e0342 85-88,205,207
+go/internal/collector/packageregistry/packageruntime/bounds_test.go
+  s_f2f7fbb6f30866::t_973fd0b8d2276f 89-151
+go/internal/runtime/helm_chart_contract_test.go
+  s_f2f7fbb6f30866::t_8e22447d9512ef 249-251,305-323,326,336,342-428,462-476
+  s_f2f7fbb6f30866::t_56d2979d3e6845 252-304,324-325,327-335,337-341
+  s_f2f7fbb6f30866::t_56e564dad1756a 165-181
+docs/docs/deployment/service-runtimes.md
+  s_f2f7fbb6f30866::t_ce0983e40feef9 498,503-504,510-521
+deploy/helm/eshu/templates/validate.yaml
+  s_f2f7fbb6f30866::t_11de7665240ee5 49-51,53-66
+deploy/helm/eshu/README.md
+  s_f2f7fbb6f30866::t_fb5c101d801132 17,60-62,131-170
+go/internal/collector/packageregistry/packageruntime/README.md
+  s_f2f7fbb6f30866::t_99537e3bb98418 62-65
+  s_f2f7fbb6f30866::t_4c18e752fdc1ee 71-80
+go/internal/collector/packageregistry/packageruntime/bounds.go
+  s_f2f7fbb6f30866::t_ac1105ba7f8cf5 176-178,216-221,228
+  s_f2f7fbb6f30866::t_3ed7f46eff9b00 5,212-213,247-255
+  s_f2f7fbb6f30866::t_78544904055686 23,101,160,162-166,171,181,186-211,214-215,222-227,229-246
+go/internal/runtime/helm_claim_collectors_contract_test.go
+  s_f2f7fbb6f30866::t_039a1c1df63273 36-81
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_40c22cbdea5e7f 484
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "dd5651d2d1eaca06c8535c61315250e1b78c8c9e",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

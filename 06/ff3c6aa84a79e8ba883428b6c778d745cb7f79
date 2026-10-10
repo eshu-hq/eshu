@@ -1,0 +1,14 @@
+docs/internal/evidence/6786-nornicdb-label-predicates.md
+  h_78a442cba0b3e6 46-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "06ff3c6aa84a79e8ba883428b6c778d745cb7f79",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

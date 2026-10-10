@@ -1,0 +1,61 @@
+docs/plans/2026-05-09-parser-language-layout.md
+  s_bdaf44668b73dc::t_7be6e2296b5344 1-27,32-34,36-37,40,42-48,55-58,67,69,71-87
+  s_bdaf44668b73dc::t_dc2f060361e1b6 28-31,35,39,41,49-54,59-66,68,70
+  s_bdaf44668b73dc::t_06dec241ef963d 38
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 12-13,141
+  s_bdaf44668b73dc::t_9884eef8ec6172 14-15
+  s_bdaf44668b73dc::t_e08a27ae199e4d 16-17
+  s_bdaf44668b73dc::t_17cc75fc55a462 18-19
+  s_bdaf44668b73dc::t_082b9d2f054448 21
+  s_bdaf44668b73dc::t_06dec241ef963d 23
+go/internal/parser/dockerfile/metadata.go
+  s_bdaf44668b73dc::t_492bdd0ce85d80 1-413
+go/internal/parser/dockerfile/README.md
+  s_bdaf44668b73dc::t_492bdd0ce85d80 1-41
+go/internal/parser/dockerfile_language.go
+  s_bdaf44668b73dc::t_492bdd0ce85d80 33
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_fc95b7586ddfec 8-10
+  s_bdaf44668b73dc::t_9884eef8ec6172 17-18
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 32-38
+  s_bdaf44668b73dc::t_e08a27ae199e4d 14-16
+  s_bdaf44668b73dc::t_17cc75fc55a462 40
+  s_bdaf44668b73dc::t_082b9d2f054448 41
+  s_bdaf44668b73dc::t_5787ce6a689f57 43
+  s_bdaf44668b73dc::t_06dec241ef963d 42
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_9884eef8ec6172 113-116
+  s_bdaf44668b73dc::t_f37cadbf385c29 122-124
+  s_bdaf44668b73dc::t_91e8cda920576c 143
+  s_bdaf44668b73dc::t_082b9d2f054448 157,282-283
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 274-275
+  s_bdaf44668b73dc::t_8c4a5d3b1ed5da 276-277
+  s_bdaf44668b73dc::t_e08a27ae199e4d 153-156,278-279
+  s_bdaf44668b73dc::t_17cc75fc55a462 132-134,280-281
+  s_bdaf44668b73dc::t_21b27b57c04ff0 162,167
+  s_bdaf44668b73dc::t_06dec241ef963d 163-166,284-285
+go/internal/parser/dockerfile/AGENTS.md
+  s_bdaf44668b73dc::t_492bdd0ce85d80 1-40
+go/internal/parser/dockerfile/metadata_test.go
+  s_bdaf44668b73dc::t_4379b27a83e9c2 1-2,7-46,49-65,111-112
+  s_bdaf44668b73dc::t_e486d47974d9c5 3-6,47-48,66-110
+go/internal/parser/dockerfile/doc.go
+  s_bdaf44668b73dc::t_492bdd0ce85d80 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "91de84a668a31519a54be7b89113a9c157b95752",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

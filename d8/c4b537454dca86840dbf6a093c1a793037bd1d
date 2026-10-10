@@ -1,0 +1,42 @@
+go/internal/envregistry/registry_test.go
+  s_b0d7e3abc26c5a::t_ee37b0ccce7077 27
+go/internal/query/content_reader_code_topic.go
+  s_b0d7e3abc26c5a::t_8888e7b1a7d83c 44-50
+  s_b0d7e3abc26c5a::t_ac3ba56cfef087 96-104
+go/cmd/api/README.md
+  s_b0d7e3abc26c5a::t_23c568b08bcd85 155-162
+go/internal/query/code_topic_parallel_driver_test.go
+  s_b0d7e3abc26c5a::t_e2b9f74f11b80c 27-37,39-43
+  s_b0d7e3abc26c5a::t_1db4072d538623 38,159-162
+go/internal/query/code_topic_parallel_member_loss_test.go
+  s_b0d7e3abc26c5a::t_ac4868e925dcec 8,27,32,36-53
+  s_b0d7e3abc26c5a::t_e2b9f74f11b80c 10,20,25-26,123-137,139
+  s_b0d7e3abc26c5a::t_18ff18ebaaab4a 9,63,78-97
+  s_b0d7e3abc26c5a::t_5b361dedd72a0c 1-7,11-19,21-22,24,28-29,31,34-35,54-58,60-62,64-77,98-100,138,141
+  s_b0d7e3abc26c5a::t_8b8b29625f5c0e 23,30,33,59,101-122,140
+docs/public/deployment/postgres-read-routing.md
+  s_b0d7e3abc26c5a::t_33acc02cde3594 48-59,103-105
+  s_b0d7e3abc26c5a::t_23c568b08bcd85 23,35,47,60-76,102
+go/cmd/mcp-server/README.md
+  s_b0d7e3abc26c5a::t_23c568b08bcd85 140-147
+go/internal/envregistry/entries.go
+  s_b0d7e3abc26c5a::t_e646f446b46ac8 33
+docs/public/reference/env-registry.md
+  s_b0d7e3abc26c5a::t_3a2b1d1751f271 356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d8c4b537454dca86840dbf6a093c1a793037bd1d",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

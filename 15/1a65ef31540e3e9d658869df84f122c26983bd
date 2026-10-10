@@ -1,0 +1,40 @@
+docs/public/reference/dependency-coverage.md
+  s_f2f7fbb6f30866::t_81c74e8648b7f2 204
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_bf47575da0667f 57,231
+go/internal/reducer/supply_chain_impact_manifest_consumption.go
+  s_f2f7fbb6f30866::t_48ac4f716c8652 99
+go/internal/reducer/package_consumption_dependency_test.go
+  s_f2f7fbb6f30866::t_1c5a1ac5d1d612 4,316-356
+go/internal/reducer/supply_chain_impact_lockfile_test.go
+  s_f2f7fbb6f30866::t_3a343ef490bc6e 7,170,188
+  s_f2f7fbb6f30866::t_ae2286c11571e0 100,143,357-376
+  s_f2f7fbb6f30866::t_d4a261256d5fa1 167-169,171-187,189-209
+go/internal/reducer/supply_chain_impact_ranges.go
+  s_f2f7fbb6f30866::t_a7e7f311d20502 187-197
+  s_f2f7fbb6f30866::t_239b6dbfd5137b 6
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_c9e8026239d865 82,84-86
+go/internal/reducer/package_consumption_correlation.go
+  s_f2f7fbb6f30866::t_b3223dd7c93669 43,128
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_79f027898012ce 63
+go/internal/reducer/package_correlation_writer.go
+  s_f2f7fbb6f30866::t_f51964728937de 293-295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "151a65ef31540e3e9d658869df84f122c26983bd",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

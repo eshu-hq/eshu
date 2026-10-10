@@ -1,0 +1,20 @@
+go/cmd/golden-corpus-gate/io_seams_test.go
+  h_78a442cba0b3e6 68-76,197,222
+go/cmd/golden-corpus-gate/property_assertions_test.go
+  h_78a442cba0b3e6 218-276
+go/cmd/golden-corpus-gate/snapshot_test.go
+  h_78a442cba0b3e6 487-514
+testdata/golden/e2e-20repo-snapshot.json
+  h_78a442cba0b3e6 2165-2174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "07ef6b978f10aa63f39bee151790dd5f52bd42b2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+go/internal/query/entity/live_schema_helper_test.go
+  s_e4670746a61ae9::t_52a7beda321769 11-12
+  s_e4670746a61ae9::t_ca467f882427ec 19,28-30,33,46-85,96-106,108
+go/internal/query/entity/handler.go
+  s_e4670746a61ae9::t_82d629bd985e26 86-96,102,105-106
+go/internal/query/entity/nornicdb_answer_truth_live_test.go
+  s_e4670746a61ae9::t_dc22ad88591394 178-187
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_e4670746a61ae9::t_31de18b2d11b26 217
+go/internal/query/impacttrace/scoped_selector_live_test.go
+  s_e4670746a61ae9::t_c9fad5f3ea6b77 172-179,181
+  s_e4670746a61ae9::t_ec91f635e7b425 149-158
+  s_e4670746a61ae9::t_0f4ba7394073c2 48-82
+  s_e4670746a61ae9::t_07b980b49d02e4 26,30,189
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_e4670746a61ae9::t_13b70174ef494e 33
+docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md
+  s_e4670746a61ae9::t_38da18a3fe185d 46-59
+go/internal/query/entity/scoped_grant_live_test.go
+  s_e4670746a61ae9::t_21d57665874866 27,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b5c6bac81c5528b04e8877e0a10002bbdb28e337",
+  "prompts": {},
+  "sessions": {
+    "s_e4670746a61ae9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc580f2-3bbc-44f5-b367-e76e1733bdfe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

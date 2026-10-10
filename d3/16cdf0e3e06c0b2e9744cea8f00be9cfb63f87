@@ -1,0 +1,33 @@
+go/internal/reducer/code/value/cloud_sink_loader_live_test.go
+  s_02cd429498e265::t_2531b0403da73f 1-174
+go/internal/reducer/code/value/cloud_sink_loader_test.go
+  s_02cd429498e265::t_78cdfd70906f50 9,17-23,26-31,36-82,85,89-101,103-121,123-168,172-173,175-176,180,184-188,190-192,207,212-213,223-224,228,231-237,239-240,243-245,247-249,252-260,263,266,276,280-302
+go/internal/reducer/code/value/cloud_sink_pairs.go
+  s_02cd429498e265::t_9baa18dbb42233 1-102
+go/cmd/reducer/value_flow_wiring.go
+  s_02cd429498e265::t_e5e08134969b69 27
+go/internal/reducer/code/value/README.md
+  s_02cd429498e265::t_9c3568ee5afe8e 56
+go/internal/reducer/code/value/cloud_sink_loader.go
+  s_02cd429498e265::t_a6d0f88657e533 9,22-24,31-39,55,58,61-73,77-90,92,211-215,217-220,224-239
+go/internal/reducer/code/value/doc.go
+  s_02cd429498e265::t_cc798e8d6c6a86 50-54
+go/internal/reducer/compat_projection.go
+  s_02cd429498e265::t_be111b5a77c998 211-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d316cdf0e3e06c0b2e9744cea8f00be9cfb63f87",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

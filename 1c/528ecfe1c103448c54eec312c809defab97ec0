@@ -1,0 +1,21 @@
+docs/internal/design/4786-contract-integration-matrix.md
+  s_20be138600ef1b::t_79b3537a605dfb 33,41,50,58,74,79,157,159
+docs/internal/evidence/6525-dead-reducer-doc-refs.md
+  s_20be138600ef1b::t_875613740487c3 199,252-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1c528ecfe1c103448c54eec312c809defab97ec0",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Test <test@example.test>"
+    }
+  }
+}

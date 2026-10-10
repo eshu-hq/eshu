@@ -1,0 +1,70 @@
+go/internal/query/codeowners/AGENTS.md
+  s_1a49d700cf921c::t_8bc2007a716220 48-49,53
+go/internal/query/queryplan_legacy_production_binding_test.go
+  s_1a49d700cf921c::t_61e03deb9bc8fa 192-194
+go/internal/query/codeowners/ownership_rows.go
+  s_1a49d700cf921c::t_a3017893a1a07c 27
+go/internal/query/codeowners/ownership_scoped_leak_test.go
+  s_1a49d700cf921c::t_0e33f71166d45b 84,87
+docs/internal/design/5584-route-serves-data-registry.md
+  s_1a49d700cf921c::t_78a32d2ceec5f9 105
+  s_1a49d700cf921c::t_ff74caeddb76b0 116
+go/internal/query/codeowners/ownership_cypher_test.go
+  s_1a49d700cf921c::t_946767c5d07d45 14,54
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_1a49d700cf921c::t_5393931fd8d05d 162,164-165,167
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_1a49d700cf921c::t_46a2ec31ecf303 239,244,246,248,250-253,258,267,274
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_1a49d700cf921c::t_11bb946b4665d6 830-832,863-865,884-886,905-907,926-928,942
+docs/public/observability/telemetry-coverage.md
+  s_1a49d700cf921c::t_6018c9587ca2bb 449
+go/internal/query/codeowners/ownership_precedence.go
+  s_1a49d700cf921c::t_64b80c49c1f587 51,91
+specs/fact-kind-registry.v1.yaml
+  s_1a49d700cf921c::t_dd0958d41d5910 513
+go/internal/query/codeowners/README.md
+  s_1a49d700cf921c::t_d6df719c393bb5 141-178
+  s_e8ab01ccdfa8e2::t_910d19eef93a33 53
+go/internal/query/auth_scoped_routes.go
+  s_1a49d700cf921c::t_d873e190433db6 22
+go/internal/query/codeowners/ownership_cypher.go
+  s_4a0f86aa680964::t_1498ac23d1c77f 28,59,121,127,130,136
+  s_1a49d700cf921c::t_d396bdd96ea3c4 122
+go/internal/query/codeowners/ownership.go
+  s_1a49d700cf921c::t_7ee9059868ff0b 25,45,48,160,164,265
+go/internal/query/codeowners/ownership_test.go
+  s_1a49d700cf921c::t_14a09d8d15f340 163,273-274,337-338,351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4bb8599a4a4df77f8c9edeaea84828b1dced71aa",
+  "prompts": {},
+  "sessions": {
+    "s_1a49d700cf921c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d74a2539-bf53-4cd6-9016-7dbde8d1a66c",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

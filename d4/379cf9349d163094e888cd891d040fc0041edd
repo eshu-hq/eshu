@@ -1,0 +1,16 @@
+docs/internal/evidence/6782-b7-neo4j-divergences.md
+  h_78a442cba0b3e6 171-173
+go/cmd/golden-corpus-gate/AGENTS.md
+  h_78a442cba0b3e6 106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d4379cf9349d163094e888cd891d040fc0041edd",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

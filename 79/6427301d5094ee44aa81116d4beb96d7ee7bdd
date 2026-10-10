@@ -1,0 +1,21 @@
+go/internal/storage/cypher/boolean_line_start_unit_test.go
+  s_3d761bb140daa9::t_a82c59578c9b46 1-69
+go/internal/storage/cypher/boolean_line_start_repo_scan_test.go
+  s_3d761bb140daa9::t_f00d7aad875e7b 1-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "796427301d5094ee44aa81116d4beb96d7ee7bdd",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

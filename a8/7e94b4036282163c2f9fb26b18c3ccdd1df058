@@ -1,0 +1,19 @@
+go/internal/storage/postgres/secret/lines/backfill.go
+  s_b0d7e3abc26c5a::t_5ea3f5b4ccbfd0 471
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a87e94b4036282163c2f9fb26b18c3ccdd1df058",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+.github/workflows/live-backend-tests.yml
+  h_78a442cba0b3e6 1-100
+docker-compose.live-backend-nornicdb.yml
+  h_78a442cba0b3e6 1-42
+scripts/test-run-live-backend-tests.sh
+  h_78a442cba0b3e6 1-99
+go/internal/reducer/code/value/cloud_sink_red_case_live_test.go
+  h_78a442cba0b3e6 1-108
+scripts/lib/live_backend_test_targets.py
+  h_78a442cba0b3e6 1-41
+scripts/lib/verify-live-tests-ledger.py
+  h_78a442cba0b3e6 5-7,25,34,41-47
+docker-compose.live-backend-neo4j.yml
+  h_78a442cba0b3e6 1-23
+scripts/run-live-backend-tests.sh
+  h_78a442cba0b3e6 1-237
+specs/live-tests.v1.yaml
+  h_78a442cba0b3e6 29-36,246-247,471-472,496-497,505-506,510-511,515-516,617-620
+scripts/test-verify-live-tests-ledger.sh
+  h_78a442cba0b3e6 123-136
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 2575-2615
+docs/internal/evidence/6784-live-backend-tests.md
+  h_78a442cba0b3e6 1-17
+docs/public/reference/ci-gates.md
+  h_78a442cba0b3e6 11,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a05700e877c42b65dde91d23b7a156733b135980",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

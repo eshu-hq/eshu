@@ -1,0 +1,63 @@
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_ad5375410b02c5 746-771
+deploy/helm/eshu/templates/statefulset.yaml
+  s_f2f7fbb6f30866::t_35d11cb32b7849 104
+deploy/helm/eshu/templates/job-schema-bootstrap.yaml
+  s_f2f7fbb6f30866::t_1656d7b7735ea6 1-8,10-18,20-34,36-70
+  s_f2f7fbb6f30866::t_60f3f1d0d544d3 9,19,35
+go/cmd/bootstrap-data-plane/doc.go
+  s_f2f7fbb6f30866::t_90ddcaf6b99597 11-12
+go/cmd/bootstrap-data-plane/README.md
+  s_f2f7fbb6f30866::t_90ddcaf6b99597 51,60
+deploy/helm/eshu/templates/deployment-workflow-coordinator.yaml
+  s_f2f7fbb6f30866::t_70337627411ee9 66
+deploy/helm/eshu/templates/deployment.yaml
+  s_f2f7fbb6f30866::t_cb533fd4eaa14d 67
+deploy/helm/eshu/templates/deployment-resolution-engine.yaml
+  s_f2f7fbb6f30866::t_c1ce7df9334e61 68,166
+docs/docs/deployment/service-runtimes.md
+  s_f2f7fbb6f30866::t_c7c01c17c689b6 520,537,539,569,571-576,579-581,583-587,591-593,598,602,604,611-613,628-630,633-634,636
+  s_f2f7fbb6f30866::t_b8cf96721cc4ef 61
+deploy/helm/eshu/README.md
+  s_f2f7fbb6f30866::t_88436ef5e02f70 67
+  s_f2f7fbb6f30866::t_b3ce9cfc22be13 66,74-75,90-91
+  s_f2f7fbb6f30866::t_ffeaea50cfdb5a 12-13,55-58
+docs/docs/deploy/kubernetes/manifests.md
+  s_f2f7fbb6f30866::t_ffeaea50cfdb5a 21-22
+docs/docs/deploy/kubernetes/helm-values.md
+  s_f2f7fbb6f30866::t_01a28891ca6c98 13,15,17,20,29,64-68,123-124,130-131
+  s_f2f7fbb6f30866::t_2ed12e3bf7e4c6 76-79,85-99
+  s_f2f7fbb6f30866::t_b8cf96721cc4ef 21-24,74-75,80-84,100-110
+deploy/helm/eshu/templates/deployment-mcp-server.yaml
+  s_f2f7fbb6f30866::t_42163499734ccb 68
+deploy/helm/eshu/templates/_helpers.tpl
+  s_f2f7fbb6f30866::t_1656d7b7735ea6 59-62,367-376
+  s_f2f7fbb6f30866::t_44d377a6ae4985 226-237
+deploy/helm/eshu/values.schema.json
+  s_f2f7fbb6f30866::t_d7c9fd4947a1a8 536-539,550-553,563-566
+  s_f2f7fbb6f30866::t_ffeaea50cfdb5a 128-141
+  s_f2f7fbb6f30866::t_c949b9bf76e9c8 161-164,180-183,227-230
+docs/docs/deploy/kubernetes/index.md
+  s_f2f7fbb6f30866::t_ffeaea50cfdb5a 7-8,11-13,34
+go/cmd/bootstrap-data-plane/AGENTS.md
+  s_f2f7fbb6f30866::t_90ddcaf6b99597 19-20,70
+deploy/helm/eshu/values.yaml
+  s_f2f7fbb6f30866::t_1656d7b7735ea6 39-55
+  s_f2f7fbb6f30866::t_8abb56aabb4469 71,97,124,153,383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "16cc94c3637dacbfa0e7a67ff41f45986c0f3525",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

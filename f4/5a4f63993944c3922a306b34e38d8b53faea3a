@@ -1,0 +1,23 @@
+go/internal/graph/doc.go
+  s_3d761bb140daa9::t_a9ec4e8663ca4f 10-12
+go/internal/graph/AGENTS.md
+  s_3d761bb140daa9::t_3540e50923c6b1 89,114
+go/internal/graph/README.md
+  s_3d761bb140daa9::t_54fb9ff2222b09 8,45,333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f45a4f63993944c3922a306b34e38d8b53faea3a",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

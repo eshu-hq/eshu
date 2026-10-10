@@ -1,0 +1,53 @@
+docs/internal/evidence/7125-secret-lines-side-table.md
+  s_bc720f29f5e0fd::t_d5bf8dc7822c51 6,139,242,257,419
+docs/public/deployment/service-runtimes-bootstrap.md
+  s_bc720f29f5e0fd::t_2a5d3504c73614 54,73,75,341,347
+docs/public/reference/hardcoded-secrets-investigation.md
+  s_bc720f29f5e0fd::t_32b5364fbacaf4 38
+go/internal/query/README.md
+  s_bc720f29f5e0fd::t_c19a2e6c7909e1 1156,1160
+go/internal/query/content_reader_security_secrets.go
+  s_bc720f29f5e0fd::t_1b7ab2dbf7064c 41,200
+go/internal/query/hardcoded_secret_migration_binding_test.go
+  s_bc720f29f5e0fd::t_51b70116c851e7 28
+go/internal/storage/postgres/README.md
+  s_bc720f29f5e0fd::t_13d7ff737f4137 69-70
+go/internal/storage/postgres/content_file_secret_lines_live_test.go
+  s_bc720f29f5e0fd::t_ada0b96ba4676d 87,93,113,124
+go/internal/storage/postgres/content_file_secret_lines_writebench_live_test.go
+  s_bc720f29f5e0fd::t_c29422dbb31b64 113,116
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_bc720f29f5e0fd::t_7c252866156a71 31-33,39
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_bc720f29f5e0fd::t_f54f68a274b23e 178
+go/internal/storage/postgres/schema_order_test.go
+  s_bc720f29f5e0fd::t_a33801a292d645 301
+go/internal/storage/postgres/secret/lines/README.md
+  s_bc720f29f5e0fd::t_a28ab70bf1afeb 7,37,51-59,108
+go/internal/storage/postgres/secret/lines/doc.go
+  s_bc720f29f5e0fd::t_c346fa9fc3cf11 8
+go/internal/storage/postgres/secret/lines/helpers_test.go
+  s_bc720f29f5e0fd::t_b44c655185f6bc 24
+go/internal/storage/postgres/secret/lines/session.go
+  s_bc720f29f5e0fd::t_d530428339438e 15,22,67
+go/internal/storage/postgres/secret/lines/session_binding_test.go
+  s_bc720f29f5e0fd::t_6344e296fa0e41 14,25
+go/internal/storage/postgres/secret/lines/session_test.go
+  s_bc720f29f5e0fd::t_b2b1c904a69d7b 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "404f9877597aced67c229e59028853cd4cc6c083",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

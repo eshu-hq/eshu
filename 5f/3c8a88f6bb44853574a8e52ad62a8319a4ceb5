@@ -1,0 +1,27 @@
+docs/public/deployment/postgres-read-routing.md
+  s_b0d7e3abc26c5a::t_086df131dd4f76 58-61
+go/internal/runtime/postgres/reader_members_test.go
+  s_b0d7e3abc26c5a::t_2754474dbf7075 104-108,110-135
+  s_b0d7e3abc26c5a::t_eeacecdb56e0cf 109
+go/internal/runtime/postgres/config.go
+  s_b0d7e3abc26c5a::t_4d0ebd2183d3ef 11-12,181,184-192
+  s_b0d7e3abc26c5a::t_eeacecdb56e0cf 21-22
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_086df131dd4f76 45-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5f3c8a88f6bb44853574a8e52ad62a8319a4ceb5",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

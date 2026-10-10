@@ -1,0 +1,64 @@
+go/cmd/bootstrap-data-plane/main.go
+  s_f2f7fbb6f30866::t_b5e60072a50a6d 286
+  s_f2f7fbb6f30866::t_6552a5a2cbe1ea 274-285
+  s_f2f7fbb6f30866::t_1604d32a506d7b 5-6,26,121-138,156-158,164-239
+go/internal/storage/postgres/schema_test.go
+  s_f2f7fbb6f30866::t_6552a5a2cbe1ea 16-17,41,59-80
+go/cmd/bootstrap-index/wiring.go
+  s_f2f7fbb6f30866::t_c4f3fc8213be05 19,96-97
+go/internal/storage/cypher/canonical_node_writer_nonrepo_retract_test.go
+  s_f2f7fbb6f30866::t_03145d40e40278 1-12,29,44-45,65,67-68
+  s_f2f7fbb6f30866::t_9deea4bbd14e00 13-28,30-43,46-64,66
+go/internal/storage/cypher/README.md
+  s_f2f7fbb6f30866::t_46fdae26271e0e 255-262
+  s_f2f7fbb6f30866::t_86f704b943dfb5 247-250,263-267
+go/internal/storage/postgres/projector_queue_sql.go
+  s_f2f7fbb6f30866::t_c2aa2be5d9cd2b 47-54,83-90,128-136
+  s_f2f7fbb6f30866::t_8cdc5e08bf0310 55,91
+go/internal/storage/postgres/graph_schema_applications.go
+  s_f2f7fbb6f30866::t_6552a5a2cbe1ea 1-26
+go/internal/storage/postgres/claim_reclaim_test.go
+  s_f2f7fbb6f30866::t_9235662ffa9386 149-150
+  s_f2f7fbb6f30866::t_f09b508e838e35 146-147
+  s_f2f7fbb6f30866::t_9117f8281fb4cc 102-145,148,151-160
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_65228973909d0c 207-229
+  s_f2f7fbb6f30866::t_e16ac3e3d807f6 57-71
+go/cmd/bootstrap-data-plane/main_test_support_test.go
+  s_f2f7fbb6f30866::t_fb28831ec6d2ba 1-126
+go/cmd/bootstrap-index/main_test.go
+  s_f2f7fbb6f30866::t_f1b250c0ce051c 251-275
+go/cmd/bootstrap-data-plane/graph_schema_marker_test.go
+  s_f2f7fbb6f30866::t_fb28831ec6d2ba 1-142
+go/internal/storage/postgres/proof_domain_harness_test.go
+  s_f2f7fbb6f30866::t_ca5348e0b866f0 237-238,240-241,263-268,276-281
+go/internal/storage/postgres/projector_queue.go
+  s_f2f7fbb6f30866::t_96e3d8d24251ac 16-22,42-48,89-96
+go/cmd/bootstrap-data-plane/README.md
+  s_f2f7fbb6f30866::t_e16ac3e3d807f6 15-16,49-55,60-63,71-72,76-82,87-92
+  s_f2f7fbb6f30866::t_66cdc0f024f8b4 83-86
+go/cmd/bootstrap-data-plane/doc.go
+  s_f2f7fbb6f30866::t_e16ac3e3d807f6 11-16
+schema/data-plane/postgres/021_graph_schema_applications.sql
+  s_f2f7fbb6f30866::t_6552a5a2cbe1ea 1-10
+go/cmd/bootstrap-index/README.md
+  s_f2f7fbb6f30866::t_36773138bf041d 70-73
+go/internal/storage/cypher/canonical_node_writer_retract.go
+  s_f2f7fbb6f30866::t_7752ff10c54212 6,15-17,94-96,112-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "422d537f0c9c41f24a008a4bf88ab9234fb2c9f2",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

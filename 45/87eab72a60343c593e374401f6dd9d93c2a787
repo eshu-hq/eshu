@@ -1,0 +1,39 @@
+go/internal/query/visualization/handler_test.go
+  s_e8ab01ccdfa8e2::t_2c01d2d4450337 1-151
+go/internal/query/capability_lockstep_visualization_test.go
+  s_e8ab01ccdfa8e2::t_d7e22583793f0e 1-51
+go/internal/query/visualization/capability.go
+  s_e8ab01ccdfa8e2::t_3f158d4b07f65f 1-33
+go/internal/query/visualization/main_test.go
+  s_e8ab01ccdfa8e2::t_e9191044d22fa7 1-38
+specs/evidence-continuity.v1.yaml
+  s_e8ab01ccdfa8e2::t_c01eb38bfcb40d 241,243,253-254
+go/internal/query/visualization/AGENTS.md
+  s_4a0f86aa680964::t_e8f068c565840a 60-69
+go/internal/query/visualization/README.md
+  s_4a0f86aa680964::t_566d2d1f5adc1b 45-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4587eab72a60343c593e374401f6dd9d93c2a787",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

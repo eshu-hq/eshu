@@ -1,0 +1,27 @@
+scripts/lib/ifa_fault_injection_driver.sh
+  s_50762adbc98aa0::t_0f4e9713ef36c3 167-171
+go/cmd/golden-corpus-gate/main.go
+  s_50762adbc98aa0::t_32b597401cc886 85
+go/cmd/golden-corpus-gate/drains.go
+  s_50762adbc98aa0::t_060e62099cf03c 193-204,209-211,220-228,230-232,236,239,241-242
+  s_50762adbc98aa0::t_020f32b68fc361 46-47
+go/cmd/golden-corpus-gate/drains_pre_maintenance_test.go
+  s_50762adbc98aa0::t_ecdfca30646776 198-204,212-263
+  s_50762adbc98aa0::t_2696df315bb5d9 141-144,153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b2019b3e0632f0bc63d3a681a7ae02e9ee5b4f9a",
+  "prompts": {},
+  "sessions": {
+    "s_50762adbc98aa0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a0d372a-a12a-4663-abff-5a088032f48b",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+docs/internal/evidence/7516-opsqa-code-topic-budget.md
+  h_78a442cba0b3e6 1-56,61-115
+  s_b0d7e3abc26c5a::t_aac96b377d708d 57-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "74fdaa31b4d276d5aa900d3e4125b3dcad2a31f8",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

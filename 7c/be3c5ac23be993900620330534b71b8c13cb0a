@@ -1,0 +1,41 @@
+go/internal/reducer/repo_dependency_projection_quarantine.go
+  s_50762adbc98aa0::t_f1e9758f1726fd 24-32,34,37-47
+go/internal/reducer/repo_dependency_projection_runner.go
+  s_50762adbc98aa0::t_c773a98a5854c2 88-92
+  s_50762adbc98aa0::t_8cc980a9dc7c43 224
+  s_50762adbc98aa0::t_0fea8ffc786110 249-252,254,257
+docs/public/services/resolution-engine.md
+  s_50762adbc98aa0::t_44acb79fbdc8d3 97-101
+docs/public/deployment/service-runtimes.md
+  s_50762adbc98aa0::t_c3fedfe7235141 120-124
+docs/public/run-locally/docker-compose.md
+  s_50762adbc98aa0::t_4c067755470024 497-498
+docs/public/reference/environment-variables.md
+  s_50762adbc98aa0::t_e1d1003296cd19 63
+go/internal/reducer/queue-and-runners.md
+  s_50762adbc98aa0::t_f8091aa442f60a 90-92,97-101
+docs/internal/evidence/6747-ifa-determinism-gate-main-failures.md
+  s_50762adbc98aa0::t_dbb469395f0e09 42-62
+  s_50762adbc98aa0::t_ec81b7437305b4 90-102
+docs/public/observability/telemetry-coverage.md
+  s_50762adbc98aa0::t_4a62aa7d415d14 153
+go/internal/reducer/repo_dependency_projection_shutdown_test.go
+  s_50762adbc98aa0::t_095d5d93de1dc3 189-247
+  s_50762adbc98aa0::t_5fa08246d53937 56-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7cbe3c5ac23be993900620330534b71b8c13cb0a",
+  "prompts": {},
+  "sessions": {
+    "s_50762adbc98aa0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a0d372a-a12a-4663-abff-5a088032f48b",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+go/internal/query/querytestutil/cypher_and_or_test.go
+  s_1e5d8a653a4ee7::t_87922804028cb5 1-127
+go/internal/query/codequery/relationship_repo_anchor_test.go
+  s_1e5d8a653a4ee7::t_033af3a6646508 58
+go/internal/query/querytestutil/cypher_and_or.go
+  s_1e5d8a653a4ee7::t_1245eeed608c10 1-37
+go/internal/query/repository/dependency_cluster_test.go
+  s_1e5d8a653a4ee7::t_184e81f827b841 348-349,358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "36fad1c97e56205be39caf626e2c21278719f827",
+  "prompts": {},
+  "sessions": {
+    "s_1e5d8a653a4ee7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b439ad40-11c6-4924-9243-1ef7dd2cc094",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

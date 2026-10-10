@@ -1,0 +1,55 @@
+go/internal/mcp/dispatch_supply_chain.go
+  s_f2f7fbb6f30866::t_2233834df3604e 63-64,66
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_76a33c9f820353 167-174,233-234
+go/internal/query/supply-chain-advisory-evidence-performance.md
+  s_f2f7fbb6f30866::t_86c4602c83495b 27-37
+go/internal/query/supply_chain_advisory_evidence.go
+  s_f2f7fbb6f30866::t_e9434e06508837 17-20,25-27
+go/internal/mcp/dispatch_advisory_evidence_test.go
+  s_f2f7fbb6f30866::t_714aefa43e884f 11-13,33-40
+  s_f2f7fbb6f30866::t_634c646f513064 52-79
+go/internal/query/supply_chain_repository_selector_test.go
+  s_f2f7fbb6f30866::t_e3f4167337f5a9 191-271
+go/internal/query/openapi_paths_supply_chain_advisory.go
+  s_f2f7fbb6f30866::t_62e24849d754a3 7,13-15,72,76
+docs/public/reference/http-api/vulnerability-impact.md
+  s_f2f7fbb6f30866::t_537bfe6217894a 13-29
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_f2f7fbb6f30866::t_87479260e30975 94
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_a4091df1011caa 264-266
+go/internal/mcp/tools_supply_chain.go
+  s_f2f7fbb6f30866::t_1b42da5f2eec38 169,185-195
+go/internal/query/supply_chain_advisory_evidence_sql.go
+  s_f2f7fbb6f30866::t_cf645668ab0791 107-118
+go/internal/query/supply_chain_advisory_evidence_handler.go
+  s_f2f7fbb6f30866::t_79ce5de54bfe36 46-47,53,82,96-117
+  s_f2f7fbb6f30866::t_2ee09a27ecb562 37-40,45
+go/internal/query/supply_chain_advisory_evidence_test.go
+  s_f2f7fbb6f30866::t_f9670618b1be5e 182-267,482-485
+go/internal/query/supply_chain_advisory_evidence_store.go
+  s_f2f7fbb6f30866::t_ad70b2aa826329 49,62-64,100-101,108-110
+go/internal/query/supply_chain_advisory_evidence_sql_test.go
+  s_f2f7fbb6f30866::t_2c58dd646c8361 49-50,66-69
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_4d3ad3f2aafb7c 205-207,209-221
+go/internal/query/openapi_supply_chain_test.go
+  s_f2f7fbb6f30866::t_9d82e712547a42 68-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "2bd9bcc4e57c65663af12709289d455f6b3957c9",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

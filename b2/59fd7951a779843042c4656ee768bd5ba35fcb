@@ -1,0 +1,20 @@
+go/internal/storage/postgres/accepted_generation.go
+  h_78a442cba0b3e6 113-121
+go/internal/storage/postgres/relationship_generations_complete_test.go
+  h_78a442cba0b3e6 19,27,34,44,56,71,78-137,149,164,179,188
+go/internal/storage/postgres/relationship_schema.go
+  h_78a442cba0b3e6 180-205,211-234
+go/internal/storage/postgres/relationship_store_test.go
+  h_78a442cba0b3e6 642-666,855-859,866-867,869-871,875-885
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b259fd7951a779843042c4656ee768bd5ba35fcb",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

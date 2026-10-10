@@ -1,0 +1,22 @@
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_79bb9895fcb44b 266
+  s_b0d7e3abc26c5a::t_2da3452b494310 265,267-274
+docs/internal/evidence/7033-exact-code-topic-parallel.md
+  s_b0d7e3abc26c5a::t_d52e15450a5989 411-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f2560b0453dc2814382ca88798d967a9c9a2f7e3",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

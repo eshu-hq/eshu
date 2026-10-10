@@ -1,0 +1,23 @@
+go/internal/collector/packageregistry/packageruntime/source_missing_evidence_test.go
+  s_f2f7fbb6f30866::t_c8a1a2ade3a957 18,29,46-51,59-61
+go/internal/collector/packageregistry/packageruntime/source_missing_evidence.go
+  s_f2f7fbb6f30866::t_8056b25c2d6fa3 20
+go/internal/collector/packageregistry/packageruntime/source.go
+  s_f2f7fbb6f30866::t_e2c4c83f185129 184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bd5a68376402570e8c83f1a5773ab8272a097547",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

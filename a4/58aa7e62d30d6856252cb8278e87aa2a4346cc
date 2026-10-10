@@ -1,0 +1,125 @@
+go/cmd/eshu/vuln_scan_fixture_matrix_test.go
+  s_f2f7fbb6f30866::t_e69634e5154766 44-48,52,54,65
+  s_f2f7fbb6f30866::t_97afc8d7dd817c 51
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/incomplete-package-npm/package.json
+  s_f2f7fbb6f30866::t_e69634e5154766 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-pnpm/package.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/vuln_scan_fixture_corpus_test.go
+  s_f2f7fbb6f30866::t_b964fc4bce6f1f 1-444
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-npm/package.json
+  s_f2f7fbb6f30866::t_e69634e5154766 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-rpm-rootfs/var/lib/rpm/synthetic-queryformat.txt
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-go/go.mod
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-5
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-cargo/Cargo.toml
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-7
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-dpkg-rootfs/var/lib/dpkg/status
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-4
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-apk-rootfs/etc/os-release
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-pypi-pyproject/pyproject.toml
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-4
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/malformed-yarn/package.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-yarn/package.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-composer/composer.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-maven/pom.xml
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-pypi-poetry/pyproject.toml
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-7
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-bundler/Gemfile
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-dpkg-rootfs/etc/os-release
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-dpkg-rootfs/etc/os-release
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-gradle/build.gradle.kts
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-5
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-maven/pom.xml
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-pnpm/package.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-pypi-poetry/pyproject.toml
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-7
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_d3c6343e6c086e 532-539,626-638
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-pypi-pipfile/Pipfile
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-cargo/Cargo.toml
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-7
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/incomplete-advisory-npm/package.json
+  s_f2f7fbb6f30866::t_e69634e5154766 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-rpm-rootfs/var/lib/rpm/synthetic-queryformat.txt
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/vuln_scan_fixture_corpus_helpers_test.go
+  s_f2f7fbb6f30866::t_b964fc4bce6f1f 1-91
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-pypi-requirements/requirements.txt
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-rpm-rootfs/etc/os-release
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-apk-rootfs/etc/os-release
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-go/go.mod
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-5
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-pypi-requirements/requirements.txt
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-npm/package.json
+  s_f2f7fbb6f30866::t_e69634e5154766 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-nuget/Worker.csproj
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-nuget/packages.lock.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-bundler/Gemfile
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-rpm-rootfs/etc/os-release
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-yarn/package.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-apk-rootfs/lib/apk/db/installed
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-3
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-dpkg-rootfs/var/lib/dpkg/status
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-4
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-nuget/Worker.csproj
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-pypi-pipfile/Pipfile
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-2
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-pypi-pyproject/pyproject.toml
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-4
+go/cmd/eshu/vuln_scan_fixture_corpus_parser_test.go
+  s_f2f7fbb6f30866::t_f59b092d8d74fc 1-5,7-73,75-101
+  s_f2f7fbb6f30866::t_1323e49f0a83c3 6,74
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-nuget/packages.lock.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/stale-cache-npm/package.json
+  s_f2f7fbb6f30866::t_e69634e5154766 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-composer/composer.json
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-gradle/build.gradle
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-5
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-apk-rootfs/lib/apk/db/installed
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1-3
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/missing-evidence-pypi-requirements/requirements.txt
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-pypi-requirements/requirements-dev.txt
+  s_f2f7fbb6f30866::t_4a09afa99bff60 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a458aa7e62d30d6856252cb8278e87aa2a4346cc",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

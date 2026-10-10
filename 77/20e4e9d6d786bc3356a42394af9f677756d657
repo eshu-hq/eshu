@@ -1,0 +1,241 @@
+go/internal/workflow/collector_instance.go
+  s_1d99ff814cc759::t_c3cd111e31c44b 39-41,81-82
+go/internal/workflow/collector_contract_test.go
+  s_1d99ff814cc759::t_25beff04f3d21f 170-187
+deploy/helm/eshu/templates/servicemonitor.yaml
+  s_00a320afddcac7::t_394fbb67eb9783 160-182
+go/internal/query/openapi_paths_impact.go
+  s_1bcfdeccda6d57::t_335005c777eea6 54
+deploy/helm/eshu/values.schema.json
+  s_00a320afddcac7::t_8ac80906a0b756 260-313,329
+  s_00a320afddcac7::t_decf828f2d50e5 314-328
+deploy/helm/eshu/templates/service-oci-registry-collector-metrics.yaml
+  s_00a320afddcac7::t_458890c903a4f1 1-22
+deploy/helm/eshu/templates/networkpolicy.yaml
+  s_00a320afddcac7::t_4f2970a9939496 188-214
+deploy/helm/eshu/README.md
+  s_00a320afddcac7::t_cc11af7fa86381 4-5,18,20,89-102
+Dockerfile
+  s_00a320afddcac7::t_5603f1f0eb12b6 30
+go/internal/collector/packageregistry/runtime_config_test.go
+  s_9d5a011ebf7c56::t_9534d9d0d21861 1-3,5-48,50-140
+  s_9d5a011ebf7c56::t_b41f65547a2362 4,49
+go/internal/projector/README.md
+  s_0bad9ca69f59b4::t_b4a38671a3f047 51-53,87-88,141-144,222-223
+  s_00a320afddcac7::t_3835273af37668 224-226
+  s_00a320afddcac7::t_d314b9a16c03a9 227
+  s_0bad9ca69f59b4::t_c654b37ac95c50 239
+go/internal/storage/cypher/oci_registry_canonical_writer.go
+  s_0bad9ca69f59b4::t_2b7fa8daf5b728 1-31,33-59,61-84,86-107,109-111,114-356,358-402
+  s_00a320afddcac7::t_141e3ff41e8615 32,60,85,108,112-113
+  s_00a320afddcac7::t_6e2323edc08a59 357
+go/internal/graph/schema.go
+  s_00a320afddcac7::t_d5fb83a81a5b65 133-136,192-197,214-217
+go/internal/graph/doc.go
+  s_00a320afddcac7::t_d9be8f254c9629 12-14
+go/internal/storage/cypher/oci_registry_canonical_writer_test.go
+  s_00a320afddcac7::t_8e4b42500fcb00 1-85,88-93,95-107
+  s_00a320afddcac7::t_6813c90987db5d 86-87,94
+go/internal/workflow/collector_contract.go
+  s_1d99ff814cc759::t_c3cd111e31c44b 124-128
+go/internal/projector/oci_registry_canonical_test.go
+  s_00a320afddcac7::t_f2976e3272ebc8 1-302
+go/internal/storage/cypher/doc.go
+  s_0bad9ca69f59b4::t_b4a38671a3f047 37
+  s_00a320afddcac7::t_92b547c930f23e 38
+  s_00a320afddcac7::t_d3e69ed22082b8 39-40
+deploy/helm/eshu/templates/pdb.yaml
+  s_00a320afddcac7::t_f84c1e2f7734fc 74-88
+go/internal/collector/packageregistry/runtime_config.go
+  s_9d5a011ebf7c56::t_9142c56bcd3d9e 1-129
+go/internal/storage/cypher/canonical_node_writer_retract.go
+  s_00a320afddcac7::t_c960fa623cdd0e 114
+go/internal/query/impact_trace_deployment_oci.go
+  s_1bcfdeccda6d57::t_b7048a01705e27 1-57,59-69,84-85,89,91-103,124-126,130,132-230,241-257,261-299
+  s_1bcfdeccda6d57::t_e064969e65d217 58,258-260
+  s_7fb3fb8b596ff1::t_b3beec0fb985e3 70-83,104-123
+  s_00a320afddcac7::t_144671b3556a3d 86-88,90,127-129,131
+  s_1bcfdeccda6d57::t_a4380350ad6153 231-240
+deploy/helm/eshu/templates/_helpers.tpl
+  s_00a320afddcac7::t_4df63a7288e342 59-62,91-94,130-134,251-264
+  s_00a320afddcac7::t_9cfcd54938c274 265
+go/internal/collector/packageregistry/parser_registry.go
+  s_9d5a011ebf7c56::t_6aa7e9ed670501 1-67
+go/internal/collector/packageregistry/parser_registry_test.go
+  s_9d5a011ebf7c56::t_52a3be3516bc24 1-95
+go/internal/projector/canonical.go
+  s_0bad9ca69f59b4::t_70bd808fb48a7b 27-32,43-49
+  s_00a320afddcac7::t_0c9a6527c2a73d 218-229
+go/internal/workflow/doc.go
+  s_1d99ff814cc759::t_5cff34fed27ae4 15-18
+docs/docs/deploy/kubernetes/index.md
+  s_00a320afddcac7::t_28c82fd49d4e81 7-11,23
+  s_00a320afddcac7::t_b91f118b2e0a4b 21
+go/internal/projector/AGENTS.md
+  s_0bad9ca69f59b4::t_b4a38671a3f047 13-14,37-39
+  s_0bad9ca69f59b4::t_c654b37ac95c50 44
+go/internal/scope/scope_test.go
+  s_1d99ff814cc759::t_25beff04f3d21f 70-74,155-161
+go/internal/graph/schema_test.go
+  s_00a320afddcac7::t_5e72c45b8afd73 187-188,221-223
+go/internal/storage/cypher/AGENTS.md
+  s_0bad9ca69f59b4::t_b4a38671a3f047 23-27,42
+  s_00a320afddcac7::t_3789350f2441ec 43-45
+go/internal/query/README.md
+  s_1bcfdeccda6d57::t_02de35571b36a4 242-243,245-246
+  s_00a320afddcac7::t_eaad542b4946f0 244,247-251
+go/internal/collector/packageregistry/README.md
+  s_00a320afddcac7::t_697d26986f6fbd 1-5,10,19,26-27,35,38,40-41,46-47,58,65-68,95-104
+  s_00a320afddcac7::t_0f52f9bdbffa61 18,25,36-37,39,42,57,105-112,132-139
+  s_00a320afddcac7::t_56bdb81d9abd73 69-71,118-119
+  s_b2ad8b7ca4126e::t_4a68714f8936db 72,12,73-94,120-125
+  s_00a320afddcac7::t_702a686582fe6e 11,28-29,48-49,55-56,59-64
+  s_00a320afddcac7::t_e8381bf3c67593 113-117
+  s_9d5a011ebf7c56::t_fb56574ad7cb54 6-9,13-16,20-24,30-34,43-45,50-54,126-131
+go/internal/collector/packageregistry/doc.go
+  s_00a320afddcac7::t_697d26986f6fbd 1-3,17
+  s_9d5a011ebf7c56::t_2cfdf518be2e93 4-16
+deploy/helm/eshu/values.yaml
+  s_00a320afddcac7::t_c5392f5979a3f5 226-235
+go/internal/projector/canonical_builder.go
+  s_0bad9ca69f59b4::t_70bd808fb48a7b 68
+go/internal/runtime/helm_chart_contract_test.go
+  s_00a320afddcac7::t_10a20dbb902076 6,10,71-151,195-205
+go/internal/storage/cypher/canonical_node_writer_retract_test.go
+  s_00a320afddcac7::t_726eb61c5634a4 305
+go/internal/graph/AGENTS.md
+  s_00a320afddcac7::t_ba11402128b36f 32-35
+  s_00a320afddcac7::t_ea2389f4fe1b55 37-38
+go/internal/projector/oci_registry_canonical.go
+  s_0bad9ca69f59b4::t_70bd808fb48a7b 1-94,96-309,311-462,472-480
+  s_00a320afddcac7::t_cffa85554d6348 95,310,463-471
+go/internal/workflow/collector_instance_test.go
+  s_1d99ff814cc759::t_25beff04f3d21f 57-90
+  s_1d99ff814cc759::t_f8a66b034ca50d 293-313
+go/internal/query/doc.go
+  s_1bcfdeccda6d57::t_c3cde243daf0b9 127
+  s_00a320afddcac7::t_eaad542b4946f0 128-132
+deploy/helm/eshu/templates/validate.yaml
+  s_00a320afddcac7::t_d94ce111b52124 13-15
+go/internal/workflow/progress_test.go
+  s_1d99ff814cc759::t_25beff04f3d21f 182-211
+go/internal/storage/cypher/canonical_node_writer.go
+  s_0bad9ca69f59b4::t_2b7fa8daf5b728 231
+  s_00a320afddcac7::t_61b02b8bd06a19 349-361
+docs/docs/deploy/kubernetes/helm-values.md
+  s_00a320afddcac7::t_8902c5beb1d473 25-29,83-138
+go/internal/query/impact_trace_deployment_oci_test.go
+  s_1bcfdeccda6d57::t_946ff3a4df8b26 1-53,79-143,176-210,229-230
+  s_7fb3fb8b596ff1::t_4c37d202b68cbc 54-78,144-175,211-228
+go/internal/graph/README.md
+  s_00a320afddcac7::t_0a9ee81669b683 119-123
+  s_00a320afddcac7::t_56ab295060f701 156-158
+go/internal/storage/cypher/README.md
+  s_0bad9ca69f59b4::t_b4a38671a3f047 45-46,72,80,263-264
+  s_00a320afddcac7::t_c2fc18984410ec 73-79
+  s_00a320afddcac7::t_f1512f5a319d46 265
+  s_00a320afddcac7::t_ab0f0bcca3b0d9 266-267
+go/internal/collector/packageregistry/AGENTS.md
+  s_00a320afddcac7::t_697d26986f6fbd 1-6,15-23,35-43,47-56
+  s_b2ad8b7ca4126e::t_edc7871c7dd553 12-13,24-27
+  s_00a320afddcac7::t_702a686582fe6e 10,28-29,44
+  s_9d5a011ebf7c56::t_ea08e553c11225 7-9,11,14,30-34,45-46
+scripts/verify_oci_registry_collector_helm.sh
+  s_00a320afddcac7::t_e3a9b5eca63956 1-11,13-16,26-92,96-127
+  s_00a320afddcac7::t_287d7ddd0c3ee4 12,17-23,25
+  s_00a320afddcac7::t_9897899751863d 24
+  s_00a320afddcac7::t_184d9f7918a36e 93-95
+go/internal/projector/doc.go
+  s_0bad9ca69f59b4::t_b4a38671a3f047 13-14
+  s_00a320afddcac7::t_d8adc9a8c92611 15
+docs/docs/adrs/2026-05-12-package-registry-collector.md
+  s_00a320afddcac7::t_cfc23b865c8672 1-328,354-398
+  s_00a320afddcac7::t_8fcbed160738a7 329-333,339-340,342-343,345-346,348-349,351-353
+  s_00a320afddcac7::t_def462d7435916 334-338,341,344,347,350
+docs/docs/adrs/2026-05-10-oci-container-registry-collector.md
+  s_00a320afddcac7::t_cfc23b865c8672 13,16,50-53
+  s_00a320afddcac7::t_ff1f842cf66ed4 230,223,226-228,231-233,318-322,324
+  s_00a320afddcac7::t_2eed09e987af7f 247,56,59,68,72,248-261,234
+  s_00a320afddcac7::t_5fc578cd491d89 55,57-58,60-64,69-71
+  s_00a320afddcac7::t_0c456145f59378 349-350,357-360
+  s_00a320afddcac7::t_7191ffec9a340f 65-67,351-356
+  s_00a320afddcac7::t_e9a43d3f96777f 280-281
+docs/docs/deployment/service-runtimes.md
+  s_00a320afddcac7::t_1d9a128dd5e51e 124,140-145
+  s_00a320afddcac7::t_aa6fe1089e5382 66,116-120
+  s_00a320afddcac7::t_34992e48ea99fc 617,620-622
+go/internal/query/impact_trace_deployment.go
+  s_1bcfdeccda6d57::t_31688e17c8d984 98-102,107-109,150,202-205,263-264
+go/internal/workflow/README.md
+  s_1d99ff814cc759::t_5cff34fed27ae4 113-114,139-143
+go/internal/projector/runtime.go
+  s_0bad9ca69f59b4::t_70bd808fb48a7b 355-357
+go/internal/workflow/fairness_test.go
+  s_1d99ff814cc759::t_25beff04f3d21f 105-106
+deploy/helm/eshu/templates/deployment-oci-registry-collector.yaml
+  s_00a320afddcac7::t_a8b8bee3bd9a15 1-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "7720e4e9d6d786bc3356a42394af9f677756d657",
+  "prompts": {},
+  "sessions": {
+    "s_00a320afddcac7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c52-fa77-7391-8873-a102dce078ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_0bad9ca69f59b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dbc-0241-76b1-b02e-0bd6709ef662",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_1bcfdeccda6d57": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dbc-4cd2-79a2-ae5c-9975f95e1363",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_1d99ff814cc759": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1d9d-699a-7ea2-95f5-576ea8d7b83a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_7fb3fb8b596ff1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dde-bc09-7e32-a9d1-fc8614b71b6f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_9d5a011ebf7c56": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1dbc-992f-7011-9e05-0a55dec5c1f0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b2ad8b7ca4126e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c8e-f2d6-7fd1-b594-24902f49d730",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

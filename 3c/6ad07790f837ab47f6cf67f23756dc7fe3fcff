@@ -1,0 +1,42 @@
+.github/workflows/ifa-determinism-gate.yml
+  s_4a0f86aa680964::t_b01aa874f1109b 720
+  s_e8ab01ccdfa8e2::t_a9a980d4e644f9 718
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_shapes_test.go
+  s_4a0f86aa680964::t_d20b711e2dd687 10-11,15-44,49-71
+  s_4a0f86aa680964::t_9cc4eb2473afcf 45-48
+  s_76eb48722aa6e6::t_86d964595537a6 72
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_test.go
+  s_4a0f86aa680964::t_b396176ddcba39 41-46,50-51,96-101,116-119,125,175,181-184,186-190,355-361,363,365,370-386,403-416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3c6ad07790f837ab47f6cf67f23756dc7fe3fcff",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_76eb48722aa6e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c63352b-88be-4713-bba6-7be0c462d10d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}

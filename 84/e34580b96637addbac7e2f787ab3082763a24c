@@ -1,0 +1,18 @@
+go/internal/storage/cypher/edge/writer/row_keys_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/edge/writer/unwind_row_keys_helper_test.go
+  h_78a442cba0b3e6 4,12-13,94
+go/internal/storage/cypher/edge/writer/unwind_row_keys_writers_test.go
+  h_78a442cba0b3e6 4,11,257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "84e34580b96637addbac7e2f787ab3082763a24c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

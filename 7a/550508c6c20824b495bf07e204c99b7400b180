@@ -1,0 +1,53 @@
+go/internal/projector/workload/cloud/reducer_intent_test.go
+  s_4a0f86aa680964::t_0c868eb8a1e0c2 4,37,42,51,72,84
+go/internal/projector/workload/cloud/AGENTS.md
+  s_4a0f86aa680964::t_b5b763f7213357 1,6-8,13,25-26
+go/internal/projector/cloud/inventory/README.md
+  s_4a0f86aa680964::t_e9c2ea97257b39 87
+go/internal/projector/workload/AGENTS.md
+  s_4a0f86aa680964::t_7bd4c9acfa983b 1-22
+go/internal/projector/workload/README.md
+  s_4a0f86aa680964::t_2fafe5edc92505 1-13
+go/internal/projector/workload/cloud/doc.go
+  s_4a0f86aa680964::t_96d1411878bde5 4,9
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_c7e08761d8562d 103
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_105e30a6f37dc3 61
+go/internal/projector/scope_generation_intents.go
+  s_4a0f86aa680964::t_f537d1c4a5e928 37,91
+go/internal/projector/aws/resource/README.md
+  s_4a0f86aa680964::t_f0a86acffeba16 67
+go/internal/projector/doc.go
+  s_4a0f86aa680964::t_677bcab03af925 73
+go/internal/projector/workload/cloud/reducer_intent.go
+  s_4a0f86aa680964::t_459cea2587b778 4,12-17
+go/internal/projector/workload/doc.go
+  s_4a0f86aa680964::t_1b942a94493e19 1-7
+go/internal/projector/README.md
+  s_4a0f86aa680964::t_184ff3a4193a08 187,193,250
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_d58d9d8def0a19 740
+docs/internal/evidence/6627-projector-workload-cloud-intent-package-move.md
+  s_4a0f86aa680964::t_080319a065f901 1-98
+  s_4a0f86aa680964::t_558f295fd5dddc 99-103
+go/internal/projector/workload/cloud/README.md
+  s_4a0f86aa680964::t_18af016bbbb171 39-43
+  s_4a0f86aa680964::t_76f465995524c3 1,20,61-76,80-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7a550508c6c20824b495bf07e204c99b7400b180",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

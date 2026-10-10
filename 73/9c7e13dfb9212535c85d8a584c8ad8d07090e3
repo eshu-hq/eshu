@@ -1,0 +1,14 @@
+go/internal/queryplan/testdata/statement-builders.yaml
+  h_78a442cba0b3e6 319-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "739c7e13dfb9212535c85d8a584c8ad8d07090e3",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

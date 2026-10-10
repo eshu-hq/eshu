@@ -1,0 +1,147 @@
+go/internal/projector/aws/README.md
+  s_4a0f86aa680964::t_9dfc4d3316d826 49-50,55-75,77-81
+  s_4a0f86aa680964::t_128e6e6fb0ab47 1-48,82-85
+  s_4a0f86aa680964::t_7507bfa549450a 52-54
+  s_4a0f86aa680964::t_919d5c2136a58b 51,76
+go/internal/projector/aws/cloud/image/README.md
+  s_4a0f86aa680964::t_8667c9046feb68 33,93,107,113-116
+  s_4a0f86aa680964::t_f9741cc5d3b452 101-103
+docs/internal/evidence/5743-ec2-identity-residual.md
+  s_4a0f86aa680964::t_04e53559c8129d 3-7
+go/internal/projector/aws/relationship/materialization_intents_test.go
+  s_4a0f86aa680964::t_9561c5339c15d9 4,39,45,54,80,97,111,125
+go/internal/projector/aws/relationship/materialization_intents.go
+  s_4a0f86aa680964::t_9561c5339c15d9 4,12,23
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_aa0bbcd5727cda 72,341-342
+  s_4a0f86aa680964::t_c2433a8b6b8531 448,450-451
+  s_4a0f86aa680964::t_a136c5f6c0b9c1 55-58
+  s_4a0f86aa680964::t_2890e30e2bd1fd 47-50
+go/internal/projector/aws/cloud/image/materialization_intents.go
+  s_4a0f86aa680964::t_9561c5339c15d9 4,12,18,57
+go/internal/projector/intent/README.md
+  s_4a0f86aa680964::t_a0ea2e48b562e6 55,57
+go/internal/projector/aws/rds/AGENTS.md
+  s_4a0f86aa680964::t_8667c9046feb68 6-8,13
+go/internal/projector/aws/resource/README.md
+  s_4a0f86aa680964::t_8667c9046feb68 25,112,122-124
+  s_4a0f86aa680964::t_f3ba24820dedfb 66,75
+go/internal/projector/aws/doc.go
+  s_4a0f86aa680964::t_128e6e6fb0ab47 1-9
+docs/internal/aws-relationship-edge-materialization-design.md
+  s_4a0f86aa680964::t_04e53559c8129d 66,521-522
+go/internal/reducer/ec2usesprofile/ec2_uses_profile_materialization.go
+  s_4a0f86aa680964::t_37ae52fd865a38 72
+go/internal/projector/observabilitycoverage/factschema_decode_aws.go
+  s_4a0f86aa680964::t_37ae52fd865a38 18
+docs/internal/design/1146-ec2-instance-node.md
+  s_4a0f86aa680964::t_1d58653a860d39 54
+go/internal/projector/multicloudruntimedrift/AGENTS.md
+  s_4a0f86aa680964::t_a9af1661148703 11
+go/internal/projector/aws/cloud/AGENTS.md
+  s_4a0f86aa680964::t_128e6e6fb0ab47 1-20
+go/internal/projector/README.md
+  s_4a0f86aa680964::t_a0ea2e48b562e6 249-250,263-264,269,353,365
+go/internal/projector/containerimageidentity/AGENTS.md
+  s_4a0f86aa680964::t_1d58653a860d39 10
+go/internal/projector/containerimageidentity/factschema_decode_aws.go
+  s_4a0f86aa680964::t_37ae52fd865a38 18
+go/internal/projector/awscloudruntimedrift/AGENTS.md
+  s_4a0f86aa680964::t_a9af1661148703 76,83,88
+go/internal/projector/aws/resource/doc.go
+  s_4a0f86aa680964::t_8667c9046feb68 7
+  s_4a0f86aa680964::t_9561c5339c15d9 23
+  s_4a0f86aa680964::t_f3ba24820dedfb 4
+go/internal/projector/aws_cloud_image_materialization_intents_test.go
+  s_4a0f86aa680964::t_fdeb3cc12cc1a6 24-25,96
+go/internal/projector/iaminstanceprofile/factschema_decode_aws.go
+  s_4a0f86aa680964::t_37ae52fd865a38 18
+go/internal/projector/aws/resource/AGENTS.md
+  s_4a0f86aa680964::t_8667c9046feb68 6-8,20,49-50,61-62,91,96
+  s_4a0f86aa680964::t_16f4e4504e85d4 33
+go/internal/projector/multicloudruntimedrift/README.md
+  s_4a0f86aa680964::t_a9af1661148703 108
+go/internal/projector/aws/rds/posture_materialization_intents.go
+  s_4a0f86aa680964::t_9561c5339c15d9 12,25
+go/internal/projector/aws/s3/AGENTS.md
+  s_4a0f86aa680964::t_8667c9046feb68 6-8
+go/internal/projector/aws/relationship/README.md
+  s_4a0f86aa680964::t_f9741cc5d3b452 82-84
+  s_4a0f86aa680964::t_8667c9046feb68 22,76,85,91-94
+go/internal/projector/observabilitycoveragematerialization/README.md
+  s_4a0f86aa680964::t_37ae52fd865a38 33
+go/internal/projector/aws/resource/materialization_intents.go
+  s_4a0f86aa680964::t_9561c5339c15d9 4,12,32
+go/internal/projector/aws/rds/intents_test.go
+  s_4a0f86aa680964::t_9561c5339c15d9 39,44,52,73,88,100
+go/internal/projector/aws/cloud/image/materialization_intents_test.go
+  s_4a0f86aa680964::t_9561c5339c15d9 4,40,50,59,85,104,122,139,156
+go/internal/projector/AGENTS.md
+  s_4a0f86aa680964::t_a0ea2e48b562e6 267,278,292,315
+go/internal/projector/observabilitycoveragematerialization/factschema_decode_aws.go
+  s_4a0f86aa680964::t_a9af1661148703 19
+go/internal/projector/scope_generation_intents.go
+  s_4a0f86aa680964::t_0f2b91b216df0d 8-13,73,94,97,100,124,127,130,133,136,142,145,148
+go/internal/projector/doc.go
+  s_4a0f86aa680964::t_a0ea2e48b562e6 60,69,71,78
+go/internal/projector/aws/cloud/image/doc.go
+  s_4a0f86aa680964::t_9561c5339c15d9 18
+  s_4a0f86aa680964::t_f3ba24820dedfb 4
+go/internal/projector/aws/ec2/AGENTS.md
+  s_4a0f86aa680964::t_8667c9046feb68 6-8
+go/internal/projector/awscloudruntimedrift/README.md
+  s_4a0f86aa680964::t_a9af1661148703 67
+go/internal/projector/aws/rds/README.md
+  s_4a0f86aa680964::t_8667c9046feb68 22,83-85
+docs/internal/design/4786-contract-integration-matrix.md
+  s_4a0f86aa680964::t_3b8b37ec591921 38
+go/internal/projector/containerimageidentity/README.md
+  s_4a0f86aa680964::t_1d58653a860d39 124
+go/internal/projector/aws/relationship/AGENTS.md
+  s_4a0f86aa680964::t_8667c9046feb68 6-8,15
+go/internal/projector/aws/relationship/doc.go
+  s_4a0f86aa680964::t_f3ba24820dedfb 4
+  s_4a0f86aa680964::t_9561c5339c15d9 13
+go/internal/projector/aws/cloud/doc.go
+  s_4a0f86aa680964::t_128e6e6fb0ab47 1-9
+go/internal/projector/aws_resource_materialization_projection_test.go
+  s_4a0f86aa680964::t_fdeb3cc12cc1a6 17,19,22
+go/internal/projector/aws/s3/factschema_decode_aws.go
+  s_4a0f86aa680964::t_37ae52fd865a38 18
+go/internal/projector/aws/AGENTS.md
+  s_4a0f86aa680964::t_128e6e6fb0ab47 1-25
+go/internal/projector/aws/cloud/image/AGENTS.md
+  s_4a0f86aa680964::t_8667c9046feb68 6-8,23,54,60,93,112
+go/internal/projector/aws/cloud/README.md
+  s_4a0f86aa680964::t_128e6e6fb0ab47 1-35
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_c2e79ef4cb873e 893
+  s_4a0f86aa680964::t_bfa55638e97fb7 729,735,749
+go/internal/projector/aws/ec2/README.md
+  s_4a0f86aa680964::t_8667c9046feb68 98-100
+go/internal/projector/aws/s3/README.md
+  s_4a0f86aa680964::t_8667c9046feb68 103-105
+go/internal/projector/iamcanassume/factschema_decode_iam.go
+  s_4a0f86aa680964::t_37ae52fd865a38 18,36
+go/internal/projector/aws/resource/materialization_intents_test.go
+  s_4a0f86aa680964::t_9561c5339c15d9 4,40,46,55,80,97,114,128
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_314213f991ad51 76-77,80
+  s_4a0f86aa680964::t_e21d26cc044f67 73-75,78-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d444855a5ecea7b3c64a508ff24c614e8ba7f34b",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

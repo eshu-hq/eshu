@@ -1,0 +1,16 @@
+docs/internal/evidence/6783-nornicdb-write-counters.md
+  h_78a442cba0b3e6 1-115
+go/internal/queryplan/testdata/statement-builders.yaml
+  h_78a442cba0b3e6 10,19,26,33,50,59,68,77,84,91,100,117,127,139,150,159,172,188,200,209-318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a618e163db7e3be7c2cde5ccc381903707a799d8",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

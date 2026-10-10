@@ -1,0 +1,25 @@
+docs/internal/evidence/6782-b7-neo4j-divergences.md
+  s_555cd0c89ed5d7::t_a4f0f2ab678b7a 1-147
+docs/public/reference/backend-conformance.md
+  s_555cd0c89ed5d7::t_e8590df2cca2b0 92-116
+docs/public/reference/local-testing.md
+  s_555cd0c89ed5d7::t_3a9fd8e314c574 376-377
+docs/public/reference/local-testing/golden-corpus-gate.md
+  s_555cd0c89ed5d7::t_7b7ad798550268 127-147,242-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f524cc992dadba7185a6d85ccfeb9005b3ce43a0",
+  "prompts": {},
+  "sessions": {
+    "s_555cd0c89ed5d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f261fc2-3239-49a9-ad65-21397f61909c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

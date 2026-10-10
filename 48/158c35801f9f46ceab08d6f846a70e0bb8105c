@@ -1,0 +1,23 @@
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_87f0142965f130 500-504
+  s_f2f7fbb6f30866::t_2b03a14cdfc914 464-471
+  s_f2f7fbb6f30866::t_51de14ca52b307 407-411,505
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_ace84c02079248 528-531,548-550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "48158c35801f9f46ceab08d6f846a70e0bb8105c",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

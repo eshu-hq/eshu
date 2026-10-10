@@ -1,0 +1,14 @@
+go/internal/cigates/scriptworkflow.go
+  h_78a442cba0b3e6 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bfd3f55a453c1d68e109d201181cd0bb4201a89d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

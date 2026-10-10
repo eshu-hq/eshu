@@ -1,0 +1,73 @@
+go/internal/facts/package_registry.go
+  s_00a320afddcac7::t_697d26986f6fbd 1-91
+go/internal/collector/packageregistry/identity_test.go
+  s_00a320afddcac7::t_14b0ed407b4fe4 1-43,45-135
+docs/docs/adrs/2026-05-10-oci-container-registry-collector.md
+  s_00a320afddcac7::t_cfc23b865c8672 13,16,50-53
+  s_00a320afddcac7::t_ff1f842cf66ed4 212
+  s_00a320afddcac7::t_2eed09e987af7f 225
+go/internal/facts/package_registry_test.go
+  s_00a320afddcac7::t_14b0ed407b4fe4 1-42
+go/internal/facts/README.md
+  s_00a320afddcac7::t_3afd3e6198be5a 77-94
+go/internal/collector/AGENTS.md
+  s_00a320afddcac7::t_3afd3e6198be5a 17-18,88-91
+go/internal/collector/packageregistry/AGENTS.md
+  s_00a320afddcac7::t_697d26986f6fbd 1-6,9-36
+docs/docs/adrs/README.md
+  s_00a320afddcac7::t_cfc23b865c8672 54,73-75
+go/internal/collector/packageregistry/doc.go
+  s_00a320afddcac7::t_697d26986f6fbd 1-3,12
+go/internal/collector/packageregistry/envelope_test.go
+  s_00a320afddcac7::t_14b0ed407b4fe4 1-112
+go/internal/collector/README.md
+  s_00a320afddcac7::t_3afd3e6198be5a 167-169
+go/internal/collector/packageregistry/version_test.go
+  s_00a320afddcac7::t_281c047c682837 1-97
+go/internal/facts/doc.go
+  s_00a320afddcac7::t_3afd3e6198be5a 12-14
+go/internal/collector/packageregistry/envelope.go
+  s_00a320afddcac7::t_697d26986f6fbd 1-24,26-46,51-70
+  s_00a320afddcac7::t_1720c151417042 25
+go/internal/collector/packageregistry/README.md
+  s_00a320afddcac7::t_697d26986f6fbd 1-5,9,15,22-23,29,32,34-35,37-38,40-44,49-58
+  s_00a320afddcac7::t_0f52f9bdbffa61 14,21,30-31,33,36,39,59-66,69-76
+  s_00a320afddcac7::t_56bdb81d9abd73 45-47,67-68
+  s_b2ad8b7ca4126e::t_4a68714f8936db 48
+go/internal/collector/packageregistry/identity.go
+  s_00a320afddcac7::t_697d26986f6fbd 1-60,62-94,97-98,101-123
+  s_00a320afddcac7::t_0e5666bf36992b 95-96,99-100
+docs/docs/adrs/2026-05-12-package-registry-collector.md
+  s_00a320afddcac7::t_cfc23b865c8672 1-328,350-394
+  s_00a320afddcac7::t_8fcbed160738a7 329-333,335-336,338-339,341-342,344-345,347-349
+go/internal/collector/packageregistry/types.go
+  s_00a320afddcac7::t_697d26986f6fbd 1-71
+  s_00a320afddcac7::t_1720c151417042 72-89
+  s_b2ad8b7ca4126e::t_17a2364babc081 90-91
+go/internal/collector/packageregistry/version.go
+  s_00a320afddcac7::t_1720c151417042 1-55,60-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "b1773be5c091597c8849ea3eaf5de125c43a3c62",
+  "prompts": {},
+  "sessions": {
+    "s_00a320afddcac7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c52-fa77-7391-8873-a102dce078ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b2ad8b7ca4126e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c8e-f2d6-7fd1-b594-24902f49d730",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

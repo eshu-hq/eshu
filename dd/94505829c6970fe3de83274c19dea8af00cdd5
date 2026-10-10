@@ -1,0 +1,57 @@
+docs/internal/evidence/7088-package-consumption-backfill-observability.md
+  s_b0d7e3abc26c5a::t_7c241d54350d12 67-68
+  s_b0d7e3abc26c5a::t_237235beb3f46b 98
+  s_b0d7e3abc26c5a::t_ad6378cc18b601 57-61,64
+  s_b0d7e3abc26c5a::t_d4d2b5b1b40b80 62-63,65-66
+  s_b0d7e3abc26c5a::t_d17ec934ef2c9e 79-97,99-101
+  s_b0d7e3abc26c5a::t_501e4868e44d3e 53-56,69-78
+go/internal/storage/postgres/package_manifest_consumption_backfill_revision_live_test.go
+  s_b0d7e3abc26c5a::t_ca6b629f092fbb 46-64,71-93,125,133-134,165-180,182
+  s_b0d7e3abc26c5a::t_3865814db7c3eb 65,94-99,101-111,113-124,126-132
+  s_b0d7e3abc26c5a::t_71b15ca78b8825 9
+  s_b0d7e3abc26c5a::t_c059db1de72631 100,112
+  s_b0d7e3abc26c5a::t_46eeb80a314bf3 1-8,10-45,135-164,181,183
+  s_b0d7e3abc26c5a::t_37657f6a13f9c5 66-70
+go/cmd/reducer/package_manifest_backfill_cursor_test.go
+  s_b0d7e3abc26c5a::t_dd9c2cb2be5b24 1-26
+go/internal/storage/postgres/package_manifest_consumption_backfill.go
+  s_b0d7e3abc26c5a::t_7700171529f188 25-26,29,32,38,41-47,50,53,57,62-63,66-68,78,82,85-86,88,93-112,114,117-122,125,131-141,143,149-151,153,173-174,215-216
+  s_b0d7e3abc26c5a::t_155338f4f9dcdb 113
+  s_b0d7e3abc26c5a::t_0d5fdc32f4a58d 226-276,278-279,284-285,288-291,312-314,316,318-326,328-330,332-333,335,337,339-340,343
+  s_b0d7e3abc26c5a::t_9627f49bcd717b 180-196
+go/internal/storage/postgres/package_manifest_consumption_keys.go
+  s_b0d7e3abc26c5a::t_0d5fdc32f4a58d 10,170-437
+go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go
+  s_b0d7e3abc26c5a::t_fa01ca6b98a2fc 224-227
+go/internal/storage/postgres/migrations/142_package_manifest_consumption_repair_progress.sql
+  s_b0d7e3abc26c5a::t_95dda32617e996 1-50
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_b0d7e3abc26c5a::t_96b35902eac114 46
+  s_b0d7e3abc26c5a::t_66c32b0010f14e 40
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_ec03c2bcf182c6 194
+go/internal/storage/postgres/package_manifest_consumption_backfill_20k_live_test.go
+  s_b0d7e3abc26c5a::t_d0756f91337e36 1-37,39-57,62-80,82-84,86-93,96-106,109-116,118-122,125-130,132-143
+  s_b0d7e3abc26c5a::t_fdcab052ea8103 38,81
+  s_b0d7e3abc26c5a::t_d82564a354b1ed 85
+  s_b0d7e3abc26c5a::t_726f51e328095d 58-61,117,123-124,131
+  s_b0d7e3abc26c5a::t_e440305906ca93 94-95,107-108
+go/cmd/reducer/package_manifest_backfill.go
+  s_b0d7e3abc26c5a::t_b83928774ac9de 30-39,81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dd94505829c6970fe3de83274c19dea8af00cdd5",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

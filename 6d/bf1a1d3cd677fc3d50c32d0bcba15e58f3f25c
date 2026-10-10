@@ -1,0 +1,48 @@
+scripts/test-run-live-postgres-readiness-tests.sh
+  s_b0d7e3abc26c5a::t_cd7b0647a0bab4 105-108
+  s_b0d7e3abc26c5a::t_3d9fbf09a4baf0 101
+  s_b0d7e3abc26c5a::t_01a88cd66088a7 1-94,110
+  s_b0d7e3abc26c5a::t_feafab7422b884 95-100,102-104,109
+specs/live-tests.v1.yaml
+  s_b0d7e3abc26c5a::t_53f9534375bdd4 9-19,21-22,34-37,813-815,818-820
+specs/ci-gates.v1.yaml
+  s_b0d7e3abc26c5a::t_54db92d4d195a6 2965-2974,2976-2980,2982-2989,2991-3004
+  s_b0d7e3abc26c5a::t_d4f5f112ebf66e 2975,2981,2990
+.github/workflows/required-gates.yml
+  s_b0d7e3abc26c5a::t_71e477caff3d05 19
+scripts/lib/live_postgres_readiness_results.py
+  s_b0d7e3abc26c5a::t_a1ab21ad39c28e 1-23,25-26,28-30,36-43,45,49-130
+  s_b0d7e3abc26c5a::t_269e3ffbeac942 24,27,31-35,44,46-48
+.github/workflows/live-postgres-readiness.yml
+  s_b0d7e3abc26c5a::t_2304ebc0bc485a 1-17,19-21,25-26,28-36,38-40,44-45,47-98
+  s_b0d7e3abc26c5a::t_26295724a37623 18,37
+  s_b0d7e3abc26c5a::t_118118f18a5879 22-24,27,41-43,46
+scripts/test-verify-live-tests-ledger.sh
+  s_b0d7e3abc26c5a::t_094cde16299597 168-173,289-294
+  s_b0d7e3abc26c5a::t_415b41a518b552 307-331
+  s_b0d7e3abc26c5a::t_46506e07c0b387 45-74
+  s_b0d7e3abc26c5a::t_e2049c9ffc1c2d 27-39,41-44,75-77
+  s_b0d7e3abc26c5a::t_597df694269d82 40
+scripts/lib/verify-live-tests-ledger.py
+  s_b0d7e3abc26c5a::t_4629045a4fba45 44
+  s_b0d7e3abc26c5a::t_d2e710f0240cf2 14,26,35-36,41,43,45-49,78-104
+  s_b0d7e3abc26c5a::t_52d788ce451d78 105
+scripts/run-live-postgres-readiness-tests.sh
+  s_b0d7e3abc26c5a::t_3cc121875064b1 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6dbf1a1d3cd677fc3d50c32d0bcba15e58f3f25c",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+docs/plans/2026-05-09-parser-language-layout.md
+  s_bdaf44668b73dc::t_7be6e2296b5344 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "c098015ba4be97a24dd01886080b3d77eacb4048",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

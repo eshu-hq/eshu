@@ -1,0 +1,38 @@
+docs/public/observability/telemetry-coverage.md
+  s_50762adbc98aa0::t_45cb1b1eec10d1 153
+  s_50762adbc98aa0::t_cd1b01d8e04dfe 124
+go/internal/reducer/repo_dependency_projection_shutdown_test.go
+  s_50762adbc98aa0::t_60708a8ca58a23 1-185
+go/internal/reducer/queue-and-runners.md
+  s_50762adbc98aa0::t_f2974b65be41fa 87-96
+docs/internal/evidence/6747-ifa-determinism-gate-main-failures.md
+  s_50762adbc98aa0::t_fda97c436d6426 1-56,70-144
+  s_50762adbc98aa0::t_67259a5d49bb1e 57-69
+go/internal/reducer/repo_dependency_projection_quarantine.go
+  s_50762adbc98aa0::t_2c0d769e7ff92a 10,13-15,18-77
+  s_50762adbc98aa0::t_6285e987587a74 78
+go/internal/reducer/repo_dependency_projection_telemetry.go
+  s_50762adbc98aa0::t_7283eb17814e60 185-232
+go/internal/reducer/repo_dependency_projection_runner.go
+  s_50762adbc98aa0::t_7aa1299f17ae1e 176-182,186,189-193,197
+  s_50762adbc98aa0::t_5b02a44f26ef7b 62-67
+  s_50762adbc98aa0::t_0b60ba8ce0526b 88-92
+  s_50762adbc98aa0::t_013f0551604b82 210,215
+  s_50762adbc98aa0::t_8852537814e379 248,251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9fd6babd08d317998e681c0c7e5f75eaa3dbdd18",
+  "prompts": {},
+  "sessions": {
+    "s_50762adbc98aa0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a0d372a-a12a-4663-abff-5a088032f48b",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

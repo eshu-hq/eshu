@@ -1,0 +1,19 @@
+docs/internal/evidence/6786-nornicdb-label-predicates.md
+  s_31b6f580331b60::t_ac3e2a98b9af0a 18-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cb29eb480392f2cc3d7f27444860010c78c76316",
+  "prompts": {},
+  "sessions": {
+    "s_31b6f580331b60": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c99a8a4e-2b09-403a-a67b-cd01f8bf03be",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

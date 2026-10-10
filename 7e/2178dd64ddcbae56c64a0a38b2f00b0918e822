@@ -1,0 +1,57 @@
+go/internal/query/querycontract/content.go
+  s_e941c29aaba38a::t_3351bebec77027 177
+go/internal/query/service/evidence/README.md
+  s_e941c29aaba38a::t_61ba43f59bb998 32-39
+  s_e941c29aaba38a::t_a1c0044b6c1001 1,5-18,26-30,41-49,51-56
+go/internal/query/service/evidence/parse.go
+  s_e8ab01ccdfa8e2::t_acd37557417b2b 196,224,249,251,254,264,273-274,297-299,315,321
+  s_e941c29aaba38a::t_645bc5624ae847 5,12,17,31-35,44,46,51-53
+  s_e941c29aaba38a::t_9c9ec5794718a5 13-15
+go/internal/query/service/service_docs_routes.go
+  s_e941c29aaba38a::t_68663b25db01f5 7,12,14
+go/internal/query/service/AGENTS.md
+  s_e941c29aaba38a::t_ee1210c6949fd3 16
+go/internal/query/service/README.md
+  s_e941c29aaba38a::t_71a73ea9476854 59
+  s_e941c29aaba38a::t_6c90456abfb26c 35
+go/internal/query/service/evidence/doc.go
+  s_e941c29aaba38a::t_cfb15164f3666b 4-10,20
+  s_e941c29aaba38a::t_90e537ddf06d64 14-19
+go/internal/query/service/service_evidence.go
+  s_e941c29aaba38a::t_d913aec0f411b6 13
+  s_e941c29aaba38a::t_551720741890a5 170,173
+  s_e8ab01ccdfa8e2::t_132eb5b427922d 31,68,84,97,109,126,130-132,134,136-138,140,142-144,146,148-150,152-153,155,157-158,161
+go/internal/query/repository/narrative_enrichment.go
+  s_e941c29aaba38a::t_a64e6dfe5b6757 195
+  s_e941c29aaba38a::t_1dc9e6eaddc289 15
+  s_e941c29aaba38a::t_d260952e1d1157 202
+go/internal/query/service/evidence/AGENTS.md
+  s_e941c29aaba38a::t_4c559ccf9c4218 1,6-7,10-29,36-39,46-49,53-54,59-60,73-75
+go/internal/query/service/service_evidence_types.go
+  s_e941c29aaba38a::t_a2131168181078 11
+  s_e941c29aaba38a::t_1f675b6d10373b 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7e2178dd64ddcbae56c64a0a38b2f00b0918e822",
+  "prompts": {},
+  "sessions": {
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e941c29aaba38a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a5f6377-b8da-4c77-bd98-7d744658fe6c",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

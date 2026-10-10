@@ -1,0 +1,25 @@
+docs/public/reference/nornicdb-pitfalls.md
+  s_13513e1653f60b::t_c6316af8b7acab 8-11
+go/internal/query/evidence-notes.md
+  s_13513e1653f60b::t_9727fa9bf7c3c7 1164-1167
+go/internal/query/querytestutil/AGENTS.md
+  s_13513e1653f60b::t_52015e5a5dcf09 282-291
+go/internal/query/querytestutil/README.md
+  s_13513e1653f60b::t_1a7f733771af34 119-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7da33189c4815037bfe615d1961b98b426310e2a",
+  "prompts": {},
+  "sessions": {
+    "s_13513e1653f60b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be54da3d-092b-4f0e-960b-90e822f671a3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

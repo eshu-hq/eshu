@@ -1,0 +1,32 @@
+go/internal/storage/cypher/package_registry_identity_locks.go
+  s_f2f7fbb6f30866::t_32fcdbb20c7c5d 1-3,6-8,10,14-15,18-28,36-41,43,45-48,50-51,53-54,56-70,86,106,115-150
+  s_f2f7fbb6f30866::t_364a27f4b35549 9,29-35,42,44,49,52,55,71-75,87
+  s_f2f7fbb6f30866::t_d6ca638b5a2bb8 4-5,11-13,16-17,76-85,88-105,107-114
+go/internal/storage/cypher/canonical_node_writer.go
+  s_f2f7fbb6f30866::t_112b360b340e11 29,44-47,166-168
+go/internal/storage/cypher/doc.go
+  s_f2f7fbb6f30866::t_dbcc02059ea4c0 43-45
+go/internal/storage/cypher/package_registry_concurrency_test.go
+  s_f2f7fbb6f30866::t_771dcd6c421993 5,158-185
+  s_f2f7fbb6f30866::t_f9c29c4abae375 263-264,272
+  s_f2f7fbb6f30866::t_68764b1913c9fb 1-4,6-157,186-262,265-271,273-313
+go/internal/storage/cypher/README.md
+  s_f2f7fbb6f30866::t_3352bf5e8d2548 138-145,149-161
+  s_f2f7fbb6f30866::t_6979b9879b760a 148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fbdbdca7cce57c4c60f7a6d28bdf1ea0c7c33608",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

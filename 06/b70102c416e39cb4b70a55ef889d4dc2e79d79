@@ -1,0 +1,54 @@
+go/internal/status/status.go
+  s_bdaf44668b73dc::t_c7f594957a5567 200
+go/cmd/reducer/main_test.go
+  s_bdaf44668b73dc::t_200d179f7d1f1a 325-327
+go/internal/reducer/fact_kind_loader.go
+  s_bdaf44668b73dc::t_304e7d3d76bbee 5-7,42-46,48-52,55-85
+go/internal/storage/postgres/status_test.go
+  s_bdaf44668b73dc::t_60dadac6090f29 222
+  s_bdaf44668b73dc::t_0e3f8b723f51f7 229-233
+  s_bdaf44668b73dc::t_0845fb1a596001 234
+go/internal/reducer/code_call_projection_test_helpers_test.go
+  s_bdaf44668b73dc::t_1bcb1d9a1d3ee4 29-37
+go/internal/status/status_health_test.go
+  s_bdaf44668b73dc::t_36583b8a9a3364 1-246
+go/internal/storage/postgres/facts_filtered.go
+  s_bdaf44668b73dc::t_66f056d833cf74 7,13,36-39,41,61-65,82-106,112
+  s_bdaf44668b73dc::t_e8e352268b1bb6 66-81
+go/internal/storage/postgres/reducer_graph_drain.go
+  s_bdaf44668b73dc::t_e80e287446692b 1-61
+go/cmd/reducer/main.go
+  s_bdaf44668b73dc::t_cfa05c6b0bd97c 282-286,317
+go/internal/reducer/code_call_projection_runner_test.go
+  s_bdaf44668b73dc::t_03162ccee50868 189-213
+go/internal/storage/postgres/facts_filtered_test.go
+  s_bdaf44668b73dc::t_9eac8a86fc811e 72,74-75,78-94,96-107,109-114,116-117,119,123-144
+  s_bdaf44668b73dc::t_a3ddd243c44395 120-122
+go/internal/storage/postgres/reducer_graph_drain_test.go
+  s_bdaf44668b73dc::t_c45a83f4e6f41c 1-38
+go/internal/reducer/code_call_projection_runner.go
+  s_bdaf44668b73dc::t_a5853d9deea88e 45-50,107,180-191
+go/internal/status/status_health.go
+  s_bdaf44668b73dc::t_36dff84fca1b3a 1-59,61-98,100-102,104-109
+go/internal/storage/postgres/status_queries.go
+  s_bdaf44668b73dc::t_f06f021017c24a 1-64,68-74,77-78,85-97,99-128
+  s_bdaf44668b73dc::t_e92e03a11c6041 65
+go/internal/reducer/fact_kind_loader_test.go
+  s_bdaf44668b73dc::t_b11514f5f9b3d7 5-6,307-328,419,440-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "06b70102c416e39cb4b70a55ef889d4dc2e79d79",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

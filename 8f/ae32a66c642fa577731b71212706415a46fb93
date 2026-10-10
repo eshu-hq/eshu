@@ -1,0 +1,21 @@
+go/internal/storage/postgres/content_files_relative_path_index_live_test.go
+  s_b0d7e3abc26c5a::t_26d24b59362cc1 18,78-169,173,176-183,187-188
+docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
+  s_b0d7e3abc26c5a::t_e1f82cbc190c95 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8fae32a66c642fa577731b71212706415a46fb93",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

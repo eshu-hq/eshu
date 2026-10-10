@@ -1,0 +1,39 @@
+go/internal/coordinator/vulnerability_intelligence_scheduler_test.go
+  s_f2f7fbb6f30866::t_9ba8f98448422c 46
+go/internal/coordinator/package_registry_scheduler_test.go
+  s_f2f7fbb6f30866::t_64b4ca0be6ae80 47
+go/internal/coordinator/package_registry_scheduler.go
+  s_f2f7fbb6f30866::t_0a3e2b7b2c22ef 90-91
+  s_f2f7fbb6f30866::t_ea14aae4ccfd8f 50,139,195,211,240-241,328,338,341,357,359-360
+go/internal/coordinator/derived_package_targets_test.go
+  s_f2f7fbb6f30866::t_fd622dab051dd8 65,68
+go/internal/coordinator/vulnerability_intelligence_scheduler.go
+  s_f2f7fbb6f30866::t_7537fc5ae56c7c 89-90
+  s_f2f7fbb6f30866::t_bd3589ded9db60 44,134,193,212,241-242,384-389,424,428,444,446-447
+go/internal/coordinator/README.md
+  s_f2f7fbb6f30866::t_6b34a2beb40192 193-204,220-225
+go/internal/coordinator/package_target_priority_test.go
+  s_f2f7fbb6f30866::t_12e24e8d4dd552 1-205
+go/internal/coordinator/target_priority.go
+  s_f2f7fbb6f30866::t_c8702754f94f0a 1-68
+go/internal/workflow/README.md
+  s_f2f7fbb6f30866::t_ee8c0b235c5e16 48-55
+go/internal/coordinator/doc.go
+  s_f2f7fbb6f30866::t_728bac6c44f217 12-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7957ee53df25b80be277591681d199b5d8b66032",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+go/internal/reducer/defaults_additive_domains_cloud_nodes.go
+  h_78a442cba0b3e6 30
+go/internal/reducer/defaults_additive_domains_refresh_test.go
+  h_78a442cba0b3e6 10-12,14,178-247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "36eb23afdfc14532726b8cd469dbf4a1f80be8cf",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

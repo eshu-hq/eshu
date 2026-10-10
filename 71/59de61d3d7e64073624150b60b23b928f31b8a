@@ -1,0 +1,29 @@
+.pre-commit-config.yaml
+  s_bc720f29f5e0fd::t_5fb199d73e09ac 71-78
+.github/workflows/verify-agent-hygiene.yml
+  s_bc720f29f5e0fd::t_5fb199d73e09ac 46-48
+scripts/test-codex-spawn-guard.py
+  s_bc720f29f5e0fd::t_be9a8836e18ff1 128-130
+  s_bc720f29f5e0fd::t_5db7f160a8106a 19-26,56,89,102,113
+  s_bc720f29f5e0fd::t_3223871133d03a 34-35
+  s_bc720f29f5e0fd::t_de1d1bc0036588 6,131-146
+  s_bc720f29f5e0fd::t_7533ce38e38c08 147-148
+specs/ci-gates.v1.yaml
+  s_bc720f29f5e0fd::t_5fb199d73e09ac 350-351,403-404,428,5174-5175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7159de61d3d7e64073624150b60b23b928f31b8a",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

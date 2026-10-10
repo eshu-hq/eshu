@@ -1,0 +1,19 @@
+scripts/test-pre-pr-whole-module-gates.sh
+  s_cb740432995e10::t_01005dec84b74d 13,356-366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4f03ff450352d02aacae463ab3fedc624ea7ab0d",
+  "prompts": {},
+  "sessions": {
+    "s_cb740432995e10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b03d91-e592-4228-b5e2-9b7a3380bb13",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

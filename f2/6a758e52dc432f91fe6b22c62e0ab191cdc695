@@ -1,0 +1,20 @@
+go/internal/backendconformance/evidence-notes.md
+  s_9dfb32458dfa10::t_5202576ad9ba50 32-33,39-41,74-79
+  s_9dfb32458dfa10::t_317d7b18356f66 80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f26a758e52dc432f91fe6b22c62e0ab191cdc695",
+  "prompts": {},
+  "sessions": {
+    "s_9dfb32458dfa10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d984-da12-7ad1-8a0c-1b335f5e8d81",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

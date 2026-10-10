@@ -1,0 +1,27 @@
+go/internal/mcp/dispatch_repo_story_test.go
+  s_f2f7fbb6f30866::t_f61287fb5ebf3d 1-31,33-55,98-145
+  s_f2f7fbb6f30866::t_98014c220e85bd 56-97
+  s_f2f7fbb6f30866::t_5283c1d0ca8479 32
+go/internal/query/repository_stats.go
+  s_f2f7fbb6f30866::t_5bffceefa5eca4 45-56,124-128
+go/internal/query/repository_envelope_test.go
+  s_f2f7fbb6f30866::t_f61287fb5ebf3d 1-185
+go/internal/query/repository.go
+  s_f2f7fbb6f30866::t_5bffceefa5eca4 559-570
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "6b1d2dbb32f58623d93e8e94e91ab533c2831466",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,63 @@
+scripts/verify-value-flow-conformance-expectation.sh
+  s_02cd429498e265::t_d1d9d2d8b8a04c 2-105
+  s_02cd429498e265::t_f90fd4dfd2aa2f 1
+scripts/test-verify-value-flow-conformance-expectation.sh
+  s_02cd429498e265::t_66fb8e1c6f8532 2-237
+  s_02cd429498e265::t_e5564249b37ebf 1
+  s_02cd429498e265::t_925f43f6d174ea 238-240
+  s_02cd429498e265::t_68bdf2778fa585 241-243
+.github/workflows/value-flow-conformance-expectation.yml
+  s_02cd429498e265::t_3a797acaead704 1-151
+docs/internal/evidence/6689-6690-nornicdb-v133-answer-truth.md
+  s_02cd429498e265::t_0beafbd70178a7 19,24-29,78-84
+docs/public/observability/telemetry-coverage.md
+  s_02cd429498e265::t_38a2c175f264e5 131
+docs/public/reference/backend-conformance.md
+  s_02cd429498e265::t_0911a8a47564cf 87-99
+docs/public/reference/ci-gates.md
+  s_02cd429498e265::t_6f4fd09b4cbe8d 11,119
+go/internal/backendconformance/evidence-notes.md
+  s_02cd429498e265::t_36745c0066d795 20-27
+go/internal/backendconformance/live_test.go
+  s_02cd429498e265::t_ea3dd8498aea76 88-89,92-97
+go/internal/cigates/prewarmordering_holes_test.go
+  s_02cd429498e265::t_d80de6b3bc4c9c 304-306
+go/internal/cigates/valueflow_required_test.go
+  s_02cd429498e265::t_7543bc33e11a9b 1-218
+go/internal/query/codequery/complexity_list_answer_truth_live_test.go
+  s_02cd429498e265::t_b319c2940fe30d 42-51,54,95-96
+go/internal/query/entity/nornicdb_answer_truth_live_test.go
+  s_02cd429498e265::t_cfbdfedc644642 45-55,62,88-89,107-108,117-119
+go/internal/query/nornicdb_answer_truth_live_test.go
+  s_02cd429498e265::t_6033351ed07d8d 58-65,68,71-84,93,118,152-153,175,192-194,200
+go/internal/query/repository/nornicdb_answer_truth_live_test.go
+  s_02cd429498e265::t_05b69ebdff92da 51-76,83,108,137,141,154-155,161
+go/internal/reducer/code/value/cloud_sink_loader_live_test.go
+  s_02cd429498e265::t_b9cde1ddc8277f 49-76,80,116-119
+go/internal/reducer/code/value/cloud_sink_loader_test.go
+  s_02cd429498e265::t_c094b5d0385bb3 140-142,149
+go/internal/reducer/code/value/cloud_sink_pairs.go
+  s_02cd429498e265::t_4ed385a3d05252 53-59,65
+go/internal/runtime/compose_nornicdb_image_test.go
+  s_02cd429498e265::t_3b0751bfb2d98a 104
+specs/backend-conformance.v1.yaml
+  s_02cd429498e265::t_6ef59eac886e2f 52-57
+specs/ci-gates.v1.yaml
+  s_02cd429498e265::t_0b9a072702ca0d 3914-3964
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d95fdf74ae2f3d5f27b07c4085b2c8aab666bf00",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

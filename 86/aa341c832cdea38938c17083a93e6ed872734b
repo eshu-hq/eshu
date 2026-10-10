@@ -1,0 +1,49 @@
+go/internal/exports/sarif_types.go
+  s_f2f7fbb6f30866::t_e64f989b9b9285 91-106,134-185
+go/cmd/eshu/vuln_scan.go
+  s_f2f7fbb6f30866::t_eaba5515a59c0d 25,115,143,282-294,301,385-393
+go/internal/exports/README.md
+  s_f2f7fbb6f30866::t_6ee066bf1d26c5 26-29,56,96-101
+go/internal/exports/sarif_status.go
+  s_f2f7fbb6f30866::t_553c904b865903 1-29,31-32,34-67,69-106,108-110
+  s_f2f7fbb6f30866::t_e71b36818ad90f 30,33,68,107
+go/cmd/eshu/testdata/vuln_scan_sarif/ready_with_findings.sarif.json
+  s_f2f7fbb6f30866::t_b772d8c24ac525 1-64,66-99,101-126,128-162
+  s_f2f7fbb6f30866::t_b2099e13e8cab7 65,100,127
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_6ee066bf1d26c5 127-131
+go/internal/exports/AGENTS.md
+  s_f2f7fbb6f30866::t_6ee066bf1d26c5 57-60
+go/cmd/eshu/vuln_scan_export_test.go
+  s_f2f7fbb6f30866::t_b772d8c24ac525 1-157
+go/internal/exports/doc.go
+  s_f2f7fbb6f30866::t_6ee066bf1d26c5 5-9
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_6ee066bf1d26c5 579-588
+go/internal/exports/exports.go
+  s_f2f7fbb6f30866::t_5d73552ea05178 226-273,328-353
+go/internal/exports/sarif.go
+  s_f2f7fbb6f30866::t_e71b36818ad90f 74
+  s_f2f7fbb6f30866::t_404ebe246413b2 94,406-429,433-474
+docs/public/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_6ee066bf1d26c5 117-128,210-212
+go/cmd/eshu/vuln_scan_export.go
+  s_f2f7fbb6f30866::t_58baac220e1504 54-57,65,339-362
+  s_f2f7fbb6f30866::t_0c85e32afa3623 1-53,58-64,66-338,363-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "86aa341c832cdea38938c17083a93e6ed872734b",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

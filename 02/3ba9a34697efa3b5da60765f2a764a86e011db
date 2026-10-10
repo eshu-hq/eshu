@@ -1,0 +1,23 @@
+go/internal/eshulocal/health_unix_test.go
+  0fdb6fbe5bc880aa 6-7,12-13,15-16,136-346,359-389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "023ba9a34697efa3b5da60765f2a764a86e011db",
+  "prompts": {
+    "0fdb6fbe5bc880aa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfda7-b67d-7d01-abd4-1370d870116b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria",
+      "messages": [],
+      "total_additions": 251,
+      "total_deletions": 1,
+      "accepted_lines": 250,
+      "overriden_lines": 0
+    }
+  }
+}

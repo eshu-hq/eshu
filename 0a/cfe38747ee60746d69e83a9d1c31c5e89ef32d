@@ -1,0 +1,16 @@
+go/internal/reducer/inheritance/materialization.go
+  h_78a442cba0b3e6 443-450,482-485
+go/internal/reducer/inheritance/materialization_test.go
+  h_78a442cba0b3e6 8,431-492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0acfe38747ee60746d69e83a9d1c31c5e89ef32d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

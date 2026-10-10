@@ -1,0 +1,26 @@
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  s_4a0f86aa680964::t_854bdd6a16a12f 23
+go/cmd/ifa/graph_dump.go
+  s_4a0f86aa680964::t_9b697dcb60d2d8 76-77,90
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_4a0f86aa680964::t_9b697dcb60d2d8 52,59-61
+go/cmd/ifa/graph_dump_test.go
+  s_4a0f86aa680964::t_d8b22d4adf3399 9-10,13-14,114-147
+  s_4a0f86aa680964::t_9f1f15968d3bb0 148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c410d628419e57885dc7717ae858f59f0b31b9cf",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

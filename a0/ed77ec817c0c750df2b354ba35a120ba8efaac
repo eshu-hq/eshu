@@ -1,0 +1,19 @@
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_83d94aeb6efc90 71-74,93-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a0ed77ec817c0c750df2b354ba35a120ba8efaac",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

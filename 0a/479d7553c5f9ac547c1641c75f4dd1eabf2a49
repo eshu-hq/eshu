@@ -1,0 +1,31 @@
+go/internal/workflow/vulnerability_intelligence_config_test.go
+  s_f2f7fbb6f30866::t_0f9b2b75103573 40-73
+go/internal/workflow/vulnerability_intelligence_config.go
+  s_f2f7fbb6f30866::t_7970aa27620b10 206-210,215-219
+go/internal/storage/postgres/workflow_control_open_targets.go
+  s_f2f7fbb6f30866::t_7970aa27620b10 53,59
+go/internal/workflow/package_registry_config_test.go
+  s_f2f7fbb6f30866::t_0f9b2b75103573 49-62
+go/internal/storage/postgres/workflow_control_test.go
+  s_f2f7fbb6f30866::t_0f9b2b75103573 265-305
+go/internal/coordinator/derived_package_targets_test.go
+  s_f2f7fbb6f30866::t_0f9b2b75103573 73,86-87
+go/internal/workflow/package_registry_config.go
+  s_f2f7fbb6f30866::t_7970aa27620b10 141,143-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "0a479d7553c5f9ac547c1641c75f4dd1eabf2a49",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

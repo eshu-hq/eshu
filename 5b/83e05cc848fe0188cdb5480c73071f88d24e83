@@ -1,0 +1,34 @@
+specs/live-tests.v1.yaml
+  s_b0d7e3abc26c5a::t_e8a0fc92584886 683-686,1758-1761
+docs/internal/evidence/7088-package-consumption-backfill-observability.md
+  s_b0d7e3abc26c5a::t_5032f68543e98a 28
+  s_b0d7e3abc26c5a::t_55737c73e84922 23-27,29-49
+go/internal/query/supply/chain/impact/readiness_target_resolution.go
+  s_b0d7e3abc26c5a::t_d66b71579c0503 13,72,95
+go/internal/storage/postgres/package_manifest_consumption_backfill.go
+  s_b0d7e3abc26c5a::t_d66b71579c0503 21-24,132,197,202,218,234,258
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_17fe30013d4052 188-193
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_b0d7e3abc26c5a::t_c2167d23f62bdc 40
+  s_b0d7e3abc26c5a::t_17fe30013d4052 39
+go/internal/query/supply/chain/impact/readiness_target_resolution_test.go
+  s_b0d7e3abc26c5a::t_7c18f338727afe 8,14-23
+  s_b0d7e3abc26c5a::t_1b3d72694cc936 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5b83e05cc848fe0188cdb5480c73071f88d24e83",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

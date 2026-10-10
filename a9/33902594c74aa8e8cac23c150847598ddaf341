@@ -1,0 +1,68 @@
+go/internal/query/openapi_paths_service_catalog.go
+  s_f2f7fbb6f30866::t_6ba5df167e03f1 14
+go/internal/query/openapi_paths_package_registry.go
+  s_f2f7fbb6f30866::t_d6a38d26e0a46c 200
+go/internal/query/repository_selector_read_model_routes_test.go
+  s_f2f7fbb6f30866::t_6645611115aea2 1-202
+go/internal/query/supply_chain_repository_selector.go
+  s_f2f7fbb6f30866::t_4cde8e5af9e15c 4-5,11-14,56-59,77-137,156-179,202-230
+go/internal/query/openapi_paths_cicd.go
+  s_f2f7fbb6f30866::t_d8a005ba8a4a3f 12
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_162fe4af05137b 94-114
+go/internal/query/package_registry_correlation_handler.go
+  s_f2f7fbb6f30866::t_5c7a43075d0c48 51-54
+go/cmd/api/wiring.go
+  s_f2f7fbb6f30866::t_55ae8658830763 222,228,234
+go/internal/query/ci_cd.go
+  s_f2f7fbb6f30866::t_6629b1146cc5dc 18,83-86,89
+go/internal/query/security_alert_reconciliation_aggregates.go
+  s_f2f7fbb6f30866::t_723491841ba265 103-116
+go/internal/query/security_alert_reconciliation.go
+  s_f2f7fbb6f30866::t_b87f4b8892f326 105-127,129-130,200-243
+  s_f2f7fbb6f30866::t_9afa039924bba0 128
+go/internal/query/repository_selector.go
+  s_f2f7fbb6f30866::t_8b31c4841fe50e 105-123
+  s_f2f7fbb6f30866::t_9ef428d636e2cf 7
+go/internal/query/supply_chain_repository_selector_test.go
+  s_f2f7fbb6f30866::t_84942b43a874f2 46-51,66-76,315-399
+go/internal/query/supply_chain_security_alerts_test.go
+  s_f2f7fbb6f30866::t_5b572766d3e916 330-348
+go/internal/query/supply_chain_impact_explain_handler.go
+  s_f2f7fbb6f30866::t_d735b14813f702 32-35,41
+go/cmd/mcp-server/wiring.go
+  s_f2f7fbb6f30866::t_f48f64944d147d 169,175,181
+go/internal/query/security_alert_reconciliation_aggregates_test.go
+  s_f2f7fbb6f30866::t_78b33cde4e3163 13-25,58-66
+go/internal/query/supply_chain_repository_selector_aggregates_test.go
+  s_f2f7fbb6f30866::t_d7b0158743680a 176-226
+go/internal/query/package_registry.go
+  s_f2f7fbb6f30866::t_dec09a5c391f27 26
+go/internal/query/ci_cd_run_correlation_aggregates_handler.go
+  s_f2f7fbb6f30866::t_5b3f9da16f2ac1 55-58,133-136,168-175,178,184
+go/internal/query/openapi_paths_supply_chain.go
+  s_f2f7fbb6f30866::t_63128ac3cf8d3c 11,353
+go/internal/query/openapi_paths_cicd_aggregate.go
+  s_f2f7fbb6f30866::t_da0c6f2fcc1102 10,45
+go/internal/query/service_catalog.go
+  s_f2f7fbb6f30866::t_5735d3022cf6d5 18,82-85,90
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_61eb1921eabd91 97-101,125-128,420-423,485-490
+  s_f2f7fbb6f30866::t_40a8ba2ab45b05 333,335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a933902594c74aa8e8cac23c150847598ddaf341",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

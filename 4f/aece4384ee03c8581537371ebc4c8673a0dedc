@@ -1,0 +1,26 @@
+go/internal/query/admin/audit/actor.go
+  h_78a442cba0b3e6 61-64
+go/internal/query/admin/identity/mutations_audit_test.go
+  h_78a442cba0b3e6 51,83
+go/internal/query/admin/provider/config/mutations_audit_test.go
+  h_78a442cba0b3e6 51,83
+go/internal/query/local/api_tokens_self_service.go
+  h_78a442cba0b3e6 51-52,55,86,94
+go/internal/query/local/api_tokens_test.go
+  h_78a442cba0b3e6 112
+go/internal/query/local/audit_test.go
+  h_78a442cba0b3e6 44
+go/internal/query/supply/chain/suppression_mutation.go
+  h_78a442cba0b3e6 148,203,228-229,233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4faece4384ee03c8581537371ebc4c8673a0dedc",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

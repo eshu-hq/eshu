@@ -1,0 +1,39 @@
+docs/internal/evidence/6782-unwind-missing-row-key-audit.md
+  s_f5417eb4bac87d::t_0d40b8c9de944c 156,158-162
+docs/public/reference/local-testing/golden-corpus-gate.md
+  s_f5417eb4bac87d::t_32a84f8f46078e 20
+go/cmd/golden-corpus-gate/README.md
+  s_f5417eb4bac87d::t_fad4a7ce3b4826 111-135
+go/cmd/golden-corpus-gate/graph.go
+  s_f5417eb4bac87d::t_6dc2a65537d88f 15,58-60,463-465
+go/cmd/golden-corpus-gate/graph_row_tokens.go
+  s_f5417eb4bac87d::t_04a57847a47c7d 1-84
+go/cmd/golden-corpus-gate/graph_row_tokens_live_test.go
+  s_f5417eb4bac87d::t_84fb26c1026674 1-138
+go/cmd/golden-corpus-gate/graph_row_tokens_test.go
+  s_f5417eb4bac87d::t_c29cdb40940b7a 1-68
+go/cmd/golden-corpus-gate/io_seams_test.go
+  s_f5417eb4bac87d::t_4cb71152cee29c 14-15,33-34
+go/internal/goldengate/README.md
+  s_f5417eb4bac87d::t_f7c5f2e8c9e40e 35,60-62
+go/internal/goldengate/row_tokens.go
+  s_f5417eb4bac87d::t_97da594bb9d2eb 1-114
+go/internal/goldengate/row_tokens_test.go
+  s_f5417eb4bac87d::t_42eed7311384d7 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8ac11376f7ae5ab0c45e0422e09a588455a714a1",
+  "prompts": {},
+  "sessions": {
+    "s_f5417eb4bac87d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92c64115-d591-4a9b-ac18-3c30f730d10b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

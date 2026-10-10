@@ -1,0 +1,24 @@
+go/internal/storage/postgres/reducer_queue_supersession_test.go
+  s_f2f7fbb6f30866::t_c4d05ddd1cd038 94-95
+  s_f2f7fbb6f30866::t_b917b151375ff6 55-93,96-104
+go/internal/storage/postgres/reducer_queue_batch.go
+  s_f2f7fbb6f30866::t_7cc41e6e40d7b5 12-13,18-22,235-239
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_76ae422cdc18b6 77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "2b5f6b899c5939b283290cd897f1292c1e517c53",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

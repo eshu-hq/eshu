@@ -1,0 +1,22 @@
+go/internal/query/ci_cd_evidence_summary.go
+  s_f2f7fbb6f30866::t_34a81a744770f4 84,92-99,105-108,117
+go/internal/query/ci_cd_run_correlations_test.go
+  s_f2f7fbb6f30866::t_cf99acd13266aa 6,18
+  s_f2f7fbb6f30866::t_a24139c923f33c 28-41,137-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "486c97d07344dc4044c48b133302962b2b1854c7",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

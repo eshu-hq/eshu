@@ -1,0 +1,31 @@
+docs/internal/evidence/6786-nornicdb-label-predicates.md
+  s_6fc19beed9436d::t_aee4093422ff62 1-271
+docs/public/reference/nornicdb-pitfalls.md
+  s_6fc19beed9436d::t_ce6f085df95dd2 8-9
+docs/public/reference/nornicdb-query-pitfalls.md
+  s_6fc19beed9436d::t_70cad15d002c71 31,559,561,563-564,567-585,588-610,614-644
+go/internal/query/querytestutil/doc.go
+  s_6fc19beed9436d::t_1625e7fe5db848 50-56
+go/internal/query/querytestutil/nornicdb_guards.go
+  s_6fc19beed9436d::t_4fae7885f2ce15 11-53
+go/internal/query/querytestutil/nornicdb_label_predicate_scan_test.go
+  s_6fc19beed9436d::t_cc67b7e7db7644 11,163-169
+scripts/lib/markdown-line-cap-grandfather.tsv
+  s_6fc19beed9436d::t_e6cdb75eedadcf 131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "620eb127d5c8ccd48134f1cce5a49b62f40d8b3d",
+  "prompts": {},
+  "sessions": {
+    "s_6fc19beed9436d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a27ed62a-1473-431b-9b7c-a320b40621a5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

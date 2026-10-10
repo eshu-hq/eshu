@@ -1,0 +1,81 @@
+docs/docs/services/collector-aws-cloud.md
+  s_f2f7fbb6f30866::t_6b147feee65293 240-242
+go/internal/coordinator/scheduled_work.go
+  s_f2f7fbb6f30866::t_172d1a487d0759 21,28
+  s_f2f7fbb6f30866::t_7d541e56c1d7a2 9,14,17,24,31
+  s_f2f7fbb6f30866::t_94e003e64a2f85 1-8,10-13,15-16,18-20,22-23,25-27,29-30,32
+docs/docs/reference/telemetry/index.md
+  s_f2f7fbb6f30866::t_74305d2a8d4b79 223-224
+go/internal/collector/awscloud/freshness/README.md
+  s_f2f7fbb6f30866::t_24d333498f584d 46-49
+go/internal/storage/postgres/workflow_control.go
+  s_f2f7fbb6f30866::t_59250407716738 76-79,84
+go/internal/coordinator/aws_scheduled_service.go
+  s_f2f7fbb6f30866::t_51fd4e21d77c9a 61
+  s_f2f7fbb6f30866::t_96f6b85e70de74 47-57
+  s_f2f7fbb6f30866::t_e29992b2e76274 62
+go/internal/storage/postgres/workflow_control_open_targets.go
+  s_f2f7fbb6f30866::t_d0afa48646c990 27-38,51-52,97,168,178-184,224-259
+  s_f2f7fbb6f30866::t_e11c4fd782d553 39-47,84-87,89-95,260-286
+  s_f2f7fbb6f30866::t_30142961c9e0db 1-26,48-50,53-83,88,96,98-167,169-177,185-223,287
+go/internal/coordinator/service_aws_freshness.go
+  s_f2f7fbb6f30866::t_973a7486254d50 22,147-148,156-159,161
+go/internal/coordinator/service_test.go
+  s_f2f7fbb6f30866::t_71da7ea71ec40a 384-421
+  s_f2f7fbb6f30866::t_a0862a611fbe00 55,57-64,66-72,80-81,84-91
+  s_f2f7fbb6f30866::t_ce54bd699cb6ef 56,65,73-79,82-83,92-93
+go/internal/coordinator/README.md
+  s_f2f7fbb6f30866::t_e885539737158e 251
+  s_f2f7fbb6f30866::t_9bfc83e0cbc156 77-79
+  s_f2f7fbb6f30866::t_1ca9593d7bee8a 239-242
+  s_f2f7fbb6f30866::t_03e5d9da2a26af 6-11,40-43,48,59-65,194-198,236-238,243,250,252
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_b1830c3b30dff3 188-194
+  s_f2f7fbb6f30866::t_24cf8ce4e71748 185-187,195
+  s_f2f7fbb6f30866::t_01f065a4d9233a 214-244
+  s_f2f7fbb6f30866::t_09c31313b34879 196,201-204
+  s_f2f7fbb6f30866::t_a167ecd7fb6612 182-183,211-212
+  s_f2f7fbb6f30866::t_da6b71359f4cc2 181,198-200,205-209,213
+  s_f2f7fbb6f30866::t_70573d884d353f 184
+  s_f2f7fbb6f30866::t_ba6906f1aca60e 197
+  s_f2f7fbb6f30866::t_c2f913db6af8c3 210
+go/internal/storage/postgres/workflow_control_helpers.go
+  s_f2f7fbb6f30866::t_e6c117c320d117 17-24,68
+go/internal/storage/postgres/workflow_control_test.go
+  s_f2f7fbb6f30866::t_2afa26cd4df0a3 269-315,344-390
+  s_f2f7fbb6f30866::t_33bd22d45c4bd6 214-219,221-268
+  s_f2f7fbb6f30866::t_c6f7ccc2f10e5c 316-343,391-394
+  s_f2f7fbb6f30866::t_ecaccdba95f285 98-102,107-151
+  s_f2f7fbb6f30866::t_6db9b38fef3320 103-106,160,220
+  s_f2f7fbb6f30866::t_9eef8dc0b0bc77 157-159,161
+  s_f2f7fbb6f30866::t_94e552f73209fc 152-156,162-213
+go/internal/coordinator/service_aws_freshness_test.go
+  s_f2f7fbb6f30866::t_a92f13b860aa41 208-254
+  s_f2f7fbb6f30866::t_92f4810154a0fa 133-188,190-207
+  s_f2f7fbb6f30866::t_ab31d103b8dd13 189
+go/internal/coordinator/aws_scheduled_scheduler_test.go
+  s_f2f7fbb6f30866::t_02103032afe936 300-302
+  s_f2f7fbb6f30866::t_81037ac0e2b046 255-299
+go/internal/coordinator/service.go
+  s_f2f7fbb6f30866::t_1de05cc8bc5eae 22,286,340,398
+  s_f2f7fbb6f30866::t_2e689e703ef744 125-126,244-256
+  s_f2f7fbb6f30866::t_3a62f744ae5f57 285,339,397
+  s_f2f7fbb6f30866::t_8f925125e4da74 234-243
+  s_f2f7fbb6f30866::t_4ef90e0772d9af 20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "2a3bde10144857521a12977da0590a3e74549a6d",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

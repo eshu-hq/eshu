@@ -1,0 +1,32 @@
+deploy/helm/eshu/templates/_helpers.tpl
+  s_f2f7fbb6f30866::t_13a0153b6d845d 162-166
+  s_f2f7fbb6f30866::t_3cf5a8151925ac 372-378
+docs/docs/reference/nornicdb-pitfalls.md
+  s_f2f7fbb6f30866::t_cf56c748f9dc42 77
+docs/docs/reference/nornicdb-tuning.md
+  s_f2f7fbb6f30866::t_c75b3c8393a2de 421-426
+  s_f2f7fbb6f30866::t_cf56c748f9dc42 403,416
+scripts/verify-helm-schema-bootstrap.sh
+  s_f2f7fbb6f30866::t_e520fc452b0bb3 1-36,38,41-42
+  s_f2f7fbb6f30866::t_7322a5306d6540 37
+docs/docs/reference/backend-conformance.md
+  s_f2f7fbb6f30866::t_3040c659bd0da6 138-140
+deploy/helm/eshu/templates/networkpolicy.yaml
+  s_f2f7fbb6f30866::t_f71a8076d660e9 135-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "1d7690018167c0e7891c9981e740e3126753c6ee",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

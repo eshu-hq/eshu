@@ -1,0 +1,101 @@
+go/internal/proof/scheduling/main.go
+  s_b0d7e3abc26c5a::t_b733e5a9d06f1a 172-173,175,177
+  s_b0d7e3abc26c5a::t_6dfad86851ca9a 143-144,176
+go/internal/proof/scheduling/reader_health_test.go
+  s_b0d7e3abc26c5a::t_eb78a9b5cf39b0 1-8,10-28,36-54,59-77,122-123
+  s_b0d7e3abc26c5a::t_341d9dd849bf40 9,55-58
+  s_b0d7e3abc26c5a::t_36ab582ee803cf 29-35,78-121
+go/internal/proof/scheduling/reader_test.go
+  s_b0d7e3abc26c5a::t_d93b4584c10a25 8,14-15,43-47,58-63,76-78,108,114-115,117,121-123,132-134,138-139,147-148,157-161,164-165,170,172-177,179,197-198,289-293,295
+  s_b0d7e3abc26c5a::t_3759031c5b8138 1-7,9-10,12-13,17-42,296,364-422
+  s_b0d7e3abc26c5a::t_82e0bb3293d3e1 143,212-214,261-263,268-271,302,342-350,361
+  s_b0d7e3abc26c5a::t_376ee59e7856e2 294
+  s_b0d7e3abc26c5a::t_800042021d9be3 301,326-341,351-356,359-360,362-363
+  s_b0d7e3abc26c5a::t_265bfc1b25c213 113,129,199-203
+  s_b0d7e3abc26c5a::t_cea549331112f8 141-142,144,297-300,303-325,357-358
+  s_b0d7e3abc26c5a::t_46641ebb646b7f 11,16,50-57,71-75,79,87-92,102-107,109-112,116,118-120,124-128,130-131,136-137,145-146,149-150,155,166-169,171,178,180-196
+  s_b0d7e3abc26c5a::t_4088e8f9031417 80-86,93-101,140,204-211,215-260,264-267,272-288
+  s_b0d7e3abc26c5a::t_2056dbebd9bfac 69-70,151-154,156
+  s_b0d7e3abc26c5a::t_14f2e3c78baefc 48-49,64-68,135,162-163
+go/internal/proof/scheduling/reader_pool.go
+  s_b0d7e3abc26c5a::t_1a24fdd72a1772 16-19
+  s_b0d7e3abc26c5a::t_b733e5a9d06f1a 47
+  s_b0d7e3abc26c5a::t_afef5d79acbebb 1-15,20-43,45-46,48-54
+  s_b0d7e3abc26c5a::t_bbe4bb560a4ee7 44
+go/internal/proof/scheduling/dynamic.go
+  s_b0d7e3abc26c5a::t_da870a67438c47 208-209,211-213,223,225,231,233,241-248,250-265
+  s_b0d7e3abc26c5a::t_b733e5a9d06f1a 210,224,232,249
+go/internal/proof/scheduling/README.md
+  s_b0d7e3abc26c5a::t_79675670f0472e 42-44,48-51
+  s_b0d7e3abc26c5a::t_38e53bd0057246 45-47
+  s_b0d7e3abc26c5a::t_6c705ea49c41a0 24,26,28-30,37,61,64,81,111-112
+  s_b0d7e3abc26c5a::t_1d4c983b6d63fc 31-36
+  s_b0d7e3abc26c5a::t_7ae3473eb18a7e 9-11,14-17,20-22
+  s_b0d7e3abc26c5a::t_0638ec27e52521 38-41,52-59,113-114
+go/internal/proof/scheduling/reader.go
+  s_b0d7e3abc26c5a::t_afe79fe887dc8d 16-20,69
+  s_b0d7e3abc26c5a::t_376ee59e7856e2 151,172-174,176-179
+  s_b0d7e3abc26c5a::t_afef5d79acbebb 134-135
+  s_b0d7e3abc26c5a::t_b1f017cf9b26b5 1-15,21-23,25-33,35-68,70-132,136-150,152-171,180-182,186-188
+  s_b0d7e3abc26c5a::t_b733e5a9d06f1a 24,34,183-185
+  s_b0d7e3abc26c5a::t_23817aa731ab85 175
+  s_b0d7e3abc26c5a::t_bf3774ef1ad30a 133
+go/internal/proof/scheduling/fixed.go
+  s_b0d7e3abc26c5a::t_aec4871fb7b1bd 213,215
+  s_b0d7e3abc26c5a::t_6dfad86851ca9a 48,81,115-127,129,133-137,140,198-205
+  s_b0d7e3abc26c5a::t_0c56796539d96a 162-163
+  s_b0d7e3abc26c5a::t_da870a67438c47 151-153
+  s_b0d7e3abc26c5a::t_7b1effb9a9e6d8 154,156-161,170-172
+  s_b0d7e3abc26c5a::t_376ee59e7856e2 155,164-167,214
+  s_b0d7e3abc26c5a::t_79675670f0472e 168-169
+go/internal/proof/scheduling/reader_pool_test.go
+  s_b0d7e3abc26c5a::t_1a24fdd72a1772 26,44,49-51
+  s_b0d7e3abc26c5a::t_8dff4860752640 1-25,27-28,31-43,45-48,52-53
+  s_b0d7e3abc26c5a::t_bbe4bb560a4ee7 29-30
+go/internal/proof/scheduling/dynamic_cleanup_test.go
+  s_b0d7e3abc26c5a::t_63cc8fddac8cb6 9,12-14,23-104
+  s_b0d7e3abc26c5a::t_72f6ad3af89ac0 105
+go/internal/proof/scheduling/fixed_test.go
+  s_b0d7e3abc26c5a::t_0c56c9ca713422 207-218
+  s_b0d7e3abc26c5a::t_7ee05659dc1738 49,54,80,179,181-195,197-206,224
+  s_b0d7e3abc26c5a::t_63cc8fddac8cb6 219-223
+  s_b0d7e3abc26c5a::t_865fb9d38e9e1d 180,196
+  s_b0d7e3abc26c5a::t_300378257ba741 225
+go/internal/proof/scheduling/reader_health.go
+  s_b0d7e3abc26c5a::t_b733e5a9d06f1a 145
+  s_b0d7e3abc26c5a::t_62898535704e7b 1-20,28-51,63-65,67-74,143-144,146-149,151-155,158-160,162-163,170-173,176-179,183,185,190-191,216-218
+  s_b0d7e3abc26c5a::t_f84906303b3422 26-27,52-54,56-62,180-182,184,186-189,192-193,197-207,209-215
+  s_b0d7e3abc26c5a::t_38e53bd0057246 55,89,194-196,208
+  s_b0d7e3abc26c5a::t_0c56796539d96a 21-25,150,156-157,161,164-169
+  s_b0d7e3abc26c5a::t_3b3fde171cf001 66,75-88,90-142,174-175
+go/internal/proof/scheduling/main_test.go
+  s_b0d7e3abc26c5a::t_7ee05659dc1738 41-43
+go/internal/proof/scheduling/reader_resource.go
+  s_b0d7e3abc26c5a::t_abbd8625549d12 1-9,11-17,20-23,25-34,36-87,115-140,153-159,161-163,168-188,193-205,207-218,220-244,249-261,263,265,267-269,273-274,283-297,299,301
+  s_b0d7e3abc26c5a::t_b733e5a9d06f1a 10,262,264,280-282,298
+  s_b0d7e3abc26c5a::t_1b98d50dfd132b 24,35,88-114,141-152,160,164-167,189-192,206,219,245-248
+  s_b0d7e3abc26c5a::t_23817aa731ab85 300
+  s_b0d7e3abc26c5a::t_bd6974c05a0dca 18-19,266,270-272,275-279
+go/internal/proof/scheduling/reader_resource_test.go
+  s_b0d7e3abc26c5a::t_62f187671c9c13 14-15,118-137
+  s_b0d7e3abc26c5a::t_0a2e29d2f5f200 1-13,16-70,79-93,95-99,101-109,111-115,117,138-140,157-176
+  s_b0d7e3abc26c5a::t_23817aa731ab85 94,100,110,116
+  s_b0d7e3abc26c5a::t_836fa7c5d431a7 71-78
+  s_b0d7e3abc26c5a::t_2c3a58dc1bf4df 141-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5fdfc373431bf07a4da2c20f3dbd6d5f02699798",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

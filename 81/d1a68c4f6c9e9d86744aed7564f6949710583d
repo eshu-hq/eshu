@@ -1,0 +1,19 @@
+docs/docs/reference/nornicdb-tuning.md
+  s_b8c22ab4b54a82::t_936e503a19d63c 442-502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "81d1a68c4f6c9e9d86744aed7564f6949710583d",
+  "prompts": {},
+  "sessions": {
+    "s_b8c22ab4b54a82": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b33b7d2c-c4e1-417c-a2ef-e19c093359a9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

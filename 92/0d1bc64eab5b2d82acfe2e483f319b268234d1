@@ -1,0 +1,31 @@
+go/internal/runtime/postgres/member_loss.go
+  s_b0d7e3abc26c5a::t_acbec1ddb6e447 12-13,29-31
+go/internal/query/code_topic_parallel_member_loss_fixture_test.go
+  s_b0d7e3abc26c5a::t_c979eea147781b 114
+  s_b0d7e3abc26c5a::t_1bc87689fafaf1 1-113,115
+go/internal/query/code_topic_parallel_member_loss_test.go
+  s_b0d7e3abc26c5a::t_1802758e7e8717 179,212-229,233
+  s_b0d7e3abc26c5a::t_fcdd2478ad3b62 159,247-248,294,311-313,383,389-392,395-398,403-404
+  s_b0d7e3abc26c5a::t_d5d1c1858ab079 291-293
+  s_b0d7e3abc26c5a::t_0da9f09fd741a0 24,320-322,325-333,335-336,340,361-363
+  s_b0d7e3abc26c5a::t_4fb47f8a62b660 8,11-13,15,17,20,23,25,152-158,160-178,180-211,230-232,234-246,249-290,295-310,314-319,323-324,334,337-339,341-360,364-382,384-388,393-394,399-402,405
+go/internal/runtime/postgres/reader_members_test.go
+  s_b0d7e3abc26c5a::t_0835e5e8372d6c 34-41
+  s_b0d7e3abc26c5a::t_c0dda4f52138cc 10,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "920d1bc64eab5b2d82acfe2e483f319b268234d1",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

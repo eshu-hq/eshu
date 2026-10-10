@@ -1,0 +1,306 @@
+go/internal/query/iac/management_test.go
+  s_80fd8eb71bc05d::t_cdff599200663a 4,14-15,18,31-32,48,59,80-81,89,100,111-112,119,131-132,141,153-155,158,176,201,218,245-247,258,279,281-282,285,310,324,344-345,347,361,377,384
+go/internal/mcp/iacmanagement/README.md
+  s_e8ab01ccdfa8e2::t_386c473d64184c 86-88,90
+go/internal/query/iac/replatforming_ownership_test.go
+  s_e8ab01ccdfa8e2::t_684292f554598b 4,39,41,71-72,76,85,88,101-102,106,128-129,133,157-158,165,180-181,186,194,204-205,213,224-225,229
+  s_80fd8eb71bc05d::t_7a2ee6e3a93276 8-9
+  s_80fd8eb71bc05d::t_1c734cfc9ebc2e 12-38
+go/internal/query/iac/capabilities.go
+  s_80fd8eb71bc05d::t_8dfa29b8a40c78 39-47
+  s_80fd8eb71bc05d::t_353fba9b8448af 1-38,48-145
+go/internal/query/dead_iac_grant_test.go
+  s_7737936e8f253f::t_43373d09092190 17
+  s_e8ab01ccdfa8e2::t_952ec8695b5c15 18
+  s_80fd8eb71bc05d::t_10d49624632139 24
+go/internal/query/investigation_packet_api_drift.go
+  s_80fd8eb71bc05d::t_86180f89abc7c4 48
+go/internal/query/auth_scoped_routes_repository.go
+  s_7737936e8f253f::t_b13644e9d71d11 46,56,65,75,84
+go/internal/query/iac/AGENTS.md
+  s_7737936e8f253f::t_6086a34a534cd1 14-22
+  s_80fd8eb71bc05d::t_f5ddeaaea9ec3a 1-13,23-65,67-110
+  s_7737936e8f253f::t_5d97a7e80db196 66
+go/internal/query/handlers.go
+  s_80fd8eb71bc05d::t_edece2ce426e63 11-12
+docs/internal/remote-validation/prod-aws-runtime-drift-read-model.md
+  s_80fd8eb71bc05d::t_5d5e2ac705f474 59,66,72,76,80,87,90,96-97,100,107-108
+go/internal/query/iac/config_shape_hints_test.go
+  s_80fd8eb71bc05d::t_33ff06ed53208a 4,14-15,23-24,30,43,89,132,158,164,177
+go/internal/query/README.md
+  s_80fd8eb71bc05d::t_560b501d1f31b9 1025
+go/internal/query/iac/config_shape_hints.go
+  s_80fd8eb71bc05d::t_dfae3cdad2401b 4
+go/internal/query/iac/management_surface.go
+  s_80fd8eb71bc05d::t_2e91c28e2bd91d 4,13-14,18,25-28,31,36,40,46,50,52,58-59,69-70,72-73,78,83,87,93,97-98,104-105,107-108,110-111,121,125-127,132,135,137,139-142,146-147,151-152,159-160,165,167-168,181,185,187,192-193,205,220-221,227,238,247,251,253,261,264,273,291
+go/internal/query/repository_selector.go
+  s_80fd8eb71bc05d::t_996c798db089f9 20-24
+scripts/moved-file-refs-allowlist.txt
+  s_e8ab01ccdfa8e2::t_9a4fcf2e4183f9 107-116
+  s_0dcffc16b6a093::t_9ba6623d998116 106
+go/internal/query/iac/doc.go
+  s_80fd8eb71bc05d::t_1a97ca0f01e194 1-46
+go/internal/query/iac/replatforming_rollups.go
+  s_80fd8eb71bc05d::t_443471e0e28204 4,11,15,17,20,80-81,108-109,125,139,150,173,177
+go/internal/query/capability_lockstep_iac_test.go
+  s_80fd8eb71bc05d::t_af694e9f08f38a 1-153
+go/internal/query/querycontract/drift.go
+  s_80fd8eb71bc05d::t_e75a57597c5110 1-27
+go/internal/query/iac/replatforming_source_state.go
+  s_80fd8eb71bc05d::t_5e38ebd7248c09 4,95,97-100,102,104,106
+go/internal/query/iac/resources_graph_read_sweep_test.go
+  s_80fd8eb71bc05d::t_427bfd47bcfee5 1-116
+go/internal/query/iac/inventory_postgres_test.go
+  s_80fd8eb71bc05d::t_49c2693b7443e1 4,14,47-48,51-52,64-65,79-80
+go/internal/query/cloud_runtime_drift_aggregate.go
+  s_7737936e8f253f::t_51d18f6902bd6f 47
+go/internal/query/iac/replatforming_ownership.go
+  s_80fd8eb71bc05d::t_a1df691d8ac70a 4,9-10,83,86,111-112,140-141,143,148,176,278,320,332,335,337,339,345,347-348,355,390-391
+go/internal/query/terraform_import_plan_openapi_test.go
+  s_e8ab01ccdfa8e2::t_520b8444393b13 1-51
+go/internal/query/iac/resources_metrics.go
+  s_80fd8eb71bc05d::t_c84594203d91e1 4,15,22,28-29,32,36-37,46,52,55,60,69
+go/internal/query/iac/import_plan_test.go
+  s_80fd8eb71bc05d::t_c70d791dfa7f67 277-278
+  s_80fd8eb71bc05d::t_bfa845ea6479fe 4,13-14,20-22,28-29,35,40,53,60,121-123,131-132,137,152,159,183-184,205-207,215-216,222,239,246,279-280
+go/internal/storage/postgres/generation_lifecycle_grant_test.go
+  s_e8ab01ccdfa8e2::t_7e226cadfe156e 76
+go/internal/query/iac/resources_current_test.go
+  s_80fd8eb71bc05d::t_e54ca317062488 13-14
+  s_7737936e8f253f::t_fcc9024a8c46df 23
+  s_80fd8eb71bc05d::t_6ad40078725230 17-22,24-30
+  s_e8ab01ccdfa8e2::t_8bf474e0a37f1f 4,32-35,40,44,47-50,54,62-64,68,73,75,85-86,109,122,146,161,165,185,198,218,230,250-251,263,291-292,296,323,325-328,330-333,338,343
+go/internal/query/iac/handler_tracing.go
+  s_80fd8eb71bc05d::t_9f9677d9af9dcc 1-23
+go/internal/query/replatforming_rollups_handler_test.go
+  s_80fd8eb71bc05d::t_72842d4eb88d07 11,15-27,29,35-36
+go/internal/query/iac/import_mappings_test.go
+  s_80fd8eb71bc05d::t_6f595a98c47126 4,12-13,132,166-167,175-176,181,196,275,306,314,316-318,328,335,343,352
+go/internal/query/iac/import_plan.go
+  s_80fd8eb71bc05d::t_a4e6a4c56c53d4 4,12-13,37,59,64,68-69,74-75,77,81-83,87,92,97,102,107,112,126-127,136,138-139,144,170-171,191,199,206,229,240,296,306,322
+go/internal/query/drifted_attributes.go
+  s_80fd8eb71bc05d::t_bb9a1f05b76308 43-51,53
+  s_80fd8eb71bc05d::t_8eed83cf747bb0 54-56
+docs/public/observability/telemetry-coverage.md
+  s_80fd8eb71bc05d::t_4b0d4139f604cb 859
+go/internal/query/iac/README.md
+  s_7737936e8f253f::t_8b6968fe9e7822 134-136
+  s_80fd8eb71bc05d::t_0b5fd018f5084f 1-90,98-117,119-133,137-139,150,157-160,164-181
+  s_4f77f3e7449159::t_a21005a19fed63 96-97
+  s_7737936e8f253f::t_668d800dc59333 118
+  s_4f77f3e7449159::t_bda3f2e8680c0a 140-142,144,146-147
+  s_7737936e8f253f::t_755b78fb55e38a 161,163
+  s_7737936e8f253f::t_53495861b2ff55 143,145,148-149,151-156
+  s_4f77f3e7449159::t_c83632c7c43027 91-95
+  s_4f77f3e7449159::t_ca9952d1353712 162
+go/internal/query/iac_alias.go
+  s_80fd8eb71bc05d::t_f3e21b2abe6a65 174-194
+  s_7737936e8f253f::t_8beb2e8fcaa280 65-66
+  s_80fd8eb71bc05d::t_ba2478ff9bc727 99-103
+  s_7737936e8f253f::t_d33be5bf529c58 33-35
+  s_80fd8eb71bc05d::t_f794ff5d846eb1 116
+  s_80fd8eb71bc05d::t_e213e12454f6cd 301-316
+  s_80fd8eb71bc05d::t_bf1777188458ed 281-300
+  s_80fd8eb71bc05d::t_cad646de3cf373 1-6,9-32,36-64,67-72,92-98,104-115,117-128,130-173,332-345,347-385,394-405
+  s_80fd8eb71bc05d::t_348dcaf8be9a5c 195-264,266-267,270-280
+  s_7737936e8f253f::t_4bb09f86bde718 265,268-269
+  s_7737936e8f253f::t_e79fd8699cf532 406-413
+  s_7737936e8f253f::t_02cec966d0611d 346
+  s_80fd8eb71bc05d::t_c10d2ebac09fee 7-8
+  s_80fd8eb71bc05d::t_3ce02331812775 386-393
+  s_80fd8eb71bc05d::t_c91e055c87c88e 129
+  s_7737936e8f253f::t_044b63d5e47c55 73-77
+  s_80fd8eb71bc05d::t_80ed4af65fa404 78-91
+  s_80fd8eb71bc05d::t_b9b29b057e7ed6 317-331
+docs/internal/remote-validation/prod-iac-resource-list.md
+  s_e8ab01ccdfa8e2::t_39cfd141c83dd6 32,43
+  s_80fd8eb71bc05d::t_42e6feee106417 39
+go/internal/query/iac/replatforming_selectors_handler.go
+  s_80fd8eb71bc05d::t_1ee1e5b318ea06 4,12-13,23-26,38,43,47-48,53-54,56,66,71-72,74,78,81,83-84,91,96-97,99,103,105-106,122,128-129,131,150,167
+docs/public/reference/replatforming-source-state-taxonomy.md
+  s_80fd8eb71bc05d::t_af46330bdadb01 17
+go/internal/query/iac/management_finding_kinds_test.go
+  s_80fd8eb71bc05d::t_b1a17bd94e0b44 4,19,21,25,34,37,42,44,48,57-58,68,70,74,78
+go/internal/query/graph_read_error_selector_test.go
+  s_7737936e8f253f::t_94516bcf7adfb0 15,97,119
+go/internal/query/iac/reachability_store.go
+  s_80fd8eb71bc05d::t_9b7ab67ce45526 4,34,42,44
+go/internal/query/auth_scoped_routes_iac.go
+  s_7737936e8f253f::t_0442c5b5c894f6 23-24,28-30
+go/internal/query/iac/resources_scope.go
+  s_80fd8eb71bc05d::t_e16ecd72ab6e40 6-10
+  s_80fd8eb71bc05d::t_761c37df89bda3 4,41-42,47,52-53,55,57-58
+scripts/lib/golden-corpus-mirror-workflow-paths.sh
+  s_e8ab01ccdfa8e2::t_0bc401f18478b8 231
+go/internal/query/iac/management_status.go
+  s_7737936e8f253f::t_6ca93fc4ab0ee6 174
+  s_80fd8eb71bc05d::t_13927b81ca14f5 4,14-21,25-32,35,46,78,80,82,85,87,93,96,99,102,105,108,111,114,116,127,132,134,136,138,140,149,151,153,155,157,159,161,163,172,189,191,193,202,223,233,242,244,246,259,263,280
+scripts/verify-telemetry-coverage.sh
+  s_80fd8eb71bc05d::t_3805c8d1f70e70 147
+go/internal/query/iac/inventory_postgres_live_test.go
+  s_80fd8eb71bc05d::t_5f1aa2accb9fd1 15
+  s_80fd8eb71bc05d::t_ebef00db7d9965 4,98-99,108-109,124-125,141-143,147-149,160-161,171-172,182-183,196-197,218-219
+go/internal/query/iac/replatforming_plan_contract.go
+  s_80fd8eb71bc05d::t_dea28efbfc65d8 184
+  s_80fd8eb71bc05d::t_4412f2cab0abfb 204
+  s_80fd8eb71bc05d::t_7ecf875a2f05df 4,118-119,187,189,191,198,200,202
+  s_80fd8eb71bc05d::t_f9a0128252c347 6-10
+go/internal/query/iac/main_test.go
+  s_80fd8eb71bc05d::t_42066e04752b5d 1-33,45-47,49-58,71-73
+  s_80fd8eb71bc05d::t_91380f33d9ffdb 34-44,48,59-70
+go/internal/query/resources_scope_auth_fakes_test.go
+  s_80fd8eb71bc05d::t_9ffa7ead307a23 1-138
+go/internal/correlation/drift/multicloud/README.md
+  s_80fd8eb71bc05d::t_4dcdda0c6392d1 65
+go/internal/query/iac/management_transform_value_drift_test.go
+  s_80fd8eb71bc05d::t_3edef5927f1d8f 10
+  s_e8ab01ccdfa8e2::t_b7635a344d1e83 4,15,37,39,44,47,63-64,67
+go/internal/query/iac/replatforming_rollups_handler.go
+  s_80fd8eb71bc05d::t_ab9445b0e4c518 4,10-11,15,20,22,27,31-32,37-38,40,45-47,52,57,63,68,74,91-92,106,108-109,115,120
+go/.golangci.yml
+  s_80fd8eb71bc05d::t_8856b820c0417e 574
+go/internal/query/repository_group_a_scoped_test.go
+  s_7737936e8f253f::t_e982f22ea7ec4f 17
+go/internal/query/iac/aws_runtime_drift.go
+  s_80fd8eb71bc05d::t_0ba81fcd49b1ee 4,12-13,31,43,48,52-53,58-59,61,66-68,73,77,81,93,101,106,122-123,127,140-141,151,153-154,170,173,176,192,198,205,209-212,218,220,222-225,227,229,231,238,245,276,280
+go/internal/query/replatforming_ownership_handler_test.go
+  s_80fd8eb71bc05d::t_8ca8f275c70fd7 14-24
+go/internal/query/iac/resources_test.go
+  s_80fd8eb71bc05d::t_f42f167e8e12de 4,14-15,55-60,75,195-196,199,374
+go/internal/query/iac/management_access.go
+  s_80fd8eb71bc05d::t_54d76bfd137808 6-7,9-12
+  s_80fd8eb71bc05d::t_aa24e350f41cb3 4,14,28,40-41
+go/internal/query/iac/resources.go
+  s_80fd8eb71bc05d::t_955f2c52272a68 4,13-14,19,22,24,26-27,30,33,36-38,41,44-47,50,60,75-77,91,93,96-97,100,104,106,111-112,114,127,132-133,135,140,150,152-157,162,166,180,183,186,188,197,199,209-210,213,227,229-230,235,254,256-257,268,271,273,275,285,287,290-291,305-306,329,331-334,337-344,346
+  s_7737936e8f253f::t_48250ddba125d4 52
+docs/public/reference/replatforming-plan-contract.md
+  s_80fd8eb71bc05d::t_d6a1fae3ee6b40 9-10
+  s_80fd8eb71bc05d::t_964a2101ced6e5 93
+go/internal/query/iac/management_safety_test.go
+  s_80fd8eb71bc05d::t_457047d571f1dd 4,15-16,29-30,54,76-77,79,87-88,105,112,133,137-138,147
+go/internal/query/iac/management_status_test.go
+  s_80fd8eb71bc05d::t_2e0948ce4cb7be 4,18,23,28,32,36,40,43,47,50,54,58,62,68,72,76,80,84,88-89,115,139,141,167,192,194,208,223
+go/internal/query/iac/route_coverage_smoke_test.go
+  s_80fd8eb71bc05d::t_6c4ae8334c41ed 1-11,14-49,58,60-109,115-177
+  s_80fd8eb71bc05d::t_4d98a8c105ac4c 12-13
+  s_80fd8eb71bc05d::t_97656b693b2ae9 50-57,59
+  s_80fd8eb71bc05d::t_07ff5a1c6a5597 110-114
+go/internal/mcp/replatforming/AGENTS.md
+  s_e8ab01ccdfa8e2::t_fde06eabbe781f 18-20
+  s_7737936e8f253f::t_9c0b85857ab0a0 21-22
+go/internal/query/replatforming_management_store_fake_test.go
+  s_80fd8eb71bc05d::t_6fb96e50bef534 1-5,8-9,14-96
+  s_80fd8eb71bc05d::t_8939be9a3c1f8e 6-7
+  s_7737936e8f253f::t_05a8863fc937b6 10-13
+go/internal/query/iac/replatforming_plan_handler.go
+  s_80fd8eb71bc05d::t_04fe76da87216f 4,11-12,16,20,49,53-54,58-59,64-65,67,73-74,79,84,89,95,100,107,110-111,115,139,141-142,173,180-181,208,212
+go/internal/query/iac/management_transform.go
+  s_80fd8eb71bc05d::t_52c1f9c5a933ab 4,12,15,31,35,45,52,55,58,60,62,65,70,80-81,97-100,104,107,109,111
+go/internal/query/iac/import_mappings.go
+  s_80fd8eb71bc05d::t_b8c4898cb35206 4,15,39,61,71,80,91,106,124
+go/internal/query/iac/replatforming_plan_compose.go
+  s_80fd8eb71bc05d::t_80d89074c159e6 4,22-23,38,66,68,81-82,85,92,102-103,133,166,182,247
+go/internal/query/iac/replatforming_waves.go
+  s_80fd8eb71bc05d::t_53327c3d6dde1d 4,47,49-50,53-54,57,63-67,174,178,180,196,198,200,202,204,215,219,223,262-266,319
+go/internal/query/iac/auth_scoped_replatforming_grant_test.go
+  s_7737936e8f253f::t_e9d26a76c73ca0 24-25
+  s_80fd8eb71bc05d::t_2cef0457441dcd 4,54-55,62-63,73-74,81-83,103,123,147,162,169,171,188,229,271,290,306,328,350,361
+  s_80fd8eb71bc05d::t_54de9ce6cff556 15
+  s_80fd8eb71bc05d::t_8eed1626b689a7 13-14
+go/internal/query/iac/drifted_attributes.go
+  s_80fd8eb71bc05d::t_827096066793f2 1-87
+docs/internal/remote-validation/prod-replatforming-ownership.md
+  s_80fd8eb71bc05d::t_d8b488e53a80ad 34
+  s_80fd8eb71bc05d::t_b31c250d6ede38 44
+scripts/verify_aws_runtime_drift_compose.sh
+  s_80fd8eb71bc05d::t_e9d838611cf86a 223
+scripts/lib/dirgate-grandfather.tsv
+  s_0dcffc16b6a093::t_8b499cdfb1a98c 87
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_7737936e8f253f::t_8e1bd93410f9e0 282-283
+  s_80fd8eb71bc05d::t_abdb163be4a9f8 297,299-300
+  s_80fd8eb71bc05d::t_b976ae806ce3d7 293-295
+  s_7737936e8f253f::t_b040bd437434c7 304
+go/internal/query/iac/management_safety.go
+  s_80fd8eb71bc05d::t_f7b55394272826 4,14-19,22,24,34,43,46-47,50,62,97-98,101,106,110,119,126,130-135,140,143-144,149,151,163-164,167-168,171
+go/internal/query/iac/inventory_postgres.go
+  s_80fd8eb71bc05d::t_71b56d0b4bb262 4,11-12,15,21,25,29,36,72,79,106,163-165,169,175,195,197,212,214,221,238,245,248,266
+go/internal/query/cloud_runtime_drift.go
+  s_80fd8eb71bc05d::t_bf991f02a8a090 133-137
+  s_80fd8eb71bc05d::t_e9c745c328a9a0 12
+go/internal/query/iac/replatforming_waves_test.go
+  s_80fd8eb71bc05d::t_bccf05d52d65ba 4,20,45-46,49-50
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_80fd8eb71bc05d::t_f559c68053f4e5 237,239
+  s_80fd8eb71bc05d::t_c8d51e68d693c9 243
+go/internal/query/iac/management.go
+  s_80fd8eb71bc05d::t_aba76178243cde 4,14-15,23-27,32-33,39,42-45,71,83,95-123,128,131,133,144,203-204,222,224,233,249,254,258-259,264-265,267,272-274,279,284,290,295,300,305-307,314-315,324,326-327,332-333,337,341,343,347,350,353,356,359,361-362,369-372,400,402-406,410,432,436-437
+specs/product-claims.v1.yaml
+  s_7737936e8f253f::t_0f80091edac7ed 155
+  s_7737936e8f253f::t_cb4e8765126d7c 133
+docs/internal/remote-validation/prod-dead-iac.md
+  s_e8ab01ccdfa8e2::t_10a0334bf32707 37,41,49
+go/internal/query/graph_read_error_aggregate_test.go
+  s_80fd8eb71bc05d::t_8e065b73137acd 112-117
+go/internal/query/iac/inventory.go
+  s_80fd8eb71bc05d::t_ed8b3280f160a5 6-7,9-10
+  s_80fd8eb71bc05d::t_2ca3280ac21525 4,12-14,17-19,22-23,34,40-43,46-54,57-62,64-67,75-76,78-81
+go/internal/query/iac/handler.go
+  s_80fd8eb71bc05d::t_016033ea47e894 4,13-15,21-24,26-32,35-39,43,48-49,53,63,67,69,71,96-97,105,110,112,124-125,128-129,134-135,137,143-144,149,154,167,179,192,203,209,217,233,239,244,258,267,285,331,333-334,366-367,375,377,381,385,417,420,441
+tools/golangci-lint-dirgate/grandfather.go
+  s_0dcffc16b6a093::t_40f3c4975ca4e7 33
+go/internal/query/iac/replatforming_plan_contract_validate.go
+  s_80fd8eb71bc05d::t_af3e97ac618f20 4
+go/internal/storage/cypher/tfstate_canonical_writer.go
+  s_e8ab01ccdfa8e2::t_e3e8c7be1b5634 24
+go/internal/query/iac/replatforming_ownership_handler.go
+  s_80fd8eb71bc05d::t_27a77c8c10131d 4,10-11,15,22,24,29,33-34,39-40,42,47-49,54,59,65,70,76,90-91,106,108-109,117,121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "188e8480ce8a1388597acf2cbfecd0b2eb6876d6",
+  "prompts": {},
+  "sessions": {
+    "s_0dcffc16b6a093": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8339b6a7-551b-4035-941c-16f963cb9964",
+        "model": "unknown"
+      },
+      "human_author": null
+    },
+    "s_4f77f3e7449159": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71ec12c5-c74c-4e2c-bc6a-b7c85ef53298",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_7737936e8f253f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f883e37a-ec08-48d9-bbb7-cced9247a00d",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_80fd8eb71bc05d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "72951224-7923-4bb7-986e-61f38e3b7c69",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

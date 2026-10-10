@@ -1,0 +1,36 @@
+.github/workflows/golden-corpus-gate.yml
+  h_78a442cba0b3e6 163-168,244-313
+go/cmd/golden-corpus-gate/AGENTS.md
+  h_78a442cba0b3e6 8-9,29
+go/cmd/golden-corpus-gate/README.md
+  h_78a442cba0b3e6 53-56,59-66,190-191
+go/cmd/golden-corpus-gate/backenddiff.go
+  h_78a442cba0b3e6 1-43
+go/cmd/golden-corpus-gate/backenddiff_test.go
+  h_78a442cba0b3e6 1-119
+go/cmd/golden-corpus-gate/doc.go
+  h_78a442cba0b3e6 42-46
+go/cmd/golden-corpus-gate/main.go
+  h_78a442cba0b3e6 65-67,74,96-98
+go/cmd/golden-corpus-gate/runner.go
+  h_78a442cba0b3e6 55-77,293-294,303,310-321
+go/internal/cigates/gopkgtrigger.go
+  h_78a442cba0b3e6 58
+go/internal/cigates/scriptworkflow.go
+  h_78a442cba0b3e6 37
+specs/backend-divergence-allowlist.v1.yaml
+  h_78a442cba0b3e6 1-26
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 2575-2611
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9b39185ff68d305d9e241d482c0b84f44f0fe1b2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

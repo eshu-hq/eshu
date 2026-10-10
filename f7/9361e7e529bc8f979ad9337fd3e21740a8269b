@@ -1,0 +1,43 @@
+go/internal/reducer/supply_chain_impact_reachability.go
+  s_f2f7fbb6f30866::t_c627925e806da7 1-52,56-84,121-129,134-143,145-158,195,281-282,284-285,321-324,328-365
+  s_f2f7fbb6f30866::t_258b15bd8e7225 85-120,131-133,286-320,325-326
+  s_f2f7fbb6f30866::t_c540c3e20c427d 130
+  s_f2f7fbb6f30866::t_f33e9135be87e3 144
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_c627925e806da7 99,409
+  s_f2f7fbb6f30866::t_5eaa9557f3e10a 202-205
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_7413e96ecfd9e2 154,159-167,243
+  s_f2f7fbb6f30866::t_adc2975e440b81 312-313,319-320,326-327,351-352
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_4f5f88bc80d022 131-136,255,511-519,521,526
+  s_f2f7fbb6f30866::t_ac99a9bc60b00a 520,529,532,534-535
+  s_f2f7fbb6f30866::t_53aaf596c0b975 538-541,548
+go/internal/reducer/supply_chain_impact_python_reachability_test.go
+  s_f2f7fbb6f30866::t_09ae2c6e1ef932 1-134,180-182,184-205,215-253,257-258,305,314-344,347-350
+  s_f2f7fbb6f30866::t_43b229658c3536 135-179
+  s_f2f7fbb6f30866::t_39ea75ee6cb4cc 183,259-260,265-292,295-304,306-313,345-346
+  s_f2f7fbb6f30866::t_4b502acf07b5ff 206-214,254-256
+go/internal/reducer/supply_chain_impact_python_reachability.go
+  s_f2f7fbb6f30866::t_33d4422c6893b0 1-21,23-28,30-36,48-90,92,94-95,97,99-100,102,104-105,107,109-116,118,120-133,136-137,140-141,144-145,149,151-152,154-257
+  s_f2f7fbb6f30866::t_6e44a95f6d127e 22,91,93,96,98,101,103,106,108,117,119,134-135,138-139,142-143,146-148,150,153,280,297-299
+  s_f2f7fbb6f30866::t_ff23645b967f26 37
+  s_f2f7fbb6f30866::t_a458bd5e9bac0d 38,258-279,281-296,300-365,367-392
+  s_f2f7fbb6f30866::t_afc5192e3813d7 366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f79361e7e529bc8f979ad9337fd3e21740a8269b",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

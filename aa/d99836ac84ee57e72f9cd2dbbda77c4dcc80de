@@ -1,0 +1,117 @@
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_20efcba52555b7 169-170,174,176-179,182-184
+  s_bdaf44668b73dc::t_2b3eea933682fb 171-173
+  s_bdaf44668b73dc::t_ffe860fcdb8ff4 175
+  s_bdaf44668b73dc::t_bef3d8359cceca 150-157
+  s_bdaf44668b73dc::t_d773741b62830f 158,211,214-218,192,228
+  s_bdaf44668b73dc::t_105f73a206a287 159-161
+  s_bdaf44668b73dc::t_4346a67aee732e 166-167
+  s_bdaf44668b73dc::t_44fd3db334015d 186-191,222-227
+go/cmd/bootstrap-index/canonical_writer_config.go
+  s_bdaf44668b73dc::t_9d42a3746fad43 22-24,37
+go/cmd/ingester/README.md
+  s_bdaf44668b73dc::t_8161d098ee8b3b 70
+  s_bdaf44668b73dc::t_41504a053b64af 71-73,102,189-192
+go/cmd/bootstrap-index/nornicdb_wiring_test.go
+  s_bdaf44668b73dc::t_ca3f62bfaa6b6f 140,153,158,160,163-164
+go/internal/reducer/fact_payload_loader_test.go
+  s_bdaf44668b73dc::t_9a405362dfe20a 1-161
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_9bc7f71f71d5a4 23,192-194,68
+  s_bdaf44668b73dc::t_029e393c9c1c56 117-121
+  s_bdaf44668b73dc::t_753b2672c8e22c 122
+  s_bdaf44668b73dc::t_8e99e5cab25c06 195
+  s_bdaf44668b73dc::t_5f4d2617860240 61,317,319-320
+  s_bdaf44668b73dc::t_574e7d8d1973c2 62,318
+  s_bdaf44668b73dc::t_775c21ded3fef3 63-67,153,183,321-327
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_2c6c4141c4e57f 15
+  s_bdaf44668b73dc::t_775c21ded3fef3 20-23
+go/internal/reducer/inheritance_materialization.go
+  s_bdaf44668b73dc::t_cb10443aad4268 26-35,69,74-76
+go/cmd/ingester/doc.go
+  s_bdaf44668b73dc::t_e4249e514ec1d4 18
+  s_bdaf44668b73dc::t_41504a053b64af 14-17
+docs/docs/reference/local-performance-envelope.md
+  s_bdaf44668b73dc::t_ba4cb4358d4df3 60-100
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_20efcba52555b7 17-18
+  s_bdaf44668b73dc::t_ce2e93aa9d8517 13-15
+  s_bdaf44668b73dc::t_4346a67aee732e 16
+  s_bdaf44668b73dc::t_a8c35db77bf59a 19-20
+  s_bdaf44668b73dc::t_1af29042de5696 25
+go/cmd/ingester/wiring_canonical_writer.go
+  s_bdaf44668b73dc::t_d27dc28db54ade 21-22
+go/cmd/ingester/wiring_nornicdb_env.go
+  s_bdaf44668b73dc::t_d587326ba6b539 41
+go/cmd/ingester/wiring.go
+  s_bdaf44668b73dc::t_8d81ca00abaa30 458
+go/cmd/ingester/wiring_test.go
+  s_bdaf44668b73dc::t_179dec7b145bca 41
+docs/docs/reference/nornicdb-tuning.md
+  s_bdaf44668b73dc::t_61826da80c7e9e 71,81-84,325,327-330
+docs/docs/adrs/2026-05-07-dead-code-root-model-and-language-reachability.md
+  s_bdaf44668b73dc::t_80c77ef1c26931 395-407,413-430,435-437,441-443
+  s_bdaf44668b73dc::t_3696abeae4448f 408-412
+  s_bdaf44668b73dc::t_11999f88a415ed 366-367
+  s_bdaf44668b73dc::t_8a8fc8c9c3e840 431-434
+  s_bdaf44668b73dc::t_7fc60db96aef05 438-439
+  s_bdaf44668b73dc::t_ed12cda12611f3 440
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_71cb56d66a08f9 57-59,61-65,117-119
+  s_bdaf44668b73dc::t_1d03788e16e3e0 74
+  s_bdaf44668b73dc::t_2b3eea933682fb 75-76
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 77-78
+  s_bdaf44668b73dc::t_1eea9e41bd64d4 79-82
+  s_bdaf44668b73dc::t_105f73a206a287 283
+go/internal/storage/postgres/facts_filtered_test.go
+  s_bdaf44668b73dc::t_9eac8a86fc811e 72,74-75,78-94,96-107,109-114,116-117,119,181-202,145,158,161,165,168,171,175,178-179
+  s_bdaf44668b73dc::t_a3ddd243c44395 120-122,123-144,146-157,159-160,162-164,166-167,169-170,172-174,176-177,180
+  s_bdaf44668b73dc::t_8b42d5ea8c160d 73,76-77,95,115,118
+  s_bdaf44668b73dc::t_37225ed6df83c4 108
+go/internal/storage/postgres/shared_intents_test.go
+  s_bdaf44668b73dc::t_9867eb0edf81b9 289-290,312,316
+go/internal/storage/postgres/shared_intents_upsert.go
+  s_bdaf44668b73dc::t_5bff9d809275aa 1-172
+go/cmd/ingester/wiring_nornicdb_env_test.go
+  s_bdaf44668b73dc::t_c60e944925d37e 82,89-90,94,99,106-107
+go/cmd/bootstrap-index/README.md
+  s_bdaf44668b73dc::t_41504a053b64af 77-79,264-267
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_71cb56d66a08f9 8,16-19
+  s_bdaf44668b73dc::t_1d03788e16e3e0 9,14-15
+  s_bdaf44668b73dc::t_2b3eea933682fb 10
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 11
+  s_bdaf44668b73dc::t_1eea9e41bd64d4 12-13
+go/cmd/bootstrap-index/doc.go
+  s_bdaf44668b73dc::t_41504a053b64af 14-18
+go/cmd/ingester/wiring_canonical_writer_test.go
+  s_bdaf44668b73dc::t_da2ae3cb06daa5 62,68-69,76,81,83,86-87
+go/internal/reducer/fact_kind_loader.go
+  s_bdaf44668b73dc::t_304e7d3d76bbee 5-7,56-60,62-66,119-149,43-44,83-84,98,100-101,115,117-118
+  s_bdaf44668b73dc::t_5a3a96fea7fedb 31-42,69-82,85-97,99,102-114,116
+go/internal/reducer/code_call_materialization.go
+  s_bdaf44668b73dc::t_cf3e5f19afde5a 6,11,62-63,74,76,78,80-86,95,97,103,113,116-128,137,141-156,171-202
+go/internal/reducer/sql_relationship_materialization.go
+  s_bdaf44668b73dc::t_240b76093c1064 18-26,61,66-68
+go/internal/storage/postgres/facts_filtered.go
+  s_bdaf44668b73dc::t_66f056d833cf74 7,15,38-41,43,90-94,162-186,192
+  s_bdaf44668b73dc::t_e8e352268b1bb6 95-110,46-72,111-161,207-250,252-253
+  s_bdaf44668b73dc::t_d521df695a65d4 12-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "aad99836ac84ee57e72f9cd2dbbda77c4dcc80de",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

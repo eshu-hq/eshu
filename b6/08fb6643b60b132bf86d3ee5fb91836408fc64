@@ -1,0 +1,23 @@
+go/internal/query/querytestutil/nornicdb_guards.go
+  s_13513e1653f60b::t_b7478c45c3687b 93-106
+go/internal/query/querytestutil/nornicdb_label_predicate_scan_test.go
+  s_13513e1653f60b::t_f03daf6c7f133a 22-27
+go/internal/query/querytestutil/nornicdb_label_predicate_test.go
+  s_13513e1653f60b::t_9c6e463b672445 70-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b608fb6643b60b132bf86d3ee5fb91836408fc64",
+  "prompts": {},
+  "sessions": {
+    "s_13513e1653f60b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be54da3d-092b-4f0e-960b-90e822f671a3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

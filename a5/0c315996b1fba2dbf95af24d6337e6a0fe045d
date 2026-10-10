@@ -1,0 +1,77 @@
+go/internal/query/README.md
+  s_072c5984f68e14::t_8035da7794aa8e 92-97
+go/internal/mcp/dispatch.go
+  s_072c5984f68e14::t_d13e8d62cce2a5 320-321
+go/internal/query/openapi_supply_chain_test.go
+  s_072c5984f68e14::t_820c323b4eed4e 39-54
+go/internal/storage/postgres/schema_fact_records.go
+  s_072c5984f68e14::t_88bc785e92835d 197-223
+specs/capability-matrix.v1.yaml
+  s_072c5984f68e14::t_6c452894e56754 337-343
+go/internal/query/container_image_identities_test.go
+  s_072c5984f68e14::t_bb5456d974ed4d 1-154
+schema/data-plane/postgres/003_fact_records.sql
+  s_072c5984f68e14::t_8aa9521f016e13 194-220
+docs/docs/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_a09a8816448a69 144-167
+go/internal/mcp/server_test.go
+  s_072c5984f68e14::t_5cd630dc4a264c 91
+docs/docs/guides/mcp-guide.md
+  s_072c5984f68e14::t_85612557f4dc39 328
+  s_072c5984f68e14::t_4898f1f7b4430d 198,326
+go/internal/query/supply_chain.go
+  s_072c5984f68e14::t_c4c8f00e6d5751 14,17,22-25,81-98,103,198-281,394-403
+go/internal/mcp/dispatch_supply_chain.go
+  s_072c5984f68e14::t_51e59d1b08e6a1 5-15
+go/internal/mcp/dispatch_supply_chain_test.go
+  s_072c5984f68e14::t_e8f3c62e21daf9 33-64
+go/internal/telemetry/contract_supply_chain.go
+  s_072c5984f68e14::t_1f92ddff9e4570 12-14,20,24
+go/cmd/api/wiring.go
+  s_072c5984f68e14::t_774c11c7f621f8 228-231
+docs/docs/reference/http-api.md
+  s_072c5984f68e14::t_606ca024a323bb 371
+  s_072c5984f68e14::t_7ef6cb97623cee 368-370,372-378
+go/internal/mcp/README.md
+  s_072c5984f68e14::t_98d2b9f2266e16 62
+go/cmd/mcp-server/wiring_test.go
+  s_072c5984f68e14::t_52215a956cfb13 84-86
+go/internal/mcp/tools_supply_chain.go
+  s_072c5984f68e14::t_93058596c24e71 26
+  s_072c5984f68e14::t_34d6eab9ed5235 6-25,27-41
+go/internal/query/openapi_paths_supply_chain.go
+  s_072c5984f68e14::t_c292b4c1fb7fa1 12
+  s_072c5984f68e14::t_74520bf631cdfd 4-11,13-52
+go/internal/query/container_image_identities.go
+  s_072c5984f68e14::t_04cba449d9d573 1-165
+go/internal/telemetry/contract_test.go
+  s_072c5984f68e14::t_f2b9493fd184a5 113
+go/cmd/api/wiring_test.go
+  s_072c5984f68e14::t_b99395d04160dc 9-10,109-127
+go/internal/storage/postgres/schema_test.go
+  s_072c5984f68e14::t_6b60305373da6c 301-303
+go/internal/mcp/tools_test.go
+  s_072c5984f68e14::t_704dca1561d66d 10,59
+go/internal/query/contract_supply_chain.go
+  s_072c5984f68e14::t_50d3d258d5730a 18-24
+go/cmd/mcp-server/wiring.go
+  s_072c5984f68e14::t_578b2f84a63ba7 175-178
+docs/docs/reference/mcp-tool-contract-matrix.md
+  s_072c5984f68e14::t_8db5fc02b16c77 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "a50c315996b1fba2dbf95af24d6337e6a0fe045d",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

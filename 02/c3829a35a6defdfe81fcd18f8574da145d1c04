@@ -1,0 +1,96 @@
+scripts/verify-parser-relationship-kit.sh
+  s_20be138600ef1b::t_d9a9ae1b5709bd 458
+scripts/test-verify-parser-relationship-kit.sh
+  s_20be138600ef1b::t_f894b0464a2eaf 219-240
+docs/internal/design/4786-contract-integration-matrix.md
+  s_20be138600ef1b::t_9ced8989838917 42,44,52,68,70
+  s_20be138600ef1b::t_fdcab27c140dc4 73
+  s_20be138600ef1b::t_b5d22435b2b9bc 36,40,43,45,49,51,53,56-57,64,69,72,75-77,80-81,155,160-161,163
+docs/internal/design/4784-reducer-derived-fact-governance.md
+  s_20be138600ef1b::t_dc8725899d4084 13,76,80-85,87-89,91-93,95
+go/internal/relationships/gcp_evidence.go
+  s_20be138600ef1b::t_258ff3ed4bfc2c 28,39,62
+docs/internal/evidence/6525-dead-reducer-doc-refs.md
+  s_20be138600ef1b::t_5621a34a2ac2dc 332-342
+  s_20be138600ef1b::t_9505a95fa16658 114-134,139,155
+  s_20be138600ef1b::t_4fdd513be8ad16 14-15,29,35,54
+  s_20be138600ef1b::t_9caa38f8c6a668 5-8,10
+  s_20be138600ef1b::t_2af72ce2366b48 135-138
+  s_20be138600ef1b::t_445c7a2e0b9d59 104-110
+  s_20be138600ef1b::t_5a1f26f3b3430d 228-254
+  s_20be138600ef1b::t_b464a4074e895a 71-72,76-79,87-88,90-93
+  s_20be138600ef1b::t_09d4354fd0a0f1 198-200
+  s_20be138600ef1b::t_e523c1b2b4b199 111-113
+  s_20be138600ef1b::t_e9fc51f710f541 140-142,152-154
+  s_20be138600ef1b::t_02a76d8436c5ba 156-158,195-197
+  s_20be138600ef1b::t_86b08e66fa87c8 201-203,225-227
+  s_20be138600ef1b::t_8d6b90d48783d6 143-151,159-194,204-224
+scripts/lib/parser_relationship_comment_only_diff.sh
+  s_20be138600ef1b::t_d9a9ae1b5709bd 8-11,89-93
+  s_20be138600ef1b::t_085ddc19bdabf8 94-96
+  s_20be138600ef1b::t_9712b593fd635f 97-98
+docs/internal/design/4585-unified-finding-read-contract.md
+  s_20be138600ef1b::t_d04ab66026f112 14
+docs/internal/design/5385-workload-identity-key.md
+  s_20be138600ef1b::t_f66ccf2f190120 736
+docs/internal/design/collector-readiness-evidence-summary-materialization-design.md
+  s_20be138600ef1b::t_b3ddbc3ebed8c7 27
+docs/internal/remote-validation/prod-supply-chain-impact.md
+  s_20be138600ef1b::t_4782dddf1aa809 48,56,61,65
+docs/public/reference/azure-cloud-collector-contract.md
+  s_20be138600ef1b::t_46e4b19a86a51e 71
+docs/public/reference/dependency-coverage.md
+  s_20be138600ef1b::t_10866539685065 20
+docs/public/reference/gcp-cloud-collector-contract.md
+  s_20be138600ef1b::t_2b37cdc308598d 46
+go/internal/packageidentity/AGENTS.md
+  s_20be138600ef1b::t_16cf38decd92f6 9
+go/internal/parser/gradle/README.md
+  s_20be138600ef1b::t_3acc85dcf07adc 17
+go/internal/parser/maven/README.md
+  s_20be138600ef1b::t_e5e2308762b8f7 15
+go/internal/query/cloud_inventory_account_alias_test.go
+  s_20be138600ef1b::t_6200a500b105c8 19
+go/internal/query/cloud_inventory_gcp_project_gap_live_test.go
+  s_20be138600ef1b::t_02e313474e7f5b 64
+go/internal/query/cloud_inventory_read_model.go
+  s_20be138600ef1b::t_2138afea73c179 113
+go/internal/query/cloud_inventory_readback.go
+  s_20be138600ef1b::t_10cd5be979f63b 98
+go/internal/query/cloud_inventory_rollout_signal.go
+  s_20be138600ef1b::t_ecb234ad7169ea 22
+go/internal/query/cloud_inventory_rollout_window_live_test.go
+  s_20be138600ef1b::t_d6fde5918d51cc 15,90
+go/internal/query/package/registry/correlations.go
+  s_20be138600ef1b::t_2de45787de778a 23
+go/internal/query/package/registry/factschema_decode_package_correlations.go
+  s_20be138600ef1b::t_e4ffd09dba326d 31
+go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go
+  s_20be138600ef1b::t_32430a002e2342 22
+go/internal/replay/schedulereplay/evidence-4367-projection-ordering.md
+  s_20be138600ef1b::t_478b2bbf96d7da 99
+go/internal/storage/postgres/cloud_inventory_evidence_account_id_test.go
+  s_20be138600ef1b::t_6ce119bf95bd47 21
+scripts/lib/ifa_family_registry/rows/13_iam_instance_profile_role.sh
+  s_20be138600ef1b::t_eae558ca94c1f3 14-16,63
+scripts/lib/ifa_family_registry_pins/iam_instance_profile_role.sh
+  s_20be138600ef1b::t_f06823437d63d5 9-11
+scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh
+  s_20be138600ef1b::t_ebe0a524353062 47-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "02c3829a35a6defdfe81fcd18f8574da145d1c04",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Test <test@example.test>"
+    }
+  }
+}

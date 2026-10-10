@@ -1,0 +1,28 @@
+docs/public/roadmap.md
+  s_f2f7fbb6f30866::t_9ae37f0ecf6636 1-96
+docs/mkdocs.yml
+  s_f2f7fbb6f30866::t_9ae37f0ecf6636 223
+docs/internal/docs-change-tally.md
+  s_f2f7fbb6f30866::t_9ae37f0ecf6636 173
+  s_f2f7fbb6f30866::t_9fdb6d70295c11 217-220
+docs/public/releases/index.md
+  s_f2f7fbb6f30866::t_9ae37f0ecf6636 8-10
+docs/public/start-here.md
+  s_f2f7fbb6f30866::t_9ae37f0ecf6636 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "20a0bcf0938b18e9cf3adcc7a736916321a404da",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

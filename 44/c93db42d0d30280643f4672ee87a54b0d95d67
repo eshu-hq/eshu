@@ -1,0 +1,35 @@
+docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md
+  s_cd24245ce16b3a::t_aab2b842ad6392 217
+go/cmd/reducer/AGENTS.md
+  s_cd24245ce16b3a::t_d5e7468d70690c 22-25
+go/cmd/reducer/canonical_graph_writers.go
+  s_cd24245ce16b3a::t_133b4974ae5ce8 19,75-90
+go/cmd/reducer/main.go
+  s_cd24245ce16b3a::t_9496c1d9aae9d8 104-105,248
+go/cmd/reducer/wiring_handlers.go
+  s_cd24245ce16b3a::t_28293ac5ad91c7 267-285
+go/internal/reducer/defaults.go
+  s_cd24245ce16b3a::t_2838825a361035 168
+go/internal/reducer/defaults_cross_scope_readiness_wiring_test.go
+  s_cd24245ce16b3a::t_235d5b43da5f26 65-70,130-133
+go/internal/reducer/defaults_handlers.go
+  s_cd24245ce16b3a::t_416e61d73901cd 9-12,355-381
+go/internal/reducer/defaults_readiness_wait_wiring_test.go
+  s_cd24245ce16b3a::t_bbbc22d7388dce 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "44c93db42d0d30280643f4672ee87a54b0d95d67",
+  "prompts": {},
+  "sessions": {
+    "s_cd24245ce16b3a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff5b0e60-84a1-476b-8cc2-eb86e0ac8318",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

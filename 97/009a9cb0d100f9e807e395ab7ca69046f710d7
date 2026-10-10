@@ -1,0 +1,172 @@
+go/internal/status/status_health_test.go
+  s_bdaf44668b73dc::t_36583b8a9a3364 1-191,264-318,193-198,202,210-217,220,226-228,230-235,239,245-252,255,261-263
+  s_bdaf44668b73dc::t_67bab095fad22e 192,205-208,225
+  s_bdaf44668b73dc::t_0845fb1a596001 199-201,203-204,209,218-219,221-224,229,236-238,240-244,253-254,256-260
+go/internal/query/content_reader_dead_code_test.go
+  s_bdaf44668b73dc::t_68c2fb3429bc38 1-48,50-52,54-78
+  s_bdaf44668b73dc::t_0845fb1a596001 49,53
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_9bc7f71f71d5a4 23,206-208,70,126,134
+  s_bdaf44668b73dc::t_029e393c9c1c56 119-123
+  s_bdaf44668b73dc::t_753b2672c8e22c 124,125,127-133,196-198,345-349
+  s_bdaf44668b73dc::t_8e99e5cab25c06 209
+  s_bdaf44668b73dc::t_5f4d2617860240 63,334,336-337
+  s_bdaf44668b73dc::t_574e7d8d1973c2 64,335
+  s_bdaf44668b73dc::t_775c21ded3fef3 65-69,165,195,338-344
+  s_bdaf44668b73dc::t_6744058f619bb2 24-25,210
+  s_bdaf44668b73dc::t_12aa2953a575b0 211-215
+go/internal/query/code_dead_code_java_roots.go
+  s_bdaf44668b73dc::t_c63abba838e5c0 1-15,26-28
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_20efcba52555b7 173-174,178,180-183,187-189
+  s_bdaf44668b73dc::t_2b3eea933682fb 175-177
+  s_bdaf44668b73dc::t_ffe860fcdb8ff4 179
+  s_bdaf44668b73dc::t_bef3d8359cceca 150-157
+  s_bdaf44668b73dc::t_d773741b62830f 158,216,222-226,197,236
+  s_bdaf44668b73dc::t_105f73a206a287 159-161
+  s_bdaf44668b73dc::t_4346a67aee732e 170-171
+  s_bdaf44668b73dc::t_44fd3db334015d 191-196,230-235
+  s_bdaf44668b73dc::t_31666b1326f578 217-221,363-367
+  s_bdaf44668b73dc::t_1bf1b906bd9698 166-169,184-186
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_71cb56d66a08f9 8,16-19
+  s_bdaf44668b73dc::t_1d03788e16e3e0 9,14-15
+  s_bdaf44668b73dc::t_2b3eea933682fb 10
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 11
+  s_bdaf44668b73dc::t_1eea9e41bd64d4 12-13
+  s_bdaf44668b73dc::t_701f3496dd2831 20-21
+go/internal/parser/java_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_6f2c7545668ea3 1-5,8-47
+  s_bdaf44668b73dc::t_5b5902d04bf6d7 48,53,57,60,62,64-65,67,90,94
+  s_bdaf44668b73dc::t_fffd7e810d928b 49,95
+  s_bdaf44668b73dc::t_de2d776b658fa4 50-52,248-249,253,259-261,265-266,269-277,279,281-282,290,291-349,54-55,59,61,63,66,69-70,73-74,76-84,86,88-89,93,96-98,100-101,105,114,117-118,120-122,125-126,128-129,131-133,136-137,139-141,145-146,148-149,151-153,156-158,162,166-167,169-177,179,181-182,186,190,196,201-203,205-206,210,215-216,218-219,222-230,232,234-235,240,245-246
+  s_bdaf44668b73dc::t_b849eb692d09d0 247,251,254-258,262-264,267-268
+  s_bdaf44668b73dc::t_357ef7fda354f6 250,252,278,280,56,58,85,87,102,104,178,180,207,209,231,233
+  s_bdaf44668b73dc::t_5d87f3f74764cd 283-284,286-287
+  s_bdaf44668b73dc::t_f07f14239b580e 285,288-289
+  s_bdaf44668b73dc::t_e453ac111e6705 7
+  s_bdaf44668b73dc::t_b0ebfd3b2fdaf9 68,71-72,91-92
+  s_bdaf44668b73dc::t_9ee9f86ef16164 75,99,103,106-109,113,115-116,119,127,134-135,138,142-144,147,150,154-155,183-185,187-189,191-195
+  s_bdaf44668b73dc::t_df51cf4e3c5937 110-112,159-161,163-165,168,197-200
+  s_bdaf44668b73dc::t_37be8089980ae7 123-124,130,204,208,211-214,217,220-221,236-239,241-244
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_71cb56d66a08f9 16
+  s_bdaf44668b73dc::t_96b96b63538e9c 17
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 18
+  s_bdaf44668b73dc::t_8879d62f0716db 24-26
+  s_bdaf44668b73dc::t_cfb9761575c852 31
+  s_bdaf44668b73dc::t_701f3496dd2831 19
+go/internal/status/README.md
+  s_bdaf44668b73dc::t_b2b59719a0fb2a 9-10,32-33
+  s_bdaf44668b73dc::t_08551c5a0134d1 34
+  s_bdaf44668b73dc::t_1951d5ea62d7b0 98,160
+  s_bdaf44668b73dc::t_983d49e7eb50e4 64-65,97,161
+  s_bdaf44668b73dc::t_12aa2953a575b0 159,162-164
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_20efcba52555b7 18-19
+  s_bdaf44668b73dc::t_ce2e93aa9d8517 14-16
+  s_bdaf44668b73dc::t_4346a67aee732e 17
+  s_bdaf44668b73dc::t_a8c35db77bf59a 20-21
+  s_bdaf44668b73dc::t_1af29042de5696 28
+  s_bdaf44668b73dc::t_22c12c98874b61 22-27
+go/internal/status/doc.go
+  s_bdaf44668b73dc::t_97e4782fbeaaa5 8
+  s_bdaf44668b73dc::t_70c2a0294dc655 9
+  s_bdaf44668b73dc::t_12aa2953a575b0 10-12
+go/internal/parser/java_dead_code_roots.go
+  s_bdaf44668b73dc::t_f0f199f815b233 1-10,12-37,40-55,58-138,141-179,186-188
+  s_bdaf44668b73dc::t_c28bc9103c83cf 38,56-57,139
+  s_bdaf44668b73dc::t_4d0ad3bcdbc8db 39
+  s_bdaf44668b73dc::t_673ffbc1d2fe6b 180-185
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_71cb56d66a08f9 57-59,61-65,120-122
+  s_bdaf44668b73dc::t_1d03788e16e3e0 77
+  s_bdaf44668b73dc::t_2b3eea933682fb 78-79
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 80-81
+  s_bdaf44668b73dc::t_1eea9e41bd64d4 82-85
+  s_bdaf44668b73dc::t_105f73a206a287 286
+  s_bdaf44668b73dc::t_701f3496dd2831 66-67,287-288
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_2c6c4141c4e57f 15
+  s_bdaf44668b73dc::t_775c21ded3fef3 21-24
+  s_bdaf44668b73dc::t_0f203362723d21 25-27
+  s_bdaf44668b73dc::t_4a0c4967a64755 19-20
+  s_bdaf44668b73dc::t_12aa2953a575b0 16-18
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_84e4d533d436b8 101-103,105-112
+  s_bdaf44668b73dc::t_f7395718f35b8b 119,121-122,124-131
+  s_bdaf44668b73dc::t_b87278a06b9236 165-166,40,81,83,146-148,150,152,156-158,160,162,167-170,172-175,179,254-259,309
+  s_bdaf44668b73dc::t_40fb79f332e58f 308
+  s_bdaf44668b73dc::t_6bfa20d442e158 313-314,113-115,117-118,295,297-298,315-321,323-324,329,332-333,178
+  s_bdaf44668b73dc::t_b46573a2fd2911 365-367,311,322,325-326,334-335,149,151,159,161,177,180-181,289,305,369-381,383-408
+  s_bdaf44668b73dc::t_783f054a7f73d3 310
+  s_bdaf44668b73dc::t_37ff8029f69ad3 176
+  s_bdaf44668b73dc::t_b0ebfd3b2fdaf9 7-8
+  s_bdaf44668b73dc::t_0cda2b8589116f 80,265-267,274,282,286-288,296,300-304,306
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_71cb56d66a08f9 71
+  s_bdaf44668b73dc::t_2b3eea933682fb 72
+  s_bdaf44668b73dc::t_2ebe785b9ffdc3 73
+  s_bdaf44668b73dc::t_858debd4150705 74
+  s_bdaf44668b73dc::t_1d03788e16e3e0 77-80
+  s_bdaf44668b73dc::t_23c2411c4c58e2 81,246
+  s_bdaf44668b73dc::t_e0eaf5973462af 82
+  s_bdaf44668b73dc::t_0170299fe825ee 86-89,247-249
+  s_bdaf44668b73dc::t_81cd9fb753c89c 242
+  s_bdaf44668b73dc::t_701f3496dd2831 75,243-245
+  s_bdaf44668b73dc::t_12aa2953a575b0 83-85
+go/internal/query/code_dead_code_analysis.go
+  s_bdaf44668b73dc::t_27e511a5732f1f 46,69-70
+  s_bdaf44668b73dc::t_6a68db20e15bd6 56-58,60
+  s_bdaf44668b73dc::t_c4f52e174a997b 59
+  s_bdaf44668b73dc::t_b867f821496812 61-63
+  s_bdaf44668b73dc::t_4443b8a45643a1 64-65,100-103,106,122
+  s_bdaf44668b73dc::t_278985251a8c66 66
+  s_bdaf44668b73dc::t_86e8e13f5ddb58 67,104
+  s_bdaf44668b73dc::t_6e1d74fb92c806 68,105
+  s_bdaf44668b73dc::t_1dde14c35d94ce 71
+  s_bdaf44668b73dc::t_1a7c95fed5c096 72-75,118
+go/internal/status/status_health.go
+  s_bdaf44668b73dc::t_36dff84fca1b3a 1-59,74-111,113-115,118-123,62,64-65,67-68,70-73
+  s_bdaf44668b73dc::t_e326286b6c7013 61,63,66,69
+  s_bdaf44668b73dc::t_f444293d85a9ae 60,112,116-117
+go/internal/reducer/code_call_materialization_relationship.go
+  s_bdaf44668b73dc::t_b867f821496812 19-20,16
+  s_bdaf44668b73dc::t_671038b341e3bf 15
+go/internal/query/content_reader_dead_code.go
+  s_bdaf44668b73dc::t_81b0111f9cf904 1-58,66-111
+  s_bdaf44668b73dc::t_f444293d85a9ae 59-65
+go/internal/storage/postgres/status_queries.go
+  s_bdaf44668b73dc::t_f06f021017c24a 1-46,48-65,86-92,95-96,108-110,112-121,123-152,97-98
+  s_bdaf44668b73dc::t_e92e03a11c6041 47,66,68-73,82,84-85,93-94,103,106,111
+  s_bdaf44668b73dc::t_f444293d85a9ae 74,75-81,83,99-102,104-105,107,122
+go/internal/storage/postgres/status_test.go
+  s_bdaf44668b73dc::t_60dadac6090f29 225
+  s_bdaf44668b73dc::t_0e3f8b723f51f7 232-236
+  s_bdaf44668b73dc::t_0845fb1a596001 237,165,240,243-246,248-252
+  s_bdaf44668b73dc::t_9f4e5b21cb6711 55-56,163-164,238-239,241-242
+  s_bdaf44668b73dc::t_ab76aac11f8d46 247
+go/internal/reducer/code_call_materialization_family_test.go
+  s_bdaf44668b73dc::t_671038b341e3bf 59-121
+go/internal/query/code_dead_code_java_roots_test.go
+  s_bdaf44668b73dc::t_b5ad0921492074 1-34,61-94,96-103,39-40,44-45,49-50,54-55,59
+  s_bdaf44668b73dc::t_b74992205a8474 95
+  s_bdaf44668b73dc::t_3a904196ccb3f8 36-38
+  s_bdaf44668b73dc::t_1a7c95fed5c096 41-43,46-48,51-53,56-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "97009a9cb0d100f9e807e395ab7ca69046f710d7",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

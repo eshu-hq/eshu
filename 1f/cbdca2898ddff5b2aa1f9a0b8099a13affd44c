@@ -1,0 +1,93 @@
+scripts/verify-k8s-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_6dd37cff50d7db 11-12,98,100,156-158,160,163-164,166,169-170,172,176-177
+  s_4a0f86aa680964::t_257bd60bd4063f 204,209-210
+scripts/run-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_fc745834e8a8c2 65,240-241,261-272,276-278,286-287,289,292-293,295
+  s_4a0f86aa680964::t_6aa7f54be6b860 273
+scripts/test-verify-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_e9e1a581f20797 43,51,76-82
+  s_4a0f86aa680964::t_9d66c1ad57ca0d 57-61,63-75
+  s_4a0f86aa680964::t_d5808c4b663f13 62
+  s_4a0f86aa680964::t_5310ee48cd048f 83-84
+scripts/verify-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_6dd37cff50d7db 11,93,95,159-161,163,166-167,169,171,174-175,180,186-187
+scripts/test-verify-k8s-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_fd17c95b11e0e7 99,109-111
+  s_4a0f86aa680964::t_e9e1a581f20797 59,67,92-98
+  s_4a0f86aa680964::t_9d66c1ad57ca0d 73-91
+  s_4a0f86aa680964::t_6bcddb445ec6d8 100
+scripts/run-k8s-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_fc745834e8a8c2 389-399,406-407,409,412-413,415
+tests/fixtures/governance_k8s_two_team_proof/bad_cross_scope_leak/team-a.json
+  s_4a0f86aa680964::t_96611d07837301 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_cross_scope_leak/team-b.json
+  s_4a0f86aa680964::t_9add0039e00e17 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_leak/team-a.json
+  s_4a0f86aa680964::t_71e4e8a0164766 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_leak/team-b.json
+  s_4a0f86aa680964::t_a82b3886250866 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_netpol_absent/team-a.json
+  s_4a0f86aa680964::t_be0398cafe58e1 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_netpol_absent/team-b.json
+  s_4a0f86aa680964::t_0b8313e5afc4cc 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_not_kubernetes/team-a.json
+  s_4a0f86aa680964::t_decab9196c859a 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_not_kubernetes/team-b.json
+  s_4a0f86aa680964::t_986d3efe1c846d 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_parity/team-a.json
+  s_4a0f86aa680964::t_d97f31ad167470 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_parity/team-b.json
+  s_4a0f86aa680964::t_a2020780f49f32 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_selector_open/team-a.json
+  s_4a0f86aa680964::t_0064c2aa4a5d9a 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_selector_open/team-b.json
+  s_4a0f86aa680964::t_fdab16e3c18379 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_unauth_open/team-a.json
+  s_4a0f86aa680964::t_fa9b6f72fdd110 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/bad_unauth_open/team-b.json
+  s_4a0f86aa680964::t_a6da8d96693500 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/good/team-a.json
+  s_4a0f86aa680964::t_6e843d5ddf5b5b 6-7,12-13
+tests/fixtures/governance_k8s_two_team_proof/good/team-b.json
+  s_4a0f86aa680964::t_d893760bba6d4e 6-7,12-13
+tests/fixtures/governance_two_team_proof/bad_cross_scope_leak/team-a.json
+  s_4a0f86aa680964::t_c827e00e158a6e 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_cross_scope_leak/team-b.json
+  s_4a0f86aa680964::t_d6e5e69be1813b 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_leak/team-a.json
+  s_4a0f86aa680964::t_e01fdaa1a5d398 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_leak/team-b.json
+  s_4a0f86aa680964::t_537ae186f9ce84 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_parity/team-a.json
+  s_4a0f86aa680964::t_4c5f1cee7512f0 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_parity/team-b.json
+  s_4a0f86aa680964::t_f876471332bbcf 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_selector_open/team-a.json
+  s_4a0f86aa680964::t_68e1f3108b82b7 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_selector_open/team-b.json
+  s_4a0f86aa680964::t_5b659f3582a3ce 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_unauth_open/team-a.json
+  s_4a0f86aa680964::t_5ca8272a3ccac2 7-8,13-14
+tests/fixtures/governance_two_team_proof/bad_unauth_open/team-b.json
+  s_4a0f86aa680964::t_31b7102c0fc539 7-8,13-14
+tests/fixtures/governance_two_team_proof/good/team-a.json
+  s_4a0f86aa680964::t_357ed56dcc8237 7-8,13-14
+tests/fixtures/governance_two_team_proof/good/team-b.json
+  s_4a0f86aa680964::t_8981c040f1cd01 7-8,13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1fcbdca2898ddff5b2aa1f9a0b8099a13affd44c",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+deploy/helm/eshu/templates/deployment-mcp-server.yaml
+  e700b1f344f033fb 48
+docs/docs/deploy/kubernetes/prerequisites.md
+  e700b1f344f033fb 40-44
+deploy/helm/eshu/templates/service-mcp-server-metrics.yaml
+  e700b1f344f033fb 16
+deploy/helm/eshu/templates/_helpers.tpl
+  e700b1f344f033fb 208,221-225
+go/internal/runtime/helm_chart_contract_test.go
+  e700b1f344f033fb 1-237
+deploy/helm/eshu/templates/service-api-metrics.yaml
+  e700b1f344f033fb 16
+deploy/helm/eshu/values.schema.json
+  e700b1f344f033fb 304-319
+deploy/helm/eshu/values.yaml
+  e700b1f344f033fb 248-250,252-253,260
+docs/docs/deploy/kubernetes/helm-values.md
+  e700b1f344f033fb 22-23
+deploy/helm/eshu/README.md
+  e700b1f344f033fb 28-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "d2e93a486a694261bf9ca4d6b6dc1c35ecb54aae",
+  "prompts": {
+    "e700b1f344f033fb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df929-9810-71a1-829b-d1bfbec7d9ea",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria",
+      "messages": [],
+      "total_additions": 287,
+      "total_deletions": 24,
+      "accepted_lines": 279,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,24 @@
+.github/workflows/live-backend-tests.yml
+  h_78a442cba0b3e6 35-36
+go/internal/reducer/code/value/cloud_sink_red_case_live_test.go
+  h_78a442cba0b3e6 32,35,37,53-60
+scripts/lib/live_backend_test_targets.py
+  h_78a442cba0b3e6 17-21,23,28,31-32
+scripts/run-live-backend-tests.sh
+  h_78a442cba0b3e6 94-98
+scripts/test-run-live-backend-tests.sh
+  h_78a442cba0b3e6 49-68
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 2601-2602
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c6b7082493217e327ac57f402a7cef43cedc64bf",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

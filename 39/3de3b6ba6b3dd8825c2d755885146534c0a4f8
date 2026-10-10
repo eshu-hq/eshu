@@ -1,0 +1,35 @@
+docs/internal/evidence/6689-6690-nornicdb-v133-answer-truth.md
+  s_02cd429498e265::t_45ecc5f48e30cb 1-114
+docs/public/observability/telemetry-coverage.md
+  s_02cd429498e265::t_b9d9a8775f959c 251
+docs/public/reference/backend-conformance.md
+  s_02cd429498e265::t_95e18e6b2013a5 70-85
+docs/public/reference/ci-gates.md
+  s_02cd429498e265::t_c7b90652dcb3a6 11
+go/internal/backendconformance/AGENTS.md
+  s_02cd429498e265::t_2650893e772826 49,53-57,132-135,141-142
+go/internal/backendconformance/README.md
+  s_02cd429498e265::t_b24f22b96072f1 29-32,45
+go/internal/backendconformance/doc.go
+  s_02cd429498e265::t_cff6d9ce044a10 12-16
+go/internal/backendconformance/evidence-notes.md
+  s_02cd429498e265::t_bb2503310f321c 3-27
+specs/backend-conformance.v1.yaml
+  s_02cd429498e265::t_ed504be8c9ed92 2,26-38,52-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "393de3b6ba6b3dd8825c2d755885146534c0a4f8",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

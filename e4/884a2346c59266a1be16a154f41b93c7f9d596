@@ -1,0 +1,101 @@
+scripts/test-verify-ifa-fault-injection.sh
+  s_4a0f86aa680964::t_817269d0ef1a6a 84,403-404
+specs/ci-gates.v1.yaml
+  s_4a0f86aa680964::t_2b4a7609a31c3a 3354
+go/internal/storage/cypher/README.md
+  s_4a0f86aa680964::t_206711639495ad 4-6
+docs/internal/ifa-fault-cell-catalog.md
+  s_4a0f86aa680964::t_4b9b21232009ef 37,40-41
+  s_4a0f86aa680964::t_c65403eb021f86 38-39
+scripts/lib/ifa_fault_injection_sources.sh
+  s_4a0f86aa680964::t_b01aa874f1109b 9-10
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_4a0f86aa680964::t_cc7fc4ee429dd7 193,424-427
+  s_4a0f86aa680964::t_bffa59c8fed2ca 70-117,440
+  s_4a0f86aa680964::t_df16c287f2db00 118-170,441-442
+  s_4a0f86aa680964::t_56d279cf43b1f3 51-69,439
+  s_4a0f86aa680964::t_2b78502a892a35 219-225,227-239,417-423,428-430,446
+  s_4a0f86aa680964::t_29a278d588dc11 171-172,176-178,180-192,194-216
+  s_4a0f86aa680964::t_8ee56e1e46a3d0 369,372,375-376,385-393,395-396,398-399,415,443-445
+  s_4a0f86aa680964::t_817269d0ef1a6a 1-50,354-362,364,367-368,378,381-384,397,402-403,405,435-438,450-451
+  s_4a0f86aa680964::t_10c911bf15d7ca 377
+  s_4a0f86aa680964::t_e3ba605fdaf5b6 373,379-380,394
+  s_4a0f86aa680964::t_f41392d5ff0817 226,247,284-353,406-412,431-434,448-449
+  s_4a0f86aa680964::t_ac640d9a7fb02d 365-366,370-371,374,404,413-414,416
+  s_4a0f86aa680964::t_50da5801dfa164 240-246,248-283,447
+  s_4a0f86aa680964::t_ab713269c2bd37 173-175,179,217-218
+  s_4a0f86aa680964::t_a90aae981fe563 363,400-401
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  s_4a0f86aa680964::t_be4313fea37dcc 12,14,27-31,35
+  s_4a0f86aa680964::t_cc7fc4ee429dd7 44-59,65,67,207
+  s_4a0f86aa680964::t_e81fdac1a0bb69 114-116
+  s_4a0f86aa680964::t_04eb70b2a8f0c1 94-113,118-135,162,171-172,176-179,181
+  s_4a0f86aa680964::t_45f42aaa550b16 79,81-87,90,180,182-183
+  s_4a0f86aa680964::t_a0044d8c354d3a 117,138-155
+  s_4a0f86aa680964::t_dcd9d2fc74c89f 136-137
+  s_4a0f86aa680964::t_03a917566f217a 187
+  s_4a0f86aa680964::t_caa2cd9adc32e2 1-11,13,15-26,32-34,36-43,60-64,66,68-78,80,88-89,91-93,156-161,165-170,173-175,185-186,188-206,208-240
+  s_4a0f86aa680964::t_a904ccf411a177 163-164,184
+.github/workflows/ifa-determinism-gate.yml
+  s_4a0f86aa680964::t_83ffd88eb8acf7 671-672,718,720-722
+  s_4a0f86aa680964::t_244215a836ce01 723
+  s_4a0f86aa680964::t_f6221f5e0dae88 735-736,741
+  s_4a0f86aa680964::t_b01aa874f1109b 716,725-732,734,737-738,740,744,749-751
+  s_4a0f86aa680964::t_2b78502a892a35 748
+  s_e8ab01ccdfa8e2::t_a9a980d4e644f9 724
+  s_4a0f86aa680964::t_2b4a7609a31c3a 318
+  s_4a0f86aa680964::t_1d33022a8a7ece 739,742-743,745-746,755
+  s_4a0f86aa680964::t_10c911bf15d7ca 747
+  s_4a0f86aa680964::t_26ca7d3ca5737f 670
+  s_4a0f86aa680964::t_04eb70b2a8f0c1 733
+go/internal/storage/cypher/fault-injection-restart-evidence.md
+  s_4a0f86aa680964::t_238bfa04858505 1-17
+  s_4a0f86aa680964::t_a90aae981fe563 18-25
+go/internal/storage/cypher/fault_executor_restart_record_test.go
+  s_4a0f86aa680964::t_c04978e1572a5c 13,81-100
+  s_4a0f86aa680964::t_a9c6a757289df5 1-12,14-80,101-116
+go/internal/storage/cypher/fault_executor_marker.go
+  s_4a0f86aa680964::t_c032a23342b24c 137,146-237
+  s_4a0f86aa680964::t_a1d60b2229cd85 9-10,13,15-17
+  s_4a0f86aa680964::t_7719cbf69bcfb6 102-136,138-145
+scripts/lib/ifa_fault_shard.sh
+  s_4a0f86aa680964::t_10c911bf15d7ca 5-6
+  s_4a0f86aa680964::t_983132e9f3ee53 337
+scripts/lib/ifa_fault_injection_cells.sh
+  s_4a0f86aa680964::t_b01aa874f1109b 200-201
+go/internal/storage/cypher/fault_executor.go
+  s_4a0f86aa680964::t_7bc7a56f8b86cd 266-271,290-295
+scripts/verify-ifa-fault-injection.sh
+  s_4a0f86aa680964::t_464a2b7e7aedc3 231-232,234-235
+  s_4a0f86aa680964::t_4026c5d55eccf2 19-20
+  s_4a0f86aa680964::t_b01aa874f1109b 230,236
+  s_4a0f86aa680964::t_04eb70b2a8f0c1 233
+scripts/lib/ifa_fault_injection_driver.sh
+  s_4a0f86aa680964::t_b01aa874f1109b 185-186,193-195
+docs/public/reference/ci-gates.md
+  s_4a0f86aa680964::t_30467bf37eb2d2 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e4884a2346c59266a1be16a154f41b93c7f9d596",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}

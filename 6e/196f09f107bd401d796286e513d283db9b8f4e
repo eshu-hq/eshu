@@ -1,0 +1,70 @@
+go/internal/projector/cicd/run/doc.go
+  s_4a0f86aa680964::t_1a3ee0be2debc4 1-6
+go/internal/projector/cicd/run/correlation/AGENTS.md
+  s_4a0f86aa680964::t_f51d7f858a9e0b 115
+  s_4a0f86aa680964::t_a750b3a50c1732 6,8-9,22,54,61,73,86,99
+go/internal/projector/README.md
+  s_4a0f86aa680964::t_f7c0ee76773929 250,293
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_1714f6b83fef17 971,983,1033,1050
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_61dbbdbdaa7880 87-89
+go/internal/projector/sbomattestation/README.md
+  s_4a0f86aa680964::t_f7c0ee76773929 85
+go/internal/projector/containerimageidentity/AGENTS.md
+  s_4a0f86aa680964::t_f7c0ee76773929 11
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_3e074627d9f8a7 493
+go/internal/projector/cicd/run/AGENTS.md
+  s_4a0f86aa680964::t_1a3ee0be2debc4 1-20
+go/internal/projector/cicd/run/README.md
+  s_4a0f86aa680964::t_1a3ee0be2debc4 1-13
+go/internal/projector/containerimageidentity/README.md
+  s_4a0f86aa680964::t_f7c0ee76773929 103,125
+docs/internal/evidence/5710-cicd-run-correlation-keystone.md
+  s_4a0f86aa680964::t_978b44a60fc47f 107
+go/internal/projector/supplychainimpact/README.md
+  s_4a0f86aa680964::t_f7c0ee76773929 45,76
+go/internal/projector/cicd/README.md
+  s_4a0f86aa680964::t_1a3ee0be2debc4 1-14
+go/internal/storage/postgres/cross_scope_producer_readiness.go
+  s_4a0f86aa680964::t_61dbbdbdaa7880 31
+go/internal/projector/cicd/doc.go
+  s_4a0f86aa680964::t_1a3ee0be2debc4 1-6
+go/internal/projector/cicd/run/correlation/reducer_intent_test.go
+  s_4a0f86aa680964::t_54b4cb6fc4b2ad 14,18,23,27,32,44,65,69,75,84,88,95,104,108,116,125,130,139
+  s_4a0f86aa680964::t_a3aa8451706d01 4
+go/internal/projector/scope_generation_intents.go
+  s_4a0f86aa680964::t_f2fd2909278da0 15,154
+go/internal/projector/AGENTS.md
+  s_4a0f86aa680964::t_61dbbdbdaa7880 193
+go/internal/projector/cicd/run/correlation/reducer_intent.go
+  s_4a0f86aa680964::t_f2fd2909278da0 4,12,54
+go/internal/projector/cicd/run/correlation/doc.go
+  s_4a0f86aa680964::t_9d245d8bad4532 4,21
+docs/internal/evidence/6627-projector-cicd-run-correlation-package-move.md
+  s_4a0f86aa680964::t_67aa7d40836766 1-4,6-89,91-96,99-123,133-135
+  s_4a0f86aa680964::t_4b3086ce8cd717 90,97-98
+  s_4a0f86aa680964::t_4fb44f755b4199 5
+  s_4a0f86aa680964::t_7d40da2d1398db 124-132
+go/internal/projector/cicd/AGENTS.md
+  s_4a0f86aa680964::t_1a3ee0be2debc4 1-22
+go/internal/projector/cicd/run/correlation/README.md
+  s_4a0f86aa680964::t_a750b3a50c1732 36,97,118,123-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6e196f09f107bd401d796286e513d283db9b8f4e",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

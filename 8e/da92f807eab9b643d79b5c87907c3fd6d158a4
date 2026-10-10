@@ -1,0 +1,82 @@
+go/internal/query/decode/doc.go
+  s_7bdb6e9dae6e34::t_36e960bf1006a8 4-19
+go/internal/query/decode/error_test.go
+  s_7bdb6e9dae6e34::t_2a17fe97c99756 4
+go/internal/query/packagereg/factschema_decode_package_correlations.go
+  s_7bdb6e9dae6e34::t_b4a114830952d4 38
+  s_7bdb6e9dae6e34::t_acf21b05d81d87 37
+  s_d12a9f6390a369::t_755fc1edb30e52 7,17,84,88,96,100,108,112
+go/internal/query/decode/AGENTS.md
+  s_7bdb6e9dae6e34::t_fe9e83a8f27baf 1
+go/internal/query/decode/error.go
+  s_7bdb6e9dae6e34::t_aa49e92d488223 4
+go/internal/query/decode/README.md
+  s_7bdb6e9dae6e34::t_c2d46cd399eeb1 35-72
+  s_7bdb6e9dae6e34::t_a040501aac91a6 73
+docs/internal/design/package-restructure.md
+  s_7bdb6e9dae6e34::t_ac15158faccf9b 1908
+docs/public/reference/source-layout.md
+  s_7bdb6e9dae6e34::t_82f5d139664394 108,177
+go/internal/query/contentread/AGENTS.md
+  s_7bdb6e9dae6e34::t_5ccf739052243d 16
+go/internal/query/factschema_decode_workitem.go
+  s_7bdb6e9dae6e34::t_f941505308d5ba 7,29,35,40
+go/internal/query/incident/store/decode_workitem.go
+  s_7bdb6e9dae6e34::t_9f20b32b3bfb9b 10,47,59,71,83-84,133
+go/internal/query/incident/store/factschema_decode_incident.go
+  s_7bdb6e9dae6e34::t_58482d55da113c 10,208
+go/internal/query/packagereg/AGENTS.md
+  s_7bdb6e9dae6e34::t_bd82319eaa682f 21
+go/internal/query/packagereg/README.md
+  s_7bdb6e9dae6e34::t_dc700d8827f109 53-54
+go/internal/query/packagereg/doc.go
+  s_7bdb6e9dae6e34::t_ba9258138ce822 13
+go/internal/query/packagereg/package_registry_correlations.go
+  s_7bdb6e9dae6e34::t_09d806e216c5e0 14,238,345
+go/internal/query/queryselector/README.md
+  s_7bdb6e9dae6e34::t_4bd00ef2788ce5 39
+go/internal/query/supplychain/advisory/AGENTS.md
+  s_7bdb6e9dae6e34::t_be0cb06ebde1ee 11,17-18
+go/internal/query/supplychain/advisory/README.md
+  s_7bdb6e9dae6e34::t_a445993a0b720c 63,99
+go/internal/query/supplychain/advisory/doc.go
+  s_7bdb6e9dae6e34::t_855d19dc7fc194 15
+go/internal/query/supplychain/advisory/factschema_decode_advisory.go
+  s_7bdb6e9dae6e34::t_0c0800fc8181a4 7,20,90,97,104,110,117,123,130,136
+go/internal/query/supplychain/advisory/factschema_decode_advisory_test.go
+  s_7bdb6e9dae6e34::t_00057faa12b445 10,19,84,86
+go/internal/query/supplychain/doc.go
+  s_7bdb6e9dae6e34::t_f391ffcce90778 21
+go/internal/query/supplychain/impact/AGENTS.md
+  s_7bdb6e9dae6e34::t_2651f7d2cd8e98 11,17-19
+go/internal/query/supplychain/impact/README.md
+  s_7bdb6e9dae6e34::t_a751c4f6dcafd0 102-103
+go/internal/query/supplychain/impact/doc.go
+  s_7bdb6e9dae6e34::t_6a18b2af6add3f 18
+go/internal/query/supplychain/impact/supply_chain_impact_decode_helpers.go
+  s_7bdb6e9dae6e34::t_fdc707360aac47 9,48,50,94,99,106,111,119,124,131,136,143,148,155,160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8eda92f807eab9b643d79b5c87907c3fd6d158a4",
+  "prompts": {},
+  "sessions": {
+    "s_7bdb6e9dae6e34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1de2ac28-66d6-417c-86af-7d04197bdfe8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_d12a9f6390a369": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08b00-5bc1-72c0-9cde-633e7ff7d817",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

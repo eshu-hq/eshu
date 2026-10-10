@@ -1,0 +1,41 @@
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_a9aa618ce13cd1 1401,1429,2885
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_a9aa618ce13cd1 49
+.pre-commit-config.yaml
+  s_29175cf8c573b8::t_a9aa618ce13cd1 217
+scripts/test-methodology-scale-resource-observer.sh
+  s_29175cf8c573b8::t_2affa4936d73de 9,17-19
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_adfaed5f2bf0cd 8-9,55-68
+docs/internal/query-engineering.md
+  s_29175cf8c573b8::t_b0fb4d536e8ef4 46
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_e04c707cd9cb24 232-233,275
+scripts/lib/test-methodology-scale-resource-observer-docker.sh
+  s_29175cf8c573b8::t_8d55c5134d03c0 1-17
+scripts/lib/test-methodology-scale-resource-observer-gate.sh
+  s_29175cf8c573b8::t_bc8b99ebb54069 1-11
+scripts/lib/test-methodology-scale-resource-observer-sleep.sh
+  s_29175cf8c573b8::t_7efea4cbb284ff 1-2
+scripts/lib/test-verify-query-methodology-docker.sh
+  s_29175cf8c573b8::t_013b60de8f5a8b 1-4
+scripts/lib/test-verify-query-methodology-go.sh
+  s_29175cf8c573b8::t_7c57a434164532 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf8e474fd2cd18ac8820827130b261d61d59ba29",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

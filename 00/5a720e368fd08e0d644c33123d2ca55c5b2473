@@ -1,0 +1,22 @@
+go/internal/reducer/workload_cloud_relationship_materialization_issue6785_test.go
+  s_0328684b451b6b::t_169b3d19a8a761 1-205
+testdata/cassettes/awscloud/supply-chain-demo.json
+  s_0328684b451b6b::t_07215b67479866 462-483
+  s_0328684b451b6b::t_150f20d015933f 460-461
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "005a720e368fd08e0d644c33123d2ca55c5b2473",
+  "prompts": {},
+  "sessions": {
+    "s_0328684b451b6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22956e3d-93a2-490b-ba95-830405a3edf2",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

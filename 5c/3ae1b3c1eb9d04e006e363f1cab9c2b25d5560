@@ -1,0 +1,68 @@
+go/internal/storage/postgres/facts_active_supply_chain_impact_test.go
+  s_f2f7fbb6f30866::t_5b61ef41672805 19-20,25,29-32
+  s_f2f7fbb6f30866::t_e0820dc407ee67 86
+go/internal/reducer/supply_chain_impact_active_test.go
+  s_f2f7fbb6f30866::t_3830e7db77fa76 67,79-80
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_13be5c78e11c27 48-49,89-92,305-306
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_c29f5e650f0f53 86-114,133-134,145-149,152,154,160-161,172-176,179-198,297,299,302,305-309
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  s_f2f7fbb6f30866::t_e0820dc407ee67 81-84
+go/internal/storage/postgres/facts_active_supply_chain_impact.go
+  s_f2f7fbb6f30866::t_4c94a5d3acedfc 46-47,59,63-64,66,68,86-87,90-91,124-125
+go/internal/query/supply_chain_impact_path.go
+  s_f2f7fbb6f30866::t_44624112989083 1-36
+go/internal/reducer/supply_chain_impact_runtime.go
+  s_f2f7fbb6f30866::t_190797011048f0 1-132
+go/internal/query/supply_chain.go
+  s_f2f7fbb6f30866::t_773ef25b2c1d23 89-92
+go/internal/query/supply_chain_impact_findings.go
+  s_f2f7fbb6f30866::t_9e560a0b53f02e 57-60,246-249
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_2f246c0d3460e4 73-97,116-117,167-176,203,224,240,245,250,259,267,298,302,312,320
+go/internal/query/supply_chain_impact_explain_runtime_test.go
+  s_f2f7fbb6f30866::t_802f117cdc8e38 1-82
+schema/data-plane/postgres/003_fact_records.sql
+  s_f2f7fbb6f30866::t_e0820dc407ee67 176-184
+go/internal/storage/postgres/schema_fact_records.go
+  s_f2f7fbb6f30866::t_e0820dc407ee67 179-187
+go/internal/storage/postgres/schema_test.go
+  s_f2f7fbb6f30866::t_e0820dc407ee67 303,321
+docs/internal/security-intelligence-implementation-plan.md
+  s_f2f7fbb6f30866::t_06386ba54d9f3a 305,307-308,314-334
+  s_f2f7fbb6f30866::t_2f97aead5c3d64 313
+go/internal/query/supply_chain_impact_explain.go
+  s_f2f7fbb6f30866::t_a977a0ec797c3e 59,119,121-122,127-135,177,187
+go/internal/reducer/supply_chain_impact_runtime_test.go
+  s_f2f7fbb6f30866::t_1a686765df1937 54-62,67,89-91,95,192-197
+  s_f2f7fbb6f30866::t_cc37315e61767f 1-53,63-66,68-88,92-94,96-191,198-217
+go/internal/query/supply_chain_impact_explain_build.go
+  s_f2f7fbb6f30866::t_e438d018cd05ee 142-145,157,159-160,176,178-179
+go/internal/reducer/supply_chain_impact_active_filter.go
+  s_f2f7fbb6f30866::t_c25b99da156091 1-145
+go/internal/reducer/supply_chain_impact_writer.go
+  s_f2f7fbb6f30866::t_e16cfcaf6c4158 134-137
+go/internal/query/openapi_paths_supply_chain.go
+  s_f2f7fbb6f30866::t_50efe5dc7f91e7 91-96,101-102,339,341-342,347-358
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_06386ba54d9f3a 138,188-195,280-288
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_06386ba54d9f3a 511-513,515-516
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5c3ae1b3c1eb9d04e006e363f1cab9c2b25d5560",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

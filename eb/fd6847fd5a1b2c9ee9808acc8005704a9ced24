@@ -1,0 +1,232 @@
+go/internal/query/service_context_infrastructure_degrade_test.go
+  s_f5bf4c462fbd39::t_57f6ff258e8278 22
+go/internal/query/entity/README.md
+  s_f5bf4c462fbd39::t_453396aacd351b 160,162-169,177-181,185
+  s_e0164170100a32::t_9ec9549b048e9e 23
+  s_e0164170100a32::t_8d6d28920236b6 93-159,161,170-176,182-184
+  s_e8ab01ccdfa8e2::t_9de204be48e40b 186-212
+  s_e0164170100a32::t_44eb78ad47bfb2 14
+  s_e0164170100a32::t_c61c7fb094084d 46
+  s_e0164170100a32::t_120c2fa2bb711c 6
+go/internal/query/entity/workload_handlers.go
+  s_e0164170100a32::t_92ba16f3f7da24 18,69
+go/internal/query/service/story_supply_chain_image.go
+  s_e0164170100a32::t_48cd9009246612 15
+  s_f5bf4c462fbd39::t_f2d18792e0ab9a 16
+go/internal/query/repository/catalog_workload_environments.go
+  s_f5bf4c462fbd39::t_211ccd287ed133 19
+go/internal/query/supplychain/AGENTS.md
+  s_f5bf4c462fbd39::t_248eb44aec009a 69
+go/internal/query/code_seam.go
+  s_f5bf4c462fbd39::t_bd8860cc473460 265
+go/internal/query/entity/handler.go
+  s_e0164170100a32::t_421f341b5259eb 39
+  s_e0164170100a32::t_4e18c2a8951207 23-24,35,55,65,150,196,291,295,367,369,407,409,413
+go/internal/query/handlers.go
+  s_e0164170100a32::t_1857fdc9c8364d 7
+go/internal/query/repository/catalog_test.go
+  s_f5bf4c462fbd39::t_e62b9d19f23e31 336
+go/internal/query/context_story_limits_test.go
+  s_f5bf4c462fbd39::t_7c13c206e71ac2 322
+  s_f5bf4c462fbd39::t_f42d2eb2f1b5a4 336
+go/internal/query/family_impact_trace_deployment.go
+  s_e0164170100a32::t_725106856ba0b4 64
+  s_e0164170100a32::t_5fa517872847fa 21
+  s_e0164170100a32::t_64cfac83dcc7e8 53
+go/internal/query/entity/workload_context_test.go
+  s_e0164170100a32::t_e3751ea3f254ff 21,146,200,223,271,326,389
+go/internal/query/entity/service_story_seam.go
+  s_e0164170100a32::t_cfeb672c377835 31
+go/internal/query/entity/context_content_truncation_test.go
+  s_e0164170100a32::t_adad328f46cab8 100,156,188,205
+  s_e0164170100a32::t_001488c0bb2ef3 17
+docs/public/languages/atlantis.md
+  s_f5bf4c462fbd39::t_e2637c4a86c7e6 89
+go/internal/query/entity/service_story_infrastructure_truncated_fold_test.go
+  s_e0164170100a32::t_c24b5b63db33a1 24
+  s_e0164170100a32::t_92372b88eaf2df 46
+go/internal/query/graph_read_error_repository_entity_test.go
+  s_f5bf4c462fbd39::t_8deda9ae1df5b5 109
+  s_f5bf4c462fbd39::t_7702f27a8c8d75 56
+  s_f5bf4c462fbd39::t_5207876877141f 141
+  s_f5bf4c462fbd39::t_8861d8a1f2e27a 35
+  s_f5bf4c462fbd39::t_dedab12cf711ad 88
+go/internal/query/service/story_dossier.go
+  s_f5bf4c462fbd39::t_20780b707e785d 301
+go/internal/query/entity/AGENTS.md
+  s_f5bf4c462fbd39::t_ceaab8e79d2798 19-21
+go/internal/query/entity/workload_context_nornicdb_test.go
+  s_e0164170100a32::t_4ec3d73174af8e 20,197,350
+go/internal/query/entity/service_story_supply_chain_test.go
+  s_e0164170100a32::t_23d760f6932d2f 70,140,210,245,287,354,400
+go/internal/query/graph_read_error_selector_test.go
+  s_f5bf4c462fbd39::t_59560aff17c2ec 120
+docs/internal/design/5385-workload-identity-key.md
+  s_f5bf4c462fbd39::t_3e7411891c1fde 568-569
+  s_f5bf4c462fbd39::t_daa80888ecb3a2 667
+  s_f5bf4c462fbd39::t_8034602bc66140 669
+  s_f5bf4c462fbd39::t_ce86ddffa9efb2 550
+  s_f5bf4c462fbd39::t_e247267dc4f35c 655
+  s_f5bf4c462fbd39::t_81a34e6ce1ec0c 673
+  s_f5bf4c462fbd39::t_4d25806e4b87a5 730-731
+  s_f5bf4c462fbd39::t_d396698d2ef0bb 748,752
+  s_f5bf4c462fbd39::t_00e1555c556eeb 537
+  s_f5bf4c462fbd39::t_43a0ab8155273d 1307
+  s_f5bf4c462fbd39::t_6d3af4ec4fdb70 833
+go/internal/query/entity/service_investigation_test.go
+  s_e0164170100a32::t_692509d2398eae 22
+go/internal/query/language/metadata.go
+  s_f5bf4c462fbd39::t_64a89db6c1fbbf 124
+go/internal/query/openapi_workload_context_keys_test.go
+  s_f5bf4c462fbd39::t_6a7b785ac7e45e 18
+  s_f5bf4c462fbd39::t_54e40070298fd6 34-35
+  s_f5bf4c462fbd39::t_1a4956399bde4e 71
+go/internal/query/entity/service_workload_resolution.go
+  s_e0164170100a32::t_3f4f48b709de9f 51,82,112,125,181,228,280,317
+go/internal/query/service_read_model_workload_context_test.go
+  s_f5bf4c462fbd39::t_26f172559d1750 93
+go/internal/query/entity/context_content.go
+  s_e0164170100a32::t_bc3c49103e8ee2 23,82
+go/internal/query/service/doc.go
+  s_e0164170100a32::t_37e5ebea0b7768 17
+go/internal/query/entity/resolve_page.go
+  s_e0164170100a32::t_41730ea9a6717b 36
+go/internal/query/entity/story_typescript_test.go
+  s_e0164170100a32::t_9f413c47ea7a5a 20
+go/internal/query/querycontract/content_relationships_port.go
+  s_f5bf4c462fbd39::t_e0c1a6bc9eed2e 19
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_e0164170100a32::t_3708c5d659e97a 187-188,212-214,272-274
+go/internal/query/entity/workload_runtime_topology_contract_test.go
+  s_e0164170100a32::t_8b497d493d0541 58,95,131,156
+go/internal/query/entity/doc.go
+  s_e0164170100a32::t_4d6ce8a68977c6 5,10
+go/internal/query/entity/resolve_workload_test.go
+  s_e0164170100a32::t_e4dd208d7de9ee 60,91,130,165
+go/internal/query/entity/service_investigation.go
+  s_e0164170100a32::t_a32297aa756d32 18
+go/internal/query/entity/service_story_determinism_test.go
+  s_e0164170100a32::t_d6bcc1469deefb 222,369
+go/internal/query/entity/workload_provisioned_platform_contract_test.go
+  s_e0164170100a32::t_5a93405217a219 35,65,94,116,187
+go/internal/query/entity/resolve_results.go
+  s_e0164170100a32::t_19077575770fa2 20,29,41-42,55,57,75,78,81,87-90,93-94,97,110,114-117,121,124,128,131
+go/internal/query/entity/service_story_supply_chain.go
+  s_e0164170100a32::t_00a106279ddab6 26
+go/internal/query/entity/service_workload_resolution_test.go
+  s_e0164170100a32::t_1ccf8461df07c7 35,90
+go/internal/query/entity/workload_provisioned_platforms.go
+  s_e0164170100a32::t_4dbc041b7928b1 32
+go/internal/query/entity/workload_runtime_topology.go
+  s_e0164170100a32::t_490ee69e9cedf8 40
+go/internal/query/entity/context_authz_test.go
+  s_e0164170100a32::t_52abafe54eb10e 44,67,103
+go/internal/query/entity/context_limits.go
+  s_e0164170100a32::t_ad6056a88fb67f 12,18
+go/internal/query/querycontract/context_limits.go
+  s_e0164170100a32::t_f2b4c41cba6a3f 84
+go/internal/query/entity/resolve_identity.go
+  s_e0164170100a32::t_d3957f4413dbcb 21
+go/internal/query/service_context_partial_reasons_test.go
+  s_f5bf4c462fbd39::t_51ace707df9aa1 24,26,29
+go/internal/query/entity/main_test.go
+  s_e0164170100a32::t_40542158dbfcfe 26
+go/internal/query/entity/workload_context_read_model_test.go
+  s_e0164170100a32::t_99a7bb3a9a1c1a 60
+  s_e0164170100a32::t_697d4b320c81f9 86
+go/internal/query/entity/service_story_seam_test.go
+  s_e0164170100a32::t_5a8d67d6572d6d 21,36,58,90
+docs/public/observability/telemetry-coverage.md
+  s_e0164170100a32::t_cc6a582e058f8b 886
+go/internal/query/querycontract/language_query_metadata.go
+  s_f5bf4c462fbd39::t_ca31fe2b04c1bf 13
+go/internal/query/entity_alias.go
+  s_e0164170100a32::t_62704e53a7cf53 30
+go/internal/workloadid/README.md
+  s_f5bf4c462fbd39::t_dd62d8e8c544bf 53
+docs/public/languages/kotlin.md
+  s_e0164170100a32::t_7ca359a9b41a37 35
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_e0164170100a32::t_cb4d822f3fdf2c 178,180,184,187-188,190-191,195,215,217-219,221,332,554,558,562
+go/internal/query/entity/resolve_results_test.go
+  s_e0164170100a32::t_fbcc1eb96355ac 23,144,249
+go/internal/query/service/README.md
+  s_e0164170100a32::t_d216a4e07c15cb 24-29
+go/internal/query/entity/metadata.go
+  s_e0164170100a32::t_cabee3929fcbd7 16
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_e0164170100a32::t_66ecdd2424824a 32,276,289
+go/internal/query/codequery/seam_crosspackage_test.go
+  s_f5bf4c462fbd39::t_d90131978ed444 140
+  s_f5bf4c462fbd39::t_c0c2d6ccc5f235 24
+go/internal/query/entity/workload_repository_selection_test.go
+  s_e0164170100a32::t_389baa85fa8db4 102,174,213,240,258,276
+go/internal/query/entity/content_types.go
+  s_e0164170100a32::t_8268e85c43b5a3 89,118,160,191
+  s_e0164170100a32::t_b340a745624993 32
+  s_e0164170100a32::t_0837b4bb966e82 4
+  s_f5bf4c462fbd39::t_cd6cd55edde9ff 5
+docs/internal/design/1943-service-scope-changed-since-deltas.md
+  s_f5bf4c462fbd39::t_63a9e43464448d 130
+go/internal/query/entity/service_story_supply_chain_scope_test.go
+  s_e0164170100a32::t_5b8b02c50ac1f7 36,102
+go/internal/query/entity/workload_platform.go
+  s_e0164170100a32::t_ce99d62ad4b2d5 43,54
+  s_e0164170100a32::t_412f007e9ada37 6
+  s_e0164170100a32::t_8d67fc7b558e6c 10
+go/internal/query/service/investigation_packet.go
+  s_e0164170100a32::t_5abda2f1171550 17
+go/internal/query/repository/README.md
+  s_e0164170100a32::t_809c22616c9ad8 45
+go/internal/query/entity/workload_context.go
+  s_e0164170100a32::t_5f4326f4258d14 20,26,54,190,310
+  s_e0164170100a32::t_d1d731ce4bf566 167
+go/internal/query/auth_scoped_routes_relationship_leak_test.go
+  s_f5bf4c462fbd39::t_9aeb4e3533f903 23
+go/internal/query/entity/context_truth.go
+  s_e0164170100a32::t_eb55a1a986d3f7 10
+go/internal/query/entity/service_story_handler.go
+  s_e0164170100a32::t_a90184d2b428be 18
+go/internal/query/entity/workload_platform_scope_test.go
+  s_e0164170100a32::t_5c8ea22ff3354e 21,97
+go/internal/query/entity/resolve_workload.go
+  s_e0164170100a32::t_f46685821cf7ad 18,67,100,105,121,127-128,148-149
+go/internal/query/entity/repository_selector_test.go
+  s_e0164170100a32::t_9c7098f97bc7f8 21,75
+go/internal/query/entity/service_context_endpoint_test.go
+  s_e0164170100a32::t_f6e939f211d048 21,82,123,256
+docs/internal/design/5472-graph-projection-policy.md
+  s_f5bf4c462fbd39::t_c5597e8862b6bc 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ebfd6847fd5a1b2c9ee9808acc8005704a9ced24",
+  "prompts": {},
+  "sessions": {
+    "s_e0164170100a32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5abe6024-b030-4976-ab66-4ef10393aaf6",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_f5bf4c462fbd39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "27ea4d6d-28c2-4aa7-8c49-cd496e282e71",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    }
+  }
+}

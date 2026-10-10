@@ -1,0 +1,426 @@
+docs/internal/evidence/6818-query-package-moves.md
+  h_78a442cba0b3e6 328-404
+docs/public/reference/source-layout.md
+  h_78a442cba0b3e6 127,195
+go/internal/query/admin/AGENTS.md
+  h_78a442cba0b3e6 22
+go/internal/query/admin/audit/AGENTS.md
+  h_78a442cba0b3e6 15
+go/internal/query/admin/audit/README.md
+  h_78a442cba0b3e6 10
+go/internal/query/admin/audit/actor.go
+  h_78a442cba0b3e6 14,40,42-44,46,48,61,94,97-98
+go/internal/query/admin/audit/actor_test.go
+  h_78a442cba0b3e6 11,28,34,40,45,51,56,62,68
+go/internal/query/admin/audit/correlation.go
+  h_78a442cba0b3e6 14,61,64
+go/internal/query/admin/audit/doc.go
+  h_78a442cba0b3e6 11
+go/internal/query/admin/deadletters_test.go
+  h_78a442cba0b3e6 14,147-148,177-178
+go/internal/query/admin/generations.go
+  h_78a442cba0b3e6 12,73,157
+go/internal/query/admin/identity/audit.go
+  h_78a442cba0b3e6 16,25,77
+go/internal/query/admin/identity/audit_tenant_test.go
+  h_78a442cba0b3e6 11-12,28,125-126,190-191,258,295-296,362-363,419,421
+go/internal/query/admin/identity/mutations.go
+  h_78a442cba0b3e6 14,23,62-64,69,74,84,92-93,115,165,232,289,368,412,429-431,433,451,456-457
+go/internal/query/admin/identity/mutations_audit_test.go
+  h_78a442cba0b3e6 12,21,26,29-31,50-52,82-84
+go/internal/query/admin/identity/mutations_test.go
+  h_78a442cba0b3e6 17,92,99,134,154,170,178
+go/internal/query/admin/identity/permission_test.go
+  h_78a442cba0b3e6 11,20-22,38
+go/internal/query/admin/identity/reads.go
+  h_78a442cba0b3e6 12,67-69,73,77,91,96,98,102-103,122,161,199,244,275,321
+go/internal/query/admin/identity/reads_test.go
+  h_78a442cba0b3e6 16,106,109,112-114,133-134,160,171,306,339,345,357,366-367,377,388,445
+go/internal/query/admin/inputinvalid_test.go
+  h_78a442cba0b3e6 16,133-134,183-184,225-226
+go/internal/query/admin/live_test.go
+  h_78a442cba0b3e6 19,199-200
+go/internal/query/admin/provider/config/audit.go
+  h_78a442cba0b3e6 15,20,32-34,36,49,51-52
+go/internal/query/admin/provider/config/leakage_test.go
+  h_78a442cba0b3e6 13,90
+go/internal/query/admin/provider/config/mutations.go
+  h_78a442cba0b3e6 14,131-133,138,143,149
+go/internal/query/admin/provider/config/mutations_audit_test.go
+  h_78a442cba0b3e6 12,21,26,29-31,50-52,82-84
+go/internal/query/admin/provider/config/mutations_github_test.go
+  h_78a442cba0b3e6 12,39,79
+go/internal/query/admin/provider/config/mutations_test.go
+  h_78a442cba0b3e6 13,105-106,157,192,212,230,251,272,294,318,343,358,376,401,425,463,473
+go/internal/query/admin/provider/config/readiness_test.go
+  h_78a442cba0b3e6 13,55,115,151,178,217
+go/internal/query/admin/provider/config/reads.go
+  h_78a442cba0b3e6 12,45-47,51,55,62,89,118
+go/internal/query/admin/provider/config/reads_test.go
+  h_78a442cba0b3e6 12,54,56,131
+go/internal/query/admin/replay.go
+  h_78a442cba0b3e6 14,50,153,184
+go/internal/query/admin/replay_test.go
+  h_78a442cba0b3e6 15,23,32-33,89
+go/internal/query/ask_handler.go
+  h_78a442cba0b3e6 16,203,207
+go/internal/query/auth.go
+  h_78a442cba0b3e6 4,14,52,55,60,62,64,92,96,118,120,124,130,132-133,364,368-369,373
+go/internal/query/auth/AGENTS.md
+  h_78a442cba0b3e6 1,73
+go/internal/query/auth/README.md
+  h_78a442cba0b3e6 112
+go/internal/query/auth/audit_actor.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth/context.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth/context_normalize_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth/doc.go
+  h_78a442cba0b3e6 4,49
+go/internal/query/auth/permission_catalog.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth/session/AGENTS.md
+  h_78a442cba0b3e6 8,17,23
+go/internal/query/auth/session/README.md
+  h_78a442cba0b3e6 10-11,21
+go/internal/query/auth/session/browser_types.go
+  h_78a442cba0b3e6 10,21,66-77,84-85,87-90,92,102-103,105-117
+go/internal/query/auth/session/doc.go
+  h_78a442cba0b3e6 8
+go/internal/query/auth/session/timeouts.go
+  h_78a442cba0b3e6 12,33
+go/internal/query/auth/sign_in_policy.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_allowed_read_audit_wiring.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_audit.go
+  h_78a442cba0b3e6 4,14,323,345-346
+go/internal/query/auth_browser_session_route_policy.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_constructors.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_oauth_challenge_context.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_oauth_discovery.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_posture.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_providers_handler.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_public_routes.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_auth_admin.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_capabilities.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_cloud.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_code_flow.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_collector_extraction_readiness.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_completeness.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_context.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_dead_letters.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_documentation.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_freshness_delta_test.go
+  h_78a442cba0b3e6 12,441-442
+go/internal/query/auth_scoped_routes_iac.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_impact.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_input_invalid_facts.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_mcp_export.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_mcp_transport.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_pending_row_filtering.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_repository.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_secrets_iam.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_shared_key_only.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_status.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_status_semantic.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_supply_chain_infra.go
+  h_78a442cba0b3e6 4
+go/internal/query/browser_session_cookie_secure.go
+  h_78a442cba0b3e6 16
+go/internal/query/codemodel/AGENTS.md
+  h_78a442cba0b3e6 18,23
+go/internal/query/codemodel/README.md
+  h_78a442cba0b3e6 12
+go/internal/query/codemodel/doc.go
+  h_78a442cba0b3e6 15
+go/internal/query/codeowners/AGENTS.md
+  h_78a442cba0b3e6 11
+go/internal/query/codeowners/README.md
+  h_78a442cba0b3e6 92,121
+go/internal/query/codeowners/doc.go
+  h_78a442cba0b3e6 24
+go/internal/query/codeowners/ownership_scoped_leak_test.go
+  h_78a442cba0b3e6 12,44,48-50,73,76-77
+go/internal/query/codequery/AGENTS.md
+  h_78a442cba0b3e6 21
+go/internal/query/codequery/aliases.go
+  h_78a442cba0b3e6 12,62,80,221-222
+go/internal/query/codequery/chain/call_chain_cross_repo_test.go
+  h_78a442cba0b3e6 17,47,55-56,323-324
+go/internal/query/codequery/deadcode/AGENTS.md
+  h_78a442cba0b3e6 20
+go/internal/query/codequery/deadcode/cross_repo_test.go
+  h_78a442cba0b3e6 15,333-334
+go/internal/query/codequery/deadcode/doc.go
+  h_78a442cba0b3e6 22
+go/internal/query/codequery/deadcode/incoming_probe_test.go
+  h_78a442cba0b3e6 13,116,349-350,454-455
+go/internal/query/codequery/deadcode/test_helpers_test.go
+  h_78a442cba0b3e6 18,211,219-220
+go/internal/query/codequery/doc.go
+  h_78a442cba0b3e6 19
+go/internal/query/codequery/metrics/call_graph_metrics_grant_bound_test.go
+  h_78a442cba0b3e6 10,40
+go/internal/query/codequery/queryplan_search_execution_test.go
+  h_78a442cba0b3e6 16,60
+go/internal/query/codequery/seam_export_test.go
+  h_78a442cba0b3e6 14,156
+go/internal/query/collector_list_readiness_parity_test.go
+  h_78a442cba0b3e6 15,44-45
+go/internal/query/contentread/AGENTS.md
+  h_78a442cba0b3e6 16
+go/internal/query/contentread/README.md
+  h_78a442cba0b3e6 61
+go/internal/query/contentread/content_handler_authz_test.go
+  h_78a442cba0b3e6 15,34-35,69-70,105-106,133-134,178-179,213-214,248-249,280-281
+go/internal/query/contentread/content_hybrid_rerank_test.go
+  h_78a442cba0b3e6 14,62-63,124-125,270-271
+go/internal/query/contentread/doc.go
+  h_78a442cba0b3e6 15
+go/internal/query/contentread/paged_searcher_tripwire_test.go
+  h_78a442cba0b3e6 10,51-52
+go/internal/query/entity/context_authz_test.go
+  h_78a442cba0b3e6 13,49-50,72-73,108-109
+go/internal/query/entity/grant_cap_telemetry_test.go
+  h_78a442cba0b3e6 17,69-70
+go/internal/query/entity/resolve_workload_test.go
+  h_78a442cba0b3e6 15,65-66
+go/internal/query/entity/scoped_grant_live_test.go
+  h_78a442cba0b3e6 46,152-153
+go/internal/query/entity/scoped_grant_telemetry_test.go
+  h_78a442cba0b3e6 18,135-136,217-218,287-288
+go/internal/query/entity/service_name_selection_test.go
+  h_78a442cba0b3e6 14,63-64
+go/internal/query/entity/workload_platform_scope_test.go
+  h_78a442cba0b3e6 12,103-104
+go/internal/query/entity/workload_repository_selection_test.go
+  h_78a442cba0b3e6 14,29-30,195-196,240-241,293-294
+go/internal/query/entity/workload_runtime_topology_contract_test.go
+  h_78a442cba0b3e6 13,90-91,248-249
+go/internal/query/entity_resolve_contract_test.go
+  h_78a442cba0b3e6 15,179-180
+go/internal/query/freshness/AGENTS.md
+  h_78a442cba0b3e6 23
+go/internal/query/freshness/changed_since_scope_test.go
+  h_78a442cba0b3e6 12,53-54,88
+go/internal/query/freshness/changed_since_two_tenant_test.go
+  h_78a442cba0b3e6 12,21,29,145,196
+go/internal/query/freshness/doc.go
+  h_78a442cba0b3e6 25
+go/internal/query/freshness/generations_scope_test.go
+  h_78a442cba0b3e6 12,52-53,84
+go/internal/query/freshness/generations_two_tenant_test.go
+  h_78a442cba0b3e6 12,17,25,46,77,85,91
+go/internal/query/freshness/service_changed_since_telemetry_test.go
+  h_78a442cba0b3e6 12,76,101,145,171,194
+go/internal/query/iac/auth_scoped_replatforming_grant_test.go
+  h_78a442cba0b3e6 14,81-83,162,170-171,350
+go/internal/query/iac/doc.go
+  h_78a442cba0b3e6 50
+go/internal/query/identity_totp_test.go
+  h_78a442cba0b3e6 242
+go/internal/query/impact/README.md
+  h_78a442cba0b3e6 52
+go/internal/query/impact/deployment/grant_cap_telemetry_test.go
+  h_78a442cba0b3e6 14,39-40
+go/internal/query/impact/deployment/scoped_selector_live_test.go
+  h_78a442cba0b3e6 44,250-251
+go/internal/query/impact/deployment/workload_selection_test.go
+  h_78a442cba0b3e6 12,144-145
+go/internal/query/impact/resource_investigation_selector_test.go
+  h_78a442cba0b3e6 14,299
+go/internal/query/impact/resource_investigation_test.go
+  h_78a442cba0b3e6 17,457,492
+go/internal/query/impact/trace_cloud_resource_limits_test.go
+  h_78a442cba0b3e6 13,56-57
+go/internal/query/incident/AGENTS.md
+  h_78a442cba0b3e6 23
+go/internal/query/incident/README.md
+  h_78a442cba0b3e6 28
+go/internal/query/incident/doc.go
+  h_78a442cba0b3e6 11
+go/internal/query/incident/scope_test.go
+  h_78a442cba0b3e6 15,69-70,100-101,143-144,191-192,227
+go/internal/query/local/AGENTS.md
+  h_78a442cba0b3e6 20,43,105
+go/internal/query/local/README.md
+  h_78a442cba0b3e6 23,25-27,116,137,139,141
+go/internal/query/local/api_tokens.go
+  h_78a442cba0b3e6 16,121,126-127,136,178,187,196,205,239,248,257,263,287,296,313,322,368-370,373,395-398,418
+go/internal/query/local/api_tokens_self_service.go
+  h_78a442cba0b3e6 13,30-31,34,36-38,40,42,44,51,86
+go/internal/query/local/api_tokens_test.go
+  h_78a442cba0b3e6 12,112-114
+go/internal/query/local/audit_test.go
+  h_78a442cba0b3e6 12,30,33-35,43-45
+go/internal/query/local/doc.go
+  h_78a442cba0b3e6 12,14,23
+go/internal/query/local/handler.go
+  h_78a442cba0b3e6 13,26,43,196,296,397,431
+go/internal/query/local/handler_fakes_test.go
+  h_78a442cba0b3e6 10,198-199
+go/internal/query/local/handler_test.go
+  h_78a442cba0b3e6 14,28-29,33-34
+go/internal/query/local/helpers.go
+  h_78a442cba0b3e6 16,148,166-177,182-191,248-249,257-259,337,339,342,346,363
+go/internal/query/local/requests.go
+  h_78a442cba0b3e6 11,125-126,130-131,135-136
+go/internal/query/local/totp.go
+  h_78a442cba0b3e6 16,29,73-75,84,121,125,140-142,151,167,171
+go/internal/query/local/totp_test.go
+  h_78a442cba0b3e6 12,20-21
+go/internal/query/package/registry/AGENTS.md
+  h_78a442cba0b3e6 21
+go/internal/query/package/registry/README.md
+  h_78a442cba0b3e6 16,116,160
+go/internal/query/package/registry/aggregates_scoped_test.go
+  h_78a442cba0b3e6 14,52,83,105,128,152-153
+go/internal/query/package/registry/authz_test.go
+  h_78a442cba0b3e6 15,36-37,81-82,127-128
+go/internal/query/package/registry/dependencies_scoped_test.go
+  h_78a442cba0b3e6 12,41,66,94,118
+go/internal/query/package/registry/name_anchor_test.go
+  h_78a442cba0b3e6 13,108,207,349
+go/internal/query/package/registry/no_oracle_test.go
+  h_78a442cba0b3e6 12,155,173
+go/internal/query/package/registry/scoped_access_test.go
+  h_78a442cba0b3e6 14,102-104,112-114,154,184,215,220,257,291,316,340,370
+go/internal/query/package/registry/scoped_access_windowfactcount_test.go
+  h_78a442cba0b3e6 21,89,152,223
+go/internal/query/package_registry_auth_middleware_test.go
+  h_78a442cba0b3e6 18
+go/internal/query/package_registry_nornicdb_live_test.go
+  h_78a442cba0b3e6 22
+go/internal/query/querycontract/AGENTS.md
+  h_78a442cba0b3e6 51-52,55
+go/internal/query/querycontract/README.md
+  h_78a442cba0b3e6 96,98-99,106
+go/internal/query/querycontract/doc.go
+  h_78a442cba0b3e6 79,81-82
+go/internal/query/querycontract/permission_denied.go
+  h_78a442cba0b3e6 9,16-18,32,35
+go/internal/query/querycontract/repository_authz_context.go
+  h_78a442cba0b3e6 9,18,25-26,29-30
+go/internal/query/querytestutil/AGENTS.md
+  h_78a442cba0b3e6 17,85
+go/internal/query/querytestutil/README.md
+  h_78a442cba0b3e6 160,209
+go/internal/query/querytestutil/doc.go
+  h_78a442cba0b3e6 41
+go/internal/query/querytestutil/freshnessreader.go
+  h_78a442cba0b3e6 13,263-265
+go/internal/query/querytestutil/scopedauthcontext.go
+  h_78a442cba0b3e6 12,24,26-28,46,48-50
+go/internal/query/querytestutil/scopedtoken.go
+  h_78a442cba0b3e6 10,36,59,78,81
+go/internal/query/querytestutil/scopedtoken_test.go
+  h_78a442cba0b3e6 12,24,76,83
+go/internal/query/repository/README.md
+  h_78a442cba0b3e6 98
+go/internal/query/repository/authz_test.go
+  h_78a442cba0b3e6 16,53-54,180-181,223-224,248-249,275-276,300-301
+go/internal/query/repository/freshness.go
+  h_78a442cba0b3e6 12,80
+go/internal/query/repository/freshness_test.go
+  h_78a442cba0b3e6 13,200-201,238-239
+go/internal/query/repository/language_inventory_test.go
+  h_78a442cba0b3e6 12,29-30
+go/internal/query/repository/list_dependency_cluster_test.go
+  h_78a442cba0b3e6 14,123-124
+go/internal/query/repository/list_dependency_marker_test.go
+  h_78a442cba0b3e6 15,182-183
+go/internal/query/repository/nornicdb_dependency_marker_live_test.go
+  h_78a442cba0b3e6 63,195-196,263,268
+go/internal/query/selector/entity_repo_identity_test.go
+  h_78a442cba0b3e6 11,57-58,125-126,218-219
+go/internal/query/semanticsearch/AGENTS.md
+  h_78a442cba0b3e6 11,44
+go/internal/query/semanticsearch/README.md
+  h_78a442cba0b3e6 17,67
+go/internal/query/semanticsearch/capability.go
+  h_78a442cba0b3e6 32
+go/internal/query/semanticsearch/doc.go
+  h_78a442cba0b3e6 15
+go/internal/query/semanticsearch/semantic_search.go
+  h_78a442cba0b3e6 13,36,231,241
+go/internal/query/semanticsearch/semantic_search_permission_authz_test.go
+  h_78a442cba0b3e6 12,29-30,69-70
+go/internal/query/semanticsearch/semantic_search_scope_anchor_test.go
+  h_78a442cba0b3e6 14,146-147,189,228-229,273-274,326-327,365,371,378-379,395
+go/internal/query/semanticsearch/semantic_search_scope_test.go
+  h_78a442cba0b3e6 17,83-84,125-126,255-256,291-292,327-328
+go/internal/query/semanticsearch/semantic_search_test.go
+  h_78a442cba0b3e6 15,159-160,196-197
+go/internal/query/service/catalog_authz_test.go
+  h_78a442cba0b3e6 16,38-39,86-87,131-132
+go/internal/query/service/query_truncation_wiring_test.go
+  h_78a442cba0b3e6 15,377-378
+go/internal/query/sign_in_policy_mutations.go
+  h_78a442cba0b3e6 19,81
+go/internal/query/sign_in_policy_reads.go
+  h_78a442cba0b3e6 10,90
+go/internal/query/sign_in_policy_types.go
+  h_78a442cba0b3e6 11,36,38,51-52
+go/internal/query/status_scoped.go
+  h_78a442cba0b3e6 9,14
+go/internal/query/supply/chain/AGENTS.md
+  h_78a442cba0b3e6 11
+go/internal/query/supply/chain/README.md
+  h_78a442cba0b3e6 80,113
+go/internal/query/supply/chain/doc.go
+  h_78a442cba0b3e6 19
+go/internal/query/supply/chain/runtime_context_probe_test.go
+  h_78a442cba0b3e6 16,75-76
+go/internal/query/supply/chain/suppression_mutation.go
+  h_78a442cba0b3e6 17,77-79,94,148,228
+go/internal/query/workitem/AGENTS.md
+  h_78a442cba0b3e6 23
+go/internal/query/workitem/README.md
+  h_78a442cba0b3e6 17,91-92
+go/internal/query/workitem/doc.go
+  h_78a442cba0b3e6 24
+go/internal/query/workitem/scope_test.go
+  h_78a442cba0b3e6 18,51-52,80-81,92,117-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3c5a19818ba1443e3fb5dc151d42187013e56d80",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

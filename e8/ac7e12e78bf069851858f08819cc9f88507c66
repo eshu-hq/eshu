@@ -1,0 +1,24 @@
+go/internal/queryplan/statement_builders.go
+  h_78a442cba0b3e6 135-149,173,180-225,244-249,251-254,260-264,268-269,274-289
+go/internal/queryplan/statement_builders_test.go
+  h_78a442cba0b3e6 149-229
+go/internal/storage/cypher/reconciliation_drift_metrics.go
+  h_78a442cba0b3e6 115-117
+go/internal/storage/cypher/write_counts.go
+  h_78a442cba0b3e6 1-139
+scripts/lib/dirgate-grandfather.tsv
+  h_78a442cba0b3e6 85
+tools/golangci-lint-dirgate/grandfather.go
+  h_78a442cba0b3e6 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e8ac7e12e78bf069851858f08819cc9f88507c66",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

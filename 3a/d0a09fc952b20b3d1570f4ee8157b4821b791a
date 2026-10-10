@@ -1,0 +1,36 @@
+go/internal/query/package/registry/AGENTS.md
+  s_187c352dd118ab::t_bba21a75a50322 69-73,80-82,86,88-93
+  s_e8ab01ccdfa8e2::t_3016d6de986c81 1,13-16,26-27,32-41,43,51-55,63-68
+go/internal/query/package/registry/README.md
+  s_187c352dd118ab::t_dd2245f907d379 125-140
+  s_187c352dd118ab::t_2261e3647a843a 250,256-258
+  s_187c352dd118ab::t_6e81dea9f4bfde 108-113
+  s_187c352dd118ab::t_3fc58b50845312 51-107,114-124,141-146,171-178,191-201,211-215,217-225,235,242-249,251-254
+  s_e8ab01ccdfa8e2::t_3edada629cf094 8,32-47,255
+go/internal/query/package/registry/doc.go
+  s_e8ab01ccdfa8e2::t_7fc08f9a03b47b 4,7,9-20,25-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3ad0a09fc952b20b3d1570f4ee8157b4821b791a",
+  "prompts": {},
+  "sessions": {
+    "s_187c352dd118ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4af4ac0-be6a-446a-87ce-2ec735f6b268",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

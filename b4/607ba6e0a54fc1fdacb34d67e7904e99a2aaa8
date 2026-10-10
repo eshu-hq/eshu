@@ -1,0 +1,19 @@
+scripts/test-verify-filename-stutter.sh
+  s_422bd1301550fb::t_769507b9f94200 283-285,288-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b4607ba6e0a54fc1fdacb34d67e7904e99a2aaa8",
+  "prompts": {},
+  "sessions": {
+    "s_422bd1301550fb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d34b6c4-05e8-4ed9-aa08-ace4bb361e6d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

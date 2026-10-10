@@ -1,0 +1,19 @@
+src/cloudflareConfig.test.ts
+  s_f2f7fbb6f30866::t_91fdfb085bd56f 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "c08a13f3877cc844fc37c4181ead3c3f71c16b8d",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

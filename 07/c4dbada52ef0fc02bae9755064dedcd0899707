@@ -1,0 +1,34 @@
+go/cmd/bootstrap-data-plane/README.md
+  s_f2f7fbb6f30866::t_bc1eeeac7f4da5 37-39,45-46,56-59,72-76,90,93-95,108-111
+deploy/helm/eshu/README.md
+  s_f2f7fbb6f30866::t_96d5b0ab7d7167 197-199
+go/cmd/bootstrap-data-plane/schema_adoption.go
+  s_f2f7fbb6f30866::t_ef9e8f9a6fdde4 105,110,114,132-135
+  s_f2f7fbb6f30866::t_fe7aa293d09098 99-103,115-126,128-131
+  s_f2f7fbb6f30866::t_8286427e07cb4c 1-98,104,106-109,111-113,127,136-187,190-191,193-202
+  s_f2f7fbb6f30866::t_5ca569e0925550 188-189,192
+go/cmd/bootstrap-data-plane/main.go
+  s_f2f7fbb6f30866::t_e7509fbe42616a 35-37,154-162,312
+docs/docs/deploy/kubernetes/helm-values.md
+  s_f2f7fbb6f30866::t_5112d2597b5237 85-92,121-124,135-136
+go/cmd/bootstrap-data-plane/graph_schema_marker_test.go
+  s_f2f7fbb6f30866::t_5f924c176cc7a4 7,144-313
+go/cmd/bootstrap-data-plane/main_test_support_test.go
+  s_f2f7fbb6f30866::t_25d2789af0cc6e 113-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "07c4dbada52ef0fc02bae9755064dedcd0899707",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

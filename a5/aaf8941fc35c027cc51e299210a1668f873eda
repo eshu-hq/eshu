@@ -1,0 +1,80 @@
+go/internal/coordinator/planner/component/extension/AGENTS.md
+  s_4a0f86aa680964::t_2ae02e9a498f78 10,23-24,38,45,56,63
+go/internal/coordinator/component/README.md
+  s_4a0f86aa680964::t_dcf3ca5703fba4 1-43
+go/internal/coordinator/README.md
+  s_4a0f86aa680964::t_2ae02e9a498f78 193,236
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_ceec49a58b1cf7 718
+go/internal/coordinator/component_extension_service.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 12,34,85
+  s_4a0f86aa680964::t_91633dc7eda056 4
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_5c254b70deab80 1149-1150
+  s_4a0f86aa680964::t_b6cf95ed5e1e37 1155
+go/internal/coordinator/component/AGENTS.md
+  s_4a0f86aa680964::t_dcf3ca5703fba4 1-28
+go/internal/coordinator/planner/component/AGENTS.md
+  s_4a0f86aa680964::t_2ae02e9a498f78 8,13
+go/internal/coordinator/planner/component/extension/planner.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 14,62,64,67,70,73,76,78,80,83,90,111,147,183,191,202
+go/internal/coordinator/governance_audit.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 14,51
+go/internal/coordinator/component/doc.go
+  s_4a0f86aa680964::t_dcf3ca5703fba4 1-9
+go/internal/coordinator/service_component_extension_test.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 360
+go/internal/coordinator/AGENTS.md
+  s_4a0f86aa680964::t_2ae02e9a498f78 97,105,208
+go/internal/coordinator/planner/component/extension/planner_validation_test.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 125-126
+go/internal/coordinator/doc.go
+  s_4a0f86aa680964::t_2ae02e9a498f78 105
+go/internal/coordinator/component/activation/AGENTS.md
+  s_4a0f86aa680964::t_3262c0a8f7daba 9,11,13,15
+  s_4a0f86aa680964::t_2ae02e9a498f78 1-8,10,12,14,16-80
+docs/internal/evidence/6627-coordinator-component-activation-package-move.md
+  s_4a0f86aa680964::t_3262c0a8f7daba 24-25
+  s_4a0f86aa680964::t_e855209b405198 1-23,26-42,44-51,57-131
+  s_4a0f86aa680964::t_52a49257851962 43,52-56
+go/internal/coordinator/component/activation/config.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 1-123
+go/internal/coordinator/component_activation_config.go
+  s_4a0f86aa680964::t_91633dc7eda056 4
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 12,110-111,117
+  s_4a0f86aa680964::t_16d45581f72938 100,102,106,116
+go/internal/coordinator/component/activation/README.md
+  s_4a0f86aa680964::t_2ae02e9a498f78 1-98
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_ceec49a58b1cf7 24
+go/internal/coordinator/planner/component/extension/doc.go
+  s_4a0f86aa680964::t_2ae02e9a498f78 8,14
+go/internal/coordinator/pagerduty_service.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 12,61
+go/internal/coordinator/component/activation/config_test.go
+  s_4a0f86aa680964::t_ec9c4c62c55065 1-108
+go/internal/coordinator/planner/component/README.md
+  s_4a0f86aa680964::t_2ae02e9a498f78 13,15,34,42
+go/internal/coordinator/planner/component/extension/README.md
+  s_4a0f86aa680964::t_2ae02e9a498f78 24,29,42,78,97
+go/internal/coordinator/component_activation_config_test.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 13,71
+go/internal/coordinator/component/activation/doc.go
+  s_4a0f86aa680964::t_64ef4b0dbeebe2 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a5aaf8941fc35c027cc51e299210a1668f873eda",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

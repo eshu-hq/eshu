@@ -1,0 +1,46 @@
+docs/internal/evidence/6782-slice3-differential-oracle.md
+  h_78a442cba0b3e6 1-77
+go/cmd/golden-corpus-gate/backenddiff_test.go
+  h_78a442cba0b3e6 110
+go/internal/backendconformance/README.md
+  h_78a442cba0b3e6 85-110
+go/internal/backendconformance/differential.go
+  h_78a442cba0b3e6 158-163,169,173
+go/internal/backendconformance/differential_kinds.go
+  h_78a442cba0b3e6 1-149
+go/internal/backendconformance/differential_kinds_test.go
+  h_78a442cba0b3e6 1-78
+go/internal/backendconformance/differential_normalize.go
+  h_78a442cba0b3e6 9-10,12-13,24-62,82-84,95-106,120-333
+go/internal/backendconformance/differential_normalize_test.go
+  h_78a442cba0b3e6 1-263
+go/internal/backendconformance/differential_unwind.go
+  h_78a442cba0b3e6 1-124
+go/internal/backendconformance/differential_unwind_test.go
+  h_78a442cba0b3e6 1-206
+go/internal/backendconformance/doc.go
+  h_78a442cba0b3e6 21-27
+go/internal/graph/capture/AGENTS.md
+  h_78a442cba0b3e6 9-12,39-41,53
+go/internal/graph/capture/README.md
+  h_78a442cba0b3e6 41-43,55-59
+go/internal/graph/capture/allowlist.go
+  h_78a442cba0b3e6 23-25,35-52,74-76,111-112,130-131,136-138
+go/internal/graph/capture/allowlist_test.go
+  h_78a442cba0b3e6 105-204
+go/internal/graph/capture/diff_test.go
+  h_78a442cba0b3e6 133-205
+specs/backend-divergence-allowlist.v1.yaml
+  h_78a442cba0b3e6 17-27,29-31,33-298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3920b0b180a93894dc9f158849d0d5fa4dabd3d6",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

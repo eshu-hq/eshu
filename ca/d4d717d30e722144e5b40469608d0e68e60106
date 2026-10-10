@@ -1,0 +1,20 @@
+docs/internal/evidence/7033-graph-adoption-only-guard.md
+  s_b0d7e3abc26c5a::t_f86590e925e5a7 20-26
+  s_b0d7e3abc26c5a::t_d7725689823001 16-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cad4d717d30e722144e5b40469608d0e68e60106",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

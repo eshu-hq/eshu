@@ -1,0 +1,24 @@
+go/internal/coordinator/aws_scheduled_scheduler_test.go
+  s_072c5984f68e14::t_5f45f6f8826eb8 6,68-150
+go/internal/coordinator/README.md
+  s_072c5984f68e14::t_1a7d18183375f1 94-98,175-181,199-207
+go/internal/coordinator/aws_scheduled_scheduler.go
+  s_072c5984f68e14::t_f0106c4b04f803 19-20,34
+  s_072c5984f68e14::t_84e5f3c84b60d2 11,18,21-23,47,54,59,93-104,117,119,128-136,141-169,182-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "ed1b7e51a5890202161223c2cc26556f3b3b3644",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

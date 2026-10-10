@@ -1,0 +1,19 @@
+scripts/verify-performance-evidence.sh
+  s_c8e18fa25bdd71::t_1bdeaed9808338 58-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "d781fcd3a27bbf57de9f9118144f1ba2461aedde",
+  "prompts": {},
+  "sessions": {
+    "s_c8e18fa25bdd71": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e23b7-1ff1-7ff2-b1cd-9ade95ecd516",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

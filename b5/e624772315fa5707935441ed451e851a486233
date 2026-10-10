@@ -1,0 +1,49 @@
+go/internal/runtime/compose_remote_e2e_test.go
+  s_f2f7fbb6f30866::t_f76c50d40adef6 421,425,433-435,441-444
+go/internal/coordinator/service_scanner_worker.go
+  s_f2f7fbb6f30866::t_c65da419635f3d 1-65
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_c2121fbbe038fd 314-321,790,800-801
+go/internal/coordinator/README.md
+  s_f2f7fbb6f30866::t_d80b0820361558 126-129,174-175,227-231
+go/cmd/workflow-coordinator/README.md
+  s_f2f7fbb6f30866::t_d80b0820361558 58-60,136-139
+.env.remote-e2e.example
+  s_f2f7fbb6f30866::t_aae6bb1c23b9ac 63
+go/internal/coordinator/scanner_worker_scheduler.go
+  s_f2f7fbb6f30866::t_f237b483e47098 275,278,283,286,292
+  s_f2f7fbb6f30866::t_79cdb5c44b1a7c 37-39,117-119,121,157-198
+  s_f2f7fbb6f30866::t_397c228d176290 1-36,40-116,120,122-156,199-274,276-277,279-282,284-285,287-291,293-301
+go/cmd/workflow-coordinator/main.go
+  s_f2f7fbb6f30866::t_cb07c8def27273 133
+go/internal/coordinator/service.go
+  s_f2f7fbb6f30866::t_38161453b7f59f 58-63,106
+  s_f2f7fbb6f30866::t_33d5312f12f5e6 271
+go/internal/coordinator/doc.go
+  s_f2f7fbb6f30866::t_d80b0820361558 24-28
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_d80b0820361558 89-108,640-647
+go/internal/coordinator/service_scanner_worker_test.go
+  s_f2f7fbb6f30866::t_7d7aba603fca21 1-94,96-106
+  s_f2f7fbb6f30866::t_d08e3f01a74a29 95
+go/internal/coordinator/scanner_worker_scheduler_test.go
+  s_f2f7fbb6f30866::t_771a2d04508b6c 116-146
+  s_f2f7fbb6f30866::t_7d7aba603fca21 1-25,27-63,65-115
+  s_f2f7fbb6f30866::t_aae6bb1c23b9ac 26,64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b5e624772315fa5707935441ed451e851a486233",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

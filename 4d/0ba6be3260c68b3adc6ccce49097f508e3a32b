@@ -1,0 +1,21 @@
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  s_4a0f86aa680964::t_4afeb1fcdbe8cc 146
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_4a0f86aa680964::t_4afeb1fcdbe8cc 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4d0ba6be3260c68b3adc6ccce49097f508e3a32b",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

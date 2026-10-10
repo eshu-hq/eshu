@@ -1,0 +1,172 @@
+scripts/test-verify-ifa-fault-injection.sh
+  s_4a0f86aa680964::t_ae1c8686ef85f9 322
+  s_4a0f86aa680964::t_ab7e295d858129 319,321
+  s_4a0f86aa680964::t_c49d8219ee655c 320
+specs/capability-matrix.v1.yaml
+  s_4a0f86aa680964::t_961e24cd384f04 133
+go/cmd/ifa/main.go
+  s_4a0f86aa680964::t_768296f9ac93fb 32
+  s_4a0f86aa680964::t_ab7e295d858129 22,31,50-51,75
+  s_4a0f86aa680964::t_8490e42f0737e2 26
+docker-compose.yaml
+  s_4a0f86aa680964::t_ca52f8d18ad287 4
+  s_4a0f86aa680964::t_539a5ab6eb6078 3,5-8
+go/internal/ifa/graphdump/gcp_project_scope_integrity.go
+  s_4a0f86aa680964::t_051d912036740e 1-118
+tests/fixtures/governance_k8s_two_team_proof/bad_netpol_absent/provenance.json
+  s_4a0f86aa680964::t_7a7d23573289cb 4-8
+docs/public/run-locally/docker-compose.md
+  s_4a0f86aa680964::t_5e255dbbf68c10 174-175
+  s_4a0f86aa680964::t_aa278186a3fcc8 211-225
+  s_4a0f86aa680964::t_c0c94637b76ac5 210
+  s_4a0f86aa680964::t_f062fab0ae81a5 172,176-188,191-192,195-196,199,203-204,207-209
+  s_4a0f86aa680964::t_1b31db55fb90d6 173
+go/internal/replay/offlinetier/nornicdb_function_projection_live_test.go
+  s_4a0f86aa680964::t_961e24cd384f04 78-79,152,223,226,229
+go/internal/replay/offlinetier/README.md
+  s_4a0f86aa680964::t_6649c5e44a07e7 50
+.github/workflows/static-contract-gates.yml
+  s_4a0f86aa680964::t_f8e3a91042dc7e 386
+  s_4a0f86aa680964::t_ef1fa66225545c 375
+  s_4a0f86aa680964::t_53fc18de0cd1a1 466
+go/cmd/ifa/assert_gcp_project_edge_scopes_test.go
+  s_4a0f86aa680964::t_0fccc0c040f8e6 1-94
+scripts/run-k8s-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_995983a6390760 30-33,131
+  s_4a0f86aa680964::t_0474fa694dda0a 98,100,437
+  s_4a0f86aa680964::t_539a5ab6eb6078 40,136-137
+  s_4a0f86aa680964::t_2887549fe007a5 97,99
+go/internal/query/codequery/relationships/enrich.go
+  s_4a0f86aa680964::t_2887549fe007a5 26
+go/internal/ifa/graphdump/README.md
+  s_4a0f86aa680964::t_3e2ab33d7443ac 259-264
+  s_4a0f86aa680964::t_02d3a441a821a4 257-258,265
+tests/fixtures/governance_k8s_two_team_proof/bad_selector_open/provenance.json
+  s_4a0f86aa680964::t_7a7d23573289cb 4-8
+go/internal/cigates/valueflow_required_test.go
+  s_4a0f86aa680964::t_8490e42f0737e2 186
+go/internal/runtime/compose_nornicdb_image_test.go
+  s_4a0f86aa680964::t_1ca59f749145f6 25-26
+  s_4a0f86aa680964::t_ec54ad2795c3f7 23,296-308
+  s_4a0f86aa680964::t_f448827da655a3 43
+  s_4a0f86aa680964::t_5d85c00c5c9e54 49-50
+  s_4a0f86aa680964::t_937b0f949a72d7 14-16,19-22,47-48,58,62,64,83,86-93,95-97,202,260-268,292-295
+  s_4a0f86aa680964::t_2887549fe007a5 28-29,31-35
+  s_4a0f86aa680964::t_8490e42f0737e2 229-233
+scripts/test-k8s-two-team-governance-provenance.sh
+  s_4a0f86aa680964::t_f1ea578d07eecc 1-76
+docs/public/reference/ci-gates.md
+  s_4a0f86aa680964::t_96ebb1d3c59314 85
+scripts/verify-replay-tier.sh
+  s_4a0f86aa680964::t_539a5ab6eb6078 24
+docs/public/deploy/kubernetes/storage.md
+  s_4a0f86aa680964::t_6649c5e44a07e7 81-85
+  s_4a0f86aa680964::t_aa278186a3fcc8 91-99
+.github/workflows/value-flow-conformance-expectation.yml
+  s_4a0f86aa680964::t_436baeb08f0a96 30-31,76-77,128-129
+scripts/verify-k8s-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_c3cabe2202fdf3 28-30,49,102,174-175,180-195,212-213
+scripts/lib/test-remote-validation-k8s-case.sh
+  s_4a0f86aa680964::t_53fc18de0cd1a1 3-15,28-37
+  s_4a0f86aa680964::t_ba47536f9f5b69 1-2,16-27,38-97
+tests/fixtures/governance_k8s_two_team_proof/bad_not_kubernetes/provenance.json
+  s_4a0f86aa680964::t_7a7d23573289cb 4-8,14
+docs/internal/evidence/6162-nornicdb-v131-alignment.md
+  s_4a0f86aa680964::t_e3e80b44c28261 1-30,35-53,55,58-62,65-88,92-113
+  s_4a0f86aa680964::t_8490e42f0737e2 54,56-57,63-64,89-91
+  s_4a0f86aa680964::t_ff7c1b8a91b808 31-34
+tests/fixtures/governance_k8s_two_team_proof/bad_cross_scope_leak/provenance.json
+  s_4a0f86aa680964::t_7a7d23573289cb 4-8
+docs/public/reference/nornicdb-query-pitfalls.md
+  s_4a0f86aa680964::t_961e24cd384f04 175,180,187
+  s_4a0f86aa680964::t_8a23391975fc8a 18-19,22-23,625-626
+tests/fixtures/governance_k8s_two_team_proof/bad_leak/provenance.json
+  s_4a0f86aa680964::t_7a7d23573289cb 4-8
+docs/public/reference/nornicdb-pitfalls.md
+  s_4a0f86aa680964::t_399c84d5a7b8b5 20-22,1098,1116
+  s_4a0f86aa680964::t_e9a049494a68f4 1099-1100
+  s_4a0f86aa680964::t_961e24cd384f04 936-937,941,990,1007,1016
+scripts/test-verify-k8s-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_6a9af249b77a19 37
+  s_4a0f86aa680964::t_c4d03ae2c952a7 19,54-62
+  s_4a0f86aa680964::t_c3cabe2202fdf3 51-53,63-77
+  s_4a0f86aa680964::t_b9d690c049fc0f 17-18,29-36
+tests/fixtures/governance_k8s_two_team_proof/bad_unauth_open/provenance.json
+  s_4a0f86aa680964::t_7a7d23573289cb 4-8
+go/internal/query/language_query_grant_nornicdb_negative_control_live_test.go
+  s_4a0f86aa680964::t_2887549fe007a5 115-116,119
+specs/ci-gates.v1.yaml
+  s_4a0f86aa680964::t_f8e3a91042dc7e 1609
+  s_4a0f86aa680964::t_44213c0c6fe1aa 1613
+  s_4a0f86aa680964::t_ef1fa66225545c 1598
+go/cmd/ifa/assert_gcp_project_edge_scopes.go
+  s_4a0f86aa680964::t_6d51d62dd21d05 1-70
+tests/fixtures/governance_k8s_two_team_proof/bad_parity/provenance.json
+  s_4a0f86aa680964::t_7a7d23573289cb 4-8
+go/cmd/ifa/README.md
+  s_4a0f86aa680964::t_225cda60f00ec4 190-196
+specs/replay-coverage-manifest.v1.yaml
+  s_4a0f86aa680964::t_6649c5e44a07e7 546
+scripts/test-verify-remote-validation-artifacts.sh
+  s_4a0f86aa680964::t_5ae38605102d28 352-357
+go/internal/runtime/README.md
+  s_4a0f86aa680964::t_cf7ffae37b9e6e 276-279
+go/internal/ifa/graphdump/gcp_project_scope_integrity_test.go
+  s_4a0f86aa680964::t_1f9232ec0cb371 1-156
+deploy/helm/eshu/README.md
+  s_4a0f86aa680964::t_6649c5e44a07e7 43-46
+docs/public/reference/environment-ingestion-queues.md
+  s_4a0f86aa680964::t_6649c5e44a07e7 204,206
+docs/internal/design/430-nornicdb-graph-search-split.md
+  s_4a0f86aa680964::t_961e24cd384f04 61-63,73,75-76,344-345
+  s_4a0f86aa680964::t_8490e42f0737e2 370
+  s_4a0f86aa680964::t_cf7ffae37b9e6e 8-10
+  s_4a0f86aa680964::t_ca52f8d18ad287 55-56,59,338-339
+deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml
+  s_4a0f86aa680964::t_539a5ab6eb6078 23-24,26-28
+scripts/lib/ifa_fault_injection_cells.sh
+  s_4a0f86aa680964::t_ab7e295d858129 46,211
+docs/public/reference/nornicdb-path-predicate-pitfalls.md
+  s_4a0f86aa680964::t_961e24cd384f04 9,19
+go/cmd/ifa/doc.go
+  s_4a0f86aa680964::t_3e2ab33d7443ac 64-66
+  s_4a0f86aa680964::t_02d3a441a821a4 67
+scripts/lib/k8s-two-team-governance-provenance.sh
+  s_4a0f86aa680964::t_3dd19f1825f492 13,24-27,38
+  s_4a0f86aa680964::t_f49ff82ddc6e3c 1-12,14-23,28-37,39-50
+docs/public/deploy/kubernetes/helm-routing-and-storage-values.md
+  s_4a0f86aa680964::t_6649c5e44a07e7 42,64-66,68-71
+  s_4a0f86aa680964::t_8490e42f0737e2 36-39
+go/internal/replay/offlinetier/canonical_import_edge_live_test.go
+  s_4a0f86aa680964::t_961e24cd384f04 13-16
+deploy/helm/eshu/values.yaml
+  s_4a0f86aa680964::t_539a5ab6eb6078 1103-1105
+  s_4a0f86aa680964::t_8490e42f0737e2 1095-1098
+deploy/helm/eshu/Chart.yaml
+  s_4a0f86aa680964::t_539a5ab6eb6078 5
+tests/fixtures/governance_k8s_two_team_proof/good/provenance.json
+  s_4a0f86aa680964::t_7a7d23573289cb 4-8
+scripts/lib/ifa_fault_injection_driver.sh
+  s_4a0f86aa680964::t_3e2ab33d7443ac 185-188
+  s_4a0f86aa680964::t_ab7e295d858129 189,191-192,196
+  s_4a0f86aa680964::t_5821345816fca0 190,197-198
+  s_4a0f86aa680964::t_c49d8219ee655c 193-195
+scripts/test-verify-replay-tier.sh
+  s_4a0f86aa680964::t_d7ee9a1c4f0b00 104-105,107,109,250-251,337,340,342
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f81749ac2a930616a3714b0c6409061eebcac07",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,41 @@
+scripts/lib/test-ifa-fault-injection-diagnostics-hardening-cases.sh
+  s_20be138600ef1b::t_c45703568f6b08 2,4,13-28,30,33,37,43-49,51,54-56,59,68,70-84,87-99,108-127,152-155
+  s_20be138600ef1b::t_1e1ff12cd5d448 85-86,100-107
+go/internal/storage/cypher/fault-injection-restart-evidence.md
+  s_20be138600ef1b::t_1a2c686761e69e 65-75,80
+  s_20be138600ef1b::t_ecdbd8aaaaaa7f 76-79
+  s_20be138600ef1b::t_5b4ab4dca82a61 19-26,57-61,94,98
+go/internal/storage/cypher/evidence-6142-backend-restart-transient-classification.md
+  s_20be138600ef1b::t_5b4ab4dca82a61 33-35,246-247
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  s_20be138600ef1b::t_8c97ec453343dd 71-146,253-254,293-310,322-340,342-351,353,356
+.github/workflows/ifa-determinism-gate.yml
+  s_20be138600ef1b::t_fe6fdfbf5b15a7 731,733-735
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_20be138600ef1b::t_9994b318133e53 364,366-368,410-413,415
+  s_20be138600ef1b::t_9f4b625a318c7d 266-274
+scripts/lib/test-ifa-fault-injection-diagnostics-fake-docker.sh
+  s_20be138600ef1b::t_1e1ff12cd5d448 10-12
+  s_20be138600ef1b::t_222284888f72ce 17,31-35
+  s_20be138600ef1b::t_9f4b625a318c7d 3-9,13-16,19-20,29-30,36-41,43-44
+go/internal/storage/cypher/README.md
+  s_20be138600ef1b::t_ebbe9164bc0073 699
+  s_20be138600ef1b::t_5b4ab4dca82a61 720
+  s_20be138600ef1b::t_afc5abb3c95afa 698,700,709-710,1600-1601
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1731af7e7f0fe1b1a2a8ec5b1c68de2e76ba6537",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Test <test@example.test>"
+    }
+  }
+}

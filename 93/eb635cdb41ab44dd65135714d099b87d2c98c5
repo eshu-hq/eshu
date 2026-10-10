@@ -1,0 +1,23 @@
+go/internal/storage/postgres/facts_active_supply_chain_impact_test.go
+  s_f2f7fbb6f30866::t_be2ee24a51b407 21
+  s_f2f7fbb6f30866::t_0118095ee43628 69
+  s_f2f7fbb6f30866::t_ccf4f099a10893 71-73
+  s_f2f7fbb6f30866::t_1f26096e45360b 93-104
+  s_f2f7fbb6f30866::t_b7f4736cbd9da4 70,105-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "93eb635cdb41ab44dd65135714d099b87d2c98c5",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

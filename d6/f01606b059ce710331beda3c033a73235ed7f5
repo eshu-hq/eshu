@@ -1,0 +1,94 @@
+scripts/lib/live_postgres_readiness_results.py
+  s_b0d7e3abc26c5a::t_baa16910ead141 47-49
+docs/public/services/resolution-engine.md
+  s_b0d7e3abc26c5a::t_4ed13bb297ce9f 319
+go/internal/storage/postgres/generation_retention_sql.go
+  s_b0d7e3abc26c5a::t_5dc4252135e5c7 23-25,49,115-116,128,136
+go/internal/storage/postgres/generation_retention_hard_ceiling_test.go
+  s_b0d7e3abc26c5a::t_1ba0acf4616274 1-92
+go/internal/envregistry/entries.go
+  s_b0d7e3abc26c5a::t_09b12a7605b842 147-149
+go/internal/storage/postgres/generation_retention_lock_set_live_test.go
+  s_b0d7e3abc26c5a::t_57ebc04fad9250 44
+go/cmd/reducer/generation_retention_config_test.go
+  s_b5b0055e3cdece::t_f21e4f4250c289 20,25,34,46,51-63
+go/cmd/reducer/default_wiring_test.go
+  s_b0d7e3abc26c5a::t_31f1a181a3b52d 78
+docs/internal/evidence/7585-retention-hard-ceiling-no-regression.md
+  s_b0d7e3abc26c5a::t_29fa6a3d0db608 1-56
+scripts/docs-cli-env-refs-baseline.txt
+  s_b0d7e3abc26c5a::t_7a90c57f4fa13f 90
+.github/workflows/live-postgres-readiness.yml
+  s_bc884f298bfcc6::t_b44ad3676cbe23 3
+go/internal/storage/postgres/generation_retention_events.go
+  s_b0d7e3abc26c5a::t_37ea95ce1630c2 244-245
+go/cmd/reducer/config.go
+  s_b0d7e3abc26c5a::t_840c56b11485ce 41,281,311-319
+go/internal/storage/postgres/generation_retention_evalplanqual_live_test.go
+  s_248af3f13448c4::t_f10996772a9705 45,53,72,121,145
+docs/public/reference/ci-gates.md
+  s_bc884f298bfcc6::t_69c628da7c33c1 170
+go/internal/storage/postgres/generation_retention_candidate_plan_live_test.go
+  s_248af3f13448c4::t_00ed9341ce3927 63,90,97,111,120,127,188,196,205,213,219,223,226
+scripts/run-live-postgres-readiness-tests.sh
+  s_b0d7e3abc26c5a::t_1ae9ebc0d6d981 2-3
+go/internal/storage/postgres/generation_retention.go
+  s_b0d7e3abc26c5a::t_aa4f3ee91f35eb 23-31,51-54,58-65,70-71,76,92-94,186-193,343
+docs/public/reference/env-registry.md
+  s_b0d7e3abc26c5a::t_9012b85b714343 388-389
+  s_b0d7e3abc26c5a::t_7b337460ddc1d9 387
+go/internal/storage/postgres/generation_retention_skip_cap_test.go
+  s_b0d7e3abc26c5a::t_9ff134242310e0 28-30,78-79
+go/cmd/reducer/generation_retention_wiring.go
+  s_248af3f13448c4::t_7f1996f3d7a8f8 49
+specs/live-tests.v1.yaml
+  s_b0d7e3abc26c5a::t_5e611971560ef6 1963-1967
+go/internal/reducer/maintenance/generation_retention_runner.go
+  s_248af3f13448c4::t_5635af90e3a09c 38-39,43
+go/internal/storage/postgres/generation_retention_hard_ceiling_live_test.go
+  s_b5b0055e3cdece::t_a1a2f645a482d7 1-89
+docs/internal/design/2248-retention-semantics-generations-facts-content.md
+  s_b5b0055e3cdece::t_49d48c8af24ae6 33-36,102,112-117,119
+specs/ci-gates.v1.yaml
+  s_b0d7e3abc26c5a::t_aabb364d601143 2971
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d6f01606b059ce710331beda3c033a73235ed7f5",
+  "prompts": {},
+  "sessions": {
+    "s_248af3f13448c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1089f-eaa8-7120-b95d-5b0e1629b813",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b5b0055e3cdece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a108a2-41bb-7343-a097-6b69d1d756e6",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bc884f298bfcc6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1087f-4eff-79e2-b297-f001e99e3cb2",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

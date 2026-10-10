@@ -1,0 +1,55 @@
+deploy/helm/eshu/templates/job-schema-bootstrap.yaml
+  s_f2f7fbb6f30866::t_5a3ffd59c5434f 65
+docs/docs/deploy/kubernetes/helm-values.md
+  s_f2f7fbb6f30866::t_5a3ffd59c5434f 24,121
+go/cmd/bootstrap-index/nornicdb_wiring.go
+  s_f2f7fbb6f30866::t_082aed047931ee 145-162
+go/cmd/ingester/wiring_nornicdb_phase_group_streaming.go
+  s_f2f7fbb6f30866::t_082aed047931ee 206-226
+go/internal/storage/cypher/statement_chunk_test.go
+  s_f2f7fbb6f30866::t_bd35d836a98673 1-92
+deploy/helm/eshu/README.md
+  s_f2f7fbb6f30866::t_5a3ffd59c5434f 58
+go/internal/storage/cypher/canonical_node_writer_retract_shape_test.go
+  s_f2f7fbb6f30866::t_bd35d836a98673 132-163
+deploy/helm/eshu/values.yaml
+  s_f2f7fbb6f30866::t_5a3ffd59c5434f 45
+go/internal/storage/cypher/canonical_node_cypher.go
+  s_f2f7fbb6f30866::t_082aed047931ee 26,28,31,33
+go/internal/collector/git_selection_git.go
+  s_f2f7fbb6f30866::t_b275c6d691374d 13,16-17,179-182,207,210-213,230-252,267-299
+go/internal/collector/git_selection_progress_test.go
+  s_f2f7fbb6f30866::t_3b0ddd58b28ddd 251-366
+  s_f2f7fbb6f30866::t_20244081365e0c 6
+go/internal/storage/cypher/statement_chunk.go
+  s_f2f7fbb6f30866::t_e2ecc31f3b34e5 1-94
+go/cmd/ingester/wiring_nornicdb_phase_group.go
+  s_f2f7fbb6f30866::t_082aed047931ee 71-89,131-150
+go/cmd/ingester/README.md
+  s_f2f7fbb6f30866::t_1bcf434a474eaf 72-87,107-119
+go/internal/storage/cypher/README.md
+  s_f2f7fbb6f30866::t_1bcf434a474eaf 68-84
+go/cmd/ingester/wiring_nornicdb_retract_chunk_test.go
+  s_f2f7fbb6f30866::t_bd35d836a98673 1-87
+go/internal/runtime/helm_schema_bootstrap_contract_test.go
+  s_f2f7fbb6f30866::t_613c40de869989 10,17-29
+  s_f2f7fbb6f30866::t_8f5f05be404b73 1-9,11-16,30-31
+go/internal/storage/cypher/canonical_node_writer_retract_test.go
+  s_f2f7fbb6f30866::t_3f31eea1b15b9a 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "8c975e75c4c5105090d3f2f9df7dfa171ba03b1f",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

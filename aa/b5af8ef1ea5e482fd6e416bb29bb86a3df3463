@@ -1,0 +1,40 @@
+go/cmd/read-api-latency-gate/budget.go
+  s_29175cf8c573b8::t_a2989fd43483fa 54,61-64
+go/internal/queryplan/pilot_evidence.go
+  s_29175cf8c573b8::t_a2989fd43483fa 284-285,295,298,327-329
+  s_29175cf8c573b8::t_d92dc60c50c5b1 330-331
+go/cmd/read-api-latency-gate/operation_overlap_test.go
+  s_29175cf8c573b8::t_b4036f2a628c97 1-22
+go/internal/queryplan/pilot_evidence_validation.go
+  s_29175cf8c573b8::t_a2989fd43483fa 73-85
+go/internal/queryplan/pilot_alternate_test.go
+  s_29175cf8c573b8::t_4e831184608283 1-7,9-19,21-23,52-53
+  s_29175cf8c573b8::t_db42b671df36c6 8,24-51
+  s_29175cf8c573b8::t_a2989fd43483fa 20
+go/cmd/read-api-latency-gate/operation_run.go
+  s_29175cf8c573b8::t_b4036f2a628c97 71-72,77-78,82-83
+  s_29175cf8c573b8::t_a2989fd43483fa 79-81,84
+  s_29175cf8c573b8::t_147decc7c7631b 85-86
+go/cmd/read-api-latency-gate/README.md
+  s_29175cf8c573b8::t_e58577a258055b 50
+go/internal/queryplan/README.md
+  s_29175cf8c573b8::t_ef072e521bdc3e 200-204
+testdata/benchmarks/read-api-route-budgets.txt
+  s_29175cf8c573b8::t_9e7b4de5925f9b 147-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aab5af8ef1ea5e482fd6e416bb29bb86a3df3463",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

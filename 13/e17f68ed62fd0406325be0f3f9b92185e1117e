@@ -1,0 +1,25 @@
+go/internal/storage/postgres/secret/lines/session.go
+  s_bc720f29f5e0fd::t_a7e403f075cbc7 67
+docs/public/reference/hardcoded-secrets-investigation.md
+  s_bc720f29f5e0fd::t_a7e403f075cbc7 38
+go/internal/storage/postgres/secret/lines/README.md
+  s_bc720f29f5e0fd::t_a7e403f075cbc7 37
+docs/public/deployment/service-runtimes-bootstrap.md
+  s_bc720f29f5e0fd::t_0538852e574d02 54,73,75,341,347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "13e17f68ed62fd0406325be0f3f9b92185e1117e",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

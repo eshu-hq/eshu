@@ -1,0 +1,61 @@
+docs/docs/reference/local-testing.md
+  s_00a320afddcac7::t_3b2674d1af6d18 147-176
+go/internal/collector/ociregistry/distribution/README.md
+  s_00a320afddcac7::t_e1f79d3fffe989 7-9,31,33,54
+go/internal/collector/ociregistry/ghcr/README.md
+  s_00a320afddcac7::t_dd4bda15861d1d 1-45
+go/internal/collector/ociregistry/dockerhub/adapter_test.go
+  s_00a320afddcac7::t_ab8082ff413b77 1-55
+go/internal/collector/ociregistry/dockerhub/live_test.go
+  s_00a320afddcac7::t_9a4998701a0eb3 20-23
+  s_00a320afddcac7::t_d86f7eb81585e9 1-19,24-60
+go/internal/collector/ociregistry/dockerhub/README.md
+  s_00a320afddcac7::t_b8c3f1c061bae7 1-45
+go/internal/collector/ociregistry/ghcr/AGENTS.md
+  s_00a320afddcac7::t_a127e19c79dd7c 1-28
+go/internal/collector/ociregistry/distribution/token_test.go
+  s_00a320afddcac7::t_a7bbd9398c7488 1-74
+go/internal/collector/ociregistry/ghcr/live_test.go
+  s_00a320afddcac7::t_b73dc3a87ad9bd 1-19,24-60
+  s_00a320afddcac7::t_4362c4e04058e0 20-23
+go/internal/collector/ociregistry/ghcr/adapter.go
+  s_00a320afddcac7::t_a75140a9c8b8ad 1-81
+go/internal/collector/ociregistry/types.go
+  s_00a320afddcac7::t_87cf460df855e7 12-13,16-17
+go/internal/collector/ociregistry/ghcr/adapter_test.go
+  s_00a320afddcac7::t_797a18c946bdc2 1-43
+go/internal/collector/ociregistry/distribution/token.go
+  s_00a320afddcac7::t_6fc3749a52bc42 1-76
+go/internal/collector/ociregistry/README.md
+  s_00a320afddcac7::t_b8797244d36863 18-21,78-79,94-95
+go/internal/collector/ociregistry/doc.go
+  s_00a320afddcac7::t_c472642257ebcc 10-12
+go/internal/collector/ociregistry/dockerhub/AGENTS.md
+  s_00a320afddcac7::t_9d845461794fd0 1-28
+go/internal/collector/ociregistry/dockerhub/adapter.go
+  s_00a320afddcac7::t_cf831e3b705783 1-82
+go/internal/collector/ociregistry/dockerhub/doc.go
+  s_00a320afddcac7::t_6d9c8f135cf0db 1-7
+go/internal/collector/ociregistry/ghcr/doc.go
+  s_00a320afddcac7::t_81157c1a81dc6f 1-7
+go/internal/collector/ociregistry/distribution/doc.go
+  s_00a320afddcac7::t_2bef74e4cf87be 5-10
+docs/docs/adrs/2026-05-10-oci-container-registry-collector.md
+  s_00a320afddcac7::t_7191ffec9a340f 65-67,334-339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f2b3f538e146bc83c76e72ce48dd90f03599c32d",
+  "prompts": {},
+  "sessions": {
+    "s_00a320afddcac7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c52-fa77-7391-8873-a102dce078ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

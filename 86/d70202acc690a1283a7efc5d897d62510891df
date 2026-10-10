@@ -1,0 +1,16 @@
+docs/internal/evidence/6783-nornicdb-write-counters.md
+  h_78a442cba0b3e6 116-146
+docs/public/reference/ci-gates.md
+  h_78a442cba0b3e6 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "86d70202acc690a1283a7efc5d897d62510891df",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

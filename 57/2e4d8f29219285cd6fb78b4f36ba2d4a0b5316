@@ -1,0 +1,36 @@
+go/internal/workflow/tfstate_config.go
+  s_072c5984f68e14::t_ffcacce5e134af 79
+go/internal/storage/postgres/tfstate_backend_filter.go
+  s_072c5984f68e14::t_52f021040ad070 5,15,17-27,29-37,39-41,43,45,47,51-70
+  s_072c5984f68e14::t_236078a8d2374c 150-169
+go/internal/storage/postgres/tfstate_backend_filter_test.go
+  s_072c5984f68e14::t_466ea5bc143a0d 77-81,85,113,115,120,126,147,150,152-156,164-209
+  s_072c5984f68e14::t_4ae3b7093225a3 157-163
+go/internal/storage/postgres/tfstate_backend_facts.go
+  s_072c5984f68e14::t_f184140d631d3c 146,196
+  s_072c5984f68e14::t_7a8d0040e55d36 130,156,161-165
+go/internal/collector/terraformstate/discovery_local_candidates_test.go
+  s_072c5984f68e14::t_fb1dec77235d72 94-148
+go/internal/storage/postgres/tfstate_backend_queries.go
+  s_072c5984f68e14::t_c32666fc118784 52-58,60,76-79,139-145,147,157,169-172
+go/internal/collector/terraformstate/README.md
+  s_072c5984f68e14::t_f0964fa374dcca 27-30,134-159
+go/internal/workflow/tfstate_config_discovery_test.go
+  s_072c5984f68e14::t_2bcd9b0854238c 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "572e4d8f29219285cd6fb78b4f36ba2d4a0b5316",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

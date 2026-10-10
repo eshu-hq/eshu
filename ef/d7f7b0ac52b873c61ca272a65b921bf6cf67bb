@@ -1,0 +1,71 @@
+scripts/verify-graph-rebuild-from-facts.sh
+  s_4a0f86aa680964::t_6aa7f54be6b860 394,495
+docs/public/reference/environment-ingestion-queues.md
+  s_4a0f86aa680964::t_6aa7f54be6b860 205
+docs/public/deploy/kubernetes/upgrades-rollbacks.md
+  s_4a0f86aa680964::t_17b9c064d75490 21-28
+go/internal/runtime/compose_nornicdb_image_test.go
+  s_4a0f86aa680964::t_49965b663b64a3 62
+  s_4a0f86aa680964::t_0b623168cad17e 79-89
+  s_4a0f86aa680964::t_39e88ab264505b 68,71-75,77
+deploy/helm/eshu/README.md
+  s_4a0f86aa680964::t_17b9c064d75490 48-52
+deploy/helm/eshu/templates/validate.yaml
+  s_4a0f86aa680964::t_aa03609f86591f 41-43
+docs/internal/evidence/6162-nornicdb-v131-alignment.md
+  s_4a0f86aa680964::t_ed38970305531c 53-55,138-154,175-177
+  s_4a0f86aa680964::t_3815cc94a96f4a 166-172
+  s_4a0f86aa680964::t_14de99a14278c0 178
+docker-compose.e2e.yaml
+  s_4a0f86aa680964::t_2bb7a0ceef3bf9 343
+docker-compose.demo.corpus.yaml
+  s_4a0f86aa680964::t_2bb7a0ceef3bf9 258
+go/internal/runtime/compose_component_test.go
+  s_4a0f86aa680964::t_e952f79bc4fc86 51-53
+go/internal/runtime/compose_defaults_test.go
+  s_4a0f86aa680964::t_39e88ab264505b 18,27
+deploy/helm/eshu/values.schema.json
+  s_4a0f86aa680964::t_aa03609f86591f 1486-1493
+docs/public/operate/graph-rebuild-from-facts.md
+  s_4a0f86aa680964::t_6aa7f54be6b860 62-63,104
+deploy/helm/eshu/templates/_helpers.tpl
+  s_4a0f86aa680964::t_aa03609f86591f 506-521
+go/internal/runtime/README.md
+  s_4a0f86aa680964::t_6aa7f54be6b860 277-279
+deploy/helm/eshu/templates/deployment-nornicdb.yaml
+  s_4a0f86aa680964::t_aa03609f86591f 4,97
+docs/public/run-locally/docker-compose.md
+  s_4a0f86aa680964::t_b0d814745d434b 188-189,215-216
+docker-compose.yaml
+  s_4a0f86aa680964::t_aa03609f86591f 9,29,676
+deploy/helm/eshu/Chart.yaml
+  s_4a0f86aa680964::t_aa03609f86591f 5
+go/internal/runtime/helm_nornicdb_contract_test.go
+  s_4a0f86aa680964::t_33f4d9ae45b370 57-71,73-145,189-203
+  s_4a0f86aa680964::t_c477e0c9275270 72,146-188
+docker-compose.remote-e2e.foundation.yaml
+  s_4a0f86aa680964::t_2bb7a0ceef3bf9 145
+deploy/helm/eshu/templates/pvc-nornicdb.yaml
+  s_4a0f86aa680964::t_aa03609f86591f 1-6,24-30,39-47
+  s_4a0f86aa680964::t_71f63910b40679 7-20,31-38
+docs/public/deploy/kubernetes/storage.md
+  s_4a0f86aa680964::t_17b9c064d75490 87-92,97-108
+deploy/helm/eshu/values.yaml
+  s_4a0f86aa680964::t_aa03609f86591f 1133-1139,1142-1144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "efd7f7b0ac52b873c61ca272a65b921bf6cf67bb",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+.github/workflows/golden-corpus-gate.yml
+  h_78a442cba0b3e6 170-178
+docs/public/reference/backend-conformance.md
+  h_78a442cba0b3e6 145,150-158
+docs/public/reference/local-testing/golden-corpus-gate.md
+  h_78a442cba0b3e6 167
+scripts/lib/golden-corpus-mirror-workflow-paths.sh
+  h_78a442cba0b3e6 354-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8d15f48331c2b09e821d2a5abf1ceb8224fd57c1",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

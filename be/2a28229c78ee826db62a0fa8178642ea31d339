@@ -1,0 +1,26 @@
+docs/internal/evidence/7033-exact-code-topic-parallel.md
+  s_b0d7e3abc26c5a::t_4a8865fd7c9fc8 192-195
+  s_b0d7e3abc26c5a::t_6d4a02378253e0 153-154,167-176,181-191,196-216,286
+  s_b0d7e3abc26c5a::t_256a3b9c7a0d56 287-288
+  s_b0d7e3abc26c5a::t_09d90851f50199 292-293
+  s_b0d7e3abc26c5a::t_28772d1ac266d2 177-180,289
+  s_b0d7e3abc26c5a::t_053e8a67f72db8 290-291
+go/internal/query/codetopicparallel/README.md
+  s_b0d7e3abc26c5a::t_256a3b9c7a0d56 69-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "be2a28229c78ee826db62a0fa8178642ea31d339",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 352
+go/internal/storage/cypher/canonical_handles_route_edges.go
+  h_78a442cba0b3e6 14-17
+go/internal/storage/cypher/canonical_runs_in_edges.go
+  h_78a442cba0b3e6 15-18
+go/internal/storage/cypher/edge_writer.go
+  h_78a442cba0b3e6 224-228
+go/internal/storage/cypher/edge_writer_target_presence_live_test.go
+  h_78a442cba0b3e6 1-151
+go/internal/storage/cypher/edge_writer_target_presence_test.go
+  h_78a442cba0b3e6 1-226
+go/internal/storage/cypher/edge_writer_unroutable.go
+  h_78a442cba0b3e6 8-9,97-329
+go/internal/telemetry/instruments.go
+  h_78a442cba0b3e6 1304-1309,4348-4355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ce20c9fb9ef2b5a18e1b09d4e4e1eac7d0c77c9f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

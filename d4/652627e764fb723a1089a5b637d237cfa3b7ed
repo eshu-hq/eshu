@@ -1,0 +1,136 @@
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_16a99a41391f62 12-13,15
+  s_78176c56ef6534::t_712415e5c8768a 9-11,16-20
+go/internal/parser/javascript_dead_code_package.go
+  s_ee1aedf1627fa7::t_aef3e0770bb284 142
+  s_ee1aedf1627fa7::t_dd377a0c5a162b 6,132,140-141,143-157,186,193-200,218,222-224,228-230
+go/internal/reducer/code_call_materialization_dynamic_javascript_test.go
+  s_2e282521c384d7::t_a4229b036ec1d5 1-129
+go/internal/parser/javascript_language.go
+  s_78176c56ef6534::t_5dfa3d155dddc3 118,128,133-137
+tests/fixtures/dead-code/node-typescript/src/cli.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-3
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_3dd1eae2466e90 9-11
+tests/fixtures/dead-code/node-typescript/expected.json
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-104
+tests/fixtures/dead-code/node-typescript/src/legacy.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-3
+go/internal/parser/README.md
+  s_78176c56ef6534::t_46602246f328af 61-63,67-72,254-263
+  s_bdaf44668b73dc::t_49e658e114d003 64-65
+go/internal/parser/javascript_dead_code_node_entrypoints_test.go
+  s_ee1aedf1627fa7::t_69eca58d98d7c6 1-150
+go/internal/parser/javascript_dead_code_typescript_surface_test.go
+  s_bdaf44668b73dc::t_1c10cf45fc5c80 153-196
+  s_78176c56ef6534::t_a221b506e40fde 1-152
+tests/fixtures/dead-code/node-typescript/package.json
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-15
+tests/fixtures/dead-code/node-typescript/src/contracts.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-13
+go/internal/parser/javascript_dead_code_typescript_surface.go
+  s_78176c56ef6534::t_db50e47e12ccf2 1-15,17-78,82-259,334-349
+  s_bdaf44668b73dc::t_bebdf7cc2db087 16,79-81,260-333
+go/internal/reducer/code_call_materialization_dynamic_javascript.go
+  s_2e282521c384d7::t_b09e3837a85cdc 1-199
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_e7f3bbb1ef0747 140-143
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_a7bd94dee28a3f 70-73
+go/internal/query/code_dead_code_node_typescript_matrix_test.go
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-178
+tests/fixtures/dead-code/node-typescript/src/public-api.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-3
+tests/fixtures/dead-code/node-typescript/src/test-only-reference.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-3
+go/internal/parser/javascript_dead_code_framework_routes_test.go
+  s_6e07d68038f0ad::t_75afaae9fcdf51 1-206
+go/internal/reducer/code_call_materialization_imports.go
+  s_2e282521c384d7::t_7ce9716169d6dd 94-96
+go/internal/query/code_dead_code_go_roots_test.go
+  s_bdaf44668b73dc::t_f3d584191ba3b6 214
+go/internal/parser/javascript_dead_code_roots.go
+  s_78176c56ef6534::t_bd896b3b1027da 13,55,227-229
+  s_6e07d68038f0ad::t_ee10f891263d1d 42,142
+  s_6e07d68038f0ad::t_51f89c9c5473f9 230-231
+go/internal/query/code_dead_code_analysis.go
+  s_bdaf44668b73dc::t_27206c00d81778 71,85
+go/internal/parser/javascript_tsconfig_paths.go
+  s_78176c56ef6534::t_c7bfb67901113d 13,29-33,45,67-75,112-115,126-165,167-168
+  s_78176c56ef6534::t_c1d06bbb2e6ba3 111,116,119,122,125
+go/internal/parser/javascript_typescript_semantics.go
+  s_78176c56ef6534::t_2325532f2bd6bd 14,16,18,27-28
+go/internal/parser/javascript_dead_code_framework_routes.go
+  s_6e07d68038f0ad::t_c50ad5dbc88d7c 1-123,125-141,143-159,161-171,173-175,178-262,264-266,268-300,339-351
+  s_6e07d68038f0ad::t_065987dfcc3006 124,142,160,172,176-177
+  s_6e07d68038f0ad::t_a3f753f21b98aa 263,267,301-304,306-307
+  s_6e07d68038f0ad::t_32e865164aa983 305,308-338
+tests/fixtures/dead-code/node-typescript/src/registry.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-9
+tests/fixtures/dead-code/node-typescript/src/account.test.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-5
+tests/fixtures/dead-code/node-typescript/src/runtime.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-3
+go/internal/query/code_dead_code_javascript_roots.go
+  s_bdaf44668b73dc::t_3ea3da41818229 44-45
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_728760400bfa04 14-17
+tests/fixtures/dead-code/node-typescript/app/api/accounts/route.ts
+  s_0dd794968d8715::t_3f3d8bc73ade26 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "d4652627e764fb723a1089a5b637d237cfa3b7ed",
+  "prompts": {},
+  "sessions": {
+    "s_0dd794968d8715": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0893-2930-7062-a7d7-b51c373f99a4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_2e282521c384d7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0892-fed8-71c2-8bec-81e419176b3c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_6e07d68038f0ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0892-3c5a-7262-ba4f-ab974454bdf5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_78176c56ef6534": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0892-946e-73c2-b7ee-2a4c4ec5ff46",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_ee1aedf1627fa7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0892-6b4e-7523-af0c-35e5c1b62d50",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

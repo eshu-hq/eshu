@@ -1,0 +1,43 @@
+docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md
+  s_3d761bb140daa9::t_f49c1337b1c50c 165,211
+docs/public/observability/telemetry-coverage.md
+  s_3d761bb140daa9::t_fa020923bfa226 292
+go/cmd/reducer/cross_scope_readiness_wiring.go
+  s_3d761bb140daa9::t_dede6a6dba1ff1 14,34
+go/internal/reducer/crossscope/README.md
+  s_3d761bb140daa9::t_dfd0702293c8eb 33
+go/internal/reducer/iamcan/README.md
+  s_3d761bb140daa9::t_7a54e74fd33795 22,61
+go/internal/storage/postgres/readiness/wait/AGENTS.md
+  s_3d761bb140daa9::t_70574ae85f0e7e 1
+go/internal/storage/postgres/readiness/wait/README.md
+  s_3d761bb140daa9::t_3880e5412a1717 1
+go/internal/storage/postgres/readiness/wait/doc.go
+  s_3d761bb140daa9::t_70722400b320ca 4,15
+go/internal/storage/postgres/readiness/wait/store.go
+  s_3d761bb140daa9::t_af313df5e5d2f0 4
+go/internal/storage/postgres/readiness/wait/store_live_test.go
+  s_3d761bb140daa9::t_92656e7c828b6b 4,20,26-27,45
+go/internal/storage/postgres/readiness/wait/store_test.go
+  s_3d761bb140daa9::t_a9f0b97a9f1b16 4
+go/internal/storage/postgres/readiness_wait_cost_after_perf_test.go
+  s_3d761bb140daa9::t_4bcb2b5b1a481c 13,20
+go/internal/storage/postgres/readiness_wait_supersession_live_test.go
+  s_3d761bb140daa9::t_508f7c37a64901 22,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4443c4f6ea407991dfa0d452b573e13eab07d582",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+go/internal/goldengate/row_keys.go
+  h_78a442cba0b3e6 49
+go/internal/goldengate/row_keys_test.go
+  h_78a442cba0b3e6 143-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fa9c1fd0119b52da9b95e95149f5be0ff30fbeed",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

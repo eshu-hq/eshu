@@ -1,0 +1,42 @@
+go/internal/coordinator/aws_scheduled_scheduler.go
+  s_072c5984f68e14::t_8d1ef6331d3238 229
+  s_072c5984f68e14::t_84e5f3c84b60d2 11,18,21-23,47,54,59,93-104,117,119,128-136,141-169,182-228,230-235
+  s_072c5984f68e14::t_f0106c4b04f803 19-20,34
+go/internal/coordinator/config_test.go
+  s_072c5984f68e14::t_ec7d7262964cbb 50-51,77-78
+go/internal/coordinator/config.go
+  s_072c5984f68e14::t_8297fea54b8c4c 14-18,26,60-67,97,123-125,174-175
+docker-compose.remote-e2e.yaml
+  s_072c5984f68e14::t_216b74d302e559 265
+go/internal/coordinator/README.md
+  s_072c5984f68e14::t_1a7d18183375f1 99-103,185-191,209-212,219-221
+  s_072c5984f68e14::t_7976393160429a 5-12,36-37,51-57,75-77,161-165,213-217,222-225
+.env.remote-e2e.example
+  s_072c5984f68e14::t_ec3faadee22784 10
+go/internal/coordinator/aws_scheduled_scheduler_test.go
+  s_072c5984f68e14::t_5f45f6f8826eb8 6,68-150
+go/cmd/workflow-coordinator/README.md
+  s_072c5984f68e14::t_fc00c12a2e5579 71-73
+docs/docs/reference/environment-variables.md
+  s_072c5984f68e14::t_9ad34f50a76d92 192-193
+go/internal/coordinator/service_test.go
+  s_072c5984f68e14::t_a9a4bc5426a6b5 31,75-77,293-341
+go/internal/coordinator/service.go
+  s_072c5984f68e14::t_d2d6822b8142d6 97,105,109-110,125-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "e7468966d9bdeabfb4954be76f07ed106dceff0a",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

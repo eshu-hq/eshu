@@ -1,0 +1,28 @@
+go/internal/query/methodology_graph_artifact_live_test.go
+  s_29175cf8c573b8::t_247a5a9f2401a7 40
+docs/public/reference/local-testing/read-api-latency-gate.md
+  s_29175cf8c573b8::t_552c8405db3d04 86-87
+  s_29175cf8c573b8::t_247a5a9f2401a7 85
+go/internal/query/methodology_identity_test.go
+  s_29175cf8c573b8::t_247a5a9f2401a7 15,51-93
+  s_29175cf8c573b8::t_9215368cd89457 94,96-101
+  s_29175cf8c573b8::t_d19f1dbd87e1b9 95
+go/internal/query/methodology_postgres_artifact_test.go
+  s_29175cf8c573b8::t_247a5a9f2401a7 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c1d65513e87339edab19362649e07f802202ed17",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

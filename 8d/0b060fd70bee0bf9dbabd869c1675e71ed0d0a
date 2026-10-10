@@ -1,0 +1,56 @@
+go/internal/reducer/supply_chain_impact_test.go
+  s_f2f7fbb6f30866::t_be2c06e2a081b6 309,311,335-339
+go/internal/query/supply_chain_impact_findings_test.go
+  s_f2f7fbb6f30866::t_bfb0a3e0c8534e 205-206,237-241
+go/internal/reducer/supply_chain_impact_maven_version.go
+  s_f2f7fbb6f30866::t_aab69fdf1e1ad4 1-181,183,207-320
+  s_f2f7fbb6f30866::t_9da1d9dd53a0a3 182,184-206
+go/internal/query/supply_chain_impact_findings.go
+  s_f2f7fbb6f30866::t_2677abbec74181 44,46,229,231
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_065aeccb9e28f0 66,68
+go/internal/reducer/supply_chain_impact_ranges.go
+  s_f2f7fbb6f30866::t_5fbe29b1e15741 68-71,73,82,88,94,100
+  s_f2f7fbb6f30866::t_886cc444f151fe 72,74-75,103,112,115,117,120
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_5d2829eb9f787d 173,196-204,207-212,218,221,226,229,233-251
+go/internal/reducer/supply_chain_impact_version_match_test.go
+  s_f2f7fbb6f30866::t_ddccc96b92569e 1-64,66-70,72-163,227-276,281-288,300
+  s_f2f7fbb6f30866::t_a5a53306a45ee8 65,71
+  s_f2f7fbb6f30866::t_5adcbb1fe4c33c 164-166,195-197
+  s_f2f7fbb6f30866::t_5a1fdf30de9319 167-194
+  s_f2f7fbb6f30866::t_3ee659ae2e6a36 198-226,289-299
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_1c23a06bfd7fa6 136-149
+go/internal/query/supply_chain.go
+  s_f2f7fbb6f30866::t_c5c95834f88633 73,75
+go/internal/reducer/supply_chain_impact_version_match.go
+  s_f2f7fbb6f30866::t_7c2af69f4cd63e 1-82,84-152,154-226,229-234,236-313,315-323
+  s_f2f7fbb6f30866::t_1d734295b73c0f 227-228
+go/internal/reducer/supply_chain_impact_writer.go
+  s_f2f7fbb6f30866::t_e97ccf70f76209 121,123
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_91907bc3c3d0eb 309-317
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_a0a8cbab382d4b 516-520,523,544-546,553-559
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_ce75301179d56e 106-110
+go/internal/query/openapi_paths_supply_chain.go
+  s_f2f7fbb6f30866::t_2f8c5f12e27bc7 84-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "8d0b060fd70bee0bf9dbabd869c1675e71ed0d0a",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

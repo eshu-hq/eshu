@@ -1,0 +1,18 @@
+go/cmd/projector/kustomize_overlay_resolver.go
+  h_78a442cba0b3e6 1-105
+go/cmd/projector/runtime_wiring.go
+  h_78a442cba0b3e6 231-232
+go/cmd/projector/runtime_wiring_tfstate_resolvers_scan_test.go
+  h_78a442cba0b3e6 34-39,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6581bc326ff6cde7f68baeec2c6157f5ef3f604c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

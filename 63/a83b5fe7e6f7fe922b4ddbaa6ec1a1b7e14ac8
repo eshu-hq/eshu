@@ -1,0 +1,67 @@
+go/internal/status/status.go
+  s_f2f7fbb6f30866::t_548f1838087d3e 257
+docs/public/reference/remote-e2e-runtime-state.md
+  s_f2f7fbb6f30866::t_3dd2c6e684e56d 84-88,92,188-192,232-246
+  s_f2f7fbb6f30866::t_e3162d2ebd2292 89-91
+go/internal/status/tfstate_json.go
+  s_f2f7fbb6f30866::t_9425aecb166be0 14,36-42,54,69
+  s_f2f7fbb6f30866::t_98730dce1530be 70
+  s_f2f7fbb6f30866::t_c67d545c344fca 47
+go/internal/query/status_tfstate.go
+  s_f2f7fbb6f30866::t_c6595413a1cd42 1-18
+docs/public/reference/http-api/status-admin.md
+  s_f2f7fbb6f30866::t_375bd12cc5d2a1 48-53
+  s_f2f7fbb6f30866::t_c1da752f16189e 54
+go/internal/query/status_handler_test.go
+  s_f2f7fbb6f30866::t_7c6f4866036d2a 55-62
+  s_f2f7fbb6f30866::t_3dd3ce1c05134c 65-114
+scripts/verify_remote_e2e_runtime_state.sh
+  s_f2f7fbb6f30866::t_e181f26ddffef3 7,28-29,459,467
+go/internal/status/tfstate_report.go
+  s_f2f7fbb6f30866::t_877e02564fe39b 10
+docs/public/reference/runtime-admin-api.md
+  s_f2f7fbb6f30866::t_22d25128c4426c 101-106
+go/internal/status/README.md
+  s_f2f7fbb6f30866::t_d027d994b7e262 99-100,103-104,214-217
+docs/public/services/collector-terraform-state-operations.md
+  s_f2f7fbb6f30866::t_5fae090e1a66db 36-42
+scripts/test-verify-remote-e2e-runtime-state.sh
+  s_f2f7fbb6f30866::t_24e25631240e16 190,203
+  s_f2f7fbb6f30866::t_3377142d8cedf6 138-140,193-195
+go/internal/query/openapi_paths_status.go
+  s_f2f7fbb6f30866::t_e7dd5ce0b6e310 154-171,200-217
+go/internal/status/tfstate_test.go
+  s_f2f7fbb6f30866::t_9670cb9ea04583 99-140
+  s_f2f7fbb6f30866::t_597b3f30def803 180-185,202-207
+  s_f2f7fbb6f30866::t_ff68990bb3b837 211-231
+scripts/test-verify-remote-e2e-tfstate-warnings.sh
+  s_f2f7fbb6f30866::t_ee5df531a546fc 172-177
+  s_f2f7fbb6f30866::t_f62f0087eb16f5 1-171,178-208
+.env.remote-e2e.example
+  s_f2f7fbb6f30866::t_f288cf5045ba2b 29
+go/internal/query/status.go
+  s_f2f7fbb6f30866::t_661382f2784ec1 179,187,189
+  s_f2f7fbb6f30866::t_186efbc4ad444c 188,210
+scripts/lib/remote_e2e_tfstate_warnings.sh
+  s_f2f7fbb6f30866::t_8b49666dce8170 13-16
+  s_f2f7fbb6f30866::t_6d56562a7e23aa 1-12,17-46
+go/internal/status/tfstate.go
+  s_f2f7fbb6f30866::t_3867e43adeb5d0 34-42,125-145,147-181
+  s_f2f7fbb6f30866::t_52db358cf7b572 146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "63a83b5fe7e6f7fe922b4ddbaa6ec1a1b7e14ac8",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

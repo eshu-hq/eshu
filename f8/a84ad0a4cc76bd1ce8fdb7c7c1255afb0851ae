@@ -1,0 +1,23 @@
+go/internal/ifa/graphdump/README.md
+  s_cf30898dc72e8b::t_3dd06103b7fa63 96
+go/internal/storage/cypher/provenance_edge_writer.go
+  s_cf30898dc72e8b::t_3d8fda95b91fd8 47
+testdata/golden/e2e-20repo-snapshot.json
+  s_cf30898dc72e8b::t_28ea1aaa5903ae 1981
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f8a84ad0a4cc76bd1ce8fdb7c7c1255afb0851ae",
+  "prompts": {},
+  "sessions": {
+    "s_cf30898dc72e8b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "990b1348-4e9c-46ae-9a03-bcdecd249724",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+docs/internal/naming.md
+  s_422bd1301550fb::t_66b5b9472befc7 53-56
+docs/public/reference/local-testing/pre-commit-hooks.md
+  s_422bd1301550fb::t_cf2051d4ecb25b 71-73
+scripts/lib/directory-stutter-grandfather.txt
+  s_422bd1301550fb::t_06e2aca228f404 10-13
+scripts/test-verify-filename-stutter.sh
+  s_422bd1301550fb::t_ef056e5332ed99 277,348-397
+scripts/verify-filename-stutter.sh
+  s_422bd1301550fb::t_16a7d496652da5 29-33,140-144,149-155,157-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0328994b35913908ce9207272a197dd3f77f45f7",
+  "prompts": {},
+  "sessions": {
+    "s_422bd1301550fb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d34b6c4-05e8-4ed9-aa08-ace4bb361e6d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

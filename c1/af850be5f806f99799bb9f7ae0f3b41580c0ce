@@ -1,0 +1,44 @@
+go/internal/query/language/cypher_shipped_text_test.go
+  s_b0d7e3abc26c5a::t_9cb2d1912376da 170
+go/internal/query/language/cypher.go
+  s_b0d7e3abc26c5a::t_c0f820a7a2ac9f 223-224
+  s_b0d7e3abc26c5a::t_401ef241705f42 211-212,221-222
+  s_b0d7e3abc26c5a::t_dae55c9e670ac0 214-219,231-236
+  s_b0d7e3abc26c5a::t_015820ad739bd7 314
+go/internal/query/language/README.md
+  s_b0d7e3abc26c5a::t_9ca5392582d813 53-55
+go/internal/query/language/AGENTS.md
+  s_b0d7e3abc26c5a::t_9ca5392582d813 61-66
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_b0d7e3abc26c5a::t_74dfd9ccaa3fea 56,58
+go/internal/query/queryplan_production_variants_test.go
+  s_b0d7e3abc26c5a::t_74dfd9ccaa3fea 27
+docs/internal/evidence/6703-directory-file-ownership.md
+  s_b0d7e3abc26c5a::t_401ef241705f42 46
+  s_b0d7e3abc26c5a::t_bc275fbd8da3f2 1-45,47-86
+docs/public/reference/language-query-dsl.md
+  s_b0d7e3abc26c5a::t_401ef241705f42 251
+  s_b0d7e3abc26c5a::t_9ca5392582d813 182-190,249-250,259-260,262-264
+  s_b0d7e3abc26c5a::t_c0f820a7a2ac9f 252-253
+go/internal/query/language/ownership_live_test.go
+  s_b0d7e3abc26c5a::t_9cfe07e424235a 1-37,39-44,47-60,62-63,65-74
+  s_b0d7e3abc26c5a::t_9cb2d1912376da 38
+  s_b0d7e3abc26c5a::t_d1b2c3c90abffc 61,64
+  s_b0d7e3abc26c5a::t_ea0d2024e659f2 45-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1af850be5f806f99799bb9f7ae0f3b41580c0ce",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

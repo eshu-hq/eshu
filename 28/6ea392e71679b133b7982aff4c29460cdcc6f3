@@ -1,0 +1,33 @@
+go/internal/backendconformance/corpus_value_flow_equality_test.go
+  s_02cd429498e265::t_037ab336d9536b 14-22,24-28,31-36,39-41,44,47-55,59,62-65,67,82-83,86-87,89,91-100,124-129,132,137,143-148,160-164,166-169
+go/internal/backendconformance/corpus_value_flow_test.go
+  s_02cd429498e265::t_05fcec26ff1774 7,12-23,26-32,35-37,40-47,49-52,55-57,60-61,63-68,71-72,74-98,101-127,129
+go/internal/backendconformance/corpus_value_flow.go
+  s_02cd429498e265::t_1b9ed511903140 7,11-13,15-24,26-30,32-35,37,39-41,44,46-49,51-52,56,58,60-68,72-80,82-83,85-88,90-122,124-128,130-136,139-143,145-187,190,194-204
+go/internal/backendconformance/corpus_answer_truth.go
+  s_02cd429498e265::t_afdc3052cd9c9d 1-131
+go/internal/backendconformance/conformance_test.go
+  s_02cd429498e265::t_87ddf3d36ead65 19-26,28-29,301-304,314-316
+go/internal/backendconformance/corpus.go
+  s_02cd429498e265::t_e90a28aa8896fc 30-37,63-65,67,114,118-119,121,255,303-307
+go/internal/backendconformance/corpus_rows.go
+  s_02cd429498e265::t_e735911add2aa5 1-47
+go/internal/backendconformance/live_test.go
+  s_02cd429498e265::t_de143be1d96f52 232-234,236-237,240-244,247-251,255-256,260-261,264-268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "286ea392e71679b133b7982aff4c29460cdcc6f3",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

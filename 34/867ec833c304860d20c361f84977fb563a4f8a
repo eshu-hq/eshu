@@ -1,0 +1,21 @@
+go/internal/backendconformance/evidence-notes.md
+  s_9dfb32458dfa10::t_6f56473d553f38 79
+go/cmd/reducer/neo4j_wiring.go
+  s_9dfb32458dfa10::t_716b7bd23abea6 340-344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34867ec833c304860d20c361f84977fb563a4f8a",
+  "prompts": {},
+  "sessions": {
+    "s_9dfb32458dfa10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d984-da12-7ad1-8a0c-1b335f5e8d81",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

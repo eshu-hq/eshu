@@ -1,0 +1,50 @@
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_082e2bb44b09ee 62-69,142-145
+go/internal/vulnerabilityparityproof/README.md
+  s_f2f7fbb6f30866::t_8b2b6692467d51 37-42,68-74,77-78
+go/cmd/eshu/vuln_scan_provider_parity.go
+  s_f2f7fbb6f30866::t_5a271037152d16 339,349-355
+go/internal/vulnerabilityparity/README.md
+  s_f2f7fbb6f30866::t_fd614f987df295 103
+go/internal/vulnerabilityparityproof/lifecycle_test.go
+  s_f2f7fbb6f30866::t_2da285d88d01c6 1-112
+go/internal/vulnerabilityparityproof/io_lifecycle_test.go
+  s_f2f7fbb6f30866::t_63f1105de92b27 1-64
+go/internal/vulnerabilityparityproof/proof.go
+  s_f2f7fbb6f30866::t_ee4c5efe0fabef 92-94,192-197,202-205
+go/internal/vulnerabilityparityproof/io_test.go
+  s_f2f7fbb6f30866::t_7286b7eff1cb73 47
+go/internal/vulnerabilityparityproof/github_test.go
+  s_f2f7fbb6f30866::t_6a4cdf1f55389d 130-192
+go/internal/vulnerabilityparityproof/io.go
+  s_f2f7fbb6f30866::t_0882b8232d44f1 100-101,106-108,123-133,135-150,152-167,169
+go/cmd/eshu/vuln_scan_provider_parity_lifecycle_test.go
+  s_f2f7fbb6f30866::t_0da3b0b393276a 1-30
+go/internal/vulnerabilityparity/manifest_lifecycle_test.go
+  s_f2f7fbb6f30866::t_802c0e8d6272c0 1-63
+tests/fixtures/vulnerability_parity/cases/matched_basic.json
+  s_f2f7fbb6f30866::t_3a953fe9e28535 124-347
+docs/public/reference/vulnerability-parity-gate.md
+  s_f2f7fbb6f30866::t_aa03646e4aaa60 100-102,147-150,220-231
+  s_f2f7fbb6f30866::t_d408b60b45b19e 194-198
+go/internal/vulnerabilityparityproof/doc.go
+  s_f2f7fbb6f30866::t_c88de533a04953 11-16
+go/internal/vulnerabilityparityproof/github.go
+  s_f2f7fbb6f30866::t_edb6f729a765a8 180,189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "19862940c84f0740edeb34b84f43830c1106e858",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

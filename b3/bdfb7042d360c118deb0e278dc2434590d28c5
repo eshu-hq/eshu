@@ -1,0 +1,139 @@
+go/internal/collector/packageregistry/packageruntime/source.go
+  s_072c5984f68e14::t_5686c3fbdd97a4 48,70,81-84,88,92-102,104,106-119,121-122,129,131,163-166
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source.go
+  s_072c5984f68e14::t_99a8081e61b654 45,90,106-110,131,163-170
+go/internal/coordinator/vulnerability_intelligence_scheduler.go
+  s_072c5984f68e14::t_dfdd70e5247c80 123
+  s_072c5984f68e14::t_cda62eabe64c90 32,37-39,41,54,58,60
+  s_072c5984f68e14::t_f1851eed505641 24-29,33,40,42-53,55-57,64,66,72,76-81,91,107-122,124-196,219,221,225,232,235-236,271,279-281,285
+go/internal/collector/packageregistry/packageruntime/doc.go
+  s_072c5984f68e14::t_8090fa19b31274 12-14
+  s_072c5984f68e14::t_82cc6473068877 5-9
+docs/public/reference/environment-collectors.md
+  s_072c5984f68e14::t_feb0fcb01271c0 79-80,98-100
+  s_072c5984f68e14::t_bd88b3761a9e3e 75-78,94-97
+go/cmd/collector-vulnerability-intelligence/README.md
+  s_072c5984f68e14::t_f337f88b6e3d70 8-9,27-30
+  s_072c5984f68e14::t_99216b31221ba5 31
+  s_072c5984f68e14::t_b7228755718598 32-35
+docs/public/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_20a9cca0d5d9ce 54
+  s_072c5984f68e14::t_f0af385e79491e 55
+go/internal/storage/postgres/README.md
+  s_072c5984f68e14::t_b69858628c49ba 71-74,182-184
+go/cmd/collector-vulnerability-intelligence/doc.go
+  s_072c5984f68e14::t_3c7816190fec91 6-8
+go/internal/reducer/README.md
+  s_072c5984f68e14::t_68045a0c2ad5be 313-317
+go/internal/collector/packageregistry/packageruntime/source_test.go
+  s_072c5984f68e14::t_d7ad4fb23409c7 491-505
+  s_072c5984f68e14::t_bd731006c29df3 103-166
+go/cmd/workflow-coordinator/README.md
+  s_072c5984f68e14::t_34b9f7ad2cb0f0 36,56-58,133-137,159-161
+go/cmd/collector-package-registry/config_test.go
+  s_072c5984f68e14::t_2e7b04a6f53b99 7,55-94
+go/internal/storage/postgres/workflow_control_package_dependency_targets_test.go
+  s_072c5984f68e14::t_889f116f78e266 1-76
+go/internal/coordinator/README.md
+  s_072c5984f68e14::t_d115c873346a24 103-108,228-230,252,262-265
+  s_072c5984f68e14::t_7ca3eba7d9677d 109
+  s_072c5984f68e14::t_3ab400a2adeb45 110-111,251
+go/internal/storage/postgres/doc.go
+  s_072c5984f68e14::t_bc0cdeac564a97 25-30
+go/cmd/collector-package-registry/doc.go
+  s_072c5984f68e14::t_3a48a516ca7b19 6-9
+go/cmd/workflow-coordinator/doc.go
+  s_072c5984f68e14::t_260b080f3b7009 8-9
+go/internal/workflow/vulnerability_intelligence_config_test.go
+  s_072c5984f68e14::t_48f0d241400cec 26-35,46-59
+  s_072c5984f68e14::t_4051f8e1f27fae 36-45
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source_test.go
+  s_072c5984f68e14::t_c7c99e5842a698 110-182
+go/internal/workflow/package_registry_config.go
+  s_072c5984f68e14::t_3f921f12acae33 16,116-117
+  s_072c5984f68e14::t_af505bf25a1f4c 17,35-45,54-55,62-66,114-115,118-148
+go/cmd/workflow-coordinator/main.go
+  s_072c5984f68e14::t_74a9c564de156f 103-109
+go/internal/collector/vulnerabilityintelligence/osv_client.go
+  s_072c5984f68e14::t_eb395cad2175a7 39,44-46
+go/cmd/collector-package-registry/README.md
+  s_072c5984f68e14::t_9ecba5f9c76bc5 72-74
+  s_072c5984f68e14::t_1a63bc3ed9bce8 7-8,67-71
+go/internal/coordinator/package_dependency_targets.go
+  s_072c5984f68e14::t_686ddc8724049f 17
+  s_072c5984f68e14::t_367e6f769a4e3c 1-11,13-16,18-126,130-132,136,139-213
+  s_072c5984f68e14::t_d1a9fc25fc0e43 12,127-129,133-135,137-138
+go/internal/workflow/package_registry_config_test.go
+  s_072c5984f68e14::t_abfb4445c64943 21-44
+go/internal/collector/packageregistry/packageruntime/README.md
+  s_072c5984f68e14::t_e20702d0b194e3 7-10,28-31,60-62,96
+  s_072c5984f68e14::t_df01660f81458f 63-65
+go/internal/reducer/supply_chain_impact_lockfile_test.go
+  s_072c5984f68e14::t_3fa70387896e47 4,70
+  s_072c5984f68e14::t_eea3c03d1c1345 48-69,71-74
+go/internal/workflow/vulnerability_intelligence_config.go
+  s_072c5984f68e14::t_7d393c9e19809b 20,155-156
+  s_072c5984f68e14::t_5e59041dcddbc4 14,159-160
+  s_072c5984f68e14::t_c5f6077038f633 21,49-56,65-66,73-77,146-154,157-158,161-178
+go/internal/storage/postgres/workflow_control_package_dependency_targets.go
+  s_072c5984f68e14::t_47c56eb7489504 1-77
+go/internal/coordinator/package_registry_scheduler.go
+  s_072c5984f68e14::t_b1e0855834c7c9 24,26-28,31-32,49-59,61,63,69,73-78,88,104-196,219,221,225,238-239,274,282-284,288
+go/internal/workflow/README.md
+  s_072c5984f68e14::t_136f493cc8d179 166
+  s_072c5984f68e14::t_eec0a798a2702c 151-152,154-165
+  s_072c5984f68e14::t_49b61bed1c760d 167-170
+docker-compose.remote-e2e.yaml
+  s_072c5984f68e14::t_ae95ffdf578a7d 132-138,140-141,178-182,184
+  s_072c5984f68e14::t_66e6cdb699311a 139,183
+go/internal/collector/vulnerabilityintelligence/osv_client_test.go
+  s_072c5984f68e14::t_85e4a65810bdfc 57-105
+go/cmd/collector-package-registry/config.go
+  s_072c5984f68e14::t_a1f4f495f042fb 52-64,171,176-190
+go/cmd/collector-vulnerability-intelligence/config_test.go
+  s_072c5984f68e14::t_6f841c808f3e79 50-89
+go/internal/coordinator/doc.go
+  s_072c5984f68e14::t_24c4c7d65fbfa7 16
+  s_072c5984f68e14::t_4e2558fa844789 12-15,17-20
+docs/public/deployment/service-runtimes-collectors.md
+  s_072c5984f68e14::t_b459fb19160790 37,50
+go/internal/collector/packageregistry/packageruntime/derived_targets.go
+  s_072c5984f68e14::t_5118918e93c1c0 1-41,45-48,52-55,59-99,117-197
+  s_072c5984f68e14::t_f51c7d08a75d8e 42-44,49-51,56-58,100-116
+go/internal/workflow/doc.go
+  s_072c5984f68e14::t_b3a00948fa8e42 21-22
+  s_072c5984f68e14::t_cac6b1cf618e3d 18-20
+go/internal/reducer/supply_chain_impact_match.go
+  s_072c5984f68e14::t_534c0c421711c7 85,87-90,93-95,97
+go/cmd/collector-vulnerability-intelligence/config.go
+  s_072c5984f68e14::t_03b8c9869b6211 33-42,176,181-192
+go/internal/coordinator/package_dependency_target_planning_test.go
+  s_072c5984f68e14::t_a3e6a1f18113b2 1-5,7-160,219-228,231-246
+  s_072c5984f68e14::t_353795c38f8d0b 161-202
+  s_072c5984f68e14::t_c52b234bf29272 6
+  s_072c5984f68e14::t_c73fa0fafe8449 203-218
+  s_072c5984f68e14::t_3342008086cbf5 229-230
+go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md
+  s_072c5984f68e14::t_a7a59ff04efce5 7-10,27-29,58-61,79
+  s_072c5984f68e14::t_7b5d6b64c47f45 30-32
+go/internal/collector/vulnerabilityintelligence/vulnruntime/doc.go
+  s_072c5984f68e14::t_51c5cc5c76043a 5-6
+go/internal/collector/vulnerabilityintelligence/vulnruntime/derived_targets.go
+  s_072c5984f68e14::t_b5e5e8b90d6308 1-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "b3bdfb7042d360c118deb0e278dc2434590d28c5",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

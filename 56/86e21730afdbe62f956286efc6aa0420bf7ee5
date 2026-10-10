@@ -1,0 +1,25 @@
+docker-compose.neo4j.yml
+  s_f5417eb4bac87d::t_45a54089417e2a 3
+docs/public/reference/cypher-performance.md
+  s_f5417eb4bac87d::t_45351d63d65b22 178
+docs/public/reference/environment-ingestion-queues.md
+  s_f5417eb4bac87d::t_a39150122f31bc 204
+go/internal/runtime/compose_neo4j_image_test.go
+  s_f5417eb4bac87d::t_a41d1c4346c819 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5686e21730afdbe62f956286efc6aa0420bf7ee5",
+  "prompts": {},
+  "sessions": {
+    "s_f5417eb4bac87d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92c64115-d591-4a9b-ac18-3c30f730d10b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

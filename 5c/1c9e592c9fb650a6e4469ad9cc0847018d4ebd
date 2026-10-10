@@ -1,0 +1,31 @@
+go/internal/reducer/security_alert_reconciliation_lockfile_test.go
+  s_f2f7fbb6f30866::t_bc9895df517fdc 1-262
+go/internal/reducer/security_alert_reconciliation_handler.go
+  s_f2f7fbb6f30866::t_ae3ad09143cc39 68-72,124-142,167-175,178
+  s_f2f7fbb6f30866::t_c331ccae110ec2 176
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_9a417449b83031 484-494,565-566
+go/internal/reducer/package_consumption_correlation.go
+  s_f2f7fbb6f30866::t_997707c2d8517d 7
+  s_f2f7fbb6f30866::t_c331ccae110ec2 70,212
+go/internal/reducer/security_alert_reconciliation.go
+  s_f2f7fbb6f30866::t_5e8c54a6b8df04 284,295-305
+  s_f2f7fbb6f30866::t_c331ccae110ec2 259
+  s_f2f7fbb6f30866::t_f768f5498da3b3 119,236-258,260-283,285-294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5c1c9e592c9fb650a6e4469ad9cc0847018d4ebd",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

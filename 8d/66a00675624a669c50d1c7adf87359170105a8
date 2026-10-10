@@ -1,0 +1,23 @@
+docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md
+  s_f5417eb4bac87d::t_a69a24986f717b 130
+go/internal/query/querytestutil/nornicdb_and_or_whitespace_test.go
+  s_f5417eb4bac87d::t_32cc6de664497d 46-51,75-83
+go/internal/query/repository/dependency_cluster_test.go
+  s_f5417eb4bac87d::t_e0fe8725aa3cec 348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8d66a00675624a669c50d1c7adf87359170105a8",
+  "prompts": {},
+  "sessions": {
+    "s_f5417eb4bac87d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92c64115-d591-4a9b-ac18-3c30f730d10b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

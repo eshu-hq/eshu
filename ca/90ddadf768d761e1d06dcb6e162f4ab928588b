@@ -1,0 +1,30 @@
+go/internal/storage/postgres/migrations/156_graph_projection_phase_state_generation_idx.sql
+  s_9b6bb30511490e::t_d2092b641bb6d7 7-23
+go/internal/storage/postgres/generation_prune_generation_index_schema_test.go
+  s_9b6bb30511490e::t_0501a2c2e55e19 13-20,23-29,31-48
+docs/internal/evidence/7419-generation-prune-generation-idx.md
+  s_9b6bb30511490e::t_3dde0ac71e148a 3-44,49-155,160-177,181-187,192-194
+  s_9b6bb30511490e::t_fcd994a38cfc3f 45-48
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_9b6bb30511490e::t_d31d10602d8d4f 57-58,64
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_9b6bb30511490e::t_6fb5df5003f553 208
+go/internal/storage/postgres/schema_order_test.go
+  s_9b6bb30511490e::t_90b38bb7438194 361-363
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ca90ddadf768d761e1d06dcb6e162f4ab928588b",
+  "prompts": {},
+  "sessions": {
+    "s_9b6bb30511490e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35219556-b5fe-469b-bf15-60d798ac1788",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

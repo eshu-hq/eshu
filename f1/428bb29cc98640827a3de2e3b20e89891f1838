@@ -1,0 +1,16 @@
+go/internal/backendconformance/differential.go
+  h_78a442cba0b3e6 1-367
+go/internal/backendconformance/differential_test.go
+  h_78a442cba0b3e6 1-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f1428bb29cc98640827a3de2e3b20e89891f1838",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

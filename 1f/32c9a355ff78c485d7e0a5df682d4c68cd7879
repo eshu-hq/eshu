@@ -1,0 +1,20 @@
+go/internal/reducer/iamcan/iam_can_perform_cross_scope.go
+  h_78a442cba0b3e6 180-185,187-190,202-204
+go/internal/reducer/iamcan/iam_can_perform_cross_scope_test.go
+  h_78a442cba0b3e6 382-408
+go/internal/reducer/intent.go
+  h_78a442cba0b3e6 189-190
+testdata/golden/e2e-20repo-snapshot.json
+  h_78a442cba0b3e6 268,283,1946-1961
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1f32c9a355ff78c485d7e0a5df682d4c68cd7879",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

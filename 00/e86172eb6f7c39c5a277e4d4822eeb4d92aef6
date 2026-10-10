@@ -1,0 +1,27 @@
+go/internal/storage/cypher/fault_executor_restart_record_test.go
+  s_4a0f86aa680964::t_661b68875bc8d4 9,21-31,35-37,43,47-51,60-69,72,84-85,105,108-119
+scripts/lib/ifa_live_gate_selector_cases.sh
+  s_4a0f86aa680964::t_304e52a8e2ccd0 472
+scripts/test-verify-ifa-fault-injection.sh
+  s_4a0f86aa680964::t_2988cdaa907a6d 85
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_4a0f86aa680964::t_2988cdaa907a6d 248-250
+scripts/lib/test-ifa-fault-injection-diagnostics-fake-docker.sh
+  s_4a0f86aa680964::t_2988cdaa907a6d 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "00e86172eb6f7c39c5a277e4d4822eeb4d92aef6",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

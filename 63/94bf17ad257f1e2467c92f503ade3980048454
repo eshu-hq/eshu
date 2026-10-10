@@ -1,0 +1,39 @@
+go/internal/reducer/code_call_projection_runner.go
+  s_bdaf44668b73dc::t_b2aa743f4a7ec7 45-50
+go/internal/reducer/code_call_projection_test_helpers_test.go
+  s_bdaf44668b73dc::t_c80953537eeee1 25-27,50-58
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_22c12c98874b61 21-26
+go/internal/reducer/code_call_projection_retract_skip_test.go
+  s_bdaf44668b73dc::t_d05187195e9248 96-138
+go/internal/storage/postgres/shared_intents_history.go
+  s_bdaf44668b73dc::t_2b4f1b686dd835 22-34,65-93
+go/internal/reducer/code_call_projection_work.go
+  s_bdaf44668b73dc::t_2fcceb9dbbb3bc 26,54-62
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_0f203362723d21 24-26
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_31666b1326f578 212-216,358-362
+go/internal/reducer/code_call_projection_work_test.go
+  s_bdaf44668b73dc::t_c1bf2a5e62eb03 10,38,43-47
+go/internal/storage/postgres/shared_intents_test.go
+  s_bdaf44668b73dc::t_926c3a47b56ba5 476-541,615-634
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_753b2672c8e22c 123-132,194-196,340-344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "6394bf17ad257f1e2467c92f503ade3980048454",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+docs/internal/evidence/7033-exact-code-topic-parallel.md
+  s_b0d7e3abc26c5a::t_9cc32185324695 151,156-160
+  s_b0d7e3abc26c5a::t_ad14362a8a7bc1 154-155
+  s_b0d7e3abc26c5a::t_d27ed60397bd42 137-148,152-153,161-164
+go/internal/query/openapi/paths/code/symbols.go
+  s_b0d7e3abc26c5a::t_9cc32185324695 314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8608a25ae6dc157822a6f139cd99e2a3377ede52",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,215 @@
+go/internal/query/playbook/query_to_context_test.go
+  s_80fd8eb71bc05d::t_0dc3b49e881c3a 4,27,44,52,60,63,80,136,155,172,188,193-194,196,200,204,208,221,235
+  s_64d981aaf4e18f::t_4f40f5ac5549af 10-11
+apps/console/src/api/queryPlaybooks.ts
+  s_64d981aaf4e18f::t_3606567086597c 7-8
+go/internal/query/query_playbook_alias.go
+  s_90a3d3ea866d6b::t_74c3fd4c45a675 187-188,190
+  s_90a3d3ea866d6b::t_31a6ea2579615a 161-164
+  s_64d981aaf4e18f::t_c5e734feccda31 1-12,26-28,50-72,77-79,85-87,93-113,120-128,133-160,165-186,189,191-194,201,238,287-288,295-296,304-305,312
+  s_90a3d3ea866d6b::t_bf760d7777c1b4 13-23
+  s_bd001c1cc856ea::t_a3849196de080e 204-207
+  s_6dc6036a0ccd2f::t_946fd274cf5ea6 114-119,129-132
+  s_6dc6036a0ccd2f::t_db3cb281f7b471 29-48
+  s_6dc6036a0ccd2f::t_2c51e408716f43 73-76,80-84,88-92
+  s_6dc6036a0ccd2f::t_3c52cd65e4ae83 195-200,202-203,208-237,239-286,289-294,297-303,306-311
+  s_e8ab01ccdfa8e2::t_e91277f9dc78c2 24-25
+  s_e8ab01ccdfa8e2::t_60714a3b7744d1 49
+go/internal/query/playbook/expansion_test.go
+  s_64d981aaf4e18f::t_ae6679162bde67 4,22-23,47,65,76,89
+go/internal/query/playbook/AGENTS.md
+  s_90a3d3ea866d6b::t_157b62fcb6b3ab 40-49
+  s_64d981aaf4e18f::t_1592f80524e6fe 1-11,27-39,50-66,99-100,103-118
+  s_6dc6036a0ccd2f::t_c72c8be7f6a5cf 12-26
+  s_6dc6036a0ccd2f::t_258f6b3f30664c 119,125-132
+  s_bd001c1cc856ea::t_0d6c272c5f3e58 70-78
+  s_bd001c1cc856ea::t_9cb88321255324 120-124
+  s_6dc6036a0ccd2f::t_c9ad76562174bb 67-69,79-98,101-102
+go/internal/query/playbook/workflow.go
+  s_64d981aaf4e18f::t_ac8a729a81d8c5 362
+  s_6dc6036a0ccd2f::t_61cad9c4566721 4,51-57,68,72,78,88,90,95,97,122,124,134,137-138,145-148,150,155,159,161,181-183,188,193,195,198,224,245,257,284,316-317,322,333,351,355,380
+go/internal/query/playbook/main_test.go
+  s_64d981aaf4e18f::t_ca5d79a4611281 1-40,46-48,50-52
+  s_6dc6036a0ccd2f::t_e69a5054b25947 41-45,49
+go/internal/query/playbook/definition.go
+  s_1f4a41946de095::t_cebb92c47b8083 4,14,17,20,22-23,25,28,31,35,42,45,48-52,54-55,57,60,63,84,87,89,91,93,97-99,102,104-105,108-110,113,115-116,119,122,129,133,139,142,147,150,153,164,171,186,188,190,193,195,213,217,233,242,247,264,287,290,294,302,304,306,315,320,322,338,341-343,345,350,352-353,358
+  s_64d981aaf4e18f::t_0bae042a2b2ea0 10-11
+go/internal/query/playbook/doc.go
+  s_64d981aaf4e18f::t_82c16bfb2405b5 1-7,15-22,35-39,44
+  s_6dc6036a0ccd2f::t_627d090d884c63 8-14,23-34,40-43
+go/internal/query/playbook/validate.go
+  s_1f4a41946de095::t_195f9101282d0b 4,24,37,84,90,101,108,124,131,141,153,157,177,179-180
+  s_64d981aaf4e18f::t_85c253be35cc4a 9-10
+go/internal/query/playbook/capabilities.go
+  s_64d981aaf4e18f::t_bcf38b4bcbd003 1-47
+  s_6dc6036a0ccd2f::t_9781c8013c6699 48-77
+go/internal/query/doc.go
+  s_64d981aaf4e18f::t_047e9d2a1d4bf5 343-345,357-359
+  s_6dc6036a0ccd2f::t_3caa481b51723b 361-362,366-371
+go/internal/query/playbook/catalog_third_wave.go
+  s_64d981aaf4e18f::t_068f2578ebe8d5 6
+  s_e8ab01ccdfa8e2::t_19e9e7aad83168 4-5,17-18,21,27,33,39,45,55-56,59-68,70,73,82-83,120-121,129,134-136,138,141,149-150,152,163-164,172,177-181,183,185,193-194,196,208-209,217,222-223,225,232-233,245-246,254,259-260,263,270-271
+go/internal/query/playbook/catalog.go
+  s_e8ab01ccdfa8e2::t_bd75a9311157e4 4,8,19-20,43-44,51,54,60,65,70,72,80-81,83,92-95,99-100,121-122,129,132,138,143,147-151,153,155,163-164,166,175-176,198-199,206,209,214,218-219,221,228-229,238-239
+  s_64d981aaf4e18f::t_8bd25c8c069f68 6-7
+go/internal/query/playbook/README.md
+  s_64d981aaf4e18f::t_83f5b6a4db2cce 181
+  s_90a3d3ea866d6b::t_13f6d4adebe713 213-220
+  s_90a3d3ea866d6b::t_9fbc6b95dda42a 145-147
+  s_90a3d3ea866d6b::t_18f116cb4bbb9c 161-162
+  s_4f77f3e7449159::t_0b9594e2b9421e 186-189
+  s_64d981aaf4e18f::t_a9afc71430e3b6 1-19,30-36,48-77,99,101-142,144,163-180,182-185,190-195,197-201,203-206,210-212,221-223,240-253,388-393
+  s_90a3d3ea866d6b::t_0c2dfc03f33fcf 202,207-209
+  s_90a3d3ea866d6b::t_185d8bae840ea9 143,148-158
+  s_90a3d3ea866d6b::t_594b152de2e320 225-226,228,230,233-235
+  s_90a3d3ea866d6b::t_5bd0f855361919 196
+  s_4f77f3e7449159::t_eaac5878a93a4f 227
+  s_6dc6036a0ccd2f::t_2d5c9a8090eb7a 254-351,378-387
+  s_6dc6036a0ccd2f::t_b5f3f4df7d8d77 78-98,100
+  s_4f77f3e7449159::t_d7b8ad362c422f 357,361-365
+  s_bd001c1cc856ea::t_c5ad38f84897a9 159-160
+  s_6dc6036a0ccd2f::t_ff04ca2e5c4b03 20-29,37-47
+  s_6dc6036a0ccd2f::t_322ad9def21b7b 352,359-360,373-377
+  s_bd001c1cc856ea::t_002b08a7c05bc6 353-356,358,366-371
+go/internal/query/playbook/definition_test.go
+  s_80fd8eb71bc05d::t_a663fe21e45041 4,21,40,52,70,75-76,78,82-83,87,103,151,180,191,204,206,212,217,222
+  s_64d981aaf4e18f::t_c95ede73a51877 11-12
+go/internal/query/playbook/catalog_second_wave.go
+  s_e8ab01ccdfa8e2::t_a8f9f9bf798741 4,8-9,15-17,19,23-26,28,30,38-39,41,48-49,55-57,59,63-66,68,70,78-79,81,88-89,95-97,99,103-106,108,110,118-119,121,128-129,135-137,139,143-145,147,149,157-158,160,167-168,174-176,178,182-185,187,189,197-198,200,207-208,214-216,218,222-225,227,229,237-238,240,247-248
+  s_64d981aaf4e18f::t_b4563efd6cee5d 6-7
+docs/public/reference/query-playbooks.md
+  s_64d981aaf4e18f::t_b8b535f02f13d9 15-20
+go/internal/query/playbook/handler_test.go
+  s_64d981aaf4e18f::t_ce28dd8f62d83e 110-111
+  s_64d981aaf4e18f::t_75978ed3309673 20-21
+  s_64d981aaf4e18f::t_91d9be03f56419 12-13
+  s_64d981aaf4e18f::t_58cb29d93f5e04 66-67
+  s_e8ab01ccdfa8e2::t_dc2d1b51a5366e 4,24,32,42,45,57,71,83-84,92,114,122,129,132
+go/internal/query/playbook/catalog_demo.go
+  s_64d981aaf4e18f::t_848098e58373d7 6
+  s_64d981aaf4e18f::t_bc5c3ac8930a90 21
+  s_e8ab01ccdfa8e2::t_4f2c94cfba42c0 4-5,32-33,40,43,48,52-54,56,58,76-77,84,87,92,96-98,100,102,118-119,126,129,134,138-140,142,144,156-157
+go/internal/query/playbook/handler.go
+  s_64d981aaf4e18f::t_bc0a778f5d5483 4,30,33-34,38,43-47,50,55,60-62,65,70-73,78,81,83,88,91,97-98,101-103,105,108,113,116,118
+  s_64d981aaf4e18f::t_e2f7c76b86ac56 9-10
+  s_64d981aaf4e18f::t_8bd41af47fbbb1 13-14,28-29
+  s_64d981aaf4e18f::t_a5b9fb0b05ccb5 15-27
+go/internal/query/capability_lockstep_query_playbook_test.go
+  s_64d981aaf4e18f::t_61bcf0b5fc12d6 1-30,35-55
+  s_90a3d3ea866d6b::t_d19224b95f97ef 31-34
+go/internal/query/playbook/workflow_incident_test.go
+  s_6dc6036a0ccd2f::t_73fe6503c35343 4,14,18,60,64,118,122,146,150
+go/internal/query/capability_lockstep_workflow_test.go
+  s_bd001c1cc856ea::t_aa422bbd41ad86 34-37
+  s_6dc6036a0ccd2f::t_58f86231119932 1-33,38-58
+go/internal/query/playbook/workflow_handler_test.go
+  s_d31f6c79417686::t_0610a4be2d6bef 4,20-21,24,32,49-50,58-59,63,73,75-76,103,110,130,139,154,167,183,210-211,214,222,226,234,238-239,246,255,257-258
+  s_6dc6036a0ccd2f::t_e1ab47ce0e9a66 12-13
+docs/public/observability/telemetry-coverage.md
+  s_6dc6036a0ccd2f::t_4f77268f0c891d 883
+go/internal/query/playbook/workflow_catalog.go
+  s_6dc6036a0ccd2f::t_0828f71fadb85a 4,6-7,13-24,88,98,109,120,131,142,153,164,175,186-187,193-202,235,246,256,266,277,286-287,293-302,334,345,356,367,378,390,408
+docs/public/reference/investigation-workflows.md
+  s_bd001c1cc856ea::t_20fc881244f39a 112
+go/internal/capabilitycatalog/data/catalog.generated.json
+  s_bd001c1cc856ea::t_440f5f7c110c47 7791-7794
+go/internal/query/playbook/workflow_deployable_test.go
+  s_6dc6036a0ccd2f::t_8b058c1b2794af 4,14,18,54,58,87,91
+go/internal/query/playbook/workflow_handler.go
+  s_6dc6036a0ccd2f::t_9bcbdd95bab3d0 4,13,15-16,20,25-29,32,38-40,43-45,48,53-56,61,64,66,69,74,77,83-84,87-89,91,99,102,104
+  s_6dc6036a0ccd2f::t_06299e38feed67 9-10
+specs/capability-matrix/investigation-workflows.v1.yaml
+  s_bd001c1cc856ea::t_cd4e9483ee9036 7,10,13,16
+go/.golangci.yml
+  s_6dc6036a0ccd2f::t_a8d0042de4ab52 473
+go/internal/query/playbook/workflow_test.go
+  s_6dc6036a0ccd2f::t_9d4969ec8f390a 4,14-15,48,52,89,135,139,190,194,224,228,258,262,297,301,373,377,411,415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "383d1ff7538d34ec98ac6f7e9b49edb0a19e46ee",
+  "prompts": {},
+  "sessions": {
+    "s_1f4a41946de095": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "278de534-4454-4dd2-af42-e7807e61a7e8",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_4f77f3e7449159": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71ec12c5-c74c-4e2c-bc6a-b7c85ef53298",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_64d981aaf4e18f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e2f6149e-aad6-4678-a918-0ecc8a45af97",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_6dc6036a0ccd2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71c2bec7-db90-4cb4-b283-fadd9caee6a2",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_80fd8eb71bc05d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "72951224-7923-4bb7-986e-61f38e3b7c69",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_90a3d3ea866d6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3a5fc4b-799f-408a-9862-a367013f7f65",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_bd001c1cc856ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b428deb9-969f-44dd-b237-23a2e48a42d4",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_d31f6c79417686": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3217757-8ba2-462f-bc27-af904f574805",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

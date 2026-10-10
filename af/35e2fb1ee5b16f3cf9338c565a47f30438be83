@@ -1,0 +1,38 @@
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_06dec241ef963d 22-24,26,28,144-146
+go/internal/parser/dockerfile/README.md
+  s_bdaf44668b73dc::t_492bdd0ce85d80 1-41
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_06dec241ef963d 163-167,284-285
+go/internal/parser/dockerfile_language.go
+  s_bdaf44668b73dc::t_492bdd0ce85d80 3,33
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_06dec241ef963d 42
+go/internal/parser/dockerfile/metadata_test.go
+  s_bdaf44668b73dc::t_4379b27a83e9c2 1-2,7-46,49-65,111-112
+  s_bdaf44668b73dc::t_e486d47974d9c5 3-6,47-48,66-110
+go/internal/parser/dockerfile/metadata.go
+  s_bdaf44668b73dc::t_492bdd0ce85d80 1-413
+go/internal/parser/dockerfile/AGENTS.md
+  s_bdaf44668b73dc::t_492bdd0ce85d80 1-40
+docs/plans/2026-05-09-parser-language-layout.md
+  s_bdaf44668b73dc::t_06dec241ef963d 38
+go/internal/parser/dockerfile/doc.go
+  s_bdaf44668b73dc::t_492bdd0ce85d80 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "af35e2fb1ee5b16f3cf9338c565a47f30438be83",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

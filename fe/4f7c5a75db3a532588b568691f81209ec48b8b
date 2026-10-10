@@ -1,0 +1,19 @@
+go/internal/runtime/postgres/reader_members_test.go
+  s_b0d7e3abc26c5a::t_953c9da9244503 14,19,254-256,260-264
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fe4f7c5a75db3a532588b568691f81209ec48b8b",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

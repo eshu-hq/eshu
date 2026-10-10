@@ -1,0 +1,18 @@
+docs/internal/evidence/6818-query-package-moves.md
+  h_78a442cba0b3e6 419-428
+go/internal/queryplan/source_coverage_testonly_test.go
+  h_78a442cba0b3e6 128-133,135-136
+go/internal/queryplan/test_only_helper.go
+  h_78a442cba0b3e6 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "25a9d05fd2a599bd6d12057864de528dac630b6c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+docs/internal/evidence/6689-6690-nornicdb-v133-answer-truth.md
+  s_02cd429498e265::t_c5c56343408125 92-95,173-175
+go/internal/backendconformance/evidence-notes.md
+  s_02cd429498e265::t_505c9d3b714049 16-17
+go/internal/reducer/code/value/cloud_sink_loader.go
+  s_02cd429498e265::t_e0afecea8e7cb5 214-219
+go/internal/reducer/code/value/cloud_sink_loader_test.go
+  s_02cd429498e265::t_637bec3f126a53 286-293
+go/internal/reducer/code/value/cloud_sink_pairs.go
+  s_02cd429498e265::t_b6b6c1f3eeef39 38-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d876346a08894ea5be4d51985160fe973566d505",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

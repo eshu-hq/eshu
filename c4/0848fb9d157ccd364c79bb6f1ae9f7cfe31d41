@@ -1,0 +1,27 @@
+scripts/dev/test-publish-ci-image-mirrors.sh
+  s_b0d7e3abc26c5a::t_e775a12818d05c 98
+  s_b0d7e3abc26c5a::t_5d3a92ad44e43f 93
+  s_b0d7e3abc26c5a::t_f7e7a36c99d515 6,88-92,94-97,99-100,133-138
+.github/workflows/static-contract-gates.yml
+  s_b0d7e3abc26c5a::t_49c94d5699c19b 436
+specs/ci-gates.v1.yaml
+  s_b0d7e3abc26c5a::t_49c94d5699c19b 5006
+docs/public/reference/ci-gates.md
+  s_b0d7e3abc26c5a::t_614563fb0f880a 302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c40848fb9d157ccd364c79bb6f1ae9f7cfe31d41",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+go/cmd/bootstrap-data-plane/graph_schema_adoption_only_test.go
+  s_b0d7e3abc26c5a::t_d4a36f388c2950 1-7,9-10,12-29,33-35,37-41,43-80,221-222
+  s_b0d7e3abc26c5a::t_93d5a1fe572f04 8,11,81-89,94-143,145-155,161-184,220
+  s_b0d7e3abc26c5a::t_8b2f3da0da08f9 30-32,36,42,186-189
+  s_b0d7e3abc26c5a::t_78478d1bd90f2c 185,190-219
+  s_b0d7e3abc26c5a::t_703ba21749af10 90-93,144
+  s_b0d7e3abc26c5a::t_f1170dd7ab39df 156-160
+go/cmd/bootstrap-data-plane/main.go
+  s_b0d7e3abc26c5a::t_8e2bc15d6753f0 148-151,224-226,231-233,246-247
+  s_b0d7e3abc26c5a::t_2527c8dcc5d9b2 248
+go/cmd/bootstrap-data-plane/README.md
+  s_b0d7e3abc26c5a::t_6f205ced094717 58-68,90-91,187-193
+  s_b0d7e3abc26c5a::t_91b69c720a0685 194
+go/cmd/bootstrap-data-plane/schema_adoption.go
+  s_b0d7e3abc26c5a::t_eb5d0c498b17d0 21-58
+docs/public/deployment/service-runtimes-bootstrap.md
+  s_b0d7e3abc26c5a::t_28bd96ed24a849 307,320-329
+  s_b0d7e3abc26c5a::t_18d8fe154f01f6 330
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77577c048f43d5898db8d34cb5adf577ca6f57d6",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

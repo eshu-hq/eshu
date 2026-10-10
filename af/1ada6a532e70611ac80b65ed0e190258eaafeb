@@ -1,0 +1,23 @@
+docs/public/reference/backend-conformance.md
+  s_02cd429498e265::t_5d38f000d90d1b 87-90
+go/internal/backendconformance/evidence-notes.md
+  s_02cd429498e265::t_7b5d692510f383 21-25
+go/internal/backendconformance/live_test.go
+  s_02cd429498e265::t_eab24e8c4f6335 92-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "af1ada6a532e70611ac80b65ed0e190258eaafeb",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

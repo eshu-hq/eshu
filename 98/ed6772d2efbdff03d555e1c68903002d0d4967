@@ -1,0 +1,18 @@
+.github/workflows/golden-corpus-gate.yml
+  h_78a442cba0b3e6 163-166
+docs/internal/evidence/6782-slice3-differential-oracle.md
+  h_78a442cba0b3e6 114-170
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 2584-2589
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "98ed6772d2efbdff03d555e1c68903002d0d4967",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+docker-compose.neo4j.yml
+  s_b0d7e3abc26c5a::t_a5945bee0331c3 3,22
+docs/public/run-locally/docker-compose-extra.md
+  s_b0d7e3abc26c5a::t_cf2b108dca64f1 1-321
+docs/mkdocs.yml
+  s_b0d7e3abc26c5a::t_0e382d3e953cc9 42
+.github/workflows/reducer-contention-gate.yml
+  s_b0d7e3abc26c5a::t_a5945bee0331c3 61
+go/internal/runtime/compose_neo4j_image_test.go
+  s_b0d7e3abc26c5a::t_383eef5b0e357e 11-13
+  s_b0d7e3abc26c5a::t_072640c47127bd 6-9,15-17,30
+  s_b0d7e3abc26c5a::t_07d379afa9fb4d 14
+scripts/run-auth-e2e.sh
+  s_b0d7e3abc26c5a::t_0e382d3e953cc9 12,41
+docker-compose.live-backend-neo4j.yml
+  s_b0d7e3abc26c5a::t_a5945bee0331c3 11
+docs/public/run-locally/docker-compose.md
+  s_b0d7e3abc26c5a::t_cf2b108dca64f1 455-456
+scripts/run-auth-mcp-e2e.sh
+  s_b0d7e3abc26c5a::t_0e382d3e953cc9 84
+docs/public/reference/environment-ingestion-queues.md
+  s_b0d7e3abc26c5a::t_ae886598e27a29 208
+docs/public/run-locally/mcp-catalog-sweep.md
+  s_b0d7e3abc26c5a::t_0e382d3e953cc9 8
+scripts/test-run-live-backend-tests.sh
+  s_b0d7e3abc26c5a::t_cbd7cc3e3a7918 161-172,174-180,182-185,187-189
+  s_b0d7e3abc26c5a::t_a92e3f97e45ed4 156-160,173,181,186,190-198
+docker-compose.e2e.yaml
+  s_b0d7e3abc26c5a::t_0e382d3e953cc9 23
+docker-compose.yaml
+  s_b0d7e3abc26c5a::t_a5945bee0331c3 41
+.github/workflows/live-postgres-readiness.yml
+  s_b0d7e3abc26c5a::t_a5945bee0331c3 84,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1b80e7cd213600b2da366851c0b5af3c3a6885a7",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

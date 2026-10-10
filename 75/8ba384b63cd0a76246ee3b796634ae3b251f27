@@ -1,0 +1,37 @@
+docs/internal/evidence/7881-query-methodology-pilot.md
+  s_29175cf8c573b8::t_9c24623f4b802c 49-55
+docs/internal/query-engineering.md
+  s_29175cf8c573b8::t_7b9843038448dd 24-28
+go/internal/queryplan/testdata/contracts/cloud-resource-identity-page.yaml
+  s_29175cf8c573b8::t_f7c2ae8f3c950d 16
+go/internal/queryplan/testdata/contracts/code-import-cross-module-calls.yaml
+  s_29175cf8c573b8::t_ba0cb099dd2987 16
+go/internal/queryplan/testdata/contracts/code-import-cycle-edges.yaml
+  s_29175cf8c573b8::t_606cae37e40df8 16
+go/internal/queryplan/testdata/contracts/code-import-packages.yaml
+  s_29175cf8c573b8::t_e3a1fa50eedb79 24
+go/internal/queryplan/testdata/contracts/code-import-rows-repository.yaml
+  s_29175cf8c573b8::t_72e7d518dd8e7c 16
+go/internal/queryplan/testdata/contracts/code-import-source-module-files.yaml
+  s_29175cf8c573b8::t_186dabd1176495 16
+go/internal/queryplan/testdata/contracts/code-import-source-module-rows.yaml
+  s_29175cf8c573b8::t_cb1f69eb5f2a10 24
+go/internal/queryplan/testdata/contracts/code-import-target-module-files.yaml
+  s_29175cf8c573b8::t_ab2360ac70031d 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "758ba384b63cd0a76246ee3b796634ae3b251f27",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

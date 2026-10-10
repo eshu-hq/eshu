@@ -1,0 +1,134 @@
+go/internal/payloadusage/schema.go
+  s_f10b8247b430b4::t_66f74d47cff418 244
+go/internal/query/auth_scoped_routes_work_item_test.go
+  s_f10b8247b430b4::t_4957dff9065acf 1-86
+go/internal/query/workitem/store.go
+  s_f10b8247b430b4::t_8191ba80210f76 4-115
+go/internal/query/workitem/evidence.go
+  s_f10b8247b430b4::t_80ed368fbbc4db 4-381
+scripts/lib/dirgate-grandfather.tsv
+  s_f10b8247b430b4::t_5f84056a51662b 87
+go/internal/query/evidence-notes.md
+  s_f10b8247b430b4::t_7cd29ff33d8d94 139
+  s_e8ab01ccdfa8e2::t_895cecf26a58ce 140
+go/internal/query/workitem/doc.go
+  s_f10b8247b430b4::t_4d5269cb333c1b 1-34
+go/internal/query/workitem/main_test.go
+  s_f10b8247b430b4::t_0717cf5f225ae4 1-41
+go/internal/query/workitem/AGENTS.md
+  s_f10b8247b430b4::t_a5d578ef3321aa 1-36,40-74
+  s_f10b8247b430b4::t_56e0c56dd5479f 37-39
+sdk/go/factschema/workitem/v1/AGENTS.md
+  s_f10b8247b430b4::t_58a566336d5ae5 27-30
+go/internal/query/workitem/scope.go
+  s_f10b8247b430b4::t_47eea840ca78b4 4-47
+go/internal/query/supplychain/advisory/supply_chain_advisory_evidence_helpers.go
+  s_f10b8247b430b4::t_8848efb497a8f2 115-118
+go/internal/query/workitem/capability.go
+  s_f10b8247b430b4::t_ad8010d1adb0da 1-39
+go/internal/query/workitem/handler_tracing.go
+  s_f10b8247b430b4::t_0d50f4591b62f5 16-18
+  s_f10b8247b430b4::t_e4397943fa73fc 1-15,19-25
+go/internal/query/packagereg/factschema_decode_package_correlations.go
+  s_f10b8247b430b4::t_fb9432aac79618 44-45
+  s_f10b8247b430b4::t_324a10a415bec6 54
+go/internal/query/work-item-evidence-scope-evidence.md
+  s_f10b8247b430b4::t_65ff0494200d73 43,45,49-53
+  s_f10b8247b430b4::t_0c96ff63d70f55 25-27
+go/internal/query/supplychain/impact/supply_chain_impact_decode_helpers.go
+  s_f10b8247b430b4::t_f906646eb5f0a3 65
+  s_f10b8247b430b4::t_d6959df3977bdd 166-170
+docs/internal/design/5584-route-serves-data-registry.md
+  s_f10b8247b430b4::t_55a9b3f6dddcdc 107
+go/internal/query/work_item_alias.go
+  s_f10b8247b430b4::t_e818e8dee5580b 13-14
+  s_f10b8247b430b4::t_2d584003235bb3 1-12,15-74
+go/internal/query/incident/store/factschema_decode_incident.go
+  s_f10b8247b430b4::t_afb8a282e66408 26
+go/internal/query/factschema_decode_supplychain.go
+  s_f10b8247b430b4::t_2194257fe796c6 47
+  s_f10b8247b430b4::t_8c8f9a20621cb0 22
+  s_e8ab01ccdfa8e2::t_9d5c11edf64297 186,195-196,198,207-208,224
+go/internal/query/incident/store/decode_workitem.go
+  s_f10b8247b430b4::t_1d5c90f3a751fe 20-31
+  s_f10b8247b430b4::t_f978f0631af812 35,48,61,73,85,92,106-107,112-113,123,134
+go/internal/query/packagereg/package_registry_correlation_deref.go
+  s_f10b8247b430b4::t_57c352c2676e30 10-17
+go/internal/query/workitem/README.md
+  s_f10b8247b430b4::t_cf8824fe713b0f 104-106
+  s_f10b8247b430b4::t_16f4a0bd40f1dd 1-103,107-114
+go/internal/query/workitem/scope_test.go
+  s_f10b8247b430b4::t_3e74e3e637ea18 4-177,193,196,202,206,211,215,221,226,238,241,244,247
+  s_f10b8247b430b4::t_da8d734de0aa7f 178,183,186
+go/internal/query/workitem/page.go
+  s_f10b8247b430b4::t_71349fb16b4bdc 4-58
+go/internal/query/packagereg/package_registry_correlation_page.go
+  s_f10b8247b430b4::t_6cca3ad51ba6f6 24-26
+go/internal/query/doc.go
+  s_f10b8247b430b4::t_174ecbecdf1803 277-279
+sdk/go/factschema/workitem/v1/README.md
+  s_f10b8247b430b4::t_88198b385c864c 19-22
+  s_f10b8247b430b4::t_95d19b560ad517 111,114-115
+go/internal/query/workitem/handler.go
+  s_f10b8247b430b4::t_10de9b1e3dc38a 4-161
+go/internal/query/factschema_decode_shared.go
+  s_f10b8247b430b4::t_46141f9c6be293 10-53
+  s_f10b8247b430b4::t_fc584f3daf09a3 7-9
+  s_f10b8247b430b4::t_30acb60db2f9e7 54-56
+  s_e8ab01ccdfa8e2::t_c8a849af39755c 1-6
+go/internal/query/packagereg/package_registry_correlations.go
+  s_f10b8247b430b4::t_d336c20cb0ba60 343
+go/internal/query/workitem/read_kinds.go
+  s_f10b8247b430b4::t_e7739d97b56319 4-26
+go/internal/query/README.md
+  s_f10b8247b430b4::t_3bdb8a87ff612a 1043
+go/internal/query/workitem/sql.go
+  s_f10b8247b430b4::t_c83d7d109ba630 4
+go/internal/query/repositoryreadmodel/repository_refs_page.go
+  s_f10b8247b430b4::t_d8680900edbb25 140-141
+go/internal/query/supplychain/advisory/factschema_decode_advisory.go
+  s_f10b8247b430b4::t_ced7935d2a1a0a 49-52
+  s_f10b8247b430b4::t_cabf033324e904 61
+go/internal/query/workitem/state.go
+  s_f10b8247b430b4::t_eceba4f6984fb1 4-126
+docs/internal/remote-validation/prod-work-item-evidence.md
+  s_e8ab01ccdfa8e2::t_5893df204696b5 32,40-41,45-47,51,54,60
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_e8ab01ccdfa8e2::t_0faf6ccf9113ec 307-308,310-311,315-317,319,321-324,329,331
+go/internal/query/workitem/evidence_test.go
+  s_f10b8247b430b4::t_000e13bc1a5ee6 4,22,25,29-30,35-36,38,47,67,94,106,111,140-146,171,197,206,242-243,262,266,269,272,275,323,383-384,418,423,426,440-445
+go/internal/query/workitem/factschema_decode.go
+  s_e8ab01ccdfa8e2::t_1aa947e2492556 4,12-21,23-40,43-52,62,74,78,85,89,100,110,117,121,128,132,139,143,155,162,166,171-174,181-183
+go/internal/query/workitem/input_invalid_test.go
+  s_f10b8247b430b4::t_d17bffd156ef81 4
+go/internal/query/workitem/pagination_test.go
+  s_f10b8247b430b4::t_48053ab24bf42d 4,85,139,149-150,204
+go/internal/query/workitem/sql_test.go
+  s_f10b8247b430b4::t_3c5de94ec758cb 4
+tools/golangci-lint-dirgate/grandfather.go
+  s_f10b8247b430b4::t_361bf77cd55c14 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "756b234981f2ca80a512e08a3cd786aa773dd729",
+  "prompts": {},
+  "sessions": {
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_f10b8247b430b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71ce7be8-3a7b-4b59-9642-670f58a2d5e1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

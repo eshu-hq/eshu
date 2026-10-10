@@ -1,0 +1,24 @@
+go/internal/queryplan/statement_builders.go
+  h_78a442cba0b3e6 26-44,46-55,69,85,106,118,123-125,127-130,132-133,146,152-157,159,167,187,221-225,239,242,246
+go/internal/queryplan/statement_builders_test.go
+  h_78a442cba0b3e6 43-86,116-140
+go/internal/queryplan/statement_manifest.go
+  h_78a442cba0b3e6 1-135
+go/internal/queryplan/statement_manifest_test.go
+  h_78a442cba0b3e6 1-147
+go/internal/queryplan/statement_text.go
+  h_78a442cba0b3e6 1-454
+go/internal/queryplan/testdata/statement-builders.yaml
+  h_78a442cba0b3e6 1-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34130e96803fa0f8a68f2ecd5fae1a0ebcc052db",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

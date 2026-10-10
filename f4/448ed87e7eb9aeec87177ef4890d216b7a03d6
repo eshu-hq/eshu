@@ -1,0 +1,19 @@
+apps/console/src/api/statusOverview.test.ts
+  s_63957fa88fead0::t_eb033857942432 25-34,52,59-72,77-84,103-114,117-130,150-162,167-179,182-194,207-215,222-230,244-259,277-296,309-318,322-327,331-345,377-378,386-394,399-400,404-405,408,457,477-504,508-531,533-539
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f4448ed87e7eb9aeec87177ef4890d216b7a03d6",
+  "prompts": {},
+  "sessions": {
+    "s_63957fa88fead0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09564-67a6-7373-a1f5-22c57a664a56",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

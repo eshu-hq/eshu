@@ -1,0 +1,40 @@
+docs/internal/evidence/6590-oci-key-batch-chunking.md
+  s_20be138600ef1b::t_5c2b482f88139c 33-39,53-54,57,66-67,71-73,76,84-91
+  s_20be138600ef1b::t_28f04a6f7b824e 1-32,40-52,92-105
+  s_20be138600ef1b::t_fe138e2a06883e 55-56,58-65,68-70,74-75,77-83
+go/internal/query/impact_trace_deployment_oci_batch_benchmark_test.go
+  s_20be138600ef1b::t_dca0daf057a66e 14,147-173
+  s_20be138600ef1b::t_96cd0f1d44005b 1-13,15-29,31-73,76-89,91-146,174-208
+  s_20be138600ef1b::t_5c2b482f88139c 30
+  s_20be138600ef1b::t_b6323d6a46f159 74,90
+  s_20be138600ef1b::t_0aad4ccb2599f3 75
+go/internal/query/impact/impact_trace_deployment_oci_key_batch_test.go
+  s_20be138600ef1b::t_ff2d13e9ebedbf 12,200
+  s_20be138600ef1b::t_28f04a6f7b824e 1-11,13-110
+  s_20be138600ef1b::t_0dd8feceaa6adf 111-199,201-204
+go/internal/query/impact/trace_deployment_oci.go
+  s_20be138600ef1b::t_8dfd8076e35e03 165-167,211,230-238
+  s_20be138600ef1b::t_05d44cfb3e2668 207,244-288
+  s_20be138600ef1b::t_091e695f645765 168
+  s_20be138600ef1b::t_ac8cf994b77304 162-164
+  s_20be138600ef1b::t_ee89d99cee6dc4 208-210
+  s_20be138600ef1b::t_ee2bcf68a6e8b5 212
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_20be138600ef1b::t_28f04a6f7b824e 321-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3ec13bf175a048527c7f17bcd0593e34b54be6b0",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

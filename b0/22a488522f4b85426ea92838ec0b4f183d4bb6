@@ -1,0 +1,75 @@
+docs/plans/2026-05-09-parser-language-layout.md
+  s_bdaf44668b73dc::t_dc2f060361e1b6 28-31,35,38,40,48-53,58-65,67,69
+go/internal/parser/java/README.md
+  s_bdaf44668b73dc::t_620d8833153c91 1-46
+go/internal/parser/javascript/AGENTS.md
+  s_bdaf44668b73dc::t_041bb160a90b60 1-7,10,13-18,21-28,31-41,44-57
+  s_bdaf44668b73dc::t_f37cadbf385c29 8-9,11-12,19-20,29-30,42-43
+go/internal/parser/javascript_tsconfig_imports.go
+  s_bdaf44668b73dc::t_46e3ea50de26ef 1-17
+go/internal/parser/java_metadata_files.go
+  s_bdaf44668b73dc::t_3cb24f9dee6728 4,13-17,19-20,23-24
+go/internal/parser/javascript/package_json.go
+  s_bdaf44668b73dc::t_630b861ade1cf7 1-266
+go/internal/parser/java/doc.go
+  s_bdaf44668b73dc::t_620d8833153c91 1-8
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 12-13,133
+  s_bdaf44668b73dc::t_9884eef8ec6172 14-16,18,20,134-136
+go/internal/parser/javascript/README.md
+  s_bdaf44668b73dc::t_f37cadbf385c29 8-10,16-17,22-24,47-50
+  s_bdaf44668b73dc::t_041bb160a90b60 1-7,11-15,18-21,25-46,51-54
+go/internal/parser/javascript_paths.go
+  s_bdaf44668b73dc::t_21498a1131117e 1-7,28-39
+  s_bdaf44668b73dc::t_e02317d1453193 8-27
+go/internal/parser/java/metadata_test.go
+  s_bdaf44668b73dc::t_b1696680e64bd7 1-67
+go/internal/parser/javascript_dead_code_package.go
+  s_bdaf44668b73dc::t_e02317d1453193 4,8,12
+go/internal/parser/javascript_dead_code_typescript_surface.go
+  s_bdaf44668b73dc::t_e02317d1453193 144
+  s_bdaf44668b73dc::t_118e3f49ed06f9 9,200,206-207
+go/internal/parser/java/AGENTS.md
+  s_bdaf44668b73dc::t_620d8833153c91 1-50
+go/internal/parser/javascript/package_json_test.go
+  s_bdaf44668b73dc::t_11d71b842d1b06 14-15,39,46,66
+  s_bdaf44668b73dc::t_34653b10f5c511 1-13,16-38,40-45,47-65,67-75
+go/internal/parser/javascript_language.go
+  s_bdaf44668b73dc::t_118e3f49ed06f9 8,51,159,193,198
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 31-37
+  s_bdaf44668b73dc::t_fc95b7586ddfec 8-10
+  s_bdaf44668b73dc::t_9884eef8ec6172 16-17
+go/internal/parser/javascript/tsconfig.go
+  s_bdaf44668b73dc::t_e02317d1453193 28-29,48,78,266,286,299-300
+  s_bdaf44668b73dc::t_d665174b03f349 1,10-12,19-27,31,34,36,39,45,49-50,52,60-63,77,79-80,94,96,113,116,119,121-122,128,134,147,168,218,221,261-263,270,298,310-318
+go/internal/parser/java/metadata.go
+  s_bdaf44668b73dc::t_5867832ef84c1f 1-169
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_f37cadbf385c29 122-124
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 96-97,261-262
+  s_bdaf44668b73dc::t_9884eef8ec6172 113-116
+  s_bdaf44668b73dc::t_8c4a5d3b1ed5da 263-264
+go/internal/parser/javascript/tsconfig_test.go
+  s_bdaf44668b73dc::t_6c519c4b261672 1-34,36-75
+  s_bdaf44668b73dc::t_21498a1131117e 35
+go/internal/parser/javascript/doc.go
+  s_bdaf44668b73dc::t_041bb160a90b60 1-3,10
+  s_bdaf44668b73dc::t_f37cadbf385c29 4-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "b022a488522f4b85426ea92838ec0b4f183d4bb6",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

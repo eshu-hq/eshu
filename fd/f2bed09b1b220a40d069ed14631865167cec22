@@ -1,0 +1,31 @@
+docs/internal/evidence/6782-unwind-missing-row-key-audit.md
+  s_31b6f580331b60::t_af473d03acee5b 161-172
+go/cmd/golden-corpus-gate/README.md
+  s_31b6f580331b60::t_c4db0aecd72ad7 118-124
+go/internal/goldengate/README.md
+  s_31b6f580331b60::t_64807c678f2e70 36,61-72
+go/internal/goldengate/row_keys.go
+  s_31b6f580331b60::t_5242cbe97d6afc 1-91
+go/internal/goldengate/row_keys_test.go
+  s_31b6f580331b60::t_0ebb1a79182159 1-205
+go/internal/goldengate/row_tokens.go
+  s_31b6f580331b60::t_71f1779fda1c9c 32-36,42-46,53-61,73
+go/internal/goldengate/row_tokens_test.go
+  s_31b6f580331b60::t_d1d25812d78a2a 37-41,48,53-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fdf2bed09b1b220a40d069ed14631865167cec22",
+  "prompts": {},
+  "sessions": {
+    "s_31b6f580331b60": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c99a8a4e-2b09-403a-a67b-cd01f8bf03be",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

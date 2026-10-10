@@ -1,0 +1,220 @@
+go/internal/parser/javascript/javascript_language.go
+  s_90f17fc0f060f9::t_070884f36007e6 1-385
+go/internal/parser/yaml_language.go
+  s_85ef201e597f19::t_82302d2a9be9e1 3,10-13
+go/internal/parser/java/parser_test.go
+  s_c89b32ac0c52a8::t_229890cc5ac2c8 1-3,5-8,11-30,34-50,106-129
+  s_c89b32ac0c52a8::t_e8ffc5135414f9 4
+  s_c89b32ac0c52a8::t_812e58082b88a8 9-10,31-33
+  s_c89b32ac0c52a8::t_73986b624650a5 51-105
+go/internal/parser/javascript/package_json.go
+  s_bdaf44668b73dc::t_630b861ade1cf7 1-258
+go/internal/parser/golang/AGENTS.md
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 1-4,20-23,35-37,49-51,65-67,77-79
+  s_435757cfb7acea::t_b96d0446114650 5-19,24-34,38-44,46-48,52-64,68-76,80-85
+  s_435757cfb7acea::t_585549e3f35ccb 45
+go/internal/parser/python/shared_helpers.go
+  s_478366732c5677::t_8b32d6f4dff947 1-3,6,8-36,88
+  s_478366732c5677::t_c85a97fd1b7913 4-5,7,37-87
+go/internal/parser/shared_bridge.go
+  s_bdaf44668b73dc::t_80f8c0cfd79ddb 1-19
+go/internal/parser/java/README.md
+  s_bdaf44668b73dc::t_620d8833153c91 2-4,9-11,17-19,22-24,30-32,36-38,42,45,58-59,48,52
+  s_c89b32ac0c52a8::t_d0f026e663e4fc 57,1,5-8,12-14,16,20,25-29,33-35,39-41,43-44,49-51,53-56,60-61
+  s_c89b32ac0c52a8::t_5dd0df112f9b4e 15
+  s_c89b32ac0c52a8::t_95cb5dc7e1ad38 21,46-47
+go/internal/parser/go_package_interface_prescan.go
+  s_435757cfb7acea::t_b6f42d6a42274e 7-8,61-62
+  s_435757cfb7acea::t_ebcf862b943321 49,63-75,77,79-96
+go/internal/parser/javascript/AGENTS.md
+  s_bdaf44668b73dc::t_041bb160a90b60 1-4,18,21-25,30,33-34,37-39,42,50-52,55-59,62-67,69,72-74
+  s_bdaf44668b73dc::t_f37cadbf385c29 20,31-32,43-44,60-61
+  s_90f17fc0f060f9::t_69334aee072bca 5-17,19,26,28-29,35-36,40,45-49,54,70-71,75-77
+  s_90f17fc0f060f9::t_f9db8ba2d4aa00 27
+  s_90f17fc0f060f9::t_8df16d37ebb401 41,53,68
+go/internal/parser/javascript/doc.go
+  s_bdaf44668b73dc::t_041bb160a90b60 3,16
+  s_bdaf44668b73dc::t_f37cadbf385c29 14
+  s_90f17fc0f060f9::t_69334aee072bca 1-2,4-6,13,15
+  s_bdaf44668b73dc::t_91e8cda920576c 7,12
+  s_bdaf44668b73dc::t_313cf19fbc82b1 8
+  s_bdaf44668b73dc::t_986a9c9e98cce3 9-11
+go/internal/parser/golang/helpers.go
+  s_435757cfb7acea::t_e8ab75b60fbf26 1-92
+go/internal/parser/javascript_compat_test.go
+  s_90f17fc0f060f9::t_8df16d37ebb401 1-7
+go/internal/parser/javascript_language.go
+  s_bdaf44668b73dc::t_118e3f49ed06f9 4
+  s_90f17fc0f060f9::t_f84d30a0435ae9 5,16-18,28
+go/internal/parser/python/lambda_support.go
+  s_478366732c5677::t_6b07c7eb5b1fcf 1-144
+go/internal/parser/python/notebook_temp.go
+  s_478366732c5677::t_315c009dba7a05 1-27
+go/internal/parser/java_metadata_files.go
+  s_bdaf44668b73dc::t_3cb24f9dee6728 4
+  s_c89b32ac0c52a8::t_5bcc00d1e0b7ed 8
+go/internal/parser/python/README.md
+  s_bdaf44668b73dc::t_33d773870fcc40 2-4,9-11,23,31-33,42-43,47-50,60,63-65,68,17,26,38,53,56
+  s_478366732c5677::t_007dfd32e5656c 22,24,41,1,5-8,12-16,18-21,25,27-30,34-37,39-40,44-46,51-52,54-55,57-59,61-62,66-67
+go/internal/parser/golang/package_interface_prescan.go
+  s_435757cfb7acea::t_96ebe5939fd0c0 1-28
+go/internal/parser/go_language.go
+  s_435757cfb7acea::t_5a9e8cb23ab711 3,16,20,24,26
+go/internal/parser/java/AGENTS.md
+  s_bdaf44668b73dc::t_620d8833153c91 1-4,15-18,31-33,45-47,58-60,67-69
+  s_c89b32ac0c52a8::t_e725a5a8e5f58e 5,7-14,19-21,24-30,34,36-44,48-57,61-64,66,71-75
+  s_c89b32ac0c52a8::t_825781f18e7fce 6,22-23
+  s_c89b32ac0c52a8::t_fc582e230ff9fa 35
+  s_c89b32ac0c52a8::t_b12b0e06a6a4fc 65,70
+go/internal/parser/javascript/shared_aliases.go
+  s_90f17fc0f060f9::t_f84d30a0435ae9 1-7,9-16
+  s_90f17fc0f060f9::t_06f858a53bd0a2 8
+go/internal/parser/javascript/javascript_language_helpers.go
+  s_90f17fc0f060f9::t_0aebbf8c77a41d 1-126
+go/internal/parser/golang/README.md
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 2-4,9-11,23-24,36,44-46,49-50,69,73-75,16,26,41,55,59,65
+  s_435757cfb7acea::t_37ae0c4c6e1e79 22,35,37,51,1,5-8,12-15,17-18,25,27-34,38-40,42-43,47-48,52-54,60-64,66-68,70-72,76-78
+  s_bdaf44668b73dc::t_986a9c9e98cce3 19-21
+  s_bdaf44668b73dc::t_313cf19fbc82b1 56-58
+go/internal/parser/python/AGENTS.md
+  s_bdaf44668b73dc::t_33d773870fcc40 1-4,13-15,17,21,25-27,34-39,47-49,52,55-57
+  s_478366732c5677::t_98d01a93116b40 5-12,16,18-20,22-24,28-33,40-46,50-51,53-54,58-63
+go/internal/parser/java/metadata_parse.go
+  s_c89b32ac0c52a8::t_59f8cbde3f0a02 1-25
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_fc95b7586ddfec 8-10
+  s_bdaf44668b73dc::t_9884eef8ec6172 17-18
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 33-39
+  s_bdaf44668b73dc::t_e08a27ae199e4d 14-16
+  s_bdaf44668b73dc::t_17cc75fc55a462 41
+  s_bdaf44668b73dc::t_082b9d2f054448 42
+  s_bdaf44668b73dc::t_06dec241ef963d 43
+  s_bdaf44668b73dc::t_5787ce6a689f57 44-48
+  s_bdaf44668b73dc::t_313cf19fbc82b1 30-31
+  s_bdaf44668b73dc::t_91e8cda920576c 49-51
+  s_bdaf44668b73dc::t_986a9c9e98cce3 52-54
+go/internal/parser/javascript/javascript_paths.go
+  s_bdaf44668b73dc::t_33cd156de7a718 1-26
+go/internal/parser/javascript/javascript_dead_code_typescript_surface.go
+  s_90f17fc0f060f9::t_87a1fadcc9aa01 1-332
+go/internal/parser/golang/dead_code_semantic_helpers.go
+  s_bdaf44668b73dc::t_33cd156de7a718 1-415
+go/internal/parser/javascript/README.md
+  s_bdaf44668b73dc::t_041bb160a90b60 2-4,10-12,24-25,31-33,39-42,44-46,50-58,70-72,18,49,69
+  s_90f17fc0f060f9::t_69334aee072bca 23,1,5-9,13-17,19,22,26-29,34,43,48,64-68
+  s_bdaf44668b73dc::t_f37cadbf385c29 59-62
+  s_90f17fc0f060f9::t_f9db8ba2d4aa00 20-21
+  s_90f17fc0f060f9::t_8df16d37ebb401 30,47
+  s_bdaf44668b73dc::t_986a9c9e98cce3 35-38
+go/internal/parser/javascript/javascript_semantics.go
+  s_90f17fc0f060f9::t_bd4e5a06e9e1f5 1-372
+go/internal/parser/java/helpers.go
+  s_c89b32ac0c52a8::t_53c34468591162 1-107
+go/internal/parser/golang/types.go
+  s_435757cfb7acea::t_29fc21b5a971c5 1-10
+go/internal/parser/javascript/javascript_dead_code_package.go
+  s_90f17fc0f060f9::t_87a1fadcc9aa01 1-9
+go/internal/parser/javascript/javascript_dead_code_roots.go
+  s_90f17fc0f060f9::t_8df16d37ebb401 1-499
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_9884eef8ec6172 115-118
+  s_bdaf44668b73dc::t_f37cadbf385c29 130-132
+  s_bdaf44668b73dc::t_91e8cda920576c 151,152-153,159-162
+  s_bdaf44668b73dc::t_082b9d2f054448 177,317-318
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 309-310
+  s_bdaf44668b73dc::t_8c4a5d3b1ed5da 311-312
+  s_bdaf44668b73dc::t_e08a27ae199e4d 173-176,313-314
+  s_bdaf44668b73dc::t_17cc75fc55a462 140-142,315-316
+  s_bdaf44668b73dc::t_21b27b57c04ff0 182,187,202,126,196,158,163
+  s_bdaf44668b73dc::t_06dec241ef963d 183-186,319-320,181
+  s_bdaf44668b73dc::t_051ace4f5b74fa 55-58,178-180,197-201
+  s_bdaf44668b73dc::t_5787ce6a689f57 121-125,192-195
+  s_bdaf44668b73dc::t_005f8cf21941ba 78-79,97
+  s_bdaf44668b73dc::t_313cf19fbc82b1 98-99
+  s_bdaf44668b73dc::t_986a9c9e98cce3 154-157
+go/internal/parser/javascript/javascript_semantics_helpers.go
+  s_90f17fc0f060f9::t_bd4e5a06e9e1f5 1-201
+go/internal/parser/java/parser.go
+  s_c89b32ac0c52a8::t_ced838075d040c 1-476
+go/internal/parser/golang/doc.go
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 3,13
+  s_435757cfb7acea::t_32f1c092da6f11 1-2,4-7
+  s_bdaf44668b73dc::t_313cf19fbc82b1 8-9
+  s_bdaf44668b73dc::t_986a9c9e98cce3 10-12
+go/internal/parser/java/doc.go
+  s_bdaf44668b73dc::t_620d8833153c91 3,10
+  s_c89b32ac0c52a8::t_8183859c727939 1-2,4-5
+  s_c89b32ac0c52a8::t_a1fd2ff65ac369 6-9
+go/internal/parser/python/doc.go
+  s_bdaf44668b73dc::t_33d773870fcc40 3,9
+  s_478366732c5677::t_d80e51b5cbebfc 1-2,4-8
+go/internal/parser/javascript/javascript_tsconfig_imports.go
+  s_90f17fc0f060f9::t_87a1fadcc9aa01 1-15
+go/internal/parser/golang/language.go
+  s_435757cfb7acea::t_765d69034559ac 1-442
+go/internal/parser/python_language.go
+  s_478366732c5677::t_26a15c9202098c 6,21-25,29,31
+go/internal/parser/python/language_test.go
+  s_478366732c5677::t_79f069bab0ed78 1-3,5-66
+  s_478366732c5677::t_e390e6101f4da8 4
+go/internal/parser/java_language.go
+  s_c89b32ac0c52a8::t_5db891ba6073c3 6,20,30
+go/internal/parser/python/language.go
+  s_478366732c5677::t_c641205f6d3056 1-493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "9a0f40577b0a29e80585264d83dca3da7c009413",
+  "prompts": {},
+  "sessions": {
+    "s_435757cfb7acea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e9a-af46-7223-a04f-ad2e76a7a0ff",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_478366732c5677": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e9a-af6a-7691-995b-2036568fba78",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_85ef201e597f19": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e90-d5c9-7d40-a6d6-b6789166c920",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_90f17fc0f060f9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e9a-afe3-78d2-afd0-09ce9368c337",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_c89b32ac0c52a8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e9a-af9d-7152-a574-3613953b081c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

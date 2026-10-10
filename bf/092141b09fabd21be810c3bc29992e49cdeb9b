@@ -1,0 +1,52 @@
+go/internal/coordinator/vulnerability_intelligence_batch_test.go
+  s_f2f7fbb6f30866::t_b79926aea42a7a 7
+  s_f2f7fbb6f30866::t_d03ca1356fe317 119-134,141-159,161-165,167,270
+  s_f2f7fbb6f30866::t_a4b29b119e9b16 135-140,160,166,168-196,204-210
+  s_f2f7fbb6f30866::t_528ba023b206b6 197-203
+  s_f2f7fbb6f30866::t_3a8864d16f28b8 8,214-269,271
+go/internal/query/supply_chain_impact_profile_test.go
+  s_f2f7fbb6f30866::t_c7644fe329b031 143-144,171-188
+  s_f2f7fbb6f30866::t_33ba5bdf77b0d8 148-149
+  s_f2f7fbb6f30866::t_a4862f2f46a989 160-170,189-199,201-212
+  s_f2f7fbb6f30866::t_80cf4ba6ad1ce0 141-142,145-146
+go/internal/coordinator/vulnerability_intelligence_scheduler.go
+  s_f2f7fbb6f30866::t_5c29b7f81734e5 48-51
+  s_f2f7fbb6f30866::t_81f868f524929e 287-290,305-307
+  s_f2f7fbb6f30866::t_157d6c423f9b93 408-412,414-415,455-456,423-424
+  s_f2f7fbb6f30866::t_b0c55b75164b47 413,416-417,425-430,436-437,439-447,452-454,421,434
+  s_f2f7fbb6f30866::t_a5d1dee9fc51be 308,418-420,422,431-433,435,438,448-451
+go/internal/parser/json/swift_package_resolved_test.go
+  s_f2f7fbb6f30866::t_8c077f9e1432fd 1-75
+  s_f2f7fbb6f30866::t_f0b9d856448fe7 76,110-136,78-82,84,86,89-91,93-98,100,104,107-109
+  s_f2f7fbb6f30866::t_25d66aa7d6140e 77,83,85,87-88,92,99,101-103,105-106
+go/internal/storage/postgres/owned_package_targets.go
+  s_f2f7fbb6f30866::t_77e7e0a5729f24 31-32,55-56,68,83,94-95,140,147
+  s_f2f7fbb6f30866::t_5cda056ee5c101 18,21
+go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md
+  s_f2f7fbb6f30866::t_80ff2378faee64 61-62,64,67-70,102
+  s_f2f7fbb6f30866::t_c510126407de6f 63
+go/internal/storage/postgres/owned_package_targets_test.go
+  s_f2f7fbb6f30866::t_43e487bbe95997 21
+  s_f2f7fbb6f30866::t_2223540d604e1b 23
+go/internal/parser/json/swift_package_resolved.go
+  s_f2f7fbb6f30866::t_f9fea25fa4e7bd 1-8,12-29,34-39,41-51,53-58,64-67,69-71,107-141,32,76,79-80,86,91-93,95-97,102,104-106
+  s_f2f7fbb6f30866::t_f0b9d856448fe7 9-11,59-63
+  s_f2f7fbb6f30866::t_f0b2c8b364c356 68
+  s_f2f7fbb6f30866::t_22de22c40634ca 30-31,33,40,52,75,77-78,81-85,87-90,94,98-101,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bf092141b09fabd21be810c3bc29992e49cdeb9b",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+docs/internal/evidence/7125-secret-lines-side-table.md
+  s_bc720f29f5e0fd::t_72bfd94fb35022 383,386-392,396,398-400,405-406,409-415
+go/internal/query/README.md
+  s_bc720f29f5e0fd::t_6897adcd9bd4d6 1159
+  s_bc720f29f5e0fd::t_2dd96af774d6ff 1155-1158
+  s_bc720f29f5e0fd::t_057ec726d53b8b 1160-1162
+docs/public/reference/environment-runtime-storage.md
+  s_bc720f29f5e0fd::t_ab069d65b6dc27 112
+go/cmd/bootstrap-index/README.md
+  s_bc720f29f5e0fd::t_ab069d65b6dc27 414
+docs/public/reference/environment-ingestion-queues.md
+  s_bc720f29f5e0fd::t_ab069d65b6dc27 94
+go/cmd/bootstrap-index/main.go
+  s_bc720f29f5e0fd::t_7ff7bca22cc828 187
+go/cmd/bootstrap-index/main_connection_budget_test.go
+  s_bc720f29f5e0fd::t_bb5080c5e28e59 1-37
+docs/public/deployment/service-runtimes-bootstrap.md
+  s_bc720f29f5e0fd::t_ab069d65b6dc27 72-75
+go/cmd/bootstrap-index/bootstrap_pool_budget.go
+  s_bc720f29f5e0fd::t_1309764d908c46 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2e7578d8ebed0ad5d66fae6315fbc5bb673d7ea3",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

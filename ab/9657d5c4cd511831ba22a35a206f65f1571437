@@ -1,0 +1,37 @@
+go/internal/query/auth_scoped_language_query_shipped_text_test.go
+  s_e8ab01ccdfa8e2::t_981a2c580249d8 109
+go/internal/query/codequery/README.md
+  s_e8ab01ccdfa8e2::t_47835fd15c2085 21-25
+go/internal/query/codequery/doc.go
+  s_e8ab01ccdfa8e2::t_10b1ba44682057 24-27
+go/internal/query/language/handler_write.go
+  s_e8ab01ccdfa8e2::t_b0593aca4e8298 46
+go/internal/query/language_query_graphless_reader_test.go
+  s_e8ab01ccdfa8e2::t_4c6689b05b223f 97-100
+go/internal/query/querycontract/doc.go
+  s_e8ab01ccdfa8e2::t_377046531aa41c 39-40
+go/internal/query/codequery/AGENTS.md
+  s_e8ab01ccdfa8e2::t_8aa536a82afe1d 11-12
+go/internal/query/codequery/handler.go
+  s_e8ab01ccdfa8e2::t_44f275ec836757 31,75-78
+go/internal/query/codequery/relationships/story/resolution.go
+  s_e8ab01ccdfa8e2::t_2b1f89fb1701a3 203
+go/internal/query/querycontract/README.md
+  s_e8ab01ccdfa8e2::t_25c390e4b3ead5 28,51-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab9657d5c4cd511831ba22a35a206f65f1571437",
+  "prompts": {},
+  "sessions": {
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

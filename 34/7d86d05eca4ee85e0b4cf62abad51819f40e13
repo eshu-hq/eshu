@@ -1,0 +1,70 @@
+apps/console/src/serviceRelationshipWorkbench.css
+  s_a259424f603ccc::t_d3f286663ccc8a 1-86,88-159,161-219
+  s_a259424f603ccc::t_1805ed683d0992 160
+  s_a259424f603ccc::t_8737d8c9c322b5 87
+apps/console/src/styles.css
+  s_a259424f603ccc::t_2be5b139bf33fb 6,15-36,71,87,95,99,125-127
+  s_a259424f603ccc::t_d92f382905ae46 2,380-381
+apps/console/src/api/serviceSpotlight.ts
+  s_a259424f603ccc::t_6f410f45f0772a 17-18,43,79-105,168,170,188,204,213,218,223,296
+apps/console/src/api/serviceSpotlight.test.ts
+  s_a259424f603ccc::t_9785623ea18cf5 1-9,11-37,45,70-86,95-139
+  s_a259424f603ccc::t_ad4e582e3de00e 38-44,87-94
+  s_a259424f603ccc::t_e3f61e01702e61 46-69
+  s_a259424f603ccc::t_3dd4d3b2d57107 10
+apps/console/src/pages/ServiceRelationshipExplorer.tsx
+  s_a259424f603ccc::t_d3026fdaf525b0 1-41,43-60,62-63,65-66,70-91,99-313
+  s_a259424f603ccc::t_e550b59961992e 42,61,64,67-69,92-98
+apps/console/src/deploymentGraph.css
+  s_a259424f603ccc::t_d92f382905ae46 1-172
+apps/console/src/pages/ServiceSpotlightPanel.tsx
+  s_a259424f603ccc::t_df4e47cba3c979 14,50-51,53
+  s_a259424f603ccc::t_6cfe9386aac9b5 13,74,214
+  s_a259424f603ccc::t_fc97ec55299d95 128,130-131,133
+apps/console/src/pages/ServiceRelationshipWorkbench.test.tsx
+  s_a259424f603ccc::t_c0f8e2fcf4cd76 30-32
+  s_a259424f603ccc::t_3cf5ea581cd9a9 1-29,33-167
+apps/console/src/pages/ServiceSpotlightPanel.test.tsx
+  s_a259424f603ccc::t_443adbf364e5dd 78
+  s_a259424f603ccc::t_b5d80184e4ecda 263-265,270-276,284-285,291,298,310,317,324,332-344,363-376,445,454-457
+  s_a259424f603ccc::t_17b294195f5fa8 55-59,65-67,74,76-77,79
+  s_a259424f603ccc::t_1b75eeaf191600 69-72,80-89,356,358-359,377,379-401,403-441
+  s_a259424f603ccc::t_c0f8e2fcf4cd76 22
+apps/console/src/pages/DashboardPage.test.tsx
+  s_a259424f603ccc::t_84554711ae6513 243
+  s_a259424f603ccc::t_68176e2e1b4a00 238-239
+apps/console/src/api/serviceSpotlightLanes.ts
+  s_a259424f603ccc::t_9856cb82cb4ff7 11-13,17,19-23
+  s_a259424f603ccc::t_bec9c9a94a69ea 1-10,14-16,18,24-134
+apps/console/src/api/serviceSpotlightRelationships.ts
+  s_a259424f603ccc::t_2a669625d99c6c 1-107,109-182,184-237,257-266
+  s_a259424f603ccc::t_dd07385c586764 183
+  s_a259424f603ccc::t_4088f9709b5e85 108,238-256
+apps/console/src/pages/ServiceRelationshipWorkbench.tsx
+  s_a259424f603ccc::t_1805ed683d0992 2-20,198,288-293
+  s_a259424f603ccc::t_e6bca828939269 1,21-196,199-269,271-287,304-314
+  s_a259424f603ccc::t_48cf105dd20493 197,270,294-303
+apps/console/src/pages/serviceRelationshipGraphModel.ts
+  s_a259424f603ccc::t_638f14c45c17cc 80-83,198,249,257
+  s_a259424f603ccc::t_1805ed683d0992 1-79,84-197,199-248,250-256,258-323
+apps/console/src/serviceSpotlight.css
+  s_a259424f603ccc::t_7d55058701fb7e 175,363
+  s_a259424f603ccc::t_b42786116ca8c4 312,314-320,322-362,364-403
+  s_a259424f603ccc::t_95ed8a723c9804 313,321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "347d86d05eca4ee85e0b4cf62abad51819f40e13",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

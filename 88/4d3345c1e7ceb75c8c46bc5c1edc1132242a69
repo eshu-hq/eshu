@@ -1,0 +1,35 @@
+go/internal/query/repository/dependency_edge_probe.go
+  s_3d761bb140daa9::t_ffd62e3271186b 1-53
+docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md
+  s_3d761bb140daa9::t_fc80322bd68c1c 205-220
+docs/public/reference/http-api/repositories-ingesters-bundles.md
+  s_3d761bb140daa9::t_abce6fc0ae1046 138-144,149-152
+go/internal/query/repository/catalog.go
+  s_3d761bb140daa9::t_e2ccd5a12af0bb 194
+go/internal/query/repository/dependency_cluster.go
+  s_3d761bb140daa9::t_e2962d3e72ce4a 127-132,137-138,160-171,174,189,290,292
+go/internal/query/repository/dependency_cluster_prepass_test.go
+  s_3d761bb140daa9::t_531e30da35b1d1 57,64,68,73-74,76,81,84,94,99,103-104,109,113,120,125-126,128,133,136,144,182,185,189,191-192,194,198-219
+go/internal/query/repository/query_timing.go
+  s_3d761bb140daa9::t_946cc73033f342 68-75,79,82-83,86,89-90
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_3d761bb140daa9::t_8154400d2e87eb 960,963
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_3d761bb140daa9::t_84ae16d21a5dbe 10,599,602-604
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "884d3345c1e7ceb75c8c46bc5c1edc1132242a69",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

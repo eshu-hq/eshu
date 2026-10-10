@@ -1,0 +1,30 @@
+go/internal/query/supply_chain_impact_path.go
+  s_f2f7fbb6f30866::t_987f3f3630ed60 3-4,39-70
+go/internal/query/supply_chain_impact_explain_runtime_test.go
+  s_f2f7fbb6f30866::t_802f117cdc8e38 62,73,78,81-84
+  s_f2f7fbb6f30866::t_bf9df965d0f2c3 61,65,72,74-77,79-80
+go/internal/query/supply_chain_impact_explain.go
+  s_f2f7fbb6f30866::t_987f3f3630ed60 177
+go/internal/reducer/supply_chain_impact_lockfile_test.go
+  s_f2f7fbb6f30866::t_afabfa2aef0539 39
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_61756ae796764d 556-578
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_987f3f3630ed60 299-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "90feea29e6d9c76ec99be0b966746292223cd1ed",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

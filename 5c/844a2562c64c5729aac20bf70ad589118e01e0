@@ -1,0 +1,26 @@
+go/cmd/bootstrap-index/wiring.go
+  h_78a442cba0b3e6 346,389
+go/cmd/projector/neo4j_executor.go
+  h_78a442cba0b3e6 60,99,141-144
+go/cmd/reducer/neo4j_wiring.go
+  h_78a442cba0b3e6 56-64,91-92,95
+go/internal/backendconformance/differential.go
+  h_78a442cba0b3e6 190-194,202,305-306,315-316,325-326,355-367,371-375,377-384,389-418
+go/internal/backendconformance/differential_write_counts_test.go
+  h_78a442cba0b3e6 1-139
+go/internal/storage/cypher/reconciliation_drift_metrics.go
+  h_78a442cba0b3e6 215-244
+go/internal/storage/cypher/write_counts_test.go
+  h_78a442cba0b3e6 59-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5c844a2562c64c5729aac20bf70ad589118e01e0",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

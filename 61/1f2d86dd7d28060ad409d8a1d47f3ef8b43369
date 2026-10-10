@@ -1,0 +1,95 @@
+go/internal/query/queryauth/README.md
+  s_a9c3fec2661ba1::t_cd115d8320d7fd 8-11,15-32,37,39-48,52-55
+go/internal/query/queryauth/session_cookies_test.go
+  s_a9c3fec2661ba1::t_da6013a5039161 1-111
+go/internal/query/querycontract/AGENTS.md
+  s_a9c3fec2661ba1::t_0371387ec0404b 42-56
+go/internal/query/queryauth/audit_actor.go
+  s_a9c3fec2661ba1::t_42d7c6c501e81f 1-55
+go/internal/query/queryauth/AGENTS.md
+  s_a9c3fec2661ba1::t_96c7343bfff927 43-55,71-76
+go/internal/query/auth_oauth_challenge_test.go
+  s_a9c3fec2661ba1::t_427136ae7de207 132-138
+go/internal/query/querycontract/doc.go
+  s_a9c3fec2661ba1::t_def5cf83952eac 71-89
+  s_a9c3fec2661ba1::t_9c6503b9cf93ef 90
+go/internal/query/querycontract/README.md
+  s_a9c3fec2661ba1::t_96c25b72617984 40-41
+  s_a9c3fec2661ba1::t_a8f0bbb96d2fcd 74-81
+go/internal/query/session_timeout_policy.go
+  s_a9c3fec2661ba1::t_02f0bcd974a743 9-10,13-16,24
+go/internal/query/auth.go
+  s_a9c3fec2661ba1::t_4353cbded1bc65 66-69,71-77
+  s_a9c3fec2661ba1::t_9f4233a093fc57 380-385,387
+  s_a9c3fec2661ba1::t_8f7d20e4fb98f6 15
+  s_a9c3fec2661ba1::t_d35e9b08f7c7e3 117-119
+  s_a9c3fec2661ba1::t_3026f22dcfba96 341-342,344,347-350,352
+go/internal/query/browser_session_cookie_secure_test.go
+  s_a9c3fec2661ba1::t_8c5a0876616190 87-91
+go/internal/query/querycontract/unauthorized.go
+  s_a9c3fec2661ba1::t_86eeff023e4e0b 1-186
+go/internal/query/documentation.go
+  s_a9c3fec2661ba1::t_87240271f4012d 433-437,439
+go/internal/query/queryauth/session_cookies.go
+  s_a9c3fec2661ba1::t_83ec7a41df16bd 1-288
+go/internal/query/auth_oauth_challenge_context.go
+  s_a9c3fec2661ba1::t_4e817a0c77cced 9-10,29-34,36
+go/internal/query/browser_session_cookie_secure.go
+  s_a9c3fec2661ba1::t_0cd22e9194ea98 9-10,15-19,21-22,24-26,29-31,33,36-37,39,47-53
+go/internal/query/queryauth/sign_in_policy.go
+  s_a9c3fec2661ba1::t_2838e7ccd7553b 24-25
+  s_a9c3fec2661ba1::t_5bb2a7044bfd66 1-23,26-36
+go/internal/query/browser_session_handler.go
+  s_a9c3fec2661ba1::t_64716d5cc69b42 12-13,16-19,21-22,27-29,32-33
+  s_a9c3fec2661ba1::t_308ebb781ff578 65-68,70-72
+  s_a9c3fec2661ba1::t_1b3cf2ae2c5662 346-350,360,363-365,367
+go/internal/query/querycontract/unauthorized_test.go
+  s_a9c3fec2661ba1::t_e4d85d805cd85a 1-110
+go/internal/query/auth_oauth_discovery.go
+  s_a9c3fec2661ba1::t_3349a273af1dcb 82-86
+  s_a9c3fec2661ba1::t_30a9113e06d08c 11-12
+go/internal/query/queryauth/doc.go
+  s_a9c3fec2661ba1::t_b5d2eed692f879 25-45
+go/internal/query/sign_in_policy_types.go
+  s_a9c3fec2661ba1::t_dcd25717b6bec2 10-11,35-38,50-52,66-67
+go/internal/query/README.md
+  s_a9c3fec2661ba1::t_4fc3558d5757e9 1190-1192
+  s_e8ab01ccdfa8e2::t_3914c83b2342de 1210
+go/internal/query/auth_audit.go
+  s_a9c3fec2661ba1::t_14d3f8d5a84cdc 323,329
+  s_a9c3fec2661ba1::t_f55539c095524b 324-327
+  s_a9c3fec2661ba1::t_52ec442cdadb75 14
+go/internal/query/queryauth/session_timeouts.go
+  s_a9c3fec2661ba1::t_1338921f2fb149 1-60
+go/internal/query/querycontract/permission_denied.go
+  s_a9c3fec2661ba1::t_84a42f14574284 1-40
+go/internal/query/queryauth/browser_session_types.go
+  s_a9c3fec2661ba1::t_23b483229abb45 1-117
+go/internal/query/permission_catalog.go
+  s_a9c3fec2661ba1::t_3397ba89076ff4 11
+  s_a9c3fec2661ba1::t_b33a6d4d1d4a47 39-43,45,48-49,51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "611f2d86dd7d28060ad409d8a1d47f3ef8b43369",
+  "prompts": {},
+  "sessions": {
+    "s_a9c3fec2661ba1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00551667-7c98-414f-9526-5226791a2172",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

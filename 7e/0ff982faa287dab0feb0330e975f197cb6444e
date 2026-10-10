@@ -1,0 +1,45 @@
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_4a0c4967a64755 16-20
+go/internal/status/status_test.go
+  s_bdaf44668b73dc::t_77d21049cc3877 221
+go/internal/storage/postgres/status_test.go
+  s_bdaf44668b73dc::t_9f4e5b21cb6711 55-56,163-165,238-242
+go/internal/status/json.go
+  s_bdaf44668b73dc::t_02abda6c1966a6 127,190
+go/internal/status/flow.go
+  s_bdaf44668b73dc::t_7066cd5220c300 130
+go/internal/storage/postgres/status.go
+  s_bdaf44668b73dc::t_eb1c81989b73cf 297,305,316
+go/internal/status/README.md
+  s_bdaf44668b73dc::t_983d49e7eb50e4 64-65,97,161-164
+docs/docs/reference/runtime-admin-api.md
+  s_bdaf44668b73dc::t_f9a95511af3d8b 114,118-121
+go/internal/status/status_health_test.go
+  s_bdaf44668b73dc::t_67bab095fad22e 192-228
+go/internal/storage/postgres/status_queries.go
+  s_bdaf44668b73dc::t_e92e03a11c6041 47,66,68-78,86-87,93-97,101
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_6744058f619bb2 24-25,210-214
+go/internal/status/doc.go
+  s_bdaf44668b73dc::t_0c397394d52738 10-12
+go/internal/status/status.go
+  s_bdaf44668b73dc::t_70b4a74cf6d69b 77,291,294
+go/internal/status/status_health.go
+  s_bdaf44668b73dc::t_e326286b6c7013 61-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "7e0ff982faa287dab0feb0330e975f197cb6444e",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

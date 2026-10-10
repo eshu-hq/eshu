@@ -1,0 +1,23 @@
+scripts/test-verify-live-tests-ledger.sh
+  s_b0d7e3abc26c5a::t_6e426619611bc9 176-177
+scripts/test-run-live-postgres-readiness-tests.sh
+  s_b0d7e3abc26c5a::t_6e426619611bc9 18-19,23-24,28-29
+.github/workflows/main-health.yml
+  s_b0d7e3abc26c5a::t_6e426619611bc9 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "da417cf60359698e285e727168c2535235a87309",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

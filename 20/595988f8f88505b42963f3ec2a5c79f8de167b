@@ -1,0 +1,103 @@
+go/internal/parser/yaml/argocd.go
+  s_85ef201e597f19::t_82302d2a9be9e1 1-322
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_9884eef8ec6172 115-118
+  s_bdaf44668b73dc::t_f37cadbf385c29 130-132
+  s_bdaf44668b73dc::t_91e8cda920576c 151
+  s_bdaf44668b73dc::t_082b9d2f054448 165,305-306
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 297-298
+  s_bdaf44668b73dc::t_8c4a5d3b1ed5da 299-300
+  s_bdaf44668b73dc::t_e08a27ae199e4d 161-164,301-302
+  s_bdaf44668b73dc::t_17cc75fc55a462 140-142,303-304
+  s_bdaf44668b73dc::t_21b27b57c04ff0 170,175,190,126,184
+  s_bdaf44668b73dc::t_06dec241ef963d 171-174,307-308,169
+  s_bdaf44668b73dc::t_051ace4f5b74fa 55-58,166-168,185-189
+  s_bdaf44668b73dc::t_5787ce6a689f57 121-125,180-183
+go/internal/parser/json/parser_test.go
+  s_e39d89da070560::t_73f54e340eb3d9 1-158
+go/internal/parser/json_dbt_test.go
+  s_bdaf44668b73dc::t_0833e4f58000eb 4,58-72
+go/internal/parser/json/doc.go
+  s_e39d89da070560::t_d5ac327a978a76 1-8,10
+  s_bdaf44668b73dc::t_5787ce6a689f57 9
+go/internal/parser/json/AGENTS.md
+  s_e39d89da070560::t_91ddd25d25a4ea 1-52
+go/internal/parser/json/governance.go
+  s_e39d89da070560::t_c000210621f624 1-217
+go/internal/parser/json/data_intelligence.go
+  s_e39d89da070560::t_80175ebfaa3f79 1,8-13,16
+go/internal/parser/yaml/AGENTS.md
+  s_85ef201e597f19::t_605147a40069bf 1-66
+go/internal/parser/yaml/README.md
+  s_85ef201e597f19::t_605147a40069bf 1-23,26-51,54-58
+  s_85ef201e597f19::t_7fac396cd58492 24-25,52-53
+go/internal/parser/yaml_language.go
+  s_85ef201e597f19::t_82302d2a9be9e1 3,10-13
+go/internal/parser/yaml/semantics.go
+  s_85ef201e597f19::t_82302d2a9be9e1 1-415
+go/internal/parser/yaml/helm.go
+  s_85ef201e597f19::t_82302d2a9be9e1 1-37,39-79,81-91,93-182
+  s_85ef201e597f19::t_7fac396cd58492 38,80
+  s_85ef201e597f19::t_8a2fd0d936751a 92
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_fc95b7586ddfec 8-10
+  s_bdaf44668b73dc::t_9884eef8ec6172 17-18
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 32-38
+  s_bdaf44668b73dc::t_e08a27ae199e4d 14-16
+  s_bdaf44668b73dc::t_17cc75fc55a462 40
+  s_bdaf44668b73dc::t_082b9d2f054448 41
+  s_bdaf44668b73dc::t_06dec241ef963d 42
+  s_bdaf44668b73dc::t_5787ce6a689f57 43-47
+go/internal/parser/yaml/language.go
+  s_85ef201e597f19::t_82302d2a9be9e1 1-55,57-166,170-289,293-332
+  s_85ef201e597f19::t_7fac396cd58492 56,167-169,290-292
+go/internal/parser/yaml/doc.go
+  s_85ef201e597f19::t_605147a40069bf 1-6,12
+  s_85ef201e597f19::t_7fac396cd58492 7-11
+go/internal/parser/json/helpers.go
+  s_e39d89da070560::t_e85496d6722b46 1-76,86-144
+  s_e39d89da070560::t_f05c4d26cb11d5 77-85
+go/internal/parser/yaml/language_test.go
+  s_85ef201e597f19::t_2eca49215de7af 1,4-6,9-28,30,32-44,46-47,49,51-52,54-70,73,75,78-80,82-87
+go/internal/parser/json/README.md
+  s_e39d89da070560::t_4c171876dc551c 1-13,18-50,53-59
+  s_bdaf44668b73dc::t_5787ce6a689f57 14-17,51-52
+go/internal/parser/json/dbt_manifest.go
+  s_e39d89da070560::t_06e032997fd857 1,17,92-95
+go/internal/parser/json/language.go
+  s_e39d89da070560::t_e44e8827c6e626 1-417
+go/internal/parser/json_language.go
+  s_e39d89da070560::t_96c4706195957d 4-5,13-33,36-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "20595988f8f88505b42963f3ec2a5c79f8de167b",
+  "prompts": {},
+  "sessions": {
+    "s_85ef201e597f19": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e90-d5c9-7d40-a6d6-b6789166c920",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e39d89da070560": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e90-d5e7-7013-90ae-2f39a87a9558",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

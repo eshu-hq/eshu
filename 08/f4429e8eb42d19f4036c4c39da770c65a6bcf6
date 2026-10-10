@@ -1,0 +1,137 @@
+deploy/helm/eshu/templates/service-webhook-listener.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 1-24
+docs/docs/architecture.md
+  s_d3259c8df205fa::t_ecd6c474a76528 34-35,63,120-125
+go/internal/webhook/types.go
+  s_d3259c8df205fa::t_33a160244614c5 3-4,97-98
+  s_d3259c8df205fa::t_b53713f34a8844 71-96,99
+go/internal/storage/postgres/webhook_trigger_store_test.go
+  s_d3259c8df205fa::t_fc631bdb508145 46-48,50,62-63,65-66,68-69,71-73,79,91-93,95,97,104,106-131,133-135,181-182,205-213
+  s_d3259c8df205fa::t_8c308c561cefcd 183-204
+  s_d3259c8df205fa::t_b53713f34a8844 1-45,49,51-61,64,67,70,74-78,80-90,94,96,98-103,105,132,136-180,214
+go/internal/webhook/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 4-8
+go/cmd/webhook-listener/handler_test.go
+  s_d3259c8df205fa::t_496f505e9dfe1c 93,104-106
+  s_d3259c8df205fa::t_386c544b37aaa0 1-92,94-103,107-155
+deploy/helm/eshu/values.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 153-190
+go/internal/collector/README.md
+  s_d3259c8df205fa::t_5f61b3d2573094 131-132
+  s_d3259c8df205fa::t_b24b09bf3e96d6 128-130,229-230,258-259
+go/cmd/collector-git/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 8-9
+go/cmd/webhook-listener/handler.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-68,75-142
+  s_d3259c8df205fa::t_496f505e9dfe1c 69-74
+go/cmd/ingester/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 24-28
+go/cmd/webhook-listener/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 11-12
+  s_d3259c8df205fa::t_386c544b37aaa0 1-10,13-40
+go/internal/webhook/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 34-35
+go/internal/collector/webhook_trigger_selector_test.go
+  s_d3259c8df205fa::t_4bff469323eba5 1-4,6-97,132,137-153,166-167
+  s_d3259c8df205fa::t_8c308c561cefcd 5,98-131,133-136,154-165
+go/cmd/ingester/wiring.go
+  s_d3259c8df205fa::t_bd24b1e555228b 174-186,190,215-236
+go/cmd/collector-git/service.go
+  s_d3259c8df205fa::t_bd24b1e555228b 5-6,36-48,52,76-98
+deploy/helm/eshu/templates/deployment-webhook-listener.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 1-42,44-99
+  s_d3259c8df205fa::t_2146c1c36d743b 43
+go/internal/storage/postgres/README.md
+  s_d3259c8df205fa::t_1a71a9157c8d3b 4-7,153-157,160,295,479-480
+  s_d3259c8df205fa::t_1b1dd2dc26d812 158-159,296-297
+deploy/helm/eshu/README.md
+  s_d3259c8df205fa::t_62761da3c7eb57 18-19,31-33,88-100
+go/internal/storage/postgres/webhook_trigger_store_sql.go
+  s_d3259c8df205fa::t_cd03b309477d52 115-124
+  s_d3259c8df205fa::t_883ab40ca5dee7 45-65
+  s_d3259c8df205fa::t_33a160244614c5 1-44,66-114
+deploy/helm/eshu/templates/validate.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 19-29
+go/cmd/collector-git/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 38-42,64-65
+go/internal/storage/postgres/schema_test.go
+  s_d3259c8df205fa::t_7fa43ca0284ca2 16-17,37
+go/internal/storage/postgres/webhook_trigger_store.go
+  s_d3259c8df205fa::t_33a160244614c5 1-4,6-56,58-78,95-160,197-213,221-307,309-318,320-321
+  s_d3259c8df205fa::t_883ab40ca5dee7 57,79-94
+  s_d3259c8df205fa::t_cd03b309477d52 161-196
+  s_d3259c8df205fa::t_7fa43ca0284ca2 214-220,308
+  s_d3259c8df205fa::t_3f4efc8238799d 5,319
+deploy/helm/eshu/templates/servicemonitor.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 115-130
+go/internal/storage/postgres/webhook_trigger_store_schema_sql.go
+  s_d3259c8df205fa::t_dbfe2660dc916a 5,29-30
+  s_d3259c8df205fa::t_33a160244614c5 1-4,6-28,31-41
+go/internal/collector/doc.go
+  s_d3259c8df205fa::t_b24b09bf3e96d6 29-30
+  s_d3259c8df205fa::t_5f61b3d2573094 31-33
+go/cmd/webhook-listener/main.go
+  s_d3259c8df205fa::t_2146c1c36d743b 49-59,66-71,76
+  s_d3259c8df205fa::t_386c544b37aaa0 1-48,60-65,72-75,77-119
+docs/docs/deploy/kubernetes/helm-values.md
+  s_d3259c8df205fa::t_62761da3c7eb57 25-28,77-101
+schema/data-plane/postgres/017_webhook_refresh_triggers.sql
+  s_d3259c8df205fa::t_7fa43ca0284ca2 1-37
+deploy/helm/eshu/templates/ingress-webhook-listener.yaml
+  s_d3259c8df205fa::t_2be41a32929d2f 1-45
+go/internal/collector/priority_selector.go
+  s_d3259c8df205fa::t_8cf32c12bd61e9 1-35
+deploy/helm/eshu/values.schema.json
+  s_d3259c8df205fa::t_2be41a32929d2f 165-200
+deploy/helm/eshu/templates/pdb.yaml
+  s_d3259c8df205fa::t_2146c1c36d743b 59-73
+go/cmd/ingester/README.md
+  s_d3259c8df205fa::t_b24b09bf3e96d6 56-60,116-118
+go/cmd/webhook-listener/doc.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-5,10
+  s_d3259c8df205fa::t_b24b09bf3e96d6 6-9
+go/internal/collector/priority_selector_test.go
+  s_d3259c8df205fa::t_5eb5d8be4956e5 15-16,20,33,38
+  s_d3259c8df205fa::t_8cf32c12bd61e9 1-14,17-19,21-32,34-37,39-44
+go/cmd/webhook-listener/config.go
+  s_d3259c8df205fa::t_386c544b37aaa0 1-60
+go/cmd/webhook-listener/AGENTS.md
+  s_d3259c8df205fa::t_386c544b37aaa0 1-34
+Dockerfile
+  s_d3259c8df205fa::t_3fb59f8c278939 30
+scripts/install-local-binaries.sh
+  s_d3259c8df205fa::t_3fb59f8c278939 58
+docs/docs/deploy/kubernetes/index.md
+  s_d3259c8df205fa::t_1eb323ea173a41 8-10
+  s_d3259c8df205fa::t_62761da3c7eb57 7,20
+go/internal/collector/webhook_trigger_selector.go
+  s_d3259c8df205fa::t_4bff469323eba5 1-4,6-20,22-60,62,68-76,86-140
+  s_d3259c8df205fa::t_cd03b309477d52 5,21,61,63-67,77-85
+docs/docs/adrs/2026-05-12-webhook-triggered-repository-refresh.md
+  s_d3259c8df205fa::t_6fcc37ce944607 420-444
+go/cmd/README.md
+  s_d3259c8df205fa::t_3fb59f8c278939 9-11,28,44
+deploy/helm/eshu/templates/_helpers.tpl
+  s_d3259c8df205fa::t_2be41a32929d2f 51-54,79-82,112-114
+deploy/helm/eshu/templates/networkpolicy.yaml
+  s_d3259c8df205fa::t_2146c1c36d743b 135-146
+go/internal/storage/postgres/doc.go
+  s_d3259c8df205fa::t_1b1dd2dc26d812 89
+  s_d3259c8df205fa::t_1a71a9157c8d3b 2-3,86-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "08f4429e8eb42d19f4036c4c39da770c65a6bcf6",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

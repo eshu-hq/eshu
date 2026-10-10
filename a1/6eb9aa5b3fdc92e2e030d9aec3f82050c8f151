@@ -1,0 +1,33 @@
+go/internal/collector/README.md
+  s_bdaf44668b73dc::t_d0127a87d7a1e8 90-94,190-194
+go/cmd/eshu/local_graph_embedded_nornicdb.go
+  s_bdaf44668b73dc::t_7ae4e790583f9a 19,143,190-215
+go/internal/collector/git_snapshot_parser_options_test.go
+  s_bdaf44668b73dc::t_17584723f22b59 1-33
+go/cmd/eshu/doc.go
+  s_bdaf44668b73dc::t_3d9e0156b061e2 24-35
+go/cmd/eshu/local_graph_embedded_nornicdb_test.go
+  s_bdaf44668b73dc::t_0d7bf4e237202d 17-18,71-100
+go/internal/collector/git_snapshot_parser_options.go
+  s_bdaf44668b73dc::t_caad59bc7fc673 15,19-25
+go/internal/collector/doc.go
+  s_bdaf44668b73dc::t_1df9ca430cf2ef 14-19
+go/cmd/eshu/README.md
+  s_bdaf44668b73dc::t_36493cbb149d41 117-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "a16eb9aa5b3fdc92e2e030d9aec3f82050c8f151",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

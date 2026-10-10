@@ -1,0 +1,52 @@
+docs/internal/evidence/6818-query-package-moves.md
+  h_78a442cba0b3e6 267-322
+go/internal/query/README.md
+  h_78a442cba0b3e6 1192,1210
+go/internal/query/auth.go
+  h_78a442cba0b3e6 14,68-70,72-75,342-343,345,349,353
+go/internal/query/auth/session/AGENTS.md
+  h_78a442cba0b3e6 1-24
+go/internal/query/auth/session/README.md
+  h_78a442cba0b3e6 1-24
+go/internal/query/auth/session/browser_types.go
+  h_78a442cba0b3e6 4,9-10,21,66-77,84-85,87-90,102
+go/internal/query/auth/session/cookies.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth/session/cookies_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth/session/doc.go
+  h_78a442cba0b3e6 1-11
+go/internal/query/auth/session/timeouts.go
+  h_78a442cba0b3e6 4,11-12,33
+go/internal/query/browser_session_cookie_secure.go
+  h_78a442cba0b3e6 10,15-20,23-24,26-28,31,35,38,41
+go/internal/query/browser_session_cookie_secure_test.go
+  h_78a442cba0b3e6 88-92
+go/internal/query/browser_session_handler.go
+  h_78a442cba0b3e6 13,16-19,22-23,28-30,33-34,67-69,72-73,347,361,364,366,368
+go/internal/query/local/handler.go
+  h_78a442cba0b3e6 13,25,34
+go/internal/query/local/handler_fakes_test.go
+  h_78a442cba0b3e6 10,178,183,187
+go/internal/query/local/helpers.go
+  h_78a442cba0b3e6 16,103,126,142,147,179-181,201,203,277,284,288-289
+go/internal/query/local/types.go
+  h_78a442cba0b3e6 10,214-219
+go/internal/query/local_identity_alias.go
+  h_78a442cba0b3e6 111
+go/internal/query/queryauth/doc.go
+  h_78a442cba0b3e6 27-40
+go/internal/query/session_timeout_policy.go
+  h_78a442cba0b3e6 10,13,24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "deff4e2b7fb1e94f722b2997f1448c19182be495",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

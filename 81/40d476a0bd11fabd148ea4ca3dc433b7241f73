@@ -1,0 +1,26 @@
+go/cmd/collector-security-alerts/config_test.go
+  s_f2f7fbb6f30866::t_08de1e65b85b79 116,122,125,145-147,163,192
+  s_f2f7fbb6f30866::t_a8221f87fc06f5 106-114,126-143
+  s_f2f7fbb6f30866::t_e3e44cffb81544 8-13,17,154-162,170-191,193-211,255-339
+go/cmd/collector-security-alerts/preflight.go
+  s_f2f7fbb6f30866::t_efd1d92995e89c 10,14-20,39-55,62-63,74-94
+  s_f2f7fbb6f30866::t_fb40b05f0c9d4d 7-8
+go/cmd/collector-security-alerts/README.md
+  s_f2f7fbb6f30866::t_4d5a6075754773 25-27,29-36,42-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8140d476a0bd11fabd148ea4ca3dc433b7241f73",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

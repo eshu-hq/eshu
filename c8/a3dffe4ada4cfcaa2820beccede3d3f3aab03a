@@ -1,0 +1,67 @@
+go/internal/projector/cloud/aws/iam/perform/README.md
+  s_0328684b451b6b::t_da7d40829ef16c 46-58
+  s_0328684b451b6b::t_47ff42bf9834b2 1-45,59-123
+go/internal/projector/reducer_intent_fact_index.go
+  s_0328684b451b6b::t_a77c046ac821ae 48
+  s_0328684b451b6b::t_c745fa1b891272 19
+go/internal/projector/scope_generation_intents_fanout_test.go
+  s_0328684b451b6b::t_5891f8ba7a1238 256-261
+  s_0328684b451b6b::t_ea7c9ef0bc1a87 116-117
+  s_e4670746a61ae9::t_ceec0a192173b9 255
+go/internal/projector/README.md
+  s_0328684b451b6b::t_60c529844e6e7a 255
+  s_0328684b451b6b::t_4c869ee5c0be32 239
+  s_0328684b451b6b::t_51a7d181893616 643-644
+  s_0328684b451b6b::t_19fa8c8c4999ad 233
+  s_0328684b451b6b::t_15cd4a7d992c16 250
+go/internal/projector/scope_generation_intents_fanout_parity_test.go
+  s_0328684b451b6b::t_7be1938cc99211 310
+  s_0328684b451b6b::t_9f1a91d71a6116 134-139
+  s_0328684b451b6b::t_7f239b70763cab 283
+go/internal/projector/scope_generation_intents.go
+  s_0328684b451b6b::t_578d98edb59bb2 125-127
+  s_0328684b451b6b::t_845822a6d63241 18
+  s_0328684b451b6b::t_c7736cb807e885 52
+go/internal/projector/scope_generation_intents_fanout_bench_test.go
+  s_0328684b451b6b::t_f8bb6876953eff 26-29
+  s_0328684b451b6b::t_65ad00a2250e0b 24
+  s_0328684b451b6b::t_8ba34d608303ec 17
+go/internal/projector/cloud/aws/iam/perform/materialization_intents_test.go
+  s_0328684b451b6b::t_a40ce3be681eda 1-215
+go/internal/projector/cloud/aws/iam/perform/AGENTS.md
+  s_0328684b451b6b::t_2139383944daa3 1-29,32,41-72
+  s_0328684b451b6b::t_7c47a660af7b41 30-31,33-40
+go/internal/projector/cloud/aws/iam/perform/doc.go
+  s_0328684b451b6b::t_c99fa84b90354c 1-20
+go/internal/projector/cloud/aws/iam/perform/factschema_decode_iam.go
+  s_0328684b451b6b::t_0d5a526a044688 56-61
+  s_0328684b451b6b::t_c1e1397d1e8b81 1-26,40-47,49-55,62-67
+  s_0328684b451b6b::t_c596a1f0681733 27-39,48
+go/internal/projector/cloud/aws/iam/perform/materialization_intents.go
+  s_0328684b451b6b::t_fd660d5d165100 57,64
+  s_0328684b451b6b::t_222de5a5ec4a48 1-56,58-63,65-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c8a3dffe4ada4cfcaa2820beccede3d3f3aab03a",
+  "prompts": {},
+  "sessions": {
+    "s_0328684b451b6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22956e3d-93a2-490b-ba95-830405a3edf2",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e4670746a61ae9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc580f2-3bbc-44f5-b367-e76e1733bdfe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

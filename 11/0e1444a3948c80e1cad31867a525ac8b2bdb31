@@ -1,0 +1,20 @@
+go/internal/runtime/postgres/reservation_capacity_test.go
+  s_b0d7e3abc26c5a::t_299d79a8f25aa8 9,109-137
+  s_b0d7e3abc26c5a::t_90ccc41826a812 138-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "110e1444a3948c80e1cad31867a525ac8b2bdb31",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

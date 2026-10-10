@@ -1,0 +1,82 @@
+go/internal/storage/postgres/cross_scope_producer_readiness.go
+  s_4a0f86aa680964::t_c0345ef61ea374 27-28
+go/internal/coordinator/README.md
+  s_4a0f86aa680964::t_c0345ef61ea374 27
+  s_4a0f86aa680964::t_ea796c863ba12e 122-123
+docs/internal/evidence/5709-cross-scope-readiness-floor.md
+  s_4a0f86aa680964::t_c0345ef61ea374 82
+go/internal/coordinator/planner/tfstate/AGENTS.md
+  s_4a0f86aa680964::t_346a69576ded9a 11,36,39
+go/internal/coordinator/oci/doc.go
+  s_4a0f86aa680964::t_50587e5e7fce16 1-9
+docs/internal/design/4588-collector-claim-pacing.md
+  s_4a0f86aa680964::t_c0345ef61ea374 70
+docs/internal/design/restructure-research.md
+  s_4a0f86aa680964::t_c0345ef61ea374 146
+go/internal/coordinator/oci/registry/README.md
+  s_4a0f86aa680964::t_50587e5e7fce16 1-106
+go/internal/coordinator/oci/registry/doc.go
+  s_4a0f86aa680964::t_7738b84b538576 1-15
+go/cmd/workflow-coordinator/main.go
+  s_4a0f86aa680964::t_7738b84b538576 23
+go/internal/coordinator/planner/aws/freshness/README.md
+  s_4a0f86aa680964::t_44010061e6afd5 53
+go/internal/coordinator/oci/registry/planner.go
+  s_4a0f86aa680964::t_7738b84b538576 1-320
+go/internal/coordinator/oci/README.md
+  s_4a0f86aa680964::t_50587e5e7fce16 1-44
+go/cmd/workflow-coordinator/doc.go
+  s_4a0f86aa680964::t_c0345ef61ea374 13
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_c0345ef61ea374 26-27
+go/internal/coordinator/owned_package_target_helpers.go
+  s_4a0f86aa680964::t_ae352c5bce2c26 209
+go/internal/coordinator/doc.go
+  s_4a0f86aa680964::t_c0345ef61ea374 75-76
+docs/internal/evidence/6627-coordinator-oci-registry-package-move.md
+  s_4a0f86aa680964::t_4f15959cbc7a94 5
+  s_4a0f86aa680964::t_1d40af50a12e4f 1-4,6-144
+go/internal/coordinator/AGENTS.md
+  s_4a0f86aa680964::t_c0345ef61ea374 55,82,148,151
+  s_4a0f86aa680964::t_799ae9034865af 75
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_1d8f31df3422d8 1076
+go/internal/coordinator/planner/aws/freshness/AGENTS.md
+  s_4a0f86aa680964::t_44010061e6afd5 30
+go/internal/coordinator/oci/registry/planner_test.go
+  s_4a0f86aa680964::t_e458c688cd15fa 1-260
+go/internal/coordinator/service.go
+  s_4a0f86aa680964::t_7738b84b538576 12,53
+go/internal/coordinator/planner/tfstate/README.md
+  s_4a0f86aa680964::t_9427d561fa5008 21,51
+  s_4a0f86aa680964::t_43f808052df483 83
+go/internal/coordinator/oci_registry_service.go
+  s_4a0f86aa680964::t_7738b84b538576 4,12
+go/internal/coordinator/service_oci_registry_test.go
+  s_4a0f86aa680964::t_7738b84b538576 11
+go/internal/coordinator/oci/AGENTS.md
+  s_4a0f86aa680964::t_50587e5e7fce16 1-7,9-17,19-30
+  s_4a0f86aa680964::t_a565034299a71f 8,18
+go/internal/coordinator/oci/registry/AGENTS.md
+  s_4a0f86aa680964::t_50587e5e7fce16 1-63
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_c0345ef61ea374 711
+go/cmd/workflow-coordinator/README.md
+  s_4a0f86aa680964::t_c0345ef61ea374 61,165-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "036bae2977c56482d5981c2e80e46dbb15f207f5",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+docs/internal/agent-orchestration.md
+  s_bc720f29f5e0fd::t_3eb73c495faa75 260-263
+docs/internal/agent-hooks-codex-goal.md
+  s_bc720f29f5e0fd::t_3eb73c495faa75 44-47
+  s_bc720f29f5e0fd::t_d6dd8ef604b0da 48-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6d0fc52cc26757cabcd85cd326974db135345a0b",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

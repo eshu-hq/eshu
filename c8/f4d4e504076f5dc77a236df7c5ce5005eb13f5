@@ -1,0 +1,16 @@
+go/internal/query/codequery/relationship_uid_anchor_test.go
+  h_78a442cba0b3e6 13
+go/internal/query/compare/story_test.go
+  h_78a442cba0b3e6 11,239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c8f4d4e504076f5dc77a236df7c5ce5005eb13f5",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

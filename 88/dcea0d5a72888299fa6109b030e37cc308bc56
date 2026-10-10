@@ -1,0 +1,102 @@
+go/internal/storage/postgres/rebuildreset/reset_test.go
+  s_20be138600ef1b::t_dea24869f961a2 277
+go/cmd/bootstrap-index/bootstrap_covering_backfill_test.go
+  s_20be138600ef1b::t_5d63eb3d935286 1-154
+go/internal/reducer/crossrepo/cross_repo_resolution_ownership.go
+  s_20be138600ef1b::t_5ccc87a217f839 1-92
+docs/public/observability/telemetry-coverage.md
+  s_20be138600ef1b::t_bea78b7453d38c 194
+  s_20be138600ef1b::t_5ccc87a217f839 183
+  s_20be138600ef1b::t_b446f42b1b5758 123-124
+  s_20be138600ef1b::t_b3deefcf368068 182
+go/internal/reducer/code/call/projection/quiescence_test.go
+  s_20be138600ef1b::t_172662b95c11f8 1-111
+go/internal/reducer/shared-projection.md
+  s_20be138600ef1b::t_35caad222da70e 9,20-21
+scripts/verify-graph-rebuild-from-facts.sh
+  s_20be138600ef1b::t_34ed5d8d73ee4d 32-33,40,583-584
+go/internal/reducer/deployable_unit_correlation_readiness_test.go
+  s_20be138600ef1b::t_f465d87dcb5871 14
+  s_20be138600ef1b::t_85b2704505fca9 115-152,157-168
+  s_20be138600ef1b::t_2b58eb911e2994 169-225
+  s_20be138600ef1b::t_6ef2a15966e02f 153-156
+scripts/test-verify-graph-rebuild-from-facts.sh
+  s_20be138600ef1b::t_20d8af2500fda1 130-166
+go/internal/reducer/repo_dependency_projection_quiescence_test.go
+  s_20be138600ef1b::t_c74df6d324b39b 1-108
+go/internal/reducer/crossrepo/cross_repo_resolution_readiness_test.go
+  s_20be138600ef1b::t_881853d237fd4e 1-79
+go/internal/storage/postgres/rebuildreset/reset.go
+  s_20be138600ef1b::t_dea24869f961a2 127-128,131-133,146
+go/internal/storage/postgres/reducer_graph_drain_quiescence_live_test.go
+  s_20be138600ef1b::t_b3deefcf368068 49-51
+go/internal/reducer/repo_dependency_projection_config.go
+  s_20be138600ef1b::t_b446f42b1b5758 6-9,18-22
+  s_20be138600ef1b::t_cf4013cbed44aa 23
+go/internal/reducer/crossrepo/README.md
+  s_20be138600ef1b::t_b3deefcf368068 61,69-72
+  s_20be138600ef1b::t_2eae3065c33763 73
+go/internal/reducer/code/call/projection/README.md
+  s_20be138600ef1b::t_bea78b7453d38c 36-37
+go/internal/reducer/deployable_unit_correlation_readiness.go
+  s_20be138600ef1b::t_f27e3b04a69eb7 98,111-114
+  s_20be138600ef1b::t_8d2ffa6b2d68a7 47-50,72-97,99-110,115
+  s_20be138600ef1b::t_017891be8b495f 116
+go/internal/reducer/code/call/projection/quiescence.go
+  s_20be138600ef1b::t_c86fc9836bb361 1-51
+go/internal/storage/postgres/reducer_queue_readiness_claim_gate_test.go
+  s_20be138600ef1b::t_1bb31cbca78bb8 203
+  s_20be138600ef1b::t_e0b51af70428f0 202
+go/internal/reducer/repo_dependency_projection_telemetry.go
+  s_20be138600ef1b::t_b446f42b1b5758 11,65-156
+  s_20be138600ef1b::t_d3fe04d7a05c47 157
+go/internal/storage/postgres/reducer_queue_readiness_sql.go
+  s_20be138600ef1b::t_1bb31cbca78bb8 109
+go/internal/reducer/crossrepo/cross_repo_resolution.go
+  s_20be138600ef1b::t_5ccc87a217f839 4
+  s_20be138600ef1b::t_714e2c134c5eba 274,358
+go/internal/reducer/crossrepo/cross_repo_resolution_telemetry.go
+  s_20be138600ef1b::t_714e2c134c5eba 1-53
+go/internal/storage/postgres/rebuildreset/refinalize.go
+  s_20be138600ef1b::t_dea24869f961a2 118,120-123,129,143,369
+go/internal/reducer/defaults_cross_repo_scope_repos_wiring_test.go
+  s_20be138600ef1b::t_c74df6d324b39b 11,70
+go/internal/reducer/deployable_unit_correlation.go
+  s_20be138600ef1b::t_8d2ffa6b2d68a7 41-42,85-86,94
+  s_20be138600ef1b::t_f27e3b04a69eb7 93
+  s_20be138600ef1b::t_321ee06ecd5548 95
+go/internal/reducer/crossrepo/cross_repo_resolution_ownership_telemetry_test.go
+  s_20be138600ef1b::t_36027ce9a11fd7 1-50,59-87
+  s_20be138600ef1b::t_b3deefcf368068 51-58
+go/cmd/reducer/main.go
+  s_20be138600ef1b::t_8d2ffa6b2d68a7 226
+go/internal/storage/postgres/recovery_refinalize_all_scopes_test.go
+  s_20be138600ef1b::t_0571c8c3dba937 185
+go/internal/storage/postgres/recovery_refinalize_inflight_fence_test.go
+  s_20be138600ef1b::t_3cef3ec7000241 108-142
+docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md
+  s_20be138600ef1b::t_35caad222da70e 44,46,74-75,81-82
+scripts/lib/graph_rebuild_runtime.sh
+  s_20be138600ef1b::t_34ed5d8d73ee4d 1-31
+go/cmd/bootstrap-index/bootstrap_test_helpers_test.go
+  s_20be138600ef1b::t_5d63eb3d935286 138
+go/internal/telemetry/instruments.go
+  s_20be138600ef1b::t_b3deefcf368068 1440-1442
+  s_20be138600ef1b::t_714e2c134c5eba 4641
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "88dcea0d5a72888299fa6109b030e37cc308bc56",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

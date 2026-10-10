@@ -1,0 +1,63 @@
+docs/internal/evidence/6541-directory-query-s2.md
+  s_bc720f29f5e0fd::t_4e30459ca9c2b2 8-12
+docs/internal/evidence/6704-directory-query-neo4j-ops-qa.md
+  s_bc720f29f5e0fd::t_39d61fa521fbff 1-217
+docs/internal/evidence/7282-changed-since-delta-generation.md
+  s_bc720f29f5e0fd::t_99258cedcc82e0 1-44
+docs/internal/measurements.jsonl
+  s_bc720f29f5e0fd::t_5e3853b2cfbdf3 77-86
+docs/public/reference/http-api/status-admin.md
+  s_bc720f29f5e0fd::t_489580f881e627 499-501
+docs/public/reference/incremental-freshness-model.md
+  s_bc720f29f5e0fd::t_17d901938fd6d2 363-374,485
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_bc720f29f5e0fd::t_190f003e4c4db8 154
+go/internal/mcp/README.md
+  s_bc720f29f5e0fd::t_ea2080ca6b5ef6 259
+go/internal/query/freshness/changed_since.go
+  s_bc720f29f5e0fd::t_859402a153f2be 139-144,216-217,220-226,229-232,242-257,284,291-295
+go/internal/query/freshness/changed_since_not_comparable_test.go
+  s_bc720f29f5e0fd::t_1f70e8a5bdb6e5 1-162
+go/internal/query/openapi/paths/freshness/changed_since.go
+  s_bc720f29f5e0fd::t_9bde29ca33bd21 15,42-44
+go/internal/status/changedsince/README.md
+  s_bc720f29f5e0fd::t_b32f5f3ba3dd4e 40-46
+go/internal/status/changedsince/delta.go
+  s_bc720f29f5e0fd::t_d1d9de73408f11 237-243,273-279
+go/internal/status/compat_changedsince.go
+  s_bc720f29f5e0fd::t_58d6c6d94a1d44 52-53
+go/internal/status/doc.go
+  s_bc720f29f5e0fd::t_55f4c7684a96e5 81-83
+go/internal/storage/postgres/changed_since.go
+  s_bc720f29f5e0fd::t_f2162d35368691 31-37,111-119,141,178,195,225
+go/internal/storage/postgres/changed_since_delta_generation_live_test.go
+  s_bc720f29f5e0fd::t_b1672bdd153e84 1-179
+go/internal/storage/postgres/changed_since_delta_generation_test.go
+  s_bc720f29f5e0fd::t_586181bbf2d980 1-85
+go/internal/storage/postgres/changed_since_sql.go
+  s_bc720f29f5e0fd::t_d293ca7cb9267d 11-15,34,65-67,77-78
+go/internal/storage/postgres/changed_since_test.go
+  s_bc720f29f5e0fd::t_01e350d315a1dc 20,24
+go/internal/telemetry/compat_contract.go
+  s_bc720f29f5e0fd::t_3bf97212040bb8 240
+go/internal/telemetry/contract/zzzz_changed_since.go
+  s_bc720f29f5e0fd::t_5837d557bc10c0 27-32
+specs/live-tests.v1.yaml
+  s_bc720f29f5e0fd::t_9c0ec6a39a0eb3 1184-1187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fa32655231e187340e6bc11819bc486450aea9b1",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

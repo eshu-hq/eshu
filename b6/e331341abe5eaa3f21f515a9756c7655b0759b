@@ -1,0 +1,65 @@
+go/internal/query/repository/catalog.go
+  s_1e5d8a653a4ee7::t_dbb9dc87a9951d 110-111,119-127
+  s_1e5d8a653a4ee7::t_87ec7541d3a85c 149-155,159,168,170,177-179,181,187
+  s_e4670746a61ae9::t_6e30a4682cf51d 128
+go/internal/query/repository/dependency_cluster.go
+  s_1e5d8a653a4ee7::t_2fa163bcf84e2d 114-130,135-139,148,150,154-158,169-209
+  s_1e5d8a653a4ee7::t_b89c255b70a24a 63-66
+  s_1e5d8a653a4ee7::t_1d5404cd48fccf 9,12-13,22-25,28-33
+  s_e4670746a61ae9::t_920c423997b91e 34
+go/internal/query/repository/handler.go
+  s_1e5d8a653a4ee7::t_cdc7c4db35b0ac 210-230,249
+go/internal/query/repository/catalog_dependency_marker_test.go
+  s_1e5d8a653a4ee7::t_60da8f0cc30b7c 9
+  s_1e5d8a653a4ee7::t_ec56c4bc74ee3d 102-155
+go/internal/query/repository/dependency_cluster_test.go
+  s_1e5d8a653a4ee7::t_ed20bfba260261 7,10-12
+  s_1e5d8a653a4ee7::t_9a7ee4ca395654 184-185,189-191,193-197
+  s_1e5d8a653a4ee7::t_0f5f73f425c4e6 198-199,201-342
+  s_0328684b451b6b::t_aede5931e4672b 200
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_1e5d8a653a4ee7::t_05594cffdbc499 10
+  s_1e5d8a653a4ee7::t_7c2e1a76f0fc95 599,601
+  s_1e5d8a653a4ee7::t_91b695bcb9a3a7 560
+go/internal/query/repository/stats_limits.go
+  s_1e5d8a653a4ee7::t_00815852e62244 104-110,117,127-131,134
+go/internal/query/repository/list_dependency_marker_test.go
+  s_1e5d8a653a4ee7::t_c9ac0147e6dd4f 9
+  s_1e5d8a653a4ee7::t_a7427f708360b1 205-327
+go/internal/query/repository/nornicdb_dependency_marker_live_test.go
+  s_1e5d8a653a4ee7::t_6497a2f11a0668 297-304,306,311-320,324-362,364
+go/internal/query/codequery/nornicdb_relationship_repo_anchor_live_test.go
+  s_1e5d8a653a4ee7::t_67c562690454ec 236-243,245,250-259,263-301,303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b6e331341abe5eaa3f21f515a9756c7655b0759b",
+  "prompts": {},
+  "sessions": {
+    "s_0328684b451b6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22956e3d-93a2-490b-ba95-830405a3edf2",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_1e5d8a653a4ee7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b439ad40-11c6-4924-9243-1ef7dd2cc094",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e4670746a61ae9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc580f2-3bbc-44f5-b367-e76e1733bdfe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

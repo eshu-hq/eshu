@@ -1,0 +1,24 @@
+go/cmd/eshu/repository_selector.go
+  s_f2f7fbb6f30866::t_27ea136b51269e 73,75,97-128,130-134,137,139,142,145-149
+go/cmd/eshu/repository_selector_test.go
+  s_f2f7fbb6f30866::t_933d01cdbcc284 1-3,5-11,14-41
+  s_f2f7fbb6f30866::t_57687abbde0582 4,12-13
+go/cmd/eshu/vuln_scan_test.go
+  s_f2f7fbb6f30866::t_13a452cc402400 90,160,202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "ad5e6996fd1c7b3320fd16fbd16150e2c7acef39",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

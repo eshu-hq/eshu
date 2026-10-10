@@ -1,0 +1,27 @@
+go/internal/doctruth/verifier_container_image_test.go
+  s_f2f7fbb6f30866::t_04763cc4399670 5,82,90,102-159
+go/cmd/eshu/docs_image_ref.go
+  s_f2f7fbb6f30866::t_8206b62321477f 10,27-29,35-37
+go/internal/doctruth/verifier_container_image.go
+  s_f2f7fbb6f30866::t_17b27375e6dd01 11,29,44-48,64-79,128-132,138-139
+go/cmd/eshu/docs_image_ref_test.go
+  s_f2f7fbb6f30866::t_689f8ebf649167 84-116
+go/internal/doctruth/verifier.go
+  s_f2f7fbb6f30866::t_77b38f9f4edf10 300-301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "2e7369b4fe5f7a648ecc1447242a164748ceb763",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

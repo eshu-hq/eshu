@@ -1,0 +1,48 @@
+go/internal/collector/awscloud/services/apigateway/types.go
+  s_f2f7fbb6f30866::t_fdea40c2541c16 6-7,46
+go/internal/collector/awscloud/awsruntime/source_throttle_test.go
+  s_f2f7fbb6f30866::t_b69326487667f3 1-65
+go/internal/collector/awscloud/services/apigateway/README.md
+  s_f2f7fbb6f30866::t_fd949e8cf0ed40 56-59,69-72
+go/internal/collector/awscloud/services/apigateway/awssdk/client_test.go
+  s_f2f7fbb6f30866::t_56cac78b262148 13,203-243,254-259,261-272,307-311
+  s_f2f7fbb6f30866::t_56568d6f6cd0bc 244-253
+go/internal/collector/awscloud/scan_status.go
+  s_f2f7fbb6f30866::t_70c07d5cf499f3 43-45
+go/internal/collector/awscloud/awsruntime/scan_status.go
+  s_f2f7fbb6f30866::t_f0dbc65d788085 48-50,90,111-112
+go/internal/collector/awscloud/awsruntime/types.go
+  s_f2f7fbb6f30866::t_3b051f85f3d9a3 28-30
+go/internal/collector/awscloud/services/apigateway/awssdk/rest.go
+  s_f2f7fbb6f30866::t_5b91819571746d 65-66,70,91-94,110,113,116,123,128-139
+  s_f2f7fbb6f30866::t_6740706e744fee 10,109,111
+go/internal/collector/awscloud/services/apigateway/scanner.go
+  s_f2f7fbb6f30866::t_ae54379f44c46a 38-40,75-83
+go/internal/collector/awscloud/services/apigateway/awssdk/client.go
+  s_f2f7fbb6f30866::t_a1f18b9f96a7b2 127-131
+go/internal/collector/awscloud/services/apigateway/scanner_test.go
+  s_f2f7fbb6f30866::t_41270c3e9e330b 280-305
+  s_f2f7fbb6f30866::t_9b69e76a991023 412-432
+go/internal/collector/awscloud/README.md
+  s_f2f7fbb6f30866::t_77ff01761f592a 181-184
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_25e4147b92ac33 116-136
+go/internal/collector/awscloud/services/apigateway/awssdk/README.md
+  s_f2f7fbb6f30866::t_14a98f2c799670 54-56,64-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "377f4dd10eb74091bd74e72937b1c046ec352638",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

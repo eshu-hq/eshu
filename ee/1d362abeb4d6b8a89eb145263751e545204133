@@ -1,0 +1,32 @@
+go/internal/query/service_story_target_support_live_test.go
+  s_b0d7e3abc26c5a::t_2b5d9156c2296d 73,174-176,181
+  s_b0d7e3abc26c5a::t_2ef76ee19f9bc5 76-93
+  s_b0d7e3abc26c5a::t_22d7b68a6d8163 31-32,173,179-180,182
+docs/public/reference/http-api/story-routes.md
+  s_b0d7e3abc26c5a::t_8dab3e914f6232 107-109
+go/internal/query/service_story_target_support_source_only.go
+  s_b0d7e3abc26c5a::t_11a0143cfe2dd7 65-76
+docs/internal/evidence/6807-story-target-support-source-only.md
+  s_b0d7e3abc26c5a::t_8dab3e914f6232 1-18,35-40,43-52,68-73
+  s_b0d7e3abc26c5a::t_a1ba5bb09d1314 41-42
+  s_b0d7e3abc26c5a::t_f847d6ad0be620 57-58
+  s_b0d7e3abc26c5a::t_cdbb3a7233d1fd 59-67
+  s_b0d7e3abc26c5a::t_8d64d82f581dea 19-20,24-34
+  s_b0d7e3abc26c5a::t_2ef76ee19f9bc5 21-23,53-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ee1d362abeb4d6b8a89eb145263751e545204133",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

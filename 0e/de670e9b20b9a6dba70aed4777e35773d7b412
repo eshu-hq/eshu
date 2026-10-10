@@ -1,0 +1,27 @@
+go/internal/facts/README.md
+  s_bdaf44668b73dc::t_b8db8ef91709a3 42-43,97-99
+go/internal/redact/README.md
+  s_bdaf44668b73dc::t_b8db8ef91709a3 10-13,53
+go/internal/collector/confluence/doc.go
+  s_bdaf44668b73dc::t_b8db8ef91709a3 6-8
+go/internal/redact/doc.go
+  s_bdaf44668b73dc::t_b8db8ef91709a3 1,4-8
+go/internal/telemetry/doc.go
+  s_bdaf44668b73dc::t_b8db8ef91709a3 7-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "0ede670e9b20b9a6dba70aed4777e35773d7b412",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+go/internal/query/package_registry_test.go
+  s_072c5984f68e14::t_b757cd71ccf173 465
+  s_072c5984f68e14::t_73b7919fc2e5ea 17,27,372-432
+  s_072c5984f68e14::t_dac30d27616294 21
+  s_072c5984f68e14::t_e5732777095225 327-329,334,455-464,517
+go/internal/graph/schema_test.go
+  s_072c5984f68e14::t_a755685d445672 190-191
+go/internal/query/package_registry.go
+  s_072c5984f68e14::t_d8c644f7fe489a 4,20,458-459,464-465,467-468,471-472,477-479,499
+  s_072c5984f68e14::t_fbf339cb35897e 295-297
+go/internal/graph/schema.go
+  s_072c5984f68e14::t_efac94fce8ed24 228-229
+go/internal/query/README.md
+  s_072c5984f68e14::t_6334a32e046afe 91-96
+  s_072c5984f68e14::t_848eaa0df7ef4d 72-76,84-90,98-103
+go/internal/graph/README.md
+  s_072c5984f68e14::t_10cbe6c2505266 139-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "b173dae22ce54dbbd2e3bd125a4bb628ea31ec28",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

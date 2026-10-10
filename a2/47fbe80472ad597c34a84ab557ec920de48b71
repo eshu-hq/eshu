@@ -1,0 +1,21 @@
+deploy/helm/eshu/values.yaml
+  s_b8c22ab4b54a82::t_b9ee3d507c093b 462-463
+deploy/helm/eshu/templates/deployment-nornicdb.yaml
+  s_b8c22ab4b54a82::t_92924eb6fe09c8 64,70,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a247fbe80472ad597c34a84ab557ec920de48b71",
+  "prompts": {},
+  "sessions": {
+    "s_b8c22ab4b54a82": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b33b7d2c-c4e1-417c-a2ef-e19c093359a9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

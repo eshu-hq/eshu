@@ -1,0 +1,21 @@
+.github/workflows/live-postgres-readiness.yml
+  s_b0d7e3abc26c5a::t_97f3e8d9c1e10a 139-141
+scripts/test-live-postgres-standby-fixture.sh
+  s_b0d7e3abc26c5a::t_a53149e2354ee3 14-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "799cfe672955e832242442fe98462e403fbc3e1f",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

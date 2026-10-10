@@ -1,0 +1,101 @@
+go/internal/reducer/queue-and-runners.md
+  s_20be138600ef1b::t_ef3a11b9db3d7a 109
+  s_20be138600ef1b::t_9eee0f5bb10bff 94-108
+go/cmd/reducer/main.go
+  s_20be138600ef1b::t_0afdd8430b53ba 458
+go/internal/reducer/workload_materialization_repo_dependency_fence_test.go
+  s_20be138600ef1b::t_50bcefaed04319 58
+  s_20be138600ef1b::t_5cb8e7dc1d1533 1-57,59-82
+go/internal/storage/postgres/reducer_queue_workload_replay_schedule_test.go
+  s_20be138600ef1b::t_de14ec101e928e 1-8,10-35,83-110
+  s_20be138600ef1b::t_b35f96c1148ba7 9,36-82
+go/internal/reducer/repo_dependency_projection_replay.go
+  s_20be138600ef1b::t_065021c62a8eb6 82,182,372-439
+  s_20be138600ef1b::t_0d7902dfcc48fc 8,23-58,87-122,126-143,152-161,164-175,179-181
+  s_20be138600ef1b::t_49f3e4218fd52a 9
+  s_20be138600ef1b::t_886b92c2d2d738 12,123-125,144-151,162-163,176-178
+  s_20be138600ef1b::t_f5e9988e1ee60a 66,71-72,75-81
+  s_20be138600ef1b::t_9fc18b07a0152a 183
+go/internal/reducer/workload_materialization_handler.go
+  s_20be138600ef1b::t_50bcefaed04319 193-201,388-392
+  s_20be138600ef1b::t_9efad435006f02 393-395
+  s_20be138600ef1b::t_7aa2adfa38ab2c 396
+go/internal/storage/postgres/reducer_queue_workload_replay_live_test.go
+  s_20be138600ef1b::t_fa9c9729274d96 125-196
+  s_20be138600ef1b::t_b35f96c1148ba7 85-124
+go/internal/reducer/repo_dependency_projection_quarantine_test.go
+  s_20be138600ef1b::t_94bcd03f7d674d 262-268
+go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go
+  s_20be138600ef1b::t_9224a5c1f76dbb 1-30
+go/internal/storage/postgres/reducer_queue_replay.go
+  s_20be138600ef1b::t_74d5e95a31cb44 120-130,218-220,262-277,279-292
+  s_20be138600ef1b::t_f5e9988e1ee60a 258-259
+go/internal/reducer/repo_dependency_projection_workload_readiness_test.go
+  s_20be138600ef1b::t_817ca8f324a4b7 53-57,73,105-107,131-163
+  s_20be138600ef1b::t_52d1a981277901 58,76-80
+  s_20be138600ef1b::t_3040a18cc1db17 1-52,59-72,74-75,81-104,108-130,164,174-222
+  s_20be138600ef1b::t_886b92c2d2d738 165-173
+go/internal/reducer/repo_dependency_projection_runner.go
+  s_20be138600ef1b::t_de5cf54c690c0a 45-46
+  s_20be138600ef1b::t_0afdd8430b53ba 47
+  s_20be138600ef1b::t_dd0383fee998c3 48-49
+go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_fixture_test.go
+  s_20be138600ef1b::t_ed1ecbb0baf28c 130-140
+go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go
+  s_20be138600ef1b::t_c735ca4f3b06c1 31-34,203
+  s_20be138600ef1b::t_4c5df550183ccd 56-58,265,315-318,321
+  s_20be138600ef1b::t_343f87e4baeaa1 167
+  s_20be138600ef1b::t_8e48a3d6214fa0 264
+  s_20be138600ef1b::t_534fdb41a6045c 263,299-301,308-313,319
+  s_20be138600ef1b::t_c9ad7a135b0310 302-307
+  s_20be138600ef1b::t_ed1ecbb0baf28c 320
+go/internal/reducer/repo_dependency_projection_runner_test.go
+  s_20be138600ef1b::t_94bcd03f7d674d 460-465
+go/internal/reducer/workload_materialization_repo_phase.go
+  s_20be138600ef1b::t_50bcefaed04319 121-162
+go/internal/reducer/repo_dependency_projection_readiness_validation_test.go
+  s_20be138600ef1b::t_1607a748f01272 39-45,65-75
+  s_20be138600ef1b::t_7cdc9433003652 1-38,46-64,76-86
+docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md
+  s_20be138600ef1b::t_ef3a11b9db3d7a 294-304,319,329-330,339-345,349-360
+  s_20be138600ef1b::t_9eee0f5bb10bff 305-318,320-328,331-338,346-348
+go/internal/reducer/platform_materialization_test_helpers_test.go
+  s_20be138600ef1b::t_f5e9988e1ee60a 35-37,80
+  s_20be138600ef1b::t_817ca8f324a4b7 45-66
+go/internal/reducer/repo_dependency_projection_acceptance_cycle.go
+  s_20be138600ef1b::t_0e9561c7a39718 58-59
+  s_20be138600ef1b::t_0afdd8430b53ba 60-68,88-89
+go/internal/reducer/repo_dependency_projection_concurrency_proof_test.go
+  s_20be138600ef1b::t_94bcd03f7d674d 46-51,108-113
+go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_live_test.go
+  s_20be138600ef1b::t_ed1ecbb0baf28c 463,482,485,487-489
+  s_20be138600ef1b::t_bef621788c5cf4 481,483,486
+  s_20be138600ef1b::t_8e48a3d6214fa0 484
+  s_20be138600ef1b::t_e0a9f2488c8c78 490
+go/internal/reducer/repo_dependency_projection_telemetry.go
+  s_20be138600ef1b::t_0e9561c7a39718 299-301,305-307
+  s_20be138600ef1b::t_0afdd8430b53ba 185-207
+  s_20be138600ef1b::t_1607a748f01272 302-304
+go/internal/reducer/service_repo_dependency_projection_test.go
+  s_20be138600ef1b::t_81955facbf27cc 1-50
+go/internal/storage/postgres/reducer_queue_ack.go
+  s_20be138600ef1b::t_07866c7fc34575 6-15,119-231
+go/cmd/reducer/main_helpers.go
+  s_20be138600ef1b::t_0afdd8430b53ba 337,366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09ad386b0b9df7c2571c4c8624412d52297f2d09",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

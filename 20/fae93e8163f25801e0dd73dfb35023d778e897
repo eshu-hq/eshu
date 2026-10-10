@@ -1,0 +1,24 @@
+go/internal/storage/cypher/edge_writer.go
+  h_78a442cba0b3e6 234-235,237,247,271-278,280-293,296-297
+go/internal/storage/cypher/edge_writer_artifact_sequential.go
+  h_78a442cba0b3e6 1-50
+go/internal/storage/cypher/edge_writer_repo_dependency_artifact_live_test.go
+  h_78a442cba0b3e6 1-164
+go/internal/storage/cypher/edge_writer_repo_dependency_artifact_test.go
+  h_78a442cba0b3e6 1-100
+go/internal/storage/cypher/edge_writer_telemetry_test.go
+  h_78a442cba0b3e6 111-149
+go/internal/storage/cypher/runs_on_mixed_group_retry_test.go
+  h_78a442cba0b3e6 18-24,28,31-33,108-109,119-121,143-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "20fae93e8163f25801e0dd73dfb35023d778e897",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

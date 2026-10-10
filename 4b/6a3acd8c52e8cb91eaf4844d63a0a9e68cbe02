@@ -1,0 +1,14 @@
+go/cmd/reducer/neo4j_wiring_test.go
+  h_78a442cba0b3e6 540-578
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4b6a3acd8c52e8cb91eaf4844d63a0a9e68cbe02",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

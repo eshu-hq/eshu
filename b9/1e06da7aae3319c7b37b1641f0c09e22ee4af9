@@ -1,0 +1,23 @@
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_ba1151f069f1ee 188-192
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_b0d7e3abc26c5a::t_ba1151f069f1ee 38-39,46
+go/internal/storage/postgres/schema_order_test.go
+  s_b0d7e3abc26c5a::t_ba1151f069f1ee 315,325-330
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b91e06da7aae3319c7b37b1641f0c09e22ee4af9",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

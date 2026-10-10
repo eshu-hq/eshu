@@ -1,0 +1,19 @@
+tests/fixtures/ecosystems/deployable-source/src/uploads.go
+  s_cd24245ce16b3a::t_90ac69208ff114 36-40,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8b7cd01a462492add4744df7092f933bb64f2389",
+  "prompts": {},
+  "sessions": {
+    "s_cd24245ce16b3a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff5b0e60-84a1-476b-8cc2-eb86e0ac8318",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

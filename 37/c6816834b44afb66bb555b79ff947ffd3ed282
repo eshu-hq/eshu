@@ -1,0 +1,88 @@
+go/internal/query/querycontract/README.md
+  s_e8ab01ccdfa8e2::t_0b72a6aaaf8245 28
+go/internal/query/querycontract/doc.go
+  s_e8ab01ccdfa8e2::t_1a43180833d630 32-34
+go/internal/query/evidence_citation.go
+  s_e8ab01ccdfa8e2::t_201cfa45ed1c96 40-44,46-47,49-51
+go/internal/query/evidence_citation_unified.go
+  s_e8ab01ccdfa8e2::t_6bfd83980685db 10,14-17,71-77
+go/internal/query/evidence_citation_unified_test.go
+  s_e8ab01ccdfa8e2::t_0ad0ce73e18773 71,73
+go/internal/query/querycontract/evidence_citation.go
+  s_e8ab01ccdfa8e2::t_05f7961bcf4379 1-76
+go/internal/query/visualization/packet.go
+  s_7db3ff9091d3e5::t_092c3becc5b044 4-68
+go/internal/query/visualization/handler.go
+  s_7db3ff9091d3e5::t_09b8f6fa48fa31 4-101
+go/internal/query/visualization/decode.go
+  s_7db3ff9091d3e5::t_2b131fc9a1d27a 4-42
+go/internal/query/visualization/story.go
+  s_7db3ff9091d3e5::t_fb99af9f7cc0f3 4-288
+go/internal/query/visualization/evidence.go
+  s_7db3ff9091d3e5::t_6524f529b4d73a 4-191
+go/internal/query/querytestutil/visualizationfixtures.go
+  s_7db3ff9091d3e5::t_82fc4e27996493 1-94
+go/internal/query/querytestutil/doc.go
+  s_7db3ff9091d3e5::t_c442d4af0a0c5d 50
+go/internal/query/visualization/merge_test.go
+  s_7db3ff9091d3e5::t_340a8f32cace0c 4-108
+go/internal/query/visualization/doc.go
+  s_7db3ff9091d3e5::t_343d2711d51204 1-34
+go/internal/query/visualization/AGENTS.md
+  s_7db3ff9091d3e5::t_1c7b0183d58ddc 1-88
+go/internal/query/visualization_packet_surface_test.go
+  s_7db3ff9091d3e5::t_137acf09a411fb 74,79,87
+  s_7db3ff9091d3e5::t_7a03ab36cc50ed 20,23
+  s_7db3ff9091d3e5::t_66723110f775c8 109
+go/internal/query/auth_scoped_routes.go
+  s_7db3ff9091d3e5::t_f72deb14fe1013 292
+go/internal/query/auth_browser_session_all_scopes_test.go
+  s_7db3ff9091d3e5::t_0db443bba19e8c 205
+go/internal/query/visualization/README.md
+  s_7db3ff9091d3e5::t_d915f3b0c55ed0 1-103
+go/internal/query/visualization/story_bench_test.go
+  s_7db3ff9091d3e5::t_a343a1c3eb78a0 4-15
+scripts/lib/dirgate-grandfather.tsv
+  s_7db3ff9091d3e5::t_fc10c91c801141 87
+docs/public/reference/visualization-packets.md
+  s_7db3ff9091d3e5::t_7b4d8b4e02ea17 10-12
+go/internal/query/visualization/packet_test.go
+  s_7db3ff9091d3e5::t_978d8f16438623 4-394
+go/internal/query/visualization_alias.go
+  s_7db3ff9091d3e5::t_eb451ea5dc8466 4,10-15,17-19,23-25,27-74
+  s_7db3ff9091d3e5::t_e0c7542ee2d5cc 1-3,5-9,16,20-22,26
+tools/golangci-lint-dirgate/grandfather.go
+  s_4a0f86aa680964::t_205c3d251673fe 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "37c6816834b44afb66bb555b79ff947ffd3ed282",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_7db3ff9091d3e5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a6a004e-0239-4f7a-a7df-77b00cf9c523",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

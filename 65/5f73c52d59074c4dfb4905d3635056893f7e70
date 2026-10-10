@@ -1,0 +1,41 @@
+go/internal/collector/AGENTS.md
+  s_0fd19061762ced::t_9a78d7fd7eb705 53-54
+go/internal/collector/doc.go
+  s_0fd19061762ced::t_f47f55458adef3 26-29
+go/internal/collector/service.go
+  s_0fd19061762ced::t_e3ab2d3ce6e056 43,161,201,207
+  s_0fd19061762ced::t_a5db48756d6158 25-42,44-45,164,167,171,184-189,192,197-200,202-206,210-211,213-222,226-227,230,237-238,242-243,245
+go/internal/collector/README.md
+  s_0fd19061762ced::t_386aef287dd7a0 43-52,176
+  s_0fd19061762ced::t_97efafefabe9d1 119-121
+go/internal/collector/confluence/README.md
+  s_0fd19061762ced::t_e6dd53f247601a 22,26,36
+  s_0fd19061762ced::t_2ee23a2672ad03 23-25
+go/internal/collector/confluence/source.go
+  s_0fd19061762ced::t_bcba279f018082 33
+go/internal/collector/confluence/doc.go
+  s_0fd19061762ced::t_459568b1e51863 10
+  s_0fd19061762ced::t_7695a57f437edc 11-13
+go/internal/collector/confluence/source_observed.go
+  s_0fd19061762ced::t_1d136e125c0bea 11,22,25,29
+  s_0fd19061762ced::t_056e0a89772014 1-10,12-21,23-24,26-28,30
+go/internal/collector/service_observability_test.go
+  s_0fd19061762ced::t_30962fc5a602a9 8,79-152,159-165,169-170,175-187,189-190
+  s_0fd19061762ced::t_943dc931e083b4 166,171,174,188,191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "655f73c52d59074c4dfb4905d3635056893f7e70",
+  "prompts": {},
+  "sessions": {
+    "s_0fd19061762ced": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1d42-6b58-7843-9a2d-1c8df56ad1e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

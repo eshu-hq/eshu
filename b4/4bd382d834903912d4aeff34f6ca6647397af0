@@ -1,0 +1,59 @@
+go/internal/facts/oci_registry.go
+  s_00a320afddcac7::t_7164c2d0c4eeaf 1-70
+go/internal/facts/oci_registry_test.go
+  s_273c4e2a555765::t_8afcd339e42819 1-40
+go/internal/facts/doc.go
+  s_00a320afddcac7::t_3afd3e6198be5a 12-14
+  s_00a320afddcac7::t_e8d3761e39492f 15-18
+go/internal/collector/ociregistry/warning.go
+  s_00a320afddcac7::t_d712d5fefac02c 1-71
+go/internal/collector/ociregistry/identity_test.go
+  s_273c4e2a555765::t_8afcd339e42819 1-96
+go/internal/collector/ociregistry/identity.go
+  s_00a320afddcac7::t_7ac36bef8c8a2f 1-73,75-92
+go/internal/collector/ociregistry/envelope.go
+  s_00a320afddcac7::t_b22ae3b3531811 1-181,186-363
+go/internal/collector/ociregistry/doc.go
+  s_00a320afddcac7::t_3cc688a27f9de7 1-6,12
+go/internal/facts/README.md
+  s_00a320afddcac7::t_3afd3e6198be5a 77-94
+  s_00a320afddcac7::t_e8d3761e39492f 95-110
+go/internal/collector/ociregistry/envelope_test.go
+  s_273c4e2a555765::t_8afcd339e42819 1-138,140-203,205-310
+  s_00a320afddcac7::t_defaae6ed1ff14 139,204
+go/internal/facts/AGENTS.md
+  s_00a320afddcac7::t_e8d3761e39492f 43-46
+go/internal/collector/ociregistry/warning_test.go
+  s_273c4e2a555765::t_8afcd339e42819 1-65
+go/internal/collector/ociregistry/README.md
+  s_00a320afddcac7::t_3cc688a27f9de7 1-17,21-60,66-72,75-84,87-93
+  s_00a320afddcac7::t_f2c352ae811678 61-63,65,85-86
+go/internal/collector/ociregistry/AGENTS.md
+  s_00a320afddcac7::t_3cc688a27f9de7 1-7,9-27,30-36
+go/internal/collector/ociregistry/types.go
+  s_00a320afddcac7::t_be46d9f747c528 1-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "b44bd382d834903912d4aeff34f6ca6647397af0",
+  "prompts": {},
+  "sessions": {
+    "s_00a320afddcac7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c52-fa77-7391-8873-a102dce078ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_273c4e2a555765": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1caa-4671-7e03-b0d5-721840b1adae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

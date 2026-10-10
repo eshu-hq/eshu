@@ -1,0 +1,24 @@
+apps/console/src/api/liveData.ts
+  s_a259424f603ccc::t_4c8310427a1488 145,245,254-260,271-275
+  s_a259424f603ccc::t_81044bebef4078 125,261-270,299
+apps/console/src/api/liveData.test.ts
+  s_a259424f603ccc::t_59368e1128cc5a 94-95,99-119
+  s_a259424f603ccc::t_36ffa2099b3ed8 89
+  s_a259424f603ccc::t_bf14ef2a09f9ca 90-93,96-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c76099d749351a2facc161f80857c9397065abe0",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

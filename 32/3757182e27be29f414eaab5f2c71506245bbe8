@@ -1,0 +1,25 @@
+go/.scratch_7033_range_partition/fixture.sql
+  s_b0d7e3abc26c5a::t_68e65beb12fc66 80-91
+go/.scratch_7033_range_partition/acceptance.sql
+  s_b0d7e3abc26c5a::t_68e65beb12fc66 34-35
+go/.scratch_7033_range_partition/workload.sh
+  s_b0d7e3abc26c5a::t_4cefa464c0a8cb 1-32
+go/.scratch_7033_range_partition/README.md
+  s_b0d7e3abc26c5a::t_13df97fa51ab12 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "323757182e27be29f414eaab5f2c71506245bbe8",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

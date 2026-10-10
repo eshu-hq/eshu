@@ -1,0 +1,33 @@
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  s_20be138600ef1b::t_c3b518def8e48f 71-73,79,90-91,288-290,296,302,340,343-348,381,384-385
+  s_20be138600ef1b::t_a47b9ca3ab5fbd 287,291,293,295,297-298
+  s_20be138600ef1b::t_e8e22144925b49 284-286,341-342
+  s_20be138600ef1b::t_c8a45e98c60285 280-281,317-339
+scripts/lib/test-ifa-fault-injection-diagnostics-fake-docker.sh
+  s_20be138600ef1b::t_344ce8eb2646f1 35-38
+  s_20be138600ef1b::t_d097b067ca68dc 18-21
+  s_20be138600ef1b::t_ecd44d7b716a32 27-30
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_20be138600ef1b::t_7e5073d5f0efc2 436-437
+scripts/lib/test-ifa-fault-injection-diagnostics-hardening-cases.sh
+  s_20be138600ef1b::t_ecd44d7b716a32 82,99-103
+  s_20be138600ef1b::t_6341a02d0eafea 74-77,97-98
+  s_20be138600ef1b::t_344ce8eb2646f1 115,127-132
+  s_20be138600ef1b::t_d097b067ca68dc 54-55,78,80-81,84-96,104-114,116-126,206-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1e9ef4746f9f9cd1e2455cc3f69513b4b332e9ac",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,40 @@
+scripts/run-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_e89524e8735338 12-13,262-263
+  s_4a0f86aa680964::t_5eb034a998f775 260-261
+scripts/verify-k8s-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_e89524e8735338 99,101
+scripts/run-k8s-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_e89524e8735338 16-17
+docs/public/reference/local-testing.md
+  s_4a0f86aa680964::t_441f90ff394d0d 535-541,549-556
+scripts/lib/markdown-line-cap-grandfather.tsv
+  s_4a0f86aa680964::t_f191fb92bdb57e 130
+docs/public/reference/nornicdb-path-predicate-pitfalls.md
+  s_4a0f86aa680964::t_5eb034a998f775 41,119
+.github/workflows/static-contract-gates.yml
+  s_4a0f86aa680964::t_e89524e8735338 3-5
+deploy/helm/eshu/README.md
+  s_4a0f86aa680964::t_e89524e8735338 162-167
+scripts/verify-two-team-governance-proof.sh
+  s_4a0f86aa680964::t_e89524e8735338 94,96
+docs/public/reference/nornicdb-pitfalls.md
+  s_4a0f86aa680964::t_5eb034a998f775 417
+docs/public/reference/nornicdb-query-pitfalls.md
+  s_4a0f86aa680964::t_5eb034a998f775 521,629-632,801-802
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1149b2b60696f4cdf6ea4880b6971f3842f96fb",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

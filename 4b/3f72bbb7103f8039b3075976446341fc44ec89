@@ -1,0 +1,16 @@
+docs/internal/evidence/6782-slice3-differential-oracle.md
+  h_78a442cba0b3e6 70,72-113
+specs/backend-divergence-allowlist.v1.yaml
+  h_78a442cba0b3e6 299-398
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4b3f72bbb7103f8039b3075976446341fc44ec89",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
