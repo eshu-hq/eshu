@@ -89,17 +89,18 @@ type PilotCaseEvidence struct {
 // PilotCaseRun contains an unabridged plan and metrics or an explicit reason
 // and independent alternate proof when a backend cannot return a plan.
 type PilotCaseRun struct {
-	Result              json.RawMessage `json:"result"`
-	Plan                json.RawMessage `json:"plan,omitempty"`
-	Work                json.RawMessage `json:"work,omitempty"`
-	PlanUnavailable     string          `json:"plan_unavailable,omitempty"`
-	AlternateProof      json.RawMessage `json:"alternate_proof,omitempty"`
-	ColdMilliseconds    []float64       `json:"cold_ms"`
-	WarmMilliseconds    []float64       `json:"warm_ms"`
-	ColdPreparation     string          `json:"cold_preparation"`
-	ColdProof           string          `json:"cold_proof"`
-	ColdProofSHA256     string          `json:"cold_proof_sha256"`
-	PlanCaptureSeparate bool            `json:"plan_capture_separate"`
+	Result              json.RawMessage   `json:"result"`
+	StatementResults    []json.RawMessage `json:"statement_results"`
+	Plan                json.RawMessage   `json:"plan,omitempty"`
+	Work                json.RawMessage   `json:"work,omitempty"`
+	PlanUnavailable     string            `json:"plan_unavailable,omitempty"`
+	AlternateProof      json.RawMessage   `json:"alternate_proof,omitempty"`
+	ColdMilliseconds    []float64         `json:"cold_ms"`
+	WarmMilliseconds    []float64         `json:"warm_ms"`
+	ColdPreparation     string            `json:"cold_preparation"`
+	ColdProof           string            `json:"cold_proof"`
+	ColdProofSHA256     string            `json:"cold_proof_sha256"`
+	PlanCaptureSeparate bool              `json:"plan_capture_separate"`
 }
 
 // ValidatePilotEvidence checks exact pilot membership, fresh hashes, distinct
@@ -278,24 +279,13 @@ func validatePilotCases(entry Entry, recorded PilotEvidenceEntry, fixtureSHA, co
 		if !jsonEqual(candidate.Expected, candidate.Base.Result) || !jsonEqual(candidate.Expected, candidate.Candidate.Result) || !jsonEqual(candidate.Actual, candidate.Candidate.Result) {
 			violations = append(violations, fmt.Sprintf("%s/%s: base/candidate results differ from independent expected rows", entry.ID, key))
 		}
-		if json.Valid(candidate.Actual) {
-			var decoded any
-			if err := json.Unmarshal(candidate.Actual, &decoded); err != nil {
-				violations = append(violations, fmt.Sprintf("%s/%s: result payload cannot be decoded: %v", entry.ID, key, err))
-			} else {
-				canonical, err := json.Marshal(decoded)
-				if err != nil {
-					violations = append(violations, fmt.Sprintf("%s/%s: result payload cannot be encoded: %v", entry.ID, key, err))
-				} else if len(canonical) > entry.Contract.Workload.MaxResultPayloadBytes {
-					violations = append(violations, fmt.Sprintf("%s/%s: result payload %d bytes exceeds declared %d-byte maximum", entry.ID, key, len(canonical), entry.Contract.Workload.MaxResultPayloadBytes))
-				}
-			}
-		}
 		if candidate.Base.ColdPreparation != coldMode || candidate.Candidate.ColdPreparation != coldMode {
 			violations = append(violations, fmt.Sprintf("%s/%s: cold preparation differs from environment declaration", entry.ID, key))
 		}
 		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/base", candidate.Base, candidate.Expected, entry.Contract.Budget, entry.Contract.Environment.Runner, entry.QueryKind)...)
 		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/candidate", candidate.Candidate, candidate.Expected, entry.Contract.Budget, entry.Contract.Environment.Runner, entry.QueryKind)...)
+		violations = append(violations, validatePilotStatementResults(entry.ID+"/"+key+"/base", candidate.Base, entry.Contract.Workload.MaxResultPayloadBytes, entry.QueryKind)...)
+		violations = append(violations, validatePilotStatementResults(entry.ID+"/"+key+"/candidate", candidate.Candidate, entry.Contract.Workload.MaxResultPayloadBytes, entry.QueryKind)...)
 	}
 	for key := range required {
 		if _, ok := seen[key]; !ok {

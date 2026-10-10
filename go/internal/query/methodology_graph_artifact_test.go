@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	neo4j "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 func TestMethodologyEmptyGrantHTTPDoesNotReadGraph(t *testing.T) {
@@ -145,5 +146,31 @@ func TestMethodologyGraphOracleEmptyPagesOnPopulatedFixture(t *testing.T) {
 				t.Fatalf("expected empty physical page from populated fixture, got %v", got)
 			}
 		})
+	}
+}
+
+func TestMethodologyGraphStatementCapturePreservesExtraColumn(t *testing.T) {
+	t.Parallel()
+	keys := []string{"repo_id", "source_file", "target_module", "line_number"}
+	values := []any{"proof", "source", "target", int64(1)}
+	narrow := methodologyRecordRows([]*neo4j.Record{{Keys: keys, Values: values}})
+	wide := methodologyRecordRows([]*neo4j.Record{{Keys: append(slices.Clone(keys), "extra"), Values: append(slices.Clone(values), "more data")}})
+	ids := methodologyStatementIDs("QP-CODE-IMPORT-ROWS-REPOSITORY", narrow)
+	if !slices.Equal(ids, []string{"proof|source|target|1"}) || !slices.Equal(ids, methodologyStatementIDs("QP-CODE-IMPORT-ROWS-REPOSITORY", wide)) {
+		t.Fatalf("extra column changed statement identities: %v", ids)
+	}
+	paired := methodologyPairedRun{
+		ResultIDs: ids,
+		StatementResults: []json.RawMessage{
+			methodologyJSON(t, narrow), methodologyJSON(t, narrow),
+			methodologyJSON(t, narrow), methodologyJSON(t, wide),
+		},
+	}
+	run := methodologyGraphPilotRun(t, paired)
+	if string(run.Result) != `["proof|source|target|1"]` || len(run.StatementResults[3]) <= len(run.StatementResults[0]) {
+		t.Fatalf("full row payload lost while identity stayed fixed: result=%s rows=%s", run.Result, run.StatementResults[3])
+	}
+	if !strings.Contains(string(run.StatementResults[3]), `"extra":"more data"`) {
+		t.Fatalf("extra statement column was omitted: %s", run.StatementResults[3])
 	}
 }

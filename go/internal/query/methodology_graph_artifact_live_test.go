@@ -68,7 +68,7 @@ func methodologyWriteGraphArtifact(t *testing.T, ctx context.Context, driver neo
 			FixtureDefinition: fixtureDefinition, FixtureSHA256: methodologyHash(fixtureDefinition),
 			Workload: workload, WorkloadSHA256: queryplan.PilotJSONSHA256(workload),
 			HarnessSHA256: methodologySourceHash(t, []string{
-				"methodology_graph_live_test.go", "methodology_graph_fixture_live_test.go",
+				"methodology_graph_live_test.go", "methodology_graph_profile_live_test.go", "methodology_graph_metrics_test.go", "methodology_graph_fixture_live_test.go",
 				"methodology_graph_oracle_live_test.go", "methodology_graph_measure_live_test.go",
 				"methodology_graph_artifact_rows_test.go", "methodology_graph_artifact_live_test.go",
 				"methodology_graph_artifact_test.go", "methodology_identity_test.go",
@@ -155,8 +155,9 @@ func methodologyGraphPilotRun(t *testing.T, paired methodologyPairedRun) querypl
 	t.Helper()
 	proof := methodologyJSON(t, paired.ColdProof)
 	return queryplan.PilotCaseRun{
-		Result: methodologyJSON(t, append([]string{}, paired.ResultIDs...)),
-		Plan:   methodologyJSON(t, paired.Profile.Plan),
+		Result:           methodologyJSON(t, append([]string{}, paired.ResultIDs...)),
+		StatementResults: paired.StatementResults,
+		Plan:             methodologyJSON(t, paired.Profile.Plan),
 		Work: methodologyJSON(t, map[string]any{
 			"query_count":            1,
 			"total_operator_db_hits": paired.Profile.DbHits,
