@@ -112,7 +112,10 @@ WITH source_scope AS (
       'contains_warnings', false
     )
   FROM source_scope
-  ON CONFLICT (fact_id) DO UPDATE SET payload = EXCLUDED.payload
+  ON CONFLICT (fact_id) DO UPDATE SET
+    scope_id = EXCLUDED.scope_id,
+    generation_id = EXCLUDED.generation_id,
+    payload = EXCLUDED.payload
   RETURNING fact_id
 )
 SELECT count(*) FROM seeded;
