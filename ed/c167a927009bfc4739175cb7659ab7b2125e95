@@ -1,0 +1,39 @@
+specs/live-tests.v1.yaml
+  s_29175cf8c573b8::t_4d6e1bd699db36 1670-1674
+go/internal/reducer/contract/generation_check_test.go
+  s_29175cf8c573b8::t_7379830247d87e 1-34
+go/internal/storage/postgres/generation_freshness.go
+  s_29175cf8c573b8::t_09706c2338a799 120-124,158-164
+scripts/lib/live_postgres_readiness_results.py
+  s_29175cf8c573b8::t_97d763ef3f404c 159-161
+go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go
+  s_29175cf8c573b8::t_afe4d708d32e70 38,48,52-54
+  s_29175cf8c573b8::t_4df6acec14abb7 37
+go/internal/reducer/contract/generation_check.go
+  s_29175cf8c573b8::t_e72f7d0870e346 15-16,57-58,62-64,76-78,86,92-94
+  s_29175cf8c573b8::t_de2bac6ae35ffb 95
+go/internal/storage/postgres/generation_freshness_test.go
+  s_29175cf8c573b8::t_cba07b15501b60 100,106-132,172-177
+go/internal/storage/postgres/container_image_identity_first_generation_live_test.go
+  s_29175cf8c573b8::t_88da205a66d33f 1-203
+docs/internal/evidence/7916-first-generation-readiness.md
+  s_29175cf8c573b8::t_247d9239f7d6f2 1-94
+go/internal/reducer/contract/README.md
+  s_29175cf8c573b8::t_064901ef4b0f08 56-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "edc167a927009bfc4739175cb7659ab7b2125e95",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
