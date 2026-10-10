@@ -31,6 +31,10 @@ type hydrationStore struct {
 	rows  map[string]querycontract.FileContent
 	gone  map[string]bool
 	getAt map[string]error
+	// goneAfterCheck rows answer non-blank to NonBlankRepoFilePaths and then
+	// vanish: GetFileContent returns no row, as when a file is deleted between
+	// the two statements.
+	goneAfterCheck map[string]bool
 
 	blankErr error
 	// blankMode replaces the non-blank answer, to mutate the SQL predicate.
@@ -47,6 +51,8 @@ func newHydrationStore(files ...querycontract.FileContent) *hydrationStore {
 		rows:  make(map[string]querycontract.FileContent, len(files)),
 		gone:  map[string]bool{},
 		getAt: map[string]error{},
+
+		goneAfterCheck: map[string]bool{},
 	}
 	for _, file := range files {
 		file.RepoID = hydrationTestRepoID
@@ -84,7 +90,7 @@ func (s *hydrationStore) GetFileContent(_ context.Context, _, relativePath strin
 		return nil, err
 	}
 	row, ok := s.rows[relativePath]
-	if !ok || s.gone[relativePath] {
+	if !ok || s.gone[relativePath] || s.goneAfterCheck[relativePath] {
 		return nil, nil
 	}
 	s.bytes += len(row.Content)

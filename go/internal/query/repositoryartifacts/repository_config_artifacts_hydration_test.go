@@ -214,6 +214,11 @@ func TestNeededContentHydrationKustomizeShapesMatchFullHydration(t *testing.T) {
 			fileRow(" a/kustomization.yaml ", kustomizationFor("r.yaml")),
 			fileRow("a/r.yaml", policyResource("padded")),
 		},
+		"blank duplicate of a cleaned path": {
+			fileRow("a/kustomization.yaml", kustomizationFor("r.yaml")),
+			fileRow("a/kustomization.yaml ", "\n"),
+			fileRow("a/r.yaml", policyResource("dup")),
+		},
 		"invalid kustomization yaml": {
 			fileRow("a/kustomization.yaml", "resources: [unclosed\n  - nope"),
 			fileRow("a/r.yaml", policyResource("never")),
@@ -370,5 +375,36 @@ func TestNeededContentHydrationIssuesNoStatementWithoutCandidates(t *testing.T) 
 	}
 	if len(store.getCalls) != 0 || len(store.blankCalls) != 0 {
 		t.Fatalf("statements issued: get=%d blank=%d, want none", len(store.getCalls), len(store.blankCalls))
+	}
+}
+
+func TestNeededContentHydrationRowVanishedBetweenBlankCheckAndReadIsDropped(t *testing.T) {
+	t.Parallel()
+
+	// group_vars/all.yml is referenced by the kustomization, so it is read in
+	// the second pass. The blank check saw it non-blank; it then vanishes. The
+	// full pass reads it once, gets no row, and drops it, so no ansible_vars
+	// row exists. The needed-content pass must drop it too, not keep the empty
+	// list row and emit a path-only row.
+	files := []querycontract.FileContent{
+		fileRow("ops/kustomization.yaml", kustomizationFor("group_vars/all.yml", "keep.yaml")),
+		fileRow("ops/group_vars/all.yml", "ansible_user: deploy\n"),
+		fileRow("ops/keep.yaml", policyResource("keep")),
+	}
+	oracleStore := newHydrationStore(files...)
+	oracleStore.gone["ops/group_vars/all.yml"] = true
+	gotStore := newHydrationStore(files...)
+	gotStore.goneAfterCheck["ops/group_vars/all.yml"] = true
+
+	oracle := runConfigLoad(t, oracleStore, oracleStore.listed(t), fullConfigArtifactPasses)
+	got := runConfigLoad(t, gotStore, gotStore.listed(t), productionConfigArtifactPasses)
+	if oracle.err != nil || got.err != nil {
+		t.Fatalf("unexpected errors: oracle=%v got=%v", oracle.err, got.err)
+	}
+	if oracle.digest != got.digest {
+		t.Fatalf("a row that vanished after the blank check changed the output: oracle rows=%d got rows=%d", oracle.rows, got.rows)
+	}
+	if oracle.rows == 0 {
+		t.Fatal("fixture produced no rows; the equality check is vacuous")
 	}
 }
