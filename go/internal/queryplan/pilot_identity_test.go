@@ -59,3 +59,51 @@ func TestLoadPilotComparisonIdentityRejectsInvalidAndStaleCandidate(t *testing.T
 		t.Fatal("comparison identity accepted missing path")
 	}
 }
+
+func TestLoadPilotComparisonIdentityRejectsMalformedSidecar(t *testing.T) {
+	valid := map[string]any{
+		"version": 1, "event": "local", "mode": "feature_merge_base",
+		"target": strings.Repeat("c", 40), "base": strings.Repeat("b", 40),
+		"candidate": strings.Repeat("a", 40),
+	}
+	for _, test := range []struct {
+		name     string
+		field    string
+		value    any
+		trailing string
+	}{
+		{name: "trailing JSON", trailing: " {}"},
+		{name: "unknown field", field: "unexpected", value: true},
+		{name: "unsupported version", field: "version", value: 2},
+		{name: "unsupported event", field: "event", value: "other"},
+		{name: "mismatched event mode", field: "event", value: "pull_request"},
+		{name: "unsupported mode", field: "mode", value: "other"},
+		{name: "uppercase target", field: "target", value: "C" + strings.Repeat("c", 39)},
+		{name: "nonhex target", field: "target", value: "g" + strings.Repeat("c", 39)},
+		{name: "uppercase base", field: "base", value: "B" + strings.Repeat("b", 39)},
+		{name: "nonhex base", field: "base", value: "g" + strings.Repeat("b", 39)},
+		{name: "uppercase candidate", field: "candidate", value: "A" + strings.Repeat("a", 39)},
+		{name: "nonhex candidate", field: "candidate", value: "g" + strings.Repeat("a", 39)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			payload := make(map[string]any, len(valid)+1)
+			for key, value := range valid {
+				payload[key] = value
+			}
+			if test.field != "" {
+				payload[test.field] = test.value
+			}
+			data, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "identity.json")
+			if err := os.WriteFile(path, append(data, test.trailing...), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := LoadPilotComparisonIdentity(path); err == nil {
+				t.Fatal("malformed identity was accepted")
+			}
+		})
+	}
+}

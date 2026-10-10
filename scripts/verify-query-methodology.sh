@@ -25,6 +25,7 @@ cd "$repo_root/go"
 . "$repo_root/scripts/lib/go-test-run-guard.sh"
 python3 "$repo_root/scripts/lib/verify-query-methodology-live-contract.py" --root "$repo_root"
 go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
+go_test_run_guard 2 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
 go test ./internal/queryplan -count=1
 [[ -s "$ESHU_QUERY_METHODOLOGY_COVERAGE" ]] || { printf 'missing required produced coverage artifact\n' >&2; exit 1; }
 go_test_run_guard 3 '^(TestMethodologyRequiredProductionVariants|TestHandlerQueryplanManifestBindsProductionBuilders|TestLegacyQueryplanManifestBindsProductionQueries)$' -- ./internal/query -count=1

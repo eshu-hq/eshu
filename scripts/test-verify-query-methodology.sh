@@ -14,13 +14,26 @@ run_shim() {
 }
 run_shim static --static
 [[ -s "$work/static-artifacts/identity.json" ]] || { printf 'static proof omitted frozen comparison identity\n' >&2; exit 1; }
+guard_pattern='^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$'
+rg -Fq -- "-list $guard_pattern" "$work/static.log" || { printf 'static proof omitted both identity guard roots\n' >&2; exit 1; }
+rg -Fq -- "-run $guard_pattern" "$work/static.log" || { printf 'static proof did not execute both identity guard roots\n' >&2; exit 1; }
+for omitted in TestMethodologyProductionTreeRejectsBaseOnlyMigration TestMethodologyCombinedCheckoutUsesIntegratedBase; do
+ if SHIM_OMIT_TREE_GUARD="$omitted" run_shim "missing-$omitted" --static; then
+  printf 'static proof accepted missing guarded root %s\n' "$omitted" >&2
+  exit 1
+ fi
+done
 GIT_DIR="$work/missing-git" GIT_WORK_TREE=. GIT_PREFIX=go/internal/query/ run_shim inherited-git-env --static
 cmp "$work/static-artifacts/identity.json" "$work/inherited-git-env-artifacts/identity.json" || { printf 'hook Git environment changed frozen comparison identity\n' >&2; exit 1; }
 if rg -q '^docker ' "$work/static.log"; then printf 'static stage touched Docker\n' >&2; exit 1; fi
 if SHIM_OMIT=coverage run_shim missing-coverage --static; then printf 'missing coverage passed\n' >&2; exit 1; fi
 run_shim stale-coverage --static
 if SHIM_OMIT=coverage run_shim stale-coverage --static; then printf 'old coverage concealed omitted producer\n' >&2; exit 1; fi
-run_shim live --live
+if ! run_shim live --live; then
+ cat "$work/live.out" >&2
+ printf 'live methodology shim failed\n' >&2
+ exit 1
+fi
 for test in TestQueryMethodologyPostgresLive TestImportDependencyMethodologyLive TestImportDependencyMethodologyMCPTerminalCapLive TestQueryplanProfileFlagsUnboundedVarLength TestPilotArtifactFiles; do
  rg -q -- "-run \^$test" "$work/live.log" || { printf 'live stage omitted %s\n' "$test" >&2; exit 1; }
 done

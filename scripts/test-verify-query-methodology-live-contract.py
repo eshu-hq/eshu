@@ -371,6 +371,29 @@ class ContractTest(unittest.TestCase):
                 self.assertNotEqual(self.check().returncode, 0)
                 (self.root / "scripts/verify-query-methodology.sh").write_text(original)
 
+    def test_both_tree_guard_roots_are_required_with_guarded_count(self) -> None:
+        """The static and live route must execute both identity regressions."""
+        runner_path = self.root / "scripts/verify-query-methodology.sh"
+        source = runner_path.read_text()
+        guard = (
+            "go_test_run_guard 2 "
+            "'^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|"
+            "TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- "
+            "-tags queryplan_profile_live ./internal/query -count=1 -v"
+        )
+        self.assertEqual(source.count(guard), 1, "both tagged guard roots must run")
+        self.assertEqual(self.check().returncode, 0)
+        for replacement in (
+            "true # planted omission of both guard roots",
+            guard.replace("go_test_run_guard 2", "go_test_run_guard 1"),
+            guard.replace("TestMethodologyCombinedCheckoutUsesIntegratedBase", "TestOmittedCombinedCheckout"),
+            guard.replace("TestMethodologyProductionTreeRejectsBaseOnlyMigration", "TestOmittedBaseOnlyMigration"),
+        ):
+            with self.subTest(replacement=replacement):
+                runner_path.write_text(source.replace(guard, replacement, 1))
+                self.assertNotEqual(self.check().returncode, 0)
+        runner_path.write_text(source)
+
     def test_real_go_json_events(self) -> None:
         """Check Go's actual run, zero-match, skip, and fail event shapes."""
         module = self.root / "event-proof"

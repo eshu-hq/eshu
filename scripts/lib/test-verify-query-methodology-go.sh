@@ -6,7 +6,16 @@ if [[ "${ESHU_QUERY_METHODOLOGY_REQUIRED:-}" != 1 || ! -s "${ESHU_QUERY_METHODOL
  exit 15
 fi
 if [[ "$*" == *'-list '* ]]; then
- printf '%s\n' TestMethodologyProductionSourceTreesMatchBase TestMethodologyRequiredProductionVariants TestHandlerQueryplanManifestBindsProductionBuilders TestLegacyQueryplanManifestBindsProductionQueries
+ pattern=""
+ while [[ "$#" -gt 0 ]]; do
+  if [[ "$1" == '-list' ]]; then pattern="$2"; break; fi
+  shift
+ done
+ for test in TestMethodologyProductionSourceTreesMatchBase TestMethodologyProductionTreeRejectsBaseOnlyMigration TestMethodologyCombinedCheckoutUsesIntegratedBase TestMethodologyRequiredProductionVariants TestHandlerQueryplanManifestBindsProductionBuilders TestLegacyQueryplanManifestBindsProductionQueries TestQueryplanProfileFlagsUnboundedVarLength TestPilotArtifactFiles; do
+  [[ "$test" =~ $pattern ]] || continue
+  [[ "${SHIM_OMIT_TREE_GUARD:-}" != "$test" ]] || continue
+  printf '%s\n' "$test"
+ done
  exit 0
 fi
 case "$*" in

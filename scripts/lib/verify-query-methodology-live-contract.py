@@ -146,6 +146,7 @@ def check_static(root: Path) -> None:
         '[[ -s "$ESHU_QUERY_METHODOLOGY_IDENTITY" ]] || { printf \'missing frozen methodology comparison identity\\n\' >&2; exit 1; }',
         static_call,
         "go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
+        "go_test_run_guard 2 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
         "go test ./internal/queryplan -count=1",
     )
     positions = []
