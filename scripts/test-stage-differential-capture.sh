@@ -66,4 +66,20 @@ test "$(cat "${fixture}/unrelated")" = keep
 expect_failure stale_output bash "${helper}" stage "${downloads}" "${output}" "${attempt}" success
 rg -q 'already exists' "${fixture}/stale_output.log"
 
+# A copy failure occurs after staging creates the destination. The ERR trap
+# must remove that partial destination, including a path that contains spaces.
+fake_bin="${fixture}/fake-bin"
+mkdir -p "${fake_bin}"
+printf '#!/usr/bin/env bash\necho "seeded copy failure" >&2\nexit 23\n' >"${fake_bin}/cp"
+chmod +x "${fake_bin}/cp"
+partial_output="${fixture}/partial staging with spaces"
+expect_failure copy_failure env PATH="${fake_bin}:${PATH}" \
+  bash "${helper}" stage "${downloads}" "${partial_output}" "${attempt}" success
+rg -q 'seeded copy failure' "${fixture}/copy_failure.log"
+if [[ -e "${partial_output}" ]]; then
+  echo 'FAIL: copy failure retained a partial staging directory' >&2
+  exit 1
+fi
+test "$(cat "${fixture}/unrelated")" = keep
+
 echo 'PASS: differential capture staging is complete, isolated, and fail-closed'

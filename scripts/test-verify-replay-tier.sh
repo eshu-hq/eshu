@@ -110,12 +110,11 @@ has_nornicdb_image_pin() {
 		"$1"
 }
 
-# workflow_gate_step_block prints the workflow step that runs the live gate,
-# from its `- name:` line up to the next step.
-workflow_gate_step_block() {
-	awk '
+# workflow_step_block prints one named workflow step up to the next step.
+workflow_step_block() {
+	awk -v target="$2" '
 		/^      - name: / { inside = 0 }
-		/^      - name: Run offline replay tier against real NornicDB$/ { inside = 1 }
+		$0 == "      - name: " target { inside = 1 }
 		inside { print }
 	' "$1"
 }
@@ -131,19 +130,18 @@ workflow_gate_step_block() {
 #   - `continue-on-error: true` lets the step fail and the job still succeed.
 #     Fail reads as pass — the same hole with the opposite trigger.
 #
-# Both are rejected outright rather than inspected for a "safe" value. This gate
-# is unconditional and blocking; a future change to either property should
-# require a deliberate edit here, not quietly stop the blast-radius proof from
-# gating merges.
+# The queue selector is the sole allowed condition: PR/push must run, and a
+# merge-group entry runs when the trusted selector names this job. Check the
+# contract test and the live gate equally, including exactly one condition.
 gate_step_is_active() {
-	local block key
-	block="$(workflow_gate_step_block "$1")"
-	rg --quiet '^[[:space:]]*run: bash scripts/verify-replay-tier\.sh$' <<<"${block}" || return 1
-	for key in 'if:' 'continue-on-error:'; do
-		if rg --quiet "^[[:space:]]*${key}" <<<"${block}"; then
-			return 1
-		fi
-	done
+	local block expected_if if_lines run_command
+	block="$(workflow_step_block "$1" "$2")"
+	run_command="$3"
+	expected_if="        if: \${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}"
+	rg --fixed-strings --line-regexp --quiet "        run: ${run_command}" <<<"${block}" || return 1
+	if_lines="$(rg '^        if:' <<<"${block}")" || return 1
+	[[ "${if_lines}" == "${expected_if}" ]] || return 1
+	! rg --quiet '^[[:space:]]*continue-on-error:' <<<"${block}"
 }
 
 # workflow_gate_job_block prints the replay-tier job, from its key to the next
@@ -181,8 +179,12 @@ has_workflow_wiring() {
 		'^[[:space:]]*run: scripts/ci/install-apt-packages\.sh ripgrep$' "$1" | cut -d: -f1)"
 	test_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1" | cut -d: -f1)"
-	gate_step_is_active "$1" || return 1
+	gate_step_is_active "$1" 'Verify replay tier contract' 'bash scripts/test-verify-replay-tier.sh' || return 1
+	gate_step_is_active "$1" 'Run offline replay tier against real NornicDB' 'bash scripts/verify-replay-tier.sh' || return 1
 	gate_job_is_active "$1" || return 1
+	rg --quiet '^    needs: queue-selection$' <<<"$(workflow_gate_job_block "$1")" || return 1
+	rg --quiet '^    uses: \./\.github/workflows/queue-selection\.yml$' "$1" || return 1
+	rg --quiet '^        run: test "\$\{\{ needs\.queue-selection\.result \}\}" = success$' "$1" || return 1
 	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]] &&
 		rg --quiet "^[[:space:]]*- 'go/internal/query/\\*\\*'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
@@ -372,13 +374,22 @@ sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/s/^/# /' \
 if has_workflow_wiring "${tmp}/workflow-no-gate-step"; then
 	fail "workflow must run the live gate step (scripts/verify-replay-tier.sh)"
 fi
-# Present but skipped is the harder case: GitHub runs nothing, the run: line is
-# still there, and a whole-file regex stays green (#6205, found by codex).
-sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
-        if: ${{ false }}
-' "${workflow}" >"${tmp}/workflow-disabled-gate-step"
+# Present but skipped is the harder case: replace the valid queue condition
+# with valid YAML that skips the gate while keeping its run command intact.
+sed '/^      - name: Run offline replay tier against real NornicDB$/,/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/s/^        if: .*/        if: ${{ false }}/' \
+	"${workflow}" >"${tmp}/workflow-disabled-gate-step"
 if has_workflow_wiring "${tmp}/workflow-disabled-gate-step"; then
 	fail "a disabled (if:-gated) live gate step must not satisfy the guard"
+fi
+sed '/^      - name: Run offline replay tier against real NornicDB$/,/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/s/^        if: .*//' "${workflow}" \
+	>"${tmp}/workflow-unselected-gate-step"
+if has_workflow_wiring "${tmp}/workflow-unselected-gate-step"; then
+	fail "the live gate must honor queue selection"
+fi
+sed '/^      - name: Verify replay tier contract$/,/^[[:space:]]*run: bash scripts\/test-verify-replay-tier\.sh$/s/^        if: .*/        if: ${{ false }}/' \
+	"${workflow}" >"${tmp}/workflow-disabled-contract-step"
+if has_workflow_wiring "${tmp}/workflow-disabled-contract-step"; then
+	fail "a disabled replay contract test must not satisfy the guard"
 fi
 # Non-blocking is the twin: the step runs, it fails, and the job passes anyway.
 sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
@@ -386,6 +397,10 @@ sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
 ' "${workflow}" >"${tmp}/workflow-nonblocking-gate-step"
 if has_workflow_wiring "${tmp}/workflow-nonblocking-gate-step"; then
 	fail "a continue-on-error live gate step must not satisfy the guard"
+fi
+sed '/^    needs: queue-selection$/d' "${workflow}" >"${tmp}/workflow-no-selector-need"
+if has_workflow_wiring "${tmp}/workflow-no-selector-need"; then
+	fail "the replay job must depend on queue selection"
 fi
 # The same two vectors one level up: disabling or de-blocking the whole job
 # skips the gate while every run: line stays present.

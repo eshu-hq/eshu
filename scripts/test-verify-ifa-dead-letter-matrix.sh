@@ -189,25 +189,32 @@ workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 # which itself precedes the job's own matrix invocation.
 assert_prewarm_before_run() {
 	local job_name="$1" start_needle="$2" end_needle="$3" run_needle="$4"
+	local workflow_path="${5:-${workflow}}"
 	local start_line end_line setup_line prewarm_line run_line prewarm_run
 	# `|| true` throughout: under pipefail a no-match rg would otherwise abort
 	# this whole script via set -e before the fail() checks below can run.
-	start_line="$(rg -n --fixed-strings -- "${start_needle}" "${workflow}" | cut -d: -f1)" || true
-	end_line="$(rg -n --fixed-strings -- "${end_needle}" "${workflow}" | cut -d: -f1)" || true
+	start_line="$(rg -n --fixed-strings -- "${start_needle}" "${workflow_path}" | cut -d: -f1)" || true
+	end_line="$(rg -n --fixed-strings -- "${end_needle}" "${workflow_path}" | cut -d: -f1)" || true
 	[[ -n "${start_line}" && -n "${end_line}" && "${end_line}" -gt "${start_line}" ]] \
 		|| fail "${job_name}: could not locate its job block in ${workflow}"
-	setup_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
+	setup_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow_path}" \
 		| rg -n --fixed-strings -- 'name: Set up Go' | cut -d: -f1)" || true
-	prewarm_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
+	prewarm_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow_path}" \
 		| rg -n --fixed-strings -- 'name: Pre-warm Go modules' | cut -d: -f1)" || true
-	run_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
+	run_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow_path}" \
 		| rg -n --fixed-strings -- "${run_needle}" | cut -d: -f1)" || true
 	[[ -n "${setup_line}" && -n "${prewarm_line}" && -n "${run_line}" ]] \
 		|| fail "${job_name}: missing Set up Go / Pre-warm Go modules / matrix invocation step"
 	[[ "${setup_line}" -lt "${prewarm_line}" && "${prewarm_line}" -lt "${run_line}" ]] \
 		|| fail "${job_name}: module prefetch is not wired between setup-go and the matrix invocation"
-	prewarm_run="$(sed -n "$((start_line + prewarm_line))p" "${workflow}")"
-	[[ "${prewarm_run}" == *'run: scripts/ci/go-mod-download-retry.sh'* ]] \
+	# Step metadata such as a merge-group `if:` may sit between the name and
+	# command. Stop at the next step so a later command cannot satisfy this pin.
+	prewarm_run="$(awk -v start="$((start_line + prewarm_line - 1))" '
+		NR <= start { next }
+		/^      - / { exit }
+		/^        run: / { print; exit }
+	' "${workflow_path}")"
+	[[ "${prewarm_run}" == '        run: scripts/ci/go-mod-download-retry.sh' ]] \
 		|| fail "${job_name}: Pre-warm Go modules step does not run the shared retry helper (got: ${prewarm_run})"
 }
 
@@ -255,17 +262,78 @@ done
 # failure(): a module pre-warm that exhausts its retries fails the job before
 # any work dir exists, and a bare failure() then turns that one named download
 # failure into extra misleading completeness/upload failures (#6706 review).
+assert_diagnostic_guard() {
+	local step_name="$1" step_id="$2" job_name="$3" workflow_path="${4:-${workflow}}"
+	local condition normalized expected_queue expected_legacy
+	condition="$(awk -v name="${step_name}" '
+		$0 == "      - name: " name { inside=1; next }
+		inside && /^      - / { exit }
+		inside && /^        if: / { print; exit }
+	' "${workflow_path}")"
+	normalized="$(printf '%s' "${condition}" | tr -d "[:space:]'\"")"
+	expected_legacy="if:failure()&&steps.${step_id}.outcome==failure"
+	printf -v expected_queue \
+		'if:${{(github.event_name!=merge_group||(contains(fromJSON(needs.queue-selection.outputs.jobs||[]),%s)))&&(failure()&&steps.%s.outcome==failure)}}' \
+		"${job_name}" "${step_id}"
+	[[ "${normalized}" == "${expected_legacy}" || "${normalized}" == "${expected_queue}" ]] \
+		|| fail "${step_name} is not gated on steps.${step_id}.outcome"
+}
 for step_id in fault_matrix determinism_matrix dead_letter_matrix; do
 	rg --fixed-strings --quiet -- "id: ${step_id}" "${workflow}" \
 		|| fail "matrix run step has no id ${step_id} for its diagnostics to key on"
-	rg --fixed-strings --quiet -- "if: failure() && steps.${step_id}.outcome == 'failure'" "${workflow}" \
-		|| fail "diagnostics are not gated on steps.${step_id}.outcome"
 done
+assert_diagnostic_guard 'Upload determinism-matrix diagnostics' determinism_matrix determinism-matrix
+assert_diagnostic_guard 'Upload dead-letter-matrix diagnostics' dead_letter_matrix dead-letter-matrix
+assert_diagnostic_guard 'Verify fault-injection diagnostic completeness' fault_matrix fault-injection
+assert_diagnostic_guard 'Upload fault-injection diagnostics' fault_matrix fault-injection
+# A missing producer-outcome condition must fail even if another diagnostic
+# step still carries it. Mutate one named step in a temporary workflow copy.
+diagnostic_probe="$(mktemp)"
+sed "/- name: Upload dead-letter-matrix diagnostics/{n;s/steps.dead_letter_matrix.outcome == 'failure'/true/;}" \
+	"${workflow}" >"${diagnostic_probe}"
+if (
+	assert_diagnostic_guard 'Upload dead-letter-matrix diagnostics' dead_letter_matrix dead-letter-matrix "${diagnostic_probe}"
+) >/dev/null 2>&1; then
+	rm -f "${diagnostic_probe}"
+	fail "diagnostic guard accepts a missing producer-outcome condition"
+fi
+rm -f "${diagnostic_probe}"
+# The presence of the producer check cannot rescue an `|| true` bypass.
+diagnostic_probe="$(mktemp)"
+sed "/- name: Upload dead-letter-matrix diagnostics/{n;s/(failure() \&\& steps.dead_letter_matrix.outcome == 'failure')/(true || (failure() \&\& steps.dead_letter_matrix.outcome == 'failure'))/;}" \
+	"${workflow}" >"${diagnostic_probe}"
+if (
+	assert_diagnostic_guard 'Upload dead-letter-matrix diagnostics' dead_letter_matrix dead-letter-matrix "${diagnostic_probe}"
+) >/dev/null 2>&1; then
+	rm -f "${diagnostic_probe}"
+	fail "diagnostic guard accepts a bypassed producer-outcome condition"
+fi
+rm -f "${diagnostic_probe}"
 # The static mirror runs `go run ./cmd/ci-gates` inside its validators, so it
 # needs the same setup-go + pre-warm as the matrix jobs (#6706 review).
 assert_prewarm_before_run static-mirror \
 	'  static-mirror:' '  determinism-matrix:' \
 	'name: Validate determinism matrix mirror'
+# A command in a sibling job must not satisfy the pre-warm pin. Remove only
+# the dead-letter job's retry command; the other three jobs retain theirs.
+prewarm_probe="$(mktemp)"
+awk '
+	/^  dead-letter-matrix:/ { inside=1 }
+	/^  fault-injection:/ { inside=0 }
+	inside && /run: scripts\/ci\/go-mod-download-retry\.sh/ {
+		sub(/run: scripts\/ci\/go-mod-download-retry\.sh/, "run: true")
+	}
+	{ print }
+' "${workflow}" >"${prewarm_probe}"
+if (
+	assert_prewarm_before_run dead-letter-matrix \
+		'  dead-letter-matrix:' '  fault-injection:' \
+		'name: Run Ifa dead-letter-set determinism matrix' "${prewarm_probe}"
+) >/dev/null 2>&1; then
+	rm -f "${prewarm_probe}"
+	fail "pre-warm pin accepts a step without the retry helper"
+fi
+rm -f "${prewarm_probe}"
 if rg --fixed-strings --quiet -- 'run: docker compose -f docker-compose.yaml' "${workflow}"; then
 	fail "a workflow step runs docker compose without -p; it addresses a project no gate script starts"
 fi

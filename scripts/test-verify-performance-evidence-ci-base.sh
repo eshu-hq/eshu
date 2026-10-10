@@ -31,14 +31,48 @@ verifier="${repo_root}/scripts/verify-performance-evidence.sh"
 
 # The behavioral fixture below passes an event base explicitly. Also guard
 # the workflow binding: without it, the real CI step takes the failing path.
-if ! rg -U -q '      - name: Verify hot-path evidence\n        env:\n(?:          #[^\n]*\n)*          ESHU_PERFORMANCE_EVIDENCE_BASE: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\n        run: \|' \
-  "${repo_root}/.github/workflows/test.yml"; then
+# A queue-selection `if:` is step metadata between the name and the env block.
+workflow_binds_event_base() {
+  local step guard expected_guard
+  step="$(awk '
+    /^      - name: Verify hot-path evidence$/ { inside=1; print; next }
+    inside && /^      - / { exit }
+    inside { print }
+  ' "$1")"
+  guard="$(printf '%s\n' "${step}" | rg '^        if: ' || true)"
+  expected_guard="        if: \${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}"
+  [[ -z "${guard}" || "${guard}" == "${expected_guard}" ]] || return 1
+  printf '%s\n' "${step}" | rg -U -q '^      - name: Verify hot-path evidence\n(?:        if: [^\n]*\n)?        env:\n(?:          #[^\n]*\n)*          ESHU_PERFORMANCE_EVIDENCE_BASE: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\n        run: \|'
+}
+if ! workflow_binds_event_base "${repo_root}/.github/workflows/test.yml"; then
   printf 'Verify hot-path evidence must pass the PR event base SHA to the verifier\n' >&2
   exit 1
 fi
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
+# The event base must belong to this step, rather than to a neighboring step
+# or a stale comment. A seeded wrong base proves the guard still rejects it.
+sed 's/ESHU_PERFORMANCE_EVIDENCE_BASE: \${{ github.event.pull_request.base.sha }}/ESHU_PERFORMANCE_EVIDENCE_BASE: HEAD~1/' \
+  "${repo_root}/.github/workflows/test.yml" >"${tmp_root}/wrong-base.yml"
+if workflow_binds_event_base "${tmp_root}/wrong-base.yml"; then
+  printf 'Verify hot-path evidence accepted a wrong event base\n' >&2
+  exit 1
+fi
+# A guard that skips pull requests would hide the verifier despite a correct
+# env binding. Keep the accepted queue guard tied to this same step.
+sed '/- name: Verify hot-path evidence/{n;s/.*/        if: false/;}' \
+  "${repo_root}/.github/workflows/test.yml" >"${tmp_root}/skipped-pr.yml"
+if workflow_binds_event_base "${tmp_root}/skipped-pr.yml"; then
+  printf 'Verify hot-path evidence accepted a guard that skips PRs\n' >&2
+  exit 1
+fi
+sed '/- name: Verify hot-path evidence/{n;s/verify-contracts/docs-helm-hygiene/;}' \
+  "${repo_root}/.github/workflows/test.yml" >"${tmp_root}/wrong-queue-job.yml"
+if workflow_binds_event_base "${tmp_root}/wrong-queue-job.yml"; then
+  printf 'Verify hot-path evidence accepted the wrong merge-group job\n' >&2
+  exit 1
+fi
 
 # Part 1: prove the raw git behavior the fix depends on, independent of the
 # verifier script, so a regression in the fetch command is caught even if
