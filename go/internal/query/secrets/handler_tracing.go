@@ -15,12 +15,12 @@ import (
 // read puts in a response body: backend errors quote SQL, Cypher, hosts, and
 // credentials (#7674).
 const (
-	secretsIAMIdentityTrustChainsFailedMessage          = "secrets/IAM identity trust chain query failed"
-	secretsIAMPrivilegePostureObservationsFailedMessage = "secrets/IAM privilege posture observation query failed"
-	secretsIAMSecretAccessPathsFailedMessage            = "secrets/IAM secret access path query failed"
-	secretsIAMPostureGapsFailedMessage                  = "secrets/IAM posture gap query failed"
-	secretsIAMPostureSummaryFailedMessage               = "secrets/IAM posture summary query failed"
-	secretsIAMGrantPostureFailedMessage                 = "secrets/IAM S3 external-principal grant posture query failed"
+	iamIdentityTrustChainsFailedMessage          = "secrets/IAM identity trust chain query failed"
+	iamPrivilegePostureObservationsFailedMessage = "secrets/IAM privilege posture observation query failed"
+	iamAccessPathsFailedMessage                  = "secrets/IAM secret access path query failed"
+	iamPostureGapsFailedMessage                  = "secrets/IAM posture gap query failed"
+	iamPostureSummaryFailedMessage               = "secrets/IAM posture summary query failed"
+	iamGrantPostureFailedMessage                 = "secrets/IAM S3 external-principal grant posture query failed"
 )
 
 // secretsHandlerTracer is this package's tracer AND the seam its span tests

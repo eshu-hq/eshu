@@ -209,13 +209,13 @@ func (h *Handler) summary(w http.ResponseWriter, r *http.Request) {
 
 	summary, err := h.Summary.SummarizeSecretsIAMPosture(r.Context(), scopeID)
 	if err != nil {
-		writeSecretsReadFailure(w, r, err, IAMPostureSummaryCapability, secretsIAMPostureSummaryFailedMessage)
+		writeSecretsReadFailure(w, r, err, IAMPostureSummaryCapability, iamPostureSummaryFailedMessage)
 		return
 	}
 	if h.GrantPosture != nil {
 		grantPosture, err := h.GrantPosture.SummarizeS3ExternalPrincipalGrantPosture(r.Context(), scopeID)
 		if err != nil {
-			writeSecretsReadFailure(w, r, err, IAMPostureSummaryCapability, secretsIAMGrantPostureFailedMessage)
+			writeSecretsReadFailure(w, r, err, IAMPostureSummaryCapability, iamGrantPostureFailedMessage)
 			return
 		}
 		summary.S3ExternalPrincipalGrantPosture = &grantPosture

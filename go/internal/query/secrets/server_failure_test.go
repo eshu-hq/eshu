@@ -57,13 +57,13 @@ func TestSecretsIAMReadFailuresAnswerFixedText(t *testing.T) {
 		{
 			name:    "identity trust chains",
 			path:    "/api/v0/secrets-iam/identity-trust-chains?scope_id=scope-a&limit=10",
-			message: secretsIAMIdentityTrustChainsFailedMessage,
+			message: iamIdentityTrustChainsFailedMessage,
 			handler: func(err error) *Handler { return &Handler{IdentityTrustChains: failingSecretsStores{err: err}} },
 		},
 		{
 			name:    "privilege posture observations",
 			path:    "/api/v0/secrets-iam/privilege-posture-observations?scope_id=scope-a&limit=10",
-			message: secretsIAMPrivilegePostureObservationsFailedMessage,
+			message: iamPrivilegePostureObservationsFailedMessage,
 			handler: func(err error) *Handler {
 				return &Handler{PrivilegePostureObservations: failingSecretsStores{err: err}}
 			},
@@ -71,25 +71,25 @@ func TestSecretsIAMReadFailuresAnswerFixedText(t *testing.T) {
 		{
 			name:    "secret access paths",
 			path:    "/api/v0/secrets-iam/secret-access-paths?scope_id=scope-a&limit=10",
-			message: secretsIAMSecretAccessPathsFailedMessage,
+			message: iamAccessPathsFailedMessage,
 			handler: func(err error) *Handler { return &Handler{SecretAccessPaths: failingSecretsStores{err: err}} },
 		},
 		{
 			name:    "posture gaps",
 			path:    "/api/v0/secrets-iam/posture-gaps?scope_id=scope-a&limit=10",
-			message: secretsIAMPostureGapsFailedMessage,
+			message: iamPostureGapsFailedMessage,
 			handler: func(err error) *Handler { return &Handler{PostureGaps: failingSecretsStores{err: err}} },
 		},
 		{
 			name:    "posture summary",
 			path:    "/api/v0/secrets-iam/posture-summary?scope_id=scope-a",
-			message: secretsIAMPostureSummaryFailedMessage,
+			message: iamPostureSummaryFailedMessage,
 			handler: func(err error) *Handler { return &Handler{Summary: failingSecretsStores{err: err}} },
 		},
 		{
 			name:    "posture summary grant section",
 			path:    "/api/v0/secrets-iam/posture-summary?scope_id=scope-a",
-			message: secretsIAMGrantPostureFailedMessage,
+			message: iamGrantPostureFailedMessage,
 			handler: func(err error) *Handler {
 				return &Handler{Summary: failingSecretsStores{}, GrantPosture: failingSecretsStores{err: err}}
 			},
