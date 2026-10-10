@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // fakeWorkloadIdentityExecer is this package's own copy of the root's
@@ -133,7 +134,7 @@ func podTemplateFactWithResolvedDigests(
 	}
 	return facts.Envelope{
 		FactID:      factID,
-		FactKind:    facts.KubernetesPodTemplateFactKind,
+		FactKind:    cloud.KubernetesPodTemplateFactKind,
 		IsTombstone: tombstone,
 		Payload: map[string]any{
 			"cluster_id":             testK8sCluster,
@@ -160,7 +161,7 @@ func k8sRelationshipFact(factID, relType, fromName, toName string) facts.Envelop
 	to := "k8s://" + testK8sCluster + "/v1/pods/" + testK8sNamespace + "/" + toName
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.KubernetesRelationshipFactKind,
+		FactKind: cloud.KubernetesRelationshipFactKind,
 		Payload: map[string]any{
 			"cluster_id":                  testK8sCluster,
 			"relationship_type":           relType,
@@ -178,7 +179,7 @@ func k8sRelationshipFact(factID, relType, fromName, toName string) facts.Envelop
 func k8sWarningFact(factID, reason, resourceScope string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.KubernetesWarningFactKind,
+		FactKind: cloud.KubernetesWarningFactKind,
 		Payload: map[string]any{
 			"cluster_id":     testK8sCluster,
 			"reason":         reason,

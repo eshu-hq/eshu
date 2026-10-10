@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestSourceEmitsWorkloadAnnotations locks the end-to-end #5471 F2 wiring: an
@@ -45,7 +45,7 @@ func TestSourceEmitsWorkloadAnnotations(t *testing.T) {
 	}
 
 	envs := drain(t, collected.Facts)
-	podTemplates := envelopesOfKind(envs, facts.KubernetesPodTemplateFactKind)
+	podTemplates := envelopesOfKind(envs, cloud.KubernetesPodTemplateFactKind)
 	if len(podTemplates) != 1 {
 		t.Fatalf("pod_template facts = %d, want 1", len(podTemplates))
 	}

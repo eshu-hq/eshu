@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -144,11 +145,11 @@ func buildKubernetesCorrelationIndex(envelopes []facts.Envelope) (kubernetesCorr
 	for _, env := range envelopes {
 		var err error
 		switch env.FactKind {
-		case facts.KubernetesPodTemplateFactKind:
+		case cloud.KubernetesPodTemplateFactKind:
 			err = index.ingestPodTemplate(env)
-		case facts.KubernetesRelationshipFactKind:
+		case cloud.KubernetesRelationshipFactKind:
 			err = index.ingestRelationship(env)
-		case facts.KubernetesWarningFactKind:
+		case cloud.KubernetesWarningFactKind:
 			err = index.ingestWarning(env)
 		case facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind:
 			index.ingestSourceManifest(env)

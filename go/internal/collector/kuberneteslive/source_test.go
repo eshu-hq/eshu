@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -218,16 +219,16 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 	}
 
 	envs := drain(t, collected.Facts)
-	if got := countKind(envs, facts.KubernetesPodTemplateFactKind); got != 3 {
+	if got := countKind(envs, cloud.KubernetesPodTemplateFactKind); got != 3 {
 		t.Fatalf("pod_template facts = %d, want 3 (deployment + replicaset + statefulset)", got)
 	}
-	if got := countKind(envs, facts.KubernetesRelationshipFactKind); got != 2 {
+	if got := countKind(envs, cloud.KubernetesRelationshipFactKind); got != 2 {
 		t.Fatalf("relationship facts = %d, want 2 (owner + ingress), got %d", got, got)
 	}
-	if got := countKind(envs, facts.KubernetesWarningFactKind); got != 0 {
+	if got := countKind(envs, cloud.KubernetesWarningFactKind); got != 0 {
 		t.Fatalf("warning facts = %d, want 0", got)
 	}
-	nsEnvs := envelopesOfKind(envs, facts.KubernetesNamespaceFactKind)
+	nsEnvs := envelopesOfKind(envs, cloud.KubernetesNamespaceFactKind)
 	if len(nsEnvs) != 1 {
 		t.Fatalf("namespace facts = %d, want 1", len(nsEnvs))
 	}
@@ -270,11 +271,11 @@ func TestSourceForbiddenListMarksPartialAndWarns(t *testing.T) {
 		t.Fatalf("FreshnessHint = %q, want partial", collected.Generation.FreshnessHint)
 	}
 	envs := drain(t, collected.Facts)
-	if got := countKind(envs, facts.KubernetesWarningFactKind); got != 1 {
+	if got := countKind(envs, cloud.KubernetesWarningFactKind); got != 1 {
 		t.Fatalf("warning facts = %d, want 1", got)
 	}
 	for _, env := range envs {
-		if env.FactKind == facts.KubernetesWarningFactKind {
+		if env.FactKind == cloud.KubernetesWarningFactKind {
 			if env.Payload["reason"] != WarningForbiddenResource {
 				t.Fatalf("warning reason = %v, want forbidden_resource", env.Payload["reason"])
 			}
@@ -303,10 +304,10 @@ func TestSourceInvalidOwnerReferenceWarns(t *testing.T) {
 		t.Fatalf("Next() error = %v", err)
 	}
 	envs := drain(t, collected.Facts)
-	if got := countKind(envs, facts.KubernetesRelationshipFactKind); got != 0 {
+	if got := countKind(envs, cloud.KubernetesRelationshipFactKind); got != 0 {
 		t.Fatalf("relationship facts = %d, want 0 (owner not collected)", got)
 	}
-	if got := countKind(envs, facts.KubernetesWarningFactKind); got != 1 {
+	if got := countKind(envs, cloud.KubernetesWarningFactKind); got != 1 {
 		t.Fatalf("warning facts = %d, want 1 (invalid owner reference)", got)
 	}
 }
@@ -349,7 +350,7 @@ func TestSourceJobOwnedByCronJobEmitsOwnerEdge(t *testing.T) {
 	wantToID := identityFromMeta(clusterID, cronjob.Meta).ObjectID()
 
 	foundOwnerEdge := false
-	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+	for _, env := range envelopesOfKind(envs, cloud.KubernetesRelationshipFactKind) {
 		if env.Payload["relationship_type"] != string(RelationshipOwnerReference) {
 			continue
 		}
@@ -358,10 +359,10 @@ func TestSourceJobOwnedByCronJobEmitsOwnerEdge(t *testing.T) {
 		}
 	}
 	if !foundOwnerEdge {
-		t.Fatalf("no owner-reference relationship fact From=Job To=CronJob found in %d relationship facts", countKind(envs, facts.KubernetesRelationshipFactKind))
+		t.Fatalf("no owner-reference relationship fact From=Job To=CronJob found in %d relationship facts", countKind(envs, cloud.KubernetesRelationshipFactKind))
 	}
 
-	for _, env := range envelopesOfKind(envs, facts.KubernetesWarningFactKind) {
+	for _, env := range envelopesOfKind(envs, cloud.KubernetesWarningFactKind) {
 		if env.Payload["reason"] == WarningInvalidOwnerReference {
 			t.Fatalf("unexpected invalid_owner_reference warning for a Job whose CronJob owner was collected: %+v", env.Payload)
 		}

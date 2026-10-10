@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestKubernetesWorkloadMaterializationQuarantinesMissingObjectID is the
@@ -40,7 +41,7 @@ func TestKubernetesWorkloadMaterializationQuarantinesMissingObjectID(t *testing.
 	// Everything else is present so the ONLY reason to quarantine the fact is
 	// the missing required field.
 	malformed := facts.Envelope{
-		FactKind: facts.KubernetesPodTemplateFactKind,
+		FactKind: cloud.KubernetesPodTemplateFactKind,
 		FactID:   "fact-malformed",
 		Payload: map[string]any{
 			// "object_id" intentionally absent.

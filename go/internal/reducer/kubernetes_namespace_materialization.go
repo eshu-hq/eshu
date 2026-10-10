@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -157,7 +158,7 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.KubernetesNamespaceFactKind},
+		[]string{cloud.KubernetesNamespaceFactKind},
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for kubernetes namespace materialization: %w", err)
@@ -270,7 +271,7 @@ func ExtractKubernetesNamespaceNodeRows(envelopes []facts.Envelope) ([]map[strin
 	var quarantined []quarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
-		if env.FactKind != facts.KubernetesNamespaceFactKind {
+		if env.FactKind != cloud.KubernetesNamespaceFactKind {
 			continue
 		}
 		if env.IsTombstone {

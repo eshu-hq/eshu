@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
@@ -60,8 +61,8 @@ func NewNamespaceEnvelope(observation NamespaceObservation) (facts.Envelope, err
 	payload["collector_instance_id"] = observation.CollectorInstanceID
 	return newEnvelope(
 		observation.Identity.ClusterID,
-		facts.KubernetesNamespaceFactKind,
-		facts.KubernetesNamespaceSchemaVersion,
+		cloud.KubernetesNamespaceFactKind,
+		cloud.KubernetesNamespaceSchemaVersion,
 		objectID,
 		observation.GenerationID,
 		observation.CollectorInstanceID,

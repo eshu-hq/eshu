@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -39,7 +40,7 @@ func seamExactDigestEdgeFixture() []facts.Envelope {
 	return []facts.Envelope{
 		{
 			FactID:   "seam-pod-1",
-			FactKind: facts.KubernetesPodTemplateFactKind,
+			FactKind: cloud.KubernetesPodTemplateFactKind,
 			Payload: map[string]any{
 				"cluster_id":             "prod-eks",
 				"object_id":              objectID,

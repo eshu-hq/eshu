@@ -6,7 +6,7 @@ package kubernetes
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -24,7 +24,7 @@ func BuildNamespaceMaterializationReducerIntent(
 	generation scope.ScopeGeneration,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, hasNamespaceFact := lookup.FirstOfKind(facts.KubernetesNamespaceFactKind)
+	envelope, hasNamespaceFact := lookup.FirstOfKind(cloud.KubernetesNamespaceFactKind)
 	clusterID := strings.TrimSpace(scopeValue.Metadata["cluster_id"])
 	reconcileComplete := scopeValue.ScopeKind == scope.KindCluster &&
 		scopeValue.CollectorKind == scope.CollectorKubernetesLive &&

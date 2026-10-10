@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestKubernetesRelationshipQuarantinesMissingRelationshipType proves the same
@@ -19,7 +20,7 @@ func TestKubernetesRelationshipQuarantinesMissingRelationshipType(t *testing.T) 
 	t.Parallel()
 
 	malformed := facts.Envelope{
-		FactKind: facts.KubernetesRelationshipFactKind,
+		FactKind: cloud.KubernetesRelationshipFactKind,
 		FactID:   "fact-rel-malformed",
 		Payload: map[string]any{
 			// "relationship_type" intentionally absent.
@@ -52,7 +53,7 @@ func TestKubernetesWarningQuarantinesMissingReason(t *testing.T) {
 	t.Parallel()
 
 	malformed := facts.Envelope{
-		FactKind: facts.KubernetesWarningFactKind,
+		FactKind: cloud.KubernetesWarningFactKind,
 		FactID:   "fact-warn-malformed",
 		Payload: map[string]any{
 			// "reason" intentionally absent.

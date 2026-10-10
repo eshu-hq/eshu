@@ -255,7 +255,7 @@ func collectorFactKinds() map[string][]string {
 		string(scope.CollectorScannerWorker):      facts.ScannerWorkerFactKinds(),
 		string(scope.CollectorSemanticExtraction): facts.SemanticFactKinds(),
 		string(scope.CollectorKubernetesLive): appendFactKinds(
-			facts.KubernetesLiveFactKinds(),
+			cloud.KubernetesLiveFactKinds(),
 			filterFactKinds(facts.SecretsIAMFactKinds(), "k8s_", "eks_"),
 		),
 		string(scope.CollectorVaultLive):       filterFactKinds(facts.SecretsIAMFactKinds(), "vault_", "secrets_iam_"),

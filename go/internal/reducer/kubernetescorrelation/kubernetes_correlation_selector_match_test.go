@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
@@ -54,7 +55,7 @@ func TestBuildKubernetesCorrelationDecisionsSelectorMatchFromRealCollectorFact(t
 	}
 	envelope := facts.Envelope{
 		FactID:   "rel-selector-match-real",
-		FactKind: facts.KubernetesRelationshipFactKind,
+		FactKind: cloud.KubernetesRelationshipFactKind,
 		Payload:  payload,
 	}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
@@ -441,9 +442,9 @@ func KubernetesCorrelationFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          kubernetesCorrelationFamilyScopeID,
 			GenerationID:     kubernetesCorrelationFamilyGenerationID,
-			FactKind:         facts.KubernetesPodTemplateFactKind,
+			FactKind:         cloud.KubernetesPodTemplateFactKind,
 			StableFactKey:    kubernetesCorrelationFamilyWorkloadObjectID(fixture.Name),
-			SchemaVersion:    facts.KubernetesPodTemplateSchemaVersion,
+			SchemaVersion:    cloud.KubernetesPodTemplateSchemaVersion,
 			CollectorKind:    kubernetesCorrelationFamilyK8sCollectorKind,
 			SourceConfidence: kubernetesCorrelationFamilySourceConfidence,
 			Payload:          kubernetesCorrelationFamilyPodTemplatePayload(fixture),

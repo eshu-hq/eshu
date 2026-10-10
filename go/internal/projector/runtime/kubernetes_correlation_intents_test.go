@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -260,8 +261,8 @@ func kubernetesPodTemplateEnvelope(factID, scopeID, generationID string) facts.E
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.KubernetesPodTemplateFactKind,
-		SchemaVersion:    facts.KubernetesPodTemplateSchemaVersion,
+		FactKind:         cloud.KubernetesPodTemplateFactKind,
+		SchemaVersion:    cloud.KubernetesPodTemplateSchemaVersion,
 		CollectorKind:    "kubernetes_live",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
@@ -284,8 +285,8 @@ func kubernetesWarningEnvelope(factID, scopeID, generationID string) facts.Envel
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.KubernetesWarningFactKind,
-		SchemaVersion:    facts.KubernetesWarningSchemaVersion,
+		FactKind:         cloud.KubernetesWarningFactKind,
+		SchemaVersion:    cloud.KubernetesWarningSchemaVersion,
 		CollectorKind:    "kubernetes_live",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),

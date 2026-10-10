@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
@@ -161,8 +162,8 @@ func NewPodTemplateEnvelope(observation PodTemplateObservation) (facts.Envelope,
 	payload["collector_instance_id"] = observation.CollectorInstanceID
 	return newEnvelope(
 		observation.Identity.ClusterID,
-		facts.KubernetesPodTemplateFactKind,
-		facts.KubernetesPodTemplateSchemaVersion,
+		cloud.KubernetesPodTemplateFactKind,
+		cloud.KubernetesPodTemplateSchemaVersion,
 		objectID,
 		observation.GenerationID,
 		observation.CollectorInstanceID,
@@ -191,7 +192,7 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 	}
 	fromID := observation.From.ObjectID()
 	toID := observation.To.ObjectID()
-	stableKey := facts.StableID(facts.KubernetesRelationshipFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.KubernetesRelationshipFactKind, map[string]any{
 		"from": fromID,
 		"to":   toID,
 		"type": string(observation.Type),
@@ -215,8 +216,8 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 	payload["collector_instance_id"] = observation.CollectorInstanceID
 	return newEnvelope(
 		observation.ClusterID,
-		facts.KubernetesRelationshipFactKind,
-		facts.KubernetesRelationshipSchemaVersion,
+		cloud.KubernetesRelationshipFactKind,
+		cloud.KubernetesRelationshipSchemaVersion,
 		stableKey,
 		observation.GenerationID,
 		observation.CollectorInstanceID,
@@ -242,7 +243,7 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		return facts.Envelope{}, fmt.Errorf("warning cluster_id must not be blank")
 	}
 	resourceScope := strings.TrimSpace(observation.ResourceScope)
-	stableKey := facts.StableID(facts.KubernetesWarningFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.KubernetesWarningFactKind, map[string]any{
 		"cluster_id":     clusterID,
 		"reason":         reason,
 		"resource_scope": resourceScope,
@@ -261,8 +262,8 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 	payload["collector_instance_id"] = observation.CollectorInstanceID
 	return newEnvelope(
 		clusterID,
-		facts.KubernetesWarningFactKind,
-		facts.KubernetesWarningSchemaVersion,
+		cloud.KubernetesWarningFactKind,
+		cloud.KubernetesWarningSchemaVersion,
 		stableKey,
 		observation.GenerationID,
 		observation.CollectorInstanceID,

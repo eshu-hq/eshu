@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -203,8 +204,8 @@ func kubernetesNamespaceEnvelope(factID, scopeID, generationID string) facts.Env
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.KubernetesNamespaceFactKind,
-		SchemaVersion:    facts.KubernetesNamespaceSchemaVersion,
+		FactKind:         cloud.KubernetesNamespaceFactKind,
+		SchemaVersion:    cloud.KubernetesNamespaceSchemaVersion,
 		CollectorKind:    "kubernetes_live",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),

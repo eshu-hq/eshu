@@ -421,7 +421,7 @@ func liveFamilies() []liveFamily {
 		{"gcp", facts.GCPFactKinds, facts.GCPSchemaVersion},
 		{"incident_context", facts.IncidentContextFactKinds, facts.IncidentContextSchemaVersion},
 		{"incident_routing", facts.IncidentRoutingFactKinds, facts.IncidentRoutingSchemaVersion},
-		{"kubernetes_live", facts.KubernetesLiveFactKinds, facts.KubernetesLiveSchemaVersion},
+		{"kubernetes_live", cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},
 		{"observability", facts.ObservabilityFactKinds, facts.ObservabilitySchemaVersion},
 		{"oci_registry", facts.OCIRegistryFactKinds, facts.OCIRegistrySchemaVersion},
 		{"package_registry", facts.PackageRegistryFactKinds, facts.PackageRegistrySchemaVersion},
