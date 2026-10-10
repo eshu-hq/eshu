@@ -1,621 +1,177 @@
 name: Ifa Determinism Gate
-
-# P4 (#4397) advisory->blocking flip (design doc
-# docs/internal/design/4389-ifa-conformance-platform.md, line 517's RULE): the
-# Ifa graph-determinism matrix (Layer 2, scripts/verify-ifa-determinism.sh)
-# and its dead-letter failure-path leg (scripts/verify-ifa-dead-letter-
-# matrix.sh) become per-PR path-filtered BLOCKING CI gates, mirroring
-# golden-corpus-gate.yml. The RULE requires the N-sensitive Tier 2 run (the
-# demo-org cassette PLUS the 8-project synth-multiscope cassette) — a gate
-# that only ever ran the single-generation demo-org cassette could stay green
-# forever without ever exercising a genuine worker-count race. Both matrix
-# scripts already drive that Tier 2 combination; this workflow wires them
-# into per-PR CI instead of leaving them local-only.
-
 on:
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
   merge_group:
     types: [checks_requested]
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-    paths:
-      # NOTHING GATES THIS LIST against specs/ci-gates.v1.yaml. The registry's
-      # drift check (scripts/verify-ci-gates-registry.sh) compares trigger
-      # strings only for workflows that select jobs with a dorny/paths-filter
-      # step; this workflow uses a plain `on.paths` list, so a path deleted here
-      # while its registry trigger stays leaves that check at exit 0 -- measured,
-      # not assumed. Keep this list in step with the `ifa-determinism`,
-      # `ifa-dead-letter-matrix` and `ifa-fault-injection` triggers by hand.
-      # `push:` above has no paths filter, so main-push coverage is unaffected.
-      - 'scripts/lib/ifa_mirror_pins.sh'
-      - 'scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh'
-      - 'scripts/lib/test-ifa-determinism-private-data-cases.sh'
-      - 'scripts/lib/ifa_private_data_pattern.sh'
-      - 'scripts/lib/ifa_dead_command_line.sh'
-      # The scripts/lib/ Ifá surface as globs, not the 65 filenames that were
-      # here (#6200). This filter is shared by all four jobs below -- there is
-      # no per-job `if:` -- so it is the single thing that decides whether ANY
-      # Ifá live proof re-runs on a change. It named files one at a time, and
-      # the blocking 500-line cap splits this directory more often than any Go
-      # package: each split left the original filename in place, so nothing
-      # dangled, while the new half started no job at all. Two files were dark
-      # that way on main --
-      # test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh and
-      # test-ifa-fault-injection-generic-runner-lease-audit-cases.sh.
-      #
-      # These strings must stay spelled EXACTLY as specs/ci-gates.v1.yaml
-      # spells them: the registry-subset-of-workflow lockstep in
-      # scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh compares
-      # trigger STRINGS without expanding globs, so a registry-only glob
-      # leaves both gates selectable-but-never-started (#6164's shape).
-      #
-      # Several of these also close a hole the sourced-to-triggered drift walk
-      # cannot see on its own: the fault dispatcher and the mirrors load their
-      # modules through VARIABLE paths, and internal/cigates/scripttrigger.go
-      # only resolves a literal "scripts/" inside a source line.
-      - 'scripts/lib/ifa_live_gate_*.sh'
-      - 'scripts/lib/ifa_determinism_*.sh'
-      - 'scripts/lib/ifa_family_*.sh'
-      - 'scripts/lib/ifa_*_live*.sh'
-      - 'scripts/lib/ifa_fault_*.sh'
-      - 'scripts/lib/test-ifa-determinism-*.sh'
-      - 'scripts/lib/test-ifa-family-registry-*.sh'
-      - 'scripts/lib/test-ifa-fault-injection-*.sh'
-      # The per-family row files, not just the orchestrator. The orchestrator
-      # holds no family data at all -- every blocker_kind, wait_key and anchor
-      # lives under rows/. Naming only the parent file would leave the exact
-      # edit we make most often (correcting one family's row) triggering
-      # nothing.
-      - 'scripts/lib/ifa_family_registry/**'
-      - 'scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh'
-      # The per-family pin files, sourced by variable path from the pins
-      # module. Their governing rule is that pins are hand-derived and never
-      # generated from the registry; editing one to "just make it match" has
-      # to re-run the gate that would object.
-      - 'scripts/lib/ifa_family_registry_pins/**'
-      - 'scripts/lib/ifa_fault_injection_repo_dependency_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh'
-      - 'testdata/cassettes/repodependency/**'
-      - 'go/internal/ifa/testdata/repodependency/**'
-      # The ifa package root, replacing 12 filenames and two <family>_* globs
-      # (#6200). go/cmd/ifa imports this package from its own production
-      # files, so every non-test file in it compiles into the binary both live
-      # jobs run; 19 were dark, including the shared Odù machinery (odu.go,
-      # expectations.go, coverage.go) and the compiled Odù for code_call and
-      # rationale. Same string-exact registry lockstep as the two globs above.
-      #
-      # Deliberate cost, not an oversight: a paths: glob cannot carve out
-      # *_test.go, so this row and the reducer/factschema globs also sweep in
-      # 826 test files (27 here, 768 under go/internal/reducer/**, 31 in
-      # sdk/go/factschema). A test-only edit therefore arms both live Docker
-      # gates even though test files compile into no binary those gates build.
-      # The "one package, one binary" rationale above covers production files
-      # only; the alternative is re-enumerating filenames, which is the drift
-      # this glob exists to end. Accepted: over-triggering costs CI minutes,
-      # under-triggering ships a dark gate (#6200).
-      - 'go/internal/ifa/*.go'
-      # The family fixtures moved to go/internal/ifa/familyodu/ (#6594 P1), which
-      # the glob above does not cross into. These literals mirror the registry's
-      # stem-pin rows string-exactly (the lockstep compares trigger STRINGS), so a
-      # family edit keeps arming this workflow's gates.
-      - 'go/internal/ifa/familyodu/kubernetes_namespace_environment_family_odu.go'
-      - 'go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go'
-      - 'go/internal/ifa/familyodu/iam_can_assume_family_odu.go'
-      - 'go/internal/ifa/familyodu/iam_can_perform_family_odu.go'
-      - 'go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go'
-      - 'go/internal/ifa/familyodu/iam_escalation_family_odu.go'
-      - 'go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go'
-      - 'go/internal/ifa/familyodu/s3_logs_to_family_odu.go'
-      - 'go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go'
-      - 'go/internal/ifa/familyodu/deployable_unit_family_odu.go'
-      - 'go/internal/ifa/familyodu/documentation_family_odu.go'
-      - 'go/internal/ifa/familyodu/symbol_runtime_family_odu.go'
-      # ifa-dead-letter-matrix's own two registry triggers, kept as literals
-      # beside the glob that already covers them: that gate shares this
-      # workflow's single paths: filter, and the registry-subset-of-workflow
-      # lockstep compares trigger STRINGS without expanding globs. That loop
-      # covers ifa-dead-letter-matrix as of #6200 -- before that it iterated
-      # only determinism and fault-injection, so nothing asserted this gate's
-      # triggers were a subset at all and these literals were unenforced.
-      - 'go/internal/ifa/mutate.go'
-      - 'go/internal/ifa/dead_letters.go'
-      - 'scripts/lib/ifa_fault_injection_workload_dependency_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh'
-      - 'testdata/cassettes/workloaddependency/**'
-      - 'go/internal/ifa/testdata/workloaddependency/**'
-      # One entry, not the ~40 filenames that were here (#6200). Both live
-      # jobs below build the whole eshu-reducer binary, so any non-test file
-      # in this package can change what they prove; a hand-picked subset went
-      # dark every time the blocking 500-line cap forced a split, because the
-      # original filename kept its entry and nothing dangled. specs/
-      # ci-gates.v1.yaml carries the same single entry for both gates, and the
-      # registry-subset-of-workflow lockstep in scripts/lib/
-      # test-ifa-determinism-registry-lockstep-cases.sh compares trigger
-      # STRINGS without expanding globs -- so this line must stay spelled
-      # exactly as the registry spells it or the gates become
-      # selectable-but-never-started.
-      - 'go/internal/reducer/**'
-      - 'go/internal/storage/cypher/edge/materialized/endpoints.go'
-      - 'go/internal/collector/repo/git/fact_builder*.go'
-      - 'go/internal/collector/repo/git/followup_facts.go'
-      - 'go/internal/projector/canonical/import_extract.go'
-      - 'go/internal/projector/runtime/workload_dependency_cassette_admission_test.go'
-      - 'go/internal/storage/postgres/ingestion_reopen*.go'
-      - 'go/internal/storage/cypher/edge/materialized/repo_dependency.go'
-      - 'go/internal/storage/cypher/canonical_relationships.go'
-      - 'go/internal/storage/postgres/migrations/**'
-      - 'go/internal/graphschemacompat/**'
-      - 'go/internal/projector/failure/retry.go'
-      - 'go/internal/projector/decode/schema_version_admission.go'
-      - 'go/internal/storage/postgres/queue/failure_metadata.go'
-      - 'go/internal/storage/postgres/queue/backoff.go'
-      - 'go/internal/storage/cypher/writer.go'
-      - 'go/internal/storage/cypher/phase_group_metadata.go'
-      - 'go/internal/storage/cypher/phase_group_sanitize.go'
-      - 'go/internal/storage/cypher/statement_chunk.go'
-      - 'go/internal/storage/cypher/bounded_retract_drain.go'
-      - 'go/internal/storage/cypher/reconciliation_drift_metrics.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_entities_singleton.go'
-      - 'go/internal/storage/postgres/lock/deferred_maintenance.go'
-      - 'go/internal/storage/postgres/relationship_reference_keys.go'
-      - 'go/internal/storage/postgres/relationship_store*.go'
-      - 'go/internal/storage/postgres/ingestion_backfill*.go'
-      - 'go/internal/storage/postgres/ingestion_flux_cross_repo_telemetry.go'
-      - 'go/internal/relationships/**'
-      - 'go/internal/runtime/data_stores.go'
-      - 'go/internal/runtime/retry_policy.go'
-      - 'go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go'
-      - 'go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go'
-      - 'go/go.mod'
-      - 'go/go.sum'
-      - 'sdk/go/factschema/go.mod'
-      # The factschema root package and the two v1 packages whose facts the
-      # driven cassettes carry, replacing six filenames (#6200). The decode
-      # machinery every Decode* funnels through (decode_map.go's
-      # decodeMapIntoWith/assignField, fields.go's requiredPayloadKeys) and
-      # the encode_direct.go helpers that build the synth cassette had split
-      # out of decode.go under the line cap and were named by nothing. Same
-      # string-exact lockstep as the reducer entry above.
-      - 'sdk/go/factschema/*.go'
-      - 'sdk/go/factschema/codegraph/v1/**'
-      - 'sdk/go/factschema/gcp/v1/**'
-      - 'specs/ci-gates.v1.yaml'
-      - 'docker-compose.yaml'
-      - 'testdata/cassettes/gcpcloud/supply-chain-demo.json'
-      - 'testdata/golden/e2e-20repo-snapshot.json'
-      - 'go/cmd/golden-corpus-gate/main.go'
-      - 'go/cmd/golden-corpus-gate/runner.go'
-      - 'go/cmd/golden-corpus-gate/drains.go'
-      - 'go/cmd/golden-corpus-gate/drains_readiness_classes.go'
-      - 'go/cmd/golden-corpus-gate/shared.go'
-      - 'go/internal/goldengate/snapshot.go'
-      - 'go/internal/goldengate/evaluate_drains.go'
-      - 'go/internal/goldengate/report.go'
-      - 'go/internal/replay/cassette/**'
-      - 'go/internal/replay/concurrentreplay/**'
-      - 'go/internal/storage/postgres/ingestion.go'
-      - 'go/internal/storage/postgres/ingestion_queries.go'
-      - 'go/internal/storage/postgres/ingestion_catalog*.go'
-      - 'go/internal/storage/postgres/ingestion_backfill_generation_guard.go'
-      - 'go/internal/storage/postgres/facts_streaming.go'
-      - 'go/internal/storage/postgres/facts.go'
-      - 'go/internal/storage/postgres/facts/payload/json.go'
-      - 'go/internal/storage/postgres/migrations/008_shared_projection_intents.sql'
-      - 'go/internal/storage/postgres/migrations/011_shared_projection_acceptance.sql'
-      - 'go/internal/storage/postgres/migrations/012_graph_projection_phase_state.sql'
-      - 'go/cmd/bootstrap-data-plane/schema_adoption.go'
-      - 'go/internal/graph/schema*.go'
-      - 'go/cmd/projector/config.go'
-      - 'go/cmd/projector/nornicdb_wiring.go'
-      - 'go/internal/projector/service.go'
-      - 'go/internal/projector/service_superseded.go'
-      - 'go/internal/storage/postgres/projector_queue.go'
-      - 'go/internal/storage/postgres/projector_queue_claim_pool_sql.go'
-      - 'go/internal/storage/postgres/projector_queue_claim_sql.go'
-      - 'go/internal/storage/postgres/projector_queue_scan.go'
-      - 'go/internal/storage/postgres/projector_queue_sql.go'
-      - 'go/internal/storage/nornicdb/**'
-      - 'go/internal/storage/cypher/canonical_node_writer_options.go'
-      - 'go/internal/storage/cypher/instrumented.go'
-      - 'go/internal/storage/cypher/retrying_executor.go'
-      - 'go/internal/storage/cypher/retryable_error.go'
-      - 'go/internal/storage/cypher/timeout_executor.go'
-      - 'go/internal/graphbackpressure/**'
-      - 'go/cmd/reducer/observed_service_wiring.go'
-      - 'go/cmd/reducer/neo4j_wiring.go'
-      - 'go/cmd/reducer/executor_adapters.go'
-      - 'go/cmd/reducer/graph_write_backpressure_wiring.go'
-      - 'go/cmd/reducer/worker_gauge.go'
-      - 'go/internal/storage/postgres/reducer_queue.go'
-      - 'go/internal/storage/postgres/reducer_queue_batch.go'
-      - 'go/internal/storage/postgres/reducer_queue_batch_query.go'
-      - 'go/internal/storage/postgres/reducer_queue_helpers.go'
-      - 'go/internal/storage/postgres/reducer_queue_readiness_sql.go'
-      # The fault-injection mirror reads reopenSucceededReducerWorkQuery and
-      # ReopenSucceededReducerSetClause from the replay file (#7823): a refactor
-      # there must re-run this gate, as #7807 proved by merging red.
-      - 'go/internal/storage/postgres/reducer_queue_replay.go'
-      - 'go/internal/storage/postgres/reducer_queue_validation.go'
-      - 'go/internal/storage/postgres/reducer_queue_ack.go'
-      - 'go/internal/ifa/graphdump/**'
-      # The guards moved to go/internal/ifa/materializededges/ (#6053), so the
-      # former per-file glob for those guards matched nothing once they moved, so
-      # it was dropped here and from all three gate blocks in ci-gates.v1.yaml
-      # together -- the registry-subset-of-workflow lockstep compares trigger
-      # strings, so removing it from one side alone breaks the mirror.
-      #
-      # Without the line below both live gates are SELECTED as blocking by the
-      # registry and then never started by GitHub, because a PR touching only the
-      # moved package matches no path here. The determinism mirror's
-      # registry-subset-of-workflow loop is the only check that sees this -- the
-      # registry lane and --drift both pass while it is broken.
-      - 'go/internal/ifa/materializededges/**'
-      - 'go/cmd/bootstrap-data-plane/main.go'
-      - 'go/cmd/reducer/main.go'
-      - 'go/cmd/reducer/canonical_graph_writers.go'
-      - 'go/internal/graphowner/family_writers.go'
-      - 'go/internal/graphowner/gated_writer.go'
-      - 'go/internal/storage/postgres/graph/owner/store.go'
-      - 'go/cmd/reducer/run.go'
-      - 'go/cmd/reducer/config.go'
-      - 'go/cmd/reducer/config_projection.go'
-      - 'go/cmd/reducer/main_helpers.go'
-      - 'go/internal/storage/cypher/*code_call*.go'
-      - 'go/internal/storage/cypher/payload_accessors.go'
-      - 'go/internal/storage/cypher/canonical_instantiates_edges.go'
-      - 'go/internal/storage/cypher/edge/writer/writer.go'
-      - 'go/internal/storage/cypher/canonical_retract.go'
-      - 'go/internal/storage/cypher/edge/writer/retract*.go'
-      - 'go/internal/storage/cypher/canonical_node_writer.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_phases.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_entities.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_metadata.go'
-      - 'go/internal/storage/cypher/canonical_node_cypher.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_retract.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_delta_retract.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_retract_labels.go'
-      - 'go/internal/content/writer.go'
-      - 'go/internal/projector/canonical/builder.go'
-      - 'go/internal/projector/canonical/codegraph_extract.go'
-      - 'go/internal/projector/canonical/delta.go'
-      - 'go/internal/projector/decode/codegraph.go'
-      - 'go/internal/projector/decode/fact_kind.go'
-      - 'go/internal/projector/canonical/materialization.go'
-      - 'go/internal/projector/runtime/projection.go'
-      - 'go/internal/projector/runtime/reducer_intent.go'
-      - 'go/internal/projector/decode/payload.go'
-      - 'go/internal/projector/runtime/scope_generation_intents.go'
-      - 'go/internal/projector/gcp/resource_materialization_intents.go'
-      - 'go/internal/projector/gcp/relationship_materialization_intents.go'
-      - 'go/internal/projector/security/group_reachability_intents.go'
-      - 'go/internal/projector/runtime/reducer_intent_fact_index.go'
-      - 'go/internal/projector/runtime/phase.go'
-      - 'go/internal/projector/canonical/entity_identity.go'
-      - 'go/internal/projector/runtime/stages.go'
-      - 'go/cmd/projector/main.go'
-      - 'go/cmd/projector/runtime_wiring.go'
-      - 'go/internal/storage/postgres/code_call_intent_writer.go'
-      - 'go/internal/storage/postgres/facts_active_code_call_symbols.go'
-      - 'go/internal/storage/postgres/facts_filtered.go'
-      - 'go/internal/storage/postgres/shared_intent_acceptance_writer.go'
-      - 'go/internal/storage/postgres/shared_projection_acceptance*.go'
-      - 'go/internal/storage/postgres/accepted_generation.go'
-      - 'go/internal/storage/postgres/graph_projection_phase_state.go'
-      - 'go/internal/storage/postgres/reducer_queue_conflict.go'
-      - 'go/internal/storage/postgres/schema.go'
-      - 'go/internal/storage/postgres/schema_bootstrap_lock.go'
-      - 'go/internal/storage/postgres/shared_intents*.go'
-      - 'schema/data-plane/postgres/008_shared_projection_intents.sql'
-      - 'schema/data-plane/postgres/011_shared_projection_acceptance.sql'
-      - 'schema/data-plane/postgres/012_graph_projection_phase_state.sql'
-      # The determinism matrix drives the Tier-2 synth-multiscope cassette
-      # generated by go/internal/synth/gcp (GenerateMultiScope). A change there
-      # that broke scope disjointness would make the worker matrix go inert, so
-      # it MUST retrigger this gate.
-      - 'go/internal/synth/gcp/**'
-      - 'go/cmd/ifa/**'
-      - 'go/internal/storage/cypher/cloud_resource_node_writer.go'
-      - 'go/internal/storage/cypher/cloud_resource_node_writer_teeth.go'
-      - 'go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go'
-      - 'scripts/verify-ifa-determinism.sh'
-      - 'scripts/test-verify-ifa-determinism.sh'
-      - 'scripts/verify-ifa-dead-letter-matrix.sh'
-      - 'scripts/test-verify-ifa-dead-letter-matrix.sh'
-      - 'scripts/lib/ifa_determinism_common.sh'
-      # P6 (#4580) deterministic fault-injection: the in-binary decorator, its
-      # build-tagged classification regression test, the reducer fault wiring,
-      # and the Docker gate that proves real recovery (zero dead letters, graph
-      # identical to the fault-free baseline). A change to any of these must
-      # re-run the fault matrix.
-      - 'go/internal/storage/cypher/fault/executor/*.go'
-      - 'go/internal/replay/faultreplay/**'
-      - 'go/cmd/reducer/ifa_fault_wiring.go'
-      - 'go/cmd/reducer/ifa_fault_wiring_off.go'
-      - 'scripts/verify-ifa-fault-injection.sh'
-      # The fault job installs ripgrep through this before running the gate,
-      # and the gate's preconditions shell out to rg.
-      - 'scripts/ci/install-apt-packages.sh'
-      # #6162: every Go-building job (determinism-matrix, dead-letter-matrix,
-      # fault-injection) pre-warms modules through this shared retry helper
-      # before its first build/test step. verify-ci-gates-registry.sh checks
-      # every job's `run:` line against its gate's registry triggers, so this
-      # row keeps a PR editing only the helper from selecting no gate locally
-      # and failing first in CI.
-      - 'scripts/ci/go-mod-download-retry.sh'
-      - 'scripts/test-verify-ifa-fault-injection.sh'
-      # #5351 materialized-edge exhaustiveness gate: the SQL relationship family
-      # cassette is driven into every determinism cell (with a per-cell
-      # `ifa assert-edges`) and every fault-injection cell (with a baseline
-      # `ifa assert-edges`), so the materialized_edges:sql_relationships manifest
-      # row's proof_gate: ifa-determinism / ifa-fault-injection claims are backed
-      # by a live replay of the family. A write-path-only regression to the SQL
-      # edge writer or materialization handler is exactly the silent-no-op class
-      # the pure seam cannot catch, so it MUST retrigger these live lanes.
-      - 'go/internal/storage/cypher/edge/writer/sql.go'
-      - 'specs/ifa-materialized-edge-coverage.v1.yaml'
-      - 'specs/ifa-materialized-edge-coverage-direct.v1.yaml'
-      - 'testdata/cassettes/sqlrelationships/**'
-      # code_calls (#5991) is driven and set-exactly asserted in every
-      # determinism cell and in the fault-free and domain-scoped recovery cells.
-      # Any cassette change therefore retriggers both live proof lanes.
-      - 'testdata/cassettes/codecalls/**'
-      # The expected-edge-set assertion files `ifa assert-edges` compares the
-      # live graph against live under this package-local testdata tree (NOT
-      # testdata/cassettes/, which the offline cassette validator scans). A
-      # change to the expected set changes what the live lanes assert, so it
-      # MUST retrigger them.
-      - 'go/internal/ifa/testdata/sqlrelationships/**'
-      # The live lanes compare code_calls against this exact expected set.
-      - 'go/internal/ifa/testdata/codecalls/**'
-      # documentation_edges (#5994) is driven and set-exactly asserted in every
-      # determinism cell, pre- and post-delta, and in the fault-free and two
-      # domain-scoped recovery cells. Its cassette and its expected-edge set are
-      # the same two artifacts the resolver reads, so a change to either changes
-      # what the live lanes assert and MUST retrigger them.
-      - 'testdata/cassettes/documentation/**'
-      - 'go/internal/ifa/testdata/documentation/**'
-      - 'sdk/go/factschema/documentation/v1/**'
-      # Glob, not the canonical_ literal: the registry declares this shape, and it
-      # is what covers edge/writer/documentation_labels.go -- buildDocumentationRowMap's
-      # target_kind switch, whose routing the family guard defers to the live assert.
-      - 'go/internal/storage/cypher/edge/writer/*documentation*.go'
-      # codeowners_ownership_edges (#5992). Its Odù, cassette, expected-edge
-      # set, reducer stage, writer, and live/fault helpers are all inputs to
-      # what the live lanes assert, so each one must retrigger them.
-      - 'sdk/go/factschema/codeowners/v1/**'
-      # Glob though only canonical_codeowners_edges.go exists today: the
-      # documentation family's literal was correct until its writer split into
-      # a second file.
-      - 'go/internal/storage/cypher/*codeowners*.go'
-      - 'testdata/cassettes/codeowners/**'
-      - 'go/internal/ifa/testdata/codeowners/**'
-      - 'scripts/lib/ifa_fault_injection_inheritance_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_shell_exec_cells.sh'
-      # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
-      # one shared live lib (sourced by BOTH gates), one fault-ONLY cells
-      # file (verify-ifa-determinism.sh never sources a *_cells.sh file for
-      # any family -- only its live-lib companion).
-      # submodule_pin_edges (#6002). Its Odù, cassette, expected-edge set,
-      # reducer stage, and live/fault helpers are all inputs to what the live
-      # lanes assert, so each one must retrigger them. The family's guard
-      # (submodule_pin.go) lives in
-      # go/internal/ifa/materializededges/, already a trigger above (the
-      # #6199 split's directory glob) -- not repeated here. Its reducer-side
-      # decode file (go/internal/reducer/factschema_decode_submodule.go) and
-      # the SDK-side decoder and fact-kind constant it calls into
-      # (sdk/go/factschema/decode_submodule.go, fact_kinds_submodule.go) are
-      # covered by the two package globs at the top of this list. The SDK pair
-      # needed a dedicated '*submodule*.go' entry until #6200, because neither
-      # file sits under submodule/v1/ and only that subtree was covered; the
-      # package glob subsumes it. A change that quarantined or mis-decoded
-      # every cassette pin at that seam would leave the coverage rows #6002
-      # unwaived backed by stale results, with no gate re-running to notice.
-      - 'sdk/go/factschema/submodule/v1/**'
-      - 'go/internal/storage/cypher/*submodule*.go'
-      - 'testdata/cassettes/submodulepin/**'
-      - 'go/internal/ifa/testdata/submodulepin/**'
-      # deployable_unit_edges (#5993) is driven and exact-set asserted in its own
-      # standalone determinism cell (after the shared N-loop, since materializing
-      # anything requires a bootstrap-index maintenance pass none of the other
-      # cells run) and in the family-scoped baseline plus two domain-scoped
-      # recovery cells on the fault-injection gate. Its live lib was split
-      # three ways under the 500-line cap and each half needed its own row
-      # here until the ifa_*_live*.sh glob above replaced all three -- that
-      # split is the exact shape #6200 is about, and the next one now needs no
-      # row at all.
-      - 'go/internal/storage/cypher/canonical_deployable_unit_edges.go'
-      - 'go/internal/storage/cypher/edge/writer/rowmaps.go'
-      - 'testdata/cassettes/deployableunit/**'
-      - 'go/internal/ifa/testdata/deployableunit/**'
-      - 'go/cmd/bootstrap-index/**'
-      # Pre-existing gap surfaced by the registry-derived check below: the fault
-      # gate triggers on this in the registry and the selector table, but the
-      # workflow never listed it.
-      - 'go/cmd/ifa/assert_edges.go'
-      # rationale_edges (#5998) is replayed and full-record asserted by both
-      # live lanes. Keep the handler, its directly used helpers, graph writer,
-      # replay canonicalizer, fixtures, and shared assertion helper in the
-      # workflow union. The fault-cell files still select only the fault
-      # registry gate during local path selection.
-      - 'go/internal/replay/canonical.go'
-      - 'go/internal/storage/cypher/canonical_rationale_edges.go'
-      - 'go/internal/storage/cypher/edge/writer/rationale_labels.go'
-      - 'go/internal/storage/cypher/canonical.go'
-      - 'go/internal/storage/cypher/backpressure_executor.go'
-      - 'testdata/cassettes/rationale/**'
-      - 'go/internal/ifa/testdata/rationale/**'
-      - 'go/internal/storage/cypher/canonical_implements_edges.go'
-      - 'go/internal/storage/cypher/canonical_inheritance_retract.go'
-      - 'go/internal/storage/cypher/edge/writer/inheritance_labels.go'
-      - 'go/internal/storage/cypher/edge/writer/shell_exec.go'
-      - 'testdata/cassettes/inheritance/**'
-      - 'testdata/cassettes/shellexec/**'
-      - 'go/internal/ifa/testdata/inheritance/**'
-      - 'go/internal/ifa/testdata/shellexec/**'
-      # kubernetes_namespace_environment / iam_instance_profile_role (#6228),
-      # the first DIRECT-materialization families in these matrices. Mirrors
-      # the paths specs/ci-gates.v1.yaml lists for BOTH the ifa-determinism
-      # and ifa-fault-injection gates since #6309 landed the fault cells. The
-      # registry-subset-of-workflow check fails if the two drift, because a
-      # gate selected as blocking from a trigger this filter omits is selected
-      # and then never starts.
-      #
-      # This single shared on.pull_request.paths filter ARMS all four jobs on
-      # these paths, since there is no per-job condition.
-      - 'go/internal/ifa/kubernetes_namespace_environment_family_odu.go'
-      - 'go/internal/ifa/iam_instance_profile_role_family_odu.go'
-      - 'go/internal/ifa/direct_family_cassette.go'
-      - 'go/internal/reducer/kubernetes_namespace_materialization.go'
-      - 'go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go'
-      - 'go/internal/reducer/iaminstprofile/iam_instance_profile_role_edge_rows.go'
-      - 'go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
-      - 'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go'
-      - 'testdata/cassettes/kubernetesnamespaceenvironment/**'
-      - 'testdata/cassettes/iaminstanceprofilerole/**'
-      - 'testdata/cassettes/iamcanassume/**'
-      - 'testdata/cassettes/iamcanperform/**'
-      - 'testdata/cassettes/workloadcloudrelationship/**'
-      - 'testdata/cassettes/iamescalation/**'
-      - 'testdata/cassettes/ec2usesprofile/**'
-      - 'testdata/cassettes/s3logsto/**'
-      - 'testdata/cassettes/kubernetescorrelation/**'
-      - 'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**'
-      - 'go/internal/ifa/testdata/iaminstanceprofilerole/**'
-      - 'go/internal/ifa/testdata/iamcanassume/**'
-      - 'go/internal/ifa/testdata/iamcanperform/**'
-      - 'go/internal/ifa/testdata/workloadcloudrelationship/**'
-      - 'go/internal/ifa/testdata/iamescalation/**'
-      - 'go/internal/ifa/testdata/ec2usesprofile/**'
-      - 'go/internal/ifa/testdata/s3logsto/**'
-      - 'go/internal/ifa/testdata/kubernetescorrelation/**'
-      - 'scripts/lib/ifa_direct_family_live.sh'
-      - 'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh'
-      # Mirrors specs/ci-gates.v1.yaml's fault-block literals so the
-      # registry-subset-of-workflow lockstep holds for the per-family
-      # reach-ins (same treatment as the inheritance/shell_exec/
-      # repo_dependency cells literals above).
-      # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
-      # one shared cassette and Odù (symbolRuntimeFamilyOdu() is registered
-      # in catalog_seed.go's catalogSeed, so it is live-binary-consumed, not
-      # test-only), three SEPARATE expected-edge directories (one per
-      # family's own exact-set assertion). symbol_runtime_family_cassette.go
-      # is deliberately NOT listed here: LoadSymbolRuntimeFamilyOdu is called
-      # only from a Go unit test
-      # (materializededges/symbol_runtime_family_odu_test.go), never from
-      # any binary the live gates invoke.
-      - 'testdata/cassettes/symbolruntime/**'
-      - 'go/internal/ifa/testdata/handlesroute/**'
-      - 'go/internal/ifa/testdata/runsin/**'
-      - 'go/internal/ifa/testdata/invokescloudaction/**'
-      # The trio's PRODUCTION paths -- without these an extractor or MERGE
-      # identity edit does not re-run this gate, leaving the unwaived coverage
-      # rows green on a stale live proof. Mirrors specs/ci-gates.v1.yaml.
-      - 'go/internal/storage/cypher/canonical_handles_route_edges.go'
-      - 'go/internal/storage/cypher/canonical_runs_in_edges.go'
-      - 'go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go'
-      # Shared committed family fixture paths + existence guards, sourced by
-      # BOTH live gates: a change here changes what every cell drives.
-      - 'go/internal/storage/cypher/materialized_edge_*.go'
-      - 'go/internal/storage/cypher/edge/materialized/**'
-      - 'go/internal/storage/cypher/canonical_code_call_edges.go'
-      - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
-      - '.github/workflows/ifa-determinism-gate.yml'
-      #
-      # Mirrors of the registry rows the materialized-edge lockstep pins by
-      # literal text. Broader globs above already cover these files, but
-      # test-ifa-determinism-registry-lockstep-cases.sh compares the registry
-      # against this list with rg --fixed-strings: a registry trigger absent
-      # here marks both gates BLOCKING while GitHub never starts them, and the
-      # required-gates publisher then waits forever on checks that never
-      # arrive. Keep this list and the registry rows in lockstep (#6200).
-      - 'go/internal/ifa/catalog_seed.go'
-      - 'go/internal/ifa/code_call_family_catalog.go'
-      - 'go/internal/ifa/deployable_unit_family_catalog.go'
-      - 'go/internal/ifa/deployable_unit_family_odu.go'
-      - 'go/internal/ifa/documentation_family_catalog.go'
-      - 'go/internal/ifa/documentation_family_odu.go'
-      - 'go/internal/reducer/code_call*.go'
-      - 'go/internal/reducer/deployable_unit*.go'
-      - 'go/internal/reducer/documentation_edge*.go'
-      - 'scripts/lib/ifa_rationale_live.sh'
-      - 'sdk/go/factschema/codegraph/v1/repository.go'
-      - 'go/internal/ifa/symbol_runtime_family_odu.go'
-      - 'go/internal/reducer/code/call/materialization/*.go'
-      - 'scripts/lib/ifa_symbol_runtime_live.sh'
-      - 'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
-      - 'go/internal/ifa/sql_relationship_odu*.go'
-      - 'go/internal/reducer/sql_relationship_*.go'
-      - 'go/internal/reducer/sqlrelationship/sql_relationship_*.go'
-      #
-      # The rest of ifa-dead-letter-matrix's registry triggers, as literals.
-      # Globs above already cover these files, so the gate did fire without
-      # them -- but it fired by coincidence of those globs, not because
-      # anything asserted it. The registry-subset-of-workflow loop in
-      # scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh now covers
-      # ifa-dead-letter-matrix too, and it compares trigger STRINGS, so these
-      # rows are what make that invariant asserted rather than incidental
-      # (#6200).
-      - 'go/cmd/ifa/mutate_cassette.go'
-      - 'go/cmd/ifa/dead_letters.go'
-      - 'scripts/lib/ifa_determinism_common*.sh'
-
+    paths: [
+      'scripts/lib/ifa_mirror_pins.sh', 'scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh', 'scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh',
+      'scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh', 'scripts/lib/test-ifa-determinism-private-data-cases.sh', 'scripts/lib/ifa_private_data_pattern.sh',
+      'scripts/lib/ifa_dead_command_line.sh', 'scripts/lib/ifa_live_gate_*.sh', 'scripts/lib/ifa_determinism_*.sh',
+      'scripts/lib/ifa_family_*.sh', 'scripts/lib/ifa_*_live*.sh', 'scripts/lib/ifa_fault_*.sh',
+      'scripts/lib/test-ifa-determinism-*.sh', 'scripts/lib/test-ifa-family-registry-*.sh', 'scripts/lib/test-ifa-fault-injection-*.sh',
+      'scripts/lib/ifa_family_registry/**', 'scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh', 'scripts/lib/ifa_family_registry_pins/**',
+      'scripts/lib/ifa_fault_injection_repo_dependency_cells.sh', 'scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh', 'testdata/cassettes/repodependency/**',
+      'go/internal/ifa/testdata/repodependency/**', 'go/internal/ifa/*.go', 'go/internal/ifa/familyodu/kubernetes_namespace_environment_family_odu.go',
+      'go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go', 'go/internal/ifa/familyodu/iam_can_assume_family_odu.go', 'go/internal/ifa/familyodu/iam_can_perform_family_odu.go',
+      'go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go', 'go/internal/ifa/familyodu/iam_escalation_family_odu.go', 'go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go',
+      'go/internal/ifa/familyodu/s3_logs_to_family_odu.go', 'go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go', 'go/internal/ifa/familyodu/deployable_unit_family_odu.go',
+      'go/internal/ifa/familyodu/documentation_family_odu.go', 'go/internal/ifa/familyodu/symbol_runtime_family_odu.go', 'go/internal/ifa/mutate.go',
+      'go/internal/ifa/dead_letters.go', 'scripts/lib/ifa_fault_injection_workload_dependency_cells.sh', 'scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh',
+      'testdata/cassettes/workloaddependency/**', 'go/internal/ifa/testdata/workloaddependency/**', 'go/internal/reducer/**',
+      'go/internal/storage/cypher/edge/materialized/endpoints.go', 'go/internal/collector/repo/git/fact_builder*.go', 'go/internal/collector/repo/git/followup_facts.go',
+      'go/internal/projector/canonical/import_extract.go', 'go/internal/projector/runtime/workload_dependency_cassette_admission_test.go', 'go/internal/storage/postgres/ingestion_reopen*.go',
+      'go/internal/storage/cypher/edge/materialized/repo_dependency.go', 'go/internal/storage/cypher/canonical_relationships.go', 'go/internal/storage/postgres/migrations/**',
+      'go/internal/graphschemacompat/**', 'go/internal/projector/failure/retry.go', 'go/internal/projector/decode/schema_version_admission.go',
+      'go/internal/storage/postgres/queue/failure_metadata.go', 'go/internal/storage/postgres/queue/backoff.go', 'go/internal/storage/cypher/writer.go',
+      'go/internal/storage/cypher/phase_group_metadata.go', 'go/internal/storage/cypher/phase_group_sanitize.go', 'go/internal/storage/cypher/statement_chunk.go',
+      'go/internal/storage/cypher/bounded_retract_drain.go', 'go/internal/storage/cypher/reconciliation_drift_metrics.go', 'go/internal/storage/cypher/canonical_node_writer_entities_singleton.go',
+      'go/internal/storage/postgres/lock/deferred_maintenance.go', 'go/internal/storage/postgres/relationship_reference_keys.go', 'go/internal/storage/postgres/relationship_store*.go',
+      'go/internal/storage/postgres/ingestion_backfill*.go', 'go/internal/storage/postgres/ingestion_flux_cross_repo_telemetry.go', 'go/internal/relationships/**',
+      'go/internal/runtime/data_stores.go', 'go/internal/runtime/retry_policy.go', 'go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go',
+      'go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go', 'go/go.mod', 'go/go.sum',
+      'sdk/go/factschema/go.mod', 'sdk/go/factschema/*.go', 'sdk/go/factschema/codegraph/v1/**',
+      'sdk/go/factschema/gcp/v1/**', 'specs/ci-gates.v1.yaml', 'docker-compose.yaml',
+      'testdata/cassettes/gcpcloud/supply-chain-demo.json', 'testdata/golden/e2e-20repo-snapshot.json', 'go/cmd/golden-corpus-gate/main.go',
+      'go/cmd/golden-corpus-gate/runner.go', 'go/cmd/golden-corpus-gate/drains.go', 'go/cmd/golden-corpus-gate/drains_readiness_classes.go',
+      'go/cmd/golden-corpus-gate/shared.go', 'go/internal/goldengate/snapshot.go', 'go/internal/goldengate/evaluate_drains.go',
+      'go/internal/goldengate/report.go', 'go/internal/replay/cassette/**', 'go/internal/replay/concurrentreplay/**',
+      'go/internal/storage/postgres/ingestion.go', 'go/internal/storage/postgres/ingestion_queries.go', 'go/internal/storage/postgres/ingestion_catalog*.go',
+      'go/internal/storage/postgres/ingestion_backfill_generation_guard.go', 'go/internal/storage/postgres/facts_streaming.go', 'go/internal/storage/postgres/facts.go',
+      'go/internal/storage/postgres/facts/payload/json.go', 'go/internal/storage/postgres/migrations/008_shared_projection_intents.sql', 'go/internal/storage/postgres/migrations/011_shared_projection_acceptance.sql',
+      'go/internal/storage/postgres/migrations/012_graph_projection_phase_state.sql', 'go/cmd/bootstrap-data-plane/schema_adoption.go', 'go/internal/graph/schema*.go',
+      'go/cmd/projector/config.go', 'go/cmd/projector/nornicdb_wiring.go', 'go/internal/projector/service.go',
+      'go/internal/projector/service_superseded.go', 'go/internal/storage/postgres/projector_queue.go', 'go/internal/storage/postgres/projector_queue_claim_pool_sql.go',
+      'go/internal/storage/postgres/projector_queue_claim_sql.go', 'go/internal/storage/postgres/projector_queue_scan.go', 'go/internal/storage/postgres/projector_queue_sql.go',
+      'go/internal/storage/nornicdb/**', 'go/internal/storage/cypher/canonical_node_writer_options.go', 'go/internal/storage/cypher/instrumented.go',
+      'go/internal/storage/cypher/retrying_executor.go', 'go/internal/storage/cypher/retryable_error.go', 'go/internal/storage/cypher/timeout_executor.go',
+      'go/internal/graphbackpressure/**', 'go/cmd/reducer/observed_service_wiring.go', 'go/cmd/reducer/neo4j_wiring.go',
+      'go/cmd/reducer/executor_adapters.go', 'go/cmd/reducer/graph_write_backpressure_wiring.go', 'go/cmd/reducer/worker_gauge.go',
+      'go/internal/storage/postgres/reducer_queue.go', 'go/internal/storage/postgres/reducer_queue_batch.go', 'go/internal/storage/postgres/reducer_queue_batch_query.go',
+      'go/internal/storage/postgres/reducer_queue_helpers.go', 'go/internal/storage/postgres/reducer_queue_readiness_sql.go', 'go/internal/storage/postgres/reducer_queue_replay.go',
+      'go/internal/storage/postgres/reducer_queue_validation.go', 'go/internal/storage/postgres/reducer_queue_ack.go', 'go/internal/ifa/graphdump/**',
+      'go/internal/ifa/materializededges/**', 'go/cmd/bootstrap-data-plane/main.go', 'go/cmd/reducer/main.go',
+      'go/cmd/reducer/canonical_graph_writers.go', 'go/internal/graphowner/family_writers.go', 'go/internal/graphowner/gated_writer.go',
+      'go/internal/storage/postgres/graph/owner/store.go', 'go/cmd/reducer/run.go', 'go/cmd/reducer/config.go',
+      'go/cmd/reducer/config_projection.go', 'go/cmd/reducer/main_helpers.go', 'go/internal/storage/cypher/*code_call*.go',
+      'go/internal/storage/cypher/payload_accessors.go', 'go/internal/storage/cypher/canonical_instantiates_edges.go', 'go/internal/storage/cypher/edge/writer/writer.go',
+      'go/internal/storage/cypher/canonical_retract.go', 'go/internal/storage/cypher/edge/writer/retract*.go', 'go/internal/storage/cypher/canonical_node_writer.go',
+      'go/internal/storage/cypher/canonical_node_writer_phases.go', 'go/internal/storage/cypher/canonical_node_writer_entities.go', 'go/internal/storage/cypher/canonical_node_writer_metadata.go',
+      'go/internal/storage/cypher/canonical_node_cypher.go', 'go/internal/storage/cypher/canonical_node_writer_retract.go', 'go/internal/storage/cypher/canonical_node_writer_delta_retract.go',
+      'go/internal/storage/cypher/canonical_node_writer_retract_labels.go', 'go/internal/content/writer.go', 'go/internal/projector/canonical/builder.go',
+      'go/internal/projector/canonical/codegraph_extract.go', 'go/internal/projector/canonical/delta.go', 'go/internal/projector/decode/codegraph.go',
+      'go/internal/projector/decode/fact_kind.go', 'go/internal/projector/canonical/materialization.go', 'go/internal/projector/runtime/projection.go',
+      'go/internal/projector/runtime/reducer_intent.go', 'go/internal/projector/decode/payload.go', 'go/internal/projector/runtime/scope_generation_intents.go',
+      'go/internal/projector/gcp/resource_materialization_intents.go', 'go/internal/projector/gcp/relationship_materialization_intents.go', 'go/internal/projector/security/group_reachability_intents.go',
+      'go/internal/projector/runtime/reducer_intent_fact_index.go', 'go/internal/projector/runtime/phase.go', 'go/internal/projector/canonical/entity_identity.go',
+      'go/internal/projector/runtime/stages.go', 'go/cmd/projector/main.go', 'go/cmd/projector/runtime_wiring.go',
+      'go/internal/storage/postgres/code_call_intent_writer.go', 'go/internal/storage/postgres/facts_active_code_call_symbols.go', 'go/internal/storage/postgres/facts_filtered.go',
+      'go/internal/storage/postgres/shared_intent_acceptance_writer.go', 'go/internal/storage/postgres/shared_projection_acceptance*.go', 'go/internal/storage/postgres/accepted_generation.go',
+      'go/internal/storage/postgres/graph_projection_phase_state.go', 'go/internal/storage/postgres/reducer_queue_conflict.go', 'go/internal/storage/postgres/schema.go',
+      'go/internal/storage/postgres/schema_bootstrap_lock.go', 'go/internal/storage/postgres/shared_intents*.go', 'schema/data-plane/postgres/008_shared_projection_intents.sql',
+      'schema/data-plane/postgres/011_shared_projection_acceptance.sql', 'schema/data-plane/postgres/012_graph_projection_phase_state.sql', 'go/internal/synth/gcp/**',
+      'go/cmd/ifa/**', 'go/internal/storage/cypher/cloud_resource_node_writer.go', 'go/internal/storage/cypher/cloud_resource_node_writer_teeth.go',
+      'go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go', 'scripts/verify-ifa-determinism.sh', 'scripts/test-verify-ifa-determinism.sh',
+      'scripts/verify-ifa-dead-letter-matrix.sh', 'scripts/test-verify-ifa-dead-letter-matrix.sh', 'scripts/lib/ifa_determinism_common.sh',
+      'go/internal/storage/cypher/fault/executor/*.go', 'go/internal/replay/faultreplay/**', 'go/cmd/reducer/ifa_fault_wiring.go',
+      'go/cmd/reducer/ifa_fault_wiring_off.go', 'scripts/verify-ifa-fault-injection.sh', 'scripts/ci/install-apt-packages.sh',
+      'scripts/ci/go-mod-download-retry.sh', 'scripts/test-verify-ifa-fault-injection.sh', 'go/internal/storage/cypher/edge/writer/sql.go',
+      'specs/ifa-materialized-edge-coverage.v1.yaml', 'specs/ifa-materialized-edge-coverage-direct.v1.yaml', 'testdata/cassettes/sqlrelationships/**',
+      'testdata/cassettes/codecalls/**', 'go/internal/ifa/testdata/sqlrelationships/**', 'go/internal/ifa/testdata/codecalls/**',
+      'testdata/cassettes/documentation/**', 'go/internal/ifa/testdata/documentation/**', 'sdk/go/factschema/documentation/v1/**',
+      'go/internal/storage/cypher/edge/writer/*documentation*.go', 'sdk/go/factschema/codeowners/v1/**', 'go/internal/storage/cypher/*codeowners*.go',
+      'testdata/cassettes/codeowners/**', 'go/internal/ifa/testdata/codeowners/**', 'scripts/lib/ifa_fault_injection_inheritance_cells.sh',
+      'scripts/lib/ifa_fault_injection_shell_exec_cells.sh', 'sdk/go/factschema/submodule/v1/**', 'go/internal/storage/cypher/*submodule*.go',
+      'testdata/cassettes/submodulepin/**', 'go/internal/ifa/testdata/submodulepin/**', 'go/internal/storage/cypher/canonical_deployable_unit_edges.go',
+      'go/internal/storage/cypher/edge/writer/rowmaps.go', 'testdata/cassettes/deployableunit/**', 'go/internal/ifa/testdata/deployableunit/**',
+      'go/cmd/bootstrap-index/**', 'go/cmd/ifa/assert_edges.go', 'go/internal/replay/canonical.go',
+      'go/internal/storage/cypher/canonical_rationale_edges.go', 'go/internal/storage/cypher/edge/writer/rationale_labels.go', 'go/internal/storage/cypher/canonical.go',
+      'go/internal/storage/cypher/backpressure_executor.go', 'testdata/cassettes/rationale/**', 'go/internal/ifa/testdata/rationale/**',
+      'go/internal/storage/cypher/canonical_implements_edges.go', 'go/internal/storage/cypher/canonical_inheritance_retract.go', 'go/internal/storage/cypher/edge/writer/inheritance_labels.go',
+      'go/internal/storage/cypher/edge/writer/shell_exec.go', 'testdata/cassettes/inheritance/**', 'testdata/cassettes/shellexec/**',
+      'go/internal/ifa/testdata/inheritance/**', 'go/internal/ifa/testdata/shellexec/**', 'go/internal/ifa/kubernetes_namespace_environment_family_odu.go',
+      'go/internal/ifa/iam_instance_profile_role_family_odu.go', 'go/internal/ifa/direct_family_cassette.go', 'go/internal/reducer/kubernetes_namespace_materialization.go',
+      'go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go', 'go/internal/reducer/iaminstprofile/iam_instance_profile_role_edge_rows.go', 'go/internal/storage/cypher/kubernetes_namespace_node_writer.go',
+      'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go', 'testdata/cassettes/kubernetesnamespaceenvironment/**', 'testdata/cassettes/iaminstanceprofilerole/**',
+      'testdata/cassettes/iamcanassume/**', 'testdata/cassettes/iamcanperform/**', 'testdata/cassettes/workloadcloudrelationship/**',
+      'testdata/cassettes/iamescalation/**', 'testdata/cassettes/ec2usesprofile/**', 'testdata/cassettes/s3logsto/**',
+      'testdata/cassettes/kubernetescorrelation/**', 'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**', 'go/internal/ifa/testdata/iaminstanceprofilerole/**',
+      'go/internal/ifa/testdata/iamcanassume/**', 'go/internal/ifa/testdata/iamcanperform/**', 'go/internal/ifa/testdata/workloadcloudrelationship/**',
+      'go/internal/ifa/testdata/iamescalation/**', 'go/internal/ifa/testdata/ec2usesprofile/**', 'go/internal/ifa/testdata/s3logsto/**',
+      'go/internal/ifa/testdata/kubernetescorrelation/**', 'scripts/lib/ifa_direct_family_live.sh', 'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh',
+      'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh', 'scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh', 'scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh',
+      'testdata/cassettes/symbolruntime/**', 'go/internal/ifa/testdata/handlesroute/**', 'go/internal/ifa/testdata/runsin/**',
+      'go/internal/ifa/testdata/invokescloudaction/**', 'go/internal/storage/cypher/canonical_handles_route_edges.go', 'go/internal/storage/cypher/canonical_runs_in_edges.go',
+      'go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go', 'go/internal/storage/cypher/materialized_edge_*.go', 'go/internal/storage/cypher/edge/materialized/**',
+      'go/internal/storage/cypher/canonical_code_call_edges.go', 'go/internal/storage/cypher/canonical_inheritance_edges.go', '.github/workflows/ifa-determinism-gate.yml',
+      'go/internal/ifa/catalog_seed.go', 'go/internal/ifa/code_call_family_catalog.go', 'go/internal/ifa/deployable_unit_family_catalog.go',
+      'go/internal/ifa/deployable_unit_family_odu.go', 'go/internal/ifa/documentation_family_catalog.go', 'go/internal/ifa/documentation_family_odu.go',
+      'go/internal/reducer/code_call*.go', 'go/internal/reducer/deployable_unit*.go', 'go/internal/reducer/documentation_edge*.go',
+      'scripts/lib/ifa_rationale_live.sh', 'sdk/go/factschema/codegraph/v1/repository.go', 'go/internal/ifa/symbol_runtime_family_odu.go',
+      'go/internal/reducer/code/call/materialization/*.go', 'scripts/lib/ifa_symbol_runtime_live.sh', 'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh',
+      'go/internal/ifa/sql_relationship_odu*.go', 'go/internal/reducer/sql_relationship_*.go', 'go/internal/reducer/sqlrelationship/sql_relationship_*.go',
+      'go/cmd/ifa/mutate_cassette.go', 'go/cmd/ifa/dead_letters.go', 'scripts/lib/ifa_determinism_common*.sh',
+    ]
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-# Least privilege: the gate only checks out and reads the repo.
 permissions:
   contents: read
-
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: ifa-determinism-gate.yml
   static-mirror:
+    needs: queue-selection
     name: static mirror
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - uses: actions/checkout@v5
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-      # The validators below run `go run ./cmd/ci-gates` (registry lockstep
-      # cases), so this job needs the same toolchain and module pre-warm as the
-      # matrix jobs; without it a cold runner fetches modules un-retried inside
-      # a validator (#6706 review).
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Validate determinism matrix mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: bash scripts/test-verify-ifa-determinism.sh
       - name: Validate dead-letter matrix mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: bash scripts/test-verify-ifa-dead-letter-matrix.sh
       - name: Validate fault-injection matrix mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: bash scripts/test-verify-ifa-fault-injection.sh
-
   determinism-matrix:
+    needs: queue-selection
     name: determinism-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # --keep below skips the script's own compose teardown, and the script
-    # otherwise names its project with a PID suffix this workflow cannot
-    # guess; pin it so the log-dump and teardown steps address the real stack.
     env:
       DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -628,41 +184,26 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
-      # Pre-warm modules with retries so a dropped proxy stream fails HERE,
-      # named for what it is, instead of surfacing as a determinism-matrix
-      # red that never ran a cell (#6075 follow-up; runs 34627429845,
-      # 34007134864, 33551099795, 34370706054).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
-      # No retry-to-green: this platform's flake policy (design doc P4)
-      # forbids normalizing a real divergence away by retrying or lowering N.
-      # --keep: without it the script's own EXIT trap deletes the work dir
-      # (every N's canonical graph dump, rationale-delta dump, and host binary
-      # logs) before the failure-artifact upload below can run (#6162).
       - name: Run Ifa graph-determinism matrix (N=1,2,4; demo-org + synth-multiscope, Tier 2)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
         id: determinism_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: bash scripts/verify-ifa-determinism.sh --keep
-
       - name: Dump service logs on failure
-        if: failure()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix'))) && (failure()) }}
         run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
-
-      # #6162: upload the kept (--keep) work dir's per-N canonical graph
-      # dumps, rationale-delta dumps, and host binary logs, not just the
-      # backend container log tail above. A mismatch (e.g. a rationale
-      # non-convergence, run 33788992677) needs the actual bytes, not just the
-      # printed digest, to diagnose.
       - name: Upload determinism-matrix diagnostics
-        if: failure() && steps.determinism_matrix.outcome == 'failure'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix'))) && (failure() && steps.determinism_matrix.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: ifa-determinism-matrix-attempt-${{ github.run_attempt }}-failure
@@ -672,25 +213,25 @@ jobs:
             /tmp/ifa-determinism.*/logs/*.log
           if-no-files-found: warn
           retention-days: 7
-
       - name: Tear down Docker services
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix'))) && (always()) }}
         run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
-
   dead-letter-matrix:
+    needs: queue-selection
     name: dead-letter-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # --keep below skips the script's own compose teardown, and the script
-    # otherwise names its project with a PID suffix this workflow cannot
-    # guess; pin it so the log-dump and teardown steps address the real stack.
     env:
       DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -703,35 +244,26 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
-      # Pre-warm modules with retries so a dropped proxy stream fails HERE,
-      # named for what it is, instead of surfacing as a dead-letter-matrix red
-      # that never ran a cell (#6075 follow-up).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
-      # --keep: without it the script's own EXIT trap deletes the mutated
-      # cassette and host binary logs before the failure-artifact upload below
-      # can run (#6162).
       - name: Run Ifa dead-letter-set determinism matrix (N=1,2,4)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
         id: dead_letter_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: bash scripts/verify-ifa-dead-letter-matrix.sh --keep
-
       - name: Dump service logs on failure
-        if: failure()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix'))) && (failure()) }}
         run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
-
-      # #6162: upload the kept (--keep) work dir's mutated cassette and
-      # host binary logs, not just the backend container log tail above.
       - name: Upload dead-letter-matrix diagnostics
-        if: failure() && steps.dead_letter_matrix.outcome == 'failure'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix'))) && (failure() && steps.dead_letter_matrix.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: ifa-dead-letter-matrix-attempt-${{ github.run_attempt }}-failure
@@ -740,59 +272,11 @@ jobs:
             /tmp/ifa-deadletter-matrix.*/logs/*.log
           if-no-files-found: warn
           retention-days: 7
-
       - name: Tear down Docker services
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix'))) && (always()) }}
         run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
-
-  # Sharded across four parallel runners. The matrix ran serially until the
-  # cell count outgrew the 30-minute ceiling: a measured 21m2s for 18 cells
-  # (~1.17 min/cell) left room for roughly seven more cells. The matrix reached
-  # 21 before this change landed (~24.6 min at that rate), which is the argument
-  # for sharding rather than a footnote to it. The
-  # materialized-edge exhaustiveness program adds two per family for eight
-  # remaining families. Raising timeout-minutes would have bought time without
-  # removing cost; sharding is the only lever that takes the per-cell fixed
-  # waits -- the 1-minute reducer lease reclaim and the 30s queue-retry delay,
-  # both production constants the gate exists to prove, so neither may be
-  # shortened for the gate's convenience -- off the critical path, because
-  # parallel runners absorb them concurrently.
-  #
-  # Shard membership comes from scripts/lib/ifa_fault_shard.sh, which
-  # partitions over atomic cell GROUPS (a family-scoped baseline always
-  # travels with its own recovery cells) and runs cell_baseline first in
-  # EVERY shard -- it is the sole writer of digests[baseline], which every
-  # other cell compares against in-shell, so re-running it per shard is
-  # deliberate rather than plumbing that digest between runners.
-  #
-  # What that trade costs, stated plainly: before sharding, ONE process computed
-  # digests[baseline] once and every recovery cell without a family-scoped
-  # baseline of its own compared against it. There are now four, one per runner,
-  # computed independently, and nothing in this workflow compares them to each
-  # other -- a fault-free drive that produced a different digest on runner 2
-  # than on runner 1 would go unnoticed HERE.
-  #
-  # That is acceptable because the comparison is not this gate's job. Proving
-  # the same fault-free drive is byte-identical across separate processes and
-  # worker counts is exactly what the sibling determinism-matrix job above
-  # asserts (N=1,2,4 against the demo-org and synth-multiscope cassettes). This
-  # job assumes cross-run baseline determinism and proves RECOVERY instead --
-  # that each fault, injected against its own freshly-computed baseline, still
-  # converges to it. If cross-run baseline determinism itself regressed, the
-  # determinism-matrix job is where it would be caught. If that job is ever
-  # narrowed, this assumption has to be revisited.
-  #
-  # The matrix.shard list below must stay in lockstep with
-  # IFA_FAULT_SHARD_DEFAULT_N in that library;
-  # scripts/test-verify-ifa-fault-injection.sh asserts the matrix cardinality
-  # matches, so deleting a shard here reds the mirror rather than silently
-  # dropping that shard's cells from every run. Deliberately phrased without
-  # reproducing the literal list: an earlier version of this comment spelled
-  # it out, and the cardinality pin's first draft matched THIS PROSE instead
-  # of the real declaration below -- a pin reading its expected value out of a
-  # comment passes no matter what the matrix says. Keep the literal in one
-  # place only, the declaration itself.
   fault-injection:
+    needs: queue-selection
     name: fault-injection (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -806,7 +290,11 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -819,67 +307,40 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-
-      # Pre-warm modules with retries so a dropped proxy stream fails HERE,
-      # named for what it is, instead of surfacing as a fault- or
-      # race-shaped red that never ran anything (#6075 follow-up; runs
-      # 34627429845, 34007134864, 33551099795, 34370706054).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         run: scripts/ci/go-mod-download-retry.sh
-
-      # The gate's own preconditions shell out to rg (the repo forbids grep), and
-      # the fault-injection job did not install it -- #6173's first CI run failed
-      # both codeowners-carrying shards with "rg: command not found" reported as
-      # "declares no IntentWriter", a confident false diagnosis of a file that
-      # holds the field. The static-mirror job above already installs it for the
-      # same reason.
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-
-      # The classification regression test that pins the P6 fault-error
-      # fidelity fix is behind the ifafaultinjection build tag, so a normal
-      # `go test ./...` never runs it. Run it explicitly here, alongside the
-      # tagged decorator and reducer-wiring tests, so a revert of the
-      # Retryable()/FailureClass() contract fails CI even before the Docker leg.
       - name: Run tagged fault-classification unit tests
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         working-directory: go
         run: go test -tags ifafaultinjection ./internal/storage/cypher ./internal/storage/cypher/fault/executor ./internal/replay/faultreplay ./cmd/reducer -count=1
-
-      # No retry-to-green: a non-zero dead_letter count or a canonical graph
-      # digest that diverges from the fault-free baseline is a real recovery
-      # defect, never normalized away by retrying or lowering worker count.
       - name: Run Ifa fault-injection matrix shard (fresh stack per cell)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         id: fault_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           IFA_FAULT_SHARD: ${{ matrix.shard }}
         run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/4"
-
-      # Keyed on the matrix step's own outcome: a pre-warm or tagged unit test
-      # failure stops the job before any work dir exists, and a bare failure()
-      # would add two misleading diagnostic failures on top (#6706 review).
       - name: Verify fault-injection diagnostic completeness
-        if: failure() && steps.fault_matrix.outcome == 'failure'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection'))) && (failure() && steps.fault_matrix.outcome == 'failure') }}
         run: |
           shopt -s nullglob
           completeness=(/tmp/ifa-fault-injection.*/diagnostics-complete)
           [[ ${#completeness[@]} -eq 1 && -s "${completeness[0]}" ]]
-
       - name: Upload fault-injection diagnostics
-        if: failure() && steps.fault_matrix.outcome == 'failure'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection'))) && (failure() && steps.fault_matrix.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure
-          # graph-*.dump (#6162), not the two prior literal names: every cell
-          # calls capture_digest <cell>, writing graph-<cell>.dump, so a
-          # literal list only ever retained baseline/restartbackend and
-          # silently dropped every other cell's dump (e.g. cell_expirelease in
-          # run 34068313913).
           path: |
             /tmp/ifa-fault-injection.*/graph-*.dump
             /tmp/ifa-fault-injection.*/graph-manifest.tsv
@@ -901,7 +362,6 @@ jobs:
             /tmp/ifa-fault-injection.*/logs/*.log
           if-no-files-found: error
           retention-days: 7
-
       - name: Tear down Docker services
-        if: always()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection'))) && (always()) }}
         run: docker compose -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true

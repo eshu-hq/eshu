@@ -77,43 +77,58 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: factschema-diff.yml
+
   test-mirror:
+    needs: queue-selection
     name: Verify factschema-diff test mirror
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a factschema-diff
       # test failure that never compiled anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run Go unit tests
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         working-directory: go
         run: go test ./cmd/factschema-diff/... -count=1
 
       - name: Run shell test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         shell: bash
         run: |
           set -o pipefail
           bash scripts/test-verify-factschema-diff.sh 2>&1 | tee /tmp/factschema-diff-test.log
 
       - name: Upload test log on failure
-        if: failure()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate'))) && (failure()) }}
         uses: actions/upload-artifact@v4
         with:
           name: factschema-diff-test-log
@@ -122,11 +137,15 @@ jobs:
 
   gate:
     name: Verify factschema-diff gate
-    needs: test-mirror
+    needs: [queue-selection, test-mirror]
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         uses: actions/checkout@v5
         with:
           # Full history + origin/main ref so the default -base-ref
@@ -134,6 +153,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
@@ -143,16 +163,18 @@ jobs:
       # HERE, named for what it is, instead of surfacing as a factschema-diff
       # gate failure that never compiled anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run factschema-diff
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate')) }}
         shell: bash
         run: |
           set -o pipefail
           bash scripts/verify-factschema-diff.sh 2>&1 | tee /tmp/factschema-diff-gate.log
 
       - name: Upload drift report on failure
-        if: failure()
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify factschema-diff gate'))) && (failure()) }}
         uses: actions/upload-artifact@v4
         with:
           name: factschema-diff-report

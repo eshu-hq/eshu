@@ -289,7 +289,6 @@ needle = (
 	"        id: merge_group_code\n"
 	"        if: ${{ github.event_name == 'merge_group' }}\n"
 	"        run: echo \"code=true\" >> \"$GITHUB_OUTPUT\"\n"
-	"\n"
 )
 assert content.count(needle) == 1, "expected exactly one Force code=true on merge_group step"
 with open(path, "w") as f:
@@ -458,6 +457,23 @@ if run_scratch >/dev/null 2>&1; then
 else
 	no "guard 3 should pass again once the quantifier is back in the filter step"
 fi
+
+# Additive dependencies must match whole job names, not a similarly named job.
+python3 - "${tmp}/.github/workflows/test.yml" <<'CASE'
+import sys
+path = sys.argv[1]
+with open(path) as source:
+    lines = source.readlines()
+with open(path, "w") as target:
+    target.writelines(line.replace("changes", "changes-shadow")
+                      if line.startswith("    needs:") else line for line in lines)
+CASE
+if run_scratch >/dev/null 2>&1; then
+    no "dependency guard must reject changes-shadow instead of changes"
+else
+    ok "dependency guard rejects a similarly named dependency"
+fi
+cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
 
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
 [[ "${fail}" -eq 0 ]]

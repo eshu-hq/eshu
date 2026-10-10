@@ -9,10 +9,11 @@ import (
 )
 
 func usage(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "usage: ci-gates <select|run|await|contexts|audit-scripts|validate|uncovered|layers|review-attest> [flags]")
+	_, _ = fmt.Fprintln(w, "usage: ci-gates <select|run|await|queue-select|contexts|audit-scripts|validate|uncovered|layers|review-attest> [flags]")
 	_, _ = fmt.Fprintln(w, "  select    --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--explain] [--json]")
 	_, _ = fmt.Fprintln(w, "  run       --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--repo-root <path>]")
 	_, _ = fmt.Fprintln(w, "  await     --registry <path> --repo-root <path> --repo <owner/name> --pr <number> --head-sha <sha> [--poll-interval 30s] [--timeout 55m]")
+	_, _ = fmt.Fprintln(w, "  queue-select --registry <path> [--trusted-registry <path>] --repo-root <path> --repo <owner/name> --base-ref <branch> --merge-group-branch <branch> --head-sha <sha> --workflow <file> [--job <name>]")
 	_, _ = fmt.Fprintln(w, "  contexts  --registry <path> [--json]")
 	_, _ = fmt.Fprintln(w, "  audit-scripts --registry <path> --repo-root <path> [--unreferenced-only] [--json]")
 	_, _ = fmt.Fprintln(w, "  validate  --registry <path> --repo-root <path> [--drift]")

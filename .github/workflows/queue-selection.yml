@@ -1,0 +1,62 @@
+name: Merge Queue Selection
+
+on:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+    outputs:
+      selected:
+        value: ${{ jobs.select.outputs.selected }}
+      jobs:
+        value: ${{ jobs.select.outputs.jobs }}
+
+permissions:
+  contents: read
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      selected: ${{ steps.select.outputs.selected }}
+      jobs: ${{ steps.select.outputs.jobs }}
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'merge_group'
+      - uses: actions/setup-go@v6
+        if: github.event_name == 'merge_group'
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Select queue payload from both registries
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.event.repository.default_branch }}
+          QUEUE_BRANCH: ${{ github.head_ref || github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          WORKFLOW: ${{ inputs.workflow }}
+        run: |
+          set -euo pipefail
+          if [[ "${RUN_EVENT}" != merge_group ]]; then
+            echo 'selected=true' >> "${GITHUB_OUTPUT}"
+            echo 'jobs=[]' >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          gh api "repos/${REPO}/contents/specs/ci-gates.v1.yaml?ref=${BASE_REF}" \
+            -H 'Accept: application/vnd.github.raw' > "${RUNNER_TEMP}/trusted-ci-gates.yaml"
+          bash scripts/ci/go-mod-download-retry.sh
+          go -C go build -o "${RUNNER_TEMP}/ci-gates" ./cmd/ci-gates
+          "${RUNNER_TEMP}/ci-gates" queue-select \
+            --registry specs/ci-gates.v1.yaml \
+            --trusted-registry "${RUNNER_TEMP}/trusted-ci-gates.yaml" \
+            --repo-root . --repo "${REPO}" --base-ref "${BASE_REF}" \
+            --merge-group-branch "${QUEUE_BRANCH}" --head-sha "${HEAD_SHA}" \
+            --workflow "${WORKFLOW}" > "${RUNNER_TEMP}/queue-selection.json"
+          jq -r '"selected=\(.selected)", "jobs=\(.jobs | tojson)"' \
+            "${RUNNER_TEMP}/queue-selection.json" >> "${GITHUB_OUTPUT}"
+          cat "${RUNNER_TEMP}/queue-selection.json" >> "${GITHUB_STEP_SUMMARY}"

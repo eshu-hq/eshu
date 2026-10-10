@@ -1,82 +1,42 @@
 name: Static Contract Gates
-
-# Consolidates credential-free static contract verifiers into one path-filtered
-# matrix. PR selection mirrors specs/ci-gates.v1.yaml; pushes to main select every
-# gate. Entries share one checkout and tool setup while retaining stable names.
 on:
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
   merge_group:
     types: [checks_requested]
   pull_request:
   push:
     branches:
       - main
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 permissions:
   contents: read
   pull-requests: read
-
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: static-contract-gates.yml
   changes:
+    needs: queue-selection
     name: Detect changed gate paths
     runs-on: ubuntu-latest
     outputs:
-      openapi: ${{ steps.filter.outputs.openapi }}
-      route: ${{ steps.filter.outputs.route }}
-      edge: ${{ steps.filter.outputs.edge }}
-      evidence: ${{ steps.filter.outputs.evidence }}
-      skill: ${{ steps.filter.outputs.skill }}
-      skillworkflowrefs: ${{ steps.filter.outputs.skillworkflowrefs }}
-      telemetry: ${{ steps.filter.outputs.telemetry }}
-      dashboard: ${{ steps.filter.outputs.dashboard }}
-      envdoc: ${{ steps.filter.outputs.envdoc }}
-      contract: ${{ steps.filter.outputs.contract }}
-      bucketsync: ${{ steps.filter.outputs.bucketsync }}
-      ifa: ${{ steps.filter.outputs.ifa }}
-      ifaload: ${{ steps.filter.outputs.ifaload }}
-      ifareplaydrive: ${{ steps.filter.outputs.ifareplaydrive }}
-      cassetteauthor: ${{ steps.filter.outputs.cassetteauthor }}
-      heredoc: ${{ steps.filter.outputs.heredoc }}
       parserrelationship: ${{ steps.filter.outputs.parserrelationship }}
-      docsrefs: ${{ steps.filter.outputs.docsrefs }}
-      docsclienvrefs: ${{ steps.filter.outputs.docsclienvrefs }}
-      querydoccommitrefs: ${{ steps.filter.outputs.querydoccommitrefs }}
-      doccitations: ${{ steps.filter.outputs.doccitations }}
-      movedfilerefs: ${{ steps.filter.outputs.movedfilerefs }}
-      measurementcite: ${{ steps.filter.outputs.measurementcite }}
-      remotevalidation: ${{ steps.filter.outputs.remotevalidation }}
-      maturitydrift: ${{ steps.filter.outputs.maturitydrift }}
-      claudrules: ${{ steps.filter.outputs.claudrules }}
-      rootcauseevidence: ${{ steps.filter.outputs.rootcauseevidence }}
-      pgstatementreport: ${{ steps.filter.outputs.pgstatementreport }}
-      dockerpublish: ${{ steps.filter.outputs.dockerpublish }}
-      dockerhublogin: ${{ steps.filter.outputs.dockerhublogin }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Claude path-scoped rules gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Ifa P5 load/saturation gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Ifa contract-layer gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Ifa replay-drive mirror gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify OpenAPI gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify cassette author gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify content-entity bucket sync gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify contract source-of-truth gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify doc-citations gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify docker-publish shape gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify docs CLI/env refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify docs-refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify edge source-tool coverage gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify environment registry reference gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify evidence continuity gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify generate-operator-dashboard gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify heredoc budget gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify maturity-drift-guard gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify measurement-citations gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify moved-file-refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify parser relationship kit gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify pg-statement-report gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify query-doc-commit-refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify remote-validation-artifacts gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify root-cause-evidence gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify route coverage gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify skill workflow refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify skillgen roundtrip gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify tagged-builds gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Docker Hub login gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify telemetry coverage gate')) }}
         uses: actions/checkout@v5
-      # merge_group: skip the diff and select every gate, exactly as push
-      # does below. required-gates.yml selects which of them a queue entry
-      # needs from its own three-dot diff against main, so every gate it can
-      # select must have run.
       - name: Filter changed paths against gate triggers
         id: filter
-        if: ${{ github.event_name != 'merge_group' }}
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Claude path-scoped rules gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Ifa P5 load/saturation gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Ifa contract-layer gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Ifa replay-drive mirror gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify OpenAPI gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify cassette author gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify content-entity bucket sync gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify contract source-of-truth gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify doc-citations gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify docker-publish shape gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify docs CLI/env refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify docs-refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify edge source-tool coverage gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify environment registry reference gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify evidence continuity gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify generate-operator-dashboard gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify heredoc budget gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify maturity-drift-guard gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify measurement-citations gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify moved-file-refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify parser relationship kit gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify pg-statement-report gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify query-doc-commit-refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify remote-validation-artifacts gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify root-cause-evidence gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify route coverage gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify skill workflow refs gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify skillgen roundtrip gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify tagged-builds gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify Docker Hub login gate') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify telemetry coverage gate'))) && (github.event_name != 'merge_group') }}
         uses: dorny/paths-filter@v3
         with:
-          # On push (no base), dorny treats everything as changed → all gates run.
-          # Path sets mirror the gate triggers in specs/ci-gates.v1.yaml; the
-          # gate-registry-drift check keeps the two in lockstep. Every filter
-          # also includes this workflow + the registry so a change to either
-          # re-runs all gates. (Self-check paths are inlined per filter rather
-          # than via a YAML anchor — dorny's handling of an anchored *list* item
-          # is version-dependent, and inlining is unambiguous.)
           filters: |
             openapi:
               - '.github/workflows/static-contract-gates.yml'
@@ -128,9 +88,6 @@ jobs:
               - 'go/internal/extensions/skillgen/**'
               - '.agents/skills/**'
               - 'skill-fragments/**'
-              # The gate compares fragments against this baseline, so a PR that
-              # touches only expected/ must still create the named check; the
-              # registry selects it and the two must not disagree.
               - 'expected/**'
               - 'scripts/*verify-skill-roundtrip*.sh'
             skillworkflowrefs:
@@ -189,45 +146,14 @@ jobs:
               - 'specs/fact-kind-registry.v1.yaml'
               - 'specs/replay-coverage-manifest.v1.yaml'
               - 'testdata/golden/e2e-20repo-snapshot.json'
-              # The shell family registry. The Go blocker-shape lockstep test
-              # parses these rows and binds each family's declared blocker_kind
-              # to its real handler's write shape, so a row edit must select
-              # this gate's CI check. A single '*' does not cross '/' in a
-              # dorny filter, hence the explicit '**' on the rows directory.
               - 'scripts/lib/ifa_family_registry.sh'
               - 'scripts/lib/ifa_family_registry/**'
-              # #5351 materialized-edge exhaustiveness gate: the SQL relationship
-              # family's write path edge/writer/sql.go, sql_relationship_*.go)
-              # and its fixtures/manifest. A write-path-only regression here is
-              # exactly the silent-no-op class the gate exists for and the pure
-              # seam cannot catch, so it MUST retrigger the Ifa contract-layer
-              # gate (which runs the pure ifa-materialized-edge-coverage go test).
-              # The gate runs `go test ./internal/reducer/...` for the WHOLE TREE,
-              # so any sibling file -- in the root or in a domain subpackage --
-              # can change its verdict. It ran a
-              # `-run TestMaterializedEdgeFamilies` filter until that regex went
-              # stale twice, silently not selecting tests that had landed since.
-              # specs/ci-gates.v1.yaml was broadened to 'go/internal/reducer/**'
-              # for exactly that reason
-              # (#5873) but this filter was not, so the registry could select the
-              # gate as required while this workflow never scheduled it. The
-              # aggregator then waited out its 55m timeout on a MISSING job and
-              # failed required-gates-complete -- red that names no real defect
-              # and points at no file. Keep this glob and the registry trigger in
-              # lockstep; the per-file entries below stay as the reader's map of
-              # what the gate is actually about.
               - 'go/internal/reducer/**'
               - 'go/internal/reducer/materialized_edge_families.go'
               - 'go/internal/reducer/contract/domain.go'
               - 'go/internal/reducer/sqlrelationship/sql_relationship_materialization.go'
               - 'go/internal/reducer/sqlrelationship/sql_relationship_embedded_query.go'
               - 'go/internal/reducer/sqlrelationship/sql_relationship_metadata.go'
-              # The whole cypher package, mirroring the registry trigger
-              # (#6181). The direct-family drift guard this gate runs parses
-              # every non-test file in that package and follows each reducer
-              # port through its call graph, so any file there can change the
-              # verdict; the four per-file entries below reached 6 of 131 and
-              # left every other direct writer unable to schedule this job.
               - 'go/internal/storage/cypher/**'
               - 'go/internal/storage/cypher/edge/writer/sql.go'
               - 'go/internal/storage/cypher/materialized_edge_*.go'
@@ -453,14 +379,11 @@ jobs:
               - 'specs/ci-gates.v1.yaml'
       - name: Build selected gate matrix
         id: gate-matrix
+        env:
+          QUEUE_JOBS: ${{ needs.queue-selection.outputs.jobs }}
         run: |
           matrix_items=""
           any=false
-
-          # $6 is the job timeout in minutes, defaulting to 15. It is per-gate
-          # because every gate in this matrix shares one job definition, so a
-          # blanket raise would also stop a genuine hang in the other 25 from
-          # being cancelled.
           append_gate() {
             local selected="$1"
             local key="$2"
@@ -469,13 +392,16 @@ jobs:
             local gate="$5"
             local timeout="${6:-15}"
             local run_gate=true
-
+            local queue_selected=true
+            if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+              queue_selected=$(jq --arg job "${display}" 'index($job) != null' <<< "${QUEUE_JOBS}")
+              [[ "${queue_selected}" == true ]] || run_gate=false
+            fi
             if [[ "${test}" == "${gate}" ]]; then
               run_gate=false
             fi
-
             if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "merge_group" || "${selected}" == "true" ]]; then
-              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"timeout\":${timeout}}"
+              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"queue_selected\":${queue_selected},\"timeout\":${timeout}}"
               if [[ -n "${matrix_items}" ]]; then
                 matrix_items="${matrix_items},${item}"
               else
@@ -484,7 +410,6 @@ jobs:
               any=true
             fi
           }
-
           append_gate "${{ steps.filter.outputs.openapi }}" "openapi" "Verify OpenAPI gate" "bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh" "scripts/verify-openapi.sh"
           append_gate "${{ steps.filter.outputs.route }}" "route" "Verify route coverage gate" "scripts/test-verify-route-coverage.sh" "scripts/verify-route-coverage.sh"
           append_gate "${{ steps.filter.outputs.edge }}" "edge" "Verify edge source-tool coverage gate" "bash scripts/test-verify-edge-source-tool-coverage.sh" "scripts/verify-edge-source-tool-coverage.sh"
@@ -526,16 +451,11 @@ jobs:
           # in the module serially (37 today) and takes about 14 minutes on main,
           # so it was being cancelled at the 15-minute mark rather than failing.
           append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh" "bash scripts/verify-tagged-builds.sh --all" 30
-
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"
-
   gate:
     name: ${{ matrix.display }}
-    needs: changes
-    # merge_group lists every gate in the matrix (see append_gate), so `any`
-    # is true there; the explicit arm lets ci-gates validate prove this job
-    # always runs on a queue entry.
+    needs: [queue-selection, changes]
     if: ${{ github.event_name == 'merge_group' || needs.changes.outputs.any == 'true' }}
     timeout-minutes: ${{ matrix.timeout }}
     runs-on: ubuntu-latest
@@ -548,10 +468,14 @@ jobs:
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
       # on hosted runners. Skipped, not failed, when the secrets are absent.
@@ -563,43 +487,22 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Install ripgrep and jq
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing inside whichever
-      # gate happened to be selected (#6615 follow-up to #6075). Unconditional,
-      # not gated per-gate: actions/setup-go's go/go.sum cache has no
-      # restore-keys and saves only on a miss, so the FIRST job to finish
-      # after a go.sum change owns that key with whatever GOMODCACHE it has --
-      # every setup-go job on the key then re-downloads from the proxy until
-      # a warmed job finishes first and re-saves it (confirmed on job
-      # 102442878753, 2026-09-09: "Verify factschema-diff test mirror" saved
-      # cache 7497506231, 14,716,033 bytes, with zero `go: downloading`). The
-      # non-Go static gates in this matrix are usually the fastest finishers,
-      # so skipping pre-warm for them would let that race lose again. Measured
-      # cost: 10-44s per job on the current 14 MB entry, median 12.5s over 16
-      # go-race samples (runs 35228125254, 35224651204, 35232001790,
-      # 35231720759); expected to drop once a warmed job saves the key.
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run test mirror (${{ matrix.key }})
+        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: ${{ matrix.test }}
-      # #6979: feed the cassette-author identifier check from a repository
-      # secret on same-repo PRs, merge-queue entries, and main pushes.
-      # Fork PRs cannot read secrets, so this step is skipped there and the
-      # gate runs canary-only with its warning. (push is main-only per this
-      # workflow's on.push.branches, so the bare event check is correctly
-      # scoped; without merge_group/push coverage a post-PR secret change
-      # would pass the queue gate unnoticed.)
-      # After the test mirror on purpose: the mirror asserts the
-      # unset/canary-only behavior, which exported vars would mask. The
-      # secret value is never echoed; the gate prints only the loaded count.
       - name: Provide private identifiers for cassette-author gate
-        if: ${{ matrix.key == 'cassetteauthor' && (github.event_name == 'merge_group' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'eshu-hq/eshu') }}
+        if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && (matrix.key == 'cassetteauthor' && (github.event_name == 'merge_group' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'eshu-hq/eshu')) }}
         env:
           ESHU_PRIVATE_IDENTIFIERS: ${{ secrets.ESHU_PRIVATE_IDENTIFIERS }}
         run: |

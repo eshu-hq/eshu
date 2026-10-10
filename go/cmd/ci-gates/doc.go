@@ -3,12 +3,13 @@
 
 // Command ci-gates is the CLI for the CI gate registry (#4213).
 //
-// It provides eight subcommands that give local workflows and the trusted CI
+// It provides subcommands that give local workflows and the trusted CI
 // publisher one source of truth for path-selected verification:
 //
 //	ci-gates select   — print or explain which gates match the changed paths
 //	ci-gates run      — execute the selected gates and report PASS/FAIL/SKIP
 //	ci-gates await    — wait for exact blocking checks on a PR head or merge-queue commit
+//	ci-gates queue-select — select workflow jobs for a merge-queue commit
 //	ci-gates contexts — print the required-status context manifest
 //	ci-gates audit-scripts — inventory tracked shell scripts and reference evidence
 //	ci-gates validate — verify that every registry entry's script and workflow
@@ -18,9 +19,9 @@
 //	ci-gates review-attest — bind and verify the exact inputs of a semantic review
 //
 // The backing registry is specs/ci-gates.v1.yaml, loaded and validated by the
-// internal/cigates package. All but await are credential-free and work offline
-// once the repo is cloned. Await uses GitHub's pull-request files and check
-// rollup APIs; no subcommand requires Docker directly.
+// internal/cigates package. Await and queue-select use GitHub APIs; the other
+// subcommands are credential-free and work offline once the repo is cloned.
+// No subcommand requires Docker directly.
 //
 // Audit-scripts is advisory. It reports typed registry, workflow, shell-source,
 // and literal-mention evidence for every tracked regular .sh file present in
