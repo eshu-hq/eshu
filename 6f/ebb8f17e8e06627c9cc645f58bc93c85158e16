@@ -1,0 +1,200 @@
+go/internal/cigates/pathfilter.go
+  s_29175cf8c573b8::t_c6d0d606dd39b8 376-377
+  s_29175cf8c573b8::t_a3336d40343200 372-375
+scripts/test-generate-ci-gates-doc.sh
+  s_29175cf8c573b8::t_64bf8db879055f 61
+scripts/test-verify-live-tests-ledger.sh
+  s_29175cf8c573b8::t_55dbd3dc11f602 11,30-31,42,87,91,167,290
+  s_29175cf8c573b8::t_ba3bd5ca505665 12,23-29
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_29175cf8c573b8::t_db594f45870875 455
+scripts/test-codex-spawn-guard.py
+  s_29175cf8c573b8::t_6cc04d0785baa4 132-142
+scripts/lib/live_postgres_readiness_results.py
+  s_29175cf8c573b8::t_c9feea78e60c3c 9,11-13,56-60
+.github/workflows/live-backend-tests.yml
+  s_29175cf8c573b8::t_5b5ebba9afe1e9 28,34,36
+scripts/test-live-tests-registry.py
+  s_29175cf8c573b8::t_8c30ce40fabd6a 115-117,121-124
+  s_29175cf8c573b8::t_9ad74027b15fc4 1-54,57,65-114,118-120,125-130
+  s_29175cf8c573b8::t_447d62f11b225d 55-56,58-64
+go/internal/cigates/pathfilter_file.go
+  s_29175cf8c573b8::t_6cc04d0785baa4 25-27,29-31,33-35,40-42,44-46,48,52,57-62,64-67,69-71,73-77,80
+  s_29175cf8c573b8::t_c6d0d606dd39b8 1-24,28,32,36-39,43,47,49-51,53-56,63,68,72,78-79,81
+go/internal/cigates/registry_fragments.go
+  s_29175cf8c573b8::t_ef1b4e66f9be61 1-16,19-20,49-57,59-61,65-70,74-76,80-84,88-90,94,98-104
+  s_29175cf8c573b8::t_57a8f60c40da8d 58
+  s_29175cf8c573b8::t_6cc04d0785baa4 17-18,21-48,62-64,71-73,77-79,85-87,91-93,95-97
+scripts/dev/test-prove.sh
+  s_29175cf8c573b8::t_db594f45870875 116
+scripts/test-run-live-postgres-readiness-tests.sh
+  s_29175cf8c573b8::t_eaf7fd27fa4ab4 310-312,316,329-331,335-336,354-355,380-381,394-399,401-402,404-406
+scripts/lib/verify-live-tests-ledger.py
+  s_29175cf8c573b8::t_c9feea78e60c3c 16,21-22,26-29
+scripts/run-live-postgres-readiness-tests.sh
+  s_29175cf8c573b8::t_128a003ff84102 6
+scripts/lib/ci-gates-resolved-fixtures.sh
+  s_29175cf8c573b8::t_9cf3e7b98b0f9d 1-34
+go/internal/cigates/registry_schema.go
+  s_29175cf8c573b8::t_ef1b4e66f9be61 11
+.github/workflows/live-postgres-readiness.yml
+  s_29175cf8c573b8::t_5b5ebba9afe1e9 37,43,45,47,81,87,89,91
+  s_29175cf8c573b8::t_79f74601def0e2 39,83
+  s_29175cf8c573b8::t_128a003ff84102 5
+go/internal/cigates/load_fragments_test.go
+  s_29175cf8c573b8::t_82d8fc62e39bb1 1-42
+  s_29175cf8c573b8::t_f246b1bd537403 43-85
+scripts/lib/live_backend_test_targets.py
+  s_29175cf8c573b8::t_c9feea78e60c3c 9,13-14,18-21
+go/internal/cigates/registry.go
+  s_29175cf8c573b8::t_ef1b4e66f9be61 271
+  s_29175cf8c573b8::t_6cc04d0785baa4 269
+scripts/lib/live_tests_registry.py
+  s_29175cf8c573b8::t_ec137d04be1dae 1-22,24-136,138,140-193
+  s_29175cf8c573b8::t_b91b2ccfcf7cf4 137,139
+  s_29175cf8c573b8::t_c79c434d3fa942 23
+scripts/generate-ci-gates-doc.sh
+  s_29175cf8c573b8::t_0b500f4feda00f 80
+  s_29175cf8c573b8::t_c78bae05d67be3 35-46
+go/internal/evidencecontinuity/gatetriggers.go
+  s_29175cf8c573b8::t_c6d0d606dd39b8 335
+  s_29175cf8c573b8::t_744e55930ac699 337
+scripts/verify-docs-only-ci-skip.sh
+  s_29175cf8c573b8::t_db594f45870875 44-47
+scripts/test-verify-docs-only-ci-skip.sh
+  s_29175cf8c573b8::t_db594f45870875 44,48-50,122,203
+.github/static-contract-filters.yml
+  s_29175cf8c573b8::t_8557274c87c3c9 1-427
+.github/workflows/golden-corpus-gate.yml
+  s_29175cf8c573b8::t_389ef96e35866e 183
+.github/workflows/ifa-determinism-gate.comments.md
+  s_29175cf8c573b8::t_1f56ae62947417 1-351
+.github/workflows/ifa-determinism-gate.yml
+  s_29175cf8c573b8::t_a4b996791cd39f 1,6,90-93,346-347,363-364,397-398,455
+.github/workflows/main-health.yml
+  s_29175cf8c573b8::t_9c39064c4d0ffa 119-124
+.github/workflows/replay-coverage-gate.yml
+  s_29175cf8c573b8::t_e741af7df16916 42
+.github/workflows/static-contract-gates.yml
+  s_29175cf8c573b8::t_73f3dd5feee3bf 79
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_3cf75c5b4a03f4 11,205,209,214-217,219-226,228,237,239-240,246-248,252-265,267,276,279-280,284-288,290-299,301-305,308,315,323-325,328,330
+go/internal/cigates/pathfilter_file_test.go
+  s_29175cf8c573b8::t_1c508242f148a1 1-53
+scripts/ci/main-health.sh
+  s_29175cf8c573b8::t_14b8e9e5c493f8 94-98,140
+scripts/ci/verify-ifa-fault-diagnostics-complete.sh
+  s_29175cf8c573b8::t_b0571b969b8d44 1-6
+scripts/lib/live_postgres_readiness_inventory.py
+  s_29175cf8c573b8::t_f3a8cab3b3b3f9 1-444
+scripts/lib/test-golden-corpus-private-data.sh
+  s_29175cf8c573b8::t_7ac0728509c93a 1-26
+scripts/lib/test-ifa-fault-injection-shard-cases.sh
+  s_29175cf8c573b8::t_3971e7641e833e 53
+scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh
+  s_29175cf8c573b8::t_5dd33341993f59 45-46
+scripts/lib/test-verify-doc-citations-line-cases.sh
+  s_29175cf8c573b8::t_4f4bc13a5d2be2 421-422,431-432,455
+scripts/lib/test-verify-doc-citations-review-cases.sh
+  s_29175cf8c573b8::t_473db97a9b505b 172
+scripts/test-ci-install-apt-packages.sh
+  s_29175cf8c573b8::t_2d78d7359c9866 424
+scripts/test-generate-code-coverage-report.sh
+  s_29175cf8c573b8::t_29543bd080bea5 16-18
+scripts/test-precommit-go-toolchain-isolation.sh
+  s_29175cf8c573b8::t_422d6e24b1f8ff 348-351
+scripts/test-run-console-live-e2e.sh
+  s_29175cf8c573b8::t_64894ed4479fe2 7
+scripts/test-run-live-backend-tests.sh
+  s_29175cf8c573b8::t_cde85dc3e25c9f 55-57,64,171,207
+scripts/test-verify-agent-hygiene.sh
+  s_29175cf8c573b8::t_a2cb6b80027615 331-337,346-352
+scripts/test-verify-ci-gates-registry.sh
+  s_29175cf8c573b8::t_02ed344e6dd007 21-31
+scripts/test-verify-doc-citations.sh
+  s_29175cf8c573b8::t_3baed00157ed5b 30-34
+scripts/test-verify-golden-corpus-gate.sh
+  s_29175cf8c573b8::t_b5a888403714c1 15-16,19-21,412,445,479-480
+scripts/test-verify-ifa-dead-letter-matrix.sh
+  s_29175cf8c573b8::t_ca0dfbe50d4053 200,202,209-216
+scripts/test-verify-ifa-determinism.sh
+  s_29175cf8c573b8::t_ff347c040415ea 46-51
+scripts/test-verify-payload-usage-manifest.sh
+  s_29175cf8c573b8::t_ebdf88be389b0e 129-131
+scripts/test-verify-query-plan-regression.sh
+  s_29175cf8c573b8::t_c4db4c9800fdb0 7-10,78
+scripts/test-verify-remote-validation-artifacts.sh
+  s_29175cf8c573b8::t_c58cd2a9b8e6f8 314-317,323,329
+scripts/test-verify-replay-coverage-gate.sh
+  s_29175cf8c573b8::t_c96ffb8f724d97 14-17
+scripts/test-verify-replay-tier.sh
+  s_29175cf8c573b8::t_a798514659f25e 10-13,268
+specs/ci-gates.d/gates-01.yaml
+  s_29175cf8c573b8::t_f19cdb32d8f4d4 1-307
+specs/ci-gates.d/gates-02.yaml
+  s_29175cf8c573b8::t_92dd0b483db54f 1-429
+specs/ci-gates.d/gates-03.yaml
+  s_29175cf8c573b8::t_aa230fd4c29cd9 1-423
+specs/ci-gates.d/gates-04.yaml
+  s_29175cf8c573b8::t_985607d034c5ae 1-423
+specs/ci-gates.d/gates-05.yaml
+  s_29175cf8c573b8::t_1416ddd66caab2 1-403
+specs/ci-gates.d/gates-06.yaml
+  s_29175cf8c573b8::t_71725898422004 1-405
+specs/ci-gates.d/gates-07.yaml
+  s_29175cf8c573b8::t_685934d989100d 1-332
+specs/ci-gates.d/gates-08.yaml
+  s_29175cf8c573b8::t_0d282e680e286d 1-418
+specs/ci-gates.d/gates-09.yaml
+  s_29175cf8c573b8::t_2caa4f42d9189e 1-422
+specs/ci-gates.d/gates-10.yaml
+  s_29175cf8c573b8::t_114210ae212424 1-196
+specs/ci-gates.d/gates-11.yaml
+  s_29175cf8c573b8::t_e8dc945d89221f 1-369
+specs/ci-gates.d/gates-12.yaml
+  s_29175cf8c573b8::t_7e79617fc15c02 1-297
+specs/ci-gates.d/gates-13.yaml
+  s_29175cf8c573b8::t_2741b676899994 1-399
+specs/ci-gates.d/gates-14.yaml
+  s_29175cf8c573b8::t_70f88b389f99b1 1-434
+specs/ci-gates.d/gates-15.yaml
+  s_29175cf8c573b8::t_1086b40c7cece8 1-406
+specs/ci-gates.d/ifa-determinism.comments.md
+  s_29175cf8c573b8::t_d1274fe4668e4c 1-236
+specs/ci-gates.d/ifa-fault-injection.comments.md
+  s_29175cf8c573b8::t_1d95a5c7820166 1-254
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_f2c879c0588810 31-46
+specs/live-tests.d/live-tests-01.yaml
+  s_29175cf8c573b8::t_48cca814b3447e 1-424
+specs/live-tests.d/live-tests-02.yaml
+  s_29175cf8c573b8::t_9a21a00c8ba814 1-423
+specs/live-tests.d/live-tests-03.yaml
+  s_29175cf8c573b8::t_529d3c9c7ec8dc 1-423
+specs/live-tests.d/live-tests-04.yaml
+  s_29175cf8c573b8::t_bf9bf6adc81925 1-426
+specs/live-tests.d/live-tests-05.yaml
+  s_29175cf8c573b8::t_f4b53bfcff4981 1-422
+specs/live-tests.d/live-tests-06.yaml
+  s_29175cf8c573b8::t_c66187faaaff15 1-423
+specs/live-tests.d/live-tests-07.yaml
+  s_29175cf8c573b8::t_e228d3a210ea39 1-347
+specs/live-tests.v1.yaml
+  s_29175cf8c573b8::t_1082f99ebf6b29 54-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6febb8f17e8e06627c9cc645f58bc93c85158e16",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
