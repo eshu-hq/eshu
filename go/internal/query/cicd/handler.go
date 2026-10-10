@@ -127,7 +127,7 @@ func (h *Handler) listRunCorrelations(w http.ResponseWriter, r *http.Request) {
 	filter = runCorrelationFilterWithRepositoryAccess(filter, access)
 	rows, err := h.Correlations.ListCICDRunCorrelations(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCICDReadFailure(w, r, err, Capability, runCorrelationsListFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

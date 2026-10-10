@@ -26,4 +26,9 @@
 // The package moved out of the root query package for #6642. Root keeps a
 // DependenciesHandler alias (dependency_alias.go) for cmd/api until the
 // #6642 alias sweep.
+//
+// A failed graph read never echoes the backend error: a fence or
+// graph-availability verdict answers 503/504, a client cancel 499, and
+// anything else a fixed 500 with the error recorded on the handler span
+// (#7674).
 package dependency

@@ -77,10 +77,7 @@ func (h *Handler) countPackageRegistryPackages(w http.ResponseWriter, r *http.Re
 	}
 	count, err := h.Aggregates.CountPackageRegistryPackages(r.Context(), filter)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, packageRegistryAggregateCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryAggregateCapability, packageRegistryAggregateCountFailedMessage)
 		return
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -173,10 +170,7 @@ func (h *Handler) packageRegistryPackageInventory(w http.ResponseWriter, r *http
 
 	rows, err := h.Aggregates.PackageRegistryPackageInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, packageRegistryAggregateCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryAggregateCapability, packageRegistryAggregateInventoryFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

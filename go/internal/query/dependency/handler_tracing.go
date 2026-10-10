@@ -21,3 +21,8 @@ var dependencyHandlerTracer = tracing.HandlerTracer()
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(dependencyHandlerTracer, r, spanName, route, capability)
 }
+
+// dependenciesReadFailedMessage is the fixed body for a failed dependency
+// graph read. The graph error is recorded on the request span, never written
+// to the client (#7674).
+const dependenciesReadFailedMessage = "dependency graph read failed"

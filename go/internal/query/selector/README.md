@@ -156,6 +156,29 @@ a missing context is preferable to attaching an ungranted repository's
 identity.
 `TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission` pins this.
 
+## Unclassified resolve errors (#7674)
+
+`ResolveForRequestWithAccess` maps a resolve error in `writeResolveFailure`:
+`querycontract.WriteGraphReadError` (503/504), `WriteLookupFailure` (fixed
+500, or 499 for a client cancel), a typed `NotFoundError` (404) and a typed
+`AmbiguousError` (400), each with its own selector-safe text. Any other error
+used to answer 400 with its own text, which could carry backend detail; it
+now answers the same fixed `LookupFailureMessage` 500 with the error on the
+request span. The exported API is unchanged.
+
+No-Regression Evidence (#7674): the change runs only after resolve has
+already returned an error. No Cypher, query parameter, call count, or
+success path changed, and `ResolveExactForAccess` (the pinned queryplan
+function) is untouched. `go test ./internal/query/... ./internal/queryplan/...
+-count=1` covers every importer and exits 0, as does
+`go test -race ./internal/query/selector/...`.
+
+Observability Evidence (#7674): an unclassified error now records the
+backend error on the request span as an `exception` event and sets status
+Error with `LookupFailureMessage`, the same signal a `LookupError` already
+gives. `server_failure_test.go` asserts the 404, 400 and 500 answers and the
+span.
+
 ## Related docs
 
 - [Cypher performance](../../../../docs/public/reference/cypher-performance.md)

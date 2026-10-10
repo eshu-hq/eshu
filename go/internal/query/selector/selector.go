@@ -206,7 +206,8 @@ func ResolveExactForAccess(
 // SQL error, a driver error) answers 500 with a fixed body and records the
 // error on the request span, the only operator signal this helper can reach:
 // it has no logger and every caller owns its own span (#7626). An unmatched
-// selector answers 404 and anything else, such as an ambiguous match, 400.
+// selector answers 404 and an ambiguous match 400, each with its own typed
+// text. Any other error answers the same fixed 500 as a lookup failure (#7674).
 func ResolveForRequestWithAccess(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -218,20 +219,36 @@ func ResolveForRequestWithAccess(
 ) (string, bool) {
 	repoID, err := ResolveExactForAccess(r.Context(), graph, content, selector, access)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, capability) {
-			return "", false
-		}
-		if WriteLookupFailure(w, r, err) {
-			return "", false
-		}
-		status := http.StatusBadRequest
-		if IsNotFound(err) {
-			status = http.StatusNotFound
-		}
-		querycontract.WriteError(w, status, err.Error())
+		writeResolveFailure(w, r, err, capability)
 		return "", false
 	}
 	return repoID, true
+}
+
+// writeResolveFailure answers a failed ResolveExactForAccess in the order
+// ResolveForRequestWithAccess documents. The 404 and 400 bodies are the typed
+// answer's own text, which quotes only the caller's selector and, for an
+// ambiguous match, repository ids its grant may read. An error that is none of
+// the classified answers is a server fault and answers LookupFailureMessage,
+// so no unclassified error text reaches a 400 body (#7674).
+func writeResolveFailure(w http.ResponseWriter, r *http.Request, err error, capability string) {
+	if querycontract.WriteGraphReadError(w, r, err, capability) {
+		return
+	}
+	if WriteLookupFailure(w, r, err) {
+		return
+	}
+	var notFound NotFoundError
+	if errors.As(err, &notFound) {
+		querycontract.WriteError(w, http.StatusNotFound, notFound.Error())
+		return
+	}
+	var ambiguous AmbiguousError
+	if errors.As(err, &ambiguous) {
+		querycontract.WriteError(w, http.StatusBadRequest, ambiguous.Error())
+		return
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, LookupFailureMessage)
 }
 
 // IsNotFound reports whether err is (or wraps) a NotFoundError, so callers

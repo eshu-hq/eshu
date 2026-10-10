@@ -68,7 +68,7 @@ func (h *Handler) countRunCorrelations(w http.ResponseWriter, r *http.Request) {
 	}
 	count, err := h.Aggregates.CountRunCorrelations(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCICDReadFailure(w, r, err, AggregateCapability, runCorrelationsCountFailedMessage)
 		return
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -152,7 +152,7 @@ func (h *Handler) runCorrelationInventory(w http.ResponseWriter, r *http.Request
 
 	rows, err := h.Aggregates.RunCorrelationInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCICDReadFailure(w, r, err, AggregateCapability, runCorrelationsInventoryFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

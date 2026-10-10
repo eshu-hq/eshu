@@ -92,7 +92,8 @@ const TerraformConfigStateDrift = `
             }
           },
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "501": {"description": "Terraform config-vs-state drift findings require reducer-materialized drift facts"}
+          "501": {"description": "Terraform config-vs-state drift findings require reducer-materialized drift facts"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },

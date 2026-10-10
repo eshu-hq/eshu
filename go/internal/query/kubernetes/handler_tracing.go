@@ -22,3 +22,8 @@ var kubernetesHandlerTracer = tracing.HandlerTracer()
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(kubernetesHandlerTracer, r, spanName, route, capability)
 }
+
+// kubernetesCorrelationsListFailedMessage is the fixed body for a failed
+// Kubernetes correlation read. The store error is recorded on the request
+// span, never written to the client (#7674).
+const kubernetesCorrelationsListFailedMessage = "list kubernetes correlations failed"

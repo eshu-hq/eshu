@@ -40,4 +40,9 @@
 //
 // See README.md for the full boundary and AGENTS.md for the per-symbol
 // export list.
+//
+// A failed graph read never echoes the backend error: a fence or
+// graph-availability verdict answers 503/504, a client cancel 499, and
+// anything else a fixed per-step 500 with the error recorded on the handler
+// span (#7674).
 package codeowners

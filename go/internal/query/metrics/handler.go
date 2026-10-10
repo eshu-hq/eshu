@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
@@ -18,6 +19,11 @@ const (
 )
 
 var errInvalidMetricsRange = errors.New("invalid metrics time-series range")
+
+// metricsQueryFailedMessage is the fixed body for a failed time-series read.
+// The source error is recorded on the request span, never written to the
+// client (#7674).
+const metricsQueryFailedMessage = "metrics query failed"
 
 // Point is one timestamped sample in a metric series.
 type Point struct {
@@ -102,11 +108,14 @@ func (h *Handler) getTimeSeries(w http.ResponseWriter, r *http.Request) {
 
 	points, err := h.Source.RangeQuery(r.Context(), query)
 	if err != nil {
+		if querycontract.WriteGraphReadError(w, r, err, Capability) {
+			return
+		}
 		if errors.Is(err, errInvalidMetricsRange) {
 			querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("invalid metrics range: %v", err))
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("metrics query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, metricsQueryFailedMessage)
 		return
 	}
 	if points == nil {

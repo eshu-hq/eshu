@@ -16,6 +16,10 @@ moved in verbatim from root -- see README.md's Move evidence.
 
 ## Invariants
 
+- A failed store read goes through `writeFreshnessReadFailure` with its
+  route's fixed message constant: a reader fence answers the retryable 503,
+  a client cancel 499, anything else a fixed 500. Never write `err.Error()`
+  into a response body (#7674).
 - MUST NOT import root package `query` -- root would import this package
   back for the compatibility aliases in `freshness_alias.go`, cycling. Reach
   root-only helpers through `querycontract` (profiles, envelopes,

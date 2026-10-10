@@ -126,6 +126,28 @@ read paths call the leaf as `workitemdecode` with no logic change. The
 payload-usage-manifest gate attributes the moved seams through the new
 `workitemdecode` qualifier.
 
+## Failed reads (#7674)
+
+A failed store read on `GET /api/v0/work-items/evidence` answers the fixed
+`list work-item evidence failed`, never the backend error text.
+`querycontract.WriteGraphReadError` runs first (a stale or timed-out reader
+answers the retryable 503 with `Retry-After`), then
+`tracing.WriteServerFailure`: `500` with the error on the handler span, or
+`499` when the caller canceled the request.
+
+No-Regression Evidence (#7674): the change runs only after a read has already
+returned an error. No SQL, query parameter, call count, row bound, or success
+path changed. A failure now costs one span `RecordError`/`SetStatus` and a
+fixed-string write instead of formatting the error into the body.
+`go test ./internal/query/... ./internal/queryplan/... -count=1` and
+`go test -race ./internal/query/workitem/...` exit 0.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the handler span as an `exception` event and sets status Error with the fixed
+message; a client cancel adds `eshu.request.client_canceled`, leaves the
+status Unset, and answers `499`. `server_failure_test.go` asserts both span
+shapes with a recording tracer.
+
 ## Related docs
 
 - `docs/internal/design/5584-route-serves-data-registry.md`

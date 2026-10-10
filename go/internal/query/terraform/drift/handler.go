@@ -283,12 +283,12 @@ func (h *Handler) handleFindings(w http.ResponseWriter, r *http.Request) {
 
 	totalFindings, err := h.Store.CountActiveFindings(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeDriftReadFailure(w, r, err, driftFindingsCountFailedMessage)
 		return
 	}
 	rows, err := h.Store.ListActiveFindings(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeDriftReadFailure(w, r, err, driftFindingsListFailedMessage)
 		return
 	}
 	findings := terraformConfigStateDriftFindingRows(rows)

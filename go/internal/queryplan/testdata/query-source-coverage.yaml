@@ -193,7 +193,7 @@ source_coverage:
       - {symbol: "(*Handler).contractImpactResponse", count: 1, non_hot: {class: keyed_support, source_sha256: 674df6290fa12d5ea54f15c195290cbf01524cf0a9edf0e56b513331b849b590, key_bound: single_key, max_results: 101}}
   - file: dependency/handler.go
     calls:
-      - {symbol: "(*Handler).listDependencies", count: 1, source_sha256: d53c1e4f6705525935967f097d8d140f7e7d0d5bf1bd66e9c7b6dd80cc169c6d, entry_ids: [QP-SC-DEPS]}
+      - {symbol: "(*Handler).listDependencies", count: 1, source_sha256: 7bd549368fbe80cf193deca1704aa8933be9fa46e1503e08aeccb1d4d02962be, entry_ids: [QP-SC-DEPS]}
   - file: entity/context_handler.go
     calls:
       - symbol: "(*Handler).GetEntityContext"
@@ -564,14 +564,14 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 27b5f7c46c69fae09cbd0d744bf5631c81922c21d997624da35d67e862b5f0a4
+          source_sha256: ca48bb3946fd52c7942bf8597f71f54109563f0434a2ab21302a93d6a6ce69ec
           key_bound: single_key
           max_results: 201
       - symbol: "(*Handler).listVersions"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: abc452acf92f1a18f0604822323ef638008d545b65c0e12130f8e932f960ba25
+          source_sha256: 1a28320e7d13be2e91b018b1d5298ee5bf33e5ba0ea77de90852f275c8284f12
           key_bound: single_key
           max_results: 201
   - file: package/registry/version_counts.go
@@ -602,7 +602,7 @@ source_coverage:
           max_results: 501
   - file: package/registry/dependencies_handler.go
     calls:
-      - {symbol: "(*Handler).listDependencies", count: 1, source_sha256: 9d21cccea16922bcf92f9519ce44c62d0f0078e5daa358777f3e594e2d24eb6d, entry_ids: [QP-SC-PKGREG-DEPS]}
+      - {symbol: "(*Handler).listDependencies", count: 1, source_sha256: 173bbc477acbb4ac651e19690e751032ee4a9e8d55e2187e6ae140641f8e7467, entry_ids: [QP-SC-PKGREG-DEPS]}
   - file: package/registry/scoped_access.go
     calls:
       - symbol: "packageRegistryAnchorVisibility"

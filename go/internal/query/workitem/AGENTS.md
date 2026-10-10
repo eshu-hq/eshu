@@ -48,6 +48,9 @@ decode dispatch.
   The `*bool` deref, the decode input, the schema envelope, and the nine
   wrappers come from the shared `internal/query/decode/workitem` leaf
   (#6623); do not re-fork any of them here.
+- A failed store read answers `querycontract.WriteGraphReadError` first, then
+  `tracing.WriteServerFailure` with `workItemEvidenceListFailedMessage`.
+  Never write `err.Error()` into a response body (#7674).
 
 ## Naming
 

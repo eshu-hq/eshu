@@ -57,7 +57,7 @@ func (h *IncidentHandler) authorizeScopedIncidentContext(
 		scopeID,
 	)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "incident context authorization failed")
+		writeIncidentReadFailure(w, r, err, incidentContextAuthorizationFailedMessage)
 		return false
 	}
 	for _, repositoryID := range repositories {

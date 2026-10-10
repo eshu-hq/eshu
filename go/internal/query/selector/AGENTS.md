@@ -22,9 +22,12 @@ against the graph under authorization bounds, so treat changes as security work.
   verdicts to 503/504 first. Do not add the selector to `LookupError` or its
   text, and do not return a `LookupError` for a not-found or ambiguous answer
   (#7626).
-- `ResolveForRequestWithAccess` MUST keep the order: `WriteGraphReadError`,
-  then `WriteLookupFailure` (500, fixed body, span error; 499 for a client
-  cancel), then `IsNotFound` (404), then 400. Callers that map selector errors
+- `ResolveForRequestWithAccess` MUST keep the order in `writeResolveFailure`:
+  `WriteGraphReadError`, then `WriteLookupFailure` (500, fixed body, span
+  error; 499 for a client cancel), then a typed `NotFoundError` (404), then a
+  typed `AmbiguousError` (400), then the same fixed `LookupFailureMessage`
+  500 for any other error (#7674). Never echo an unclassified error's text.
+  Callers that map selector errors
   themselves use the same order and the same helper; do not inline a second
   copy of the 500 answer. `WriteLookupFailure` delegates to
   `tracing.WriteServerFailure`; keep it that way so the cancel rule lives in

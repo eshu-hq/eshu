@@ -99,6 +99,30 @@ shapes are unchanged; only package qualifiers and names differ.
 
 No-Observability-Change: no span, metric or log is added or removed.
 
+## Failed reads (#7674)
+
+A failed store read answers a fixed message per route (`list CI/CD run
+correlations failed`, `count CI/CD run correlations failed`, `read CI/CD run
+correlation inventory failed`), never the backend error text.
+`writeCICDReadFailure` runs `querycontract.WriteGraphReadError` first, so a
+stale or timed-out PostgreSQL reader answers the retryable `503` with
+`Retry-After`, then `tracing.WriteServerFailure`: `500` with the error on the
+handler span, or `499` when the caller canceled the request.
+`server_failure_test.go` covers each route.
+
+No-Regression Evidence (#7674): the change runs only after a read has already
+returned an error. No SQL, query parameter, call count, row bound, or success
+path changed. A failure now costs one span `RecordError`/`SetStatus` and a
+fixed-string write instead of formatting the error into the body.
+`go test ./internal/query/... ./internal/queryplan/... -count=1` and
+`go test -race ./internal/query/cicd/...` exit 0.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the handler span as an `exception` event and sets status Error with the
+route's fixed message; a client cancel adds `eshu.request.client_canceled`,
+leaves the status Unset, and answers `499`. `server_failure_test.go` asserts
+both span shapes with a recording tracer.
+
 ## Related docs
 
 - [Query package README](../README.md)

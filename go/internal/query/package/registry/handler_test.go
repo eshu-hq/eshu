@@ -282,8 +282,9 @@ func TestPackageRegistryListPackagesReturns500WhenVersionCountReadFails(t *testi
 	if got, want := len(reader.cypherCalls), 2; got != want {
 		t.Fatalf("len(cypherCalls) = %d, want %d (anchor read + failed version-count read)", got, want)
 	}
-	if !strings.Contains(w.Body.String(), "version-count read failed") {
-		t.Fatalf("body = %s, want it to surface the backend error", w.Body.String())
+	if strings.Contains(w.Body.String(), "nornicdb") || !strings.Contains(w.Body.String(), packageRegistryPackageVersionCountsFailedMessage) {
+		t.Fatalf("body = %s, want the fixed %q without the backend error text (#7674)",
+			w.Body.String(), packageRegistryPackageVersionCountsFailedMessage)
 	}
 }
 

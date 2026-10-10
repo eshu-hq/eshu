@@ -142,7 +142,7 @@ func (h *Handler) listIdentityTrustChains(w http.ResponseWriter, r *http.Request
 
 	rows, err := h.IdentityTrustChains.ListSecretsIAMIdentityTrustChains(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeSecretsReadFailure(w, r, err, IAMIdentityTrustChainsCapability, iamIdentityTrustChainsFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

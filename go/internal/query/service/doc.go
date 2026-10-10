@@ -27,4 +27,9 @@
 // DEFINES once per story and passes the verdict to the content store, so a
 // repository that defines several workloads reports its links as ambiguous
 // instead of attaching them to one service (#7138).
+//
+// A failed service-catalog correlation read never echoes the backend error: a
+// stale or timed-out reader answers the retryable 503, a client cancel 499,
+// and anything else a fixed 500 with the error recorded on the handler span
+// (#7674).
 package service

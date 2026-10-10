@@ -44,6 +44,14 @@ func (h *IncidentHandler) profile() querycontract.QueryProfile {
 // reads.
 var incidentHandlerTracer = tracing.HandlerTracer()
 
+// Fixed bodies for a failed incident context read and a failed scoped-token
+// authorization lookup. The store error is recorded on the request span, never
+// written to the client (#7674).
+const (
+	incidentContextReadFailedMessage          = "read incident context failed"
+	incidentContextAuthorizationFailedMessage = "incident context authorization failed"
+)
+
 func (h *IncidentHandler) getIncidentContext(w http.ResponseWriter, r *http.Request) {
 	r, span := tracing.StartHandlerSpanWith(
 		incidentHandlerTracer,
@@ -146,12 +154,25 @@ func (h *IncidentHandler) writeIncidentContextError(
 			r,
 			http.StatusNotFound,
 			querycontract.ErrorCodeNotFound,
-			err.Error(),
+			model.ErrIncidentContextNotFound.Error(),
 			nil,
 		)
 	default:
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIncidentReadFailure(w, r, err, incidentContextReadFailedMessage)
 	}
+}
+
+// writeIncidentReadFailure answers a failed incident context or authorization
+// read. A stale or timed-out PostgreSQL reader gets its shared verdict from
+// querycontract.WriteGraphReadError (503 with Retry-After). Anything else
+// answers message through tracing.WriteServerFailure: 500 with err recorded on
+// the request span, or 499 with only the client-cancel event when the caller
+// canceled the request.
+func writeIncidentReadFailure(w http.ResponseWriter, r *http.Request, err error, message string) {
+	if querycontract.WriteGraphReadError(w, r, err, model.Capability) {
+		return
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
 }
 
 func writeIncidentContextEnvelopeError(

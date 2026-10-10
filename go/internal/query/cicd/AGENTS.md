@@ -16,6 +16,9 @@
 - `collector_readiness.go` must stay behavior-identical to root's copy; the
   parity test trips drift.
 - This package must not import the root query package.
+- A failed store read goes through `writeCICDReadFailure` with its route's
+  fixed message constant; never write `err.Error()` or a string formatted
+  with `err` into a response body (#7674).
 
 ## Common changes
 

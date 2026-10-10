@@ -72,6 +72,29 @@ package qualifiers, which is why its queryplan source hash re-pinned. `go test
 No-Observability-Change: the span name, tracer, metrics and attributes are
 the same ones root emitted.
 
+## Failed reads (#7674)
+
+A failed graph read on `GET /api/v0/dependencies` answers the fixed
+`dependency graph read failed`, never the backend error text.
+`querycontract.WriteGraphReadError` runs first (fence or graph-availability
+verdicts answer 503/504), then `tracing.WriteServerFailure`: `500` with the
+error on the handler span, or `499` when the caller canceled the request.
+The `listDependencies` source digest in `query-source-coverage.yaml` was
+re-pinned for this body edit; its Cypher is unchanged.
+
+No-Regression Evidence (#7674): the change runs only after a read has already
+returned an error. No Cypher, query parameter, call count, row bound, or
+success path changed. A failure now costs one span `RecordError`/`SetStatus`
+and a fixed-string write instead of formatting the error into the body.
+`go test ./internal/query/... ./internal/queryplan/... -count=1` and
+`go test -race ./internal/query/dependency/...` exit 0.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the handler span as an `exception` event and sets status Error with the fixed
+message; a client cancel adds `eshu.request.client_canceled`, leaves the
+status Unset, and answers `499`. `server_failure_test.go` asserts both span
+shapes with a recording tracer.
+
 ## Related docs
 
 - [HTTP API: evidence and supply chain](../../../../docs/public/reference/http-api/evidence-and-supply-chain.md)

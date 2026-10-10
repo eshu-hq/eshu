@@ -42,7 +42,8 @@ const RunCorrelationAggregate = `
               }
             }
           },
-          "403": {"$ref": "#/components/responses/Forbidden"}
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -95,7 +96,8 @@ const RunCorrelationAggregate = `
               }
             }
           },
-          "403": {"$ref": "#/components/responses/Forbidden"}
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
