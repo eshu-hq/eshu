@@ -80,6 +80,10 @@ func TestProjectorAckSeesLockTimeMarkerTruth(t *testing.T) {
 			`UPDATE scope_generations SET projection_write_started_at = now() WHERE generation_id = 'gen-am1'`); err != nil {
 			t.Fatalf("stage the marker uncommitted: %v", err)
 		}
+		var holderXID string
+		if err := holder.QueryRowContext(ctx, `SELECT pg_current_xact_id()`).Scan(&holderXID); err != nil {
+			t.Fatalf("read holder xid: %v", err)
+		}
 		ackDone := make(chan error, 1)
 		go func() {
 			ackDone <- queue.Ack(ctx, work, runtime.Result{})
@@ -100,9 +104,18 @@ func TestProjectorAckSeesLockTimeMarkerTruth(t *testing.T) {
 			default:
 			}
 			if !settled {
+				// A backend blocked on a row with an uncommitted version
+				// waits on the holder's transaction id (locktype
+				// transactionid, NULL relation), not on a tuple lock, so
+				// scope the poll to the holder xid. That observes exactly
+				// "the Ack is blocked behind our holder" and is immune to
+				// unrelated backends waiting anywhere else.
 				var waiting int
-				if err := database.QueryRowContext(ctx,
-					`SELECT count(*) FROM pg_locks WHERE NOT granted`).Scan(&waiting); err != nil {
+				if err := database.QueryRowContext(ctx, `
+SELECT count(*) FROM pg_locks
+WHERE NOT granted
+  AND locktype = 'transactionid'
+  AND transactionid::text = $1`, holderXID).Scan(&waiting); err != nil {
 					t.Fatalf("poll pg_locks: %v", err)
 				}
 				settled = waiting > 0

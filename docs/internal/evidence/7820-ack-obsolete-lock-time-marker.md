@@ -7,7 +7,10 @@ supersede) reads `projection_write_started_at` from the statement
 snapshot only: the UPDATE locks just the work rows, and EvalPlanQual
 rechecks only the updated rows. A marker that commits after the
 statement's snapshot but before the scan reaches the row is missed,
-and the Ack retires a generation whose writer is in flight.
+and the Ack retires a generation whose writer is in flight. (Neither
+UPDATE modifies a key column, so the in-flight wait is the generation
+UPDATE's plain row lock on the marker-held row, not a foreign-key
+check: PostgreSQL RI triggers skip unchanged keys.)
 
 Root-Cause Evidence: on the base tree,
 `TestProjectorAckSeesLockTimeMarkerTruth/marker_commits_after_ack_snapshot`
