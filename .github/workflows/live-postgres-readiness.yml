@@ -126,7 +126,8 @@ jobs:
     timeout-minutes: 60
     env:
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      # PRs get none). Only job-wide env exposes this boolean; service
+      # credentials and the login action receive the secrets directly.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     services:
       postgres:
