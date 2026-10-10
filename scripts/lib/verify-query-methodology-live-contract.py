@@ -136,6 +136,21 @@ def check_static(root: Path) -> None:
         static_call in runner_lines,
         "static contract validator missing from methodology runner",
     )
+    identity_order = (
+        'export ESHU_QUERY_METHODOLOGY_IDENTITY="$artifact_dir/identity.json"',
+        "export ESHU_QUERY_METHODOLOGY_REQUIRED=1",
+        'rm -f "$ESHU_QUERY_METHODOLOGY_IDENTITY"',
+        'python3 "$repo_root/scripts/lib/query-methodology-comparison-identity.py" --root "$repo_root" --output "$ESHU_QUERY_METHODOLOGY_IDENTITY"',
+        '[[ -s "$ESHU_QUERY_METHODOLOGY_IDENTITY" ]] || { printf \'missing frozen methodology comparison identity\\n\' >&2; exit 1; }',
+        static_call,
+        "go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
+        "go test ./internal/queryplan -count=1",
+    )
+    positions = []
+    for line in identity_order:
+        require(runner_lines.count(line) == 1, f"methodology runner lost frozen identity or parity step: {line}")
+        positions.append(runner_lines.index(line))
+    require(positions == sorted(positions), "methodology identity must freeze before any producer or parity check")
     go_call = (
         ' if ! go test -json -tags "$tag" -run "^${root_name}$" '
         '"$package" -count=1 -timeout="$timeout" > "$events"; then'
@@ -187,33 +202,36 @@ def check_static(root: Path) -> None:
     job_lines = verify_job.group(1).splitlines()
     require(
         "          scripts/verify-query-plan-regression.sh" in job_lines
-        and "          python3 scripts/test-verify-query-methodology-live-contract.py"
+        and "          python3 scripts/test-verify-query-methodology-live-contract.py" in job_lines
+        and "          python3 scripts/test-query-methodology-comparison-identity.py"
         in job_lines
+        and "          fetch-depth: 0" in job_lines
+        and "          path: .proof-artifacts/query-methodology/*.json" in job_lines
         and "        uses: actions/setup-python@v6" in job_lines
         and "        run: python -m pip install pre-commit==4.6.2" in job_lines,
         "blocking verify-contracts workflow lost proof, self-test, or hook tool",
     )
     registry = (root / "specs/ci-gates.v1.yaml").read_text()
-    gate = re.search(
-        r"^  - id: query-plan-regression\n(.*?)(?=^  - id:|\Z)",
-        registry,
-        re.M | re.S,
-    )
-    require(gate is not None, "query-plan-regression gate missing")
-    body = gate.group(1)
-    for anchor in (
-        "    blocking: true",
-        "      workflow: test.yml",
-        '      job: "verify-contracts"',
-        '      command: "bash scripts/verify-query-plan-regression.sh"',
-        '      - "go/internal/mcp/methodology_live_test.go"',
-        '      - "scripts/lib/verify-query-methodology-live-contract.py"',
-        '      - "scripts/test-verify-query-methodology-live-contract.py"',
-    ):
-        require(
-            anchor in body.splitlines(),
-            f"blocking query-plan route or trigger missing: {anchor}",
+    for gate_id in ("query-methodology-static", "query-plan-regression"):
+        gate = re.search(
+            rf"^  - id: {gate_id}\n(.*?)(?=^  - id:|\Z)", registry, re.M | re.S
         )
+        require(gate is not None, f"{gate_id} gate missing")
+        body = gate.group(1).splitlines()
+        anchors = [
+            "    blocking: true",
+            "      workflow: test.yml",
+            '      job: "verify-contracts"',
+            '      - "go/internal/mcp/methodology_live_test.go"',
+            '      - "scripts/lib/verify-query-methodology-live-contract.py"',
+            '      - "scripts/test-verify-query-methodology-live-contract.py"',
+            '      - "scripts/lib/query-methodology-comparison-identity.py"',
+            '      - "scripts/test-query-methodology-comparison-identity.py"',
+        ]
+        if gate_id == "query-plan-regression":
+            anchors.append('      command: "bash scripts/verify-query-plan-regression.sh"')
+        for anchor in anchors:
+            require(anchor in body, f"blocking {gate_id} route or trigger missing: {anchor}")
     regression = (root / "scripts/verify-query-plan-regression.sh").read_text()
     require(
         '"${repo_root}/scripts/verify-query-methodology.sh" --live'

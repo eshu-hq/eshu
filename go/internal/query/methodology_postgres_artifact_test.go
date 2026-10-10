@@ -23,14 +23,14 @@ func writeMethodologyPostgresArtifact(t *testing.T, ctx context.Context, handle 
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := methodologyGitCommit(t, "origin/main")
-	candidate := methodologyGitCommit(t, "HEAD")
+	identity := methodologyComparisonIdentity(t)
+	base, candidate := identity.Base, identity.Candidate
 	productionPaths := []string{"go/internal/query/cloud_resource_list_store.go"}
 	for _, path := range methodologyPostgresMigrationPaths {
 		productionPaths = append(productionPaths, "go/internal/storage/postgres/migrations/"+path)
 	}
-	methodologyVerifySameProduction(t, base, productionPaths)
-	methodologyVerifySameProductionTree(t, base, "go/internal/storage/postgres/migrations", "*.sql")
+	methodologyVerifySameProduction(t, base, candidate, productionPaths)
+	methodologyVerifySameProductionTree(t, base, candidate, "go/internal/storage/postgres/migrations", "*.sql")
 	migrations := methodologyPostgresMigrations(t)
 	schema, indexes := methodologyPostgresDefinitions(t, ctx, handle)
 	config := methodologyPostgresConfig(t, ctx, handle)

@@ -1454,6 +1454,8 @@ gates:
       - "scripts/lib/verify-live-tests-ledger.py"
       - "scripts/lib/verify-query-methodology-live-contract.py"
       - "scripts/test-verify-query-methodology-live-contract.py"
+      - "scripts/lib/query-methodology-comparison-identity.py"
+      - "scripts/test-query-methodology-comparison-identity.py"
       - "go/internal/queryplan/**"
       - "go/internal/graph/schema*.go"
       - "go/internal/storage/postgres/migrations/**"
@@ -1464,7 +1466,7 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
     local:
       command: "bash scripts/verify-query-methodology.sh --static"
-      test_command: "python3 scripts/test-verify-query-methodology-live-contract.py && bash scripts/test-verify-query-methodology.sh"
+      test_command: "python3 scripts/test-query-methodology-comparison-identity.py && python3 scripts/test-verify-query-methodology-live-contract.py && bash scripts/test-verify-query-methodology.sh"
       pre_push: floor
     ci:
       workflow: test.yml
@@ -1489,6 +1491,8 @@ gates:
       - "scripts/lib/verify-live-tests-ledger.py"
       - "scripts/lib/verify-query-methodology-live-contract.py"
       - "scripts/test-verify-query-methodology-live-contract.py"
+      - "scripts/lib/query-methodology-comparison-identity.py"
+      - "scripts/test-query-methodology-comparison-identity.py"
       - "go/internal/queryplan/**"
       - "go/internal/graph/schema*.go"
       - "go/internal/storage/postgres/migrations/**"

@@ -135,7 +135,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          # The methodology proof validates exact event commits and ancestry.
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -189,6 +190,7 @@ jobs:
       - name: Verify query-plan regression gate
         run: |
           git fetch --no-tags origin main:refs/remotes/origin/main
+          python3 scripts/test-query-methodology-comparison-identity.py
           python3 scripts/test-verify-query-methodology-live-contract.py
           scripts/test-verify-query-methodology.sh
           scripts/test-verify-query-plan-regression.sh

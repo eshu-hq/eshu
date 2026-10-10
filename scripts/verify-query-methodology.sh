@@ -7,12 +7,18 @@ mode="${1:---live}"
 case "$mode" in --static|--live) ;; *) printf 'usage: %s [--static|--live]\n' "$0" >&2; exit 2 ;; esac
 artifact_dir="${ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR:-$repo_root/.proof-artifacts/query-methodology}"
 mkdir -p "$artifact_dir"
+export ESHU_QUERY_METHODOLOGY_IDENTITY="$artifact_dir/identity.json"
+export ESHU_QUERY_METHODOLOGY_REQUIRED=1
+rm -f "$ESHU_QUERY_METHODOLOGY_IDENTITY"
+python3 "$repo_root/scripts/lib/query-methodology-comparison-identity.py" --root "$repo_root" --output "$ESHU_QUERY_METHODOLOGY_IDENTITY"
+[[ -s "$ESHU_QUERY_METHODOLOGY_IDENTITY" ]] || { printf 'missing frozen methodology comparison identity\n' >&2; exit 1; }
 export ESHU_QUERY_METHODOLOGY_COVERAGE="$artifact_dir/coverage.json"
 rm -f "$ESHU_QUERY_METHODOLOGY_COVERAGE"
 cd "$repo_root/go"
 # shellcheck source=scripts/lib/go-test-run-guard.sh
 . "$repo_root/scripts/lib/go-test-run-guard.sh"
 python3 "$repo_root/scripts/lib/verify-query-methodology-live-contract.py" --root "$repo_root"
+go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
 go test ./internal/queryplan -count=1
 [[ -s "$ESHU_QUERY_METHODOLOGY_COVERAGE" ]] || { printf 'missing required produced coverage artifact\n' >&2; exit 1; }
 go_test_run_guard 3 '^(TestMethodologyRequiredProductionVariants|TestHandlerQueryplanManifestBindsProductionBuilders|TestLegacyQueryplanManifestBindsProductionQueries)$' -- ./internal/query -count=1
