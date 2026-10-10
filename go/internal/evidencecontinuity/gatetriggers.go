@@ -122,8 +122,8 @@ const validatorPackageDir = "go/internal/evidencecontinuity"
 //
 // The two categories above watch what the validator reads; neither watches what
 // it is built from. validateGateTriggerCoverage calls cigates.Load,
-// cigates.MatchGlob, and cigates.DornyFilters, so a semantic change to
-// MatchGlob or DornyFilters changes what gate_trigger_gap reports -- yet before
+// cigates.MatchGlob, and cigates.DornyFiltersFile, so a semantic change to
+// MatchGlob or DornyFiltersFile changes what gate_trigger_gap reports -- yet before
 // #6131's follow-up neither trigger set named go/internal/cigates, so a
 // cigates-only edit never selected this gate. The validator's own package is
 // listed for the same reason one layer in: no `go test` proof ref names it, so
