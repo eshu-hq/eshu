@@ -13,15 +13,18 @@ package postgres
 // Per table the per-generation counts therefore sum to the rows the content
 // prunes delete, and BatchRowLimit compares against that sum (#6809).
 //
-// The fifteen #7396 arms count the cascade children of scope_generations the
-// final DELETE removes implicitly: without them BatchRowLimit and the
-// retention events under-count the prune. Each arm joins its table through
-// scope_generations on both (scope_id, generation_id), the fact_records
-// shape: a generation-only probe would skip-scan the two-column index once
-// per candidate over every scope, with cost growing with the table instead
-// of the batch.
+// The sixteen cascade-child arms (#7396 plus #7751) count the cascade
+// children of scope_generations the final DELETE removes implicitly:
+// without them BatchRowLimit and the retention events under-count the
+// prune. Each arm joins its table through scope_generations on both
+// (scope_id, generation_id), the fact_records shape: a generation-only
+// probe would skip-scan the two-column index once per candidate over every
+// scope, with cost growing with the table instead of the batch. The #7751
+// arm counts producer_activation_obligations through its generation-leading
+// PRIMARY KEY (generation_id, scope_id), measured with EXPLAIN ANALYZE
+// before landing like the #7700 arm.
 //
-// The sixteenth arm (#7700) counts admission_decision_evidence, a cascade
+// The #7700 arm counts admission_decision_evidence, a cascade
 // grandchild: evidence rows hang off admission_decisions by decision_id, so
 // the arm joins through the decision's (scope_id, generation_id) probe and
 // then the evidence (decision_id) prefix. Both probes stay index-only and
@@ -224,6 +227,15 @@ FROM generation_retention_row_counts AS candidate
 LEFT JOIN scope_generations AS generation
   ON generation.generation_id = candidate.generation_id
 LEFT JOIN activation_obligations AS row
+  ON row.scope_id = generation.scope_id
+ AND row.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'producer_activation_obligations' AS table_name, COUNT(row.generation_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN producer_activation_obligations AS row
   ON row.scope_id = generation.scope_id
  AND row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
