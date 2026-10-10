@@ -18,9 +18,10 @@ those. You are a leaf agent: do not dispatch other agents.
    commit. A new commit voids the results; restart at this step.
 
 2. **Check the shape.** If a body or draft exists, run
-   `bash .agents/skills/eshu-publish/scripts/check-shape.sh <body-file>`. Fix
-   every `FAIL` line. Done when the exit code is 0. If no body exists, record
-   this step as `NOT_CHECKED` with that reason.
+   `bash .agents/skills/eshu-publish/scripts/check-shape.sh --pr <body-file>`.
+   Use `--issue` for an issue draft. Fix every `FAIL` line. Done when the exit
+   code is 0. If no body exists, record this step as `NOT_CHECKED` with that
+   reason.
 
 3. **Re-measure the claims a command can settle.** List each count, SHA, file
    list, and link target in the PR body and in the docs you changed. Run a
@@ -52,8 +53,8 @@ those. You are a leaf agent: do not dispatch other agents.
 
 6. **Check test sensitivity.** Skip this step for a test whose red-first run
    already showed the failure. Otherwise mutate the production assertion and
-   watch the test fail. Restore the file with `git restore <file>`, and confirm
-   `git status --short` is empty before you go on.
+   watch the test fail. Restore the file with `git restore <file>`. Confirm that
+   `git status --short <file>` prints nothing before you go on.
    [golang-engineering](../golang-engineering/SKILL.md) holds the rule.
 
 7. **Repeat until clean.** Any fix is a new commit and restarts at step 1. Stop
