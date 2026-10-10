@@ -24,7 +24,7 @@ with arbiter verdict arb-7472-defer-1; severity-table category: edge case.
 The policy type, defaults, and normalize moved code-identically into
 `generation_retention_policy.go` (doc comment extended) because the filter
 pushed the old file over the 500-line cap; the dirgate ledger re-pins
-336 to 337 with its regenerated mirror.
+337 to 338 with its regenerated mirror.
 
 No-Regression Evidence (#7472): baseline is the base-revision candidate
 query (commit 63898a7dde; byte-identical to the 823778bbe1 revision the plans were captured against) planned on the seeded retention corpus (8 scopes,
