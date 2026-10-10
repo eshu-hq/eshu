@@ -55,6 +55,21 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
   objects are missing, the DDL pass forwards only those missing objects and
   skips every inspected existing constraint/index before it reaches NornicDB. The inspection uses the
   ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
+- ESHU_GRAPH_SCHEMA_ADOPT_ONLY — opt-in, fail-closed adoption for a schema
+  Job that must not issue graph DDL. When true, a missing or incompatible
+  marker requires a complete inspected graph catalog. A missing inspector,
+  inspection error or timeout, missing object, or still-present retired object
+  fails startup before graph DDL or a new graph marker. It accepts an unset or
+  true `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING`, but rejects false or invalid values
+  and a true `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY` before opening either store.
+  Its boolean values use Go's `strconv.ParseBool` spellings (`1`, `t`, `T`,
+  `TRUE`, `true`, `True`, `0`, `f`, `F`, `FALSE`, `false`, `False`) after trimming
+  surrounding whitespace. An unset value is false; whitespace alone, `yes`,
+  `on`, and mixed-case `TrUe` are invalid and fail before either store opens.
+  An exact or compatible marker still takes the skip path after flag validation.
+  The flag does not stop Postgres migrations, which run before graph inspection.
+  Catalog inspection compares object names; it does not prove definitions or
+  index ONLINE state. Verify those separately before an operator rollout.
 - NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 - DEFAULT_DATABASE
 
@@ -76,6 +91,8 @@ are registered. Lifecycle events use `telemetry.EventAttr`:
 objects are still present (`retired_schema_objects_present`,
 `first_retired_schema_objects_present`) and
 `bootstrap.graph.adopted` when the backend schema is complete enough to mark.
+With adoption-only enabled, an incomplete catalog also returns a bounded
+refusal error; `runtime.startup.failed` records that error at the top level.
 Postgres bootstrap uses this runtime's structured logger for each started and
 recorded migration with path, variant, recovery flag, position, duration, and
 `event_name`, then `postgres schema migrations complete` with applied, skipped,
@@ -170,6 +187,14 @@ applied fingerprint, and operator guidance. Focused schema-progress and
 statement-timeout tests cover the structured per-statement logs and the
 bootstrap-level timeout wrapper that operators use to see which graph schema
 statement is slow or blocked.
+
+No-Regression Evidence: the adoption-only focused cases use the production
+`run` path and fake Neo4j catalog to check that missing and retired objects,
+inspection errors, absent inspection support, and conflicting flags never
+reach graph DDL or write a marker. The existing Neo4j retired-object test
+still checks that the legacy `ADOPT_EXISTING=true` path runs the required drop.
+This is a correctness-only control-flow guard: it adds no Cypher statement or
+catalog probe to the legacy path and does not claim a graph latency gain.
 
 ## Related docs
 
