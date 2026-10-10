@@ -137,6 +137,18 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     checkSetupGoPrewarmOrdering for why "somewhere in the job" (what the
 //     #6615 branch's first review pass verified) is not the same guarantee
 //     as "before the touch", and the no-restore-keys cache race this closes.
+//
+//  13. Job ownership: in every workflow that at least one blocking gate
+//     names, every job must be owned by a gate (ci.job or check_names, blocking
+//     or advisory) or a required_status_checks entry, or be a transitive
+//     `needs` target of an owned job. `ci-gates await` matches only declared
+//     check names, so an unowned job can fail without blocking a merge (#7807
+//     merged with the Ifa "static mirror" job red). Derived from the registry
+//     and the workflow files: there is no exception list. See
+//     checkJobOwnership (jobownership.go) for the name-resolution rules.
+//     The same check requires every literal trigger of a blocking CI-only owner
+//     row to match the workflow's pull_request paths:, or to match no paths-ignore:
+//     entry (checkOwnerRowTriggers).
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -159,6 +171,8 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkGoPackageTriggerCoverage(reg)...)
 	errs = append(errs, checkCIScriptTriggerCoverage(repoRoot, reg)...)
 	errs = append(errs, checkSetupGoPrewarmOrdering(repoRoot)...)
+	errs = append(errs, checkJobOwnership(repoRoot, reg)...)
+	errs = append(errs, checkOwnerRowTriggers(repoRoot, reg)...)
 
 	return errs
 }

@@ -24,7 +24,7 @@ and `eshu-diagnostic-rigor`.
   read, that is an error too, not a skip — an unverifiable trigger must not
   read as present. Resolve globs against the TRACKED set, never a filesystem
   walk: a walk lets a build artifact satisfy a trigger CI can never fire on,
-  and makes the verdict depend on the developer's tree.
+  and makes the verdict depend on the developer's tree. The same rule covers jobs: a job in a workflow a blocking gate names must be owned by a row or needed by an owned job (`jobownership.go`, drift check 13); give a new job an owner row, never an exception list. A CI-only owner row's literal triggers must match the workflow's `pull_request.paths:` (`ownerrowtriggers.go`).
 - **The universe is FILES. Do not put directories back in it, on either half.**
   `Select` matches triggers against changed paths, and every caller supplies
   files (`git diff --name-only`, GitHub's pull-files response), never the

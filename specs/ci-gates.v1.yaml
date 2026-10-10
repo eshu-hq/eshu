@@ -1224,6 +1224,60 @@ gates:
     # Note: capability-surface-inventory hook also runs this surface check at
     # commit time; hook_id is on capability-surface-inventory gate below.
 
+  # Owner rows for the `Verify ReadOnlyTools count` and `Full MCP test suite`
+  # jobs of mcp-schema-drift.yml. Both had no row, so a failing MCP test never
+  # blocked a merge. Their `if:` skips them on a docs-only pull request and
+  # runs them on merge_group and push; the triggers are go/** and sdk/go/**
+  # because the MCP package tests import the rest of the Go module and the two
+  # SDK modules it replaces from ../sdk. Green across the 90 most recent runs
+  # of the workflow (merge_group, push and pull_request), and no merge_group
+  # failure in the failed-run history.
+  - id: mcp-tool-count
+    name: MCP ReadOnlyTools count
+    category: exactness
+    layer: contract
+    purpose: "Fails when the number of read-only MCP tools differs from the count the contract test pins."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "sdk/go/**"
+      - "scripts/go-test-run-guard.sh"
+      - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/mcp-schema-drift.yml"
+    local:
+      command: "cd go && go test ./internal/mcp/ -run '^TestReadOnlyTools$' -count=1"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify ReadOnlyTools count"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: mcp-test-suite
+    name: Full MCP test suite
+    category: exactness
+    layer: unit
+    purpose: "Runs every test under the MCP server packages so a broken tool handler or envelope fails before merge."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "sdk/go/**"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/mcp-schema-drift.yml"
+    local:
+      command: "cd go && go test ./internal/mcp/... -count=1 -timeout 120s"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Full MCP test suite"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: capability-inventory
     name: Capability Inventory Verify
     category: exactness
@@ -3042,6 +3096,45 @@ gates:
       - nornicdb
     ci_only_reason: ""
 
+  # Owner row for the `static-mirror (ledger and runner probes)` job of
+  # live-backend-tests.yml. Without a row a failing ledger or runner probe did
+  # not block a merge (see ifa-static-mirror). The job needs no Docker: it
+  # validates specs/live-tests.v1.yaml against every live test under go/ and
+  # exercises the runner script, so its triggers are the workflow paths, as the
+  # live-backend-tests row above.
+  - id: live-backend-static-mirror
+    name: Live backend static mirrors (ledger and runner probes)
+    category: exactness
+    layer: contract
+    purpose: "Validates the live-test ledger against every live test under go/ and probes the live-backend runner script without Docker."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "specs/live-tests.v1.yaml"
+      - "scripts/run-live-backend-tests.sh"
+      - "scripts/test-run-live-backend-tests.sh"
+      - "scripts/verify-live-tests-ledger.sh"
+      - "scripts/test-verify-live-tests-ledger.sh"
+      - "scripts/lib/live_backend_test_targets.py"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "docker-compose.live-backend-nornicdb.yml"
+      - "docker-compose.live-backend-neo4j.yml"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
+      - ".github/workflows/live-backend-tests.yml"
+    local:
+      command: "bash scripts/verify-live-tests-ledger.sh"
+      test_command: "bash scripts/test-verify-live-tests-ledger.sh"
+    ci:
+      workflow: live-backend-tests.yml
+      job: "static-mirror (ledger and runner probes)"
+    requirements: []
+    ci_only_reason: ""
+
   # #7529 staging row. The trusted publisher reads main's registry, so the
   # new check first lands non-blocking and flips after a green main run.
   - id: live-postgres-readiness
@@ -3266,6 +3359,36 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+
+  # Owner row for the `static mirror` job of replay-coverage-gate.yml (see
+  # ifa-static-mirror for why an unowned job never blocked a merge). The job
+  # runs scripts/test-verify-replay-coverage-gate.sh, which the
+  # replay-coverage-gate row already runs locally as its test_command, so this
+  # row is CI-only. The mirror also reads docs/public/reference/replay-coverage.md
+  # and docs/mkdocs.yml, which the workflow's paths: filter does not list; they
+  # are left out of the triggers because a trigger the workflow does not start
+  # on would select a check that never arrives (checkOwnerRowTriggers enforces
+  # this). scripts/lib/go-test-run-guard.sh is left out for the same reason: the
+  # mirror never reads it.
+  - id: replay-coverage-static-mirror
+    name: Replay coverage static mirror
+    category: exactness
+    layer: contract
+    purpose: "Checks the replay coverage verifier, workflow and registry rows still agree on the gate contract, without a Go build."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/test-verify-replay-coverage-gate.sh"
+      - "scripts/verify-replay-coverage-gate.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "specs/replay-coverage-manifest.v1.yaml"
+      - "specs/ci-gates.v1.yaml"
+      - ".github/workflows/replay-coverage-gate.yml"
+    ci:
+      workflow: replay-coverage-gate.yml
+      job: "static mirror"
+    requirements: []
+    ci_only_reason: "the replay-coverage-gate row runs the same scripts/test-verify-replay-coverage-gate.sh locally as its test_command; this row only owns the CI job"
 
   - id: ifa-contract-layer
     name: Ifa contract-layer Odù skeleton
@@ -4673,6 +4796,356 @@ gates:
       - go
     ci_only_reason: ""
 
+  # Owner row for the `static mirror` job of ifa-determinism-gate.yml (#7807).
+  # `ci-gates await` waits only for checks a row names, so before this row that
+  # job could fail inside a merge group and nothing blocked the merge: it
+  # failed on 63 runs between 04:20 and 11:12 UTC on 2026-10-09 (26 merge
+  # groups, 15 pushes, 22 pull requests) while required-gates-complete stayed
+  # green, and was fixed by #7830. It passed in all 43 runs before that streak
+  # and in every run after the fix, so it is deterministic. The job
+  # runs the three static mirrors that are the local.command of
+  # ifa-determinism, ifa-dead-letter-matrix and ifa-fault-injection, so this
+  # row is CI-only and its triggers are the union of those three rows: a path
+  # that arms any live Ifa gate arms its mirror. The mirrors read production
+  # sources (for example reducer_queue_replay.go) as text, so a production edit
+  # must select the mirror, not only the live cells. The registry/workflow
+  # lockstep (scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh)
+  # pins both that this list stays a superset of the three rows' triggers and
+  # that the workflow lists every entry.
+  #
+  # The row is non-blocking by owner decision (2026-10-09): the mirrors are
+  # hand-kept shell copies of production values, so a production edit that
+  # forgets the copy fails the job while production stays correct (the 63
+  # failures above). The job still runs, still shows red on the pull request,
+  # and an owner row keeps it from being an orphan, but its failure does not
+  # hold a merge or make main red. Flip to blocking once the mirrors derive
+  # their expectations from the production sources instead of copying them.
+  - id: ifa-static-mirror
+    name: Ifa static mirrors (determinism, dead-letter, fault-injection)
+    category: exactness
+    layer: replay
+    purpose: "Runs the three Ifa static mirror scripts in one CI job so a stale hand-kept copy of a production value shows red on the PR. Advisory: never holds a merge."
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "scripts/lib/test-ifa-determinism-private-data-cases.sh"
+      - "scripts/lib/ifa_private_data_pattern.sh"
+      - "scripts/lib/ifa_dead_command_line.sh"
+      - "scripts/lib/ifa_live_gate_*.sh"
+      - "go/internal/storage/postgres/migrations/**"
+      - "go/internal/graphschemacompat/**"
+      - "go/internal/projector/failure/retry.go"
+      - "go/internal/projector/decode/schema_version_admission.go"
+      - "go/internal/storage/postgres/queue/failure_metadata.go"
+      - "go/internal/storage/postgres/queue/backoff.go"
+      - "go/internal/storage/cypher/writer.go"
+      - "go/internal/storage/cypher/phase_group_metadata.go"
+      - "go/internal/storage/cypher/phase_group_sanitize.go"
+      - "go/internal/storage/cypher/statement_chunk.go"
+      - "go/internal/storage/cypher/bounded_retract_drain.go"
+      - "go/internal/storage/cypher/reconciliation_drift_metrics.go"
+      - "go/internal/storage/cypher/canonical_node_writer_entities_singleton.go"
+      - "go/internal/storage/postgres/lock/deferred_maintenance.go"
+      - "go/internal/storage/postgres/relationship_reference_keys.go"
+      - "go/internal/storage/postgres/relationship_store*.go"
+      - "go/internal/storage/postgres/ingestion_backfill*.go"
+      - "go/internal/storage/postgres/ingestion_flux_cross_repo_telemetry.go"
+      - "go/internal/relationships/**"
+      - "go/internal/runtime/data_stores.go"
+      - "go/internal/runtime/retry_policy.go"
+      - "go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go"
+      - "go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go"
+      - "go/go.mod"
+      - "go/go.sum"
+      - "sdk/go/factschema/go.mod"
+      - "sdk/go/factschema/*.go"
+      - "sdk/go/factschema/codegraph/v1/**"
+      - "sdk/go/factschema/gcp/v1/**"
+      - ".github/workflows/ifa-determinism-gate.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
+      - "docker-compose.yaml"
+      - "testdata/cassettes/gcpcloud/supply-chain-demo.json"
+      - "testdata/golden/e2e-20repo-snapshot.json"
+      - "go/cmd/golden-corpus-gate/main.go"
+      - "go/cmd/golden-corpus-gate/runner.go"
+      - "go/cmd/golden-corpus-gate/drains.go"
+      - "go/cmd/golden-corpus-gate/drains_readiness_classes.go"
+      - "go/cmd/golden-corpus-gate/shared.go"
+      - "go/internal/goldengate/snapshot.go"
+      - "go/internal/goldengate/evaluate_drains.go"
+      - "go/internal/goldengate/report.go"
+      - "go/internal/replay/cassette/**"
+      - "go/internal/replay/concurrentreplay/**"
+      - "go/internal/storage/postgres/ingestion.go"
+      - "go/internal/storage/postgres/ingestion_queries.go"
+      - "go/internal/storage/postgres/ingestion_catalog*.go"
+      - "go/internal/storage/postgres/ingestion_backfill_generation_guard.go"
+      - "go/internal/storage/postgres/facts_streaming.go"
+      - "go/internal/storage/postgres/facts.go"
+      - "go/internal/storage/postgres/facts/payload/json.go"
+      - "go/internal/storage/postgres/migrations/008_shared_projection_intents.sql"
+      - "go/internal/storage/postgres/migrations/011_shared_projection_acceptance.sql"
+      - "go/internal/storage/postgres/migrations/012_graph_projection_phase_state.sql"
+      - "go/cmd/bootstrap-data-plane/schema_adoption.go"
+      - "go/internal/graph/schema*.go"
+      - "go/cmd/projector/config.go"
+      - "go/cmd/projector/nornicdb_wiring.go"
+      - "go/internal/projector/service.go"
+      - "go/internal/projector/service_superseded.go"
+      - "go/internal/storage/postgres/projector_queue.go"
+      - "go/internal/storage/postgres/projector_queue_claim_sql.go"
+      - "go/internal/storage/postgres/projector_queue_scan.go"
+      - "go/internal/storage/postgres/projector_queue_sql.go"
+      - "go/internal/storage/nornicdb/**"
+      - "go/internal/storage/cypher/canonical_node_writer_options.go"
+      - "go/internal/storage/cypher/instrumented.go"
+      - "go/internal/storage/cypher/retrying_executor.go"
+      - "go/internal/storage/cypher/retryable_error.go"
+      - "go/internal/storage/cypher/timeout_executor.go"
+      - "go/internal/graphbackpressure/**"
+      - "go/cmd/reducer/observed_service_wiring.go"
+      - "go/cmd/reducer/neo4j_wiring.go"
+      - "go/cmd/reducer/executor_adapters.go"
+      - "go/cmd/reducer/graph_write_backpressure_wiring.go"
+      - "go/cmd/reducer/worker_gauge.go"
+      - "go/internal/storage/postgres/reducer_queue.go"
+      - "go/internal/storage/postgres/reducer_queue_batch.go"
+      - "go/internal/storage/postgres/reducer_queue_batch_query.go"
+      - "go/internal/storage/postgres/reducer_queue_helpers.go"
+      - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
+      - "go/internal/storage/postgres/reducer_queue_replay.go"
+      - "go/internal/storage/postgres/reducer_queue_validation.go"
+      - "go/internal/storage/postgres/reducer_queue_ack.go"
+      - "go/internal/ifa/graphdump/**"
+      - "go/internal/ifa/*.go"
+      - "go/internal/ifa/materializededges/**"
+      - "go/cmd/bootstrap-data-plane/main.go"
+      - "go/cmd/reducer/main.go"
+      - "go/cmd/reducer/run.go"
+      - "go/cmd/reducer/config.go"
+      - "go/cmd/reducer/config_projection.go"
+      - "go/cmd/reducer/main_helpers.go"
+      - "go/internal/reducer/**"
+      - "sdk/go/factschema/documentation/v1/**"
+      - "sdk/go/factschema/codeowners/v1/**"
+      - "sdk/go/factschema/submodule/v1/**"
+      - "go/internal/storage/cypher/*code_call*.go"
+      - "go/internal/storage/cypher/edge/writer/*documentation*.go"
+      - "go/internal/storage/cypher/*codeowners*.go"
+      - "go/internal/storage/cypher/*submodule*.go"
+      - "go/internal/storage/cypher/payload_accessors.go"
+      - "go/internal/storage/cypher/canonical_instantiates_edges.go"
+      - "go/internal/storage/cypher/edge/writer/writer.go"
+      - "go/internal/storage/cypher/canonical_retract.go"
+      - "go/internal/storage/cypher/edge/writer/retract*.go"
+      - "go/internal/storage/cypher/canonical_node_writer.go"
+      - "go/internal/storage/cypher/canonical_node_writer_phases.go"
+      - "go/internal/storage/cypher/canonical_node_writer_entities.go"
+      - "go/internal/storage/cypher/canonical_node_cypher.go"
+      - "go/internal/storage/cypher/canonical_node_writer_retract.go"
+      - "go/internal/storage/cypher/canonical_node_writer_delta_retract.go"
+      - "go/internal/storage/cypher/canonical_node_writer_retract_labels.go"
+      - "go/internal/content/writer.go"
+      - "go/internal/projector/canonical/builder.go"
+      - "go/internal/projector/canonical/codegraph_extract.go"
+      - "go/internal/projector/canonical/delta.go"
+      - "go/internal/projector/decode/codegraph.go"
+      - "go/internal/projector/decode/fact_kind.go"
+      - "go/internal/projector/canonical/materialization.go"
+      - "go/internal/projector/runtime/projection.go"
+      - "go/internal/projector/runtime/reducer_intent.go"
+      - "go/internal/projector/decode/payload.go"
+      - "go/internal/projector/runtime/phase.go"
+      - "go/internal/projector/canonical/entity_identity.go"
+      - "go/internal/projector/runtime/stages.go"
+      - "go/cmd/projector/main.go"
+      - "go/cmd/projector/runtime_wiring.go"
+      - "go/internal/storage/postgres/code_call_intent_writer.go"
+      - "go/internal/storage/postgres/facts_active_code_call_symbols.go"
+      - "go/internal/storage/postgres/facts_filtered.go"
+      - "go/internal/storage/postgres/shared_intent_acceptance_writer.go"
+      - "go/internal/storage/postgres/shared_projection_acceptance*.go"
+      - "go/internal/storage/postgres/accepted_generation.go"
+      - "go/internal/storage/postgres/graph_projection_phase_state.go"
+      - "go/internal/storage/postgres/reducer_queue_conflict.go"
+      - "go/internal/storage/postgres/schema.go"
+      - "go/internal/storage/postgres/schema_bootstrap_lock.go"
+      - "go/internal/storage/postgres/shared_intents*.go"
+      - "schema/data-plane/postgres/008_shared_projection_intents.sql"
+      - "schema/data-plane/postgres/011_shared_projection_acceptance.sql"
+      - "schema/data-plane/postgres/012_graph_projection_phase_state.sql"
+      - "go/internal/synth/gcp/**"
+      - "go/cmd/ifa/**"
+      - "go/internal/storage/cypher/cloud_resource_node_writer.go"
+      - "go/internal/storage/cypher/cloud_resource_node_writer_teeth.go"
+      - "go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
+      - "go/internal/storage/cypher/edge/writer/sql.go"
+      - "go/internal/storage/cypher/materialized_edge_*.go"
+      - "go/internal/storage/cypher/canonical_code_call_edges.go"
+      - "go/internal/storage/cypher/canonical_inheritance_edges.go"
+      - "testdata/cassettes/sqlrelationships/**"
+      - "testdata/cassettes/codecalls/**"
+      - "testdata/cassettes/documentation/**"
+      - "testdata/cassettes/codeowners/**"
+      - "testdata/cassettes/submodulepin/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
+      - "go/internal/ifa/testdata/codecalls/**"
+      - "go/internal/ifa/testdata/documentation/**"
+      - "go/internal/ifa/testdata/codeowners/**"
+      - "go/internal/ifa/testdata/submodulepin/**"
+      - "go/internal/storage/cypher/canonical_deployable_unit_edges.go"
+      - "go/internal/storage/cypher/edge/writer/rowmaps.go"
+      - "testdata/cassettes/deployableunit/**"
+      - "go/internal/ifa/testdata/deployableunit/**"
+      - "go/cmd/bootstrap-index/**"
+      - "go/internal/replay/canonical.go"
+      - "go/internal/storage/cypher/canonical_rationale_edges.go"
+      - "go/internal/storage/cypher/edge/writer/rationale_labels.go"
+      - "go/internal/storage/cypher/canonical.go"
+      - "go/internal/storage/cypher/backpressure_executor.go"
+      - "testdata/cassettes/rationale/**"
+      - "go/internal/ifa/testdata/rationale/**"
+      - "go/internal/storage/cypher/canonical_implements_edges.go"
+      - "go/internal/storage/cypher/canonical_inheritance_retract.go"
+      - "go/internal/storage/cypher/edge/writer/inheritance_labels.go"
+      - "go/internal/storage/cypher/edge/writer/shell_exec.go"
+      - "testdata/cassettes/inheritance/**"
+      - "testdata/cassettes/shellexec/**"
+      - "go/internal/ifa/testdata/inheritance/**"
+      - "go/internal/ifa/testdata/shellexec/**"
+      - "go/internal/ifa/familyodu/kubernetes_namespace_environment_family_odu.go"
+      - "go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go"
+      - "go/internal/ifa/familyodu/iam_can_assume_family_odu.go"
+      - "go/internal/ifa/familyodu/iam_can_perform_family_odu.go"
+      - "go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go"
+      - "go/internal/ifa/familyodu/iam_escalation_family_odu.go"
+      - "go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go"
+      - "go/internal/ifa/familyodu/s3_logs_to_family_odu.go"
+      - "go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go"
+      - "go/internal/ifa/direct_family_cassette.go"
+      - "go/internal/reducer/kubernetes_namespace_materialization.go"
+      - "go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go"
+      - "go/internal/reducer/iaminstprofile/iam_instance_profile_role_edge_rows.go"
+      - "go/internal/storage/cypher/kubernetes_namespace_node_writer.go"
+      - "go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go"
+      - "testdata/cassettes/kubernetesnamespaceenvironment/**"
+      - "testdata/cassettes/iaminstanceprofilerole/**"
+      - "testdata/cassettes/iamcanassume/**"
+      - "testdata/cassettes/iamcanperform/**"
+      - "testdata/cassettes/workloadcloudrelationship/**"
+      - "testdata/cassettes/iamescalation/**"
+      - "testdata/cassettes/ec2usesprofile/**"
+      - "testdata/cassettes/s3logsto/**"
+      - "testdata/cassettes/kubernetescorrelation/**"
+      - "go/internal/ifa/testdata/kubernetesnamespaceenvironment/**"
+      - "go/internal/ifa/testdata/iaminstanceprofilerole/**"
+      - "go/internal/ifa/testdata/iamcanassume/**"
+      - "go/internal/ifa/testdata/iamcanperform/**"
+      - "go/internal/ifa/testdata/workloadcloudrelationship/**"
+      - "go/internal/ifa/testdata/iamescalation/**"
+      - "go/internal/ifa/testdata/ec2usesprofile/**"
+      - "go/internal/ifa/testdata/s3logsto/**"
+      - "go/internal/ifa/testdata/kubernetescorrelation/**"
+      - "scripts/lib/ifa_direct_family_live.sh"
+      - "testdata/cassettes/symbolruntime/**"
+      - "go/internal/ifa/testdata/handlesroute/**"
+      - "go/internal/ifa/testdata/runsin/**"
+      - "go/internal/ifa/testdata/invokescloudaction/**"
+      - "go/internal/storage/cypher/canonical_handles_route_edges.go"
+      - "go/internal/storage/cypher/canonical_runs_in_edges.go"
+      - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
+      - "scripts/lib/ifa_determinism_*.sh"
+      - "scripts/lib/ifa_*_live*.sh"
+      - "scripts/lib/ifa_family_*.sh"
+      - "scripts/verify-ifa-determinism.sh"
+      - "scripts/test-verify-ifa-determinism.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/lib/ifa_fault_injection_inheritance_cells.sh"
+      - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
+      - "scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh"
+      - "scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh"
+      - "scripts/lib/ifa_family_registry/**"
+      - "scripts/lib/test-ifa-determinism-*.sh"
+      - "scripts/lib/test-ifa-family-registry-*.sh"
+      - "scripts/lib/ifa_family_registry_pins/**"
+      - "scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
+      - "scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"
+      - "testdata/cassettes/repodependency/**"
+      - "go/internal/ifa/testdata/repodependency/**"
+      - "scripts/lib/ifa_fault_injection_workload_dependency_cells.sh"
+      - "scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh"
+      - "testdata/cassettes/workloaddependency/**"
+      - "go/internal/ifa/testdata/workloaddependency/**"
+      - "go/internal/storage/cypher/edge/materialized/endpoints.go"
+      - "go/internal/collector/repo/git/fact_builder*.go"
+      - "go/internal/collector/repo/git/followup_facts.go"
+      - "go/internal/projector/canonical/import_extract.go"
+      - "go/internal/projector/runtime/workload_dependency_cassette_admission_test.go"
+      - "go/internal/storage/postgres/ingestion_reopen*.go"
+      - "go/internal/storage/cypher/edge/materialized/repo_dependency.go"
+      - "go/internal/storage/cypher/canonical_relationships.go"
+      - "go/internal/ifa/catalog_seed.go"
+      - "go/internal/ifa/code_call_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_catalog.go"
+      - "go/internal/ifa/familyodu/deployable_unit_family_odu.go"
+      - "go/internal/ifa/documentation_family_catalog.go"
+      - "go/internal/ifa/familyodu/documentation_family_odu.go"
+      - "go/internal/reducer/code_call*.go"
+      - "go/internal/reducer/deployable_unit*.go"
+      - "go/internal/reducer/documentation_edge*.go"
+      - "scripts/lib/ifa_rationale_live.sh"
+      - "sdk/go/factschema/codegraph/v1/repository.go"
+      - "go/internal/ifa/familyodu/symbol_runtime_family_odu.go"
+      - "go/internal/reducer/code/call/materialization/*.go"
+      - "scripts/lib/ifa_symbol_runtime_live.sh"
+      - "go/internal/ifa/sql_relationship_odu*.go"
+      - "go/internal/reducer/sql_relationship_*.go"
+      - "go/internal/reducer/sqlrelationship/sql_relationship_*.go"
+      - "scripts/lib/ifa_mirror_pins.sh"
+      - "go/internal/ifa/mutate.go"
+      - "go/internal/ifa/dead_letters.go"
+      - "go/cmd/ifa/mutate_cassette.go"
+      - "go/cmd/ifa/dead_letters.go"
+      - "scripts/verify-ifa-dead-letter-matrix.sh"
+      - "scripts/test-verify-ifa-dead-letter-matrix.sh"
+      - "scripts/lib/ifa_determinism_common*.sh"
+      - "scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh"
+      - "go/internal/storage/cypher/canonical_node_writer_metadata.go"
+      - "go/internal/projector/runtime/scope_generation_intents.go"
+      - "go/internal/projector/runtime/reducer_intent_fact_index.go"
+      - "go/internal/projector/gcp/resource_materialization_intents.go"
+      - "go/internal/projector/gcp/relationship_materialization_intents.go"
+      - "go/internal/projector/security/group_reachability_intents.go"
+      - "go/cmd/reducer/canonical_graph_writers.go"
+      - "go/internal/graphowner/family_writers.go"
+      - "go/internal/graphowner/gated_writer.go"
+      - "go/internal/storage/postgres/graph/owner/store.go"
+      - "go/internal/storage/cypher/fault/executor/*.go"
+      - "go/internal/replay/faultreplay/**"
+      - "go/cmd/reducer/ifa_fault_wiring.go"
+      - "go/cmd/reducer/ifa_fault_wiring_off.go"
+      - "go/cmd/ifa/assert_edges.go"
+      - "scripts/lib/ifa_fault_*.sh"
+      - "scripts/lib/test-ifa-fault-injection-*.sh"
+      - "scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh"
+      - "scripts/verify-ifa-fault-injection.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/test-verify-ifa-fault-injection.sh"
+      - "scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh"
+      - "scripts/lib/ifa_determinism_common.sh"
+      - "scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh"
+      - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
+    ci:
+      workflow: ifa-determinism-gate.yml
+      job: "static mirror"
+    requirements:
+      - go
+    ci_only_reason: "local equivalents are the local.command of ifa-determinism, ifa-dead-letter-matrix and ifa-fault-injection, which run the same three scripts; this row only owns the CI job that runs them together"
+
   - id: ifa-load-saturation
     name: Ifa P5 load/saturation Odù (corpus amplifier + throughput + #3560 saturation regression)
     category: exactness
@@ -4939,6 +5412,50 @@ gates:
       - postgres
     ci_only_reason: ""
 
+  # Owner row for the `SSO auth E2E` job of frontend.yml. It had no row, so its
+  # failures never blocked a merge. It stays non-blocking on measured flake
+  # evidence: two same-commit fail/pass pairs, where the merge_group run of a
+  # commit failed and the push run of the same commit passed, on 2026-09-30
+  # (483d0d25, run 36763629886 vs 36768062593, a buildkit "rpc error: code =
+  # Unavailable ... EOF" while building db-migrate) and 2026-10-01 (87607494,
+  # run 36873243872 vs 36876607573, member sidebar rendered an Admin nav link).
+  # Making it blocking now would evict merge groups for infrastructure and
+  # timing flakes. Flip to blocking once the member-nav race is fixed and a
+  # window of runs is clean.
+  - id: auth-sso-e2e
+    name: SSO auth E2E (browser, fresh stack)
+    category: exactness
+    layer: secondary
+    purpose: "Runs a real browser against a fresh stack to prove first-run, OIDC login, SSO enforcement and break-glass work end to end."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "scripts/lib/auth_e2e_cli.sh"
+      - "scripts/test-auth-e2e-cli.sh"
+      - "scripts/run-auth-e2e.sh"
+      - "scripts/console-auth-e2e-runtime.mjs"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "docker-compose.e2e.yaml"
+      - "docker-compose.neo4j.yml"
+      - "docker-compose.yaml"
+      - "Dockerfile"
+      - "go/cmd/mock-oidc-idp/**"
+      - "go/cmd/api/**"
+      - "go/internal/oidclogin/**"
+      - ".github/workflows/frontend.yml"
+    local:
+      command: "bash scripts/run-auth-e2e.sh"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "SSO auth E2E (browser, fresh stack)"
+    requirements:
+      - go
+      - node
+      - docker
+    ci_only_reason: ""
+
   - id: trivy-image
     name: Trivy image scan (GHCR)
     category: security
@@ -5045,6 +5562,29 @@ gates:
     requirements:
       - credentials
     ci_only_reason: "requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs"
+
+  # Owner row for the `attach-release-sbom` job of docker-publish.yml. The job
+  # runs only on a tag push (`github.ref_type == 'tag'`) and is skipped on every
+  # pull_request and merge_group run, so it can never be a pre-merge blocker.
+  # The row exists so main-health classifies a failed SBOM attach as advisory
+  # instead of an unowned job (same reason as docker-image-promotion above).
+  - id: release-sbom-attach
+    name: Release SBOM attach
+    category: release
+    layer: secondary
+    purpose: "Attaches the image SBOM to the GitHub Release after a tag publish; runs only on a tag push."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+    ci:
+      workflow: docker-publish.yml
+      job: "attach-release-sbom"
+    requirements:
+      - credentials
+    ci_only_reason: "attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group"
 
   - id: apk-floors
     name: Alpine apk floors match the repository

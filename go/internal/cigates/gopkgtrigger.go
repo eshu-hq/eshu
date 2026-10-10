@@ -64,7 +64,10 @@ var goPackageSubcommands = map[string]struct{}{
 // #7141 raised this from 23 to 24: the supply-chain-impact-live row runs the
 // storage/postgres package's enrollment guard and carries that package's
 // directory as a trigger.
-const goPackageGateCount = 24
+// The job-ownership rows raised this from 24 to 26: mcp-tool-count and
+// mcp-test-suite each run `go test` on ./internal/mcp, selected by their
+// `go/**` trigger.
+const goPackageGateCount = 26
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

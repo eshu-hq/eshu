@@ -28,7 +28,7 @@ func TestDriftCheck_PathFilterCoverage_MissingFromWorkflowFilter(t *testing.T) {
 		"          filters: |\n"+
 		"            telemetry:\n"+
 		"              - 'scripts/*verify-telemetry-coverage*.sh'\n"+
-		"  gate:\n    name: ${{ matrix.display }}\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"  gate:\n    name: ${{ matrix.display }}\n    needs: changes\n    runs-on: ubuntu-latest\n    steps:\n"+
 		"      - run: |\n"+
 		"          append_gate \"${{ steps.filter.outputs.telemetry }}\" \"telemetry\" \"Verify telemetry coverage gate\" \"cmd\" \"cmd\"\n")
 
@@ -67,7 +67,7 @@ func TestDriftCheck_PathFilterCoverage_CoveredByWorkflowFilter(t *testing.T) {
 		"            telemetry:\n"+
 		"              - 'scripts/*verify-telemetry-coverage*.sh'\n"+
 		"              - 'scripts/lib/telemetry-coverage-*.sh'\n"+
-		"  gate:\n    name: ${{ matrix.display }}\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"  gate:\n    name: ${{ matrix.display }}\n    needs: changes\n    runs-on: ubuntu-latest\n    steps:\n"+
 		"      - run: |\n"+
 		"          append_gate \"${{ steps.filter.outputs.telemetry }}\" \"telemetry\" \"Verify telemetry coverage gate\" \"cmd\" \"cmd\"\n")
 
@@ -97,7 +97,7 @@ func TestDriftCheck_PathFilterCoverage_GlobTriggerSkipped(t *testing.T) {
 		"          filters: |\n"+
 		"            telemetry:\n"+
 		"              - 'totally-unrelated/*.sh'\n"+
-		"  gate:\n    name: ${{ matrix.display }}\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"  gate:\n    name: ${{ matrix.display }}\n    needs: changes\n    runs-on: ubuntu-latest\n    steps:\n"+
 		"      - run: |\n"+
 		"          append_gate \"${{ steps.filter.outputs.telemetry }}\" \"telemetry\" \"Verify telemetry coverage gate\" \"cmd\" \"cmd\"\n")
 
@@ -145,7 +145,7 @@ func TestDriftCheck_PathFilterCoverage_UnresolvedKeySkipped(t *testing.T) {
 		"          filters: |\n"+
 		"            telemetry:\n"+
 		"              - 'scripts/*verify-telemetry-coverage*.sh'\n"+
-		"  gate:\n    name: ${{ matrix.display }}\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"  gate:\n    name: ${{ matrix.display }}\n    needs: changes\n    runs-on: ubuntu-latest\n    steps:\n"+
 		"      - run: |\n"+
 		"          append_gate \"${{ steps.filter.outputs.telemetry }}\" \"telemetry\" \"Verify telemetry coverage gate\" \"cmd\" \"cmd\"\n"+
 		"  plain-job:\n    name: A Plain Non-Matrix Check\n    runs-on: ubuntu-latest\n    steps: []\n")
@@ -153,7 +153,13 @@ func TestDriftCheck_PathFilterCoverage_UnresolvedKeySkipped(t *testing.T) {
 	g := gateWith("my-gate", "my-gate", "matrix.yml")
 	g.CI.Job = "A Plain Non-Matrix Check"
 	g.Triggers = []string{"scripts/lib/telemetry-coverage-bucket-check.sh"}
-	reg := minimalReg([]cigates.Gate{g}, nil, nil)
+	// The dispatch job is a workflow job like any other, so a row must own its
+	// append_gate display (job ownership); this owner row's trigger is one the
+	// telemetry filter selects, so it is clean under path-filter coverage.
+	dispatch := gateWith("telemetry-dispatch", "", "matrix.yml")
+	dispatch.CI.Job = "Verify telemetry coverage gate"
+	dispatch.Triggers = []string{"scripts/verify-telemetry-coverage.sh"}
+	reg := minimalReg([]cigates.Gate{g, dispatch}, nil, nil)
 
 	if errs := cigates.DriftCheck(root, reg); len(errs) != 0 {
 		t.Errorf("a gate whose ci.job resolves to no dorny filter key must be skipped, got: %v", errs)
@@ -184,7 +190,7 @@ func TestDriftCheck_PathFilterCoverage_DuplicateDisplayNameAmbiguous(t *testing.
 		"              - 'scripts/known-file.sh'\n"+
 		"            other:\n"+
 		"              - 'totally/unrelated/*.sh'\n"+
-		"  gate:\n    name: ${{ matrix.display }}\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"  gate:\n    name: ${{ matrix.display }}\n    needs: changes\n    runs-on: ubuntu-latest\n    steps:\n"+
 		"      - run: |\n"+
 		"          append_gate \"${{ steps.filter.outputs.telemetry }}\" \"telemetry\" \"Verify telemetry coverage gate\" \"cmd\" \"cmd\"\n"+
 		"          append_gate \"${{ steps.filter.outputs.other }}\" \"other\" \"Verify telemetry coverage gate\" \"cmd\" \"cmd\"\n")
