@@ -1,0 +1,32 @@
+go/internal/cigates/readiness_job_split_test.go
+  s_b0d7e3abc26c5a::t_ecac68da4d1967 20-30,34-38,90-92,123-152
+  s_b0d7e3abc26c5a::t_1c69dd90bd04b5 218-223,235-251
+  s_b0d7e3abc26c5a::t_4866dc37c9081d 153-155
+.github/workflows/live-postgres-readiness.yml
+  s_b0d7e3abc26c5a::t_3feaa905695ebc 117-118,151-156
+  s_29175cf8c573b8::t_9d7a29a183a8b6 157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fac89068aefb1d048798a319be85f91f98f8dfae",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
