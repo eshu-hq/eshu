@@ -27,7 +27,7 @@ pushed the old file over the 500-line cap; the dirgate ledger re-pins
 335 to 336 with its regenerated mirror.
 
 No-Regression Evidence (#7472): baseline is the base-revision candidate
-query (commit 823778bbe1) planned on the seeded retention corpus (8 scopes,
+query (commit 63898a7dde; byte-identical to the 823778bbe1 revision the plans were captured against) planned on the seeded retention corpus (8 scopes,
 5 superseded generations each, 400 content entities, 80 files, 100 filler
 rows, old timestamps; params: soft cutoff now-7d, min-newer 0, batch limit
 100, hard ceiling now-90d) on local PostgreSQL 18.6 (postgres:18 Docker):
