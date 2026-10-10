@@ -62,9 +62,9 @@ report() {
   printf 'verify-no-private-identifiers: %s\n' "$1" >&2
 }
 
-# scan_text <rg args...>: run rg over stdin (supplied by the caller with a
-# here-string) and leave its matches in $scan_out. rg exits 1 for "no match"
-# and 2 or more for an error; an error is a failure, never a clean scan.
+# scan_text <rg args...>: run rg and leave its matches in $scan_out. rg exits 1
+# for "no match" and 2 or more for an error; an error is a failure, never a
+# clean scan.
 scan_text() {
   local rc=0
   scan_out="$(rg "$@")" || rc=$?
@@ -75,29 +75,43 @@ scan_text() {
   fi
 }
 
-# added_lines <git diff args...>: print each added line as path:line:content.
-# The awk state machine reads the diff headers, so a content line that itself
-# begins with "++" is never mistaken for a file header.
+# added_lines <git diff args...>: write each added line to two parallel files,
+# its location (path:line) to $loc_file and its content, with nothing in front
+# of it, to $content_file. Matching runs on the content alone, so a pattern
+# that anchors on the start of the line (a name at column 0, a "^" denylist
+# entry) sees the real start of the line. The awk state machine reads the diff
+# headers, so a content line that itself begins with "++" is never mistaken for
+# a file header.
+loc_file="$work/added.loc"
+content_file="$work/added.content"
 added_lines() {
   local diff_text
-  # errexit is not inherited into the command substitution that calls this
-  # function, so a failed git must be turned into a status the caller checks.
+  : >"$loc_file"
+  : >"$content_file"
   if ! diff_text="$(git -C "$repo_root" diff -U0 -M --no-color --no-ext-diff "$@" -- . "${self_excludes[@]}")"; then
     report "git diff $* failed; content was not verified"
     return 1
   fi
-  LC_ALL=C awk '
+  LC_ALL=C awk -v loc="$loc_file" -v con="$content_file" '
     /^diff --git / { hdr = 1; next }
     hdr && /^\+\+\+ / { f = $0; sub(/^\+\+\+ /, "", f); sub(/^b\//, "", f); sub(/\t.*$/, "", f); next }
     /^@@ / { hdr = 0; s = $0; sub(/^@@ -[0-9]+(,[0-9]+)? \+/, "", s); sub(/[^0-9].*$/, "", s); ln = s + 0; next }
-    !hdr && /^\+/ { print f ":" ln ":" substr($0, 2); ln++ }
+    !hdr && /^\+/ { print f ":" ln > loc; print substr($0, 2) > con; ln++ }
   ' <<<"$diff_text"
+}
+
+# report_locations <label>: print the path:line of every content line that
+# $scan_out (rg -n output over $content_file) matched. Only the line numbers of
+# the match output are used, so the matched text is never printed.
+report_locations() {
+  report "$1 (location only):"
+  cut -d: -f1 <<<"$scan_out" | awk 'NR == FNR { want[$1] = 1; next } FNR in want' - "$loc_file" >&2
+  fail=1
 }
 
 # --- private denylist -------------------------------------------------------
 private_count=0
 private_plain="$work/private.plain"
-private_wrapped="$work/private.wrapped"
 private_file="${ESHU_PRIVATE_IDENTIFIER_FILE:-}"
 if [ -z "$private_file" ]; then
   printf 'verify-no-private-identifiers: private denylist: not configured\n'
@@ -136,9 +150,6 @@ else
     fail=1
     private_count=0
   else
-    while IFS= read -r line; do
-      printf '^[^:]+:[0-9]+:.*(?:%s)\n' "$line"
-    done <"$private_plain" >"$private_wrapped"
     printf 'verify-no-private-identifiers: private denylist: %s pattern(s) applied\n' "$private_count"
   fi
 fi
@@ -148,16 +159,13 @@ scan_private_diff() {
   local label="$1"
   shift
   [ "$private_count" -gt 0 ] || return 0
-  local lines
-  if ! lines="$(added_lines "$@")"; then
+  if ! added_lines "$@"; then
     fail=1
     return 0
   fi
-  scan_text -f "$private_wrapped" <<<"$lines"
+  scan_text -n -f "$private_plain" "$content_file"
   if [ -n "$scan_out" ]; then
-    report "private denylist match in $label (location only):"
-    cut -d: -f1,2 <<<"$scan_out" >&2
-    fail=1
+    report_locations "private denylist match in $label"
   fi
 }
 
@@ -165,16 +173,13 @@ scan_private_diff() {
 scan_public_diff() {
   local label="$1"
   shift
-  local lines
-  if ! lines="$(added_lines "$@")"; then
+  if ! added_lines "$@"; then
     fail=1
     return 0
   fi
-  scan_text -e "^[^:]+:[0-9]+:.*(?:${PRIVATE_IDENTIFIER_PATTERN})" <<<"$lines"
+  scan_text -n -e "$PRIVATE_IDENTIFIER_PATTERN" "$content_file"
   if [ -n "$scan_out" ]; then
-    report "environment or organization identifier in $label (location only):"
-    cut -d: -f1,2 <<<"$scan_out" >&2
-    fail=1
+    report_locations "environment or organization identifier in $label"
   fi
 }
 

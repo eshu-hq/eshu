@@ -96,6 +96,15 @@ pi_expect() {
   fi
 }
 
+# pi_case <red|green> <name> <file> <content> <label>: a fresh repository whose
+# one added line is <content> in <file>, scanned in range mode.
+pi_case() {
+  local d="$tmp/pi-$2"
+  pi_new_repo "$d"
+  pi_commit "$d" "$3" "$4"
+  pi_expect "$1" "$5" pi_range "$d"
+}
+
 # pi_no_echo <label> <token>: the last gate output in $tmp/pi.out must not
 # contain <token> in any casing. A public match is reported as a location
 # (path:line or commit-message line N), never as the offending text.
@@ -267,35 +276,17 @@ pi_expect red "--staged outside a git repository fails closed" \
   "$pi_gate" --staged
 
 # --- F2: CamelCase spellings and the spaced form ---
-d="$tmp/pi-red-camel-qa-upper"
-pi_new_repo "$d"
-pi_commit "$d" internal/x/x_test.go "func TestBloatTerraformOps""QAScaleLive() {}"
-pi_expect red "camel casing 1 (upper initialism after a capital)" pi_range "$d"
-
-d="$tmp/pi-red-camel-lower-first"
-pi_new_repo "$d"
-pi_commit "$d" internal/x/x_test.go "var ${pi_qa_camel_upper}Host = 1"
-pi_expect red "camel casing 2 (lower first word, upper initialism)" pi_range "$d"
-
-d="$tmp/pi-red-camel-lower-qa"
-pi_new_repo "$d"
-pi_commit "$d" internal/x/x_test.go "var ${pi_qa_camel_lower}Host = 1"
-pi_expect red "camel casing 3 (lower first word, capitalised second)" pi_range "$d"
-
-d="$tmp/pi-red-camel-prod"
-pi_new_repo "$d"
-pi_commit "$d" internal/x/x_test.go "var ${pi_prod_camel}Host = 1"
-pi_expect red "camel casing 4 (production name, capitalised words)" pi_range "$d"
-
-d="$tmp/pi-red-spaced"
-pi_new_repo "$d"
-pi_commit "$d" docs/notes.md "Measured on the ops"" QA cluster."
-pi_expect red "spaced separator form" pi_range "$d"
-
-d="$tmp/pi-green-devops-camel"
-pi_new_repo "$d"
-pi_commit "$d" internal/x/x_test.go "func TestDevOps""QAHelper() { devOps""Prod := 1 }"
-pi_expect green "DevOps CamelCase is not a hit" pi_range "$d"
+pi_case red camel-qa-upper internal/x/x_test.go "func TestBloatTerraformOps""QAScaleLive() {}" \
+  "camel casing 1 (upper initialism after a capital)"
+pi_case red camel-lower-first internal/x/x_test.go "var ${pi_qa_camel_upper}Host = 1" \
+  "camel casing 2 (lower first word, upper initialism)"
+pi_case red camel-lower-qa internal/x/x_test.go "var ${pi_qa_camel_lower}Host = 1" \
+  "camel casing 3 (lower first word, capitalised second)"
+pi_case red camel-prod internal/x/x_test.go "var ${pi_prod_camel}Host = 1" \
+  "camel casing 4 (production name, capitalised words)"
+pi_case red spaced docs/notes.md "Measured on the ops"" QA cluster." "spaced separator form"
+pi_case green devops-camel internal/x/x_test.go \
+  "func TestDevOps""QAHelper() { devOps""Prod := 1 }" "DevOps CamelCase is not a hit"
 
 # An unchanged legacy line next to a clean edit must pass: only added lines
 # are scanned, so a fixture name already in the tree needs no exception.
@@ -352,25 +343,12 @@ fi
 # --- T3: joined spellings in other casings, and the spellings that stay clean ---
 # Each RED line is a joined spelling of an environment name that the CamelCase
 # arm used to miss. The fragments keep this file free of the contiguous token.
-d="$tmp/pi-red-joined-caps"
-pi_new_repo "$d"
-pi_commit "$d" internal/x/x_test.go "const OPS""QA_HOST = 1"
-pi_expect red "joined all-caps QA name" pi_range "$d"
-
-d="$tmp/pi-red-joined-caps-prod"
-pi_new_repo "$d"
-pi_commit "$d" internal/x/x_test.go "const OPS""PROD_HOST = 1"
-pi_expect red "joined all-caps production name" pi_range "$d"
-
-d="$tmp/pi-red-joined-sentence"
-pi_new_repo "$d"
-pi_commit "$d" docs/notes.md "Measured on Ops""qa today."
-pi_expect red "joined sentence-case QA name" pi_range "$d"
-
-d="$tmp/pi-red-joined-sentence-prod"
-pi_new_repo "$d"
-pi_commit "$d" docs/notes.md "Measured on Ops""prod today."
-pi_expect red "joined sentence-case production name" pi_range "$d"
+pi_case red joined-caps internal/x/x_test.go "const OPS""QA_HOST = 1" "joined all-caps QA name"
+pi_case red joined-caps-prod internal/x/x_test.go "const OPS""PROD_HOST = 1" \
+  "joined all-caps production name"
+pi_case red joined-sentence docs/notes.md "Measured on Ops""qa today." "joined sentence-case QA name"
+pi_case red joined-sentence-prod docs/notes.md "Measured on Ops""prod today." \
+  "joined sentence-case production name"
 
 # One repository per spelling: a line that carries several spellings would pass
 # on any one of them, so a missed casing would stay hidden.
@@ -383,10 +361,8 @@ for pi_form in "oPS|qa" "opS|QA" "oPs|Qa" "OpS|qA" "ops|pRod" "oPs|Prod" "opS|pr
   pi_expect red "joined mixed-case form $pi_joined_n" pi_range "$d"
 done
 
-d="$tmp/pi-red-joined-lower-word"
-pi_new_repo "$d"
-pi_commit "$d" docs/notes.md "Measured on the ops""qa cluster."
-pi_expect red "joined all-lowercase word in prose" pi_range "$d"
+pi_case red joined-lower-word docs/notes.md "Measured on the ops""qa cluster." \
+  "joined all-lowercase word in prose"
 
 # A hit in a commit message goes through the same shared pattern.
 d="$tmp/pi-red-joined-message"
@@ -394,10 +370,9 @@ pi_new_repo "$d"
 pi_commit "$d" docs/notes.md "A clean line." "fix: measured on OPS""QA"
 pi_expect red "joined all-caps name in a commit message" pi_range "$d"
 
-d="$tmp/pi-green-joined-clean"
-pi_new_repo "$d"
-pi_commit "$d" docs/notes.md "See DEV""OPS""QA, Dev""Ops""Prod, dev""ops""prod and the Ops""Product plan."
-pi_expect green "passes DevOps-prefixed joined forms and a longer English word" pi_range "$d"
+pi_case green joined-clean docs/notes.md \
+  "See DEV""OPS""QA, Dev""Ops""Prod, dev""ops""prod and the Ops""Product plan." \
+  "passes DevOps-prefixed joined forms and a longer English word"
 
 # The append-only ledger cites a measurement by an id that spells the name
 # joined, lowercase, between hyphens. A new ledger row or evidence note adds
@@ -407,6 +382,87 @@ pi_new_repo "$d"
 pi_commit "$d" docs/internal/evidence/9999-note.md "The p95 is 0.5 s (ledger:9999-ops""qa-directory-api-warm-p95)."
 pi_commit "$d" docs/internal/evidence/9998-note.md "See [the run](9998-ops""qa-migration-run-20261003.md)."
 pi_expect green "passes a lowercase joined name between hyphens (ledger id shape)" pi_range "$d"
+
+# --- F1: a token at column 0 of an added line is detected, in both scan modes ---
+# The gate once put "path:line:" in front of each added line, which consumed the
+# character the pattern needs before a name. One repository per class, with the
+# added line starting at the token itself, in range mode and with --staged.
+pi_col0_lines=(
+  "${pi_qa_h} cluster" "${pi_qa_h}: true" "${pi_qa_u}: true" "bg""-prod host"
+  "${pi_qa_camel}ScaleLive" "OPS""QA_HOST = 1" "ops""qa host" "ops"" QA cluster"
+  "${pi_org} team"
+)
+pi_col0_n=0
+for pi_c0 in "${pi_col0_lines[@]}"; do
+  pi_col0_n=$((pi_col0_n + 1))
+  d="$tmp/pi-red-col0-$pi_col0_n"
+  pi_new_repo "$d"
+  pi_commit "$d" docs/c0.md "$pi_c0"
+  pi_expect red "column-0 token, class $pi_col0_n, range mode" pi_range "$d"
+  rg -q 'docs/c0\.md:1$' "$tmp/pi.out" || no "column-0 hit $pi_col0_n must name docs/c0.md:1"
+  d="$tmp/pi-red-col0-staged-$pi_col0_n"
+  pi_new_repo "$d"
+  printf '%s\n' "$pi_c0" >"$d/c0.md"
+  git -C "$d" add c0.md
+  pi_expect red "column-0 token, class $pi_col0_n, --staged" \
+    env -u ESHU_PRIVATE_IDENTIFIER_FILE ESHU_PRIVATE_IDENTIFIER_REPO_ROOT="$d" "$pi_gate" --staged
+done
+
+d="$tmp/pi-green-col0"
+pi_new_repo "$d"
+pi_commit "$d" docs/notes.md "Dev""Ops""Qa helper and dev""ops""prod naming."
+pi_commit "$d" docs/notes.md "Ops""Product plan and Ops""Producer notes."
+pi_expect green "column-0 DevOps forms and longer English words stay clean" pi_range "$d"
+
+# A denylist pattern anchored with ^ must match at the start of the content,
+# and only there.
+printf '^%s\n' "$pi_secret" >"$tmp/pi-deny-anchored.txt"
+d="$tmp/pi-red-col0-private"
+pi_new_repo "$d"
+pi_commit "$d" docs/notes.md "${pi_secret} regressed."
+pi_expect red "caret-anchored private pattern hits at column 0" \
+  pi_range_private "$d" "$tmp/pi-deny-anchored.txt"
+d="$tmp/pi-green-col0-private"
+pi_new_repo "$d"
+pi_commit "$d" docs/notes.md "repo ${pi_secret} regressed."
+pi_expect green "caret-anchored private pattern does not hit mid-line" \
+  pi_range_private "$d" "$tmp/pi-deny-anchored.txt"
+
+# --- F2: the lowercase hyphen carve-out is the ledger shape only ---
+# digits, hyphen, name, hyphen is the append-only ledger id. Any other hyphenated
+# resource, job or namespace name that carries the name is a hit.
+pi_ql="ops""qa"
+pi_pl="ops""prod"
+pi_f2_n=0
+for pi_c in "deploy-${pi_ql}-api" "eshu-${pi_pl}-postgres" "-${pi_ql}-x" "foo-${pi_ql}" \
+  "9-${pi_ql}" "6704-${pi_ql}"; do
+  pi_f2_n=$((pi_f2_n + 1))
+  pi_case red "hyphen-$pi_f2_n" docs/notes.md "x $pi_c y" "hyphenated lowercase name outside the ledger shape $pi_f2_n"
+  pi_case red "hyphen-col0-$pi_f2_n" docs/notes.md "$pi_c" "hyphenated lowercase name at column 0 $pi_f2_n"
+done
+
+d="$tmp/pi-green-ledger-shape"
+pi_new_repo "$d"
+pi_commit "$d" docs/internal/measurements.jsonl "{\"id\":\"6704-${pi_ql}-directory-up\",\"n\":1}"
+pi_commit "$d" docs/internal/measurements.jsonl "6704-${pi_ql}-directory-up and 7088-${pi_ql}-migration-run-20261003.md"
+pi_commit "$d" docs/notes.md "ledger:6704-${pi_ql}-directory-api-warm-p95 and ](7088-${pi_ql}-migration-run-20261003.md)"
+pi_expect green "ledger id and evidence link shapes stay clean, also at column 0" pi_range "$d"
+
+# --- F3: the lowercase joined name before a capitalised word ---
+pi_f3_n=0
+for pi_c in "var ${pi_ql}Host = 1" "${pi_ql}HostCount" "x ${pi_pl}Cluster y" "deploy-${pi_ql}Host"; do
+  pi_f3_n=$((pi_f3_n + 1))
+  pi_case red "lowercase-capital-$pi_f3_n" internal/x/x_test.go "$pi_c" \
+    "lowercase joined name before a capital $pi_f3_n"
+done
+
+# --- separators: two characters, a tab, a double hyphen ---
+pi_sep_n=0
+for pi_sep in "  " "	" "--" "- " "_-"; do
+  pi_sep_n=$((pi_sep_n + 1))
+  pi_case red "sep-$pi_sep_n" docs/notes.md "Measured on the ops${pi_sep}QA cluster." \
+    "wider separator form $pi_sep_n"
+done
 
 # --- T1: this file must not carry a deny token itself ---
 # pi_lib_hits <file>: print the number of lines of <file> that match the shared

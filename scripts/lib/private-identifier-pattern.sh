@@ -8,19 +8,21 @@
 # The value is a Rust-regex alternation for ripgrep. Case sensitivity is set
 # inside the pattern, so call `rg -e "$PRIVATE_IDENTIFIER_PATTERN"` without -i.
 # Four classes:
-#   1. The QA and production environment names with a hyphen, underscore or
-#      single space between the words, any case, with or without a suffix (the
-#      "-shaped" and "_scale" forms). A letter or digit before the name means a
-#      longer word (a "devops-prod" runbook), which is not a hit.
+#   1. The QA and production environment names with one or two separators
+#      between the words (a hyphen, underscore, space or tab: "-", "_", " ",
+#      "--", two spaces), any case, with or without a suffix (the "-shaped" and
+#      "_scale" forms). A letter or digit before the name means a longer word (a
+#      "devops-prod" runbook), which is not a hit.
 #   2. The same names joined into one word, in any casing, as a CamelCase or
 #      upper-case identifier fragment or a sentence-case word (a Go test name,
 #      a constant, "Opsqa" in prose). A preceding "v" is skipped so "DevOps..."
 #      is not a hit, and a letter after the name must start a new capitalised
 #      word, so a longer English word is not a hit either. One carve-out: the
-#      all-lowercase joined form is a hit as a standalone word, but not when a
-#      hyphen sits on both sides of it. That is the append-only ledger id and
+#      all-lowercase joined form is a hit as a standalone word, but not in the
+#      shape digits, hyphen, name, hyphen. That is the append-only ledger id and
 #      evidence file name spelling ("6704-<name>-directory-..."), which cannot
-#      be edited and which a new ledger row repeats.
+#      be edited and which a new ledger row repeats. Any other hyphenated name
+#      ("deploy-<name>-api") is a hit.
 #   3. The employer environment prefix (bg-prod, bg-qa, bg-dev).
 #   4. The organization name, as one word or with a separator.
 #
@@ -38,13 +40,17 @@
 # Class 2 is built from three arms, each at most one of the joined spellings:
 #   mixed: the first word has a capital (Ops, oPs, opS); the second is any case.
 #   tail:  the first word is lowercase "ops" and the second has a capital.
-#   lower: both words lowercase; see the hyphen carve-out above.
-# After a mixed or tail match the next character must be a capital, a non-
-# alphanumeric character, or the end of the line.
+#   lower: both words lowercase; see the ledger carve-out above. Three
+#          alternatives: no hyphen before the name; a hyphen before it that does
+#          not follow a digit; a hyphen before it that follows a digit, which is
+#          clean only when a hyphen also follows the name.
+# After any match the next character must be a capital, a non-alphanumeric
+# character, or the end of the line (after the lower arm's digit-hyphen form, a
+# hyphen is also allowed: that is the ledger shape).
 pi_end='(?:[A-Z]|[^A-Za-z0-9]|$)'
 pi_mixed='(?:^|[^Vv])(?:O(?i:ps)|oP(?i:s)|opS)(?i:qa|prod)'"${pi_end}"
 pi_tail='(?:^|[^Vv])ops(?:Qa|QA|qA|P(?i:rod)|pR(?i:od)|prO(?i:d)|proD)'"${pi_end}"
-pi_lower='(?:^|[^A-Za-z0-9-])ops(?:qa|prod)(?:[^A-Za-z0-9]|$)|-ops(?:qa|prod)(?:[^A-Za-z0-9-]|$)'
+pi_lower='(?:^|[^A-Za-z0-9-])ops(?:qa|prod)'"${pi_end}"'|(?:^|[^0-9])-ops(?:qa|prod)'"${pi_end}"'|[0-9]-ops(?:qa|prod)(?:[A-Z]|[^A-Za-z0-9-]|$)'
 # shellcheck disable=SC2034 # consumed by the scripts that source this file
-PRIVATE_IDENTIFIER_PATTERN='(?i:(?:^|[^a-z0-9])ops[-_ ](?:qa|prod)(?:[^a-z0-9]|$))|'"${pi_mixed}|${pi_tail}|${pi_lower}"'|(?i:(?:^|[^a-z0-9])bg-(?:prod|qa|dev)(?:[^a-z0-9]|$))|(?i:b[o]ats[-_ ]?gr[o]up)'
+PRIVATE_IDENTIFIER_PATTERN='(?i:(?:^|[^a-z0-9])ops[-_ \t]{1,2}(?:qa|prod)(?:[^a-z0-9]|$))|'"${pi_mixed}|${pi_tail}|${pi_lower}"'|(?i:(?:^|[^a-z0-9])bg-(?:prod|qa|dev)(?:[^a-z0-9]|$))|(?i:b[o]ats[-_ ]?gr[o]up)'
 unset pi_end pi_mixed pi_tail pi_lower
