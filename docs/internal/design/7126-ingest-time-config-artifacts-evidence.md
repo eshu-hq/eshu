@@ -143,9 +143,8 @@ reader condition also excluded repositories with a failed derive.
 
 ## 5. Generated-column and trigger-timing checks (local, 2026-10-10)
 
-A throwaway PostgreSQL 18.6 cluster in the scratch directory, started for the
-check and deleted after it. No Eshu data. The SQL is in the handoff of this
-revision, not in the repository.
+A throwaway PostgreSQL 18.6 cluster, started for the check and deleted after
+it, with no Eshu data. The SQL below reproduces each row of the table.
 
 | Check | Result |
 |---|---|
@@ -153,3 +152,50 @@ revision, not in the repository.
 | `CREATE TABLE` with the generated column of re-ruling 2 | `ERROR: generation expression is not immutable` |
 | Same column through an IMMUTABLE SQL wrapper over `convert_to(t, 'UTF8')` (adopted by re-ruling 3) | table builds. 4 rows insert, 4 distinct digests, including `('a|b', 'c')` and `('a', 'b|c')`. The digest of `'3:a|b1:ck'` matches a manual `sha256(convert_to(...))` |
 | AFTER ROW DELETE trigger timing over 9 rows. BEFORE and AFTER row triggers log a sequence | all 9 BEFORE events (1-9) precede all 9 AFTER events (10-18). AFTER row triggers fire at the end of the statement, as the PostgreSQL trigger documentation states. Re-ruling 3 adopted this |
+
+```sql
+-- Volatility of the functions in the digest expression.
+SELECT proname, provolatile FROM pg_proc
+WHERE proname IN ('convert_to', 'textsend', 'sha256', 'length') ORDER BY 1;
+
+-- The expression without a wrapper: fails, not immutable.
+CREATE TABLE t (repo_id text NOT NULL, path text NOT NULL,
+  relative_path text NOT NULL, evidence_kind text NOT NULL,
+  row_digest bytea GENERATED ALWAYS AS (sha256(convert_to(
+    length(path)::text || ':' || path || length(relative_path)::text
+    || ':' || relative_path || evidence_kind, 'UTF8'))) STORED,
+  PRIMARY KEY (repo_id, row_digest));
+
+-- The IMMUTABLE wrapper: builds, and the digests stay distinct.
+CREATE FUNCTION config_artifact_utf8(t text) RETURNS bytea
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE RETURN convert_to(t, 'UTF8');
+CREATE TABLE b (repo_id text NOT NULL, path text NOT NULL,
+  relative_path text NOT NULL, evidence_kind text NOT NULL,
+  row_digest bytea GENERATED ALWAYS AS (sha256(config_artifact_utf8(
+    length(path)::text || ':' || path || length(relative_path)::text
+    || ':' || relative_path || evidence_kind))) STORED,
+  PRIMARY KEY (repo_id, row_digest));
+INSERT INTO b (repo_id, path, relative_path, evidence_kind) VALUES
+  ('r', 'a|b', 'c', 'k'), ('r', 'a', 'b|c', 'k'),
+  ('r', repeat(md5('x'), 200), 'main.tf', 'k'), ('r', 'é/ü', 'x', 'k');
+SELECT count(*), count(DISTINCT row_digest) FROM b;
+SELECT row_digest = sha256(convert_to('3:a|b1:ck', 'UTF8')) FROM b
+WHERE path = 'a|b';
+
+-- AFTER ROW timing: every BEFORE event precedes every AFTER event.
+CREATE SEQUENCE ev;
+CREATE TABLE evlog (n bigint, kind text, repo_id text, rel text);
+CREATE TABLE cf (repo_id text, relative_path text,
+  PRIMARY KEY (repo_id, relative_path));
+INSERT INTO cf SELECT 'r' || (g % 3), 'p' || g FROM generate_series(1, 9) g;
+CREATE FUNCTION before_del() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN INSERT INTO evlog VALUES (nextval('ev'), 'before_row', OLD.repo_id,
+  OLD.relative_path); RETURN OLD; END $$;
+CREATE FUNCTION after_del() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN INSERT INTO evlog VALUES (nextval('ev'), 'after_row', OLD.repo_id,
+  OLD.relative_path); RETURN NULL; END $$;
+CREATE TRIGGER b BEFORE DELETE ON cf FOR EACH ROW EXECUTE FUNCTION before_del();
+CREATE TRIGGER a AFTER DELETE ON cf FOR EACH ROW EXECUTE FUNCTION after_del();
+DELETE FROM cf;
+SELECT kind, min(n), max(n), count(*) FROM evlog GROUP BY kind ORDER BY 2;
+```

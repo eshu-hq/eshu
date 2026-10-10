@@ -17,7 +17,7 @@ Names are proposals. The migration number is chosen at build time.
 | Table | Key | Columns |
 |---|---|---|
 | `config_artifact_content_versions` | `repo_id` | `version` (BIGINT), `bumped_xid` (xid8), `bumped_at` |
-| `config_artifact_repo_state` | `repo_id` | `content_version` (the version the derive read before its list), `extractor_version` (integer), `row_count` (NULL until the first success), `files_listed`, `candidate_count`, `candidates_read`, `list_truncated`, `scope_id` and `generation_id` (advisory), `derived_at`, `failure_count`, `last_error_class`, `last_failure_at` |
+| `config_artifact_repo_state` | `repo_id` | `content_version` (the version the derive read before its list), `extractor_version` (integer), `row_count` (NULL until the first success), `files_listed`, `candidate_count`, `candidates_read`, `list_truncated`, `scope_id` and `generation_id` (advisory), `derived_at`, `failure_count`, `last_error_class`, `last_failure_at`. **Proposed** for the walker's skip rule: `last_failure_extractor_version` |
 | `config_artifact_paths` | `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped`, `row_digest` (generated) |
 | `config_artifact_backfill_markers`, `config_artifact_reconcile_cursor` | name | as in migration 109 |
 
@@ -99,8 +99,8 @@ Names are proposals. The migration number is chosen at build time.
   repository's rows. Without a vacuum, S2 measured the 300-id read at 2.47 ms
   against 1.76 ms (9,202 `Heap Fetches`), because an Index Only Scan needs the
   visibility map. The migration sets `autovacuum_vacuum_scale_factor` at most
-  0.02 on `config_artifact_paths`. The digest key reads the heap anyway, but
-  dead tuples still cost.
+  0.02 on `config_artifact_paths`. **Proposed** note, not measured: the
+  digest key reads the heap anyway, but dead tuples still cost.
 
 ## 2. The content-version trigger
 
@@ -139,8 +139,11 @@ WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
   of the statement, after the statement has locked every row it touches. So
   every path that bumps a version row, under either DELETE shape, locks
   content rows first and the version row last. A session that waits on a
-  version row holds only content rows. No prune-against-Write cycle exists,
-  with or without a shared doomed key.
+  version row holds only content rows. No cross-table cycle through a
+  version row exists for a prune against a Write, with or without a shared
+  doomed key. This does not exclude a cycle on content rows alone: two
+  multi-row statements that lock overlapping `content_files` rows in opposite
+  order can deadlock, as they can today without the trigger.
 - Surviving hazard: two concurrent multi-repository statements that bump
   through row-level triggers take version rows in their own row order, so
   opposite orders can deadlock. PostgreSQL aborts one, and the loser retries
@@ -148,11 +151,13 @@ WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
   generation). The `ORDER BY` prevents this on every statement-level path.
   The multi-repository deleters in production are the retention prune (one
   wiring in `go/cmd/reducer/generation_retention_wiring.go`), TRUNCATE
-  (statement-level, so the `ORDER BY` applies) and manual SQL. Two
-  concurrent prunes exist only if two reducers run retention at once. PR3b-1
-  states the retention runner's single-flight property from source. A first
-  read of the wiring file found a poll interval and no explicit
-  single-flight lock, so this is open.
+  (statement-level, so the `ORDER BY` applies) and manual SQL. The retention
+  runner (`go/internal/reducer/maintenance/retention/runner.go`) has no lock
+  or lease. Its candidate selection uses `FOR UPDATE ... SKIP LOCKED` in
+  `generation_retention_sql.go`, so two reducer replicas run concurrent
+  prunes over disjoint scope sets. Two scopes can share one `repo_id`
+  (migration 169), so with more than one reducer the hazard is reachable.
+  The loser of a deadlock retries at its next cycle.
 - The DELETE shape is a cost choice only: S3 shape 3, at most 5% of the prune
   phase. At equal cost prefer the `OLD TABLE` shape, because the `ORDER BY`
   then covers the prune too.
@@ -210,19 +215,16 @@ Failure semantics:
 
 - The derive recovers a panic and runs under a deadline, default 10 s.
   **Proposed** variable name: `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`.
-- **Proposed** bound on the Write path: after 5 consecutive failures, the
-  Write skips the derive and counts `derives_total{outcome=skipped}`. Only the
-  walker retries, at its own rate, and a walker success resets the count.
-  Without this bound, a repository that always times out adds up to 10 s to
-  every Write.
 - On an error, a panic or a timeout it counts
   `derives_total{outcome=error|panic|timeout}`, increments `failure_count`,
   records `last_error_class` and `last_failure_at`, logs
   `config_artifacts.derive.failed` at ERROR with the repository id, and
   returns nil from `Write`. A failure-only update never changes the rows or
   `content_version`.
-- A failed derive leaves `state.content_version` behind the current version.
-  Readers fall back live and the walker retries.
+- If the content moved, a failed derive leaves `state.content_version`
+  behind the current version, so readers fall back live and the walker
+  retries. If the content did not move, the rows stay exact and trusted, and
+  only the walker retries.
 - The content rows are already committed when the derive starts. A failed
   derive cannot roll them back, and it never makes the projector retry the
   generation.
@@ -234,7 +236,8 @@ projection and lose graph and content truth. The lock is held only for step 3.
 
 ## 4. The reader and the walker
 
-The reader is one statement on the replica. It inner-joins state and
+The reader is one statement on the replica. It inner-joins (the join type
+is **Proposed**) state and
 versions, and the rows, for the access-filtered set of related repository
 ids. It returns a repository's rows only when `state.content_version =
 versions.version`, `state.extractor_version` equals the current version, and
@@ -275,10 +278,13 @@ The reducer runs the walker, in the pattern of
   repository at the same time. **Proposed**: K defaults to 4 through
   `ESHU_CONFIG_ARTIFACT_WALKER_WORKERS`.
 - Each derive uses the protocol of section 3.
-- After 5 failures the walker skips a repository until its next content
-  Write. `/admin/status` lists skipped repositories. Reads stay live for them.
-  With the Write-path bound of section 3, such a repository stays on the live
-  path until an operator acts or the extractor changes.
+- After 5 failures the walker skips a repository. **Proposed** exit: the
+  skip ends at the next content Write of the repository, which always
+  derives, or when `extractor_version` changes. The state row records the
+  extractor version of the last failure, and the skip applies only while it
+  equals the current one. A successful derive resets `failure_count` to 0.
+  `/admin/status` lists skipped repositories. Reads stay live for them while
+  their rows are stale.
 - The backfill is the first full walk. It records the marker when every
   repository has a current state row.
 - An `extractor_version` bump re-derives every repository. The fallback
@@ -314,9 +320,6 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    - An HCL row and a compose row where the step must apply.
    - Two raw scoped paths that collapse to one path at read.
    - An empty name.
-   - At the loader level: two related repositories with one graph name, and
-     the anchor repeated in the related list. The merged answer must equal
-     the live loader's.
 
    A second guard pins that each `evidence_kind` maps to exactly one
    `name_scoped` value. Pass: 0 differing rows.
@@ -325,8 +328,9 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    `953f68712e`). 0 differing rows in 162,609 scoped and 522,339 unscoped row
    observations. Seeded RED mutants: a name step on every kind gave 10,068
    differing rows, no read dedup gave 11, raw sort order gave 386 order-only
-   differences. The two loader-level cases did not run. They move to S4 and
-   the PR3c tests.
+   differences. The two loader-level merge cases (two related repositories
+   with one graph name, and the anchor repeated in the related list) are not
+   part of S0. They belong to S4 and the PR3c tests.
 2. **S2 read plan** (local PostgreSQL 18). Seed 815 repositories with about 21
    rows each, plus long paths. Use `PREPARE`/`EXECUTE` with
    `plan_cache_mode=force_generic_plan` for the reader's three-table join with
@@ -335,8 +339,10 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    file count. The hash join over the versions table is accepted. Forced
    primary-key plans were slower (2.9-3.2 ms).
 
-   **Ran 2026-10-10: PASS** on time. Reader join 2.44 ms, paths read 1.74 ms,
-   state read 0.85 ms, dirty join 0.18 ms. The planner seq-scans the 9-page
+   **Ran 2026-10-10: PASS** on time, with the four-column key: reader join
+   2.44 ms, paths read 1.74 ms, state read 0.85 ms, dirty join 0.18 ms. With
+   the digest key only the paths read was measured (2.14 ms). The digest-key
+   reader join is not measured. The planner seq-scans the 9-page
    versions table into a hash join. Details and caveats are in section 4 of
    the evidence appendix.
 3. **S3 fence cost** (local PostgreSQL 18, in the shape of
@@ -352,7 +358,7 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. The chosen shape at most 5% of the prune phase. Else the other shape. Else an explicit bump in retention |
    | 4 | One 50,000-row single-statement insert | B at most A + 5% |
    | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. Lock waits on the version row at most one batch time. 0 deadlocks in 20 rounds |
-   | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). Expected counts: arm 1 = 10. Arm 2 = 2 (one tombstone delete chunk, one upsert batch), plus 1 if a full-snapshot reap adds a delete chunk. Arm 3 = 1 per affected repository. Arm 4 = 1 |
+   | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). A Write sends tombstones and reaped paths through one delete list, chunked at 500. It expects ceil((tombstones + reaped paths) / 500) delete transactions. It adds one per 500-row upsert batch. Arm 1 = 10. Arm 2 = 2 (one delete chunk, one upsert batch). Arm 3 = 1 per affected repository. Arm 4 = 1 |
 
    Arm 3 also records the Write lock wait against the ops-qa p95 of
    `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**).
@@ -370,7 +376,7 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    stage p95, at most 2 s for the worst repository, and HCL parse CPU near the
    bench rate of 94 ms per MB.
 6. **S4 equality** (PR3b gate). Symmetric difference `0/0` for every
-   golden-corpus repository, plus the two loader-level cases of S0 (one graph
+   golden-corpus repository, plus two loader-level merge cases (one graph
    name for two repositories, the anchor repeated in the related list). On
    ops-qa, shadow mode plus an offline differential under its own
    authorization.
@@ -384,21 +390,28 @@ PR3b-1 also adds live interleaving tests, run before the trigger ships:
   reader falls back.
 - Arm 7 (re-ruling 2), a correctness test, not a timing arm, with three
   cases:
-  1. Two multi-repository inserts over overlapping repository sets, in
-     opposite row orders.
+  1. **Proposed** split of the ruled case (a), so that the shape assertion
+     cannot pass without a DELETE (the coordinator tells the arbiter):
+     - 1a. Two multi-repository INSERT or upsert statements over overlapping
+       repository sets, in opposite row orders. They are statement-level in
+       every variant, so they test the `ORDER BY`: 0 deadlocks.
+     - 1b. Two multi-repository DELETE statements over overlapping
+       repository sets, in opposite row orders, under both DELETE shapes.
+       This is the surviving hazard.
   2. A prune and a Write of one repository with disjoint keys.
   3. A prune and a Write that share one doomed key (re-ruling 3: a
      convergence check). The Write batch waits (`pg_stat_activity`
      `wait_event_type = 'Lock'`) until the retention transaction commits,
      then proceeds. No deadlock. After the Write's derive,
      `state.content_version` equals `versions.version` and the rows equal the
-     live answer. The test records in `pg_locks` which lock the Write waits
-     on: with a shared key the first wait is likely on the content row the
-     prune deleted, not on the version row.
+     live answer. **Proposed**: the test records in `pg_locks` which lock
+     the Write waits on. With a shared key the first wait is likely on the
+     content row the prune deleted, not on the version row that the ruling
+     names.
 
-  Cases 1 and 2 run under both DELETE shapes. The statement-level shape must
-  show 0 deadlocks. The row-level shape must show 0 deadlocks, or every
-  victim retried to a final state where `state.content_version` equals
+  Cases 1b and 2 run under both DELETE shapes. For case 1b the `OLD TABLE`
+  shape must show 0 deadlocks. The row-level shape must show 0 deadlocks, or
+  every victim retried to a final state where `state.content_version` equals
   `versions.version` and the rows equal the live answer.
 
 ## 7. Decided: R-1, the lost update that replaced the first fence

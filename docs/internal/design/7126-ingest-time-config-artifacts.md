@@ -113,10 +113,10 @@ sessions that do not derive.
    current version.
 5. A derive error never fails the Write. The derive recovers a panic and runs
    under a deadline (default 10 s, **Proposed** name
-   `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`). On
-   any failure it counts the outcome, records `failure_count` and
-   `last_error_class` on the state row, logs at ERROR with the repository id,
-   and returns nil. The stored version stays behind, so readers fall back.
+   `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT`). On any failure it counts the
+   outcome, records `failure_count` and `last_error_class` on the state row,
+   logs at ERROR with the repository id, and returns nil. If the content
+   moved, the stored version stays behind, so readers fall back.
 6. The reducer owns repair. Its walker runs the same derive protocol for
    reconcile, backfill and extractor version changes.
 7. A startup check guards the UTF8 invariant (re-ruling 3). Each deriving
@@ -238,8 +238,9 @@ path is the oracle, so PR3 changes no extraction semantics.
   with stored rows and asserts that it is absent from the body.
 - **Fallback.** A repository with no state, no version row, an old content
   version, an old extractor version, or no successful derive is served live
-  for that repository only, and counted. The reader uses an inner join, so a
-  missing version row means a live fallback with reason `missing`.
+  for that repository only, and counted. The reader uses an inner join (the
+  join type is **Proposed**), so a missing version row means a live fallback
+  with reason `missing`.
   Nothing is dropped, so a fallback cannot hide a wrong result.
 
 ### 3.4 Rollout
@@ -318,9 +319,11 @@ Bad:
    backfill to operate.
 3. An extractor version bump sends every related repository to the live path
    until the walker catches up.
-4. A repository whose derive fails 5 times in a row stays on the live path
-   until an operator acts or the extractor changes (protocol companion,
-   section 3).
+4. A repository whose derive always fails or times out adds up to 10 s to
+   each of its content Writes, because every Write derives. The walker skips
+   it after 5 failures until its next Write or an extractor change
+   (protocol companion, section 4). Its reads stay live while its rows are
+   stale.
 
 Follow-ups, to be filed as separate issues by the coordinator:
 
@@ -367,7 +370,7 @@ those stages change, which is outside PR3.
 | PR | Content | Starts | Proof |
 |---|---|---|---|
 | S0 test, version guard | The S0 name-free equality test (exists on the local branch `proof/7126-pr3-shims`, `953f68712e`) and the `extractor_version` digest guard, as new files | now | S0 passes (done locally). Seeded RED/GREEN for the guard |
-| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences, and the three arm 7 cases. A schema test that recomputes every seeded digest in SQL. A test that no Go statement deletes version rows outside a documented retirement path. The retention runner's single-flight property, stated from source. The startup encoding check |
+| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences, and the arm 7 cases (1a, 1b, 2, 3). A schema test that recomputes every seeded digest in SQL. **Proposed**: a test that no Go statement deletes version rows outside a documented retirement path. The startup encoding check |
 | PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort. Split `normalizeRepoScopedPath` into clean and strip | after PR1, PR1b and PR2 merge | Existing tests and the PR1 differential pass unchanged. Tie count. The S0 tests run against the strip step |
 | PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
 | PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. Ops-qa shadow then acceptance |
@@ -386,12 +389,12 @@ note. Details are in section 6 of the protocol companion.
 
 | Shim | Where | Pass | On fail |
 |---|---|---|---|
-| S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names. The merged answer equals the live loader for two repositories with one graph name and for an anchor repeated in the related list | store the name in the state row and run S5. **Ran: PASS** for the per-repository part. The two loader-level cases did not run (they move to S4 and PR3c) |
-| S2 read plan | local PostgreSQL 18 | The reader's three-table join for 300 ids and the dirty join over 815 repositories. Each runs in at most 5 ms with a generic plan. No scan of a table that grows with `content_files` | change the key or the statement. **Ran: PASS**. Reader join 2.44 ms, dirty join 0.18 ms. See the evidence appendix, section 4 |
-| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write has two). Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1 | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
+| S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names | store the name in the state row and run S5. **Ran: PASS**. The two loader-level merge cases are not part of S0. They are in S4 and PR3c |
+| S2 read plan | local PostgreSQL 18 | The reader's three-table join for 300 ids and the dirty join over 815 repositories. Each runs in at most 5 ms with a generic plan. No scan of a table that grows with `content_files` | change the key or the statement. **Ran: PASS** with the four-column key: reader join 2.44 ms, dirty join 0.18 ms. With the digest key only the paths read was measured (2.14 ms). The digest-key reader join is not measured. See the evidence appendix, section 4 |
+| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write with few tombstones has two). A delta Write expects ceil((tombstones + reaped paths) / 500) delete transactions plus its upsert batches. Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1 | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
 | S6 cap census | ops-qa, read-only | counts recorded for the follow-up issue | none: input only |
 | S1 derive cost | local, PR1, PR1b and PR2 stacked | at most 10% of content-stage p95. At most 2 s for the worst repository | reopen F1 |
-| S4 equality | PR3b gate | symmetric difference `0/0` for every golden-corpus repository, plus the two loader-level cases of S0 | do not merge PR3b-2 |
+| S4 equality | PR3b gate | Symmetric difference `0/0` for every golden-corpus repository. Two loader-level merge cases too: two related repositories with one graph name, and the anchor repeated in the related list | do not merge PR3b-2 |
 
 S5 (name binding, read-only) stays optional, because S0 passed.
 
@@ -424,7 +427,7 @@ convergence check. This table maps each item to its section here.
 | G2, G6 | Write failure semantics, lock during parse | companion 3 |
 | G7 version bump | a sized fallback window | 3.4 |
 | G8 key width (re-rulings 2 and 3) | Stored generated digest key through the IMMUTABLE wrapper `config_artifact_utf8`. `row_too_wide` and a length precheck rejected. A UTF8 startup check | 3.1, 3.2, companion 1 |
-| Trigger lock order and arm 7 (re-rulings 2 and 3) | `ORDER BY r.repo_id` accepted. No prune-against-Write cycle under either DELETE shape. S3 cost alone picks the shape, with `OLD TABLE` as the tie-breaker. Arm 7 has three cases, case 3 a convergence check | companion 2 and 6 |
+| Trigger lock order and arm 7 (re-rulings 2 and 3) | `ORDER BY r.repo_id` accepted. No cross-table cycle through a version row for a prune against a Write, under either DELETE shape. S3 cost alone picks the shape, with `OLD TABLE` as the tie-breaker. Arm 7 has three cases, case 3 a convergence check. Case 1 split into 1a and 1b (**Proposed**) | companion 2 and 6 |
 | Arm 6 count and S2 bar (re-ruling 2) | one rewrite per content transaction. At most 5 ms and no scan that grows with file count | 8, companion 6 |
 | G9 stage log | the new fields land in PR3c | 3.5 |
 | R-1 and G3 (lost update) | decided: the version fence replaces the mark protocol | companion 7 |
