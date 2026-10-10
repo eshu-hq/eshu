@@ -4,8 +4,6 @@
 package cigates
 
 import (
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,7 +35,9 @@ type readinessService struct {
 	Credentials yaml.Node `yaml:"credentials"`
 }
 
-const readinessServiceCredentials = `${{ fromJSON(secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' && format('{{"username":{0},"password":{1}}}', toJSON(secrets.DOCKERHUB_USERNAME), toJSON(secrets.DOCKERHUB_TOKEN)) || '{}') }}`
+const readinessServiceCredentials = "        credentials:\n" +
+	"          username: ${{ secrets.DOCKERHUB_USERNAME }}\n" +
+	"          password: ${{ secrets.DOCKERHUB_TOKEN }}\n"
 
 type readinessStep struct {
 	Name            string            `yaml:"name"`
@@ -84,8 +84,8 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	if !ok || live.Name != gate.CI.CheckNames[1] {
 		return "missing live check"
 	}
-	if hermetic.TimeoutMinutes != 30 || live.TimeoutMinutes != 40 {
-		return "hermetic and live jobs must retain independent 30/40-minute limits"
+	if hermetic.TimeoutMinutes != 30 || live.TimeoutMinutes != 60 {
+		return "hermetic and live jobs must retain independent 30/60-minute limits"
 	}
 	for name, job := range parsed.Jobs {
 		if job.If != "" || job.ContinueOnError != "" || job.Needs.Kind != 0 {
@@ -100,9 +100,12 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		if !ok {
 			return "missing live service " + service
 		}
-		if configuration.Credentials.Kind != yaml.ScalarNode ||
-			configuration.Credentials.Value != readinessServiceCredentials {
-			return service + " must use conditional, JSON-escaped job-init credentials"
+		var credentials map[string]string
+		if configuration.Credentials.Kind != yaml.MappingNode ||
+			configuration.Credentials.Decode(&credentials) != nil || len(credentials) != 2 ||
+			credentials["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
+			credentials["password"] != "${{ secrets.DOCKERHUB_TOKEN }}" {
+			return service + " must use username/password job-init credentials"
 		}
 	}
 	if problem := checkReadinessDockerHubLogin(live); problem != "" {
@@ -263,7 +266,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		{"skip login", "if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "if: false"},
 		{"waive login failure", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n        continue-on-error: true"},
 		{"short hermetic timeout", "timeout-minutes: 30", "timeout-minutes: 20"},
-		{"changed live timeout", "timeout-minutes: 40", "timeout-minutes: 41"},
+		{"changed live timeout", "timeout-minutes: 60", "timeout-minutes: 61"},
 		{"missing standby cleanup", "run: bash scripts/ci/live-postgres-standby-fixture.sh stop", "run: true # bash scripts/ci/live-postgres-standby-fixture.sh stop"},
 		{"skipped standby cleanup", "        if: always()", "        if: false"},
 	} {
@@ -277,9 +280,8 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			}
 		})
 	}
-	const credentials = "        credentials: " + readinessServiceCredentials + "\n"
 	workflowText := string(workflow)
-	if strings.Count(workflowText, credentials) != 2 {
+	if strings.Count(workflowText, readinessServiceCredentials) != 2 {
 		t.Fatal("expected one credential block for each live service")
 	}
 	for _, mutation := range []struct {
@@ -288,15 +290,15 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	}{
 		{"missing postgres credentials", "", false},
 		{"missing neo4j credentials", "", true},
-		{"partial postgres credentials", "        credentials: ${{ secrets.DOCKERHUB_USERNAME }}\n", false},
-		{"partial neo4j credentials", "        credentials: ${{ secrets.DOCKERHUB_TOKEN }}\n", true},
+		{"partial postgres credentials", "        credentials:\n          username: ${{ secrets.DOCKERHUB_USERNAME }}\n", false},
+		{"partial neo4j credentials", "        credentials:\n          password: ${{ secrets.DOCKERHUB_TOKEN }}\n", true},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
-			index := strings.Index(workflowText, credentials)
+			index := strings.Index(workflowText, readinessServiceCredentials)
 			if mutation.last {
-				index = strings.LastIndex(workflowText, credentials)
+				index = strings.LastIndex(workflowText, readinessServiceCredentials)
 			}
-			changed := workflowText[:index] + mutation.replacement + workflowText[index+len(credentials):]
+			changed := workflowText[:index] + mutation.replacement + workflowText[index+len(readinessServiceCredentials):]
 			if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
 				t.Fatal("seeded service credential violation passed")
 			}
@@ -321,39 +323,23 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	})
 }
 
-func TestReadinessServiceCredentialsCases(t *testing.T) {
+func TestReadinessServiceCredentialsUseMainMapping(t *testing.T) {
 	t.Parallel()
-	for _, test := range []struct {
-		name, username, password string
-		want                     map[string]string
-	}{
-		{"both present", "reader", "token", map[string]string{"username": "reader", "password": "token"}},
-		{"both absent", "", "", map[string]string{}},
-		{"missing username", "", "token", map[string]string{}},
-		{"missing token", "reader", "", map[string]string{}},
-		{"JSON escaping", `reader"\\`, "token\nline", map[string]string{"username": `reader"\\`, "password": "token\nline"}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// This fixture exercises the JSON payload in the exact workflow
-			// expression pinned above; actionlint checks the runner syntax.
-			payload := "{}"
-			if test.username != "" && test.password != "" {
-				username, _ := json.Marshal(test.username)
-				password, _ := json.Marshal(test.password)
-				payload = fmt.Sprintf(`{"username":%s,"password":%s}`, username, password)
-			}
-			var got map[string]string
-			if err := json.Unmarshal([]byte(payload), &got); err != nil {
-				t.Fatal(err)
-			}
-			if len(got) != len(test.want) {
-				t.Fatalf("credentials = %#v, want %#v", got, test.want)
-			}
-			for key, value := range test.want {
-				if got[key] != value {
-					t.Fatalf("credentials[%s] = %q, want %q", key, got[key], value)
-				}
-			}
-		})
+	workflow, err := os.ReadFile(filepath.Join("..", "..", "..", ".github", "workflows", "live-postgres-readiness.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed readinessWorkflow
+	if err := yaml.Unmarshal(workflow, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	for _, service := range []string{"postgres", "neo4j"} {
+		credentials := parsed.Jobs["live-postgres-readiness"].Services[service].Credentials
+		var got map[string]string
+		if credentials.Kind != yaml.MappingNode || credentials.Decode(&got) != nil ||
+			got["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
+			got["password"] != "${{ secrets.DOCKERHUB_TOKEN }}" || len(got) != 2 {
+			t.Fatalf("%s service credentials must use main's username/password mapping", service)
+		}
 	}
 }
