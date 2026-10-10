@@ -68,3 +68,12 @@ tests, table, and consumer pins together. Publish and verify the new digest
 before changing consumers. Package cleanup requires a separate reviewed
 retention decision. Do not substitute a moving Docker Hub tag, an unbounded
 workflow input, or a cache-only registry reference for the verified GHCR digest.
+
+The shape gate pins the full text of both mirror jobs, permissions and steps,
+to `scripts/dev/fixtures/ci-image-mirror-publish-job.txt` and
+`scripts/dev/fixtures/ci-image-mirror-verify-public-job.txt`. An added or
+changed step needs the same change in its fixture and a security review,
+because the publisher job holds package-write permission and a GHCR login.
+The registry rows `ci-service-mirror-publish` and
+`ci-service-mirror-verify-public` are manual and advisory: no merge waits on
+either job.
