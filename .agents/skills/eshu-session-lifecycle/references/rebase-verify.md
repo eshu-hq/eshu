@@ -35,8 +35,9 @@ that another live agent holds is not yours; see
    `$OLD_HEAD`, and `$NEW_BASE` as its old and new bases.
 
 4. **Choose the proof to rerun.** Follow the decision table in that same
-   section: a waiver note, the scoped re-review, or the full review. Do not
-   restate it here.
+   section: a waiver note (row 6 only), the scoped re-review with its
+   [scoped rebase verdict](../../eshu-code-review/references/verdict.md#scoped-rebase-verdict)
+   (rows 3 and 4), or the full review. Do not restate it here.
 
    A subagent runs focused proof and the registry-selected static gates its role
    names. Only the coordinator runs `make pre-push` or `make pre-pr`.
@@ -82,6 +83,8 @@ Your report must contain:
 - the range-diff summary, both patch-ids, and the reversion scan result
 - each gate's command, exit code, and class: `PASS`, `BRANCH`, `INHERITED`, or `ENV`
 - the table row you took, the proof you reran because of it, and why
+- for row 3 or 4, the scoped rebase verdict file: its finding counts for the
+  reviewed scope, with `PREPUSH_EXIT` and the head SHA it ran on
 - anything `NOT_CHECKED`, with the reason
 
 Include the head line described in

@@ -61,7 +61,7 @@ func runReviewAttest(args []string) error {
 	base := fs.String("base", "origin/main", "review base ref")
 	claims := fs.String("claims-file", "", "file containing the exact PR title and body bytes")
 	packet := fs.String("review-packet", "", "file containing the reviewed diff packet")
-	verdict := fs.String("verdict", "", "file containing the review verdict, or the rebase waiver note")
+	verdict := fs.String("verdict", "", "file containing the review verdict, scoped rebase verdict, or rebase waiver note")
 	receipt := fs.String("receipt", "", "local JSON receipt path")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err

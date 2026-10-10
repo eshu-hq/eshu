@@ -106,15 +106,15 @@ source for every rebase. Take the first row that matches.
 |---|---|---|
 | 1 | No clean prior verdict for the old head: none, `blocked`, or for another SHA or branch | Full review. Not a waiver case. |
 | 2 | An open finding, with or without conflicts | Full review. |
-| 3 | The rebase adds a commit (a `>` line in `git range-diff`), and every other commit is `=` or a conflict resolution you read | Scoped review of the added commit against the whole diff, plus any conflict resolutions. One verdict holds the review and the waiver fields. Any other non-`=` commit fails this row: take the next row that matches. |
-| 4 | Conflicts, no open finding | Scoped re-review of the resolutions (below). |
+| 3 | The rebase adds a commit (a `>` line in `git range-diff`), and every other commit is `=` or a conflict resolution you read. | Scoped review of the added commit against the whole diff, plus any conflict resolutions. Write the [scoped rebase verdict](references/verdict.md#scoped-rebase-verdict). Any other non-`=` commit fails this row: take the next row that matches. |
+| 4 | Conflicts, no open finding | Scoped re-review of the resolutions (below). Write the [scoped rebase verdict](references/verdict.md#scoped-rebase-verdict). |
 | 5 | No conflicts, no open finding, but a commit is not `=` in `git range-diff` (changed, added, dropped, reordered, or reworded), or the patch-id changed | Full review. |
-| 6 | No conflicts, no open finding, every commit `=`, patch-id equal | Waiver note. |
+| 6 | No conflicts, no open finding, every commit `=`, patch-id equal | [Waiver note](references/verdict.md#waiver-note), the only row that uses it. |
 
 **Clean prior verdict.** A full or scoped verdict for the old head, with P0=0,
 P1=0, and P2-blocking=0. Name the file or PR comment that holds it. After an
-earlier waiver, the old head's record is that waiver note, which names the
-verdict it rests on.
+earlier waiver or scoped rebase verdict, the old head's record is that file,
+which names the verdict it rests on.
 
 **Open finding.** Read the live sources in
 [github-truth.md](references/github-truth.md): an unresolved review thread, a
@@ -149,11 +149,11 @@ with `comm -12 <(git diff --name-only <new-base>..HEAD | sort -u)
 textual. A semantic collision with no shared hunk shows only in the merged-tree
 vet and tests of `make pre-push`, and in CI.
 
-**Order.** The waiver note states the `make pre-push` exit, so the floor runs
-first: `make pre-push` on the rebased head, then write the note, capture
-(`--verdict <note>`), `ci-gates review-attest verify`, push. The note records
-the exit code and the head SHA the floor ran on. Never write the note before
-the floor exits 0. Before capture, re-read the PR title and body claims
+**Order.** The waiver note and the scoped rebase verdict state the
+`make pre-push` exit, so the floor runs first: `make pre-push` on the rebased
+head, then write the note or verdict, capture (`--verdict <file>`),
+`ci-gates review-attest verify`, push. The file records the exit code and the
+head SHA the floor ran on. Never write it before the floor exits 0. Before capture, re-read the PR title and body claims
 against the final diff, and rerun the proof the rebase can affect. The receipt
 hashes the claims file, so a claims edit after capture voids it. Make no edit
 after the floor. A green CI wave on the exact
@@ -162,9 +162,12 @@ the PR before merge.
 
 A waiver receipt proves only that the note and the inputs did not change. It
 records no review. The note ([verdict.md](references/verdict.md#waiver-note))
-MUST NOT claim a new review happened.
+MUST NOT claim a new review happened. A scoped rebase verdict
+([verdict.md](references/verdict.md#scoped-rebase-verdict)) is a review
+verdict for the receipt. It MUST claim only the scope it reviewed (the
+resolution hunks or the added commit), never the old commits.
 
-Row 4 scoped re-review must:
+Rows 3 and 4 scoped review must:
 - read every entry in
   `git range-diff <old-base>..<old-head> <new-base>..<new-head>` that is not
   `=` (`!`, `>`, `<`): each conflict resolution, each added or dropped commit,
@@ -172,6 +175,8 @@ Row 4 scoped re-review must:
 - review semantic interaction with the new base commits.
 - re-read the claims.
 - rerun affected proof.
+- write the scoped rebase verdict: finding counts and dispositions for the
+  reviewed scope, plus the rebase evidence fields.
 - capture a new receipt.
 
 ## Reporting

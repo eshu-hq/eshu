@@ -96,9 +96,11 @@ A rebase that applies with no conflicts, with every commit `=` in
 `git range-diff` and no open finding, carries no new verdict. Write a waiver
 note in its place and pass it as `--verdict` to
 `ci-gates review-attest capture`. The table in "Rebase Waiver" in
-[SKILL.md](../SKILL.md#rebase-waiver) decides when a note applies. The attest
-tool hashes the file. It does not read it, so the note MUST be truthful by its
-own words.
+[SKILL.md](../SKILL.md#rebase-waiver) decides when a note applies: row 6 only.
+A rebase with a conflict resolution or an added commit (rows 3 and 4) needs a
+review, so it uses the [scoped rebase verdict](#scoped-rebase-verdict) and not
+this note. The attest tool hashes the file. It does not read it, so the note
+MUST be truthful by its own words.
 
 The note MUST NOT claim a new review happened. It carries no finding counts for
 the rebased head and no "clean" or "ready" statement. Write it only after
@@ -133,3 +135,39 @@ per line:
 `--review-packet`, `--claims-file`, and `--base` are the same as for a
 verdict. Name the packet in the note. Any edit to the note voids the receipt,
 like an edit to a verdict.
+
+## Scoped Rebase Verdict
+
+A rebase that adds a commit or resolves a conflict (rows 3 and 4 of the
+"Rebase Waiver" table in [SKILL.md](../SKILL.md#rebase-waiver)) has a scoped
+review. The waiver note cannot carry that review: it has no finding counts and
+MUST NOT claim a review. The scoped rebase verdict is a third shape. It is a
+review verdict for the receipt, and it carries the rebase evidence of the
+waiver note. Pass it as `--verdict` to `ci-gates review-attest capture`.
+
+It claims only the scope the review covered: the conflict resolution hunks or
+the added commit, read against the whole diff. It never claims the old commits.
+Those rest on the prior verdict, which it names. Write it only after
+`make pre-push` exits 0 on the rebased head. It states these fields, one per
+line:
+
+- `rule`: `scoped rebase verdict`, `eshu-code-review` Rebase Waiver, and the
+  row taken (3 or 4) with the `range-diff` lines that put the rebase there.
+- `scope`: each resolution hunk (file and range) or the added commit (SHA) that
+  the review read. Name what it did not review: every `=` commit.
+- `findings`: the `P0`, `P1`, `P2-blocking`, `P2-deferred`, and `P3` counts for
+  that scope, and each finding with the schema and disposition above. Counts
+  and dispositions cover the scope only.
+- `prior verdict`, `old base`, `new base`, `old head`, `new head`,
+  `range-diff`, `open findings`, `reversion scan`, `claims and affected proof`,
+  and `CI wave`: the same as the waiver note. Here `range-diff` lists every
+  non-`=` line and names the commit or resolution that explains it. Every other
+  line is `=`.
+- `patch-id`: the value before and after the rebase, and why they differ
+  (the added commit or the resolution), or that they are equal.
+- `PREPUSH_EXIT`: `make pre-push` exit code 0 and the head SHA it ran on. That
+  head equals the `new head`.
+
+`--review-packet`, `--claims-file`, and `--base` are the same as for a
+verdict. Name the packet in the verdict. Any edit to the verdict voids the
+receipt.

@@ -73,7 +73,8 @@ liveness misjudgement.
    Use that skill's finding schema, proof tiers, and merge bar as the single
    source of review policy.
 4. Capture the clean review's inputs with `ci-gates review-attest capture`.
-   For a waiver note, run `make pre-push` first and capture after it exits 0.
+   For a waiver note or a scoped rebase verdict, run `make pre-push` first and
+   capture after it exits 0.
    Run `make pre-push` before every push — the required floor (changed-package
    test/lint/build/vet, file cap, registry-selected static gates,
    docs-contradiction). For queue/lease/claim code, schema DDL, hot-path
@@ -92,8 +93,8 @@ liveness misjudgement.
    commit, tree, worktree, submodule, PR claim, review packet, or verdict
    requires affected proof and a new full review/receipt before promotion.
    The one exception is a rebase. The decision table in `eshu-code-review`
-   ("Rebase Waiver") sends it to a waiver note, a scoped re-review, or the
-   full review.
+   ("Rebase Waiver") sends it to a waiver note, a scoped re-review with a
+   scoped rebase verdict, or the full review.
    On preflight failure, diagnose and fix it, rerun affected proof, and obtain
    a clean preliminary review before another attempt. Deferred P2 and cosmetic
    P3 findings do not restart this loop. Once pushed, CI's
