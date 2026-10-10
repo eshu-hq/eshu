@@ -54,7 +54,7 @@ has() { rg -qF -- "$2" "$1"; }
 # line before the next 2-space job key.
 job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{print}' "$1"; }
 # job_gated <file> <job> — true if the job carries a `needs: changes` code gate.
-job_needs() { job_block "$1" "$2" | rg -q "^[[:space:]]+needs:[[:space:]]*($3[[:space:]]*$|\\[[^]]*\\b$3\\b[^]]*\\])"; }
+job_needs() { job_block "$1" "$2" | rg -q "^[[:space:]]+needs:[[:space:]]*($3[[:space:]]*$|\\[[[:space:]]*([^]]*,[[:space:]]*)?$3[[:space:]]*(,|\\]))"; }
 job_gated() { job_needs "$1" "$2" changes; }
 job_alwayson() { ! job_gated "$1" "$2"; }
 
