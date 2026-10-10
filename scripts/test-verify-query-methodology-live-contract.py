@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -25,6 +26,7 @@ PG_REASON = (
 )
 FILES = (
     "specs/live-tests.v1.yaml",
+    ".pre-commit-config.yaml",
     "specs/ci-gates.v1.yaml",
     "scripts/verify-query-methodology.sh",
     "scripts/verify-query-plan-regression.sh",
@@ -65,6 +67,137 @@ class ContractTest(unittest.TestCase):
         source = path.read_text()
         self.assertEqual(source.count(old), 1, f"ambiguous fixture anchor: {old}")
         path.write_text(source.replace(old, new, 1))
+
+    def hook_file_pattern(self) -> str:
+        """Read the actual query-methodology pre-commit selection pattern."""
+        config = (self.root / ".pre-commit-config.yaml").read_text()
+        match = re.search(
+            r"^      - id: query-methodology-static\n"
+            r"(?:(?!^      - id:).)*?^        files: '([^']+)'",
+            config,
+            re.M | re.S,
+        )
+        self.assertIsNotNone(match, "query-methodology-static hook missing")
+        return match.group(1)
+
+    def test_ci_installs_executable_hook_runner(self) -> None:
+        """Hosted verify-contracts must install the test's CLI dependency."""
+        workflow = (self.root / ".github/workflows/test.yml").read_text()
+        job = workflow.split("  verify-contracts:\n", 1)[1].split(
+            "\n  go-core:", 1
+        )[0]
+        self.assertIn("uses: actions/setup-python@v6", job)
+        self.assertIn("python -m pip install pre-commit==4.6.2", job)
+
+    def test_hook_selects_every_owned_input(self) -> None:
+        """A change to any proof input must invoke the static hook."""
+        pattern = self.hook_file_pattern()
+        owned = (
+            "go/internal/mcp/methodology_live_test.go",
+            "go/internal/query/methodology_graph_cases_live_test.go",
+            "go/internal/queryplan/pilot_contract.go",
+            "go/internal/graph/schema_neo4j.go",
+            "go/internal/storage/postgres/migrations/070_cloud_resource_owner_page_index.sql",
+            "specs/live-tests.v1.yaml",
+            ".pre-commit-config.yaml",
+            ".github/workflows/test.yml",
+            "scripts/lib/verify-live-tests-ledger.py",
+            "scripts/lib/verify-query-methodology-live-contract.py",
+            "scripts/test-verify-query-methodology-live-contract.py",
+            "scripts/verify-query-methodology.sh",
+            "scripts/test-verify-query-methodology.sh",
+            "scripts/lib/go-test-run-guard.sh",
+            "scripts/lib/live-gate-lock.sh",
+            "scripts/lib/test-verify-query-methodology-go.sh",
+            "scripts/lib/test-verify-query-methodology-docker.sh",
+        )
+        for name in owned:
+            with self.subTest(path=name):
+                self.assertIsNotNone(re.fullmatch(pattern, name), name)
+
+    def test_actual_pre_commit_route(self) -> None:
+        """Run the real static entry through file-only pre-commit selection."""
+        pattern = self.hook_file_pattern()
+        config = self.root / ".pre-commit-config.yaml"
+        config.write_text(
+            "repos:\n  - repo: local\n    hooks:\n"
+            "      - id: query-methodology-static\n"
+            "        name: query methodology production contracts\n"
+            "        entry: scripts/verify-query-methodology.sh --static\n"
+            "        language: script\n"
+            f"        files: '{pattern}'\n"
+            "        pass_filenames: false\n"
+        )
+        for name in (
+            "scripts/lib/verify-query-methodology-live-contract.py",
+            "scripts/lib/verify-live-tests-ledger.py",
+            "scripts/test-verify-query-methodology-live-contract.py",
+            "scripts/lib/go-test-run-guard.sh",
+        ):
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, target)
+        fake_go = self.root / "bin/go"
+        fake_go.parent.mkdir()
+        shutil.copyfile(
+            ROOT / "scripts/lib/test-verify-query-methodology-go.sh", fake_go
+        )
+        fake_go.chmod(0o755)
+        (self.root / "scripts/verify-query-methodology.sh").chmod(0o755)
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        environment = os.environ.copy()
+        environment["PATH"] = f"{fake_go.parent}:{environment['PATH']}"
+        environment["SHIM_LOG"] = str(self.root / "go-shim.log")
+
+        def run_hook(path: str) -> subprocess.CompletedProcess[str]:
+            """Run the actual pre-commit selector on one changed path."""
+            return subprocess.run(
+                [
+                    "pre-commit", "run", "--config", str(config),
+                    "query-methodology-static", "--files", path,
+                ],
+                cwd=self.root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        healthy_config = config.read_text()
+        planted_config = healthy_config.replace(
+            r"|go/internal/mcp/methodology_live_test\.go", "", 1
+        )
+        self.assertNotEqual(planted_config, healthy_config)
+        config.write_text(planted_config)
+        missed = run_hook("go/internal/mcp/methodology_live_test.go")
+        self.assertIn("Skipped", missed.stdout)
+        config.write_text(healthy_config)
+
+        for name in (
+            "go/internal/mcp/methodology_live_test.go",
+            "specs/live-tests.v1.yaml",
+            ".pre-commit-config.yaml",
+            ".github/workflows/test.yml",
+            "scripts/lib/verify-live-tests-ledger.py",
+            "scripts/lib/verify-query-methodology-live-contract.py",
+            "scripts/test-verify-query-methodology-live-contract.py",
+        ):
+            with self.subTest(path=name):
+                result = run_hook(name)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("Passed", result.stdout)
+                self.assertNotIn("Skipped", result.stdout)
+
+        source = self.root / "go/internal/mcp/methodology_live_test.go"
+        source.write_text(
+            source.read_text().replace(
+                "//go:build queryplan_profile_live", "//go:build integration", 1
+            )
+        )
+        result = run_hook("go/internal/mcp/methodology_live_test.go")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("actual build tag differs", result.stdout + result.stderr)
 
     def test_clean_contract(self) -> None:
         self.assertEqual(self.check().returncode, 0)
