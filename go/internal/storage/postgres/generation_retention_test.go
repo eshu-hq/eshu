@@ -95,6 +95,7 @@ func TestGenerationRetentionStorePrunesEligibleGenerationBatch(t *testing.T) {
 			"repository",
 			now.Add(-10 * 24 * time.Hour),
 			now.Add(-11 * 24 * time.Hour),
+			false,
 		}},
 		countRows: [][]any{
 			{"generation-old", "fact_records", int64(3)},
@@ -196,6 +197,7 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotReportRowsPruned(t *testing.
 			"repository",
 			now.Add(-10 * 24 * time.Hour),
 			now.Add(-11 * 24 * time.Hour),
+			false,
 		}},
 		countRows: [][]any{
 			{"generation-old", "fact_records", int64(101)},
@@ -244,6 +246,7 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 				"repository",
 				now.Add(-12 * 24 * time.Hour),
 				now.Add(-13 * 24 * time.Hour),
+				false,
 			},
 			{
 				"scope-small",
@@ -251,6 +254,7 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 				"repository",
 				now.Add(-11 * 24 * time.Hour),
 				now.Add(-12 * 24 * time.Hour),
+				false,
 			},
 		},
 		countRows: [][]any{
@@ -346,6 +350,7 @@ func TestGenerationRetentionStoreRowLimitCountsContentCleanupRows(t *testing.T) 
 			"repository",
 			now.Add(-10 * 24 * time.Hour),
 			now.Add(-11 * 24 * time.Hour),
+			false,
 		}},
 		countRows: [][]any{
 			{"generation-content", "fact_records", int64(1)},

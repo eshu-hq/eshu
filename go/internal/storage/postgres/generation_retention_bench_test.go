@@ -75,6 +75,7 @@ func generationRetentionCandidateRows(count int, now time.Time) [][]any {
 			"repository",
 			now.Add(time.Duration(-10-i) * 24 * time.Hour),
 			now.Add(time.Duration(-11-i) * 24 * time.Hour),
+			false,
 		})
 	}
 	return rows

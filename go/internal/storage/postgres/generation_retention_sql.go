@@ -16,13 +16,25 @@ import (
 // (MATERIALIZED) instead of probed per row (the #6809 class). locked_scopes
 // orders oldest-eligible-first, scope_id tie-break, FOR UPDATE OF scope SKIP
 // LOCKED only on ingestion_scopes, so a held scope is skipped and replaced
-// without waiting. The final SELECT re-checks status, superseded_at and
-// active_generation_id at lock time and is byte-identical to the prior
-// statement. Rationale/proofs: docs/internal/evidence/7334-generation-retention-selection.md.
+// without waiting. The locked_prunable leg re-checks status, superseded_at and
+// active_generation_id at lock time. Rationale/proofs:
+// docs/internal/evidence/7334-generation-retention-selection.md.
+//
+// Uncovered writers (#7472) are eligible rows the reconcile probe still needs
+// (UncoveredProjectionWriters: wrote, never activated, newer than the scope's
+// last activated full): pruning them would delete the evidence before the
+// heal. They are flagged in eligible by the same definition the probe uses,
+// excluded from the lock set and the prunable leg at any age (including past
+// the hard ceiling), and reported back on a second, lock-free UNION ALL leg
+// capped at the same batch limit, oldest-first with no cursor. Writers past
+// the cap stay retained but uncounted until older ones clear, so the reported
+// count is a floor, not a census. The store counts the reported ones as
+// Skipped "uncovered_writer", which the retention runner already logs per
+// cycle.
 //
 // $1 soft cutoff, $2 min newer superseded generations, $3 batch/lock-set
-// limit, $4 hard-ceiling cutoff (#7585): the count preference cannot retain
-// ordinary superseded history older than $4.
+// limit (each leg separately), $4 hard-ceiling cutoff (#7585): the count
+// preference cannot retain ordinary superseded history older than $4.
 const generationRetentionCandidateQuery = `
 WITH ranked_superseded_generations AS (
     SELECT
@@ -30,10 +42,21 @@ WITH ranked_superseded_generations AS (
         generation.generation_id,
         generation.superseded_at,
         generation.observed_at,
+        generation.projection_write_started_at,
+        generation.activated_at,
         ROW_NUMBER() OVER (PARTITION BY generation.scope_id ORDER BY generation.superseded_at DESC, generation.generation_id DESC) AS superseded_rank
     FROM scope_generations AS generation
     WHERE generation.status = 'superseded'
       AND generation.superseded_at IS NOT NULL
+),
+last_activated_full_write AS MATERIALIZED (
+    SELECT DISTINCT ON (generation.scope_id)
+        generation.scope_id,
+        generation.projection_write_started_at AS full_write_started_at
+    FROM scope_generations AS generation
+    WHERE generation.is_delta = false
+      AND generation.activated_at IS NOT NULL
+    ORDER BY generation.scope_id, generation.ingested_at DESC, generation.generation_id DESC
 ),
 live_work AS MATERIALIZED (
     SELECT DISTINCT work.generation_id
@@ -41,10 +64,15 @@ live_work AS MATERIALIZED (
     WHERE work.status IN ('claimed', 'running', 'retrying')
 ),
 eligible AS MATERIALIZED (
-    SELECT ranked.scope_id, ranked.generation_id, scope.scope_kind, ranked.superseded_at, ranked.observed_at
+    SELECT ranked.scope_id, ranked.generation_id, scope.scope_kind, ranked.superseded_at, ranked.observed_at,
+        (ranked.projection_write_started_at IS NOT NULL
+         AND ranked.activated_at IS NULL
+         AND ranked.projection_write_started_at > COALESCE(last_full.full_write_started_at, '-infinity'::timestamptz)) AS uncovered
     FROM ranked_superseded_generations AS ranked
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = ranked.scope_id
+    LEFT JOIN last_activated_full_write AS last_full
+      ON last_full.scope_id = ranked.scope_id
     WHERE ranked.generation_id IS DISTINCT FROM scope.active_generation_id
       AND ((ranked.superseded_at < $1 AND ranked.superseded_rank > $2) OR ranked.superseded_at < $4)
       AND NOT EXISTS (
@@ -56,6 +84,7 @@ eligible AS MATERIALIZED (
 eligible_scopes AS (
     SELECT eligible.scope_id, min(eligible.superseded_at) AS oldest_superseded_at
     FROM eligible
+    WHERE NOT eligible.uncovered
     GROUP BY eligible.scope_id
 ),
 locked_scopes AS (
@@ -66,29 +95,56 @@ locked_scopes AS (
     LIMIT $3
     FOR UPDATE OF scope SKIP LOCKED
 ),
-eligible_generations AS (
+prunable_generations AS (
     SELECT eligible.*
     FROM eligible
     JOIN locked_scopes AS locked_scope
       ON locked_scope.scope_id = eligible.scope_id
+    WHERE NOT eligible.uncovered
     ORDER BY eligible.superseded_at ASC, eligible.generation_id ASC
     LIMIT $3
+),
+reported_uncovered_writers AS (
+    SELECT eligible.scope_id, eligible.generation_id, eligible.scope_kind, eligible.superseded_at, eligible.observed_at
+    FROM eligible
+    WHERE eligible.uncovered
+    ORDER BY eligible.superseded_at ASC, eligible.generation_id ASC
+    LIMIT $3
+),
+locked_prunable AS (
+    SELECT
+        candidate.scope_id,
+        candidate.generation_id,
+        candidate.scope_kind,
+        candidate.superseded_at,
+        candidate.observed_at
+    FROM prunable_generations AS candidate
+    JOIN scope_generations AS generation
+      ON generation.generation_id = candidate.generation_id
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = candidate.scope_id
+    WHERE generation.status = 'superseded'
+      AND generation.superseded_at = candidate.superseded_at
+      AND candidate.generation_id IS DISTINCT FROM scope.active_generation_id
+    FOR UPDATE OF generation, scope SKIP LOCKED
 )
 SELECT
-    candidate.scope_id,
-    candidate.generation_id,
-    candidate.scope_kind,
-    candidate.superseded_at,
-    candidate.observed_at
-FROM eligible_generations AS candidate
-JOIN scope_generations AS generation
-  ON generation.generation_id = candidate.generation_id
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = candidate.scope_id
-WHERE generation.status = 'superseded'
-  AND generation.superseded_at = candidate.superseded_at
-  AND candidate.generation_id IS DISTINCT FROM scope.active_generation_id
-FOR UPDATE OF generation, scope SKIP LOCKED
+    locked.scope_id,
+    locked.generation_id,
+    locked.scope_kind,
+    locked.superseded_at,
+    locked.observed_at,
+    false AS uncovered
+FROM locked_prunable AS locked
+UNION ALL
+SELECT
+    reported.scope_id,
+    reported.generation_id,
+    reported.scope_kind,
+    reported.superseded_at,
+    reported.observed_at,
+    true AS uncovered
+FROM reported_uncovered_writers AS reported
 `
 
 // Savepoint around candidate selection (arbiter ruling arb-7127-3d-c, #7334
@@ -141,7 +197,7 @@ GROUP BY candidate.generation_id
 // $1 soft cutoff, $2 minimum newer generations, $3 excluded ids, $4 scope
 // ids, $5 generation ids, $6 hard-ceiling cutoff (#7585).
 const generationRetentionTargetedCandidateQuery = `-- retention: targeted candidate lock
-SELECT generation.scope_id, generation.generation_id, scope.scope_kind, generation.superseded_at, generation.observed_at
+SELECT generation.scope_id, generation.generation_id, scope.scope_kind, generation.superseded_at, generation.observed_at, false AS uncovered
 FROM scope_generations AS generation
 JOIN ingestion_scopes AS scope ON scope.scope_id = generation.scope_id
 WHERE generation.scope_id = ANY($4::text[])

@@ -184,8 +184,8 @@ func TestGenerationRetentionPrescreenKeepsOverFactGenerationsOutOfTheCount(t *te
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
 	database := &generationRetentionFakeDB{
 		candidateRows: [][]any{
-			{"scope-a", "generation-huge", "repository", now.Add(-12 * 24 * time.Hour), now.Add(-13 * 24 * time.Hour)},
-			{"scope-a", "generation-small", "repository", now.Add(-11 * 24 * time.Hour), now.Add(-12 * 24 * time.Hour)},
+			{"scope-a", "generation-huge", "repository", now.Add(-12 * 24 * time.Hour), now.Add(-13 * 24 * time.Hour), false},
+			{"scope-a", "generation-small", "repository", now.Add(-11 * 24 * time.Hour), now.Add(-12 * 24 * time.Hour), false},
 		},
 		prescreenRows: [][]any{
 			{"generation-huge", int64(101)},
@@ -240,8 +240,8 @@ func TestGenerationRetentionPrescreenSkipsFullCountWhenAllOver(t *testing.T) {
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
 	database := &generationRetentionFakeDB{
 		candidateRows: [][]any{
-			{"scope-a", "generation-huge", "repository", now.Add(-12 * 24 * time.Hour), now.Add(-13 * 24 * time.Hour)},
-			{"scope-a", "generation-small", "repository", now.Add(-11 * 24 * time.Hour), now.Add(-12 * 24 * time.Hour)},
+			{"scope-a", "generation-huge", "repository", now.Add(-12 * 24 * time.Hour), now.Add(-13 * 24 * time.Hour), false},
+			{"scope-a", "generation-small", "repository", now.Add(-11 * 24 * time.Hour), now.Add(-12 * 24 * time.Hour), false},
 		},
 		prescreenRows: [][]any{
 			{"generation-huge", int64(101)},
