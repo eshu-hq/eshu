@@ -6,7 +6,7 @@ and its [protocol companion](7126-ingest-time-config-artifacts-protocol.md).
 It holds the measurements the decision rests on, the source facts, and the
 split between evidence and theory. No new measurement was taken for this
 record. Every figure below comes from an earlier read-only probe, a local
-bench, or the arbiter ruling of 2026-10-10. Source facts are read at
+bench, or the arbiter ruling and re-ruling of 2026-10-10. Source facts are read at
 `origin/main` `b7ca5f2f0a`.
 
 ## 1. Measurements and their limits
@@ -58,6 +58,7 @@ otherwise. Each source names a symbol, not a line.
 | `content_files` batches run one after another inside one Write | `upsertContentFileBatches` in `go/internal/storage/postgres/content_writer_upserts.go` |
 | Generation retention deletes `content_files` rows, and only the reducer wires retention | `pruneContentFilesForGenerationsQuery` in `go/internal/storage/postgres/generation_retention_sql.go`, `go/cmd/reducer/generation_retention_wiring.go` |
 | Migration 109 uses statement-level INSERT and UPDATE triggers with transition tables and a row-level DELETE trigger | `109_infra_resource_entities.sql` |
+| Row-level AFTER triggers fire at the end of the statement. Retention deletes `content_files` in one statement per transaction | PostgreSQL trigger documentation, and the retention step list of `GenerationRetentionStore` in `go/internal/storage/postgres/generation_retention.go` |
 | No import cycle blocks a shared package | `go list -deps` on `./internal/query/querycontract`, `./internal/query/repositoryartifacts`, `./internal/content` and `./internal/storage/postgres` at `b7ca5f2f0a` |
 | The newest migration on `origin/main` | `169_content_files_generation_id.sql`. No open PR adds a migration (checked with `gh pr list --state open` on 2026-10-10) |
 
@@ -86,7 +87,9 @@ Theory (each has a shim in section 8 of the decision record):
   CPU to 0.7 CPU-s or less per R1 story. These targets are a budget built from
   the contributor list, not a measurement.
 - The estimate of 2.5-4.5 s for PR1 plus PR2 on ops-qa.
-- The correction proposed for open issue R-1 (protocol companion section 7).
+- The content-version trigger meets the six S3 arms (protocol companion
+  section 6). The R-1 lost update itself is a source-backed sequence, decided
+  by the re-ruling.
 
 NOT_CHECKED: ops-prod, the related repositories the R1 body does not name,
 the cap census (S6), concurrent stories, and the cold route after a pod
