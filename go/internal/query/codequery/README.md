@@ -8,7 +8,7 @@ route-to-caller, cypher, visualize, and bundles.
 
 It moved out of root package `query` (#6060 lane A) so the family can be
 read, tested, and changed without pulling in the rest of the query
-surface. Exactly 40 non-test `.go` files (dirgate cap).
+surface. The directory stays under the dirgate file cap.
 
 ## How it connects
 
@@ -57,6 +57,52 @@ surface. Exactly 40 non-test `.go` files (dirgate cap).
   test-only live-backend reader (no production read policy); the
   `live_nornicdb_*` tag-gated files prove query text against a real
   backend, not the policy layer.
+
+## Failed reads (#7674)
+
+Every code route answers a failed store or graph read with a fixed message
+per route step (for example `code search failed to read the graph`,
+`relationship story target resolution failed`, `call chain endpoint
+resolution failed`, `code-flow read failed`, or `dead-code candidate scan
+failed`), never the backend error text. The order at each failure is: the
+route's own 503 sentinel check, `querycontract.WriteGraphReadError` (reader
+fence or graph verdict answers the retryable 503/504 with `Retry-After`), the
+route's 400/404/422 answers, then `tracing.WriteServerFailure` with the step's
+constant (500, or 499 on a client cancel). `read_failure.go` holds the
+helpers and the message constants.
+
+A configuration-state sentinel (index not ready, backend not configured)
+answers 503 with the sentinel's own fixed text and no `Retry-After`, even
+when the store wraps it with detail. The code-flow routes no longer answer
+408 on a deadline; a cancel answers 499 and a deadline the graph layer does
+not classify answers the fixed 500. Call-chain endpoint resolution keeps its
+400 disambiguation answer, which quotes only the caller's selectors and
+candidate entity ids; a store or graph failure during that lookup is a 500
+(`call_chain_lookup.go`). The Cypher and visualize routes keep their
+`internal_error` envelope through `tracing.ServerFailureEnvelope`.
+`server_failure*_test.go` covers each route family with a canary fault, a
+client cancel, a stale reader, and the wrapped sentinels.
+
+No-Regression Evidence (#7674): the change runs only after a read has already
+returned an error. No Cypher, SQL, query parameter, call count, row bound, or
+success path changed. The queryplan `source_sha256` pins for
+`handleCallChain`, `handleCypherQuery`, `handleVisualizeQuery`, and
+`handleSearchBundles` were re-pinned from the gate's mismatch report because
+only their error branches changed; no `cypher_sha256` moved. A failure now
+costs one span `RecordError`/`SetStatus` and a fixed-string write instead of
+formatting the error into the body. `go test ./internal/query/...
+./internal/queryplan/... -count=1` and `go test -race
+./internal/query/codequery/...` exit 0. No benchmark is claimed because the
+success path has no runtime delta to measure.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the handler span as an `exception` event and sets status Error with the step's
+fixed message; a client cancel adds `eshu.request.client_canceled`, leaves the
+status Unset, and answers `499`. A sentinel 503 records the error and sets
+status Error with the sentinel text. The call-graph metrics and import routes
+still record exactly one exception on their 422 scope and graph-verdict
+branches. `server_failure*_test.go` asserts these span shapes with a
+recording tracer.
 
 ## Verification
 

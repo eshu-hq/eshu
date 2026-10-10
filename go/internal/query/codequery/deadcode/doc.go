@@ -20,8 +20,13 @@
 //
 // Import discipline: this package may import the same dependency-neutral
 // leaves codequery uses (codemodel, querycontract, auth, contentread,
-// entitysemantics, codeshaping, codeprovenance, rows, telemetry)
+// entitysemantics, codeshaping, codeprovenance, rows, telemetry, tracing)
 // but NEVER package codequery itself and NEVER root package query -- both
 // would create an import cycle (codequery delegates to Analyzer, and root
 // aliases codequery).
+//
+// A failed scan, evidence, coverage, or root-path read answers a fixed
+// message per step through tracing.WriteServerFailure after
+// Dependencies.WriteGraphReadError declines it; the backend error text never
+// reaches the response body (#7674).
 package deadcode

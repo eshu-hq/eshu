@@ -32,6 +32,14 @@
 // Language field (root handler.go), and both cmd wirings construct it
 // with Neo4j/Content/Profile/Logger.
 //
+// A failed store or graph read answers a fixed message per route step and
+// records the backend error on the handler span; the error text never reaches
+// the response body (#7674). A stale or timed-out PostgreSQL reader or a graph
+// verdict answers the retryable 503/504 through
+// querycontract.WriteGraphReadError, a configuration-state sentinel answers
+// 503 with its own fixed text, and a client cancel answers 499 with no span
+// error.
+//
 // Digest discipline: the queryplan-pinned builders in this package
 // relocate only; their emitted Cypher text is unchanged. Where a move
 // forced a spelling change (an export the seam needs, or a qualification

@@ -214,6 +214,14 @@ that is not a timeout stays a 500), answers a retryable 503
 `backend_unavailable` with `Retry-After` instead of a 500 carrying Go error
 text. A new store read in these handlers needs the same call.
 
+## Fixed failure text (#7674)
+
+`writeStoreError` (`results.go`) is the only read-failure writer: the graph verdict
+first, then `tracing.WriteServerFailure` with the step's fixed `const` from
+`results.go` (500, or 499 for a client cancel). Never pass `err.Error()` or a
+message formatted with `err`; the query error-text guard holds this package
+at zero sites. A new read declares its own message constant.
+
 ## Verification (paste all)
 
 ```bash
