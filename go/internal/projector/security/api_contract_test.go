@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -46,7 +47,7 @@ func TestBuildSecurityIntentsPreserveContracts(t *testing.T) {
 			name: "package alert falls back to collector",
 			fact: facts.Envelope{
 				FactID:        "package-1",
-				FactKind:      facts.PackageRegistryPackageFactKind,
+				FactKind:      chain.PackageRegistryPackageFactKind,
 				CollectorKind: " package-registry ",
 			},
 			build:         BuildSecurityAlertReconciliationReducerIntent,
@@ -109,7 +110,7 @@ func TestBuildSecurityIntentsPreserveEarliestMatchAndDeterminism(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactID: "package-first", FactKind: facts.PackageRegistryPackageFactKind},
+		{FactID: "package-first", FactKind: chain.PackageRegistryPackageFactKind},
 		{FactID: "alert-later", FactKind: facts.SecurityAlertRepositoryAlertFactKind},
 		{FactID: "rule-first", FactKind: facts.AWSSecurityGroupRuleFactKind},
 		{FactID: "rule-duplicate", FactKind: facts.AWSSecurityGroupRuleFactKind},

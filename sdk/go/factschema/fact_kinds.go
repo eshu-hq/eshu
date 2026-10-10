@@ -138,10 +138,11 @@ const (
 
 	// The package_registry family fact-kind strings are DOTTED, like the
 	// incident/oci_registry families. The dots are part of the wire kind the
-	// collector already emits (go/internal/facts.PackageRegistry*FactKind and
+	// collector already emits
+	// (go/internal/facts/supply/chain.PackageRegistryPackageFactKind and
 	// siblings); the values here MATCH those wire strings byte-for-byte and
 	// never invent or rename the namespace. TestFactSchemaKindsMatchWireFactKinds
-	// (reducer side) asserts each stays byte-equal to its facts.*FactKind
+	// (reducer side) asserts each stays byte-equal to its chain.*FactKind
 	// counterpart.
 
 	// FactKindPackageRegistryPackage is the "package_registry.package" fact

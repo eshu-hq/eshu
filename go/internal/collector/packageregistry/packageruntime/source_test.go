@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -91,11 +91,11 @@ func TestClaimedSourceParsesMetadataIntoPackageRegistryFacts(t *testing.T) {
 		}
 	}
 	for _, wantKind := range []string{
-		facts.PackageRegistryPackageFactKind,
-		facts.PackageRegistryPackageVersionFactKind,
-		facts.PackageRegistryPackageArtifactFactKind,
-		facts.PackageRegistrySourceHintFactKind,
-		facts.PackageRegistryRepositoryHostingFactKind,
+		chain.PackageRegistryPackageFactKind,
+		chain.PackageRegistryPackageVersionFactKind,
+		chain.PackageRegistryPackageArtifactFactKind,
+		chain.PackageRegistrySourceHintFactKind,
+		chain.PackageRegistryRepositoryHostingFactKind,
 	} {
 		if gotKinds[wantKind] == 0 {
 			t.Fatalf("fact kinds = %#v, missing %q", gotKinds, wantKind)
@@ -145,8 +145,8 @@ func TestEnvelopesFromParsedMetadataIncludesAdvisoriesAndEvents(t *testing.T) {
 		gotKinds[envelope.FactKind] = true
 	}
 	for _, wantKind := range []string{
-		facts.PackageRegistryVulnerabilityHintFactKind,
-		facts.PackageRegistryRegistryEventFactKind,
+		chain.PackageRegistryVulnerabilityHintFactKind,
+		chain.PackageRegistryRegistryEventFactKind,
 	} {
 		if !gotKinds[wantKind] {
 			t.Fatalf("fact kinds = %#v, missing %q", gotKinds, wantKind)
@@ -198,10 +198,10 @@ func TestClaimedSourceParsesArtifactoryPackageDocumentFormat(t *testing.T) {
 		gotKinds[envelope.FactKind]++
 	}
 	for _, wantKind := range []string{
-		facts.PackageRegistryPackageFactKind,
-		facts.PackageRegistryPackageVersionFactKind,
-		facts.PackageRegistryPackageArtifactFactKind,
-		facts.PackageRegistryRepositoryHostingFactKind,
+		chain.PackageRegistryPackageFactKind,
+		chain.PackageRegistryPackageVersionFactKind,
+		chain.PackageRegistryPackageArtifactFactKind,
+		chain.PackageRegistryRepositoryHostingFactKind,
 	} {
 		if gotKinds[wantKind] == 0 {
 			t.Fatalf("fact kinds = %#v, missing %q", gotKinds, wantKind)
@@ -266,7 +266,7 @@ func TestClaimedSourceArtifactoryPackageUsesConfiguredParserRegistry(t *testing.
 	}
 	var sawCustomPackage bool
 	for envelope := range collected.Facts {
-		if envelope.FactKind == facts.PackageRegistryPackageFactKind &&
+		if envelope.FactKind == chain.PackageRegistryPackageFactKind &&
 			envelope.Payload["raw_name"] == "@scope/pkg" {
 			sawCustomPackage = true
 		}
@@ -336,10 +336,10 @@ func TestClaimedSourceTruncatesMetadataOverVersionLimit(t *testing.T) {
 	for envelope := range collected.Facts {
 		gotKinds[envelope.FactKind]++
 	}
-	if got := gotKinds[facts.PackageRegistryPackageVersionFactKind]; got != 1 {
+	if got := gotKinds[chain.PackageRegistryPackageVersionFactKind]; got != 1 {
 		t.Fatalf("package version fact count = %d, want 1; kinds=%#v", got, gotKinds)
 	}
-	if got := gotKinds[facts.PackageRegistryWarningFactKind]; got != 1 {
+	if got := gotKinds[chain.PackageRegistryWarningFactKind]; got != 1 {
 		t.Fatalf("warning fact count = %d, want 1; kinds=%#v", got, gotKinds)
 	}
 }

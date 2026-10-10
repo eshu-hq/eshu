@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
 // TestExtractPackageRegistryRowsQuarantinesMissingPackageID is the flagship
@@ -36,8 +37,8 @@ func TestExtractPackageRegistryRowsQuarantinesMissingPackageID(t *testing.T) {
 		FactID:        "package-registry-package-bad",
 		ScopeID:       "package-registry-scope-1",
 		GenerationID:  "package-registry-generation-1",
-		FactKind:      facts.PackageRegistryPackageFactKind,
-		SchemaVersion: facts.PackageRegistryPackageSchemaVersion,
+		FactKind:      chain.PackageRegistryPackageFactKind,
+		SchemaVersion: chain.PackageRegistryPackageSchemaVersion,
 		Payload: map[string]any{
 			// "package_id" intentionally absent.
 			"ecosystem": "npm",
@@ -50,8 +51,8 @@ func TestExtractPackageRegistryRowsQuarantinesMissingPackageID(t *testing.T) {
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-package_id package fact must be quarantined", len(quarantined))
 	}
-	if got := quarantined[0].FactKind; got != facts.PackageRegistryPackageFactKind {
-		t.Fatalf("quarantined fact kind = %q, want %q", got, facts.PackageRegistryPackageFactKind)
+	if got := quarantined[0].FactKind; got != chain.PackageRegistryPackageFactKind {
+		t.Fatalf("quarantined fact kind = %q, want %q", got, chain.PackageRegistryPackageFactKind)
 	}
 	if got := quarantined[0].Field; got != "package_id" {
 		t.Fatalf("quarantined field = %q, want %q", got, "package_id")
@@ -86,8 +87,8 @@ func TestExtractPackageRegistryRowsPresentButEmptyPackageIDIsDroppedNotQuarantin
 		FactID:        "package-registry-package-empty",
 		ScopeID:       "package-registry-scope-1",
 		GenerationID:  "package-registry-generation-1",
-		FactKind:      facts.PackageRegistryPackageFactKind,
-		SchemaVersion: facts.PackageRegistryPackageSchemaVersion,
+		FactKind:      chain.PackageRegistryPackageFactKind,
+		SchemaVersion: chain.PackageRegistryPackageSchemaVersion,
 		Payload: map[string]any{
 			"package_id": "", // present but empty
 			"ecosystem":  "npm",
@@ -123,8 +124,8 @@ func TestExtractPackageRegistryRowsWhitespacePackageIDIsDroppedNotMaterialized(t
 		FactID:        "package-registry-package-ws",
 		ScopeID:       "package-registry-scope-1",
 		GenerationID:  "package-registry-generation-1",
-		FactKind:      facts.PackageRegistryPackageFactKind,
-		SchemaVersion: facts.PackageRegistryPackageSchemaVersion,
+		FactKind:      chain.PackageRegistryPackageFactKind,
+		SchemaVersion: chain.PackageRegistryPackageSchemaVersion,
 		Payload: map[string]any{
 			"package_id": "   ", // present but whitespace-only
 			"ecosystem":  "npm",
@@ -159,9 +160,9 @@ func TestExtractPackageRegistryRowsQuarantinesMissingDependencyJoinKey(t *testin
 		FactID:           "package-registry-dependency-bad",
 		ScopeID:          "package-registry-scope-1",
 		GenerationID:     "package-registry-generation-1",
-		FactKind:         facts.PackageRegistryPackageDependencyFactKind,
+		FactKind:         chain.PackageRegistryPackageDependencyFactKind,
 		StableFactKey:    "package-registry-dependency-bad",
-		SchemaVersion:    facts.PackageRegistryPackageDependencySchemaVersion,
+		SchemaVersion:    chain.PackageRegistryPackageDependencySchemaVersion,
 		CollectorKind:    "package_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		Payload: map[string]any{
@@ -181,8 +182,8 @@ func TestExtractPackageRegistryRowsQuarantinesMissingDependencyJoinKey(t *testin
 	for _, q := range quarantined {
 		if q.FactID == "package-registry-dependency-bad" {
 			found = true
-			if q.FactKind != facts.PackageRegistryPackageDependencyFactKind {
-				t.Fatalf("quarantined fact kind = %q, want %q", q.FactKind, facts.PackageRegistryPackageDependencyFactKind)
+			if q.FactKind != chain.PackageRegistryPackageDependencyFactKind {
+				t.Fatalf("quarantined fact kind = %q, want %q", q.FactKind, chain.PackageRegistryPackageDependencyFactKind)
 			}
 			if q.Field != "dependency_package_id" {
 				t.Fatalf("quarantined field = %q, want %q", q.Field, "dependency_package_id")
@@ -223,9 +224,9 @@ func TestExtractPackageRegistryRowsProjectsWithOmittedStatusBools(t *testing.T) 
 		FactID:           "package-registry-version-nobools",
 		ScopeID:          "package-registry-scope-1",
 		GenerationID:     "package-registry-generation-1",
-		FactKind:         facts.PackageRegistryPackageVersionFactKind,
+		FactKind:         chain.PackageRegistryPackageVersionFactKind,
 		StableFactKey:    packageRegistryVersionID(),
-		SchemaVersion:    facts.PackageRegistryPackageVersionSchemaVersion,
+		SchemaVersion:    chain.PackageRegistryPackageVersionSchemaVersion,
 		CollectorKind:    "package_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		Payload: map[string]any{
@@ -239,9 +240,9 @@ func TestExtractPackageRegistryRowsProjectsWithOmittedStatusBools(t *testing.T) 
 		FactID:           "package-registry-dependency-nobools",
 		ScopeID:          "package-registry-scope-1",
 		GenerationID:     "package-registry-generation-1",
-		FactKind:         facts.PackageRegistryPackageDependencyFactKind,
+		FactKind:         chain.PackageRegistryPackageDependencyFactKind,
 		StableFactKey:    "package-registry-dependency-nobools",
-		SchemaVersion:    facts.PackageRegistryPackageDependencySchemaVersion,
+		SchemaVersion:    chain.PackageRegistryPackageDependencySchemaVersion,
 		CollectorKind:    "package_registry",
 		SourceConfidence: facts.SourceConfidenceReported,
 		Payload: map[string]any{

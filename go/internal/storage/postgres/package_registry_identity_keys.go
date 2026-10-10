@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -31,7 +32,7 @@ type packageRegistryIdentityKeyRow struct {
 func packageRegistryIdentityKeyRows(envelopes []facts.Envelope) []packageRegistryIdentityKeyRow {
 	var rows []packageRegistryIdentityKeyRow
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.PackageRegistryPackageFactKind || envelope.IsTombstone {
+		if envelope.FactKind != chain.PackageRegistryPackageFactKind || envelope.IsTombstone {
 			continue
 		}
 		packageID := packageManifestPayloadString(envelope.Payload, "package_id")

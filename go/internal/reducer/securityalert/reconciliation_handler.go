@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -167,7 +168,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 func securityAlertReconciliationTriggerKinds() []string {
 	return []string{
 		facts.SecurityAlertRepositoryAlertFactKind,
-		facts.PackageRegistryPackageFactKind,
+		chain.PackageRegistryPackageFactKind,
 	}
 }
 
@@ -236,7 +237,7 @@ func securityAlertReconciliationFilter(envelopes []facts.Envelope) SecurityAlert
 			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))
 			cveIDs = append(cveIDs, payloadcore.PayloadStrings(envelope.Payload, "cve_id", "cve_ids")...)
 			ghsaIDs = append(ghsaIDs, payloadcore.PayloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids")...)
-		case facts.PackageRegistryPackageFactKind:
+		case chain.PackageRegistryPackageFactKind:
 			packageIDs = append(packageIDs, payloadcore.FirstNonBlank(
 				payloadcore.PayloadStr(envelope.Payload, "package_id"),
 				envelope.ScopeID,
