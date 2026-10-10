@@ -92,6 +92,13 @@ patterns and `planHCLScans` skips each scan whose requirement is absent. The
 locals walk is skipped when the content has no case-sensitive `locals`
 keyword or when no scan that resolves expressions through it can run.
 
+This sits behind the needed-content selector above. `classifyHCLConfigFile`
+decides which files are read at all; `planHCLScans` decides which scans run on
+content that was read. A file the selector does not read keeps an empty
+`Content`, and its rows do not depend on content
+(`TestHCLPrefilterAgreesWithTheNeededContentSelector`). The locals walk lives in
+`repository_config_artifacts_hcl_locals.go`.
+
 The output is unchanged. The extractor still runs the same patterns on the
 same helpers in the same order for every file that passes its gate, and a
 gate answers false only when the pattern provably has no match. The proof is

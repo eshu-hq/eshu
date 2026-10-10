@@ -254,3 +254,49 @@ func TestHCLPrefilterIsSafeForConcurrentUse(t *testing.T) {
 		t.Error(e)
 	}
 }
+
+// TestHCLPrefilterAgreesWithTheNeededContentSelector covers the seam between
+// the two #7126 changes. The needed-content loader decides which files are
+// read (classifyHCLConfigFile); the prefilter decides which scans run on the
+// content that was read. A file the loader does not read arrives with an empty
+// Content. Both changes must leave its rows as the frozen extractor emitted
+// them, and the rows must not depend on content for any class the selector
+// does not read.
+func TestHCLPrefilterAgreesWithTheNeededContentSelector(t *testing.T) {
+	t.Parallel()
+	poison := "module \"a\" {\n  source = \"./poison\"\n}\nx = file(\"poison/x.yaml\")\n" +
+		"dependency \"d\" {\n  config_path = \"../poison\"\n}\n"
+	cases := []struct {
+		path string
+		kind hclConfigFileKind
+	}{
+		{"envs/prod/vars.tfvars", hclConfigVarFile},
+		{"envs/prod/vars.tfvars.json", hclConfigVarFile},
+		{"ENVS/PROD/VARS.TFVARS", hclConfigVarFile},
+		{"config/values.yaml", hclConfigNone},
+		{"data/settings.json", hclConfigNone},
+		{"docs/main.tf.md", hclConfigNone},
+		{"modules/app/main.tf", hclConfigSourceFile},
+		{"stacks/prod/terragrunt.hcl", hclConfigSourceFile},
+		{"stacks/.terraform.lock.hcl", hclConfigSourceFile},
+	}
+	for _, tc := range cases {
+		if got := classifyHCLConfigFile(tc.path); got != tc.kind {
+			t.Fatalf("classifyHCLConfigFile(%q) = %v, want %v", tc.path, got, tc.kind)
+		}
+		for _, content := range []string{"", poison} {
+			files := []querycontract.FileContent{{RelativePath: tc.path, Content: content}}
+			shipped := extractHCLConfigAssetRowsShipped("r", files)
+			gated := extractHCLConfigAssetRows("r", files)
+			if !reflect.DeepEqual(gated, shipped) {
+				t.Errorf("%s content=%q: shipped %v, gated %v", tc.path, content, shipped, gated)
+			}
+			if tc.kind != hclConfigSourceFile {
+				blank := extractHCLConfigAssetRows("r", []querycontract.FileContent{{RelativePath: tc.path}})
+				if !reflect.DeepEqual(gated, blank) {
+					t.Errorf("%s: rows depend on content for a class the selector does not read: %v vs %v", tc.path, gated, blank)
+				}
+			}
+		}
+	}
+}
