@@ -16,8 +16,8 @@ guess` beats `fix #5572`.
 
 ## Order
 
-1. `Fixes #N.` or `Refs #N.` as the first line. Use a closing keyword only when
-   the issue must close on merge. `scripts/dev/pre-enqueue-check.sh` fails a
+1. `Fixes #N.`, `Refs #N.`, or `Refs owner/repo#N.` as the first line.
+   Use a closing keyword only when the issue must close on merge. `scripts/dev/pre-enqueue-check.sh` fails a
    body that has no `#N` reference.
 2. **Lead.** One or two bold sentences, 45 words or fewer: what was broken, what
    this PR does, and why it matters. A reader who stops here still knows the
