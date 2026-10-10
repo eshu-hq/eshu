@@ -40,6 +40,18 @@ func TestDefaultRegistryIncludesPostgresReaderSettings(t *testing.T) {
 	}
 }
 
+func TestDefaultRegistryIncludesGraphSchemaAdoptionOnly(t *testing.T) {
+	t.Parallel()
+	const name = "ESHU_GRAPH_SCHEMA_ADOPT_ONLY"
+	entry, ok := Default().Lookup(name)
+	if !ok {
+		t.Fatalf("%s missing from default registry", name)
+	}
+	if entry.Type != VarBool || entry.Default != "false" || entry.Subsystem != "graph" {
+		t.Fatalf("%s metadata = (%q, %q, %q), want (bool, false, graph)", name, entry.Type, entry.Default, entry.Subsystem)
+	}
+}
+
 func TestDefaultRegistryIncludesScopedTokenRegistryFile(t *testing.T) {
 	t.Parallel()
 	r := Default()
