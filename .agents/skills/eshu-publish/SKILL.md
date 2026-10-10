@@ -80,8 +80,8 @@ They answer first and need no bold lead, glance table, or `<details>` block.
 `AGENTS.md` owns these rules. This list repeats them because published text
 breaks them first.
 
-- A PR body starts with `Fixes #N.` or `Refs #N.`. Use a closing keyword only
-  for an issue that must close on merge. `scripts/dev/pre-enqueue-check.sh`
+- A PR body starts with `Fixes #N.`, `Refs #N.`, or `Refs owner/repo#N.`.
+  Use a closing keyword only for an issue that must close on merge. `scripts/dev/pre-enqueue-check.sh`
   fails a body that has no `#N` reference.
 - No AI attribution in any title, body, comment, or commit.
 - The PR title and body must describe the final diff. Rewrite them when review
@@ -100,8 +100,8 @@ breaks them first.
 
 1. Read the lead alone. Does it stand without the rest?
 2. Run the shape check on the draft, before you capture the review receipt. It
-   fails a PR body without a `Refs #N.` first line, a bold lead, or the glance
-   table, and any prose paragraph over 800 bytes. Fix every `FAIL` line. Skip
+   fails a PR body without a local or qualified `Refs` first line, a bold lead,
+   or the glance table, and any prose paragraph over 800 bytes. Fix every `FAIL` line. Skip
    the check for an issue made from an issue form, for a revert, and for an edit
    that changes no text. `AGENTS.md` owns this rule. A body under 600 characters
    with no heading may omit the glance table.

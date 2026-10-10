@@ -124,8 +124,10 @@ END {
   flush()
   if (infence) warn("fence", "a code fence was never closed; the text after it was not checked")
   if (indet) warn("details", "a <details> block was never closed; the text after it was not checked")
-  if (mode == "pr" && firstreal !~ /^(Refs|Fixes|Closes|Resolves|Partial-closes) #[0-9]+/)
-    fail("ref", "the first line must start with Refs #N. or Fixes #N.")
+  if (mode == "pr" &&
+      firstreal !~ /^(Refs|Fixes|Closes|Resolves|Partial-closes) #[0-9]+/ &&
+      firstreal !~ /^Refs [A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+#[0-9]+\./)
+    fail("ref", "the first line must start with Refs #N., Fixes #N., or Refs owner/repo#N.")
   if (!leadseen) fail("lead", "no lead: the first paragraph after the Refs line must be bold from start to end")
   else if (leadwords > 45) warn("lead", "the lead has " leadwords " words; aim for 45 or fewer")
   if (mode == "pr") {

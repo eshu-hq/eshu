@@ -95,8 +95,8 @@ that sets title or body text, load the `eshu-publish` skill. Start from its
 template for your kind of PR or issue. Run
 `.agents/skills/eshu-publish/scripts/check-shape.sh` on the draft before you
 capture a `ci-gates review-attest` receipt, and fix every `FAIL` line. A PR body
-opens with a `Refs #N.` line, a bold lead, and an "At a glance" table (optional
-for a body under 600 characters with no heading). It keeps evidence in
+opens with `Refs #N.` or `Refs owner/repo#N.` and a bold lead. Add an "At a
+glance" table unless the body is under 600 characters with no heading. Keep evidence in
 `<details>`.
 
 Skip the shape check for an issue made from an issue form (keep the form
