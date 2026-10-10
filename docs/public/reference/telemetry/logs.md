@@ -70,7 +70,8 @@ reads), `hydrated_bytes` and `statements` (every content-store list, get,
 batched get and non-blank check of the stage), `blank_check_statements`,
 `batch_statements` (the `GetFileContents` statements of the config-artifact
 load, one per chunk of up to `batch_chunk_size` paths, which replace one get per
-hydrated file), `batch_chunk_size` (10, or 0 when the load issued none),
+hydrated file), `batch_chunk_size` (10; 0 when the load issued no such
+statement, including when the request ended before the first chunk),
 `batch_chunks_in_flight_max` (the most chunk reads of one repository that ran
 at once, at most 8), `list_seconds`, `hydrate_seconds`, `parse_seconds`, and
 `error`. The repository context

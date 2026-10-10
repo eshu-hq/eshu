@@ -83,9 +83,12 @@ Row semantics are those of `GetFileContent`. A path with no stored row keeps
 the list row, which the loader drops as blank. List rows that share a path read
 the row once and each receive it. Rows are assigned by `RelativePath`, never by
 position. A failed chunk fails the repository and leaves the rows unchanged.
-Chunks are dispatched in list order, every dispatched chunk runs to completion,
-and no chunk is dispatched after a failure, so the error returned is that of
-the lowest-numbered failing chunk whatever the interleaving. The earlier
+Chunks launch in list order. The launch decision and the recording of a
+failure run under one mutex, and a read frees its slot in the same critical
+section that records its failure, so no chunk is launched once a failure is
+recorded or the context is done. A chunk launched before the failure runs to completion, and its
+statement may begin after the failure was recorded. The error returned is that
+of the lowest-numbered failing chunk whatever the interleaving. The earlier
 per-file reader returned whichever failure arrived first.
 
 `HydrateRepositoryCandidateFiles` (exported, used by the controller, runtime,

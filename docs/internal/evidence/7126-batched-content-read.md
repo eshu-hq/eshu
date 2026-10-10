@@ -40,9 +40,8 @@ no statement.
 Why a chunk and not one statement per repository: one statement detoasts its
 rows on one backend, serially. On the 7.4 MB repository of the response set a
 single statement was 2.4 times slower (21.6-24.3 ms against 9.0-12.7 ms)
-than eight parallel single-file reads
-(`7126-batch-shim-20261010.md`, section 11). Chunks of 10 keep the work
-parallel.
+than eight parallel single-file reads (a private harness measurement on a read
+replica, not committed). Chunks of 10 keep the work parallel.
 
 ## SQL proof (private PostgreSQL 18.6, UTF8, en_US.UTF-8)
 
@@ -101,13 +100,13 @@ loader with full hydration, now through the batched reader.
 | Rule | Proof |
 |---|---|
 | At most 8 chunk reads of a repository in flight; the bound is reached | `TestChunkedReadKeepsAtMostEightChunksInFlight` (200 paths, 20 chunks, peak 8, a ninth never starts while eight block) |
-| Chunks dispatch in list order; every dispatched chunk finishes; none dispatches after a failure. The returned error is the lowest-numbered failing chunk's, whatever the interleaving | `TestChunkedReadReturnsTheLowestFailingChunkDeterministically` (25 runs, the higher chunk fails first) |
-| A failure stops the dispatch | `TestChunkedReadStopsDispatchingAfterAFailure` (at most 9 of 20 chunks issued) |
+| Chunks launch in list order. The launch decision and the recording of a failure share one mutex, and a read frees its slot in the same critical section that records its failure, so no chunk is launched once a failure is recorded or the context is done. A chunk launched earlier runs to completion, and its statement may begin after the failure was recorded. The returned error is the lowest-numbered failing chunk's, whatever the interleaving | `TestChunkedReadReturnsTheLowestFailingChunkDeterministically` (25 runs, the higher chunk fails first) |
+| A recorded failure stops the launches | `TestChunkedReadStopsDispatchingAfterAFailure`: 20 chunks, one in flight, the first fails; exactly 1 statement runs |
 | A failed or cancelled pass leaves the rows unchanged | the same test, and `TestChunkedReadCancelledBetweenChunksIsNotSuccess` |
-| A cancelled context issues no statement; one cancelled in flight returns promptly, leaves nothing in flight | `TestChunkedReadHonorsContextCancellation` |
-| A stop on the context with every read successful is not success | `TestChunkedReadCancelledBetweenChunksIsNotSuccess` |
+| A cancelled context issues no statement and sets no batch statistic; one cancelled in flight returns promptly, launches nothing more and leaves nothing in flight | `TestChunkedReadHonorsContextCancellation` (a store that ignores the context; exactly 0 and exactly 8 statements) |
+| A stop on the context with every read successful is not success | `TestChunkedReadCancelledBetweenChunksIsNotSuccess` (exactly 1 statement of 20) |
 | Rows are assigned by path, not position; an unrequested row is ignored; repeated list rows each get the row | `TestChunkedReadAssignsRowsByPathNotByPosition` |
-| No data race | the package tests pass under `-race` (workers write only their own slot; the caller writes the rows after `wg.Wait`) |
+| No data race | the package tests pass under `-race` (each read writes only its own slot under the mutex; the caller writes the rows after `wg.Wait`) |
 
 The earlier per-file reader returned whichever failure arrived first and
 returned `nil` when the context ended before any read started. The chunked
@@ -126,48 +125,67 @@ seeded-extractor pair (`TestNeededContentHydrationGuardCatchesUnplannedContentRe
 
 ## Mutation sweep
 
-One edit at a time to a production file, the focused tests run, the file
-restored. Script `mutate.py` in the proof scratch directory; HEAD of this PR.
+One edit at a time to a production file, the focused tests run (the package
+`-count=2`), the file restored. Script `mutate3.py` in the proof scratch
+directory; log `mutate6.log`; HEAD of this PR. 32 mutants: 31 killed, 1
+survived.
 
 | Mutant | Result | Killed by |
 |---|---|---|
-| chunk end off by one | killed | `...DuplicateListPaths...`, generated trees |
-| chunk step off by one | killed | `...LowestFailingChunk...`, generated trees |
-| chunk size 11 | killed | `...IssuesOneStatementPerChunkOfTen`, shape guard |
-| last chunk dropped | killed | `...PhaseTwoReadsAreChunked`, generated trees |
-| wrong repository passed | killed | shape guard, `...PreloadedContentIsKept` |
-| chunks in reverse order | killed | `...LowestFailingChunk...`, `...StopsDispatching...` |
+| chunk end off by one | killed | `...CountBatchedBytes`, generated trees |
+| chunk step off by one | killed | `...LowestFailingChunk...`, `...CountBatchedBytes` |
+| chunk size 11 | killed | `...KeepTheLargestInFlight...`, shape guard |
+| last chunk dropped | killed | `...CountBatchedBytes`, generated trees |
+| wrong repository passed | killed | `...PreloadedContentIsKept`, `...ReferenceOutsideCapIsNotRead` |
+| chunks launched in reverse | killed | `...StopsDispatching...`, `...LowestFailingChunk...` |
 | highest failing chunk wins | killed | `...LowestFailingChunk...` |
-| worker swallows the chunk error | killed | `...ReadErrorsFailTheRepository` |
-| failure return swallowed | killed | `...ReadErrorsFailTheRepository` |
-| unbounded fan-out | killed | `...KeepsAtMostEightChunksInFlight` |
+| chunk error swallowed in the read | killed | `...StopsDispatching...`, `...ReadErrorsFailTheRepository` |
+| failure return swallowed | killed | `...StopsDispatching...`, `...ReadErrorsFailTheRepository` |
+| unbounded fan-out | killed | `...KeepsAtMostEightChunksInFlight`, `...CancelledBetweenChunks...` |
 | serialized, one in flight | killed | `...KeepsAtMostEightChunksInFlight` |
 | reader gets a background context | killed | `...HonorsContextCancellation` |
-| dispatch ignores context and failure | killed | `...StopsDispatching...` |
-| dispatch continues after a failure | killed | `...StopsDispatching...` |
-| context stop reported as success | killed | `...CancelledBetweenChunksIsNotSuccess` |
+| launch decision ignores a done context | killed | `...CancelledBetweenChunks...`, `...HonorsContextCancellation` |
+| launch decision ignores a recorded failure | killed | `...StopsDispatchingAfterAFailure` |
+| launch decision ignores both | killed | `...StopsDispatching...`, `...HonorsContextCancellation` |
+| dispatcher woken before the failure is recorded | survived | see below |
+| context stop reported as success | killed | `...CancelledBetweenChunks...`, `...HonorsContextCancellation` |
 | row given to the first list position only | killed | `...AssignsRowsByPathNotByPosition` |
 | duplicate paths sent twice | killed | `...AssignsRowsByPathNotByPosition` |
-| statement count not recorded | killed | `...IssuesOneStatementPerChunkOfTen` |
-| in-flight maximum not recorded | killed | `...KeepsAtMostEightChunksInFlight` |
-| phase 1 read per file | killed | shape guard, generated trees |
+| statement count not recorded | killed | `...StopsDispatching...`, `...CountBatchedBytes` |
+| in-flight maximum overwritten, not maxed | killed | `...KeepTheLargestInFlightAcrossRepositories` |
+| in-flight maximum not recorded | killed | `...KeepTheLargestInFlightAcrossRepositories`, `...KeepsAtMostEight...` |
+| chunk size recorded without a statement | killed | `...HonorsContextCancellation` (already cancelled) |
+| batched bytes not counted | killed | `...CountBatchedBytes` |
+| batched statement not counted | killed | `...CountBatchedBytes` |
+| phase 1 read per file | killed | panic of the batch-only store; `...MatchesPerFile...` |
 | phase 2 read per file | killed | `...PhaseTwoReadsAreChunked` |
 | SQL `LIKE ANY` | killed | `...MatchesSingleReadsLive` |
 | SQL ignores the repository | killed | `...MatchesSingleReadsLive` |
-| reader query error swallowed | killed | `...ReturnsNoRowsOnFailure` |
-| reader scan error returns the partial rows | killed | `...ReturnsNoRowsOnFailure` |
-| reader ignores `rows.Err` | killed | `...RowsErrorReturnsNoRows` |
-| reader input not deduplicated | killed | `...IssuesOneStatement` |
-| reader issues a statement for empty input | killed | `...IssuesOneStatement` |
 | stage line drops `batch_statements` | killed | `...StageReportsReadCounts` |
 | stage line drops `batch_chunks_in_flight_max` | killed | `...StageReportsReadCounts` |
-| dispatcher loop head ignores a done context | survived | see below |
+| stage line drops `hydrated_bytes` | killed | `...StageReportsReadCounts` (exact byte total) |
 
-The survivor removes only the loop-head `ctx.Err()` check. The `select` that
-follows has a `ctx.Done()` case, and the final `dispatched < len(chunks)` check
-still reports the stop, so output and error are unchanged. The head check only
-narrows the window in which a ready worker could take one more chunk after the
-context ended. It is kept for that bound and is not claimed as covered.
+The reader mutants of the first sweep (query error swallowed, scan error
+partial rows, `rows.Err` ignored, input not deduplicated, statement for an
+empty input) were killed there by the reader unit tests and the code they
+cover did not change; they were not rerun.
+
+An earlier sweep of this PR reported the removal of the dispatcher's loop-head
+`ctx.Err()` check as an equivalent mutant. It was not. A done context could
+hand a chunk to a ready worker, and a store that ignores the context returned
+success after issuing statements (review verdict F2: the earlier subtest failed
+84 times in 200 runs against it). The dispatcher was rewritten so that the
+launch decision is a single check under the mutex. Its mutant is killed on
+every run: `TestChunkedReadHonorsContextCancellation/already_cancelled` failed
+50 of 50 runs at `-count=50`.
+
+The one survivor splits the critical section of a finishing read: it wakes the
+dispatcher and releases the mutex, then takes the mutex again to record the
+failure. It is killable only if the dispatcher wins the mutex in that gap,
+which needs scheduler control. `TestChunkedReadStopsDispatchingAfterAFailure`
+did not fail in 2,000 runs against it. The correct code records the outcome
+and frees the slot in one critical section by construction, which is the
+property the mutant breaks; it is not claimed as covered by a test.
 
 ## Performance, laptop bench
 
@@ -181,8 +199,8 @@ mover alternates, one OTel SDK tracer with `AlwaysSample` and a counting
 exporter, a real meter provider. The harness is PR 1's, with the shipped
 loader's reader switchable between PR 1's per-file read and this change's.
 
-Host load1 across all runs of this section, sampled every 5 s: 4.0 to 9.9
-(below the 12 limit; PR 1's runs were at 15-32). The bench anchor of PR 1
+Host load1 across the quiet-host runs of this section, sampled every 5 s: 4.0
+to 9.9 (below the 12 limit; PR 1's runs were at 15-32). The bench anchor of PR 1
 failed (shipped path scaled to the pod's statement count measured 0.54 of the
 pod's CPU), so only arm-against-arm differences hold; none of these numbers is
 a pod figure.
@@ -215,6 +233,28 @@ Differences on medians:
 | Observed mix | -0.211 CPU-s (-10.8 percent) | -0.604 CPU-s (-25.7 percent) | 8 of 9 (one round +0.277, the maximum 2.399 of N) |
 | Heaviest repository | +0.003 CPU-s (+0.7 percent, noise) | +0.014 CPU-s (+3.2 percent, noise) | 6 of 9 |
 
+Rerun at the HEAD that holds the dispatcher fixes (launch under the mutex, a
+goroutine per chunk). The host was busy with other work: load1 sampled at 21.6
+to 32.7, above the 12 limit, so these CPU figures are inflated by contention
+and hold arm-against-arm only. Statements, spans, bytes and digests are
+unaffected by load.
+
+| Data | Arm | Statements | CPU-s median (min-max) | Rounds N below FN |
+|---|---|---|---|---|
+| Original mix | A | 8,300 | 4.487 (4.273-4.835) | |
+| | FN | 3,618 | 4.085 (3.635-4.590) | |
+| | N | 1,140 | 3.970 (3.554-4.083) | 8 of 9 (-0.115 CPU-s, -2.8 percent) |
+| Observed mix | A | 8,300 | 3.749 (3.027-3.819) | |
+| | FN | 4,325 | 3.213 (2.794-3.437) | |
+| | N | 1,166 | 3.014 (2.364-3.117) | 9 of 9 (-0.199 CPU-s, -6.2 percent) |
+
+The statement counts, spans (6,842 and 6,998 for N), bytes and digests equal
+the quiet-host pass. The CPU gain of N over FN is smaller under this load than
+in the quiet-host pass (-7.0 and -10.8 percent) and its sign holds in 17 of 18
+rounds. The quiet-host figures were measured with the earlier dispatcher (a
+worker pool fed through a channel); the change moves chunk launch to a
+goroutine per chunk, which adds at most five goroutine starts per repository.
+
 Reader attempts equal statements (1,140 against 3,618 and 8,300), spans fall
 from 49,802 (A) and 21,710 (FN) to 6,842 (N) on the original mix, and
 `pg_stat_statements` on the standby shows the same counts for the batch,
@@ -238,7 +278,9 @@ on the original mix, 1,166 against 4,325 and 8,300 on the observed mix; CPU
 median 2.753 against 2.960 CPU-s (FN, -7.0 percent) and 3.273 (A, -15.9
 percent) on the original mix, 1.749 against 1.960 and 2.353 on the observed
 mix (-10.8 and -25.7 percent), nine ABBA rounds each at host load1 4.0-9.9,
-and the same `config_paths` digest in all 27 runs of each data set. The statement is an index scan
+and the same `config_paths` digest in all 27 runs of each data set. A rerun at
+the fix HEAD on a busy host (load1 21.6-32.7, arm-against-arm only) gave 3.970
+against 4.085 CPU-s (-2.8 percent) and 3.014 against 3.213 (-6.2 percent). The statement is an index scan
 on `content_files_repo_path_pattern_idx` with no sequential scan, for a small
 repository and a 50-file repository, under a custom and a generic plan. The
 change is safe because the batched reader returns exactly the rows N single

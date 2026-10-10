@@ -26,8 +26,10 @@
   byte-heavy repository: one statement detoasts serially. A new read of
   config-artifact content goes through `configHydrationPolicy.fetch`, so the
   per-file reader the equality tests use as an oracle (`perFileFetch`) can
-  compare it. Keep the failure rule: the lowest-numbered failing chunk wins and
-  a failed pass leaves the rows unchanged.
+  compare it. Keep the failure rule: the lowest-numbered failing chunk wins, a
+  failed pass leaves the rows unchanged, and the launch decision stays under
+  the mutex that records a failure (a chunk is launched only while no failure
+  is recorded and the context is live).
 - Artifact predicates feed access decisions (`filter...ForAccess` callers);
   keep the fail-closed behavior and bounded limits exactly as they are.
 - The HCL extractor skips a regex scan only when `prefilter` proves the
