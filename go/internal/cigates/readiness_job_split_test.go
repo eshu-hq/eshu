@@ -23,10 +23,14 @@ type readinessWorkflow struct {
 		Needs           yaml.Node            `yaml:"needs"`
 		ContinueOnError string               `yaml:"continue-on-error"`
 		Services        map[string]yaml.Node `yaml:"services"`
-		Steps           []struct {
-			Run string `yaml:"run"`
-		} `yaml:"steps"`
+		Steps           []readinessStep      `yaml:"steps"`
 	} `yaml:"jobs"`
+}
+
+type readinessStep struct {
+	Run             string `yaml:"run"`
+	If              string `yaml:"if"`
+	ContinueOnError string `yaml:"continue-on-error"`
 }
 
 func checkReadinessSplit(workflow []byte, gate Gate) string {
@@ -89,6 +93,9 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 					if strings.TrimSpace(step.Run) != "bash "+script {
 						return "proof runner must be a standalone command"
 					}
+					if step.If != "" || step.ContinueOnError != "" {
+						return "proof runner step must not skip or waive failure"
+					}
 					counts[script]++
 				}
 			}
@@ -105,10 +112,7 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	return ""
 }
 
-func jobRuns(steps []struct {
-	Run string `yaml:"run"`
-}, command string,
-) bool {
+func jobRuns(steps []readinessStep, command string) bool {
 	for _, step := range steps {
 		if strings.TrimSpace(step.Run) == "bash "+command {
 			return true
@@ -166,6 +170,10 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		{"waive live", "  live-postgres-readiness:\n", "  live-postgres-readiness:\n    continue-on-error: true\n"},
 		{"compound runner", "run: bash scripts/run-live-postgres-readiness-tests.sh", "run: bash scripts/run-live-postgres-readiness-tests.sh || true"},
 		{"missing push path", "      - 'go/internal/cigates/readiness_job_split_test.go'\n", ""},
+		{"skip hermetic proof step", "        run: bash scripts/test-run-live-postgres-readiness-tests.sh", "        if: false\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh"},
+		{"waive hermetic proof step", "        run: bash scripts/test-run-live-postgres-readiness-tests.sh", "        continue-on-error: true\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh"},
+		{"skip live proof step", "        run: bash scripts/run-live-postgres-readiness-tests.sh", "        if: false\n        run: bash scripts/run-live-postgres-readiness-tests.sh"},
+		{"waive live proof step", "        run: bash scripts/run-live-postgres-readiness-tests.sh", "        continue-on-error: true\n        run: bash scripts/run-live-postgres-readiness-tests.sh"},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
 			if !strings.Contains(string(workflow), mutation.old) {
