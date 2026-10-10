@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestBuildCanonicalMaterializationPreservesNamedTerraformAttributesMap(t *testing.T) {
@@ -22,7 +22,7 @@ func TestBuildCanonicalMaterializationPreservesNamedTerraformAttributesMap(t *te
 	}
 	input := terraformStateFacts()
 	for i := range input {
-		if input[i].FactKind == facts.TerraformStateResourceFactKind {
+		if input[i].FactKind == cloud.TerraformStateResourceFactKind {
 			input[i].Payload["attributes"] = want
 		}
 	}

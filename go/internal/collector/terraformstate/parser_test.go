@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -90,24 +91,24 @@ func TestParserStreamsTerraformStateIntoRedactedFacts(t *testing.T) {
 
 	requireFactKinds(
 		t, result.Facts,
-		facts.TerraformStateSnapshotFactKind,
-		facts.TerraformStateOutputFactKind,
-		facts.TerraformStateResourceFactKind,
-		facts.TerraformStateTagObservationFactKind,
+		cloud.TerraformStateSnapshotFactKind,
+		cloud.TerraformStateOutputFactKind,
+		cloud.TerraformStateResourceFactKind,
+		cloud.TerraformStateTagObservationFactKind,
 	)
 	assertNoRawSecret(t, result.Facts, "super-secret")
 	assertNoRawSecret(t, result.Facts, "plain-db-password")
 	assertNoRawSecret(t, result.Facts, "s3://tfstate-prod/services/api/terraform.tfstate")
 	assertNoRawSecretInRefs(t, result.Facts, "s3://tfstate-prod/services/api/terraform.tfstate")
 
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	if got, want := resource.CollectorKind, string(scope.CollectorTerraformState); got != want {
 		t.Fatalf("resource CollectorKind = %q, want %q", got, want)
 	}
 	if got, want := resource.SourceConfidence, facts.SourceConfidenceObserved; got != want {
 		t.Fatalf("resource SourceConfidence = %q, want %q", got, want)
 	}
-	if got, want := resource.SchemaVersion, facts.TerraformStateResourceSchemaVersion; got != want {
+	if got, want := resource.SchemaVersion, cloud.TerraformStateResourceSchemaVersion; got != want {
 		t.Fatalf("resource SchemaVersion = %q, want %q", got, want)
 	}
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
@@ -125,7 +126,7 @@ func TestParserStreamsTerraformStateIntoRedactedFacts(t *testing.T) {
 		t.Fatalf("attributes[tags] present = %#v, want dropped composite", attributes["tags"])
 	}
 
-	output := factByKind(t, result.Facts, facts.TerraformStateOutputFactKind)
+	output := factByKind(t, result.Facts, cloud.TerraformStateOutputFactKind)
 	value, ok := output.Payload["value"].(map[string]any)
 	if !ok {
 		t.Fatalf("output value = %#v, want redaction marker map", output.Payload["value"])
@@ -150,7 +151,7 @@ func TestParserFactKeysAreStableAcrossResourceOrder(t *testing.T) {
 	firstFacts := parseFixtureFacts(t, first)
 	secondFacts := parseFixtureFacts(t, second)
 
-	if got, want := stableKeysByKind(firstFacts, facts.TerraformStateResourceFactKind), stableKeysByKind(secondFacts, facts.TerraformStateResourceFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
+	if got, want := stableKeysByKind(firstFacts, cloud.TerraformStateResourceFactKind), stableKeysByKind(secondFacts, cloud.TerraformStateResourceFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("resource stable keys changed with order:\ngot  %#v\nwant %#v", got, want)
 	}
 }
@@ -208,7 +209,7 @@ func TestParserSkipsLargeIgnoredTopLevelFields(t *testing.T) {
 	state := `{"checks":[` + strings.Repeat(`{"status":"pass","payload":["x","y","z"]},`, 1024) + `{"status":"pass"}],"serial":17,"lineage":"lineage-123"}`
 	result := parseFixtureFacts(t, state)
 
-	requireFactKinds(t, result, facts.TerraformStateSnapshotFactKind)
+	requireFactKinds(t, result, cloud.TerraformStateSnapshotFactKind)
 }
 
 func TestParserPersistsOpaqueSnapshotETag(t *testing.T) {
@@ -224,7 +225,7 @@ func TestParserPersistsOpaqueSnapshotETag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	snapshot := factByKind(t, result.Facts, facts.TerraformStateSnapshotFactKind)
+	snapshot := factByKind(t, result.Facts, cloud.TerraformStateSnapshotFactKind)
 	if got, want := snapshot.Payload["etag"], `"opaque-etag"`; got != want {
 		t.Fatalf("snapshot etag = %q, want %q", got, want)
 	}
@@ -300,7 +301,7 @@ func TestParserUsesIndexHashWhenAttributesPrecedeIndexKey(t *testing.T) {
 	}]}`
 
 	result := parseFixtureFacts(t, state)
-	resource := factByKind(t, result, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result, cloud.TerraformStateResourceFactKind)
 	address, ok := resource.Payload["address"].(string)
 	if !ok {
 		t.Fatalf("resource address = %#v, want string", resource.Payload["address"])

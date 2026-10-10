@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -94,7 +95,7 @@ func TestBuildCanonicalMaterializationCarriesTerraformStateResourceAttributes(t 
 	gen := terraformStateGeneration()
 	input := terraformStateFacts()
 	for i := range input {
-		if input[i].FactKind != facts.TerraformStateResourceFactKind {
+		if input[i].FactKind != cloud.TerraformStateResourceFactKind {
 			continue
 		}
 		input[i].Payload["attributes"] = map[string]any{
@@ -134,9 +135,9 @@ func TestBuildCanonicalMaterializationJoinsTerraformStateProviderBinding(t *test
 		FactID:           "tf-provider-binding-1",
 		ScopeID:          "tf-scope-1",
 		GenerationID:     "tf-generation-1",
-		FactKind:         facts.TerraformStateProviderBindingFactKind,
+		FactKind:         cloud.TerraformStateProviderBindingFactKind,
 		StableFactKey:    "terraform_state_provider_binding:module.app.aws_instance.web",
-		SchemaVersion:    facts.TerraformStateProviderBindingSchemaVersion,
+		SchemaVersion:    cloud.TerraformStateProviderBindingSchemaVersion,
 		CollectorKind:    string(scope.CollectorTerraformState),
 		SourceConfidence: facts.SourceConfidenceObserved,
 		ObservedAt:       gen.ObservedAt,
@@ -205,9 +206,9 @@ func TestBuildCanonicalMaterializationAggregatesTerraformStateModuleObservations
 		FactID:           "tf-module-2",
 		ScopeID:          "tf-scope-1",
 		GenerationID:     "tf-generation-1",
-		FactKind:         facts.TerraformStateModuleFactKind,
+		FactKind:         cloud.TerraformStateModuleFactKind,
 		StableFactKey:    "terraform_state_module:module:module.app:resource:module.app.aws_security_group.web",
-		SchemaVersion:    facts.TerraformStateModuleSchemaVersion,
+		SchemaVersion:    cloud.TerraformStateModuleSchemaVersion,
 		CollectorKind:    string(scope.CollectorTerraformState),
 		SourceConfidence: facts.SourceConfidenceObserved,
 		ObservedAt:       observedAt,
@@ -257,7 +258,7 @@ func TestRuntimeProjectRejectsUnknownTerraformStateSchemaVersion(t *testing.T) {
 			FactID:        "tf-resource-1",
 			ScopeID:       "tf-scope-1",
 			GenerationID:  "tf-generation-1",
-			FactKind:      facts.TerraformStateResourceFactKind,
+			FactKind:      cloud.TerraformStateResourceFactKind,
 			SchemaVersion: "2.0.0",
 			Payload: map[string]any{
 				"address": "aws_instance.web",
@@ -388,9 +389,9 @@ func terraformStateFacts() []facts.Envelope {
 			FactID:           "tf-snapshot-1",
 			ScopeID:          "tf-scope-1",
 			GenerationID:     "tf-generation-1",
-			FactKind:         facts.TerraformStateSnapshotFactKind,
+			FactKind:         cloud.TerraformStateSnapshotFactKind,
 			StableFactKey:    "terraform_state_snapshot:snapshot",
-			SchemaVersion:    facts.TerraformStateSnapshotSchemaVersion,
+			SchemaVersion:    cloud.TerraformStateSnapshotSchemaVersion,
 			CollectorKind:    string(scope.CollectorTerraformState),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       observedAt,
@@ -414,9 +415,9 @@ func terraformStateFacts() []facts.Envelope {
 			FactID:           "tf-resource-1",
 			ScopeID:          "tf-scope-1",
 			GenerationID:     "tf-generation-1",
-			FactKind:         facts.TerraformStateResourceFactKind,
+			FactKind:         cloud.TerraformStateResourceFactKind,
 			StableFactKey:    "terraform_state_resource:resource:module.app.aws_instance.web",
-			SchemaVersion:    facts.TerraformStateResourceSchemaVersion,
+			SchemaVersion:    cloud.TerraformStateResourceSchemaVersion,
 			CollectorKind:    string(scope.CollectorTerraformState),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       observedAt,
@@ -443,9 +444,9 @@ func terraformStateFacts() []facts.Envelope {
 			FactID:           "tf-module-1",
 			ScopeID:          "tf-scope-1",
 			GenerationID:     "tf-generation-1",
-			FactKind:         facts.TerraformStateModuleFactKind,
+			FactKind:         cloud.TerraformStateModuleFactKind,
 			StableFactKey:    "terraform_state_module:module:module.app",
-			SchemaVersion:    facts.TerraformStateModuleSchemaVersion,
+			SchemaVersion:    cloud.TerraformStateModuleSchemaVersion,
 			CollectorKind:    string(scope.CollectorTerraformState),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       observedAt,
@@ -458,9 +459,9 @@ func terraformStateFacts() []facts.Envelope {
 			FactID:           "tf-tag-1",
 			ScopeID:          "tf-scope-1",
 			GenerationID:     "tf-generation-1",
-			FactKind:         facts.TerraformStateTagObservationFactKind,
+			FactKind:         cloud.TerraformStateTagObservationFactKind,
 			StableFactKey:    "terraform_state_tag_observation:tag_observation:module.app.aws_instance.web:tags:tag-key-hash-1",
-			SchemaVersion:    facts.TerraformStateTagObservationSchemaVersion,
+			SchemaVersion:    cloud.TerraformStateTagObservationSchemaVersion,
 			CollectorKind:    string(scope.CollectorTerraformState),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       observedAt,
@@ -474,9 +475,9 @@ func terraformStateFacts() []facts.Envelope {
 			FactID:           "tf-output-1",
 			ScopeID:          "tf-scope-1",
 			GenerationID:     "tf-generation-1",
-			FactKind:         facts.TerraformStateOutputFactKind,
+			FactKind:         cloud.TerraformStateOutputFactKind,
 			StableFactKey:    "terraform_state_output:output:web_instance_id",
-			SchemaVersion:    facts.TerraformStateOutputSchemaVersion,
+			SchemaVersion:    cloud.TerraformStateOutputSchemaVersion,
 			CollectorKind:    string(scope.CollectorTerraformState),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       observedAt,

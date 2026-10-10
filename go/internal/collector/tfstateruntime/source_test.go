@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/collector/tfstateruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -115,11 +116,11 @@ func TestClaimedSourceParsesResolvedCandidateMatchingClaim(t *testing.T) {
 		if got, want := envelope.FencingToken, int64(42); got != want {
 			t.Fatalf("FencingToken = %d, want %d", got, want)
 		}
-		if envelope.FactKind == facts.TerraformStateResourceFactKind {
+		if envelope.FactKind == cloud.TerraformStateResourceFactKind {
 			return
 		}
 	}
-	t.Fatalf("facts did not include %s: %#v", facts.TerraformStateResourceFactKind, envelopes)
+	t.Fatalf("facts did not include %s: %#v", cloud.TerraformStateResourceFactKind, envelopes)
 }
 
 func TestClaimedSourceEmitsStateInVCSWarningForGitLocalCandidate(t *testing.T) {
@@ -203,7 +204,7 @@ func TestClaimedSourceEmitsStateInVCSWarningForGitLocalCandidate(t *testing.T) {
 		t.Fatal("NextClaimed() ok = false, want true")
 	}
 
-	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), facts.TerraformStateWarningFactKind)
+	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), cloud.TerraformStateWarningFactKind)
 	if got, want := warning.Payload["warning_kind"], "state_in_vcs"; got != want {
 		t.Fatalf("warning_kind = %#v, want %#v", got, want)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestExtractTerraformStateRowsQuarantinesMissingResourceAddress is the
@@ -35,8 +36,8 @@ func TestExtractTerraformStateRowsQuarantinesMissingResourceAddress(t *testing.T
 		FactID:        "tf-resource-bad",
 		ScopeID:       "tf-scope-1",
 		GenerationID:  "tf-generation-1",
-		FactKind:      facts.TerraformStateResourceFactKind,
-		SchemaVersion: facts.TerraformStateResourceSchemaVersion,
+		FactKind:      cloud.TerraformStateResourceFactKind,
+		SchemaVersion: cloud.TerraformStateResourceSchemaVersion,
 		Payload: map[string]any{
 			// "address" intentionally absent.
 			"type": "aws_instance",
@@ -49,8 +50,8 @@ func TestExtractTerraformStateRowsQuarantinesMissingResourceAddress(t *testing.T
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-address resource fact must be quarantined", len(quarantined))
 	}
-	if got := quarantined[0].FactKind; got != facts.TerraformStateResourceFactKind {
-		t.Fatalf("quarantined fact kind = %q, want %q", got, facts.TerraformStateResourceFactKind)
+	if got := quarantined[0].FactKind; got != cloud.TerraformStateResourceFactKind {
+		t.Fatalf("quarantined fact kind = %q, want %q", got, cloud.TerraformStateResourceFactKind)
 	}
 	if got := quarantined[0].Field; got != "address" {
 		t.Fatalf("quarantined field = %q, want %q", got, "address")
@@ -82,8 +83,8 @@ func TestExtractTerraformStateRowsPresentButEmptyAddressIsDroppedNotQuarantined(
 		FactID:        "tf-resource-empty",
 		ScopeID:       "tf-scope-1",
 		GenerationID:  "tf-generation-1",
-		FactKind:      facts.TerraformStateResourceFactKind,
-		SchemaVersion: facts.TerraformStateResourceSchemaVersion,
+		FactKind:      cloud.TerraformStateResourceFactKind,
+		SchemaVersion: cloud.TerraformStateResourceSchemaVersion,
 		Payload: map[string]any{
 			"address": "", // present but empty
 			"type":    "aws_instance",
@@ -120,8 +121,8 @@ func TestExtractTerraformStateRowsWhitespaceAddressIsDroppedNotMaterialized(t *t
 		FactID:        "tf-resource-ws",
 		ScopeID:       "tf-scope-1",
 		GenerationID:  "tf-generation-1",
-		FactKind:      facts.TerraformStateResourceFactKind,
-		SchemaVersion: facts.TerraformStateResourceSchemaVersion,
+		FactKind:      cloud.TerraformStateResourceFactKind,
+		SchemaVersion: cloud.TerraformStateResourceSchemaVersion,
 		Payload: map[string]any{
 			"address": "   ", // present but whitespace-only
 			"type":    "aws_instance",
@@ -156,8 +157,8 @@ func TestExtractTerraformStateRowsQuarantinesMissingTagObservationJoinKey(t *tes
 		FactID:        "tf-tag-bad",
 		ScopeID:       "tf-scope-1",
 		GenerationID:  "tf-generation-1",
-		FactKind:      facts.TerraformStateTagObservationFactKind,
-		SchemaVersion: facts.TerraformStateTagObservationSchemaVersion,
+		FactKind:      cloud.TerraformStateTagObservationFactKind,
+		SchemaVersion: cloud.TerraformStateTagObservationSchemaVersion,
 		Payload: map[string]any{
 			// "resource_address" intentionally absent.
 			"tag_key_hash": "tag-key-hash-bad",
@@ -171,8 +172,8 @@ func TestExtractTerraformStateRowsQuarantinesMissingTagObservationJoinKey(t *tes
 	for _, q := range quarantined {
 		if q.FactID == "tf-tag-bad" {
 			found = true
-			if q.FactKind != facts.TerraformStateTagObservationFactKind {
-				t.Fatalf("quarantined fact kind = %q, want %q", q.FactKind, facts.TerraformStateTagObservationFactKind)
+			if q.FactKind != cloud.TerraformStateTagObservationFactKind {
+				t.Fatalf("quarantined fact kind = %q, want %q", q.FactKind, cloud.TerraformStateTagObservationFactKind)
 			}
 			if q.Field != "resource_address" {
 				t.Fatalf("quarantined field = %q, want %q", q.Field, "resource_address")
@@ -204,8 +205,8 @@ func TestExtractTerraformStateRowsQuarantinesMissingProviderBindingJoinKey(t *te
 		FactID:        "tf-provider-binding-bad",
 		ScopeID:       "tf-scope-1",
 		GenerationID:  "tf-generation-1",
-		FactKind:      facts.TerraformStateProviderBindingFactKind,
-		SchemaVersion: facts.TerraformStateProviderBindingSchemaVersion,
+		FactKind:      cloud.TerraformStateProviderBindingFactKind,
+		SchemaVersion: cloud.TerraformStateProviderBindingSchemaVersion,
 		Payload: map[string]any{
 			// "resource_address" intentionally absent.
 			"provider_address": "provider[\"registry.terraform.io/hashicorp/aws\"]",
@@ -219,8 +220,8 @@ func TestExtractTerraformStateRowsQuarantinesMissingProviderBindingJoinKey(t *te
 	for _, q := range quarantined {
 		if q.FactID == "tf-provider-binding-bad" {
 			found = true
-			if q.FactKind != facts.TerraformStateProviderBindingFactKind {
-				t.Fatalf("quarantined fact kind = %q, want %q", q.FactKind, facts.TerraformStateProviderBindingFactKind)
+			if q.FactKind != cloud.TerraformStateProviderBindingFactKind {
+				t.Fatalf("quarantined fact kind = %q, want %q", q.FactKind, cloud.TerraformStateProviderBindingFactKind)
 			}
 			if q.Field != "resource_address" {
 				t.Fatalf("quarantined field = %q, want %q", q.Field, "resource_address")
@@ -253,8 +254,8 @@ func TestExtractTerraformStateRowsProviderBindingDuplicateAddressFirstWins(t *te
 		FactID:        "tf-provider-binding-first",
 		ScopeID:       "tf-scope-1",
 		GenerationID:  "tf-generation-1",
-		FactKind:      facts.TerraformStateProviderBindingFactKind,
-		SchemaVersion: facts.TerraformStateProviderBindingSchemaVersion,
+		FactKind:      cloud.TerraformStateProviderBindingFactKind,
+		SchemaVersion: cloud.TerraformStateProviderBindingSchemaVersion,
 		Payload: map[string]any{
 			"resource_address": address,
 			"provider_address": "provider[\"registry.terraform.io/hashicorp/aws\"]",
@@ -265,8 +266,8 @@ func TestExtractTerraformStateRowsProviderBindingDuplicateAddressFirstWins(t *te
 		FactID:        "tf-provider-binding-duplicate",
 		ScopeID:       "tf-scope-1",
 		GenerationID:  "tf-generation-1",
-		FactKind:      facts.TerraformStateProviderBindingFactKind,
-		SchemaVersion: facts.TerraformStateProviderBindingSchemaVersion,
+		FactKind:      cloud.TerraformStateProviderBindingFactKind,
+		SchemaVersion: cloud.TerraformStateProviderBindingSchemaVersion,
 		Payload: map[string]any{
 			"resource_address": address,
 			"provider_address": "provider[\"registry.terraform.io/hashicorp/google\"]",

@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -66,7 +67,7 @@ func TestParserCapturesSchemaKnownCompositeAttribute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -138,7 +139,7 @@ func TestParserSkipsUnknownCompositeAttribute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -194,7 +195,7 @@ func TestParserRedactsSensitiveLeafInsideSchemaKnownComposite(t *testing.T) {
 	}
 	assertNoRawSecret(t, result.Facts, "plain-text-password")
 
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -261,7 +262,7 @@ func TestParserDropsSensitiveCompositeBeforeWalking(t *testing.T) {
 	}
 	assertNoRawSecret(t, result.Facts, "plain-text-token")
 
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -314,7 +315,7 @@ func TestParserPreservesMultiElementCompositeForDownstreamFlattenerTruncation(t 
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])

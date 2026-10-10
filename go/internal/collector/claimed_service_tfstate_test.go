@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -445,7 +446,7 @@ func blockingFactStream(count int, observedAt time.Time) (<-chan facts.Envelope,
 				FactID:        "fact-blocking-stream-" + strconv.Itoa(i),
 				ScopeID:       "wrong-scope",
 				GenerationID:  "generation-blocking-stream",
-				FactKind:      facts.TerraformStateResourceFactKind,
+				FactKind:      cloud.TerraformStateResourceFactKind,
 				StableFactKey: "resource:blocking-stream-" + strconv.Itoa(i),
 				ObservedAt:    observedAt,
 				Payload:       map[string]any{"index": float64(i)},

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestParserEmitsTerraformStateTagObservationFacts(t *testing.T) {
@@ -34,8 +35,8 @@ func TestParserEmitsTerraformStateTagObservationFacts(t *testing.T) {
 
 	result := parseFixtureFacts(t, state)
 
-	requireFactKinds(t, result, facts.TerraformStateTagObservationFactKind, facts.TerraformStateWarningFactKind)
-	tags := factsByKind(result, facts.TerraformStateTagObservationFactKind)
+	requireFactKinds(t, result, cloud.TerraformStateTagObservationFactKind, cloud.TerraformStateWarningFactKind)
+	tags := factsByKind(result, cloud.TerraformStateTagObservationFactKind)
 	if got, want := len(tags), 3; got != want {
 		t.Fatalf("tag observation fact count = %d, want %d: %#v", got, want, tags)
 	}
@@ -83,11 +84,11 @@ func TestParserWarnsAndContinuesForMalformedTagMaps(t *testing.T) {
 
 	result := parseFixtureFacts(t, state)
 
-	requireFactKinds(t, result, facts.TerraformStateResourceFactKind, facts.TerraformStateWarningFactKind)
-	if tags := factsByKind(result, facts.TerraformStateTagObservationFactKind); len(tags) != 0 {
+	requireFactKinds(t, result, cloud.TerraformStateResourceFactKind, cloud.TerraformStateWarningFactKind)
+	if tags := factsByKind(result, cloud.TerraformStateTagObservationFactKind); len(tags) != 0 {
 		t.Fatalf("tag observation facts = %#v, want none for malformed tag maps", tags)
 	}
-	warnings := factsByKind(result, facts.TerraformStateWarningFactKind)
+	warnings := factsByKind(result, cloud.TerraformStateWarningFactKind)
 	if got, want := len(warnings), 3; got != want {
 		t.Fatalf("warning count = %d, want %d: %#v", got, want, warnings)
 	}
@@ -145,7 +146,7 @@ func TestParserTagObservationFactKeysAreStableAcrossResourceOrder(t *testing.T) 
 	firstFacts := parseFixtureFacts(t, first)
 	secondFacts := parseFixtureFacts(t, second)
 
-	if got, want := stableKeysByKind(firstFacts, facts.TerraformStateTagObservationFactKind), stableKeysByKind(secondFacts, facts.TerraformStateTagObservationFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
+	if got, want := stableKeysByKind(firstFacts, cloud.TerraformStateTagObservationFactKind), stableKeysByKind(secondFacts, cloud.TerraformStateTagObservationFactKind); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("tag observation stable keys changed with order:\ngot  %#v\nwant %#v", got, want)
 	}
 }

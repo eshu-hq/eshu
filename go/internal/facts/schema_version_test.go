@@ -6,6 +6,7 @@ package facts
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
@@ -79,7 +80,7 @@ func TestDocumentationFamilySchemaVersions(t *testing.T) {
 // projection hot path: one O(1) registry lookup plus, for an owned kind, a
 // canonical-version check and semver compare.
 func BenchmarkValidateSchemaVersion(b *testing.B) {
-	kind := TerraformStateFactKinds()[0]
+	kind := cloud.TerraformStateFactKinds()[0]
 	version, _ := SchemaVersion(kind)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -107,7 +108,7 @@ func TestSchemaVersionDispatchesToFamilies(t *testing.T) {
 		name     string
 		factKind string
 	}{
-		{"terraform state", TerraformStateFactKinds()[0]},
+		{"terraform state", cloud.TerraformStateFactKinds()[0]},
 		{"oci registry", OCIRegistryFactKinds()[0]},
 		{"aws", AWSFactKinds()[0]},
 		{"observability", ObservabilityFactKinds()[0]},
@@ -160,7 +161,7 @@ func TestClassifySchemaVersion(t *testing.T) {
 
 	// Anchor on a real core fact kind and its registered version so the
 	// old / current / unsupported-future regression uses production data.
-	factKind := TerraformStateFactKinds()[0]
+	factKind := cloud.TerraformStateFactKinds()[0]
 	current, ok := SchemaVersion(factKind)
 	if !ok {
 		t.Fatalf("SchemaVersion(%q) ok = false, want true", factKind)
@@ -204,7 +205,7 @@ func TestClassifySchemaVersion(t *testing.T) {
 func TestValidateSchemaVersion(t *testing.T) {
 	t.Parallel()
 
-	factKind := TerraformStateFactKinds()[0]
+	factKind := cloud.TerraformStateFactKinds()[0]
 	if err := ValidateSchemaVersion(factKind, "1.0.0"); err != nil {
 		t.Fatalf("ValidateSchemaVersion(current) error = %v, want nil", err)
 	}

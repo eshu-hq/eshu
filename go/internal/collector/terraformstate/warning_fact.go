@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
@@ -86,17 +87,17 @@ func NewWarningFact(options WarningFactOptions) (facts.Envelope, error) {
 		return facts.Envelope{}, err
 	}
 	key := "terraform_state_warning:warning:" + warningKind + ":" + warningSource + ":" + reason
-	version, _ := facts.TerraformStateSchemaVersion(facts.TerraformStateWarningFactKind)
+	version, _ := cloud.TerraformStateSchemaVersion(cloud.TerraformStateWarningFactKind)
 	return facts.Envelope{
 		FactID: facts.StableID("TerraformStateFact", map[string]any{
-			"fact_kind":     facts.TerraformStateWarningFactKind,
+			"fact_kind":     cloud.TerraformStateWarningFactKind,
 			"stable_key":    key,
 			"scope_id":      options.Scope.ScopeID,
 			"generation_id": options.Generation.GenerationID,
 		}),
 		ScopeID:          options.Scope.ScopeID,
 		GenerationID:     options.Generation.GenerationID,
-		FactKind:         facts.TerraformStateWarningFactKind,
+		FactKind:         cloud.TerraformStateWarningFactKind,
 		StableFactKey:    key,
 		SchemaVersion:    version,
 		CollectorKind:    string(scope.CollectorTerraformState),

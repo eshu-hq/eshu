@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings(t *testing.T) {
@@ -29,9 +30,9 @@ func TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings(t *testing
 			options,
 			terraformstate.FactSinkFunc(func(_ context.Context, envelope facts.Envelope) error {
 				switch envelope.FactKind {
-				case facts.TerraformStateProviderBindingFactKind:
+				case cloud.TerraformStateProviderBindingFactKind:
 					providerBindingFacts++
-				case facts.TerraformStateWarningFactKind:
+				case cloud.TerraformStateWarningFactKind:
 					warningFacts++
 					countValue, ok := envelope.Payload["occurrence_count"].(int64)
 					if ok {

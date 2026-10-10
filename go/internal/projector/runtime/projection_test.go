@@ -19,6 +19,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorentity "github.com/eshu-hq/eshu/go/internal/projector/semantic/entity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -526,8 +527,8 @@ func TestRuntimeProjectPublishesTerraformStateWarningOnlyCanonicalPhases(t *test
 			FactID:           "warning-fact-1",
 			ScopeID:          "state_snapshot:s3:abc123",
 			GenerationID:     generationValue.GenerationID,
-			FactKind:         facts.TerraformStateWarningFactKind,
-			SchemaVersion:    facts.TerraformStateWarningSchemaVersion,
+			FactKind:         cloud.TerraformStateWarningFactKind,
+			SchemaVersion:    cloud.TerraformStateWarningSchemaVersion,
 			CollectorKind:    string(scope.CollectorTerraformState),
 			FencingToken:     1,
 			ObservedAt:       time.Date(2026, time.May, 21, 17, 0, 0, 0, time.UTC),

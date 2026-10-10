@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
@@ -96,7 +96,7 @@ func (p *stateParser) emitWarning(warning warningPayload) error {
 		return err
 	}
 	key := "warning:" + warning.WarningKind + ":" + warning.Source + ":" + warning.Reason
-	if err := p.emitBodyFact(p.envelope(facts.TerraformStateWarningFactKind, key, payload, warning.Source)); err != nil {
+	if err := p.emitBodyFact(p.envelope(cloud.TerraformStateWarningFactKind, key, payload, warning.Source)); err != nil {
 		return err
 	}
 	if p.warningsByKind == nil {

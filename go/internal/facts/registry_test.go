@@ -6,6 +6,8 @@ package facts
 import (
 	"slices"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestCoreFactKindRegistryIncludesKnownFamilies(t *testing.T) {
@@ -15,7 +17,7 @@ func TestCoreFactKindRegistryIncludesKnownFamilies(t *testing.T) {
 	for _, want := range []string{
 		AWSResourceFactKind,
 		AzureCloudResourceFactKind,
-		TerraformStateResourceFactKind,
+		cloud.TerraformStateResourceFactKind,
 		ServiceCatalogScorecardResultFactKind,
 		SemanticCodeHintFactKind,
 		VulnerabilitySuppressionFactKind,

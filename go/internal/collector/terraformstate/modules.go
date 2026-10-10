@@ -6,7 +6,7 @@ package terraformstate
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
@@ -30,7 +30,7 @@ func (p *stateParser) emitModuleObservation(moduleAddress string, resourceAddres
 	}
 	stableKey := "module:" + moduleAddress + ":resource:" + resourceAddress
 	sourceRecordID := moduleAddress + ":resource:" + resourceAddress
-	if err := p.emitBodyFact(p.envelope(facts.TerraformStateModuleFactKind, stableKey, payload, sourceRecordID)); err != nil {
+	if err := p.emitBodyFact(p.envelope(cloud.TerraformStateModuleFactKind, stableKey, payload, sourceRecordID)); err != nil {
 		return err
 	}
 	p.moduleFacts++

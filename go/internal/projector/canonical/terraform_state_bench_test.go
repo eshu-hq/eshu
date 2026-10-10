@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -27,8 +28,8 @@ func tfstateBenchResourceEnvelopes(n int, withProviderBinding bool) []facts.Enve
 			FactID:           fmt.Sprintf("tf-resource-%d", i),
 			ScopeID:          "tf-scope-bench",
 			GenerationID:     "tf-generation-bench",
-			FactKind:         facts.TerraformStateResourceFactKind,
-			SchemaVersion:    facts.TerraformStateResourceSchemaVersion,
+			FactKind:         cloud.TerraformStateResourceFactKind,
+			SchemaVersion:    cloud.TerraformStateResourceSchemaVersion,
 			CollectorKind:    string(scope.CollectorTerraformState),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       observedAt,
@@ -45,8 +46,8 @@ func tfstateBenchResourceEnvelopes(n int, withProviderBinding bool) []facts.Enve
 			FactID:           fmt.Sprintf("tf-provider-binding-%d", i),
 			ScopeID:          "tf-scope-bench",
 			GenerationID:     "tf-generation-bench",
-			FactKind:         facts.TerraformStateProviderBindingFactKind,
-			SchemaVersion:    facts.TerraformStateProviderBindingSchemaVersion,
+			FactKind:         cloud.TerraformStateProviderBindingFactKind,
+			SchemaVersion:    cloud.TerraformStateProviderBindingSchemaVersion,
 			CollectorKind:    string(scope.CollectorTerraformState),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       observedAt,

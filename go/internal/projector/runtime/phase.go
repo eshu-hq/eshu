@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -46,7 +47,7 @@ func canonicalGraphPhaseStates(generationID string, inputFacts []facts.Envelope)
 			rows = appendCanonicalRepositoryGraphPhase(rows, seen, generationID, fact)
 		}
 		switch fact.FactKind {
-		case facts.TerraformStateSnapshotFactKind, facts.TerraformStateWarningFactKind:
+		case cloud.TerraformStateSnapshotFactKind, cloud.TerraformStateWarningFactKind:
 			rows = appendTerraformStateGraphPhase(
 				rows,
 				seen,
@@ -61,7 +62,7 @@ func canonicalGraphPhaseStates(generationID string, inputFacts []facts.Envelope)
 				fact,
 				reducer.GraphProjectionKeyspaceTerraformModuleUID,
 			)
-		case facts.TerraformStateResourceFactKind:
+		case cloud.TerraformStateResourceFactKind:
 			rows = appendTerraformStateGraphPhase(
 				rows,
 				seen,
@@ -69,7 +70,7 @@ func canonicalGraphPhaseStates(generationID string, inputFacts []facts.Envelope)
 				fact,
 				reducer.GraphProjectionKeyspaceTerraformResourceUID,
 			)
-		case facts.TerraformStateModuleFactKind:
+		case cloud.TerraformStateModuleFactKind:
 			rows = appendTerraformStateGraphPhase(
 				rows,
 				seen,

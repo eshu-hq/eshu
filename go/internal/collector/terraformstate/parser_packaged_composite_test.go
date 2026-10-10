@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/terraformschema"
 )
 
@@ -62,7 +63,7 @@ func TestParserCapturesPackagedDataSourceCompositeAttribute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -126,7 +127,7 @@ func TestParserKeepsUnsupportedPackagedCompositeFailClosed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -192,7 +193,7 @@ func TestParserClassifiesCloudinitPartFixtureAsUnsupportedComposite(t *testing.T
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 	cloudinitResources := 0
-	for _, resource := range factsByKind(result.Facts, facts.TerraformStateResourceFactKind) {
+	for _, resource := range factsByKind(result.Facts, cloud.TerraformStateResourceFactKind) {
 		if got, want := resource.Payload["type"], "cloudinit_config"; got != want {
 			continue
 		}
@@ -283,7 +284,7 @@ func TestParserClassifiesSensitivePackagedCompositeAsIntentionalSkip(t *testing.
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 	assertNoRawSecret(t, result.Facts, "plain-secret")
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -298,7 +299,7 @@ func TestParserClassifiesSensitivePackagedCompositeAsIntentionalSkip(t *testing.
 		t.Fatalf("recorded Reason = %q, want %q", got, want)
 	}
 
-	warning := factByKind(t, result.Facts, facts.TerraformStateWarningFactKind)
+	warning := factByKind(t, result.Facts, cloud.TerraformStateWarningFactKind)
 	if got, want := warning.Payload["warning_kind"], "composite_attribute_skipped"; got != want {
 		t.Fatalf("warning_kind = %#v, want %#v", got, want)
 	}
@@ -321,7 +322,7 @@ func TestParserClassifiesSensitivePackagedCompositeAsIntentionalSkip(t *testing.
 // rather than a reason for an unrelated test to fail.
 func warningsOfKind(all []facts.Envelope, warningKind string) []facts.Envelope {
 	var out []facts.Envelope
-	for _, warning := range factsByKind(all, facts.TerraformStateWarningFactKind) {
+	for _, warning := range factsByKind(all, cloud.TerraformStateWarningFactKind) {
 		if warning.Payload["warning_kind"] == warningKind {
 			out = append(out, warning)
 		}

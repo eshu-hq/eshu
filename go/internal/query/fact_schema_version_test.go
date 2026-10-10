@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func mountFactSchemaVersions(t *testing.T) http.Handler {
@@ -70,7 +71,7 @@ func TestFactSchemaVersionListReturnsRegistry(t *testing.T) {
 			t.Fatalf("entries not sorted: %q after %q", entry.FactKind, prev)
 		}
 		prev = entry.FactKind
-		if entry.FactKind == facts.TerraformStateFactKinds()[0] {
+		if entry.FactKind == cloud.TerraformStateFactKinds()[0] {
 			sawTerraform = true
 			if entry.SchemaVersion == "" {
 				t.Fatalf("terraform entry has empty schema version")
@@ -109,7 +110,7 @@ func TestFactSchemaVersionListRejectsBadLimit(t *testing.T) {
 
 func TestFactSchemaVersionDetailReturnsSupportedVersion(t *testing.T) {
 	t.Parallel()
-	kind := facts.TerraformStateFactKinds()[0]
+	kind := cloud.TerraformStateFactKinds()[0]
 	want, _ := facts.SchemaVersion(kind)
 	rec := httptest.NewRecorder()
 	mountFactSchemaVersions(t).ServeHTTP(rec, envelopeRequest("/api/v0/fact-schema-versions/"+kind))
@@ -130,7 +131,7 @@ func TestFactSchemaVersionDetailReturnsSupportedVersion(t *testing.T) {
 
 func TestFactSchemaVersionDetailClassifiesCandidate(t *testing.T) {
 	t.Parallel()
-	kind := facts.TerraformStateFactKinds()[0]
+	kind := cloud.TerraformStateFactKinds()[0]
 	rec := httptest.NewRecorder()
 	mountFactSchemaVersions(t).ServeHTTP(rec, envelopeRequest("/api/v0/fact-schema-versions/"+kind+"?candidate=2.0.0"))
 	if rec.Code != http.StatusOK {
@@ -147,7 +148,7 @@ func TestFactSchemaVersionDetailClassifiesCandidate(t *testing.T) {
 
 func TestFactSchemaVersionDetail_LocalLightweightReturnsVersionData(t *testing.T) {
 	t.Parallel()
-	kind := facts.TerraformStateFactKinds()[0]
+	kind := cloud.TerraformStateFactKinds()[0]
 	handler := &FactSchemaVersionHandler{Profile: ProfileLocalLightweight}
 	mux := http.NewServeMux()
 	handler.Mount(mux)

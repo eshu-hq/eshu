@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -126,7 +127,7 @@ func TestIngestionStoreUnchangedGenerationChecksFactStreamError(t *testing.T) {
 			FactID:        "fact-unchanged-stream-error",
 			ScopeID:       scopeValue.ScopeID,
 			GenerationID:  generation.GenerationID,
-			FactKind:      facts.TerraformStateSnapshotFactKind,
+			FactKind:      cloud.TerraformStateSnapshotFactKind,
 			StableFactKey: "snapshot:unchanged-stream-error",
 			ObservedAt:    now,
 			Payload:       map[string]any{"serial": float64(1)},
@@ -186,7 +187,7 @@ func TestIngestionStoreRollsBackBeforeDrainingAfterEarlyFactError(t *testing.T) 
 			FactID:        "fact-wrong-scope",
 			ScopeID:       "wrong-scope",
 			GenerationID:  generation.GenerationID,
-			FactKind:      facts.TerraformStateResourceFactKind,
+			FactKind:      cloud.TerraformStateResourceFactKind,
 			StableFactKey: "resource:wrong-scope",
 			ObservedAt:    now,
 			Payload:       map[string]any{"name": "wrong"},
@@ -195,7 +196,7 @@ func TestIngestionStoreRollsBackBeforeDrainingAfterEarlyFactError(t *testing.T) 
 			FactID:        "fact-remaining",
 			ScopeID:       scopeValue.ScopeID,
 			GenerationID:  generation.GenerationID,
-			FactKind:      facts.TerraformStateResourceFactKind,
+			FactKind:      cloud.TerraformStateResourceFactKind,
 			StableFactKey: "resource:remaining",
 			ObservedAt:    now,
 			Payload:       map[string]any{"name": "remaining"},

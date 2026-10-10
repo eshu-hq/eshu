@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
@@ -255,7 +256,7 @@ func (p *stateParser) snapshotFact() facts.Envelope {
 			ETag:             optionalStringPtr(p.options.Metadata.ETag),
 		})
 	})
-	return p.envelope(facts.TerraformStateSnapshotFactKind, "snapshot", payload, locatorHash(p.options.Source))
+	return p.envelope(cloud.TerraformStateSnapshotFactKind, "snapshot", payload, locatorHash(p.options.Source))
 }
 
 func (p *stateParser) validateSnapshotIdentity() error {
@@ -273,7 +274,7 @@ func (p *stateParser) validateSnapshotIdentity() error {
 }
 
 func (p *stateParser) envelope(kind string, stableKey string, payload map[string]any, sourceRecordID string) facts.Envelope {
-	version, _ := facts.TerraformStateSchemaVersion(kind)
+	version, _ := cloud.TerraformStateSchemaVersion(kind)
 	key := kind + ":" + stableKey
 	return facts.Envelope{
 		FactID: facts.StableID("TerraformStateFact", map[string]any{

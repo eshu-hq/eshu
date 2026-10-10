@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -78,7 +78,7 @@ func parseUncoveredProvider(t *testing.T, sensitiveKeys []string) terraformstate
 func uncoveredResourceAttributes(t *testing.T, result terraformstate.ParseResult) map[string]any {
 	t.Helper()
 
-	resources := factsByKind(result.Facts, facts.TerraformStateResourceFactKind)
+	resources := factsByKind(result.Facts, cloud.TerraformStateResourceFactKind)
 	if len(resources) != 1 {
 		t.Fatalf("resource facts = %d, want 1", len(resources))
 	}
@@ -181,7 +181,7 @@ func TestOperatorSensitiveKeyStillBeatsTheIdentityExemption(t *testing.T) {
 func TestCorrelationAnchorsStayWithheldUnderUnknownProviderSchema(t *testing.T) {
 	t.Parallel()
 
-	resources := factsByKind(parseUncoveredProvider(t, nil).Facts, facts.TerraformStateResourceFactKind)
+	resources := factsByKind(parseUncoveredProvider(t, nil).Facts, cloud.TerraformStateResourceFactKind)
 	if len(resources) != 1 {
 		t.Fatalf("resource facts = %d, want 1", len(resources))
 	}
@@ -206,7 +206,7 @@ func TestCorrelationAnchorsStayWithheldUnderUnknownProviderSchema(t *testing.T) 
 func TestUncoveredProviderIsReportedAsAWarning(t *testing.T) {
 	t.Parallel()
 
-	warnings := factsByKind(parseUncoveredProvider(t, nil).Facts, facts.TerraformStateWarningFactKind)
+	warnings := factsByKind(parseUncoveredProvider(t, nil).Facts, cloud.TerraformStateWarningFactKind)
 
 	var found map[string]any
 	for _, warning := range warnings {
@@ -253,7 +253,7 @@ func TestCoveredProviderEmitsNoUncoveredWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	for _, warning := range factsByKind(result.Facts, facts.TerraformStateWarningFactKind) {
+	for _, warning := range factsByKind(result.Facts, cloud.TerraformStateWarningFactKind) {
 		if warning.Payload["warning_kind"] == "provider_schema_not_covered" {
 			t.Fatalf("unexpected provider_schema_not_covered warning for a covered resource type: %#v", warning.Payload)
 		}
@@ -319,7 +319,7 @@ func TestUncoveredProviderReportedForTagsOnlyInstance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	for _, warning := range factsByKind(result.Facts, facts.TerraformStateWarningFactKind) {
+	for _, warning := range factsByKind(result.Facts, cloud.TerraformStateWarningFactKind) {
 		if warning.Payload["warning_kind"] == "provider_schema_not_covered" {
 			return
 		}
@@ -371,7 +371,7 @@ func TestUncoveredTypeOfCoveredProviderUsesItsOwnReason(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Parse() error = %v, want nil", err)
 			}
-			for _, warning := range factsByKind(result.Facts, facts.TerraformStateWarningFactKind) {
+			for _, warning := range factsByKind(result.Facts, cloud.TerraformStateWarningFactKind) {
 				if warning.Payload["warning_kind"] != "provider_schema_not_covered" {
 					continue
 				}

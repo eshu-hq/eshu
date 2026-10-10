@@ -36,7 +36,7 @@ import (
 // factsDispatchedKinds' reducer-vs-projector split: a bare kind comparison
 // with no payload read is exactly the graph-projection-readiness bookkeeping
 // pattern (go/internal/projector/runtime/phase.go's
-// `case facts.TerraformStateSnapshotFactKind, facts.TerraformStateWarningFactKind:`)
+// `case cloud.TerraformStateSnapshotFactKind, cloud.TerraformStateWarningFactKind:`)
 // that must NOT count as consumption. Requiring an actual field extraction
 // in the same function keeps this signal from re-admitting that false-green
 // class; a kind compared-but-never-read (e.g. purely for existence/counting)

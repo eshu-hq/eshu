@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestBuildStreamingGenerationEmitsUnresolvedTerraformBackendExpressionWarnings(t *testing.T) {
@@ -52,10 +53,10 @@ func TestBuildStreamingGenerationEmitsUnresolvedTerraformBackendExpressionWarnin
 	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
 	}
-	if got := len(factsByKind(envelopes, facts.TerraformStateCandidateFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, cloud.TerraformStateCandidateFactKind)); got != 0 {
 		t.Fatalf("terraform_state_candidate fact count = %d, want 0", got)
 	}
-	warnings := factsByKind(envelopes, facts.TerraformStateWarningFactKind)
+	warnings := factsByKind(envelopes, cloud.TerraformStateWarningFactKind)
 	if got, want := len(warnings), 1; got != want {
 		t.Fatalf("terraform_state_warning fact count = %d, want %d", got, want)
 	}
@@ -155,7 +156,7 @@ func TestBuildStreamingGenerationKeysBackendExpressionWarningsByLine(t *testing.
 		false,
 		"",
 	)
-	warnings := factsByKind(drainFactChannel(collected.Facts), facts.TerraformStateWarningFactKind)
+	warnings := factsByKind(drainFactChannel(collected.Facts), cloud.TerraformStateWarningFactKind)
 	if got, want := len(warnings), 2; got != want {
 		t.Fatalf("terraform_state_warning fact count = %d, want %d", got, want)
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestComponentCommandTreeIncludesSchemaVersions(t *testing.T) {
@@ -44,7 +45,7 @@ func TestComponentSchemaVersionsListJSON(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; out=%s", err, out)
 	}
-	want := facts.TerraformStateFactKinds()[0]
+	want := cloud.TerraformStateFactKinds()[0]
 	found := false
 	for _, entry := range payload.Entries {
 		if entry.FactKind == want {
@@ -62,7 +63,7 @@ func TestComponentSchemaVersionsListJSON(t *testing.T) {
 func TestComponentSchemaVersionsCheckSupported(t *testing.T) {
 	t.Parallel()
 
-	kind := facts.TerraformStateFactKinds()[0]
+	kind := cloud.TerraformStateFactKinds()[0]
 	supported, _ := facts.SchemaVersion(kind)
 
 	out := &bytes.Buffer{}
@@ -78,7 +79,7 @@ func TestComponentSchemaVersionsCheckSupported(t *testing.T) {
 func TestComponentSchemaVersionsCheckUnsupportedExitsNonZero(t *testing.T) {
 	t.Parallel()
 
-	kind := facts.TerraformStateFactKinds()[0]
+	kind := cloud.TerraformStateFactKinds()[0]
 
 	out := &bytes.Buffer{}
 	cmd := newSchemaVersionsCommand(out, true, kind+"=2.0.0")

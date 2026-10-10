@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // stubProviderSchemaResolver returns true only for the (resourceType,
@@ -97,7 +98,7 @@ func TestParserPreservesAttributesWhenSchemaResolverKnowsResourceType(t *testing
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
@@ -143,7 +144,7 @@ func TestParserFailsClosedForUnknownAttributesEvenWithSchemaResolver(t *testing.
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	resource := factByKind(t, result.Facts, cloud.TerraformStateResourceFactKind)
 	attributes, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])

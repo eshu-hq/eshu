@@ -6,7 +6,7 @@ package terraformstate
 import (
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
@@ -127,7 +127,7 @@ func (p *stateParser) emitOutput(name string, output outputPayload) error {
 	}); err != nil {
 		return err
 	}
-	if err := p.emitBodyFact(p.envelope(facts.TerraformStateOutputFactKind, "output:"+name, payload, name)); err != nil {
+	if err := p.emitBodyFact(p.envelope(cloud.TerraformStateOutputFactKind, "output:"+name, payload, name)); err != nil {
 		return err
 	}
 	p.outputFacts++

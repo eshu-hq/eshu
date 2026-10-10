@@ -12,7 +12,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/collector/tfstateruntime"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -99,7 +100,7 @@ func TestClaimedSourceEmitsWarningGenerationForOversizedState(t *testing.T) {
 		t.Fatalf("FreshnessHint = %q, want state_too_large warning", collected.Generation.FreshnessHint)
 	}
 
-	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), facts.TerraformStateWarningFactKind)
+	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), cloud.TerraformStateWarningFactKind)
 	if got, want := warning.Payload["warning_kind"], "state_too_large"; got != want {
 		t.Fatalf("warning_kind = %#v, want %#v", got, want)
 	}
@@ -207,7 +208,7 @@ func TestClaimedSourceEmitsWarningGenerationForMissingS3State(t *testing.T) {
 		t.Fatalf("FreshnessHint = %q, want state_missing warning", collected.Generation.FreshnessHint)
 	}
 
-	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), facts.TerraformStateWarningFactKind)
+	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), cloud.TerraformStateWarningFactKind)
 	if got, want := warning.Payload["warning_kind"], "state_missing"; got != want {
 		t.Fatalf("warning_kind = %#v, want %#v", got, want)
 	}
