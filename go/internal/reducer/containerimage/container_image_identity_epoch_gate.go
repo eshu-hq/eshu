@@ -21,10 +21,10 @@ import (
 // On a miss the gate consults GenerationCheck, which sees the scope's live
 // lifecycle row rather than the scope-state row:
 //
-//   - a pending, newer-than-active generation returns the check's
-//     GenerationNotYetActiveError, so the queue retries the intent without
+//   - a pending generation before first activation or newer than the active
+//     generation returns GenerationNotYetActiveError, so the queue retries without
 //     counting against its attempt budget until the generation activates;
-//   - a superseded (or failed, or missing) generation returns an early
+//   - a generation the check classifies as superseded returns an early
 //     Result with Status superseded, which the queue acks succeeded;
 //   - a generation the check still calls current re-reads the epoch once, in
 //     case the activation landed between the two reads; when the re-read

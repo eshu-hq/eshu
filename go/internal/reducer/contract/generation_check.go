@@ -12,8 +12,8 @@ import (
 // GenerationFreshnessCheck reports whether the given generation is still
 // the active generation for the scope. Returns (true, nil) if current,
 // (false, nil) if superseded, or (false, err) on lookup failure. A generation
-// that is newer than the active one but not yet activated is neither: the
-// check returns (false, GenerationNotYetActiveError), a retryable,
+// that is pending before first activation or newer than the active one is
+// neither: the check returns (false, GenerationNotYetActiveError), a retryable,
 // self-classifying error, so callers must propagate the error (wrapped with
 // %w) rather than treat false as supersession (#6686).
 type GenerationFreshnessCheck func(ctx context.Context, scopeID, generationID string) (bool, error)
@@ -54,15 +54,14 @@ type EC2PostureCandidate struct {
 }
 
 // ErrGenerationNotYetActive is the sentinel a GenerationFreshnessCheck wraps
-// when an intent's generation is newer than the scope's active generation and
-// is still pending: its projector has enqueued reducer work but has not yet
+// when an intent's generation is pending before first activation or newer than
+// the scope's active generation: its projector has enqueued work but has not yet
 // acknowledged, so the generation is about to activate rather than superseded.
 // Skipping that intent as superseded would ack it succeeded, and nothing
 // re-drives it after activation (#6686), so the check returns this error
-// instead and the durable queue retries the intent until the generation
-// activates (the handler then runs) or ends failed or superseded (the retry
-// then acks it as superseded).
-var ErrGenerationNotYetActive = errors.New("reducer intent generation is newer than the active generation and not yet active")
+// instead and the durable queue retries the intent while it is pending.
+// Terminal lifecycle behavior is decided by the freshness check and handler.
+var ErrGenerationNotYetActive = errors.New("reducer intent generation is pending and not yet active")
 
 // GenerationActivationNotReadyFailureClass is the durable failure_class a
 // not-yet-active generation deferral self-classifies with. It carries the
@@ -74,9 +73,9 @@ var ErrGenerationNotYetActive = errors.New("reducer intent generation is newer t
 // counted by eshu_dp_reducer_retry_surge_total{failure_class}.
 const GenerationActivationNotReadyFailureClass = "generation_activation_not_ready"
 
-// GenerationNotYetActiveError reports that an intent's generation is a newer,
-// still-pending generation of its scope. It is retryable, self-classifies as
-// GenerationActivationNotReadyFailureClass, and unwraps to
+// GenerationNotYetActiveError reports that an intent's generation is pending
+// before first activation or newer than the active one. It is retryable and
+// self-classifies as GenerationActivationNotReadyFailureClass, and unwraps to
 // ErrGenerationNotYetActive.
 type GenerationNotYetActiveError struct {
 	// ScopeID is the intent's ingestion scope.
@@ -84,11 +83,16 @@ type GenerationNotYetActiveError struct {
 	// GenerationID is the intent's pending generation.
 	GenerationID string
 	// ActiveGenerationID is the scope's active generation when the check ran.
+	// It is empty when the scope has no active generation yet.
 	ActiveGenerationID string
 }
 
 // Error describes the scope, the pending generation, and the active one.
 func (e GenerationNotYetActiveError) Error() string {
+	if e.ActiveGenerationID == "" {
+		return fmt.Sprintf("%s: scope %s generation %s pending, no active generation",
+			ErrGenerationNotYetActive.Error(), e.ScopeID, e.GenerationID)
+	}
 	return fmt.Sprintf("%s: scope %s generation %s pending, active generation %s",
 		ErrGenerationNotYetActive.Error(), e.ScopeID, e.GenerationID, e.ActiveGenerationID)
 }
