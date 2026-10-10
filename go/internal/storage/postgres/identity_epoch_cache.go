@@ -54,7 +54,11 @@ type identityEpoch struct {
 // rows, err, leaderCanceled, and torn are written by the leader before it closes
 // done and read by waiters only after done closes; the channel close is the
 // happens-before edge. waiters is a cumulative count of callers that parked on
-// the flight and is guarded by IdentityEpochCache.mu with startEpoch.
+// the flight, guarded by IdentityEpochCache.mu with startEpoch. It is a
+// test-only seam: production code only increments it, and the flight tests read
+// it (awaitFlightWaiters) to know when N callers have parked before they
+// release the load. Operators read the waiter counts from the
+// flight_waiter_total counter, not from this field.
 type identityFlight struct {
 	done       chan struct{}
 	startEpoch identityEpoch

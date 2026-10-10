@@ -321,6 +321,25 @@ Index Cond (not a Filter). It runs in the `postgres_ci` lane
 on planner behavior verified on PostgreSQL 18; that test pins it, and the
 text-shape asserts only stop the `OR FALSE` from being deleted.
 
+Generic plan: a bare `EXPLAIN` never shows the plan a reused prepared
+statement settles on, so the guard also plans each page with `PREPARE` and
+`EXECUTE` under `plan_cache_mode = force_generic_plan`. That plan keeps the
+ordered index scan, the hashed SubPlan, no Sort and no Seq Scan, but the keyset
+comparison is a Filter (`($1 IS NULL) OR (ROW(observed_at, fact_id) > ROW($1,
+$2))`), not an Index Cond, because the plan cannot know the cursor is not NULL.
+A store pinned to generic plans would rescan from the start of the index on
+every page. Production does not run it: the reducer opens Postgres through
+`pgx.ParseConfig` and `stdlib.OpenDB` (pgx v5.9.2), whose default exec mode
+caches a named prepared statement per SQL text, unless the DSN sets
+`default_query_exec_mode`. The server default `plan_cache_mode = auto` applies,
+and a full keyset walk on PostgreSQL 18 never left custom plans. Measured on a private native PostgreSQL 18 cluster, seeded as the
+guard is but with 525,000 active identity rows: 1,051 pages, 1,051 custom plans,
+0 generic plans in `pg_prepared_statements`, about 5 ms per page. The guard
+repeats the walk on its smaller seed (151 pages, 75,000 rows) and fails if
+`generic_plans` is not 0; with `force_generic_plan` set on that walk it fails
+with 151 of 151 executions generic. The 525,000-row run was a throwaway probe
+and is not committed.
+
 Correctness: `TestIdentityEpochIgnoresSupersededGenerationRowsLive` shows a
 delete on a superseded generation leaves the epoch unchanged and an insert or
 delete on the active generation moves it (before the change the first assertion
