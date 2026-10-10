@@ -156,6 +156,34 @@ is unchanged by this PR, which is why the CPU gain is smaller than the
 statement and byte gain. Pod CPU, the deployed API p95 and ops-qa stage seconds
 are NOT_CHECKED.
 
+## Evidence markers
+
+Performance Evidence: baseline is the pre-change pass (arm A) on a private
+native PostgreSQL 18.6 primary plus hot standby, the real fenced reader and
+`ContentReader`, 300 related repositories and 8,000 hydrated files (observed
+class mix, 57.4 MB). After: 4,325 statements against 8,300 (300 lists, 3,753
+reads, 272 non-blank checks), 15.8 MB against 57.4 MB, CPU median 2.684 against
+3.023 CPU-s over seven ABBA rounds, and the same `config_paths` digest in 21 of
+21 runs (33,972 rows at the original mix). The non-blank statement is an index
+scan on `content_files_repo_path_pattern_idx` with a `btrim` filter: 0.20 ms
+for 20 paths and 5.5 ms for the 2.2 MB repository. The change is safe because
+the plan never fetches less than an extractor reads (the differential and
+guard tests), the extra statement is bounded to one per repository, and a read
+the extractors need still fails the load.
+
+Observability Evidence: the `deployment_artifacts` stage line of
+`repository_query.stage_completed` carries `related_repository_count`,
+`files_listed`, `files_hydrated`, `files_skipped`, `hydrated_bytes`,
+`statements`, `blank_check_statements`, `list_seconds`, `hydrate_seconds`,
+`parse_seconds` and `error`; the context route's
+`content_infrastructure_overview` line carries the same counts. A failed load
+logs `repository_query.deployment_artifacts_degraded` (WARN) with the error
+text, sets an error status on the request span, and adds
+`deployment_artifacts_read_degraded` to story `limitations` and context
+`partial_reasons`. The new statement appears as a `postgres.query` span with
+`db.operation=non_blank_repo_file_paths`. No metric instrument was added: no
+existing query-stage metric family fits and the counts are log fields.
+
 ## Not in this PR
 
 Batched reads, a parse cache keyed by `content_hash`, ingest-time extraction,
