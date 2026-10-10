@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -36,7 +36,7 @@ func TestNewResourceChangeEnvelopeBuildsContractFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewResourceChangeEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.AzureResourceChangeFactKind {
+	if env.FactKind != cloud.AzureResourceChangeFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
 	if env.Payload["change_type"] != ChangeTypeUpdated {

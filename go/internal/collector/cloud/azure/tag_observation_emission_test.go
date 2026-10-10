@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestCollectEmitsTagObservationsWhenKeyed proves a keyed collector emits one
@@ -23,7 +23,7 @@ func TestCollectEmitsTagObservationsWhenKeyed(t *testing.T) {
 		t.Fatalf("Collect error: %v", err)
 	}
 
-	tagFacts := factsOfKind(result.Facts, facts.AzureTagObservationFactKind)
+	tagFacts := factsOfKind(result.Facts, cloud.AzureTagObservationFactKind)
 	if len(tagFacts) == 0 {
 		t.Fatal("expected azure_tag_observation facts for tagged resources")
 	}
@@ -57,7 +57,7 @@ func TestCollectSkipsTagObservationsWithoutKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect error: %v", err)
 	}
-	if n := len(factsOfKind(result.Facts, facts.AzureTagObservationFactKind)); n != 0 {
+	if n := len(factsOfKind(result.Facts, cloud.AzureTagObservationFactKind)); n != 0 {
 		t.Fatalf("expected no tag observations without a redaction key, got %d", n)
 	}
 	if result.TagObservationCount != 0 {

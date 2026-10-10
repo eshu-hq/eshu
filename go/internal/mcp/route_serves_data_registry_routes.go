@@ -79,7 +79,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				Domain: "azure_resource_materialization",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_inventory_read_model.go", Marker: "reducer_cloud_resource_identity"},
-					{File: "go/internal/projector/cloud/inventory/reducer_intent.go", Marker: "facts.AzureCloudResourceFactKind"},
+					{File: "go/internal/projector/cloud/inventory/reducer_intent.go", Marker: "cloud.AzureCloudResourceFactKind"},
 				},
 			},
 			{

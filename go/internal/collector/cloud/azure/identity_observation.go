@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
@@ -97,7 +98,7 @@ func NewIdentityObservationEnvelope(observation IdentityObservation, key redact.
 		return facts.Envelope{}, fmt.Errorf("normalize arm identity: %w", err)
 	}
 
-	stableKey := facts.StableID(facts.AzureIdentityObservationFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AzureIdentityObservationFactKind, map[string]any{
 		"normalized_id": identity.Normalized,
 		"identity_type": identityType,
 		"role_class":    strings.TrimSpace(observation.RoleClass),
@@ -135,8 +136,8 @@ func NewIdentityObservationEnvelope(observation IdentityObservation, key redact.
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AzureIdentityObservationFactKind,
-		facts.AzureIdentityObservationSchemaVersion,
+		cloud.AzureIdentityObservationFactKind,
+		cloud.AzureIdentityObservationSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, identity.Normalized+"|"+identityType),
 		observation.SourceURI,

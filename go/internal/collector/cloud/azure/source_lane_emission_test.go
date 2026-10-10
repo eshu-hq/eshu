@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func newSourceLaneProvider(t *testing.T) *fixturePageProvider {
@@ -27,7 +27,7 @@ func TestCollectEmitsDNSAndImageReferencesWhenKeyed(t *testing.T) {
 		t.Fatalf("Collect error: %v", err)
 	}
 
-	dnsFacts := factsOfKind(result.Facts, facts.AzureDNSRecordFactKind)
+	dnsFacts := factsOfKind(result.Facts, cloud.AzureDNSRecordFactKind)
 	if len(dnsFacts) != 1 {
 		t.Fatalf("emitted %d DNS facts, want 1", len(dnsFacts))
 	}
@@ -52,7 +52,7 @@ func TestCollectEmitsDNSAndImageReferencesWhenKeyed(t *testing.T) {
 		t.Fatalf("ttl_seconds = %#v, want 300", dnsPayload["ttl_seconds"])
 	}
 	for _, env := range result.Facts {
-		if env.FactKind != facts.AzureCloudResourceFactKind ||
+		if env.FactKind != cloud.AzureCloudResourceFactKind ||
 			env.Payload["resource_type"] != "microsoft.network/dnszones/cname" {
 			continue
 		}
@@ -66,7 +66,7 @@ func TestCollectEmitsDNSAndImageReferencesWhenKeyed(t *testing.T) {
 		}
 	}
 
-	imageFacts := factsOfKind(result.Facts, facts.AzureImageReferenceFactKind)
+	imageFacts := factsOfKind(result.Facts, cloud.AzureImageReferenceFactKind)
 	if len(imageFacts) != 2 {
 		t.Fatalf("emitted %d image-reference facts, want 2", len(imageFacts))
 	}
@@ -91,10 +91,10 @@ func TestCollectSkipsDNSAndImageReferencesWithoutKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect error: %v", err)
 	}
-	if n := len(factsOfKind(result.Facts, facts.AzureDNSRecordFactKind)); n != 0 {
+	if n := len(factsOfKind(result.Facts, cloud.AzureDNSRecordFactKind)); n != 0 {
 		t.Fatalf("expected no DNS facts without a redaction key, got %d", n)
 	}
-	if n := len(factsOfKind(result.Facts, facts.AzureImageReferenceFactKind)); n != 0 {
+	if n := len(factsOfKind(result.Facts, cloud.AzureImageReferenceFactKind)); n != 0 {
 		t.Fatalf("expected no image-reference facts without a redaction key, got %d", n)
 	}
 	if result.DNSRecordCount != 0 || result.ImageReferenceCount != 0 {
@@ -125,7 +125,7 @@ func TestCollectSourceLaneEmissionHandlesEmptyUnsupportedMalformedAndDuplicateRo
 	if result.ImageReferenceCount != 2 {
 		t.Fatalf("ImageReferenceCount = %d, want duplicate and unsupported rows skipped", result.ImageReferenceCount)
 	}
-	imageKeys := stableKeySet(factsOfKind(result.Facts, facts.AzureImageReferenceFactKind))
+	imageKeys := stableKeySet(factsOfKind(result.Facts, cloud.AzureImageReferenceFactKind))
 	if len(imageKeys) != result.ImageReferenceCount {
 		t.Fatalf("image stable keys = %d, want %d unique keys", len(imageKeys), result.ImageReferenceCount)
 	}
@@ -153,7 +153,7 @@ func TestCollectSourceLaneEmissionPreservesPartialScopeWarning(t *testing.T) {
 			result.ImageReferenceCount,
 		)
 	}
-	warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+	warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 	if len(warnings) != 1 {
 		t.Fatalf("warning count = %d, want 1 partial warning", len(warnings))
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -169,8 +170,8 @@ func multiCloudAzureResourceEnvelope(factID, scopeID, generationID string) facts
 		FactID:        factID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
-		FactKind:      facts.AzureCloudResourceFactKind,
-		SchemaVersion: facts.AzureCloudResourceSchemaVersion,
+		FactKind:      cloud.AzureCloudResourceFactKind,
+		SchemaVersion: cloud.AzureCloudResourceSchemaVersion,
 		CollectorKind: "azure",
 		SourceRef:     facts.Ref{SourceSystem: "azure"},
 		Payload: map[string]any{

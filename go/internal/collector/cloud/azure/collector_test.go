@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // fixturePageProvider serves pre-parsed Resource Graph pages keyed by skip
@@ -94,7 +95,7 @@ func TestCollectPaginationResume(t *testing.T) {
 	if provider.calls[1] != "skip-token-page-2" {
 		t.Fatalf("second call skip token = %q, want skip-token-page-2", provider.calls[1])
 	}
-	resources := factsOfKind(result.Facts, facts.AzureCloudResourceFactKind)
+	resources := factsOfKind(result.Facts, cloud.AzureCloudResourceFactKind)
 	if len(resources) != 3 {
 		t.Fatalf("emitted %d resource facts, want 3", len(resources))
 	}
@@ -163,7 +164,7 @@ func TestCollectTruncationEmitsWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("collect: %v", err)
 	}
-	warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+	warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 	if len(warnings) != 1 {
 		t.Fatalf("emitted %d warnings, want 1", len(warnings))
 	}
@@ -187,7 +188,7 @@ func TestCollectPartialScopeEmitsWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("collect: %v", err)
 	}
-	warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+	warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 	if len(warnings) != 1 {
 		t.Fatalf("emitted %d warnings, want 1", len(warnings))
 	}
@@ -213,7 +214,7 @@ func TestCollectPartialScopeDefaultsReason(t *testing.T) {
 	if err != nil {
 		t.Fatalf("collect: %v", err)
 	}
-	warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+	warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 	if len(warnings) != 1 {
 		t.Fatalf("emitted %d warnings, want 1", len(warnings))
 	}
@@ -227,7 +228,7 @@ func TestCollectRedactsExtensionPayloads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("collect: %v", err)
 	}
-	for _, env := range factsOfKind(result.Facts, facts.AzureCloudResourceFactKind) {
+	for _, env := range factsOfKind(result.Facts, cloud.AzureCloudResourceFactKind) {
 		ext := env.Payload["extension"].(map[string]any)
 		data := ext["data"].(map[string]any)
 		assertNoForbiddenKeys(t, data)
@@ -247,7 +248,7 @@ func TestCollectMalformedRowEmitsUnsupportedWarning(t *testing.T) {
 	if result.ResourceCount != 1 {
 		t.Fatalf("ResourceCount = %d, want 1 (only the valid row)", result.ResourceCount)
 	}
-	warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+	warnings := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)
 	if len(warnings) != 1 {
 		t.Fatalf("emitted %d warnings, want 1", len(warnings))
 	}

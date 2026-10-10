@@ -76,7 +76,7 @@ type schemaVersionFamily struct {
 var schemaVersionFamilies = []schemaVersionFamily{
 	{docs.FactKinds, docs.SchemaVersion},
 	{AWSFactKinds, AWSSchemaVersion},
-	{AzureFactKinds, AzureSchemaVersion},
+	{cloud.AzureFactKinds, cloud.AzureSchemaVersion},
 	{CICDRunFactKinds, CICDRunSchemaVersion},
 	{CodeownersFactKinds, CodeownersSchemaVersion},
 	{cloud.EC2InstancePostureFactKinds, cloud.EC2InstancePostureSchemaVersion},

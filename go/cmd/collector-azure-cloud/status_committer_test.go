@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -47,7 +48,7 @@ func TestStatusCommitterForwardsFactsAndRecordsClaim(t *testing.T) {
 		TriggerKind:  scope.TriggerKindSnapshot,
 	}
 	stream := make(chan facts.Envelope, 1)
-	stream <- facts.Envelope{FactKind: facts.AzureCloudResourceFactKind}
+	stream <- facts.Envelope{FactKind: cloud.AzureCloudResourceFactKind}
 	close(stream)
 
 	if err := committer.CommitScopeGeneration(context.Background(), scopeValue, generation, stream); err != nil {

@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -352,7 +353,7 @@ func containerImageIdentityFactKinds() []string {
 		facts.CICDArtifactFactKind,
 		facts.AWSRelationshipFactKind,
 		facts.AWSImageReferenceFactKind,
-		facts.AzureImageReferenceFactKind,
+		cloud.AzureImageReferenceFactKind,
 		facts.GCPImageReferenceFactKind,
 		facts.OCIImageTagObservationFactKind,
 		facts.OCIImageManifestFactKind,

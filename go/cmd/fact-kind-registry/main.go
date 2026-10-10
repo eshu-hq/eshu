@@ -413,7 +413,7 @@ func stringSlicesEqual(a, b []string) bool {
 func liveFamilies() []liveFamily {
 	return []liveFamily{
 		{"aws", facts.AWSFactKinds, facts.AWSSchemaVersion},
-		{"azure", facts.AzureFactKinds, facts.AzureSchemaVersion},
+		{"azure", cloud.AzureFactKinds, cloud.AzureSchemaVersion},
 		{"ci_cd_run", facts.CICDRunFactKinds, facts.CICDRunSchemaVersion},
 		{"codeowners", facts.CodeownersFactKinds, facts.CodeownersSchemaVersion},
 		{"documentation", docs.FactKinds, docs.SchemaVersion},

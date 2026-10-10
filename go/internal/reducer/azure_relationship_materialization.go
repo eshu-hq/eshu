@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -101,8 +102,8 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 
 	loadStart := time.Now()
 	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{
-		facts.AzureCloudResourceFactKind,
-		facts.AzureCloudRelationshipFactKind,
+		cloud.AzureCloudResourceFactKind,
+		cloud.AzureCloudRelationshipFactKind,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for azure relationship materialization: %w", err)
@@ -227,9 +228,9 @@ func (h AzureRelationshipMaterializationHandler) shouldSkipRetract(ctx context.C
 func splitAzureFactEnvelopes(envelopes []facts.Envelope) (resources, relationships []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AzureCloudResourceFactKind:
+		case cloud.AzureCloudResourceFactKind:
 			resources = append(resources, env)
-		case facts.AzureCloudRelationshipFactKind:
+		case cloud.AzureCloudRelationshipFactKind:
 			relationships = append(relationships, env)
 		}
 	}

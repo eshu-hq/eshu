@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -238,8 +239,8 @@ func azureImageReferenceEnvelope(factID, scopeID, generationID string) facts.Env
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.AzureImageReferenceFactKind,
-		SchemaVersion:    facts.AzureImageReferenceSchemaVersion,
+		FactKind:         cloud.AzureImageReferenceFactKind,
+		SchemaVersion:    cloud.AzureImageReferenceSchemaVersion,
 		CollectorKind:    "azure",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.June, 13, 12, 0, 0, 0, time.UTC),

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -62,7 +63,7 @@ func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testin
 		GenerationID: "azure-generation-1",
 		Status:       scope.GenerationStatusPending,
 	}
-	kind := facts.AzureCloudResourceFactKind
+	kind := cloud.AzureCloudResourceFactKind
 	envelope := func(factID, schemaVersion string) facts.Envelope {
 		return facts.Envelope{
 			FactID:        factID,

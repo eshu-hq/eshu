@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -175,7 +176,7 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 		accountIDFallback:  gcpProjectIDFromFullResourceName,
 		surfacesAttributes: true,
 	},
-	facts.AzureCloudResourceFactKind: {
+	cloud.AzureCloudResourceFactKind: {
 		provider:           cloudinventory.ProviderAzure,
 		resourceTypeKey:    "resource_type",
 		accountIDKey:       "subscription_id",

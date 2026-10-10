@@ -47,7 +47,7 @@
 ## Common changes
 
 - **Admitting another provider fact kind.** Add it to the trigger set alongside
-  `facts.AWSResourceFactKind`, `facts.AzureCloudResourceFactKind`, and
+  `facts.AWSResourceFactKind`, `cloud.AzureCloudResourceFactKind`, and
   `facts.GCPCloudResourceFactKind`, then add the matching `routeReadEvidence`
   marker to `go/internal/mcp/route_serves_data_registry_routes.go` for
   `GET /api/v0/cloud/inventory`. The registry reads this file by path and

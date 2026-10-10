@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
@@ -96,7 +97,7 @@ func NewResourceChangeEnvelope(observation ResourceChangeObservation, key redact
 	}
 	changedPaths, truncated := boundedChangedPropertyPaths(observation.ChangedPropertyPaths)
 
-	stableKey := facts.StableID(facts.AzureResourceChangeFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AzureResourceChangeFactKind, map[string]any{
 		"normalized_id": identity.Normalized,
 		"change_type":   changeType,
 		"change_time":   observation.ChangeTime.UTC().Format(time.RFC3339Nano),
@@ -138,8 +139,8 @@ func NewResourceChangeEnvelope(observation ResourceChangeObservation, key redact
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AzureResourceChangeFactKind,
-		facts.AzureResourceChangeSchemaVersion,
+		cloud.AzureResourceChangeFactKind,
+		cloud.AzureResourceChangeSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, identity.Normalized+"|"+changeType),
 		observation.SourceURI,

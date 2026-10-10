@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -195,22 +196,22 @@ func (c *Collector) Collect(ctx context.Context, boundary Boundary) (ScanResult,
 		return ScanResult{}, err
 	}
 
-	c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureCloudResourceFactKind, result.ResourceCount)
-	c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureCollectionWarningFactKind, result.WarningCount)
+	c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureCloudResourceFactKind, result.ResourceCount)
+	c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureCollectionWarningFactKind, result.WarningCount)
 	if result.TagObservationCount > 0 {
-		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureTagObservationFactKind, result.TagObservationCount)
+		c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureTagObservationFactKind, result.TagObservationCount)
 	}
 	if result.RelationshipCount > 0 {
-		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureCloudRelationshipFactKind, result.RelationshipCount)
+		c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureCloudRelationshipFactKind, result.RelationshipCount)
 	}
 	if result.IdentityObservationCount > 0 {
-		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureIdentityObservationFactKind, result.IdentityObservationCount)
+		c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureIdentityObservationFactKind, result.IdentityObservationCount)
 	}
 	if result.DNSRecordCount > 0 {
-		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureDNSRecordFactKind, result.DNSRecordCount)
+		c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureDNSRecordFactKind, result.DNSRecordCount)
 	}
 	if result.ImageReferenceCount > 0 {
-		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureImageReferenceFactKind, result.ImageReferenceCount)
+		c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureImageReferenceFactKind, result.ImageReferenceCount)
 	}
 	return result, nil
 }
@@ -261,8 +262,8 @@ func (c *Collector) collectResourceChanges(ctx context.Context, boundary Boundar
 	if err := c.emitScopeWarning(ctx, boundary, &result); err != nil {
 		return ScanResult{}, err
 	}
-	c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureResourceChangeFactKind, result.ResourceChangeCount)
-	c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureCollectionWarningFactKind, result.WarningCount)
+	c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureResourceChangeFactKind, result.ResourceChangeCount)
+	c.metrics.RecordFactsEmitted(ctx, boundary, cloud.AzureCollectionWarningFactKind, result.WarningCount)
 	return result, nil
 }
 

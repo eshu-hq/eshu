@@ -55,7 +55,7 @@ references those forwarders alongside the posture accessors, which it
 reaches directly. The posture forwarders (`compat_cloud_posture.go`) were
 retired in #6950 once the last caller moved to the `cloud.<Name>` spelling.
 Every external caller that uses `facts.AWSFactKinds` /
-`facts.AzureFactKinds` / etc. — `go/cmd/capability-inventory/surfaces.go`,
+`cloud.AzureFactKinds` / etc. — `go/cmd/capability-inventory/surfaces.go`,
 `go/cmd/fact-kind-registry/main.go`,
 `go/cmd/eshu/component_schema_versions_test.go`,
 `go/internal/storage/postgres/facts_test.go`, and

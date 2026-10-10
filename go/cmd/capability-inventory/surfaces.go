@@ -234,7 +234,7 @@ func collectorFactKinds() map[string][]string {
 			cloud.S3ExternalPrincipalGrantFactKinds(),
 			filterFactKinds(facts.SecretsIAMFactKinds(), "aws_", "eks_"),
 		),
-		string(scope.CollectorAzure): facts.AzureFactKinds(),
+		string(scope.CollectorAzure): cloud.AzureFactKinds(),
 		string(scope.CollectorGCP): appendFactKinds(
 			facts.GCPFactKinds(),
 			filterFactKinds(facts.SecretsIAMFactKinds(), "gcp_"),

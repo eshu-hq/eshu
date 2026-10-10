@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -42,7 +43,7 @@ type PostgresCloudTagEvidenceLoader struct {
 // fact kind means adding it both here and in the SQL allowlist so the two stay
 // in lockstep.
 var cloudTagEvidenceFactMappings = map[string]string{
-	facts.AzureTagObservationFactKind: cloudinventory.ProviderAzure,
+	cloud.AzureTagObservationFactKind: cloudinventory.ProviderAzure,
 	facts.GCPTagObservationFactKind:   cloudinventory.ProviderGCP,
 }
 
@@ -140,7 +141,7 @@ func cloudTagEvidenceRecordFromRow(
 // field read to the other's decode seam.
 func tagValueFingerprintsForFactKind(factKind string, payload map[string]any) (map[string]string, bool) {
 	switch factKind {
-	case facts.AzureTagObservationFactKind:
+	case cloud.AzureTagObservationFactKind:
 		return azureTagValueFingerprints(payload)
 	case facts.GCPTagObservationFactKind:
 		return gcpTagValueFingerprints(payload)
@@ -156,8 +157,8 @@ func tagValueFingerprintsForFactKind(factKind string, payload map[string]any) (m
 // attaching a coerced or partial fingerprint map.
 func azureTagValueFingerprints(payload map[string]any) (map[string]string, bool) {
 	observation, err := decodeAzureTagObservation(factschema.Envelope{
-		FactKind:      facts.AzureTagObservationFactKind,
-		SchemaVersion: facts.AzureTagObservationSchemaVersion,
+		FactKind:      cloud.AzureTagObservationFactKind,
+		SchemaVersion: cloud.AzureTagObservationSchemaVersion,
 		Payload:       payload,
 	})
 	if err != nil {

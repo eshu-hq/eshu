@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -57,11 +58,11 @@ func TestSourceYieldsResourceChangeGenerationFromFixturePages(t *testing.T) {
 		t.Fatalf("scope id = %q, want resource_changes lane", collected.Scope.ScopeID)
 	}
 	envs := drain(t, collected)
-	changes := factsOfKind(envs, facts.AzureResourceChangeFactKind)
+	changes := factsOfKind(envs, cloud.AzureResourceChangeFactKind)
 	if len(changes) != 2 {
 		t.Fatalf("emitted %d resource changes, want 2", len(changes))
 	}
-	if len(factsOfKind(envs, facts.AzureCloudResourceFactKind)) != 0 {
+	if len(factsOfKind(envs, cloud.AzureCloudResourceFactKind)) != 0 {
 		t.Fatal("resource-change source must not emit cloud-resource facts")
 	}
 	assertNoRawRuntimeChangePayload(t, changes)

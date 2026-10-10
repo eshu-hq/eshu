@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func testBoundary() Boundary {
@@ -58,10 +59,10 @@ func TestNewResourceEnvelopeBuildsContractFields(t *testing.T) {
 		t.Fatalf("NewResourceEnvelope error: %v", err)
 	}
 
-	if env.FactKind != facts.AzureCloudResourceFactKind {
-		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.AzureCloudResourceFactKind)
+	if env.FactKind != cloud.AzureCloudResourceFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, cloud.AzureCloudResourceFactKind)
 	}
-	if env.SchemaVersion != facts.AzureCloudResourceSchemaVersion {
+	if env.SchemaVersion != cloud.AzureCloudResourceSchemaVersion {
 		t.Fatalf("SchemaVersion = %q", env.SchemaVersion)
 	}
 	if env.CollectorKind != CollectorKind {
@@ -193,7 +194,7 @@ func TestNewWarningEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWarningEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.AzureCollectionWarningFactKind {
+	if env.FactKind != cloud.AzureCollectionWarningFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
 	if env.Payload["warning_kind"] != WarningPartialScope {

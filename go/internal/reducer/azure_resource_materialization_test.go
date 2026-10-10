@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func azureResourceEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "azure-resource-fact",
-		FactKind: facts.AzureCloudResourceFactKind,
+		FactKind: cloud.AzureCloudResourceFactKind,
 		Payload:  payload,
 	}
 }

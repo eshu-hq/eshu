@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -66,7 +67,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderAzureStateCaseInsensitiveJo
 			{rows: [][]any{
 				{facts.AWSResourceFactKind, awsObservedARN, []byte(`{"arn":"` + awsObservedARN + `","resource_type":"aws_s3_bucket"}`)},
 				{facts.GCPCloudResourceFactKind, gcpObservedName, []byte(`{"full_resource_name":"` + gcpObservedName + `","asset_type":"compute.googleapis.com/Instance"}`)},
-				{facts.AzureCloudResourceFactKind, azureObservedID, []byte(`{"arm_resource_id":"` + azureObservedID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
+				{cloud.AzureCloudResourceFactKind, azureObservedID, []byte(`{"arm_resource_id":"` + azureObservedID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
 			}},
 			// Active Terraform state rows carry the differently-cased identities.
 			// In production the SQL surfaces the Azure row via a case-folded

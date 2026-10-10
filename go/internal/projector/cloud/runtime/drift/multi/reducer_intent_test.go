@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -64,7 +65,7 @@ func TestBuildReducerIntentFromAzureCandidate(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:  facts.AzureCloudResourceFactKind,
+		FactKind:  cloud.AzureCloudResourceFactKind,
 		FactID:    "fact-azure-1",
 		SourceRef: facts.Ref{SourceSystem: "azure"},
 	}})
@@ -89,7 +90,7 @@ func TestBuildReducerIntentEarliestAcrossKinds(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactKind: facts.AzureCloudResourceFactKind, FactID: "fact-azure-first"},
+		{FactKind: cloud.AzureCloudResourceFactKind, FactID: "fact-azure-first"},
 		{FactKind: facts.GCPCloudResourceFactKind, FactID: "fact-gcp-second"},
 	})
 	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
@@ -132,7 +133,7 @@ func TestBuildReducerIntentSourceSystemPrefersSourceRef(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:      facts.AzureCloudResourceFactKind,
+		FactKind:      cloud.AzureCloudResourceFactKind,
 		FactID:        "fact-azure-2",
 		CollectorKind: "azure_scanner",
 		SourceRef:     facts.Ref{SourceSystem: "  azure_live  "},

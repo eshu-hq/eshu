@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -71,7 +72,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{facts.AzureCloudResourceFactKind})
+	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{cloud.AzureCloudResourceFactKind})
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for azure resource materialization: %w", err)
 	}
@@ -117,7 +118,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 		h.NodeRetracter,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AzureCloudResourceFactKind},
+		[]string{cloud.AzureCloudResourceFactKind},
 		func(prior []facts.Envelope) (map[string]struct{}, error) {
 			priorRows, _, err := ExtractAzureCloudResourceNodeRows(prior)
 			if err != nil {
@@ -179,7 +180,7 @@ func ExtractAzureCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string
 	var quarantined []quarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
-		if env.FactKind != facts.AzureCloudResourceFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AzureCloudResourceFactKind || env.IsTombstone {
 			continue
 		}
 		row, uid, _, ok, err := azureCloudResourceNodeRow(env)

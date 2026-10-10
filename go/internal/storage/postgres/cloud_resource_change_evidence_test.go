@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestPostgresCloudResourceChangeEvidenceLoaderMapsAzureChangeFacts(t *testing.T) {
@@ -26,7 +27,7 @@ func TestPostgresCloudResourceChangeEvidenceLoaderMapsAzureChangeFacts(t *testin
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
 				{
-					facts.AzureResourceChangeFactKind,
+					cloud.AzureResourceChangeFactKind,
 					armID,
 					"change-stable-1",
 					[]byte(`{
@@ -44,7 +45,7 @@ func TestPostgresCloudResourceChangeEvidenceLoaderMapsAzureChangeFacts(t *testin
 					}`),
 				},
 				{
-					facts.AzureResourceChangeFactKind,
+					cloud.AzureResourceChangeFactKind,
 					"not-an-arm-id",
 					"change-stable-bad",
 					[]byte(`{

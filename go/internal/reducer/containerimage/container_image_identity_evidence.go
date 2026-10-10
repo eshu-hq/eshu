@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -173,7 +174,7 @@ func extractContainerImageRefsWithQuarantine(
 			if ok {
 				quarantined = append(quarantined, q)
 			}
-		case facts.AzureImageReferenceFactKind:
+		case cloud.AzureImageReferenceFactKind:
 			q, ok, fatal := addAzureImageReference(byRef, envelope)
 			if fatal != nil {
 				return nil, nil, nil, fatal

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -93,7 +93,7 @@ func TestSourceNextClaimedCollectsMatchingWorkItem(t *testing.T) {
 		t.Fatalf("GenerationID = %q, want work-item generation %q", got, want)
 	}
 	envs := drain(t, collected)
-	resources := factsOfKind(envs, facts.AzureCloudResourceFactKind)
+	resources := factsOfKind(envs, cloud.AzureCloudResourceFactKind)
 	if len(resources) == 0 {
 		t.Fatal("azure_cloud_resource count = 0, want claimed source facts")
 	}

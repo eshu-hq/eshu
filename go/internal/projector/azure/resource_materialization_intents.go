@@ -4,7 +4,7 @@
 package azure
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -18,7 +18,7 @@ func BuildResourceMaterializationReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKind(facts.AzureCloudResourceFactKind)
+	envelope, ok := lookup.FirstOfKind(cloud.AzureCloudResourceFactKind)
 	if !ok {
 		return projectorintent.ReducerIntent{}, false
 	}

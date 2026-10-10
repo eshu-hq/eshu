@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 )
@@ -37,7 +38,7 @@ func cloudInventorySourceRows() [][]any {
 	return [][]any{
 		{facts.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket","account_id":"111111111111","resource_id":"managed-bucket","region":"us-east-1"}`)},
 		{facts.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
-		{facts.AzureCloudResourceFactKind, azureID, []byte(`{"arm_resource_id":"` + azureID + `","resource_type":"microsoft.compute/virtualmachines","subscription_id":"11111111-2222-3333-4444-555555555555","location":"eastus"}`)},
+		{cloud.AzureCloudResourceFactKind, azureID, []byte(`{"arm_resource_id":"` + azureID + `","resource_type":"microsoft.compute/virtualmachines","subscription_id":"11111111-2222-3333-4444-555555555555","location":"eastus"}`)},
 	}
 }
 
@@ -114,7 +115,7 @@ func TestCloudInventoryAdmissionEndToEndAttachesAzureResourceChangeFreshness(t *
 	changeTime := time.Date(2026, time.June, 16, 10, 30, 0, 0, time.UTC)
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{
-			{facts.AzureCloudResourceFactKind, armID, []byte(`{
+			{cloud.AzureCloudResourceFactKind, armID, []byte(`{
 				"arm_resource_id":"` + armID + `",
 				"resource_type":"microsoft.compute/virtualmachines",
 				"subscription_id":"11111111-2222-3333-4444-555555555555",
@@ -123,7 +124,7 @@ func TestCloudInventoryAdmissionEndToEndAttachesAzureResourceChangeFreshness(t *
 		}},
 		{rows: [][]any{
 			{
-				facts.AzureResourceChangeFactKind,
+				cloud.AzureResourceChangeFactKind,
 				armID,
 				"change-stable-1",
 				[]byte(`{

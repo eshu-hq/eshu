@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
@@ -93,7 +94,7 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 	// best-effort and preserve the raw identity regardless.
 	target, _ := ParseARMIdentity(targetID)
 
-	stableKey := facts.StableID(facts.AzureCloudRelationshipFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AzureCloudRelationshipFactKind, map[string]any{
 		"source_normalized_id": source.Normalized,
 		"target_normalized_id": target.Normalized,
 		"target_raw_id":        targetID,
@@ -143,8 +144,8 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AzureCloudRelationshipFactKind,
-		facts.AzureCloudRelationshipSchemaVersion,
+		cloud.AzureCloudRelationshipFactKind,
+		cloud.AzureCloudRelationshipSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, source.Normalized+"|"+relationshipType+"|"+target.Normalized),
 		observation.SourceURI,

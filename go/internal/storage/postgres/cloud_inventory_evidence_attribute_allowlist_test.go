@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestCloudInventoryRecordFromRowAWSRawLocatorsNotSurfaced proves that an
@@ -312,7 +313,7 @@ func TestCloudInventoryRecordFromRowAzureAttributesAlwaysDropped(t *testing.T) {
 		}
 	}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.AzureCloudResourceFactKind, armID, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.AzureCloudResourceFactKind, armID, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}

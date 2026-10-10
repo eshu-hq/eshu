@@ -110,8 +110,8 @@ func (f *retractWiringDB) QueryContext(ctx context.Context, query string, args .
 						"resource_type": "aws_ec2_vpc",
 						"resource_id":   "vpc-deleted",
 					})
-				case facts.AzureCloudResourceFactKind:
-					return retractWiringEnvelopeRows(facts.AzureCloudResourceFactKind, map[string]any{
+				case cloud.AzureCloudResourceFactKind:
+					return retractWiringEnvelopeRows(cloud.AzureCloudResourceFactKind, map[string]any{
 						"arm_resource_id":        "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/deleted",
 						"normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/deleted",
 						"subscription_id":        "sub-1",

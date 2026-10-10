@@ -6,7 +6,7 @@ package azure
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -33,10 +33,10 @@ func TestNewIdentityObservationEnvelopeFingerprintsPrincipals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIdentityObservationEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.AzureIdentityObservationFactKind {
+	if env.FactKind != cloud.AzureIdentityObservationFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
-	if env.SchemaVersion != facts.AzureIdentityObservationSchemaVersion {
+	if env.SchemaVersion != cloud.AzureIdentityObservationSchemaVersion {
 		t.Fatalf("SchemaVersion = %q", env.SchemaVersion)
 	}
 	principalFp, _ := env.Payload["principal_fingerprint"].(string)

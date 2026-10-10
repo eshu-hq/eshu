@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -19,8 +20,8 @@ func TestBuildProjectionQueuesAzureRelationshipMaterialization(t *testing.T) {
 	intents := appendScopeGenerationReducerIntents(nil, scopeValue, generation, []facts.Envelope{
 		{
 			FactID:           "fact-rel-1",
-			FactKind:         facts.AzureCloudRelationshipFactKind,
-			SchemaVersion:    facts.AzureCloudRelationshipSchemaVersion,
+			FactKind:         cloud.AzureCloudRelationshipFactKind,
+			SchemaVersion:    cloud.AzureCloudRelationshipSchemaVersion,
 			SourceRef:        facts.Ref{SourceSystem: "azure"},
 			SourceConfidence: facts.SourceConfidenceReported,
 			Payload: map[string]any{
@@ -55,8 +56,8 @@ func TestBuildProjectionSkipsAzureRelationshipMaterializationWithoutRelationship
 	intents := appendScopeGenerationReducerIntents(nil, scopeValue, generation, []facts.Envelope{
 		{
 			FactID:        "fact-resource-1",
-			FactKind:      facts.AzureCloudResourceFactKind,
-			SchemaVersion: facts.AzureCloudResourceSchemaVersion,
+			FactKind:      cloud.AzureCloudResourceFactKind,
+			SchemaVersion: cloud.AzureCloudResourceSchemaVersion,
 			Payload: map[string]any{
 				"arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm",
 				"resource_type":   "microsoft.compute/virtualmachines",

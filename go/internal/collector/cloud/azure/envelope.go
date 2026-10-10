@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
@@ -44,7 +45,7 @@ func NewResourceEnvelope(observation ResourceObservation) (facts.Envelope, error
 		identity = parsed
 	}
 
-	stableKey := facts.StableID(facts.AzureCloudResourceFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AzureCloudResourceFactKind, map[string]any{
 		"normalized_id": identity.Normalized,
 		"resource_type": identity.ResourceType,
 		"source_lane":   observation.Boundary.SourceLane,
@@ -103,8 +104,8 @@ func NewResourceEnvelope(observation ResourceObservation) (facts.Envelope, error
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AzureCloudResourceFactKind,
-		facts.AzureCloudResourceSchemaVersion,
+		cloud.AzureCloudResourceFactKind,
+		cloud.AzureCloudResourceSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, identity.Normalized),
 		observation.SourceURI,
@@ -148,7 +149,7 @@ func NewTagObservationEnvelope(observation ResourceObservation, key redact.Key) 
 		return facts.Envelope{}, fmt.Errorf("azure tag observation requires at least one tag")
 	}
 
-	stableKey := facts.StableID(facts.AzureTagObservationFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AzureTagObservationFactKind, map[string]any{
 		"normalized_id": identity.Normalized,
 		"resource_type": identity.ResourceType,
 		"source_lane":   observation.Boundary.SourceLane,
@@ -186,8 +187,8 @@ func NewTagObservationEnvelope(observation ResourceObservation, key redact.Key) 
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AzureTagObservationFactKind,
-		facts.AzureTagObservationSchemaVersion,
+		cloud.AzureTagObservationFactKind,
+		cloud.AzureTagObservationSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, identity.Normalized),
 		observation.SourceURI,
@@ -212,7 +213,7 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		outcome = OutcomePartial
 	}
 
-	stableKey := facts.StableID(facts.AzureCollectionWarningFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AzureCollectionWarningFactKind, map[string]any{
 		"generation_id":   observation.Boundary.GenerationID,
 		"resource_family": observation.Boundary.ResourceTypeFamily,
 		"scope_id":        observation.Boundary.ScopeID,
@@ -245,8 +246,8 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AzureCollectionWarningFactKind,
-		facts.AzureCollectionWarningSchemaVersion,
+		cloud.AzureCollectionWarningFactKind,
+		cloud.AzureCollectionWarningSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, warningKind),
 		observation.SourceURI,

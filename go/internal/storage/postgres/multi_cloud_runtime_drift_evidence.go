@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/multicloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -337,7 +338,7 @@ func multiCloudStateConflictKey(row multiCloudStateRow) string {
 var multiCloudSourceFactProvider = map[string]string{
 	facts.AWSResourceFactKind:        cloudinventory.ProviderAWS,
 	facts.GCPCloudResourceFactKind:   cloudinventory.ProviderGCP,
-	facts.AzureCloudResourceFactKind: cloudinventory.ProviderAzure,
+	cloud.AzureCloudResourceFactKind: cloudinventory.ProviderAzure,
 }
 
 // multiCloudObservedRowFromRow maps one observed inventory source-fact row into

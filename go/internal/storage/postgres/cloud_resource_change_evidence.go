@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -89,7 +89,7 @@ func cloudResourceChangeEvidenceRecordFromRow(
 	stableKey string,
 	payload []byte,
 ) (reducercloudinventory.CloudResourceChangeEvidenceRecord, bool) {
-	if factKind != facts.AzureResourceChangeFactKind {
+	if factKind != cloud.AzureResourceChangeFactKind {
 		return reducercloudinventory.CloudResourceChangeEvidenceRecord{}, false
 	}
 	rawIdentity = strings.TrimSpace(rawIdentity)

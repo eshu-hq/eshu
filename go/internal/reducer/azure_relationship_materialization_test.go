@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 func azureRelationshipEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "azure-relationship-fact",
-		FactKind: facts.AzureCloudRelationshipFactKind,
+		FactKind: cloud.AzureCloudRelationshipFactKind,
 		Payload:  payload,
 	}
 }

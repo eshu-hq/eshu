@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -33,10 +33,10 @@ func TestNewTagObservationEnvelopeFingerprintsValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTagObservationEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.AzureTagObservationFactKind {
-		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.AzureTagObservationFactKind)
+	if env.FactKind != cloud.AzureTagObservationFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, cloud.AzureTagObservationFactKind)
 	}
-	if env.SchemaVersion != facts.AzureTagObservationSchemaVersion {
+	if env.SchemaVersion != cloud.AzureTagObservationSchemaVersion {
 		t.Fatalf("SchemaVersion = %q", env.SchemaVersion)
 	}
 	if env.CollectorKind != CollectorKind {

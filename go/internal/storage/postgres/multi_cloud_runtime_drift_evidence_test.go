@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -62,7 +63,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderJoinsObservedStateConfigByU
 			{rows: [][]any{
 				{facts.AWSResourceFactKind, orphanARN, []byte(`{"arn":"` + orphanARN + `","resource_type":"aws_iam_role","tags":{"Environment":"prod"}}`)},
 				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
-				{facts.AzureCloudResourceFactKind, azureID, []byte(`{"arm_resource_id":"` + azureID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
+				{cloud.AzureCloudResourceFactKind, azureID, []byte(`{"arm_resource_id":"` + azureID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
 			}},
 			// Active Terraform state resources: GCP unmanaged + Azure managed.
 			// The AWS orphan has no state row.
@@ -198,7 +199,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderMarksUnknownAndAmbiguous(t 
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
 				{facts.GCPCloudResourceFactKind, unknownName, []byte(`{"full_resource_name":"` + unknownName + `","asset_type":"compute.googleapis.com/Instance"}`)},
-				{facts.AzureCloudResourceFactKind, ambiguousID, []byte(`{"arm_resource_id":"` + ambiguousID + `","resource_type":"microsoft.storage/storageaccounts"}`)},
+				{cloud.AzureCloudResourceFactKind, ambiguousID, []byte(`{"arm_resource_id":"` + ambiguousID + `","resource_type":"microsoft.storage/storageaccounts"}`)},
 			}},
 			{rows: [][]any{
 				{unknownScopeID, stateGen, "google_compute_instance.unknown", unknownName, fixtureMultiCloudStatePayload(

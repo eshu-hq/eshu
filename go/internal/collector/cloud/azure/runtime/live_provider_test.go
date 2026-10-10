@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 type mockLiveResourceGraphClient struct {
@@ -150,7 +151,7 @@ func TestExplicitLiveProviderThrottleBackoffIsBounded(t *testing.T) {
 	if len(slept) != 1 || slept[0] != 2*time.Second {
 		t.Fatalf("sleep calls = %v, want capped 2s backoff", slept)
 	}
-	warning := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)[0]
+	warning := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)[0]
 	if got := warning.Payload["warning_kind"]; got != azure.WarningThrottled {
 		t.Fatalf("warning_kind = %v, want throttled", got)
 	}
@@ -191,7 +192,7 @@ func TestExplicitLiveProviderExpiredSkipTokenProducesPartialWarning(t *testing.T
 	if result.ResourceCount != 1 || result.WarningCount != 1 {
 		t.Fatalf("counts = resources:%d warnings:%d, want 1/1", result.ResourceCount, result.WarningCount)
 	}
-	warning := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)[0]
+	warning := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)[0]
 	if got := warning.Payload["warning_kind"]; got != azure.WarningStale {
 		t.Fatalf("warning_kind = %v, want stale token warning", got)
 	}
@@ -223,7 +224,7 @@ func TestExplicitLiveProviderPermissionHiddenReportsScopeAccess(t *testing.T) {
 	if !result.Partial || result.WarningCount != 1 {
 		t.Fatalf("partial=%v warnings=%d, want partial warning", result.Partial, result.WarningCount)
 	}
-	warning := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)[0]
+	warning := factsOfKind(result.Facts, cloud.AzureCollectionWarningFactKind)[0]
 	if got := warning.Payload["warning_kind"]; got != azure.WarningPermissionHidden {
 		t.Fatalf("warning_kind = %v, want permission_hidden", got)
 	}

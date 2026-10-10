@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestFixturePageProviderFromFilesChainsBySkipToken(t *testing.T) {
@@ -27,7 +28,7 @@ func TestFixturePageProviderFromFilesChainsBySkipToken(t *testing.T) {
 		t.Fatalf("Next ok=%v err=%v", ok, err)
 	}
 	envs := drain(t, collected)
-	resources := factsOfKind(envs, facts.AzureCloudResourceFactKind)
+	resources := factsOfKind(envs, cloud.AzureCloudResourceFactKind)
 	if len(resources) != 3 {
 		t.Fatalf("file-backed provider emitted %d resources, want 3", len(resources))
 	}
