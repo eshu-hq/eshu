@@ -40,6 +40,8 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 | `agent-canon` | commit | `verify-agent-hygiene.yml` — AGENTS.md is the only agent canon; any CLAUDE.md is refused |
 | `no-ai-attribution-content` | commit | `verify-agent-hygiene.yml` — no AI-attribution markers in staged content |
 | `no-ai-attribution-message` | commit-msg | `verify-agent-hygiene.yml` — no AI-attribution markers in the commit message |
+| `no-private-identifiers-content` | commit | `verify-agent-hygiene.yml` — no environment or organization identifier in staged added lines |
+| `no-private-identifiers-message` | commit-msg | `verify-agent-hygiene.yml` — no environment or organization identifier in the commit message |
 | trailing-whitespace, end-of-file-fixer, merge-conflict, check-yaml | commit | `git diff --check`, basic hygiene |
 | check-added-large-files (≤1 MB) | commit | catches a stray committed Go build artifact |
 | `go-fmt` (`golangci-lint fmt --diff`) | commit | the gofumpt formatting gate |
@@ -65,4 +67,9 @@ the hooks never depend on the plugin's exact-toolchain build.
   gate and is the non-bypassable source of truth.
 - Versions track CI automatically: the wrapper reads the `golangci-lint` and
   `gosec` pins from `.github/workflows/test.yml` and `security-scan.yml`.
+- The `no-private-identifiers` hooks scan added lines and commit messages only,
+  so a file that already names an environment needs no exception. The script
+  header of `scripts/verify-no-private-identifiers.sh` documents an optional
+  local deny-list file for identifiers that cannot be listed in a public
+  repository; matches print as file and line, and CI never sets it.
 - Implementation: `scripts/dev/precommit-go.sh` and `.pre-commit-config.yaml`.

@@ -52,6 +52,8 @@ hygiene_hooks:
     reason: "pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow"
   - id: no-ai-attribution-message
     reason: "commit-msg-stage variant of the no-ai-attribution gate (same check, different stage)"
+  - id: no-private-identifiers-message
+    reason: "commit-msg-stage variant of the no-private-identifiers gate (same check, different stage)"
   - id: frontend-format-staged
     reason: "staged-file variant of frontend-format-changed (same prettier check, pre-commit stage)"
   - id: frontend-format-verifier-tests

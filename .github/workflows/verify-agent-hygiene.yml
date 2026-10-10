@@ -3,6 +3,8 @@ name: Verify Agent Hygiene
 # The non-bypassable gate for shared agent guidance:
 #   1. AGENTS.md is the only agent canon; any CLAUDE.md is refused (it hides AGENTS.md).
 #   2. No AI attribution in commit messages or added content.
+#   2b. No environment or organization identifiers in commit messages or added
+#       content (the private denylist mode is local-only and never set in CI).
 #   3. Every repository skill is discoverable by Claude and Codex.
 #   4. OpenCode role shims do not override the root Git policy.
 # Local pre-commit hooks mirror these for fast feedback, but they are bypassable
@@ -106,6 +108,14 @@ jobs:
         run: |
           set -o pipefail
           scripts/verify-no-ai-attribution.sh
+
+      - name: No environment or organization identifiers
+        shell: bash
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -o pipefail
+          scripts/verify-no-private-identifiers.sh
 
       - name: No filename or directory stutter in added/renamed paths
         run: |

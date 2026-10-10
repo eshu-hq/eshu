@@ -41,9 +41,12 @@ usage() {
 		'  threads         unresolved review threads == 0' \
 		'  body            at least one issue reference (#N) or closing keyword' \
 		'                  (Closes/Fixes/Resolves #N), labeled for the caller to' \
-		'                  confirm, and no AI attribution' \
+		'                  confirm, no AI attribution' \
 		'                  (scripts/lib/ai-attribution-pattern.sh, shared with the' \
-		'                  no-ai-attribution gate; prose about attribution passes)' \
+		'                  no-ai-attribution gate; prose about attribution passes),' \
+		'                  and no environment or organization identifier' \
+		'                  (scripts/lib/private-identifier-pattern.sh, shared with the' \
+		'                  no-private-identifiers gate)' \
 		'' \
 		'This script performs ONE read. The two-consecutive-stable-reads rule for CI' \
 		'completion stays with the caller'\''s watcher: run it only after that watcher' \
@@ -62,6 +65,8 @@ usage() {
 
 # shellcheck source=scripts/lib/ai-attribution-pattern.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ai-attribution-pattern.sh"
+# shellcheck source=scripts/lib/private-identifier-pattern.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/private-identifier-pattern.sh"
 
 GH="${GH:-gh}"
 GIT="${GIT:-git}"
@@ -284,12 +289,22 @@ done <<<"$(tr ',' '\n' <<<"${closing_references}")"
 attrib_hits="$(rg -oi -e "${AI_ATTRIBUTION_PATTERN}" <<<"${body}")"
 attrib_rc=$?
 attrib="$(sort -fu <<<"${attrib_hits}" | sed '/^$/d' | paste -sd, -)"
+# The private-identifier scan follows the same exit-code rule. The matches are
+# the public deny tokens, so naming them in the failure is not a new disclosure.
+private_rc=0
+private_hits="$(rg -o -e "${PRIVATE_IDENTIFIER_PATTERN}" <<<"${body}")" || private_rc=$?
+private_ids="$(sort -fu <<<"${private_hits}" | sed '/^$/d' | paste -sd, -)"
 body_bad=()
 [[ -n "${closes}" || -n "${references}" ]] || body_bad+=("no issue reference (#N or Closes/Fixes/Resolves #N)")
 if [[ "${attrib_rc}" -gt 1 ]]; then
 	body_bad+=("attribution scan failed (rg exit ${attrib_rc}); body not verified")
 elif [[ -n "${attrib}" ]]; then
 	body_bad+=("AI attribution: ${attrib}")
+fi
+if [[ "${private_rc}" -gt 1 ]]; then
+	body_bad+=("private-identifier scan failed (rg exit ${private_rc}); body not verified")
+elif [[ -n "${private_ids}" ]]; then
+	body_bad+=("environment or organization identifier: ${private_ids}")
 fi
 if [[ ${#body_bad[@]} -eq 0 ]]; then
 	body_note=""

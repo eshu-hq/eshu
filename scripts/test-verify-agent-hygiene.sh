@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# test-verify-agent-hygiene.sh — test mirror for verify-agent-canon.sh and
-# verify-no-ai-attribution.sh. Exercises pass and fail cases against throwaway
+# test-verify-agent-hygiene.sh — test mirror for verify-agent-canon.sh,
+# verify-no-ai-attribution.sh and verify-no-private-identifiers.sh. Exercises pass and fail cases against throwaway
 # fixtures so the gates' behavior is pinned, mirroring the other verify gates.
 set -euo pipefail
 
@@ -387,6 +387,10 @@ if "$attr" --message "$tmp/msg-human" >/dev/null 2>&1; then
 else
   no "attribution should NOT flag a human Co-authored-by trailer"
 fi
+
+# --- verify-no-private-identifiers (seeded RED/GREEN cases live in the lib) ---
+# shellcheck source=scripts/lib/test-private-identifier-cases.sh
+source "$here/lib/test-private-identifier-cases.sh"
 
 # Nudge-reachability check. A skill nobody can reach from the editor hook is
 # the silent half of skill routing: the hook keeps exiting 0, so only a gate
