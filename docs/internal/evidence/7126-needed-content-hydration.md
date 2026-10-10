@@ -47,7 +47,8 @@ PostgreSQL does differently on the default paths, measured on PostgreSQL 18.6
 
 U+FEFF (byte-order mark) and U+200B (zero-width space) are not whitespace in Go
 and are not in the set: a file holding only one is non-blank in both. The set
-holds multibyte characters, so the database encoding must be UTF8.
+holds multibyte characters, so the statement assumes a UTF8 database (a
+SQL_ASCII database trims byte-wise; LATIN1 errors on non-Latin content).
 
 `ListRepoFiles` metadata cannot decide non-blankness. `line_count` is 1 for
 both `"x"` and `"  "`, and `content_hash` of a whitespace-only value is
@@ -87,10 +88,21 @@ returns the same rows.
 
 `TestConfigArtifactExtractorsIgnoreContentOfUnreadClasses` fails when the
 extractors give different rows for different non-blank content on any path that
-`configArtifactReadsContent` rejects. `TestNeededContentHydrationGuardCatchesUnplannedContentRead`
-is its seeded-violation pair: the same harness reports a difference for an
-extractor that reads `.json` content (RED), and none for the real extractors
-(GREEN).
+`configArtifactReadsContent` rejects. It fires only for content in
+`poisonContents`: a new extractor branch must add content that moves it, or the
+guard cannot see the read.
+
+`TestConfigArtifactExtractorsIgnoreContentOfUnreadClassesSeededPair` is its
+seeded-violation pair. The guard function takes the extractor as an argument.
+GREEN: the real extractors pass on the clean tree. RED: a planted branch that
+reads `.json` content marked `SEEDED_BRANCH` (the marker is in `poisonContents`)
+goes through the same guard and is reported. The same plant was also written
+into the real `BuildRepositoryConfigArtifacts` once, by hand and not committed:
+both `TestConfigArtifactExtractorsIgnoreContentOfUnreadClasses` and
+`TestNeededContentHydrationMatchesFullHydrationOnGeneratedTrees` went RED, and
+both returned to GREEN when the plant was removed.
+`TestNeededContentHydrationGuardCatchesUnplannedContentRead` is the same kind of
+pair for the equality harness on one fixture.
 
 ## Mutation sweep
 
@@ -121,6 +133,10 @@ the PR HEAD.
 | SQL ignores the repository | killed | `...MatchesTrimSpaceLive` |
 | story drops the degraded reason | killed | `...ReadFailureIsNamedNotSwallowed` |
 | story drops the failure log | killed | `...ReadFailureIsNamedNotSwallowed` |
+| context drops the `partial_reasons` append (`context.go`) | killed | `TestRepositoryContextDeploymentArtifactsReadFailureIsNamedNotSwallowed` |
+| context drops the stage-line `failure_class` (`context.go`) | killed | `TestRepositoryContextDeploymentArtifactsReadFailureIsNamedNotSwallowed` |
+| context drops the WARN report (`context.go`) | killed | `TestRepositoryContextDeploymentArtifactsReadFailureIsNamedNotSwallowed` |
+| planted `SEEDED_BRANCH` branch in the real extractor | killed | `...IgnoreContentOfUnreadClasses`, generated trees |
 
 In-process policy mutants (`TestNeededContentHydrationMutantsAreKilled`, ten
 cases: each predicate branch dropped, phase 2 dropped or first-kustomization
@@ -134,22 +150,27 @@ CPU is `getrusage` user plus system around the story, `GOMAXPROCS=2`, seven
 ABBA rounds with a discarded warm-up, host load1 15-32. The bench anchor
 failed (the shipped path scaled to the pod's statement count measured 0.54 of
 the pod's CPU), so only arm-against-arm comparisons hold. Arm A is the
-pre-change pass; F is the needed-content pass in the same test-local loop; FN
-is the production loader (`LoadSharedRepositoryConfigArtifacts`).
+pre-change pass. Arm F is the needed-content pass in a test-local loop; it is
+not the shipped code. Arm FN is the production loader
+(`LoadSharedRepositoryConfigArtifacts`) and is the "after" figure.
 
 | Data | Arm | Statements (list + get + blank) | Content bytes | CPU-s median (min-max) | Digest |
 |---|---|---|---|---|---|
 | Original bench mix, 8,000 files, 82.7 MB | A | 300 + 8,000 + 0 | 82,712,468 | 3.647 (3.309-4.465) | `c4cd9f6b` |
-| | F | 300 + 3,042 + 276 | 29,589,516 | 3.170 (3.051-4.023) | `c4cd9f6b` |
-| | FN | 300 + 3,042 + 276 | 29,589,516 | 3.314 (3.071-3.620) | `c4cd9f6b` |
+| | F (test-local loop) | 300 + 3,042 + 276 | 29,589,516 | 3.170 (3.051-4.023) | `c4cd9f6b` |
+| | FN (shipped loader) | 300 + 3,042 + 276 | 29,589,516 | 3.314 (3.071-3.620) | `c4cd9f6b` |
 | Observed mix, 8,000 files, 57.4 MB | A | 300 + 8,000 + 0 | 57,410,054 | 3.023 (2.804-3.449) | `06b952e9` |
-| | F | 300 + 3,753 + 272 | 15,845,536 | 2.684 (2.227-2.975) | `06b952e9` |
-| | FN | 300 + 3,753 + 272 | 15,845,536 | 2.816 (2.384-3.072) | `06b952e9` |
+| | F (test-local loop) | 300 + 3,753 + 272 | 15,845,536 | 2.684 (2.227-2.975) | `06b952e9` |
+| | FN (shipped loader) | 300 + 3,753 + 272 | 15,845,536 | 2.816 (2.384-3.072) | `06b952e9` |
 
-Against A on medians: F -13.1 percent and FN -9.1 percent CPU on the original
-mix; F -11.2 percent and FN -6.8 percent CPU on the observed mix. Statements
-fall 56 percent and 48 percent. Bytes fall 64 percent and 72 percent. All 21
-digests per data set are equal. The observed mix is the 141-repository response
+Against A on medians, the shipped loader (FN) is -9.1 percent CPU on the
+original mix (3.647 to 3.314) and -6.8 percent on the observed mix (3.023 to
+2.816). The test-local loop (F) reads -13.1 and -11.2 percent; it is shown for
+reference only. The CPU ranges overlap (observed mix: A 2.804-3.449 against FN
+2.384-3.072) and the host ran at load1 15-32, so the CPU change is a small
+arm-to-arm gain and not a precise figure. Statements fall 56 percent and 48
+percent. Bytes fall 64 percent and 72 percent. All 21 digests per data set are
+equal. The observed mix is the 141-repository response
 set's class mix and size fits, drawn at the bench's 300 repositories and 8,000
 files; it is not the response set. The earlier CPU bench attributed 76-79 percent of CPU to parse; parse
 is unchanged by this PR, which is why the CPU gain is smaller than the
@@ -161,10 +182,12 @@ are NOT_CHECKED.
 Performance Evidence: baseline is the pre-change pass (arm A) on a private
 native PostgreSQL 18.6 primary plus hot standby, the real fenced reader and
 `ContentReader`, 300 related repositories and 8,000 hydrated files (observed
-class mix, 57.4 MB). After: 4,325 statements against 8,300 (300 lists, 3,753
-reads, 272 non-blank checks), 15.8 MB against 57.4 MB, CPU median 2.684 against
-3.023 CPU-s over seven ABBA rounds, and the same `config_paths` digest in 21 of
-21 runs (33,972 rows at the original mix). The non-blank statement is an index
+class mix, 57.4 MB). After, with the shipped loader (arm FN): 4,325
+statements against 8,300 (300 lists, 3,753 reads, 272 non-blank checks), 15.8
+MB against 57.4 MB, CPU median 2.816 against 3.023 CPU-s (-6.8 percent; the
+original mix is 3.314 against 3.647, -9.1 percent) over seven ABBA rounds on a
+host at load1 15-32 with overlapping ranges, and the same `config_paths` digest
+in 21 of 21 runs (33,972 rows at the original mix). The non-blank statement is an index
 scan on `content_files_repo_path_pattern_idx` with a `btrim` filter: 0.20 ms
 for 20 paths and 5.5 ms for the 2.2 MB repository. The change is safe because
 the plan never fetches less than an extractor reads (the differential and
@@ -180,7 +203,11 @@ Observability Evidence: the `deployment_artifacts` stage line of
 logs `repository_query.deployment_artifacts_degraded` (WARN) with the error
 text, sets an error status on the request span, and adds
 `deployment_artifacts_read_degraded` to story `limitations` and context
-`partial_reasons`. The new statement appears as a `postgres.query` span with
+`partial_reasons`. The reason covers a failed content or graph read. The
+response keeps the artifacts from the loads that succeeded (the runtime and
+workflow loaders still run after a config-load failure) and lacks the artifacts
+of the load that failed. The context route has its own tests for the reason,
+its absence on success, and the stage-line attributes. The new statement appears as a `postgres.query` span with
 `db.operation=non_blank_repo_file_paths`. No metric instrument was added: no
 existing query-stage metric family fits and the counts are log fields.
 
