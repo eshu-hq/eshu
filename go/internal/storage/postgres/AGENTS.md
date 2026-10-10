@@ -948,7 +948,7 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   the post-load probe equals `startEpoch` and the set fits the cap. A waiter
   gives up after 3 unserved flights or one heartbeat interval (30 s,
   `WithHeartbeatInterval`, from the claim lease in `cmd/reducer`) after ONE
-  final probe that serves a filled cache. Outcomes `gave_up_flights` (churn),
+  final probe that serves a filled cache (a budget-spent caller at the lead decision relies on the same pass's top probe). Outcomes `gave_up_flights` (churn),
   `gave_up_wall` (slow flight). A call's time in the cache is bounded by one
   heartbeat plus two load attempts and a few probes; a call with its budget spent never
   leads: it fails retryably and the next caller leads. Evidence:
