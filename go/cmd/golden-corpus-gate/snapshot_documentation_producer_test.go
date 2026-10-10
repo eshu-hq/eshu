@@ -113,17 +113,25 @@ func TestGoldenDocumentationPacketShapeRejectsUnprovenReadback(t *testing.T) {
 		}
 		return copied
 	}
+	object := func(payload map[string]any, path ...string) map[string]any {
+		t.Helper()
+		value, err := goldenProducerObject(payload, path...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
 	oldHandPacket := clone()
-	delete(oldHandPacket["data"].(map[string]any), "unified_evidence")
+	delete(object(oldHandPacket, "data"), "unified_evidence")
 	assertShape("old hand packet without provenance", oldHandPacket, false)
 	wrongCitation := clone()
-	wrongCitation["data"].(map[string]any)["unified_evidence"].(map[string]any)["citation"].(map[string]any)["byte_offset"] = float64(9)
+	object(wrongCitation, "data", "unified_evidence", "citation")["byte_offset"] = float64(9)
 	assertShape("wrong source byte window", wrongCitation, false)
 	wrongVersion := clone()
-	wrongVersion["data"].(map[string]any)["packet_version"] = "stale-version"
+	object(wrongVersion, "data")["packet_version"] = "stale-version"
 	assertShape("wrong packet version", wrongVersion, false)
 	wrongTruth := clone()
-	wrongTruth["truth"].(map[string]any)["basis"] = "assertion"
+	object(wrongTruth, "truth")["basis"] = "assertion"
 	assertShape("wrong response truth", wrongTruth, false)
 }
 
@@ -155,9 +163,37 @@ func TestGoldenProducerDocument(t *testing.T) {
 
 // goldenProducerDocument checks the producer's object before tests bind its URI.
 func goldenProducerDocument(payload map[string]any) (map[string]any, error) {
-	document, ok := payload["document"].(map[string]any)
-	if !ok || document == nil {
-		return nil, fmt.Errorf("verifier packet document = %T, want non-nil object", payload["document"])
+	return goldenProducerObject(payload, "document")
+}
+
+// goldenProducerObject checks every object along a mutation or binding path.
+func goldenProducerObject(payload map[string]any, path ...string) (map[string]any, error) {
+	for index, key := range path {
+		object, ok := payload[key].(map[string]any)
+		if !ok || object == nil {
+			return nil, fmt.Errorf("verifier packet object %v = %T, want non-nil object", path[:index+1], payload[key])
+		}
+		payload = object
 	}
-	return document, nil
+	return payload, nil
+}
+
+func TestGoldenProducerObjectPath(t *testing.T) {
+	t.Parallel()
+	for _, value := range []any{nil, "invalid", []any{}, map[string]any(nil)} {
+		payload := map[string]any{"data": map[string]any{"unified_evidence": value}}
+		if _, err := goldenProducerObject(payload, "data", "unified_evidence", "citation"); err == nil {
+			t.Fatalf("nested object %T accepted", value)
+		}
+	}
+	citation := map[string]any{"byte_offset": float64(6)}
+	payload := map[string]any{"data": map[string]any{"unified_evidence": map[string]any{"citation": citation}}}
+	got, err := goldenProducerObject(payload, "data", "unified_evidence", "citation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got["byte_offset"] = float64(9)
+	if citation["byte_offset"] != float64(9) {
+		t.Fatal("object extraction did not retain the clone's mutation target")
+	}
 }
