@@ -13,7 +13,6 @@
 # is the credential-free lane CI runs per PR; the full Docker matrix runs on
 # demand/nightly, not on every PR.
 set -euo pipefail
-
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ifa-determinism.sh"
 lib="${repo_root}/scripts/lib/ifa_determinism_common.sh"
@@ -44,10 +43,13 @@ teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; 
 # top level rather than locally in either consumer.
 registry_family_lib="${repo_root}/scripts/lib/ifa_family_registry.sh"
 workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
-registry="${repo_root}/specs/ci-gates.v1.yaml"
-
+registry_root="${repo_root}/specs/ci-gates.v1.yaml"
+registry="$(mktemp)"
+# shellcheck source=scripts/lib/ci-gates-resolved-fixtures.sh
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+ci_gates_flat_view "${registry_root}" "${registry}" "${repo_root}"
+trap 'rm -f "${registry}"' EXIT
 fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
-
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-ifa-determinism.sh must be executable"
 [[ -f "${lib}" ]] || fail "missing ${lib}"
@@ -67,7 +69,6 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
-
 # Both files parse under bash -n.
 bash -n "${script}" || fail "verify-ifa-determinism.sh has a syntax error"
 bash -n "${lib}" || fail "ifa_determinism_common.sh has a syntax error"
@@ -99,7 +100,6 @@ bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax er
 	|| fail "test-verify-ifa-determinism.sh must stay under 500 lines"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
-
 # _ifa_det_count_code_matches counts lines of ${2} where ${1} appears in the CODE
 # portion -- before any `#` -- skipping lines that start with one. Mirrors the
 # same-shaped helper in test-ifa-fault-injection-assertions.sh for the same
@@ -235,7 +235,6 @@ require_fixture() {
 # above and the *_lib path variables declared at the top of this file.
 # shellcheck source=scripts/lib/test-ifa-determinism-require-helpers.sh
 source "${require_helpers_lib}"
-
 require_inheritance_lib() {
 	local label="$1" needle="$2"
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${inheritance_lib}")" -ge 1 ]] \

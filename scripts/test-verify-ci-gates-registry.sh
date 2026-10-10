@@ -18,6 +18,17 @@ build_test_workflow="${repo_root}/.github/workflows/test.yml"
 frontend_workflow="${repo_root}/.github/workflows/frontend.yml"
 e2e_workflow="${repo_root}/.github/workflows/e2e-tests.yml"
 registry_workflow="${repo_root}/.github/workflows/verify-ci-gate-registry.yml"
+# Existing row-shape assertions consume a validated, temporary flat view.
+registry_root="${registry}"
+static_contract_workflow_root="${static_contract_workflow}"
+resolved_dir="$(mktemp -d)"
+trap 'rm -rf "${resolved_dir}"' EXIT
+# shellcheck source=scripts/lib/ci-gates-resolved-fixtures.sh
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+ci_gates_flat_view "${registry_root}" "${resolved_dir}/ci-gates.v1.yaml" "${repo_root}"
+ci_gates_static_workflow_view "${static_contract_workflow_root}" "${resolved_dir}/static-contract-gates.yml" "${repo_root}"
+registry="${resolved_dir}/ci-gates.v1.yaml"
+static_contract_workflow="${resolved_dir}/static-contract-gates.yml"
 
 fail() {
 	printf 'test-verify-ci-gates-registry: %s\n' "$*" >&2

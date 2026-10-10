@@ -72,6 +72,8 @@ for fixture in \
  go/internal/query/methodology_graph_oracle_live_test.go \
  go/internal/query/methodology_graph_profile_live_test.go \
  go/internal/query/methodology_postgres_live_test.go \
+ specs/live-tests.d/live-tests-01.yaml \
+ scripts/lib/live_tests_registry.py \
  scripts/lib/verify-query-methodology-live-contract.py \
  scripts/test-verify-query-methodology-live-contract.py \
  scripts/lib/query-methodology-comparison-identity.py \

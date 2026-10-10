@@ -21,8 +21,6 @@
 # `code` block, and #5818 burned ~118 runner-minutes on a five-markdown-file PR
 # because `code` evaluated true and every heavy Go lane ran.
 #
-# The cause recorded here at the time — `!*.md` being ROOT-ANCHORED, so it never
-# matched that PR's nested `.agents/skills/**/*.md` — was not the operative one.
 # #5896 found it: dorny@v3 defaults to `predicate-quantifier: some`, under which
 # `**` matches first and NO negation subtracts, however it is anchored. The
 # `!.agents/**` added as the #5818 fix was inert from the day it landed.
@@ -43,7 +41,10 @@ set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 wf="${repo_root}/.github/workflows"
-registry="${repo_root}/specs/ci-gates.v1.yaml"
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+registry="$(mktemp)"
+trap 'rm -f "${registry}"' EXIT
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry}" "${repo_root}" || exit 1
 fail=0
 
 ok()  { printf 'ok - %s\n' "$1"; }

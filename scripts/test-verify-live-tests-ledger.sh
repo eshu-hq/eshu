@@ -8,6 +8,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-live-tests-ledger.sh"
 ledger="${repo_root}/specs/live-tests.v1.yaml"
+flat_ledger="$(mktemp)"
+trap 'rm -f "${flat_ledger}" "${flat_ledger}.again"' EXIT
 
 fail() {
 	printf 'test-verify-live-tests-ledger: %s\n' "$*" >&2
@@ -18,6 +20,15 @@ fail() {
 	fail "test script must stay under 500 lines"
 [[ -x "${script}" ]] || fail "verify script missing or not executable"
 [[ -f "${ledger}" ]] || fail "ledger missing"
+python3 "${repo_root}/scripts/lib/live_tests_registry.py" flatten "${ledger}" >"${flat_ledger}" ||
+	fail "fragment loading failed"
+python3 "${repo_root}/scripts/lib/live_tests_registry.py" flatten "${ledger}" >"${flat_ledger}.again" ||
+	fail "second fragment loading failed"
+cmp -s "${flat_ledger}" "${flat_ledger}.again" || fail "flattening is not deterministic"
+rm -f "${flat_ledger}.again"
+ledger="${flat_ledger}"
+python3 "${repo_root}/scripts/test-live-tests-registry.py" ||
+	fail "fragment loader contract failed"
 
 # ── GREEN: the committed ledger validates on the clean tree ──────────────
 out="$("${script}")" || fail "validator failed on the clean tree"
@@ -28,7 +39,7 @@ out="$("${script}")" || fail "validator failed on the clean tree"
 # frozen, reviewed legacy inventory. Reclassifying a CI row must not expand
 # that inventory, even though the file and reason still look valid.
 legacy_probe="$(mktemp -d)"
-trap 'rm -rf "${legacy_probe}"' EXIT
+trap 'rm -rf "${legacy_probe}"; rm -f "${flat_ledger}"' EXIT
 awk 'BEGIN { changed = 0 } /^    class: ci$/ && !changed { $0 = "    class: scheduled"; changed = 1 } { print }' \
 	"${ledger}" >"${legacy_probe}/added-scheduled.yaml"
 if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/added-scheduled.yaml" "${script}" >/dev/null 2>&1; then
@@ -73,11 +84,11 @@ if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/unowned-promotion.yaml"
 	fail "validator accepted a legacy promotion with no runner or inventory shrink"
 fi
 rm -r "${legacy_probe}"
-trap - EXIT
+trap 'rm -f "${flat_ledger}"' EXIT
 
 # ── RED: a planted unclassified live test fails ──────────────────────────
 fixture="$(mktemp -d)"
-trap 'rm -rf "${fixture}"' EXIT
+trap 'rm -rf "${fixture}"; rm -f "${flat_ledger}"' EXIT
 mkdir -p "${fixture}/go/orphan"
 printf 'package orphan\n' >"${fixture}/go/orphan/orphan_live_test.go"
 git -C "${fixture}" init -q && git -C "${fixture}" add go/orphan/orphan_live_test.go
@@ -153,7 +164,7 @@ fi
 
 # ── GREEN: a retired row naming an existing, repaired file passes ─────────
 calm="$(mktemp -d)"
-trap 'rm -rf "${fixture}" "${calm}"' EXIT
+trap 'rm -rf "${fixture}" "${calm}"; rm -f "${flat_ledger}"' EXIT
 mkdir -p "${calm}/go/calm"
 printf 'package calm\n' >"${calm}/go/calm/calm_live_test.go"
 printf 'package calm\n\nimport "testing"\n\nfunc TestCalm(t *testing.T) {}\n' >"${calm}/go/calm/calm_test.go"
@@ -276,7 +287,7 @@ fi
 
 # ── RED: a live-tagged Test func outside *_live_test.go fails ────────────
 wild="$(mktemp -d)"
-trap 'rm -rf "${fixture}" "${calm}" "${wild}"' EXIT
+trap 'rm -rf "${fixture}" "${calm}" "${wild}"; rm -f "${flat_ledger}"' EXIT
 mkdir -p "${wild}/go/wild"
 printf 'package wild\n' >"${wild}/go/wild/wild_live_test.go"
 printf '//go:build live_wild_probe\n\npackage wild\n\nimport "testing"\n\nfunc TestWild(t *testing.T) {}\n' >"${wild}/go/wild/wild_test.go"

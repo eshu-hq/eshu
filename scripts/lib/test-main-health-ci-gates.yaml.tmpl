@@ -13,14 +13,34 @@ required_status_checks:
 # when a blocking gate claims it, or when no gate claims it at all.
 gates:
   - id: go-test
+    name: Go test fixture
+    category: hygiene
+    tier: pre-pr
     blocking: true
+    triggers: [go/**]
     ci: {workflow: test.yml, job: go-core}
+    ci_only_reason: "fixture runs on CI"
   - id: gosec
+    name: Gosec fixture
+    category: security
+    tier: pre-pr
     blocking: true
+    triggers: [go/**]
     ci: {workflow: security-scan.yml, job: "gosec (Go static analysis)"}
+    ci_only_reason: "fixture runs on CI"
   - id: trivy-fs
+    name: Trivy filesystem fixture
+    category: security
+    tier: pre-pr
     blocking: false
+    triggers: [go/**]
     ci: {workflow: security-scan.yml, job: "Trivy filesystem scan (vuln + secret + config)"}
+    ci_only_reason: "fixture runs on CI"
   - id: trivy-image
+    name: Trivy image fixture
+    category: security
+    tier: pre-pr
     blocking: false
+    triggers: [go/**]
     ci: {workflow: security-scan.yml, job: "Trivy image scan (ghcr.io/eshu-hq/eshu)"}
+    ci_only_reason: "fixture runs on CI"

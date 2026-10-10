@@ -28,6 +28,8 @@ FILES = (
     "specs/live-tests.v1.yaml",
     ".pre-commit-config.yaml",
     "specs/ci-gates.v1.yaml",
+    *(str(path.relative_to(ROOT)) for path in sorted((ROOT / "specs/ci-gates.d").glob("gates-*.yaml"))),
+    *(str(path.relative_to(ROOT)) for path in sorted((ROOT / "specs/live-tests.d").glob("live-tests-*.yaml"))),
     "scripts/verify-query-methodology.sh",
     "scripts/verify-query-plan-regression.sh",
     ".github/workflows/test.yml",
@@ -102,6 +104,8 @@ class ContractTest(unittest.TestCase):
             "go/internal/graph/schema_neo4j.go",
             "go/internal/storage/postgres/migrations/070_cloud_resource_owner_page_index.sql",
             "specs/live-tests.v1.yaml",
+            "specs/live-tests.d/live-tests-01.yaml",
+            "scripts/lib/live_tests_registry.py",
             ".pre-commit-config.yaml",
             ".github/workflows/test.yml",
             "scripts/lib/verify-live-tests-ledger.py",
@@ -136,6 +140,7 @@ class ContractTest(unittest.TestCase):
         for name in (
             "scripts/lib/verify-query-methodology-live-contract.py",
             "scripts/lib/verify-live-tests-ledger.py",
+            "scripts/lib/live_tests_registry.py",
             "scripts/test-verify-query-methodology-live-contract.py",
             "scripts/lib/go-test-run-guard.sh",
             "scripts/lib/query-methodology-comparison-identity.py",
@@ -213,6 +218,8 @@ class ContractTest(unittest.TestCase):
         for name in (
             "go/internal/mcp/methodology_live_test.go",
             "specs/live-tests.v1.yaml",
+            "specs/live-tests.d/live-tests-01.yaml",
+            "scripts/lib/live_tests_registry.py",
             ".pre-commit-config.yaml",
             ".github/workflows/test.yml",
             "scripts/lib/verify-live-tests-ledger.py",
@@ -242,7 +249,7 @@ class ContractTest(unittest.TestCase):
 
     def test_missing_or_unknown_runner(self) -> None:
         self.mutate(
-            "specs/live-tests.v1.yaml",
+            "specs/live-tests.d/live-tests-01.yaml",
             MCP_REASON + "\n    runner: query-methodology",
             MCP_REASON + "\n    runner: phantom",
         )
@@ -283,7 +290,7 @@ class ContractTest(unittest.TestCase):
 
     def test_missing_runner(self) -> None:
         self.mutate(
-            "specs/live-tests.v1.yaml",
+            "specs/live-tests.d/live-tests-01.yaml",
             MCP_REASON + "\n    runner: query-methodology",
             MCP_REASON,
         )
@@ -295,7 +302,7 @@ class ContractTest(unittest.TestCase):
 
     def test_wrong_backend(self) -> None:
         self.mutate(
-            "specs/live-tests.v1.yaml",
+            "specs/live-tests.d/live-tests-01.yaml",
             MCP_REASON + "\n    runner: query-methodology\n    backends: neo4j",
             MCP_REASON + "\n    runner: query-methodology\n    backends: both",
         )
@@ -318,7 +325,7 @@ class ContractTest(unittest.TestCase):
         self.assertNotEqual(self.check().returncode, 0)
 
     def test_removed_gate_selection(self) -> None:
-        path = self.root / "specs/ci-gates.v1.yaml"
+        path = self.root / "specs/ci-gates.d/gates-04.yaml"
         source = path.read_text()
         start = source.index("  - id: query-plan-regression\n")
         before, body = source[:start], source[start:]
@@ -326,6 +333,15 @@ class ContractTest(unittest.TestCase):
         self.assertIn(anchor, body)
         replacement = '      - "go/internal/mcp/other_live_test.go"'
         path.write_text(before + body.replace(anchor, replacement, 1))
+        self.assertNotEqual(self.check().returncode, 0)
+
+    def test_methodology_fragment_must_remain_enrolled(self) -> None:
+        """A dedicated row hidden in an unlisted fragment fails closed."""
+        self.mutate(
+            "specs/live-tests.v1.yaml",
+            "  - live-tests.d/live-tests-01.yaml",
+            "  - live-tests.d/live-tests-02.yaml",
+        )
         self.assertNotEqual(self.check().returncode, 0)
 
     def test_missing_isolation_setup(self) -> None:
@@ -407,7 +423,7 @@ class ContractTest(unittest.TestCase):
 
     def test_postgres_cannot_claim_graph_backend(self) -> None:
         self.mutate(
-            "specs/live-tests.v1.yaml",
+            "specs/live-tests.d/live-tests-01.yaml",
             PG_REASON + "\n    runner: query-methodology",
             PG_REASON + "\n    runner: query-methodology\n    backends: neo4j",
         )

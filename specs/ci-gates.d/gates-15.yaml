@@ -1,0 +1,406 @@
+version: v1
+gates:
+  - id: helm-package
+    name: Helm chart lint and package
+    category: release
+    layer: hygiene
+    purpose: "Lints and packages the Helm chart to make sure it builds cleanly before publishing."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "deploy/helm/**"
+      - ".github/workflows/docker-publish.yml"
+    ci:
+      workflow: docker-publish.yml
+      job: "package-and-push-chart"
+    requirements:
+      - go
+    ci_only_reason: "requires the hosted Helm packaging lane; PR runs skip the registry push"
+
+  - id: docker-publish
+    name: Docker image and Helm publication
+    category: release
+    layer: secondary
+    purpose: "Publishes the Docker image and Helm chart after merge; the publish steps never block a pull request."
+    tier: manual
+    blocking: false
+    triggers:
+      - "go/**"
+      - "Dockerfile"
+      - "deploy/helm/**"
+    ci:
+      workflow: docker-publish.yml
+      job: "build-and-push-image"
+    requirements:
+      - credentials
+      - release_token
+    ci_only_reason: "post-merge publication requires registry push credentials and cannot block its own merge"
+
+  # Non-blocking since the owner decision to move macOS CI to nightly +
+  # workflow_dispatch (macos.yml has no pull_request, push, or merge_group
+  # trigger). Evidence: of 29 macOS CI failures since 2026-09-21, 0 were
+  # macOS-only (each also failed on the Linux go-race lane), at ~2,800
+  # macOS-minutes/day. The triggers below keep the local path selection for
+  # `ci-gates select`; the row is not awaited by required-gates-complete.
+  - id: macos-build
+    name: macOS build verification (nightly)
+    category: build
+    layer: secondary
+    purpose: "Builds the project on macOS on a schedule as an extra-platform check with no bearing on merges."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "go/**"
+      - "scripts/ci/go-mod-download-retry.sh"
+    ci:
+      workflow: macos.yml
+      job: "macos"
+    requirements:
+      - go
+    ci_only_reason: "requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~2,800 macOS-min/day)"
+
+  # ─── EVIDENCE / LEDGER / DRIFT ─────────────────────────────────────────────
+
+  - id: root-cause-evidence
+    name: Root-cause claims carry observed evidence
+    category: exactness
+    layer: hygiene
+    purpose: "Checks that any documented root-cause claim also records the observation that established it."
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "docs/internal/evidence/**"
+      - "scripts/verify-root-cause-evidence.sh"
+      - "scripts/test-verify-root-cause-evidence.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "bash scripts/verify-root-cause-evidence.sh"
+      test_command: "bash scripts/test-verify-root-cause-evidence.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify root-cause-evidence gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+
+  - id: pg-statement-report
+    name: Postgres statement report script contract
+    category: exactness
+    layer: contract
+    purpose: "Checks the pg-statement-report script keeps its read-only, no-DDL-without-install, privacy-filter, and not-preloaded contract against a stub psql."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/reference/postgres-diagnostics.md"
+      - "scripts/pg-statement-report.sh"
+      - "scripts/test-pg-statement-report.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "bash scripts/test-pg-statement-report.sh"
+      test_command: ""
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify pg-statement-report gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+
+  - id: tagged-builds
+    name: Build-tag compile sweep
+    category: exactness
+    layer: hygiene
+    purpose: "Compiles every build-tag combination that ordinary go build/vet/test skip, so dead tagged code can't silently rot."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "scripts/verify-tagged-builds.sh"
+      - "scripts/test-verify-tagged-builds.sh"
+      - "scripts/dev/pre-pr.sh"
+      - "scripts/dev/pre-push.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - ".github/workflows/static-contract-gates.yml"
+    local:
+      command: "bash scripts/verify-tagged-builds.sh --all"
+      test_command: "bash scripts/test-verify-tagged-builds.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 19s but spiky (~10% of total selected-gates time on a bad run). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete). Run `make pre-pr-full` before a package move: build tags can hide files from `./...`, and this gate's whole-module vet sweep is what actually exercises them."
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify tagged-builds gate"
+    # #6615 review: verify-tagged-builds.sh runs `go vet -tags <constraint>`
+    # per build-tag combination (scripts/verify-tagged-builds.sh:351) --
+    # requires the go toolchain, unlike this entry's prior `[]`.
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: ""
+    # go/** is deliberately the broad trigger. A file behind a //go:build
+    # constraint is excluded from the default tag set, so go build, go vet and
+    # go test all walk past it: the change that breaks one is almost never a
+    # change to the tagged file itself, it is a helper deleted somewhere else in
+    # its package. That is exactly how #5167's live NornicDB complexity proof
+    # sat uncompilable through a make pre-pr run, a push, a full CI run and
+    # eight review rounds. Narrowing this trigger to the tagged files would
+    # reproduce the defect.
+
+  - id: perf-evidence
+    name: Hot-path performance evidence
+    category: telemetry
+    layer: performance
+    purpose: "Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/internal/storage/**"
+      - "go/internal/reducer/**"
+      - "go/internal/collector/**"
+      - "go/internal/query/**"
+      - "go/internal/runtime/**"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/verify-performance-evidence.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/lib/golden-corpus-keep-marker.sh"
+      - "scripts/test-verify-performance-evidence.sh"
+      - "scripts/test-verify-performance-evidence-ci-base.sh"
+      - "scripts/test-verify-performance-evidence-inherited-marker.sh"
+      - "scripts/test-verify-performance-evidence-large-marker.sh"
+      - "scripts/test-verify-performance-evidence-merge-base.sh"
+      - "scripts/test-verify-performance-evidence-missing-base.sh"
+    local:
+      command: "bash scripts/dev/precommit-go.sh perf-evidence"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-performance-evidence.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: go-perf-evidence
+
+  - id: product-claim-ledger
+    name: Product Claim Ledger (deterministic verify)
+    category: exactness
+    layer: contract
+    purpose: "Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "specs/product-claims.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      # The gate IS this program: it runs `go run ./cmd/capability-inventory
+      # -mode product-claims`, so an edit there must select it (#5873). Its two
+      # sibling gates on the same binary, capability-inventory and
+      # capability-inventory-docs, already trigger on this path.
+      - "go/cmd/capability-inventory/**"
+      - "scripts/ci/go-mod-download-retry.sh"
+    # The deterministic product-claims-mode verify is credential-free. The live
+    # issue-state variant (ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1 + GITHUB_TOKEN)
+    # stays CI-only. #4073: narrowed from -mode docs to -mode product-claims so
+    # this gate does not repeat the capability-state/collector-state docs-tree
+    # scan the capability-inventory-docs gate already runs on every PR.
+    local:
+      command: "cd go && go run ./cmd/capability-inventory -mode product-claims"
+      test_command: ""
+    ci:
+      workflow: product-claim-ledger.yml
+      job: "Verify product claim ledger"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: replay-tier
+    name: Replay tier (offline cassette replay)
+    category: exactness
+    layer: replay
+    purpose: "Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
+      # internal/query carries the sql_table blast-radius branch proof (#5409),
+      # which this gate runs and nothing else does (#6182). Without this
+      # trigger a PR editing only the blast-radius query would not select the
+      # gate that proves its UNION branches still match.
+      - "go/internal/query/**"
+      - "go/internal/replay/**"
+      - "go/internal/reducer/**"
+      - "go/internal/storage/cypher/**"
+      - "go/internal/storage/nornicdb/**"
+      - "go/internal/projector/**"
+      - "go/internal/graph/**"
+      - "go/internal/runtime/**"
+      - "testdata/cassettes/replayoffline/**"
+      - "testdata/cassettes/replaydelta/**"
+      - "scripts/verify-replay-tier.sh"
+      - "scripts/test-verify-replay-tier.sh"
+      - "scripts/dev/pre-pr.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/verify-replay-tier.yml"
+    local:
+      command: "bash scripts/verify-replay-tier.sh"
+      test_command: "bash scripts/test-verify-replay-tier.sh"
+    ci:
+      workflow: verify-replay-tier.yml
+      job: "Offline replay tier vs real NornicDB"
+    requirements:
+      - go
+      - docker
+    ci_only_reason: ""
+
+  - id: go-test-race
+    name: Go tests with race detector
+    category: race
+    layer: unit
+    purpose: "Runs the replay and scheduling test packages under Go's race detector to catch data races."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/replay/inputtape/**"
+      - "go/internal/replay/schedulereplay/**"
+      - "go/internal/replay/crashreplay/**"
+      - "go/internal/replay/concurrentreplay/**"
+      - "go/internal/replay/costcounting/**"
+      - ".github/workflows/test.yml"
+    local:
+      command: "cd go && go test -race -count=1 -timeout 300s ./internal/replay/inputtape/... ./internal/replay/schedulereplay/... ./internal/replay/crashreplay/... ./internal/replay/concurrentreplay/... ./internal/replay/costcounting/..."
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "go-race-complete"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: ci-gate-registry
+    name: CI gate registry + drift
+    category: hygiene
+    layer: contract
+    purpose: "Verifies the CI gate registry itself has no drift against the workflows, scripts, and docs it describes."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - "go/internal/cigates/**"
+      - "go/cmd/ci-gates/**"
+      - ".pre-commit-config.yaml"
+      - "scripts/dev/pre-pr.sh"
+      - "scripts/dev/pre-push.sh"
+      - "scripts/test-pre-push.sh"
+      - "scripts/lib/test-pre-push-merge-cases.sh"
+      - "scripts/lib/test-pre-push-merge-fake-go.sh"
+      - "scripts/lib/pre-push-merge.sh"
+      - "scripts/test-no-prepr-stamp-references.sh"
+      - "scripts/lib/pre-pr-go-paths.sh"
+      - "Makefile"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/dev/trivy-fs-local.sh"
+      - "scripts/lib/trivy-skip-dirs.sh"
+      - "specs/trivy-skip-dirs.txt"
+      - "scripts/test-verify-ci-gates-registry.sh"
+      - "scripts/verify-live-required-status-checks.sh"
+      - "scripts/test-verify-live-required-status-checks.sh"
+      - "scripts/resolve-required-gates-pr.sh"
+      - "scripts/test-resolve-required-gates-pr.sh"
+      - "scripts/test-pre-pr-whole-module-gates.sh"
+      - "scripts/lib/pre-pr-fixture-consumers.sh"
+      - "scripts/lib/test-pre-pr-fixture-consumers.sh"
+      - "tests/run_tests.sh"
+      - "AGENTS.md"
+      - "CONTRIBUTING.md"
+      - "go/internal/parser/AGENTS.md"
+      - "docs/public/contributing-language-support.md"
+      - "docs/public/guides/fixture-ecosystems.md"
+      - "docs/public/reference/local-testing/quick-verification-matrix.md"
+      - "docs/public/reference/local-testing/verification-gates.md"
+      - "specs/product-claims.v1.yaml"
+      - "scripts/lib/pre-pr-test-selection.sh"
+      - "scripts/lib/test-pre-pr-test-selection.sh"
+      - "scripts/generate-ci-gates-doc.sh"
+      - "scripts/lib/ci-gates-doc-parse.awk"
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-workflow-shape-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
+      - "scripts/test-generate-ci-gates-doc.sh"
+      - "docs/public/reference/ci-gates.md"
+      - ".github/workflows/**"
+      - "scripts/verify-ci-gates-registry.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    self_test_triggers:
+      - "specs/ci-gates.v1.yaml"
+      - "go/internal/cigates/**"
+      - "go/cmd/ci-gates/**"
+      - "scripts/dev/pre-pr.sh"
+      - "scripts/dev/pre-push.sh"
+      - "scripts/test-pre-push.sh"
+      - "scripts/lib/test-pre-push-merge-cases.sh"
+      - "scripts/lib/test-pre-push-merge-fake-go.sh"
+      - "scripts/lib/pre-push-merge.sh"
+      - "scripts/test-no-prepr-stamp-references.sh"
+      - "scripts/lib/pre-pr-go-paths.sh"
+      - "Makefile"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/test-verify-ci-gates-registry.sh"
+      - "scripts/verify-live-required-status-checks.sh"
+      - "scripts/test-verify-live-required-status-checks.sh"
+      - "scripts/test-pre-pr-whole-module-gates.sh"
+      - "scripts/lib/pre-pr-fixture-consumers.sh"
+      - "scripts/lib/test-pre-pr-fixture-consumers.sh"
+      - "tests/run_tests.sh"
+      - "AGENTS.md"
+      - "CONTRIBUTING.md"
+      - "go/internal/parser/AGENTS.md"
+      - "docs/public/contributing-language-support.md"
+      - "docs/public/guides/fixture-ecosystems.md"
+      - "docs/public/reference/local-testing/quick-verification-matrix.md"
+      - "docs/public/reference/local-testing/verification-gates.md"
+      - "specs/product-claims.v1.yaml"
+      - "scripts/lib/pre-pr-test-selection.sh"
+      - "scripts/lib/test-pre-pr-test-selection.sh"
+      - "scripts/generate-ci-gates-doc.sh"
+      - "scripts/lib/ci-gates-doc-parse.awk"
+      - "scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-workflow-shape-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-path-assertions.sh"
+      - "scripts/test-generate-ci-gates-doc.sh"
+      - "docs/public/reference/ci-gates.md"
+      - ".github/workflows/**"
+      - "scripts/verify-ci-gates-registry.sh"
+      - "scripts/resolve-required-gates-pr.sh"
+      - "scripts/test-resolve-required-gates-pr.sh"
+    local:
+      command: "bash scripts/verify-ci-gates-registry.sh --drift"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-pre-push.sh && bash scripts/test-no-prepr-stamp-references.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && bash scripts/test-resolve-required-gates-pr.sh && (cd go && go test ./internal/cigates -count=1)"
+    ci:
+      workflow: verify-ci-gate-registry.yml
+      job: "Verify ci-gate registry + drift"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: gate-registry-drift
+
+# ─── HYGIENE HOOKS ───────────────────────────────────────────────────────────
+# Local pre-commit hook ids that are basic hygiene or self-tests, intentionally
+# NOT registry gates. The drift check allows these without a gate mapping.

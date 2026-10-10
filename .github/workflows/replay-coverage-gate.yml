@@ -39,6 +39,7 @@ on:
       - 'go/internal/goldengate/**'
       - 'go/internal/storage/cypher/**'
       - 'specs/ci-gates.v1.yaml'
+      - 'specs/ci-gates.d/**'
       - 'specs/capability-budget-proof.v1.yaml'
       - 'specs/capability-catalog.v1.yaml'
       - 'specs/replay-coverage-manifest.v1.yaml'

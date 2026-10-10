@@ -9,6 +9,8 @@ import re
 import sys
 from pathlib import Path
 
+from live_tests_registry import load_ledger_text
+
 
 GRAPH_FILES = (
     "methodology_graph_artifact_live_test.go",
@@ -84,7 +86,7 @@ def check_events(path: Path, root_name: str) -> None:
 
 def check_static(root: Path) -> None:
     """Verify every dedicated file and the executable blocking route."""
-    ledger = (root / "specs/live-tests.v1.yaml").read_text()
+    ledger = load_ledger_text(root / "specs/live-tests.v1.yaml")
     rows = re.findall(
         r"^  - file: (\S+)\n"
         r"    tag: (.*)\n"
@@ -211,7 +213,14 @@ def check_static(root: Path) -> None:
         and "        run: python -m pip install pre-commit==4.6.2" in job_lines,
         "blocking verify-contracts workflow lost proof, self-test, or hook tool",
     )
-    registry = (root / "specs/ci-gates.v1.yaml").read_text()
+    registry_root = (root / "specs/ci-gates.v1.yaml").read_text()
+    fragments = re.findall(r"^  - (ci-gates\.d/gates-[0-9]+\.yaml)$", registry_root, re.M)
+    require(fragments and len(fragments) == len(set(fragments)), "CI gate fragment enrollment missing or duplicated")
+    registry = ""
+    for fragment in fragments:
+        source = (root / "specs" / fragment).read_text()
+        require(source.startswith("version: v1\ngates:\n"), f"invalid CI gate fragment: {fragment}")
+        registry += source
     for gate_id in ("query-methodology-static", "query-plan-regression"):
         gate = re.search(
             rf"^  - id: {gate_id}\n(.*?)(?=^  - id:|\Z)", registry, re.M | re.S

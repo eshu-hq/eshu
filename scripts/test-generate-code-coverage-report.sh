@@ -13,6 +13,9 @@ registry="${repo_root}/specs/ci-gates.v1.yaml"
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+registry="${tmp_root}/ci-gates.flat.yaml"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry}" "${repo_root}"
 
 PASS=0
 FAIL=0

@@ -41,13 +41,16 @@ cp "${repo_root}/${script_rel}" "${tmp}/scripts/verify-docs-only-ci-skip.sh"
 # every case below fails "for the wrong reason" instead of testing anything.
 cp "${repo_root}/scripts/lib/ci-gate-merge-group-checks.sh" "${tmp}/scripts/lib/ci-gate-merge-group-checks.sh"
 cp "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh" "${tmp}/scripts/lib/ci-gate-predicate-quantifier.sh"
+cp "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh" "${tmp}/scripts/lib/ci-gates-resolved-fixtures.sh"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
-cp "${repo_root}/specs/ci-gates.v1.yaml" "${tmp}/specs/ci-gates.v1.yaml"
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${tmp}/specs/ci-gates.v1.yaml" "${repo_root}"
+cp "${tmp}/specs/ci-gates.v1.yaml" "${tmp}/ci-gates-flat.original.yaml"
 chmod +x "${tmp}/scripts/verify-docs-only-ci-skip.sh"
 
-run_scratch() { (cd "${tmp}" && bash scripts/verify-docs-only-ci-skip.sh); }
+run_scratch() { (cd "${tmp}" && ESHU_CI_GATES_GO_REPO="${repo_root}" bash scripts/verify-docs-only-ci-skip.sh); }
 
 # --- baseline: the real, unmutated repo state is green. ---
 if out="$(run_scratch 2>&1)"; then
@@ -116,7 +119,7 @@ else
 		printf '%s\n' "${out}" >&2
 	fi
 fi
-cp "${repo_root}/specs/ci-gates.v1.yaml" "${tmp}/specs/ci-gates.v1.yaml"
+cp "${tmp}/ci-gates-flat.original.yaml" "${tmp}/specs/ci-gates.v1.yaml"
 if run_scratch >/dev/null 2>&1; then
 	ok "guard 2 passes again after restoring the mutated registry"
 else
@@ -197,7 +200,7 @@ else
 		printf '%s\n' "${out}" >&2
 	fi
 fi
-cp "${repo_root}/specs/ci-gates.v1.yaml" "${tmp}/specs/ci-gates.v1.yaml"
+cp "${tmp}/ci-gates-flat.original.yaml" "${tmp}/specs/ci-gates.v1.yaml"
 if run_scratch >/dev/null 2>&1; then
 	ok "guard 2 passes again after restoring the mutated registry"
 else

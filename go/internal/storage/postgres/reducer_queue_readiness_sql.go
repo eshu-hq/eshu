@@ -148,8 +148,8 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// read while the generation is retired-or-pending and workload
 	// materialization succeeds on that partial input.
 	reducer.WorkloadMaterializationResolutionNotReadyFailureClass,
-	// #6686: an intent whose generation is newer than the scope's active
-	// generation and still pending. NewGenerationFreshnessCheck defers it
+	// #6686, #7916: a pending intent before first activation or a still-pending
+	// successor to the active generation. NewGenerationFreshnessCheck defers it
 	// until the projector's Ack activates the generation instead of acking it
 	// succeeded as superseded. Waiting on that Ack is not a failure on the
 	// intent's own merits; a generation that instead ends failed or superseded

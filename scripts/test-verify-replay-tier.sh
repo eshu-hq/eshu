@@ -7,7 +7,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-replay-tier.sh"
 workflow="${repo_root}/.github/workflows/verify-replay-tier.yml"
-ci_gates="${repo_root}/specs/ci-gates.v1.yaml"
+ci_gates="$(mktemp)"
+trap 'rm -f "${ci_gates}"' EXIT
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${ci_gates}" "${repo_root}"
 prepr="${repo_root}/scripts/dev/pre-pr.sh"
 
 fail() { printf 'test-verify-replay-tier: %s\n' "$*" >&2; exit 1; }
@@ -262,7 +265,7 @@ has_prepr_selector_parity "${prepr}" \
 	|| fail "active pre-pr replay selector does not mirror the workflow and registry"
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "${tmp}"' EXIT
+trap 'rm -rf "${tmp}"; rm -f "${ci_gates}"' EXIT
 sed 's/^[[:space:]]*go test -p=1 /# go test -p=1 /' "${script}" >"${tmp}/script"
 if has_serialized_package_command "${tmp}/script"; then
 	fail "commented-out package serialization must not satisfy the guard"

@@ -50,6 +50,10 @@ func main() {
 		err = runUncovered(args)
 	case "layers":
 		err = runLayers(args)
+	case "fragments":
+		err = runFragments(args)
+	case "compare":
+		err = runCompare(args)
 	case "review-attest":
 		err = runReviewAttest(args)
 	default:

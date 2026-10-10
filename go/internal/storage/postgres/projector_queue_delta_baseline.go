@@ -43,13 +43,15 @@ const projectorWriteMarkerGenerationRetiredClass = "projector_write_marker_gener
 // lock serialize and a claim whose snapshot predates the marker drops its
 // candidate through the #7115 fence recheck.
 //
-// It returns nil when the marker is set. A lock timeout, or a busy or missing
-// fence row, returns an error wrapping failure.ErrWorkWriteMarkerDeferred:
-// nothing changed and the caller re-runs it. When no row is marked,
-// writeMarkerRefusal decides: an error wrapping failure.ErrWorkSuperseded
-// when the generation is retired (superseded, completed, or gone) or the work
-// row was superseded, and ErrProjectorClaimRejected when this attempt lost
-// its claim.
+// It returns nil when the marker is set. A lock timeout, or a busy fence row,
+// returns an error wrapping failure.ErrWorkWriteMarkerDeferred (a busy fence
+// wraps failure.ErrWorkWriteMarkerFenceBusy): nothing changed and the caller
+// re-runs it. A missing fence row means the scope is gone, so it refuses at
+// once through the classifier below instead of deferring. When no row is
+// marked, writeMarkerRefusal decides: an error wrapping
+// failure.ErrWorkSuperseded when the generation is retired (superseded,
+// completed, or gone) or the work row was superseded, and
+// ErrProjectorClaimRejected when this attempt lost its claim.
 func (q ProjectorQueue) MarkProjectionWriteStarted(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
@@ -79,24 +81,18 @@ func (q ProjectorQueue) MarkProjectionWriteStarted(
 	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", q.ackLockTimeoutSetting()); err != nil {
 		return fmt.Errorf("mark projection write started: set lock timeout: %w", err)
 	}
-	fenceRows, err := tx.QueryContext(ctx, lockProjectorMarkerFenceQuery, work.Scope.ScopeID)
+	fenceLocked, fenceExists, err := checkMarkerClaimFence(ctx, tx, work.Scope.ScopeID)
 	if err != nil {
-		return fmt.Errorf("mark projection write started: lock claim fence: %w", err)
+		return err
 	}
-	fenceLocked := fenceRows.Next()
-	if err := fenceRows.Err(); err != nil {
-		_ = fenceRows.Close()
-		return fmt.Errorf("mark projection write started: lock claim fence: %w", err)
-	}
-	_ = fenceRows.Close()
 	if !fenceLocked {
-		// The fence row is busy (SKIP LOCKED) or missing: an in-flight
-		// claim owns the scope, or the scope is gone. Defer like a lock
-		// timeout; the caller re-runs the marker.
 		committed = true
 		_ = tx.Rollback()
-		return fmt.Errorf("mark projection write started: scope %s claim fence busy or missing: %w",
-			work.Scope.ScopeID, failure.ErrWorkWriteMarkerDeferred)
+		if !fenceExists {
+			return q.classifyWriteMarkerRefusal(ctx, work)
+		}
+		return fmt.Errorf("mark projection write started: scope %s claim fence busy: %w",
+			work.Scope.ScopeID, failure.ErrWorkWriteMarkerFenceBusy)
 	}
 	rows, err := tx.QueryContext(ctx, markProjectionWriteStartedQuery,
 		work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner, work.AttemptCount, q.now())

@@ -1,0 +1,423 @@
+tests:
+  - file: go/internal/query/content_reader_entity_search_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged disposable PostgreSQL proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1; one local PostgreSQL 18 run took 1.60 s, and the graph live-backend job has no PostgreSQL DSN — promote after CI provisioning and timing evidence
+  - file: go/internal/query/content_reader_search_unscoped_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7730 disposable PostgreSQL 18 proof of the unscoped file search walk: page equality with the old single statement, the real statement-timeout cancel with cursor resume to the exact answer, and the plan shapes (ordered key walk with no trigram node; trigram bitmap tail under disabled index scans); one local PostgreSQL 18 run took about 11 s"
+    runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_security_secrets_fallback_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/content_reader_security_secrets_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/content_reader_security_secrets_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/content_reader_fingerprint_metadata_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; one review run measured ~116s, dominated by disposable-database migrations; no CI timing yet — promote to blocking with timing evidence
+  - file: go/internal/query/content_reader_language_inventory_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged PostgreSQL proof requires an opt-in disposable DSN; local fixture passed in 13.918s, and the live-backend runner does not set this DSN — promote after runner wiring and CI timing proof
+  - file: go/internal/query/documentation_facts_generation_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/documentation_facts_label_authz_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/documentation_facts_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/documentation_finding_aggregate_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/documentation_related_generation_live_test.go
+    tag: ~
+    class: scheduled
+    reason: disposable PostgreSQL generation proof gated by env Skip; run in the scheduled live lane until CI cost is measured
+  - file: go/internal/query/documentation_target_facts_differential_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/documentation_source_only_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/documentation_target_facts_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/downgraded_code_root_kinds_roundtrip_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/graph/anchor/census_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded proof of the id-anchor census Cypher (#7212) against the reference classification, with a planted id-only node and a null-uid node; the census is Neo4j-only, so the test itself self-skips on NornicDB; runs on Neo4j in the live-backend CI job
+    backends: neo4j
+  - file: go/internal/query/entity/context_anchor_neo4j_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; the anchor is Neo4j-only (#7006), so the test itself self-skips on NornicDB; runs on Neo4j in the live-backend CI job
+    backends: neo4j
+  - file: go/internal/query/entity/context_uid_anchor_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/entity/nornicdb_answer_truth_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/entity/scoped_grant_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/entity/service_context_bound_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/entity_name_cross_store_differential_live_test.go
+    tag: live_global_name_comparison
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/entity_name_search_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/evidence_bundle_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/graph_entity_inventory_slo_live_test.go
+    tag: graph_entity_inventory_slo_live
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/query/iac/inventory_postgres_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/iac/inventory_postgres_read_model_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact/change_surface_label_predicate_live_test.go
+    tag: live_nornicdb_label_predicates
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact/resource_investigation_selector_slo_live_test.go
+    tag: resource_selector_slo_live
+    class: scheduled
+    reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/query/impact_anchor_candidates_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 scoped shared-name anchor resolves the granted candidate over 20 asserted runs; passed on neo4j:2026-community — promote to blocking with timing evidence"
+    backends: neo4j
+  - file: go/internal/query/impact_anchor_resolve_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact_blast_radius_sql_table_bite_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact_blast_radius_sql_table_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact_change_surface_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact_ownership_budget_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 impact ownership statement cost, cap and deadline; passed on neo4j:2026-community — promote to blocking with timing evidence"
+    backends: neo4j
+  - file: go/internal/query/impact_ownership_hub_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 hub fan-in never admits a hub whose granted owner the row cap cut; passed on neo4j:2026-community — promote to blocking with timing evidence"
+    backends: neo4j
+  - file: go/internal/query/impact_resource_investigation_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact_scoped_grant_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 two-tenant scoped impact grant with shared-key negative controls; passed on neo4j:2026-community — promote to blocking with timing evidence"
+    backends: neo4j
+  - file: go/internal/query/impact_trace_deployment_flux_bindings_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact_trace_deployment_oci_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact/trace_deployment_oci_bound_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic seeded answer-truth proof for the #6590 OCI registry-truth row-limit bound (below-bound byte-equal control, irreducible-overflow withholding, ambiguous-pair resolution, NodeIndexSeek plan retention); runs in the live-backend CI job"
+    backends: neo4j
+  - file: go/internal/query/impact/deployment/scoped_selector_bound_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/impact/deployment/scoped_selector_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/import_dependencies_grant_nornicdb_live_test.go
+    tag: live_nornicdb_language_imports_grant
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/repository_context_workload_count_neo4j_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "isolated Neo4j #7542 production HTTP handler proof of distinct materialized workloads despite mismatched read-model names; local fixture passed in 1.049s, CI timing pending"
+    backends: neo4j
+  - file: go/internal/query/service_story_target_support_defines_neo4j_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: "isolated Neo4j #7138 proof that the story target-support DEFINES gate keeps the target inside its three-row bound; env-gated (ESHU_INFRA_SCOPE_NEO4J_LIVE, ESHU_NEO4J_URI) on a disposable backend, run on demand when the gate read changes"
+  - file: go/internal/query/infra_graph_summary_hot_entities_neo4j_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: "isolated Neo4j #7251 degree-page parity fixture is env-gated and requires a disposable backend; promote to blocking after runner compatibility and repeated timing proof"
+    backends: neo4j
+  - file: go/internal/query/infra_resource_aggregates_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/infra_scope_neo4j_equivalence_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: "live Neo4j #7215 dialect equivalence and no-leak proof; about 2 min on an emulated Neo4j — promote to blocking with timing evidence"
+  - file: go/internal/query/infra_scope_neo4j_argocd_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: "live Neo4j #7215 category=argocd dialect equivalence and no-leak proof; about 17 s on an emulated Neo4j — promote to blocking with timing evidence"
+  - file: go/internal/query/infra_scope_neo4j_id_collision_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: "live Neo4j #7220 proof that a non-Repository node whose id equals a granted repository or scope id is not returned by scoped infra search or relationships in either dialect; about 10 s on native arm64 Neo4j — promote to blocking with timing evidence"
+    backends: neo4j
+  - file: go/internal/query/infra_scope_neo4j_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: "harness and fixture for the live Neo4j #7215 dialect proof; no test of its own"
+  - file: go/internal/query/infra_scope_neo4j_timing_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: "operator-run #7215 cold/warm measurement on the proof graph; env-gated twice and not a correctness gate"
+  - file: go/internal/query/infra_scope_neo4j_aggregate_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: "live Neo4j #7231 scoped count/inventory equivalence, no-leak and cold under-10 s budget proof; timing recorded in docs/internal/evidence/7231-scoped-infra-aggregate-neo4j-dialect.md — promote to blocking with timing evidence"
+  - file: go/internal/query/infra_scope_grant_live_test.go
+    tag: live_infra_scope_shape
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/infra_scope_grant_matches_state_pipeline_live_test.go
+    tag: live_infra_scope_shape
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/kubernetes_runtime_workload_store_fairness_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/query/kubernetes/runtime_workload_store_live_test.go
+    tag: integration
+    class: scheduled
+    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/query/label_predicate_exposure_live_test.go
+    tag: live_nornicdb_label_predicates
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/label_predicate_timing_live_test.go
+    tag: live_nornicdb_label_predicate_timing
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/language/directory_nornicdb_live_test.go
+    tag: live_nornicdb_language_imports_grant
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/language/directory_tie_nornicdb_live_test.go
+    tag: live_nornicdb_language_imports_grant
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/language/ownership_neo4j_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-tagged Directory/File ownership regression on disposable Neo4j 2026; local cold runs took 2.10-4.04s for #6703; the legacy shared CI tag selects this Neo4j-only row"
+    backends: neo4j
+  - file: go/internal/query/language_query_grant_nornicdb_live_backend_test.go
+    tag: live_nornicdb_language_imports_grant
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/language_query_grant_nornicdb_live_test.go
+    tag: live_nornicdb_language_imports_grant
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/language_query_grant_nornicdb_negative_control_live_test.go
+    tag: live_nornicdb_language_imports_grant
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/language_query_grant_plan_shape_live_test.go
+    tag: live_postgres_language_grant_plan
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/language_query_mixed_language_nornicdb_live_test.go
+    tag: live_nornicdb_language_imports_grant
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/language_query_zero_match_plan_shape_live_test.go
+    tag: live_postgres_language_zero_match_plan
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/nornicdb_answer_truth_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
+  - file: go/internal/query/package/registry/version_counts_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7816 deterministic seeded proof that the version-count read returns no row for a version-less id on each backend leg (phantom empty-group row filtered); local run 0.01 s on NornicDB, 0.04 s on Neo4j"
+  - file: go/internal/query/package_registry_nornicdb_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/queryplan_profile_live_test.go
+    tag: queryplan_profile_live
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/queryplan_profile_unbounded_live_test.go
+    tag: queryplan_profile_live
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/relationships_catalog_lambda_image_scope_nornicdb_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/repository/dependency_edge_growth_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/repository/infrastructure_label_predicate_live_test.go
+    tag: live_nornicdb_label_predicates
+    class: scheduled
+    reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/repository/nornicdb_answer_truth_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
+  - file: go/internal/query/repository/nornicdb_dependency_marker_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/repository/nornicdb_deployment_evidence_anchor_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
+  - file: go/internal/query/repository/nornicdb_deployment_evidence_anchor_timing_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
+  - file: go/internal/query/repository/nornicdb_incoming_anchor_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
+  - file: go/internal/query/semanticsearch/semantic_search_index_cache_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/semanticsearch/semantic_search_scope_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/service_story_determinism_nornicdb_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/service_story_target_support_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/service_story_target_support_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/service_story_target_support_writer_matrix_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated (ESHU_POSTGRES_DSN) #7138 correlation matrix on payloads built by the production Jira and PagerDuty writers; seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes"
+  - file: go/internal/query/service_story_target_support_writer_shape_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated (ESHU_POSTGRES_DSN) #7138 regression that a Jira pull-request link built by the production writer reaches its repository's story; seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes"
+  - file: go/internal/query/service_story_target_support_pagerduty_matrix_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated (ESHU_POSTGRES_DSN) #7463 correlation matrix with every fact built by a production writer (PagerDuty collector, Terraform-state parser, reducer incident-repository correlation writer); seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes"
+  - file: go/internal/query/service_story_target_support_jira_issue_link_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated (ESHU_POSTGRES_DSN) #7464 correlation matrix with every Jira fact built by a production envelope writer: a record or transition attaches to a repository story only through the same issue's repository link (same scope and active generation, non-blank issue id), plus the service-target gate and the row bound; seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes"
+  - file: go/internal/query/service_story_target_support_jira_issue_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated (ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN plus the disposable opt-in) #7464 plan proof at about 600,000 facts plus 20,000 Jira issues: the issue-link read uses migration 152 then migration 155 with the issue id as an index condition and stays under a buffer bound, and the source-only count keeps its index with the linked-issue set; creates and drops its own database, run on demand when the story target-support statements change"
+  - file: go/internal/query/service_story_target_support_incident_routing_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated (ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN plus the disposable opt-in) #7463 plan proof at about one million facts: the PagerDuty routing read uses the migration 003 lookup indexes and stays under a buffer bound, and the source-only count keeps its index; creates and drops its own database, run on demand when the story target-support statements change"
+  - file: go/internal/query/status_index_scoped_nornicdb_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#5167 live row-membership proof for the grant-filtered index-status repository count (seven grant shapes, empty grant makes no graph call); env-gated by ESHU_INDEX_STATUS_NORNICDB_LIVE — promote to blocking with repeated timing evidence"
+  - file: go/internal/query/status_terraform_selection_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/status/summary/bloat_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 bloat proof of the one-row status summary table (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): 4,000 upserts at the production row size, with a compressible and an incompressible (TOASTed) payload, then a manual VACUUM with autovacuum disabled on the proof table so no background vacuum moves the round-one baseline, leave a one-page heap, a bounded TOAST relation, HOT updates, and a read of a handful of buffers; about 1 s each on PostgreSQL 18.6"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/status/summary/bloat_terraform_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 bloat and read-buffer proof of the terraform_state status summary row (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): 4,000 upserts of a 72-entry (about 35 KB, the ops-qa size) and of a 141-entry (about 69 KB) TOASTed payload then a manual VACUUM with autovacuum disabled on the proof table (a merge-group run failed the TOAST bound when autovacuum vacuumed the TOAST relation during round one) leave a one-page heap, a bounded TOAST relation, HOT updates, and a read that touches only status_summary_snapshots in at most 8 plan buffers and 30 TOAST buffers; a 5 MB worst-case row stays bounded and is read in 151 TOAST buffers"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/status/summary/conflict_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 contention proof of the status summary as_of guard (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): one writer's transaction is held open, pg_stat_activity shows the other blocked on a lock, and the release decides whether the waiter advances (newer over older, older rejected, first insert, holder rollback); about 1 s on PostgreSQL 18.6"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/status/summary/store_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proofs of the status summary store (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): missing-table and empty-table reads, migration 161 applied twice with its storage parameters, the as_of guard (with a guard-stripped RED comparator), two concurrent writers with a polling reader, single-row crash safety, and the writer advisory lock; under 1 s each on PostgreSQL 18.6"
+    runner: live-postgres-readiness

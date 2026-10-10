@@ -398,6 +398,12 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Set up Go for validated registry fragments
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 

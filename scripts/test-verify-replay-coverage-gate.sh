@@ -11,7 +11,10 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-replay-coverage-gate.sh"
 workflow="${repo_root}/.github/workflows/replay-coverage-gate.yml"
 manifest="${repo_root}/specs/replay-coverage-manifest.v1.yaml"
-ci_gates="${repo_root}/specs/ci-gates.v1.yaml"
+ci_gates="$(mktemp)"
+trap 'rm -f "${ci_gates}"' EXIT
+. "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${ci_gates}" "${repo_root}"
 
 fail() {
 	printf 'test-verify-replay-coverage-gate: %s\n' "$*" >&2

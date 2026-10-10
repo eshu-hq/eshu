@@ -1,0 +1,466 @@
+version: v1
+gates:
+  - id: ifa-replay-drive
+    name: Ifa P2 replay-drive mirror (bash>=4.4 guard + drive/drain contract)
+    category: exactness
+    layer: hygiene
+    purpose: "Statically checks the structure of the Ifá replay-drive verifier script; it does not start Docker or replay any cassette."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/lib/ifa_mirror_pins.sh"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      # The pattern this mirror's private-data scan runs, and its positive
+      # control. The scan sources it now instead of carrying a hand-copied
+      # literal; without a row here, neutering the pattern re-runs nothing (#6161).
+      - "scripts/lib/ifa_private_data_pattern.sh"
+      - "scripts/lib/ifa_dead_command_line.sh"
+      - "scripts/verify-ifa-replay-drive.sh"
+      - "scripts/test-verify-ifa-replay-drive.sh"
+      # No scripts/lib trigger here, and that is a deliberate gap rather than
+      # an oversight: this mirror sources nothing from that directory today.
+      # An earlier draft of this change carried "scripts/lib/ifa_mirror_*.sh"
+      # ahead of #6161's shared mirror-pin helper, on the reasoning that a
+      # glob may name a surface before the file exists. #6223 closed that:
+      # a glob trigger matching no tracked file is now a hard registry error,
+      # because a trigger that resolves to nothing stops selecting its gate
+      # for good and nothing dangles. The file gets its trigger when the file
+      # lands. That policy binds ifa-determinism-gate.yml's paths: filter
+      # too, even though #6223's rule is registry-only and GitHub tolerates a
+      # glob that matches nothing: a workflow half that starts all four Ifá
+      # jobs on a path the registry selects no gate for is the same
+      # divergence as #6164, pointed the other way.
+    local:
+      command: "bash scripts/test-verify-ifa-replay-drive.sh"
+      test_command: "bash scripts/test-verify-ifa-replay-drive.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Ifa replay-drive mirror gate"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: parserfixture-tests
+    name: Parser Fixture Replay Tests
+    category: exactness
+    layer: replay
+    purpose: "Replays recorded parser fixtures against the real parser to prove its output stays deterministic."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/replay/parserfixture/**"
+      - "specs/parser-backing-ledger.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/replay/parserfixture/... -count=1"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "go-race-complete"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: authz-scoped-route-tests
+    name: Authorization Scoped Route Replay Tests
+    category: exactness
+    layer: contract
+    purpose: "Confirms scoped-token route authorization in code matches the declared authorization-catalog and replay-coverage specs."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "go/internal/scopedtoken/**"
+      - "specs/authorization-catalog.v1.yaml"
+      - "specs/authorization-replay-coverage.v1.yaml"
+      - "scripts/go-test-run-guard.sh"
+      - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      # go_test_run_guard (#6055) asserts the pattern still matches all 6
+      # named tests via `go test -list` before running them, so a rename or
+      # move that drops the match count to zero fails loudly instead of the
+      # bare `go test -run` exiting 0 on nothing. The command stays
+      # "cd go && ..."-prefixed (a relative ../scripts/ call rather than a
+      # bare scripts/ one) so it keeps the same registry shape
+      # heredoc-budget's local.command already uses for a script it invokes
+      # from inside go/ — the two new triggers above are added explicitly
+      # even though this shape is exempt from checkScriptTriggerCoverage's
+      # automatic derivation, matching that same precedent.
+      command: "cd go && ../scripts/go-test-run-guard.sh 6 'Test(AuthorizationReplayCoverageContract|SecretsIAMPostureSummaryScopedGrant|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -- ./internal/query -count=1"
+      test_command: ""
+    ci:
+      workflow: replay-coverage-gate.yml
+      job: "coverage-gate (blocking)"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: code-coverage-report
+    name: Go Code Coverage Report
+    category: exactness
+    layer: unit
+    purpose: "Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only."
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "go/**"
+      - "scripts/generate-code-coverage-report.sh"
+      - "scripts/test-generate-code-coverage-report.sh"
+      - "docs/public/reference/code-coverage.md"
+      - "docs/public/reference/code-coverage-shield.json"
+      - ".github/workflows/code-coverage-report.yml"
+      - "docs/mkdocs.yml"
+      - "README.md"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+    self_test_triggers:
+      - "scripts/generate-code-coverage-report.sh"
+      - "scripts/test-generate-code-coverage-report.sh"
+      - "docs/public/reference/code-coverage.md"
+      - "docs/public/reference/code-coverage-shield.json"
+      - ".github/workflows/code-coverage-report.yml"
+      - "docs/mkdocs.yml"
+      - "README.md"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/generate-code-coverage-report.sh"
+      test_command: "bash scripts/test-generate-code-coverage-report.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 111s. Advisory (blocking: false) -- never part of required-gates-complete, so deferring it removes no required merge protection. It keeps running via its own code-coverage-report.yml workflow and via `make pre-pr`/`make pre-pr-full`."
+    ci:
+      workflow: code-coverage-report.yml
+      job: "Generate Go code coverage report"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: e2e-tests
+    name: End-to-end tests (Docker stack)
+    category: exactness
+    layer: truth
+    purpose: "Boots the full Docker service stack and checks the whole system produces the right end-to-end results."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/**"
+      - "docker-compose*.yaml"
+      - "docker-compose*.yml"
+      - "scripts/verify_backend_conformance_live.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+    ci:
+      workflow: e2e-tests.yml
+      job: "test"
+      check_names:
+        - "test (nornicdb)"
+        - "test (neo4j)"
+    requirements:
+      - go
+      - docker
+      - nornicdb
+      - postgres
+    ci_only_reason: "requires Docker Compose service stack"
+
+  - id: auth-mcp-e2e
+    name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
+    category: exactness
+    layer: truth
+    purpose: "Runs a real browser plus scripted OAuth flow against a fresh stack to prove MCP identity auth works end-to-end."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "apps/console/e2e/**"
+      - "scripts/lib/auth_e2e_cli.sh"
+      - "scripts/test-auth-e2e-cli.sh"
+      - "scripts/run-auth-mcp-e2e.sh"
+      - "scripts/auth-mcp-e2e-runtime.mjs"
+      - "scripts/verify-auth-mcp-e2e-sensitivity.sh"
+      - "scripts/verify-auth-mcp-e2e-manifest.sh"
+      - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
+      - "scripts/lib/auth_mcp_e2e_manifest.sh"
+      - "docker-compose.e2e.yaml"
+      # docker-compose.e2e.yaml extends the neo4j service from this file.
+      - "docker-compose.neo4j.yml"
+      - "docker-compose.e2e.mutation.yaml"
+      - "testdata/golden/auth-mcp-e2e-baseline.json"
+      - "go/cmd/mock-github/**"
+      - "go/cmd/mock-oidc-idp/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/oidcbearer/**"
+      - "go/internal/githublogin/**"
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "scripts/ci/go-mod-download-retry.sh"
+    local:
+      command: "bash scripts/run-auth-mcp-e2e.sh"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "MCP-identity auth E2E (browser + scripted OAuth, fresh stack)"
+    requirements:
+      - go
+      - node
+      - docker
+      - postgres
+    ci_only_reason: ""
+
+  # Owner row for the `SSO auth E2E` job of frontend.yml. It had no row, so its
+  # failures never blocked a merge. It stays non-blocking on measured flake
+  # evidence: two same-commit fail/pass pairs, where the merge_group run of a
+  # commit failed and the push run of the same commit passed, on 2026-09-30
+  # (483d0d25, run 36763629886 vs 36768062593, a buildkit "rpc error: code =
+  # Unavailable ... EOF" while building db-migrate) and 2026-10-01 (87607494,
+  # run 36873243872 vs 36876607573, member sidebar rendered an Admin nav link).
+  # Making it blocking now would evict merge groups for infrastructure and
+  # timing flakes. Flip to blocking once the member-nav race is fixed and a
+  # window of runs is clean.
+  - id: auth-sso-e2e
+    name: SSO auth E2E (browser, fresh stack)
+    category: exactness
+    layer: secondary
+    purpose: "Runs a real browser against a fresh stack to prove first-run, OIDC login, SSO enforcement and break-glass work end to end."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "scripts/lib/auth_e2e_cli.sh"
+      - "scripts/test-auth-e2e-cli.sh"
+      - "scripts/run-auth-e2e.sh"
+      - "scripts/console-auth-e2e-runtime.mjs"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "docker-compose.e2e.yaml"
+      - "docker-compose.neo4j.yml"
+      - "docker-compose.yaml"
+      - "Dockerfile"
+      - "go/cmd/mock-oidc-idp/**"
+      - "go/cmd/api/**"
+      - "go/internal/oidclogin/**"
+      - ".github/workflows/frontend.yml"
+    local:
+      command: "bash scripts/run-auth-e2e.sh"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "SSO auth E2E (browser, fresh stack)"
+    requirements:
+      - go
+      - node
+      - docker
+    ci_only_reason: ""
+
+  - id: trivy-image
+    name: Trivy image scan (GHCR)
+    category: security
+    layer: hygiene
+    purpose: "Scans the published GHCR container image for known vulnerabilities after publish."
+    tier: ci-heavy
+    # Post-publish evidence: the image does not exist until docker-publish has
+    # completed on main, so this cannot honestly be a pre-merge blocker.
+    blocking: false
+    triggers:
+      - "go/**"
+      - "Dockerfile"
+      - "deploy/helm/**"
+    ci:
+      workflow: security-scan.yml
+      job: "Trivy image scan (ghcr.io/eshu-hq/eshu)"
+    requirements:
+      - credentials
+    ci_only_reason: "requires published container image and GHCR credentials"
+
+  - id: docker-image-build
+    name: Docker image build smoke
+    category: build
+    layer: hygiene
+    purpose: "Smoke-tests that the Docker image still builds successfully in CI."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+    ci:
+      workflow: docker-publish.yml
+      job: "build-and-push-image"
+    requirements:
+      - docker
+    ci_only_reason: "requires hosted Docker Buildx; PR runs build with push disabled"
+
+  - id: docker-image-reproducibility
+    name: Docker image reproducibility
+    category: build
+    layer: contract
+    purpose: "Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-reproducibility"
+    requirements:
+      - docker
+    ci_only_reason: "requires two clean hosted Docker Buildx builds"
+
+  - id: docker-publish-shape
+    name: Docker publish workflow shape
+    category: build
+    layer: hygiene
+    purpose: "Statically checks the publish workflow's per-sha concurrency, immutable build tags, promotion wiring, and per-sha scan resolver; it never pushes an image."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/workflows/docker-publish.yml"
+      - ".github/workflows/security-scan.yml"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - "scripts/ci/promote-moving-tags.sh"
+      - "scripts/ci/resolve-image-scan-ref.sh"
+      - "scripts/test-promote-moving-tags.sh"
+      - "scripts/test-resolve-image-scan-ref.sh"
+      - "scripts/test-verify-docker-publish-pr-platforms.sh"
+      - "scripts/test-verify-docker-publish-moving-tags.sh"
+    local:
+      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
+      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify docker-publish shape gate"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: dockerhub-login
+    name: Docker Hub login in image-pulling workflows
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when a workflow job that can pull Docker Hub images, directly or via a script it runs, has no gated login before its first pull (shared anonymous limit)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      # Scope is derived, not listed: every workflow, every local composite
+      # action, every shell script (.sh or .bash, anywhere in the tree) a
+      # workflow can reach, and every Dockerfile and compose file (at any depth)
+      # whose image registries decide whether a job pulls from Docker Hub.
+      # ".github/**" covers .github/workflows and .github/actions; "**/*.*sh"
+      # covers .sh and .bash (the matcher has no braces, and a trigger that
+      # matches no tracked file is rejected, so ".github/actions/**" and
+      # "**/*.bash" cannot be listed until such a file exists).
+      - ".github/**"
+      - "**/*.*sh"
+      - "scripts/lib/dockerhub-login-*.awk"
+      - "**/Dockerfile*"
+      - "**/docker-compose*.y*ml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/verify-dockerhub-login.sh"
+      test_command: "bash scripts/test-verify-dockerhub-login.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Docker Hub login gate"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: docker-image-promotion
+    name: Moving image tag promotion
+    category: build
+    layer: hygiene
+    purpose: "Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish."
+    tier: ci-heavy
+    # Post-publish evidence: the digest does not exist until the build job has
+    # pushed it on main, so this cannot honestly be a pre-merge blocker. The
+    # row exists so main-health classifies a promotion failure as advisory
+    # instead of fail-closing an unclaimed job to red.
+    blocking: false
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/promote-moving-tags.sh"
+      - "scripts/test-promote-moving-tags.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "promote-moving-tags"
+    requirements:
+      - credentials
+    ci_only_reason: "requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs"
+
+  # Owner row for the `attach-release-sbom` job of docker-publish.yml. The job
+  # runs only on a tag push (`github.ref_type == 'tag'`) and is skipped on every
+  # pull_request and merge_group run, so it can never be a pre-merge blocker.
+  # The row exists so main-health classifies a failed SBOM attach as advisory
+  # instead of an unowned job (same reason as docker-image-promotion above).
+  - id: release-sbom-attach
+    name: Release SBOM attach
+    category: release
+    layer: secondary
+    purpose: "Attaches the image SBOM to the GitHub Release after a tag publish; runs only on a tag push."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+    ci:
+      workflow: docker-publish.yml
+      job: "attach-release-sbom"
+    requirements:
+      - credentials
+    ci_only_reason: "attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group"
+
+  - id: apk-floors
+    name: Alpine apk floors match the repository
+    category: exactness
+    layer: contract
+    purpose: "Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves."
+    tier: pre-pr
+    blocking: true
+    # Path-triggered only: the Dockerfile, the publish workflow, and the
+    # verifier with its own self-test and fixtures. Unrelated PRs never select
+    # it. The same paths gate docker-publish.yml's on.paths and its `changes`
+    # job, so the verify-apk-floors check exists on every pull_request and
+    # merge_group run that selects this row. The job is skipped on push, tag,
+    # and dispatch so a post-merge stale floor cannot redden the publish run;
+    # the apk-floors-drift row covers main daily.
+    triggers:
+      - "Dockerfile"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/verify-apk-floors.sh"
+      - "scripts/test-verify-apk-floors.sh"
+      - "scripts/fixtures/apk-floors/**"
+    local:
+      command: "bash scripts/verify-apk-floors.sh"
+      test_command: "bash scripts/test-verify-apk-floors.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-apk-floors"
+    requirements:
+      - network
+    ci_only_reason: ""
+
+  - id: apk-floors-drift
+    name: Alpine apk floors drift (daily)
+    category: exactness
+    layer: secondary
+    purpose: "Runs the apk floor check daily against the live Alpine repository so a stale floor surfaces without a Dockerfile change."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "Dockerfile"
+      - ".github/workflows/apk-floors-drift.yml"
+      - "scripts/verify-apk-floors.sh"
+      - "scripts/test-verify-apk-floors.sh"
+      - "scripts/fixtures/apk-floors/**"
+    ci:
+      workflow: apk-floors-drift.yml
+      job: "Apk floors drift (daily)"
+    requirements:
+      - network
+    ci_only_reason: "daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script"

@@ -1,14 +1,13 @@
 # Build Test workflow rationale
 
-These YAML comments were moved from `test.yml` without changing workflow
-jobs, filters, commands, permissions, or concurrency. Comments within shell
-and filter strings remain in the workflow.
+These YAML comments were moved verbatim from `test.yml`.
+Comments inside executable scalar blocks remain in the workflow.
 
-The original line references below identify the source at commit
-`48fb19c2811bbdf82958d32181b1ed327695fbf2`. Its SHA-256 is
-`cd83ef285a8cbd604fa221fa8c400666a0c16a05353cf85f3d84db577a59d530`.
+Original workflow SHA-256: `da8c3cbd76f2f5118b4b1a5afeb2573c81d426aae36c4e30acee2d1400a79ce5`.
 
-## Original lines 22 to 27
+## Comment group 1
+
+Original lines 22–27.
 
 ```yaml
   # Decide whether this event changed any non-docs path. A docs-only PR (docs
@@ -19,7 +18,9 @@ The original line references below identify the source at commit
   # docs commit that lands on main is never left unverified.
 ```
 
-## Original lines 40 to 55
+## Comment group 2
+
+Original lines 40–55.
 
 ```yaml
       # merge_group (#5814): every downstream heavy-lane `if:` already runs
@@ -40,7 +41,9 @@ The original line references below identify the source at commit
       # since it is already unused downstream.
 ```
 
-## Original lines 66 to 88
+## Comment group 3
+
+Original lines 66–88.
 
 ```yaml
           # Without this line the whole filter below is decorative. dorny
@@ -68,7 +71,9 @@ The original line references below identify the source at commit
           # one of them at once, selecting almost nothing.
 ```
 
-## Original lines 90 to 102
+## Comment group 4
+
+Original lines 90–102.
 
 ```yaml
           # `code` is true when ANY changed file is outside the docs set. The
@@ -86,33 +91,43 @@ The original line references below identify the source at commit
           # which this filter gates. See #5818.
 ```
 
-## Original lines 112 to 112
+## Comment group 5
+
+Original lines 112–112.
 
 ```yaml
   # Docs-only changes skip the Go lanes; their Markdown cap must still run.
 ```
 
-## Original lines 135 to 136
+## Comment group 6
+
+Original lines 135–136.
 
 ```yaml
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
 ```
 
-## Original lines 143 to 143
+## Methodology proof comment
+
+Original methodology workflow line 143.
 
 ```yaml
           # The methodology proof validates exact event commits and ancestry.
 ```
 
-## Original lines 146 to 147
+## Comment group 7
+
+Original lines 145–146.
 
 ```yaml
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
       # on hosted runners. Skipped, not failed, when the secrets are absent.
 ```
 
-## Original lines 164 to 167
+## Comment group 8
+
+Original lines 163–166.
 
 ```yaml
       # Pre-warm Go modules with retries so a dropped proxy stream fails
@@ -121,14 +136,18 @@ The original line references below identify the source at commit
       # (#6615 follow-up to #6075).
 ```
 
-## Original lines 176 to 177
+## Comment group 9
+
+Original lines 175–176.
 
 ```yaml
       # The trusted required-gates publisher reads main's registry. Retain the
       # previous owner while this PR introduces the dedicated cap job above.
 ```
 
-## Original lines 188 to 190
+## Comment group 10
+
+Original lines 187–189.
 
 ```yaml
           # Pin the base used to build this PR merge commit. A newer main tip
@@ -136,7 +155,9 @@ The original line references below identify the source at commit
           # verifier's two-dot fallback attribute main's changes to the PR.
 ```
 
-## Original lines 288 to 305
+## Comment group 11
+
+Original lines 267–284.
 
 ```yaml
       # install-apt-packages.sh has no separate verify mode -- the test
@@ -159,7 +180,9 @@ The original line references below identify the source at commit
       # declares this job as its `ci.job`.
 ```
 
-## Original lines 310 to 318
+## Comment group 12
+
+Original lines 289–297.
 
 ```yaml
       # go-mod-download-retry.sh has no separate verify mode either, for the
@@ -173,7 +196,9 @@ The original line references below identify the source at commit
       # declares this job as its `ci.job`.
 ```
 
-## Original lines 323 to 327
+## Comment group 13
+
+Original lines 302–306.
 
 ```yaml
       # Same shape for go-install-retry.sh, the retry wrapper every CI tool
@@ -183,7 +208,9 @@ The original line references below identify the source at commit
       # entry, which declares this job as its `ci.job`.
 ```
 
-## Original lines 332 to 338
+## Comment group 14
+
+Original lines 311–317.
 
 ```yaml
       # Pre-warm Go modules with retries so a dropped proxy stream fails
@@ -195,14 +222,18 @@ The original line references below identify the source at commit
       # gone unfixed (#6615, the follow-up #6075 should have covered).
 ```
 
-## Original lines 347 to 348
+## Comment group 15
+
+Original lines 326–327.
 
 ```yaml
       # tools/golangci-lint-filelength is its own module (own go.mod), so the
       # go/ pre-warm above does not touch its cache -- warm it separately.
 ```
 
-## Original lines 358 to 362
+## Comment group 16
+
+Original lines 337–341.
 
 ```yaml
       # skip_parity_test.go compares this plugin's skip() against the bash
@@ -212,13 +243,17 @@ The original line references below identify the source at commit
       # step the guard fires only under `make pre-pr` and never in CI.
 ```
 
-## Original lines 368 to 368
+## Comment group 17
+
+Original lines 347–347.
 
 ```yaml
       # tools/golangci-lint-dirgate is also its own module -- warm it too.
 ```
 
-## Original lines 378 to 391
+## Comment group 18
+
+Original lines 357–370.
 
 ```yaml
       # The dirgate Go plugin above is loaded by "Lint Go" below, but
@@ -237,7 +272,9 @@ The original line references below identify the source at commit
       # as its `ci.job`).
 ```
 
-## Original lines 396 to 402
+## Comment group 19
+
+Original lines 375–381.
 
 ```yaml
       # The plugin's own unit tests. "Lint Go" runs the plugin against the real
@@ -249,7 +286,9 @@ The original line references below identify the source at commit
       # (#6054 review finding).
 ```
 
-## Original lines 419 to 422
+## Comment group 20
+
+Original lines 398–401.
 
 ```yaml
         # gofumpt is configured under `formatters` in v2, so it is
@@ -258,7 +297,9 @@ The original line references below identify the source at commit
         # (codex P2 review on PR #3847).
 ```
 
-## Original lines 432 to 461
+## Comment group 21
+
+Original lines 411–440.
 
 ```yaml
     # Umbrella gate (#5814): a single stable status name that is green only
@@ -293,7 +334,9 @@ The original line references below identify the source at commit
     # each side only compiled against its own base.
 ```
 
-## Original lines 483 to 496
+## Comment group 22
+
+Original lines 462–475.
 
 ```yaml
     # Sharded authoritative race gate. Each shard runs `go test -race` on a
@@ -312,7 +355,9 @@ The original line references below identify the source at commit
     # The matrix values MUST stay contiguous 1..N or a package slice is dropped.
 ```
 
-## Original lines 504 to 522
+## Comment group 23
+
+Original lines 483–501.
 
 ```yaml
     # #6615: 25m had no headroom, unlike the per-binary 900s budget below,
@@ -336,7 +381,9 @@ The original line references below identify the source at commit
     # fails in under 35 minutes rather than running unbounded.
 ```
 
-## Original lines 540 to 543
+## Comment group 24
+
+Original lines 519–522.
 
 ```yaml
           # Pinned: setup-helm installs latest by default, and a newer helm
@@ -345,7 +392,9 @@ The original line references below identify the source at commit
           # Helm contract tests with no code change. See eshu-hq/eshu#5566.
 ```
 
-## Original lines 546 to 548
+## Comment group 25
+
+Original lines 525–527.
 
 ```yaml
       # Pre-warm modules with retries so a dropped proxy stream fails HERE,
@@ -353,7 +402,9 @@ The original line references below identify the source at commit
       # never ran a test (#6075 follow-up).
 ```
 
-## Original lines 552 to 557
+## Comment group 26
+
+Original lines 531–536.
 
 ```yaml
       # go/internal/replay/recorder and go/cmd/collector-aws-cloud run the
@@ -364,7 +415,9 @@ The original line references below identify the source at commit
       # ripgrep exactly as go-core does.
 ```
 
-## Original lines 591 to 609
+## Comment group 27
+
+Original lines 570–588.
 
 ```yaml
     # Umbrella gate: a single stable status name that is green only when EVERY
@@ -388,7 +441,9 @@ The original line references below identify the source at commit
     # skip when `changes` itself succeeded.
 ```
 
-## Original lines 631 to 633
+## Comment group 28
+
+Original lines 610–612.
 
 ```yaml
     # Always runs (no changes gate) — this is the docs build that a docs-only PR
@@ -396,7 +451,9 @@ The original line references below identify the source at commit
     # above stays intact even on the docs-only PRs it governs.
 ```
 
-## Original lines 668 to 671
+## Comment group 29
+
+Original lines 647–650.
 
 ```yaml
           # Pinned: setup-helm installs latest by default, and a newer helm
