@@ -1,5 +1,6 @@
 scripts/run-live-postgres-readiness-tests.sh
   s_b0d7e3abc26c5a::t_2f5cfab34e649f 42,45-46,70,73
+  s_b0d7e3abc26c5a::t_4ad8e22dccd46a 44,72
 scripts/lib/live_postgres_readiness_events.py
   s_b0d7e3abc26c5a::t_35f4a81eadda88 1-12,14-85
   s_b0d7e3abc26c5a::t_38350b3d14374a 13
@@ -8,6 +9,7 @@ specs/live-tests.v1.yaml
 scripts/test-run-live-postgres-readiness-tests.sh
   s_b0d7e3abc26c5a::t_38350b3d14374a 323,384
   s_b0d7e3abc26c5a::t_4cc056482b8611 40,70,73,81,87,114-115
+  s_b0d7e3abc26c5a::t_4ad8e22dccd46a 69
 specs/ci-gates.v1.yaml
   s_b0d7e3abc26c5a::t_5e342fef996e10 3076-3077
   s_b0d7e3abc26c5a::t_38350b3d14374a 3079
