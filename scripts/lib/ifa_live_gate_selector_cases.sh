@@ -219,6 +219,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/projector/service.go|go/internal/projector/service.go'
 	'go/internal/projector/service_superseded.go|go/internal/projector/service_superseded.go'
 	'go/internal/storage/postgres/projector_queue.go|go/internal/storage/postgres/projector_queue.go'
+	'go/internal/storage/postgres/projector_queue_claim_pool_sql.go|go/internal/storage/postgres/projector_queue_claim_pool_sql.go'
 	'go/internal/storage/postgres/projector_queue_claim_sql.go|go/internal/storage/postgres/projector_queue_claim_sql.go'
 	'go/internal/storage/postgres/projector_queue_scan.go|go/internal/storage/postgres/projector_queue_scan.go'
 	'go/internal/storage/postgres/projector_queue_sql.go|go/internal/storage/postgres/projector_queue_sql.go'

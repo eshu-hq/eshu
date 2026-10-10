@@ -94,10 +94,10 @@ All proof ran against `postgres:18` on a disposable database.
   dropped at lock time, with no fall-through to the held delta) and
   `TestProjectorClaimFullGuardAgreesWithFenceAcrossClocks` (hold and #7115
   fence agree across clocks; scope keeps exactly one lease). `is_delta`
-  is insert-immutable (the only production writer is the generation
-  upsert in `ingestion_queries.go`), so there is no marker-vs-sweep-style
-  interleave to race; the deterministic EPQ tests plus the fence cover
-  the changed predicate.
+  is stable per generation in all current writers (the only production
+  writer is the generation upsert in `ingestion_queries.go`), so there
+  is no marker-vs-sweep-style interleave to race; the deterministic EPQ
+  tests plus the fence cover the changed predicate.
 - Mutation checks: removing the spare fails the three spare tests; removing
   the hold fails the backoff and drifted tests while the natural-order
   full test still passes on oldest-ready ordering alone. The tests pin
