@@ -2145,6 +2145,16 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/identity_epoch_active_set_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7805 disposable PostgreSQL 18 proof, on the migrated schema in a private schema, that deleting superseded-generation identity facts leaves the epoch unchanged while an active-generation insert or delete moves it, and that the identity page serves only non-tombstone identity facts of a scope's active generation; timing evidence: the same page query loads the 546k-row active set in 4.7s (docs/internal/evidence/7805-identity-epoch-flight.md)"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/identity_page_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7805 disposable PostgreSQL 18 plan guard: EXPLAIN (FORMAT JSON) of the identity page query on the migrated schema must ride the ordered identity index with a hashed SubPlan active-generation filter, the keyset comparison as an Index Cond on a mid-load page, no Sort and no Seq Scan on fact_records; timing evidence: the guarded plan loads the 546k-row active set in 4.7s versus 589s to 724s for the JOIN plan (docs/internal/evidence/7805-identity-epoch-flight.md)"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/identity_epoch_cache_live_test.go
     tag: ~
     class: scheduled

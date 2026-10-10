@@ -2372,10 +2372,23 @@ type Instruments struct {
 	IdentityCacheHitTotal metric.Int64Counter
 	// IdentityCacheMissTotal counts identity-fact cache misses (epoch changed → reload) (#5438).
 	IdentityCacheMissTotal metric.Int64Counter
-	// IdentityCacheReloadTotal counts identity-fact cache reloads (singleflight leader) (#5438).
+	// IdentityCacheReloadTotal counts identity-fact load attempts, including the
+	// one in-flight retry a flight makes when the epoch moved during the paged
+	// load (#5438, #7805).
 	IdentityCacheReloadTotal metric.Int64Counter
-	// IdentityCachePassthroughTotal counts identity-fact passthroughs (cap exceeded or mid-load commit) (#5438).
+	// IdentityCachePassthroughTotal counts identity-fact loads that were not
+	// cached, by reason: cap_exceeded and size_unknown serve the consistent set
+	// uncached; epoch_moved and probe_error discard an unvalidated set (#5438,
+	// #7805).
 	IdentityCachePassthroughTotal metric.Int64Counter
+	// IdentityCacheFlightWaiterTotal counts callers that arrived while an
+	// identity-fact load was in flight, by outcome (shared, shared_error,
+	// stale_epoch, leader_canceled, torn_set, gave_up_flights, gave_up_wall) (#7805).
+	IdentityCacheFlightWaiterTotal metric.Int64Counter
+	// IdentityCacheLoadRetryTotal counts identity-fact loads discarded and
+	// repeated inside one flight because the epoch moved during the paged load
+	// (#7805).
+	IdentityCacheLoadRetryTotal metric.Int64Counter
 	// IdentityCacheReloadDuration records the duration of identity-fact cache reloads (#5438).
 	IdentityCacheReloadDuration metric.Float64Histogram
 	// IdentityCacheProbeDuration records the duration of identity-fact epoch probe queries (#5438).
@@ -6161,7 +6174,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.IdentityCacheReloadTotal, err = meter.Int64Counter(
 		"eshu_dp_identity_cache_reload_total",
-		metric.WithDescription("Total identity-fact cache reloads (singleflight leader)"),
+		metric.WithDescription("Total identity-fact load attempts, including the in-flight retry after an epoch move"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCacheReloadTotal counter: %w", err)
@@ -6169,10 +6182,36 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.IdentityCachePassthroughTotal, err = meter.Int64Counter(
 		"eshu_dp_identity_cache_passthrough_total",
-		metric.WithDescription("Total identity-fact cache passthroughs (cap exceeded or mid-load commit)"),
+		metric.WithDescription("Total identity-fact loads that were not cached, by reason: cap_exceeded and size_unknown serve the consistent set uncached; epoch_moved and probe_error discard an unvalidated set"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCachePassthroughTotal counter: %w", err)
+	}
+
+	inst.IdentityCacheFlightWaiterTotal, err = meter.Int64Counter(
+		"eshu_dp_identity_cache_flight_waiter_total",
+		metric.WithDescription("Identity-fact callers that arrived during an in-flight load, by outcome: "+
+			"shared (served the flight's rows), shared_error (served the flight's error), "+
+			"stale_epoch (caller's epoch probe differs from the flight's start epoch; retried), "+
+			"leader_canceled (flight leader gave up; retried), "+
+			"torn_set (flight could not validate its set; retried), "+
+			"gave_up_flights (caller waited out 3 flights; sustained churn), "+
+			"gave_up_wall (caller waited one heartbeat interval; a slow flight); "+
+			"both fail the item retryably after a final epoch probe finds no cache entry "+
+			"for the current epoch (a give-up that waited runs its own probe; a caller "+
+			"that arrives at the lead decision with its budget spent is covered by the "+
+			"probe at the top of that same pass)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheFlightWaiterTotal counter: %w", err)
+	}
+
+	inst.IdentityCacheLoadRetryTotal, err = meter.Int64Counter(
+		"eshu_dp_identity_cache_load_retry_total",
+		metric.WithDescription("Identity-fact loads discarded and repeated inside one flight because the epoch moved during the paged load"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheLoadRetryTotal counter: %w", err)
 	}
 
 	inst.IdentityCacheReloadDuration, err = meter.Float64Histogram(

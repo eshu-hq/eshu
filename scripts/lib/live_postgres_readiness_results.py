@@ -196,6 +196,13 @@ PACKAGES = {
             "TestReducerContentionGateContentGenerationTagGoModDirtLegs",
             "TestReducerContentionGateContentWriterBlankGenerationStoresNull",
         ),
+        "go/internal/storage/postgres/identity_epoch_active_set_live_test.go": (
+            "TestIdentityEpochIgnoresSupersededGenerationRowsLive",
+            "TestIdentityPageQueryServesOnlyActiveGenerationsLive",
+        ),
+        "go/internal/storage/postgres/identity_page_plan_live_test.go": (
+            "TestIdentityPageQueryPlanRidesOrderedIndexLive",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (
