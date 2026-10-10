@@ -236,8 +236,10 @@ func TestIdentityPageQueryPlanRidesOrderedIndexLive(t *testing.T) {
 // generic plan. A generic plan would carry the keyset comparison as a Filter and
 // make every page rescan from the start of the index. The guard reads
 // pg_prepared_statements.generic_plans, so a planner or cost change that makes
-// the generic plan win fails here before it reaches a full load. Measured on
-// PostgreSQL 18 with 525k active rows: 1,051 pages, generic_plans = 0.
+// the generic plan win fails here before it reaches a full load. This guard's
+// seed is 75,000 active rows (151 pages) and its walk is capped at 1,000 pages.
+// A separate throwaway walk of 525,000 active rows on PostgreSQL 18, outside
+// this test, took 1,051 pages with generic_plans = 0.
 func assertIdentityPageAutoModeStaysCustom(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 	conn, err := db.Conn(ctx)
