@@ -434,6 +434,7 @@ jobs:
               - 'scripts/pg-statement-report.sh'
               - 'scripts/test-pg-statement-report.sh'
             dockerpublish:
+              - 'docs/internal/ci-service-image-mirrors.md'
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
               - '.github/workflows/docker-publish.yml'
@@ -444,6 +445,12 @@ jobs:
               - 'scripts/test-resolve-image-scan-ref.sh'
               - 'scripts/test-verify-docker-publish-pr-platforms.sh'
               - 'scripts/test-verify-docker-publish-moving-tags.sh'
+              - 'scripts/dev/publish-ci-image-mirrors.sh'
+              - 'scripts/dev/fixtures/ci-image-mirror-crane-stub.sh'
+              - 'scripts/dev/fixtures/ci-image-mirror-publish-job.txt'
+              - 'scripts/dev/fixtures/ci-image-mirror-verify-public-job.txt'
+              - 'scripts/dev/test-publish-ci-image-mirrors.sh'
+              - 'scripts/dev/test-docker-publish-ci-mirror-mode.sh'
             dockerhublogin:
               - '.github/**'
               - '**/*.*sh'
@@ -513,7 +520,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.claudrules }}" "claudrules" "Verify Claude path-scoped rules gate" "bash scripts/test-claude-rules-lint.sh" "bash scripts/dev/claude-rules-lint.sh"
           append_gate "${{ steps.filter.outputs.rootcauseevidence }}" "rootcauseevidence" "Verify root-cause-evidence gate" "bash scripts/test-verify-root-cause-evidence.sh" "bash scripts/verify-root-cause-evidence.sh"
           append_gate "${{ steps.filter.outputs.pgstatementreport }}" "pgstatementreport" "Verify pg-statement-report gate" "bash scripts/test-pg-statement-report.sh" "bash scripts/test-pg-statement-report.sh"
-          append_gate "${{ steps.filter.outputs.dockerpublish }}" "dockerpublish" "Verify docker-publish shape gate" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
+          append_gate "${{ steps.filter.outputs.dockerpublish }}" "dockerpublish" "Verify docker-publish shape gate" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
           # 30, not the default 15: the 142-check suite (bash scripts/test-verify-
           # dockerhub-login.sh) forks awk, rg and yq per case. Measured on loaded
           # 18-core Macs (three suites at once, load average 25 to 50): 688 to
