@@ -454,13 +454,13 @@ expect_green login-with-continue-on-error-false-passes "${d}"
 # The registry row and the static-contract-gates path filter must both list the
 # nested Dockerfile and compose globs (the lockstep gate keeps them equal).
 for glob in '**/Dockerfile*' '**/docker-compose*.y*ml'; do
-  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -qFx -- "${glob}"; then
+  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -Fx -- "${glob}" >/dev/null; then
     echo "ok - registry row triggers include ${glob}"
   else
     echo "not ok - registry row triggers include ${glob}"; failures=$((failures + 1))
   fi
   if yq e '.jobs.changes.steps[] | select(.id == "filter") | .with.filters' "${static_workflow_view}" |
-    yq e '.dockerhublogin[]' - | rg -qFx -- "${glob}"; then
+    yq e '.dockerhublogin[]' - | rg -Fx -- "${glob}" >/dev/null; then
     echo "ok - path filter dockerhublogin includes ${glob}"
   else
     echo "not ok - path filter dockerhublogin includes ${glob}"; failures=$((failures + 1))
