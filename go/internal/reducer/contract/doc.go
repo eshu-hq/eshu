@@ -22,8 +22,9 @@
 // backfill orchestrator accepts to run bounded lookups without depending on
 // any specific graph driver.
 //
-// [GenerationFreshnessCheck] distinguishes a superseded generation from a
-// newer one that has not activated yet: the latter returns
+// [GenerationFreshnessCheck] distinguishes a superseded generation from one
+// still pending, either before first activation or newer than the active one.
+// The pending generation returns
 // [GenerationNotYetActiveError], a retryable error self-classified as
 // [GenerationActivationNotReadyFailureClass], so the durable queue retries the
 // intent until its generation activates instead of acking it as superseded
