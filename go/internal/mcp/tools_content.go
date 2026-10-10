@@ -133,7 +133,7 @@ func contentTools() []ToolDefinition {
 		},
 		{
 			Name:        "search_file_content",
-			Description: "Search indexed file content across repositories.",
+			Description: "Search indexed file content across repositories (substring match, ordered by repository then path). A call with no repo_ids runs inside a work budget (800 ms by default): when the budget ends before the page is proven complete, the reply is still a success with truncated=true, truth.level=partial, and a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, progressed, hint). The rows returned are an ordered prefix of the exact answer. To continue, pass partial.cursor as cursor and offset = max(0, offset - rows_matched), but only while partial.progressed is true: progressed=false means the call scanned nothing inside the budget and resuming repeats the same request, so scope with repo_ids, ask the operator to raise the server budget, or stop, and bound any resume loop. To get an exact answer, add repo_ids to scope the search.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -159,6 +159,14 @@ func contentTools() []ToolDefinition {
 						"default":     0,
 						"minimum":     0,
 						"maximum":     10000,
+					},
+					"cursor": map[string]any{
+						"type":        "object",
+						"description": "Resume a search with no repo_ids after this key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set.",
+						"properties": map[string]any{
+							"repo_id":       map[string]any{"type": "string"},
+							"relative_path": map[string]any{"type": "string"},
+						},
 					},
 				},
 				"required": []string{"pattern"},

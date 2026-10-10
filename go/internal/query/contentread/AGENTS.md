@@ -52,6 +52,13 @@ Read `doc.go` and `README.md` first.
   then `tracing.WriteServerFailure` with a constant from `failure.go`. Never
   write a store error's `err.Error()` as a 500 body (#7626).
 
+- A file search with no repository filter goes through
+  `querycontract.UnscopedFileSearcher` (`unscoped_search.go`), never the
+  paged seam, so a budget-cut search can answer HTTP 200 with `data.partial`,
+  `truncated=true`, and `truth.level=partial` (#7730). A cursor on any other
+  search shape is a 400. Do not add a path that returns a short unscoped page
+  without the partial marker; the walk lives in `internal/query/search/unscoped`.
+
 ## Test doubles that cannot be shared with root
 
 Go never compiles a package's `_test.go` files into anything another package

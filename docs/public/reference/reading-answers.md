@@ -108,7 +108,7 @@ contracts are owned by [Truth Label Protocol](truth-label-protocol.md):
 
 | Field | What it tells you |
 | --- | --- |
-| `level` | `exact` (authoritative graph or durable semantic truth), `derived` (deterministic from indexed entities/content/relational state), or `fallback` (exploratory, not authoritative). |
+| `level` | `exact` (authoritative graph or durable semantic truth), `derived` (deterministic from indexed entities/content/relational state), `partial` (a budgeted read stopped before it could prove the answer complete: the rows are an ordered prefix and the response carries a resume cursor; see [Unscoped file search](http-api/unscoped-file-search.md)), or `fallback` (exploratory, not authoritative). |
 | `basis` | Where the answer came from: `authoritative_graph`, `semantic_facts`, `content_index`, `hybrid`, `runtime_state`, or `no_backend_read` (nothing was read -- the empty page a scoped caller whose grant admits no repository receives; always `level: fallback`). |
 | `capability` | Capability ID from the [Capability Conformance Spec](capability-conformance-spec.md). |
 | `profile` | Active runtime profile: `local_lightweight`, `local_authoritative`, `local_full_stack`, or `production`. |

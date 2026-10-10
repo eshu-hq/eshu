@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -147,42 +146,6 @@ func TestContentReaderSearchEntityContentAnyRepoPageRequiresSubstringIndexesRead
 	}
 	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
 		t.Fatalf("query = %q, want durable substring-index readiness gate", recorder.queries[0])
-	}
-}
-
-func TestContentReaderSearchFileContentAnyRepoPageRequiresSubstringIndexesReady(t *testing.T) {
-	t.Parallel()
-
-	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
-		columns: []string{
-			"repo_id", "relative_path", "commit_sha", "content_hash",
-			"line_count", "language", "artifact_type",
-		},
-	}})
-	reader := NewContentReader(db)
-
-	if _, err := reader.searchFileContentAnyRepoPage(context.Background(), "render", 10, 0); err != nil {
-		t.Fatalf("searchFileContentAnyRepoPage() error = %v, want nil", err)
-	}
-	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
-		t.Fatalf("query = %q, want durable substring-index readiness gate", recorder.queries[0])
-	}
-}
-
-func TestContentReaderSearchFileContentAnyRepoPageClassifiesReadinessFailure(t *testing.T) {
-	t.Parallel()
-
-	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
-		err: &pgconn.PgError{
-			Code:    "55000",
-			Message: "content substring indexes are not ready",
-		},
-	}})
-	reader := NewContentReader(db)
-
-	_, err := reader.searchFileContentAnyRepoPage(context.Background(), "render", 10, 0)
-	if !errors.Is(err, ErrContentSubstringIndexesNotReady) {
-		t.Fatalf("searchFileContentAnyRepoPage() error = %v, want readiness sentinel", err)
 	}
 }
 

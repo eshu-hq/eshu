@@ -25,6 +25,7 @@ type ContentReader struct {
 	db          db.ReadStore
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
+	unscoped    unscopedSettings
 }
 
 // NewContentReader constructs a Postgres-backed content store reader.

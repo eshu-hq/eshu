@@ -5,13 +5,18 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -35,7 +40,69 @@ func (cr *ContentReader) SearchFiles(ctx context.Context, repoID string, repoIDs
 	if repoID != "" {
 		return cr.searchFileContentPage(ctx, repoID, pattern, limit, offset)
 	}
-	return cr.searchFileContentAnyRepoPage(ctx, pattern, limit, offset)
+	page, err := cr.SearchFilesUnscoped(ctx, pattern, limit, offset, "", "")
+	if err != nil {
+		return nil, err
+	}
+	if page.Partial != nil {
+		return nil, fmt.Errorf("%w: reason %s after %d ms", ErrUnscopedSearchPartial, page.Partial.Reason, page.Partial.ElapsedMS)
+	}
+	return page.Files, nil
+}
+
+// ErrUnscopedSearchPartial reports that an unscoped file search ended at its
+// work budget. The paged seam SearchFiles cannot carry the partial envelope,
+// so it fails loudly instead of returning rows that look complete; callers
+// that can present a partial page use SearchFilesUnscoped.
+var ErrUnscopedSearchPartial = errors.New("unscoped file search ended at its work budget")
+
+// unscopedSettings configures the budgeted unscoped file search (#7730). The
+// zero value means unscoped.DefaultBudget and slog.Default().
+type unscopedSettings struct {
+	budget time.Duration
+	logger *slog.Logger
+}
+
+// The handler looks querycontract.UnscopedFileSearcher up by type assertion; a
+// reader that stopped satisfying it would route every unscoped search to the
+// paged seam, which cannot carry the partial envelope. This line fails the
+// build instead.
+var _ querycontract.UnscopedFileSearcher = (*ContentReader)(nil)
+
+// WithUnscopedSearch sets the work budget and logger of the unscoped file
+// search. A zero budget keeps unscoped.DefaultBudget and a nil logger keeps
+// slog.Default().
+func (cr *ContentReader) WithUnscopedSearch(budget time.Duration, logger *slog.Logger) *ContentReader {
+	cr.unscoped = unscopedSettings{budget: budget, logger: logger}
+	return cr
+}
+
+// SearchFilesUnscoped answers a file-content search with no repository filter
+// inside a work budget (#7730): a key-ordered probe and continuation, then a
+// bounded trigram tail, then an explicit partial page with a resume cursor
+// when the budget runs out. Exported, with decomposed primitive parameters,
+// for the same #6060 interface-export reason as SearchFiles.
+func (cr *ContentReader) SearchFilesUnscoped(
+	ctx context.Context,
+	pattern string,
+	limit, offset int,
+	cursorRepoID, cursorPath string,
+) (querycontract.FileSearchPage, error) {
+	searcher := &unscoped.Searcher{
+		Store:       cr.db,
+		Budget:      cr.unscoped.budget,
+		Tracer:      cr.tracer,
+		Instruments: cr.instruments,
+		Logger:      cr.unscoped.logger,
+	}
+	page, err := searcher.Search(ctx, pattern, limit, offset, querycontract.SearchCursor{
+		RepoID:       cursorRepoID,
+		RelativePath: cursorPath,
+	})
+	if err != nil {
+		return querycontract.FileSearchPage{}, contentSubstringIndexReadError(err)
+	}
+	return page, nil
 }
 
 // SearchEntities chooses the narrowest paged SQL shape for an entity-content
@@ -71,16 +138,6 @@ func (cr *ContentReader) searchFileContentInRepos(
 	offset int,
 ) ([]FileContent, error) {
 	return cr.searchFileContentScoped(ctx, "search_file_content_in_repos", "repo_id = ANY(string_to_array($1, E'\\x1f')) AND content ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset)
-}
-
-// searchFileContentAnyRepoPage searches all indexed repositories with deterministic pagination.
-func (cr *ContentReader) searchFileContentAnyRepoPage(
-	ctx context.Context,
-	pattern string,
-	limit int,
-	offset int,
-) ([]FileContent, error) {
-	return cr.searchFileContentScoped(ctx, "search_file_content_any_repo_page", "eshu_require_content_substring_indexes_ready() AND content ILIKE '%' || $1 || '%'", []any{pattern}, limit, offset)
 }
 
 // searchFileContentScoped executes a bounded file-content query using a fixed

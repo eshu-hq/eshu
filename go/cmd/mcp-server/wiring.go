@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceauditasync"
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
@@ -240,7 +241,16 @@ func wireAPI(
 	// Capture the read seam when a session is open. Undriven readers stay
 	// undecorated so lightweight profiles keep their graph-free responses.
 	graphReader := captureSession.ReaderIfConfigured(neo4jReader)
-	contentReader := query.NewContentReaderWithReadStore(readStore).WithInstruments(instruments)
+	// The unscoped file-search work budget (#7730) is read once here; an
+	// invalid ESHU_CONTENT_SEARCH_BUDGET_MS fails startup instead of running
+	// unbounded or starved.
+	contentSearchBudget, err := unscoped.BudgetFromEnv(getenv)
+	if err != nil {
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("configure content search budget: %w", err)
+	}
+	contentReader := query.NewContentReaderWithReadStore(readStore).
+		WithInstruments(instruments).
+		WithUnscopedSearch(contentSearchBudget, logger)
 	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
 	// indexed owner-ledger list path is mounted, then start the #6793 infra read
 	// model backfill in the background. Graph-disabled profiles skip both.

@@ -35,7 +35,7 @@ Eshu has a facts-first runtime:
 
 - **Health**: whether a process is alive and ready.
 - **Completeness**: whether indexed state is fresh enough for the question.
-- **Truth level**: whether an answer is exact, derived, fallback, or
+- **Truth level**: whether an answer is exact, derived, partial, fallback, or
   unsupported for the active profile.
 - **Backend**: NornicDB or Neo4j behind the graph ports.
 

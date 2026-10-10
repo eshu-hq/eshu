@@ -479,6 +479,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged disposable PostgreSQL proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1; one local PostgreSQL 18 run took 1.60 s, and the graph live-backend job has no PostgreSQL DSN — promote after CI provisioning and timing evidence
+  - file: go/internal/query/content_reader_search_unscoped_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7730 disposable PostgreSQL 18 proof of the unscoped file search walk: page equality with the old single statement, the real statement-timeout cancel with cursor resume to the exact answer, and the plan shapes (ordered key walk with no trigram node; trigram bitmap tail under disabled index scans); one local PostgreSQL 18 run took about 11 s"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_security_secrets_fallback_live_test.go
     tag: ~
     class: scheduled

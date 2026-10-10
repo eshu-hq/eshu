@@ -114,8 +114,9 @@ symbol. Use ` + "`limit`" + `/` + "`offset`" + `/cursors for lists and check ` +
 
 Every Eshu result carries a truth label. Honor it before you state a conclusion:
 
-- Read ` + "`truth.level`" + ` (exact, derived, fallback). Do not present derived or
-  fallback results as exact.
+- Read ` + "`truth.level`" + ` (exact, derived, partial, fallback). Do not present derived,
+  partial, or fallback results as exact. A partial result is an ordered prefix:
+  say so, then resume from its cursor or scope the search.
 - Read ` + "`truth.freshness.state`" + ` (fresh, stale, building, unavailable). Flag
   stale or building evidence instead of treating it as current.
 - When evidence is missing, say so. Do not invent edges, owners, or deployments

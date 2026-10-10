@@ -21,6 +21,9 @@ on:
       - 'go/internal/query/codetopicparallel/**'
       - 'go/internal/runtime/postgres/**'
       - 'go/internal/query/status*.go'
+      - 'go/internal/query/search/unscoped/**'
+      - 'go/internal/query/content_reader_search*.go'
+      - 'go/internal/query/contentread/content_handler*.go'
       - 'go/internal/status/**'
       - 'go/internal/relationships/**'
       - 'go/internal/storage/postgres/**'
@@ -57,6 +60,9 @@ on:
       - 'go/internal/query/codetopicparallel/**'
       - 'go/internal/runtime/postgres/**'
       - 'go/internal/query/status*.go'
+      - 'go/internal/query/search/unscoped/**'
+      - 'go/internal/query/content_reader_search*.go'
+      - 'go/internal/query/contentread/content_handler*.go'
       - 'go/internal/status/**'
       - 'go/internal/relationships/**'
       - 'go/internal/storage/postgres/**'
@@ -202,6 +208,8 @@ jobs:
           ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: '1'
           ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DISPOSABLE: '1'
+          ESHU_CONTENT_SEARCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh
 
       - name: Stop disposable physical standby

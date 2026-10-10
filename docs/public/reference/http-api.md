@@ -42,6 +42,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Deployment-chain trace and deployment-configuration influence | [Deployment trace and influence](http-api/deployment-trace-and-influence.md) |
 | Code search, symbols, relationships, call chains, dead-code, complexity, quality, language queries | [Code routes](http-api/code.md) |
 | IaC cleanup, AWS drift, content reads/search, infra impact, environment comparison | [IaC, content, and infra routes](http-api/iac-content-infra.md) |
+| File-content search with no repository filter: work budget, partial results, resume cursor | [Unscoped file search](http-api/unscoped-file-search.md) |
 | Multi-cloud canonical resource inventory (AWS/GCP/Azure, bounded, paginated) | [Cloud inventory readback](http-api/cloud-inventory.md) |
 | Natural-language answers over the graph (`POST /api/v0/ask`), agent-loop budget, answer-narration status | [Ask Eshu](http-api/ask.md) |
 | Repository catalog, repository context/stats/coverage | [Repository routes](http-api/repositories-ingesters-bundles.md) |
