@@ -71,7 +71,8 @@ for fixture in \
  go/internal/query/methodology_postgres_live_test.go \
  scripts/lib/verify-query-methodology-live-contract.py \
  scripts/test-verify-query-methodology-live-contract.py \
- .github/workflows/test.yml; do
+ .github/workflows/test.yml \
+ .pre-commit-config.yaml; do
  printf '%s\n' "$fixture" > "$work/paths"
  "$work/ci-gates" select --registry "$repo_root/specs/ci-gates.v1.yaml" --tier pre-pr --paths-from "$work/paths" --json > "$work/selection.json"
  for gate in query-methodology-static query-plan-regression; do

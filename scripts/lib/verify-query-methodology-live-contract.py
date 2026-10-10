@@ -188,8 +188,10 @@ def check_static(root: Path) -> None:
     require(
         "          scripts/verify-query-plan-regression.sh" in job_lines
         and "          python3 scripts/test-verify-query-methodology-live-contract.py"
-        in job_lines,
-        "blocking verify-contracts workflow lost query-plan call or self-test",
+        in job_lines
+        and "        uses: actions/setup-python@v6" in job_lines
+        and "        run: python -m pip install pre-commit==4.6.2" in job_lines,
+        "blocking verify-contracts workflow lost proof, self-test, or hook tool",
     )
     registry = (root / "specs/ci-gates.v1.yaml").read_text()
     gate = re.search(

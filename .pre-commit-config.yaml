@@ -214,7 +214,7 @@ repos:
         name: query methodology production contracts
         entry: scripts/verify-query-methodology.sh --static
         language: script
-        files: '^(go/internal/(query|queryplan)/.*|go/internal/graph/schema.*\.go|go/internal/storage/postgres/migrations/.*|scripts/(test-)?verify-query-methodology\.sh|scripts/lib/(go-test-run-guard|live-gate-lock|test-verify-query-methodology-(go|docker))\.sh)$'
+        files: '^(go/internal/(query|queryplan)/.*|go/internal/mcp/methodology_live_test\.go|go/internal/graph/schema.*\.go|go/internal/storage/postgres/migrations/.*|specs/live-tests\.v1\.yaml|\.pre-commit-config\.yaml|\.github/workflows/test\.yml|scripts/(test-)?verify-query-methodology\.sh|scripts/(lib/verify-live-tests-ledger|lib/verify-query-methodology-live-contract|test-verify-query-methodology-live-contract)\.py|scripts/lib/(go-test-run-guard|live-gate-lock|test-verify-query-methodology-(go|docker))\.sh)$'
         pass_filenames: false
         require_serial: true
 
