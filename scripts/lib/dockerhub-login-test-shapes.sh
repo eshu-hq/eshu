@@ -117,7 +117,8 @@ for glob in '.github/**' '**/*.*sh'; do
 done
 
 # --- H4: the CI cell runs this suite, so it needs a timeout above the 15 minute
-# default (the suite measured 548 to 688 s wall under load).
+# default (the 142-check suite measured 548 to 1088 s wall under load across
+# BSD awk, gawk and mawk; see the comment above the cell in the workflow).
 if rg -q 'append_gate "\$\{\{ steps\.filter\.outputs\.dockerhublogin \}\}".* 30$' "${repo_root}/.github/workflows/static-contract-gates.yml"; then
   echo "ok - dockerhublogin cell sets a 30 minute timeout"
 else
