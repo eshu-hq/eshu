@@ -78,7 +78,7 @@ func TestCommitReconcileUnchangedActiveReprojectsWithoutWrites(t *testing.T) {
 	telemetry.ResetSkippedRefreshCountForTesting()
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 
-	tx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{"generation-active", true}}}}}
+	tx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{true, true}}}}}
 	db := &fakeTransactionalDB{
 		tx: tx,
 		queryResponses: []queueFakeRows{{
@@ -113,7 +113,10 @@ func TestCommitReconcileUnchangedActiveReprojectsWithoutWrites(t *testing.T) {
 		t.Fatalf("projector re-open statements = %d, want 1; statements:\n%s", len(reopens), strings.Join(statements, "\n---\n"))
 	}
 	reopen := reopens[0]
-	for _, want := range []string{"'projector'", "reconcile_requested_at", "reconcile_reason", "status = 'active'"} {
+	for _, want := range []string{
+		"'projector'", "reconcile_requested_at", "reconcile_reason", "status = 'active'",
+		"FROM reopened", "WHEN fact_work_items.status = 'succeeded' THEN 0", "reconcile_reopen_count",
+	} {
 		if !strings.Contains(reopen.query, want) {
 			t.Fatalf("re-open statement missing %q:\n%s", want, reopen.query)
 		}
@@ -139,7 +142,7 @@ func TestCommitReconcileUnchangedActiveAlreadyOpenIsPending(t *testing.T) {
 	telemetry.ResetSkippedRefreshCountForTesting()
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 
-	tx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{"generation-active", false}}}}}
+	tx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{true, false}}}}}
 	db := &fakeTransactionalDB{tx: tx, queryResponses: []queueFakeRows{{
 		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
 	}}}
@@ -180,7 +183,8 @@ func TestCommitUnchangedWithoutReconcileSkipsWithoutTransaction(t *testing.T) {
 
 // TestCommitReconcileMatchingPendingGenerationSkips: a reconciliation that
 // matches a generation still pending stores nothing and re-opens nothing; the
-// pending generation's own projection is the full re-projection.
+// pending generation's own projection is the full re-projection (ruling
+// a9-120), counted as pending_same_identity.
 func TestCommitReconcileMatchingPendingGenerationSkips(t *testing.T) {
 	telemetry.ResetSkippedRefreshCountForTesting()
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
@@ -195,8 +199,8 @@ func TestCommitReconcileMatchingPendingGenerationSkips(t *testing.T) {
 	if db.beginCalls != 0 {
 		t.Fatalf("begin calls = %d, want 0", db.beginCalls)
 	}
-	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonUnchanged); got != 1 {
-		t.Fatalf("unchanged skips = %d, want 1", got)
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonPendingSameIdentity); got != 1 {
+		t.Fatalf("pending_same_identity skips = %d, want 1", got)
 	}
 }
 
@@ -216,6 +220,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 		{name: "changed commit", hint: "hint-same", sha: "sha-new", reason: "interval_elapsed", wantCandidateQuery: true},
 		{name: "changed commit without reconcile", hint: "hint-same", sha: "sha-new", wantCandidateQuery: true},
 		{name: "default branch changed", hint: "hint-same", sha: "sha-same", defaultBranchChanged: true},
+		{name: "stale re-projection request", hint: "hint-same", sha: "sha-same", reason: scope.ReconcileReasonRequestStale},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -223,7 +228,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 			t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 			tx := &fakeTx{}
 			db := &fakeTransactionalDB{tx: tx}
-			if tc.wantCandidateQuery {
+			if tc.wantCandidateQuery && tc.reason != scope.ReconcileReasonRequestStale {
 				db.queryResponses = []queueFakeRows{{
 					rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
 				}}
@@ -245,7 +250,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 			if got := telemetry.SkippedRefreshCount(); got != 0 {
 				t.Fatalf("skipped refreshes = %d, want 0", got)
 			}
-			if tc.defaultBranchChanged && len(db.queries) != 0 {
+			if (tc.defaultBranchChanged || tc.reason == scope.ReconcileReasonRequestStale) && len(db.queries) != 0 {
 				t.Fatalf("default-branch change ran %d candidate queries, want none", len(db.queries))
 			}
 		})
@@ -262,7 +267,7 @@ func TestCommitReconcileFencedReopenStoresNothing(t *testing.T) {
 	telemetry.ResetSkippedRefreshCountForTesting()
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 
-	reopenTx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{"", false}}}}}
+	reopenTx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{false, false}}}}}
 	db := &fakeTransactionalDB{txs: []*fakeTx{reopenTx}, queryResponses: []queueFakeRows{{
 		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
 	}}}

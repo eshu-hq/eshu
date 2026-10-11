@@ -83,12 +83,12 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 //   - last_projected_full_at: the ingest time of the newest full (non-delta)
 //     generation that was activated. A generation superseded while pending has
 //     activated_at NULL and does not count, so it cannot satisfy the sweep.
-//     While that generation is still active, a later reconcile_requested_at in
-//     its payload counts instead (#7978): an unchanged reconciliation snapshot
-//     re-opened its projector work rather than storing a duplicate generation,
-//     so the scope is reconciled for one interval. Once the generation is
-//     superseded or failed the stamp no longer counts: a re-projection that a
-//     newer generation fenced off, or that failed, must not hold the sweep off.
+//     While that generation is still active, the time its last #7978
+//     re-projection was acknowledged (payload reconcile_projected_at) counts
+//     when it is later.
+//   - reconcile_*: that generation's #7978 re-projection request, Ack, and
+//     dead-letter stamps, read only while it is still active, so a request a
+//     newer generation fenced off never holds the sweep off.
 //   - latest_full_*: the newest full generation of any status, so an in-flight
 //     or recently failed full generation can hold the sweep off. With no full
 //     generation the LEFT JOIN yields NULLs and latest_full_projected is false
@@ -100,22 +100,36 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 // compatibility; it has no scope_generations writer today.
 const fullReconcileStateQuery = `
 SELECT
-    (SELECT GREATEST(
-                projected.ingested_at,
-                CASE WHEN projected.status = 'active'
-                     THEN (projected.payload ->> 'reconcile_requested_at')::timestamptz
-                END)
-     FROM scope_generations AS projected
-     WHERE projected.scope_id = $1
-       AND projected.is_delta = false
-       AND projected.activated_at IS NOT NULL
-       AND projected.status IN ('active', 'completed', 'superseded')
-     ORDER BY projected.ingested_at DESC, projected.generation_id DESC
-     LIMIT 1)                        AS last_projected_full_at,
+    projected_full.last_projected_full_at,
+    projected_full.reconcile_requested_at,
+    projected_full.reconcile_projected_at,
+    projected_full.reconcile_dead_lettered_at,
     latest.ingested_at               AS latest_full_at,
     latest.status                    AS latest_full_status,
     latest.activated_at IS NOT NULL  AS latest_full_projected
 FROM (SELECT 1) AS one
+LEFT JOIN LATERAL (
+    SELECT GREATEST(projected.ingested_at, reconcile.projected_at) AS last_projected_full_at,
+           reconcile.requested_at    AS reconcile_requested_at,
+           reconcile.projected_at    AS reconcile_projected_at,
+           reconcile.dead_lettered_at AS reconcile_dead_lettered_at
+    FROM scope_generations AS projected
+    CROSS JOIN LATERAL (
+        SELECT
+            CASE WHEN projected.status = 'active'
+                 THEN (projected.payload ->> 'reconcile_requested_at')::timestamptz END AS requested_at,
+            CASE WHEN projected.status = 'active'
+                 THEN (projected.payload ->> 'reconcile_projected_at')::timestamptz END AS projected_at,
+            CASE WHEN projected.status = 'active'
+                 THEN (projected.payload ->> 'reconcile_dead_lettered_at')::timestamptz END AS dead_lettered_at
+    ) AS reconcile
+    WHERE projected.scope_id = $1
+      AND projected.is_delta = false
+      AND projected.activated_at IS NOT NULL
+      AND projected.status IN ('active', 'completed', 'superseded')
+    ORDER BY projected.ingested_at DESC, projected.generation_id DESC
+    LIMIT 1
+) AS projected_full ON true
 LEFT JOIN LATERAL (
     SELECT attempt.ingested_at, attempt.status, attempt.activated_at
     FROM scope_generations AS attempt
@@ -147,12 +161,18 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 	}
 
 	var (
-		lastProjectedFullAt sql.NullTime
-		latestFullAt        sql.NullTime
-		latestFullStatus    sql.NullString
-		latestFullProjected bool
+		lastProjectedFullAt     sql.NullTime
+		reconcileRequestedAt    sql.NullTime
+		reconcileProjectedAt    sql.NullTime
+		reconcileDeadLetteredAt sql.NullTime
+		latestFullAt            sql.NullTime
+		latestFullStatus        sql.NullString
+		latestFullProjected     bool
 	)
-	if err := rows.Scan(&lastProjectedFullAt, &latestFullAt, &latestFullStatus, &latestFullProjected); err != nil {
+	if err := rows.Scan(
+		&lastProjectedFullAt, &reconcileRequestedAt, &reconcileProjectedAt, &reconcileDeadLetteredAt,
+		&latestFullAt, &latestFullStatus, &latestFullProjected,
+	); err != nil {
 		return scope.FullReconcileState{}, err
 	}
 	if err := rows.Err(); err != nil {
@@ -165,6 +185,15 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 	}
 	if lastProjectedFullAt.Valid {
 		state.LastProjectedFullAt = lastProjectedFullAt.Time.UTC()
+	}
+	if reconcileRequestedAt.Valid {
+		state.ReconcileRequestedAt = reconcileRequestedAt.Time.UTC()
+	}
+	if reconcileProjectedAt.Valid {
+		state.ReconcileProjectedAt = reconcileProjectedAt.Time.UTC()
+	}
+	if reconcileDeadLetteredAt.Valid {
+		state.ReconcileDeadLetteredAt = reconcileDeadLetteredAt.Time.UTC()
 	}
 	if latestFullAt.Valid {
 		state.LatestFullAt = latestFullAt.Time.UTC()
@@ -179,12 +208,8 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 // or failed rows with projection_write_started_at set and activated_at NULL,
 // whose write started after the write start of the newest activated full
 // generation. That full generation rewrote the whole tree after the overlay
-// landed, so it covers every earlier writer. A reconcile re-projection
-// requested for that generation while it is still active (#7978) covers the
-// writers that started before the request: the re-opened projector work
-// rewrites the whole tree. The comparison is the exact write start (or that
-// request time) against the writer's write start, never ingested_at or
-// activated_at. A newest activated
+// landed, so it covers every earlier writer. The comparison is the exact write
+// start on both sides, never ingested_at or activated_at. A newest activated
 // full with no write start (written before migration 149), or no activated
 // full at all, compares as -infinity, so every uncovered writer is returned
 // and the scope fails closed to a full snapshot. Pending generations are not
@@ -196,11 +221,7 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 // (docs/internal/evidence/7389-superseded-writer-overlay.md).
 const uncoveredProjectionWritersQuery = `
 WITH last_full AS (
-    SELECT GREATEST(
-               projection_write_started_at,
-               CASE WHEN status = 'active'
-                    THEN (payload ->> 'reconcile_requested_at')::timestamptz
-               END) AS pws
+    SELECT projection_write_started_at AS pws
     FROM scope_generations
     WHERE scope_id = $1
       AND is_delta = false

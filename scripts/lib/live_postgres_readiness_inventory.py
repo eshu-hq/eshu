@@ -143,6 +143,11 @@ PACKAGES = {
         "go/internal/storage/postgres/prefetch_batch_plan_live_test.go": (
             "TestPrefetchBatchQueriesUsePrimaryKeyLive",
         ),
+        "go/internal/storage/postgres/ingestion_backfill_generation_guard_lifecycle_live_test.go": (
+            "TestReconcileReopenSkipsLiveLeaseWithoutStampLive",
+            "TestReconcileReprojectionDeadLetterKeepsActiveGenerationLive",
+            "TestPendingSameIdentitySkipsAndFailedStoresLive",
+        ),
         "go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go": (
             "TestUnchangedReconcileStoresNothingLive",
             "TestReconcileIdentityChangesStillStoreLive",

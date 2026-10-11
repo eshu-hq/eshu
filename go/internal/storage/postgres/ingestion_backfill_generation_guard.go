@@ -174,25 +174,25 @@ SELECT scope_id FROM ingestion_scopes WHERE scope_id = $1 FOR NO KEY UPDATE
 // instead of storing a duplicate generation. It mirrors the #7209 zombie heal
 // (healProjectorActiveGenerationQuery): same canonical work_item_id, same
 // reopened columns, and the same write-time in-flight guard, so repeated
-// reconciliations converge on one open row and attempt_count stays monotonic.
+// reconciliations converge on one open row. Ruling a9-117 adds two rules:
+//   - attempt_count resets to 0 when the row had succeeded: those attempts
+//     belong to a run that was acknowledged, and a carried count would
+//     dead-letter the first retryable error of a daily re-projection.
+//     payload.reconcile_reopen_count stays monotonic for operators.
+//   - reconcile_requested_at is stamped only when the row is really re-opened
+//     (stamped follows reopened), never on a pending or in-flight outcome, so
+//     a re-projection that never runs cannot keep the scope fresh.
 //
-// Fences, all in one statement after the scope lock:
-//   - target: the generation is still the scope's active generation, status
-//     active and activated, with the same freshness hint and commit the
-//     snapshot carried. Otherwise no row, and the caller drops the snapshot.
-//   - stamped: the generation's payload records reconcile_reason and
-//     reconcile_requested_at; fullReconcileStateQuery reads the timestamp so
-//     the sweep sees the scope as reconciled for one interval. The UPDATE
-//     rechecks status = 'active' on the locked row.
-//   - reopened: the work row is re-opened unless it is already pending,
-//     retrying, or under a live lease; the claim sweep retires a pending row
-//     whose generation is superseded later, and Heartbeat, the write marker,
-//     and Ack refuse a superseded generation, so a supersession after this
-//     commit makes the re-projection a no-op.
+// Fences, all in one statement after the scope lock: target requires the
+// generation to still be the scope's active generation, status active and
+// activated, with the same freshness hint and commit as the snapshot. The
+// claim sweep retires a pending row whose generation is superseded later, and
+// Heartbeat, the write marker, and Ack refuse a superseded generation, so a
+// supersession after this commit makes the re-projection a no-op.
 //
 // $1 now, $2 scope_id, $3 active generation_id, $4 freshness hint,
-// $5 source commit, $6 reconcile reason. It returns one row: the stamped
-// generation_id (empty when fenced) and whether the work row was re-opened.
+// $5 source commit, $6 reconcile reason. It returns one row: whether the
+// target matched (false: fenced) and whether the row was re-opened and stamped.
 const reprojectActiveGenerationQuery = `
 WITH target AS (
     SELECT generation.generation_id
@@ -207,17 +207,6 @@ WITH target AS (
       AND COALESCE(generation.freshness_hint, '') = $4
       AND COALESCE(generation.source_commit_sha, '') = $5
 ),
-stamped AS (
-    UPDATE scope_generations AS generation
-    SET payload = COALESCE(generation.payload, '{}'::jsonb) || jsonb_build_object(
-            'reconcile_reason', $6::text,
-            'reconcile_requested_at', $1::timestamptz
-        )
-    FROM target
-    WHERE generation.generation_id = target.generation_id
-      AND generation.status = 'active'
-    RETURNING generation.generation_id
-),
 reopened AS (
     INSERT INTO fact_work_items (
         work_item_id, scope_id, generation_id, stage, domain, status,
@@ -226,12 +215,16 @@ reopened AS (
         payload, created_at, updated_at
     )
     SELECT
-        'projector_' || $2 || '_' || stamped.generation_id, $2, stamped.generation_id,
+        'projector_' || $2 || '_' || target.generation_id, $2, target.generation_id,
         'projector', 'source_local', 'pending', 0, NULL, NULL, $1, NULL, NULL,
-        NULL, NULL, NULL, jsonb_build_object('reconcile_reprojection_count', 1), $1, $1
-    FROM stamped
+        NULL, NULL, NULL, jsonb_build_object('reconcile_reopen_count', 1), $1, $1
+    FROM target
     ON CONFLICT (work_item_id) DO UPDATE
     SET status = 'pending',
+        attempt_count = CASE
+            WHEN fact_work_items.status = 'succeeded' THEN 0
+            ELSE fact_work_items.attempt_count
+        END,
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = EXCLUDED.visible_at,
@@ -241,8 +234,8 @@ reopened AS (
         failure_details = NULL,
         payload = jsonb_set(
             COALESCE(fact_work_items.payload, '{}'::jsonb),
-            '{reconcile_reprojection_count}',
-            to_jsonb(COALESCE((fact_work_items.payload ->> 'reconcile_reprojection_count')::int, 0) + 1)
+            '{reconcile_reopen_count}',
+            to_jsonb(COALESCE((fact_work_items.payload ->> 'reconcile_reopen_count')::int, 0) + 1)
         ),
         updated_at = EXCLUDED.updated_at
     WHERE NOT (
@@ -252,9 +245,20 @@ reopened AS (
             AND fact_work_items.claim_until > $1
         )
     )
-    RETURNING work_item_id
+    RETURNING generation_id
+),
+stamped AS (
+    UPDATE scope_generations AS generation
+    SET payload = COALESCE(generation.payload, '{}'::jsonb) || jsonb_build_object(
+            'reconcile_reason', $6::text,
+            'reconcile_requested_at', $1::timestamptz
+        )
+    FROM reopened
+    WHERE generation.generation_id = reopened.generation_id
+      AND generation.status = 'active'
+    RETURNING generation.generation_id
 )
-SELECT COALESCE((SELECT generation_id FROM stamped), ''), EXISTS (SELECT 1 FROM reopened)
+SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
 `
 
 // unchangedGenerationCandidate is the generation a snapshot is compared with.
@@ -303,10 +307,13 @@ func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string)
 // duplicates the scope's current generation (#7978). It returns true when the
 // snapshot was handled without storing a generation: the fact stream is then
 // drained and the skip recorded. A default-branch change (#7678) is never a
-// duplicate. A reconciliation snapshot that matches the active generation
-// re-opens that generation's projector work, so the sweep's drift retraction
-// (#2340) and graph_dirty repair (#7389) still happen without a new
-// generation, fact, document, or term row.
+// duplicate, and neither is a reconciliation whose re-projection request went
+// stale (scope.ReconcileReasonRequestStale). A reconciliation snapshot that
+// matches the active generation re-opens that generation's projector work, so
+// the sweep's drift retraction (#2340) and graph_dirty repair (#7389) still
+// happen without a new generation, fact, document, or term row. A match on a
+// pending generation (ruling a9-120) stores nothing: that generation's own
+// projection is still queued.
 func (s IngestionStore) skipUnchangedGeneration(
 	ctx context.Context,
 	mutation workflow.ClaimMutation,
@@ -316,7 +323,8 @@ func (s IngestionStore) skipUnchangedGeneration(
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 ) (bool, error) {
-	if generation.DefaultBranchChanged || strings.TrimSpace(generation.FreshnessHint) == "" {
+	if generation.DefaultBranchChanged || generation.ReconcileReason == scope.ReconcileReasonRequestStale ||
+		strings.TrimSpace(generation.FreshnessHint) == "" {
 		return false, nil
 	}
 	candidate, ok, err := s.unchangedGeneration(ctx, scopeValue.ScopeID)
@@ -333,6 +341,9 @@ func (s IngestionStore) skipUnchangedGeneration(
 		return true, fmt.Errorf("read fact stream: %w", err)
 	}
 	reason := telemetry.RefreshSkipReasonUnchanged
+	if candidate.status == scope.GenerationStatusPending {
+		reason = telemetry.RefreshSkipReasonPendingSameIdentity
+	}
 	if strings.TrimSpace(generation.ReconcileReason) != "" && candidate.status == scope.GenerationStatusActive {
 		reason, err = s.reprojectActiveGeneration(ctx, mutation, requireClaimFence, scopeValue, generation, candidate)
 		if err != nil {
@@ -381,16 +392,15 @@ func (s IngestionStore) reprojectActiveGeneration(
 	if err != nil {
 		return "", fmt.Errorf("re-open active generation projector work: %w", err)
 	}
-	var stamped string
-	var reopened bool
+	var matched, reopened bool
 	if rows.Next() {
-		err = rows.Scan(&stamped, &reopened)
+		err = rows.Scan(&matched, &reopened)
 	}
 	err = errors.Join(err, rows.Err(), rows.Close())
 	if err != nil {
 		return "", fmt.Errorf("read re-open result: %w", err)
 	}
-	if stamped == "" {
+	if !matched {
 		return telemetry.RefreshSkipReasonReconcileSuperseded, nil
 	}
 	if err := tx.Commit(); err != nil {

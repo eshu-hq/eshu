@@ -138,12 +138,21 @@ WHERE generation.generation_id = superseded_work.generation_id
 // locked row, EvalPlanQual re-evaluates it against a supersede that committed
 // after this statement's snapshot, including the claim path's stale-generation
 // supersede, which locks the generation row but not the scope row. Ack treats
-// zero affected rows as a superseded generation and rolls back.
+// zero affected rows as a superseded generation and rolls back. Acking a
+// re-projection of an already-activated generation that a #7978 reconcile
+// requested stamps payload.reconcile_projected_at; activated_at keeps the
+// original activation, so chronology is unchanged.
 const activateProjectorGenerationQuery = `
 UPDATE scope_generations
 SET status = 'active',
     activated_at = COALESCE(activated_at, $1),
-    superseded_at = NULL
+    superseded_at = NULL,
+    payload = CASE
+        WHEN activated_at IS NOT NULL
+         AND (payload ->> 'reconcile_requested_at') IS NOT NULL
+        THEN payload || jsonb_build_object('reconcile_projected_at', $1::timestamptz)
+        ELSE payload
+    END
 WHERE scope_id = $2
   AND generation_id = $3
   AND status <> 'superseded'
@@ -207,6 +216,14 @@ WHERE stage = 'projector'
   AND status IN ('claimed', 'running')
 `
 
+// failProjectorWorkQuery dead-letters one owned projector work row. A
+// generation that never activated is marked failed and, when it held the
+// scope's active pointer, the scope is failed and the pointer cleared. An
+// already-activated generation is never marked failed (ruling a9-117 Q4): its
+// dead-lettered work is a re-projection (#7978 reconcile, #7209 zombie heal) of
+// truth that is already published, so the generation stays active, the scope
+// keeps its pointer, and payload.reconcile_dead_lettered_at tells the reconcile
+// sweep to force a full that the ingestion store stores.
 const failProjectorWorkQuery = `
 WITH locked_scope AS MATERIALIZED (
     SELECT scope_id
@@ -232,7 +249,18 @@ failed_generation AS (
     WHERE generation.generation_id = owned_work.generation_id
       AND generation.scope_id = owned_work.scope_id
       AND generation.status IN ('pending', 'active')
+      AND generation.activated_at IS NULL
     RETURNING generation.scope_id, generation.generation_id
+),
+dead_lettered_reprojection AS (
+    UPDATE scope_generations AS generation
+    SET payload = COALESCE(generation.payload, '{}'::jsonb)
+        || jsonb_build_object('reconcile_dead_lettered_at', $1::timestamptz)
+    FROM owned_work
+    WHERE generation.generation_id = owned_work.generation_id
+      AND generation.scope_id = owned_work.scope_id
+      AND generation.status = 'active'
+      AND generation.activated_at IS NOT NULL
 ),
 scope_update AS (
     UPDATE ingestion_scopes AS scope

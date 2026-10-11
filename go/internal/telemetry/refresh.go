@@ -14,9 +14,14 @@ import (
 // value by accident.
 const (
 	// RefreshSkipReasonUnchanged means the snapshot's freshness hint and
-	// commit equal the scope's newest pending or active generation, so the
-	// ingestion store stored nothing.
+	// commit equal the scope's active generation, so the ingestion store
+	// stored nothing.
 	RefreshSkipReasonUnchanged = "unchanged"
+	// RefreshSkipReasonPendingSameIdentity means the snapshot's hint and
+	// commit equal a generation that is still pending (ruling a9-120): the
+	// projector has not activated it yet, so the store stored nothing. A
+	// rising count means the projector or reducer is behind.
+	RefreshSkipReasonPendingSameIdentity = "pending_same_identity"
 	// RefreshSkipReasonReconcileReprojected means a reconciliation snapshot
 	// matched the active generation, so the store re-opened that generation's
 	// projector work instead of storing a duplicate generation.
@@ -40,6 +45,7 @@ const (
 // refreshSkipReasons is the closed, ordered reason set.
 var refreshSkipReasons = []string{
 	RefreshSkipReasonUnchanged,
+	RefreshSkipReasonPendingSameIdentity,
 	RefreshSkipReasonReconcileReprojected,
 	RefreshSkipReasonReconcileReprojectionPending,
 	RefreshSkipReasonReconcileSuperseded,
@@ -49,7 +55,7 @@ var refreshSkipReasons = []string{
 
 var (
 	skippedRefreshCount         atomic.Uint64
-	skippedRefreshCountByReason [6]atomic.Uint64
+	skippedRefreshCountByReason [7]atomic.Uint64
 )
 
 // refreshSkipReasonIndex maps reason onto the closed set.

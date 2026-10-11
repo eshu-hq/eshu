@@ -31,7 +31,27 @@ type FullReconcileState struct {
 	// LatestFullProjected reports whether that newest full generation was
 	// activated. A superseded generation with no activation never projected.
 	LatestFullProjected bool
+	// ReconcileRequestedAt is when an unchanged reconcile last re-opened the
+	// newest activated full generation's projector work instead of storing a
+	// duplicate (#7978). It is zero when there is none or when that generation
+	// is no longer active.
+	ReconcileRequestedAt time.Time
+	// ReconcileProjectedAt is when that re-projection was last acknowledged.
+	// LastProjectedFullAt already folds it in. Zero when none.
+	ReconcileProjectedAt time.Time
+	// ReconcileDeadLetteredAt is when that re-projection was last
+	// dead-lettered. The dead-letter path leaves an activated generation
+	// active, so the sweep reads this to force a full that the store stores.
+	// Zero when none.
+	ReconcileDeadLetteredAt time.Time
 }
+
+// ReconcileReasonRequestStale is the reconcile reason for a scope whose
+// re-projection request (#7978) went unacknowledged for one interval or was
+// dead-lettered. The ingestion store always stores a generation that carries
+// it, even when its hint and commit equal the active generation's: today's
+// heal, bounded to one per interval per scope (ruling a9-117 Q3).
+const ReconcileReasonRequestStale = "reconcile_request_stale"
 
 // UncoveredProjectionWriter is a generation that started writing the canonical
 // graph and never activated, and that no later activated full generation has

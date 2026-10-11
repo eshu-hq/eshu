@@ -166,12 +166,20 @@ func (p *reprojectProof) rowCounts() map[string]int {
 // workRow reads one generation's projector work row.
 func (p *reprojectProof) workRow(generationID string) (status string, reopens int, owner sql.NullString) {
 	p.t.Helper()
+	status, reopens, owner, _ = p.workRowAttempts(generationID)
+	return status, reopens, owner
+}
+
+// workRowAttempts reads one generation's projector work row with its attempt
+// count.
+func (p *reprojectProof) workRowAttempts(generationID string) (status string, reopens int, owner sql.NullString, attempts int) {
+	p.t.Helper()
 	if err := p.db.QueryRowContext(context.Background(), `
-SELECT status, COALESCE((payload ->> 'reconcile_reprojection_count')::int, 0), lease_owner
-FROM fact_work_items WHERE stage = 'projector' AND generation_id = $1`, generationID).Scan(&status, &reopens, &owner); err != nil {
+SELECT status, COALESCE((payload ->> 'reconcile_reopen_count')::int, 0), lease_owner, attempt_count
+FROM fact_work_items WHERE stage = 'projector' AND generation_id = $1`, generationID).Scan(&status, &reopens, &owner, &attempts); err != nil {
 		p.t.Fatalf("read work row %s: %v", generationID, err)
 	}
-	return status, reopens, owner
+	return status, reopens, owner, attempts
 }
 
 // TestUnchangedReconcileStoresNothingLive is the #7978 row-count proof: an
@@ -202,8 +210,8 @@ func TestUnchangedReconcileStoresNothingLive(t *testing.T) {
 			t.Fatalf("%s rows %d -> %d after an unchanged reconcile, want unchanged", table, n, after[table])
 		}
 	}
-	if status, reopens, _ := p.workRow("gen-a"); status != "pending" || reopens != 1 {
-		t.Fatalf("gen-a work = %s reopens=%d, want pending reopens=1", status, reopens)
+	if status, reopens, _, attempts := p.workRowAttempts("gen-a"); status != "pending" || reopens != 1 || attempts != 0 {
+		t.Fatalf("gen-a work = %s reopens=%d attempts=%d, want pending reopens=1 attempts=0", status, reopens, attempts)
 	}
 	var reason string
 	if err := p.db.QueryRowContext(ctx, `SELECT payload ->> 'reconcile_reason' FROM scope_generations WHERE generation_id = 'gen-a'`).Scan(&reason); err != nil || reason != "interval_elapsed" {
@@ -213,8 +221,9 @@ func TestUnchangedReconcileStoresNothingLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FullReconcileState: %v", err)
 	}
-	if state.LastProjectedFullAt.Before(reconcileStart.Add(-time.Second)) {
-		t.Fatalf("LastProjectedFullAt = %v, want the reconcile request time >= %v", state.LastProjectedFullAt, reconcileStart)
+	requestedAt := state.ReconcileRequestedAt
+	if requestedAt.Before(reconcileStart.Add(-time.Second)) || !state.ReconcileProjectedAt.IsZero() {
+		t.Fatalf("request=%v projected=%v, want a request >= %v and no Ack yet", requestedAt, state.ReconcileProjectedAt, reconcileStart)
 	}
 
 	// A retried or repeated reconciliation while the re-open is pending is a
@@ -222,6 +231,9 @@ func TestUnchangedReconcileStoresNothingLive(t *testing.T) {
 	p.commit(p.generation("gen-c", "hint-a", "sha-a", "interval_elapsed"))
 	if status, reopens, _ := p.workRow("gen-a"); status != "pending" || reopens != 1 {
 		t.Fatalf("gen-a work after repeat = %s reopens=%d, want pending reopens=1", status, reopens)
+	}
+	if again, err := p.store.FullReconcileState(ctx, p.scope.ScopeID); err != nil || !again.ReconcileRequestedAt.Equal(requestedAt) {
+		t.Fatalf("request after a pending repeat = %v (%v), want unchanged %v", again.ReconcileRequestedAt, err, requestedAt)
 	}
 	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonReconcileReprojectionPending); got != 1 {
 		t.Fatalf("pending skips = %d, want 1", got)
@@ -252,6 +264,14 @@ WHERE generation.generation_id = 'gen-a'`).Scan(&status, &activatedAfter, &point
 	}
 	if final := p.rowCounts(); final["scope_generations"] != before["scope_generations"] || final["fact_records"] != before["fact_records"] {
 		t.Fatalf("rows after re-projection = %v, want %v", final, before)
+	}
+	acked, err := p.store.FullReconcileState(ctx, p.scope.ScopeID)
+	if err != nil {
+		t.Fatalf("FullReconcileState after Ack: %v", err)
+	}
+	if acked.ReconcileProjectedAt.Before(requestedAt) || !acked.LastProjectedFullAt.Equal(acked.ReconcileProjectedAt) {
+		t.Fatalf("after Ack request=%v projected=%v last=%v, want projected >= request and last = projected",
+			acked.ReconcileRequestedAt, acked.ReconcileProjectedAt, acked.LastProjectedFullAt)
 	}
 
 	// Before (#7978): the same reconciliation with a blank hint, which the

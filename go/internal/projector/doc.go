@@ -24,7 +24,12 @@
 // started projection write to a newer generation, so a writer runs to Ack and
 // a stale delta is refused at preflight instead of activating over its
 // overlay. Every other retirement of a started write is healed by a forced
-// full snapshot (the git collector's graph_dirty reconcile reason). A routine
+// full snapshot (the git collector's graph_dirty reconcile reason). When that
+// snapshot equals the active generation, the ingestion store re-opens the
+// active generation's work instead of storing a duplicate (#7978); the
+// re-projection retracts state stamped with any other generation id but not
+// state stamped with the active generation id itself, which only a projector
+// defect or a manual graph edit can create (ruling a9-117 Q1). A routine
 // heartbeat supersede is not logged as a heartbeat failure. Workers drop the item when a
 // Heartbeat, Ack, or Fail returns ErrWorkClaimLost because another attempt
 // owns the item. Projector code does

@@ -167,6 +167,7 @@ func TestStatusMetricsHandlerReportsSkippedRefreshes(t *testing.T) {
 	for _, want := range []string{
 		`eshu_runtime_refresh_skipped_total{service_name="collector-git"} 2`,
 		`eshu_runtime_refresh_skipped_by_reason_total{reason="unchanged",service_name="collector-git"} 1`,
+		`eshu_runtime_refresh_skipped_by_reason_total{reason="pending_same_identity",service_name="collector-git"} 0`,
 		`eshu_runtime_refresh_skipped_by_reason_total{reason="reconcile_reprojected",service_name="collector-git"} 1`,
 		`eshu_runtime_refresh_skipped_by_reason_total{reason="reconcile_reprojection_pending",service_name="collector-git"} 0`,
 		`eshu_runtime_refresh_skipped_by_reason_total{reason="reconcile_superseded",service_name="collector-git"} 0`,
