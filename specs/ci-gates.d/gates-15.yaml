@@ -173,6 +173,7 @@ gates:
       - "go/**"
       - "scripts/verify-tagged-builds.sh"
       - "scripts/test-verify-tagged-builds.sh"
+      - "scripts/ci/test-tagged-build-budget.py"
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/pre-push.sh"
       - "specs/ci-gates.v1.yaml"
@@ -181,7 +182,7 @@ gates:
       - ".github/workflows/static-contract-gates.yml"
     local:
       command: "bash scripts/verify-tagged-builds.sh --all"
-      test_command: "bash scripts/test-verify-tagged-builds.sh"
+      test_command: "bash scripts/test-verify-tagged-builds.sh && python3 scripts/ci/test-tagged-build-budget.py"
       pre_push: deferred
       pre_push_reason: "Measured across 67 local pre-pr gate reports: median 19s but spiky (~10% of total selected-gates time on a bad run). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete). Run `make pre-pr-full` before a package move: build tags can hide files from `./...`, and this gate's whole-module vet sweep is what actually exercises them."
     ci:

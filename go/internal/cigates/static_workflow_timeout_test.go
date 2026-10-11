@@ -134,14 +134,16 @@ func TestStaticContractGateJobReadsTheMatrixTimeout(t *testing.T) {
 // cancelled on time.
 //
 //   - taggedbuilds vets every //go:build configuration in the module serially
-//     and was being cancelled at the shared 15-minute bound.
+//     and passed in 25m31s before cache saving exhausted its old 30-minute
+//     job. Restore-only caching and a 40-minute lifecycle budget preserve
+//     setup, cleanup, and reserve around that recorded cold sweep.
 //   - dockerhublogin runs a 142-check suite that forks awk, rg and yq per case.
 //     On loaded 18-core machines it measured 688 to 1004 s wall under BSD awk,
 //     655 to 1088 s under gawk and 548 to 676 s under mawk. The slowest sample
 //     is over the 900 s default, so the cell would be cancelled at 15 minutes;
 //     30 minutes (1800 s) leaves 1.65x margin over it.
 var staticContractRaisedTimeouts = map[string]int{
-	"taggedbuilds":   30,
+	"taggedbuilds":   40,
 	"dockerhublogin": 30,
 }
 
