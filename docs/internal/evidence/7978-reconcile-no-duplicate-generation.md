@@ -130,7 +130,7 @@ intents (0 rows before and after), so it does not cover this part.
 ## Content Version Gate
 
 `TestGenerationContentVersionPinsCollectorOutput` parses
-`testdata/content_version` (12 files in 10 languages) through the production
+`testdata/content_version` (12 files in 12 formats: Go, Python, TypeScript, Java, Rust, Ruby, C#, Terraform, Dockerfile, SQL, Markdown, shell) through the production
 snapshotter and fact builder. It pins a digest of the 95 normalized facts next
 to `gitGenerationContentVersion` in `testdata/content_version_pin.json`. When
 the output moves while the constant stays the same, the test fails and tells
