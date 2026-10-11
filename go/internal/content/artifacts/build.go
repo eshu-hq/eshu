@@ -72,14 +72,21 @@ func SortConfigPaths(rows []map[string]any) {
 	slices.SortStableFunc(rows, CompareConfigPaths)
 }
 
-// configPathDedupKey is the identity of a row: its four key fields in
-// configPathKeyOrder, joined with configPathKeySeparator.
-func configPathDedupKey(row map[string]any) string {
+// configPathKey joins the four key fields in configPathKeyOrder with
+// configPathKeySeparator. field returns the value of one named key field. It
+// is the one construction of a row identity: a caller supplies values, never
+// an order.
+func configPathKey(field func(name string) string) string {
 	var fields [len(configPathKeyOrder)]string
-	for i, field := range configPathKeyOrder {
-		fields[i] = stringValue(row, field)
+	for i, name := range configPathKeyOrder {
+		fields[i] = field(name)
 	}
 	return strings.Join(fields[:], configPathKeySeparator)
+}
+
+// configPathDedupKey is the identity of a built row, read from its map.
+func configPathDedupKey(row map[string]any) string {
+	return configPathKey(func(name string) string { return stringValue(row, name) })
 }
 
 // MergeConfigPaths merges the rows of several repositories, in the order the
@@ -180,16 +187,30 @@ func appendConfigArtifactRow(rows []map[string]any, seen map[string]struct{}, pa
 	if pathValue == "" {
 		return rows
 	}
-	row := map[string]any{
-		"path":          pathValue,
-		"source_repo":   repoName,
-		"relative_path": relativePath,
-		"evidence_kind": evidenceKind,
-	}
-	key := configPathDedupKey(row)
+	// The key is built from the four values before the row map exists, so a
+	// repeated reference allocates the key and no row.
+	key := configPathKey(func(name string) string {
+		switch name {
+		case "path":
+			return pathValue
+		case "source_repo":
+			return repoName
+		case "relative_path":
+			return relativePath
+		case "evidence_kind":
+			return evidenceKind
+		default:
+			panic("config path key field without a value: " + name)
+		}
+	})
 	if _, ok := seen[key]; ok {
 		return rows
 	}
 	seen[key] = struct{}{}
-	return append(rows, row)
+	return append(rows, map[string]any{
+		"path":          pathValue,
+		"source_repo":   repoName,
+		"relative_path": relativePath,
+		"evidence_kind": evidenceKind,
+	})
 }

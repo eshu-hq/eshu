@@ -125,12 +125,31 @@ A review thread asked for the four-field row identity to be written once.
 the per-extractor dedup key of `appendConfigArtifactRow`. The key bytes are
 unchanged: `TestConfigPathKeyEqualsTheFrozenConstruction` and
 `TestAppendConfigArtifactRowKeepsTheFrozenKey` compare them with frozen literal
-constructions for rows with empty fields, the separator and unicode (a pair
-that differs only in where the separator sits still collides, as it did). Swapping
-two fields of the order array turns the two tests and
-`TestNameFreeRowsEqualBuildWithName` (1,394 order-only differences) RED. The
-same benchmark, five interleaved rounds against the tree before the change:
-allocs/op 228.6 k in both arms, B/op +0.3%, time within noise.
+constructions for rows with empty fields, the separator and unicode.
+
+The key is a join with a vertical bar and no escaping, so a field that holds
+the bar can make two different rows share a key. This is old behavior and is
+pinned by `TestConfigPathKeyCollidesWhenAFieldHoldsTheSeparator`: path `a|b`
+with source_repo `svc`, and path `a` with source_repo `b|svc` (same relative
+path and kind), both give `a|b|svc|c|local_config_asset`; the merged load and
+the per-extractor dedup each keep only the first. The stored read model keys on
+a length-prefixed digest and does not share the weakness.
+
+Swapping two fields of the order array turns five tests RED, among them
+`TestNameFreeRowsEqualBuildWithName` (1,394 order-only differences).
+
+The append-time key is built from the four values before the row map exists.
+Per call, a duplicate append allocates 4 and a unique append 11; with the row
+built first, a duplicate allocated 10. A synthetic loop of 2,000 appends
+(scratch module, three trees side by side) gives allocs per loop:
+
+| Loop | before the single-spelling change | row built before the check | final |
+|---|---|---|---|
+| 2,000 unique rows | 25,787 | 25,787 | 25,787 |
+| 200 unique rows, 90% duplicates | 13,220 | 24,020 | 13,220 |
+
+The macro benchmark above (five interleaved rounds) shows allocs/op 228.6 k in
+both arms, B/op +0.3%, time within noise.
 
 ## Observability
 
