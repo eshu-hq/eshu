@@ -731,11 +731,10 @@ covers all families; volume counters and durations land at the same call sites.
 <!-- eshu:metric:section=parser-language-sub-packages -->
 ## Parser Language Sub-Packages
 
-Every parser emits per-file facts through the shared `FactEmitDuration` and
-`FileParseDuration` surfaces at the parser entry point
-(`go/internal/collector/repo/git/snapshot_native.go`). Per-language structured
-events land through the `evidence_facts_discovered_total` counter when the
-parser emits evidence facts.
+Every parser emits per-file facts through the shared `FactEmitDuration` and `FileParseDuration`
+surfaces at the parser entry point (`go/internal/collector/repo/git/snapshot_native.go`).
+Per-language structured events land through the `evidence_facts_discovered_total` counter
+when the parser emits evidence facts.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
