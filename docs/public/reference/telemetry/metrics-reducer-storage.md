@@ -3,6 +3,10 @@
 This catalog covers reducer execution, shared follow-up, graph writes, storage,
 correlation, supply-chain impact, capacity, and memory metrics.
 
+The identity fact epoch cache counters (`eshu_dp_identity_cache_*`) and the
+`identity_epoch_unstable` failure class are on the
+[Identity Fact Cache Metrics](metrics-identity-cache.md) page.
+
 ## Reducer Execution
 
 | Metric | Type | Use |

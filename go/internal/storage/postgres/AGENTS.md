@@ -937,17 +937,22 @@ path is unchanged.
 The identity epoch cache (`identityEpochCache`) holds the full set of active
 container-image identity facts, reloaded under singleflight on epoch mismatch.
 
-- **Shared state**: `epoch` (count + max_observed_at + active_fingerprint),
-  `facts` slice, `loading` channel. All guarded by `sync.Mutex mu`.
-- **Lock scope**: `mu` is held ONLY for map/state reads, state swaps, and the
-  channel handoff. It is NEVER held across DB loads or epoch probes — both
-  release the lock before I/O.
-- **Singleflight**: the first cache-miss caller sets `c.loading = make(chan
-  struct{})` under lock, releases the lock, performs the DB load + post-load
-  probe, re-acquires the lock, populates the cache, `close(c.loading)`, and sets
-  `loading = nil`. Concurrent callers see non-nil `loading`, release the lock,
-  `<-waitCh`, and retry `get()` which then serves from the newly populated
-  cache.
+- **Shared state**: `epoch`, `facts`, `loading` (`*identityFlight`), all under
+  `mu`, NEVER held across a DB load or an epoch probe.
+- **Shared flight (#7805)**: a caller whose probe equals a running flight's
+  `startEpoch` gets that flight's rows; one whose probe differs waits, retries.
+  If the post-load probe differs the flight loads once more (max 2 attempts); a
+  flight still moving, or whose post-load probe failed, is "torn": waiters
+  re-probe, the leader's item fails with a retryable `identityLoadUnstableError`
+  (class `identity_epoch_unstable`), nothing is decided on it. Cached only when
+  the post-load probe equals `startEpoch` and the set fits the cap. A waiter
+  gives up after 3 unserved flights or one heartbeat interval (30 s,
+  `WithHeartbeatInterval`, from the claim lease in `cmd/reducer`) after ONE
+  final probe that serves a filled cache (a budget-spent caller at the lead decision relies on the same pass's top probe). Outcomes `gave_up_flights` (churn),
+  `gave_up_wall` (slow flight). A call's time in the cache is bounded by one
+  heartbeat plus two load attempts and a few probes; a call with its budget spent never
+  leads: it fails retryably and the next caller leads. Evidence:
+  docs/internal/evidence/7805-identity-epoch-flight.md.
 - **TOCTOU analysis**: the probe→serve window (between epoch probe and cache
   hit) is a bounded probe-interval gap. Today's baseline does a full paginated
   O(corpus) scan inside every call, mixing facts from different commit
@@ -957,38 +962,30 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   mixed-epoch pagination, and the next call retries the cache. The cache is
   strictly more consistent per serving window than the unbounded pagination it
   replaces.
-- **Staleness bound**: one probe window (~65 ms on 500k-fact shim). Self-heals
-  on the next reducer intent execution.
-- **Epoch semantics (3-tuple)**: The cached epoch is `(fact_count_all,
-  fact_max_observed_all, active_fingerprint)`:
-  * `fact_count_all` + `fact_max_observed_all` — computed FROM fact_records
-    alone (no JOIN) using the partial index `fact_records_identity_epoch_idx_v2`
-    (Index Only Scan, ~51 ms on 500k facts). These detect raw fact insertions/
-    deletions that change the identity set.
+- **Staleness bound**: one probe window (~120-135 ms on the 1.0M-identity-fact
+  shim, #7805). A caller that probes a moved epoch never joins an older flight.
+- **Epoch semantics (3-tuple)**: `(active_fact_count, active_fact_max_observed,
+  active_fingerprint)` (#7805):
+  * count + max cover identity facts of each scope's ACTIVE generation only
+    (the page query's set, same hashed-SubPlan filter with `OR FALSE`), so
+    retention deletes of superseded rows and pending-generation writes do not
+    move the epoch; an insert, delete, or tombstone on an active generation
+    does. The probe reads the heap (the partial index holds only
+    `(observed_at, fact_id)`): ~120-135 ms on the 1.0M-fact shim, not an Index
+    Only Scan. The all-generations / ~51 ms description is superseded.
   * `active_fingerprint` — SHA-256 hex digest of
     `COALESCE(string_agg(scope_id::text || ':' ||
     active_generation_id::text, '|' ORDER BY scope_id), '') FROM
     ingestion_scopes`, encoded as UTF-8 before hashing. This avoids MD5,
     which is unavailable on FIPS-configured PostgreSQL, and detects a
     supersession (active_generation_id flip) that changes the active identity
-    set without changing the raw fact count or max observed_at.
-  * **Collision resistance**: with only (count, max), a supersession that
-    swaps `active_generation_id` to a new generation with equal
-    identity-fact cardinality would produce a false cache hit (stale
-    evidence). The fingerprint closes this gap. Earlier this fingerprint was
-    `sum(hashtext(scope_id || ':' || active_generation_id))`, a 32-bit hash
-    summed across scopes — that shape has two failure modes a digest of
-    the ordered mapping does not: a 32-bit `hashtext` collision between two
-    different active mappings, and two offsetting per-scope deltas that
-    cancel out in the sum (e.g. one scope's hash increases by exactly as
-    much as another's decreases, which a sum cannot distinguish from no
-    change at all — no birthday-bound analysis bounds that case, since it
-    is a structural property of summation, not a random collision). The
-    current fingerprint instead hashes the full ordered mapping
-    (`ORDER BY scope_id`, joined with `'|'`) as one string, so any change to
-    any scope's active generation changes the digest input. SHA-256 makes a
-    false cache hit from a digest collision negligibly likely; there is no
-    "self-heals on the next probe" behavior to rely on for such a hit.
+    set without changing the active fact count or max observed_at.
+  * **Collision resistance**: with only (count, max), a supersession to a new
+    generation of equal cardinality would false-hit. The fingerprint hashes the
+    full ordered mapping (`ORDER BY scope_id`, joined with `'|'`) with SHA-256,
+    so any change to any scope's active generation changes the digest input. The
+    earlier `sum(hashtext(...))` fingerprint could miss a 32-bit collision or
+    offsetting per-scope deltas; a digest of the ordered mapping cannot.
 - **Cap behavior**: `ESHU_IDENTITY_CACHE_MAX_BYTES` (default 500 MiB, measured).
   Loaded set exceeding the cap is served DIRECTLY (passthrough, never partial,
   never cached) and increments `eshu_dp_identity_cache_passthrough_total`.
@@ -1022,7 +1019,8 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
 
 ### Evidence notes
 
-Performance Evidence: #5438 adds an epoch-cached identity fact set to
+Performance Evidence: (probe figures here are superseded by #7805, see
+docs/internal/evidence/7805-identity-epoch-flight.md.) #5438 adds an epoch-cached identity fact set to
 `ListActiveContainerImageIdentityFacts`, replacing ~2,000 O(corpus) paginated
 loads per worst-case reducer drain with 1 reload + ~2,000 index-only epoch
 probes. The probe is backed by the partial index (#6543 renamed it `_v2`)

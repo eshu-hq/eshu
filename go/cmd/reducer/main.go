@@ -401,7 +401,7 @@ func buildReducerService(
 		Executor:                   executor,
 		WorkSink:                   workQueue,
 		Heartbeater:                workQueue,
-		HeartbeatInterval:          workQueue.LeaseDuration / 2,
+		HeartbeatInterval:          reducerHeartbeatInterval,
 		SharedProjectionEdgeWriter: edgeWriter,
 		SharedProjectionRunner: &reducer.SharedProjectionRunner{
 			IntentReader:        intentStore,

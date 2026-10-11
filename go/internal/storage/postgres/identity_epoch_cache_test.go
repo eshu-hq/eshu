@@ -184,11 +184,15 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 
 	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			// First call: probe, load, post-load probe sees a commit, so the
+			// flight loads again from the moved epoch (#7805) and the second
+			// load validates against a steady epoch and is cached.
 			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
 			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow, factRow}},
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
+			// Second call: probe matches the cached epoch.
 			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
 		},
 	}
@@ -199,8 +203,8 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first call: %v", err)
 	}
-	if len(loaded1) != 1 {
-		t.Fatalf("first call len = %d, want 1 (served uncached due to mid-load commit)", len(loaded1))
+	if len(loaded1) != 2 {
+		t.Fatalf("first call len = %d, want 2 (the torn first set is retried inside the flight)", len(loaded1))
 	}
 
 	loaded2, err := store.ListActiveContainerImageIdentityFacts(context.Background())
@@ -208,7 +212,7 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 		t.Fatalf("second call: %v", err)
 	}
 	if len(loaded2) != 2 {
-		t.Fatalf("second call len = %d, want 2 (reloaded after mid-load commit)", len(loaded2))
+		t.Fatalf("second call len = %d, want 2 (served from the cache the retry filled)", len(loaded2))
 	}
 
 	var loadQueries int
@@ -218,7 +222,7 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 		}
 	}
 	if loadQueries != 2 {
-		t.Fatalf("load page queries = %d, want 2 (first uncached, second reload)", loadQueries)
+		t.Fatalf("load page queries = %d, want 2 (first load discarded, retry cached)", loadQueries)
 	}
 }
 

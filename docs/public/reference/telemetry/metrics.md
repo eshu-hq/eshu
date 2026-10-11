@@ -246,6 +246,9 @@ Use these to locate the phase that changed before opening logs or traces:
 - [Reducer And Storage Metrics](metrics-reducer-storage.md) covers reducer
   execution, shared follow-up, graph writes, storage, correlation, drift,
   supply-chain impact, capacity, and memory.
+- [Identity Fact Cache Metrics](metrics-identity-cache.md) covers the reducer
+  identity fact epoch cache: loads, shared flights, waiter outcomes, and the
+  `identity_epoch_unstable` failure class.
 
 ## Dashboard Starting Points
 
