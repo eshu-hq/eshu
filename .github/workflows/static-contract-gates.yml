@@ -164,10 +164,11 @@ jobs:
           # default would be cancelled; 30 minutes (1800 s) leaves 1.65x margin
           # over the slowest sample.
           append_gate "${{ steps.filter.outputs.dockerhublogin }}" "dockerhublogin" "Verify Docker Hub login gate" "bash scripts/test-verify-dockerhub-login.sh && bash scripts/test-ci-image-compose.sh && bash scripts/ci/test-image-overrides.sh && bash scripts/ci/test-build-reproducibility-image.sh && bash scripts/ci/test-mirror-images.sh && python3 scripts/ci/test-tools-workflow.py" "bash scripts/verify-dockerhub-login.sh" 30
-          # 30, not the default 15: this gate vets every //go:build configuration
-          # in the module serially (37 today) and takes about 14 minutes on main,
-          # so it was being cancelled at the 15-minute mark rather than failing.
-          append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh" "bash scripts/verify-tagged-builds.sh --all" 30
+          # The observed cold sweep took 25m31s for 73 configurations. Its old
+          # 30m job expired during a 3m35s cache save, after vet passed. A 40m
+          # envelope covers the sweep, bounded restore, setup/cleanup, and
+          # at least 25% sweep reserve. This cell restores but never saves.
+          append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh && python3 scripts/ci/test-tagged-build-budget.py" "bash scripts/verify-tagged-builds.sh --all" 40
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"
@@ -202,9 +203,34 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
+      - if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key != 'taggedbuilds' }}
         uses: actions/cache@v4
         with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
+      # Cache transport is acceleration, not proof. Tagged builds must fit a
+      # cold job and must not archive its large cache after the assertions.
+      - name: Restore tagged-build cache
+        id: tagged-cache
+        if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key == 'taggedbuilds' }}
+        uses: actions/cache/restore@v4
+        timeout-minutes: 2
+        continue-on-error: true
+        with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
+      - name: Report tagged-build cache outcome
+        id: tagged-cache-outcome
+        if: ${{ !cancelled() && (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key == 'taggedbuilds' }}
+        env:
+          CACHE_OUTCOME: ${{ steps.tagged-cache.outcome }}
+          CACHE_HIT: ${{ steps.tagged-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          if [[ "${CACHE_OUTCOME}" != success ]]; then
+            echo "::warning::Tagged-build cache restore failed or timed out; discard partial cache and run the full cold proof."
+            rm -rf -- "${GOCACHE}" "${GOMODCACHE}"
+          elif [[ "${CACHE_HIT}" != true ]]; then
+            echo "::notice::Tagged-build cache miss; run the full cold proof."
+          else
+            echo "Tagged-build cache restored; run the full proof."
+          fi
       - name: Pre-warm Go modules
         if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: scripts/ci/go-mod-download-retry.sh
@@ -233,5 +259,6 @@ jobs:
           echo "ESHU_PRIVATE_IDENTIFIERS_FILE=${identifiers_file}" >> "${GITHUB_ENV}"
           echo "ESHU_PRIVATE_IDENTIFIERS_REQUIRED=1" >> "${GITHUB_ENV}"
       - name: Run gate (${{ matrix.key }})
+        timeout-minutes: ${{ matrix.key == 'taggedbuilds' && 35 || matrix.timeout }}
         if: ${{ matrix.run_gate }}
         run: ${{ matrix.gate }}

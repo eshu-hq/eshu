@@ -334,6 +334,7 @@ taggedbuilds:
   - 'go/**'
   - 'scripts/verify-tagged-builds.sh'
   - 'scripts/test-verify-tagged-builds.sh'
+  - 'scripts/ci/test-tagged-build-budget.py'
   - 'scripts/dev/pre-pr.sh'
   - 'scripts/dev/pre-push.sh'
 measurementcite:
