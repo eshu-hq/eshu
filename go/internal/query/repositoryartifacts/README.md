@@ -78,10 +78,47 @@ issued. Any read the extractors need still fails the repository load.
 statements, hydrated bytes, list, hydrate and parse seconds). The repository
 story and context handlers log them on the `deployment_artifacts` stage line.
 
+## HCL scan prefilter (#7126)
+
+`extractHCLConfigAssetRows` runs six regular-expression scans per `.tf` /
+`.hcl` file (dependency `config_path`, `read_terragrunt_config`, include
+`path`, `find_in_parent_folders`, `file(`/`templatefile(` and the module
+`source`) plus the locals walk. Each regular expression scans the whole file
+even when it cannot match, and most hydrated HCL (provider lock files, plain
+resource files) holds none of the required literals. The `prefilter`
+subpackage derives, from each pattern's own syntax tree, the literal fragments
+a match must contain; `hclScanPrefilters` builds one set over the six
+patterns and `planHCLScans` skips each scan whose requirement is absent. The
+locals walk is skipped when the content has no case-sensitive `locals`
+keyword or when no scan that resolves expressions through it can run.
+
+This sits behind the needed-content selector above. `classifyHCLConfigFile`
+decides which files are read at all; `planHCLScans` decides which scans run on
+content that was read. A file the selector does not read keeps an empty
+`Content`, and its rows do not depend on content
+(`TestHCLPrefilterAgreesWithTheNeededContentSelector`). The locals walk lives in
+`repository_config_artifacts_hcl_locals.go`.
+
+The output is unchanged. The extractor still runs the same patterns on the
+same helpers in the same order for every file that passes its gate, and a
+gate answers false only when the pattern provably has no match. The proof is
+the equality differential in
+`repository_config_artifacts_hcl_prefilter_test.go` against a frozen copy of
+the pre-prefilter extractor, the pinned derivation in
+`TestHCLPrefilterDerivationIsPinned`, and the mutation sweep in
+`repository_config_artifacts_hcl_prefilter_mutation_test.go`. The sweep pins
+its few language-equivalent survivors by name with an equivalence argument, and
+fails on an unpinned survivor or a pinned one that now dies.
+`BenchmarkHCLScanShippedVsGated` times the frozen extractor against the gated
+one on six content shapes at 2, 12 and 86 KB. A change to one of the six
+patterns changes its derived gate; update the pinned derivation and re-run the
+sweep in the same change.
+
 ## Dependencies
 
-Standard library, `querycontract`, and content-parsing libraries, plus
-`testutil` in tests. No handler packages, no graph drivers.
+Standard library, `querycontract`, the `prefilter` leaf subpackage, and
+content-parsing libraries, plus `testutil` in tests. No handler packages, no
+graph drivers.
 
 ## Verification
 

@@ -4,12 +4,12 @@
 package repositoryartifacts
 
 import (
-	"fmt"
 	"path"
 	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts/prefilter"
 )
 
 var (
@@ -57,6 +57,14 @@ func classifyHCLConfigFile(relativePath string) hclConfigFileKind {
 }
 
 func extractHCLConfigAssetRows(repoName string, files []querycontract.FileContent) []map[string]any {
+	return extractHCLConfigAssetRowsWith(hclScanPrefilters, repoName, files)
+}
+
+// extractHCLConfigAssetRowsWith runs the HCL scans, skipping each one whose
+// prefilter proves the file cannot match. The prefilters are a parameter so a
+// test can substitute deliberately wrong ones and watch the equality proof
+// fail; production always passes hclScanPrefilters.
+func extractHCLConfigAssetRowsWith(prefilters *prefilter.Set, repoName string, files []querycontract.FileContent) []map[string]any {
 	rows := make([]map[string]any, 0)
 	seen := map[string]struct{}{}
 	for _, file := range files {
@@ -68,53 +76,69 @@ func extractHCLConfigAssetRows(repoName string, files []querycontract.FileConten
 		default:
 			continue
 		}
-		localConfigAssignments := extractLocalConfigAssignments(file.RelativePath, file.Content)
-		for _, match := range terragruntDependencyConfigPathPattern.FindAllStringSubmatch(file.Content, -1) {
-			if len(match) < 2 {
-				continue
-			}
-			configPath := NormalizeConfigArtifactExpression(match[1], localConfigAssignments)
-			if configPath == "" {
-				continue
-			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_dependency_config_path")
+		plan := planHCLScans(prefilters, file.Content)
+		var localConfigAssignments map[string]string
+		if plan.needsLocalAssignments() {
+			localConfigAssignments = extractLocalConfigAssignments(file.RelativePath, file.Content)
 		}
-		for _, match := range terragruntReadConfigPattern.FindAllStringSubmatch(file.Content, -1) {
-			configPath := normalizeTerragruntParentConfigPath(match)
-			if configPath == "" {
-				continue
+		if plan.dependencyConfigPath {
+			for _, match := range terragruntDependencyConfigPathPattern.FindAllStringSubmatch(file.Content, -1) {
+				if len(match) < 2 {
+					continue
+				}
+				configPath := NormalizeConfigArtifactExpression(match[1], localConfigAssignments)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_dependency_config_path")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_read_config")
 		}
-		for _, match := range terragruntIncludePathPattern.FindAllStringSubmatch(file.Content, -1) {
-			configPath := normalizeTerragruntParentConfigPath(match)
-			if configPath == "" {
-				continue
+		if plan.readConfig {
+			for _, match := range terragruntReadConfigPattern.FindAllStringSubmatch(file.Content, -1) {
+				configPath := normalizeTerragruntParentConfigPath(match)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_read_config")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_include_path")
 		}
-		for _, match := range terragruntFindInParentFoldersPattern.FindAllStringSubmatch(file.Content, -1) {
-			configPath := normalizeTerragruntParentConfigPath(match)
-			if configPath == "" {
-				continue
+		if plan.includePath {
+			for _, match := range terragruntIncludePathPattern.FindAllStringSubmatch(file.Content, -1) {
+				configPath := normalizeTerragruntParentConfigPath(match)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_include_path")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_find_in_parent_folders")
 		}
-		for _, configPath := range extractConfigAssetFunctionPaths(file.Content, localConfigAssignments) {
-			if configPath == "" {
-				continue
+		if plan.findInParentFolders {
+			for _, match := range terragruntFindInParentFoldersPattern.FindAllStringSubmatch(file.Content, -1) {
+				configPath := normalizeTerragruntParentConfigPath(match)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terragrunt_find_in_parent_folders")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "local_config_asset")
 		}
-		for _, match := range localTerraformModuleSourcePattern.FindAllStringSubmatch(file.Content, -1) {
-			if len(match) < 2 {
-				continue
+		if plan.configFunction {
+			for _, configPath := range extractConfigAssetFunctionPaths(file.Content, localConfigAssignments) {
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "local_config_asset")
 			}
-			configPath := NormalizeConfigArtifactExpression(match[1], localConfigAssignments)
-			if configPath == "" {
-				continue
+		}
+		if plan.moduleSource {
+			for _, match := range localTerraformModuleSourcePattern.FindAllStringSubmatch(file.Content, -1) {
+				if len(match) < 2 {
+					continue
+				}
+				configPath := NormalizeConfigArtifactExpression(match[1], localConfigAssignments)
+				if configPath == "" {
+					continue
+				}
+				rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terraform_module_source_path")
 			}
-			rows = appendConfigArtifactRow(rows, seen, configPath, repoName, file.RelativePath, "terraform_module_source_path")
 		}
 	}
 	return rows
@@ -179,107 +203,6 @@ func isLocalishConfigArtifactPath(value string) bool {
 	return strings.Contains(trimmed, "/") &&
 		!strings.Contains(trimmed, "://") &&
 		!strings.Contains(trimmed, "?")
-}
-
-func extractLocalConfigAssignments(relativePath, content string) map[string]string {
-	assignments := make(map[string]string)
-	lines := strings.Split(content, "\n")
-	inLocals := false
-	depth := 0
-	currentName := ""
-	currentExpression := strings.Builder{}
-	currentParenDepth := 0
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if !inLocals {
-			if !strings.HasPrefix(trimmed, "locals") || !strings.Contains(trimmed, "{") {
-				continue
-			}
-			inLocals = true
-			depth = countBracesOutsideStrings(line)
-			if depth <= 0 {
-				inLocals = false
-				depth = 0
-			}
-			continue
-		}
-		if currentName == "" {
-			if assignment := localStringAssignmentPattern.FindStringSubmatch(line); len(assignment) >= 3 {
-				name := strings.TrimSpace(assignment[1])
-				value := strings.TrimSpace(assignment[2])
-				if name != "" && value != "" {
-					assignments[name] = value
-				}
-			} else if assignment := localAssignmentStartPattern.FindStringSubmatch(line); len(assignment) >= 3 {
-				currentName = strings.TrimSpace(assignment[1])
-				currentExpression.Reset()
-				currentExpression.WriteString(strings.TrimSpace(assignment[2]))
-				currentParenDepth = countParensOutsideStrings(assignment[2])
-				if currentParenDepth <= 0 {
-					storeLocalConfigAssignment(assignments, currentName, currentExpression.String(), relativePath)
-					currentName = ""
-				}
-			}
-		} else {
-			if trimmed != "" {
-				currentExpression.WriteString("\n")
-				currentExpression.WriteString(trimmed)
-			}
-			currentParenDepth += countParensOutsideStrings(line)
-			if currentParenDepth <= 0 {
-				storeLocalConfigAssignment(assignments, currentName, currentExpression.String(), relativePath)
-				currentName = ""
-			}
-		}
-		depth += countBracesOutsideStrings(line)
-		if depth <= 0 {
-			if currentName != "" {
-				storeLocalConfigAssignment(assignments, currentName, currentExpression.String(), relativePath)
-				currentName = ""
-			}
-			inLocals = false
-			depth = 0
-		}
-	}
-	return assignments
-}
-
-func storeLocalConfigAssignment(assignments map[string]string, name, expression, relativePath string) {
-	if name == "" {
-		return
-	}
-	if indexedAssignments := extractPathRelativeToIncludeIndexedAssignments(name, expression, relativePath); len(indexedAssignments) > 0 {
-		for key, value := range indexedAssignments {
-			assignments[key] = value
-		}
-		return
-	}
-	if value := extractConfigAssetPathFromExpression(expression, assignments); value != "" {
-		assignments[name] = value
-	}
-}
-
-func extractPathRelativeToIncludeIndexedAssignments(name, expression, relativePath string) map[string]string {
-	trimmedName := strings.TrimSpace(name)
-	if trimmedName == "" || !pathRelativeToIncludeSplitPattern.MatchString(stripHCLInlineComments(expression)) {
-		return nil
-	}
-
-	directory := CleanRepositoryRelativePath(path.Dir(strings.TrimSpace(relativePath)))
-	if directory == "" || directory == "." {
-		return nil
-	}
-
-	parts := strings.Split(directory, "/")
-	assignments := make(map[string]string, len(parts))
-	for index, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		assignments[fmt.Sprintf("%s[%d]", trimmedName, index)] = part
-	}
-	return assignments
 }
 
 func extractConfigAssetFunctionPaths(content string, localAssignments map[string]string) []string {
