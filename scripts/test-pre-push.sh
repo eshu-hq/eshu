@@ -16,6 +16,10 @@
 #     workflow and would otherwise have no local enforcement at all.
 set -euo pipefail
 
+# A caller's base belongs to its repository, not these synthetic repositories.
+# Cases C and N set their own invalid and alternate bases explicitly.
+unset ESHU_PRE_PUSH_BASE
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/dev/pre-push.sh"
 
