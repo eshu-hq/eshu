@@ -28,28 +28,53 @@ attempts="${PROMOTE_ATTEMPTS:-10}"
 interval="${PROMOTE_INTERVAL_S:-15}"
 
 api="https://ghcr.io/v2/${repo}"
+manifest_accept='application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json'
+registry_token=""
 
-# tag_digest_of <tag>: prints the tag's digest. Fails when the tag is absent.
+# Authenticate only against GHCR's trusted token endpoint, with pull-only scope.
+# Refresh each promotion attempt so long retries do not reuse an expired token.
+registry_authenticate() {
+	local response
+	response="$(curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+	 --get -u "x-access-token:${token}" \
+	 --data-urlencode 'service=ghcr.io' \
+	 --data-urlencode "scope=repository:${repo}:pull" 'https://ghcr.io/token')" || {
+	 echo 'promote: GHCR token exchange failed' >&2
+	 return 1
+	}
+	registry_token="$(jq -er '(.token // .access_token) | select(type == "string" and length > 0)' <<<"${response}")" || {
+	 echo 'promote: GHCR token response has no valid token' >&2
+	 return 1
+	}
+}
+
+# tag_digest_of <tag>: prints a successful manifest digest; returns 10 on 404.
 tag_digest_of() {
-	local tag="$1" headers line
-	headers="$(curl -s -D - -o /dev/null -u "x-access-token:${token}" \
-		-H 'Accept: application/vnd.oci.image.index.v1+json' \
-		"${api}/manifests/${tag}")"
+	local tag="$1" headers line code="" digest_header=""
+	headers="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+		-D - -o /dev/null -H "Authorization: Bearer ${registry_token}" \
+		-H "Accept: ${manifest_accept}" \
+		"${api}/manifests/${tag}")" || return 1
 	while IFS= read -r line; do
 		line="${line%$'\r'}"
-		if [[ "${line,,}" == "docker-content-digest:"* ]]; then
-			printf '%s' "${line#*: }"
-			return 0
+		if [[ "${line}" == HTTP/* ]]; then
+			read -r _ code _ <<<"${line}"
+		elif [[ "${line,,}" == "docker-content-digest:"* ]]; then
+			digest_header="${line#*: }"
 		fi
 	done <<<"${headers}"
-	return 1
+	case "${code}" in
+	200) [[ -n "${digest_header}" ]] && printf '%s' "${digest_header}" ;;
+	404) return 10 ;;
+	*) echo "promote: GHCR manifest read failed with HTTP ${code:-unknown}" >&2; return 1 ;;
+	esac
 }
 
 # ghcr_get <path>: prints the response body. Returns 10 on 404, 1 otherwise.
 ghcr_get() {
 	local path="$1" resp code body
-	resp="$(curl -s -w $'\n%{http_code}' -u "x-access-token:${token}" \
-		-H 'Accept: application/vnd.oci.image.index.v1+json' "${api}${path}")"
+	resp="$(curl --location --silent --show-error --connect-timeout 10 --max-time 30 -w $'\n%{http_code}' -H "Authorization: Bearer ${registry_token}" \
+		-H "Accept: ${manifest_accept}" "${api}${path}")" || return 1
 	code="${resp##*$'\n'}"
 	body="${resp%$'\n'*}"
 	case "${code}" in
@@ -74,14 +99,14 @@ tag_revision() {
 			echo "promote: ${tag}: index has no linux/amd64 manifest" >&2
 			return 1
 		fi
-		doc="$(ghcr_get "/manifests/${platform_digest}")" || return $?
+		doc="$(ghcr_get "/manifests/${platform_digest}")" || return 1
 	fi
 	cfg="$(jq -r '.config.digest // empty' <<<"${doc}")"
 	if [[ -z "${cfg}" ]]; then
 		echo "promote: ${tag}: manifest has no config digest" >&2
 		return 1
 	fi
-	doc="$(ghcr_get "/blobs/${cfg}")" || return $?
+	doc="$(ghcr_get "/blobs/${cfg}")" || return 1
 	# No rg here: the publish runners are plain ubuntu-latest, so this script
 	# is limited to curl, jq, git, docker, and POSIX text tools.
 	rev="$(jq -r '.config.Labels["org.opencontainers.image.revision"] // empty' <<<"${doc}")"
@@ -142,19 +167,27 @@ fi
 attempt=1
 while [[ "${attempt}" -le "${attempts}" ]]; do
 	echo "promote: attempt ${attempt}/${attempts}"
+	if ! registry_authenticate; then
+	 attempt=$((attempt + 1))
+	 sleep "${interval}"
+	 continue
+	fi
 	# The checkout may predate the commit :main already carries
 	# (out-of-order completion). Refresh before every ancestry decision so a
 	# stale clone cannot misread a descendant as unrelated. A failed refresh
 	# is not fatal: the attempt proceeds on what the clone has, and a commit
 	# that never resolves exhausts as non-convergence below.
 	git fetch -q origin main 2>/dev/null || true
-	sha_now="$(tag_digest_of "sha-${my_sha}" 2>/dev/null)" || sha_now=""
+	sha_read_rc=0
+	sha_now="$(tag_digest_of "sha-${my_sha}")" || sha_read_rc=$?
 	current=""
 	rc=0
 	if [[ "${sha_now}" == "${digest}" ]]; then
 		current="$(tag_revision main 2>/dev/null)" || rc=$?
 	fi
-	if [[ "${sha_now}" != "${digest}" ]]; then
+	if [[ "${sha_read_rc}" != 0 && "${sha_read_rc}" != 10 ]]; then
+		echo "promote: cannot read the per-commit manifest; waiting ${interval}s"
+	elif [[ "${sha_now}" != "${digest}" ]]; then
 		echo "promote: sha-${my_sha} does not resolve to ${digest} yet; waiting ${interval}s"
 	elif [[ "${rc}" == "10" ]]; then
 		echo "promote: :main is absent; promoting"
@@ -163,14 +196,18 @@ while [[ "${attempt}" -le "${attempts}" ]]; do
 	elif [[ "${rc}" != "0" ]]; then
 		echo "promote: cannot read :main; waiting ${interval}s"
 	elif [[ "${current}" == "${my_sha}" ]]; then
-		main_now="$(tag_digest_of main 2>/dev/null)" || main_now=""
-		if [[ "${main_now}" == "${digest}" ]]; then
+		main_read_rc=0
+		main_now="$(tag_digest_of main)" || main_read_rc=$?
+		if [[ "${main_read_rc}" != 0 ]]; then
+			echo "promote: cannot confirm :main digest; waiting ${interval}s"
+		elif [[ "${main_now}" == "${digest}" ]]; then
 			echo "promote: :main already points at ${digest}; done"
 			exit 0
+		else
+			echo "promote: :main carries our revision with a different digest; re-promoting"
+			promote_and_verify && exit 0
+			echo "promote: verify failed after push; waiting ${interval}s"
 		fi
-		echo "promote: :main carries our revision with a different digest; re-promoting"
-		promote_and_verify && exit 0
-		echo "promote: verify failed after push; waiting ${interval}s"
 	elif git merge-base --is-ancestor "${my_sha}" "${current}" 2>/dev/null; then
 		echo "promote: :main already carries newer commit ${current}; skipping"
 		exit 0
