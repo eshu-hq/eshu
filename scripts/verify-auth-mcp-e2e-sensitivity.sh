@@ -45,6 +45,10 @@ step_id="leakage_credentialless_probes_do_not_leak"
 
 base_compose=(-p "$project" -f docker-compose.e2e.yaml)
 mutation_compose=(-p "$project" -f docker-compose.e2e.yaml -f docker-compose.e2e.mutation.yaml)
+base_overlay=""
+mutation_overlay=""
+# shellcheck source=scripts/lib/ci-image-compose.sh
+source "${repo_root}/scripts/lib/ci-image-compose.sh"
 
 for tool in docker node jq; do
 	command -v "$tool" >/dev/null 2>&1 || {
@@ -60,8 +64,22 @@ teardown() {
 	fi
 	echo "verify-auth-mcp-e2e-sensitivity: tearing down project $project"
 	docker compose "${base_compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+	ESHU_CI_COMPOSE_OVERLAY="${mutation_overlay}"
+	eshu_ci_compose_cleanup
+	ESHU_CI_COMPOSE_OVERLAY="${base_overlay}"
+	eshu_ci_compose_cleanup
 }
 trap teardown EXIT
+
+eshu_ci_compose_prepare "${repo_root}" "${base_compose[@]}"
+base_overlay="${ESHU_CI_COMPOSE_OVERLAY}"
+eshu_ci_compose_prepare "${repo_root}" "${mutation_compose[@]}"
+mutation_overlay="${ESHU_CI_COMPOSE_OVERLAY}"
+if [[ -n "${base_overlay}" ]]; then
+	base_compose+=(-f "${base_overlay}")
+	mutation_compose+=(-f "${mutation_overlay}")
+fi
+export ESHU_CI_COMPOSE_OVERLAY="${base_overlay}"
 
 # run_credentialless runs the standalone module against the current stack and
 # copies the report to dest (the runner overwrites report_path each run).
@@ -106,6 +124,7 @@ echo "verify-auth-mcp-e2e-sensitivity: baseline PASS confirmed"
 
 echo "verify-auth-mcp-e2e-sensitivity: [2/3] mutate mcp-server (disable credential-source gate) and re-run, expect FAIL (exit != 0)"
 docker compose "${mutation_compose[@]}" up -d --no-deps --wait mcp-server
+export ESHU_CI_COMPOSE_OVERLAY="${mutation_overlay}"
 mutated_rc=0
 run_credentialless "$mutated_report" || mutated_rc=$?
 if [[ "$mutated_rc" -eq 0 ]]; then
@@ -118,6 +137,7 @@ echo "verify-auth-mcp-e2e-sensitivity: mutated run correctly FAILED on the gate 
 
 echo "verify-auth-mcp-e2e-sensitivity: [3/3] restore mcp-server and re-run, expect PASS again (exit 0)"
 docker compose "${base_compose[@]}" up -d --no-deps --wait mcp-server
+export ESHU_CI_COMPOSE_OVERLAY="${base_overlay}"
 restored_rc=0
 run_credentialless "$restored_report" || restored_rc=$?
 if [[ "$restored_rc" -ne 0 ]]; then

@@ -76,9 +76,19 @@ awk '
 	function flush() { if (line != "") { emit(line); line = "" } }
 	function emit(l,   u, n, f, i, img) {
 		u = l; sub(/^[ \t]+/, "", u)
-		if (toupper(substr(u, 1, 5)) == "FROM " || toupper(substr(u, 1, 5)) == "FROM\t") {
+		# Only global ARG defaults can select a FROM image. Stage-local ARGs
+		# must not change the default base used for the package-floor audit.
+		if (!seen_from && toupper(substr(u, 1, 4)) == "ARG ") {
+			arg = substr(u, 5); pos = index(arg, "=")
+			if (pos > 1) defaults[substr(arg, 1, pos - 1)] = substr(arg, pos + 1)
+		} else if (toupper(substr(u, 1, 5)) == "FROM " || toupper(substr(u, 1, 5)) == "FROM\t") {
+			seen_from = 1
 			n = split(u, f, /[ \t]+/); img = ""
 			for (i = 2; i <= n; i++) { if (f[i] !~ /^--/) { img = f[i]; break } }
+			if (img ~ /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/) {
+				key = substr(img, 3, length(img) - 3)
+				if (key in defaults) img = defaults[key]
+			}
 			image = img; nruns = 0
 		} else if (toupper(substr(u, 1, 4)) == "RUN " || toupper(substr(u, 1, 4)) == "RUN\t") {
 			runs[++nruns] = u

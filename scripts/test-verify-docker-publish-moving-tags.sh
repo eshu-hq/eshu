@@ -94,8 +94,12 @@ require_pattern \
 # identical; anything else stays red.
 require_pattern \
 	"$publish" \
+	'run: bash scripts/ci/push-helm-chart.sh' \
+	'docker publish workflow must call the guarded Helm chart publisher'
+require_pattern \
+	'scripts/ci/push-helm-chart.sh' \
 	'already published with identical bytes' \
-	'docker publish workflow must tolerate only byte-identical Helm duplicate pushes'
+	'Helm chart publisher must tolerate only byte-identical duplicate pushes'
 
 # 5. Trivy scans the per-commit sha tag, never the racy moving tag, and skips
 # green when the triggering run pushed no image (chart-only).

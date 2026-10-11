@@ -16,6 +16,7 @@
 // run — matching the psql-seed precedent (authE2ELocalMemberFlow.ts).
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { authE2EComposeArgs } from "./authE2EComposeArgs";
 
 const execFileAsync = promisify(execFile);
 
@@ -37,11 +38,7 @@ export async function seedGraphRepository(repoRoot: string, project: string, rep
   const { stdout } = await execFileAsync(
     "docker",
     [
-      "compose",
-      "-p",
-      project,
-      "-f",
-      "docker-compose.e2e.yaml",
+      ...authE2EComposeArgs(project),
       "exec",
       "-T",
       "neo4j",
@@ -76,7 +73,7 @@ export async function collectComposeServiceLogs(
 ): Promise<string> {
   const { stdout, stderr } = await execFileAsync(
     "docker",
-    ["compose", "-p", project, "-f", "docker-compose.e2e.yaml", "logs", "--no-color", service],
+    [...authE2EComposeArgs(project), "logs", "--no-color", service],
     { cwd: repoRoot, maxBuffer: 128 * 1024 * 1024 },
   );
   return `${stdout}\n${stderr}`;

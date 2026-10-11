@@ -45,15 +45,26 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: race-graph-writes.yml
+
   race:
+    needs: queue-selection
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'race')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'race')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
@@ -63,8 +74,10 @@ jobs:
       # HERE, named for what it is, instead of surfacing as a race-detector
       # red that never ran a test (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'race')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run graph-write tests with race detector
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'race')) }}
         working-directory: go
         run: go test -race -count=1 -timeout 600s ./cmd/ingester/... ./cmd/projector/... ./internal/storage/cypher/... ./internal/storage/nornicdb/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/...

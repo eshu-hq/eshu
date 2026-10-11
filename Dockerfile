@@ -1,11 +1,15 @@
 # Multi-stage build for Eshu (Go-only)
 
+ARG ESHU_XX_IMAGE=tonistiigi/xx:1.5.0@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
+ARG ESHU_GO_IMAGE=golang:1.26.9-alpine@sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0
+ARG ESHU_ALPINE_IMAGE=alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
+
 # xx provides cross-compilation helpers (clang + target sysroot selection).
 # Using --platform=$BUILDPLATFORM throughout avoids running Go 1.26 under
 # QEMU amd64 emulation, which causes runtime crashes on arm64 hosts.
-FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.5.0@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f AS xx
+FROM --platform=$BUILDPLATFORM ${ESHU_XX_IMAGE} AS xx
 
-FROM --platform=$BUILDPLATFORM golang:1.26.9-alpine@sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0 AS builder
+FROM --platform=$BUILDPLATFORM ${ESHU_GO_IMAGE} AS builder
 COPY --from=xx /usr/bin/xx-* /usr/bin/
 
 ARG TARGETPLATFORM
@@ -99,7 +103,7 @@ RUN cd go \
     && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /mock-bin/eshu-mock-oidc-idp ./cmd/mock-oidc-idp
 
-FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS mock-oidc-idp
+FROM ${ESHU_ALPINE_IMAGE} AS mock-oidc-idp
 
 RUN apk add --no-cache curl
 
@@ -129,7 +133,7 @@ RUN cd go \
     && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /mock-bin/eshu-mock-github ./cmd/mock-github
 
-FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS mock-github
+FROM ${ESHU_ALPINE_IMAGE} AS mock-github
 
 RUN apk add --no-cache curl
 
@@ -149,7 +153,7 @@ CMD ["eshu-mock-github"]
 # Production stage. MUST remain the last stage in this file — see the
 # mock-oidc-idp comment above. It is named `runtime` because
 # docker-publish.yml passes `no-cache-filters: runtime` to the image build.
-FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS runtime
+FROM ${ESHU_ALPINE_IMAGE} AS runtime
 
 # c-ares (a transitive libcurl dependency) is pinned to the patched build for
 # CVE-2026-33630. libexpat is likewise pinned for CVE-2026-76956 and

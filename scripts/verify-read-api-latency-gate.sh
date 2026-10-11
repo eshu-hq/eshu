@@ -150,6 +150,9 @@ cleanup() {
 	if [[ "${use_compose}" -eq 1 && "${stack_up}" -eq 1 ]]; then
 		docker compose "${compose_args[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 	fi
+	if declare -F eshu_ci_compose_cleanup >/dev/null; then
+		eshu_ci_compose_cleanup
+	fi
 	[[ -n "${work_dir}" ]] && rm -rf "${work_dir}"
 	release_live_gate_lock
 	exit "${status}"
@@ -204,6 +207,16 @@ export ESHU_METRICS_ADDR="127.0.0.1:0"
 export ESHU_COMPONENT_HOME="${work_dir}/component-home"
 mkdir -p "${ESHU_COMPONENT_HOME}"
 unset ESHU_PPROF_ADDR || true
+
+if [[ "${use_compose}" -eq 1 ]]; then
+	# shellcheck source=scripts/lib/ci-image-compose.sh
+	. "${repo_root}/scripts/lib/ci-image-compose.sh"
+	eshu_ci_compose_prepare "${stack_dir}" "${compose_args[@]}" || die "CI image overlay preflight failed"
+	if [[ -n "${ESHU_CI_COMPOSE_OVERLAY}" ]]; then
+		compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
+		COMPOSE_CMD=(docker compose "${compose_args[@]}")
+	fi
+fi
 
 if [[ "${use_compose}" -eq 1 ]]; then
 	log "bring up Postgres + ${ESHU_GRAPH_BACKEND} (Compose project ${GATE_COMPOSE_PROJECT})"

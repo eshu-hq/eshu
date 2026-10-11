@@ -23,10 +23,11 @@ ifa_det_cleanup() {
 		printf '\n[--keep] work dir retained: %s\n' "${work_dir}" >&2
 	else
 		if [[ "${use_compose}" -eq 1 ]]; then
-			docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
+			bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" -- down -v >/dev/null 2>&1 || true
 		fi
 		rm -rf "${work_dir}"
 	fi
+	if [[ "${keep}" -eq 0 ]] && declare -F eshu_ci_compose_cleanup >/dev/null; then eshu_ci_compose_cleanup; fi
 	exit "${status}"
 }
 

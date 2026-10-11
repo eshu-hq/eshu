@@ -394,7 +394,7 @@ ifa_deployable_unit_live_run_standalone_cell() {
 	cell_start=$(date +%s)
 
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${compose_project}" -f "${compose_file}" up -d nornicdb postgres
+		bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- up -d nornicdb postgres
 		log "deployable_unit_edges: wait for backends"
 		ifa_det_wait_for_backends "${compose_project}" "${compose_file}" || {
 			echo "deployable_unit_edges: Postgres + NornicDB did not become ready within budget" >&2
@@ -445,7 +445,7 @@ ifa_deployable_unit_live_run_standalone_cell() {
 
 	if [[ "${use_compose}" -eq 1 ]]; then
 		log "deployable_unit_edges: tear down cell"
-		docker compose -p "${compose_project}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
+		bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- down -v >/dev/null 2>&1 || true
 	fi
 
 	printf 'deployable_unit_edges: standalone cell wall time: %ss\n' "$(( $(date +%s) - cell_start ))"

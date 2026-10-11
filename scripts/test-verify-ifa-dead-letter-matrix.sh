@@ -76,7 +76,7 @@ require "--keep flag is parsed" '--keep) keep=1 ;;'
 require "isolated compose project default" 'DEADLETTER_MATRIX_COMPOSE_PROJECT:=eshu-ifa-deadletter-matrix-$$'
 # Bind the BRING-UP line, not the bare -p flag: both teardowns carry the same
 # flag, so deleting `up -d` left this pin green with no stack ever started.
-require "compose -p flag on up" 'docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres'
+require "compose -p flag on up" 'bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres'
 for reserved in \
 	'ESHU_POSTGRES_PORT:=15432' 'NEO4J_BOLT_PORT:=7687' 'NEO4J_HTTP_PORT:=7474' \
 	'ESHU_POSTGRES_PORT:=15532' 'NEO4J_BOLT_PORT:=7788' 'NEO4J_HTTP_PORT:=7575' \
@@ -127,7 +127,7 @@ require "per-cell fresh-stack teardown" "fresh stack for the next cell"
 # per-cell one left this pin green with cells N=1/2/4 running against a
 # contaminated stack -- so the cross-worker dead-letter-set identity comparison,
 # the whole point of the matrix, compared accumulated state (#6161).
-require_count "exit-trap and per-cell down -v" 'docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" down -v' 2
+require_count "exit-trap and per-cell down -v" 'bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" -- down -v' 2
 
 # The dead-letter-set capture and identity assertion.
 # Bind the SQL ASSIGNMENT: the die message on divergence repeats the same tuple
@@ -189,36 +189,34 @@ workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 # which itself precedes the job's own matrix invocation.
 assert_prewarm_before_run() {
 	local job_name="$1" start_needle="$2" end_needle="$3" run_needle="$4"
+	local workflow_path="${5:-${workflow}}"
 	local start_line end_line setup_line prewarm_line run_line prewarm_run
 	local anchor_line first_alias_line
 	# `|| true` throughout: under pipefail a no-match rg would otherwise abort
 	# this whole script via set -e before the fail() checks below can run.
-	start_line="$(rg -n --fixed-strings -- "${start_needle}" "${workflow}" | cut -d: -f1)" || true
-	end_line="$(rg -n --fixed-strings -- "${end_needle}" "${workflow}" | cut -d: -f1)" || true
+	start_line="$(rg -n --fixed-strings -- "${start_needle}" "${workflow_path}" | cut -d: -f1)" || true
+	end_line="$(rg -n --fixed-strings -- "${end_needle}" "${workflow_path}" | cut -d: -f1)" || true
 	[[ -n "${start_line}" && -n "${end_line}" && "${end_line}" -gt "${start_line}" ]] \
 		|| fail "${job_name}: could not locate its job block in ${workflow}"
-	setup_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
-		| rg -n -- 'name: Set up Go|\*setup_go' | cut -d: -f1)" || true
-	prewarm_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
-		| rg -n -- 'name: Pre-warm Go modules|\*prewarm_go' | cut -d: -f1)" || true
-	run_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
+	setup_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow_path}" \
+		| rg -n --fixed-strings -- 'name: Set up Go' | cut -d: -f1)" || true
+	prewarm_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow_path}" \
+		| rg -n --fixed-strings -- 'name: Pre-warm Go modules' | cut -d: -f1)" || true
+	run_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow_path}" \
 		| rg -n --fixed-strings -- "${run_needle}" | cut -d: -f1)" || true
 	[[ -n "${setup_line}" && -n "${prewarm_line}" && -n "${run_line}" ]] \
 		|| fail "${job_name}: missing Set up Go / Pre-warm Go modules / matrix invocation step"
 	[[ "${setup_line}" -lt "${prewarm_line}" && "${prewarm_line}" -lt "${run_line}" ]] \
 		|| fail "${job_name}: module prefetch is not wired between setup-go and the matrix invocation"
-	prewarm_run="$(sed -n "$((start_line + prewarm_line - 1)),$((start_line + prewarm_line))p" "${workflow}")"
-	if [[ "${prewarm_run}" == *'*prewarm_go'* ]]; then
-		anchor_line="$(rg -n '^      - &prewarm_go .*run: scripts/ci/go-mod-download-retry.sh' "${workflow}" | cut -d: -f1 | head -1)" || true
-		first_alias_line="$(rg -n '^      - \*prewarm_go$' "${workflow}" | cut -d: -f1 | head -1)" || true
-		[[ -n "${anchor_line}" && -n "${first_alias_line}" && "${anchor_line}" -lt "${first_alias_line}" ]] \
-			|| fail "${job_name}: prewarm anchor is not defined before its first alias use"
-		rg -q '^      - &prewarm_go .*run: scripts/ci/go-mod-download-retry.sh' "${workflow}" \
-			|| fail "${job_name}: prewarm alias lacks the shared retry helper"
-	else
-		[[ "${prewarm_run}" == *'run: scripts/ci/go-mod-download-retry.sh'* ]] \
-			|| fail "${job_name}: Pre-warm Go modules step does not run the shared retry helper (got: ${prewarm_run})"
-	fi
+	# Step metadata such as a merge-group `if:` may sit between the name and
+	# command. Stop at the next step so a later command cannot satisfy this pin.
+	prewarm_run="$(awk -v start="$((start_line + prewarm_line - 1))" '
+		NR <= start { next }
+		/^      - / { exit }
+		/^        run: / { print; exit }
+	' "${workflow_path}")"
+	[[ "${prewarm_run}" == '        run: scripts/ci/go-mod-download-retry.sh' ]] \
+		|| fail "${job_name}: Pre-warm Go modules step does not run the shared retry helper (got: ${prewarm_run})"
 }
 
 assert_prewarm_before_run determinism-matrix \
@@ -253,11 +251,11 @@ done
 # dumps no logs, and tears nothing down.
 for needle in \
 	'DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}' \
-	'run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true' \
-	'run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true' \
+	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true' \
+	'run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true' \
 	'DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}' \
-	'run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true' \
-	'run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true'; do
+	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true' \
+	'run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true'; do
 	rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
 		|| fail "matrix workflow does not address the kept compose project: ${needle}"
 done
@@ -265,17 +263,78 @@ done
 # failure(): a module pre-warm that exhausts its retries fails the job before
 # any work dir exists, and a bare failure() then turns that one named download
 # failure into extra misleading completeness/upload failures (#6706 review).
+assert_diagnostic_guard() {
+	local step_name="$1" step_id="$2" job_name="$3" workflow_path="${4:-${workflow}}"
+	local condition normalized expected_queue expected_legacy
+	condition="$(awk -v name="${step_name}" '
+		$0 == "      - name: " name { inside=1; next }
+		inside && /^      - / { exit }
+		inside && /^        if: / { print; exit }
+	' "${workflow_path}")"
+	normalized="$(printf '%s' "${condition}" | tr -d "[:space:]'\"")"
+	expected_legacy="if:failure()&&steps.${step_id}.outcome==failure"
+	printf -v expected_queue \
+		'if:${{(github.event_name!=merge_group||(contains(fromJSON(needs.queue-selection.outputs.jobs||[]),%s)))&&(failure()&&steps.%s.outcome==failure)}}' \
+		"${job_name}" "${step_id}"
+	[[ "${normalized}" == "${expected_legacy}" || "${normalized}" == "${expected_queue}" ]] \
+		|| fail "${step_name} is not gated on steps.${step_id}.outcome"
+}
 for step_id in fault_matrix determinism_matrix dead_letter_matrix; do
 	rg --fixed-strings --quiet -- "id: ${step_id}" "${workflow}" \
 		|| fail "matrix run step has no id ${step_id} for its diagnostics to key on"
-	rg --fixed-strings --quiet -- "if: failure() && steps.${step_id}.outcome == 'failure'" "${workflow}" \
-		|| fail "diagnostics are not gated on steps.${step_id}.outcome"
 done
+assert_diagnostic_guard 'Upload determinism-matrix diagnostics' determinism_matrix determinism-matrix
+assert_diagnostic_guard 'Upload dead-letter-matrix diagnostics' dead_letter_matrix dead-letter-matrix
+assert_diagnostic_guard 'Verify fault-injection diagnostic completeness' fault_matrix fault-injection
+assert_diagnostic_guard 'Upload fault-injection diagnostics' fault_matrix fault-injection
+# A missing producer-outcome condition must fail even if another diagnostic
+# step still carries it. Mutate one named step in a temporary workflow copy.
+diagnostic_probe="$(mktemp)"
+sed "/- name: Upload dead-letter-matrix diagnostics/{n;s/steps.dead_letter_matrix.outcome == 'failure'/true/;}" \
+	"${workflow}" >"${diagnostic_probe}"
+if (
+	assert_diagnostic_guard 'Upload dead-letter-matrix diagnostics' dead_letter_matrix dead-letter-matrix "${diagnostic_probe}"
+) >/dev/null 2>&1; then
+	rm -f "${diagnostic_probe}"
+	fail "diagnostic guard accepts a missing producer-outcome condition"
+fi
+rm -f "${diagnostic_probe}"
+# The presence of the producer check cannot rescue an `|| true` bypass.
+diagnostic_probe="$(mktemp)"
+sed "/- name: Upload dead-letter-matrix diagnostics/{n;s/(failure() \&\& steps.dead_letter_matrix.outcome == 'failure')/(true || (failure() \&\& steps.dead_letter_matrix.outcome == 'failure'))/;}" \
+	"${workflow}" >"${diagnostic_probe}"
+if (
+	assert_diagnostic_guard 'Upload dead-letter-matrix diagnostics' dead_letter_matrix dead-letter-matrix "${diagnostic_probe}"
+) >/dev/null 2>&1; then
+	rm -f "${diagnostic_probe}"
+	fail "diagnostic guard accepts a bypassed producer-outcome condition"
+fi
+rm -f "${diagnostic_probe}"
 # The static mirror runs `go run ./cmd/ci-gates` inside its validators, so it
 # needs the same setup-go + pre-warm as the matrix jobs (#6706 review).
 assert_prewarm_before_run static-mirror \
 	'  static-mirror:' '  determinism-matrix:' \
 	'name: Validate determinism matrix mirror'
+# A command in a sibling job must not satisfy the pre-warm pin. Remove only
+# the dead-letter job's retry command; the other three jobs retain theirs.
+prewarm_probe="$(mktemp)"
+awk '
+	/^  dead-letter-matrix:/ { inside=1 }
+	/^  fault-injection:/ { inside=0 }
+	inside && /run: scripts\/ci\/go-mod-download-retry\.sh/ {
+		sub(/run: scripts\/ci\/go-mod-download-retry\.sh/, "run: true")
+	}
+	{ print }
+' "${workflow}" >"${prewarm_probe}"
+if (
+	assert_prewarm_before_run dead-letter-matrix \
+		'  dead-letter-matrix:' '  fault-injection:' \
+		'name: Run Ifa dead-letter-set determinism matrix' "${prewarm_probe}"
+) >/dev/null 2>&1; then
+	rm -f "${prewarm_probe}"
+	fail "pre-warm pin accepts a step without the retry helper"
+fi
+rm -f "${prewarm_probe}"
 if rg --fixed-strings --quiet -- 'run: docker compose -f docker-compose.yaml' "${workflow}"; then
 	fail "a workflow step runs docker compose without -p; it addresses a project no gate script starts"
 fi

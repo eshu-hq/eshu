@@ -108,12 +108,69 @@ unquote() {
   esac
 }
 
+# static_image_literal <quoted GitHub expression literal>: sets STATIC_IMAGE.
+# Image refs cannot contain quotes, so escaped quotes and other expression
+# syntax are deliberately outside this bounded proof.
+static_image_literal() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  [[ "${#value}" -ge 2 && "${value:0:1}" == "'" && "${value: -1}" == "'" ]] || return 1
+  STATIC_IMAGE="${value:1:${#value}-2}"
+  [[ "${STATIC_IMAGE}" =~ ^[A-Za-z0-9._/@:+-]*$ ]]
+}
+
+# conditional_images_non_hub <expression body>: recognise only a top-level
+# guard && 'image' || 'fallback'. Parenthesised guard operators do not split
+# the result; apparent outer parentheses that close early do. Both possible
+# literal results must be non-Hub (the empty result pulls no image).
+conditional_images_non_hub() {
+  local expr="$1" ch next depth=0 quoted=0 i op_count=0 first=-1 second=-1
+  local guard left right
+  for ((i = 0; i < ${#expr}; i++)); do
+    ch="${expr:i:1}"; next="${expr:i+1:1}"
+    if [[ "${ch}" == "'" ]]; then
+      if [[ "${quoted}" -eq 1 && "${next}" == "'" ]]; then i=$((i + 1)); continue; fi
+      quoted=$((1 - quoted)); continue
+    fi
+    [[ "${quoted}" -eq 1 ]] && continue
+    case "${ch}" in
+      '(') depth=$((depth + 1)); continue ;;
+      ')') depth=$((depth - 1)); [[ "${depth}" -ge 0 ]] || return 1; continue ;;
+      '"' | '{' | '}') return 1 ;;
+    esac
+    if [[ "${depth}" -eq 0 && ( "${ch}${next}" == '&&' || "${ch}${next}" == '||' ) ]]; then
+      op_count=$((op_count + 1))
+      case "${op_count}" in
+        1) [[ "${ch}${next}" == '&&' ]] || return 1; first="${i}" ;;
+        2) [[ "${ch}${next}" == '||' ]] || return 1; second="${i}" ;;
+        *) return 1 ;;
+      esac
+      i=$((i + 1))
+    fi
+  done
+  [[ "${quoted}" -eq 0 && "${depth}" -eq 0 && "${op_count}" -eq 2 ]] || return 1
+  guard="${expr:0:first}"
+  [[ "${guard//[[:space:]]/}" != '' ]] || return 1
+  left="${expr:first+2:second-first-2}"
+  right="${expr:second+2}"
+  static_image_literal "${left}" || return 1
+  [[ -z "${STATIC_IMAGE}" ]] || ! image_is_hub "${STATIC_IMAGE}" || return 1
+  static_image_literal "${right}" || return 1
+  [[ -z "${STATIC_IMAGE}" ]] || ! image_is_hub "${STATIC_IMAGE}" || return 1
+  return 0
+}
+
 # image_is_hub <ref>: returns 0 when the ref can pull from Docker Hub or its host
 # cannot be derived; 1 when the host is another registry.
 image_is_hub() {
   local ref first
   expand "$1" ""
   ref="${EXP}"
+  if [[ "${ref}" == '${{'*'}}' ]]; then
+    conditional_images_non_hub "${ref:3:${#ref}-5}" && return 1
+    return 0
+  fi
   [[ -n "${ref}" ]] || return 0
   [[ "${ref}" == */* ]] || return 0
   first="${ref%%/*}"

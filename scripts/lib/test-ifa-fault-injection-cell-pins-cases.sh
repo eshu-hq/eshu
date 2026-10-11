@@ -116,7 +116,7 @@ run_ifa_fault_injection_cell_pins_cases() {
 	require_cells "no-compose skips cell 5" "SKIPPED (--no-compose cannot restart a backend it does not own)"
 	require_cells "non-vacuity fired check for cell 5" '"${restart_fired}" == "fired"'
 	require_framing "restart script JSON kind" "\"kind\": \"restart-backend-between-phase-groups\"" "${fault_lib}"
-	require_lib "nornicdb restart command" "docker compose -p \"\${compose_project}\" -f \"\${compose_file}\" restart nornicdb"
+	require_lib "nornicdb restart command" "bash scripts/ci/compose.sh -p \"\${compose_project}\" -f \"\${compose_file}\" -- restart nornicdb"
 
 	# Cell 6 (kill-worker-after-claim-sql, #5555): see the Cell 2 checks above --
 	# require_sql_cells asserts the SQL-scoped variant exists distinctly.

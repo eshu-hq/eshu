@@ -6,352 +6,169 @@ on:
   push: {branches: [main]}
   pull_request:
     branches: [ main ]
-    paths:
-      - 'scripts/lib/ifa_mirror_pins.sh'
-      - 'scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh'
-      - 'scripts/lib/test-ifa-determinism-private-data-cases.sh'
-      - 'scripts/lib/ifa_private_data_pattern.sh'
-      - 'scripts/lib/ifa_dead_command_line.sh'
-      - 'scripts/lib/ifa_live_gate_*.sh'
-      - 'scripts/lib/ifa_determinism_*.sh'
-      - 'scripts/lib/ifa_family_*.sh'
-      - 'scripts/lib/ifa_*_live*.sh'
-      - 'scripts/lib/ifa_fault_*.sh'
-      - 'scripts/lib/test-ifa-determinism-*.sh'
-      - 'scripts/lib/test-ifa-family-registry-*.sh'
-      - 'scripts/lib/test-ifa-fault-injection-*.sh'
-      - 'scripts/lib/ifa_family_registry/**'
-      - 'scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh'
-      - 'scripts/lib/ifa_family_registry_pins/**'
-      - 'scripts/lib/ifa_fault_injection_repo_dependency_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh'
-      - 'testdata/cassettes/repodependency/**'
-      - 'go/internal/ifa/testdata/repodependency/**'
-      - 'go/internal/ifa/*.go'
-      - 'go/internal/ifa/familyodu/kubernetes_namespace_environment_family_odu.go'
-      - 'go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go'
-      - 'go/internal/ifa/familyodu/iam_can_assume_family_odu.go'
-      - 'go/internal/ifa/familyodu/iam_can_perform_family_odu.go'
-      - 'go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go'
-      - 'go/internal/ifa/familyodu/iam_escalation_family_odu.go'
-      - 'go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go'
-      - 'go/internal/ifa/familyodu/s3_logs_to_family_odu.go'
-      - 'go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go'
-      - 'go/internal/ifa/familyodu/deployable_unit_family_odu.go'
-      - 'go/internal/ifa/familyodu/documentation_family_odu.go'
-      - 'go/internal/ifa/familyodu/symbol_runtime_family_odu.go'
-      - 'go/internal/ifa/mutate.go'
-      - 'go/internal/ifa/dead_letters.go'
-      - 'scripts/lib/ifa_fault_injection_workload_dependency_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh'
-      - 'testdata/cassettes/workloaddependency/**'
-      - 'go/internal/ifa/testdata/workloaddependency/**'
-      - 'go/internal/reducer/**'
-      - 'go/internal/storage/cypher/edge/materialized/endpoints.go'
-      - 'go/internal/collector/repo/git/fact_builder*.go'
-      - 'go/internal/collector/repo/git/followup_facts.go'
-      - 'go/internal/projector/canonical/import_extract.go'
-      - 'go/internal/projector/runtime/workload_dependency_cassette_admission_test.go'
-      - 'go/internal/storage/postgres/ingestion_reopen*.go'
-      - 'go/internal/storage/cypher/edge/materialized/repo_dependency.go'
-      - 'go/internal/storage/cypher/canonical_relationships.go'
-      - 'go/internal/storage/postgres/migrations/**'
-      - 'go/internal/graphschemacompat/**'
-      - 'go/internal/projector/failure/retry.go'
-      - 'go/internal/projector/decode/schema_version_admission.go'
-      - 'go/internal/storage/postgres/queue/failure_metadata.go'
-      - 'go/internal/storage/postgres/queue/backoff.go'
-      - 'go/internal/storage/cypher/writer.go'
-      - 'go/internal/storage/cypher/phase_group_metadata.go'
-      - 'go/internal/storage/cypher/phase_group_sanitize.go'
-      - 'go/internal/storage/cypher/statement_chunk.go'
-      - 'go/internal/storage/cypher/bounded_retract_drain.go'
-      - 'go/internal/storage/cypher/reconciliation_drift_metrics.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_entities_singleton.go'
-      - 'go/internal/storage/postgres/lock/deferred_maintenance.go'
-      - 'go/internal/storage/postgres/relationship_reference_keys.go'
-      - 'go/internal/storage/postgres/relationship_store*.go'
-      - 'go/internal/storage/postgres/ingestion_backfill*.go'
-      - 'go/internal/storage/postgres/ingestion_flux_cross_repo_telemetry.go'
-      - 'go/internal/relationships/**'
-      - 'go/internal/runtime/data_stores.go'
-      - 'go/internal/runtime/retry_policy.go'
-      - 'go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go'
-      - 'go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go'
-      - 'go/go.mod'
-      - 'go/go.sum'
-      - 'sdk/go/factschema/go.mod'
-      - 'sdk/go/factschema/*.go'
-      - 'sdk/go/factschema/codegraph/v1/**'
-      - 'sdk/go/factschema/gcp/v1/**'
-      - 'specs/ci-gates.v1.yaml'
-      - 'specs/ci-gates.d/**'
-      - '.github/workflows/ifa-determinism-gate.comments.md'
-      - 'scripts/ci/verify-ifa-fault-diagnostics-complete.sh'
-      - 'scripts/lib/ci-gates-resolved-fixtures.sh'
-      - 'docker-compose.yaml'
-      - 'testdata/cassettes/gcpcloud/supply-chain-demo.json'
-      - 'testdata/golden/e2e-20repo-snapshot.json'
-      - 'go/cmd/golden-corpus-gate/main.go'
-      - 'go/cmd/golden-corpus-gate/runner.go'
-      - 'go/cmd/golden-corpus-gate/drains.go'
-      - 'go/cmd/golden-corpus-gate/drains_readiness_classes.go'
-      - 'go/cmd/golden-corpus-gate/shared.go'
-      - 'go/internal/goldengate/snapshot.go'
-      - 'go/internal/goldengate/evaluate_drains.go'
-      - 'go/internal/goldengate/report.go'
-      - 'go/internal/replay/cassette/**'
-      - 'go/internal/replay/concurrentreplay/**'
-      - 'go/internal/storage/postgres/ingestion.go'
-      - 'go/internal/storage/postgres/ingestion_queries.go'
-      - 'go/internal/storage/postgres/ingestion_catalog*.go'
-      - 'go/internal/storage/postgres/ingestion_backfill_generation_guard.go'
-      - 'go/internal/storage/postgres/facts_streaming.go'
-      - 'go/internal/storage/postgres/facts.go'
-      - 'go/internal/storage/postgres/facts/payload/json.go'
-      - 'go/internal/storage/postgres/migrations/008_shared_projection_intents.sql'
-      - 'go/internal/storage/postgres/migrations/011_shared_projection_acceptance.sql'
-      - 'go/internal/storage/postgres/migrations/012_graph_projection_phase_state.sql'
-      - 'go/cmd/bootstrap-data-plane/schema_adoption.go'
-      - 'go/internal/graph/schema*.go'
-      - 'go/cmd/projector/config.go'
-      - 'go/cmd/projector/nornicdb_wiring.go'
-      - 'go/internal/projector/service.go'
-      - 'go/internal/projector/service_superseded.go'
-      - 'go/internal/storage/postgres/projector_queue.go'
-      - 'go/internal/storage/postgres/projector_queue_claim_pool_sql.go'
-      - 'go/internal/storage/postgres/projector_queue_claim_sql.go'
-      - 'go/internal/storage/postgres/projector_queue_scan.go'
-      - 'go/internal/storage/postgres/projector_queue_sql.go'
-      - 'go/internal/storage/nornicdb/**'
-      - 'go/internal/storage/cypher/canonical_node_writer_options.go'
-      - 'go/internal/storage/cypher/instrumented.go'
-      - 'go/internal/storage/cypher/retrying_executor.go'
-      - 'go/internal/storage/cypher/retryable_error.go'
-      - 'go/internal/storage/cypher/timeout_executor.go'
-      - 'go/internal/graphbackpressure/**'
-      - 'go/cmd/reducer/observed_service_wiring.go'
-      - 'go/cmd/reducer/neo4j_wiring.go'
-      - 'go/cmd/reducer/executor_adapters.go'
-      - 'go/cmd/reducer/graph_write_backpressure_wiring.go'
-      - 'go/cmd/reducer/worker_gauge.go'
-      - 'go/internal/storage/postgres/reducer_queue.go'
-      - 'go/internal/storage/postgres/reducer_queue_batch.go'
-      - 'go/internal/storage/postgres/reducer_queue_batch_query.go'
-      - 'go/internal/storage/postgres/reducer_queue_helpers.go'
-      - 'go/internal/storage/postgres/reducer_queue_readiness_sql.go'
-      - 'go/internal/storage/postgres/reducer_queue_replay.go'
-      - 'go/internal/storage/postgres/reducer_queue_validation.go'
-      - 'go/internal/storage/postgres/reducer_queue_ack.go'
-      - 'go/internal/ifa/graphdump/**'
-      - 'go/internal/ifa/materializededges/**'
-      - 'go/cmd/bootstrap-data-plane/main.go'
-      - 'go/cmd/reducer/main.go'
-      - 'go/cmd/reducer/canonical_graph_writers.go'
-      - 'go/internal/graphowner/family_writers.go'
-      - 'go/internal/graphowner/gated_writer.go'
-      - 'go/internal/storage/postgres/graph/owner/store.go'
-      - 'go/cmd/reducer/run.go'
-      - 'go/cmd/reducer/config.go'
-      - 'go/cmd/reducer/config_projection.go'
-      - 'go/cmd/reducer/main_helpers.go'
-      - 'go/internal/storage/cypher/*code_call*.go'
-      - 'go/internal/storage/cypher/payload_accessors.go'
-      - 'go/internal/storage/cypher/canonical_instantiates_edges.go'
-      - 'go/internal/storage/cypher/edge/writer/writer.go'
-      - 'go/internal/storage/cypher/canonical_retract.go'
-      - 'go/internal/storage/cypher/edge/writer/retract*.go'
-      - 'go/internal/storage/cypher/canonical_node_writer.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_phases.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_entities.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_metadata.go'
-      - 'go/internal/storage/cypher/canonical_node_cypher.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_retract.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_delta_retract.go'
-      - 'go/internal/storage/cypher/canonical_node_writer_retract_labels.go'
-      - 'go/internal/content/writer.go'
-      - 'go/internal/projector/canonical/builder.go'
-      - 'go/internal/projector/canonical/codegraph_extract.go'
-      - 'go/internal/projector/canonical/delta.go'
-      - 'go/internal/projector/decode/codegraph.go'
-      - 'go/internal/projector/decode/fact_kind.go'
-      - 'go/internal/projector/canonical/materialization.go'
-      - 'go/internal/projector/runtime/projection.go'
-      - 'go/internal/projector/runtime/reducer_intent.go'
-      - 'go/internal/projector/decode/payload.go'
-      - 'go/internal/projector/runtime/scope_generation_intents.go'
-      - 'go/internal/projector/gcp/resource_materialization_intents.go'
-      - 'go/internal/projector/gcp/relationship_materialization_intents.go'
-      - 'go/internal/projector/security/group_reachability_intents.go'
-      - 'go/internal/projector/runtime/reducer_intent_fact_index.go'
-      - 'go/internal/projector/runtime/phase.go'
-      - 'go/internal/projector/canonical/entity_identity.go'
-      - 'go/internal/projector/runtime/stages.go'
-      - 'go/cmd/projector/main.go'
-      - 'go/cmd/projector/runtime_wiring.go'
-      - 'go/internal/storage/postgres/code_call_intent_writer.go'
-      - 'go/internal/storage/postgres/facts_active_code_call_symbols.go'
-      - 'go/internal/storage/postgres/facts_filtered.go'
-      - 'go/internal/storage/postgres/shared_intent_acceptance_writer.go'
-      - 'go/internal/storage/postgres/shared_projection_acceptance*.go'
-      - 'go/internal/storage/postgres/accepted_generation.go'
-      - 'go/internal/storage/postgres/graph_projection_phase_state.go'
-      - 'go/internal/storage/postgres/reducer_queue_conflict.go'
-      - 'go/internal/storage/postgres/schema.go'
-      - 'go/internal/storage/postgres/schema_bootstrap_lock.go'
-      - 'go/internal/storage/postgres/shared_intents*.go'
-      - 'schema/data-plane/postgres/008_shared_projection_intents.sql'
-      - 'schema/data-plane/postgres/011_shared_projection_acceptance.sql'
-      - 'schema/data-plane/postgres/012_graph_projection_phase_state.sql'
-      - 'go/internal/synth/gcp/**'
-      - 'go/cmd/ifa/**'
-      - 'go/internal/storage/cypher/cloud_resource_node_writer.go'
-      - 'go/internal/storage/cypher/cloud_resource_node_writer_teeth.go'
-      - 'go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go'
-      - 'scripts/verify-ifa-determinism.sh'
-      - 'scripts/test-verify-ifa-determinism.sh'
-      - 'scripts/verify-ifa-dead-letter-matrix.sh'
-      - 'scripts/test-verify-ifa-dead-letter-matrix.sh'
-      - 'scripts/lib/ifa_determinism_common.sh'
-      - 'go/internal/storage/cypher/fault/executor/*.go'
-      - 'go/internal/replay/faultreplay/**'
-      - 'go/cmd/reducer/ifa_fault_wiring.go'
-      - 'go/cmd/reducer/ifa_fault_wiring_off.go'
-      - 'scripts/verify-ifa-fault-injection.sh'
-      - 'scripts/ci/install-apt-packages.sh'
-      - 'scripts/ci/go-mod-download-retry.sh'
-      - 'scripts/test-verify-ifa-fault-injection.sh'
-      - 'go/internal/storage/cypher/edge/writer/sql.go'
-      - 'specs/ifa-materialized-edge-coverage.v1.yaml'
-      - 'specs/ifa-materialized-edge-coverage-direct.v1.yaml'
-      - 'testdata/cassettes/sqlrelationships/**'
-      - 'testdata/cassettes/codecalls/**'
-      - 'go/internal/ifa/testdata/sqlrelationships/**'
-      - 'go/internal/ifa/testdata/codecalls/**'
-      - 'testdata/cassettes/documentation/**'
-      - 'go/internal/ifa/testdata/documentation/**'
-      - 'sdk/go/factschema/documentation/v1/**'
-      - 'go/internal/storage/cypher/edge/writer/*documentation*.go'
-      - 'sdk/go/factschema/codeowners/v1/**'
-      - 'go/internal/storage/cypher/*codeowners*.go'
-      - 'testdata/cassettes/codeowners/**'
-      - 'go/internal/ifa/testdata/codeowners/**'
-      - 'scripts/lib/ifa_fault_injection_inheritance_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_shell_exec_cells.sh'
-      - 'sdk/go/factschema/submodule/v1/**'
-      - 'go/internal/storage/cypher/*submodule*.go'
-      - 'testdata/cassettes/submodulepin/**'
-      - 'go/internal/ifa/testdata/submodulepin/**'
-      - 'go/internal/storage/cypher/canonical_deployable_unit_edges.go'
-      - 'go/internal/storage/cypher/edge/writer/rowmaps.go'
-      - 'testdata/cassettes/deployableunit/**'
-      - 'go/internal/ifa/testdata/deployableunit/**'
-      - 'go/cmd/bootstrap-index/**'
-      - 'go/cmd/ifa/assert_edges.go'
-      - 'go/internal/replay/canonical.go'
-      - 'go/internal/storage/cypher/canonical_rationale_edges.go'
-      - 'go/internal/storage/cypher/edge/writer/rationale_labels.go'
-      - 'go/internal/storage/cypher/canonical.go'
-      - 'go/internal/storage/cypher/backpressure_executor.go'
-      - 'testdata/cassettes/rationale/**'
-      - 'go/internal/ifa/testdata/rationale/**'
-      - 'go/internal/storage/cypher/canonical_implements_edges.go'
-      - 'go/internal/storage/cypher/canonical_inheritance_retract.go'
-      - 'go/internal/storage/cypher/edge/writer/inheritance_labels.go'
-      - 'go/internal/storage/cypher/edge/writer/shell_exec.go'
-      - 'testdata/cassettes/inheritance/**'
-      - 'testdata/cassettes/shellexec/**'
-      - 'go/internal/ifa/testdata/inheritance/**'
-      - 'go/internal/ifa/testdata/shellexec/**'
-      - 'go/internal/ifa/kubernetes_namespace_environment_family_odu.go'
-      - 'go/internal/ifa/iam_instance_profile_role_family_odu.go'
-      - 'go/internal/ifa/direct_family_cassette.go'
-      - 'go/internal/reducer/kubernetes_namespace_materialization.go'
-      - 'go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go'
-      - 'go/internal/reducer/iaminstprofile/iam_instance_profile_role_edge_rows.go'
-      - 'go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
-      - 'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go'
-      - 'testdata/cassettes/kubernetesnamespaceenvironment/**'
-      - 'testdata/cassettes/iaminstanceprofilerole/**'
-      - 'testdata/cassettes/iamcanassume/**'
-      - 'testdata/cassettes/iamcanperform/**'
-      - 'testdata/cassettes/workloadcloudrelationship/**'
-      - 'testdata/cassettes/iamescalation/**'
-      - 'testdata/cassettes/ec2usesprofile/**'
-      - 'testdata/cassettes/s3logsto/**'
-      - 'testdata/cassettes/kubernetescorrelation/**'
-      - 'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**'
-      - 'go/internal/ifa/testdata/iaminstanceprofilerole/**'
-      - 'go/internal/ifa/testdata/iamcanassume/**'
-      - 'go/internal/ifa/testdata/iamcanperform/**'
-      - 'go/internal/ifa/testdata/workloadcloudrelationship/**'
-      - 'go/internal/ifa/testdata/iamescalation/**'
-      - 'go/internal/ifa/testdata/ec2usesprofile/**'
-      - 'go/internal/ifa/testdata/s3logsto/**'
-      - 'go/internal/ifa/testdata/kubernetescorrelation/**'
-      - 'scripts/lib/ifa_direct_family_live.sh'
-      - 'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh'
-      - 'testdata/cassettes/symbolruntime/**'
-      - 'go/internal/ifa/testdata/handlesroute/**'
-      - 'go/internal/ifa/testdata/runsin/**'
-      - 'go/internal/ifa/testdata/invokescloudaction/**'
-      - 'go/internal/storage/cypher/canonical_handles_route_edges.go'
-      - 'go/internal/storage/cypher/canonical_runs_in_edges.go'
-      - 'go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go'
-      - 'go/internal/storage/cypher/materialized_edge_*.go'
-      - 'go/internal/storage/cypher/edge/materialized/**'
-      - 'go/internal/storage/cypher/canonical_code_call_edges.go'
-      - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
-      - '.github/workflows/ifa-determinism-gate.yml'
-      - 'go/internal/ifa/catalog_seed.go'
-      - 'go/internal/ifa/code_call_family_catalog.go'
-      - 'go/internal/ifa/deployable_unit_family_catalog.go'
-      - 'go/internal/ifa/deployable_unit_family_odu.go'
-      - 'go/internal/ifa/documentation_family_catalog.go'
-      - 'go/internal/ifa/documentation_family_odu.go'
-      - 'go/internal/reducer/code_call*.go'
-      - 'go/internal/reducer/deployable_unit*.go'
-      - 'go/internal/reducer/documentation_edge*.go'
-      - 'scripts/lib/ifa_rationale_live.sh'
-      - 'sdk/go/factschema/codegraph/v1/repository.go'
-      - 'go/internal/ifa/symbol_runtime_family_odu.go'
-      - 'go/internal/reducer/code/call/materialization/*.go'
-      - 'scripts/lib/ifa_symbol_runtime_live.sh'
-      - 'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
-      - 'go/internal/ifa/sql_relationship_odu*.go'
-      - 'go/internal/reducer/sql_relationship_*.go'
-      - 'go/internal/reducer/sqlrelationship/sql_relationship_*.go'
-      - 'go/cmd/ifa/mutate_cassette.go'
-      - 'go/cmd/ifa/dead_letters.go'
-      - 'scripts/lib/ifa_determinism_common*.sh'
+    paths: [
+      'scripts/ci/compose.sh', 'scripts/lib/ci-image-compose.sh', 'scripts/lib/ci_image_compose.py', 'scripts/lib/ci_image_compose_signature.py', 'specs/ci-images.v1.json',
+      'scripts/lib/ifa_mirror_pins.sh', 'scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh', 'scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh',
+      'scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh', 'scripts/lib/test-ifa-determinism-private-data-cases.sh', 'scripts/lib/ifa_private_data_pattern.sh',
+      'scripts/lib/ifa_dead_command_line.sh', 'scripts/lib/ifa_live_gate_*.sh', 'scripts/lib/ifa_determinism_*.sh',
+      'scripts/lib/ifa_family_*.sh', 'scripts/lib/ifa_*_live*.sh', 'scripts/lib/ifa_fault_*.sh',
+      'scripts/lib/test-ifa-determinism-*.sh', 'scripts/lib/test-ifa-family-registry-*.sh', 'scripts/lib/test-ifa-fault-injection-*.sh',
+      'scripts/lib/ifa_family_registry/**', 'scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh', 'scripts/lib/ifa_family_registry_pins/**',
+      'scripts/lib/ifa_fault_injection_repo_dependency_cells.sh', 'scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh', 'testdata/cassettes/repodependency/**',
+      'go/internal/ifa/testdata/repodependency/**', 'go/internal/ifa/*.go', 'go/internal/ifa/familyodu/kubernetes_namespace_environment_family_odu.go',
+      'go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go', 'go/internal/ifa/familyodu/iam_can_assume_family_odu.go', 'go/internal/ifa/familyodu/iam_can_perform_family_odu.go',
+      'go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go', 'go/internal/ifa/familyodu/iam_escalation_family_odu.go', 'go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go',
+      'go/internal/ifa/familyodu/s3_logs_to_family_odu.go', 'go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go', 'go/internal/ifa/familyodu/deployable_unit_family_odu.go',
+      'go/internal/ifa/familyodu/documentation_family_odu.go', 'go/internal/ifa/familyodu/symbol_runtime_family_odu.go', 'go/internal/ifa/mutate.go',
+      'go/internal/ifa/dead_letters.go', 'scripts/lib/ifa_fault_injection_workload_dependency_cells.sh', 'scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh',
+      'testdata/cassettes/workloaddependency/**', 'go/internal/ifa/testdata/workloaddependency/**', 'go/internal/reducer/**',
+      'go/internal/storage/cypher/edge/materialized/endpoints.go', 'go/internal/collector/repo/git/fact_builder*.go', 'go/internal/collector/repo/git/followup_facts.go',
+      'go/internal/projector/canonical/import_extract.go', 'go/internal/projector/runtime/workload_dependency_cassette_admission_test.go', 'go/internal/storage/postgres/ingestion_reopen*.go',
+      'go/internal/storage/cypher/edge/materialized/repo_dependency.go', 'go/internal/storage/cypher/canonical_relationships.go', 'go/internal/storage/postgres/migrations/**',
+      'go/internal/graphschemacompat/**', 'go/internal/projector/failure/retry.go', 'go/internal/projector/decode/schema_version_admission.go',
+      'go/internal/storage/postgres/queue/failure_metadata.go', 'go/internal/storage/postgres/queue/backoff.go', 'go/internal/storage/cypher/writer.go',
+      'go/internal/storage/cypher/phase_group_metadata.go', 'go/internal/storage/cypher/phase_group_sanitize.go', 'go/internal/storage/cypher/statement_chunk.go',
+      'go/internal/storage/cypher/bounded_retract_drain.go', 'go/internal/storage/cypher/reconciliation_drift_metrics.go', 'go/internal/storage/cypher/canonical_node_writer_entities_singleton.go',
+      'go/internal/storage/postgres/lock/deferred_maintenance.go', 'go/internal/storage/postgres/relationship_reference_keys.go', 'go/internal/storage/postgres/relationship_store*.go',
+      'go/internal/storage/postgres/ingestion_backfill*.go', 'go/internal/storage/postgres/ingestion_flux_cross_repo_telemetry.go', 'go/internal/relationships/**',
+      'go/internal/runtime/data_stores.go', 'go/internal/runtime/retry_policy.go', 'go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go',
+      'go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go', 'go/go.mod', 'go/go.sum',
+      'sdk/go/factschema/go.mod', 'sdk/go/factschema/*.go', 'sdk/go/factschema/codegraph/v1/**',
+      'sdk/go/factschema/gcp/v1/**', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**',
+      '.github/workflows/ifa-determinism-gate.comments.md', 'scripts/ci/verify-ifa-fault-diagnostics-complete.sh', 'scripts/lib/ci-gates-resolved-fixtures.sh',
+      'docker-compose.yaml', 'testdata/cassettes/gcpcloud/supply-chain-demo.json', 'testdata/golden/e2e-20repo-snapshot.json',
+      'go/cmd/golden-corpus-gate/main.go', 'go/cmd/golden-corpus-gate/runner.go', 'go/cmd/golden-corpus-gate/drains.go',
+      'go/cmd/golden-corpus-gate/drains_readiness_classes.go', 'go/cmd/golden-corpus-gate/shared.go', 'go/internal/goldengate/snapshot.go',
+      'go/internal/goldengate/evaluate_drains.go', 'go/internal/goldengate/report.go', 'go/internal/replay/cassette/**',
+      'go/internal/replay/concurrentreplay/**', 'go/internal/storage/postgres/ingestion.go', 'go/internal/storage/postgres/ingestion_queries.go',
+      'go/internal/storage/postgres/ingestion_catalog*.go', 'go/internal/storage/postgres/ingestion_backfill_generation_guard.go', 'go/internal/storage/postgres/facts_streaming.go',
+      'go/internal/storage/postgres/facts.go', 'go/internal/storage/postgres/facts/payload/json.go', 'go/internal/storage/postgres/migrations/008_shared_projection_intents.sql',
+      'go/internal/storage/postgres/migrations/011_shared_projection_acceptance.sql', 'go/internal/storage/postgres/migrations/012_graph_projection_phase_state.sql', 'go/cmd/bootstrap-data-plane/schema_adoption.go',
+      'go/internal/graph/schema*.go', 'go/cmd/projector/config.go', 'go/cmd/projector/nornicdb_wiring.go',
+      'go/internal/projector/service.go', 'go/internal/projector/service_superseded.go', 'go/internal/storage/postgres/projector_queue.go',
+      'go/internal/storage/postgres/projector_queue_claim_pool_sql.go', 'go/internal/storage/postgres/projector_queue_claim_sql.go', 'go/internal/storage/postgres/projector_queue_scan.go',
+      'go/internal/storage/postgres/projector_queue_sql.go', 'go/internal/storage/nornicdb/**', 'go/internal/storage/cypher/canonical_node_writer_options.go',
+      'go/internal/storage/cypher/instrumented.go', 'go/internal/storage/cypher/retrying_executor.go', 'go/internal/storage/cypher/retryable_error.go',
+      'go/internal/storage/cypher/timeout_executor.go', 'go/internal/graphbackpressure/**', 'go/cmd/reducer/observed_service_wiring.go',
+      'go/cmd/reducer/neo4j_wiring.go', 'go/cmd/reducer/executor_adapters.go', 'go/cmd/reducer/graph_write_backpressure_wiring.go',
+      'go/cmd/reducer/worker_gauge.go', 'go/internal/storage/postgres/reducer_queue.go', 'go/internal/storage/postgres/reducer_queue_batch.go',
+      'go/internal/storage/postgres/reducer_queue_batch_query.go', 'go/internal/storage/postgres/reducer_queue_helpers.go', 'go/internal/storage/postgres/reducer_queue_readiness_sql.go',
+      'go/internal/storage/postgres/reducer_queue_replay.go', 'go/internal/storage/postgres/reducer_queue_validation.go', 'go/internal/storage/postgres/reducer_queue_ack.go',
+      'go/internal/ifa/graphdump/**', 'go/internal/ifa/materializededges/**', 'go/cmd/bootstrap-data-plane/main.go',
+      'go/cmd/reducer/main.go', 'go/cmd/reducer/canonical_graph_writers.go', 'go/internal/graphowner/family_writers.go',
+      'go/internal/graphowner/gated_writer.go', 'go/internal/storage/postgres/graph/owner/store.go', 'go/cmd/reducer/run.go',
+      'go/cmd/reducer/config.go', 'go/cmd/reducer/config_projection.go', 'go/cmd/reducer/main_helpers.go',
+      'go/internal/storage/cypher/*code_call*.go', 'go/internal/storage/cypher/payload_accessors.go', 'go/internal/storage/cypher/canonical_instantiates_edges.go',
+      'go/internal/storage/cypher/edge/writer/writer.go', 'go/internal/storage/cypher/canonical_retract.go', 'go/internal/storage/cypher/edge/writer/retract*.go',
+      'go/internal/storage/cypher/canonical_node_writer.go', 'go/internal/storage/cypher/canonical_node_writer_phases.go', 'go/internal/storage/cypher/canonical_node_writer_entities.go',
+      'go/internal/storage/cypher/canonical_node_writer_metadata.go', 'go/internal/storage/cypher/canonical_node_cypher.go', 'go/internal/storage/cypher/canonical_node_writer_retract.go',
+      'go/internal/storage/cypher/canonical_node_writer_delta_retract.go', 'go/internal/storage/cypher/canonical_node_writer_retract_labels.go', 'go/internal/content/writer.go',
+      'go/internal/projector/canonical/builder.go', 'go/internal/projector/canonical/codegraph_extract.go', 'go/internal/projector/canonical/delta.go',
+      'go/internal/projector/decode/codegraph.go', 'go/internal/projector/decode/fact_kind.go', 'go/internal/projector/canonical/materialization.go',
+      'go/internal/projector/runtime/projection.go', 'go/internal/projector/runtime/reducer_intent.go', 'go/internal/projector/decode/payload.go',
+      'go/internal/projector/runtime/scope_generation_intents.go', 'go/internal/projector/gcp/resource_materialization_intents.go', 'go/internal/projector/gcp/relationship_materialization_intents.go',
+      'go/internal/projector/security/group_reachability_intents.go', 'go/internal/projector/runtime/reducer_intent_fact_index.go', 'go/internal/projector/runtime/phase.go',
+      'go/internal/projector/canonical/entity_identity.go', 'go/internal/projector/runtime/stages.go', 'go/cmd/projector/main.go',
+      'go/cmd/projector/runtime_wiring.go', 'go/internal/storage/postgres/code_call_intent_writer.go', 'go/internal/storage/postgres/facts_active_code_call_symbols.go',
+      'go/internal/storage/postgres/facts_filtered.go', 'go/internal/storage/postgres/shared_intent_acceptance_writer.go', 'go/internal/storage/postgres/shared_projection_acceptance*.go',
+      'go/internal/storage/postgres/accepted_generation.go', 'go/internal/storage/postgres/graph_projection_phase_state.go', 'go/internal/storage/postgres/reducer_queue_conflict.go',
+      'go/internal/storage/postgres/schema.go', 'go/internal/storage/postgres/schema_bootstrap_lock.go', 'go/internal/storage/postgres/shared_intents*.go',
+      'schema/data-plane/postgres/008_shared_projection_intents.sql', 'schema/data-plane/postgres/011_shared_projection_acceptance.sql', 'schema/data-plane/postgres/012_graph_projection_phase_state.sql',
+      'go/internal/synth/gcp/**', 'go/cmd/ifa/**', 'go/internal/storage/cypher/cloud_resource_node_writer.go',
+      'go/internal/storage/cypher/cloud_resource_node_writer_teeth.go', 'go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go', 'scripts/verify-ifa-determinism.sh',
+      'scripts/test-verify-ifa-determinism.sh', 'scripts/verify-ifa-dead-letter-matrix.sh', 'scripts/test-verify-ifa-dead-letter-matrix.sh',
+      'scripts/lib/ifa_determinism_common.sh', 'go/internal/storage/cypher/fault/executor/*.go', 'go/internal/replay/faultreplay/**',
+      'go/cmd/reducer/ifa_fault_wiring.go', 'go/cmd/reducer/ifa_fault_wiring_off.go', 'scripts/verify-ifa-fault-injection.sh',
+      'scripts/ci/install-apt-packages.sh', 'scripts/ci/go-mod-download-retry.sh', 'scripts/test-verify-ifa-fault-injection.sh',
+      'go/internal/storage/cypher/edge/writer/sql.go', 'specs/ifa-materialized-edge-coverage.v1.yaml', 'specs/ifa-materialized-edge-coverage-direct.v1.yaml',
+      'testdata/cassettes/sqlrelationships/**', 'testdata/cassettes/codecalls/**', 'go/internal/ifa/testdata/sqlrelationships/**',
+      'go/internal/ifa/testdata/codecalls/**', 'testdata/cassettes/documentation/**', 'go/internal/ifa/testdata/documentation/**',
+      'sdk/go/factschema/documentation/v1/**', 'go/internal/storage/cypher/edge/writer/*documentation*.go', 'sdk/go/factschema/codeowners/v1/**',
+      'go/internal/storage/cypher/*codeowners*.go', 'testdata/cassettes/codeowners/**', 'go/internal/ifa/testdata/codeowners/**',
+      'scripts/lib/ifa_fault_injection_inheritance_cells.sh', 'scripts/lib/ifa_fault_injection_shell_exec_cells.sh', 'sdk/go/factschema/submodule/v1/**',
+      'go/internal/storage/cypher/*submodule*.go', 'testdata/cassettes/submodulepin/**', 'go/internal/ifa/testdata/submodulepin/**',
+      'go/internal/storage/cypher/canonical_deployable_unit_edges.go', 'go/internal/storage/cypher/edge/writer/rowmaps.go', 'testdata/cassettes/deployableunit/**',
+      'go/internal/ifa/testdata/deployableunit/**', 'go/cmd/bootstrap-index/**', 'go/cmd/ifa/assert_edges.go',
+      'go/internal/replay/canonical.go', 'go/internal/storage/cypher/canonical_rationale_edges.go', 'go/internal/storage/cypher/edge/writer/rationale_labels.go',
+      'go/internal/storage/cypher/canonical.go', 'go/internal/storage/cypher/backpressure_executor.go', 'testdata/cassettes/rationale/**',
+      'go/internal/ifa/testdata/rationale/**', 'go/internal/storage/cypher/canonical_implements_edges.go', 'go/internal/storage/cypher/canonical_inheritance_retract.go',
+      'go/internal/storage/cypher/edge/writer/inheritance_labels.go', 'go/internal/storage/cypher/edge/writer/shell_exec.go', 'testdata/cassettes/inheritance/**',
+      'testdata/cassettes/shellexec/**', 'go/internal/ifa/testdata/inheritance/**', 'go/internal/ifa/testdata/shellexec/**',
+      'go/internal/ifa/kubernetes_namespace_environment_family_odu.go', 'go/internal/ifa/iam_instance_profile_role_family_odu.go', 'go/internal/ifa/direct_family_cassette.go',
+      'go/internal/reducer/kubernetes_namespace_materialization.go', 'go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go', 'go/internal/reducer/iaminstprofile/iam_instance_profile_role_edge_rows.go',
+      'go/internal/storage/cypher/kubernetes_namespace_node_writer.go', 'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go', 'testdata/cassettes/kubernetesnamespaceenvironment/**',
+      'testdata/cassettes/iaminstanceprofilerole/**', 'testdata/cassettes/iamcanassume/**', 'testdata/cassettes/iamcanperform/**',
+      'testdata/cassettes/workloadcloudrelationship/**', 'testdata/cassettes/iamescalation/**', 'testdata/cassettes/ec2usesprofile/**',
+      'testdata/cassettes/s3logsto/**', 'testdata/cassettes/kubernetescorrelation/**', 'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**',
+      'go/internal/ifa/testdata/iaminstanceprofilerole/**', 'go/internal/ifa/testdata/iamcanassume/**', 'go/internal/ifa/testdata/iamcanperform/**',
+      'go/internal/ifa/testdata/workloadcloudrelationship/**', 'go/internal/ifa/testdata/iamescalation/**', 'go/internal/ifa/testdata/ec2usesprofile/**',
+      'go/internal/ifa/testdata/s3logsto/**', 'go/internal/ifa/testdata/kubernetescorrelation/**', 'scripts/lib/ifa_direct_family_live.sh',
+      'scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh', 'scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh', 'scripts/lib/test-ifa-fault-injection-kubernetes-namespace-environment-cases.sh',
+      'scripts/lib/test-ifa-fault-injection-iam-instance-profile-role-cases.sh', 'testdata/cassettes/symbolruntime/**', 'go/internal/ifa/testdata/handlesroute/**',
+      'go/internal/ifa/testdata/runsin/**', 'go/internal/ifa/testdata/invokescloudaction/**', 'go/internal/storage/cypher/canonical_handles_route_edges.go',
+      'go/internal/storage/cypher/canonical_runs_in_edges.go', 'go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go', 'go/internal/storage/cypher/materialized_edge_*.go',
+      'go/internal/storage/cypher/edge/materialized/**', 'go/internal/storage/cypher/canonical_code_call_edges.go', 'go/internal/storage/cypher/canonical_inheritance_edges.go',
+      '.github/workflows/ifa-determinism-gate.yml', 'go/internal/ifa/catalog_seed.go', 'go/internal/ifa/code_call_family_catalog.go',
+      'go/internal/ifa/deployable_unit_family_catalog.go', 'go/internal/ifa/deployable_unit_family_odu.go', 'go/internal/ifa/documentation_family_catalog.go',
+      'go/internal/ifa/documentation_family_odu.go', 'go/internal/reducer/code_call*.go', 'go/internal/reducer/deployable_unit*.go',
+      'go/internal/reducer/documentation_edge*.go', 'scripts/lib/ifa_rationale_live.sh', 'sdk/go/factschema/codegraph/v1/repository.go',
+      'go/internal/ifa/symbol_runtime_family_odu.go', 'go/internal/reducer/code/call/materialization/*.go', 'scripts/lib/ifa_symbol_runtime_live.sh',
+      'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh', 'go/internal/ifa/sql_relationship_odu*.go', 'go/internal/reducer/sql_relationship_*.go',
+      'go/internal/reducer/sqlrelationship/sql_relationship_*.go', 'go/cmd/ifa/mutate_cassette.go', 'go/cmd/ifa/dead_letters.go',
+      'scripts/lib/ifa_determinism_common*.sh'
+    ]
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
+env:
+  ESHU_CI_IMAGES: "1"
+  POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+  NEO4J_IMAGE: ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+  ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
+  ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0
+  ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
+
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: ifa-determinism-gate.yml
   static-mirror:
+    needs: queue-selection
     name: static mirror
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - uses: actions/checkout@v5
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
-      - &setup_go {name: Set up Go, uses: actions/setup-go@v6, with: {go-version-file: go/go.mod, cache-dependency-path: go/go.sum}}
-      - &prewarm_go {name: Pre-warm Go modules, run: scripts/ci/go-mod-download-retry.sh}
+      - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
+        run: scripts/ci/go-mod-download-retry.sh
       - name: Validate determinism matrix mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: bash scripts/test-verify-ifa-determinism.sh
       - name: Validate dead-letter matrix mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: bash scripts/test-verify-ifa-dead-letter-matrix.sh
       - name: Validate fault-injection matrix mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror')) }}
         run: bash scripts/test-verify-ifa-fault-injection.sh
   determinism-matrix:
+    needs: queue-selection
     name: determinism-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -359,28 +176,40 @@ jobs:
       DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
         uses: actions/checkout@v5
-      - &dockerhub_login
-        name: Log in to Docker Hub
+      - name: Log in to Docker Hub
         if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - *setup_go
-      - *prewarm_go
+
+      - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
+        run: scripts/ci/go-mod-download-retry.sh
       - name: Run Ifa graph-determinism matrix (N=1,2,4; demo-org + synth-multiscope, Tier 2)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
         id: determinism_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: bash scripts/verify-ifa-determinism.sh --keep
       - name: Dump service logs on failure
-        if: failure()
-        run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix'))) && (failure()) }}
+        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true
       - name: Upload determinism-matrix diagnostics
-        if: failure() && steps.determinism_matrix.outcome == 'failure'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix'))) && (failure() && steps.determinism_matrix.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: ifa-determinism-matrix-attempt-${{ github.run_attempt }}-failure
@@ -391,9 +220,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: Tear down Docker services
-        if: always()
-        run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix'))) && (always()) }}
+        run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true
   dead-letter-matrix:
+    needs: queue-selection
     name: dead-letter-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -401,22 +231,43 @@ jobs:
       DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
         uses: actions/checkout@v5
-      - *dockerhub_login
-      - *setup_go
-      - *prewarm_go
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
+        run: scripts/ci/go-mod-download-retry.sh
       - name: Run Ifa dead-letter-set determinism matrix (N=1,2,4)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
         id: dead_letter_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: bash scripts/verify-ifa-dead-letter-matrix.sh --keep
       - name: Dump service logs on failure
-        if: failure()
-        run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix'))) && (failure()) }}
+        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true
       - name: Upload dead-letter-matrix diagnostics
-        if: failure() && steps.dead_letter_matrix.outcome == 'failure'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix'))) && (failure() && steps.dead_letter_matrix.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: ifa-dead-letter-matrix-attempt-${{ github.run_attempt }}-failure
@@ -426,9 +277,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: Tear down Docker services
-        if: always()
-        run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix'))) && (always()) }}
+        run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true
   fault-injection:
+    needs: queue-selection
     name: fault-injection (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -440,22 +292,36 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         uses: actions/checkout@v5
-      - *dockerhub_login
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Run tagged fault-classification unit tests
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         working-directory: go
         run: go test -tags ifafaultinjection ./internal/storage/cypher ./internal/storage/cypher/fault/executor ./internal/replay/faultreplay ./cmd/reducer -count=1
       - name: Run Ifa fault-injection matrix shard (fresh stack per cell)
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         id: fault_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
@@ -463,10 +329,10 @@ jobs:
           IFA_FAULT_SHARD: ${{ matrix.shard }}
         run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/4"
       - name: Verify fault-injection diagnostic completeness
-        if: failure() && steps.fault_matrix.outcome == 'failure'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection'))) && (failure() && steps.fault_matrix.outcome == 'failure') }}
         run: bash scripts/ci/verify-ifa-fault-diagnostics-complete.sh
       - name: Upload fault-injection diagnostics
-        if: failure() && steps.fault_matrix.outcome == 'failure'
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection'))) && (failure() && steps.fault_matrix.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure
@@ -492,5 +358,5 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Tear down Docker services
-        if: always()
-        run: docker compose -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection'))) && (always()) }}
+        run: bash scripts/ci/compose.sh -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true

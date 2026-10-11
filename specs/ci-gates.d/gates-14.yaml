@@ -151,6 +151,11 @@ gates:
       - "docker-compose*.yml"
       - "scripts/verify_backend_conformance_live.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/compose.sh"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     ci:
       workflow: e2e-tests.yml
       job: "test"
@@ -194,6 +199,10 @@ gates:
       - "go/internal/query/**"
       - "go/internal/mcp/**"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "bash scripts/run-auth-mcp-e2e.sh"
       test_command: ""
@@ -239,6 +248,10 @@ gates:
       - "go/cmd/api/**"
       - "go/internal/oidclogin/**"
       - ".github/workflows/frontend.yml"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "bash scripts/run-auth-e2e.sh"
       test_command: ""
@@ -282,6 +295,7 @@ gates:
       - "Dockerfile"
       - ".dockerignore"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
     ci:
       workflow: docker-publish.yml
       job: "build-and-push-image"
@@ -300,6 +314,9 @@ gates:
       - "Dockerfile"
       - ".dockerignore"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
+      - "scripts/ci/build-reproducibility-image.sh"
+      - "specs/ci-images.v1.json"
     ci:
       workflow: docker-publish.yml
       job: "verify-reproducibility"
@@ -323,6 +340,9 @@ gates:
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
       - "scripts/ci/promote-moving-tags.sh"
+      - "scripts/ci/select-docker-publish-lanes.sh"
+      - "scripts/ci/push-helm-chart.sh"
+      - "scripts/ci/test-docker-publish-extracted-steps.sh"
       - "scripts/ci/resolve-image-scan-ref.sh"
       - "scripts/test-promote-moving-tags.sh"
       - "scripts/fixtures/promote-moving-tags-stub-curl.sh"
@@ -336,8 +356,8 @@ gates:
       - "scripts/dev/test-publish-ci-image-mirrors.sh"
       - "scripts/dev/test-docker-publish-ci-mirror-mode.sh"
     local:
-      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
-      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
+      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh"
+      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify docker-publish shape gate"
@@ -367,6 +387,10 @@ gates:
       - "**/docker-compose*.y*ml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
+      - "scripts/ci/tools.Dockerfile"
+      - "scripts/ci/test-tools-workflow.py"
+      - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
     local:
       command: "bash scripts/verify-dockerhub-login.sh"
       test_command: "bash scripts/test-verify-dockerhub-login.sh"

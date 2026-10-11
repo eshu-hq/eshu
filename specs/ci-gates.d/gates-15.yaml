@@ -17,6 +17,7 @@ gates:
     triggers:
       - "Dockerfile"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
       - "scripts/verify-apk-floors.sh"
       - "scripts/test-verify-apk-floors.sh"
       - "scripts/fixtures/apk-floors/**"
@@ -60,6 +61,8 @@ gates:
     triggers:
       - "deploy/helm/**"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
+      - "scripts/ci/push-helm-chart.sh"
     ci:
       workflow: docker-publish.yml
       job: "package-and-push-chart"
@@ -393,6 +396,7 @@ gates:
       - ".github/workflows/**"
       - "scripts/verify-ci-gates-registry.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/queue-selection.yml"
     self_test_triggers:
       - "specs/ci-gates.v1.yaml"
       - "go/internal/cigates/**"

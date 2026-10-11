@@ -41,6 +41,9 @@ for wf in e2e-tests live-backend-tests reducer-contention-gate docker-publish ve
 done
 cp -R "${repo_root}/scripts" "${base}/scripts"
 cp "${repo_root}"/Dockerfile "${repo_root}"/docker-compose*.y*ml "${base}/"
+# Empty step lists and reusable jobs must not offset metadata/run identities.
+# Every scratch mutation below retains both shapes before the tested steps.
+yq e -i '.jobs.empty_step_fixture = {"runs-on": "ubuntu-latest", "steps": []}' "${base}/.github/workflows/verify-agent-hygiene.yml"
 
 new_case() { # <name>: prints the scratch repo dir
   local dir="${tmp_root}/$1"
@@ -97,12 +100,13 @@ add_job "${d}" verify-agent-hygiene fixture-docker 'docker pull postgres:18'
 expect_red direct-docker-job-without-login "${d}" 'verify-agent-hygiene.yml:fixture-docker: no Docker Hub docker/login-action@v3 step'
 
 d="$(new_case login-after-first-docker)"
-# Move the login after the script-driven step that pulls (steps[5] runs the
-# script, steps[1] is the login in the committed workflow).
-yq e -i '.jobs.live-backend.steps as $s | .jobs.live-backend.steps = ($s[0:1] + $s[2:6] + [$s[1]] + $s[6:])' "${d}/.github/workflows/live-backend-tests.yml"
-expect_red login-placed-after-first-docker-step "${d}" 'live-backend-tests.yml:live-backend: login steps[5] comes after the first Docker-reaching steps[4]'
+# Move the login to the end without depending on unrelated setup positions.
+yq e -i '.jobs.live-backend.steps as $s | .jobs.live-backend.steps = (($s | map(select(.uses != "docker/login-action@v3"))) + ($s | map(select(.uses == "docker/login-action@v3"))))' "${d}/.github/workflows/live-backend-tests.yml"
+login_index="$(yq e '.jobs.live-backend.steps | length - 1' "${d}/.github/workflows/live-backend-tests.yml")"
+expect_red login-placed-after-first-docker-step "${d}" "live-backend-tests.yml:live-backend: login steps[${login_index}] comes after the first Docker-reaching"
 
 d="$(new_case service-without-credentials)"
+yq e -i '.jobs.contention-gate.services.postgres.image = "docker.io/library/postgres:18"' "${d}/.github/workflows/reducer-contention-gate.yml"
 yq e -i 'del(.jobs.contention-gate.services.postgres.credentials)' "${d}/.github/workflows/reducer-contention-gate.yml"
 expect_red service-without-credentials "${d}" 'reducer-contention-gate.yml:contention-gate: service postgres'
 
@@ -112,7 +116,8 @@ expect_red login-to-ghcr-only "${d}" 'e2e-tests.yml:test: no Docker Hub docker/l
 
 d="$(new_case wrong-secret)"
 yq e -i "(.jobs.live-backend.steps[] | select(${login_ref}) | .with.password) = \"x\"" "${d}/.github/workflows/live-backend-tests.yml"
-expect_red wrong-secret-names "${d}" 'login steps[1] must use the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets'
+login_index="$(yq e '.jobs.live-backend.steps | to_entries | .[] | select(.value.uses == "docker/login-action@v3") | .key' "${d}/.github/workflows/live-backend-tests.yml")"
+expect_red wrong-secret-names "${d}" "login steps[${login_index}] must use the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets"
 
 d="$(new_case ungated-login)"
 yq e -i "del(.jobs.test.steps[] | select(${login_ref}) | .if)" "${d}/.github/workflows/e2e-tests.yml"
@@ -127,6 +132,7 @@ yq e -i 'del(.jobs.test.env.DOCKERHUB_LOGIN_ENABLED)' "${d}/.github/workflows/e2
 expect_red login-without-job-env "${d}" 'job env must define DOCKERHUB_LOGIN_ENABLED'
 
 d="$(new_case build-push-without-login)"
+printf 'FROM docker.io/library/alpine:3.21\n' >"${d}/Dockerfile"
 yq e -i "del(.jobs.build-and-push-image.steps[] | select(${login_ref} and .with.registry == null))" "${d}/.github/workflows/docker-publish.yml"
 expect_red build-push-job-without-hub-login "${d}" 'docker-publish.yml:build-and-push-image: no Docker Hub docker/login-action@v3 step'
 
@@ -433,7 +439,8 @@ expect_green setup-qemu-ghcr-image-needs-no-login "${d}"
 # --- G3: a login step must not continue on error --------------------------------
 d="$(new_case login-continue-on-error)"
 yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = true" "${d}/.github/workflows/e2e-tests.yml"
-expect_red login-with-continue-on-error "${d}" 'e2e-tests.yml:test: login steps[1] sets continue-on-error (true)'
+login_index="$(yq e '.jobs.test.steps | to_entries | .[] | select(.value.uses == "docker/login-action@v3") | .key' "${d}/.github/workflows/e2e-tests.yml")"
+expect_red login-with-continue-on-error "${d}" "e2e-tests.yml:test: login steps[${login_index}] sets continue-on-error (true)"
 
 d="$(new_case login-continue-on-error-expression)"
 yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = \"\${{ github.event_name == 'push' }}\"" "${d}/.github/workflows/e2e-tests.yml"
@@ -447,13 +454,13 @@ expect_green login-with-continue-on-error-false-passes "${d}"
 # The registry row and the static-contract-gates path filter must both list the
 # nested Dockerfile and compose globs (the lockstep gate keeps them equal).
 for glob in '**/Dockerfile*' '**/docker-compose*.y*ml'; do
-  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -qFx -- "${glob}"; then
+  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -Fx -- "${glob}" >/dev/null; then
     echo "ok - registry row triggers include ${glob}"
   else
     echo "not ok - registry row triggers include ${glob}"; failures=$((failures + 1))
   fi
   if yq e '.jobs.changes.steps[] | select(.id == "filter") | .with.filters' "${static_workflow_view}" |
-    yq e '.dockerhublogin[]' - | rg -qFx -- "${glob}"; then
+    yq e '.dockerhublogin[]' - | rg -Fx -- "${glob}" >/dev/null; then
     echo "ok - path filter dockerhublogin includes ${glob}"
   else
     echo "not ok - path filter dockerhublogin includes ${glob}"; failures=$((failures + 1))
@@ -465,6 +472,8 @@ done
 source "${repo_root}/scripts/lib/dockerhub-login-test-shapes.sh"
 # shellcheck source=lib/dockerhub-login-test-script-refs.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-script-refs.sh"
+# shellcheck source=lib/dockerhub-login-test-expressions.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-expressions.sh"
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "test-verify-dockerhub-login: ${failures} case(s) failed" >&2

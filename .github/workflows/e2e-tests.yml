@@ -13,6 +13,11 @@ on:
     # Compose, or deploy shape changes. main runs unconditionally above as the
     # backstop. Docs-only / frontend-only PRs skip this heavy job.
     paths:
+      - 'scripts/ci/compose.sh'
+      - 'scripts/lib/ci-image-compose.sh'
+      - 'scripts/lib/ci_image_compose.py'
+      - 'scripts/lib/ci_image_compose_signature.py'
+      - 'specs/ci-images.v1.json'
       - "go/**"
       - "docker-compose*.yaml"
       - "docker-compose*.yml"
@@ -21,12 +26,29 @@ on:
       - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/e2e-tests.yml"
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  ESHU_CI_IMAGES: "1"
+  POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+  NEO4J_IMAGE: ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+  ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
+  ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0
+  ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
+
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: e2e-tests.yml
+
   test:
+    needs: queue-selection
     name: test (${{ matrix.graph_backend }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -48,7 +70,11 @@ jobs:
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         uses: actions/checkout@v5
 
       # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
@@ -61,6 +87,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
@@ -70,9 +97,11 @@ jobs:
       # HERE, named for what it is, instead of surfacing as an E2E failure
       # that never compiled anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Build Go binaries
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         working-directory: go
         run: |
           BIN_DIR="${GITHUB_WORKSPACE}/bin"
@@ -86,12 +115,14 @@ jobs:
           CGO_ENABLED=1 go build -ldflags "${LDFLAGS}" -o "${BIN_DIR}/eshu-reducer" ./cmd/reducer
 
       - name: Start Docker-backed graph and Postgres
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
-        run: docker compose -f "${{ matrix.compose_file }}" up -d "${{ matrix.graph_service }}" postgres
+        run: bash scripts/ci/compose.sh -f "${{ matrix.compose_file }}" -- up -d "${{ matrix.graph_service }}" postgres
 
       - name: Wait for graph backend and Postgres
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
@@ -101,21 +132,22 @@ jobs:
           for _ in $(seq 1 60); do
             graph_ready=false
             if [ "${GRAPH_SERVICE}" = "nornicdb" ]; then
-              docker compose -f "${COMPOSE_FILE}" exec -T nornicdb wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && graph_ready=true
+              bash scripts/ci/compose.sh -f "${COMPOSE_FILE}" -- exec -T nornicdb wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && graph_ready=true
             else
-              docker compose -f "${COMPOSE_FILE}" exec -T neo4j cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" >/dev/null 2>&1 && graph_ready=true
+              bash scripts/ci/compose.sh -f "${COMPOSE_FILE}" -- exec -T neo4j cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" >/dev/null 2>&1 && graph_ready=true
             fi
             if [ "${graph_ready}" = "true" ] && \
-               docker compose -f "${COMPOSE_FILE}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1; then
+               bash scripts/ci/compose.sh -f "${COMPOSE_FILE}" -- exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1; then
               exit 0
             fi
             sleep 2
           done
-          docker compose -f "${COMPOSE_FILE}" logs "${GRAPH_SERVICE}"
-          docker compose -f "${COMPOSE_FILE}" logs postgres
+          bash scripts/ci/compose.sh -f "${COMPOSE_FILE}" -- logs "${GRAPH_SERVICE}"
+          bash scripts/ci/compose.sh -f "${COMPOSE_FILE}" -- logs postgres
           exit 1
 
       - name: Run live backend conformance
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
           NEO4J_URI: bolt://localhost:7687
@@ -127,6 +159,7 @@ jobs:
         run: ./scripts/verify_backend_conformance_live.sh
 
       - name: Run bootstrap-index against fixture ecosystems
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
           ESHU_QUERY_PROFILE: local_full_stack
@@ -149,6 +182,7 @@ jobs:
           eshu-bootstrap-index
 
       - name: Verify API health
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
           ESHU_QUERY_PROFILE: local_full_stack
@@ -179,5 +213,5 @@ jobs:
           kill $API_PID || true
 
       - name: Tear down Docker services
-        if: always()
-        run: docker compose -f "${{ matrix.compose_file }}" down -v
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test'))) && (always()) }}
+        run: bash scripts/ci/compose.sh -f "${{ matrix.compose_file }}" -- down -v

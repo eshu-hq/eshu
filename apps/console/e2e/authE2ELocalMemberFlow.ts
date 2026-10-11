@@ -32,6 +32,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { authE2EComposeArgs } from "./authE2EComposeArgs";
 import type { Browser, Page } from "playwright";
 
 import { apiFetchInPage } from "./authE2EOidcFlow.ts";
@@ -39,9 +40,7 @@ import { generateTotpCode } from "./totpCode.ts";
 
 const execFileAsync = promisify(execFile);
 
-// LocalFlowContext bundles the 3 values every helper below needs to open a
-// FRESH, never-authenticated browser context — passed once instead of
-// threaded as 3 separate parameters through every call site.
+// Values used to open a fresh, unauthenticated browser context.
 export interface LocalFlowContext {
   readonly browser: Browser;
   readonly baseUrl: string;
@@ -175,7 +174,7 @@ async function createLocalInvitationDirect(
     `VALUES ('${inviteId}', 'default', 'default', '${inviteCodeHash}', NULL, NULL, 'developer', ` +
     "'active', COALESCE((SELECT policy_revision_hash FROM tenants WHERE tenant_id = 'default'), ''), " +
     "now() + interval '1 hour', NULL, NULL, NULL, NULL, now(), now()) RETURNING invite_id;";
-  const composeArgs = ["compose", "-p", project, "-f", "docker-compose.e2e.yaml"];
+  const composeArgs = authE2EComposeArgs(project);
   const psqlArgs = ["exec", "-T", "postgres", "psql", "-U", "eshu", "-d", "eshu", "-tA", "-c", sql];
   const { stdout } = await execFileAsync("docker", [...composeArgs, ...psqlArgs], {
     cwd: repoRoot,
@@ -422,7 +421,7 @@ export async function seedMustChangePassword(
     "FROM identity_users AS u " +
     `WHERE c.user_id = u.user_id AND u.subject_id_hash = '${subjectHash}' ` +
     "AND c.status = 'active' AND c.revoked_at IS NULL RETURNING c.credential_id;";
-  const composeArgs = ["compose", "-p", project, "-f", "docker-compose.e2e.yaml"];
+  const composeArgs = authE2EComposeArgs(project);
   const psqlArgs = ["exec", "-T", "postgres", "psql", "-U", "eshu", "-d", "eshu", "-tA", "-c", sql];
   const { stdout } = await execFileAsync("docker", [...composeArgs, ...psqlArgs], {
     cwd: repoRoot,

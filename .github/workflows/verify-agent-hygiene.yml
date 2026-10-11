@@ -26,39 +26,58 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: verify-agent-hygiene.yml
+
   test-verify:
+    needs: queue-selection
     name: Agent hygiene test mirror
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         uses: actions/checkout@v5
 
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Run test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-verify-agent-hygiene.sh
 
       - name: Run agent role binding test
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: python3 scripts/test-agent-roles.py
 
       - name: Run Codex spawn guard test
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: python3 scripts/test-codex-spawn-guard.py
 
       - name: Run goal role routing test
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: python3 scripts/test-goal-role-router.py
 
       - name: Run diff-fragment gate test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-verify-no-diff-fragments.sh
 
       - name: Run filename-stutter gate test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-verify-filename-stutter.sh
 
       - name: Run gitignore-rg-parity gate test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-verify-gitignore-rg-parity.sh
 
       - name: Run agent hooks test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-agent-hooks.sh
 
       # These two were chained in the ci-gates registry's test_command but had
@@ -66,24 +85,32 @@ jobs:
       # the registry and the workflow disagreeing is the two-layer false-green
       # this repo has been bitten by before.
       - name: Run goal-continue hook test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-goal-continue-hook.sh
 
       - name: Run goal-refresh hook test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-goal-refresh-hook.sh
 
       - name: Run Muse hooks port test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-muse-hooks.sh
 
       - name: Run Cursor hooks port test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-cursor-hooks.sh
 
   verify:
     name: Agent hygiene gate
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    needs: test-verify
+    needs: [queue-selection, test-verify]
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         uses: actions/checkout@v5
         with:
           # Full history so commit-message scanning over <base>..HEAD sees every
@@ -91,15 +118,19 @@ jobs:
           fetch-depth: 0
 
       - name: Install ripgrep
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Shared agent canon and harness discovery
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/verify-agent-canon.sh
 
       - name: No diff fragments or conflict markers
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/verify-no-diff-fragments.sh
 
       - name: No AI attribution
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         shell: bash
         env:
           GITHUB_BASE_REF: ${{ github.base_ref }}
@@ -108,6 +139,7 @@ jobs:
           scripts/verify-no-ai-attribution.sh
 
       - name: No filename or directory stutter in added/renamed paths
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: |
           # PRs scan the base..head range; merge-queue entries scan from
           # their merge base with main; direct pushes scan everything
@@ -126,4 +158,5 @@ jobs:
           scripts/verify-filename-stutter.sh --range "$range"
 
       - name: Tracked files visible to ripgrep from every search root
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/verify-gitignore-rg-parity.sh

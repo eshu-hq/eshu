@@ -167,6 +167,7 @@ die() { printf 'verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
 . "${repo_root}/scripts/lib/live-gate-lock.sh"
 acquire_live_gate_lock
 
+. "${repo_root}/scripts/lib/golden-corpus-ci-compose.sh"; golden_corpus_prepare_ci_overlay
 # After the mutex, so a refused run leaves no temp dir. The EXIT trap stays
 # further down on purpose: cleanup runs `docker compose down -v`, and arming it
 # before the lock is held would let a blocked run kill the live holder's stack.

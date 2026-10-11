@@ -50,31 +50,46 @@ permissions:
   contents: read
 
 jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: verify-replay-tier.yml
+
   replay-tier:
+    needs: queue-selection
     name: Offline replay tier vs real NornicDB
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install contract dependencies
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a replay-tier
       # failure that never ran a test (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Verify replay tier contract
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: bash scripts/test-verify-replay-tier.sh
 
       - name: Run offline replay tier against real NornicDB
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: bash scripts/verify-replay-tier.sh

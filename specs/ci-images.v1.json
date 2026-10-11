@@ -1,0 +1,265 @@
+{
+  "version": 1,
+  "images": [
+    {
+      "id": "postgres-alpine",
+      "env": "POSTGRES_IMAGE",
+      "source": "docker.io/library/postgres:18-alpine",
+      "destination": "ghcr.io/eshu-hq/ci-postgres-alpine",
+      "digest": "sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873",
+      "runtime_sources": [
+        "postgres:18-alpine"
+      ],
+      "platforms": [
+        "linux/amd64",
+        "linux/arm/v6",
+        "linux/arm/v7",
+        "linux/arm64/v8",
+        "linux/386",
+        "linux/ppc64le",
+        "linux/riscv64",
+        "linux/s390x"
+      ],
+      "source_records": [
+        "https://github.com/docker-library/postgres",
+        "https://www.postgresql.org/about/licence/",
+        "https://ftp.postgresql.org/pub/source/v18.6/",
+        "https://gitlab.alpinelinux.org/alpine/aports"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "licenses": "PostgreSQL License and bundled Alpine or Debian package licenses."
+    },
+    {
+      "id": "postgres-bookworm",
+      "env": "ESHU_LIVE_POSTGRES_IMAGE",
+      "source": "docker.io/library/postgres:18.6-bookworm",
+      "destination": "ghcr.io/eshu-hq/ci-postgres-bookworm",
+      "digest": "sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c",
+      "runtime_sources": [
+        "postgres:18.6-bookworm"
+      ],
+      "platforms": [
+        "linux/amd64",
+        "linux/arm/v7",
+        "linux/arm64/v8",
+        "linux/386",
+        "linux/ppc64le"
+      ],
+      "source_records": [
+        "https://github.com/docker-library/postgres",
+        "https://www.postgresql.org/about/licence/",
+        "https://ftp.postgresql.org/pub/source/v18.6/",
+        "https://sources.debian.org/"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "licenses": "PostgreSQL License and bundled Alpine or Debian package licenses."
+    },
+    {
+      "id": "neo4j-community",
+      "env": "NEO4J_IMAGE",
+      "source": "docker.io/library/neo4j:2026-community",
+      "destination": "ghcr.io/eshu-hq/ci-neo4j-community",
+      "digest": "sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f",
+      "runtime_sources": [
+        "neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
+      ],
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64/v8"
+      ],
+      "source_records": [
+        "https://github.com/neo4j/neo4j/tree/2026.08.1",
+        "https://github.com/neo4j/docker-neo4j-publish/tree/master/2026.08.1/trixie/community",
+        "https://github.com/neo4j/neo4j/archive/refs/tags/2026.08.1.tar.gz",
+        "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4%2B7/OpenJDK25U-jdk-sources_25.0.4_7.tar.gz",
+        "https://sources.debian.org/"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "licenses": "Neo4j Community GPL-3.0; OpenJDK GPL-2.0 with Classpath Exception; bundled dependency and Debian package licenses.",
+      "notice_paths": [
+        "/var/lib/neo4j/LICENSE.txt",
+        "/var/lib/neo4j/ThirdPartyLicenses.txt",
+        "/var/lib/neo4j/licenses",
+        "/opt/java/openjdk/legal",
+        "/usr/share/doc"
+      ]
+    },
+    {
+      "id": "neo4j-queryplan",
+      "env": "ESHU_QUERYPLAN_PROFILE_IMAGE",
+      "source": "docker.io/library/neo4j",
+      "destination": "ghcr.io/eshu-hq/ci-mirror-neo4j",
+      "digest": "sha256:6c162e2432f861f2c4e3da77a6ba478e7f10e2160b870541f85294532bc6ff5f",
+      "runtime_sources": [
+        "neo4j@sha256:6c162e2432f861f2c4e3da77a6ba478e7f10e2160b870541f85294532bc6ff5f"
+      ],
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64/v8"
+      ],
+      "source_records": [
+        "https://github.com/neo4j/neo4j/tree/2026.05.0",
+        "https://github.com/neo4j/docker-neo4j-publish/tree/master/2026.05.0/trixie/community",
+        "https://github.com/neo4j/neo4j/archive/refs/tags/2026.05.0.tar.gz",
+        "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.3%2B9/OpenJDK25U-jdk-sources_25.0.3_9.tar.gz",
+        "https://sources.debian.org/"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "licenses": "Neo4j Community GPL-3.0; OpenJDK GPL-2.0 with Classpath Exception; bundled dependency and Debian package licenses.",
+      "notice_paths": [
+        "/var/lib/neo4j/LICENSE.txt",
+        "/var/lib/neo4j/ThirdPartyLicenses.txt",
+        "/var/lib/neo4j/licenses",
+        "/opt/java/openjdk/legal",
+        "/usr/share/doc"
+      ]
+    },
+    {
+      "id": "xx",
+      "env": "ESHU_XX_IMAGE",
+      "source": "docker.io/tonistiigi/xx:1.5.0",
+      "destination": "ghcr.io/eshu-hq/ci-mirror-xx",
+      "digest": "sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f",
+      "runtime_sources": [],
+      "platforms": [
+        "linux/386",
+        "linux/amd64",
+        "linux/arm64",
+        "linux/arm/v5",
+        "linux/arm/v6",
+        "linux/arm/v7",
+        "linux/mips",
+        "linux/mipsle",
+        "linux/mips64",
+        "linux/mips64le",
+        "linux/ppc64le",
+        "linux/s390x",
+        "linux/riscv64"
+      ],
+      "source_records": [
+        "https://github.com/tonistiigi/xx/tree/v1.5.0"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "build_arg": "ESHU_XX_IMAGE",
+      "licenses": "MIT for xx; bundled tool and base package licenses."
+    },
+    {
+      "id": "golang",
+      "env": "ESHU_GO_IMAGE",
+      "source": "docker.io/library/golang:1.26.9-alpine",
+      "destination": "ghcr.io/eshu-hq/ci-mirror-golang",
+      "digest": "sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0",
+      "runtime_sources": [],
+      "platforms": [
+        "linux/amd64",
+        "linux/arm/v6",
+        "linux/arm/v7",
+        "linux/arm64/v8",
+        "linux/386",
+        "linux/ppc64le",
+        "linux/s390x"
+      ],
+      "source_records": [
+        "https://go.dev/dl/#go1.26.9",
+        "https://gitlab.alpinelinux.org/alpine/aports"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "build_arg": "ESHU_GO_IMAGE",
+      "licenses": "Bundled Alpine package licenses; Go BSD-3-Clause for the Go image."
+    },
+    {
+      "id": "alpine",
+      "env": "ESHU_ALPINE_IMAGE",
+      "source": "docker.io/library/alpine:3.21",
+      "destination": "ghcr.io/eshu-hq/ci-mirror-alpine",
+      "digest": "sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+      "runtime_sources": [],
+      "platforms": [
+        "linux/amd64",
+        "linux/arm/v6",
+        "linux/arm/v7",
+        "linux/arm64/v8",
+        "linux/386",
+        "linux/ppc64le",
+        "linux/riscv64",
+        "linux/s390x"
+      ],
+      "source_records": [
+        "https://gitlab.alpinelinux.org/alpine/aports/-/tree/3.21-stable",
+        "https://gitlab.alpinelinux.org/alpine/aports"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "build_arg": "ESHU_ALPINE_IMAGE",
+      "licenses": "Bundled Alpine package licenses."
+    },
+    {
+      "id": "buildkit",
+      "env": "CI_BUILDKIT_IMAGE",
+      "source": "docker.io/moby/buildkit:buildx-stable-1",
+      "destination": "ghcr.io/eshu-hq/ci-mirror-buildkit",
+      "digest": "sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea",
+      "runtime_sources": [],
+      "platforms": [
+        "linux/arm/v7",
+        "linux/amd64",
+        "linux/ppc64le",
+        "linux/arm64",
+        "linux/riscv64",
+        "linux/s390x"
+      ],
+      "source_records": [
+        "https://github.com/moby/buildkit/tree/8c91502cf280bd70a0c50912ce251c46a8881d9f",
+        "https://gitlab.alpinelinux.org/alpine/aports"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "licenses": "Apache-2.0 for BuildKit; bundled Alpine package licenses."
+    },
+    {
+      "id": "ubuntu",
+      "env": "CI_TOOLS_BASE_IMAGE",
+      "source": "docker.io/library/ubuntu:24.04",
+      "destination": "ghcr.io/eshu-hq/ci-mirror-ubuntu",
+      "digest": "sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55",
+      "runtime_sources": [],
+      "platforms": [
+        "linux/amd64",
+        "linux/arm/v7",
+        "linux/arm64/v8",
+        "linux/ppc64le",
+        "linux/riscv64",
+        "linux/s390x"
+      ],
+      "source_records": [
+        "https://archive.ubuntu.com/ubuntu/pool/",
+        "https://ubuntu.com/legal/intellectual-property-policy"
+      ],
+      "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
+      "licenses": "Bundled Ubuntu package licenses; retain package notices and source access."
+    }
+  ],
+  "runtime_allowlist": [
+    "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+  ],
+  "tools": {
+    "destination": "ghcr.io/eshu-hq/ci-tools",
+    "digest": "sha256:05ab9636508dd971fc39f532e5b13ef7088209f89be30172e403c98e9fab1738",
+    "recipe_sha256": "6ec9e56103d88b9996d2ec55bb1639afcc5dfe15d37d4eaa6d965d610aed6b40",
+    "platforms": ["linux/amd64", "linux/arm64"],
+    "inventories": {
+      "linux/amd64": {
+        "manifest_digest": "sha256:fa47b8288cb8a722d7db4dd1784639d8abc7e7e18cd8257adfcd5e72361aa3bc",
+        "apt_packages": 190,
+        "downloads": 5,
+        "packages_sha256": "614128f59568c39816e0793e57a575c8bb0bfd6fcad05ec1904c85f1340ecb55",
+        "downloads_sha256": "280f79ea202bc2ad845f862be7a481b86cdef8c3b72c32cfb92dcc879f17c56b"
+      },
+      "linux/arm64": {
+        "manifest_digest": "sha256:261849bd0e466597f451f15dc1797357162ba8384c6655f6349317a7ddc4eef5",
+        "apt_packages": 189,
+        "downloads": 5,
+        "packages_sha256": "f3b6b54b98b7e9ee113a25beae211931a65d8f7c789b9986d4aab87993eed714",
+        "downloads_sha256": "2353c5aebc29cb520f2f04a4664a3d8ffb19e191c230e0ce128f8d64b3dd91b3"
+      }
+    }
+  }
+}

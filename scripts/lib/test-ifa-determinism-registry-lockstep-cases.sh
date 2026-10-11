@@ -70,14 +70,12 @@ source "${selector_cases_lib}"
 for seam in "${ifa_live_gate_common_seams[@]}"; do
 	trigger="${seam%%|*}"
 	concrete_path="${seam#*|}"
-	rg --fixed-strings --quiet -- "- '${trigger}'" "${workflow}" \
-		|| fail "workflow does not retrigger the live matrices for IFA proof input: ${trigger}"
 	_ifa_det_text_matches "${determinism_registry}" --fixed-strings --quiet -- "- \"${trigger}\"" \
 		|| fail "ifa-determinism registry entry omits IFA proof input: ${trigger}"
 	_ifa_det_text_matches "${fault_registry}" --fixed-strings --quiet -- "- \"${trigger}\"" \
 		|| fail "ifa-fault-injection registry entry omits IFA proof input: ${trigger}"
 	selection="$(printf '%s\n' "${concrete_path}" | (
-		cd "${repo_root}/go"
+		cd "${repo_root}/go" || exit
 		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
 	))"
 	for gate in ifa-determinism ifa-fault-injection; do
@@ -86,48 +84,15 @@ for seam in "${ifa_live_gate_common_seams[@]}"; do
 	done
 done
 
-# The loop above validates workflow ⊇ selector-cases: every seam in the
-# hand-maintained table must appear in the workflow. It cannot see a registry
-# trigger that was never added to the table, so a family could add triggers to
-# specs/ci-gates.v1.yaml, omit them here, and stay green while the workflow
-# never starts for those paths -- the registry marks both gates BLOCKING, GitHub
-# never runs them, and the required-gates publisher waits forever on checks that
-# never arrive. #5994 landed 3 of its 10 triggers that way and this loop is what
-# caught the other 7 (plus a pre-existing gap on go/cmd/ifa/assert_edges.go).
-#
-# This second loop closes the other direction: registry ⊆ workflow, derived from
-# the committed registry rather than from any hand-maintained list, so it cannot
-# drift out of date the way the table can.
-# ifa-dead-letter-matrix joined this loop in #6200. It shares this workflow's
-# single paths: filter, so the same invariant applies to it -- but before #6200
-# it was never iterated here, which is exactly the hole the sibling
-# negative-cases file names ("a trigger widened on the dead-letter gate fails no
-# assertion anywhere"). Its triggers were satisfied by broader globs in the
-# workflow, so the gate did fire; nothing asserted that it would.
-# ifa-static-mirror joined it with the row that owns the workflow's `static
-# mirror` job: it shares the same paths: filter, so the same invariant applies.
-for gate_id in ifa-determinism ifa-fault-injection ifa-dead-letter-matrix ifa-static-mirror; do
-	case "${gate_id}" in
-	ifa-determinism) gate_block="${determinism_registry}" ;;
-	ifa-dead-letter-matrix) gate_block="${dead_letter_registry}" ;;
-	ifa-static-mirror) gate_block="${static_mirror_registry}" ;;
-	*) gate_block="${fault_registry}" ;;
-	esac
-	while IFS= read -r registry_trigger; do
-		[[ -n "${registry_trigger}" ]] || continue
-		rg --fixed-strings --quiet -- "- '${registry_trigger}'" "${workflow}" \
-			|| fail "${gate_id} registry triggers on ${registry_trigger} but ${workflow##*/} never lists it; the gate is selected as blocking and then never starts"
-		# Slice the triggers: section before extracting, rather than taking
-		# every quoted list item in the gate block. A gate block also carries
-		# ci.check_names, whose entries are GitHub check names, not paths --
-		# "fault-injection (shard 1/4)" is not a file and must never be
-		# demanded of the workflow's paths: list. Extracting blockwide made
-		# the first gate to declare check_names fail with a nonsense message
-		# about a path the workflow "never lists".
-	done < <(printf '%s\n' "${gate_block}" \
-		| sed -n '/^    triggers:$/,/^    [a-z_]*:$/p' \
-		| rg --only-matching --replace '$1' -- '^\s+- "([^"]+)"\s*$')
-done
+# A registry-only trigger makes a gate's job unstartable for a PR that touches
+# only that path. The IFA-specific cigates test compares every CI-owned row in
+# this workflow, including advisory static mirror, against parsed paths, so
+# block- and flow-style YAML enforce the same contract. Its deletion fixture
+# proves that a missing path is still rejected.
+(
+	cd "${repo_root}/go" || exit
+	go test ./internal/cigates -run '^TestIfaDeterminismWorkflowPath' -count=1
+) || fail "IFA registry triggers are missing from the workflow's pull_request.paths"
 
 # The static mirror job runs the mirrors of all three live gates, and they read
 # production sources as text (reducer_queue_replay.go in #7807). Its trigger
@@ -161,12 +126,10 @@ done
 for seam in "${ifa_live_gate_fault_only_seams[@]}"; do
 	trigger="${seam%%|*}"
 	concrete_path="${seam#*|}"
-	rg --quiet --fixed-strings --line-regexp -- "      - '${trigger}'" "${workflow}" \
-		|| fail "workflow does not retrigger fault injection for fault-only input: ${trigger}"
 	_ifa_det_text_matches "${fault_registry}" --quiet --fixed-strings --line-regexp -- "      - \"${trigger}\"" \
 		|| fail "ifa-fault-injection registry entry omits fault-only input: ${trigger}"
 	selection="$(printf '%s\n' "${concrete_path}" | (
-		cd "${repo_root}/go"
+		cd "${repo_root}/go" || exit
 		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
 	))"
 	_ifa_det_text_matches "${selection}" --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]' \
@@ -190,12 +153,10 @@ done
 for seam in "${ifa_live_gate_determinism_only_seams[@]}"; do
 	trigger="${seam%%|*}"
 	concrete_path="${seam#*|}"
-	rg --quiet --fixed-strings --line-regexp -- "      - '${trigger}'" "${workflow}" \
-		|| fail "workflow does not retrigger the determinism matrix for determinism-only input: ${trigger}"
 	_ifa_det_text_matches "${determinism_registry}" --quiet --fixed-strings --line-regexp -- "      - \"${trigger}\"" \
 		|| fail "ifa-determinism registry entry omits determinism-only input: ${trigger}"
 	selection="$(printf '%s\n' "${concrete_path}" | (
-		cd "${repo_root}/go"
+		cd "${repo_root}/go" || exit
 		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
 	))"
 	_ifa_det_text_matches "${selection}" --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]' \
@@ -221,7 +182,7 @@ for negative_path in "${ifa_live_gate_negative_seams[@]}"; do
 	[[ -e "${repo_root}/${negative_path}" ]] \
 		|| fail "negative control names a path that no longer exists, so it proves nothing: ${negative_path}"
 	selection="$(printf '%s\n' "${negative_path}" | (
-		cd "${repo_root}/go"
+		cd "${repo_root}/go" || exit
 		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
 	))"
 	for gate in ifa-determinism ifa-fault-injection; do
@@ -250,7 +211,7 @@ for negative_gate_seam in "${ifa_live_gate_negative_gate_seams[@]}"; do
 	[[ -e "${repo_root}/${negative_path}" ]] \
 		|| fail "per-gate negative control names a path that no longer exists, so it proves nothing: ${negative_path}"
 	selection="$(printf '%s\n' "${negative_path}" | (
-		cd "${repo_root}/go"
+		cd "${repo_root}/go" || exit
 		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
 	))"
 	_ifa_det_text_matches "${selection}" --quiet -- "^SELECTED[[:space:]]+${required_gate}[[:space:]]" \

@@ -229,7 +229,7 @@ trap ifa_det_cleanup EXIT
 # at localhost on this script's own ports — never the in-Compose-network
 # hostnames docker-compose.yaml's own db-migrate service uses.
 # ----------------------------------------------------------------------------
-ifa_det_configure_runtime
+ifa_det_configure_runtime; source "${repo_root}/scripts/lib/ci-image-compose.sh"; if [[ "${use_compose}" -eq 1 ]]; then eshu_ci_compose_prepare "${repo_root}" -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" || die "CI image overlay preflight failed"; fi
 
 if [[ "${teeth}" -eq 1 ]]; then
 	log "build host binaries (--teeth: -tags ${build_tags})"
@@ -287,7 +287,7 @@ for n in "${worker_counts[@]}"; do
 	cell_start=$(date +%s)
 
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres
+		bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" -- up -d nornicdb postgres
 		log "N=${n}: wait for backends"
 		ifa_det_wait_for_backends "${DETERMINISM_COMPOSE_PROJECT}" "${compose_file}" \
 			|| die "N=${n}: Postgres + NornicDB did not become ready within budget"
@@ -442,7 +442,7 @@ for n in "${worker_counts[@]}"; do
 
 	if [[ "${use_compose}" -eq 1 ]]; then
 		log "N=${n}: tear down cell (fresh stack for the next cell)"
-		docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
+		bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" -- down -v >/dev/null 2>&1 || true
 	fi
 
 	cell_end=$(date +%s)

@@ -52,7 +52,7 @@ require_unconditional_step() {
 expected_release_condition() {
   local guard="github.event_name != 'workflow_dispatch' || inputs.mode == 'release'"
   case "$1" in
-    changes)
+    queue-selection|changes)
       printf '%s\n' "    if: ${guard}"
       ;;
     verify-apk-floors)
@@ -85,7 +85,7 @@ rg -q '^  workflow_dispatch:$' "${workflow}" || fail 'manual dispatch missing'
 rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch default changed'
 
 # An added job cannot silently bypass the mirror-mode partition.
-expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
+expected_jobs="$(printf '%s\n' queue-selection changes verify-apk-floors build-and-push-image \
   promote-moving-tags verify-reproducibility attach-release-sbom \
   package-and-push-chart publish-ci-service-mirrors \
   verify-public-ci-service-mirrors | LC_ALL=C sort)"
@@ -100,9 +100,9 @@ actual_jobs="$(awk '
     print job
   }
 ' "${workflow}" | LC_ALL=C sort)"
-[[ "${actual_jobs}" == "${expected_jobs}" ]] || fail 'workflow jobs differ from the guarded seven-plus-two partition'
+[[ "${actual_jobs}" == "${expected_jobs}" ]] || fail 'workflow jobs differ from the guarded release-plus-mirror partition'
 
-for job in changes verify-apk-floors build-and-push-image promote-moving-tags \
+for job in queue-selection changes verify-apk-floors build-and-push-image promote-moving-tags \
   verify-reproducibility attach-release-sbom package-and-push-chart; do
   condition="$(job_condition "${job}")"
   [[ "${condition}" == "$(expected_release_condition "${job}")" ]] ||

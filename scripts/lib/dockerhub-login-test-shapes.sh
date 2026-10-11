@@ -103,13 +103,13 @@ expect_green composite-action-without-docker-needs-no-login "${CASE_DIR}"
 # .bash scripts (**/*.*sh). The registry rejects a glob that matches no tracked
 # file, so .github/actions/** and **/*.bash cannot be listed on their own.
 for glob in '.github/**' '**/*.*sh'; do
-  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -qFx -- "${glob}"; then
+  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -Fx -- "${glob}" >/dev/null; then
     echo "ok - registry row triggers include ${glob}"
   else
     echo "not ok - registry row triggers include ${glob}"; failures=$((failures + 1))
   fi
   if yq e '.jobs.changes.steps[] | select(.id == "filter") | .with.filters' "${static_workflow_view}" |
-    yq e '.dockerhublogin[]' - | rg -qFx -- "${glob}"; then
+    yq e '.dockerhublogin[]' - | rg -Fx -- "${glob}" >/dev/null; then
     echo "ok - path filter dockerhublogin includes ${glob}"
   else
     echo "not ok - path filter dockerhublogin includes ${glob}"; failures=$((failures + 1))

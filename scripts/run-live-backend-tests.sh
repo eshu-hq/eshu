@@ -134,9 +134,12 @@ compose_project="eshu-live-backend"
 # Exported: retain_live_gate_lock records it in the --keep marker.
 export GATE_COMPOSE_PROJECT="${compose_project}"
 active_compose_file=""
+compose_args=()
+# shellcheck source=scripts/lib/ci-image-compose.sh
+. "${repo_root}/scripts/lib/ci-image-compose.sh"
 
 compose_down() {
-	docker compose -p "${compose_project}" -f "${repo_root}/$1" down -v >/dev/null 2>&1 || true
+	docker compose "${compose_args[@]}" down -v >/dev/null 2>&1 || true
 }
 
 wait_healthy() {
@@ -160,6 +163,9 @@ cleanup() {
 	local status=$?
 	if [[ -n "${active_compose_file}" && "${keep}" == "0" ]]; then
 		compose_down "${active_compose_file}"
+	fi
+	if [[ "${keep}" == "0" ]]; then
+		eshu_ci_compose_cleanup
 	fi
 	if [[ "${keep}" == "1" && "${use_compose}" == "1" ]]; then
 		retain_live_gate_lock
@@ -185,12 +191,17 @@ run_one() {
 		printf 'run-live-backend-tests: neo4j platform %s\n' "${NEO4J_PLATFORM:-compose default (linux/amd64)}"
 	fi
 	if [[ "${use_compose}" == "1" ]]; then
+		compose_args=(-p "${compose_project}" -f "${repo_root}/${compose_file}")
+		eshu_ci_compose_prepare "${repo_root}" "${compose_args[@]}" || die "CI image overlay preflight failed"
+		if [[ -n "${ESHU_CI_COMPOSE_OVERLAY}" ]]; then
+			compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
+		fi
 		compose_down "${compose_file}"
 		# A failed up can leave a half-started stack behind, and the EXIT
 		# trap only knows stacks recorded in active_compose_file (assigned
 		# after a successful start), so tear the half-started stack down
 		# here before dying instead of littering it.
-		docker compose -p "${compose_project}" -f "${repo_root}/${compose_file}" up -d --wait --wait-timeout 180 ||
+		docker compose "${compose_args[@]}" up -d --wait --wait-timeout 180 ||
 			{ compose_down "${compose_file}"; die "could not start ${name} stack"; }
 		active_compose_file="${compose_file}"
 		wait_healthy "${NEO4J_HTTP_PORT}" "${health_path}" || die "${name} stack never became healthy"
@@ -213,9 +224,12 @@ run_one() {
 		else
 			printf 'run-live-backend-tests: --keep: stack left running (bolt 127.0.0.1:%s)\n' \
 				"${NEO4J_BOLT_PORT}"
-			docker compose -p "${compose_project}" -f "${repo_root}/${compose_file}" ps
+			docker compose "${compose_args[@]}" ps
 		fi
 		active_compose_file=""
+		if [[ "${keep}" == "0" || "${is_last}" == "0" ]]; then
+			eshu_ci_compose_cleanup
+		fi
 	fi
 	return "${status}"
 }

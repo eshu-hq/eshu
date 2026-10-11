@@ -10,6 +10,7 @@
 // runAuthE2E gate rather than the unit test.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { authE2EComposeArgs } from "./authE2EComposeArgs";
 import type { Page } from "playwright";
 
 const execFileAsync = promisify(execFile);
@@ -121,7 +122,7 @@ export function scanSurfacesForLeakage(
 export async function collectApiContainerLogs(repoRoot: string, project: string): Promise<string> {
   const { stdout, stderr } = await execFileAsync(
     "docker",
-    ["compose", "-p", project, "-f", "docker-compose.e2e.yaml", "logs", "--no-color", "eshu"],
+    [...authE2EComposeArgs(project), "logs", "--no-color", "eshu"],
     { cwd: repoRoot, maxBuffer: 128 * 1024 * 1024 },
   );
   return `${stdout}\n${stderr}`;
