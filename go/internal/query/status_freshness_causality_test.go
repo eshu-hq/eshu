@@ -12,6 +12,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 func freshnessCausalityRequest(t *testing.T, snapshot statuspkg.RawSnapshot) map[string]any {
@@ -88,7 +89,7 @@ func TestFreshnessCausalityHandlerStaleAndRetracted(t *testing.T) {
 		DomainBacklogs: []statuspkg.DomainBacklog{
 			{Domain: "workload_materialization", DeadLetter: 2, OldestAge: 9 * time.Minute},
 		},
-		GenerationTransitions: []statuspkg.GenerationTransitionSnapshot{
+		GenerationTransitions: []generation.TransitionSnapshot{
 			{ScopeID: "scope-1", GenerationID: "gen-old", Status: "superseded", SupersededAt: time.Date(2026, 6, 19, 2, 0, 0, 0, time.UTC)},
 		},
 	})
@@ -115,7 +116,7 @@ func TestFreshnessCausalityHandlerScopedRedactsTransitionIDs(t *testing.T) {
 		AsOf:              time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
 		GenerationCounts:  []statuspkg.NamedCount{{Name: "active", Count: 1}, {Name: "superseded", Count: 1}},
 		GenerationHistory: statuspkg.GenerationHistorySnapshot{Active: 1, Superseded: 1},
-		GenerationTransitions: []statuspkg.GenerationTransitionSnapshot{
+		GenerationTransitions: []generation.TransitionSnapshot{
 			{ScopeID: secretScope, GenerationID: secretGen, Status: "superseded", SupersededAt: time.Date(2026, 6, 19, 2, 0, 0, 0, time.UTC)},
 		},
 	}}}

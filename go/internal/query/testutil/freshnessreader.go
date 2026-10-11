@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 // FakeRepositoryFreshnessReader is the test double for
@@ -210,18 +211,18 @@ type GrantMirroringGenerations struct {
 	// empty-grant cases assert against it because a status code alone cannot
 	// tell "the grant was bound and matched nothing" from "the grant was
 	// never bound at all" (#5167 review, P2-1).
-	LastFilter status.GenerationLifecycleFilter
+	LastFilter generation.LifecycleFilter
 	Called     bool
 }
 
 // ListGenerationLifecycle implements freshness.GenerationLifecycleReader.
 func (g *GrantMirroringGenerations) ListGenerationLifecycle(
-	_ context.Context, filter status.GenerationLifecycleFilter,
-) (status.GenerationLifecyclePage, error) {
+	_ context.Context, filter generation.LifecycleFilter,
+) (generation.LifecyclePage, error) {
 	g.LastFilter = filter
 	g.Called = true
 
-	var out []status.GenerationLifecycleRecord
+	var out []generation.LifecycleRecord
 	for _, row := range g.Rows {
 		if filter.GenerationID != "" && filter.GenerationID != row.GenerationID {
 			continue
@@ -229,17 +230,17 @@ func (g *GrantMirroringGenerations) ListGenerationLifecycle(
 		if filter.Scoped && !generationTwoTenantGrantAdmits(filter, row) {
 			continue
 		}
-		out = append(out, status.GenerationLifecycleRecord{
+		out = append(out, generation.LifecycleRecord{
 			ScopeID:      row.ScopeID,
 			GenerationID: row.GenerationID,
 			ScopeKind:    row.ScopeKind,
 			Status:       "active",
 		})
 	}
-	return status.GenerationLifecyclePage{Records: out, Limit: filter.Limit}, nil
+	return generation.LifecyclePage{Records: out, Limit: filter.Limit}, nil
 }
 
-func generationTwoTenantGrantAdmits(filter status.GenerationLifecycleFilter, row TwoTenantGenerationRow) bool {
+func generationTwoTenantGrantAdmits(filter generation.LifecycleFilter, row TwoTenantGenerationRow) bool {
 	if row.ScopeKind == "repository" {
 		for _, granted := range filter.AllowedRepositoryIDs {
 			if granted == row.SourceKey {

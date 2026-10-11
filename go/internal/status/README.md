@@ -111,7 +111,7 @@ See `doc.go` for the godoc contract. Key types and functions:
   incremental-refresh operator view
 - `GenerationHistorySnapshot` — active, pending, completed, superseded, failed,
   other generation counts
-- `GenerationTransitionSnapshot` — one recent scope-generation lifecycle row
+- `generation.TransitionSnapshot` — one recent scope-generation lifecycle row
   with trigger kind, freshness hint, and timestamps
 - `RetryPolicySummary` — one stage's bounded retry settings (max attempts,
   retry delay)
@@ -181,11 +181,11 @@ See `doc.go` for the godoc contract. Key types and functions:
 
 ### Freshness drilldown contracts
 
-- `GenerationLifecycleFilter` / `GenerationLifecycleRecord` /
-  `GenerationLifecyclePage` — bounded scope-generation drilldown: one ordered,
+- `generation.LifecycleFilter` / `generation.LifecycleRecord` /
+  `generation.LifecyclePage` — bounded scope-generation drilldown: one ordered,
   limit-clamped page of active/pending/superseded/completed/failed generations
-  with the owning scope identity, per-generation `GenerationQueueStatus` rollup,
-  and `GenerationLatestFailure`. `HasScopeSelector` drives not-found instead of
+  with the owning scope identity, per-generation `generation.QueueStatus` rollup,
+  and `generation.LatestFailure`. `HasScopeSelector` drives not-found instead of
   confident emptiness.
 - `ChangedSinceFilter` / `ChangedSinceSummary` / `ChangedSinceCategoryDelta` —
   bounded repository-scope changed-since delta: a diff of one prior generation's

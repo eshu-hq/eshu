@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 // retryPoliciesToSlice converts []RetryPolicySummary to a slice of maps.
@@ -28,8 +29,8 @@ func retryPoliciesToSlice(policies []status.RetryPolicySummary) []map[string]any
 	return result
 }
 
-// generationTransitionsToSlice converts []GenerationTransitionSnapshot to a slice of maps.
-func generationTransitionsToSlice(transitions []status.GenerationTransitionSnapshot) []map[string]any {
+// generationTransitionsToSlice converts []generation.TransitionSnapshot to a slice of maps.
+func generationTransitionsToSlice(transitions []generation.TransitionSnapshot) []map[string]any {
 	if len(transitions) == 0 {
 		return []map[string]any{}
 	}

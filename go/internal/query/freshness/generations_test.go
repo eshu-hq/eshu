@@ -11,22 +11,22 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 type recordingGenerationLifecycleReader struct {
-	page       status.GenerationLifecyclePage
+	page       generation.LifecyclePage
 	err        error
-	lastFilter status.GenerationLifecycleFilter
+	lastFilter generation.LifecycleFilter
 }
 
 func (r *recordingGenerationLifecycleReader) ListGenerationLifecycle(
 	_ context.Context,
-	filter status.GenerationLifecycleFilter,
-) (status.GenerationLifecyclePage, error) {
+	filter generation.LifecycleFilter,
+) (generation.LifecyclePage, error) {
 	r.lastFilter = filter
 	if r.err != nil {
-		return status.GenerationLifecyclePage{}, r.err
+		return generation.LifecyclePage{}, r.err
 	}
 	return r.page, nil
 }
@@ -59,8 +59,8 @@ func decodeFreshnessEnvelope(t *testing.T, w *httptest.ResponseRecorder) queryco
 func TestFreshnessGenerationLifecycleActive(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{{
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{{
 			ScopeID:                   "git-repository-scope:acme/app",
 			GenerationID:              "gen-active",
 			ScopeKind:                 "repository",
@@ -69,7 +69,7 @@ func TestFreshnessGenerationLifecycleActive(t *testing.T) {
 			CurrentActiveGenerationID: "gen-active",
 			IsActive:                  true,
 			Status:                    "active",
-			QueueStatus:               status.GenerationQueueStatus{Total: 3, Succeeded: 3},
+			QueueStatus:               generation.QueueStatus{Total: 3, Succeeded: 3},
 		}},
 		Limit: 50,
 	}}
@@ -95,12 +95,12 @@ func TestFreshnessGenerationLifecycleActive(t *testing.T) {
 func TestFreshnessGenerationLifecyclePendingMarksBuilding(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{{
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{{
 			ScopeID:      "git-repository-scope:acme/app",
 			GenerationID: "gen-pending",
 			Status:       "pending",
-			QueueStatus:  status.GenerationQueueStatus{Total: 2, Outstanding: 2},
+			QueueStatus:  generation.QueueStatus{Total: 2, Outstanding: 2},
 		}},
 		Limit: 50,
 	}}
@@ -119,13 +119,13 @@ func TestFreshnessGenerationLifecyclePendingMarksBuilding(t *testing.T) {
 func TestFreshnessGenerationLifecycleFailedCarriesFailure(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{{
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{{
 			ScopeID:      "git-repository-scope:acme/app",
 			GenerationID: "gen-failed",
 			Status:       "failed",
-			QueueStatus:  status.GenerationQueueStatus{Total: 1, Failed: 1},
-			LatestFailure: &status.GenerationLatestFailure{
+			QueueStatus:  generation.QueueStatus{Total: 1, Failed: 1},
+			LatestFailure: &generation.LatestFailure{
 				FailureClass:   "parser_panic",
 				FailureMessage: "panic decoding tree",
 			},
@@ -154,8 +154,8 @@ func TestFreshnessGenerationLifecycleFailedCarriesFailure(t *testing.T) {
 func TestFreshnessGenerationLifecycleSupersededUnchanged(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{
 			{
 				ScopeID:                   "git-repository-scope:acme/app",
 				GenerationID:              "gen-old",
@@ -168,7 +168,7 @@ func TestFreshnessGenerationLifecycleSupersededUnchanged(t *testing.T) {
 				Status:        "completed",
 				FreshnessHint: "unchanged",
 				IsActive:      true,
-				QueueStatus:   status.GenerationQueueStatus{Total: 4, Succeeded: 4},
+				QueueStatus:   generation.QueueStatus{Total: 4, Succeeded: 4},
 			},
 		},
 		Limit: 50,
@@ -189,7 +189,7 @@ func TestFreshnessGenerationLifecycleSupersededUnchanged(t *testing.T) {
 func TestFreshnessGenerationLifecycleUnknownScopeNotFound(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{Limit: 50}}
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{Limit: 50}}
 	mux := newFreshnessMux(reader)
 
 	w := doFreshnessRequest(t, mux, "/api/v0/freshness/generations?scope_id=does-not-exist")
@@ -205,7 +205,7 @@ func TestFreshnessGenerationLifecycleUnknownScopeNotFound(t *testing.T) {
 func TestFreshnessGenerationLifecycleUnknownGenerationNotFound(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{Limit: 50}}
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{Limit: 50}}
 	mux := newFreshnessMux(reader)
 
 	w := doFreshnessRequest(t, mux, "/api/v0/freshness/generations?generation_id=missing")
@@ -221,7 +221,7 @@ func TestFreshnessGenerationLifecycleUnknownGenerationNotFound(t *testing.T) {
 func TestFreshnessGenerationLifecycleBroadScanEmptyIsNotNotFound(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{Limit: 50}}
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{Limit: 50}}
 	mux := newFreshnessMux(reader)
 
 	// No scope selector: an empty page is a confident empty list, not 404.
@@ -277,8 +277,8 @@ func TestFreshnessGenerationLifecycleNilReaderUnavailable(t *testing.T) {
 func TestFreshnessGenerationLifecycleTruncatedReported(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{
-		Records:   []status.GenerationLifecycleRecord{{ScopeID: "s", GenerationID: "g", Status: "completed"}},
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{
+		Records:   []generation.LifecycleRecord{{ScopeID: "s", GenerationID: "g", Status: "completed"}},
 		Limit:     1,
 		Truncated: true,
 	}}
@@ -301,12 +301,12 @@ func TestFreshnessGenerationLifecycleTruncatedReported(t *testing.T) {
 func TestFreshnessGenerationLifecycleExposesPriorFailure(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{{
+	reader := &recordingGenerationLifecycleReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{{
 			ScopeID: "git-repository-scope:acme/app", GenerationID: "gen-old", Status: "superseded",
-			LatestFailure: &status.GenerationLatestFailure{
+			LatestFailure: &generation.LatestFailure{
 				FailureClass: "projector_superseded_by_newer_generation",
-				PriorFailure: &status.GenerationPriorFailure{
+				PriorFailure: &generation.PriorFailure{
 					Status: "dead_letter", FailureClass: "graph_write_timeout",
 					FailureMessage: "neo4j execute group timed out", UpdatedAt: "2026-06-09T09:00:00Z",
 				},

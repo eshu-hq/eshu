@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -29,10 +29,10 @@ import (
 // rows must treat the result as not-found rather than confident emptiness.
 func (s StatusStore) ListGenerationLifecycle(
 	ctx context.Context,
-	filter statuspkg.GenerationLifecycleFilter,
-) (statuspkg.GenerationLifecyclePage, error) {
+	filter generation.LifecycleFilter,
+) (generation.LifecyclePage, error) {
 	if s.queryer == nil {
-		return statuspkg.GenerationLifecyclePage{}, fmt.Errorf("queryer is required")
+		return generation.LifecyclePage{}, fmt.Errorf("queryer is required")
 	}
 
 	filter = filter.Normalize()
@@ -53,20 +53,20 @@ func (s StatusStore) ListGenerationLifecycle(
 		array.Of(filter.AllowedScopeIDs),
 	)
 	if err != nil {
-		return statuspkg.GenerationLifecyclePage{}, fmt.Errorf("list generation lifecycle: %w", err)
+		return generation.LifecyclePage{}, fmt.Errorf("list generation lifecycle: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	records := make([]statuspkg.GenerationLifecycleRecord, 0, filter.Limit)
+	records := make([]generation.LifecycleRecord, 0, filter.Limit)
 	for rows.Next() {
 		record, scanErr := scanGenerationLifecycleRow(rows)
 		if scanErr != nil {
-			return statuspkg.GenerationLifecyclePage{}, fmt.Errorf("list generation lifecycle: %w", scanErr)
+			return generation.LifecyclePage{}, fmt.Errorf("list generation lifecycle: %w", scanErr)
 		}
 		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
-		return statuspkg.GenerationLifecyclePage{}, fmt.Errorf("list generation lifecycle: %w", err)
+		return generation.LifecyclePage{}, fmt.Errorf("list generation lifecycle: %w", err)
 	}
 
 	truncated := len(records) > filter.Limit
@@ -74,15 +74,15 @@ func (s StatusStore) ListGenerationLifecycle(
 		records = records[:filter.Limit]
 	}
 
-	return statuspkg.GenerationLifecyclePage{
+	return generation.LifecyclePage{
 		Records:   records,
 		Limit:     filter.Limit,
 		Truncated: truncated,
 	}, nil
 }
 
-func scanGenerationLifecycleRow(rows db.Rows) (statuspkg.GenerationLifecycleRecord, error) {
-	var record statuspkg.GenerationLifecycleRecord
+func scanGenerationLifecycleRow(rows db.Rows) (generation.LifecycleRecord, error) {
+	var record generation.LifecycleRecord
 	var freshnessHint string
 	var observedAt sql.NullTime
 	var ingestedAt sql.NullTime
@@ -129,7 +129,7 @@ func scanGenerationLifecycleRow(rows db.Rows) (statuspkg.GenerationLifecycleReco
 		&failureObservedAt,
 		&failureDetails,
 	); err != nil {
-		return statuspkg.GenerationLifecycleRecord{}, err
+		return generation.LifecycleRecord{}, err
 	}
 
 	record.FreshnessHint = strings.TrimSpace(freshnessHint)
@@ -138,7 +138,7 @@ func scanGenerationLifecycleRow(rows db.Rows) (statuspkg.GenerationLifecycleReco
 	record.IngestedAt = nullableLifecycleTimestamp(ingestedAt)
 	record.ActivatedAt = nullableLifecycleTimestamp(activatedAt)
 	record.SupersededAt = nullableLifecycleTimestamp(supersededAt)
-	record.QueueStatus = statuspkg.GenerationQueueStatus{
+	record.QueueStatus = generation.QueueStatus{
 		Total:       int(totalCount),
 		Outstanding: int(outstandingCount),
 		InFlight:    int(inFlightCount),
@@ -149,7 +149,7 @@ func scanGenerationLifecycleRow(rows db.Rows) (statuspkg.GenerationLifecycleReco
 	}
 
 	if strings.TrimSpace(failureClass) != "" {
-		record.LatestFailure = &statuspkg.GenerationLatestFailure{
+		record.LatestFailure = &generation.LatestFailure{
 			FailureClass:   strings.TrimSpace(failureClass),
 			FailureMessage: strings.TrimSpace(failureMessage),
 			WorkItemStatus: strings.TrimSpace(failureWorkItemStatus),
@@ -165,7 +165,7 @@ func nullableLifecycleTimestamp(value sql.NullTime) string {
 	if !value.Valid {
 		return ""
 	}
-	return statuspkg.GenerationLifecycleTimestamp(value.Time)
+	return generation.LifecycleTimestamp(value.Time)
 }
 
 // priorFailureDetails is the part of failure_details the drilldown reads: the
@@ -185,7 +185,7 @@ type priorFailureDetails struct {
 // carries, or nil. failure_details is free text or JSON, so anything that is not
 // a JSON object with an object-valued prior_failure yields nil and no error: a
 // non-JSON row must never fail the drilldown page (#7385).
-func parsePriorFailure(details string) *statuspkg.GenerationPriorFailure {
+func parsePriorFailure(details string) *generation.PriorFailure {
 	details = strings.TrimSpace(details)
 	if details == "" || details[0] != '{' {
 		return nil
@@ -194,17 +194,17 @@ func parsePriorFailure(details string) *statuspkg.GenerationPriorFailure {
 	if err := json.Unmarshal([]byte(details), &parsed); err != nil || parsed.PriorFailure == nil {
 		return nil
 	}
-	prior := statuspkg.GenerationPriorFailure{
+	prior := generation.PriorFailure{
 		Status:         strings.TrimSpace(parsed.PriorFailure.Status),
 		FailureClass:   strings.TrimSpace(parsed.PriorFailure.FailureClass),
 		FailureMessage: strings.TrimSpace(parsed.PriorFailure.FailureMessage),
 		UpdatedAt:      strings.TrimSpace(parsed.PriorFailure.UpdatedAt),
 	}
-	if prior == (statuspkg.GenerationPriorFailure{}) {
+	if prior == (generation.PriorFailure{}) {
 		return nil
 	}
 	if at, err := time.Parse(time.RFC3339Nano, prior.UpdatedAt); err == nil {
-		prior.UpdatedAt = statuspkg.GenerationLifecycleTimestamp(at)
+		prior.UpdatedAt = generation.LifecycleTimestamp(at)
 	}
 	return &prior
 }

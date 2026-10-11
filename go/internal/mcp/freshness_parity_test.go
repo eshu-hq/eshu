@@ -45,6 +45,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 // freshnessComparable captures the cross-surface fields every freshness read
@@ -246,13 +247,13 @@ func mountFreshnessHandler(
 // returns one prepared page regardless of filter so the HTTP and MCP surfaces
 // observe the identical rows.
 type fixedGenerationReader struct {
-	page status.GenerationLifecyclePage
+	page generation.LifecyclePage
 }
 
 func (r fixedGenerationReader) ListGenerationLifecycle(
 	_ context.Context,
-	_ status.GenerationLifecycleFilter,
-) (status.GenerationLifecyclePage, error) {
+	_ generation.LifecycleFilter,
+) (generation.LifecyclePage, error) {
 	return r.page, nil
 }
 

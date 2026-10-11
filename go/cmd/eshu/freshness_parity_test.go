@@ -43,6 +43,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/freshness"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 // cliFreshnessCommand builds a generations command wired to the test server via
@@ -68,13 +69,13 @@ func cliFreshnessCommand(t *testing.T, client *APIClient, flag, value string) *c
 // returning one prepared page regardless of filter, so the CLI observes exactly
 // the rows the API surface emits.
 type fixedGenerationReader struct {
-	page status.GenerationLifecyclePage
+	page generation.LifecyclePage
 }
 
 func (r fixedGenerationReader) ListGenerationLifecycle(
 	_ context.Context,
-	_ status.GenerationLifecycleFilter,
-) (status.GenerationLifecyclePage, error) {
+	_ generation.LifecycleFilter,
+) (generation.LifecyclePage, error) {
 	return r.page, nil
 }
 
@@ -247,8 +248,8 @@ func generationIDsFromEnvelope(env freshness.Envelope) []string {
 // generation ids and fresh truth the API surface emits for a changed generation
 // that supersedes the prior active one.
 func TestCLIFreshnessGenerationsParityChangedSupersedes(t *testing.T) {
-	client := cliFreshnessServer(t, fixedGenerationReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{
+	client := cliFreshnessServer(t, fixedGenerationReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{
 			{
 				ScopeID:                   "git-repository-scope:acme/app",
 				GenerationID:              "gen-new",
@@ -256,7 +257,7 @@ func TestCLIFreshnessGenerationsParityChangedSupersedes(t *testing.T) {
 				IsActive:                  true,
 				Status:                    "active",
 				TriggerKind:               "push",
-				QueueStatus:               status.GenerationQueueStatus{Total: 6, Succeeded: 6},
+				QueueStatus:               generation.QueueStatus{Total: 6, Succeeded: 6},
 			},
 			{
 				ScopeID:                   "git-repository-scope:acme/app",
@@ -287,13 +288,13 @@ func TestCLIFreshnessGenerationsParityChangedSupersedes(t *testing.T) {
 // surfaced as exactly "building" through the CLI transport and rendered verbatim
 // — never silently downgraded to fresh.
 func TestCLIFreshnessGenerationsParityPendingBuilding(t *testing.T) {
-	client := cliFreshnessServer(t, fixedGenerationReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{{
+	client := cliFreshnessServer(t, fixedGenerationReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{{
 			ScopeID:      "git-repository-scope:acme/app",
 			GenerationID: "gen-inflight",
 			Status:       "pending",
 			TriggerKind:  "webhook",
-			QueueStatus:  status.GenerationQueueStatus{Total: 4, Outstanding: 4},
+			QueueStatus:  generation.QueueStatus{Total: 4, Outstanding: 4},
 		}},
 		Limit: 50,
 	}}, nil)
@@ -321,7 +322,7 @@ func TestCLIFreshnessGenerationsParityPendingBuilding(t *testing.T) {
 // difference is asserted here intentionally so a future regression that made
 // the CLI swallow the 404 into an empty success would fail.
 func TestCLIFreshnessGenerationsParityUnknownScopeNotFound(t *testing.T) {
-	client := cliFreshnessServer(t, fixedGenerationReader{page: status.GenerationLifecyclePage{Limit: 50}}, nil)
+	client := cliFreshnessServer(t, fixedGenerationReader{page: generation.LifecyclePage{Limit: 50}}, nil)
 
 	// API/MCP surfaces keep the precise typed code in the body.
 	_, transportErr := freshness.FetchGenerations(client, freshness.GenerationsOptions{ScopeID: "does-not-exist"})

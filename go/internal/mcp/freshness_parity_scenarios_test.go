@@ -31,6 +31,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 const (
@@ -78,8 +79,8 @@ func driveChangedSinceParity(t *testing.T, handler http.Handler, rawQuery string
 func TestFreshnessParityUnchangedRefreshSkipped(t *testing.T) {
 	t.Parallel()
 
-	handler := mountFreshnessHandler(t, fixedGenerationReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{{
+	handler := mountFreshnessHandler(t, fixedGenerationReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{{
 			ScopeID:                   parityScope,
 			GenerationID:              "gen-base",
 			ScopeKind:                 "repository",
@@ -88,7 +89,7 @@ func TestFreshnessParityUnchangedRefreshSkipped(t *testing.T) {
 			Status:                    "completed",
 			TriggerKind:               "scheduled",
 			FreshnessHint:             "unchanged",
-			QueueStatus:               status.GenerationQueueStatus{Total: 4, Succeeded: 4},
+			QueueStatus:               generation.QueueStatus{Total: 4, Succeeded: 4},
 		}},
 		Limit: 50,
 	}}, nil)
@@ -113,8 +114,8 @@ func TestFreshnessParityUnchangedRefreshSkipped(t *testing.T) {
 func TestFreshnessParityChangedGenerationSupersedes(t *testing.T) {
 	t.Parallel()
 
-	handler := mountFreshnessHandler(t, fixedGenerationReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{
+	handler := mountFreshnessHandler(t, fixedGenerationReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{
 			{
 				ScopeID:                   parityScope,
 				GenerationID:              "gen-new",
@@ -123,7 +124,7 @@ func TestFreshnessParityChangedGenerationSupersedes(t *testing.T) {
 				Status:                    "active",
 				TriggerKind:               "push",
 				FreshnessHint:             "changed",
-				QueueStatus:               status.GenerationQueueStatus{Total: 6, Succeeded: 6},
+				QueueStatus:               generation.QueueStatus{Total: 6, Succeeded: 6},
 			},
 			{
 				ScopeID:                   parityScope,
@@ -162,8 +163,8 @@ func TestFreshnessParityChangedGenerationSupersedes(t *testing.T) {
 func TestFreshnessParityProjectorWorkSuperseded(t *testing.T) {
 	t.Parallel()
 
-	handler := mountFreshnessHandler(t, fixedGenerationReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{
+	handler := mountFreshnessHandler(t, fixedGenerationReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{
 			{
 				ScopeID:                   parityScope,
 				GenerationID:              "gen-pending",
@@ -172,7 +173,7 @@ func TestFreshnessParityProjectorWorkSuperseded(t *testing.T) {
 				Status:                    "pending",
 				TriggerKind:               "push",
 				// Outstanding projector/reducer work items -> building.
-				QueueStatus: status.GenerationQueueStatus{Total: 5, Outstanding: 3, Succeeded: 2},
+				QueueStatus: generation.QueueStatus{Total: 5, Outstanding: 3, Succeeded: 2},
 			},
 			{
 				ScopeID:                   parityScope,
@@ -180,7 +181,7 @@ func TestFreshnessParityProjectorWorkSuperseded(t *testing.T) {
 				CurrentActiveGenerationID: "gen-prev",
 				IsActive:                  true,
 				Status:                    "completed",
-				QueueStatus:               status.GenerationQueueStatus{Total: 4, Succeeded: 4},
+				QueueStatus:               generation.QueueStatus{Total: 4, Succeeded: 4},
 			},
 		},
 		Limit: 50,
@@ -208,14 +209,14 @@ func TestFreshnessParityProjectorWorkSuperseded(t *testing.T) {
 func TestFreshnessParityReducerWorkFilteredInactive(t *testing.T) {
 	t.Parallel()
 
-	handler := mountFreshnessHandler(t, fixedGenerationReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{{
+	handler := mountFreshnessHandler(t, fixedGenerationReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{{
 			ScopeID:                   parityScope,
 			GenerationID:              "gen-inactive",
 			CurrentActiveGenerationID: "gen-current",
 			IsActive:                  false,
 			Status:                    "superseded",
-			QueueStatus:               status.GenerationQueueStatus{Total: 3, Succeeded: 3},
+			QueueStatus:               generation.QueueStatus{Total: 3, Succeeded: 3},
 		}},
 		Limit: 50,
 	}}, nil)
@@ -289,8 +290,8 @@ func TestFreshnessParityWebhookRefreshReachesCurrent(t *testing.T) {
 	t.Parallel()
 
 	handler := mountFreshnessHandler(t,
-		fixedGenerationReader{page: status.GenerationLifecyclePage{
-			Records: []status.GenerationLifecycleRecord{{
+		fixedGenerationReader{page: generation.LifecyclePage{
+			Records: []generation.LifecycleRecord{{
 				ScopeID:                   parityScope,
 				GenerationID:              "gen-webhook",
 				CurrentActiveGenerationID: "gen-webhook",
@@ -298,7 +299,7 @@ func TestFreshnessParityWebhookRefreshReachesCurrent(t *testing.T) {
 				Status:                    "active",
 				TriggerKind:               "webhook",
 				FreshnessHint:             "changed",
-				QueueStatus:               status.GenerationQueueStatus{Total: 8, Succeeded: 8},
+				QueueStatus:               generation.QueueStatus{Total: 8, Succeeded: 8},
 			}},
 			Limit: 50,
 		}},
@@ -345,13 +346,13 @@ func TestFreshnessParityWebhookRefreshReachesCurrent(t *testing.T) {
 func TestFreshnessParityPendingGenerationBuilding(t *testing.T) {
 	t.Parallel()
 
-	handler := mountFreshnessHandler(t, fixedGenerationReader{page: status.GenerationLifecyclePage{
-		Records: []status.GenerationLifecycleRecord{{
+	handler := mountFreshnessHandler(t, fixedGenerationReader{page: generation.LifecyclePage{
+		Records: []generation.LifecycleRecord{{
 			ScopeID:      parityScope,
 			GenerationID: "gen-inflight",
 			Status:       "pending",
 			TriggerKind:  "webhook",
-			QueueStatus:  status.GenerationQueueStatus{Total: 4, Outstanding: 4},
+			QueueStatus:  generation.QueueStatus{Total: 4, Outstanding: 4},
 		}},
 		Limit: 50,
 	}}, nil)

@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -349,16 +350,16 @@ func listNamedCounts(
 func listGenerationTransitions(
 	ctx context.Context,
 	queryer db.Queryer,
-) ([]statuspkg.GenerationTransitionSnapshot, error) {
+) ([]generation.TransitionSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, generationTransitionsQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list generation transitions: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	transitions := []statuspkg.GenerationTransitionSnapshot{}
+	transitions := []generation.TransitionSnapshot{}
 	for rows.Next() {
-		var row statuspkg.GenerationTransitionSnapshot
+		var row generation.TransitionSnapshot
 		var freshnessHint string
 		var observedAt time.Time
 		var activatedAt sql.NullTime

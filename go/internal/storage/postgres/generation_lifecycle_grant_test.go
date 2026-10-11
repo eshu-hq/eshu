@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -86,7 +87,7 @@ func TestListGenerationLifecyclePassesGrantToQuery(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{{}}}
 	store := StatusStore{queryer: queryer}
 
-	_, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{
+	_, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{
 		GenerationID:         "someone-elses-generation",
 		Scoped:               true,
 		AllowedRepositoryIDs: []string{"repo-a"},
