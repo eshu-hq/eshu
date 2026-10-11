@@ -202,7 +202,7 @@ source "${repo_root}/scripts/lib/dockerhub-login-conditions.sh"
 # check_job <workflow> <job> <workflow env>: evaluates one job.
 check_job() {
   local name="$1" job="$2" wf_env="$3" where="$1:$2" job_env kind sname image cuser cpass reasons=""
-  local seq idx uses cond reg user pass dfile dctx why first_reach="" first_why=""
+  local seq idx uses cond reg user pass dfile dctx why first_reach="" first_why="" decoded encoded
   clear_tables
   load_envs "${job}"
   local login_idx="" login_if="" login_user="" login_pass="" login_uses="" login_coe=""
@@ -227,7 +227,20 @@ check_job() {
           ""|docker.io|index.docker.io|registry-1.docker.io)
             if [[ -z "${login_idx}" ]]; then
               login_idx="${idx}"; login_uses="${uses}"
-              login_if="$(printf '%s' "${cond#x}" | b64d)"
+              # A sentinel preserves trailing newlines in command substitution.
+              # Re-encoding catches bytes Bash cannot store (notably NUL) before
+              # comparing the exact condition tokens.
+              if decoded="$(printf '%s' "${cond#x}" | b64d && printf '.')"; then
+                decoded="${decoded%.}"
+                encoded="$(printf '%s' "${decoded}" | base64 | tr -d '\r\n')"
+                if [[ "${encoded}" == "${cond#x}" ]]; then
+                  login_if="${decoded}"
+                else
+                  fail "${where}: login steps[${idx}] condition changed during decoding"
+                fi
+              else
+                fail "${where}: login steps[${idx}] condition could not be decoded"
+              fi
               login_user="${user#x}"; login_pass="${pass#x}"; login_coe="${coe}"
             fi ;;
         esac

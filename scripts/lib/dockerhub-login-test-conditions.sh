@@ -34,6 +34,24 @@ login_condition_case wrong-value "env.DOCKERHUB_LOGIN_ENABLED == 'false'" red
 login_condition_case quoted-whitespace-value "env.DOCKERHUB_LOGIN_ENABLED == 'tru e'" red
 newline_value="env.DOCKERHUB_LOGIN_ENABLED == 'tr"$'\n'"ue'"
 login_condition_case quoted-newline-value "${newline_value}" red
+# YAML's escaped NUL reaches yq's base64 output. Bash command substitution
+# must not erase that byte and turn a quoted lookalike into the true flag.
+dir="$(new_case quoted-nul-value)"
+cat >"${dir}/.github/workflows/verify-agent-hygiene.yml" <<'YAML'
+jobs:
+  fixture-docker:
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - uses: docker/login-action@v3
+        if: "env.DOCKERHUB_LOGIN_ENABLED == 'tr\0ue'"
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - run: docker pull postgres:18
+YAML
+expect_red quoted-nul-value "${dir}" 'must run only when DOCKERHUB_LOGIN_ENABLED is true'
 login_condition_case quoted-whitespace-job "\${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fixture -docker')) && env.DOCKERHUB_LOGIN_ENABLED == 'true' }}" red
 login_condition_case wrong-job "\${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'other-job')) && env.DOCKERHUB_LOGIN_ENABLED == 'true' }}" red
 login_condition_case suffix-bypass "env.DOCKERHUB_LOGIN_ENABLED == 'true' || always()" red
