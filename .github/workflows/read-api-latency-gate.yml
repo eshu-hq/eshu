@@ -46,6 +46,12 @@ on:
       - 'testdata/benchmarks/read-api-route-budgets.txt'
       - 'testdata/benchmarks/read-api-route-work-budgets.txt'
       - 'scripts/verify-read-api-latency-gate.sh'
+      - 'scripts/lib/status-diagnostic-runner.sh'
+      - 'scripts/lib/status_diagnostic_artifacts.py'
+      - 'scripts/lib/status_diagnostic_resources.py'
+      - 'scripts/test-status-diagnostic-artifacts.py'
+      - 'scripts/test-status-diagnostic-resources.py'
+      - 'scripts/test-status-diagnostic-runner.sh'
       - 'scripts/refresh-read-api-work-budgets.sh'
       - 'scripts/test-refresh-read-api-work-budgets.sh'
       - 'scripts/extend-read-api-work-budgets.sh'
@@ -64,6 +70,11 @@ on:
       - 'docker-compose.read-api-latency-gate.yaml'
       - '.github/workflows/read-api-latency-gate.yml'
   workflow_dispatch:
+    inputs:
+      status_diagnostic:
+        description: Capture sanitized status diagnostics for the Neo4j scale run
+        type: boolean
+        default: false
     # Manual trigger, for calibrating budgets on the CI runner class. There is
     # deliberately no api_ref input: an earlier version built an
     # operator-supplied ref here to produce a RED run on the runner class, but
@@ -148,6 +159,7 @@ jobs:
           GATE_WORK_REPORT: ${{ runner.temp }}/methodology-work.json
           GATE_LATENCY_REPORT: ${{ runner.temp }}/methodology-latency.json
           GATE_CONCURRENT_REPORT: ${{ runner.temp }}/methodology-concurrency.json
+          GATE_STATUS_DIAGNOSTIC_DIR: ${{ inputs.status_diagnostic && format('{0}/methodology-status-diagnostics', runner.temp) || '' }}
         run: |
           resource_report="${RUNNER_TEMP}/methodology-resources.txt"
           observer_stop="${RUNNER_TEMP}/.methodology-resource-observer-stop"
@@ -227,7 +239,7 @@ jobs:
 
       - name: Test the work budget refresh script
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (work budget refresh)')) }}
-        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh
+        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh && python3 scripts/test-status-diagnostic-artifacts.py && python3 scripts/test-status-diagnostic-resources.py && bash scripts/test-status-diagnostic-runner.sh
 
   # #6965 phase 6: scripts/compare-backend-latency.sh reads two -latency-report
   # JSON legs and never runs the live gate itself, so its formulas and

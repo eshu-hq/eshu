@@ -78,6 +78,12 @@ type SweepOptions struct {
 	Meter WorkMeter
 	// Context bounds meter calls; nil means context.Background().
 	Context context.Context
+	// Diagnostics optionally retains selected status request correlation.
+	Diagnostics *diagnosticClient
+	// DiagnosticBoundary runs only before and after the selected status burst,
+	// outside request samples and reported wall time. The callback must retain
+	// failures and report them through the enclosing diagnostic finalizer.
+	DiagnosticBoundary func(phase string)
 }
 
 // SweepRoutes issues warmupRequests discarded probes, then opts.Iterations
@@ -121,7 +127,7 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 			url += "?" + q
 		}
 
-		result, err := sweepRoute(ctx, client, route, url, opts.APIKey, opts.Iterations, runs, opts.Meter, op)
+		result, err := sweepRoute(ctx, client, route, url, opts.APIKey, opts.Iterations, runs, opts.Meter, op, opts.Diagnostics)
 		if err != nil {
 			return nil, err
 		}
@@ -139,9 +145,9 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 // (RouteLatency.WarmSamples/WarmRunP95s). Selected pilots fail if a warmup
 // response violates their expected result, so an intermittent wrong answer
 // cannot disappear from the counted sample. See SweepOptions.Runs.
-func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey string, iterations, runs int, meter WorkMeter, op Operation) (RouteLatency, error) {
+func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey string, iterations, runs int, meter WorkMeter, op Operation, diagnostics *diagnosticClient) (RouteLatency, error) {
 	for i := 0; i < warmupRequests; i++ {
-		_, status, body, err := sweepOperation(client, url, apiKey, op)
+		_, status, body, err := sweepOperationObserved(client, url, apiKey, op, diagnosticRequestFor(diagnostics, "warmup", i))
 		if err != nil {
 			return RouteLatency{}, fmt.Errorf("sweep %s (warmup %d/%d): %w", route, i+1, warmupRequests, err)
 		}
@@ -170,7 +176,7 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 	for run := 0; run < runs; run++ {
 		runSamples := make([]time.Duration, 0, iterations)
 		for i := 0; i < iterations; i++ {
-			d, s, body, err := sweepOperation(client, url, apiKey, op)
+			d, s, body, err := sweepOperationObserved(client, url, apiKey, op, diagnosticRequestFor(diagnostics, "serial", run*iterations+i))
 			if err != nil {
 				return RouteLatency{}, fmt.Errorf("sweep %s (run %d/%d, iteration %d/%d): %w", route, run+1, runs, i+1, iterations, err)
 			}
@@ -232,7 +238,7 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 	return result, nil
 }
 
-// sweepOperation issues one request and returns its wall-clock duration and
+// sweepOperationObserved issues one request and returns its wall-clock duration and
 // status code (0 for a timeout, which has no response).
 //
 // A response's status code does not fail the sweep, whatever it is: a
@@ -251,7 +257,7 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 // Only a connection-level failure (nothing is listening, DNS failed) returns
 // an error: that means eshu-api itself never came up, which is a gate setup
 // problem, not a per-route latency signal.
-func sweepOperation(client *http.Client, url, apiKey string, op Operation) (time.Duration, int, string, error) {
+func sweepOperationObserved(client *http.Client, url, apiKey string, op Operation, diagnostic *diagnosticRequest) (duration time.Duration, statusCode int, bodyText string, resultErr error) {
 	req, err := http.NewRequest(op.Method, url, bytes.NewBufferString(op.Body))
 	if err != nil {
 		return 0, 0, "", fmt.Errorf("build request: %w", err)
@@ -262,8 +268,17 @@ func sweepOperation(client *http.Client, url, apiKey string, op Operation) (time
 	}
 
 	start := time.Now()
+	serverID := ""
+	if diagnostic != nil && op.Method == http.MethodGet && op.Path == "/api/v0/status/ingesters/repository" && !op.MCP {
+		defer func() {
+			diagnostic.client.record(diagnostic.phase, diagnostic.index, serverID, start, duration, statusCode)
+		}()
+	}
 	resp, err := client.Do(req)
 	elapsed := time.Since(start)
+	if diagnostic != nil && resp != nil {
+		serverID = resp.Header.Get(diagnosticResponseHeader)
+	}
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {

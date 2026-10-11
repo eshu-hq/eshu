@@ -74,6 +74,7 @@ cd "${repo_root}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
 : "${GATE_WORK_REPORT:=}"
 : "${GATE_LATENCY_REPORT:=}"
+: "${GATE_STATUS_DIAGNOSTIC_DIR:=}"
 
 stack_dir="${GATE_STACK_DIR:-${repo_root}}"
 compose_file="${stack_dir}/docker-compose.yaml"
@@ -129,6 +130,16 @@ bg_pids=()
 # did not create, e.g. a retained --keep stack whose name was exported as
 # GATE_COMPOSE_PROJECT.
 stack_up=0
+api_pid=""
+status_diagnostic_resource_pid=""
+if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+ [[ "${GATE_CONCURRENT_WORKERS}" -ge 2 ]] || die "status diagnostics require concurrent workers"
+ command -v python3 >/dev/null 2>&1 || die "status diagnostics require python3"
+ [[ "$use_compose" -eq 1 ]] || die "status resource diagnostics require this runner's Compose stack"
+ # shellcheck source=scripts/lib/status-diagnostic-runner.sh
+ . "${repo_root}/scripts/lib/status-diagnostic-runner.sh"
+ status_diagnostic_capacity "${GATE_ITERATIONS}" "${GATE_RUNS}" "${GATE_CONCURRENT_REQUESTS}" || die "status diagnostic target requests exceed collector capacity or are invalid"
+fi
 # shellcheck source=scripts/lib/golden-corpus-host-helpers.sh
 . "${repo_root}/scripts/lib/golden-corpus-host-helpers.sh"
 
@@ -141,8 +152,28 @@ mcp_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-mcp.log"
 
 cleanup() {
 	local status=$?
+ if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+  if [[ -n "${status_diagnostic_resource_pid}" ]]; then
+   if ! status_diagnostic_resource_stop "${GATE_STATUS_DIAGNOSTIC_DIR}" "${status_diagnostic_resource_pid}"; then
+    printf 'verify-read-api-latency-gate: diagnostic resource capture failed\n' >&2
+    [[ "$status" -ne 0 ]] || status=1
+   fi
+  fi
+  if [[ -n "${api_pid}" ]]; then
+   if ! status_diagnostic_stop "${api_pid}" 30; then
+    printf 'verify-read-api-latency-gate: diagnostic API shutdown failed\n' >&2
+    [[ "$status" -ne 0 ]] || status=1
+   fi
+  fi
+  if ! status_diagnostic_validate "${repo_root}" "${GATE_STATUS_DIAGNOSTIC_DIR}" "${GATE_CONCURRENT_REQUESTS}"; then
+   [[ "$status" -ne 0 ]] || status=1
+  fi
+ fi
 	for pid in "${bg_pids[@]:-}"; do
-		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
+		if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" && "${pid}" == "${api_pid}" ]]; then
+   continue
+  fi
+  [[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
 	done
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/api.log" ]]; then
 		cp "${work_dir}/logs/api.log" "${api_log_preserve_path}" 2>/dev/null || true
@@ -168,6 +199,10 @@ cleanup() {
 trap cleanup EXIT
 
 acquire_live_gate_lock
+if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+ status_diagnostic_prepare "${GATE_STATUS_DIAGNOSTIC_DIR}" || die "status diagnostics require a new report directory"
+ GATE_STATUS_DIAGNOSTIC_DIR="$(cd "${GATE_STATUS_DIAGNOSTIC_DIR}" && pwd)"
+fi
 
 work_dir="$(mktemp -d -t read-api-latency-gate.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -348,7 +383,12 @@ log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-labe
 	|| die "seed failed (see the reason printed above)"
 
 log "start eshu-api"
-start_bg api api_pid "${bin_dir}/eshu-api"
+if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+ start_bg api api_pid env ESHU_STATUS_DIAGNOSTIC_REPORT="${GATE_STATUS_DIAGNOSTIC_DIR}/server.json" "${bin_dir}/eshu-api"
+ gate_report_args+=(-diagnostic-client-report "${GATE_STATUS_DIAGNOSTIC_DIR}/client.json")
+else
+ start_bg api api_pid "${bin_dir}/eshu-api"
+fi
 if command -v lsof >/dev/null 2>&1; then
 	sleep 0.2 # give the process a moment to finish exec() before lsof inspects it
 	log "eshu-api binary provenance (lsof -p ${api_pid})"
@@ -382,6 +422,10 @@ for _ in $(seq 1 240); do
 done
 [[ "${mcp_ready}" == "true" ]] || { tail -40 "${log_dir}/mcp-server.log" >&2 || true; die "MCP /health never returned on port ${GATE_MCP_PORT}"; }
 kill -0 "${mcp_pid}" 2>/dev/null || die "MCP server (pid ${mcp_pid}) exited while /health answered"
+
+if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+ status_diagnostic_resource_start "${repo_root}" "${GATE_STATUS_DIAGNOSTIC_DIR}" "${api_pid}" "${GATE_COMPOSE_PROJECT}" || die "cannot identify diagnostic Postgres process"
+fi
 
 # Include the repeat count when more than one counted pass is requested.
 if [[ "${GATE_RUNS}" -eq 1 ]]; then

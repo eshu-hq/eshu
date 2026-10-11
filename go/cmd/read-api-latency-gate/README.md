@@ -26,6 +26,15 @@ not own the routes themselves (`go/internal/query`), the surface inventory
 
 ## Exported surface
 
+For a diagnostic run, `-diagnostic-client-report <path>` retains bounded status
+GET client samples with dispatch indexes and the API's `X-Eshu-Diagnostic-ID`.
+Enable `ESHU_STATUS_DIAGNOSTIC_REPORT` on the API and keep the ordinary corpus,
+request counts, worker count and budgets. Missing or duplicate IDs, overflow,
+or absent concurrent indexes fail diagnostic validation. The client artifact
+contains no URLs, bearer tokens or response payloads and is written with mode
+0600. This mode requires the concurrent pilot and does not replace ordinary
+uninstrumented acceptance or matched mode-off/on overhead proof.
+
 - `BuildSeedPlan` — pure, deterministic scope/generation/work-item
   distribution across every `scope.AllCollectorKinds` entry
 - `SeedPostgres`, `SeedGraph`, `SeedIaCFacts` — bulk-write a `SeedPlan` (plus
@@ -147,3 +156,46 @@ and its process exit code, not through the runtime telemetry surface.
   entries)
 - `docs/public/reference/local-testing/read-api-latency-gate.md` (cross-backend
   comparison recipe)
+
+The runner enables these artifacts with `GATE_STATUS_DIAGNOSTIC_DIR` set to a
+new directory whose parent exists. It creates that directory atomically after
+acquiring the live gate lock, rejects existing directories and symlinks, and
+refuses diagnostic settings exceeding 256 target requests (two warmups plus
+`iterations * runs` plus concurrent requests). Cleanup waits up to 30 seconds
+for the owned API process, validates both reports, and preserves a gate failure.
+
+Resource diagnostics require this runner's Compose stack; `--no-compose` is
+rejected before seeding in this mode. A bounded readiness barrier requires the
+first resource sample before the sweep starts. The sampler pins process start
+ticks and cgroup membership, then rejects replacement or migration. Cgroup
+totals may include unrelated processes; they do not alone prove throttling.
+
+Client diagnostic mode also writes `statements.json` beside the client report.
+A separate connection takes bounded numeric `pg_stat_statements` snapshots
+before and after the status burst, outside the serial work-meter windows,
+request samples, and pilot wall time. The report excludes query text and meter
+statements, compares each identity’s collection-start timestamp to reject reset
+and repopulation, refuses disappearing identities and overflow, and records
+database aggregate deltas without per-request SQL attribution. Capture failures
+are joined with the ordinary gate failure after the burst; they cannot make
+a failed gate pass. Full-run validation checks the snapshot boundaries and
+recomputes the deltas independently.
+
+After the final statement snapshot, diagnostic mode writes `plan.json` with a
+supplementary `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` of the compiled active-work
+summary SELECT. The bound timestamp and source digest identify that read. Only
+closed operator names, numeric timings and buffer counters survive sanitization;
+relation names, filters and literals are removed. This separate execution has a
+30-second deadline and is outside all measured request and counter intervals.
+Parent buffer counts include child work; do not sum the tree or infer request,
+network or row-decoding latency from this plan. Missing or malformed plan
+evidence fails diagnostic validation.
+
+The manual Read API Latency Gate workflow accepts a `status_diagnostic` boolean,
+which defaults to false. It enables these artifacts only in the Neo4j scale
+job. The existing scale archive includes the sanitized diagnostic directory.
+Ordinary PR, push, merge-group and manual acceptance runs keep diagnostics off.
+The local proof compared OFF/ON/ON/OFF on one retained full seeded database,
+with fresh API processes and identical request/work settings. That comparison
+bounds the touched status path on the local host; it does not establish hosted
+performance or overhead on unrelated routes.

@@ -45,6 +45,10 @@ func SweepConcurrentOperations(opts SweepOptions, operations map[string]Operatio
 		jobs := make(chan int)
 		var group sync.WaitGroup
 		var active, peak atomic.Int32
+		observe := opts.DiagnosticBoundary != nil && !op.MCP && op.Method == http.MethodGet && op.Path == "/api/v0/status/ingesters/repository"
+		if observe {
+			opts.DiagnosticBoundary("before_concurrent")
+		}
 		started := time.Now()
 		for worker := 0; worker < workers; worker++ {
 			group.Add(1)
@@ -54,7 +58,7 @@ func SweepConcurrentOperations(opts SweepOptions, operations map[string]Operatio
 					inFlight := active.Add(1)
 					for previous := peak.Load(); inFlight > previous && !peak.CompareAndSwap(previous, inFlight); previous = peak.Load() {
 					}
-					samples[index], statuses[index], bodies[index], errors[index] = sweepOperation(client, base+op.Path, opts.APIKey, op)
+					samples[index], statuses[index], bodies[index], errors[index] = sweepOperationObserved(client, base+op.Path, opts.APIKey, op, diagnosticRequestFor(opts.Diagnostics, "concurrent", index))
 					active.Add(-1)
 				}
 			}()
@@ -65,6 +69,9 @@ func SweepConcurrentOperations(opts SweepOptions, operations map[string]Operatio
 		close(jobs)
 		group.Wait()
 		result := RouteLatency{Route: id, Method: op.Method, Path: op.Path, MCP: op.MCP, Exercised: true, Samples: samples, P95: p95(append([]time.Duration(nil), samples...)), Requested: requests, Workers: workers, PeakInFlight: int(peak.Load()), Wall: time.Since(started), Statuses: statuses}
+		if observe {
+			opts.DiagnosticBoundary("after_concurrent")
+		}
 		for index := range requests {
 			if errors[index] != nil {
 				return nil, fmt.Errorf("concurrent sweep %s request %d: %w", id, index+1, errors[index])

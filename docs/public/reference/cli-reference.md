@@ -313,6 +313,22 @@ The direct service binaries listed in
 `-v` as a single argument. They print their build-time version and exit before
 telemetry, Postgres, graph, queue, or HTTP startup.
 
+## Status Latency Diagnostics
+
+`ESHU_STATUS_DIAGNOSTIC_REPORT` gives the direct API binary a private output
+path for bounded diagnostics of exact `GET /api/v0/status/ingesters/repository`
+requests. It is off when unset. Selected responses carry a server-generated
+`X-Eshu-Diagnostic-ID`; the latency gate's optional
+`-diagnostic-client-report <path>` binds that ID to each client dispatch index.
+The flag requires the concurrent pilot. Missing IDs, overflow or incomplete
+reports invalidate the diagnostic evidence.
+
+The collector retains existing request, snapshot and reader-stage spans with
+allowlisted attributes. Query-return stages exclude subsequent row scanning;
+snapshot and request residuals remain unexplained until further evidence.
+Diagnostics preserve authentication, worker counts and latency/work budgets.
+Validate both artifacts after the API finishes its flush before cleanup.
+
 ## Related Docs
 
 - [CLI Indexing](cli-indexing.md)

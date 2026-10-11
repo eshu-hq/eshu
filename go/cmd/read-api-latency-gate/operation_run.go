@@ -4,8 +4,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
@@ -32,6 +34,9 @@ func selectedOperations(inventory capabilitycatalog.SurfaceInventory, includePil
 }
 
 func validateOperationOptions(opts runOptions) error {
+	if opts.diagnosticReport != "" && opts.concurrentWorkers == 0 {
+		return fmt.Errorf("-diagnostic-client-report requires -concurrent-workers")
+	}
 	if opts.concurrentWorkers != 0 && (opts.concurrentWorkers < 2 || opts.concurrentWorkers > 16 ||
 		opts.concurrentRequests < opts.concurrentWorkers || opts.concurrentRequests > 1000) {
 		return fmt.Errorf("concurrent sweep requires 2..16 workers and workers..1000 requests")
@@ -59,14 +64,27 @@ func pilotFailures(results []RouteLatency, operations map[string]Operation) []st
 	return failures
 }
 
-func runConcurrentPilot(opts runOptions, operations map[string]Operation, budgets RouteBudgets) error {
+func runConcurrentPilot(opts runOptions, operations map[string]Operation, budgets RouteBudgets) (runErr error) {
 	if opts.concurrentWorkers == 0 {
 		return nil
 	}
 	if len(operations) == 0 {
 		return fmt.Errorf("concurrent pilot requires -mcp-base-url")
 	}
-	concurrent, err := SweepConcurrentOperations(SweepOptions{BaseURL: opts.apiBaseURL, MCPBaseURL: opts.mcpBaseURL, APIKey: opts.apiKey, Timeout: opts.requestTimeout}, operations, opts.concurrentWorkers, opts.concurrentRequests)
+	var boundary func(string)
+	if opts.diagnosticReport != "" {
+		capture := opts.statementCapture
+		if capture == nil {
+			var err error
+			capture, err = newDiagnosticStatements(opts.postgresDSN, filepath.Join(filepath.Dir(opts.diagnosticReport), "statements.json"))
+			if err != nil {
+				return err
+			}
+		}
+		defer func() { runErr = errors.Join(runErr, capture.finish()) }()
+		boundary = capture.capture
+	}
+	concurrent, err := SweepConcurrentOperations(SweepOptions{BaseURL: opts.apiBaseURL, MCPBaseURL: opts.mcpBaseURL, APIKey: opts.apiKey, Timeout: opts.requestTimeout, Diagnostics: opts.diagnostics, DiagnosticBoundary: boundary}, operations, opts.concurrentWorkers, opts.concurrentRequests)
 	if err != nil {
 		return err
 	}
