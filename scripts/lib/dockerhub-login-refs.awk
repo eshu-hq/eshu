@@ -70,14 +70,15 @@ BEGIN {
 # not in command position (a quoted path that starts a continuation line of a
 # for-list or an argument list is data). A line with a comment is never joined: a
 # backslash at the end of a comment does not continue it.
-FNR == 1 { if (buf != "") { scan(buf); buf = "" } fname = FILENAME; HDn = 0 }
+FNR == 1 { if (buf != "") { scan(buf); buf = "" } hd_flush(); fname = FILENAME; HDn = 0 }
 # A heredoc body is the stdin of its command, not commands, unless a shell reads
 # it. HDrun is set by hd_open from the line that opened it. Lines of an unquoted
 # body that hold $( or a backquote are scanned (they execute at expansion).
 HDn > 0 {
   line = $0
   if (HDdash[HDi]) sub(/^\t+/, "", line)
-  if (line == HDword[HDi]) { HDi++; if (HDi > HDn) HDn = 0; next }
+  if (line == HDword[HDi]) { HDnl = 0; HDi++; if (HDi > HDn) HDn = 0; next }
+  HDL[++HDnl] = line
   if (HDrun[HDi] || (!HDquoted[HDi] && (index(line, "$(") > 0 || index(line, "`") > 0))) scan(line)
   next
 }
@@ -87,22 +88,48 @@ HDn > 0 {
   scan(full)
   hd_open(full)
 }
-END { if (buf != "") scan(buf) }
+END { if (buf != "") scan(buf); hd_flush() }
+
+# hd_flush: a heredoc that never found its delimiter was not a heredoc (an
+# arithmetic << or a shape this reader misjudged). Its lines are commands: scan
+# them, so a misread never hides a call.
+function hd_flush(   k) {
+  if (HDn > 0) for (k = 1; k <= HDnl; k++) scan(HDL[k])
+  HDn = 0; HDnl = 0
+}
 
 # hd_open finds the heredocs a logical line opens (<<WORD, <<-WORD, <<'WORD',
 # <<"WORD", <<\WORD; not <<< and not inside quotes or a comment) and arms the body
 # handler. A body is run as code when the line holds a shell word (bash, sh, zsh,
 # dash, ksh, eval, source, a dot command) or ends in a pipe, && or || (the body
-# feeds a command on a later line): the gate fails closed on those.
-function hd_open(s,   i, n, ch, q, w, d, lit, code, run, tail) {
-  n = length(s); q = ""; HDn = 0
+# feeds a command on a later line), or when the heredoc is written to a file
+# (> file, >> file, tee: the file may be run later). An arithmetic << ($(( )),
+# (( )), [[ ]], let) opens no heredoc, and a heredoc without a delimiter line is
+# read as commands again (hd_flush).
+function hd_open(s,   i, n, ch, q, w, d, lit, code, run, tail, t, e) {
+  n = length(s); q = ""; HDn = 0; HDnl = 0
   code = s
   run = (code ~ /(^|[^A-Za-z0-9_.\/-])(bash|sh|zsh|dash|ksh|eval|source)([^A-Za-z0-9_]|$)/ || code ~ /(^|[ \t;&|(])\.[ \t]/ || code ~ /(\||&&)[ \t]*$/)
+  t = s
+  gsub(/'[^']*'/, "", t); gsub(/"[^"]*"/, "", t)
+  gsub(/[0-9]*>>?[ \t]*\/dev\/null/, "", t); gsub(/[0-9]*>&[0-9-]*/, "", t); gsub(/&>[ \t]*\/dev\/null/, "", t)
+  if (t ~ /(^|[^<>=-])>/ || t ~ /(^|[ \t|;&(])tee[ \t]/) run = 1
   for (i = 1; i <= n; i++) {
     ch = substr(s, i, 1)
     if (q != "") { if (ch == "\\" && q == "\"") i++; else if (ch == q) q = ""; continue }
     if (ch == "'" || ch == "\"") { q = ch; continue }
     if (ch == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t]/)) break
+    if (substr(s, i, 2) == "((" || substr(s, i, 3) == "$((") {
+      e = index(substr(s, i + 2), "))")
+      if (e == 0) break
+      i = i + 2 + e; continue
+    }
+    if (substr(s, i, 2) == "[[") {
+      e = index(substr(s, i + 2), "]]")
+      if (e == 0) break
+      i = i + 2 + e; continue
+    }
+    if (substr(s, i, 4) ~ /^let[ \t]/ && (i == 1 || substr(s, i - 1, 1) ~ /[ \t;&|(]/)) break
     if (ch == "<" && substr(s, i + 1, 1) == "<" && substr(s, i + 2, 1) != "<" && (i == 1 || substr(s, i - 1, 1) != "<")) {
       d = 0; lit = 0; i += 2
       if (substr(s, i, 1) == "-") { d = 1; i++ }

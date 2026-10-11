@@ -103,6 +103,7 @@ add_job "${d}" verify-agent-hygiene j2-quoted-table $'while IFS=\'|\' read -r a 
 add_job "${d}" verify-agent-hygiene j2-unquoted-text $'cat <<EOF\nbash scripts/fixture-pull.sh\nEOF'
 add_job "${d}" verify-agent-hygiene j2-dash-delimiter $'cat <<-\'EOF\'\n\tbash scripts/fixture-pull.sh\n\tEOF'
 add_job "${d}" verify-agent-hygiene j2-then-ok 'bash scripts/fixture-ok.sh'
+add_job "${d}" verify-agent-hygiene j2-data-to-dev-null $'cat <<\'EOF\' >/dev/null\nbash scripts/fixture-pull.sh\nEOF'
 expect_green j2-heredoc-body-naming-a-pulling-script-is-data "${d}"
 
 d="$(new_case j2-heredoc-code)"
@@ -112,5 +113,12 @@ add_job "${d}" verify-agent-hygiene j2-shell-reads-body $'bash <<\'EOF\'\nbash s
 add_job "${d}" verify-agent-hygiene j2-pipe-into-shell $'cat <<\'EOF\' | bash\nbash scripts/fixture-pull.sh\nEOF'
 add_job "${d}" verify-agent-hygiene j2-substitution-in-body $'cat <<EOF\n$(bash scripts/fixture-pull.sh)\nEOF'
 add_job "${d}" verify-agent-hygiene j2-call-after-heredoc $'cat <<\'EOF\' >/dev/null\ndata\nEOF\nbash scripts/fixture-pull.sh'
+add_job "${d}" verify-agent-hygiene j2-body-written-to-a-file $'cat >out.sh <<\'EOF\'\nbash scripts/fixture-pull.sh\nEOF'
+add_job "${d}" verify-agent-hygiene j2-unterminated-heredoc $'cat <<NEVER\nbash scripts/fixture-pull.sh'
+# An arithmetic << is no heredoc: the call after it is still followed.
+add_job "${d}" verify-agent-hygiene j2-arithmetic-expansion-shift $'mask=$(( 1 << 2 ))\nbash scripts/fixture-pull.sh'
+add_job "${d}" verify-agent-hygiene j2-arithmetic-command-shift $'(( flags = 1 << 3 ))\nbash scripts/fixture-pull.sh'
+add_job "${d}" verify-agent-hygiene j2-let-shift $'let x=1<<2\nbash scripts/fixture-pull.sh'
 expect_jobs_red j2-code-heredocs-and-calls-after-one-need-the-hub-login "${d}" j2-control-plain-bash j2-shell-reads-body \
-  j2-pipe-into-shell j2-substitution-in-body j2-call-after-heredoc
+  j2-pipe-into-shell j2-substitution-in-body j2-call-after-heredoc j2-body-written-to-a-file j2-unterminated-heredoc \
+  j2-arithmetic-expansion-shift j2-arithmetic-command-shift j2-let-shift
