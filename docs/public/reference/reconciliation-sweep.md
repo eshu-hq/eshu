@@ -52,7 +52,7 @@ is the bounded label on the sweep's counters and log:
 | Scope state | Decision | Reason |
 | --- | --- | --- |
 | active full generation has a re-projection request younger than `Interval` and no Ack since | hold | `reconcile_in_flight` |
-| the same request is `Interval` old, or its re-projection was dead-lettered | force; the store stores a generation | `reconcile_request_stale` |
+| the same request is `Interval` old, or its re-projection was dead-lettered, and no forced full is in flight or backing off | force; the store stores a generation unless one with the same identity is pending | `reconcile_request_stale` |
 | newest activated full generation (or its last re-projection Ack) is younger than `Interval` | hold | `fresh` |
 | newest full generation is `pending`, younger than `Interval` | hold | `reconcile_in_flight` |
 | newest full generation is `pending`, `Interval` old or older | force | `in_flight_expired` |

@@ -44,7 +44,12 @@ The lifecycle after the re-open:
   `active`. `decide` holds a request without an Ack for one interval
   (`reconcile_in_flight`). After one interval, or at once when the
   re-projection was dead-lettered, it forces `reconcile_request_stale`, and the
-  store stores that snapshot as a new generation.
+  store stores that snapshot as a new generation. The stale path goes through
+  the shared throttle, so while that full is pending or backing off the scope
+  is held, and a second stale snapshot that equals the pending full stores
+  nothing: at most one stored generation per interval per scope
+  (`TestReconcilePolicyStaleRequestForcesOncePerInterval`,
+  `TestStaleReconcileSkipsPendingSameIdentityLive`).
 - `failProjectorWorkQuery` never marks an activated generation `failed` and
   never clears the scope pointer. It stamps `reconcile_dead_lettered_at`
   instead.
@@ -141,6 +146,11 @@ the gate: content-entity ids (which hash the temp checkout path) and
 `indexed_at` are normalized out.
 
 ## Graph Truth Evidence
+
+`TestUnchangedReconcileKnownGapActiveStampedDriftLive` documents the accepted
+gap: a `File` node stamped with the active generation id survives the
+re-projection. If a later change retracts that class too, the test fails and
+must be inverted.
 
 The explicit-mode Neo4j proofs run on `neo4j:2026-community` (pinned digest)
 with the production projector service and canonical writer:

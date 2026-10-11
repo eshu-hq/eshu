@@ -147,6 +147,8 @@ PACKAGES = {
             "TestReconcileReopenSkipsLiveLeaseWithoutStampLive",
             "TestReconcileReprojectionDeadLetterKeepsActiveGenerationLive",
             "TestPendingSameIdentitySkipsAndFailedStoresLive",
+            "TestReconcileReopenResetsAttemptsSoRetryRetriesLive",
+            "TestStaleReconcileSkipsPendingSameIdentityLive",
         ),
         "go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go": (
             "TestUnchangedReconcileStoresNothingLive",
