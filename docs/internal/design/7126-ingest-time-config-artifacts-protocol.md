@@ -6,9 +6,10 @@ It holds the tables, the content-version fence, the derive protocol, the
 walker, the shared SQL and the shim details. Four arbiter rulings of
 2026-10-10 (the ruling, the re-ruling, re-ruling 2 and re-ruling 3) decided
 the fence, the derive protocol, the reader condition, the name step, the row
-key and the S3 arms. An item marked **Proposed** is the author's addition and
-is not part of any ruling. Section 7 keeps the lost-update sequence (R-1)
-that made the re-ruling replace the first fence.
+key and the S3 arms. The S3 ruling of 2026-10-11 decided the trigger names,
+the arm 3 and arm 5 reruns and the PR3b-1 split. An item marked **Proposed**
+is the author's addition and is not part of any ruling. Section 7 keeps the
+lost-update sequence (R-1) that made the re-ruling replace the first fence.
 
 ## 1. Tables
 
@@ -21,19 +22,20 @@ Names are proposals. The migration number is chosen at build time.
 | `config_artifact_paths` | `(repo_id, row_digest)` | `raw_path`, `relative_path`, `evidence_kind`, `name_scoped`, `row_digest` (generated) |
 | `config_artifact_backfill_markers`, `config_artifact_reconcile_cursor` | name | as in migration 109 |
 
-- The migration seeds one version row with `version = 0` for each `SELECT
-  DISTINCT repo_id FROM content_files`, as migration 169 does its backfill.
-  The walker's universe is then O(repositories), not a scan of
-  `content_files`. Proposed order, not part of the ruling: create the trigger
-  first, then seed with `ON CONFLICT DO NOTHING`, in one transaction. `CREATE
-  TRIGGER` blocks content writes until that transaction commits, so no write
-  can land between the seed scan and the trigger. The seed scan duration is
-  then a content-write stall, and the migration proof must time it.
+- The trigger migration (PR3b-1b, after the table migration) seeds one
+  version row with `version = 0` for each `SELECT DISTINCT repo_id FROM
+  content_files`, as migration 169 does its backfill. The walker's universe is
+  then O(repositories), not a scan of `content_files`. Order (S3 ruling):
+  create the four triggers first, then seed with `ON CONFLICT DO NOTHING`, in
+  one transaction. `CREATE TRIGGER` blocks content writes until that
+  transaction commits, so no write can land between the seed scan and the
+  trigger. The seed scan duration is then a content-write stall, and the
+  migration proof must time it.
 - **Proposed** rule: delete or reset a version row only together with the
   repository's state row, in one transaction. A version row re-created while
   a state row survives would count up from 1 again. After enough bumps it
   would equal the old `state.content_version`, and readers would trust stale
-  rows. PR3b-1 adds a test that no Go statement deletes from the versions
+  rows. PR3b-1a adds a test that no Go statement deletes from the versions
   table except a documented retirement path. The repository retirement design
   of #7766 (draft PR #7871) requires a disposition for every repo-keyed
   table. It must give the versions and state tables one shared disposition.
@@ -47,14 +49,14 @@ Names are proposals. The migration number is chosen at build time.
 - The dirty set is a join, not a table: no state row, or
   `state.content_version` different from `version`, or an old
   `extractor_version`, or `failure_count > 0`. The walker uses it to find
-  work. It is wider than the reader's test in section 4: a repository whose
-  rows match the current version stays trusted after a later failed derive,
-  because those rows are still exact.
+  work. It is wider than the reader's test in section 4: rows that match the
+  current version stay trusted after a later failed derive, as they are still
+  exact.
 - Key width (G8), measured by S2. A primary key of the four TEXT columns
   fails with `54000 index row size 2712 exceeds btree version 4 maximum 2704`
-  when a path reaches 2,610 incompressible bytes (2,609 passes). Index tuples
-  are compressed, so a compressible path of 100,000 bytes still passes. The
-  limit depends on the data, so a length limit is rejected.
+  at a 2,610-byte incompressible path (2,609 passes). A compressible path of
+  100,000 bytes passes. The limit depends on the data, so a length limit is
+  rejected.
 - Key (re-rulings 2 and 3): `(repo_id, row_digest)`, with `row_digest` a
   stored generated column, defined once in the schema and never in Go:
 
@@ -95,14 +97,16 @@ Names are proposals. The migration number is chosen at build time.
   `UTF8` they log at ERROR, skip every derive with
   `derives_total{outcome=encoding_unsupported}`, and report
   `config_artifacts = not_installed` with the reason in `/admin/status`. The
-  content Write proceeds, and reads stay live.
+  same check tests the four fence triggers (section 2): a missing one gives
+  outcome `fence_missing` and reason `version_fence_missing`. The content
+  Write proceeds, and reads stay live.
 - Autovacuum (re-ruling 2): each derive deletes and re-inserts a
   repository's rows. Without a vacuum, S2 measured the 300-id read at 2.47 ms
-  (9,202 `Heap Fetches`) against 1.76 ms for the same rewritten rows after a
-  vacuum (0 `Heap Fetches`), because an Index Only Scan needs the visibility
-  map. The 1.74 ms of the evidence appendix is the read before any rewrite. The migration sets `autovacuum_vacuum_scale_factor` at most
-  0.02 on `config_artifact_paths`. **Proposed** note, not measured: the
-  digest key reads the heap anyway, but dead tuples still cost.
+  (9,202 `Heap Fetches`) against 1.76 ms after a vacuum (0 `Heap Fetches`),
+  because an Index Only Scan needs the visibility map. The migration sets
+  `autovacuum_vacuum_scale_factor` at most 0.02 on `config_artifact_paths`.
+  **Proposed** note, not measured: the digest key reads the heap anyway, but
+  dead tuples still cost.
 
 ## 2. The content-version trigger
 
@@ -115,6 +119,21 @@ pre-write mark and no mark table exist.
   statement-level `REFERENCING OLD TABLE` trigger.
 - TRUNCATE: statement-level, bumps every version row through the same
   once-per-transaction guard.
+- Names and order (S3 ruling). PostgreSQL fires the triggers of one event on
+  one relation in alphabetical order by name, and row-level AFTER triggers
+  before statement-level AFTER triggers (PostgreSQL 18 documentation, trigger
+  definition). The fence triggers are `content_files_version_fence_insert`,
+  `_update`, `_delete` and `_truncate`, with that prefix. Each sorts after
+  the migration 138 triggers `content_files_secret_lines_insert` and
+  `content_files_secret_lines_update` ('v' follows 's'), so the fence fires
+  last. The version row lock lasts from the bump to the commit. Firing last
+  makes that hold a commit, so two writers of one `repo_id` overlap their
+  secret-line derivation and do not serialize it on the version row. The
+  foreign key of migration 138 uses row-level `RI_ConstraintTrigger_*`
+  triggers, which sort first, so its cascade runs before the bump. A schema
+  test reads `pg_trigger` for `content_files` ordered by `tgname`. It asserts
+  that the fence is the last statement-level AFTER trigger for INSERT and for
+  UPDATE, and that the migration 138 names are present.
 
 The body bumps each repository once per transaction. Re-ruling 2 accepted
 the `ORDER BY`:
@@ -159,10 +178,10 @@ WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
   `generation_retention_sql.go`, so two reducer replicas run concurrent
   prunes over disjoint scope sets. Two scopes can share one `repo_id`
   (migration 169), so with more than one reducer the hazard is reachable.
-  The loser of a deadlock retries at its next cycle.
-- The DELETE shape is a cost choice only: S3 shape 3, at most 5% of the prune
-  phase. At equal cost prefer the `OLD TABLE` shape, because the `ORDER BY`
-  then covers the prune too.
+- The DELETE shape is a cost choice only: S3 arm 3, at most 5% of the
+  `prune_content_files` phase on the real retention store. At equal cost
+  prefer the `OLD TABLE` shape, because the `ORDER BY` then covers the prune
+  too.
 - The row lock lasts until the content transaction ends. For a Write that is
   one 500-row batch. For retention it lasts from the end of the prune's
   `content_files` DELETE statement to the end of the retention transaction.
@@ -171,17 +190,57 @@ WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
   version row locks after all its content row locks. A Write batch of a
   pruned repository waits for the retention commit, which also runs the
   ledger and `scope_generations` deletes. That wait sits inside the existing
-  `eshu_dp_generation_retention_scope_lock_hold_seconds` contract. Open PR
-  #7910 changes the retention files, so PR3b-1 re-checks this section
-  against them.
+  `eshu_dp_generation_retention_scope_lock_hold_seconds` contract. PR #7910
+  is merged (`ba95c9a973`) and was re-checked on 2026-10-11: the content
+  prune is still one DELETE statement, after the infra advisory locks and
+  before the ledger and `scope_generations` deletes, so this section holds.
 - `content_files` upserts and deletes run one after another inside one Write
-  (`upsertContentFileBatches`, `deleteContentFilesBatch`), so one Write
-  touches the version row from one transaction at a time. Two concurrent
-  Writes of one `repo_id` (two scopes) wait on each other per batch. S3 arm 5
+  (`upsertContentFileBatches` in `content_writer_upserts.go`,
+  `deleteContentFilesBatch`), so one Write touches the version row from one
+  transaction at a time. Entity batches (`upsertContentEntityBatches`) run
+  concurrently, but they never write `content_files`. Two concurrent Writes
+  of one `repo_id` (two scopes) wait on each other per batch. S3 arm 5
   measures this.
 - Generation retention's prune fires the DELETE trigger. Retention needs no
-  explicit code. Every writer, including an older binary or manual SQL, bumps
-  the version, so no rollout rule exists.
+  explicit code, unless the arm 3 rerun fails both shapes (fallback below).
+  Every writer, including an older binary or manual SQL, bumps the version,
+  so no rollout rule exists.
+
+**Fallback (Proposed).** It applies only if the arm 3 rerun fails both
+shapes, and it requires an F2 amendment by ruling: F2 says "no session
+setting", and the fallback adds a transaction-local one. "An explicit bump in
+retention" must not mean "drop the DELETE trigger", because every other
+deleter must keep bumping. The design:
+
+1. Retention's content statement bumps itself. The query keeps its CTEs and
+   adds `deleted AS (DELETE FROM content_files AS t USING doomed AS d WHERE
+   ... RETURNING t.repo_id)`. The trigger body above then runs over `SELECT
+   DISTINCT repo_id FROM deleted ORDER BY repo_id`, in the same statement, so
+   the bump commits with the delete. `RETURNING t.repo_id` carries one text
+   per row, not the tuple. `RowsPruned["content_files"]` stays the DELETE
+   count.
+2. Lock order. The CTE completes before the outer INSERT reads its set, and
+   `ORDER BY` needs the whole set, so the statement locks content rows first
+   and version rows last, ascending, as the trigger does today. The `Mirror`
+   advisory lock of a Write is a separate transaction, so no Write holds a
+   content or version row while it waits for the lock retention holds.
+3. The DELETE trigger is row-level and gated: `FOR EACH ROW WHEN
+   (current_setting('eshu.config_artifact_delete_bump', true) IS DISTINCT
+   FROM 'self')`. A false row-level WHEN queues no event (migration 109). A
+   WHEN on a transition-table trigger does not avoid the capture (migration
+   138), so the gated trigger cannot be `OLD TABLE`. Retention runs `SET
+   LOCAL` of that setting to `'self'` just before its statement. Never `SET`:
+   a leaked session value silences bumps for another binary.
+4. Four tests. (a) After the retention transaction commits, the setting is
+   empty. (b) Retention bumps once per affected repository (arm 6: 1). (c)
+   Seeded RED: remove the self-bumping INSERT with the gate on, and the test
+   fails because the versions stay unchanged. (d) A source guard: no
+   production statement sets the setting outside `GenerationRetentionStore`.
+5. Every other deleter keeps the trigger (inventory: evidence appendix,
+   section 8). A missed deleter is silent and persistent: versions stay
+   equal, readers trust the rows, and `config_paths` serves a path whose file
+   is gone until the next Write of that repository or an `extractor_version`
+   bump.
 
 ## 3. The derive protocol and its failure semantics
 
@@ -326,13 +385,11 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    A second guard pins that each `evidence_kind` maps to exactly one
    `name_scoped` value. Pass: 0 differing rows.
 
-   **Ran 2026-10-10: PASS** (local branch `proof/7126-pr3-shims`,
-   `953f68712e`). 0 differing rows in 162,609 scoped and 522,339 unscoped row
-   observations. Seeded RED mutants: a name step on every kind gave 10,068
-   differing rows, no read dedup gave 11, raw sort order gave 386 order-only
-   differences. The two loader-level merge cases (two related repositories
-   with one graph name, and the anchor repeated in the related list) are not
-   part of S0. They belong to S4 and the PR3c tests.
+   **Ran 2026-10-10: PASS**, 0 differing rows, with three seeded RED
+   mutants (evidence appendix, section 4). The two loader-level merge cases
+   (two related repositories with one graph name, and the anchor repeated in
+   the related list) are not part of S0. They belong to S4 and the PR3c
+   tests.
 2. **S2 read plan** (local PostgreSQL 18). Seed 815 repositories with about 21
    rows each, plus long paths. Use `PREPARE`/`EXECUTE` with
    `plan_cache_mode=force_generic_plan` for the reader's three-table join with
@@ -342,28 +399,24 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    primary-key plans were slower (2.9-3.2 ms).
 
    **Ran 2026-10-10: PASS** on time, with the four-column key: reader join
-   2.44 ms, paths read 1.74 ms, state read 0.85 ms, dirty join 0.18 ms. With
-   the digest key only the paths read was measured (2.14 ms). The digest-key
-   reader join is not measured. The planner seq-scans the 9-page
-   versions table into a hash join. Details and caveats are in section 4 of
-   the evidence appendix.
+   2.44 ms, dirty join 0.18 ms. With the digest key only the paths read was
+   measured (2.14 ms). The digest-key reader join is not measured. Details
+   and caveats are in section 4 of the evidence appendix.
 3. **S3 fence cost** (local PostgreSQL 18, in the shape of
    `content_writer_infra_fence_bench_live_test.go`, interleaved rounds,
    medians with ranges, first round discarded). Arm A has no trigger. Arm B
-   has the version trigger. Arms 1-6 must pass before PR3b-1 builds the
+   has the version trigger. Arms 1-6 must pass before PR3b-1b builds the
    trigger:
 
    | Arm | Shape | Pass |
    |---|---|---|
    | 1 | Full Write, 5,000 files, 500-row batches, production-width content. The derive's row insert includes the generated `row_digest` | B at most A + 5% on Write wall time. A primary-key-only micro-shim at most 0.5 us per row |
    | 2 | Delta Write, 1 file changed, 3 tombstones | B at most A + 5% |
-   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. The chosen shape at most 5% of the prune phase. Else the other shape. Else an explicit bump in retention |
+   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the fallback of section 2. `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Rerun spec: evidence appendix, section 7 |
    | 4 | One 50,000-row single-statement insert | B at most A + 5% |
-   | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. Lock waits on the version row at most one batch time. 0 deadlocks in 20 rounds |
+   | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. The `version_row` lock wait at most one contended batch (B-last per-Write median / 10), with A as control, by wait class, plus an overlapping-keys run. 0 deadlocks in 20 rounds. Slower of the pair is informational. Rerun spec: evidence appendix, section 7 |
    | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). A Write sends tombstones and reaped paths through one delete list, chunked at 500. It expects ceil((tombstones + reaped paths) / 500) delete transactions. It adds one per 500-row upsert batch. Arm 1 = 10. Arm 2 = 2 (one delete chunk, one upsert batch). Arm 3 = 1 per affected repository. Arm 4 = 1 |
 
-   Arm 3 also records the Write lock wait against the QA-environment p95 of
-   `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**).
    The protocol needs two things only: every transaction that changes
    `content_files` bumps at least once, together with its content, and the
    derive reads `v0` after the Write's last content statement. The derive is
@@ -383,7 +436,7 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    the QA environment, shadow mode plus an offline differential under its own
    authorization.
 
-PR3b-1 also adds live interleaving tests, run before the trigger ships:
+PR3b-1b also adds live interleaving tests, run before the trigger ships:
 
 - The R-1 sequence of section 7 (a Write with three batches and a walker
   derive between batches 1 and 2), the two-scope sequence, and the prune
@@ -419,9 +472,9 @@ PR3b-1 also adds live interleaving tests, run before the trigger ships:
 ## 7. Decided: R-1, the lost update that replaced the first fence
 
 The first ruling used a dirty mark with a sequence number. Aware writers set
-the mark before their content, and a derive deleted the mark only if its
-sequence was unchanged. A Write's content lands as several commits over
-seconds, so a mark set before the content does not cover it:
+the mark before their content, and a derive deleted it only if its sequence
+was unchanged. A Write's content lands as several commits over seconds, so a
+mark set before the content does not cover it:
 
 1. Write W marks `mark_seq = 6` before its content.
 2. The walker marks `mark_seq = 7` and reads 7.
