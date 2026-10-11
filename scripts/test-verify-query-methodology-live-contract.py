@@ -166,6 +166,9 @@ class ContractTest(unittest.TestCase):
         git("init", "-q", "--initial-branch=main")
         git("config", "user.name", "Eshu Test")
         git("config", "user.email", "eshu-test@example.invalid")
+        (self.root / ".git/info/exclude").write_text(
+            "hosted-event.json\ngo-shim.log\n.proof-artifacts/\n__pycache__/\n"
+        )
         (self.root / "comparison-seed.txt").write_text("committed baseline\n")
         git("add", "comparison-seed.txt")
         git("commit", "-q", "-m", "baseline")
@@ -240,6 +243,7 @@ class ContractTest(unittest.TestCase):
                 "//go:build queryplan_profile_live", "//go:build integration", 1
             )
         )
+        git("add", "go/internal/mcp/methodology_live_test.go")
         result = run_hook("go/internal/mcp/methodology_live_test.go")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("actual build tag differs", result.stdout + result.stderr)

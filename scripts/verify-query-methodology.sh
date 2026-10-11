@@ -14,25 +14,43 @@ case "$mode" in --static|--live) ;; *) printf 'usage: %s [--static|--live]\n' "$
 artifact_dir="${ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR:-$repo_root/.proof-artifacts/query-methodology}"
 mkdir -p "$artifact_dir"
 export ESHU_QUERY_METHODOLOGY_IDENTITY="$artifact_dir/identity.json"
-export ESHU_QUERY_METHODOLOGY_REQUIRED=1
 rm -f "$ESHU_QUERY_METHODOLOGY_IDENTITY"
-python3 "$repo_root/scripts/lib/query-methodology-comparison-identity.py" --root "$repo_root" --output "$ESHU_QUERY_METHODOLOGY_IDENTITY"
-[[ -s "$ESHU_QUERY_METHODOLOGY_IDENTITY" ]] || { printf 'missing frozen methodology comparison identity\n' >&2; exit 1; }
+unset ESHU_QUERY_METHODOLOGY_REQUIRED || true
+# A hook runs against staged bytes before a commit exists. Reject unstaged or
+# untracked bytes that would make Go read a different tree from the index.
+if ! git -C "$repo_root" diff --quiet --exit-code; then
+ printf 'methodology static proof requires worktree bytes to match the index\n' >&2
+ exit 1
+fi
+untracked="$(git -C "$repo_root" ls-files --others --exclude-standard)"
+if [[ -n "$untracked" ]]; then
+ printf 'methodology static proof requires all source files to be tracked: %s\n' "$untracked" >&2
+ exit 1
+fi
 export ESHU_QUERY_METHODOLOGY_COVERAGE="$artifact_dir/coverage.json"
 rm -f "$ESHU_QUERY_METHODOLOGY_COVERAGE"
 cd "$repo_root/go"
 # shellcheck source=scripts/lib/go-test-run-guard.sh
 . "$repo_root/scripts/lib/go-test-run-guard.sh"
 python3 "$repo_root/scripts/lib/verify-query-methodology-live-contract.py" --root "$repo_root"
-go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
 go_test_run_guard 2 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
 go test ./internal/queryplan -count=1
 [[ -s "$ESHU_QUERY_METHODOLOGY_COVERAGE" ]] || { printf 'missing required produced coverage artifact\n' >&2; exit 1; }
 go_test_run_guard 3 '^(TestMethodologyRequiredProductionVariants|TestHandlerQueryplanManifestBindsProductionBuilders|TestLegacyQueryplanManifestBindsProductionQueries)$' -- ./internal/query -count=1
 if [[ "$mode" == --static ]]; then
- printf 'verify-query-methodology: deterministic production contracts pass\n'
+ printf 'verify-query-methodology: staged deterministic contracts pass; paired commit identity not claimed\n'
  exit 0
 fi
+# Live proof consumes a committed candidate. Freeze the exact paired identity
+# only after the staged contracts pass and before any backend producer runs.
+if ! git -C "$repo_root" diff --cached --quiet --exit-code; then
+ printf 'methodology live proof requires a committed index\n' >&2
+ exit 1
+fi
+export ESHU_QUERY_METHODOLOGY_REQUIRED=1
+python3 "$repo_root/scripts/lib/query-methodology-comparison-identity.py" --root "$repo_root" --output "$ESHU_QUERY_METHODOLOGY_IDENTITY"
+[[ -s "$ESHU_QUERY_METHODOLOGY_IDENTITY" ]] || { printf 'missing frozen methodology comparison identity\n' >&2; exit 1; }
+go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
 # A successful old file must never conceal a skipped or omitted producer.
 rm -f "$artifact_dir/postgresql.json" "$artifact_dir/neo4j.json" "$artifact_dir/neo4j-cases.json"
 # Keep measured samples serialized across the shared host.

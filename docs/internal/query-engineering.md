@@ -172,8 +172,12 @@ artifacts must validate as a complete set. `scripts/test-verify-query-methodolog
 plants absent output and failed producers and exercises the real selector with
 query-only, each backend's schema-only, and combined-tree paths.
 
-The runner resolves `identity.json` before static coverage or either backend
-producer. It freezes the executed checkout (`candidate`), the captured target
+The static gate checks that worktree bytes match the staged index, then runs
+deterministic source, manifest and variant checks. Its `coverage.json` is an
+inventory snapshot; it does not claim a committed paired comparison.
+
+The live runner requires a clean committed checkout and resolves `identity.json`
+before either backend producer. It freezes the executed checkout (`candidate`), the captured target
 branch commit (`target`), and the comparison commit (`base`). A local feature
 run compares against the unique merge base with its captured target; PR and
 merge-group runs use the event's exact base with the combined checkout as the

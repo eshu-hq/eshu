@@ -138,22 +138,29 @@ def check_static(root: Path) -> None:
         static_call in runner_lines,
         "static contract validator missing from methodology runner",
     )
-    identity_order = (
+    static_order = (
         'export ESHU_QUERY_METHODOLOGY_IDENTITY="$artifact_dir/identity.json"',
-        "export ESHU_QUERY_METHODOLOGY_REQUIRED=1",
         'rm -f "$ESHU_QUERY_METHODOLOGY_IDENTITY"',
-        'python3 "$repo_root/scripts/lib/query-methodology-comparison-identity.py" --root "$repo_root" --output "$ESHU_QUERY_METHODOLOGY_IDENTITY"',
-        '[[ -s "$ESHU_QUERY_METHODOLOGY_IDENTITY" ]] || { printf \'missing frozen methodology comparison identity\\n\' >&2; exit 1; }',
+        "unset ESHU_QUERY_METHODOLOGY_REQUIRED || true",
+        'if ! git -C "$repo_root" diff --quiet --exit-code; then',
+        'untracked="$(git -C "$repo_root" ls-files --others --exclude-standard)"',
+        'if [[ -n "$untracked" ]]; then',
         static_call,
-        "go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
         "go_test_run_guard 2 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
         "go test ./internal/queryplan -count=1",
+        'if [[ "$mode" == --static ]]; then',
+        'if ! git -C "$repo_root" diff --cached --quiet --exit-code; then',
+        "export ESHU_QUERY_METHODOLOGY_REQUIRED=1",
+        'python3 "$repo_root/scripts/lib/query-methodology-comparison-identity.py" --root "$repo_root" --output "$ESHU_QUERY_METHODOLOGY_IDENTITY"',
+        '[[ -s "$ESHU_QUERY_METHODOLOGY_IDENTITY" ]] || { printf \'missing frozen methodology comparison identity\\n\' >&2; exit 1; }',
+        "go_test_run_guard 1 '^TestMethodologyProductionSourceTreesMatchBase$' -- -tags queryplan_profile_live ./internal/query -count=1 -v",
+        'rm -f "$artifact_dir/postgresql.json" "$artifact_dir/neo4j.json" "$artifact_dir/neo4j-cases.json"',
     )
     positions = []
-    for line in identity_order:
-        require(runner_lines.count(line) == 1, f"methodology runner lost frozen identity or parity step: {line}")
+    for line in static_order:
+        require(runner_lines.count(line) == 1, f"methodology runner lost staged or live identity step: {line}")
         positions.append(runner_lines.index(line))
-    require(positions == sorted(positions), "methodology identity must freeze before any producer or parity check")
+    require(positions == sorted(positions), "staged contracts must precede live identity and every backend producer")
     go_call = (
         ' if ! go test -json -tags "$tag" -run "^${root_name}$" '
         '"$package" -count=1 -timeout="$timeout" > "$events"; then'

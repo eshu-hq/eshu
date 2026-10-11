@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$SHIM_LOG"
-if [[ "${ESHU_QUERY_METHODOLOGY_REQUIRED:-}" != 1 || ! -s "${ESHU_QUERY_METHODOLOGY_IDENTITY:-}" ]]; then
+if [[ "${ESHU_QUERY_METHODOLOGY_REQUIRED:-}" == 1 && ! -s "${ESHU_QUERY_METHODOLOGY_IDENTITY:-}" ]]; then
  printf 'go producer started without frozen required methodology identity\n' >&2
  exit 15
 fi

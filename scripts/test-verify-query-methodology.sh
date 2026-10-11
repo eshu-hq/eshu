@@ -13,7 +13,8 @@ run_shim() {
  SHIM_LOG="$work/$name.log" ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR="$work/$name-artifacts" ESHU_SKIP_LIVE_GATE_LOCK=1 PATH="$work/bin:$PATH" bash "$repo_root/scripts/verify-query-methodology.sh" "$mode" > "$work/$name.out" 2>&1
 }
 run_shim static --static
-[[ -s "$work/static-artifacts/identity.json" ]] || { printf 'static proof omitted frozen comparison identity\n' >&2; exit 1; }
+[[ ! -e "$work/static-artifacts/identity.json" ]] || { printf 'static proof claimed a committed paired identity\n' >&2; exit 1; }
+[[ -s "$work/static-artifacts/coverage.json" ]] || { printf 'static proof omitted inventory coverage\n' >&2; exit 1; }
 guard_pattern='^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$'
 rg -Fq -- "-list $guard_pattern" "$work/static.log" || { printf 'static proof omitted both identity guard roots\n' >&2; exit 1; }
 rg -Fq -- "-run $guard_pattern" "$work/static.log" || { printf 'static proof did not execute both identity guard roots\n' >&2; exit 1; }
@@ -24,7 +25,47 @@ for omitted in TestMethodologyProductionTreeRejectsBaseOnlyMigration TestMethodo
  fi
 done
 GIT_DIR="$work/missing-git" GIT_WORK_TREE=. GIT_PREFIX=go/internal/query/ run_shim inherited-git-env --static
-cmp "$work/static-artifacts/identity.json" "$work/inherited-git-env-artifacts/identity.json" || { printf 'hook Git environment changed frozen comparison identity\n' >&2; exit 1; }
+cmp "$work/static-artifacts/coverage.json" "$work/inherited-git-env-artifacts/coverage.json" || { printf 'hook Git environment changed staged coverage\n' >&2; exit 1; }
+# Reproduce the first staged commit on a branch whose HEAD equals origin/main.
+scratch="$work/first-commit"
+mkdir -p "$scratch/scripts/lib" "$scratch/go" "$scratch/bin"
+cp "$repo_root/scripts/verify-query-methodology.sh" "$scratch/scripts/"
+cp "$repo_root/scripts/lib/go-test-run-guard.sh" "$scratch/scripts/lib/"
+cp "$repo_root/scripts/lib/query-methodology-comparison-identity.py" "$scratch/scripts/lib/"
+cp "$work/bin/go" "$work/bin/docker" "$scratch/bin/"
+cat > "$scratch/bin/python3" <<'PYTHON_SHIM'
+#!/usr/bin/env bash
+if [[ "$1" == */verify-query-methodology-live-contract.py ]]; then exit 0; fi
+exec /usr/bin/python3 "$@"
+PYTHON_SHIM
+chmod +x "$scratch/bin/python3"
+printf '.proof-artifacts/\n' > "$scratch/.gitignore"
+printf 'package proof\n' > "$scratch/go/source.go"
+git -C "$scratch" init --quiet --initial-branch=main
+git -C "$scratch" config user.name 'Eshu Test'
+git -C "$scratch" config user.email 'eshu-test@example.invalid'
+git -C "$scratch" add .
+git -C "$scratch" commit --quiet -m 'scratch base'
+git -C "$scratch" update-ref refs/remotes/origin/main HEAD
+git -C "$scratch" switch --quiet -c first-commit
+printf '// staged first change\n' >> "$scratch/go/source.go"
+git -C "$scratch" add go/source.go
+scratch_run() {
+ SHIM_LOG="$work/first-commit.log" ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR="$scratch/.proof-artifacts/query-methodology" PATH="$scratch/bin:$PATH" bash "$scratch/scripts/verify-query-methodology.sh" "$1" > "$work/first-commit.out" 2>&1
+}
+scratch_run --static || { cat "$work/first-commit.out" >&2; printf 'first staged commit failed static proof\n' >&2; exit 1; }
+[[ ! -e "$scratch/.proof-artifacts/query-methodology/identity.json" ]] || { printf 'first staged commit claimed paired identity\n' >&2; exit 1; }
+printf '// unstaged change\n' >> "$scratch/go/source.go"
+if scratch_run --static; then printf 'unstaged bytes passed staged proof\n' >&2; exit 1; fi
+git -C "$scratch" restore go/source.go
+printf 'package unknown\n' > "$scratch/go/untracked.go"
+if scratch_run --static; then printf 'untracked source passed staged proof\n' >&2; exit 1; fi
+rm "$scratch/go/untracked.go"
+git -C "$scratch" commit --quiet -m 'scratch candidate'
+git -C "$scratch" update-ref refs/remotes/origin/main HEAD
+if scratch_run --live; then printf 'equal base and candidate passed live proof\n' >&2; exit 1; fi
+rg -Fq 'base equals candidate' "$work/first-commit.out" || { cat "$work/first-commit.out" >&2; printf 'live equal-base rejection lacked cause\n' >&2; exit 1; }
+if rg -q '^docker ' "$work/first-commit.log"; then printf 'equal-base live proof reached Docker\n' >&2; exit 1; fi
 if rg -q '^docker ' "$work/static.log"; then printf 'static stage touched Docker\n' >&2; exit 1; fi
 if SHIM_OMIT=coverage run_shim missing-coverage --static; then printf 'missing coverage passed\n' >&2; exit 1; fi
 run_shim stale-coverage --static
@@ -34,6 +75,7 @@ if ! run_shim live --live; then
  printf 'live methodology shim failed\n' >&2
  exit 1
 fi
+[[ -s "$work/live-artifacts/identity.json" ]] || { printf 'live proof omitted frozen comparison identity\n' >&2; exit 1; }
 for image_id in postgres-bookworm neo4j-community; do
  expected_image="$(jq -er --arg id "$image_id" '.images[] | select(.id == $id) | .destination + "@" + .digest' "$repo_root/specs/ci-images.v1.json")"
  rg -Fq -- "$expected_image" "$work/live.log" || {

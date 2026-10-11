@@ -86,6 +86,9 @@ Run `bash scripts/verify-query-methodology.sh --static` for deterministic
 contracts and `bash scripts/verify-query-plan-regression.sh` for the complete
 targeted live stage. The latter produces `coverage.json`, `postgresql.json`,
 `neo4j.json` and raw graph cases under `.proof-artifacts/query-methodology/`.
+Static coverage is an inventory snapshot of staged bytes, not a paired commit
+artifact. Only the live stage freezes `identity.json` and validates both
+committed revisions before backend producers run.
 The PR and merge-group job archives those files. Their validators require
 current base/candidate commits and reject reuse when a producer omits output.
 
