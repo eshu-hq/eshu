@@ -5,6 +5,7 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"testing"
@@ -240,6 +241,9 @@ func TestBlankCheckChunkFailureFailsTheRepository(t *testing.T) {
 		Repository{ID: hydrationTestRepoID, Name: "svc"}, nil, false, AllowanceWholeWindow)
 	if err == nil {
 		t.Fatal("a failed second blank-check chunk did not fail the load")
+	}
+	if !errors.Is(err, errInjectedRead) {
+		t.Fatalf("err = %v, want it to wrap the injected read failure", err)
 	}
 	if stats.BlankCheckStatements != 2 {
 		t.Fatalf("BlankCheckStatements = %d, want the 2 statements issued", stats.BlankCheckStatements)
