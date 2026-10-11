@@ -14,8 +14,10 @@
 // these phases against contiguous, non-overlapping key ranges:
 //
 //  1. a probe of 200 rows in repo_id, relative_path order, shaped as an
-//     ordered primary-key walk that never uses the trigram index;
-//  2. continuation steps of 500 rows, capped at 0.55 x the budget;
+//     ordered primary-key walk that never uses the trigram index, with the
+//     remaining budget as its statement timeout;
+//  2. continuation steps of 500 rows, capped at 0.55 x the budget, each with
+//     the room left in that cap as its statement timeout;
 //  3. a trigram tail inside a savepoint with index scans disabled and a
 //     statement timeout of min(remaining budget, 0.5 x budget);
 //  4. continuation steps with whatever budget remains.

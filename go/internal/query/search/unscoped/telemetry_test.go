@@ -291,6 +291,9 @@ func TestSearchScalesTailTimeoutWithBudget(t *testing.T) {
 		t.Fatalf("statements = %v, want the probe then the tail: the predicted step is over the scaled cap", got)
 	}
 	assertTailShape(t, fdb.tx, "200ms")
+	if got := timeouts(fdb.tx); len(got) == 0 || got[0] != "400ms" {
+		t.Fatalf("statement timeouts = %v, want the probe's to be the whole 400 ms budget", got)
+	}
 
 	// With cheap rows the scaled cap bounds the continuation instead: 25 ms
 	// steps fit eight times into 220 ms, and the phase-one cap is reported.
@@ -306,6 +309,25 @@ func TestSearchScalesTailTimeoutWithBudget(t *testing.T) {
 	if got := attrs["search.continuation_steps"].AsInt64(); got != 8 {
 		t.Errorf("search.continuation_steps = %d, want 8 (8 x 25 ms inside the 220 ms cap)", got)
 	}
+	// Each step's timeout is the room left in the 220 ms phase: the first is
+	// the whole cap, and every later one shrinks by the time already used.
+	got := timeouts(s.searcher.Store.(*fakeDB).tx)
+	want := []string{"400ms", "220ms", "195ms", "170ms", "145ms", "120ms", "95ms", "70ms", "45ms"}
+	if len(got) < len(want) || !equalKeys(got[:len(want)], want) {
+		t.Errorf("statement timeouts = %v, want the probe at the budget then %v", got, want[1:])
+	}
+}
+
+// timeouts lists the statement_timeout values the walk set, in order.
+func timeouts(tx *fakeTx) []string {
+	var out []string
+	for i, label := range tx.log {
+		if label == "set_timeout" {
+			text, _ := tx.args[i][0].(string)
+			out = append(out, text)
+		}
+	}
+	return out
 }
 
 // Every bounded statement and the statement timeout carry pgx's exec mode so

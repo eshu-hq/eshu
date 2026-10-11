@@ -241,3 +241,122 @@ Limit recorded, not fixed here: the 54.9 MB document keeps kafka-like tokens
 over the bar under every continuation policy. Issue #7975 tracks it. A size
 predicate cannot fix it inside the search statements, because the bitmap heap
 scan rechecks the trigram condition before any other condition.
+
+### Window timeouts from the phase room (decision 3.2)
+
+Before this change the probe and each continuation step ran under a flat
+300 ms statement timeout (0.375 x budget). A window that holds one large
+document costs more than that, and the recheck cannot be interrupted, so the
+cancel landed only after the window was paid for and then discarded it. A
+resume chain for a token whose tail cannot finish then reached a dead end: the
+next call's probe met the same document and was cancelled, no step ran, the
+tail was cancelled by the same document, and the answer was
+`progressed: false`.
+
+Read-only probe of the QA environment's read replica, 2026-10-11
+19:23:31-19:23:34Z, approved as six sequential statements, each in BEGIN READ
+ONLY / ROLLBACK: two key-only cursor lookups, then the shipped step statement
+(500-row window, zero-match 12-character literal so every row is rechecked,
+values bound as literals) over the window after each cursor. Cursor literals
+stayed in psql variables and were never printed. One sample each.
+
+| statement | window (key ordinals) | timeout | wall | result |
+| --- | --- | --- | --- | --- |
+| cursor lookup A | ordinal 31,700 | 15 s | 98.0 ms | key read |
+| cursor lookup B | ordinal 146,700 | 15 s | 103.2 ms | key read |
+| window A | 31,701-32,200, holds the 33.2 MB document (31,838) | 300 ms | 524.0 ms | cancelled, 224 ms past the timeout |
+| window A | same | 800 ms | 468.5 ms | completed |
+| window B | 146,701-147,200, holds the 54.9 MB document (146,842) | 300 ms | 781.8 ms | cancelled, 482 ms past the timeout |
+| window B | same | 800 ms | 723.4 ms | completed |
+
+Read the table plainly: both windows exceed the old 300 ms timeout and both
+complete inside 800 ms. The 33.2 MB window costs 0.47-0.52 s, more than the
+0.27-0.37 s the ruling estimated from the per-document recheck; each window
+ran at 300 ms first, so the 800 ms run may be the warmer one. The ordinals are
+those of the 10-11 census; ingest may have moved them by a few rows, and the
+walls show the large document is in each window.
+
+The change: the probe's timeout is the remaining budget and a step's is the
+room left in its phase (`min(phase allowance - used, remaining)`). No
+statement text and no cursor rule changes (only a completed statement advances
+the cursor). The rows one call returns can change for one corpus shape: a probe
+window whose cost is spread over its rows and exceeds budget minus the tail's
+cost now completes and advances the cursor 200 rows, and the tail runs with
+less room; where the flat 300 ms cancel was cheap and the tail then completed,
+the call is now partial and resumable (fake clock: 600 ms window, 300 ms tail:
+exhausted 3 rows at 603 ms before, partial 0 rows progressed at 803 ms now). A
+region of such windows costs one call per 200 rows (2,000 rows: 11 calls
+instead of 1). The same shape with a tail above the tail cap was a dead end
+before (progressed=false) and is resumable now. The census of 2026-10-11 holds
+no such window: the heaviest 200-row window in key rows 1-25,000 is 11.4 MB,
+about 92 ms. `TestSpreadProbeWindowTrade` pins the three rows.
+
+At the default budget a window that holds the 33.2 MB
+document completes in a probe (800 ms of room) but not in a continuation step
+(at most 440 ms of room): the step is cancelled after the recheck, each call's
+probe still advances the cursor 200 rows, and the first probe whose window
+holds the document pays for it. The dead end now needs a window that costs
+more than the whole budget; the 2026-10-11 census holds none (the costliest,
+0.72-0.78 s, is under 800 ms with about 50 ms to spare, so a slower replica
+could still reach it). For a window whose cost is spread over its rows this is
+a new dead end when its tail would have completed under the flat timeout (fake
+clock: 900 ms window, 300 ms tail: exhausted before, progressed=false now); no
+measured window is near it.
+
+Unit proof (fake clock): `TestResumeCrossesWindowWithLargeRow` resumes from a
+cursor just before a 500-row window with one 370 ms row (the ruling's figure)
+and with one 470 ms row (the measured window A); with the flat timeout both
+chains stop at call 2 with `progressed: false`, and with the room timeouts the
+first completes in one call and the second in two.
+`TestProbeWindowWithLargeRowProgresses` puts one 700 ms row in the probe
+window: with the flat timeout the probe is cancelled and the call does not
+progress; with the room timeout the probe completes. Live proof
+(`TestResumeChainCrossesLargeDocumentLive`, local PostgreSQL 18.6, a planted
+16 MB document whose window costs about 47-52 ms warm, budget twice that): a
+resume chain from the first row crosses the document in 3-4 calls with every
+call progressed and returns the old statement's rows; the same test against
+the flat-timeout code stops at call 3 with `progressed: false`. The budget is
+derived from the measured window cost so the ratios hold on any host; the
+ruling's 400 ms figure assumed the QA environment's recheck cost (about
+13 ms/MB), and the laptop rechecks about 3 ms/MB.
+
+After this change the after-tail continuation issues no statement at the
+default ratios, at any budget. Let B be the budget, P the probe wall, U the
+continuation spend before the tail, e the predicted next step, c = phase-one
+cap (0.55 B) and t = tail cap (0.5 B). The continuation stops on one of two
+conditions. (i) `e > min(c - U, B - P - U)`: the tail then runs with timeout
+`min(B - P - U, t)`; if `B - P - U <= t` a cancelled tail leaves nothing, and
+otherwise the room after it is `B - P - U - t < min(c - U, B - P - U) < e`
+(because c >= t and P < B - t), so no step fits. (ii) A step is cancelled at
+its room, so `U >= c - 1 ms` (the timeout is set in whole milliseconds); then
+`B - P - U <= B - c + 1 ms`, under t by the margin `c - t = 0.05 B` (5 ms at
+the 100 ms minimum budget), and the tail takes all that is left. The phase
+stays in the order for other ratios.
+
+### Evidence markers for the 0.55 cap and the window timeouts
+
+Performance Evidence: baseline is the shipped walk (0.15 cap, flat 300 ms
+window timeouts) as read on the QA environment on 2026-10-11 (PostgreSQL 18.3
+read replica, 147,069 content rows, MCP tool, `limit` 10): 9 of 17 tokens
+partial, common tokens 0 rows at 1.08-1.14 s. After: the QA-calibrated model of
+the 0.55 cap (validated against the observed baseline within about 5 %) gives
+the per-class table above; it is a model, not a deployed run, and the deployed
+re-read after the image roll is the closure evidence. The window timeouts are
+backed by the six-statement replica probe above (both large-document windows
+cancelled at 300 ms, completed at 800 ms) and by the fake-clock and local
+PostgreSQL 18.6 RED/GREEN tests. The change adds no statement text and changes
+no cursor rule; it changes which rows one call returns for the spread-window
+shape above. It moves where the budget is spent, and a call still ends within
+its budget plus one reported overrun. One call stays one read-only snapshot on
+one pooled connection, so the pool sees the same load shape.
+
+Observability Evidence: `search.ended_in`, `search.steps_cancelled`,
+`search.progressed` and `search.phase_one_cap_ms` on the search span;
+`eshu_dp_content_search_step_cancel_total` and
+`eshu_dp_content_search_no_progress_total`; `progressed`, `steps_cancelled`
+and `ended_in` on the partial log line. The spread-window trade shows as
+`search.ended_in=tail` with `search.tail_cancelled` and `search.progressed=true`,
+or `ended_in=budget`, and its dead end raises
+`eshu_dp_content_search_no_progress_total`, the 3 AM signal. After the roll, a
+rising `no_progress_total` means a dead end is back, and `step_cancel_total` beside
+the tail-cancel counter shows whether large windows or the tail stop walks.

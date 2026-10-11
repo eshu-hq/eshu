@@ -94,7 +94,7 @@ func (w *walk) remaining() time.Duration { return w.plan.budget - w.elapsed() }
 func (w *walk) run(ctx context.Context) error {
 	probeStart := w.now()
 	w.endedIn = phaseProbe
-	if err := w.window(ctx, probeRows, w.plan.probeTimeout); err != nil {
+	if err := w.window(ctx, probeRows, w.remaining()); err != nil {
 		return err
 	}
 	if w.finished {
@@ -119,8 +119,10 @@ func (w *walk) run(ctx context.Context) error {
 
 // continuation issues 500-row steps while the phase allowance and the overall
 // budget can pay for the next one. The next step's cost is predicted by the
-// previous step's measured duration; a cancelled step ends the phase. name is
-// recorded as the walk's last phase once a step is issued.
+// previous step's measured duration. A step's statement timeout is the room
+// left in the phase, so a window that holds one large document completes when
+// the phase can pay for it; a cancelled step ends the phase. name is recorded
+// as the walk's last phase once a step is issued.
 func (w *walk) continuation(ctx context.Context, allowance time.Duration, name phase) error {
 	var used time.Duration
 	for !w.finished {
@@ -130,7 +132,7 @@ func (w *walk) continuation(ctx context.Context, allowance time.Duration, name p
 		}
 		before := w.now()
 		w.endedIn = name
-		cancelled, err := w.step(ctx, stepRows, min(w.plan.stepTimeout, room))
+		cancelled, err := w.step(ctx, stepRows, room)
 		if err != nil {
 			return err
 		}
@@ -146,7 +148,9 @@ func (w *walk) continuation(ctx context.Context, allowance time.Duration, name p
 	return nil
 }
 
-// window runs the probe: one step that must not be cancelled silently.
+// window runs the probe: one step that must not be cancelled silently. Its
+// timeout is the remaining budget, so only a window costing more than the
+// whole budget is cancelled.
 func (w *walk) window(ctx context.Context, size int, timeout time.Duration) error {
 	cancelled, err := w.step(ctx, size, timeout)
 	if err != nil {

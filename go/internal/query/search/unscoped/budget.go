@@ -21,7 +21,7 @@ const (
 	// result reports that overrun.
 	DefaultBudget = 800 * time.Millisecond
 	// MinBudget is the smallest accepted budget. Below it the tail floor and
-	// step timeouts shrink under the cost of one round trip.
+	// the phase rooms shrink under the cost of one round trip.
 	MinBudget = 100 * time.Millisecond
 	// MaxBudget is the largest accepted budget. The read replica cancels a
 	// transaction that conflicts with recovery after about 30 s, so a search
@@ -54,15 +54,21 @@ func BudgetFromEnv(getenv func(string) string) (time.Duration, error) {
 	return budget, nil
 }
 
-// plan holds every timeout derived from one budget. The ruling's figures are
-// stated at the 800 ms default; each scales linearly with the budget.
+// plan holds the phase limits derived from one budget. The ruling's figures
+// are stated at the 800 ms default; each scales linearly with the budget.
+//
+// The key-ordered windows have no fixed timeout of their own: the probe's is
+// the remaining budget and a continuation step's is the room left in its
+// phase. One document's recheck cannot be interrupted, so a fixed timeout
+// below a window's cost cancels the window only after its work is done, and a
+// resume chain then meets the same window again (#7730, decision 3.2). With
+// the room as the timeout a window completes whenever the phase can pay for
+// it; only a window that costs more than the whole budget still stalls.
 type plan struct {
-	budget       time.Duration
-	probeTimeout time.Duration // statement timeout of the probe: 300 ms at 800 ms
-	stepTimeout  time.Duration // statement timeout of one continuation step: 300 ms at 800 ms
-	phaseOneCap  time.Duration // continuation before the tail: 0.55 x budget
-	tailCap      time.Duration // largest tail timeout: 0.5 x budget
-	tailFloor    time.Duration // smallest useful tail timeout: 150 ms at 800 ms
+	budget      time.Duration
+	phaseOneCap time.Duration // continuation before the tail: 0.55 x budget
+	tailCap     time.Duration // largest tail timeout: 0.5 x budget
+	tailFloor   time.Duration // smallest useful tail timeout: 150 ms at 800 ms
 }
 
 func newPlan(budget time.Duration) plan {
@@ -70,9 +76,7 @@ func newPlan(budget time.Duration) plan {
 		return time.Duration(int64(atDefault) * int64(budget) / int64(DefaultBudget))
 	}
 	return plan{
-		budget:       budget,
-		probeTimeout: scale(300 * time.Millisecond),
-		stepTimeout:  scale(300 * time.Millisecond),
+		budget: budget,
 		// 0.55 x budget (#7730 continuation shim of 2026-10-11,
 		// 7730-continuation-shim-20261011.md, on the QA environment read of
 		// 2026-10-11): one key-ordered window to the 11th match of the common

@@ -29,9 +29,24 @@ measured 268 ms zero-match and 300 ms selective tails. Caps from 0.50 to 0.60
 keep every modelled class exact that was exact before; 0.65 turns the
 selective class partial. `TestPolicyClasses` pins each class.
 
-At the default ratios (cap 0.55, tail cap 0.5) a cancelled tail leaves no
-budget for the after-tail continuation unless a step in the capped
-continuation was cancelled first; the phase stays in the order for that case.
+Window timeouts: the probe's statement timeout is the remaining budget and a
+continuation step's is the room left in its phase. One document's recheck
+cannot be interrupted, so a fixed timeout under a window's cost only cancels
+the window after its work is done, and a resume chain then meets the same
+window on every call (a dead end, `progressed: false`). With the room as the
+timeout a window completes whenever its phase can pay for it. The dead end
+remains only for a window that costs more than the whole budget. A window
+whose cost is spread over its rows and exceeds the budget minus the tail's
+cost now completes and leaves the tail less room, so a call that was exact in
+one call can end partial and resumable; the evidence note has the figures and
+`TestSpreadProbeWindowTrade` pins them. On the QA
+environment's corpus of 2026-10-11 the two costliest windows measured
+0.47-0.52 s (33.2 MB document) and 0.72-0.78 s (54.9 MB document), both under
+the 800 ms default.
+
+At the default ratios (cap 0.55, tail cap 0.5) a cancelled tail leaves less
+budget than the after-tail continuation's next predicted step, so that phase
+issues no statement; it stays in the order for other ratios.
 
 Cursor rules: the cursor is the last visited key; only a completed window
 advances it; every statement reads strictly after it; `offset` is served by
