@@ -17,10 +17,11 @@
 -- trigger bumps version once per content transaction. A derive reads the
 -- version before it lists files and writes rows only when the version or the
 -- extractor version advances. Rule: delete or reset a version row only in
--- the same transaction as the repository's state row. A version row created
--- again while the state row survives counts up from 1 and can reach the old
--- state.content_version, so readers would trust stale rows. A guard test in
--- go/internal/storage/postgres/config/artifacts enforces the rule for Go.
+-- the same statement that deletes the repository's state row. A version row
+-- created again while the state row survives counts up from 1 and can reach
+-- the old state.content_version, so readers would trust stale rows. A guard
+-- test in go/internal/storage/postgres/config/artifacts enforces the rule for
+-- Go statements and migrations.
 --
 -- config_artifact_repo_state: one row per derived repository. row_count is
 -- NULL until the first successful derive. A failure-only row has a NULL

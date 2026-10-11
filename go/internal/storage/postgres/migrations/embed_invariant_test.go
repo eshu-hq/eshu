@@ -66,7 +66,7 @@ import (
 // 168_webhook_refresh_triggers_claim_fencing.sql; #7760 adds
 // 169_content_files_generation_id.sql; #7126 adds
 // 170_config_artifact_read_model.sql.
-const goldenBootstrapDefinitionsDigest = "ced6581c1a7025e58f529c59ab6b044359fcd76e0b7a3a7810a6446ab117ebbe"
+const goldenBootstrapDefinitionsDigest = "48b0b9b138bfabfa866dddbbb064b283101ad1b2b99b0973f9b369a9c6ecff6d"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
