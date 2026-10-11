@@ -197,5 +197,5 @@ job. The existing scale archive includes the sanitized diagnostic directory.
 Ordinary PR, push, merge-group and manual acceptance runs keep diagnostics off.
 The local proof compared OFF/ON/ON/OFF on one retained full seeded database,
 with fresh API processes and identical request/work settings. That comparison
-bounds the touched status path on the local host; it does not establish hosted
-performance or overhead on unrelated routes.
+provides local observations for the touched status path; it does not establish
+a quantitative overhead bound, hosted performance, or overhead on other routes.
