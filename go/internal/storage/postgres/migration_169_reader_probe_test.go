@@ -251,3 +251,86 @@ func assertBackfillLockModes(t *testing.T, samples []migration169LockSample, bac
 		t.Fatal("pg_locks sampler never saw the backfill UPDATE's RowExclusiveLock on content_files")
 	}
 }
+
+// assertMigration169Receipts requires exactly want ledger receipts for path.
+func assertMigration169Receipts(t *testing.T, ctx context.Context, database *sql.DB, path string, want int) {
+	t.Helper()
+	var got int
+	if err := database.QueryRowContext(ctx,
+		"SELECT count(*) FROM eshu_schema_migrations WHERE path = $1", path).Scan(&got); err != nil {
+		t.Fatalf("count 169 receipts: %v", err)
+	}
+	if got != want {
+		t.Fatalf("169 receipts = %d, want %d", got, want)
+	}
+}
+
+// contentFilesTupleFingerprint hashes every content_files ctid. An UPDATE
+// writes a new tuple version for each row it touches, so an unchanged
+// fingerprint proves a statement rewrote no row.
+func contentFilesTupleFingerprint(t *testing.T, ctx context.Context, database *sql.DB) string {
+	t.Helper()
+	var fingerprint string
+	if err := database.QueryRowContext(ctx,
+		"SELECT md5(string_agg(ctid::text, ',' ORDER BY ctid)) FROM content_files").Scan(&fingerprint); err != nil {
+		t.Fatalf("fingerprint content_files tuples: %v", err)
+	}
+	return fingerprint
+}
+
+// interruptMigration169Backfill clears the tag and receipt, starts the tracked
+// apply, terminates the migrator's backend while its backfill UPDATE runs,
+// and requires: the committed ALTER kept, no tag written, no receipt; then a
+// rerun that completes with exactly one receipt.
+func interruptMigration169Backfill(t *testing.T, ctx context.Context, database *sql.DB, definitions []Definition, path string) {
+	t.Helper()
+	if _, err := database.ExecContext(ctx, "ALTER TABLE content_files DROP COLUMN generation_id"); err != nil {
+		t.Fatalf("reset generation tag for interruption: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, "DELETE FROM eshu_schema_migrations WHERE path = $1", path); err != nil {
+		t.Fatalf("clear 169 receipt for interruption: %v", err)
+	}
+	quiet := slog.New(slog.DiscardHandler)
+	result := make(chan error, 1)
+	go func() {
+		result <- applyBootstrapDefinitionsWith(ctx, SQLDB{DB: database}, definitions, quiet, schemaBootstrapCoordination{})
+	}()
+	deadline := time.Now().Add(time.Minute)
+	terminated := false
+	for !terminated && time.Now().Before(deadline) {
+		err := database.QueryRowContext(ctx, `
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+WHERE state = 'active' AND pid <> pg_backend_pid() AND query LIKE '%UPDATE content_files AS f%'
+LIMIT 1`).Scan(&terminated)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("terminate 169 backfill: %v", err)
+		}
+		if !terminated {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if !terminated {
+		t.Fatal("169 backfill UPDATE never became active to interrupt")
+	}
+	if err := <-result; err == nil {
+		t.Fatal("interrupted 169 apply returned nil, want the terminated backend's error")
+	}
+	var columns int
+	if err := database.QueryRowContext(ctx, `
+SELECT count(*) FROM information_schema.columns
+WHERE table_schema = current_schema() AND table_name = 'content_files' AND column_name = 'generation_id'`).Scan(&columns); err != nil {
+		t.Fatalf("read generation_id column: %v", err)
+	}
+	if columns != 1 {
+		t.Fatalf("generation_id columns after interruption = %d, want 1 (the ALTER phase committed)", columns)
+	}
+	if tagged := countTaggedContentFiles(t, ctx, database); tagged != 0 {
+		t.Fatalf("tagged rows after interruption = %d, want 0 (the UPDATE rolled back)", tagged)
+	}
+	assertMigration169Receipts(t, ctx, database, path, 0)
+	if err := applyBootstrapDefinitionsWith(ctx, SQLDB{DB: database}, definitions, quiet, schemaBootstrapCoordination{}); err != nil {
+		t.Fatalf("rerun after interrupted 169: %v", err)
+	}
+	assertMigration169Receipts(t, ctx, database, path, 1)
+	t.Log("interrupted 169: backend terminated during backfill; ALTER kept, 0 tags, 0 receipts; rerun completed with 1 receipt")
+}

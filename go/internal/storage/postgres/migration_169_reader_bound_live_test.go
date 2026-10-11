@@ -100,25 +100,30 @@ func TestMigration169PhasedBackfillReaderBoundLive(t *testing.T) {
 		t.Fatalf("only %d reads ran during the %s backfill; raise -eshu.migration169.rows", len(duringBackfill), backfill.duration())
 	}
 	assertBackfillLockModes(t, locks, backfill)
-	addColumn := phases.duration("add_column")
+	addColumnWindow, _ := phases.window("add_column")
+	addColumn := addColumnWindow.duration()
 	if addColumn > migration169ReaderBound {
 		t.Fatalf("add_column phase held its lock for %s, bound %s", addColumn, migration169ReaderBound)
 	}
 	if tagged := countTaggedContentFiles(t, ctx, database); tagged != rows {
 		t.Fatalf("tagged rows = %d, want %d (every seeded row is eligible)", tagged, rows)
 	}
-	t.Logf("phased 169: rows=%d tokens=%d apply=%s add_column=%s backfill=%s analyze=%s wal_bytes=%d reads=%d reads_in_backfill=%d max_read_wait=%s max_read_wait_in_backfill=%s lock_samples=%d lock_modes_in_backfill=%v",
+	migrationPath := definitions[boundary].Path
+	assertMigration169Receipts(t, ctx, database, migrationPath, 1)
+	t.Logf("phased 169: rows=%d tokens=%d apply=%s add_column=%s backfill=%s analyze=%s wal_bytes=%d reads=%d reads_in_backfill=%d max_read_wait=%s max_read_wait_in_backfill=%s lock_samples=%d lock_modes_in_add_column=%v lock_modes_in_backfill=%v",
 		rows, *migration169ProofTokens, applyElapsed, addColumn, backfill.duration(), phases.duration("analyze"),
 		walBytes, len(reads), len(duringBackfill), maxReadWait(reads), maxReadWait(duringBackfill), len(locks),
-		lockModesWithin(locks, backfill))
+		lockModesWithin(locks, addColumnWindow), lockModesWithin(locks, backfill))
 
 	// Idempotent re-run: a recorded receipt skips; a cleared receipt replays
-	// every phase and the NULL guard leaves the existing tags untouched.
+	// every phase, and the NULL guard rewrites no row (every ctid is unchanged).
+	before := contentFilesTupleFingerprint(t, ctx, database)
 	if err := applyBootstrapDefinitionsWith(ctx, SQLDB{DB: database}, through169, quiet, schemaBootstrapCoordination{}); err != nil {
 		t.Fatalf("re-apply with receipt: %v", err)
 	}
 	assertMigrationLedgerCount(t, ctx, database, boundary+1)
-	if _, err := database.ExecContext(ctx, "DELETE FROM eshu_schema_migrations WHERE path = $1", definitions[boundary].Path); err != nil {
+	assertMigration169Receipts(t, ctx, database, migrationPath, 1)
+	if _, err := database.ExecContext(ctx, "DELETE FROM eshu_schema_migrations WHERE path = $1", migrationPath); err != nil {
 		t.Fatalf("clear 169 receipt: %v", err)
 	}
 	rerun := &migration169PhaseRecorder{}
@@ -126,10 +131,19 @@ func TestMigration169PhasedBackfillReaderBoundLive(t *testing.T) {
 		t.Fatalf("replay 169 without receipt: %v", err)
 	}
 	assertMigrationLedgerCount(t, ctx, database, boundary+1)
-	if tagged := countTaggedContentFiles(t, ctx, database); tagged != rows {
-		t.Fatalf("tagged rows after replay = %d, want %d", tagged, rows)
+	assertMigration169Receipts(t, ctx, database, migrationPath, 1)
+	if after := contentFilesTupleFingerprint(t, ctx, database); after != before {
+		t.Fatal("receipt-free replay rewrote content_files rows; the generation_id IS NULL guard must match none")
 	}
-	t.Logf("replayed 169: backfill=%s (NULL guard matched no rows)", rerun.duration("backfill"))
+	t.Logf("replayed 169: backfill=%s, rows rewritten=0 (tuple fingerprint unchanged)", rerun.duration("backfill"))
+
+	// Interruption at scale: terminate the migrator's backend during the
+	// backfill. The committed ALTER stays, the UPDATE rolls back, no receipt
+	// is written, and a rerun completes with exactly one receipt.
+	interruptMigration169Backfill(t, ctx, database, through169, migrationPath)
+	if tagged := countTaggedContentFiles(t, ctx, database); tagged != rows {
+		t.Fatalf("tagged rows after interrupted rerun = %d, want %d", tagged, rows)
+	}
 
 	// Control: the same SQL as one simple-protocol message, as the migrator
 	// sent it before #7946. A reader must block past the bound; otherwise the
@@ -200,7 +214,7 @@ SELECT 'repo-' || (1 + (n %% 782)), 'src/pkg' || (n %% 97) || '/file_' || n || '
 FROM (
   SELECT n, (SELECT string_agg(v.w, CASE WHEN k %% 12 = 0 THEN E'\n' ELSE ' ' END)
              FROM generate_series(1, %d) k
-             JOIN vocab v ON v.i = 1 + ((n * 7919 + k * 104729) %% 4000)) AS body
+             JOIN vocab v ON v.i = 1 + ((n::bigint * 7919 + k * 104729) %% 4000)) AS body
   FROM generate_series(1, %d) n
 ) s;
 DROP TABLE vocab;
