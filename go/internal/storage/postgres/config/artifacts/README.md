@@ -59,14 +59,39 @@ because each derive rewrites a repository's rows.
   A version row created again while its state row survives counts up from 1
   and can reach the old `content_version`, so readers would trust stale
   rows. `TestNoStatementDeletesVersionRowsOutsideRetirement` enforces this
-  for every Go statement and migration.
+  for every Go literal expression (one string literal or one `+` chain of
+  literals) and every migration. It reads `DELETE`, `MERGE ... THEN DELETE`,
+  `TRUNCATE`, `DROP TABLE`, and any `SET` of `version` (plain or
+  row-constructor) other than `version + 1`, with optional schema and quotes
+  on the table name. Known blind spots: SQL assembled from non-literal
+  values, and a retirement statement whose state `DELETE` names another
+  repository than its version `DELETE`. The guard sees that both deletes are
+  in one statement, not that they match on `repo_id`; review that by hand.
 - **Trust.** `Classify` trusts stored rows only when the state's
   `content_version` equals the current version, its `extractor_version`
   equals the reader's, and `row_count` is not NULL. A later failed derive of
   the same content keeps the rows trusted; the dirty join still lists it for
-  the walker.
+  the walker, as `retry`.
+- **Reasons.** `Classify` returns `missing`, `failed` (no successful derive
+  yet), `stale_version`, or `stale_extractor`. `ListDirty` returns the same
+  labels with the same meaning, plus `retry` (a failed derive after a
+  success), which the reader never uses. A state row from a newer extractor
+  is never dirty work: an older walker's derive could not replace it.
 - **Claims are not leases.** `ClaimPage` spreads work; the derive's advisory
   lock and advance-only write carry correctness.
+
+## Known limits for the trigger (PR3b-1b)
+
+The ruled bump guard `WHERE v.bumped_xid IS DISTINCT FROM
+EXCLUDED.bumped_xid` assumes an xid8 value never repeats for a database. A
+logical restore (dump into a fresh cluster) or a logical-replication cutover
+restarts the transaction id counter while the stored `bumped_xid` values
+survive, so a later transaction could receive a stored value and skip that
+repository's bump. PR3b-1b must compare `(bumped_xid, bumped_at)` or otherwise
+survive an xid restart. The columns already allow it, so no `ALTER` is
+needed. Source: the PR3b-1a review verdict r1 of 2026-10-11, forward note
+(`7126-pr3b1a-review-verdict-r1-20261011.md`, local kit note, not in the
+repository); an inference from PostgreSQL xid semantics, not a measurement.
 
 ## Telemetry
 
@@ -79,20 +104,22 @@ instrumented Postgres wrapper.
 
 ## Evidence (PR3b-1a)
 
-No-Regression Evidence: baseline is `origin/main` `f3d560021c`, where none of
-these tables or functions exist. PR3b-1a adds no caller in any runtime binary
+No-Regression Evidence: baseline is the base branch without this change,
+where none of these tables or functions exist. PR3b-1a adds no caller in any runtime binary
 and no trigger on `content_files`, so no existing hot path runs new work; the
 only runtime change is migration 170 at bootstrap (five `CREATE TABLE IF NOT
 EXISTS` and one `CREATE OR REPLACE FUNCTION` on empty tables, recorded at 5 ms
 by the tracked migrator on a fresh PostgreSQL 18.6 database). The two new
 statements a future walker runs were measured on PostgreSQL 18.6 (Homebrew,
-local) with 2,000 version rows and 1,990 state rows: the walk page
+local) with 3,000 version rows and 2,990 state rows: the walk page
 (`walkPageSQL`, 500 rows) is an Index Only Scan on
-`config_artifact_content_versions_pkey`, 0.066 ms, 9 buffers; the dirty join
+`config_artifact_content_versions_pkey`, 5 buffers; the dirty join
 (`dirtySQL`, generic plan via `PREPARE`/`EXECUTE` with
-`plan_cache_mode = force_generic_plan`, 10 dirty of 2,000) is a hash join over
+`plan_cache_mode = force_generic_plan`, 21 dirty of 3,000) is a hash join over
 two sequential scans of tables that grow with repositories, not files,
-0.78 ms, 51 buffers. Both tables are O(repositories) (815 in the QA
+0.80-0.87 ms over five runs after one discarded run, 59 buffers. The review of
+round 1 measured 62-65 ms at 300,000 repositories (parallel hash join), so the
+cost is linear in repositories. Both tables are O(repositories) (815 in the QA
 environment on 2026-10-10).
 
 No-Observability-Change: no runtime path calls this package in PR3b-1a, so it
