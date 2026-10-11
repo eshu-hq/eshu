@@ -60,6 +60,8 @@ Seeded mutations, each caught:
 | Keep the raw order (386 order-only differences) | same |
 | `appendConfigArtifactRow` skips the strip for `docker_compose_env_file` (8 differing rows) | `TestNameFreeRowsEqualBuildWithName`, `TestNameTouchPoints` |
 | Table value of `docker_compose_env_file` flipped to unscoped | `TestNameScopeTableMatchesTheRowConstructors` |
+| A new kind added through a call wrapped over several lines in a scratch copy of `hcl.go` (the review probe) | `TestNameScopeTableMatchesTheRowConstructors` RED, clean tree green. The guard reads the syntax tree, so the wrapped call is seen |
+| A variable kind, a wrapper that forwards its parameter, a constructor used as a value, a computed row-literal kind, a wrong arity | `TestRowConstructorScanFailsOnWhatItCannotRead` (each makes the scan report a problem) |
 
 ## Equality of the load
 
@@ -70,7 +72,11 @@ against the frozen extractor, and the mutation sweeps. The query package keeps
 `TestConfigArtifactLoadMatchesTheAnchorFullPass`, which ties the production
 load to `HydrateRepositoryCandidateFiles`.
 
-Commands, run at `5a09e4488d`, all exit 0:
+Commands, run on the branch tree before its benchmark-and-note commit, all exit
+0. That tree is named by content, not by a commit that a rebase would change:
+its cumulative patch against its merge base has `git diff <merge-base> <tree> |
+git patch-id --stable` equal to `cf904153567ead8433fbbad7d2abc8e4fff37f00`, on a
+base that holds `6b761d2145`:
 
 ```text
 cd go && go build ./... && go vet ./internal/query/... ./internal/storage/postgres/... ./internal/content/...
@@ -92,7 +98,7 @@ repositories (40 files each, 14 padded Terraform files with locals and joins,
 two Terragrunt files, tfvars, a kustomization with two resources, a compose
 file, Ansible paths), in-memory reads, 3,660 `config_paths` rows. Baseline is
 the tree of `6b761d2145` (`git archive` into a scratch directory). After is
-`5a09e4488d` with the benchmark file added. Six interleaved rounds, the first
+the branch tree with that patch-id plus the benchmark file. Six interleaved rounds, the first
 mover alternating, `-benchtime 3s`, one binary per arm, Go 1.27.1 on an
 18-thread arm64 laptop with `load1` 12 to 21 (absolute times are not
 comparable to any other host).

@@ -35,7 +35,21 @@ This package owns:
 - `MemoryWriter` — in-process test double
 
 This package does not own the Postgres schema, SQL, or connection pool.
-Those live in `internal/storage/postgres`.
+Those live in `internal/storage/postgres`. The one exception is the read-side
+`content_files` statements, which live in the `artifacts` subpackage below.
+
+## Subpackages
+
+- `shape` — builds the `Materialization` the projector hands to `Writer`.
+- `artifacts` — the neutral config-artifact derivation (#7126). It holds the
+  per-repository function that lists, reads and parses one repository's stored
+  files into config-path rows, the extractors (kustomize, Docker Compose, HCL,
+  Ansible), the `prefilter` subpackage, and the one definition of each
+  `content_files` read statement (list, single read, batched read, non-blank
+  check) with its row mapper. The query readers and a content-write derive both
+  import it, so a stored answer cannot differ from the live answer. It imports
+  nothing from `query` or `storage`. See
+  [artifacts](artifacts/README.md).
 
 ## Exported surface
 

@@ -71,8 +71,11 @@ stage log line and the content store's `postgres.query` spans are unchanged.
   `configArtifactReadsContent` (`hydration.go`) and to the unread-class corpus
   in `hydration_differential_test.go`.
 - A new evidence kind must be added to `nameScopedByEvidenceKind`
-  (`name_scope.go`). `TestNameScopeTableMatchesTheRowConstructors` reads the
-  call sites and fails on a kind that is missing or in both families.
+  (`name_scope.go`). `TestNameScopeTableMatchesTheRowConstructors` reads every
+  call of `appendConfigArtifactRow` and `addRow` and every `evidence_kind` row
+  literal with `go/parser`, and fails on a kind that is missing, in both
+  families, or not a string literal (a variable, a wrapper parameter, a
+  constructor used as a value). Pass the kind to a constructor as a literal.
 - A change to an extractor's output changes what a stored read model holds.
   Run `TestNameFreeRowsEqualBuildWithName` and the hydration differentials.
 - Do not raise `ReadChunkSize` or `ReadChunksInFlight`, parallelize across

@@ -12,6 +12,9 @@
 4. `go/internal/content/writer_config.go` — `WriterConfig`, `LoadWriterConfig`,
    `ContentEntityBatchSizeEnv`, `MaxContentEntityBatchSize`
 5. `go/internal/content/doc.go` — package contract for godoc consumers
+6. `go/internal/content/artifacts/AGENTS.md` — when the change touches the
+   config-artifact extractors, the per-repository function or a `content_files`
+   read statement (#7126); that subpackage has its own invariants
 
 ## Invariants this package enforces
 
