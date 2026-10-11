@@ -57,6 +57,13 @@ profile uses `ESHU_QUERYPLAN_PROFILE_IMAGE`. These separate consumers must match
 their ledger entries. Buildx uses the `CI_BUILDKIT_IMAGE` mirror explicitly so
 its builder startup does not add an implicit Docker Hub pull.
 
+The #7881 paired query-methodology proof uses the ledger's `postgres-bookworm`
+and `neo4j-community` digests. Its base and candidate artifacts must come from
+the same pinned images and resource profile. The earlier PostgreSQL
+`postgres@sha256:5a5a84b...` image reports `PG_VERSION=18.6-1.pgdg13+2`, while
+the approved `postgres-bookworm` mirror reports `18.6-1.pgdg12+2`; timings
+from those two profiles are separate evidence.
+
 ## Refresh and proof
 
 1. Read the upstream recipe, license notices, corresponding source records,
