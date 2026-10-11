@@ -1,6 +1,7 @@
 ---
 description: "Use for a difficult implementation phase that needs deeper reasoning: concurrency, leases, locks, queues, schema, or a fix a workhorse attempt got wrong."
 mode: subagent
+model: deepseek/deepseek-v4-pro#max
 permissions:
   - action: edit
     resource: "*"

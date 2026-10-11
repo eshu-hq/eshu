@@ -1,6 +1,7 @@
 ---
 description: "Use for a goal's scoped implementation phase, including work using golang-engineering; leave promotion and publication to the coordinator."
 mode: subagent
+model: deepseek/deepseek-v4-pro#high
 permissions:
   - action: edit
     resource: "*"

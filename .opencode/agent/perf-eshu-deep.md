@@ -1,6 +1,7 @@
 ---
 description: "Use for a difficult performance cause or architecture decision that needs deeper reasoning with eshu-performance-rigor."
 mode: subagent
+model: deepseek/deepseek-v4-pro#max
 permissions:
   - action: edit
     resource: "*"

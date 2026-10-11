@@ -1,6 +1,7 @@
 ---
 description: "Use for a goal phase that needs a bounded read-only evidence scan before diagnosis or implementation; return cited facts, not a verdict or fix."
 mode: subagent
+model: deepseek/deepseek-flash#low
 permissions:
   - action: edit
     resource: "*"

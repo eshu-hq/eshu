@@ -1,6 +1,7 @@
 ---
 description: "Use for a goal's measurement or bottleneck phase with eshu-performance-rigor; hand off a proved change without editing."
 mode: subagent
+model: deepseek/deepseek-v4-pro#high
 permissions:
   - action: edit
     resource: "*"

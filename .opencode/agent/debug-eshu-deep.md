@@ -1,6 +1,7 @@
 ---
 description: "Use for a difficult cross-system or intermittent diagnosis phase that needs deeper reasoning with eshu-diagnostic-rigor."
 mode: subagent
+model: deepseek/deepseek-v4-pro#max
 permissions:
   - action: edit
     resource: "*"

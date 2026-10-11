@@ -1,6 +1,7 @@
 ---
 description: "Use for the final independent review of a difficult diff (concurrency, locking, queues, schema, or hot-path Cypher and SQL) with eshu-code-review; read-only."
 mode: subagent
+model: deepseek/deepseek-v4-pro#max
 permissions:
   - action: edit
     resource: "*"

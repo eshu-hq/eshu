@@ -1,6 +1,7 @@
 ---
 description: "Use for a goal's root-cause diagnosis phase, including work using eshu-diagnostic-rigor; diagnose without editing."
 mode: subagent
+model: deepseek/deepseek-v4-pro#high
 permissions:
   - action: edit
     resource: "*"

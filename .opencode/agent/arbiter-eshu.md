@@ -1,6 +1,7 @@
 ---
 description: "Use to decide a design fork, a disputed finding, a waiver, or an irreversible act (merge, deploy, data change) that evidence alone cannot settle; returns a binding ruling, read-only."
 mode: subagent
+model: minimax/minimax-m3
 permissions:
   - action: edit
     resource: "*"

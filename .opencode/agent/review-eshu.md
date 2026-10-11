@@ -1,6 +1,7 @@
 ---
 description: "Use for a goal's independent final diff or PR-readiness phase with eshu-code-review; read-only."
 mode: subagent
+model: deepseek/deepseek-v4-pro#high
 permissions:
   - action: edit
     resource: "*"
