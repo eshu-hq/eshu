@@ -236,3 +236,65 @@ func NewPriorGenerationCheck(database db.ExecQueryer) reducer.PriorGenerationChe
 		return exists, nil
 	}
 }
+
+// unchangedGenerationCandidateQuery reads the generation an incoming snapshot
+// is compared with (#7978): the scope's newest pending or active generation
+// that carries a freshness hint, with its commit and status. It is the same
+// row activeGenerationFreshnessQuery selects, so a newer pending generation
+// still wins over the active one: a snapshot equal to the active generation
+// but not to a newer pending one is stored, because the pending one will
+// replace the active one. Served by scope_generations_scope_latest_lookup_idx.
+const unchangedGenerationCandidateQuery = `
+SELECT generation.generation_id,
+       COALESCE(generation.freshness_hint, ''),
+       COALESCE(generation.source_commit_sha, ''),
+       generation.status
+FROM scope_generations AS generation
+WHERE generation.scope_id = $1
+  AND generation.status IN ('pending', 'active')
+  AND COALESCE(generation.freshness_hint, '') <> ''
+ORDER BY generation.ingested_at DESC, generation.generation_id DESC
+LIMIT 1
+`
+
+// unchangedGenerationCandidate is the generation a snapshot is compared with.
+type unchangedGenerationCandidate struct {
+	generationID  string
+	freshnessHint string
+	sourceCommit  string
+	status        scope.GenerationStatus
+}
+
+// matches reports whether generation duplicates the candidate (#7978): the
+// same non-empty freshness hint, which folds the collector, parser, and
+// fact-schema version, and the same source commit.
+func (c unchangedGenerationCandidate) matches(generation scope.ScopeGeneration) bool {
+	hint := strings.TrimSpace(generation.FreshnessHint)
+	return hint != "" && hint == c.freshnessHint &&
+		strings.TrimSpace(generation.SourceCommitSHA) == c.sourceCommit
+}
+
+// unchangedGeneration returns the generation an incoming snapshot is compared
+// with, or false when the scope has none with a freshness hint.
+func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string) (unchangedGenerationCandidate, bool, error) {
+	if s.database == nil || strings.TrimSpace(scopeID) == "" {
+		return unchangedGenerationCandidate{}, false, nil
+	}
+	rows, err := s.database.QueryContext(ctx, unchangedGenerationCandidateQuery, scopeID)
+	if err != nil {
+		return unchangedGenerationCandidate{}, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return unchangedGenerationCandidate{}, false, rows.Err()
+	}
+	var candidate unchangedGenerationCandidate
+	var status string
+	if err := rows.Scan(&candidate.generationID, &candidate.freshnessHint, &candidate.sourceCommit, &status); err != nil {
+		return unchangedGenerationCandidate{}, false, err
+	}
+	candidate.freshnessHint = strings.TrimSpace(candidate.freshnessHint)
+	candidate.sourceCommit = strings.TrimSpace(candidate.sourceCommit)
+	candidate.status = scope.GenerationStatus(status)
+	return candidate, true, rows.Err()
+}

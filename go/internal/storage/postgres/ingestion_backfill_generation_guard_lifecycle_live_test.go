@@ -137,3 +137,60 @@ func TestPendingSameIdentitySkipsAndFailedStoresLive(t *testing.T) {
 		t.Fatalf("rows %v -> %v against a failed match, want one stored generation", before, after)
 	}
 }
+
+// proofRetryableError is a retryable projector failure for the live proofs.
+type proofRetryableError struct{}
+
+func (proofRetryableError) Error() string   { return "proof: retryable re-projection failure" }
+func (proofRetryableError) Retryable() bool { return true }
+
+// TestReconcileReopenResetsAttemptsSoRetryRetriesLive (lead ask on a9-117 Q4):
+// a succeeded row whose attempt_count reached 2 comes back with 0, so the
+// re-projection's first retryable failure retries instead of dead-lettering.
+func TestReconcileReopenResetsAttemptsSoRetryRetriesLive(t *testing.T) {
+	p := openReprojectProof(t)
+	ctx := context.Background()
+	p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+	p.project()
+	if _, err := p.db.ExecContext(ctx, `UPDATE fact_work_items SET attempt_count = 2
+WHERE stage = 'projector' AND generation_id = 'gen-a'`); err != nil {
+		t.Fatalf("age gen-a attempts: %v", err)
+	}
+	p.commit(p.generation("gen-r", "hint-a", "sha-a", "interval_elapsed"))
+	if status, _, _, attempts := p.workRowAttempts("gen-a"); status != "pending" || attempts != 0 {
+		t.Fatalf("gen-a work = %s attempts=%d, want pending attempts=0", status, attempts)
+	}
+	queue := NewProjectorQueue(SQLDB{DB: p.db}, "proof-worker", time.Minute)
+	queue.MaxAttempts = 3
+	work, ok, err := queue.Claim(ctx)
+	if err != nil || !ok || work.AttemptCount != 1 {
+		t.Fatalf("claim = attempt %d ok=%v err=%v, want attempt 1", work.AttemptCount, ok, err)
+	}
+	if err := queue.Fail(ctx, work, proofRetryableError{}); err != nil {
+		t.Fatalf("fail retryable: %v", err)
+	}
+	if status, _, _, _ := p.workRowAttempts("gen-a"); status != "retrying" {
+		t.Fatalf("gen-a work after a retryable failure = %s, want retrying", status)
+	}
+}
+
+// TestStaleReconcileSkipsPendingSameIdentityLive (lead ask reconciling a9-117
+// Q3 with a9-120): the stale reason stores a generation only against an
+// active match. When the generation it would store already exists as a
+// pending generation (the stale full from an earlier cycle), it stores
+// nothing, so a stale request can never store one generation per cycle.
+func TestStaleReconcileSkipsPendingSameIdentityLive(t *testing.T) {
+	p := openReprojectProof(t)
+	p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+	p.project()
+	before := p.rowCounts()
+	p.commit(p.generation("gen-stale-1", "hint-a", "sha-a", scope.ReconcileReasonRequestStale))
+	afterFirst := p.rowCounts()
+	if afterFirst["scope_generations"] != before["scope_generations"]+1 {
+		t.Fatalf("first stale reconcile rows %v -> %v, want one stored generation", before, afterFirst)
+	}
+	p.commit(p.generation("gen-stale-2", "hint-a", "sha-a", scope.ReconcileReasonRequestStale))
+	if afterSecond := p.rowCounts(); afterSecond["scope_generations"] != afterFirst["scope_generations"] || afterSecond["fact_records"] != afterFirst["fact_records"] {
+		t.Fatalf("second stale reconcile rows %v -> %v, want unchanged (pending same identity)", afterFirst, afterSecond)
+	}
+}

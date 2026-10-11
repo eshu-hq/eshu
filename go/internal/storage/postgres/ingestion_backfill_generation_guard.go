@@ -140,26 +140,6 @@ func loadActiveGenerationForScope(ctx context.Context, queryer db.Queryer, scope
 	return generationID, rows.Err()
 }
 
-// unchangedGenerationCandidateQuery reads the generation an incoming snapshot
-// is compared with (#7978): the scope's newest pending or active generation
-// that carries a freshness hint, with its commit and status. It is the same
-// row activeGenerationFreshnessQuery selects, so a newer pending generation
-// still wins over the active one: a snapshot equal to the active generation
-// but not to a newer pending one is stored, because the pending one will
-// replace the active one. Served by scope_generations_scope_latest_lookup_idx.
-const unchangedGenerationCandidateQuery = `
-SELECT generation.generation_id,
-       COALESCE(generation.freshness_hint, ''),
-       COALESCE(generation.source_commit_sha, ''),
-       generation.status
-FROM scope_generations AS generation
-WHERE generation.scope_id = $1
-  AND generation.status IN ('pending', 'active')
-  AND COALESCE(generation.freshness_hint, '') <> ''
-ORDER BY generation.ingested_at DESC, generation.generation_id DESC
-LIMIT 1
-`
-
 // lockReprojectScopeQuery takes the scope row first, the lock order every
 // blocking path shares (ingestion commit, projector Ack and Fail). A projector
 // Ack that would supersede the active generation therefore commits before this
@@ -261,48 +241,6 @@ stamped AS (
 SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
 `
 
-// unchangedGenerationCandidate is the generation a snapshot is compared with.
-type unchangedGenerationCandidate struct {
-	generationID  string
-	freshnessHint string
-	sourceCommit  string
-	status        scope.GenerationStatus
-}
-
-// matches reports whether generation duplicates the candidate (#7978): the
-// same non-empty freshness hint, which folds the collector, parser, and
-// fact-schema version, and the same source commit.
-func (c unchangedGenerationCandidate) matches(generation scope.ScopeGeneration) bool {
-	hint := strings.TrimSpace(generation.FreshnessHint)
-	return hint != "" && hint == c.freshnessHint &&
-		strings.TrimSpace(generation.SourceCommitSHA) == c.sourceCommit
-}
-
-// unchangedGeneration returns the generation an incoming snapshot is compared
-// with, or false when the scope has none with a freshness hint.
-func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string) (unchangedGenerationCandidate, bool, error) {
-	if s.database == nil || strings.TrimSpace(scopeID) == "" {
-		return unchangedGenerationCandidate{}, false, nil
-	}
-	rows, err := s.database.QueryContext(ctx, unchangedGenerationCandidateQuery, scopeID)
-	if err != nil {
-		return unchangedGenerationCandidate{}, false, err
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		return unchangedGenerationCandidate{}, false, rows.Err()
-	}
-	var candidate unchangedGenerationCandidate
-	var status string
-	if err := rows.Scan(&candidate.generationID, &candidate.freshnessHint, &candidate.sourceCommit, &status); err != nil {
-		return unchangedGenerationCandidate{}, false, err
-	}
-	candidate.freshnessHint = strings.TrimSpace(candidate.freshnessHint)
-	candidate.sourceCommit = strings.TrimSpace(candidate.sourceCommit)
-	candidate.status = scope.GenerationStatus(status)
-	return candidate, true, rows.Err()
-}
-
 // skipUnchangedGeneration decides, before any write, whether a snapshot
 // duplicates the scope's current generation (#7978). It returns true when the
 // snapshot was handled without storing a generation: the fact stream is then
@@ -323,28 +261,24 @@ func (s IngestionStore) skipUnchangedGeneration(
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 ) (bool, error) {
-	if generation.DefaultBranchChanged || generation.ReconcileReason == scope.ReconcileReasonRequestStale ||
-		strings.TrimSpace(generation.FreshnessHint) == "" {
+	if !generationNeedsDuplicateCheck(generation) {
 		return false, nil
 	}
-	candidate, ok, err := s.unchangedGeneration(ctx, scopeValue.ScopeID)
+	candidate, found, err := s.unchangedGeneration(ctx, scopeValue.ScopeID)
 	if err != nil {
 		return true, errors.Join(
 			fmt.Errorf("check active generation freshness: %w", err),
 			drainFactsAndCheckStream(factStream, factStreamErr),
 		)
 	}
-	if !ok || !candidate.matches(generation) {
+	action, reason := decideUnchangedGeneration(generation, candidate, found)
+	if action == unchangedActionStore {
 		return false, nil
 	}
 	if err := drainFactsAndCheckStream(factStream, factStreamErr); err != nil {
 		return true, fmt.Errorf("read fact stream: %w", err)
 	}
-	reason := telemetry.RefreshSkipReasonUnchanged
-	if candidate.status == scope.GenerationStatusPending {
-		reason = telemetry.RefreshSkipReasonPendingSameIdentity
-	}
-	if strings.TrimSpace(generation.ReconcileReason) != "" && candidate.status == scope.GenerationStatusActive {
+	if action == unchangedActionReprojectActive {
 		reason, err = s.reprojectActiveGeneration(ctx, mutation, requireClaimFence, scopeValue, generation, candidate)
 		if err != nil {
 			return true, fmt.Errorf("re-project active generation: %w", err)
@@ -352,6 +286,65 @@ func (s IngestionStore) skipUnchangedGeneration(
 	}
 	s.recordSkippedRefresh(ctx, scopeValue, generation, candidate.generationID, reason)
 	return true, nil
+}
+
+// unchangedGenerationAction is what the store does with an incoming snapshot.
+type unchangedGenerationAction int
+
+const (
+	// unchangedActionStore stores the snapshot as a new generation.
+	unchangedActionStore unchangedGenerationAction = iota
+	// unchangedActionSkip stores nothing.
+	unchangedActionSkip
+	// unchangedActionReprojectActive stores nothing and re-opens the active
+	// generation's projector work.
+	unchangedActionReprojectActive
+)
+
+// generationNeedsDuplicateCheck reports whether a snapshot can be a duplicate
+// at all. A snapshot with no hint cannot match, and a default-branch change
+// (#7678) is always stored: its repository fact names another branch.
+func generationNeedsDuplicateCheck(generation scope.ScopeGeneration) bool {
+	return !generation.DefaultBranchChanged && strings.TrimSpace(generation.FreshnessHint) != ""
+}
+
+// decideUnchangedGeneration is the one decision seam for #7978: what the store
+// does with a snapshot given the scope's current generation (candidate, found).
+// It is pure. Every entry point that forces a full snapshot (the reconcile
+// sweep, graph_dirty, reindex watermarks, webhook and scheduled sync) reaches
+// it through ScopeGeneration.ReconcileReason, so a new rule is a change here
+// and nowhere else.
+//
+//   - No candidate, or a different hint or commit: store.
+//   - Same identity as a pending generation (ruling a9-120): skip; that
+//     generation's own projection is still queued.
+//   - Same identity as the active generation, ordinary snapshot: skip.
+//   - Same identity as the active generation, reconcile reason
+//     reconcile_request_stale (ruling a9-117 Q3): store; the re-projection was
+//     not acknowledged within one interval, so take today's heal.
+//   - Same identity as the active generation, any other reconcile reason:
+//     re-project the active generation. Ruling a9-117 Q1 accepts that this
+//     does not retract graph state stamped with the active generation id
+//     itself; switching a reason back to storing is a change on this line.
+func decideUnchangedGeneration(
+	generation scope.ScopeGeneration,
+	candidate unchangedGenerationCandidate,
+	found bool,
+) (unchangedGenerationAction, string) {
+	if !found || !candidate.matches(generation) {
+		return unchangedActionStore, ""
+	}
+	if candidate.status == scope.GenerationStatusPending {
+		return unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity
+	}
+	switch strings.TrimSpace(generation.ReconcileReason) {
+	case "":
+		return unchangedActionSkip, telemetry.RefreshSkipReasonUnchanged
+	case scope.ReconcileReasonRequestStale:
+		return unchangedActionStore, ""
+	default:
+		return unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected
+	}
 }
 
 // reprojectActiveGeneration runs reprojectActiveGenerationQuery under the

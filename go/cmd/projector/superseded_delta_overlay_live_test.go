@@ -345,6 +345,41 @@ WHERE generation_id = $1`, overlayGenA.id); err != nil {
 	}
 }
 
+// TestUnchangedReconcileKnownGapActiveStampedDriftLive documents the one
+// retraction difference ruling a9-117 Q1 accepts for #7978. A node stamped with
+// the ACTIVE generation's own id, but not derived from that generation's facts,
+// survives the re-projection: canonical retraction filters on
+// generation_id <> $generation_id, and the re-projection keeps the id. The old
+// path stored a new generation id and retracted it. Only a projector defect or
+// a manual graph edit can create such a node. If a later change retracts this
+// class too (a projection epoch), this test fails and must be inverted.
+func TestUnchangedReconcileKnownGapActiveStampedDriftLive(t *testing.T) {
+	dsn := overlayProofEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	h := newOverlayHarness(ctx, t, dsn)
+	svc, _ := h.buildService(ctx)
+	h.run(ctx, svc)
+	if err := h.commit(ctx, overlayGenA); err != nil {
+		t.FailNow()
+	}
+	h.waitGeneration(ctx, overlayGenA.id, "active")
+	h.runCypher(ctx, `MATCH (r:Repository {id: $repo_id})
+CREATE (r)-[:REPO_CONTAINS]->(:File {path: $path, relative_path: 'gap.go', repo_id: $repo_id,
+  generation_id: $generation_id, evidence_source: 'projector/canonical'})`,
+		map[string]any{"repo_id": h.repo.ID, "path": h.repo.LocalPath + "/gap.go", "generation_id": overlayGenA.id})
+	if _, err := h.sqlDB.ExecContext(ctx, `UPDATE scope_generations
+SET ingested_at = ingested_at - interval '48 hours', observed_at = observed_at - interval '48 hours'
+WHERE generation_id = $1`, overlayGenA.id); err != nil {
+		t.Fatalf("age G_A: %v", err)
+	}
+	if err := h.commit(ctx, overlayGen{id: "gen-7978-gap", commit: overlayCommitA, files: overlayTreeA}); err != nil {
+		t.FailNow()
+	}
+	h.waitReprojected(ctx, overlayGenA.id, 1)
+	h.assertFiles(ctx, "known gap: active-stamped drift survives the re-projection", []string{"gap.go", "keep.go", "w.go"})
+}
+
 // generationCount returns the scope's scope_generations row count.
 func (h *overlayHarness) generationCount(ctx context.Context) int {
 	h.t.Helper()
@@ -382,6 +417,7 @@ type overlayIntentRows struct {
 	reducerSucceeded    int
 	sharedIntents       int
 	sharedIntentsClosed int
+	contentFiles        int
 }
 
 // intentRows reads the scope's reducer work items and shared projection
@@ -398,6 +434,10 @@ FROM fact_work_items WHERE stage = 'reducer' AND scope_id = $1`, h.scope.ScopeID
 SELECT count(*), count(*) FILTER (WHERE completed_at IS NOT NULL)
 FROM shared_projection_intents WHERE scope_id = $1`, h.scope.ScopeID).Scan(&rows.sharedIntents, &rows.sharedIntentsClosed); err != nil {
 		h.t.Fatalf("count shared projection intents: %v", err)
+	}
+	if err := h.sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM content_files WHERE repo_id = $1`,
+		h.repo.ID).Scan(&rows.contentFiles); err != nil {
+		h.t.Fatalf("count content files: %v", err)
 	}
 	return rows
 }

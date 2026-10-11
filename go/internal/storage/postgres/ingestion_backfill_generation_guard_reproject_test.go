@@ -220,7 +220,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 		{name: "changed commit", hint: "hint-same", sha: "sha-new", reason: "interval_elapsed", wantCandidateQuery: true},
 		{name: "changed commit without reconcile", hint: "hint-same", sha: "sha-new", wantCandidateQuery: true},
 		{name: "default branch changed", hint: "hint-same", sha: "sha-same", defaultBranchChanged: true},
-		{name: "stale re-projection request", hint: "hint-same", sha: "sha-same", reason: scope.ReconcileReasonRequestStale},
+		{name: "stale re-projection request", hint: "hint-same", sha: "sha-same", reason: scope.ReconcileReasonRequestStale, wantCandidateQuery: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -228,7 +228,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 			t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 			tx := &fakeTx{}
 			db := &fakeTransactionalDB{tx: tx}
-			if tc.wantCandidateQuery && tc.reason != scope.ReconcileReasonRequestStale {
+			if tc.wantCandidateQuery {
 				db.queryResponses = []queueFakeRows{{
 					rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
 				}}
@@ -250,7 +250,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 			if got := telemetry.SkippedRefreshCount(); got != 0 {
 				t.Fatalf("skipped refreshes = %d, want 0", got)
 			}
-			if (tc.defaultBranchChanged || tc.reason == scope.ReconcileReasonRequestStale) && len(db.queries) != 0 {
+			if tc.defaultBranchChanged && len(db.queries) != 0 {
 				t.Fatalf("default-branch change ran %d candidate queries, want none", len(db.queries))
 			}
 		})
@@ -294,5 +294,54 @@ func TestCommitReconcileFencedReopenStoresNothing(t *testing.T) {
 	}
 	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonReconcileSuperseded); got != 1 {
 		t.Fatalf("reconcile_superseded skips = %d, want 1", got)
+	}
+}
+
+// TestDecideUnchangedGenerationCells pins every cell of the #7978 decision
+// seam (rulings a9-117 Q1/Q3 and a9-120): the state of the matched row and the
+// reconcile reason decide store, skip, or re-open. The sweep side of the cells
+// (request age, in flight, stale) is pinned in the collector's decide tests.
+func TestDecideUnchangedGenerationCells(t *testing.T) {
+	t.Parallel()
+	active := unchangedGenerationCandidate{generationID: "gen-a", freshnessHint: "hint", sourceCommit: "sha", status: scope.GenerationStatusActive}
+	pending := active
+	pending.status = scope.GenerationStatusPending
+	snapshot := func(hint, sha, reason string) scope.ScopeGeneration {
+		return scope.ScopeGeneration{FreshnessHint: hint, SourceCommitSHA: sha, ReconcileReason: reason}
+	}
+	cases := []struct {
+		name       string
+		generation scope.ScopeGeneration
+		candidate  unchangedGenerationCandidate
+		found      bool
+		wantAction unchangedGenerationAction
+		wantReason string
+	}{
+		{"no current generation", snapshot("hint", "sha", "interval_elapsed"), unchangedGenerationCandidate{}, false, unchangedActionStore, ""},
+		{"different hint", snapshot("other", "sha", "interval_elapsed"), active, true, unchangedActionStore, ""},
+		{"different commit", snapshot("hint", "sha-2", ""), active, true, unchangedActionStore, ""},
+		{"active match, ordinary sync", snapshot("hint", "sha", ""), active, true, unchangedActionSkip, telemetry.RefreshSkipReasonUnchanged},
+		{"active match, interval_elapsed", snapshot("hint", "sha", "interval_elapsed"), active, true, unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected},
+		{"active match, graph_dirty", snapshot("hint", "sha", "graph_dirty"), active, true, unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected},
+		{"active match, reindex_requested", snapshot("hint", "sha", "reindex_requested"), active, true, unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected},
+		{"active match, stale request", snapshot("hint", "sha", scope.ReconcileReasonRequestStale), active, true, unchangedActionStore, ""},
+		{"pending match, ordinary sync", snapshot("hint", "sha", ""), pending, true, unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity},
+		{"pending match, in_flight_expired", snapshot("hint", "sha", "in_flight_expired"), pending, true, unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity},
+		{"pending match, stale request", snapshot("hint", "sha", scope.ReconcileReasonRequestStale), pending, true, unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			action, reason := decideUnchangedGeneration(tc.generation, tc.candidate, tc.found)
+			if action != tc.wantAction || reason != tc.wantReason {
+				t.Fatalf("decideUnchangedGeneration() = (%d, %q), want (%d, %q)", action, reason, tc.wantAction, tc.wantReason)
+			}
+		})
+	}
+	if generationNeedsDuplicateCheck(scope.ScopeGeneration{FreshnessHint: "hint", DefaultBranchChanged: true}) {
+		t.Fatal("a default-branch change must always be stored")
+	}
+	if generationNeedsDuplicateCheck(scope.ScopeGeneration{}) {
+		t.Fatal("a snapshot with no hint can never be a duplicate")
 	}
 }
