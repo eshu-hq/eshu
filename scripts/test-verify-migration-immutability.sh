@@ -88,6 +88,35 @@ git -C "${added_repo}" add .
 git -C "${added_repo}" commit -q -m 'add 002'
 expect_pass "${added_repo}"
 
+# #7961 lock shape, seeded RED: shipped 169's exact bytes added as a new file
+# (ALTER TABLE then a backfill UPDATE) must fail, naming the file.
+shipped_169="${repo_root}/${migrations_dir}/169_content_files_generation_id.sql"
+lock_shape_repo="$(init_repo lock-shape)"
+cp "${shipped_169}" "${lock_shape_repo}/${migrations_dir}/170_lock_shape.sql"
+git -C "${lock_shape_repo}" add .
+git -C "${lock_shape_repo}" commit -q -m 'add 169-shaped 170'
+expect_fail "${lock_shape_repo}" "170_lock_shape.sql: table-locking DDL (ALTER TABLE)"
+
+# #7961 lock shape, GREEN: the split form (catalog-only DDL in one added file,
+# the backfill in the next) and a CONCURRENTLY index file pass.
+split_repo="$(init_repo lock-shape-split)"
+printf -- 'ALTER TABLE widgets ADD COLUMN IF NOT EXISTS tag TEXT NULL;\n' \
+  >"${split_repo}/${migrations_dir}/170_widgets_tag.sql"
+printf -- 'UPDATE widgets SET tag = %s WHERE tag IS NULL;\nANALYZE widgets;\n' "'x'" \
+  >"${split_repo}/${migrations_dir}/171_widgets_tag_backfill.sql"
+printf -- 'CREATE INDEX CONCURRENTLY IF NOT EXISTS widgets_tag_idx ON widgets (tag);\n' \
+  >"${split_repo}/${migrations_dir}/172_widgets_tag_idx.sql"
+git -C "${split_repo}" add .
+git -C "${split_repo}" commit -q -m 'add split tag migrations'
+expect_pass "${split_repo}"
+
+# The rule's own unit tests (every DDL x DML pair, DO blocks, exemptions).
+python3 "${repo_root}/scripts/test-migration-lock-shape.py" >"${out_file}" 2>"${err_file}" || {
+  printf 'test-migration-lock-shape.py failed:\n' >&2
+  sed -n '1,80p' "${err_file}" >&2
+  exit 1
+}
+
 # Change entirely outside the migrations directory: allowed regardless of
 # content, since the gate only ever looks at migrations_dir.
 unrelated_repo="$(init_repo unrelated)"

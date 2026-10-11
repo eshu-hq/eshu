@@ -254,18 +254,22 @@ gates:
     hook_id: go-package-docs
 
   - id: migration-immutability
-    name: Shipped Postgres migration immutability
+    name: Shipped Postgres migration immutability and lock shape
     category: hygiene
     layer: hygiene
-    purpose: "Fails when an already-shipped Postgres migration file is edited instead of added as a new one."
+    purpose: "Fails when a shipped Postgres migration is edited instead of added as a new one, or an added one combines table-locking DDL with bulk DML (#7961)."
     tier: pre-push
     blocking: true
     triggers:
       - "go/internal/storage/postgres/migrations/*.sql"
+      - "scripts/lib/migration_lock_shape.py"
+      - "scripts/test-migration-lock-shape.py"
       - "scripts/test-verify-migration-immutability.sh"
       - "scripts/test-verify-migration-immutability-merge-group.sh"
       - "scripts/verify-migration-immutability.sh"
     self_test_triggers:
+      - "scripts/lib/migration_lock_shape.py"
+      - "scripts/test-migration-lock-shape.py"
       - "scripts/test-verify-migration-immutability.sh"
       - "scripts/test-verify-migration-immutability-merge-group.sh"
       - "scripts/verify-migration-immutability.sh"

@@ -63,13 +63,23 @@
 # what the fixture requires (an edit in position two must fail at position
 # three).
 #
+# #7961 lock shape: an ADDED migration must not combine table-locking DDL on an
+# existing table (ALTER TABLE, non-CONCURRENT CREATE INDEX, CLUSTER, VACUUM
+# FULL, ...) with bulk DML (UPDATE, DELETE, MERGE, INSERT ... SELECT). The
+# migrator sends a file as one message, so PostgreSQL holds the DDL lock until
+# the DML commits; shipped 169 blocked content reads for a whole backfill that
+# way. scripts/lib/migration_lock_shape.py owns the rule; shipped files are
+# never re-checked (they are immutable). There is no allowlist.
+#
 # Usage: scripts/verify-migration-immutability.sh
 # Exit codes:
 #   0 - no shipped migration was modified, deleted, or renamed since base
-#       (other than the allowed #7002 restore).
-#   1 - a shipped migration was modified, deleted, or renamed, OR the base
-#       could not be resolved to an actual common ancestor of HEAD; details on
-#       stderr naming the exact file or the resolution failure.
+#       (other than the allowed #7002 restore), and no added migration holds a
+#       table lock through bulk DML.
+#   1 - a shipped migration was modified, deleted, or renamed, an added
+#       migration holds a table lock through bulk DML, OR the base could not be
+#       resolved to an actual common ancestor of HEAD; details on stderr naming
+#       the exact file or the resolution failure.
 set -euo pipefail
 
 repo_root="${ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT:-}"
@@ -84,6 +94,9 @@ if [ -z "$repo_root" ]; then
 fi
 
 migrations_dir="go/internal/storage/postgres/migrations"
+# The lock-shape checker lives beside this script, not in the repo under test
+# (the self-test points ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT at fixtures).
+lock_shape_checker="$(cd "$(dirname "$0")" && pwd)/lib/migration_lock_shape.py"
 
 # deepen_head deepens HEAD's own shallow history by at least $1 commits and
 # returns 0, or returns 1 when it cannot. On pull_request and push this is the
@@ -342,6 +355,13 @@ while IFS=$'\t' read -r status first second; do
 
   case "$status" in
     A*)
+      # #7961: an added file must not hold a table lock through bulk DML.
+      # The migrator sends one file as one implicit transaction, so DDL and a
+      # backfill in the same file block readers for the whole backfill.
+      if ! git -C "$repo_root" show "HEAD:${first}" |
+        python3 "$lock_shape_checker" check "$first"; then
+        violations=1
+      fi
       continue
       ;;
     M*)
@@ -370,11 +390,12 @@ done <<<"$rows"
 
 if [ "$violations" -ne 0 ]; then
   {
-    printf '\nA shipped migration under %s changed relative to %s (%s).\n' "$migrations_dir" "$base_ref" "$base_commit"
-    printf 'Widen or fix its behavior through a NEW guarded migration file instead --\n'
-    printf 'see %s/README.md and %s/checksum_alias.go for the pattern (#7002).\n' "$migrations_dir" "$migrations_dir"
+    printf '\nA migration under %s violates the migration rules relative to %s (%s).\n' "$migrations_dir" "$base_ref" "$base_commit"
+    printf 'Fix a shipped migration through a NEW guarded migration file instead, and keep\n'
+    printf 'table-locking DDL and bulk DML in separate files -- see %s/README.md and\n' "$migrations_dir"
+    printf '%s/checksum_alias.go (#7002, #7961).\n' "$migrations_dir"
   } >&2
   exit 1
 fi
 
-printf 'verify-migration-immutability: no shipped migration was modified, deleted, or renamed\n'
+printf 'verify-migration-immutability: no shipped migration was modified, deleted, or renamed; no added migration holds a table lock through bulk DML\n'
