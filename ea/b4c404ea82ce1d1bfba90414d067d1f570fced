@@ -1,0 +1,43 @@
+go/cmd/api/diagnostic/collector.go
+  s_29175cf8c573b8::t_a291a05d6e5c21 190,198,213
+  s_29175cf8c573b8::t_6f1e0eeff65b83 1-189,191-197,199-212,214-318
+go/cmd/api/wiring.go
+  s_29175cf8c573b8::t_5bd2ad707f6ca9 47,432-433
+  s_29175cf8c573b8::t_529b3f634d918c 14,434
+go/cmd/api/main.go
+  s_29175cf8c573b8::t_b60f650980d6d9 125-126,130-138
+  s_29175cf8c573b8::t_6d0185934cf6cd 58-62,80,96-98,103,106,127-129
+  s_29175cf8c573b8::t_316e0f51c0846d 20
+go/cmd/api/doc.go
+  s_29175cf8c573b8::t_8a425477b2cafe 32-34
+go/cmd/api/README.md
+  s_29175cf8c573b8::t_8a425477b2cafe 187-194
+go/cmd/api/diagnostic/AGENTS.md
+  s_29175cf8c573b8::t_2ad06ece7ede2e 1-13
+go/cmd/api/diagnostic/README.md
+  s_29175cf8c573b8::t_1dd55322620108 1-17
+go/cmd/api/diagnostic/collector_test.go
+  s_29175cf8c573b8::t_44506660660f17 1-85
+go/cmd/api/diagnostic/contract_test.go
+  s_29175cf8c573b8::t_e956da53089da5 1-248
+go/cmd/api/diagnostic/doc.go
+  s_29175cf8c573b8::t_67369cb7f9c40f 1-8
+go/cmd/api/diagnostic/report.go
+  s_29175cf8c573b8::t_f3a33af3208a7c 1-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eab4c404ea82ce1d1bfba90414d067d1f570fced",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
