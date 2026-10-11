@@ -112,7 +112,10 @@ the cap census (S6), concurrent stories, and the cold route after a pod
 restart. From the S3 ruling: the cause of the 2.0 s heavyweight wait in arm
 5, the real `prune_content_files` duration at 100,000 rows (no figure is
 recorded), that a transition table is bounded by `work_mem` (a recollection of
-the PostgreSQL source), and the QA-environment p95 of
+the PostgreSQL source), that a GIN pending-list cleanup by an inserting
+backend takes the metapage lock conditionally (a recollection; if wrong,
+`page` is a fifth wait class, which the `wait_event` column shows either
+way), and the QA-environment p95 of
 `eshu_dp_generation_retention_scope_lock_hold_seconds`.
 
 ## 4. S0 and S2 results (local, 2026-10-10)
@@ -227,7 +230,7 @@ every second. The control canary is arm A of the same round.
 |---|---|---|---|---|
 | A | 1, 2, 4, 6 | 17.63 | No | A peer ran a `git grep` burst. Arm 4 read +41.86%. Void |
 | A4r2 | 4, 9 rounds | 5.05 | Yes | A 2.823 s, B 2.854 s, +1.07%, ranges overlap |
-| Q1 | 1, 2, 6 | 9.88 | Accepted with a deviation note | The peak lasted 25 s (15:04:51-15:05:15) and was foreign: a system profiler, Spotlight, and a peer's build and docs scan. It overlapped the last round of arm 1 and the micro-shim, and both arms were hit. Arm 6 counts are exact, so load cannot change them. Arm 1 rides along with the arm 5 rerun, and a reversal there reopens it |
+| Q1 | 1, 2, 6 | 9.88 | Accepted with a deviation note | The peak lasted 25 s (15:04:51-15:05:15). By the subtest durations (arm 1 132.19 s, from about 15:02:20) it falls in arm 2, which began about 15:04:32. The in-arm maximum of arm 1 was 7.25 (15:02:36). The shim's own test binary and database backend (arm 2 seeding) and foreign processes (a system profiler, Spotlight, a peer's build and docs scan) were all running. The arbiter read the peak as overlapping the last round of arm 1. The logs place it in arm 2, which still passes (+1.47% against +5%, ranges overlap). Arm 6 counts are exact, so load cannot change them. Arm 1 rides along with the arm 5 rerun, and a reversal there reopens it |
 | Q3 | 3 | 5.62 | Yes | |
 | Q5 | 5 | 7.47 | Yes | A spread 9.23-16.14 s (1.75x). The 7.47 was the test binary's link step before the arm started |
 
@@ -299,8 +302,8 @@ load1 below 9.0 for the whole run, arm A as the control canary.
 
 Arm 3, on the real retention statement:
 
-- Statement: the real `GenerationRetentionStore.Run` (or `pruneCandidates`
-  through the real store), so `SET LOCAL work_mem`, the advisory locks and
+- Statement: the real `GenerationRetentionStore.PruneSupersededGenerations`
+  (or the in-package `pruneCandidates`), so `SET LOCAL work_mem`, the advisory locks and
   `pruneContentFilesForGenerationsQuery` all run. Denominator:
   `PhaseDurations["prune_content_files"]`. Also record `ScopeLockHold` and
   the whole-transaction wall.
@@ -313,14 +316,17 @@ Arm 3, on the real retention statement:
   migrated, key indexes present.
 - Arms: A (no version trigger), B1 (row-level DELETE trigger), B2 (`OLD TABLE`
   DELETE trigger). Interleaved, first mover rotating, 5 measured rounds after
-  one discarded round (`versionFenceInterleave`).
+  one discarded round (the shim's `versionFenceInterleave`).
 - Body classes, both required and reported separately: 1 KiB inline and 8 KiB
   TOASTed.
 - Pass: the chosen shape at most +5% of `prune_content_files` on both
   classes. At equal cost prefer `OLD TABLE`. Report the `ScopeLockHold` delta
   in seconds as informational. Fail: both shapes over 5% on either class.
-  The fallback of the protocol companion then applies, and the F2 amendment
-  is mandatory.
+  The fallback of the protocol companion then becomes available as the
+  Proposed fallback, which needs an F2 amendment by ruling. Without it,
+  retention pays the trigger.
+- The arm 3 write probe of section 6 (a Write of a pruned repository waits
+  for the prune commit) is informational. It is not part of the rerun bar.
 
 Arm 5, attributed:
 
@@ -352,7 +358,7 @@ bumps itself.
 | Path | Shape | Fence under the fallback |
 |---|---|---|
 | `pruneContentFilesForGenerationsQuery` in `generation_retention_sql.go` (reducer only) | one statement per transaction | self-bump in the statement. The trigger is gated off by `SET LOCAL` |
-| `deleteContentFilesChunk` in `content_writer_delete_batch.go`: tombstones and the full-snapshot reap, autocommit, chunks of 500 | row-level trigger, at most 500 rows (500 x 2.893 us is about 1.45 ms) | trigger. One bump per chunk. Arm 6 counts 4 in the reap case |
+| `deleteContentFilesChunk` in `content_writer_delete_batch.go`: tombstones and the full-snapshot reap, autocommit, chunks of 500 | row-level trigger, at most 500 rows (500 x 2.893 us is about 1.45 ms, an extrapolation from the non-final arm 3 proxy) | trigger. One bump per chunk. Arm 6 counts 4 in the reap case (1,200 reaped paths plus 3 tombstones) |
 | `deleteContentFileQuery` through `ContentStore.Write` (`content_writer_sql.go`, `content_store_writes.go`) | one row per statement | trigger. `NewContentStore` has no caller outside tests (`rg`, not a build-graph query), and it stays fenced |
 | `TRUNCATE content_files` | no production path (a note in `go/internal/storage/postgres/secret/lines/README.md`) | the statement-level TRUNCATE trigger bumps every version row |
 | Manual SQL, migrations, older binaries | arbitrary | trigger |

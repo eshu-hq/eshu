@@ -4,7 +4,8 @@ Status: Accepted with changes (arbiter ruling and re-rulings 1, 2 and 3,
 2026-10-10, and the S3 ruling, 2026-10-11).
 Shims S0 and S2 pass. S3 arms 1, 2, 4 and 6 pass. Arms 1, 2 and 6 ran in a
 run whose in-run load1 maximum was 9.88 against the 9.0 bound, for 25 s, from
-foreign processes. The arbiter accepted them with that deviation noted
+foreign processes and the shim's own seeding. The arbiter accepted them with
+that deviation noted
 (evidence appendix, section 6). The arm 3 and arm 5 reruns are pending. S1,
 S4 and S6 have not run. This record does not approve the schema, the
 migration number or any rollout. Each of those waits for the shims in
@@ -132,8 +133,9 @@ sessions that do not derive.
    one is missing, they skip every derive with outcome `fence_missing` and
    report `not_installed` with reason `version_fence_missing`. A dropped or
    disabled trigger then fails loud and does not serve stale rows as
-   trusted. **Proposed**: the check reads `tgenabled` too, so a disabled
-   trigger counts as missing. The Write proceeds, and reads stay live.
+   trusted. The detection is ruled. The mechanism is **Proposed**: the check
+   requires `tgenabled IN ('O','A')`, so a disabled (`D`) or replica-only
+   (`R`) trigger counts as missing. The Write proceeds, and reads stay live.
 
 This departs from #6793. `deriveInfraInventory` fails the Write, which is
 right for a SQL-only copy. The config derive runs Go regexes and `yaml.v3`

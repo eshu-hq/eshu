@@ -207,10 +207,10 @@ WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid
   so no rollout rule exists.
 
 **Fallback (Proposed).** It applies only if the arm 3 rerun fails both
-shapes, and it requires an F2 amendment by ruling: F2 says "no session
-setting", and the fallback adds a transaction-local one. "An explicit bump in
-retention" must not mean "drop the DELETE trigger", because every other
-deleter must keep bumping. The design:
+shapes, and it needs an F2 amendment by ruling (without it, retention pays
+the trigger): F2 says "no session setting", and the fallback adds a
+transaction-local one. "An explicit bump in retention" must not mean "drop
+the DELETE trigger": every other deleter must keep bumping. The design:
 
 1. Retention's content statement bumps itself. The query keeps its CTEs and
    adds `deleted AS (DELETE FROM content_files AS t USING doomed AS d WHERE
@@ -412,9 +412,9 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    |---|---|---|
    | 1 | Full Write, 5,000 files, 500-row batches, production-width content. The derive's row insert includes the generated `row_digest` | B at most A + 5% on Write wall time. A primary-key-only micro-shim at most 0.5 us per row |
    | 2 | Delta Write, 1 file changed, 3 tombstones | B at most A + 5% |
-   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the fallback of section 2. `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Rerun spec: evidence appendix, section 7 |
+   | 3 | Retention prune, 100,000 rows over 50 repositories, one transaction | Row-level and `OLD TABLE` shapes. Denominator: `PhaseDurations["prune_content_files"]` of the real `GenerationRetentionStore` statement, under its `SET LOCAL work_mem = '64MB'`, at 1 KiB inline and 8 KiB TOASTed bodies, both required. The chosen shape at most +5% on both classes. Else the other shape. Else the Proposed fallback of section 2 (needs an F2 amendment by ruling. Without it retention pays the trigger). `ScopeLockHold` delta is informational, against the QA-environment p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**). Binding rerun spec: evidence appendix, section 7 |
    | 4 | One 50,000-row single-statement insert | B at most A + 5% |
-   | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. The `version_row` lock wait at most one contended batch (B-last per-Write median / 10), with A as control, by wait class, plus an overlapping-keys run. 0 deadlocks in 20 rounds. Slower of the pair is informational. Rerun spec: evidence appendix, section 7 |
+   | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. The `version_row` lock wait at most one contended batch (B-last per-Write median / 10), with A as control, by wait class, plus an overlapping-keys run. 0 deadlocks in 20 rounds. Slower of the pair is informational. Binding rerun spec, with every bar: evidence appendix, section 7 |
    | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). A Write sends tombstones and reaped paths through one delete list, chunked at 500. It expects ceil((tombstones + reaped paths) / 500) delete transactions. It adds one per 500-row upsert batch. Arm 1 = 10. Arm 2 = 2 (one delete chunk, one upsert batch). Arm 3 = 1 per affected repository. Arm 4 = 1 |
 
    The protocol needs two things only: every transaction that changes
