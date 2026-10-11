@@ -178,13 +178,19 @@ install -m 0755 "${repo_root}/scripts/lib/test-resolve-required-gates-pr-fake-gh
 fork_7818='{"number":7818,"state":"open","head":{"ref":"fix/7762-runtime-ssh-client","sha":"48d4f8c0d0310b738b6cf0e2ee2fc7a5e1cec964","repo":{"full_name":"smash-og/eshu","fork":true}},"base":{"ref":"main","repo":{"full_name":"eshu-hq/eshu","fork":false}}}'
 fork_sha=48d4f8c0d0310b738b6cf0e2ee2fc7a5e1cec964
 
-world_with() { # extra PR objects after 150 open same-repo PRs, newest first
-	jq -cn --argjson extra "[$(
+world_with_filler() { # filler_count, then extra PR objects after that many open same-repo PRs, newest first
+	local filler="$1"
+	shift
+	jq -cn --argjson filler "${filler}" --argjson extra "[$(
 		IFS=,
 		echo "$*"
-	)]" '[range(8100; 7950; -1) | {number: ., state: "open",
+	)]" '[range(8100; 8100 - $filler; -1) | {number: ., state: "open",
 		head: {ref: "lane/\(.)", sha: "inrepo\(.)", repo: {full_name: "eshu-hq/eshu", fork: false}},
 		base: {ref: "main", repo: {full_name: "eshu-hq/eshu", fork: false}}}] + $extra' >"${world}"
+}
+
+world_with() { # extra PR objects after 150 open same-repo PRs, newest first
+	world_with_filler 150 "$@"
 }
 
 fetch_resolver() { # head_sha; the resolver's own fetch, through the stub
@@ -240,8 +246,19 @@ expect_fetch_fail_closed "a closed fork PR fails closed" "${fork_sha}"
 
 # 10. A PR opened between two page requests shifts the list, so the last PR of
 #     one page comes back again at the top of the next. That is one PR, not two.
-world_with "${fork_7818}" "${fork_7818}"
-expect_fetch_number "a PR listed on two pages resolves once" "${fork_sha}" 7818
+#     99 filler PRs put the copies at indices 99 and 100, which straddle the
+#     per_page=100 boundary; the control below fails if that stops being true.
+world_with_filler 99 "${fork_7818}" "${fork_7818}"
+copies_per_page="$(PATH="${stub_bin}:${PATH}" GITHUB_REPOSITORY=eshu-hq/eshu ESHU_WORLD_JSON="${world}" \
+	gh api --paginate --slurp "repos/eshu-hq/eshu/pulls?state=open&per_page=100" |
+	jq -c '[.[] | map(select(.number == 7818)) | length]')"
+if [[ "${copies_per_page}" != "[1,1]" ]]; then
+	echo "FAIL regression control: the repeated PR must appear once on each of two pages, got ${copies_per_page}" >&2
+	failures=$((failures + 1))
+else
+	echo "ok - regression control: the repeated PR straddles the page boundary"
+fi
+expect_fetch_number "a PR repeated across a page boundary resolves once" "${fork_sha}" 7818
 
 if [[ "${failures}" -ne 0 ]]; then
 	echo "test-resolve-required-gates-pr: ${failures} case(s) failed" >&2
