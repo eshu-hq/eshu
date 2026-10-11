@@ -11,6 +11,9 @@ workflow_run() {
   STEP_NAME="${step}" yq -r '.jobs[] | .steps[]? | select(.name == strenv(STEP_NAME)) | .run' "${workflow}"
 }
 
+# The step must be exactly this command. run_selection below runs the same command
+# literally, so the proof does not pass the workflow text to a shell as a variable
+# (the Docker Hub login gate cannot tell what such a variable runs).
 selection_run="$(workflow_run 'Decide release artifact lanes')"
 [[ "${selection_run}" == 'bash scripts/ci/select-docker-publish-lanes.sh' ]] || {
   echo 'FAIL: selection step does not execute the production selector' >&2
@@ -36,7 +39,7 @@ git -C "${repo}" commit -qm base
 base="$(git -C "${repo}" rev-parse HEAD)"
 git -C "${repo}" update-ref refs/remotes/origin/main "${base}"
 printf 'RUN true\n' >> "${repo}/Dockerfile"
-git -C "${repo}" commit -qam docker
+git -C "${repo}" commit -qam image-change
 image_head="$(git -C "${repo}" rev-parse HEAD)"
 
 run_selection() {
@@ -44,7 +47,7 @@ run_selection() {
   : > "${scratch}/output"
   (cd "${repo}" && GITHUB_OUTPUT="${scratch}/output" GITHUB_EVENT_NAME="${event}" \
     GITHUB_REF_TYPE="${ref_type}" GITHUB_SHA="${head}" PR_BASE_SHA="${pr_base}" \
-    PR_HEAD_SHA="${head}" BEFORE_SHA="${base}" bash -c "${selection_run}")
+    PR_HEAD_SHA="${head}" BEFORE_SHA="${base}" bash scripts/ci/select-docker-publish-lanes.sh)
 }
 for mode in tag workflow_dispatch; do
   if [[ "${mode}" == tag ]]; then
@@ -131,7 +134,7 @@ chmod +x "${scratch}/helm"
 run_chart() {
   (cd "${repo}" && PATH="${scratch}:${PATH}" HELM_MODE="$1" CHART_PATH=deploy/helm/eshu \
     CHART_REGISTRY=oci://ghcr.io/eshu-hq/charts REGISTRY=ghcr.io \
-    GITHUB_ACTOR=ci GITHUB_TOKEN=fake bash -c "${chart_run}")
+    GITHUB_ACTOR=ci GITHUB_TOKEN=fake bash scripts/ci/push-helm-chart.sh)
 }
 run_chart success > "${scratch}/success.log"
 run_chart duplicate > "${scratch}/duplicate.log"
