@@ -1,0 +1,50 @@
+go/internal/proof/contentcopy/doc.go
+  s_b0d7e3abc26c5a::t_f51d3eb59795a5 1-7
+go/internal/proof/contentcopy/source.go
+  s_b0d7e3abc26c5a::t_7de68e583ce768 17-18
+  s_b0d7e3abc26c5a::t_ae63e33137da78 1-16,19-78
+go/internal/proof/contentcopy/README.md
+  s_b0d7e3abc26c5a::t_f51d3eb59795a5 1-22,24,26
+  s_b0d7e3abc26c5a::t_a5023701f8baaf 27-32
+  s_b0d7e3abc26c5a::t_adc8be2a8a0d7a 23,25
+go/internal/proof/contentcopy/copy.go
+  s_b0d7e3abc26c5a::t_e6b98eb0f1b0cb 169-171,175-176
+  s_b0d7e3abc26c5a::t_db0542edc888c6 21-22,123,204-207
+  s_b0d7e3abc26c5a::t_55070d6924b850 1-20,23-35,39-122,124-145,147-166,168,172-174,178-203,208-222,227-244
+  s_b0d7e3abc26c5a::t_7de68e583ce768 36,38
+  s_b0d7e3abc26c5a::t_adc8be2a8a0d7a 37
+  s_b0d7e3abc26c5a::t_4d10f23b69cc53 146,167,177,223-226
+go/internal/proof/contentcopy/artifact.go
+  s_b0d7e3abc26c5a::t_db0542edc888c6 61-72,79-87,98,101-102,104-111
+  s_b0d7e3abc26c5a::t_ae63e33137da78 1-17,19-60,73-78,88-97,99-100,103,112-131
+  s_b0d7e3abc26c5a::t_7de68e583ce768 18
+go/internal/proof/contentcopy/copy_test.go
+  s_b0d7e3abc26c5a::t_42607506b1ae1f 15,29-30,35-46,62-63,145-148,166-193
+  s_b0d7e3abc26c5a::t_107f2fb803d91b 207-209
+  s_b0d7e3abc26c5a::t_bd901f4a5b50ae 95-112
+  s_b0d7e3abc26c5a::t_daaa0cc6c4a6ea 70-94
+  s_b0d7e3abc26c5a::t_34e8383b300143 155-160,164,218,234-242
+  s_b0d7e3abc26c5a::t_4a61a38b0aa3ec 1-7,10,12-13,16-22,25-28,31-34,47-61,64-69,114-116,118-144,149-154,161-163,165,243-244
+  s_b0d7e3abc26c5a::t_a5023701f8baaf 8-9,11,23-24,113,117,194-206,210-217,219-233
+  s_b0d7e3abc26c5a::t_1d454451bc8aaa 14
+go/internal/proof/contentcopy/AGENTS.md
+  s_b0d7e3abc26c5a::t_f51d3eb59795a5 1-11,13
+  s_b0d7e3abc26c5a::t_adc8be2a8a0d7a 12
+  s_b0d7e3abc26c5a::t_a5023701f8baaf 14-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d98d9c9fcc4443c6bff188356bd58a83dba2c0b9",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
