@@ -303,7 +303,14 @@ total="${#runs[@]}"
 for (( i = 0; i < total; i++ )); do
 	name="${runs[$i]%%|*}"
 	rest="${runs[$i]#*|}"
-	compose_file="${rest%%|*}"
+	# The row carries the compose file as its second field; it is always one
+	# of the two files above, so name them here and skip the field. A literal
+	# -f operand is one a static reader (verify-dockerhub-login.sh) can check.
+	case "${name}" in
+		nornicdb) compose_file="${nornicdb_compose}" ;;
+		neo4j) compose_file="${neo4j_compose}" ;;
+		*) die "unknown backend in run row: ${name}" ;;
+	esac
 	rest="${rest#*|}"
 	file="${rest%%|*}"
 	rest="${rest#*|}"

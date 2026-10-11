@@ -132,3 +132,42 @@ expect_green queue-path-conditional-literal-compose-file-with-ledger-branches "$
 lj "${d}" l-one-branch-other-image 'docker compose -f "${COMPOSE_FILE}" up -d' 1 \
   '{"COMPOSE_FILE": "${{ github.event_name == '"'"'merge_group'"'"' && '"'"'docker-compose.fixture-ledger.yaml'"'"' || '"'"'docker-compose.fixture-other.yaml'"'"' }}"}'
 expect_queue_jobs_red queue-path-conditional-literal-with-a-non-ledger-branch "${d}" l-one-branch-other-image
+
+# --- the runner shape: a compose file cut out of a row vs selected by name ---------
+# scripts/run-live-backend-tests.sh builds rows from two compose variables. Cutting
+# the file out of the row with ${rest%%|*} leaves the -f operand to text no static
+# reader settles (RED); selecting the file by the row's backend name onto the same
+# two literal variables lets the gate settle it (GREEN). Both fixtures name only
+# ghcr.io compose files, so only the way the operand is built differs.
+ledger_tree queue-runner-compose-selection
+d="${QUEUE_DIR}"
+lput "${d}" fixture-l-runner-mapfile-cut.sh <<'EOF2'
+nornicdb_compose="docker-compose.fixture-ghcr.yaml"
+neo4j_compose="docker-compose.fixture-ghcr.yaml"
+runs=("nornicdb|${nornicdb_compose}|a" "neo4j|${neo4j_compose}|b")
+for ((i = 0; i < ${#runs[@]}; i++)); do
+  rest="${runs[$i]#*|}"
+  compose_file="${rest%%|*}"
+  docker compose -f "${compose_file}" up -d
+done
+EOF2
+lj "${d}" r-runner-compose-file-cut-from-a-row 'bash scripts/fixture-l-runner-mapfile-cut.sh' 0
+expect_queue_jobs_red queue-path-compose-file-cut-from-a-mapfile-row "${d}" r-runner-compose-file-cut-from-a-row
+ledger_tree queue-runner-case-select
+d="${QUEUE_DIR}"
+lput "${d}" fixture-l-runner-case-select.sh <<'EOF2'
+nornicdb_compose="docker-compose.fixture-ghcr.yaml"
+neo4j_compose="docker-compose.fixture-ghcr.yaml"
+runs=("nornicdb|${nornicdb_compose}|a" "neo4j|${neo4j_compose}|b")
+for ((i = 0; i < ${#runs[@]}; i++)); do
+  name="${runs[$i]%%|*}"
+  case "${name}" in
+    nornicdb) compose_file="${nornicdb_compose}" ;;
+    neo4j) compose_file="${neo4j_compose}" ;;
+    *) exit 1 ;;
+  esac
+  docker compose -f "${compose_file}" up -d
+done
+EOF2
+lj "${d}" g-runner-compose-file-selected-by-name 'bash scripts/fixture-l-runner-case-select.sh' 0
+expect_green queue-path-compose-file-selected-by-backend-name "${d}"
