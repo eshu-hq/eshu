@@ -30,5 +30,7 @@
 //
 // Version-row rule: no statement deletes or resets a version row except one
 // that also deletes the repository's state row. A guard test enumerates every
-// Go statement and migration in the module and enforces it.
+// Go literal expression and migration in the module and enforces it; it
+// cannot prove that both deletes of a retirement statement name the same
+// repository.
 package artifacts

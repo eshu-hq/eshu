@@ -21,7 +21,15 @@ Scoped instructions for the config-artifact read model (#7126). The root
 - Never delete or reset a `config_artifact_content_versions` row except in
   one statement that also deletes the repository's
   `config_artifact_repo_state` row. The guard test fails the build otherwise.
+  It reads one Go literal expression at a time, so keep each statement in one
+  literal or one `+` chain of literals. It cannot see SQL built from
+  non-literal values, and it cannot prove that the state `DELETE` and the
+  version `DELETE` of a retirement statement name the same `repo_id`; check
+  that by hand in review.
   The repository retirement design (#7766) must use that shared disposition.
+- `failed` means "no successful derive yet" in both `Classify` and
+  `ListDirty`. A failed derive after a success is `retry`, a dirty-join label
+  only. Do not reuse one label for two populations.
 - `Classify` is the reader's trust rule. The PR3c SQL reader must return the
   same reason for every state; test it against `Classify`, not a copy.
 - The walk claim is not a lease. Do not make correctness depend on a single
