@@ -1,0 +1,25 @@
+go/internal/query/codetopicparallel/README.md
+  s_b0d7e3abc26c5a::t_6e585308ec9776 85
+  s_b0d7e3abc26c5a::t_afc96259e25e1b 84,86-98
+go/internal/query/codetopicparallel/reader.go
+  s_b0d7e3abc26c5a::t_2bde1b86ec66f4 267-271,273
+go/internal/query/codetopicparallel/reader_partition_test.go
+  s_b0d7e3abc26c5a::t_d3675c4fb5c1e7 9,75-78
+  s_b0d7e3abc26c5a::t_d8c62fa259ebcd 1-8,10-74,79-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "796764872a6e3bc20e620c7b62938430859597d6",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
