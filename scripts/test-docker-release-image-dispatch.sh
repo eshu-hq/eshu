@@ -133,45 +133,50 @@ if assert_release_tags 'sha-1234567'; then
 	exit 1
 fi
 
+registry_curl_fixture() {
+	local url=""
+	local basic_auth=false
+	local bearer_auth=false
+	local arg
+	for arg in "$@"; do
+		case "${arg}" in
+			https://*) url="${arg}" ;;
+			x-access-token:fake-token) basic_auth=true ;;
+			'Authorization: Bearer fixture-registry-token') bearer_auth=true ;;
+		esac
+	done
+	if [[ "${url}" == 'https://ghcr.io/token' ]]; then
+		[[ "${basic_auth}" == true ]]
+		[[ "$*" == *'scope=repository:eshu-hq/eshu:pull'* ]]
+		case "${FAKE_TOKEN_MODE:-valid}" in
+			denied) exit 22 ;;
+			empty) printf '{"token":""}' ;;
+			malformed) printf 'not-json' ;;
+			access_token) printf '{"access_token":"fixture-registry-token"}' ;;
+			*) printf '{"token":"fixture-registry-token"}' ;;
+		esac
+		exit 0
+	fi
+	[[ "${url}" == "https://ghcr.io/v2/eshu-hq/eshu/manifests/${EXPECTED_TAG}" ]]
+	case "${FAKE_REGISTRY_MODE:-absent}" in
+		absent) printf 'HTTP/2 404\r\n\r\n' ;;
+		exists) printf 'HTTP/2 200\r\ndocker-content-digest: sha256:1111111111111111111111111111111111111111111111111111111111111111\r\n\r\n' ;;
+		401) printf 'HTTP/2 401\r\ndocker-content-digest: sha256:1111\r\n\r\n' ;;
+		403) printf 'HTTP/2 403\r\n\r\n' ;;
+		500) printf 'HTTP/2 500\r\n\r\n' ;;
+		malformed) printf 'HTTP/2 200\r\n\r\n' ;;
+		network) exit 28 ;;
+		*) exit 2 ;;
+	esac
+	[[ "${bearer_auth}" == true ]]
+}
+
 mkdir -p "${TEMP_DIR}/registry-bin"
-cat > "${TEMP_DIR}/registry-bin/curl" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-url=""
-basic_auth=false
-bearer_auth=false
-for arg in "$@"; do
-	case "${arg}" in
-		https://*) url="${arg}" ;;
-		x-access-token:fake-token) basic_auth=true ;;
-		'Authorization: Bearer fixture-registry-token') bearer_auth=true ;;
-	esac
-done
-if [[ "${url}" == 'https://ghcr.io/token' ]]; then
-	[[ "${basic_auth}" == true ]]
-	[[ "$*" == *'scope=repository:eshu-hq/eshu:pull'* ]]
-	case "${FAKE_TOKEN_MODE:-valid}" in
-		denied) exit 22 ;;
-		empty) printf '{"token":""}' ;;
-		malformed) printf 'not-json' ;;
-		access_token) printf '{"access_token":"fixture-registry-token"}' ;;
-		*) printf '{"token":"fixture-registry-token"}' ;;
-	esac
-	exit 0
-fi
-[[ "${url}" == "https://ghcr.io/v2/eshu-hq/eshu/manifests/${EXPECTED_TAG}" ]]
-case "${FAKE_REGISTRY_MODE:-absent}" in
-	absent) printf 'HTTP/2 404\r\n\r\n' ;;
-	exists) printf 'HTTP/2 200\r\ndocker-content-digest: sha256:1111111111111111111111111111111111111111111111111111111111111111\r\n\r\n' ;;
-	401) printf 'HTTP/2 401\r\ndocker-content-digest: sha256:1111\r\n\r\n' ;;
-	403) printf 'HTTP/2 403\r\n\r\n' ;;
-	500) printf 'HTTP/2 500\r\n\r\n' ;;
-	malformed) printf 'HTTP/2 200\r\n\r\n' ;;
-	network) exit 28 ;;
-	*) exit 2 ;;
-esac
-[[ "${bearer_auth}" == true ]]
-EOF
+{
+	printf '#!/usr/bin/env bash\nset -euo pipefail\n'
+	declare -f registry_curl_fixture
+	printf 'registry_curl_fixture "$@"\n'
+} > "${TEMP_DIR}/registry-bin/curl"
 chmod +x "${TEMP_DIR}/registry-bin/curl"
 
 check_registry_tag() {
