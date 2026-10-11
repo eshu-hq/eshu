@@ -391,6 +391,8 @@ fi
 # --- verify-no-private-identifiers (seeded RED/GREEN cases live in the lib) ---
 # shellcheck source=scripts/lib/test-private-identifier-cases.sh
 source "$here/lib/test-private-identifier-cases.sh"
+# shellcheck source=scripts/lib/test-private-identifier-path-cases.sh
+source "$here/lib/test-private-identifier-path-cases.sh"
 
 # Nudge-reachability check. A skill nobody can reach from the editor hook is
 # the silent half of skill routing: the hook keeps exiting 0, so only a gate

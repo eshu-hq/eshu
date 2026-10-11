@@ -82,19 +82,49 @@ scan_text() {
 # entry) sees the real start of the line. The awk state machine reads the diff
 # headers, so a content line that itself begins with "++" is never mistaken for
 # a file header.
+#
+# The reported path must be one the operator can paste back, so the diff is
+# pinned three ways. core.quotePath=false keeps a non-ASCII byte literal instead
+# of an octal escape. --no-prefix drops the "a/" and "b/" prefix, which config
+# (diff.noprefix, diff.mnemonicPrefix) would otherwise change, so no strip can
+# eat a real "b/" directory. git still C-quotes a name that holds a double
+# quote, a backslash or a control character; awk unquotes the first two and
+# leaves a control character escaped, so one location stays one line.
 loc_file="$work/added.loc"
 content_file="$work/added.content"
 added_lines() {
   local diff_text
   : >"$loc_file"
   : >"$content_file"
-  if ! diff_text="$(git -C "$repo_root" diff -U0 -M --no-color --no-ext-diff "$@" -- . "${self_excludes[@]}")"; then
+  if ! diff_text="$(git -C "$repo_root" -c core.quotePath=false diff -U0 -M --no-prefix --no-color --no-ext-diff "$@" -- . "${self_excludes[@]}")"; then
     report "git diff $* failed; content was not verified"
     return 1
   fi
   LC_ALL=C awk -v loc="$loc_file" -v con="$content_file" '
+    # unquote: the path git printed between double quotes, with \" and \\
+    # decoded. Any other escape stays as git wrote it. Text after the closing
+    # quote (the tab git appends to a name with a space) is dropped.
+    function unquote(s,   out, i, n, c, nx) {
+      out = ""
+      n = length(s)
+      for (i = 2; i <= n; i++) {
+        c = substr(s, i, 1)
+        if (c == "\"") break
+        if (c == "\\") {
+          nx = substr(s, i + 1, 1)
+          if (nx == "\"" || nx == "\\") { out = out nx; i++; continue }
+        }
+        out = out c
+      }
+      return out
+    }
     /^diff --git / { hdr = 1; next }
-    hdr && /^\+\+\+ / { f = $0; sub(/^\+\+\+ /, "", f); sub(/^b\//, "", f); sub(/\t.*$/, "", f); next }
+    hdr && /^\+\+\+ / {
+      f = $0
+      sub(/^\+\+\+ /, "", f)
+      if (substr(f, 1, 1) == "\"") { f = unquote(f) } else { sub(/\t.*$/, "", f) }
+      next
+    }
     /^@@ / { hdr = 0; s = $0; sub(/^@@ -[0-9]+(,[0-9]+)? \+/, "", s); sub(/[^0-9].*$/, "", s); ln = s + 0; next }
     !hdr && /^\+/ { print f ":" ln > loc; print substr($0, 2) > con; ln++ }
   ' <<<"$diff_text"
