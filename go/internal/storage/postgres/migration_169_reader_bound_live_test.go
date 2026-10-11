@@ -49,7 +49,9 @@ var migration169ProductionIndexes = []string{
 // It fails if any read waits longer than migration169ReaderBound, if ACCESS
 // EXCLUSIVE appears during the backfill, or if the one-message control (the
 // pre-#7946 execution) does NOT block a reader, which would mean the fixture
-// is too small for the bound to prove anything.
+// is too small for the bound to prove anything. Every query, lock sample, and
+// backend signal is scoped to this test's own uniquely named disposable
+// database; the test never signals a session in another database.
 func TestMigration169PhasedBackfillReaderBoundLive(t *testing.T) {
 	ctx, database := postgresproof.OpenDisposableDatabase(t,
 		os.Getenv("ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN"),

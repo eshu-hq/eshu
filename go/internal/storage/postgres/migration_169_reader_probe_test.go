@@ -282,7 +282,9 @@ func contentFilesTupleFingerprint(t *testing.T, ctx context.Context, database *s
 // interruptMigration169Backfill clears the tag and receipt, starts the tracked
 // apply, terminates the migrator's backend while its backfill UPDATE runs,
 // and requires: the committed ALTER kept, no tag written, no receipt; then a
-// rerun that completes with exactly one receipt.
+// rerun that completes with exactly one receipt. It only ever signals a
+// backend of this test's own uniquely named disposable database: never a
+// session in another database on the same server.
 func interruptMigration169Backfill(t *testing.T, ctx context.Context, database *sql.DB, definitions []Definition, path string) {
 	t.Helper()
 	if _, err := database.ExecContext(ctx, "ALTER TABLE content_files DROP COLUMN generation_id"); err != nil {
@@ -296,22 +298,17 @@ func interruptMigration169Backfill(t *testing.T, ctx context.Context, database *
 	go func() {
 		result <- applyBootstrapDefinitionsWith(ctx, SQLDB{DB: database}, definitions, quiet, schemaBootstrapCoordination{})
 	}()
-	deadline := time.Now().Add(time.Minute)
-	terminated := false
-	for !terminated && time.Now().Before(deadline) {
-		err := database.QueryRowContext(ctx, `
-SELECT pg_terminate_backend(pid) FROM pg_stat_activity
-WHERE state = 'active' AND pid <> pg_backend_pid() AND query LIKE '%UPDATE content_files AS f%'
-LIMIT 1`).Scan(&terminated)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			t.Fatalf("terminate 169 backfill: %v", err)
-		}
-		if !terminated {
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	if !terminated {
-		t.Fatal("169 backfill UPDATE never became active to interrupt")
+	pid, started := waitForMigration169BackfillBackend(t, ctx, database)
+	var terminated bool
+	// Re-check the exact backend (pid, backend_start, this database) at the
+	// moment of the signal, so a recycled pid can never be hit.
+	if err := database.QueryRowContext(ctx, `
+SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM pg_stat_activity
+    WHERE pid = $1 AND backend_start = $2 AND datname = current_database()
+      AND query LIKE '%UPDATE content_files AS f%'
+) THEN pg_terminate_backend($1) ELSE false END`, pid, started).Scan(&terminated); err != nil || !terminated {
+		t.Fatalf("terminate this database's 169 backfill backend %d: terminated=%t err=%v", pid, terminated, err)
 	}
 	if err := <-result; err == nil {
 		t.Fatal("interrupted 169 apply returned nil, want the terminated backend's error")
@@ -334,4 +331,49 @@ WHERE table_schema = current_schema() AND table_name = 'content_files' AND colum
 	}
 	assertMigration169Receipts(t, ctx, database, path, 1)
 	t.Log("interrupted 169: backend terminated during backfill; ALTER kept, 0 tags, 0 receipts; rerun completed with 1 receipt")
+}
+
+// waitForMigration169BackfillBackend returns the one backend of this test's
+// own database that is running the 169 backfill UPDATE. pg_stat_activity is
+// cluster-wide, so the datname filter keeps any other database's sessions out
+// (#7961 review F1). More than one candidate fails the test instead of
+// signalling a guess.
+func waitForMigration169BackfillBackend(t *testing.T, ctx context.Context, database *sql.DB) (int, time.Time) {
+	t.Helper()
+	deadline := time.Now().Add(time.Minute)
+	for time.Now().Before(deadline) {
+		rows, err := database.QueryContext(ctx, `
+SELECT pid, backend_start FROM pg_stat_activity
+WHERE datname = current_database() AND pid <> pg_backend_pid()
+  AND backend_type = 'client backend' AND state = 'active'
+  AND query LIKE '%UPDATE content_files AS f%'
+ORDER BY pid`)
+		if err != nil {
+			t.Fatalf("find 169 backfill backend: %v", err)
+		}
+		var pids []int
+		var starts []time.Time
+		for rows.Next() {
+			var pid int
+			var started time.Time
+			if err := rows.Scan(&pid, &started); err != nil {
+				_ = rows.Close()
+				t.Fatalf("scan 169 backfill backend: %v", err)
+			}
+			pids, starts = append(pids, pid), append(starts, started)
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatalf("close 169 backfill backend rows: %v", err)
+		}
+		switch len(pids) {
+		case 0:
+			time.Sleep(10 * time.Millisecond)
+		case 1:
+			return pids[0], starts[0]
+		default:
+			t.Fatalf("%d backends of this database run the 169 backfill (%v), want exactly 1", len(pids), pids)
+		}
+	}
+	t.Fatal("169 backfill UPDATE never became active to interrupt")
+	return 0, time.Time{}
 }
