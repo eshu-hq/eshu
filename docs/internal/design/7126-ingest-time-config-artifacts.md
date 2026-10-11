@@ -5,11 +5,11 @@ Status: Accepted with changes (arbiter ruling and re-rulings 1, 2 and 3,
 Shims S0 and S2 pass. S3 arms 1, 2, 4 and 6 pass. Arms 1, 2 and 6 ran in a
 run whose in-run load1 maximum was 9.88 against the 9.0 bound, for 25 s, from
 foreign processes and the shim's own seeding. The arbiter accepted them with
-that deviation noted
-(evidence appendix, section 6). The arm 3 and arm 5 reruns are pending. S1,
-S4 and S6 have not run. This record does not approve the schema, the
-migration number or any rollout. Each of those waits for the shims in
-section 8. Refs #7126.
+that deviation noted (evidence appendix, section 6). The arm 3 and arm 5
+reruns are pending. The arm 1 confirmation (5 rounds, default sizes) rides
+with the arm 5 rerun, and a reversal there reopens arm 1. S1, S4 and S6 have
+not run. This record does not approve the schema, the migration number or
+any rollout. Each of those waits for the shims in section 8. Refs #7126.
 
 **Decision: compute the `config_paths` rows of each repository once, after the
 content writer commits that repository's content, and store them in Postgres
@@ -409,7 +409,7 @@ note. Details are in section 6 of the protocol companion.
 |---|---|---|---|
 | S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names | store the name in the state row and run S5. **Ran: PASS**. The two loader-level merge cases are not part of S0. They are in S4 and PR3c |
 | S2 read plan | local PostgreSQL 18 | The reader's three-table join for 300 ids and the dirty join over 815 repositories. Each runs in at most 5 ms with a generic plan. No scan of a table that grows with `content_files` | change the key or the statement. **Ran: PASS** with the four-column key: reader join 2.44 ms, dirty join 0.18 ms. With the digest key only the paths read was measured (2.14 ms). The digest-key reader join is not measured. See the evidence appendix, section 4 |
-| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most +5% of `prune_content_files` of the real retention store, at 1 KiB inline and 8 KiB TOASTed bodies. Two concurrent Writes at most +10% per Write, lock waits attributed by class, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write with few tombstones has two). A delta Write expects ceil((tombstones + reaped paths) / 500) delete transactions plus its upsert batches. Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1b | other DELETE shape, then the **Proposed** fallback (companion 2, needs an F2 amendment). Do not build the trigger. **Ran 2026-10-11**: arms 1, 2, 4 and 6 PASS. Arm 3 failed on a proxy denominator and arm 5 failed a mis-specified bar, so both rerun (appendix section 6) |
+| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most +5% of `prune_content_files` of the real retention store, at 1 KiB inline and 8 KiB TOASTed bodies. Two concurrent Writes at most +10% per Write, lock waits attributed by class, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write with few tombstones has two). A delta Write expects ceil((tombstones + reaped paths) / 500) delete transactions plus its upsert batches. Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1b | other DELETE shape, then the **Proposed** fallback (companion 2, needs an F2 amendment). Do not build the trigger. **Ran 2026-10-11**: arms 1, 2, 4 and 6 PASS. Arm 1 confirmation (5 rounds, default sizes) rides with the arm 5 rerun; a reversal reopens it (appendix, section 6). Arm 3 failed on a proxy denominator and arm 5 failed a mis-specified bar, so both rerun (appendix section 6) |
 | S6 cap census | QA environment, read-only | counts recorded for the follow-up issue | none: input only |
 | S1 derive cost | local, PR1, PR1b and PR2 stacked | at most 10% of content-stage p95. At most 2 s for the worst repository | reopen F1 |
 | S4 equality | PR3b gate | Symmetric difference `0/0` for every golden-corpus repository. Two loader-level merge cases too: two related repositories with one graph name, and the anchor repeated in the related list | do not merge PR3b-2 |
