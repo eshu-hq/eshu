@@ -114,8 +114,10 @@
   list, `GetEntityContext` then anchors it on
   `e.uid = $entity_id AND e.id = $entity_id` (#7089). That fast path finds only
   nodes written with id == uid. An id-only node, or one whose id differs from
-  its uid, falls through to the unlabeled whole-graph fallback, so the writer
-  must keep id == uid (or leave id unset).
+  its uid, is not reachable on Neo4j (the anchor is schema-closed since #7212
+  PR-B; such a node answers 404 there and the id-anchor census counts it) and
+  falls through to the unlabeled fallback only on NornicDB, so the writer must
+  keep id == uid (or leave id unset).
   Adding or removing an `x.id IS UNIQUE` constraint flips
   `HasIDUniquenessConstraint`, which the Neo4j entity-context anchor uses to
   choose its id-seek labels (#7380).

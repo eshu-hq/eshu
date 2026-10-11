@@ -378,8 +378,9 @@ probe hit, plus the unlabeled fallback), so a slow scoped read shows whether it
 paid for many probes or one heavy scoped statement.
 `GET /api/v0/entities/{entity_id}/context` logs the
 same count as `labels_tried`/`labels_total` structured fields (on Neo4j the
-statements are the indexed anchor and the unlabeled fallback, so `labels_total`
-is 2; NornicDB keeps the per-label loop, #7380) (plus a
+only statement is the schema-closed indexed anchor, so `labels_total` is 1,
+#7380 and #7212; NornicDB keeps the per-label loop and its unlabeled fallback)
+(plus a
 `failure_class` of `deadline` or `graph_read_error`) on its own separate
 handler-level warning when the loop ends in an error before resolving --
 distinct from `Neo4jReader`'s `query.graph_read.warning`, since a handler-level

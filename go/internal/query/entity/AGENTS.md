@@ -71,6 +71,14 @@
   change moves that text: re-render the golden and the hash in the same change
   and state the new width; the measured width is 124 labels. The NornicDB
   per-label loop keeps `EntityContextAnchorLabels`.
+- On Neo4j the anchor is the only entity-context statement (#7212 PR-B). Never
+  add the unlabeled `MATCH (e)` fallback back to the Neo4j list. It is the
+  2.27M-db-hit miss path the change removed. A label the anchor cannot reach is
+  fixed in the schema (a uid or id uniqueness constraint) or in the writer,
+  never in the read. `TestNeo4jEntityContextAnchorAgreesWithTheCensusOnEveryLabel`
+  and `TestLiveNeo4jSchemaClosedAnchorAgreesWithTheCensus` must keep agreeing
+  with `anchor.Classify`. `resolved_by=fallback` comes from
+  `entityContextPlan`'s `fallbackLast`, never from matching statement text.
 - The B-7 cassettes and B-12 snapshot must stay byte-identical: move code,
   never Cypher text or queue/projection behavior.
 

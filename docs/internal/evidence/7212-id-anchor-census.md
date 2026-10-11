@@ -6,6 +6,7 @@ This note covers the first of two changes that let the Neo4j entity-context
 read drop its unlabeled fallback statement. This change adds no behavior to the
 query path: `EntityContextStatements` still returns two statements on Neo4j.
 It adds the proof and the operator signal that the second change depends on.
+The second change (PR-B) is recorded in `7212-schema-closed-anchor.md`.
 
 - `go/internal/graph/anchor`: the definition of which id-bearing nodes the
   labeled anchor reaches, the census Cypher, and a heuristic pre-filter over

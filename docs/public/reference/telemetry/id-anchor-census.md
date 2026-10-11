@@ -4,8 +4,11 @@ On Neo4j the reducer publishes `eshu_dp_graph_id_anchor_unreachable_nodes`, a
 snapshot of graph nodes that carry an `id` the labeled entity-context anchor
 cannot reach. The anchor reaches a node through an id-constrained label, or
 through a uid-constrained label with `uid` equal to `id`. Zero is the
-invariant: with it, a miss on `GET /api/v0/entities/{entity_id}/context` has no
-node left for an unlabeled scan to find.
+invariant. Since #7212 the Neo4j read of
+`GET /api/v0/entities/{entity_id}/context` (and MCP `get_entity_context`) sends
+only that anchor, with no unlabeled whole-graph scan after it. A node the anchor
+cannot reach answers not-found there, so a nonzero count is a number of entity
+ids that the entity-context read cannot answer.
 
 An empty graph also reads zero, so a zero alone proves nothing. The reducer
 records `eshu_dp_graph_id_anchor_id_bearing_nodes` from the same pass. The
@@ -47,6 +50,8 @@ nonzero `unreachable_nodes` logs at WARN. A failed pass logs
 
 A writer produced an id-bearing node on a label with no uid or id uniqueness
 constraint, or a uid-constrained node whose uid is null or differs from its id.
+On Neo4j, entity context answers 404 for each of those ids until the writer is
+fixed and the nodes are rewritten.
 The golden-corpus writer-coverage gate and census check should have caught the
 writer; if they did not, the writer runs on a path the corpus replay does not
 drive. Find the label set with the census breakdown query in
