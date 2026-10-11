@@ -20,6 +20,11 @@ func stalledCorpus() *fakeCorpus {
 	return corpus
 }
 
+// stalledEndedIn is the last phase the stalled walk issues a statement in: the
+// cancelled probe predicts a step over the cap, so the tail runs and is
+// cancelled with no budget left after it.
+const stalledEndedIn = "tail"
+
 // A resume built from a partial that scanned nothing is the identical request:
 // the cursor is the request cursor (empty on a first call) and no match was
 // found. A client that blindly follows the resume rule would repeat it

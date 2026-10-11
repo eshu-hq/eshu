@@ -33,6 +33,25 @@ const (
 	outcomePartial outcome = "partial"
 )
 
+// phase names the part of the walk that issued its last statement. It is
+// reported as search.ended_in and on the partial log line.
+type phase string
+
+const (
+	// phaseProbe is the first key-ordered window.
+	phaseProbe phase = "probe"
+	// phaseContinuation is the continuation capped at plan.phaseOneCap.
+	phaseContinuation phase = "continuation"
+	// phaseTail is the trigram tail.
+	phaseTail phase = "tail"
+	// phaseContinuationAfterTail is the continuation with the budget left
+	// after a cancelled tail.
+	phaseContinuationAfterTail phase = "continuation_after_tail"
+	// phaseBudget means the walk stopped because less than the tail floor was
+	// left after the capped continuation, so the tail was skipped.
+	phaseBudget phase = "budget"
+)
+
 // walk is the state of one budgeted search. The phases are, in order: the
 // probe, continuation steps capped at a fraction of the budget, the trigram
 // tail with a bounded timeout, then continuation steps with whatever budget
@@ -60,9 +79,11 @@ type walk struct {
 
 	probeRowsVisited int
 	steps            int
+	stepsCancelled   int // key-ordered windows (probe included) the server cancelled
 	stepRowsVisited  int
 	tailRan          bool
 	tailCancelled    bool
+	endedIn          phase
 }
 
 func (w *walk) elapsed() time.Duration { return w.now().Sub(w.start) }
@@ -72,6 +93,7 @@ func (w *walk) remaining() time.Duration { return w.plan.budget - w.elapsed() }
 // run executes the phases until the page is proven or the budget is spent.
 func (w *walk) run(ctx context.Context) error {
 	probeStart := w.now()
+	w.endedIn = phaseProbe
 	if err := w.window(ctx, probeRows, w.plan.probeTimeout); err != nil {
 		return err
 	}
@@ -81,23 +103,25 @@ func (w *walk) run(ctx context.Context) error {
 	// The first continuation step is predicted from the probe's measured cost,
 	// scaled to the step size, because no step has run yet.
 	w.expected = w.now().Sub(probeStart) * stepRows / probeRows
-	if err := w.continuation(ctx, w.plan.phaseOneCap); err != nil || w.finished {
+	if err := w.continuation(ctx, w.plan.phaseOneCap, phaseContinuation); err != nil || w.finished {
 		return err
 	}
 	timeout := min(w.remaining(), w.plan.tailCap)
 	if timeout < w.plan.tailFloor {
+		w.endedIn = phaseBudget
 		return nil
 	}
 	if err := w.tail(ctx, timeout); err != nil || w.finished {
 		return err
 	}
-	return w.continuation(ctx, w.remaining())
+	return w.continuation(ctx, w.remaining(), phaseContinuationAfterTail)
 }
 
 // continuation issues 500-row steps while the phase allowance and the overall
 // budget can pay for the next one. The next step's cost is predicted by the
-// previous step's measured duration; a cancelled step ends the phase.
-func (w *walk) continuation(ctx context.Context, allowance time.Duration) error {
+// previous step's measured duration; a cancelled step ends the phase. name is
+// recorded as the walk's last phase once a step is issued.
+func (w *walk) continuation(ctx context.Context, allowance time.Duration, name phase) error {
 	var used time.Duration
 	for !w.finished {
 		room := min(allowance-used, w.remaining())
@@ -105,6 +129,7 @@ func (w *walk) continuation(ctx context.Context, allowance time.Duration) error 
 			return nil
 		}
 		before := w.now()
+		w.endedIn = name
 		cancelled, err := w.step(ctx, stepRows, min(w.plan.stepTimeout, room))
 		if err != nil {
 			return err
@@ -146,7 +171,11 @@ func (w *walk) step(ctx context.Context, size int, timeout time.Duration) (cance
 	queryStart := w.now()
 	hits, edge, err := w.collect(ctx, query, args)
 	if err != nil {
-		return w.settleFailure(ctx, err, queryStart, timeout)
+		cancelled, err := w.settleFailure(ctx, err, queryStart, timeout)
+		if cancelled {
+			w.stepsCancelled++
+		}
+		return cancelled, err
 	}
 	if err := w.exec(ctx, releaseSQL); err != nil {
 		return false, err
@@ -170,6 +199,7 @@ func (w *walk) step(ctx context.Context, size int, timeout time.Duration) (cance
 // when it completes the answer is complete.
 func (w *walk) tail(ctx context.Context, timeout time.Duration) error {
 	w.tailRan = true
+	w.endedIn = phaseTail
 	if err := w.setTimeout(ctx, timeout); err != nil {
 		return err
 	}
@@ -326,12 +356,19 @@ func (w *walk) page(offset, limit int) querycontract.FileSearchPage {
 	return querycontract.FileSearchPage{Files: files, More: len(w.matches) > offset+limit}
 }
 
+// progressed reports whether the call completed its answer or advanced the
+// cursor. Only a partial that completed no window is false: resuming it
+// repeats the identical request.
+func (w *walk) progressed() bool {
+	return w.finished || w.cursor != w.requested
+}
+
 func (w *walk) partial() *querycontract.SearchPartial {
 	reason := querycontract.SearchPartialCandidateBudgetExceeded
 	if w.overrun.Milliseconds() > querycontract.SearchLargeDocumentOverrunMS {
 		reason = querycontract.SearchPartialBudgetExceededOnLargeDocument
 	}
-	progressed := w.cursor != w.requested
+	progressed := w.progressed()
 	hint := querycontract.SearchPartialHint
 	if !progressed {
 		hint = querycontract.SearchPartialNoProgressHint

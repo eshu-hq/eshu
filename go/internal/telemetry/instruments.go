@@ -2211,6 +2211,17 @@ type Instruments struct {
 	// their statement timeout inside an unscoped file search.
 	ContentSearchTailCancel metric.Int64Counter
 
+	// ContentSearchStepCancel counts key-ordered windows (the probe and the
+	// continuation steps) the server cancelled at their statement timeout
+	// inside an unscoped file search. A cancelled window advances nothing, so
+	// a rising rate means large documents are stopping walks.
+	ContentSearchStepCancel metric.Int64Counter
+
+	// ContentSearchNoProgress counts unscoped file searches that returned a
+	// partial result without advancing the cursor: resuming them repeats the
+	// identical request, so each one is a dead end for the caller.
+	ContentSearchNoProgress metric.Int64Counter
+
 	// ContentSearchUnscopedDuration records the SQL wall time of one unscoped
 	// file search, in seconds, labeled by outcome.
 	ContentSearchUnscopedDuration metric.Float64Histogram
@@ -6041,6 +6052,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ContentSearchTailCancel counter: %w", err)
+	}
+
+	inst.ContentSearchStepCancel, err = meter.Int64Counter(
+		"eshu_dp_content_search_step_cancel_total",
+		metric.WithDescription("Key-ordered windows (probe and continuation steps) the server cancelled at their statement timeout inside an unscoped file-content search. A cancelled window advances nothing."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ContentSearchStepCancel counter: %w", err)
+	}
+
+	inst.ContentSearchNoProgress, err = meter.Int64Counter(
+		"eshu_dp_content_search_no_progress_total",
+		metric.WithDescription("Unscoped file-content searches that returned a partial result without advancing the cursor; resuming such a call repeats the identical request."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ContentSearchNoProgress counter: %w", err)
 	}
 
 	contentSearchBuckets := []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}

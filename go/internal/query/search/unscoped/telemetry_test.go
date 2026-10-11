@@ -122,6 +122,18 @@ func TestSearchRecordsSpanAttributesForPartial(t *testing.T) {
 	if got := attrs["search.elapsed_ms"].AsInt64(); got < 700 {
 		t.Errorf("search.elapsed_ms = %d, want about the budget", got)
 	}
+	if got := attrs["search.phase_one_cap_ms"].AsInt64(); got != 440 {
+		t.Errorf("search.phase_one_cap_ms = %d, want 440 at the default budget", got)
+	}
+	if got := attrs["search.ended_in"].AsString(); got != "tail" {
+		t.Errorf("search.ended_in = %q, want tail: the cancelled tail is the last statement", got)
+	}
+	if got := attrs["search.steps_cancelled"].AsInt64(); got != 0 {
+		t.Errorf("search.steps_cancelled = %d, want 0", got)
+	}
+	if !attrs["search.progressed"].AsBool() {
+		t.Error("search.progressed = false, want true: the walk advanced the cursor")
+	}
 	for key, value := range attrs {
 		if strings.Contains(value.String(), "needle-secret-pattern") {
 			t.Errorf("span attribute %s carries the search pattern", key)
@@ -136,8 +148,43 @@ func TestSearchRecordsMetricsAndPartialLogWithoutPattern(t *testing.T) {
 	if _, err := s.searcher.Search(context.Background(), "needle-secret-pattern", 200, 0, querycontract.SearchCursor{}); err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
+	counts, histograms, outcomes := collectMetrics(t, s.reader)
+	if counts["eshu_dp_content_search_unscoped_total"] != 1 || outcomes["eshu_dp_content_search_unscoped_total"] != "partial" {
+		t.Errorf("unscoped counter = %d outcome=%q, want 1 partial", counts["eshu_dp_content_search_unscoped_total"], outcomes["eshu_dp_content_search_unscoped_total"])
+	}
+	if counts["eshu_dp_content_search_tail_cancel_total"] != 1 {
+		t.Errorf("tail cancel counter = %d, want 1", counts["eshu_dp_content_search_tail_cancel_total"])
+	}
+	for _, name := range []string{"eshu_dp_content_search_unscoped_duration_seconds", "eshu_dp_content_search_unscoped_overrun_seconds"} {
+		if histograms[name] != 1 {
+			t.Errorf("%s samples = %d, want 1", name, histograms[name])
+		}
+	}
+	for _, name := range []string{"eshu_dp_content_search_step_cancel_total", "eshu_dp_content_search_no_progress_total"} {
+		if counts[name] != 0 {
+			t.Errorf("%s = %d, want 0: no step was cancelled and the walk progressed", name, counts[name])
+		}
+	}
+	line := s.logs.String()
+	for _, want := range []string{
+		`"event_name":"content_search.unscoped_partial"`, `"reason":"budget_exceeded_on_large_document"`, `"overrun_ms":120`,
+		`"progressed":true`, `"steps_cancelled":0`, `"ended_in":"tail"`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Errorf("partial log %s missing %s", line, want)
+		}
+	}
+	if strings.Contains(line, "needle-secret-pattern") {
+		t.Errorf("partial log carries the search pattern: %s", line)
+	}
+}
+
+// collectMetrics reads every counter sum, histogram sample count and the last
+// outcome label per metric name.
+func collectMetrics(t *testing.T, reader *sdkmetric.ManualReader) (map[string]int64, map[string]uint64, map[string]string) {
+	t.Helper()
 	var collected metricdata.ResourceMetrics
-	if err := s.reader.Collect(context.Background(), &collected); err != nil {
+	if err := reader.Collect(context.Background(), &collected); err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	counts := map[string]int64{}
@@ -160,19 +207,39 @@ func TestSearchRecordsMetricsAndPartialLogWithoutPattern(t *testing.T) {
 			}
 		}
 	}
-	if counts["eshu_dp_content_search_unscoped_total"] != 1 || outcomes["eshu_dp_content_search_unscoped_total"] != "partial" {
-		t.Errorf("unscoped counter = %d outcome=%q, want 1 partial", counts["eshu_dp_content_search_unscoped_total"], outcomes["eshu_dp_content_search_unscoped_total"])
+	return counts, histograms, outcomes
+}
+
+// A walk whose probe the server cancels and whose tail cannot finish advances
+// nothing: the span, both new counters and the partial log line say so, and
+// none of them carries the pattern.
+func TestSearchCountsCancelledStepsAndNoProgress(t *testing.T) {
+	t.Parallel()
+
+	s := newSignals(t, stalledCorpus())
+	page, err := s.searcher.Search(context.Background(), "needle-secret-pattern", 50, 0, querycontract.SearchCursor{})
+	if err != nil || page.Partial == nil || page.Partial.Progressed {
+		t.Fatalf("Search() = (%+v, %v), want a partial that made no progress", page, err)
 	}
-	if counts["eshu_dp_content_search_tail_cancel_total"] != 1 {
-		t.Errorf("tail cancel counter = %d, want 1", counts["eshu_dp_content_search_tail_cancel_total"])
+	attrs := spanAttrs(t, s.spans)
+	if got := attrs["search.steps_cancelled"].AsInt64(); got != 1 {
+		t.Errorf("search.steps_cancelled = %d, want 1 (the probe)", got)
 	}
-	for _, name := range []string{"eshu_dp_content_search_unscoped_duration_seconds", "eshu_dp_content_search_unscoped_overrun_seconds"} {
-		if histograms[name] != 1 {
-			t.Errorf("%s samples = %d, want 1", name, histograms[name])
-		}
+	if attrs["search.progressed"].AsBool() {
+		t.Error("search.progressed = true, want false")
+	}
+	if got := attrs["search.ended_in"].AsString(); got != stalledEndedIn {
+		t.Errorf("search.ended_in = %q, want %q", got, stalledEndedIn)
+	}
+	counts, _, _ := collectMetrics(t, s.reader)
+	if got := counts["eshu_dp_content_search_step_cancel_total"]; got != 1 {
+		t.Errorf("step cancel counter = %d, want 1", got)
+	}
+	if got := counts["eshu_dp_content_search_no_progress_total"]; got != 1 {
+		t.Errorf("no-progress counter = %d, want 1", got)
 	}
 	line := s.logs.String()
-	for _, want := range []string{`"event_name":"content_search.unscoped_partial"`, `"reason":"budget_exceeded_on_large_document"`, `"overrun_ms":120`} {
+	for _, want := range []string{`"progressed":false`, `"steps_cancelled":1`, `"ended_in":"` + stalledEndedIn + `"`} {
 		if !strings.Contains(line, want) {
 			t.Errorf("partial log %s missing %s", line, want)
 		}
@@ -193,17 +260,26 @@ func TestSearchExactEmitsNoPartialLog(t *testing.T) {
 	if s.logs.Len() != 0 {
 		t.Fatalf("log = %s, want none", s.logs.String())
 	}
-	if got := spanAttrs(t, s.spans)["search.outcome"].AsString(); got != "exact" {
+	attrs := spanAttrs(t, s.spans)
+	if got := attrs["search.outcome"].AsString(); got != "exact" {
 		t.Fatalf("search.outcome = %q, want exact", got)
+	}
+	if got := attrs["search.ended_in"].AsString(); got != "probe" {
+		t.Errorf("search.ended_in = %q, want probe", got)
+	}
+	if !attrs["search.progressed"].AsBool() {
+		t.Error("search.progressed = false on a complete answer, want true")
 	}
 }
 
-// Every timeout scales with the budget: at half the default the tail cap is
-// half of 400 ms.
+// Every timeout scales with the budget. At half the default the tail cap is
+// half of 400 ms and the continuation cap half of 440 ms. A probe of 100 ms
+// predicts a 250 ms step, over the 220 ms cap, so no step runs and the tail
+// cap is what binds the tail's timeout.
 func TestSearchScalesTailTimeoutWithBudget(t *testing.T) {
 	t.Parallel()
 
-	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i == 15000 })
+	corpus := newCorpus(20000, 500*time.Microsecond, func(i int) bool { return i == 15000 })
 	corpus.tailCost = func(int) time.Duration { return 150 * ms }
 	clock := newFakeClock()
 	fdb := newFakeDB(corpus, clock)
@@ -211,7 +287,25 @@ func TestSearchScalesTailTimeoutWithBudget(t *testing.T) {
 	if err != nil || page.Partial != nil {
 		t.Fatalf("Search() = (%+v, %v), want an exact page", page, err)
 	}
+	if got := fdb.tx.labels(t, "step", "tail"); len(got) != 2 || got[1] != "tail" {
+		t.Fatalf("statements = %v, want the probe then the tail: the predicted step is over the scaled cap", got)
+	}
 	assertTailShape(t, fdb.tx, "200ms")
+
+	// With cheap rows the scaled cap bounds the continuation instead: 25 ms
+	// steps fit eight times into 220 ms, and the phase-one cap is reported.
+	s := newSignals(t, newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i == 15000 }))
+	s.searcher.Budget = 400 * ms
+	if _, err := s.searcher.Search(context.Background(), "needle", 50, 0, querycontract.SearchCursor{}); err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	attrs := spanAttrs(t, s.spans)
+	if got := attrs["search.phase_one_cap_ms"].AsInt64(); got != 220 {
+		t.Errorf("search.phase_one_cap_ms = %d, want 220 at a 400 ms budget", got)
+	}
+	if got := attrs["search.continuation_steps"].AsInt64(); got != 8 {
+		t.Errorf("search.continuation_steps = %d, want 8 (8 x 25 ms inside the 220 ms cap)", got)
+	}
 }
 
 // Every bounded statement and the statement timeout carry pgx's exec mode so

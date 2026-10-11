@@ -67,7 +67,8 @@ repositories, half under 1 KB, one in 20 about 26 KB; warm; two runs of
 
 Read the last two rows plainly: at this small scale the old bitmap answers a
 selective or zero-match pattern in about a millisecond, and the walk spends its
-continuation cap (0.15 x budget) before the tail runs, so it is slower here.
+continuation cap (0.15 x budget at the time; 0.55 since 2026-10-11, see the
+last section) before the tail runs, so it is slower here.
 On the measured corpus the same two classes stayed inside their bars (table
 above). The walk trades a bounded constant for removing the multi-second tail
 of the old statement; it does not make every class faster. Pages 1, 2 and 3 of
@@ -171,3 +172,72 @@ accepted budget is 10 s.
   including a short final step; and the control statements (SAVEPOINT, RELEASE,
   set_config, RESET) go through the same transaction, so the fenced reader
   counts them as queries. Neither changes a decision.
+
+## 2026-10-11 re-read and the 0.55 cap
+
+A read of the QA environment on 2026-10-11 (pinned image, MCP tool, `limit`
+10, no repository filter) found 9 of 17 tokens partial. Common tokens such as
+`kubernetes`, `grafana` and `helm` returned 0 rows at 1.08-1.14 s after
+scanning only 1,700-3,200 rows in key order: the 0.15 cap (120 ms) stopped the
+key-ordered walk, and the trigram tail then met one 54.9 MB document whose
+recheck cannot be cancelled for about 0.7 s. The read-only continuation shim
+of the same day (`7730-continuation-shim-20261011.md`, kept with the arbiter
+rulings outside the repository) measured each token's 11th match at key
+positions 5,675-7,177, one key-ordered window to it at 289-409 ms, and
+replayed the shipped walk methods against those costs (a model validated
+against the observed A walk within about 5 %).
+
+The change: the continuation before the tail is capped at 0.55 x budget
+(440 ms at 800 ms). The tail cap (0.5 x budget), the tail floor and the phase
+order are unchanged. The arbiter rejected "skip the tail once a match was
+seen" (faster for kafka-like tokens) because it turns a token with an early
+match, few matches and a cheap tail from exact to partial.
+
+Per-class figures. A is the shipped 0.15 cap, B is the 0.55 cap. Each column
+has one source: "deployed read" is the 10-11 tool read; "model" is the
+QA-calibrated model of the shim (elapsed is the walk's own, min-max over 8
+scenarios). X = exact or exhausted, P = partial, the number is rows.
+
+| class | A, deployed read (10-11) | A, model | B 0.55, model | change |
+| --- | --- | --- | --- | --- |
+| baseline pattern | X10, about 11 ms server | X10, 10-14 ms | X10, 10-14 ms | none |
+| kubernetes, grafana, helm | P0, 1.08-1.14 s client | P0, 982-1,075 ms | X10, 312-348 ms | partial to exact |
+| prometheus | P0 | P0, 982-1,075 ms | X10, 320-352 ms | partial to exact |
+| postgres | P5 | P4-5, 982-1,075 ms | X10, 421-459 ms | partial to exact |
+| dockerfile | P5 | P4-5, 982-1,075 ms | X10, 322-355 ms | partial to exact |
+| argocd | X10, 0.823 s client | X10, 719-781 ms | X10, 312-341 ms | faster |
+| redis | X10, 0.636 s client | X10, 545-596 ms | X10, 138-156 ms | faster |
+| kafka | P1 | P1, 936-1,069 ms | P2, 1,232-1,386 ms | **one more row, slower, over the 1 s bar** |
+| xyzzy | P0, 766-773 ms server | P0, 776-782 ms | P0, 804-808 ms | same answer, about 25 ms slower |
+| zero-match literal | X0, 0.22 s (the 10-11 literal) | X0, 217-416 ms | X0, 513-733 ms | **slower, still exact** |
+| selective (10-08 class, tail 300 ms) | not read on 10-11 | X3, 427-448 ms | X3, 723-765 ms | **slower, still exact** |
+| synthetic late cluster | not read | P0, 982-1,075 ms | P0, 1,278-1,392 ms | **same rows, slower** |
+| synthetic early-match selective | not read | X3, 427-448 ms | X3, 723-765 ms | **slower, still exact** |
+
+The classes that get slower are in bold. B 0.55 is not deployed yet; its
+figures are the model, not a run. Closure of #7730 rests on the deployed
+re-read after the image roll.
+
+Unit proof (`TestPolicyClasses`, fake clock, synthetic sizes shaped like the
+measured profile, no QA data): one row per class above plus the kafka-like
+class without the large document (rule 4: the tail must still run and finish)
+and the xyzzy and zero-match tails. At the shipped 0.15 cap the late-cluster
+and spread rows fail (partial 0 and partial 5 rows), as do the kafka-like rows
+(1 row instead of 2). Two seeded violations each fail the test and were
+reverted: a 0.65 cap turns the selective and early-match-selective classes
+partial, and a one-line "skip the tail when a match was seen" turns the
+early-match-selective class partial and stops the kafka-like rows running the
+tail.
+
+Telemetry added: span attributes `search.phase_one_cap_ms`, `search.ended_in`,
+`search.steps_cancelled`, `search.progressed`; counters
+`eshu_dp_content_search_step_cancel_total` and
+`eshu_dp_content_search_no_progress_total`; and `progressed`,
+`steps_cancelled`, `ended_in` on the partial log line. No signal carries the
+pattern (`TestSearchRecordsMetricsAndPartialLogWithoutPattern`,
+`TestSearchCountsCancelledStepsAndNoProgress`).
+
+Limit recorded, not fixed here: the 54.9 MB document keeps kafka-like tokens
+over the bar under every continuation policy. Issue #7975 tracks it. A size
+predicate cannot fix it inside the search statements, because the bitmap heap
+scan rechecks the trigram condition before any other condition.

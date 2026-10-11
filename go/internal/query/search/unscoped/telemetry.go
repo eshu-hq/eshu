@@ -31,9 +31,9 @@ func (s *Searcher) startSpan(ctx context.Context) (context.Context, trace.Span) 
 }
 
 // record emits the operator signals for one finished search: span attributes,
-// the outcome counter, the tail-cancel counter, the elapsed and overrun
-// histograms, and one structured log line on every partial. None of them
-// carries the search pattern.
+// the outcome counter, the tail-cancel, step-cancel and no-progress counters,
+// the elapsed and overrun histograms, and one structured log line on every
+// partial. None of them carries the search pattern.
 func (s *Searcher) record(ctx context.Context, span trace.Span, w *walk, page querycontract.FileSearchPage, cursorPresent bool) {
 	result := w.outcome()
 	elapsed := w.elapsed()
@@ -49,6 +49,10 @@ func (s *Searcher) record(ctx context.Context, span trace.Span, w *walk, page qu
 		attribute.Bool("search.tail_cancelled", w.tailCancelled),
 		attribute.String("search.outcome", string(result)),
 		attribute.Bool("search.cursor_present", cursorPresent),
+		attribute.Int64("search.phase_one_cap_ms", w.plan.phaseOneCap.Milliseconds()),
+		attribute.String("search.ended_in", string(w.endedIn)),
+		attribute.Int("search.steps_cancelled", w.stepsCancelled),
+		attribute.Bool("search.progressed", w.progressed()),
 	)
 	if inst := s.Instruments; inst != nil {
 		attrs := metric.WithAttributes(telemetry.AttrOutcome(string(result)))
@@ -57,6 +61,12 @@ func (s *Searcher) record(ctx context.Context, span trace.Span, w *walk, page qu
 		inst.ContentSearchUnscopedOverrun.Record(ctx, w.overrun.Seconds())
 		if w.tailCancelled {
 			inst.ContentSearchTailCancel.Add(ctx, 1)
+		}
+		if w.stepsCancelled > 0 {
+			inst.ContentSearchStepCancel.Add(ctx, int64(w.stepsCancelled))
+		}
+		if page.Partial != nil && !page.Partial.Progressed {
+			inst.ContentSearchNoProgress.Add(ctx, 1)
 		}
 	}
 	if page.Partial == nil {
@@ -76,5 +86,8 @@ func (s *Searcher) record(ctx context.Context, span trace.Span, w *walk, page qu
 		slog.Int("rows_matched", page.Partial.RowsMatched),
 		slog.Bool("tail_ran", w.tailRan),
 		slog.Bool("tail_cancelled", w.tailCancelled),
+		slog.Bool("progressed", page.Partial.Progressed),
+		slog.Int("steps_cancelled", w.stepsCancelled),
+		slog.String("ended_in", string(w.endedIn)),
 	)
 }

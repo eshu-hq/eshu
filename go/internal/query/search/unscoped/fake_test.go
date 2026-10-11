@@ -45,6 +45,19 @@ type fakeCorpus struct {
 	// tailLag is extra uninterruptible time a cancelled tail runs past its
 	// statement timeout.
 	tailLag time.Duration
+	// tailDoc, when set, is one large document the tail meets while its
+	// statement timeout fires: the cancel then lands only when the document's
+	// recheck ends.
+	tailDoc *fakeTailDoc
+}
+
+// fakeTailDoc is a large document in the trigram tail. The tail meets it only
+// when the document lies after the cursor (row index at or past from); its
+// uninterruptible recheck runs from start to end after the tail starts, so a
+// timeout that fires inside [start, end) lands at end.
+type fakeTailDoc struct {
+	row        int
+	start, end time.Duration
 }
 
 // newCorpus builds n rows with keys that sort in index order. isMatch picks
@@ -245,13 +258,15 @@ func (tx *fakeTx) runStep(query string, args []any) (db.Rows, error) {
 	hits := 0
 	for i := from; i < from+window && i < len(rows) && hits < want; i++ {
 		cost += rows[i].cost
+		if tx.timeout > 0 && cost > tx.timeout {
+			// The recheck of the row in progress cannot be interrupted, so the
+			// cancel lands when that row is done, not at the timeout.
+			return tx.cancel(cost - tx.timeout)
+		}
 		if rows[i].match {
 			hits++
 			out = append(out, fileRow(kindHit, rows[i]))
 		}
-	}
-	if tx.timeout > 0 && cost > tx.timeout {
-		return tx.cancel(0)
 	}
 	tx.db.clock.advance(cost)
 	if edge := from + window - edgeBack; edge >= 0 && edge < len(rows) {
@@ -279,6 +294,9 @@ func (tx *fakeTx) runTail(query string, args []any) (db.Rows, error) {
 	}
 	cost := tx.db.corpus.tailCost(from)
 	if tx.timeout > 0 && cost > tx.timeout {
+		if doc := tx.db.corpus.tailDoc; doc != nil && from <= doc.row && tx.timeout >= doc.start && tx.timeout < doc.end {
+			return tx.cancel(doc.end - tx.timeout)
+		}
 		return tx.cancel(tx.db.corpus.tailLag)
 	}
 	tx.db.clock.advance(cost)

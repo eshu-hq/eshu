@@ -123,9 +123,11 @@ func TestSearchServesOffsetByReadingPastIt(t *testing.T) {
 	}
 }
 
-// A rare token runs the probe, a capped continuation, then the trigram tail
-// with index scans off inside a savepoint; the tail finishes, so the answer is
-// complete without any partial marker.
+// A rare token runs the probe, the continuation capped at 0.55 x budget, then
+// the trigram tail with index scans off inside a savepoint; the tail finishes,
+// so the answer is complete without any partial marker. With 25 ms steps the
+// cap pays for 17 steps (425 ms), and the tail's timeout is what is left of the
+// budget (800 - 435 = 365 ms), under the 400 ms tail cap.
 func TestSearchRareTokenFinishesInTheTail(t *testing.T) {
 	t.Parallel()
 
@@ -142,13 +144,13 @@ func TestSearchRareTokenFinishesInTheTail(t *testing.T) {
 		t.Fatalf("More=%v Partial=%+v, want a complete exact page", page.More, page.Partial)
 	}
 	steps := fdb.tx.labels(t, "step", "tail")
-	if len(steps) != 6 || steps[5] != "tail" {
-		t.Fatalf("phase order = %v, want probe, four capped steps, then the tail", steps)
+	if len(steps) != 19 || steps[18] != "tail" {
+		t.Fatalf("phase order = %v, want probe, 17 capped steps, then the tail", steps)
 	}
 	if elapsed := clock.Now().Sub(time.Unix(1_700_000_000, 0)); elapsed > unscoped.DefaultBudget {
 		t.Fatalf("elapsed = %v, want within the %v budget", elapsed, unscoped.DefaultBudget)
 	}
-	assertTailShape(t, fdb.tx, "400ms")
+	assertTailShape(t, fdb.tx, "365ms")
 }
 
 // assertTailShape checks the tail ran inside a savepoint with index scans off,
@@ -219,8 +221,9 @@ func TestSearchExactWindowBoundaryExhaustsOnNextStep(t *testing.T) {
 }
 
 // A dense late class cannot finish in the tail: the server cancels it at its
-// timeout, the savepoint keeps the transaction usable, the continuation spends
-// the rest of the budget, and the answer is an explicit partial prefix.
+// timeout, the savepoint keeps the transaction usable, and the answer is an
+// explicit partial prefix. At the 0.55 cap the tail's timeout is the rest of
+// the budget, so the walk ends with the cancelled tail.
 func TestSearchDenseLateClassReturnsPartialPrefixWithCursor(t *testing.T) {
 	t.Parallel()
 
@@ -262,16 +265,19 @@ func TestSearchDenseLateClassReturnsPartialPrefixWithCursor(t *testing.T) {
 		t.Fatalf("cancelled statements = %d, want exactly the tail", fdb.tx.cancels)
 	}
 	// The fake refuses every statement in an aborted transaction except
-	// ROLLBACK TO, so a continuation after the cancel proves the savepoint.
-	labels := fdb.tx.labels(t, "step", "tail", "rollback_to")
+	// ROLLBACK TO, so a RELEASE after the cancel proves the savepoint.
+	labels := fdb.tx.labels(t, "step", "tail", "rollback_to", "release")
 	tailAt := -1
 	for i, l := range labels {
 		if l == "tail" {
 			tailAt = i
 		}
 	}
-	if tailAt < 0 || labels[tailAt+1] != "rollback_to" || labels[len(labels)-1] != "step" {
-		t.Fatalf("statements = %v, want the tail cancelled, rolled back, then continuation steps", labels)
+	if tailAt < 0 || tailAt+2 >= len(labels) || labels[tailAt+1] != "rollback_to" || labels[tailAt+2] != "release" {
+		t.Fatalf("statements = %v, want the tail cancelled, rolled back, then released", labels)
+	}
+	if fdb.tx.indexOff {
+		t.Fatal("enable_indexscan still off after the cancelled tail")
 	}
 	if elapsed := clock.Now().Sub(time.Unix(1_700_000_000, 0)); elapsed > unscoped.DefaultBudget+50*ms {
 		t.Fatalf("elapsed = %v, want about the %v budget", elapsed, unscoped.DefaultBudget)

@@ -60,7 +60,7 @@ type plan struct {
 	budget       time.Duration
 	probeTimeout time.Duration // statement timeout of the probe: 300 ms at 800 ms
 	stepTimeout  time.Duration // statement timeout of one continuation step: 300 ms at 800 ms
-	phaseOneCap  time.Duration // continuation before the tail: 0.15 x budget
+	phaseOneCap  time.Duration // continuation before the tail: 0.55 x budget
 	tailCap      time.Duration // largest tail timeout: 0.5 x budget
 	tailFloor    time.Duration // smallest useful tail timeout: 150 ms at 800 ms
 }
@@ -73,8 +73,15 @@ func newPlan(budget time.Duration) plan {
 		budget:       budget,
 		probeTimeout: scale(300 * time.Millisecond),
 		stepTimeout:  scale(300 * time.Millisecond),
-		phaseOneCap:  scale(120 * time.Millisecond),
-		tailCap:      scale(400 * time.Millisecond),
-		tailFloor:    scale(150 * time.Millisecond),
+		// 0.55 x budget (#7730 continuation shim of 2026-10-11,
+		// 7730-continuation-shim-20261011.md, on the QA environment read of
+		// 2026-10-11): one key-ordered window to the 11th match of the common
+		// tokens that ended partial at 0.15 costs 289-409 ms, so 440 ms reaches
+		// them, and the 360 ms left for the tail still covers the measured
+		// 268 ms zero-match and 300 ms selective tails. Caps 0.50 to 0.60 pass
+		// the model's accuracy rules; 0.65 turns the selective class partial.
+		phaseOneCap: scale(440 * time.Millisecond),
+		tailCap:     scale(400 * time.Millisecond),
+		tailFloor:   scale(150 * time.Millisecond),
 	}
 }
