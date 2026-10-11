@@ -216,7 +216,7 @@ queue_job_check() {
 # scripts to lex: any bare docker word, or a variable named like docker or
 # compose. Docker uses are found by lib/dockerhub-login-lex.awk (it lexes the
 # shell text) and script references by lib/dockerhub-login-refs.awk.
-bare_re='(?:^|[^A-Za-z0-9_./$-])docker(?:-compose)?(?:[^A-Za-z0-9_./-]|$)|\$\{[A-Za-z_][A-Za-z0-9_]*:?[-=+]docker(?:-compose)?(?:[^A-Za-z0-9_./-]|$)|\$\{?[A-Za-z0-9_]*(?i:docker|compose)'
+bare_re='(?:^|[^A-Za-z0-9_.$-])docker(?:-compose)?(?:[^A-Za-z0-9_./-]|$)|\$\{[A-Za-z_][A-Za-z0-9_]*:?[-=+]docker(?:-compose)?(?:[^A-Za-z0-9_./-]|$)|\$\{?[A-Za-z0-9_]*(?i:docker|compose)'
 lex_awk="${repo_root}/scripts/lib/dockerhub-login-lex.awk"
 lex_params_awk="${repo_root}/scripts/lib/dockerhub-login-lex-params.awk"
 refs_awk="${repo_root}/scripts/lib/dockerhub-login-refs.awk"
@@ -260,6 +260,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-compose.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-operands.sh"
 # shellcheck source=lib/dockerhub-login-ledger.sh
 source "${repo_root}/scripts/lib/dockerhub-login-ledger.sh"
+# shellcheck source=lib/dockerhub-login-shadow.sh
+source "${repo_root}/scripts/lib/dockerhub-login-shadow.sh"
 # shellcheck source=lib/dockerhub-login-queue.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-queue.sh"
 # shellcheck source=lib/dockerhub-login-matrix.sh disable=SC2034

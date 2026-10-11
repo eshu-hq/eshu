@@ -13,6 +13,12 @@
 #   assign   prints FUNCTION <RS> NAME <RS> VALUE for every assignment, local
 #            or declare, for-in word, and "@READ@" for a name that read, mapfile
 #            or printf -v fills. FUNCTION is "" at the top level.
+#   shadow   prints W, P, R and D records for the PATH-shadow model: W<RS>line<RS>dir
+#            (an executable named docker written to dir), P<RS>line<RS>dir<RS>sub
+#            (dir prepended to PATH), R<RS>line (PATH overwritten, env -i, unset
+#            PATH) and D<RS>line<RS>plain|abs (a docker command word). sub is 1
+#            for a command in a subshell, where a prepend does not reach the
+#            parent shell.
 #   prepare  prints FUNCTION <RS> LINE for every call of eshu_ci_compose_prepare.
 #   sources  prints FUNCTION <RS> PATH for every source or . command (the first
 #            non-flag word, as written).
@@ -26,6 +32,7 @@
 # the header's indent.
 
 BEGIN {
+  PAREN = 0; SUBC = 0
   SUBS = " up down logs ps run exec build config pull push create start stop restart rm kill top port images events cp ls pause unpause version wait watch attach commit export stats scale publish convert alpha "
   CTRL = " if then do else elif while until ! { ( time exec command builtin local declare typeset export readonly "
   US = "\037"; SEP = "\036"
@@ -172,20 +179,28 @@ function subst_scan(w, fn, depth,   p, d, i, c, body, rest) {
 }
 
 # scan reads one logical line (or the body of a -c string or $(...)) as commands.
-function scan(s, fn, depth,   T, n, a, b, i) {
+function scan(s, fn, depth,   T, n, a, b, i, k, o, c) {
   if (depth > 3) return
   n = tokenize(s, T)
   a = 1
   for (i = 1; i <= n + 1; i++) {
     if (i > n || T[i] == ";") {
-      if (i - 1 >= a) command(T, a, i - 1, fn, depth)
+      if (i - 1 >= a) {
+        o = 0; c = 0
+        for (k = a; k <= i - 1; k++) { if (T[k] == "(") o++; else if (T[k] == ")") c++ }
+        if (T[a + 1] == ")" && o == 0) c--
+        # SUBC: the command runs in a subshell (inside ( ), $( ) or a -c string)
+        SUBC = (depth > 0 || PAREN > 0 || T[a] == "(") ? 1 : 0
+        command(T, a, i - 1, fn, depth)
+        if (depth == 0) { PAREN += o - c; if (PAREN < 0) PAREN = 0 }
+      }
       a = i + 1
     }
   }
 }
 
 # command handles the words T[a..b] of one command.
-function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args, skip, had) {
+function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args, skip, had, haspath, pathv) {
   for (i = a; i <= b; i++) if (index(T[i], "$(") > 0 || substr(T[i], 1, 1) == "`") subst_scan(T[i], fn, depth)
   # leading control words, declaration keywords and flags
   while (a <= b) {
@@ -203,17 +218,20 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
     return
   }
   # leading NAME=value words
-  asgc = 0
+  asgc = 0; haspath = 0; pathv = ""
   while (a <= b && T[a] ~ /^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=/) {
     w = T[a]; nm = w; sub(/[\[+=].*$/, "", nm)
+    if (nm == "PATH") { haspath = 1; v = w; sub(/^PATH\+?=/, "", v); pathv = v }
     if (tolower(nm) ~ /compose/) asgc = 1
     if (T[a + 1] == "(") asgc = 1
     v = w; sub(/^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=/, "", v)
     if (mode == "assign") print fn SEP nm SEP v
     a++
   }
+  if (mode == "shadow" && haspath && a > b) path_note(pathv)
   if (a > b) return
   w0 = unq(T[a])
+  if (mode == "shadow") shadow_cmd(T, a, b, w0)
   if (mode == "assign") {
     if (w0 == "read" || w0 == "mapfile" || w0 == "readarray" || (w0 == "printf" && T[a + 1] == "-v")) {
       for (i = a + 1; i <= b; i++) {
@@ -268,4 +286,52 @@ function ops(T, a, b, ctx, fn,   i, w, lw, inc, subc, suba, an, cn, lit, k, A, C
   }
   if (lit) { for (k = 1; k <= an; k++) print fn SEP A[k] SEP NR }
   else { for (k = 1; k <= cn; k++) print fn SEP C[k] SEP NR }
+}
+
+# path_note records a standalone PATH assignment: a prepend (the value starts
+# with a directory and keeps $PATH) is "P", an overwrite is "R", an append does
+# nothing for the shadow.
+function path_note(v,   q, first) {
+  q = unq(v)
+  if (q ~ /\$PATH|\$\{PATH[}:]/) {
+    if (q ~ /^(\$PATH|\$\{PATH\})/) return
+    first = q; sub(/:.*$/, "", first)
+    print "P" SEP NR SEP first SEP SUBC
+  } else print "R" SEP NR
+}
+
+# stub_target records a write of an executable named docker into a directory.
+function stub_target(p,   d) {
+  if (p ~ /\/docker$/) { d = p; sub(/\/docker$/, "", d); print "W" SEP NR SEP d SEP SUBC }
+}
+
+# shadow_cmd records, for one command: stub writes (redirect, cp, install, ln, mv,
+# tee), PATH resets (env -i, unset PATH) and docker command words ("plain" for the
+# bare word, "abs" for a path or command -p, which a PATH prepend does not shadow).
+function shadow_cmd(T, a, b, w0,   i, t, p, last) {
+  for (i = a; i <= b; i++) {
+    t = T[i]
+    if (t ~ /^[0-9]*>>?$/) { if (i < b) stub_target(unq(T[i + 1])); continue }
+    if (t ~ /^[0-9]*>>?./) { p = t; sub(/^[0-9]*>>?/, "", p); stub_target(unq(p)) }
+  }
+  last = ""
+  for (i = a + 1; i <= b; i++) if (T[i] !~ /^-/ && T[i] !~ /^[0-9]*[<>]/) last = T[i]
+  if ((w0 == "cp" || w0 == "install" || w0 == "ln" || w0 == "mv") && last != "") stub_target(unq(last))
+  if (w0 == "tee") for (i = a + 1; i <= b; i++) if (T[i] !~ /^-/) stub_target(unq(T[i]))
+  if (w0 == "env") for (i = a + 1; i <= b; i++) if (T[i] == "-i" || T[i] == "--ignore-environment") print "R" SEP NR
+  if (w0 == "unset") for (i = a + 1; i <= b; i++) if (unq(T[i]) == "PATH") print "R" SEP NR
+  if (w0 == "docker" || w0 == "docker-compose") print "D" SEP NR SEP "plain"
+  else if (w0 ~ /\/(docker|docker-compose)$/) print "D" SEP NR SEP "abs"
+  else if (w0 ~ /^(env|sudo|doas|exec|nice|nohup|timeout|stdbuf|setsid|ionice|time|command|builtin|xargs)$/ || w0 ~ /\/(env|sudo)$/) {
+    # a wrapper runs the docker word it is given: plain unless the wrapper sets
+    # PATH itself, names a path, or is command -p (a PATH prepend never shadows it)
+    p = ""
+    for (i = a + 1; i <= b; i++) {
+      t = unq(T[i])
+      if (t ~ /^PATH=/) print "R" SEP NR
+      if (w0 == "command" && t ~ /^-[a-z]*p/) p = "abs"
+      if (t == "docker" || t == "docker-compose") { print "D" SEP NR SEP (p == "" ? "plain" : p); break }
+      if (t ~ /\/(docker|docker-compose)$/) { print "D" SEP NR SEP "abs"; break }
+    }
+  }
 }

@@ -346,6 +346,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-test-script-refs.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-test-expressions.sh"
 # shellcheck source=lib/dockerhub-login-test-queue.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-queue.sh"
+# shellcheck source=lib/dockerhub-login-test-shadow.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-shadow.sh"
 # shellcheck source=lib/dockerhub-login-test-ledger.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-ledger.sh"
 # shellcheck source=lib/dockerhub-login-test-precision.sh

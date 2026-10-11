@@ -384,7 +384,16 @@ load_step_env() {
 step_hub_why() {
   local runf="$1" run_other="$2" cfiles="$4" env64="$5" job="${6:-}" f line name need_compose="$3" need_vars=0 i cur seq="${1##*/}"
   local -a files=() fact_text=() fact_src=()
+  local kept=""
   HUBWHY=""
+  # A script whose docker is a PATH-shadowed stub (lib/dockerhub-login-shadow.sh)
+  # has no docker reach: drop it and what it runs before reading any fact.
+  shadow_files "${cfiles}"
+  while IFS= read -r f; do
+    [[ -n "${f}" && "${SHADOWED}" != *$'\n'"${f}"$'\n'* ]] || continue
+    kept="${kept}${f}"$'\n'
+  done <<<"${cfiles}"
+  cfiles="${kept}"
   while IFS= read -r f; do [[ -z "${f}" ]] || files+=("${f}"); done <<<"${cfiles}"
   if [[ "${run_other}" -eq 1 ]]; then
     cur="RO_${seq}"
