@@ -53,9 +53,17 @@ func CompareConfigPaths(left, right map[string]any) int {
 	return 0
 }
 
-// configPathKeyOrder is the sort key of a config-path row and the dedup key of
-// a merged load, in comparison order.
+// configPathKeyOrder is the identity of a config-path row, in comparison order.
+// It is the one place the four fields and their order are written: it is the
+// sort key (CompareConfigPaths), the dedup key of a merged load
+// (configPathDedupKey) and the per-extractor dedup key
+// (appendConfigArtifactRow), so the three cannot drift.
 var configPathKeyOrder = [...]string{"path", "source_repo", "relative_path", "evidence_kind"}
+
+// configPathKeySeparator joins the four fields of a row identity. A field that
+// holds the separator can make two different rows share a key; the live path
+// has always behaved so, and a stored read model must match it exactly.
+const configPathKeySeparator = "|"
 
 // SortConfigPaths sorts rows in place by CompareConfigPaths. The sort is
 // stable, so rows that compare equal (none, after the dedup) keep their input
@@ -64,14 +72,14 @@ func SortConfigPaths(rows []map[string]any) {
 	slices.SortStableFunc(rows, CompareConfigPaths)
 }
 
-// configPathDedupKey is the identity of a row in a merged load.
+// configPathDedupKey is the identity of a row: its four key fields in
+// configPathKeyOrder, joined with configPathKeySeparator.
 func configPathDedupKey(row map[string]any) string {
-	return strings.Join([]string{
-		stringValue(row, "path"),
-		stringValue(row, "source_repo"),
-		stringValue(row, "relative_path"),
-		stringValue(row, "evidence_kind"),
-	}, "|")
+	var fields [len(configPathKeyOrder)]string
+	for i, field := range configPathKeyOrder {
+		fields[i] = stringValue(row, field)
+	}
+	return strings.Join(fields[:], configPathKeySeparator)
 }
 
 // MergeConfigPaths merges the rows of several repositories, in the order the
@@ -172,15 +180,16 @@ func appendConfigArtifactRow(rows []map[string]any, seen map[string]struct{}, pa
 	if pathValue == "" {
 		return rows
 	}
-	key := strings.Join([]string{pathValue, repoName, relativePath, evidenceKind}, "|")
-	if _, ok := seen[key]; ok {
-		return rows
-	}
-	seen[key] = struct{}{}
-	return append(rows, map[string]any{
+	row := map[string]any{
 		"path":          pathValue,
 		"source_repo":   repoName,
 		"relative_path": relativePath,
 		"evidence_kind": evidenceKind,
-	})
+	}
+	key := configPathDedupKey(row)
+	if _, ok := seen[key]; ok {
+		return rows
+	}
+	seen[key] = struct{}{}
+	return append(rows, row)
 }

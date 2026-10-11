@@ -118,6 +118,20 @@ BenchmarkLoadDeploymentArtifactOverview` in
 paths, at most 8 in flight, lowest failing chunk wins, launch decision under
 the mutex) moved unchanged, with its tests.
 
+### Row identity in one place
+
+A review thread asked for the four-field row identity to be written once.
+`configPathKeyOrder` is now the sort key, the dedup key of the merged load and
+the per-extractor dedup key of `appendConfigArtifactRow`. The key bytes are
+unchanged: `TestConfigPathKeyEqualsTheFrozenConstruction` and
+`TestAppendConfigArtifactRowKeepsTheFrozenKey` compare them with frozen literal
+constructions for rows with empty fields, the separator and unicode (a pair
+that differs only in where the separator sits still collides, as it did). Swapping
+two fields of the order array turns the two tests and
+`TestNameFreeRowsEqualBuildWithName` (1,394 order-only differences) RED. The
+same benchmark, five interleaved rounds against the tree before the change:
+allocs/op 228.6 k in both arms, B/op +0.3%, time within noise.
+
 ## Observability
 
 No-Observability-Change: the move adds no metric, span or log. The

@@ -41,7 +41,7 @@ type File struct {
 // full pass reads one file at a time.
 //
 // Implementations must be safe for the bounded concurrent chunk reads of one
-// repository (at most ChunksInFlight calls to ReadFiles at once).
+// repository (at most ReadChunksInFlight calls to ReadFiles at once).
 type Reader interface {
 	// ListFiles returns up to limit file rows of one repository in
 	// relative_path order, with empty Content (ListStatement).
