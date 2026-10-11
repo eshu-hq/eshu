@@ -46,6 +46,7 @@ func syncGitRepositoriesWithLogger(
 	deltaByRepoPath := make(map[string]GitSyncDelta)
 	refsByRepoPath := make(map[string][]GitRef)
 	reconcileByRepoPath := make(map[string]bool)
+	reconcileReasonByRepoPath := make(map[string]string)
 	sourceSHAByRepoPath := make(map[string]string)
 	refWorktreesByRepoPath := make(map[string][]RefWorktreeEntry)
 	fleetRefCount := 0
@@ -103,6 +104,7 @@ func syncGitRepositoriesWithLogger(
 					sourceSHAByRepoPath[repoPath] = sourceSHA
 					if forceReconcile {
 						reconcileByRepoPath[repoPath] = true
+						reconcileReasonByRepoPath[repoPath] = reconcile.Reason
 						reconciledThisCycle++
 						baseline.recordReconciliation(ctx, logger, reconcile)
 					}
@@ -147,6 +149,7 @@ func syncGitRepositoriesWithLogger(
 		DeltaByRepoPath:           deltaByRepoPath,
 		RefsByRepoPath:            refsByRepoPath,
 		ReconcileByRepoPath:       reconcileByRepoPath,
+		ReconcileReasonByRepoPath: reconcileReasonByRepoPath,
 		SourceCommitSHAByRepoPath: sourceSHAByRepoPath,
 		RefWorktreesByRepoPath:    refWorktreesByRepoPath,
 	}, nil

@@ -61,7 +61,7 @@ func TestBuildSelectedRepositoriesCarriesDeltaBaseline(t *testing.T) {
 		repoPath:  {ChangedFileTargets: []string{filepath.Join(repoPath, "a.go")}, BaselineCommitSHA: "A"},
 		emptyPath: {BaselineCommitSHA: "A"},
 	}
-	selected := buildSelectedRepositories(config, []string{repoPath, emptyPath}, deltas, nil, nil, nil, nil)
+	selected := buildSelectedRepositories(config, []string{repoPath, emptyPath}, deltas, nil, nil, nil, nil, nil)
 	if len(selected) != 2 {
 		t.Fatalf("selected = %d, want 2", len(selected))
 	}

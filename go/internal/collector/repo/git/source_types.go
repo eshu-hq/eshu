@@ -55,6 +55,9 @@ type SelectedRepository struct {
 	// must bypass the freshness-hint skip so it always re-projects and retracts
 	// any drift the delta path missed (epic #2340).
 	Reconcile bool `json:"reconcile,omitempty"`
+	// ReconcileReason is the bounded reconcile decision reason (for example
+	// interval_elapsed or graph_dirty) when Reconcile is true; empty otherwise.
+	ReconcileReason string `json:"reconcile_reason,omitempty"`
 	// DefaultBranchChanged marks a full observation taken because the remote
 	// default branch changed (#7678). Its generation bypasses the
 	// freshness-hint skip without being a reconciliation, so the repository
@@ -121,14 +124,18 @@ type RepositorySnapshot struct {
 	// DeltaBaselineCommitSHA is the commit a Delta snapshot was diffed from
 	// (#7319). It becomes ScopeGeneration.DeltaBaselineCommitSHA.
 	DeltaBaselineCommitSHA string `json:"delta_baseline_commit_sha,omitempty"`
-	// Reconcile marks a forced full reconciliation snapshot. Its generation
-	// carries an empty freshness hint so the commit-time skip never elides it,
-	// guaranteeing a periodic full re-projection that retracts drift the delta
-	// path missed (epic #2340).
+	// Reconcile marks a forced full reconciliation snapshot (epic #2340). Its
+	// generation keeps the content freshness hint and carries ReconcileReason;
+	// when it matches the active generation, the ingestion store re-projects
+	// that generation instead of storing a duplicate (#7978).
 	Reconcile bool `json:"reconcile,omitempty"`
+	// ReconcileReason is the bounded reconcile decision reason when Reconcile
+	// is true; empty otherwise.
+	ReconcileReason string `json:"reconcile_reason,omitempty"`
 	// DefaultBranchChanged marks a full snapshot taken because the remote
-	// default branch changed (#7678). Like Reconcile it empties the freshness
-	// hint, but it does not mark the generation a reconciliation.
+	// default branch changed (#7678). Its generation carries the flag, so the
+	// ingestion store always stores it; it does not mark the generation a
+	// reconciliation.
 	DefaultBranchChanged bool `json:"default_branch_changed,omitempty"`
 	// TaintEvidence carries intraprocedural value-flow taint findings resolved to
 	// the graph Function entity they concern. Empty unless the parser emitted

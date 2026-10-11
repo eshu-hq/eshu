@@ -239,8 +239,8 @@ func (h *overlayHarness) commit(ctx context.Context, gen overlayGen) error {
 	generation := scope.ScopeGeneration{
 		GenerationID: gen.id, ScopeID: h.scope.ScopeID, ObservedAt: observed, IngestedAt: observed,
 		Status: scope.GenerationStatusPending, TriggerKind: scope.TriggerKindSnapshot,
-		FreshnessHint: h.freshnessHint(ctx, gen), SourceCommitSHA: gen.commit, IsDelta: gen.delta,
-		DeltaBaselineCommitSHA: gen.baseline,
+		FreshnessHint: overlayContentHint(gen), SourceCommitSHA: gen.commit, IsDelta: gen.delta,
+		DeltaBaselineCommitSHA: gen.baseline, ReconcileReason: h.reconcileReason(ctx, gen),
 	}
 	h.mu.Lock()
 	h.gens[gen.id] = generation
@@ -430,19 +430,21 @@ func overlayContentHint(gen overlayGen) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// freshnessHint derives gen's freshness hint the way the git collector does.
-// A full generation asks the production reconcile decision (the sweep plus the
-// #7389 graph_dirty reason, on the production IngestionStore resolver) whether
-// it is a reconciliation snapshot, and the production fact-builder rule then
-// blanks the hint for one. A delta never carries the reconcile flag.
-func (h *overlayHarness) freshnessHint(ctx context.Context, gen overlayGen) string {
-	hint := overlayContentHint(gen)
+// reconcileReason derives gen's reconcile reason the way the git collector
+// does. A full generation asks the production reconcile decision (the sweep
+// plus the #7389 graph_dirty reason, on the production IngestionStore
+// resolver) whether it is a reconciliation snapshot; the generation then keeps
+// its content hint and carries the reason (#7978). A delta never carries it.
+func (h *overlayHarness) reconcileReason(ctx context.Context, gen overlayGen) string {
 	if gen.delta {
-		return hint
+		return ""
 	}
 	due, reason := gitcollector.ReconcileSweepDecision(ctx, h.store, 24*time.Hour, time.Time{}, time.Time{}, time.Now().UTC(), h.scope.ScopeID, nil)
 	h.t.Logf("reconcile decision for full %s: due=%t reason=%s", gen.id, due, reason)
-	return gitcollector.GenerationFreshnessHint(hint, due)
+	if !due {
+		return ""
+	}
+	return reason
 }
 
 // workFailureClass returns the projector work row's failure_class for id.

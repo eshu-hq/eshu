@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package git
+
+import (
+	"strings"
+	"testing"
+	"time"
+)
+
+// TestBuildStreamingGenerationReconcileKeepsContentHint proves #7978: a
+// reconciliation snapshot of an unchanged repository carries the same,
+// non-empty freshness hint as an ordinary snapshot of the same content. A blank
+// hint defeated the store's unchanged-generation check and minted one duplicate
+// generation per scope per sweep interval. The forced reason travels on the
+// generation, not by blanking the hint.
+func TestBuildStreamingGenerationReconcileKeepsContentHint(t *testing.T) {
+	t.Parallel()
+	repoPath := t.TempDir()
+	observedAt := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
+	plain := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
+	reconcile := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
+	reconcile.Reconcile = true
+	reconcile.ReconcileReason = "interval_elapsed"
+
+	plainGen := buildStreamingGeneration(repoPath, testCollectorRepositoryMetadata(repoPath), "run-plain",
+		observedAt, plain, false, "")
+	drainFactChannel(plainGen.Facts)
+	reconcileGen := buildStreamingGeneration(repoPath, testCollectorRepositoryMetadata(repoPath), "run-reconcile",
+		observedAt, reconcile, false, "")
+	drainFactChannel(reconcileGen.Facts)
+
+	if reconcileGen.Generation.FreshnessHint == "" {
+		t.Fatal("reconcile generation freshness hint is empty; want the content hint")
+	}
+	if got, want := reconcileGen.Generation.FreshnessHint, plainGen.Generation.FreshnessHint; got != want {
+		t.Fatalf("reconcile hint = %q, want the unchanged content hint %q", got, want)
+	}
+	if got, want := reconcileGen.Generation.ReconcileReason, "interval_elapsed"; got != want {
+		t.Fatalf("generation ReconcileReason = %q, want %q", got, want)
+	}
+	if plainGen.Generation.ReconcileReason != "" {
+		t.Fatalf("plain generation ReconcileReason = %q, want empty", plainGen.Generation.ReconcileReason)
+	}
+}
+
+// TestBuildStreamingGenerationReconcileWithoutReasonIsBounded keeps the stored
+// reason non-empty for a reconcile snapshot that did not carry a decision
+// reason, so the store still treats it as a reconciliation.
+func TestBuildStreamingGenerationReconcileWithoutReasonIsBounded(t *testing.T) {
+	t.Parallel()
+	repoPath := t.TempDir()
+	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
+	snapshot.Reconcile = true
+
+	collected := buildStreamingGeneration(repoPath, testCollectorRepositoryMetadata(repoPath), "run-r",
+		time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC), snapshot, false, "")
+	drainFactChannel(collected.Facts)
+	if got, want := collected.Generation.ReconcileReason, GenerationReconcileReasonUnspecified; got != want {
+		t.Fatalf("ReconcileReason = %q, want %q", got, want)
+	}
+}
+
+// TestSnapshotFreshnessHintFoldsContentVersion proves a collector, parser, or
+// fact-schema version change with unchanged content yields a different hint, so
+// the store mints a generation for the new output instead of treating it as a
+// duplicate (#7978).
+func TestSnapshotFreshnessHintFoldsContentVersion(t *testing.T) {
+	t.Parallel()
+	snapshot := testCollectorSnapshot(t.TempDir(), "package main\n", "digest-1")
+
+	v1 := snapshotFreshnessHintForVersion(snapshot, "git-collector.v1;schema=aaa")
+	v2 := snapshotFreshnessHintForVersion(snapshot, "git-collector.v2;schema=aaa")
+	schema := snapshotFreshnessHintForVersion(snapshot, "git-collector.v1;schema=bbb")
+	if v1 == v2 {
+		t.Fatalf("collector version bump kept hint %q", v1)
+	}
+	if v1 == schema {
+		t.Fatalf("schema version change kept hint %q", v1)
+	}
+	if again := snapshotFreshnessHintForVersion(snapshot, "git-collector.v1;schema=aaa"); again != v1 {
+		t.Fatalf("hint not deterministic: %q then %q", v1, again)
+	}
+	if got, want := snapshotFreshnessHint(snapshot), snapshotFreshnessHintForVersion(snapshot, GenerationContentVersion()); got != want {
+		t.Fatalf("snapshotFreshnessHint = %q, want the hint for the current content version %q", got, want)
+	}
+}
+
+// TestGenerationContentVersionNamesCollectorAndSchema pins the shape of the
+// version identity: the hand-bumped collector constant plus a digest of the
+// supported fact-schema registry.
+func TestGenerationContentVersionNamesCollectorAndSchema(t *testing.T) {
+	t.Parallel()
+	version := GenerationContentVersion()
+	if !strings.HasPrefix(version, gitGenerationContentVersion+";schema=") {
+		t.Fatalf("GenerationContentVersion() = %q, want prefix %q", version, gitGenerationContentVersion+";schema=")
+	}
+	if version == gitGenerationContentVersion+";schema=" {
+		t.Fatalf("GenerationContentVersion() = %q has an empty schema digest", version)
+	}
+	if again := GenerationContentVersion(); again != version {
+		t.Fatalf("GenerationContentVersion not stable: %q then %q", version, again)
+	}
+}
+
+// TestBuildStreamingGenerationDefaultBranchChangeKeepsHint proves a
+// default-branch change no longer blanks the hint: the generation carries the
+// DefaultBranchChanged flag, which the store honors by minting (#7678), and the
+// hint folds the default branch so the content identity changes with it.
+func TestBuildStreamingGenerationDefaultBranchChangeKeepsHint(t *testing.T) {
+	t.Parallel()
+	repoPath := t.TempDir()
+	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
+	snapshot.DefaultBranchChanged = true
+
+	collected := buildStreamingGeneration(repoPath, testCollectorRepositoryMetadata(repoPath), "run-branch",
+		time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC), snapshot, false, "")
+	drainFactChannel(collected.Facts)
+	if collected.Generation.FreshnessHint == "" {
+		t.Fatal("default-branch generation hint is empty; want the content hint")
+	}
+	if !collected.Generation.DefaultBranchChanged {
+		t.Fatal("generation DefaultBranchChanged = false, want true")
+	}
+	if collected.Generation.ReconcileReason != "" {
+		t.Fatalf("generation ReconcileReason = %q, want empty for a default-branch change", collected.Generation.ReconcileReason)
+	}
+
+	main := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
+	main.GitRefs = []GitRef{{Name: "main", Kind: "branch", HeadSHA: "abc", Default: true}}
+	trunk := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
+	trunk.GitRefs = []GitRef{{Name: "trunk", Kind: "branch", HeadSHA: "abc", Default: true}}
+	if snapshotFreshnessHint(main) == snapshotFreshnessHint(trunk) {
+		t.Fatal("default branch main -> trunk kept the same hint; want the default branch folded")
+	}
+}

@@ -178,7 +178,7 @@ func TestSyncCarriesDefaultBranchChange(t *testing.T) {
 
 	selected := buildSelectedRepositories(reconcileTestConfig(reposDir), synced.SelectedRepoPaths, synced.DeltaByRepoPath,
 		synced.ReconcileByRepoPath, synced.SourceCommitSHAByRepoPath, synced.RefsByRepoPath,
-		map[string][]RefWorktreeEntry{repoPath: {{WorktreePath: filepath.Join(reposDir, "wt"), Ref: "release", RefKind: "branch"}}})
+		map[string][]RefWorktreeEntry{repoPath: {{WorktreePath: filepath.Join(reposDir, "wt"), Ref: "release", RefKind: "branch"}}}, nil)
 	if len(selected) != 2 {
 		t.Fatalf("selected = %+v, want the default-branch entry and one pinned-ref entry", selected)
 	}
@@ -209,11 +209,11 @@ func TestNativeRepositorySnapshotterCarriesDefaultBranchChange(t *testing.T) {
 	}
 }
 
-// TestBuildStreamingGenerationDefaultBranchChangeClearsFreshnessHint proves a
-// default-branch change bypasses the unchanged-generation skip, whose hint
-// does not fold git refs, without marking the repository fact a
-// reconciliation.
-func TestBuildStreamingGenerationDefaultBranchChangeClearsFreshnessHint(t *testing.T) {
+// TestBuildStreamingGenerationDefaultBranchChangeIsNotReconciliation proves
+// a default-branch change keeps its content hint and does not mark the
+// repository fact a reconciliation; the store mints on the
+// DefaultBranchChanged flag instead (#7678, #7978).
+func TestBuildStreamingGenerationDefaultBranchChangeIsNotReconciliation(t *testing.T) {
 	t.Parallel()
 	repoPath := t.TempDir()
 	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
@@ -221,9 +221,9 @@ func TestBuildStreamingGenerationDefaultBranchChangeClearsFreshnessHint(t *testi
 
 	collected := buildStreamingGeneration(repoPath, testCollectorRepositoryMetadata(repoPath), "run-branch",
 		time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC), snapshot, false, "")
-	if collected.Generation.FreshnessHint != "" || collected.Generation.IsDelta {
-		t.Fatalf("generation hint=%q delta=%v; want an empty hint on a full observation",
-			collected.Generation.FreshnessHint, collected.Generation.IsDelta)
+	if collected.Generation.FreshnessHint == "" || collected.Generation.IsDelta || !collected.Generation.DefaultBranchChanged {
+		t.Fatalf("generation hint=%q delta=%v defaultBranchChanged=%v; want a content hint on a flagged full observation",
+			collected.Generation.FreshnessHint, collected.Generation.IsDelta, collected.Generation.DefaultBranchChanged)
 	}
 	repositoryFact := requireRepositoryFact(t, drainFactChannel(collected.Facts))
 	if _, ok := repositoryFact.Payload["reconciliation_generation"]; ok {

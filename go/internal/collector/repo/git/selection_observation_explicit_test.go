@@ -53,9 +53,9 @@ func syncWrittenScope(t *testing.T, config RepoSyncConfig, repoID string) (scope
 		t.Fatalf("repoCheckoutName(%q) error = %v", repoID, err)
 	}
 	checkout := filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName))
-	selected := buildSelectedRepositories(config, []string{checkout}, nil, nil, nil, nil, nil)
+	selected := buildSelectedRepositories(config, []string{checkout}, nil, nil, nil, nil, nil, nil)
 	if len(selected) != 1 {
-		t.Fatalf("buildSelectedRepositories(%q) = %d repositories, want 1", repoID, len(selected))
+		t.Fatalf("buildSelectedRepositories(%q, nil) = %d repositories, want 1", repoID, len(selected))
 	}
 	metadata, err := repositoryidentity.MetadataFor(filepath.Base(selected[0].RepoPath), selected[0].RepoPath, selected[0].RemoteURL)
 	if err != nil {

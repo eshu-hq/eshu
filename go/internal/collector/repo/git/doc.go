@@ -33,8 +33,12 @@
 // The periodic reconciliation sweep also forces a full snapshot for a scope
 // with #7389 uncovered projection writers (reason graph_dirty), subject only to
 // the in-flight and retry-backoff throttle. ReconcileSweepDecision exposes that
-// decision and GenerationFreshnessHint the empty hint a reconciliation snapshot
-// carries, so the ingestion store never drops it as unchanged.
+// decision. A reconciliation snapshot keeps its content freshness hint (v3,
+// which folds GenerationContentVersion: the collector and parser output
+// contract plus the fact-schema registry) and carries the decision reason on
+// ScopeGeneration.ReconcileReason. When the hint and commit equal the active
+// generation's, the ingestion store re-projects that generation instead of
+// storing a duplicate (#7978).
 //
 // Documentation extraction lives in the docs subpackage; see its doc.go for
 // the format list and the metadata-only boundaries (DOCX comments and tracked

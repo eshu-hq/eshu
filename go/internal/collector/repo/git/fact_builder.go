@@ -47,17 +47,18 @@ func buildStreamingGeneration(
 	return buildStreamingGenerationWithContext(context.Background(), repoPath, repo, sourceRunID, observedAt, snapshot, isDependency, ref)
 }
 
-// GenerationFreshnessHint returns the freshness hint a git generation
-// carries: empty when forceProjection is set — a reconciliation snapshot (the
-// sweep, or the #7389 graph_dirty reason) or a default-branch change (#7678) —
-// so the ingestion store's unchanged-generation skip never elides it and the
-// full re-projects even when the content hash is unchanged; the snapshot's
-// content hint otherwise.
-func GenerationFreshnessHint(snapshotHint string, forceProjection bool) string {
-	if forceProjection {
+// generationReconcileReason returns the reason a git generation records for a
+// forced reconciliation snapshot (#7978): the decision reason, or
+// GenerationReconcileReasonUnspecified when the snapshot carried none; empty
+// for an ordinary snapshot.
+func generationReconcileReason(snapshot RepositorySnapshot) string {
+	if !snapshot.Reconcile {
 		return ""
 	}
-	return snapshotHint
+	if snapshot.ReconcileReason != "" {
+		return snapshot.ReconcileReason
+	}
+	return GenerationReconcileReasonUnspecified
 }
 
 func buildStreamingGenerationWithContext(
@@ -74,16 +75,17 @@ func buildStreamingGenerationWithContext(
 		ctx = context.Background()
 	}
 	scopeValue := buildScope(repo, ref)
-	freshnessHint := GenerationFreshnessHint(snapshotFreshnessHint(snapshot), snapshot.Reconcile || snapshot.DefaultBranchChanged)
 	generation := buildGeneration(
 		scopeValue.ScopeID,
 		sourceRunID,
 		repoPath,
 		observedAt,
-		freshnessHint,
+		snapshotFreshnessHint(snapshot),
 		snapshot.HeadCommitSHA,
 		snapshot.Delta,
 	)
+	generation.ReconcileReason = generationReconcileReason(snapshot)
+	generation.DefaultBranchChanged = snapshot.DefaultBranchChanged
 	if snapshot.Delta {
 		generation.DeltaBaselineCommitSHA = snapshot.DeltaBaselineCommitSHA
 	}

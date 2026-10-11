@@ -88,6 +88,7 @@ func selectManagedCopyForCommitReadTest(t *testing.T, sourcePath string) Selecte
 		synced.SourceCommitSHAByRepoPath,
 		nil,
 		nil,
+		nil,
 	)
 	attachFilesystemGitTreePaths(config, []string{"."}, repositories)
 	if got, want := len(repositories), 1; got != want {
