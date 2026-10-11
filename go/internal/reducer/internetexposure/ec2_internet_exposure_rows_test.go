@@ -60,7 +60,7 @@ func ec2ExposureSecurityGroupRuleEnvelope(factID, groupID, direction string, isI
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AWSSecurityGroupRuleFactKind,
+		FactKind: cloud.AWSSecurityGroupRuleFactKind,
 		Payload: map[string]any{
 			"account_id":     ec2ExposureAccount,
 			"region":         ec2ExposureRegion,

@@ -55,10 +55,7 @@ func (h *CodeHandler) handleCodeQualityInspection(w http.ResponseWriter, r *http
 	ctx := querycontract.WithGraphQueryName(r.Context(), codeQualityCapability)
 	rows, err := quality.Inspect(ctx, h.Neo4j, req, codeGrantAccessFilter(ctx))
 	if err != nil {
-		if WriteGraphReadError(w, r, err, codeQualityCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, codeQualityCapability, codeQualityFailedMessage)
 		return
 	}
 	results, truncated := quality.TrimResults(quality.Rows(rows), req.Limit)

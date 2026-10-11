@@ -81,6 +81,18 @@ type ContentStore interface {
 	// is 50); the implementation must reject no input, but it is not a bulk
 	// read.
 	NonBlankRepoFilePaths(ctx context.Context, repoID string, relativePaths []string) ([]string, error)
+	// GetFileContents returns the stored row, content included, for each of
+	// relativePaths in one statement (#7126). A row is exactly what
+	// GetFileContent returns for that path. A path with no stored row is absent
+	// from the result, as GetFileContent returns no row for it, and a path
+	// repeated in the input yields one row. The result order is unspecified:
+	// callers key rows by RelativePath, never by position. An empty input
+	// issues no statement and returns no rows. A failure returns no rows, so a
+	// caller never sees a partial result as success. Callers pass a bounded
+	// chunk (the config-artifact hydration reads 10 paths per call, at most 8
+	// calls in flight); the implementation must reject no input, but it is not
+	// a bulk read: one statement detoasts its rows on one backend, serially.
+	GetFileContents(ctx context.Context, repoID string, relativePaths []string) ([]FileContent, error)
 	ListRepoEntities(ctx context.Context, repoID string, limit int) ([]EntityContent, error)
 	ListRepoEntitiesByType(ctx context.Context, repoID, entityType string, limit int) ([]EntityContent, error)
 	// ListRepoEntitiesByTypes returns entities filtered to a SET of

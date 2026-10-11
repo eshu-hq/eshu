@@ -127,6 +127,8 @@ substring semantics and its own bounded, explicitly truncated pages.
 `ResolveEntity` and `codequery.ApplyRepositorySelectorForAccess` each gained
 one `selector.WriteLookupFailure` branch, reached only after the selector
 resolve already returned an error and `WriteGraphReadError` declined it.
+`ResolveEntity` now delegates the whole mapping to
+`selector.ResolveForRequestWithAccess` (#7674).
 `GET /api/v0/investigations/services/{service_name}` and
 `GET /api/v0/services/{service_name}/story` resolve an optional `repo`
 selector; a backing-read failure there already answered 500, but with
@@ -188,6 +190,56 @@ path and every query string are unchanged. Observability Evidence (#7626):
 the request span now carries Error, an `exception` event, and the fixed
 description on each 500, and the client-cancel event on each 499. Pinned by
 `TestServiceRoutesServerFailureAnswersFixedMessage`.
+
+## Entity and workload read failures (#7674)
+
+`POST /api/v0/entities/resolve`, `GET /api/v0/entities/{entity_id}/context`,
+`GET /api/v0/workloads/{workload_id}/context`, and
+`GET /api/v0/workloads/{workload_id}/story` used to answer a prefix plus the
+backend error text (`query failed: ...`, `hydrate entity repo identity: ...`).
+Each failure step now runs `querycontract.WriteGraphReadError` first, then the
+route's configuration-state 503s, then answers one fixed message from
+`failure.go` through `tracing.WriteServerFailure`, for example
+`entity resolve query failed`, `entity context content fallback failed`, or
+`workload story enrichment failed`. The content-store steps (global and
+canonical resolution, metadata enrichment, the content fallback) skipped
+`WriteGraphReadError`, so a stale reader answered 500; they now answer the
+retryable 503 with `Retry-After`. A client cancel answers 499 with no span
+error. A `repo_id` selector on the resolve route goes through
+`selector.ResolveForRequestWithAccess`, so an unclassified selector error
+answers the fixed `repository selector lookup failed` 500 instead of a 400
+echoing its text.
+
+The configuration-state 503s stay 503 with no `Retry-After` and answer only
+the sentinel's own text, never a wrapper around it:
+`content relationship builder not configured` (entity context content
+fallback), `authoritative graph workload resolution is unavailable` (workload
+resolve), `global entity-name content index is unavailable` (global resolve),
+and `content substring indexes are not ready` (global resolve and the
+enrichment step of every workload and service route, including the story
+seam's `backend_unavailable` envelope). `unavailableSentinel` marks the span;
+each write site names its sentinel so the #7674 guard sees fixed text. The
+service story and investigation not-found answers carry only the typed
+`selector.NotFoundError` text. The operator contract is in
+[Selector And Read Failures](../../../../docs/public/reference/http-api/selector-and-read-failures.md).
+
+No-Regression Evidence (#7674): only failure branches changed. No Cypher,
+SQL, query parameter, call count, or success path changed; the
+`GetEntityContext` and `ResolveEntity` source digests in
+`queryplan/testdata/query-source-coverage.yaml` were re-pinned because their
+error branches changed. `go test ./internal/query/... ./internal/queryplan/...`
+passes.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the request span as an `exception` event with status Error and the step's
+fixed message; a configuration-state 503 does the same with the sentinel text;
+a client cancel adds `eshu.request.client_canceled` and leaves the status
+Unset. Pinned by `TestResolveEntityServerFailureAnswersFixedMessage`,
+`TestResolveEntityUnavailableSentinelsAnswerSentinelText`,
+`TestEntityContextServerFailureAnswersFixedMessage`,
+`TestEntityContextRelationshipBuilderSentinelAnswersSentinelText`,
+`TestWorkloadRoutesServerFailureAnswersFixedMessage`, and
+`TestEnrichmentSubstringIndexSentinelAnswersSentinelText`.
 
 ## Exported surface
 

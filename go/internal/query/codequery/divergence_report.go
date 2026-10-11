@@ -123,11 +123,10 @@ func (h *CodeHandler) handleDivergenceReport(w http.ResponseWriter, r *http.Requ
 
 	data, err := h.divergenceReportData(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, errDivergenceFindingsUnavailable) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, errDivergenceFindingsUnavailable, divergenceFindingsCapability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, divergenceFindingsCapability, divergenceReportFailedMessage)
 		return
 	}
 

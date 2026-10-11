@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -48,7 +49,10 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 	if strings.TrimSpace(req.EntityID) == "" && strings.TrimSpace(req.Name) != "" {
 		resolved, resolution, err := codemodel.ResolveRelationshipsNameTarget(ctx, h.Content, req)
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			if WriteGraphReadError(w, r, err, relationshipCapability(req.Direction, req.RelationshipType)) {
+				return
+			}
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, relationshipTargetFailedMessage)
 			return
 		}
 		if resolution != nil {
@@ -87,17 +91,19 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		if WriteGraphReadError(w, r, err, capability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, relationshipGraphFailedMessage)
 		return
 	}
 	if row == nil {
 		response, fallbackErr := h.relationshipsFromContent(ctx, req.EntityID, req.Name, req.RepoID)
 		if fallbackErr != nil {
-			if errors.Is(fallbackErr, errContentRelationshipBuilderNotConfigured) {
-				WriteError(w, http.StatusServiceUnavailable, fallbackErr.Error())
+			if writeCodeUnavailable(w, r, fallbackErr, errContentRelationshipBuilderNotConfigured, capability) {
 				return
 			}
-			WriteError(w, http.StatusInternalServerError, fallbackErr.Error())
+			if WriteGraphReadError(w, r, fallbackErr, capability) {
+				return
+			}
+			tracing.WriteServerFailure(w, r, fallbackErr, http.StatusInternalServerError, relationshipContentFallbackFailedMessage)
 			return
 		}
 		if response == nil {
@@ -133,7 +139,7 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		if WriteGraphReadError(w, r, err, capability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, relationshipRepositoryFailedMessage)
 		return
 	}
 	codemodel.NormalizeGraphRelationships(response)
@@ -144,7 +150,10 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		StringVal(row, "repo_id"),
 	)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		if WriteGraphReadError(w, r, err, capability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, relationshipMetadataFailedMessage)
 		return
 	}
 
@@ -201,7 +210,7 @@ func (h *CodeHandler) serveTransitiveRelationships(
 		if WriteGraphReadError(w, r, err, capability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, transitiveRelationshipGraphFailedMessage)
 		return
 	}
 	if row == nil {
@@ -229,7 +238,7 @@ func (h *CodeHandler) serveTransitiveRelationships(
 		if WriteGraphReadError(w, r, err, capability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, transitiveRelationshipRepositoryFailedMessage)
 		return
 	}
 	codemodel.NormalizeGraphRelationships(response)
@@ -240,7 +249,10 @@ func (h *CodeHandler) serveTransitiveRelationships(
 		StringVal(row, "repo_id"),
 	)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		if WriteGraphReadError(w, r, err, capability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, transitiveRelationshipMetadataFailedMessage)
 		return
 	}
 

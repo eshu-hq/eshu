@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -98,7 +99,7 @@ func NewSecurityGroupRuleEnvelope(observation SecurityGroupRuleObservation) (fac
 	ipProtocol := strings.TrimSpace(observation.IPProtocol)
 	sourceKind, sourceValue := normalizeSecurityGroupRuleSource(observation)
 	ruleID := strings.TrimSpace(observation.RuleID)
-	stableKey := facts.StableID(facts.AWSSecurityGroupRuleFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AWSSecurityGroupRuleFactKind, map[string]any{
 		"account_id":   observation.Boundary.AccountID,
 		"direction":    direction,
 		"from_port":    portValue(observation.FromPort),
@@ -135,8 +136,8 @@ func NewSecurityGroupRuleEnvelope(observation SecurityGroupRuleObservation) (fac
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.AWSSecurityGroupRuleFactKind,
-		facts.AWSSecurityGroupRuleSchemaVersion,
+		cloud.AWSSecurityGroupRuleFactKind,
+		cloud.AWSSecurityGroupRuleSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, securityGroupRuleSourceID(groupID, direction, ipProtocol, sourceKind, sourceValue, observation)),
 		observation.SourceURI,

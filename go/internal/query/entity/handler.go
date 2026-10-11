@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -169,19 +170,8 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	limit := NormalizeResolveEntityLimit(req.Limit)
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if req.RepoID != "" {
-		resolvedRepoID, err := selector.ResolveExactForAccess(r.Context(), h.Neo4j, h.Content, req.RepoID, access)
-		if err != nil {
-			if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
-				return
-			}
-			if selector.WriteLookupFailure(w, r, err) {
-				return
-			}
-			status := http.StatusBadRequest
-			if selector.IsNotFound(err) {
-				status = http.StatusNotFound
-			}
-			querycontract.WriteError(w, status, err.Error())
+		resolvedRepoID, ok := selector.ResolveForRequestWithAccess(w, r, h.Neo4j, h.Content, req.RepoID, access, "code_search.fuzzy_symbol")
+		if !ok {
 			return
 		}
 		req.RepoID = resolvedRepoID
@@ -206,14 +196,18 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	if req.RepoID == "" {
 		entities, err := h.resolveGlobalContentEntities(r.Context(), req.Name, req.Type, limit+1)
 		if err != nil {
-			if errors.Is(err, entity.ErrEntityNameSearchUnavailable) {
-				querycontract.WriteError(w, http.StatusServiceUnavailable, err.Error())
+			if querycontract.WriteGraphReadError(w, r, err, "code_search.exact_symbol") {
 				return
 			}
-			if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
+			if unavailableSentinel(r.Context(), err, entity.ErrEntityNameSearchUnavailable) {
+				querycontract.WriteError(w, http.StatusServiceUnavailable, entity.ErrEntityNameSearchUnavailable.Error())
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve content entities: %v", err))
+			if unavailableSentinel(r.Context(), err, querycontract.ErrContentSubstringIndexesNotReady) {
+				querycontract.WriteError(w, http.StatusServiceUnavailable, querycontract.ErrContentSubstringIndexesNotReady.Error())
+				return
+			}
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, resolveGlobalContentEntitiesFailedMessage)
 			return
 		}
 		entities, truncated := trimResolvedEntityPage(normalizeResolvedEntities(entities, limit+1), limit)
@@ -230,10 +224,7 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	if h.Neo4j != nil {
 		rows, err = h.Neo4j.Run(r.Context(), cypher, params)
 		if err != nil {
-			if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
-				return
-			}
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+			writeReadFailure(w, r, err, "code_search.fuzzy_symbol", resolveEntityQueryFailedMessage)
 			return
 		}
 	}
@@ -258,17 +249,14 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	}
 	entities, err = h.EnrichEntityResultsWithContentMetadata(r.Context(), entities, req.RepoID, req.Name, limit+1)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich entities: %v", err))
+		writeReadFailure(w, r, err, "code_search.fuzzy_symbol", resolveEntityEnrichmentFailedMessage)
 		return
 	}
 	for i := range entities {
 		attachSemanticSummary(entities[i])
 	}
 	if _, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
+		writeReadFailure(w, r, err, "code_search.fuzzy_symbol", resolveEntityRepoIdentityFailedMessage)
 		return
 	}
 	entities = normalizeResolvedEntities(entities, limit+1)
@@ -276,7 +264,7 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	if len(entities) == 0 {
 		entities, err = h.resolveEntityFromContent(r.Context(), req.Name, req.Type, req.RepoID, limit+1)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve content entities: %v", err))
+			writeReadFailure(w, r, err, "code_search.fuzzy_symbol", resolveEntityContentFallbackFailedMessage)
 			return
 		}
 		entities, truncated = trimResolvedEntityPage(entities, limit)

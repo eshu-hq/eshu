@@ -118,11 +118,11 @@ func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Re
 	req.Terms = CodeTopicSearchTerms(req.Topic, req.Intent, req.Terms)
 	results, err := h.codeTopicRows(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, ErrCodeTopicBackendUnavailable) || errors.Is(err, ErrContentSubstringIndexesNotReady) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, ErrCodeTopicBackendUnavailable, CodeTopicCapability) ||
+			writeCodeUnavailable(w, r, err, ErrContentSubstringIndexesNotReady, CodeTopicCapability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, CodeTopicCapability, codeTopicFailedMessage)
 		return
 	}
 

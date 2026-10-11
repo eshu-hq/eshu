@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
@@ -41,6 +42,15 @@ func writeSearchBundlesError(w http.ResponseWriter, r *http.Request, status int,
 		return
 	}
 	WriteError(w, status, message)
+}
+
+// writeSearchBundlesFailure answers a bundle-search read that
+// WriteGraphReadError declined, with the fixed message and the route's
+// envelope/plain split: 500 internal_error with err recorded on the request
+// span, or 499 when the caller canceled the request.
+func writeSearchBundlesFailure(w http.ResponseWriter, r *http.Request, err error, message string) {
+	status, errEnv := tracing.ServerFailureEnvelope(r.Context(), err, message, searchBundlesCapability)
+	writeSearchBundlesError(w, r, status, errEnv.Code, errEnv.Message)
 }
 
 // handleSearchBundles searches the pre-indexed package registry catalog as
@@ -119,7 +129,7 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		if WriteGraphReadError(w, r, err, searchBundlesCapability) {
 			return
 		}
-		writeSearchBundlesError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
+		writeSearchBundlesFailure(w, r, err, bundleSearchFailedMessage)
 		return
 	}
 
@@ -141,7 +151,7 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		if WriteGraphReadError(w, r, err, searchBundlesCapability) {
 			return
 		}
-		writeSearchBundlesError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
+		writeSearchBundlesFailure(w, r, err, bundleVersionCountFailedMessage)
 		return
 	}
 	for _, row := range rows {

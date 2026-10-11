@@ -4,13 +4,13 @@
 package entity
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // GetWorkloadContext retrieves the context for a specific workload. Exported so the staying contract endpoint test keeps driving the handler; see #6060. The
@@ -38,10 +38,7 @@ func (h *Handler) GetWorkloadContext(w http.ResponseWriter, r *http.Request) {
 
 	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", workloadContextQueryFailedMessage)
 		return
 	}
 
@@ -54,13 +51,14 @@ func (h *Handler) GetWorkloadContext(w http.ResponseWriter, r *http.Request) {
 		Logger:                    h.Logger,
 		Operation:                 "workload_context",
 	}); err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
-			return
-		}
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich workload context: %v", err))
+		if unavailableSentinel(r.Context(), err, querycontract.ErrContentSubstringIndexesNotReady) {
+			querycontract.WriteError(w, http.StatusServiceUnavailable, querycontract.ErrContentSubstringIndexesNotReady.Error())
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, workloadContextEnrichmentFailedMessage)
 		return
 	}
 
@@ -91,10 +89,7 @@ func (h *Handler) GetWorkloadStory(w http.ResponseWriter, r *http.Request) {
 
 	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", workloadStoryQueryFailedMessage)
 		return
 	}
 
@@ -107,13 +102,14 @@ func (h *Handler) GetWorkloadStory(w http.ResponseWriter, r *http.Request) {
 		Logger:                    h.Logger,
 		Operation:                 "workload_story",
 	}); err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
-			return
-		}
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich workload story: %v", err))
+		if unavailableSentinel(r.Context(), err, querycontract.ErrContentSubstringIndexesNotReady) {
+			querycontract.WriteError(w, http.StatusServiceUnavailable, querycontract.ErrContentSubstringIndexesNotReady.Error())
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, workloadStoryEnrichmentFailedMessage)
 		return
 	}
 

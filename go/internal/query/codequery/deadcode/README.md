@@ -86,6 +86,12 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   `RepositoryContextCoverage` read and `content_last_indexed_at` from the files
   `max(indexed_at)` read (`investigation_coverage.go`); it carries no
   `entity_count` (#7525). Do not reintroduce full `RepositoryCoverage` there.
+- **A failed read answers fixed text (#7674).** A scan, evidence, coverage,
+  or root-path read failure answers a fixed message per step (for example
+  `dead-code candidate scan failed` or `cross-repo dead-code candidate scan
+  failed`) through `tracing.WriteServerFailure`, after the graph verdict
+  declines it. The backend error is recorded on the span, never written to
+  the body; a client cancel answers 499.
 - **A reachability watermark never skips the legacy incoming read.**
   `DeadCodeIncomingEntityIDs` merges the materialized snapshot rows first, then
   always runs the producer-anchored one-hop read for the entities the snapshot

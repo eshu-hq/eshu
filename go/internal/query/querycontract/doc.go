@@ -45,7 +45,8 @@
 // entity-type vocabulary (taxonomy), and the repository read models, summary
 // loaders, and row projection (repository).
 // Content-index readiness covers ErrContentSubstringIndexesNotReady and
-// WriteContentSubstringIndexUnavailable. Language normalization
+// WriteContentSubstringIndexUnavailable, whose 503 body carries only the
+// sentinel's own text, never the wrapping error's (#7674). Language normalization
 // (CanonicalLanguage, NormalizedLanguageVariants, CoverageLanguageMaps) lives
 // in the taxonomy leaf; the accepted-language set lives in the language
 // handler package (go/internal/query/language, registry.go).

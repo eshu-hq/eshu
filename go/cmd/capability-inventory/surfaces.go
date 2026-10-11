@@ -228,7 +228,7 @@ func collectorFactKinds() map[string][]string {
 			facts.ServiceCatalogFactKinds(),
 		),
 		string(scope.CollectorAWS): appendFactKinds(
-			facts.AWSFactKinds(),
+			cloud.AWSFactKinds(),
 			cloud.EC2InstancePostureFactKinds(),
 			cloud.RDSPostureFactKinds(),
 			cloud.S3BucketPostureFactKinds(),

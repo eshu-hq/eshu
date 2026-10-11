@@ -68,10 +68,11 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 		Logger:                    h.Logger,
 		Operation:                 "service_context",
 	}); err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
+		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+		if unavailableSentinel(r.Context(), err, querycontract.ErrContentSubstringIndexesNotReady) {
+			querycontract.WriteError(w, http.StatusServiceUnavailable, querycontract.ErrContentSubstringIndexesNotReady.Error())
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, serviceContextEnrichmentFailedMessage)

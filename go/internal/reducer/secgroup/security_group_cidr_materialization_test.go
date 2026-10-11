@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -48,7 +49,7 @@ func (w *recordingSecurityGroupEndpointNodeWriter) WritePrefixListNodes(
 
 func securityGroupRuleEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSSecurityGroupRuleFactKind,
+		FactKind: cloud.AWSSecurityGroupRuleFactKind,
 		Payload:  payload,
 	}
 }

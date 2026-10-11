@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -147,7 +148,7 @@ func NewImageReferenceEnvelope(observation ImageReferenceObservation) (facts.Env
 	// one (codex #5451 P2 finding: the ECS scanner parses RegistryID from the
 	// image host specifically to support this case, so the key must key on it
 	// too or that parsing is pointless).
-	stableKey := facts.StableID(facts.AWSImageReferenceFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AWSImageReferenceFactKind, map[string]any{
 		"account_id":      observation.Boundary.AccountID,
 		"image_digest":    imageDigest,
 		"region":          observation.Boundary.Region,
@@ -177,8 +178,8 @@ func NewImageReferenceEnvelope(observation ImageReferenceObservation) (facts.Env
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.AWSImageReferenceFactKind,
-		facts.AWSImageReferenceSchemaVersion,
+		cloud.AWSImageReferenceFactKind,
+		cloud.AWSImageReferenceSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, repositoryName+"@"+imageDigest+"#"+tag),
 		observation.SourceURI,

@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -199,7 +200,7 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 			},
 			{FactKind: facts.AWSRelationshipFactKind},
 			{FactKind: facts.AWSRelationshipFactKind},
-			{FactKind: facts.AWSTagObservationFactKind},
+			{FactKind: cloud.AWSTagObservationFactKind},
 		}}},
 		Clock:       func() time.Time { return now },
 		Instruments: instruments,

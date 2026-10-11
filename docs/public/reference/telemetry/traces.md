@@ -117,10 +117,13 @@ AWS runtime drift, and replatforming routes, the supply-chain query routes
 and vulnerability suppression mutation, the package-registry and
 secrets/IAM routes, and the CI/CD, codeowners, dependency, freshness,
 incident, Kubernetes, metrics, observability coverage, service catalog,
-Terraform drift, and work-item routes (#7674). The impact
-code-evidence reads that answer `503` mark the span the
-same way a fault does. Other routes still answer a cancel with `500` until
-#7674 lands.
+Terraform drift, and work-item routes, and the `POST /api/v0/code/*`
+routes other than `POST /api/v0/code/language-query`, and the entity and
+workload routes (#7674). The code-flow routes
+answered a cancel with `408` before. A `503` that reports a configuration or
+readiness state, on these routes or the impact code-evidence reads, marks the
+span the same way a fault does. Other routes still answer a cancel with `500`
+until #7674 lands.
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
 counts only `5xx`, so a canceled read on these routes leaves that counter and

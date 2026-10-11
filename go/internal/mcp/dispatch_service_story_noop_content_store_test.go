@@ -84,6 +84,10 @@ func (mcpNoopContentStore) ListRepoFiles(context.Context, string, int) ([]query.
 	return nil, nil
 }
 
+func (mcpNoopContentStore) GetFileContents(context.Context, string, []string) ([]query.FileContent, error) {
+	return nil, nil
+}
+
 func (mcpNoopContentStore) NonBlankRepoFilePaths(context.Context, string, []string) ([]string, error) {
 	return nil, nil
 }

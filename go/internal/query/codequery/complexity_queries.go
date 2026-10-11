@@ -318,10 +318,7 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 	if req.EntityID == "" && req.FunctionName == "" {
 		results, limit, truncated, err := h.listMostComplexFunctions(ctx, req.RepoID, req.Limit, access)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, "code_quality.complexity") {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, "code_quality.complexity", complexityRankingFailedMessage)
 			return
 		}
 		// Clip after the page trim so the count matches the rows returned (#7234).
@@ -345,10 +342,7 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 			codemodel.WriteComplexityAmbiguousError(w, r, ambiguous, h.profile())
 			return
 		}
-		if WriteGraphReadError(w, r, err, "code_quality.complexity") {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, "code_quality.complexity", complexityLookupFailedMessage)
 		return
 	}
 	if row == nil {
@@ -380,7 +374,7 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 		StringVal(row, "repo_id"),
 	)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, "code_quality.complexity", complexityMetadataFailedMessage)
 		return
 	}
 

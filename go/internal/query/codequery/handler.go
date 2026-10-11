@@ -5,7 +5,6 @@ package codequery
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -164,14 +163,11 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if req.RepoID == "" {
 		results, err := h.searchGlobalEntityNames(r.Context(), req.Query, req.Language, probeLimit, req.Exact)
 		if err != nil {
-			if errors.Is(err, entity.ErrEntityNameSearchUnavailable) {
-				WriteError(w, http.StatusServiceUnavailable, err.Error())
+			if writeCodeUnavailable(w, r, err, entity.ErrEntityNameSearchUnavailable, capability) ||
+				writeCodeUnavailable(w, r, err, ErrContentSubstringIndexesNotReady, capability) {
 				return
 			}
-			if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, capability, codeSearchContentIndexFailedMessage)
 			return
 		}
 		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadAt(
@@ -183,13 +179,10 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Repository-selected search retains the indexed graph query path.
 	graphResults, err := h.searchGraphEntitiesWithExact(ctx, req.RepoID, req.Query, req.Language, probeLimit, req.Exact)
 	if err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
+		if writeCodeUnavailable(w, r, err, ErrContentSubstringIndexesNotReady, capability) {
 			return
 		}
-		if WriteGraphReadError(w, r, err, capability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, capability, codeSearchGraphFailedMessage)
 		return
 	}
 
@@ -204,10 +197,10 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Fall back to content-based search if no graph results
 	contentResults, err := h.searchEntityContentWithExact(ctx, req.RepoID, req.Query, req.Language, probeLimit, req.Exact)
 	if err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
+		if writeCodeUnavailable(w, r, err, ErrContentSubstringIndexesNotReady, capability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, capability, codeSearchContentFailedMessage)
 		return
 	}
 

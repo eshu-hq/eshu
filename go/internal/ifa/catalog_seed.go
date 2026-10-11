@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
@@ -67,12 +68,12 @@ var catalogSeed = []familyodu.CatalogOdu{
 // odu:aws-pack carries with fixturepack.ValidPayload examples, proving the
 // payload-schema derivation axis (design §1c) for the AWS cloud-inventory
 // family. awsTagObservationKind additionally proves the schema-less
-// registry-only path (facts.AWSTagObservationFactKind carries no
+// registry-only path (cloud.AWSTagObservationFactKind carries no
 // PayloadSchema) in the same Odù.
 var awsFamilySchemaBackedKinds = []string{
 	facts.AWSResourceFactKind,
-	facts.AWSResourcePolicyPermissionFactKind,
-	facts.AWSSecurityGroupRuleFactKind,
+	cloud.AWSResourcePolicyPermissionFactKind,
+	cloud.AWSSecurityGroupRuleFactKind,
 	facts.AWSWarningFactKind,
 }
 
@@ -96,7 +97,7 @@ func awsPackOdu() familyodu.CatalogOdu {
 	}
 	factsForOdu = append(factsForOdu, facts.Envelope{
 		ScopeID:  "aws:sandbox-account",
-		FactKind: facts.AWSTagObservationFactKind,
+		FactKind: cloud.AWSTagObservationFactKind,
 		Payload: map[string]any{
 			"resource_id": "vpc-0abc123def456",
 			"key":         "env",

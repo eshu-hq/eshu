@@ -77,6 +77,26 @@ InheritanceDepth,AnchorLookup}Cypher`, `CallGraphMetricsEdgesCypher`
   `go/internal/queryplan/testdata/{handler-hot-cypher,hot-cypher}.yaml`
   MUST track the builder's real location.
 
+## Failed reads (#7674)
+
+Every store or graph read failure goes through `writeCodeReadFailure`
+(`read_failure.go`): `querycontract.WriteGraphReadError` first (fence 503,
+graph 503/504), then `tracing.WriteServerFailure` with a fixed message
+constant for that route step (500, or 499 for a client cancel). A
+configuration-state sentinel goes through `writeCodeUnavailable` before that,
+which answers 503 with the sentinel's own text. Declare a new step's message
+as a `const` in `read_failure.go`. Never write `err.Error()` or a message
+formatted with `err` to a 4xx/5xx body; the query error-text guard holds
+every file in this package at zero sites. Only client-built text (selectors,
+candidate ids with their paths and start lines, locally computed counts) may
+reach a 400/422 body; wrap a
+store error that shares a return path with such text, as
+`callChainLookupError` does. When a capability is computed by a call
+(`relationshipCapability`), call `WriteGraphReadError` inline rather than
+through the helper: the root capability sweep resolves a helper parameter
+across all its callers with one visited set, so a second computed argument
+reads as unresolvable. `server_failure*_test.go` pins each family.
+
 ## Test discipline
 
 - Pin production Cypher bytes over HTTP (`httptest` against the real

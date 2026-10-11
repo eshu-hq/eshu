@@ -194,7 +194,7 @@ func (h *CodeHandler) handleCompareCodePaths(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := h.resolveCallChainEntityIDs(r.Context(), &req.Request); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeCallChainEndpointFailure(w, r, err, CompareCodePathsCapability, comparePathsEndpointFailedMessage)
 		return
 	}
 	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, CompareCodePathsCapability) {
@@ -230,10 +230,7 @@ func (h *CodeHandler) handleCompareCodePaths(w http.ResponseWriter, r *http.Requ
 		depth, maxPaths, CompareVisitBudget, expand,
 	)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, CompareCodePathsCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, CompareCodePathsCapability, comparePathsGraphFailedMessage)
 		return
 	}
 	shaped := make([]map[string]any, 0, len(result.Paths))

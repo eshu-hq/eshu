@@ -19,6 +19,17 @@
   tree test and the unread-class guard fire only for content in
   `poisonContents`; a new extractor branch must add content that moves it, or
   the guards cannot see the read.
+- The config-artifact load reads content with `ContentStore.GetFileContents`,
+  10 paths per statement and at most 8 chunk reads of one repository in flight
+  (`chunkedRead`). Do not raise either number, parallelize across repositories,
+  or read a whole repository in one statement without a measurement on a
+  byte-heavy repository: one statement detoasts serially. A new read of
+  config-artifact content goes through `configHydrationPolicy.fetch`, so the
+  per-file reader the equality tests use as an oracle (`perFileFetch`) can
+  compare it. Keep the failure rule: the lowest-numbered failing chunk wins, a
+  failed pass leaves the rows unchanged, and the launch decision stays under
+  the mutex that records a failure (a chunk is launched only while no failure
+  is recorded and the context is live).
 - Artifact predicates feed access decisions (`filter...ForAccess` callers);
   keep the fail-closed behavior and bounded limits exactly as they are.
 - The HCL extractor skips a regex scan only when `prefilter` proves the

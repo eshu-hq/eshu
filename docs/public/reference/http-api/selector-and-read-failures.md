@@ -172,11 +172,48 @@ A shared selector helper error that is neither an unmatched nor an ambiguous
 selector answers the fixed `500` `repository selector lookup failed`, never a
 `400` with the error text.
 
+## Code and entity read failures
+
+The `POST /api/v0/code/*` routes (search, symbols, relationships and their
+story, call chains and path comparison, call-graph metrics, complexity,
+quality inspection, dead code, divergence, imports, routes to callers,
+structure inventory, topics, secrets investigation, bundles, Cypher, and
+visualize) and the entity routes (`POST /api/v0/entities/resolve`, `GET
+/api/v0/entities/{entity_id}/context`, and the workload and service context,
+story, and investigation routes) answer a failed store or graph read with
+`500` and a fixed message for the step that failed, recorded on the handler
+span, instead of the backend error text (#7674). Example messages are
+`call chain graph read failed`, `complexity ranking read failed`,
+`divergence report read failed`, `entity resolve query failed`, and
+`workload context query failed`. The Cypher and visualize routes keep their
+error envelope and carry `read-only Cypher query failed` or `visualization
+graph query failed` in it.
+
+A reader fence answers the retryable `503` with `Retry-After` on these reads.
+A `503` that reports a configuration or readiness state stays `503` and
+carries only that state's own text, with no `Retry-After`, even when the store
+wrapped it with more detail. Examples are `content substring indexes are not
+ready`, `global entity-name content index is unavailable`, `symbol lookup
+backend is unavailable`, and `content relationship builder not configured`.
+The content search and deployment-trace routes that report unready substring
+indexes answer the same way.
+
+The `POST /api/v0/code/flow/*` routes no longer answer `408` on a client
+cancel; they answer `499` like the other routes below, and a read that fails
+any other way answers `500` `code-flow read failed`. A call-chain or
+path-comparison selector that matches several entities still answers `400`
+quoting the selector, the repository id, and each candidate's id, path, and
+start line, and a store failure while resolving it answers `500` `call chain
+endpoint resolution failed`. A service that is not found answers `404` with
+only the selector text. `POST /api/v0/code/language-query` is not converted
+yet: its reads still answer a client cancel with `500`.
+
 ## Client cancels
 
 A client that cancels its request while one of the post-selector reads above
 runs, while a selector lookup runs through the shared selector helper, or
-while a read on any route in the sections above runs, gets `499` with the
+while a read on any route in the sections above runs (except the
+`POST /api/v0/code/language-query` reads), gets `499` with the
 same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the

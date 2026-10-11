@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/imports"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -108,12 +109,15 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 
 	data, err := h.importDependencyData(r.Context(), req)
 	if err != nil {
-		span.RecordError(err)
-		if errors.Is(err, errImportDependencyUnavailable) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, errImportDependencyUnavailable, importDependencyCapability) {
+			return
+		}
+		if WriteGraphReadError(w, r, err, importDependencyCapability) {
+			span.RecordError(err)
 			return
 		}
 		if errors.Is(err, codemodel.ErrImportDependencyScopeTooBroad) {
+			span.RecordError(err)
 			span.SetAttributes(attribute.Bool("eshu.import_dependencies.scan_overflow", true))
 			WriteError(
 				w,
@@ -122,10 +126,7 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 			)
 			return
 		}
-		if WriteGraphReadError(w, r, err, importDependencyCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, importDependencyFailedMessage)
 		return
 	}
 	span.SetAttributes(

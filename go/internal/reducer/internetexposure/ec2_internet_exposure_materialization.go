@@ -80,7 +80,7 @@ func ec2InternetExposureFactKinds() []string {
 	return []string{
 		cloud.EC2InstancePostureFactKind,
 		facts.AWSRelationshipFactKind,
-		facts.AWSSecurityGroupRuleFactKind,
+		cloud.AWSSecurityGroupRuleFactKind,
 	}
 }
 
@@ -265,7 +265,7 @@ func splitEC2InternetExposureEnvelopes(envelopes []facts.Envelope) (postures, re
 			postures = append(postures, env)
 		case facts.AWSRelationshipFactKind:
 			relationships = append(relationships, env)
-		case facts.AWSSecurityGroupRuleFactKind:
+		case cloud.AWSSecurityGroupRuleFactKind:
 			rules = append(rules, env)
 		}
 	}

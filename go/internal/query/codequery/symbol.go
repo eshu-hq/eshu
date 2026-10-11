@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -105,18 +106,17 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 
 	results, sourceBackend, truthBasis, err := h.symbolSearchResults(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, errSymbolOffsetUnsupported) {
-			WriteError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		if errors.Is(err, errSymbolBackendUnavailable) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, errSymbolBackendUnavailable, capability) {
 			return
 		}
 		if WriteGraphReadError(w, r, err, capability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		if errors.Is(err, errSymbolOffsetUnsupported) {
+			WriteError(w, http.StatusBadRequest, errSymbolOffsetUnsupported.Error())
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, symbolSearchFailedMessage)
 		return
 	}
 

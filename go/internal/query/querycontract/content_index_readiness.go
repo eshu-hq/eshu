@@ -31,11 +31,12 @@ const K8sSelectCandidateScanTruncationReason = "k8s_resource_candidate_scan_trun
 
 // WriteContentSubstringIndexUnavailable writes the stable 503 contract for
 // ErrContentSubstringIndexesNotReady and reports whether it did. It returns
-// false without touching the response when err is not that error.
+// false without touching the response when err is not that error. The body
+// carries only the sentinel's own text, never the wrapping error's (#7674).
 func WriteContentSubstringIndexUnavailable(w http.ResponseWriter, err error) bool {
 	if !errors.Is(err, ErrContentSubstringIndexesNotReady) {
 		return false
 	}
-	WriteError(w, http.StatusServiceUnavailable, err.Error())
+	WriteError(w, http.StatusServiceUnavailable, ErrContentSubstringIndexesNotReady.Error())
 	return true
 }

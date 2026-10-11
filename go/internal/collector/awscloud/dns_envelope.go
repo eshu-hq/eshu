@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -32,7 +33,7 @@ func NewDNSRecordEnvelope(observation DNSRecordObservation) (facts.Envelope, err
 	}
 	normalizedRecordName := normalizedDNSName(recordName)
 	setIdentifier := strings.TrimSpace(observation.SetIdentifier)
-	stableKey := facts.StableID(facts.AWSDNSRecordFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AWSDNSRecordFactKind, map[string]any{
 		"account_id":             observation.Boundary.AccountID,
 		"hosted_zone_id":         hostedZoneID,
 		"normalized_record_name": normalizedRecordName,
@@ -65,8 +66,8 @@ func NewDNSRecordEnvelope(observation DNSRecordObservation) (facts.Envelope, err
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.AWSDNSRecordFactKind,
-		facts.AWSDNSRecordSchemaVersion,
+		cloud.AWSDNSRecordFactKind,
+		cloud.AWSDNSRecordSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, dnsRecordSourceID(hostedZoneID, recordName, recordType, setIdentifier)),
 		observation.SourceURI,

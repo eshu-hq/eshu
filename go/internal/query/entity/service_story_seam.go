@@ -66,11 +66,11 @@ func (h *Handler) BuildServiceStoryEnvelope(
 		Logger:                    h.Logger,
 		Operation:                 operation,
 	}); err != nil {
-		if errors.Is(err, querycontract.ErrContentSubstringIndexesNotReady) {
-			return nil, nil, http.StatusServiceUnavailable, serviceStoryBackendUnavailableError(err)
-		}
 		if status, errEnv, ok := querycontract.GraphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {
 			return nil, nil, status, errEnv
+		}
+		if unavailableSentinel(ctx, err, querycontract.ErrContentSubstringIndexesNotReady) {
+			return nil, nil, http.StatusServiceUnavailable, serviceStoryContentIndexesNotReadyError()
 		}
 		status, errEnv := tracing.ServerFailureEnvelope(ctx, err, serviceStoryEnrichmentFailedMessage, "platform_impact.context_overview")
 		return nil, nil, status, errEnv
@@ -159,10 +159,11 @@ func serviceStoryResolutionError(ctx context.Context, err error) (int, *querycon
 			},
 		}
 	}
-	if selector.IsNotFound(err) {
+	var notFound selector.NotFoundError
+	if errors.As(err, &notFound) {
 		return http.StatusNotFound, &querycontract.ErrorEnvelope{
 			Code:       querycontract.ErrorCodeScopeNotFound,
-			Message:    err.Error(),
+			Message:    notFound.Error(),
 			Capability: "platform_impact.context_overview",
 		}
 	}
@@ -183,10 +184,13 @@ func serviceStoryNotFoundError() *querycontract.ErrorEnvelope {
 	}
 }
 
-func serviceStoryBackendUnavailableError(err error) *querycontract.ErrorEnvelope {
+// serviceStoryContentIndexesNotReadyError is the 503 envelope for enrichment
+// that needs content substring indexes the store has not built yet. Its
+// message is the sentinel's own text, never the wrapped error's (#7674).
+func serviceStoryContentIndexesNotReadyError() *querycontract.ErrorEnvelope {
 	return &querycontract.ErrorEnvelope{
 		Code:       querycontract.ErrorCodeBackendUnavailable,
-		Message:    err.Error(),
+		Message:    querycontract.ErrContentSubstringIndexesNotReady.Error(),
 		Capability: "platform_impact.context_overview",
 	}
 }

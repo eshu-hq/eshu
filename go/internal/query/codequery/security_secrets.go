@@ -141,11 +141,10 @@ func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, 
 
 	rows, source, err := h.hardcodedSecretRowsWithSource(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, errHardcodedSecretBackendUnavailable) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, errHardcodedSecretBackendUnavailable, hardcodedSecretCapability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, hardcodedSecretCapability, hardcodedSecretFailedMessage)
 		return
 	}
 

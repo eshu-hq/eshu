@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 type DeadCodeRequest struct {
@@ -76,7 +77,7 @@ func (a *Analyzer) HandleDeadCode(w http.ResponseWriter, r *http.Request) {
 
 	scan, err := a.ScanDeadCodeCandidates(r.Context(), req)
 	if err != nil {
-		a.writeStoreError(w, r, err, "code_quality.dead_code")
+		a.writeStoreError(w, r, err, "code_quality.dead_code", deadCodeScanFailedMessage)
 		return
 	}
 	// Clip after the scan's final page trim and policy filter so the count matches
@@ -103,18 +104,32 @@ func (a *Analyzer) HandleDeadCode(w http.ResponseWriter, r *http.Request) {
 	a.deps.WriteSuccess(w, r, http.StatusOK, data, querycontract.BuildTruthEnvelope(a.deps.Profile, "code_quality.dead_code", querycontract.TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
+// Fixed client-facing messages for dead-code read failures (#7674). The body
+// is exactly the step's constant; err is recorded on the request span.
+const (
+	deadCodeScanFailedMessage                  = "dead-code candidate scan failed"
+	deadCodeInvestigationScanFailedMessage     = "dead-code investigation scan failed"
+	deadCodeInvestigationCoverageFailedMessage = "dead-code investigation coverage read failed"
+	crossRepoScanFailedMessage                 = "cross-repo dead-code candidate scan failed"
+	crossRepoEvidenceFailedMessage             = "cross-repo dead-code consumer evidence read failed"
+	crossRepoCoverageFailedMessage             = "cross-repo dead-code consumer coverage read failed"
+	crossRepoRootPathsFailedMessage            = "cross-repo dead-code consumer root path read failed"
+)
+
 // writeStoreError answers a failed scan or store read of a dead-code route. A
 // guarded PostgreSQL reader that was stale or whose connection acquisition (pool
 // wait or dial) or identity check timed out inside the replay window (not a
 // non-timeout reader failure), and the shared graph-read sentinels, get their
-// retryable 503/504 contract through WriteGraphReadError (#7523); anything else,
-// including a permanent reader failure, is a 500. Every store read in these
-// handlers must come through here so none writes err.Error() into a 500 directly.
-func (a *Analyzer) writeStoreError(w http.ResponseWriter, r *http.Request, err error, capability string) {
+// retryable 503/504 contract through WriteGraphReadError (#7523). Anything
+// else, including a permanent reader failure, answers the step's fixed message
+// through tracing.WriteServerFailure: 500 with err on the request span, or 499
+// when the caller canceled the request. Every store read in these handlers
+// must come through here so none writes err.Error() into a body (#7674).
+func (a *Analyzer) writeStoreError(w http.ResponseWriter, r *http.Request, err error, capability, message string) {
 	if a.deps.WriteGraphReadError(w, r, err, capability) {
 		return
 	}
-	a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
 }
 
 func (a *Analyzer) buildDeadCodeResults(

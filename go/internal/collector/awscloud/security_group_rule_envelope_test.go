@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func assertPayloadBool(t *testing.T, payload map[string]any, key string, want bool) {
@@ -50,11 +51,11 @@ func TestNewSecurityGroupRuleEnvelopeProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSecurityGroupRuleEnvelope returned error: %v", err)
 	}
-	if envelope.FactKind != facts.AWSSecurityGroupRuleFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSSecurityGroupRuleFactKind)
+	if envelope.FactKind != cloud.AWSSecurityGroupRuleFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.AWSSecurityGroupRuleFactKind)
 	}
-	if envelope.SchemaVersion != facts.AWSSecurityGroupRuleSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSSecurityGroupRuleSchemaVersion)
+	if envelope.SchemaVersion != cloud.AWSSecurityGroupRuleSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.AWSSecurityGroupRuleSchemaVersion)
 	}
 	if envelope.CollectorKind != CollectorKind {
 		t.Fatalf("CollectorKind = %q, want %q", envelope.CollectorKind, CollectorKind)

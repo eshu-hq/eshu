@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -20,7 +21,7 @@ import (
 // aws_image_reference already exercises (addAWSImageReference,
 // container_image_identity_typed_evidence.go). No reducer production code
 // changes for #5451 — the dispatch in extractContainerImageRefsWithQuarantine
-// already matches on facts.AWSImageReferenceFactKind regardless of which AWS
+// already matches on cloud.AWSImageReferenceFactKind regardless of which AWS
 // service scanner produced the fact; this suite is the proof that promise
 // actually holds for an ECS-shaped observation.
 
@@ -38,7 +39,7 @@ const (
 func awsECSTaskImageReferenceFact(factID, digest, tag string) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,
-		FactKind:         facts.AWSImageReferenceFactKind,
+		FactKind:         cloud.AWSImageReferenceFactKind,
 		SourceConfidence: facts.SourceConfidenceObserved,
 		Payload: map[string]any{
 			"account_id":      ecsImageAccountID,

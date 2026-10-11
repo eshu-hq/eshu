@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -58,7 +59,7 @@ func TestBuildSecurityIntentsPreserveContracts(t *testing.T) {
 		},
 		{
 			name:          "security group endpoint",
-			fact:          facts.Envelope{FactID: "rule-1", FactKind: facts.AWSSecurityGroupRuleFactKind},
+			fact:          facts.Envelope{FactID: "rule-1", FactKind: cloud.AWSSecurityGroupRuleFactKind},
 			build:         BuildSecurityGroupEndpointMaterializationReducerIntent,
 			wantDomain:    reducer.DomainSecurityGroupCidrMaterialization,
 			wantEntityKey: "aws_resource_materialization:" + scopeID,
@@ -66,7 +67,7 @@ func TestBuildSecurityIntentsPreserveContracts(t *testing.T) {
 		},
 		{
 			name:          "security group rule",
-			fact:          facts.Envelope{FactID: "rule-1", FactKind: facts.AWSSecurityGroupRuleFactKind},
+			fact:          facts.Envelope{FactID: "rule-1", FactKind: cloud.AWSSecurityGroupRuleFactKind},
 			build:         BuildSecurityGroupRuleMaterializationReducerIntent,
 			wantDomain:    reducer.DomainSecurityGroupRuleMaterialization,
 			wantEntityKey: "aws_resource_materialization:" + scopeID,
@@ -74,7 +75,7 @@ func TestBuildSecurityIntentsPreserveContracts(t *testing.T) {
 		},
 		{
 			name:          "security group reachability",
-			fact:          facts.Envelope{FactID: "rule-1", FactKind: facts.AWSSecurityGroupRuleFactKind},
+			fact:          facts.Envelope{FactID: "rule-1", FactKind: cloud.AWSSecurityGroupRuleFactKind},
 			build:         BuildSecurityGroupReachabilityMaterializationReducerIntent,
 			wantDomain:    reducer.DomainSecurityGroupReachabilityMaterialization,
 			wantEntityKey: "aws_resource_materialization:" + scopeID,
@@ -112,8 +113,8 @@ func TestBuildSecurityIntentsPreserveEarliestMatchAndDeterminism(t *testing.T) {
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactID: "package-first", FactKind: chain.PackageRegistryPackageFactKind},
 		{FactID: "alert-later", FactKind: facts.SecurityAlertRepositoryAlertFactKind},
-		{FactID: "rule-first", FactKind: facts.AWSSecurityGroupRuleFactKind},
-		{FactID: "rule-duplicate", FactKind: facts.AWSSecurityGroupRuleFactKind},
+		{FactID: "rule-first", FactKind: cloud.AWSSecurityGroupRuleFactKind},
+		{FactID: "rule-duplicate", FactKind: cloud.AWSSecurityGroupRuleFactKind},
 	})
 	builders := []intentBuilder{
 		BuildSecurityAlertReconciliationReducerIntent,
@@ -164,7 +165,7 @@ func TestSecurityGroupBuildersKeepKindOnlyAdmission(t *testing.T) {
 	// existing retry and dead-letter ownership boundary.
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
 		FactID:   "malformed-rule",
-		FactKind: facts.AWSSecurityGroupRuleFactKind,
+		FactKind: cloud.AWSSecurityGroupRuleFactKind,
 		Payload:  map[string]any{"direction": 42},
 	}})
 	if got, ok := BuildSecurityGroupReachabilityMaterializationReducerIntent("scope-1", "generation-1", lookup); !ok || got.FactID != "malformed-rule" {

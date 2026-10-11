@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 
@@ -115,5 +116,23 @@ func TestBuildServiceStoryEnvelopeMapsGraphReadAvailabilityErrors(t *testing.T) 
 				t.Fatalf("envelope leaked private cause: %s", errEnv.Message)
 			}
 		})
+	}
+}
+
+// TestServiceStoryResolutionNotFoundAnswersSelectorText is the #7674
+// regression for the service story not-found envelope: it echoed err.Error(),
+// so a wrapper around the selector's NotFoundError would reach the client. It
+// must answer only the typed error's own text, which quotes the caller's
+// selector.
+func TestServiceStoryResolutionNotFoundAnswersSelectorText(t *testing.T) {
+	t.Parallel()
+
+	notFound := selector.NotFoundError{Selector: "payments"}
+	status, errEnv := serviceStoryResolutionError(context.Background(), fmt.Errorf("private wrapper %s: %w", routeFailureCanary, notFound))
+	if status != http.StatusNotFound || errEnv == nil {
+		t.Fatalf("status = %d, envelope = %#v; want 404 with an envelope", status, errEnv)
+	}
+	if errEnv.Message != notFound.Error() {
+		t.Fatalf("message = %q, want the selector's own %q", errEnv.Message, notFound.Error())
 	}
 }
