@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsHostedZonesAndDNSRecords(t *testing.T) {
@@ -83,8 +84,8 @@ func TestScannerEmitsHostedZonesAndDNSRecords(t *testing.T) {
 	if counts[facts.AWSResourceFactKind] != 1 {
 		t.Fatalf("aws_resource count = %d, want 1", counts[facts.AWSResourceFactKind])
 	}
-	if counts[facts.AWSDNSRecordFactKind] != 3 {
-		t.Fatalf("aws_dns_record count = %d, want 3", counts[facts.AWSDNSRecordFactKind])
+	if counts[cloud.AWSDNSRecordFactKind] != 3 {
+		t.Fatalf("aws_dns_record count = %d, want 3", counts[cloud.AWSDNSRecordFactKind])
 	}
 
 	hostedZone := assertResourceType(t, envelopes, awscloud.ResourceTypeRoute53HostedZone)
@@ -204,7 +205,7 @@ func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType s
 func assertDNSRecord(t *testing.T, envelopes []facts.Envelope, recordName string, recordType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSDNSRecordFactKind {
+		if envelope.FactKind != cloud.AWSDNSRecordFactKind {
 			continue
 		}
 		if envelope.Payload["record_name"] == recordName && envelope.Payload["record_type"] == recordType {
@@ -218,7 +219,7 @@ func assertDNSRecord(t *testing.T, envelopes []facts.Envelope, recordName string
 func assertNoDNSRecord(t *testing.T, envelopes []facts.Envelope, recordName string, recordType string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSDNSRecordFactKind &&
+		if envelope.FactKind == cloud.AWSDNSRecordFactKind &&
 			envelope.Payload["record_name"] == recordName &&
 			envelope.Payload["record_type"] == recordType {
 			t.Fatalf("unexpected dns record %s %s", recordName, recordType)

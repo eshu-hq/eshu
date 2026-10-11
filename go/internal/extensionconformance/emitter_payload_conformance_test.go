@@ -38,7 +38,7 @@ type emitterConformanceCase struct {
 func emitterConformanceCases() []emitterConformanceCase {
 	return []emitterConformanceCase{
 		{
-			name: facts.AWSSecurityGroupRuleFactKind,
+			name: cloud.AWSSecurityGroupRuleFactKind,
 			build: func() (facts.Envelope, error) {
 				return awscloud.NewSecurityGroupRuleEnvelope(securityGroupRuleObservation())
 			},
@@ -56,7 +56,7 @@ func emitterConformanceCases() []emitterConformanceCase {
 			},
 		},
 		{
-			name: facts.AWSResourcePolicyPermissionFactKind,
+			name: cloud.AWSResourcePolicyPermissionFactKind,
 			build: func() (facts.Envelope, error) {
 				return awscloud.NewResourcePolicyPermissionEnvelope(resourcePolicyPermissionObservation())
 			},

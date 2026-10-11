@@ -4,7 +4,7 @@
 package security
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -87,7 +87,7 @@ func securityGroupReachabilityIntentForDomain(
 	domain reducer.Domain,
 	reason string,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKind(facts.AWSSecurityGroupRuleFactKind)
+	envelope, ok := lookup.FirstOfKind(cloud.AWSSecurityGroupRuleFactKind)
 	if !ok {
 		return projectorintent.ReducerIntent{}, false
 	}

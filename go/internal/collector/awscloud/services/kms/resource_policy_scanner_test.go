@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
@@ -58,7 +59,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 	assertKMSPayloadEquals(t, cross.Payload, "is_wildcard_resource", true)
 
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourcePolicyPermissionFactKind {
+		if envelope.FactKind != cloud.AWSResourcePolicyPermissionFactKind {
 			continue
 		}
 		for _, forbidden := range []string{
@@ -87,7 +88,7 @@ func TestScannerEmitsNoResourcePolicyPermissionFactWithoutPolicy(t *testing.T) {
 func countResourcePolicyPermissions(envelopes []facts.Envelope) int {
 	var count int
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSResourcePolicyPermissionFactKind {
+		if envelope.FactKind == cloud.AWSResourcePolicyPermissionFactKind {
 			count++
 		}
 	}
@@ -97,7 +98,7 @@ func countResourcePolicyPermissions(envelopes []facts.Envelope) int {
 func resourcePolicyPermissionBySID(t *testing.T, envelopes []facts.Envelope, accountID string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourcePolicyPermissionFactKind {
+		if envelope.FactKind != cloud.AWSResourcePolicyPermissionFactKind {
 			continue
 		}
 		accounts, _ := envelope.Payload["principal_account_ids"].([]string)

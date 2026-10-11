@@ -338,7 +338,7 @@ func buildEC2InternetExposureRuleIndex(envelopes []facts.Envelope) (ec2InternetE
 	}
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSSecurityGroupRuleFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSSecurityGroupRuleFactKind || env.IsTombstone {
 			continue
 		}
 		rule, err := schemadecode.DecodeAWSSecurityGroupRule(env)

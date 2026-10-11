@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -255,7 +256,7 @@ func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
 			stats.ResourceCount++
 		case facts.AWSRelationshipFactKind:
 			stats.RelationshipCount++
-		case facts.AWSTagObservationFactKind:
+		case cloud.AWSTagObservationFactKind:
 			stats.TagObservationCount++
 		case facts.AWSWarningFactKind:
 			stats.WarningCount++

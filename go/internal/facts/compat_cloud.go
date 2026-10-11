@@ -27,12 +27,6 @@ import "github.com/eshu-hq/eshu/go/internal/facts/cloud"
 
 // Stanza: aws.go (moved to cloud/aws.go).
 const (
-	// AWSDNSRecordFactKind identifies one Route53 DNS record observation. See
-	// [cloud.AWSDNSRecordFactKind].
-	AWSDNSRecordFactKind = cloud.AWSDNSRecordFactKind
-	// AWSDNSRecordSchemaVersion is the first AWS DNS record schema. See
-	// [cloud.AWSDNSRecordSchemaVersion].
-	AWSDNSRecordSchemaVersion = cloud.AWSDNSRecordSchemaVersion
 	// AWSIAMPermissionFactKind identifies one derived IAM permission statement.
 	// It is the normalized, metadata-only projection of a single IAM policy
 	// statement attached to a principal: effect, action set, resource pattern,
@@ -44,12 +38,6 @@ const (
 	// AWSIAMPermissionSchemaVersion is the first derived IAM permission schema.
 	// See [cloud.AWSIAMPermissionSchemaVersion].
 	AWSIAMPermissionSchemaVersion = cloud.AWSIAMPermissionSchemaVersion
-	// AWSImageReferenceFactKind identifies one ECR image reference observation.
-	// See [cloud.AWSImageReferenceFactKind].
-	AWSImageReferenceFactKind = cloud.AWSImageReferenceFactKind
-	// AWSImageReferenceSchemaVersion is the first AWS image reference schema. See
-	// [cloud.AWSImageReferenceSchemaVersion].
-	AWSImageReferenceSchemaVersion = cloud.AWSImageReferenceSchemaVersion
 	// AWSRelationshipFactKind identifies one relationship reported by AWS APIs.
 	// See [cloud.AWSRelationshipFactKind].
 	AWSRelationshipFactKind = cloud.AWSRelationshipFactKind
@@ -59,38 +47,9 @@ const (
 	// AWSResourceFactKind identifies one resource reported by an AWS API. See
 	// [cloud.AWSResourceFactKind].
 	AWSResourceFactKind = cloud.AWSResourceFactKind
-	// AWSResourcePolicyPermissionFactKind identifies one derived resource-based-
-	// policy permission statement. It is the resource-side analog of
-	// aws_iam_permission: the normalized, metadata-only projection of a single
-	// statement from a resource policy attached to an AWS resource (an S3 bucket
-	// policy or a KMS key policy). It captures the attached resource identity,
-	// the statement effect, the normalized action/resource patterns, a condition-
-	// key summary, and the derived grantee principal facts (principal account
-	// ids, principal types, public/anonymous, cross-account). It NEVER carries
-	// the raw policy JSON body, statement Sid/bodies, or condition values. PR4b
-	// of #1134 emits this fact; the resource-policy-aware CAN_PERFORM reducer
-	// follow-up consumes it. See [cloud.AWSResourcePolicyPermissionFactKind].
-	AWSResourcePolicyPermissionFactKind = cloud.AWSResourcePolicyPermissionFactKind
-	// AWSResourcePolicyPermissionSchemaVersion is the first derived resource-
-	// policy permission schema. See
-	// [cloud.AWSResourcePolicyPermissionSchemaVersion].
-	AWSResourcePolicyPermissionSchemaVersion = cloud.AWSResourcePolicyPermissionSchemaVersion
 	// AWSResourceSchemaVersion is the first AWS resource fact schema. See
 	// [cloud.AWSResourceSchemaVersion].
 	AWSResourceSchemaVersion = cloud.AWSResourceSchemaVersion
-	// AWSSecurityGroupRuleFactKind identifies one normalized EC2 security-group
-	// ingress or egress rule. It is a derived posture fact distinct from the raw
-	// aws_resource security-group-rule observation: each fact carries the single
-	// normalized reachability tuple (group, direction, protocol, port range,
-	// source) that the reducer projects into network-reachability edges. See
-	// [cloud.AWSSecurityGroupRuleFactKind].
-	AWSSecurityGroupRuleFactKind = cloud.AWSSecurityGroupRuleFactKind
-	// AWSSecurityGroupRuleSchemaVersion is the first AWS security-group-rule
-	// posture fact schema. See [cloud.AWSSecurityGroupRuleSchemaVersion].
-	AWSSecurityGroupRuleSchemaVersion = cloud.AWSSecurityGroupRuleSchemaVersion
-	// AWSTagObservationFactKind identifies one raw AWS tag observation. See
-	// [cloud.AWSTagObservationFactKind].
-	AWSTagObservationFactKind = cloud.AWSTagObservationFactKind
 	// AWSWarningFactKind identifies one non-fatal AWS scanner warning. See
 	// [cloud.AWSWarningFactKind].
 	AWSWarningFactKind = cloud.AWSWarningFactKind
@@ -98,12 +57,6 @@ const (
 	// [cloud.AWSWarningSchemaVersion].
 	AWSWarningSchemaVersion = cloud.AWSWarningSchemaVersion
 )
-
-// AWSFactKinds returns the accepted AWS fact kinds in their emission order.
-// See [cloud.AWSFactKinds].
-func AWSFactKinds() []string {
-	return cloud.AWSFactKinds()
-}
 
 // AWSSchemaVersion returns the schema version for an AWS fact kind. See
 // [cloud.AWSSchemaVersion].

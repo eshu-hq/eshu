@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func resourcePolicyBoundary(observedAt time.Time) Boundary {
@@ -37,11 +38,11 @@ func TestNewResourcePolicyPermissionEnvelopeCrossAccountAllow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewResourcePolicyPermissionEnvelope returned error: %v", err)
 	}
-	if envelope.FactKind != facts.AWSResourcePolicyPermissionFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSResourcePolicyPermissionFactKind)
+	if envelope.FactKind != cloud.AWSResourcePolicyPermissionFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.AWSResourcePolicyPermissionFactKind)
 	}
-	if envelope.SchemaVersion != facts.AWSResourcePolicyPermissionSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSResourcePolicyPermissionSchemaVersion)
+	if envelope.SchemaVersion != cloud.AWSResourcePolicyPermissionSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.AWSResourcePolicyPermissionSchemaVersion)
 	}
 	assertPayloadString(t, envelope.Payload, "resource_arn", "arn:aws:s3:::eshu-shared-bucket")
 	assertPayloadString(t, envelope.Payload, "resource_type", ResourceTypeS3Bucket)
@@ -246,7 +247,7 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIncludesConditionSumma
 	if err != nil {
 		t.Fatalf("unconditional envelope error: %v", err)
 	}
-	wantUnconditionalKey := facts.StableID(facts.AWSResourcePolicyPermissionFactKind, map[string]any{
+	wantUnconditionalKey := facts.StableID(cloud.AWSResourcePolicyPermissionFactKind, map[string]any{
 		"account_id":            boundary.AccountID,
 		"actions":               "s3:getobject",
 		"effect":                "Allow",

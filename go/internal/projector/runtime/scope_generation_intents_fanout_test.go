@@ -290,7 +290,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		observabilityAWSResourceEnvelope("aws-resource-observability-1", scopeID, generationID, "aws_cloudwatch_alarm"),
 
 		{
-			FactKind: facts.AWSSecurityGroupRuleFactKind,
+			FactKind: cloud.AWSSecurityGroupRuleFactKind,
 			FactID:   "fact-sg-rule-1",
 			Payload: map[string]any{
 				"account_id":  "111122223333",

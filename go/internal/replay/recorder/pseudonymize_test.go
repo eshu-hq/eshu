@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replay/recorder"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
@@ -105,8 +106,8 @@ func awsShapedGeneration() collector.CollectedGeneration {
 			SourceRef: facts.Ref{SourceURI: "aws://ecs/" + rawAccount + "/us-east-1/task/" + rawTaskID, SourceRecordID: taskARN},
 		},
 		{
-			FactKind:         facts.AWSDNSRecordFactKind,
-			StableFactKey:    facts.StableID(facts.AWSDNSRecordFactKind, map[string]any{"account_id": rawAccount, "hosted_zone_id": "Z0123456789ABCDEFGHIJ", "record_name": "api.payments." + rawZone + ".", "record_type": "A"}),
+			FactKind:         cloud.AWSDNSRecordFactKind,
+			StableFactKey:    facts.StableID(cloud.AWSDNSRecordFactKind, map[string]any{"account_id": rawAccount, "hosted_zone_id": "Z0123456789ABCDEFGHIJ", "record_name": "api.payments." + rawZone + ".", "record_type": "A"}),
 			SchemaVersion:    "1",
 			CollectorKind:    string(scope.CollectorAWS),
 			FencingToken:     1,

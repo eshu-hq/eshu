@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -113,7 +114,7 @@ func ExtractSecurityGroupReachability(
 	toEdgesByKey := make(map[string]map[string]any)
 
 	for _, env := range ruleEnvelopes {
-		if env.FactKind != facts.AWSSecurityGroupRuleFactKind {
+		if env.FactKind != cloud.AWSSecurityGroupRuleFactKind {
 			continue
 		}
 		// A tombstoned rule no longer grants reachability; the prior-generation

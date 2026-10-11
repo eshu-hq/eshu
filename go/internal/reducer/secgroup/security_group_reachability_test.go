@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // sgAccountID and sgRegion are the fixed account/region scope every fixture rule
@@ -45,7 +46,7 @@ func sgReachabilityRulePayload(groupID, direction, ipProtocol string, fromPort, 
 
 func sgReachabilityRuleEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSSecurityGroupRuleFactKind,
+		FactKind: cloud.AWSSecurityGroupRuleFactKind,
 		Payload:  payload,
 	}
 }

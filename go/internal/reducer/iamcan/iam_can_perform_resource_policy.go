@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
@@ -63,7 +64,7 @@ func addIAMCanPerformResourcePolicyEdges(
 	var quarantined []factdecode.QuarantinedFact
 
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourcePolicyPermissionFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSResourcePolicyPermissionFactKind || env.IsTombstone {
 			continue
 		}
 		permission, err := schemadecode.DecodeAWSResourcePolicyPermission(env)

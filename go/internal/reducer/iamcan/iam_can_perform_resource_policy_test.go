@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 )
@@ -44,7 +45,7 @@ func canPerformResourcePolicyEnvelope(
 	for _, opt := range opts {
 		opt(payload)
 	}
-	return facts.Envelope{FactKind: facts.AWSResourcePolicyPermissionFactKind, Payload: payload}
+	return facts.Envelope{FactKind: cloud.AWSResourcePolicyPermissionFactKind, Payload: payload}
 }
 
 func withPublicResourcePolicyPrincipal() func(map[string]any) {

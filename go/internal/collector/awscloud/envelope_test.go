@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
@@ -37,14 +38,14 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 				TargetARN:        "arn:aws:iam::aws:policy/ReadOnlyAccess",
 			})
 		},
-		facts.AWSImageReferenceFactKind: func() (facts.Envelope, error) {
+		cloud.AWSImageReferenceFactKind: func() (facts.Envelope, error) {
 			return NewImageReferenceEnvelope(ImageReferenceObservation{
 				Boundary:       ecrBoundary,
 				RepositoryName: "team/api",
 				ImageDigest:    "sha256:image",
 			})
 		},
-		facts.AWSDNSRecordFactKind: func() (facts.Envelope, error) {
+		cloud.AWSDNSRecordFactKind: func() (facts.Envelope, error) {
 			return NewDNSRecordEnvelope(DNSRecordObservation{
 				Boundary:     route53Boundary,
 				HostedZoneID: "/hostedzone/Z123",
@@ -52,7 +53,7 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 				RecordType:   "A",
 			})
 		},
-		facts.AWSSecurityGroupRuleFactKind: func() (facts.Envelope, error) {
+		cloud.AWSSecurityGroupRuleFactKind: func() (facts.Envelope, error) {
 			ec2Boundary := boundary
 			ec2Boundary.ServiceKind = ServiceEC2
 			return NewSecurityGroupRuleEnvelope(SecurityGroupRuleObservation{
@@ -240,11 +241,11 @@ func TestNewImageReferenceEnvelopeCarriesDigestTagAndRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewImageReferenceEnvelope returned error: %v", err)
 	}
-	if envelope.FactKind != facts.AWSImageReferenceFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSImageReferenceFactKind)
+	if envelope.FactKind != cloud.AWSImageReferenceFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.AWSImageReferenceFactKind)
 	}
-	if envelope.SchemaVersion != facts.AWSImageReferenceSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSImageReferenceSchemaVersion)
+	if envelope.SchemaVersion != cloud.AWSImageReferenceSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.AWSImageReferenceSchemaVersion)
 	}
 	assertPayloadString(t, envelope.Payload, "repository_name", "team/api")
 	assertPayloadString(t, envelope.Payload, "image_digest", "sha256:image")
@@ -331,11 +332,11 @@ func TestNewDNSRecordEnvelopePreservesAliasAndZoneEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDNSRecordEnvelope returned error: %v", err)
 	}
-	if envelope.FactKind != facts.AWSDNSRecordFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSDNSRecordFactKind)
+	if envelope.FactKind != cloud.AWSDNSRecordFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.AWSDNSRecordFactKind)
 	}
-	if envelope.SchemaVersion != facts.AWSDNSRecordSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSDNSRecordSchemaVersion)
+	if envelope.SchemaVersion != cloud.AWSDNSRecordSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.AWSDNSRecordSchemaVersion)
 	}
 	assertPayloadString(t, envelope.Payload, "hosted_zone_id", "/hostedzone/Z123")
 	assertPayloadString(t, envelope.Payload, "record_name", "api.example.com.")

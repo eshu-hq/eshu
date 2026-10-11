@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -18,7 +19,7 @@ const (
 
 func sgRuleFactEnvelope() facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSSecurityGroupRuleFactKind,
+		FactKind: cloud.AWSSecurityGroupRuleFactKind,
 		FactID:   "fact-sg-rule-1",
 		Payload: map[string]any{
 			"account_id":  "111122223333",

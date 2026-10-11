@@ -104,8 +104,8 @@ func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
 	if counts[facts.AWSRelationshipFactKind] != 7 {
 		t.Fatalf("aws_relationship count = %d, want 7", counts[facts.AWSRelationshipFactKind])
 	}
-	if counts[facts.AWSSecurityGroupRuleFactKind] != 1 {
-		t.Fatalf("aws_security_group_rule count = %d, want 1", counts[facts.AWSSecurityGroupRuleFactKind])
+	if counts[cloud.AWSSecurityGroupRuleFactKind] != 1 {
+		t.Fatalf("aws_security_group_rule count = %d, want 1", counts[cloud.AWSSecurityGroupRuleFactKind])
 	}
 	assertNoResourceType(t, envelopes, "aws_ec2_instance")
 
@@ -410,11 +410,11 @@ func assertResourceID(t *testing.T, envelopes []facts.Envelope, resourceID strin
 func assertSecurityGroupRuleFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSSecurityGroupRuleFactKind {
+		if envelope.FactKind == cloud.AWSSecurityGroupRuleFactKind {
 			return envelope
 		}
 	}
-	t.Fatalf("missing %q fact in %#v", facts.AWSSecurityGroupRuleFactKind, envelopes)
+	t.Fatalf("missing %q fact in %#v", cloud.AWSSecurityGroupRuleFactKind, envelopes)
 	return facts.Envelope{}
 }
 

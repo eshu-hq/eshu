@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
@@ -73,7 +74,7 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 		"statement_sid":         statementSID,
 	}
 	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
-	stableKey := facts.StableID(facts.AWSResourcePolicyPermissionFactKind, stableIdentity)
+	stableKey := facts.StableID(cloud.AWSResourcePolicyPermissionFactKind, stableIdentity)
 
 	payload, err := factschema.EncodeAWSResourcePolicyPermission(iamv1.ResourcePolicyPermission{
 		AccountID:              observation.Boundary.AccountID,
@@ -106,8 +107,8 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 
 	return newEnvelope(
 		observation.Boundary,
-		facts.AWSResourcePolicyPermissionFactKind,
-		facts.AWSResourcePolicyPermissionSchemaVersion,
+		cloud.AWSResourcePolicyPermissionFactKind,
+		cloud.AWSResourcePolicyPermissionSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, resourcePolicyPermissionSourceID(resourceARN, resourceType, statementSID, effect, actions)),
 		observation.SourceURI,
