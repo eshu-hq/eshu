@@ -317,6 +317,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "specs/ci-images.v1.json"
       - "go/internal/query/**"
       - "go/internal/mcp/methodology_live_test.go"
       - "specs/live-tests.v1.yaml"
