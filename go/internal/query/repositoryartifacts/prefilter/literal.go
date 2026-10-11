@@ -126,9 +126,9 @@ func newMatcher(l literal) *matcher {
 		for _, r := range orbit {
 			if r < utf8.RuneSelf {
 				if r < 64 {
-					e.lo |= 1 << uint(r)
+					e.lo |= 1 << (r & 63)
 				} else {
-					e.hi |= 1 << uint(r-64)
+					e.hi |= 1 << ((r - 64) & 63)
 				}
 			} else {
 				e.other = append(e.other, r)
