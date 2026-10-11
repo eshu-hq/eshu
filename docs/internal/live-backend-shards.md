@@ -23,12 +23,14 @@ gate lock; changing the project name does not make shared host ports concurrent.
 Each hosted job sets its own project name on its isolated runner.
 
 The blocking check remains `live-backend (nornicdb and neo4j)`. Its aggregate
-requires successful queue selection and every shard job. Selected executions
-download only artifacts named for their current workflow run and attempt, then
+requires successful queue selection. Selected executions require every shard
+job to succeed and download only artifacts named for their current workflow run
+and attempt, then
 rederive the full plan from that checkout. The verifier rejects wrong source
 SHAs, missing or duplicate shards, altered test expressions, missing terminal
-events, and nonzero test statuses. An idle queue selection retains the existing
-success behavior without claiming a live run occurred.
+events, and nonzero test statuses. An idle queue selection skips the matrix
+before allocating runners; the aggregate accepts skipped shards only with
+successful, explicitly idle selection.
 
 Logs identify the source SHA, shard, planned count, and each target's setup,
 test, cleanup, and exit status. JSON reports retain the same terminal records.

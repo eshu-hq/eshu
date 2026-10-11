@@ -14,7 +14,7 @@ name: Live Backend Tests
 # main went green on this job.
 
 on:
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
+  # Merge-queue entries (#7111): selected shards run, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
   merge_group:
     types: [checks_requested]
@@ -127,6 +127,7 @@ jobs:
 
   live-backend-shards:
     needs: queue-selection
+    if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
     name: live-backend shard (${{ matrix.shard }}/4)
     strategy:
       fail-fast: false
@@ -203,9 +204,13 @@ jobs:
         env:
           SELECTION_RESULT: ${{ needs.queue-selection.result }}
           SHARD_RESULT: ${{ needs.live-backend-shards.result }}
+          RUN_LIVE: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
         run: |
           test "$SELECTION_RESULT" = success
-          test "$SHARD_RESULT" = success
+          case "$RUN_LIVE:$SHARD_RESULT" in
+            true:success|false:skipped) ;;
+            *) exit 1 ;;
+          esac
 
       - name: Check out exact source
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}

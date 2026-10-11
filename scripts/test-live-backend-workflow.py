@@ -50,16 +50,31 @@ class FanInTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertEqual(calls.read_text().splitlines(), expected)
 
-    def test_every_shard_outcome_blocks_except_success(self) -> None:
+    def test_selection_wiring(self) -> None:
+        """Skip runner allocation only for a legitimate idle selection."""
+        source = WORKFLOW.read_text()
+        predicate = "${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}"
+        matrix = source.split("  live-backend-shards:\n", 1)[1].split("  live-backend:\n", 1)[0]
+        aggregate = source.split("  live-backend:\n", 1)[1]
+        self.assertIn("    if: " + predicate + "\n", matrix)
+        self.assertIn("    if: ${{ always() }}\n", aggregate)
+        self.assertIn("    needs: [queue-selection, live-backend-shards]\n", aggregate)
+        self.assertIn("          RUN_LIVE: " + predicate + "\n", aggregate)
+
+    def test_selected_and_idle_outcomes_fail_closed(self) -> None:
+        """Execute the actual aggregate gate for every outcome combination."""
         script = step_script("Require selection and every shard to succeed")
-        for selection, shard in (("success", "success"), ("failure", "success"),
-                                 ("success", "failure"), ("success", "cancelled"),
-                                 ("success", "skipped"), ("success", "")):
-            with self.subTest(selection=selection, shard=shard):
-                result = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", script],
-                                        env=dict(os.environ, SELECTION_RESULT=selection,
-                                                 SHARD_RESULT=shard), check=False)
-                self.assertEqual(result.returncode == 0, selection == shard == "success")
+        for selection in ("success", "failure", "cancelled", "skipped", ""):
+            for run_live in ("true", "false", "", "unknown"):
+                for shard in ("success", "failure", "cancelled", "skipped", ""):
+                    with self.subTest(selection=selection, run_live=run_live, shard=shard):
+                        result = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", script],
+                                                env=dict(os.environ, SELECTION_RESULT=selection,
+                                                         RUN_LIVE=run_live, SHARD_RESULT=shard),
+                                                capture_output=True, check=False)
+                        accepted = selection == "success" and (run_live, shard) in (
+                            ("true", "success"), ("false", "skipped"))
+                        self.assertEqual(result.returncode == 0, accepted)
 
     def test_real_coverage_gate_rejects_missing_duplicate_and_stale_reports(self) -> None:
         script = step_script("Verify complete live-backend coverage")
