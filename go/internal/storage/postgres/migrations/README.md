@@ -83,6 +83,13 @@ statement takes is held until the last statement commits. Do not put
 table-locking DDL on an existing table in the same file as bulk DML. Put the
 DDL in one migration and the backfill in the next, as 126 and 127 do.
 
+Every migration must also stay re-runnable: the local supervisor re-applies
+every definition on each start, with no ledger. For a new table, use the
+split form: the table and its indexes with `IF NOT EXISTS` in migration N, and
+the idempotent seed or backfill in migration N+1. Do not write a plain
+`CREATE TABLE` to earn the exemption below. It is not re-runnable and fails on
+the second local start.
+
 The `migration-immutability` gate checks every added file
 (`scripts/lib/migration_lock_shape.py`). It is a static check:
 
@@ -93,13 +100,16 @@ The `migration-immutability` gate checks every added file
 - Bulk DML: UPDATE, DELETE, MERGE, INSERT ... SELECT, a data-modifying CTE.
 - It reads top-level statements, DO blocks (every IF, ELSIF, CASE, LOOP, and
   EXCEPTION branch), and same-file functions that an executed statement
-  calls. An EXECUTE counts as DDL or DML when a string literal in its body
-  names one.
+  calls. An EXECUTE counts as DDL or DML when single-quoted or dollar-quoted
+  text in its body names one. This is conservative: a RAISE message that
+  names UPDATE beside an EXECUTE of DDL is refused too.
 - Only a plain `CREATE TABLE` in the same file exempts DDL on that table.
   `CREATE TABLE IF NOT EXISTS` does not, because the table may already exist.
+- It ignores statement order: DDL after the last DML is refused too.
 - It does not see: trigger functions that the file's DML fires, functions
-  from other migrations, single-quoted SQL function bodies, or EXECUTE text
-  that no literal contains.
+  from other migrations, single-quoted SQL function bodies, EXECUTE text that
+  no literal contains, or a foreign key on an exempt new table, which locks
+  the referenced table (SHARE ROW EXCLUSIVE).
 
 There is no allowlist. 16 of the 188 shipped files have the refused shape.
 They are immutable and are never re-checked.

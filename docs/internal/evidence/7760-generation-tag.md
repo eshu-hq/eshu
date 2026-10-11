@@ -215,9 +215,9 @@ receipts, and its rerun recorded one receipt. In that rerun, add_column took
 holds a lock that conflicts with the ALTER. An ordinary autovacuum yields
 only after `deadlock_timeout` (1 s by default); an anti-wraparound autovacuum
 does not yield, so the ALTER waits for its 5 s `lock_timeout`. Readers queue
-behind the waiting ALTER in both cases. The live test vacuums the seeded table first, so its 1 s bound measures
-the phases, not that wait. The deployment note in the migrations README
-records the hazard.
+behind the waiting ALTER in both cases. The live test vacuums the seeded
+table first, so its 1 s bound measures the phases, not that wait. The
+deployment note in the migrations README records the hazard.
 
 Limits: the text is synthetic, the disk is a laptop NVMe, and there is no
 streaming replica. The live test kills the backend
