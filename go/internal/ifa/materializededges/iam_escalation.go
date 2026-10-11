@@ -94,7 +94,7 @@ func resolveIAMEscalationMaterializedEdges(odu ifa.Odu, expectedEdgesPath string
 		switch env.FactKind {
 		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.AWSIAMPermissionFactKind:
+		case cloud.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)
 		}
 	}

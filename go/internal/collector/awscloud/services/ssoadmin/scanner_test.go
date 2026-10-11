@@ -207,7 +207,7 @@ func TestScannerEmitsWarnings(t *testing.T) {
 	}
 	var warnings int
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSWarningFactKind {
+		if envelope.FactKind == cloud.AWSWarningFactKind {
 			warnings++
 		}
 	}

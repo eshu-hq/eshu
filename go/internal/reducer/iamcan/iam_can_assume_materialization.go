@@ -98,7 +98,7 @@ type IAMCanAssumeMaterializationHandler struct {
 // the aws_resource node substrate for the join index and the aws_iam_permission
 // trust statements that drive the edges.
 func iamCanAssumeFactKinds() []string {
-	return []string{cloud.AWSResourceFactKind, facts.AWSIAMPermissionFactKind}
+	return []string{cloud.AWSResourceFactKind, cloud.AWSIAMPermissionFactKind}
 }
 
 // Handle executes one IAM CAN_ASSUME materialization intent.
@@ -317,7 +317,7 @@ func SplitIAMCanAssumeEnvelopes(envelopes []facts.Envelope) (resources, permissi
 		switch env.FactKind {
 		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.AWSIAMPermissionFactKind:
+		case cloud.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)
 		}
 	}

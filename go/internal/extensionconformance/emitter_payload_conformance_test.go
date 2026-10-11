@@ -50,7 +50,7 @@ func emitterConformanceCases() []emitterConformanceCase {
 			},
 		},
 		{
-			name: facts.AWSIAMPermissionFactKind,
+			name: cloud.AWSIAMPermissionFactKind,
 			build: func() (facts.Envelope, error) {
 				return awscloud.NewIAMPermissionEnvelope(iamPermissionObservation())
 			},

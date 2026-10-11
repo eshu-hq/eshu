@@ -141,7 +141,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{cloud.AWSResourceFactKind, facts.AWSIAMPermissionFactKind},
+		[]string{cloud.AWSResourceFactKind, cloud.AWSIAMPermissionFactKind},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for iam escalation materialization: %w", err)
@@ -297,7 +297,7 @@ func splitIAMEscalationEnvelopes(envelopes []facts.Envelope) (resources, permiss
 		switch env.FactKind {
 		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.AWSIAMPermissionFactKind:
+		case cloud.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)
 		}
 	}

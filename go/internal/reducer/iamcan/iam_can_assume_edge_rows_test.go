@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -15,7 +16,7 @@ import (
 // extractor tests. Only the fields the CAN_ASSUME slice consumes are set.
 func iamPermissionEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSIAMPermissionFactKind,
+		FactKind: cloud.AWSIAMPermissionFactKind,
 		Payload:  payload,
 	}
 }

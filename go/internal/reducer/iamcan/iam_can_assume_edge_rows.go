@@ -232,7 +232,7 @@ func ExtractIAMCanAssumeEdgeRows(
 	rows := make([]map[string]any, 0, len(permissionEnvelopes))
 
 	for _, env := range permissionEnvelopes {
-		if env.FactKind != facts.AWSIAMPermissionFactKind {
+		if env.FactKind != cloud.AWSIAMPermissionFactKind {
 			continue
 		}
 		permission, err := schemadecode.DecodeAWSIAMPermission(env)

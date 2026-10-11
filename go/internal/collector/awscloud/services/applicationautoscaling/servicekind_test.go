@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestScannerCanonicalizesPaddedServiceKind proves a whitespace-padded
@@ -49,7 +49,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	}
 	sawWarning := false
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSWarningFactKind {
+		if envelope.FactKind == cloud.AWSWarningFactKind {
 			sawWarning = true
 		}
 		if got, want := envelope.Payload["service_kind"], awscloud.ServiceApplicationAutoScaling; got != want {

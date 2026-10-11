@@ -299,11 +299,11 @@ func factsPackageConstantValues(repoRoot string) (map[string]string, error) {
 }
 
 // resolveFactsCompatAliases teaches the derivation to read the facts root's
-// compat surface. When a family moves to a subpackage the root keeps the
-// pre-move spelling alive as an alias (e.g. `AWSDNSRecordFactKind =
-// cloud.AWSDNSRecordFactKind` in compat_cloud.go) until #6950 retires it;
-// the docs family already migrated, so its callers write docs.LinkFactKind
-// directly.
+// compat surface. While a family migration is in flight the root keeps a
+// pre-move spelling alive as an alias (e.g. `Name = cloud.Name` in a
+// compat_*.go file) until #6950 retires it; with the surface fully retired
+// this pass maps whatever such aliases remain, if any. The docs family
+// already migrated, so its callers write docs.LinkFactKind directly.
 //
 // Without this pass the root spelling resolves to no wire string, so a query
 // layer that references it reads as having no consumer. Each alias is mapped

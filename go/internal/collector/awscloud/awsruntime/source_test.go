@@ -123,8 +123,8 @@ func TestClaimedSourceEmitsWarningWhenCredentialsFail(t *testing.T) {
 		t.Fatalf("fact count = %d, want 1", len(envelopes))
 	}
 	warning := envelopes[0]
-	if warning.FactKind != facts.AWSWarningFactKind {
-		t.Fatalf("FactKind = %q, want %q", warning.FactKind, facts.AWSWarningFactKind)
+	if warning.FactKind != cloud.AWSWarningFactKind {
+		t.Fatalf("FactKind = %q, want %q", warning.FactKind, cloud.AWSWarningFactKind)
 	}
 	if got := warning.Payload["warning_kind"]; got != WarningAssumeRoleFailed {
 		t.Fatalf("warning_kind = %v, want %q", got, WarningAssumeRoleFailed)
@@ -274,7 +274,7 @@ func TestClaimedSourceRecordsScanStatusWithAPICallStats(t *testing.T) {
 			},
 			envelopes: []facts.Envelope{
 				{FactKind: cloud.AWSResourceFactKind},
-				{FactKind: facts.AWSWarningFactKind, Payload: map[string]any{"warning_kind": WarningBudgetExhausted}},
+				{FactKind: cloud.AWSWarningFactKind, Payload: map[string]any{"warning_kind": WarningBudgetExhausted}},
 			},
 		}},
 		Clock:      func() time.Time { return now },
@@ -339,7 +339,7 @@ func TestClaimedSourceMarksOrganizationsOrgAccessSkipAsPartial(t *testing.T) {
 		},
 		Credentials: &stubCredentialProvider{lease: &stubCredentialLease{}},
 		Scanners: &stubScannerFactory{scanner: stubScanner{envelopes: []facts.Envelope{{
-			FactKind: facts.AWSWarningFactKind,
+			FactKind: cloud.AWSWarningFactKind,
 			Payload: map[string]any{
 				"warning_kind": awscloud.WarningOrganizationsOrgAccessSkipped,
 				"attributes": map[string]any{

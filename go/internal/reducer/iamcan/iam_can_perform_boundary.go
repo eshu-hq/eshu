@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
@@ -52,7 +53,7 @@ func groupIAMCanPerformBoundaryEvidence(
 			}
 			evidence := ensureIAMCanPerformBoundaryEvidence(byPrincipalUID, principalUID)
 			evidence.policyARNs[policyARN] = struct{}{}
-		case facts.AWSIAMPermissionFactKind:
+		case cloud.AWSIAMPermissionFactKind:
 			permission, err := schemadecode.DecodeAWSIAMPermission(env)
 			if err != nil {
 				q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)

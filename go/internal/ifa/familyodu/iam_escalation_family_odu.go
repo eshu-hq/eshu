@@ -449,9 +449,9 @@ func IAMEscalationFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          iamEscalationFamilyScopeID,
 			GenerationID:     iamEscalationFamilyGenerationID,
-			FactKind:         facts.AWSIAMPermissionFactKind,
-			StableFactKey:    iamEscalationFamilyStableFactKey(facts.AWSIAMPermissionFactKind, fixture.PrincipalARN+":"+fixture.Effect+":"+joinEscalationKeyParts(fixture.Actions)+":"+joinEscalationKeyParts(fixture.NotActions)+":"+joinEscalationKeyParts(fixture.Resources)+":"+joinEscalationKeyParts(fixture.ConditionKeys)),
-			SchemaVersion:    facts.AWSIAMPermissionSchemaVersion,
+			FactKind:         cloud.AWSIAMPermissionFactKind,
+			StableFactKey:    iamEscalationFamilyStableFactKey(cloud.AWSIAMPermissionFactKind, fixture.PrincipalARN+":"+fixture.Effect+":"+joinEscalationKeyParts(fixture.Actions)+":"+joinEscalationKeyParts(fixture.NotActions)+":"+joinEscalationKeyParts(fixture.Resources)+":"+joinEscalationKeyParts(fixture.ConditionKeys)),
+			SchemaVersion:    cloud.AWSIAMPermissionSchemaVersion,
 			CollectorKind:    iamEscalationFamilyCollectorKind,
 			SourceConfidence: iamEscalationFamilySourceConfidence,
 			Payload:          payload,

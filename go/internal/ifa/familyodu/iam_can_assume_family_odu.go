@@ -282,9 +282,9 @@ func IAMCanAssumeFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          iamCanAssumeFamilyScopeID,
 			GenerationID:     iamCanAssumeFamilyGenerationID,
-			FactKind:         facts.AWSIAMPermissionFactKind,
-			StableFactKey:    iamCanAssumeFamilyStableFactKey(facts.AWSIAMPermissionFactKind, fixture.PrincipalARN+":"+fixture.PolicySource+":"+fixture.Effect+":"+strings.Join(fixture.AssumePrincipals, ",")),
-			SchemaVersion:    facts.AWSIAMPermissionSchemaVersion,
+			FactKind:         cloud.AWSIAMPermissionFactKind,
+			StableFactKey:    iamCanAssumeFamilyStableFactKey(cloud.AWSIAMPermissionFactKind, fixture.PrincipalARN+":"+fixture.PolicySource+":"+fixture.Effect+":"+strings.Join(fixture.AssumePrincipals, ",")),
+			SchemaVersion:    cloud.AWSIAMPermissionSchemaVersion,
 			CollectorKind:    iamCanAssumeFamilyCollectorKind,
 			SourceConfidence: iamCanAssumeFamilySourceConfidence,
 			Payload:          payload,

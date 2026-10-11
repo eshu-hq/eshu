@@ -24,8 +24,8 @@ func identityPermissionEnvelope(factID, policySource, sourceSystem, collectorKin
 		FactID:        factID,
 		ScopeID:       testScopeID,
 		GenerationID:  testGenerationID,
-		FactKind:      facts.AWSIAMPermissionFactKind,
-		SchemaVersion: facts.AWSIAMPermissionSchemaVersion,
+		FactKind:      cloud.AWSIAMPermissionFactKind,
+		SchemaVersion: cloud.AWSIAMPermissionSchemaVersion,
 		CollectorKind: collectorKind,
 		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

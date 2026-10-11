@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
@@ -272,7 +273,7 @@ func groupIAMCanPerformByPrincipal(
 	order := make([]string, 0)
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range permissionEnvelopes {
-		if env.FactKind != facts.AWSIAMPermissionFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSIAMPermissionFactKind || env.IsTombstone {
 			continue
 		}
 		permission, err := schemadecode.DecodeAWSIAMPermission(env)

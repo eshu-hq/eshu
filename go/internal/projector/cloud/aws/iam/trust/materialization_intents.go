@@ -5,6 +5,7 @@ package trust
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -35,7 +36,7 @@ func BuildIAMCanAssumeMaterializationReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKindMatching(facts.AWSIAMPermissionFactKind, func(envelope facts.Envelope) bool {
+	envelope, ok := lookup.FirstOfKindMatching(cloud.AWSIAMPermissionFactKind, func(envelope facts.Envelope) bool {
 		permission, err := decodeAWSIAMPermission(envelope)
 		if err != nil {
 			return false

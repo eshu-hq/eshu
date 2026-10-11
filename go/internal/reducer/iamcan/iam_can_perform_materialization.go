@@ -188,7 +188,7 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		intent.GenerationID,
 		[]string{
 			cloud.AWSResourceFactKind,
-			facts.AWSIAMPermissionFactKind,
+			cloud.AWSIAMPermissionFactKind,
 			facts.AWSIAMPermissionBoundaryFactKind,
 			cloud.AWSResourcePolicyPermissionFactKind,
 		},
@@ -450,7 +450,7 @@ func splitIAMCanPerformEnvelopes(envelopes []facts.Envelope) (resources, permiss
 		switch env.FactKind {
 		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.AWSIAMPermissionFactKind:
+		case cloud.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)
 		case facts.AWSIAMPermissionBoundaryFactKind:
 			permissionBoundaries = append(permissionBoundaries, env)

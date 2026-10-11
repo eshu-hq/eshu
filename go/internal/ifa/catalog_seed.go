@@ -74,7 +74,7 @@ var awsFamilySchemaBackedKinds = []string{
 	cloud.AWSResourceFactKind,
 	cloud.AWSResourcePolicyPermissionFactKind,
 	cloud.AWSSecurityGroupRuleFactKind,
-	facts.AWSWarningFactKind,
+	cloud.AWSWarningFactKind,
 }
 
 // awsPackOdu carries one valid fixturepack payload per representative aws_*

@@ -421,7 +421,7 @@ func singleWarningByKind(
 	t.Helper()
 	var matches []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSWarningFactKind {
+		if envelope.FactKind != cloud.AWSWarningFactKind {
 			continue
 		}
 		if envelope.Payload["warning_kind"] == warningKind {
