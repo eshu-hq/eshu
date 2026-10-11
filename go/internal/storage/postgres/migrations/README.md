@@ -100,7 +100,10 @@ its checksum. The header says the backfill "takes row locks only" and is
      for under 1 ms. The lock request waits at most the 5 s `lock_timeout`
      per attempt, inside the 3-minute retry budget. While it waits, new
      readers queue behind it, so a long transaction on `content_files` at
-     that moment can delay reads by up to 5 s per attempt.
+     that moment can delay reads by up to 5 s per attempt. An autovacuum
+     worker on `content_files` also holds a conflicting lock; it yields only
+     after `deadlock_timeout` (1 s by default). A heap-scaled run saw that
+     case: add_column took 1,002 ms and a read waited 907 ms.
   2. `backfill`: the UPDATE holds ROW EXCLUSIVE and row locks only. Reads
      proceed.
   3. `analyze`: SHARE UPDATE EXCLUSIVE, which blocks neither reads nor
@@ -113,8 +116,8 @@ its checksum. The header says the backfill "takes row locks only" and is
 - Any other tool that sends the whole file as one simple query has the same
   effect. Apply 169 only through the Eshu migrator.
 
-On the production index set, the backfill costs about 0.65 ms and 58 KB of
-WAL per row. The figures and the live proof
+On the production index set, the backfill costs about 0.65 to 0.89 ms and
+58 KB of WAL per row. The figures and the live proof
 (`../migration_169_reader_bound_live_test.go`) are in
 `docs/internal/evidence/7760-generation-tag.md`.
 

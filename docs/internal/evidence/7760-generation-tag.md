@@ -164,7 +164,7 @@ TOAST 622 MB, indexes 524 MB.
 | Execution | ALTER lock hold | Backfill | ANALYZE | WAL | Longest read wait |
 |---|---|---|---|---|---|
 | One message, pre-#7946 image (#7961 report) | whole run | 99.3 s total | in the same run | 8.35 GB | 96.3 s |
-| One message, control in the live test | whole run | about 101 s total | in the same run | not measured | 100.9 s |
+| One message, control in the live test (run 1) | whole run | not measured | in the same run | not measured | 100.9 s |
 | Phased, tracked migrator (live test, run 1) | 0.61 ms | 102.1 s | 0.29 s | 9.10 GB | 48 ms over 1,021 reads |
 | Phased, tracked migrator (live test, run 2) | 0.72 ms | 140.8 s | 0.39 s | 9.10 GB | 10 ms over 1,412 reads |
 | Phased, psql phase slices | 32 ms | 101.1 s | 0.39 s | 9.06 GB | 89 ms over 625 reads |
@@ -201,8 +201,26 @@ backfill "takes row locks only" and is "online-safe". That holds only when
 the Eshu migrator applies the file. A tool that sends the whole file as one
 simple query holds AccessExclusiveLock through the backfill (control row
 above). Its figure of 30.9 s per 1,000,000 rows came from a fixture without
-the trigram GIN indexes. With the production index set, the backfill costs
-about 0.65 ms and 58 KB of WAL per row.
+the production index set (#7961). With that index set, the backfill costs
+about 0.65 ms (run 1) to 0.89 ms (run 2) and 58 KB of WAL per row.
+
+Heap-scaled data point (2026-10-11, the same tracked migrator, same row
+count, rows shaped for a larger heap): heap 307 MB, TOAST 112 kB, indexes
+472 MB. The backfill took 95.7 s and wrote 6.03 GB of WAL. ANALYZE took 2.1 s.
+Over 8,503 pg_locks samples, no AccessExclusiveLock appeared. The longest
+read wait was 481 ms over 967 reads. A replay with every row tagged took
+0.58 s. A backfill cancelled at 20 s by statement timeout left 0 tags and 0
+receipts, and its rerun recorded one receipt. In that rerun, add_column took
+1,002 ms and a read waited 907 ms. An autovacuum worker on `content_files`
+holds a lock that conflicts with the ALTER and yields only after
+`deadlock_timeout` (1 s by default), and readers queue behind the waiting
+ALTER. The live test vacuums the seeded table first, so its 1 s bound measures
+the phases, not that wait. The deployment note in the migrations README
+records the hazard.
+
+Limits: the text is synthetic, the disk is a laptop NVMe, and there is no
+streaming replica. The live test kills the backend
+(`pg_terminate_backend`); the heap-scaled run cancels by statement timeout.
 
 The phased run removes the read block, but the WAL volume does not change. A
 streaming standby replays about 9.1 GB for this fixture. Replica replay lag
