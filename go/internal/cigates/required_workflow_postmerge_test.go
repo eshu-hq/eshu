@@ -224,7 +224,7 @@ func runRequiredStepWithPRs(t *testing.T, step requiredWorkflowStep, event, pull
 	// The fixture is every PR the repository knows about; the stub answers
 	// each lookup the way GitHub does. commits/<sha>/pulls omits a PR whose
 	// head lives in a fork (#7950). The open list includes it, and comes back
-	// one PR per page here so every case crosses a page boundary.
+	// one PR per page here, so a fixture with two PRs spans two pages.
 	stub := `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$ESHU_GH_CALLS"
 answer() {

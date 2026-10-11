@@ -407,3 +407,10 @@ closed, and never got `required-gates-complete`
 ([#7950](https://github.com/eshu-hq/eshu/issues/7950)). The `workflow_run`
 payload does not help either: its `pull_requests` array is empty for a fork
 head.
+
+Fork PRs count toward that match, so a second open PR at the same commit makes
+the head ambiguous, wherever it comes from. Examples are a fork PR opened at an
+in-repo branch head, or an in-repo copy of a fork PR. Both PRs get `error`
+until one closes. Close the extra PR, then re-run a source workflow on the head
+to publish again. The lookup does not also match the head repository: then the
+other PR's own runs would publish a verdict on the commit both PRs share.

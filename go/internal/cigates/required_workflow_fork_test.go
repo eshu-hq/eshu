@@ -16,6 +16,22 @@ const forkPR = `{"number":7818,"state":"open","head":{"sha":"probe-head","repo":
 // sameRepoPR shares forkPR's head but lives in the base repository.
 const sameRepoPR = `{"number":7206,"state":"open","head":{"sha":"probe-head","repo":{"full_name":"eshu-hq/required-gates-probe","fork":false}},"base":{"ref":"main"}}`
 
+// otherPR is open on a different head. Listed first, it puts the PR that owns
+// probe-head on the second page.
+const otherPR = `{"number":7300,"state":"open","head":{"sha":"other-head","repo":{"full_name":"eshu-hq/required-gates-probe","fork":false}},"base":{"ref":"main"}}`
+
+func TestRequiredWorkflowPendingFindsPRPastFirstPage(t *testing.T) {
+	pending := requiredStepNamed(t, repositoryRequiredWorkflowSteps(t), "Publish pending required status")
+	got := runRequiredStepWithPRs(t, pending, "pull_request", "["+otherPR+","+forkPR+"]", nil)
+	if got.err != nil {
+		t.Fatalf("pending step failed: %v\n%s", got.err, got.output)
+	}
+	if !strings.Contains(got.outputs, "disposition=active") || !strings.Contains(got.outputs, "number=7818") {
+		t.Fatalf("a PR on the second page must be classified active, outputs: %q", got.outputs)
+	}
+	assertRequiredStatusCall(t, got.calls, "pending")
+}
+
 func TestRequiredWorkflowPendingClassifiesForkPRActive(t *testing.T) {
 	pending := requiredStepNamed(t, repositoryRequiredWorkflowSteps(t), "Publish pending required status")
 	got := runRequiredStepWithPRs(t, pending, "pull_request", "["+forkPR+"]", nil)
@@ -73,4 +89,26 @@ func TestRequiredWorkflowTerminalRejectsForkSharingHead(t *testing.T) {
 		t.Fatal("a head shared with a fork PR must fail closed")
 	}
 	assertRequiredStatusCall(t, got.calls, "error")
+}
+
+func TestRequiredWorkflowTerminalFindsPRPastFirstPage(t *testing.T) {
+	terminal := requiredStepNamed(t, repositoryRequiredWorkflowSteps(t), "Publish terminal required status")
+	got := runRequiredStepWithPRs(t, terminal, "pull_request", "["+otherPR+","+forkPR+"]", map[string]string{
+		"PR_DISPOSITION": "active", "PR_NUMBER": "7818", "AGGREGATE_CODE": "0",
+	})
+	if got.err != nil {
+		t.Fatalf("terminal step failed: %v\n%s", got.err, got.output)
+	}
+	assertRequiredStatusCall(t, got.calls, "success")
+}
+
+func TestRequiredWorkflowTerminalCountsARepeatedPROnce(t *testing.T) {
+	terminal := requiredStepNamed(t, repositoryRequiredWorkflowSteps(t), "Publish terminal required status")
+	got := runRequiredStepWithPRs(t, terminal, "pull_request", "["+sameRepoPR+","+sameRepoPR+"]", map[string]string{
+		"PR_DISPOSITION": "active", "PR_NUMBER": "7206", "AGGREGATE_CODE": "0",
+	})
+	if got.err != nil {
+		t.Fatalf("a PR listed on two pages must resolve once: %v\n%s", got.err, got.output)
+	}
+	assertRequiredStatusCall(t, got.calls, "success")
 }

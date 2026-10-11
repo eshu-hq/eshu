@@ -35,6 +35,9 @@
 # fork PRs, and every lane of a stacked train, so head.sha selection works for
 # both. It is paginated; a PR opened between two page requests can repeat on
 # the next page, so matches are deduplicated by number before counting.
+# required-gates.yml repeats this lookup inline in its pending and terminal
+# steps, because the pending step runs before the checkout; change all three
+# together. go/internal/cigates/required_workflow_fork_test.go runs those steps.
 #
 # Inputs:
 #   HEAD_SHA           required; the commit whose owning PR we want.
