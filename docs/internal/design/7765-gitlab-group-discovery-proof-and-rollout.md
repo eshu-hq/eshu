@@ -252,7 +252,7 @@ then, the figures on this page are the only record.
 - New live test `TestKnownScopesPathPrefixLive`, using the seeds from "Prove the theory first"
   including `acme_platform/*` and ref scopes, plus a `gitlab_group` upsert
   round trip.
-- Bootstrap twice to prove migration 169 is idempotent.
+- Bootstrap twice to prove the new migration is idempotent.
 - The migration checksum manifest and golden digest pins (see PR 2).
 - Enrol the live test in the live-postgres-readiness ledger
   (`specs/live-tests.v1.yaml`).
@@ -312,14 +312,15 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
    - No new kind is reachable yet.
 2. **`gitlab_group` kind.**
    - Files: `KindGitLabGroup`, `NewGitLabGroupSelector`, `Selector.Host`,
-     migration 169, the `validateBatch` change, the telemetry constant, the
+     the new migration, the `validateBatch` change, the telemetry constant, the
      gauge condition, telemetry docs.
-   - Migration 169 is also appended to two pins in
+   - The new migration is also appended to two pins in
      `go/internal/storage/postgres/migrations`. Add its line to
      `migrationShippedChecksums` in `migration_checksum_manifest_test.go`,
      copying the checksum that the test reports for the new file, and never edit
      an existing line. Recompute `goldenBootstrapDefinitionsDigest` and bump
-     `goldenBootstrapDefinitionsCount` (187 today) in `embed_invariant_test.go`,
+     `goldenBootstrapDefinitionsCount` (188 on current main; re-check at PR
+     time) in `embed_invariant_test.go`,
      with a comment line naming #7765, as the recent migrations did.
    - Gates: PR 1's gates plus migration-immutability (new file), the
      checksum manifest and golden digest tests, and the telemetry-coverage row.

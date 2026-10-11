@@ -365,9 +365,9 @@ Consequences, stated as contract:
 - A rename is rejected (see "Risks, rejected alternatives, open questions").
 
 **Migration.**
-- Add `169_repository_selection_observations_gitlab_group.sql`. The highest
-  migration on origin/main is 168 and no fetched remote branch holds 169, but
-  the number is assigned at PR time. It uses the guarded `DO $$` pattern of `112_value_flow_refresh_producer_domains.sql`:
+- Add `<next-free>_repository_selection_observations_gitlab_group.sql` (169 when
+  this was written; #7760 has since taken it, so re-check the number against
+  origin/main and open PRs at PR time). It uses the guarded `DO $$` pattern of `112_value_flow_refresh_producer_domains.sql`:
   if the constraint `repository_selection_observations_selector_kind_check`
   exists and its definition lacks `gitlab_group`, drop it and re-add it with the
   three kinds. Then the comment.
@@ -375,7 +375,7 @@ Consequences, stated as contract:
 - 166 and `schemaSQL` stay untouched. The parity test compares 166 only
   (`observations_test.go:265-279`).
 - Live tests apply the full bootstrap (`observations_live_test.go:157`), so they
-  see 169.
+  see it.
 
 **Fork parity.** GitLab forks that live in the group are listed and selected
 like any other project, matching GitHub's lack of fork filtering.
@@ -493,7 +493,7 @@ lines cover the GitLab listing. The full contract and the docs to update are in
 - Whether GitLab namespace routing is case-insensitive. The design compares
   lowercased paths and keeps GitLab's case in rule IDs.
 - The auto-generated name of the `selector_kind` CHECK constraint (verify with
-  `\d` before writing the migration), and whether an open PR claims migration
-  169 (no fetched remote branch does).
+  `\d` before writing the migration), and the next free migration number (169
+  is taken on main by #7760; check open PRs too).
 - Whether PR #7821 changes before merge. The design reads branch
   `fix/7763-token-auth-host-scope` at `f727f0080`.
