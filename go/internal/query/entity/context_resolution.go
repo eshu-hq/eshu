@@ -18,9 +18,10 @@ import (
 // eshu.entity_context.resolved_by span attribute, so an operator can read the
 // share of true misses (none) over a window without tracing.
 const (
-	// resolvedByAnchor means a non-final anchor statement returned the row:
-	// the Neo4j indexed CALL () anchor, or a labeled statement of the
-	// NornicDB per-label loop.
+	// resolvedByAnchor means an anchor statement, any statement that is not
+	// the unlabeled fallback, returned the row: the Neo4j indexed CALL ()
+	// anchor (the only Neo4j statement, so also the final one), or a labeled
+	// statement of the NornicDB per-label loop.
 	resolvedByAnchor = "anchor"
 	// resolvedByFallback means the final unlabeled `MATCH (e)` statement
 	// returned the row after every anchor statement missed. Only the NornicDB
