@@ -152,6 +152,7 @@ golden_documentation_run_proof() {
 	# Producer verification and queue convergence are assertion work, outside
 	# the API/MCP startup interval measured by phase_graph_query.
 	phase_graph_query_excluded_starts+=("$(date +%s)")
+	bash "${repo_root}/scripts/test-golden-documentation-section-reseed.sh" || die "documentation section reseed regression failed"
 	seed_golden_documentation_fixture
 	start_bg projector-documentation projector_pid "${bin_dir}/eshu-projector"
 	start_bg reducer-documentation reducer_pid "${bin_dir}/eshu-reducer"
