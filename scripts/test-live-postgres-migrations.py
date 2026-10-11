@@ -36,6 +36,8 @@ class MigrationProofInventoryTest(unittest.TestCase):
         helper_paths = (
             "scripts/ci/go-mod-download-retry.sh",
             "scripts/ci/install-apt-packages.sh",
+            "scripts/testdata/live-postgres-migrations-fake-docker.sh",
+            "scripts/testdata/live-postgres-migrations-fake-go.sh",
         )
         for event in ("pull_request", "push"):
             match = re.search(

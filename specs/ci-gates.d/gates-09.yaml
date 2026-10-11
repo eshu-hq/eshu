@@ -123,6 +123,8 @@ gates:
       - "scripts/run-live-postgres-migrations.sh"
       - "scripts/test-live-postgres-migrations.py"
       - "scripts/test-run-live-postgres-migrations.sh"
+      - "scripts/testdata/live-postgres-migrations-fake-docker.sh"
+      - "scripts/testdata/live-postgres-migrations-fake-go.sh"
       - ".github/workflows/live-postgres-migrations.yml"
       - ".github/workflows/required-gates.yml"
     local:
