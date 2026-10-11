@@ -75,17 +75,46 @@ existing pages are not rewritten, and new pages keep the free space that makes
 the #7389 write-start marker a HOT update. Keep each of these a single
 statement; see `docs/internal/evidence/7389-superseded-writer-overlay.md`.
 
-## Migration 169 lock contract (#7961)
+## Keep table-locking DDL and bulk DML in separate files (#7961)
 
-The header of `169_content_files_generation_id.sql` says the backfill takes
-row locks only and is online-safe. That is true only when the Eshu migrator
-applies the file. Since #7946 the migrator runs it in three committed phases:
-ALTER (AccessExclusiveLock, catalog-only, under 1 ms), UPDATE
-(RowExclusiveLock), then ANALYZE (ShareUpdateExclusiveLock). If a tool sends
-the whole file as one simple query, it holds AccessExclusiveLock through the
-backfill: 100.9 s of blocked reads at 157,422 rows on the production index
-set. The header cannot be corrected in place (immutable file, checksum
-pinned by #7946). The measured numbers and the live proof
+The migrator sends each file as one message, and PostgreSQL runs a
+multi-statement message as one implicit transaction. A lock that an early
+statement takes is held until the last statement commits. Do not put
+table-locking DDL on an existing table (ALTER TABLE, CREATE INDEX or DROP
+INDEX without CONCURRENTLY, REINDEX, REFRESH MATERIALIZED VIEW, CLUSTER,
+VACUUM FULL, LOCK, TRUNCATE) in the same file as bulk DML (UPDATE, DELETE,
+MERGE, INSERT ... SELECT). Put the DDL in one migration and the backfill in
+the next, as 126 and 127 do. The `migration-immutability` gate enforces this
+for every added file (`scripts/lib/migration_lock_shape.py`). DDL on a table
+that the same file creates is exempt. There is no allowlist.
+
+## Migration 169 deployment note (#7961)
+
+Do not edit 169, including its header. The file is immutable and #7946 pins
+its checksum. The header says the backfill "takes row locks only" and is
+"online-safe". Read it with these facts:
+
+- Images with #7946 (main from merge 1ac63e871a): the tracked migrator runs
+  169 in three committed phases on the advisory-lock connection.
+  1. `add_column`: ACCESS EXCLUSIVE on `content_files`, catalog-only, held
+     for under 1 ms. The lock request waits at most the 5 s `lock_timeout`
+     per attempt, inside the 3-minute retry budget. While it waits, new
+     readers queue behind it, so a long transaction on `content_files` at
+     that moment can delay reads by up to 5 s per attempt.
+  2. `backfill`: the UPDATE holds ROW EXCLUSIVE and row locks only. Reads
+     proceed.
+  3. `analyze`: SHARE UPDATE EXCLUSIVE, which blocks neither reads nor
+     writes.
+- Images without #7946 (794b56a3fb and earlier): the migrator sends the file
+  as one message. ACCESS EXCLUSIVE is then held through the whole backfill.
+  On the #7961 fixture (157,422 rows, production index set), a read was
+  blocked for 96.3 s. Do not roll such an image to an environment that has
+  not applied 169.
+- Any other tool that sends the whole file as one simple query has the same
+  effect. Apply 169 only through the Eshu migrator.
+
+On the production index set, the backfill costs about 0.65 ms and 58 KB of
+WAL per row. The figures and the live proof
 (`../migration_169_reader_bound_live_test.go`) are in
 `docs/internal/evidence/7760-generation-tag.md`.
 

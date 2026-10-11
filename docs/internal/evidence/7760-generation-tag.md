@@ -45,7 +45,9 @@ post-retention-hole scope can wrong-clean through clause (iii) exactly as
 the timestamp leg this tag replaces could; live unactivated generations are
 still caught by the tag regardless of skew.
 
-Migration proof (local PostgreSQL 18, 2026-10-09): 1,000,000-row
+Migration proof (local PostgreSQL 18, 2026-10-09). It timed each statement
+alone, on a fixture without the production `content_files` index set; see
+"Production Index Set Measurement (#7961)" below. 1,000,000-row
 `content_files` fixture, 3,000 repository scopes, 1% planted never-activated
 generations, 10% of filler rows indexed after the activation. ADD COLUMN:
 4.0 ms (catalog-only, no rewrite). Backfill UPDATE: 30.9 s, tagging 890,300
@@ -163,10 +165,14 @@ TOAST 622 MB, indexes 524 MB.
 |---|---|---|---|---|---|
 | One message, pre-#7946 image (#7961 report) | whole run | 99.3 s total | in the same run | 8.35 GB | 96.3 s |
 | One message, control in the live test | whole run | about 101 s total | in the same run | not measured | 100.9 s |
-| Phased, tracked migrator (live test) | 0.61 ms | 102.1 s | 0.29 s | 9.10 GB | 48 ms over 1,021 reads |
+| Phased, tracked migrator (live test, run 1) | 0.61 ms | 102.1 s | 0.29 s | 9.10 GB | 48 ms over 1,021 reads |
+| Phased, tracked migrator (live test, run 2) | 0.72 ms | 140.8 s | 0.39 s | 9.10 GB | 10 ms over 1,412 reads |
 | Phased, psql phase slices | 32 ms | 101.1 s | 0.39 s | 9.06 GB | 89 ms over 625 reads |
 
-The reader loop ran one `content_files` read every 100 ms. A pg_locks
+The second run's control blocked a read for 117.3 s. Its slower backfill
+reflects other load on the shared laptop during that run (load average
+about 13), not a change in the work. The reader loop ran one
+`content_files` read every 100 ms across all three phases, and a pg_locks
 sampler ran at the same rate. Lock sequence on `content_files`:
 
 1. `add_column`: AccessExclusiveLock, catalog-only, committed in under 1 ms.
@@ -179,8 +185,15 @@ sampler ran at the same rate. Lock sequence on `content_files`:
    ANALYZE stays in its own phase: it costs 0.29 s, and a separate migration
    would add a ledger row for no lock benefit.
 
-The receipt-skip and receipt-free replays are idempotent. The replayed
-backfill matched no rows (the `generation_id IS NULL` guard) and took 69 ms.
+The receipt-skip and receipt-free replays are idempotent. After each apply,
+the ledger holds exactly one 169 receipt. The receipt-free replay left every
+`content_files` ctid unchanged, so it rewrote no row (the
+`generation_id IS NULL` guard). It took 69 ms in run 1 and 78 ms in run 2.
+Interruption at this scale (run 2): the test terminated the migrator's backend
+during the backfill. The committed ALTER stayed, no row was tagged, and no
+receipt was written. A rerun completed with exactly one receipt. #7946's
+`migration_169_interruption_live_test.go` covers cancel and terminate on a
+one-row table; this run repeats terminate on the production index set.
 
 The 169 header is imprecise and cannot be edited, because shipped migrations
 are immutable (#7002) and #7946 pins its checksum. The header says the
@@ -199,8 +212,8 @@ No-Regression Evidence (#7961): no SQL or executor change. The live test
 `TestMigration169PhasedBackfillReaderBoundLive` fails when any read waits
 over 1 s. With the tracked apply forced to one message (seeded violation,
 not committed), it failed: a read waited 4.49 s at 8,000 rows. On the
-unchanged tree it passes at 8,000 rows (19.06 s test time) and at 157,422
-rows (348 s). Rerun at scale with
+unchanged tree it passes at 8,000 rows (29.71 s test time) and at 157,422
+rows (582 s, every step including interruption and control). Rerun at scale with
 `-args -eshu.migration169.rows=157422`.
 
 No-Observability-Change (#7961): operators see schema application through the
