@@ -194,35 +194,80 @@ GROUP BY candidate.generation_id
 // that candidate after the rollback; the pass silently drops it and prunes
 // the locked subset.
 //
+// The re-lock also re-checks uncovered-writer coverage at lock time (#7903):
+// coverage is horizon-relative, so a full that activated after the
+// selection can flip a covered candidate to uncovered before the re-lock,
+// and pruning it would delete the reconcile probe's evidence before the
+// heal. provisional carries the #7472 uncovered definition over the
+// scope-bounded horizon, the locked leg excludes flipped members without
+// locking them, and a lock-free UNION ALL leg reports them so the store
+// counts them as skipped instead of vanishing them. The single statement
+// classifies and locks under one snapshot, so a member is either locked
+// (covered) or reported (uncovered), never both. Residual: a full that
+// commits after this statement's snapshot still flips a locked member
+// before the prune commits; closing that would serialize activation
+// against retention, which the repo forbids.
+//
 // $1 soft cutoff, $2 minimum newer generations, $3 excluded ids, $4 scope
 // ids, $5 generation ids, $6 hard-ceiling cutoff (#7585).
 const generationRetentionTargetedCandidateQuery = `-- retention: targeted candidate lock
-SELECT generation.scope_id, generation.generation_id, scope.scope_kind, generation.superseded_at, generation.observed_at, false AS uncovered
-FROM scope_generations AS generation
-JOIN ingestion_scopes AS scope ON scope.scope_id = generation.scope_id
-WHERE generation.scope_id = ANY($4::text[])
-  AND generation.generation_id = ANY($5::text[])
-  AND generation.status = 'superseded'
-  AND generation.generation_id <> ALL($3::text[])
-  AND generation.superseded_at IS NOT NULL
-  AND generation.generation_id IS DISTINCT FROM scope.active_generation_id
-  AND ((generation.superseded_at < $1 AND (
-      SELECT count(*)
-      FROM scope_generations AS newer
-      WHERE newer.scope_id = generation.scope_id
-        AND newer.status = 'superseded'
-        AND newer.generation_id <> ALL($3::text[])
-        AND newer.superseded_at IS NOT NULL
-        AND (newer.superseded_at, newer.generation_id) > (generation.superseded_at, generation.generation_id)
-  ) >= $2) OR generation.superseded_at < $6)
-  AND NOT EXISTS (
-      SELECT 1
-      FROM fact_work_items AS work
-      WHERE work.generation_id = generation.generation_id
-        AND work.status IN ('claimed', 'running', 'retrying')
-  )
-ORDER BY generation.scope_id, generation.generation_id
-FOR UPDATE OF generation, scope SKIP LOCKED
+WITH last_activated_full_write AS MATERIALIZED (
+    SELECT DISTINCT ON (generation.scope_id)
+        generation.scope_id,
+        generation.projection_write_started_at AS full_write_started_at
+    FROM scope_generations AS generation
+    WHERE generation.scope_id = ANY($4::text[])
+      AND generation.is_delta = false
+      AND generation.activated_at IS NOT NULL
+    ORDER BY generation.scope_id, generation.ingested_at DESC, generation.generation_id DESC
+),
+provisional AS (
+    SELECT generation.scope_id, generation.generation_id, scope.scope_kind,
+        generation.superseded_at, generation.observed_at,
+        (generation.projection_write_started_at IS NOT NULL
+         AND generation.activated_at IS NULL
+         AND generation.projection_write_started_at > COALESCE(last_full.full_write_started_at, '-infinity'::timestamptz)) AS uncovered
+    FROM scope_generations AS generation
+    JOIN ingestion_scopes AS scope ON scope.scope_id = generation.scope_id
+    LEFT JOIN last_activated_full_write AS last_full ON last_full.scope_id = generation.scope_id
+    WHERE generation.scope_id = ANY($4::text[])
+      AND generation.generation_id = ANY($5::text[])
+      AND generation.generation_id <> ALL($3::text[])
+),
+locked_members AS (
+    SELECT provisional.scope_id, provisional.generation_id, provisional.scope_kind,
+        provisional.superseded_at, provisional.observed_at
+    FROM provisional
+    JOIN scope_generations AS generation ON generation.generation_id = provisional.generation_id
+    JOIN ingestion_scopes AS scope ON scope.scope_id = provisional.scope_id
+    WHERE NOT provisional.uncovered
+      AND generation.status = 'superseded'
+      AND generation.superseded_at IS NOT NULL
+      AND generation.generation_id IS DISTINCT FROM scope.active_generation_id
+      AND ((generation.superseded_at < $1 AND (
+          SELECT count(*)
+          FROM scope_generations AS newer
+          WHERE newer.scope_id = generation.scope_id
+            AND newer.status = 'superseded'
+            AND newer.generation_id <> ALL($3::text[])
+            AND newer.superseded_at IS NOT NULL
+            AND (newer.superseded_at, newer.generation_id) > (generation.superseded_at, generation.generation_id)
+      ) >= $2) OR generation.superseded_at < $6)
+      AND NOT EXISTS (
+          SELECT 1
+          FROM fact_work_items AS work
+          WHERE work.generation_id = generation.generation_id
+            AND work.status IN ('claimed', 'running', 'retrying')
+      )
+    ORDER BY generation.scope_id, generation.generation_id
+    FOR UPDATE OF generation, scope SKIP LOCKED
+)
+SELECT locked.scope_id, locked.generation_id, locked.scope_kind, locked.superseded_at, locked.observed_at, false AS uncovered
+FROM locked_members AS locked
+UNION ALL
+SELECT provisional.scope_id, provisional.generation_id, provisional.scope_kind, provisional.superseded_at, provisional.observed_at, true AS uncovered
+FROM provisional
+WHERE provisional.uncovered
 `
 
 const deleteSharedProjectionIntentsForGenerationsQuery = `

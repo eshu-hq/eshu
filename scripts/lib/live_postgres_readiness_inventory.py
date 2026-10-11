@@ -128,6 +128,9 @@ PACKAGES = {
             "TestGenerationRetentionTargetedLockPlanShapeLive",
             "TestGenerationRetentionTargetedLockEvalPlanQualDropsRacedMembersLive",
         ),
+        "go/internal/storage/postgres/generation_retention_relock_uncovered_live_test.go": (
+            "TestGenerationRetentionRelockDropsNewlyUncoveredWriterLive",
+        ),
         "go/internal/storage/postgres/generation_retention_uncovered_writer_live_test.go": (
             "TestGenerationRetentionKeepsUncoveredWritersLive",
         ),
