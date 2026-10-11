@@ -19,6 +19,10 @@ on:
       - scripts/verify-apk-floors.sh
       - scripts/test-verify-apk-floors.sh
       - scripts/fixtures/apk-floors/**
+      - scripts/select-docker-publication-lanes.sh
+      - scripts/test-docker-release-image-dispatch.sh
+      - scripts/assert-docker-release-image-tags.sh
+      - scripts/assert-ghcr-image-tag-absent.sh
   pull_request:
     branches:
       - main
@@ -39,7 +43,16 @@ on:
       - scripts/verify-apk-floors.sh
       - scripts/test-verify-apk-floors.sh
       - scripts/fixtures/apk-floors/**
+      - scripts/select-docker-publication-lanes.sh
+      - scripts/test-docker-release-image-dispatch.sh
+      - scripts/assert-docker-release-image-tags.sh
+      - scripts/assert-ghcr-image-tag-absent.sh
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Full commit SHA expected for the release branch image build
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -66,79 +79,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Test Docker publication lane selectors
+        run: bash scripts/test-docker-release-image-dispatch.sh
+
       - name: Decide release artifact lanes
         id: filter
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ "${GITHUB_REF_TYPE}" == "tag" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            {
-              echo "image=true"
-              echo "chart=true"
-              echo "apkfloors=true"
-            } >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          # merge_group is a pre-merge build: it diffs against the merge base
-          # with main (a superset of what required-gates.yml selects for the
-          # same entry, since main only moves forward while the entry waits)
-          # and, matching the PR lane's `on.paths` and the registry's
-          # docker-image-* triggers, does not rebuild the image for go/**.
-          # The push lane keeps go/** as the post-merge backstop.
-          merge_group_lane=false
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            base_sha="${{ github.event.pull_request.base.sha }}"
-            head_sha="${{ github.event.pull_request.head.sha }}"
-          elif [[ "${GITHUB_EVENT_NAME}" == "merge_group" ]]; then
-            merge_group_lane=true
-            head_sha="${GITHUB_SHA}"
-            base_sha="$(git merge-base origin/main "${head_sha}")"
-          else
-            base_sha="${{ github.event.before }}"
-            head_sha="${GITHUB_SHA}"
-            if [[ "${base_sha}" =~ ^0+$ ]]; then
-              base_sha="$(git rev-parse "${head_sha}^")"
-            fi
-          fi
-
-          image=false
-          chart=false
-          apkfloors=false
-          while IFS= read -r path; do
-            case "${path}" in
-              Dockerfile)
-                image=true
-                apkfloors=true
-                ;;
-              .dockerignore)
-                image=true
-                ;;
-              scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*)
-                apkfloors=true
-                ;;
-              go/*)
-                if [[ "${merge_group_lane}" == "false" ]]; then
-                  image=true
-                fi
-                ;;
-              deploy/helm/*)
-                chart=true
-                ;;
-              .github/workflows/docker-publish.yml)
-                image=true
-                chart=true
-                apkfloors=true
-                ;;
-            esac
-          done < <(git diff --name-only "${base_sha}" "${head_sha}")
-
-          {
-            echo "image=${image}"
-            echo "chart=${chart}"
-            echo "apkfloors=${apkfloors}"
-          } >> "${GITHUB_OUTPUT}"
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: bash scripts/select-docker-publication-lanes.sh
 
   # Pull-request and merge-queue gate for a change to the Dockerfile, this
   # workflow, or the verifier itself and its fixtures (#7571): compares the
@@ -194,20 +145,28 @@ jobs:
         if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
 
+      - name: Revalidate release checkout before credentials
+        if: github.event_name == 'workflow_dispatch' && env.LANE_APPLIES == 'true'
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: bash scripts/select-docker-publication-lanes.sh
+
       - name: Set up Docker Buildx
         if: env.LANE_APPLIES == 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Container Registry
-        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
-        uses: docker/login-action@v3
+      - name: Extract release image metadata
+        if: github.event_name == 'workflow_dispatch' && env.LANE_APPLIES == 'true'
+        id: meta-release
+        uses: docker/metadata-action@v5
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+          flavor: latest=false
 
       - name: Extract metadata
-        if: env.LANE_APPLIES == 'true'
+        if: github.event_name != 'workflow_dispatch' && env.LANE_APPLIES == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -221,6 +180,28 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Verify release image tag set
+        if: github.event_name == 'workflow_dispatch' && env.LANE_APPLIES == 'true'
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RELEASE_IMAGE_TAGS: ${{ steps.meta-release.outputs.tags }}
+        run: bash scripts/assert-docker-release-image-tags.sh
+
+      - name: Refuse an existing release image tag
+        if: github.event_name == 'workflow_dispatch' && env.LANE_APPLIES == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_TAG: sha-${{ inputs.expected_sha }}
+        run: bash scripts/assert-ghcr-image-tag-absent.sh
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Compute source date epoch
         if: env.LANE_APPLIES == 'true'
         id: epoch
@@ -231,7 +212,7 @@ jobs:
         id: labels
         run: |
           CREATED="$(date -u -d "@${{ steps.epoch.outputs.epoch }}" '+%Y-%m-%dT%H:%M:%SZ')"
-          printf '%s\n' '${{ steps.meta.outputs.labels }}' > /tmp/labels.txt
+          printf '%s\n' '${{ steps.meta-release.outputs.labels || steps.meta.outputs.labels }}' > /tmp/labels.txt
           sed -i "s|org\.opencontainers\.image\.created=.*|org.opencontainers.image.created=${CREATED}|" /tmp/labels.txt
           { echo 'labels<<EOF'; cat /tmp/labels.txt; echo 'EOF'; } >> "${GITHUB_OUTPUT}"
 
@@ -247,7 +228,7 @@ jobs:
             ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
           provenance: false
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.meta-release.outputs.tags || steps.meta.outputs.tags }}
           labels: ${{ steps.labels.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
