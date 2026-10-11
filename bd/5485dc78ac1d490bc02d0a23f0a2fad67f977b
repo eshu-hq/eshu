@@ -1,0 +1,30 @@
+scripts/test-run-live-postgres-readiness-tests.sh
+  s_b0d7e3abc26c5a::t_cb8eb8d0dfc2bf 120-121
+scripts/lib/live_postgres_readiness_inventory.py
+  s_b0d7e3abc26c5a::t_aed9e0f9d4914f 13,360-362
+  s_b0d7e3abc26c5a::t_c460c4f21d2d38 363-364
+specs/live-tests.d/live-tests-01.yaml
+  s_b0d7e3abc26c5a::t_cb8eb8d0dfc2bf 398-402
+go/internal/query/codetopicparallel/snapshot_equivalence_live_test.go
+  s_b0d7e3abc26c5a::t_2ab04347269b00 1-45,47-150,153-175,177-263,266-269,272-302,321,329,338-339,344-348,350-353,358-377
+  s_b0d7e3abc26c5a::t_eae6fc4552906a 46,151-152,303,305-306
+  s_b0d7e3abc26c5a::t_67a213cf87c264 176
+  s_b0d7e3abc26c5a::t_4c446929065cbf 264-265,270-271,304,307-320,322-328,331-337,340-343,354-357
+  s_b0d7e3abc26c5a::t_8c810093d5f27e 330,349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd5485dc78ac1d490bc02d0a23f0a2fad67f977b",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
