@@ -4,7 +4,7 @@
 # bodies and full-line comments are skipped, and a quoted string is data unless
 # it follows -c or eval. One mode per run, chosen with -v mode=:
 #
-#   ops      prints FUNCTION <RS> OPERAND (RS is octal 036), the operand as written, of every -f,
+#   ops      prints FUNCTION <RS> OPERAND <RS> LINE (RS is octal 036), the operand as written, of every -f,
 #            --file, --file=X and -f=X option that belongs to a compose
 #            invocation. An option belongs to one when its command names compose
 #            and the option comes before the compose subcommand ("docker compose
@@ -13,6 +13,7 @@
 #   assign   prints FUNCTION <RS> NAME <RS> VALUE for every assignment, local
 #            or declare, for-in word, and "@READ@" for a name that read, mapfile
 #            or printf -v fills. FUNCTION is "" at the top level.
+#   prepare  prints FUNCTION <RS> LINE for every call of eshu_ci_compose_prepare.
 #   sources  prints FUNCTION <RS> PATH for every source or . command (the first
 #            non-flag word, as written).
 #   calls    prints CALLEE <RS> CALLER <RS> ARG1 <US> ARG2 ... for every command
@@ -226,6 +227,7 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
   if (mode == "sources" && (w0 == "source" || w0 == ".")) {
     for (i = a + 1; i <= b; i++) { if (T[i] !~ /^-/) { print fn SEP T[i]; break } }
   }
+  if (mode == "prepare" && w0 == "eshu_ci_compose_prepare") print fn SEP NR
   if (w0 == "eval") { s = ""; for (i = a + 1; i <= b; i++) s = s " " unq(T[i]); scan(s, fn, depth + 1) }
   if (w0 ~ /(^|\/)(bash|sh|zsh|dash|ksh)$/) {
     for (i = a + 1; i < b; i++) if (T[i] ~ /^-[A-Za-z]*c$/) { scan(unq(T[i + 1]), fn, depth + 1); break }
@@ -264,6 +266,6 @@ function ops(T, a, b, ctx, fn,   i, w, lw, inc, subc, suba, an, cn, lit, k, A, C
     k = op; gsub(/["'`]/, "", k)
     if (k ~ /docker-compose[A-Za-z0-9_.-]*\.ya?ml$/) lit = 1
   }
-  if (lit) { for (k = 1; k <= an; k++) print fn SEP A[k] }
-  else { for (k = 1; k <= cn; k++) print fn SEP C[k] }
+  if (lit) { for (k = 1; k <= an; k++) print fn SEP A[k] SEP NR }
+  else { for (k = 1; k <= cn; k++) print fn SEP C[k] SEP NR }
 }

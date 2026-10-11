@@ -182,27 +182,6 @@ image_is_hub() {
   return 0
 }
 
-# dockerfile_is_hub <repo-relative Dockerfile>: 0 when any FROM can pull from
-# Docker Hub (scratch and earlier stage aliases excluded); 0 when unreadable.
-dockerfile_is_hub() {
-  local f="$1" line ref aliases="|" tok prev
-  [[ -f "${root}/${f}" ]] || return 0
-  while IFS= read -r line; do
-    ref=""; prev=""
-    for tok in ${line}; do
-      case "${tok}" in
-        [Ff][Rr][Oo][Mm] | --*) ;;
-        *) if [[ -z "${ref}" ]]; then ref="${tok}"; fi ;;
-      esac
-      case "${prev}" in [Aa][Ss]) aliases="${aliases}${tok}|" ;; esac
-      prev="${tok}"
-    done
-    [[ -n "${ref}" && "${ref}" != scratch && "${aliases}" != *"|${ref}|"* ]] || continue
-    if image_is_hub "${ref}"; then return 0; fi
-  done < <(rg -N -i -e '^[[:space:]]*FROM[[:space:]]+' "${root}/${f}" || true)
-  return 1
-}
-
 # text_assigns <file>: prints NAME<TAB>VALUE assignments, cached per file.
 text_assigns() {
   local c
@@ -246,19 +225,24 @@ run_image() {
   return 1
 }
 
-# build_context <tokens...>: sets BUILD_FILE (-f/--file value or "") and
-# BUILD_CTX (the last positional token).
+# build_context <tokens...>: sets BUILD_FILE (-f/--file value or ""), BUILD_CTX
+# (the last positional token) and BUILD_ARGS (one raw NAME=VALUE or NAME per
+# --build-arg, newline-separated).
 build_context() {
   local t skip=0 prev="" last=""
-  BUILD_FILE=""
+  BUILD_FILE=""; BUILD_ARGS=""
   for t in "$@"; do
     if [[ "${skip}" -eq 1 ]]; then
       skip=0
-      case "${prev}" in -f | --file) BUILD_FILE="${t}" ;; esac
+      case "${prev}" in
+        -f | --file) BUILD_FILE="${t}" ;;
+        --build-arg) BUILD_ARGS="${BUILD_ARGS}${t}"$'\n' ;;
+      esac
       continue
     fi
     case "${t}" in
       --file=*) BUILD_FILE="${t#--file=}" ;;
+      --build-arg=*) BUILD_ARGS="${BUILD_ARGS}${t#--build-arg=}"$'\n' ;;
       --*=*) ;;
       --* | -?) if [[ "${build_value_flags}" == *" ${t} "* ]]; then skip=1; prev="${t}"; fi ;;
       -* | \>* | 2\>* | \&* | \|*) ;;
@@ -266,6 +250,24 @@ build_context() {
     esac
   done
   BUILD_CTX="${last}"
+}
+
+# expand_build_args <raw args, newline-separated>: sets DF_ARGS to NAME=VALUE
+# lines with every value expanded from the tables; a bare NAME takes the process
+# env value, as docker build does for --build-arg NAME.
+expand_build_args() {
+  local line name val
+  DF_ARGS=""
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    unquote "${line}"; line="${UNQ}"
+    if [[ "${line}" == *=* ]]; then
+      name="${line%%=*}"; expand "${line#*=}" ""; val="${EXP}"
+    else
+      name="${line}"; proc_env "${name}"; val="${LOOK}"
+    fi
+    DF_ARGS="${DF_ARGS}${name}=${val}"$'\n'
+  done <<<"$1"
 }
 
 # ref_is_hub <verb> <ref token>: 0 (and sets FACT_WHY) when the ref can pull from
@@ -348,10 +350,29 @@ fact_is_hub() {
       fi
       [[ "${df}" != *@UNRESOLVED@* ]] || { FACT_WHY="docker build with an underivable Dockerfile"; return 0; }
       df="${df#./}"
-      if dockerfile_is_hub "${df}"; then FACT_WHY="docker build of ${df}, which has a Docker Hub FROM"; return 0; fi
+      expand_build_args "${BUILD_ARGS}"
+      if dockerfile_is_hub "${df}"; then DF_ARGS=""; FACT_WHY="docker build of ${df}, which has a Docker Hub FROM"; return 0; fi
+      DF_ARGS=""
       return 1 ;;
   esac
   return 1
+}
+
+# load_step_env <env64>: loads the step env (base64 NAME=VALUE lines) into E_.
+load_step_env() {
+  local line name
+  [[ -n "$1" ]] || return 0
+  # The decoded text has no trailing newline: keep a last unterminated line.
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" == *=* ]] || continue
+    printf -v "E_${line%%=*}" '%s' "${line#*=}"
+  done < <(printf '%s' "$1" | b64d)
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" == *=* ]] || continue
+    name="${line%%=*}"
+    expand "${line#*=}" ""
+    printf -v "E_${name}" '%s' "${EXP}"
+  done < <(printf '%s' "$1" | b64d)
 }
 
 # step_hub_why <run file> <run has other> <run has compose> <closure files>
@@ -387,19 +408,7 @@ step_hub_why() {
   [[ "${need_compose}" -ne 1 ]] || need_vars=1
   clear_step_tables
   if [[ "${need_vars}" -eq 1 ]]; then
-    if [[ -n "${env64}" ]]; then
-      # The decoded text has no trailing newline: keep a last unterminated line.
-      while IFS= read -r line || [[ -n "${line}" ]]; do
-        [[ "${line}" == *=* ]] || continue
-        printf -v "E_${line%%=*}" '%s' "${line#*=}"
-      done < <(printf '%s' "${env64}" | b64d)
-      while IFS= read -r line || [[ -n "${line}" ]]; do
-        [[ "${line}" == *=* ]] || continue
-        name="${line%%=*}"
-        expand "${line#*=}" ""
-        printf -v "E_${name}" '%s' "${EXP}"
-      done < <(printf '%s' "${env64}" | b64d)
-    fi
+    load_step_env "${env64}"
     # Assignments: reached scripts first, then the run text itself.
     for f in ${files[@]+"${files[@]}"}; do load_assigns "${root}/${f}"; done
     load_assigns "${runf}"

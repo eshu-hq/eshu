@@ -252,8 +252,14 @@ done < <([[ "${#ref_inputs[@]}" -eq 0 ]] || LC_ALL=C awk -f "${refs_awk}" "${ref
 
 # shellcheck source=lib/dockerhub-login-images.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-images.sh"
+# shellcheck source=lib/dockerhub-login-dockerfile.sh
+source "${repo_root}/scripts/lib/dockerhub-login-dockerfile.sh"
 # shellcheck source=lib/dockerhub-login-compose.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-compose.sh"
+# shellcheck source=lib/dockerhub-login-operands.sh
+source "${repo_root}/scripts/lib/dockerhub-login-operands.sh"
+# shellcheck source=lib/dockerhub-login-ledger.sh
+source "${repo_root}/scripts/lib/dockerhub-login-ledger.sh"
 # shellcheck source=lib/dockerhub-login-queue.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-queue.sh"
 # shellcheck source=lib/dockerhub-login-matrix.sh disable=SC2034
@@ -268,7 +274,7 @@ check_job() {
   clear_tables
   load_envs "${job}"
   local login_idx="" login_if="" login_user="" login_pass="" login_uses="" login_coe=""
-  local df dc act af ref cur runf dynamic cfiles d_other d_comp d_unclass d_var d_dock possible env64 coe drv dopts qimg bimg opt aref
+  local df dc act af ref cur runf dynamic cfiles d_other d_comp d_unclass d_var d_dock possible env64 coe drv dopts qimg bargs bimg opt aref
   job_env="$(awk -F'\t' -v j="${job}" '$1=="J" && $2==j {print substr($3,2)}' "${tmp}/jobs.tsv" | head -n 1)"
 
   # Image pulls at job init: every Hub services:/container: image needs credentials.
@@ -282,7 +288,7 @@ check_job() {
     fi
   done < <(awk -F'\t' -v j="${job}" '($1=="S" || $1=="C") && $2==j' "${tmp}/jobs.tsv")
 
-  while IFS=$'\t' read -r seq _ idx uses cond reg user pass dfile dctx env64 coe drv dopts qimg; do
+  while IFS=$'\t' read -r seq _ idx uses cond reg user pass dfile dctx env64 coe drv dopts qimg bargs; do
     uses="${uses#x}"; reg="${reg#x}"; env64="${env64#x}"; coe="${coe#x}"; why=""
     case "${uses}" in
       docker/login-action@*)
@@ -298,7 +304,10 @@ check_job() {
       docker/build-push-action@*|docker/bake-action@*)
         df="${dfile#x}"; df="${df#./}"
         if [[ -z "${df}" ]]; then dc="${dctx#x}"; dc="${dc#./}"; [[ "${dc}" == . ]] && dc=""; df="${dc:+${dc}/}Dockerfile"; fi
-        if dockerfile_is_hub "${df}"; then why="${uses%@*} builds ${df}, which has a Docker Hub FROM"; fi ;;
+        clear_step_tables; load_step_env "${env64}"
+        expand_build_args "$(printf '%s' "${bargs#x}" | b64d)"
+        if dockerfile_is_hub "${df}"; then why="${uses%@*} builds ${df}, which has a Docker Hub FROM"; fi
+        DF_ARGS="" ;;
       docker/setup-buildx-action@*)
         # The default docker-container driver bootstraps a moby/buildkit builder
         # image from Docker Hub at setup; docker and remote pull none.
@@ -434,7 +443,8 @@ for wf in ${wf_files[@]+"${wf_files[@]}"}; do
        "x" + (((.value.env | select(type == "!!map") | to_entries | map(.key + "=" + (.value | tostring)) | join("\n")) // "") | @base64),
        "x" + ((.value["continue-on-error"] // "") | tostring),
        "x" + ((.value.with.driver // "") | tostring), "x" + (((.value.with["driver-opts"] // "") | tostring) | @base64),
-       "x" + ((.value.with.image // "") | tostring)] | join("\t"))' "${wf}" | awk '{print NR "\t" $0}' >"${tmp}/steps.tsv"
+       "x" + ((.value.with.image // "") | tostring),
+       "x" + (((.value.with["build-args"] // "") | tostring) | @base64)] | join("\t"))' "${wf}" | awk '{print NR "\t" $0}' >"${tmp}/steps.tsv"
   yq e '(.env | select(type == "!!map") | to_entries | .[] | [.key, (.value | tostring)] | join("\t"))' "${wf}" >"${tmp}/wfenv.tsv"
   yq e '.jobs | to_entries | .[] | .key as $j | (.value.env | select(type == "!!map") | to_entries | .[] | [$j, .key, (.value | tostring)] | join("\t"))' "${wf}" >"${tmp}/jobenv.tsv"
   # One file per step run text, named by the step's sequence number.
