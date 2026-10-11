@@ -3,6 +3,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged disposable PostgreSQL proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1; one local PostgreSQL 18 run took 1.60 s, and the graph live-backend job has no PostgreSQL DSN — promote after CI provisioning and timing evidence
+  - file: go/internal/query/content_reader_nonblank_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof that the non-blank statement of the needed-content hydration equals strings.TrimSpace on every Unicode White_Space code point, on text with whitespace on either side, and on large out-of-line values, plus the trim set checked against unicode.IsSpace over the whole 0x10FFFF range; one local PostgreSQL 18 run took about 1.5 s"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_search_unscoped_live_test.go
     tag: ~
     class: postgres_ci

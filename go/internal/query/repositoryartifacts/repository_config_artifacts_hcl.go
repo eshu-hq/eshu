@@ -27,16 +27,45 @@ var (
 	joinPathModulePattern                 = regexp.MustCompile(`(?is)^join\(\s*""\s*,\s*\[\s*path\.module\s*,\s*"([^"]+)"\s*\]\s*\)$`)
 )
 
+// hclConfigFileKind says how the HCL extractor treats a file by name.
+type hclConfigFileKind int
+
+const (
+	// hclConfigNone is a file the HCL extractor does not read or emit.
+	hclConfigNone hclConfigFileKind = iota
+	// hclConfigVarFile (.tfvars, .tfvars.json) emits a row from its path alone;
+	// its content is not read.
+	hclConfigVarFile
+	// hclConfigSourceFile (terragrunt.hcl, .tf, .hcl) is scanned for config
+	// asset references, so its content is read.
+	hclConfigSourceFile
+)
+
+// classifyHCLConfigFile is the selector the HCL extractor branches on. The
+// needed-content planner calls it too, so a file the extractor reads is
+// always a file the loader fetches.
+func classifyHCLConfigFile(relativePath string) hclConfigFileKind {
+	lowerBase := strings.ToLower(path.Base(relativePath))
+	switch {
+	case strings.HasSuffix(lowerBase, ".tfvars"), strings.HasSuffix(lowerBase, ".tfvars.json"):
+		return hclConfigVarFile
+	case lowerBase == "terragrunt.hcl", strings.HasSuffix(lowerBase, ".tf"), strings.HasSuffix(lowerBase, ".hcl"):
+		return hclConfigSourceFile
+	default:
+		return hclConfigNone
+	}
+}
+
 func extractHCLConfigAssetRows(repoName string, files []querycontract.FileContent) []map[string]any {
 	rows := make([]map[string]any, 0)
 	seen := map[string]struct{}{}
 	for _, file := range files {
-		lowerBase := strings.ToLower(path.Base(file.RelativePath))
-		if strings.HasSuffix(lowerBase, ".tfvars") || strings.HasSuffix(lowerBase, ".tfvars.json") {
+		switch classifyHCLConfigFile(file.RelativePath) {
+		case hclConfigVarFile:
 			rows = appendConfigArtifactRow(rows, seen, CleanRepositoryRelativePath(file.RelativePath), repoName, file.RelativePath, "terraform_var_file")
 			continue
-		}
-		if lowerBase != "terragrunt.hcl" && !strings.HasSuffix(lowerBase, ".tf") && !strings.HasSuffix(lowerBase, ".hcl") {
+		case hclConfigSourceFile:
+		default:
 			continue
 		}
 		localConfigAssignments := extractLocalConfigAssignments(file.RelativePath, file.Content)

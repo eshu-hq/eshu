@@ -34,12 +34,11 @@ func extractAnsibleConfigPathRows(repoName string, files []querycontract.FileCon
 	}
 
 	for _, file := range files {
-		relativePath := strings.TrimSpace(file.RelativePath)
-		if relativePath == "" {
+		lowerPath, lowerBase, ok := ansiblePathKeys(file)
+		if !ok {
 			continue
 		}
-		lowerPath := strings.ToLower(CleanRepositoryRelativePath(relativePath))
-		lowerBase := strings.ToLower(path.Base(relativePath))
+		relativePath := strings.TrimSpace(file.RelativePath)
 
 		if ansibleInventoryEvidencePath(lowerPath, lowerBase) {
 			addRow(relativePath, "ansible_inventory")
@@ -73,6 +72,16 @@ func extractAnsibleConfigPathRows(repoName string, files []querycontract.FileCon
 	})
 
 	return rows
+}
+
+// ansiblePathKeys derives the lower-cased path and base name every Ansible path
+// rule matches on. The extractor and the needed-content planner share it.
+func ansiblePathKeys(file querycontract.FileContent) (lowerPath, lowerBase string, ok bool) {
+	relativePath := strings.TrimSpace(file.RelativePath)
+	if relativePath == "" {
+		return "", "", false
+	}
+	return strings.ToLower(CleanRepositoryRelativePath(relativePath)), strings.ToLower(path.Base(relativePath)), true
 }
 
 func ansibleInventoryEvidencePath(lowerPath, lowerBase string) bool {
@@ -117,23 +126,56 @@ func ansibleTaskEntrypointEvidencePath(lowerPath, lowerBase string) bool {
 	}
 }
 
-func ansiblePlaybookEvidencePath(lowerPath, lowerBase, content string) bool {
+// ansiblePlaybookVerdict is the path-only decision of the playbook rule.
+type ansiblePlaybookVerdict int
+
+const (
+	// ansiblePlaybookByContent means the path rules did not decide; the
+	// content heuristic does, for conventional playbook names only.
+	ansiblePlaybookByContent ansiblePlaybookVerdict = iota
+	ansiblePlaybookYes
+	ansiblePlaybookNo
+)
+
+// ansiblePlaybookPathVerdict applies the path rules of the playbook evidence
+// check, in their original order, and reports whether they decide alone.
+func ansiblePlaybookPathVerdict(lowerPath, lowerBase string) ansiblePlaybookVerdict {
 	switch {
 	case strings.Contains(lowerPath, "/playbooks/"), strings.Contains(lowerPath, "playbooks/"):
-		return true
+		return ansiblePlaybookYes
 	case strings.Contains(lowerPath, "/site.yml"), strings.Contains(lowerPath, "/site.yaml"):
-		return true
+		return ansiblePlaybookYes
 	case lowerBase == "site.yml", lowerBase == "site.yaml":
-		return true
+		return ansiblePlaybookYes
 	case strings.Contains(lowerPath, "/inventories/"), strings.Contains(lowerPath, "/inventory/"):
-		return false
+		return ansiblePlaybookNo
 	case strings.Contains(lowerPath, "inventories/"), strings.Contains(lowerPath, "inventory/"):
-		return false
+		return ansiblePlaybookNo
 	case strings.Contains(lowerPath, "/roles/"), strings.Contains(lowerPath, "/group_vars/"), strings.Contains(lowerPath, "/host_vars/"):
+		return ansiblePlaybookNo
+	default:
+		return ansiblePlaybookByContent
+	}
+}
+
+func ansiblePlaybookEvidencePath(lowerPath, lowerBase, content string) bool {
+	switch ansiblePlaybookPathVerdict(lowerPath, lowerBase) {
+	case ansiblePlaybookYes:
+		return true
+	case ansiblePlaybookNo:
 		return false
 	default:
 		return plausibleAnsiblePlaybookPath(lowerBase) && ansiblePlaybookContent(content)
 	}
+}
+
+// ansiblePlaybookReadsContent reports whether the playbook rule reads the
+// file's content: only when the path rules do not decide and the name is a
+// conventional playbook name. It is the one place the extractor consults
+// content for an Ansible row.
+func ansiblePlaybookReadsContent(lowerPath, lowerBase string) bool {
+	return ansiblePlaybookPathVerdict(lowerPath, lowerBase) == ansiblePlaybookByContent &&
+		plausibleAnsiblePlaybookPath(lowerBase)
 }
 
 // plausibleAnsiblePlaybookPath keeps content heuristics scoped to conventional

@@ -19,6 +19,53 @@ func LoadDeploymentArtifactOverview(
 	infrastructure []map[string]any,
 	overview map[string]any,
 ) (map[string]any, error) {
+	merged, _, err := LoadDeploymentArtifactOverviewWithStats(
+		ctx, graph, content, repoID, repoName, files, infrastructure, overview,
+	)
+	return merged, err
+}
+
+// LoadDeploymentArtifactOverviewWithStats is LoadDeploymentArtifactOverview
+// plus the read counts the stage reports (#7126). The overview and error are
+// identical to LoadDeploymentArtifactOverview's; the stats are returned even
+// when the load fails, so an operator sees how far it got.
+func LoadDeploymentArtifactOverviewWithStats(
+	ctx context.Context,
+	graph querycontract.GraphQuery,
+	content querycontract.ContentStore,
+	repoID string,
+	repoName string,
+	files []querycontract.FileContent,
+	infrastructure []map[string]any,
+	overview map[string]any,
+) (map[string]any, ConfigArtifactReadStats, error) {
+	var stats ConfigArtifactReadStats
+	var counter *countingContentStore
+	if content != nil {
+		counter = &countingContentStore{ContentStore: content}
+		content = counter
+	}
+	merged, err := loadDeploymentArtifactOverview(
+		ctx, graph, content, repoID, repoName, files, infrastructure, overview, &stats,
+	)
+	if counter != nil {
+		stats.Statements = int(counter.statements.Load())
+		stats.HydratedBytes = counter.bytes.Load()
+	}
+	return merged, stats, err
+}
+
+func loadDeploymentArtifactOverview(
+	ctx context.Context,
+	graph querycontract.GraphQuery,
+	content querycontract.ContentStore,
+	repoID string,
+	repoName string,
+	files []querycontract.FileContent,
+	infrastructure []map[string]any,
+	overview map[string]any,
+	stats *ConfigArtifactReadStats,
+) (map[string]any, error) {
 	merged := overview
 	var firstErr error
 	artifactFiles := files
@@ -32,13 +79,14 @@ func LoadDeploymentArtifactOverview(
 		}
 	}
 
-	configArtifacts, err := LoadSharedRepositoryConfigArtifacts(
+	configArtifacts, err := loadSharedRepositoryConfigArtifacts(
 		ctx,
 		graph,
 		content,
 		repoID,
 		repoName,
 		artifactFiles,
+		stats,
 	)
 	if err != nil && firstErr == nil {
 		firstErr = err

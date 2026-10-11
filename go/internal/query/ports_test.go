@@ -204,6 +204,10 @@ func (f fakePortContentStore) ListRepoFiles(ctx context.Context, repoID string, 
 	return f.promoted().ListRepoFiles(ctx, repoID, limit)
 }
 
+func (f fakePortContentStore) NonBlankRepoFilePaths(ctx context.Context, repoID string, relativePaths []string) ([]string, error) {
+	return f.promoted().NonBlankRepoFilePaths(ctx, repoID, relativePaths)
+}
+
 func (f fakePortContentStore) ListRepositoryRefs(ctx context.Context, repoID string) ([]RepositoryRef, error) {
 	return f.promoted().ListRepositoryRefs(ctx, repoID)
 }
