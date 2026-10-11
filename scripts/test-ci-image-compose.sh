@@ -152,4 +152,57 @@ if bash scripts/ci/compose.sh -f docker-compose.yaml -f "${test_dir}/external-st
     exit 1
 fi
 eshu_ci_compose_cleanup
+# The signature hashes the value of every variable a root Compose file names, so
+# a prepared overlay refuses a call after any such export. This is the contract
+# that makes a script-level prepare unsafe in a script that exports later.
+unset ESHU_CI_COMPOSE_OVERLAY ESHU_CI_COMPOSE_SIGNATURE
+: >"${test_dir}/calls"
+if (
+    eshu_ci_compose_prepare "${repo_root}" -f docker-compose.yaml &&
+    export ESHU_HOME="${test_dir}/home" &&
+    bash scripts/ci/compose.sh -f docker-compose.yaml -- up -d
+) >/dev/null 2>&1; then
+    echo "an export of a Compose-referenced variable after prepare must invalidate the overlay" >&2
+    exit 1
+fi
+eshu_ci_compose_cleanup
+# The golden gate's order is: lock, preflight, exports, a call behind a variable
+# prefix. Run the gate's own libraries in that order with the real wrapper, in a
+# script of its own so that set -e is real (a || list would switch it off).
+unset ESHU_CI_COMPOSE_OVERLAY ESHU_CI_COMPOSE_SIGNATURE
+: >"${test_dir}/calls"
+cat >"${test_dir}/golden-order.sh" <<'SH'
+set -euo pipefail
+export GITHUB_ACTIONS=true
+use_compose=1 graph_service=nornicdb
+ESHU_POSTGRES_PORT=15432 ESHU_NEO4J_PASSWORD=change-me ESHU_POSTGRES_PASSWORD=change-me
+compose_args=(-p eshu-golden -f docker-compose.yaml)
+log() { :; }
+die() { printf 'die: %s\n' "$*" >&2; exit 1; }
+release_live_gate_lock() { :; }
+. "${repo_root}/scripts/lib/golden-corpus-ci-compose.sh"
+. "${repo_root}/scripts/lib/golden-corpus-readiness.sh"
+host_tcp_port_open() { return 0; }
+golden_corpus_preflight_ci_overlay
+export ESHU_HOME="${TEST_HOME}" ESHU_API_KEY=golden-key ESHU_EMIT_DATAFLOW=true
+export ESHU_FILESYSTEM_ROOT="${TEST_HOME}/corpus" ESHU_REPO_SOURCE_MODE=filesystem
+start_golden_corpus_backends
+SH
+repo_root="${repo_root}" TEST_HOME="${test_dir}/home" bash "${test_dir}/golden-order.sh" \
+    >"${test_dir}/golden-order.out" 2>&1 || {
+    echo "the golden gate order (preflight, exports, prefixed up) must run through the wrapper" >&2
+    cat "${test_dir}/golden-order.out" >&2
+    exit 1
+}
+rg --quiet -e ' up -d nornicdb postgres$' -e ' up -d nornicdb postgres ' "${test_dir}/calls" || {
+    echo "the golden gate order must reach the wrapped up call" >&2
+    exit 1
+}
+# The gate shell must hold no prepared overlay: later libraries export Compose
+# variables (Ask source, metrics source) after the first call.
+if rg --quiet -e 'eshu_ci_compose_prepare' "${repo_root}/scripts/verify-golden-corpus-gate.sh" \
+    "${repo_root}"/scripts/lib/golden-corpus-*.sh; then
+    echo "the golden gate must not prepare an overlay in its own shell" >&2
+    exit 1
+fi
 echo "test-ci-image-compose: PASS"

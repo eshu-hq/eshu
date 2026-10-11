@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Prepare the overlay for the caller's Compose file array after it acquires the
-# live-gate lock. Every Compose call of the gate goes through scripts/ci/compose.sh,
-# which appends the overlay itself; the array is not changed here.
+# Fail the gate early when the CI image overlay cannot cover the caller's Compose
+# stack, after the gate holds the live-gate lock. Every Compose call of the gate
+# goes through scripts/ci/compose.sh, which renders and appends its own overlay.
+# The gate shell holds no prepared overlay on purpose: the wrapper hashes the
+# value of every variable a root Compose file names, and the gate exports such
+# variables after this point (the Ask and metrics sources, the runtime
+# environment), so a prepared overlay would refuse the first call that follows.
 # shellcheck disable=SC2154  # The sourced library reads gate-owned globals.
 
-golden_corpus_prepare_ci_overlay() {
-    [[ "${use_compose}" -eq 1 ]] || return 0
-    # shellcheck source=scripts/lib/ci-image-compose.sh
-    source "${repo_root}/scripts/lib/ci-image-compose.sh"
-    eshu_ci_compose_prepare "${repo_root}" "${compose_args[@]}" || {
-        release_live_gate_lock
-        die "CI image overlay preflight failed"
-    }
+golden_corpus_preflight_ci_overlay() {
+	[[ "${use_compose}" -eq 1 ]] || return 0
+	# The same variable prefix as the first up call, so the render sees one env.
+	ESHU_NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}" ESHU_POSTGRES_PASSWORD="${ESHU_POSTGRES_PASSWORD}" \
+		bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- config --quiet >/dev/null || {
+		release_live_gate_lock
+		die "CI image overlay preflight failed"
+	}
 }

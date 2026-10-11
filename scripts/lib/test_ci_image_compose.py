@@ -224,7 +224,7 @@ class CiImageEntrypointTest(unittest.TestCase):
         gate = root / "scripts/verify-golden-corpus-gate.sh"
         calls = [line for line in gate.read_text(encoding="utf-8").splitlines()
                  if line.startswith('. "${repo_root}/scripts/lib/')
-                 and "golden_corpus_prepare_ci_overlay" in line]
+                 and "golden_corpus_preflight_ci_overlay" in line]
         self.assertEqual(len(calls), 1)
         result = subprocess.run(
             ["bash", "-euo", "pipefail", "-c", calls[0]],
