@@ -7,11 +7,11 @@ run whose in-run load1 maximum was 9.88 against the 9.0 bound, for 25 s, from
 foreign processes and the shim's own seeding. The arbiter accepted them with
 that deviation noted (evidence appendix, section 6). The arm 3 and arm 5
 reruns are pending. The arm 1 confirmation (5 rounds, default sizes) rides
-with the arm 5 rerun, and a reversal there reopens arm 1. S1, S4 and S6 have
-not run. The cap ruling supersedes F3: the 50-candidate cap is lifted, not
-deferred (section 3.3, #7951). This record does not approve the schema, the
-migration number or any rollout. Each of those waits for the shims in
-section 8. Refs #7126.
+with the arm 5 rerun, and a reversal there reopens arm 1. S1 and S4 have not
+run. S6 ran and raised E to 12,000 (section 3.3). The cap ruling supersedes
+F3: the 50-candidate cap is lifted, not deferred (section 3.3, #7951). This
+record does not approve the schema, the migration number or any rollout. Each
+of those waits for the shims in section 8. Refs #7126.
 
 **Decision: compute the `config_paths` rows of each repository once, after the
 content writer commits that repository's content, and store them in Postgres
@@ -142,10 +142,9 @@ sessions that do not derive.
 This departs from #6793. `deriveInfraInventory` fails the Write, which is
 right for a SQL-only copy. The config derive runs Go regexes and `yaml.v3`
 over arbitrary content. A deterministic parse bug or a pathological file would
-make the projector retry the generation until it dead-letters. That would
-lose graph and content truth to protect a read model. The content rows are
-already committed when the derive starts, so a failed derive cannot roll them
-back.
+make the projector retry the generation until it dead-letters. That would lose
+graph and content truth to protect a read model. The content rows are already
+committed when the derive starts, so a failed derive cannot roll them back.
 
 ### 3.2 What is stored
 
@@ -179,8 +178,7 @@ summary:
 - The state row records the `content_version` the derive read, the
   `extractor_version`, and `candidate_count`, `candidates_read`,
   `files_listed` and `list_truncated` for every derive.
-- The dirty set is a join of state and versions, not a
-  table.
+- The dirty set is a join of state and versions, not a table.
 - Size: R1 shows about 21 rows per repository. For the 815 repositories
   the QA environment listed on 2026-10-10, that gives roughly 17,000 rows. This is an
   extrapolation. The count 815 comes from the local kit note
@@ -209,8 +207,7 @@ path at PR-cap-1's head is the oracle, so PR3 changes no extraction semantics.
   the `artifact_type` mapping or the blank predicate, and break S4 silently.
 - **Pure input.** The extractors read no clock, environment or network. They
   drop remote references without reading them. Kustomize resolves references
-  only inside the same repository's file index. No cross-repository input
-  exists.
+  only inside that repository's file index. No cross-repository input exists.
 - **Name at read time.** The derive stores rows without the name. At read
   time the API sets `source_repo` to the graph `related.name` and strips the
   name prefix from the `name_scoped` rows only. Those are the HCL and compose
@@ -222,8 +219,7 @@ path at PR-cap-1's head is the oracle, so PR3 changes no extraction semantics.
   when the cleaned result has leading or trailing whitespace: a second clean
   changed 8,943 of 200,000 random strings (0 over the S0 corpus). PR3a splits
   the function into a clean step and a strip step. The derive stores the
-  cleaned path, and the read step only strips. The read step must not clean
-  again.
+  cleaned path. The read step only strips and must not clean again.
 - **One merge, one dedup.** The live loader keeps one dedup map across the
   anchor and all related sources. The stored path does the same: the rows of
   every repository (anchor live, stored, live fallback) merge in source
@@ -235,19 +231,22 @@ path at PR-cap-1's head is the oracle, so PR3 changes no extraction semantics.
 - **Caps (F3, amended by the cap ruling).** The silent 50-candidate cap is a
   defect of the live path, tracked by #7951. PR-cap-1 lifts it before PR3b-2.
   Each related repository keeps a floor F = 50 hydrated candidates. A
-  per-request extra budget E = 10,000 candidates is spent in `RepoID` order,
-  after the access-filtered sources are sorted by `RepoID`. E is provisional:
-  the S6 census must show E >= 1.5 x R1's measured extra. Every
-  related-repository file list reads limit+1 and clips at 5,000. A bound that
-  bites adds a reason to the response and the stage line, with counts that are
-  exact within the list window:
-  `deployment_artifacts_candidates_budget_reached` (the budget reason) or
+  per-request extra budget E = 12,000 candidates is spent in `RepoID` order,
+  after the access-filtered sources are sorted by `RepoID`. E is provisional
+  until the deployed read. S6 set it: 1.5 x R1's measured extra of 7,774
+  candidates is 11,661, above the proposed 10,000 (appendix section 10). Every
+  related-repository file list, and the service route's own anchor list, reads
+  limit+1 and clips at 5,000. A bound that bites adds a reason to the response
+  and the stage line, with counts exact within the list window:
+  `deployment_artifacts_candidates_budget_reached` (the budget reason),
   `deployment_artifacts_related_file_list_truncated_at_5000` (the window
-  reason). The live path at PR-cap-1's head is the S4 oracle, with allowance
-  -1. The derive hydrates the whole list window (allowance -1) and stores
-  `candidate_count`, `candidates_read` and `list_truncated`. The stored read
-  (PR3c) derives the window reason from `list_truncated`, and never emits the
-  budget reason for a stored repository. Evidence appendix, sections 9 and 10.
+  reason) or `deployment_artifacts_anchor_file_list_truncated_at_5000` (the
+  anchor reason, service route only). The live path at PR-cap-1's head is the
+  S4 oracle, with allowance -1. The derive hydrates the whole list window
+  (allowance -1) and stores `candidate_count`, `candidates_read` and
+  `list_truncated`. The stored read (PR3c) derives the window reason from
+  `list_truncated`, and never emits the budget reason for a stored repository.
+  Evidence appendix, sections 9 and 10.
 - **Anchor.** The anchor repository stays live. Its list is read with
   limit+1 and a truncated flag, and its pre-read compose and GitHub Actions
   files do not count toward the 50-candidate cap. Its window therefore
@@ -286,8 +285,7 @@ path at PR-cap-1's head is the oracle, so PR3 changes no extraction semantics.
    - Shadow mode shows zero mismatches over the #7098 read sweep, R1 and R2.
    - An offline differential of every repository is `0/0`.
    - S1's projector bar holds.
-5. Rollback: set the mode to `live` and roll the API. No data change is
-   needed.
+5. Rollback: set the mode to `live` and roll the API. No data change needed.
 
 An `extractor_version` bump makes every stored row stale at once. Every
 related repository then falls back live until the walker re-derives it. The
@@ -300,7 +298,7 @@ All names in this section are **Proposed**, except what a ruling named: the
 G9 stage log fields, from re-ruling 3 the log `postgres.server_encoding`, the
 derive outcome `encoding_unsupported` and the `not_installed` status with a
 reason, from the S3 ruling the derive outcome `fence_missing` and the
-reason `version_fence_missing`, and from the cap ruling the two reasons of
+reason `version_fence_missing`, and from the cap ruling the three reasons of
 section 3.3, the counts and the counter below.
 
 | Signal | Name | Answers |
@@ -353,19 +351,18 @@ Bad:
    backfill to operate.
 3. An extractor version bump sends every related repository to the live path
    until the walker catches up.
-4. A repository whose derive always fails or times out adds up to 10 s to
-   each of its content Writes, because every Write derives. The walker skips
-   it after 5 failures until its next Write or an extractor change
-   (protocol companion, section 4). Its reads stay live while its rows are
-   stale.
+4. A repository whose derive always fails or times out adds up to 10 s to each
+   of its content Writes, because every Write derives. The walker skips it
+   after 5 failures until its next Write or an extractor change (protocol
+   companion, section 4). Its reads stay live while its rows are stale.
 5. PR-cap-1 raises the live cost: up to 50 x N + E candidates per request
    (the floors plus the budget). The estimate for R1 is about +0.4 CPU-s
-   (theory, appendix section 10).
+   (theory); the scratch shim measured +0.487 CPU-s (appendix section 10).
 
 Follow-ups, to be filed as separate issues by the coordinator:
 
-1. PR-cap-2 (the anchor-only loaders L7-L10) and the S6 census. Tracking
-   issue: #7951. It stays open until PR-cap-2 merges.
+1. PR-cap-2 (the anchor-only loaders L7-L10). Tracking issue: #7951. It
+   stays open until PR-cap-2 merges. The S6 census has run (section 3.3).
 2. The cold-route stages outside PR3 (section 6).
 
 ## 6. Acceptance in the QA environment after the roll
@@ -408,8 +405,7 @@ Remaining contributors in the stage, as a budget (theory until measured):
 If the corpus changed between the baseline and the roll, re-baseline the body
 in `live` mode first. The first call of R1 had 1.016 s outside this stage
 (`target_documentation` 0.498 s cold, from the same local kit note). The cold
-route stays above 1 s unless
-those stages change, which is outside PR3.
+route stays above 1 s unless those stages change, which is outside PR3.
 
 ## 7. PR breakdown and sequencing
 
@@ -420,7 +416,7 @@ those stages change, which is outside PR3.
 | PR3b-1b | Migration N+1, one transaction: the four `content_files_version_fence_*` triggers first (DELETE shape from S3), then one version-0 row per repository. The trigger-order schema test | after the arm 3 rerun on the real `prune_content_files` phase and the attributed arm 5 rerun pass | S3. Arm 7 cases 1a, 1b, 2 and 3 under the chosen shape (1b and 2 under both). R-1, two-scope and prune interleaving tests. Time the seed scan: `CREATE TRIGGER` stalls content writes until commit |
 | PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort. Split `normalizeRepoScopedPath` into clean and strip | after PR1, PR1b and PR2 merge | Existing tests and the PR1 differential pass unchanged. Tie count. The S0 tests run against the strip step |
 | PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive (allowance -1, stores `candidate_count`, `candidates_read` and `list_truncated`), the startup fence-trigger check (section 3.1), telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a, PR-cap-1 and PR3b-1b. It must not deploy before 1b | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
-| PR-cap-1 | L1, L2, L3 and L6 of appendix section 9: floor F and budget E, the `RepoID` source sort, the allowance parameter, the limit+1 sentinel, the two reasons, counts, counter, OpenAPI fragment, docs, and an ADR edit only if E changes. Stacked on PR3a | after PR3a, before PR3b-2 and PR3b-1a. It must not merge before the S6 census lands and E >= 1.5 x R1's extra | Appendix section 10: cap shims 1-3 pass locally before an executor starts. The accuracy checks (51, 500 and 5,001 candidates, budget bite, ordering stability, monotonic differential, kustomize inversion, seeded RED/GREEN, access) |
+| PR-cap-1 | L1, L2, L3 and L6 of appendix section 9: floor F and budget E, the `RepoID` source sort, the allowance parameter, the limit+1 sentinel (related lists and the service route's own anchor list), the three reasons, counts, counter, OpenAPI fragment, docs, and a blank check chunked at 500 paths. E changed from 10,000 to 12,000 after the S6 census, and this record carries that ADR edit. Stacked on PR3a | after PR3a, before PR3b-2 and PR3b-1a. It must not merge before the deployed read confirms E = 12,000 (S6 landed: 12,000 is 1.54 x R1's extra of 7,774) | Appendix section 10: cap shims 1-3 pass locally before an executor starts. The accuracy checks (51, 500 and 5,001 candidates, budget bite, ordering stability, monotonic differential, kustomize inversion, seeded RED/GREEN, access) |
 | PR-cap-2 | L7-L10, the anchor-only loaders: chunked reader, the same allowance and disclosure, a sentinel on the three lists read when `files` is nil | independent of PR3. May run beside PR3b-1a | Tests that pin the cap change with intent. #7951 stays open until it merges |
 | PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, the 5,000-window reason from `list_truncated` (never the budget reason for a stored repository), shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. QA-environment shadow then acceptance |
 
@@ -442,7 +438,7 @@ note. Details are in section 6 of the protocol companion.
 | S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names | store the name in the state row and run S5. **Ran: PASS**. The two loader-level merge cases are not part of S0. They are in S4 and PR3c |
 | S2 read plan | local PostgreSQL 18 | The reader's three-table join for 300 ids and the dirty join over 815 repositories. Each runs in at most 5 ms with a generic plan. No scan of a table that grows with `content_files` | change the key or the statement. **Ran: PASS** with the four-column key: reader join 2.44 ms, dirty join 0.18 ms. With the digest key only the paths read was measured (2.14 ms). The digest-key reader join is not measured. See the evidence appendix, section 4 |
 | S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most +5% of `prune_content_files` of the real retention store, at 1 KiB inline and 8 KiB TOASTed bodies. Two concurrent Writes at most +10% per Write, lock waits attributed by class, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write with few tombstones has two). A delta Write expects ceil((tombstones + reaped paths) / 500) delete transactions plus its upsert batches. Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1b | other DELETE shape, then the **Proposed** fallback (companion 2, needs an F2 amendment). Do not build the trigger. **Ran 2026-10-11**: arms 1, 2, 4 and 6 PASS. Arm 1 confirmation (5 rounds, default sizes) rides with the arm 5 rerun; a reversal reopens it (appendix, section 6). Arm 3 failed on a proxy denominator and arm 5 failed a mis-specified bar, so both rerun (appendix section 6) |
-| S6 cap census | QA environment, read-only | counts, hidden bytes by class and hidden rows, recorded on #7951. E >= 1.5 x R1's measured extra | raise E and redo the cost table in PR-cap-1. PR-cap-1 must not merge before the census lands |
+| S6 cap census | QA environment, read-only | counts, hidden bytes by class and hidden rows, recorded on #7951. E >= 1.5 x R1's measured extra | raise E and redo the cost table in PR-cap-1. **Ran 2026-10-11**: FAIL at E = 10,000 (1.5 x 7,774 = 11,661), so E is 12,000 (1.54 x) and the cost table is redone in the evidence appendix, section 10. PR-cap-1 must not merge before the deployed read confirms E |
 | S1 derive cost | local, PR1, PR1b and PR2 stacked | at most 10% of content-stage p95. At most 2 s for the worst repository | reopen F1 |
 | S4 equality | PR3b gate | Symmetric difference `0/0` for every golden-corpus repository, against the live path at PR-cap-1's head with allowance -1. Two loader-level merge cases too: two related repositories with one graph name, and the anchor repeated in the related list | do not merge PR3b-2 |
 
@@ -469,7 +465,7 @@ to its section here.
 |---|---|---|
 | F1 place of the derive | B, with the derive never failing the Write, a deadline, panic recovery, and parse outside the lock. The re-ruling replaced the conditional mark delete with an advance-only write | 3.1, companion 3 |
 | F2 fence (re-ruled) | a content version bumped by a `content_files` trigger for every session, once per transaction per repository. No mark table, no pre-write mark, no session setting. A fallback gate that sets a transaction-local setting needs an F2 amendment by ruling (companion 2) | 3.1, 3.2, companion 2 |
-| F3 caps (superseded by the cap ruling, 2026-10-11) | L2 lifted by PR-cap-1 before PR3b-2. Floor F = 50 per related repository, extra budget E = 10,000 per request (provisional until S6), spent in `RepoID` order. limit+1 sentinel on every related list. Reasons with counts exact within the list window. The live path at PR-cap-1's head is the S4 oracle, allowance -1. The derive hydrates the whole window and stores the counts. The stored read derives the 5,000-window reason and never the budget reason. Tracked by #7951, open until PR-cap-2 | 3.3, 5, 7, appendix 9 and 10 |
+| F3 caps (superseded by the cap ruling, 2026-10-11) | L2 lifted by PR-cap-1 before PR3b-2. Floor F = 50 per related repository, extra budget E = 12,000 per request (S6 landed; provisional until the deployed read), spent in `RepoID` order. limit+1 sentinel on every related list and on the service route's own anchor list. Three reasons with counts exact within the list window. The live path at PR-cap-1's head is the S4 oracle, allowance -1. The derive hydrates the whole window and stores the counts. The stored read derives the 5,000-window reason and never the budget reason. Tracked by #7951, open until PR-cap-2 | 3.3, 5, 7, appendix 9 and 10 |
 | F4 anchor | stays live | 3.3 |
 | F5 repair vehicle | reducer walker, same protocol, K workers by `repo_id`, skip after 5 failures | 3.1, companion 4 |
 | F6 package home | neutral package, plus one shared SQL constant and row mapper per `content_files` statement | 3.3, companion 5 |
