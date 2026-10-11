@@ -56,7 +56,14 @@ Operator) carry the same two alerts. The census alert rule test in
 | Alert | Expression | For | Means |
 | --- | --- | --- | --- |
 | `EshuGraphIDAnchorUnreachableNodes` | `max(eshu_dp_graph_id_anchor_unreachable_nodes) > 0 and max(eshu_dp_graph_id_anchor_id_bearing_nodes) > 0` | 2h | Entity ids that entity context answers 404 on Neo4j. The 2h window spans two default passes, so one pass that sees a node mid-write does not page. |
-| `EshuGraphIDAnchorCensusStale` | `time() - max(eshu_dp_graph_id_anchor_census_last_success_unixtime) > 10800` | 15m | No successful pass in three default intervals. The unreachable count is stale and the first alert cannot fire on new data. |
+| `EshuGraphIDAnchorCensusStale` | `(time() - max(eshu_dp_graph_id_anchor_census_last_success_unixtime) > 10800) or (sum(increase(eshu_dp_graph_id_anchor_census_passes_total{outcome="failed"}[3h])) > 0 unless sum(increase(eshu_dp_graph_id_anchor_census_passes_total{outcome="ok"}[3h])) > 0)` | 15m | The census has stopped succeeding: the last success is older than three default intervals (a reducer that once succeeded), or passes failed in the last 3h with none succeeding (a reducer that has not succeeded since it started, which never exports the last-success gauge). The unreachable count is then stale or absent, and the first alert cannot fire on new data. |
+
+Neither alert covers a reducer that runs no census pass at all (the reducer
+is down, or `ESHU_ID_ANCHOR_CENSUS_ENABLED=false`): it exports none of these
+series. A reducer that is down is caught by the runtime health alerts, not by
+these. Because `increase()` does not count the first sample of a new series,
+the failed-pass clause fires from the second failed pass after a restart (about
+one poll interval later), then after the 15m `for`.
 
 ## When it is nonzero
 

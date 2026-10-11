@@ -31,17 +31,17 @@ spec:
               5. Do not add an unlabeled fallback back to the entity-context read; it is the 2.27M-db-hit scan #7212 removed
 
         - alert: EshuGraphIDAnchorCensusStale
-          expr: time() - max(eshu_dp_graph_id_anchor_census_last_success_unixtime) > 10800
+          expr: '(time() - max(eshu_dp_graph_id_anchor_census_last_success_unixtime) > 10800) or (sum(increase(eshu_dp_graph_id_anchor_census_passes_total{outcome="failed"}[3h])) > 0 unless sum(increase(eshu_dp_graph_id_anchor_census_passes_total{outcome="ok"}[3h])) > 0)'
           for: 15m
           labels:
             severity: warning
             service: eshu-reducer
             component: pipeline
           annotations:
-            summary: "The id-anchor census has not completed a pass in over 3 hours"
-            description: "The last successful id-anchor census pass is {{ $value | humanizeDuration }} old, so eshu_dp_graph_id_anchor_unreachable_nodes is a stale snapshot and EshuGraphIDAnchorUnreachableNodes cannot fire on new data."
+            summary: "The id-anchor census has not succeeded in over 3 hours"
+            description: "Either the last successful id-anchor census pass is over 3 hours old (a reducer that once succeeded has stopped succeeding), or census passes failed in the last 3 hours with none succeeding (a reducer that has not succeeded since it started, for example after a rollout). eshu_dp_graph_id_anchor_unreachable_nodes is then stale or absent, and EshuGraphIDAnchorUnreachableNodes cannot fire on new data. A reducer that runs no census pass at all (not running, or ESHU_ID_ANCHOR_CENSUS_ENABLED=false) exports neither series and is out of scope for this alert."
             runbook: |
-              The census pass is failing or not running. Runbook: docs/public/reference/telemetry/id-anchor-census.md.
+              The census pass is failing, or has not succeeded since the reducer started. Runbook: docs/public/reference/telemetry/id-anchor-census.md.
               1. Check `eshu_dp_graph_id_anchor_census_passes_total` by `outcome` and reducer logs for `id anchor census pass failed` with `failure_class=id_anchor_census_error`
               2. Compare `eshu_dp_graph_id_anchor_census_duration_seconds` with `ESHU_ID_ANCHOR_CENSUS_TIMEOUT` (default 2m); a timed-out pass keeps the last good value
               3. The 3h threshold is three default `ESHU_ID_ANCHOR_CENSUS_POLL_INTERVAL` (1h) intervals; scale it if the interval changes

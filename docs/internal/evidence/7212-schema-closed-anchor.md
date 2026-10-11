@@ -162,8 +162,10 @@ No new metric, but two new alerts on the existing census gauges (review round
 - `EshuGraphIDAnchorUnreachableNodes`:
   `max(eshu_dp_graph_id_anchor_unreachable_nodes) > 0 and max(eshu_dp_graph_id_anchor_id_bearing_nodes) > 0`
   for 2h. It pages on ids that answer 404 on Neo4j.
-- `EshuGraphIDAnchorCensusStale`: no successful pass in 3h, for 15m. A stale
-  gauge would otherwise hide new unreachable nodes.
+- `EshuGraphIDAnchorCensusStale`: the last success is over 3h old, or passes
+  failed in the last 3h with none succeeding (a reducer that has not succeeded
+  since it started never exports the last-success gauge; review round 2, G1),
+  for 15m. A stale or absent gauge would otherwise hide new unreachable nodes.
 
 `alert_rule_test.go` in `go/internal/reducer/maintenance/census` checks four
 things: the two files carry the same expression, duration, and severity; each

@@ -27,7 +27,10 @@ const (
 )
 
 // idAnchorCensusAlerts are the alerts both rule files must carry, with the
-// metrics each must read.
+// metric selectors each expression must contain. The stale alert reads the
+// pass counter as well as the last-success gauge: a reducer whose census never
+// succeeds after a restart never exports the gauge, so the gauge clause alone
+// returns no data and cannot fire (review round 2, G1).
 var idAnchorCensusAlerts = map[string][]string{
 	"EshuGraphIDAnchorUnreachableNodes": {
 		"eshu_dp_graph_id_anchor_unreachable_nodes",
@@ -35,6 +38,8 @@ var idAnchorCensusAlerts = map[string][]string{
 	},
 	"EshuGraphIDAnchorCensusStale": {
 		"eshu_dp_graph_id_anchor_census_last_success_unixtime",
+		`eshu_dp_graph_id_anchor_census_passes_total{outcome="failed"}`,
+		`eshu_dp_graph_id_anchor_census_passes_total{outcome="ok"}`,
 	},
 }
 
@@ -69,6 +74,15 @@ func parseRuleGroups(raw []byte) ([]ruleGroup, error) {
 	}
 	return doc.Groups, nil
 }
+
+// censusStaleExpr is the stale alert's expression as both rule files write it,
+// and censusStaleGaugeOnlyExpr the gauge-only form that cannot fire when no
+// pass has succeeded since the reducer started. The planted-violation test
+// swaps one for the other.
+const (
+	censusStaleExpr          = `(time() - max(eshu_dp_graph_id_anchor_census_last_success_unixtime) > 10800) or (sum(increase(eshu_dp_graph_id_anchor_census_passes_total{outcome="failed"}[3h])) > 0 unless sum(increase(eshu_dp_graph_id_anchor_census_passes_total{outcome="ok"}[3h])) > 0)`
+	censusStaleGaugeOnlyExpr = `time() - max(eshu_dp_graph_id_anchor_census_last_success_unixtime) > 10800`
+)
 
 var metricNameRe = regexp.MustCompile(`\beshu_dp_[a-z0-9_]+\b`)
 
@@ -188,6 +202,11 @@ func TestIDAnchorCensusAlertCheckFailsOnPlantedViolations(t *testing.T) {
 		t.Fatalf("read %s: %v", operatorRulePath, err)
 	}
 	registered := registeredCensusMetrics(t)
+	for name, raw := range map[string][]byte{"standalone": standalone, "operator": operator} {
+		if !strings.Contains(string(raw), censusStaleExpr) {
+			t.Fatalf("%s rule file does not carry censusStaleExpr verbatim, so the planted clause drop would test nothing", name)
+		}
+	}
 	for _, tc := range []struct {
 		name                 string
 		standalone, operator string
@@ -212,6 +231,12 @@ func TestIDAnchorCensusAlertCheckFailsOnPlantedViolations(t *testing.T) {
 			"renamed metric",
 			strings.ReplaceAll(string(standalone), "eshu_dp_graph_id_anchor_census_last_success_unixtime", "eshu_dp_graph_id_anchor_census_last_ok_unixtime"), string(operator),
 			"does not register",
+		},
+		{
+			"failed-without-success clause dropped from both files",
+			strings.Replace(string(standalone), censusStaleExpr, censusStaleGaugeOnlyExpr, 1),
+			strings.Replace(string(operator), censusStaleExpr, censusStaleGaugeOnlyExpr, 1),
+			`does not read eshu_dp_graph_id_anchor_census_passes_total{outcome="failed"}`,
 		},
 		{
 			"runbook removed",
