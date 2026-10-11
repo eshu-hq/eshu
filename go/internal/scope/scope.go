@@ -290,6 +290,19 @@ type ScopeGeneration struct {
 	// baseline. The projector refuses the delta unless that is still the active
 	// commit. Set only when IsDelta is true; empty for full generations.
 	DeltaBaselineCommitSHA string
+	// ReconcileReason is the bounded reason a forced full reconciliation
+	// snapshot was taken (epic #2340, #7978), for example interval_elapsed or
+	// graph_dirty. Empty for an ordinary observation. It never changes
+	// FreshnessHint: when the reconciliation snapshot matches the active
+	// generation (same commit, same hint), the ingestion store re-projects that
+	// generation instead of storing a duplicate, and records the reason in the
+	// generation payload as reconcile_reason.
+	ReconcileReason string
+	// DefaultBranchChanged marks a full observation taken because the remote
+	// default branch changed (#7678). The ingestion store always stores such a
+	// generation, even when its hint and commit equal the active generation's,
+	// so the repository fact's default branch re-projects.
+	DefaultBranchChanged bool
 }
 
 // Validate checks the generation fields and lifecycle status.

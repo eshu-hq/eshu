@@ -122,6 +122,7 @@ func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
 		map[string]string{"service_name": serviceName},
 		strconv.FormatUint(telemetry.SkippedRefreshCount(), 10),
 	)
+	writeRefreshSkipReasonGauges(writeGauge, serviceName)
 	for _, row := range report.RetryPolicies {
 		labels := map[string]string{
 			"service_name": serviceName,

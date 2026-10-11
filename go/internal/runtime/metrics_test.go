@@ -144,8 +144,8 @@ func TestStatusMetricsHandlerReportsSkippedRefreshes(t *testing.T) {
 	telemetry.ResetSkippedRefreshCountForTesting()
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 
-	telemetry.RecordSkippedRefresh()
-	telemetry.RecordSkippedRefresh()
+	telemetry.RecordSkippedRefresh(telemetry.RefreshSkipReasonUnchanged)
+	telemetry.RecordSkippedRefresh(telemetry.RefreshSkipReasonReconcileReprojected)
 
 	handler, err := NewStatusMetricsHandler("collector-git", &fakeStatusReader{
 		snapshot: statuspkg.RawSnapshot{
@@ -163,8 +163,19 @@ func TestStatusMetricsHandlerReportsSkippedRefreshes(t *testing.T) {
 	if got, want := recorder.Code, http.StatusOK; got != want {
 		t.Fatalf("GET /metrics status = %d, want %d", got, want)
 	}
-	if body := recorder.Body.String(); !strings.Contains(body, `eshu_runtime_refresh_skipped_total{service_name="collector-git"} 2`) {
-		t.Fatalf("GET /metrics body missing skipped refresh metric\nbody:\n%s", body)
+	body := recorder.Body.String()
+	for _, want := range []string{
+		`eshu_runtime_refresh_skipped_total{service_name="collector-git"} 2`,
+		`eshu_runtime_refresh_skipped_by_reason_total{reason="unchanged",service_name="collector-git"} 1`,
+		`eshu_runtime_refresh_skipped_by_reason_total{reason="reconcile_reprojected",service_name="collector-git"} 1`,
+		`eshu_runtime_refresh_skipped_by_reason_total{reason="reconcile_reprojection_pending",service_name="collector-git"} 0`,
+		`eshu_runtime_refresh_skipped_by_reason_total{reason="reconcile_superseded",service_name="collector-git"} 0`,
+		`eshu_runtime_refresh_skipped_by_reason_total{reason="finalized_generation_replay",service_name="collector-git"} 0`,
+		`eshu_runtime_refresh_skipped_by_reason_total{reason="other",service_name="collector-git"} 0`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("GET /metrics body missing %q\nbody:\n%s", want, body)
+		}
 	}
 }
 
