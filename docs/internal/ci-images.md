@@ -70,12 +70,28 @@ no copy of a digest or an image name. A job is in CI image mode when
 `ESHU_CI_IMAGES=1` and every required env pin equals the ledger
 `destination@digest`. CI image mode alone settles nothing: the overlay changes
 only a Compose call that applies it. The gate accepts the overlay for a step
-only when every Compose call that can pull an image (`up`, `run`, `build`,
-`pull`, `create`, `watch`, or a subcommand the gate cannot read) applies it. A
-call applies the overlay when it names `"${ESHU_CI_COMPOSE_OVERLAY}"` (or an
-array or variable filled from it) after `eshu_ci_compose_prepare` ran in the
-same shell scope, or when it runs through `scripts/ci/compose.sh`. A prepare
-inside a subshell, or inside a function nothing calls, does not count.
+only when every Compose call it can find that may pull an image applies it. A
+call is found by searching the whole command, so a wrapper (`timeout 300`,
+`nice -n 5`, `sudo -u root`, `retry 3`, `xargs`) needs no list. A call that is
+held in an array, or a command whose command word is a variable and that passes
+`compose`, is a call without the overlay unless the array holds the overlay. A
+call pulls unless its subcommand is a literal word from the list of subcommands
+that pull nothing (`config`, `down`, `logs`, `ps`, `exec`, `ls`, `version`,
+`images`, `top`, `port`, `events`, `stop`, `kill`, `rm`, `pause`, `unpause`,
+`start`, `restart`, `cp`, `wait`, `attach`, `stats`). `up`, `run`, `build`,
+`pull`, `create`, `scale`, a subcommand read from a variable and a call with no
+subcommand pull. Compose flags that take a value (`-f`, `-p`, `--profile`,
+`--env-file`, `--project-directory`) are skipped before the subcommand.
+
+A call applies the overlay when `"${ESHU_CI_COMPOSE_OVERLAY}"` (or a variable
+assigned from it) is the value of an `-f` or `--file` option, or when an array
+that holds such an operand at that point is expanded, after
+`eshu_ci_compose_prepare` ran in the same shell scope. The last assignment before
+the call wins, and a reset clears it. The overlay in `--env-file` counts for
+nothing. A call through `scripts/ci/compose.sh` applies it. A prepare inside a
+subshell, a command substitution, a background job or a pipeline, a prepare
+inside a function nothing calls, and a prepare followed by `|| true`, `|| :` or
+`|| echo` do not count.
 
 One call without the overlay makes the step judged by the images its files
 name, as outside CI image mode. A plain `docker compose -f <file> up` in a job
@@ -107,12 +123,18 @@ reach in them passes. Main's gate had the same gaps:
 
 - The docker lexer reads a heredoc body only when the line that opens it is a
   shell (`bash <<EOF`). It does not read `cat <<EOF | bash`,
-  `sh -c "$(cat <<EOF ...)"`, `. /dev/stdin <<EOF`, or a body written to a file
-  that a later command runs.
-- It does not see a command name built from quoted pieces (`dock""er`), a
-  variable that holds the name, or a name made by `printf`.
+  `sh -c "$(cat <<EOF ...)"`, `eval "$(cat <<EOF ...)"`, `. /dev/stdin <<EOF`, or
+  a body written to a file that a later command runs.
+- It does not see a command name built from quoted pieces (`dock""er`) or a name
+  made by `printf`. A variable that holds the name (`DOCKER_BIN=docker`) is seen.
 - A stub directory variable that changes between the write and the prepend is
   not seen by the PATH-shadow model.
+- The prepare check is lexical. A function that is called before its definition
+  is not seen, a `return` before the prepare, and a prepare under a condition
+  that is false at run time, are not seen as such: the prepare counts.
+- An array that another file of the same shell fills with the overlay counts as
+  filled. The order of the files is not known, so a reset in another file is not
+  seen.
 
 The reference reader (which scripts a file runs) fails closed on these: a
 heredoc body is read as commands when its opening line holds a shell word, a

@@ -350,6 +350,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-test-queue.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-test-shadow.sh"
 # shellcheck source=lib/dockerhub-login-test-ledger.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-ledger.sh"
+# shellcheck source=lib/dockerhub-login-test-calls.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-calls.sh"
 # shellcheck source=lib/dockerhub-login-test-precision.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-precision.sh"
 # shellcheck source=lib/dockerhub-login-test-triggers.sh

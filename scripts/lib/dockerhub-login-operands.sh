@@ -22,6 +22,9 @@
 #
 # shellcheck disable=SC2034,SC2154  # globals are shared with the sourcing verifier
 
+# The compose call reader (mode inv) is read together with the flow reader.
+calls_awk="${flow_awk%/*}/dockerhub-login-compose-calls.awk"
+
 # compose_cache_key <file>: sets KEY for a per-file cache. A run-text file lives
 # under ${tmp}, and the same path holds another text in the next workflow, so its
 # key includes a checksum of the content.
@@ -42,7 +45,7 @@ compose_flow() {
     if [[ "${mode}" == ops || "${mode}" == inv ]] && ! rg -qi -e compose -- "${f}" 2>/dev/null; then
       printf -v "${c}" '%s' ""
     else
-      printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode="${mode}" -f "${flow_awk}" "${f}" 2>/dev/null || true)"
+      printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode="${mode}" -f "${flow_awk}" -f "${calls_awk}" "${f}" 2>/dev/null || true)"
     fi
   fi
   FLOW="${!c}"
@@ -210,13 +213,15 @@ compose_settle_value() {
 #   - never in a subshell or command substitution, which exports nothing to the
 #     parent, and never inside a function nothing calls.
 compose_prepare_effective() {
-  local f="$1" line="$2" ofn="$3" g h recs crecs pfn pln psub callee caller cln
+  local f="$1" line="$2" ofn="$3" g h recs crecs pfn pln psub psw callee caller cln csub
   shift 3
   [[ -n "${f}" && -n "${line}" ]] || return 1
   for g in "$@"; do
     compose_flow prepare "${g}"; recs="${FLOW}"
-    while IFS=$'\036' read -r pfn pln psub; do
-      [[ -n "${pln}" && "${psub}" != 1 ]] || continue
+    while IFS=$'\036' read -r pfn pln psub psw; do
+      # a prepare in a subshell, pipeline or background job exports nothing to the
+      # parent, and one followed by || true has its failure swallowed
+      [[ -n "${pln}" && "${psub}" != 1 && "${psw}" != 1 ]] || continue
       if [[ -z "${pfn}" ]]; then
         if [[ "${g}" != "${f}" || "${pln}" -lt "${line}" ]]; then return 0; fi
       elif [[ "${g}" == "${f}" && "${pfn}" == "${ofn}" && "${pln}" -lt "${line}" ]]; then
@@ -224,8 +229,8 @@ compose_prepare_effective() {
       else
         for h in "$@"; do
           compose_flow callat "${h}"; crecs="${FLOW}"
-          while IFS=$'\036' read -r callee caller cln; do
-            [[ "${callee}" == "${pfn}" && -n "${cln}" ]] || continue
+          while IFS=$'\036' read -r callee caller cln csub; do
+            [[ "${callee}" == "${pfn}" && -n "${cln}" && "${csub}" != 1 ]] || continue
             if [[ "${h}" != "${f}" || "${cln}" -lt "${line}" ]]; then return 0; fi
           done <<<"${crecs}"
         done
@@ -245,15 +250,18 @@ compose_overlay_ok() {
 }
 
 # compose_step_overlay <text file>...: sets STEP_OVL to 1 when the CI overlay is
-# applied by every pulling compose invocation the step reaches. The step is in CI image
-# mode (ledger lib), has at least one compose invocation or scripts/ci/compose.sh
-# call, and each invocation either names the overlay operand, expands an array a
-# scope file fills with it, or is a scripts/ci/compose.sh call, with the prepare
-# call effective before the operand. One invocation without the overlay makes the
-# whole step judged by the images its files name, as outside CI image mode.
+# applied by every compose call the step reaches that can pull an image. The step
+# is in CI image mode (ledger lib) and has at least one such call, and each one
+# either has the overlay as an -f operand (or in an array filled with it) with the
+# prepare call effective before that operand, or runs through scripts/ci/compose.sh.
+# A call the reader cannot place (a variable as the command word, an unknown wrapper
+# is no problem: the whole command is searched) counts as a call without the
+# overlay, and so does a call whose subcommand is not a literal that pulls nothing.
+# One such call makes the whole step judged by the images its files name, as
+# outside CI image mode. The records come from lib/dockerhub-login-compose-calls.awk.
 # Needs compose_scopes to have run over the same files.
 compose_step_overlay() {
-  local f g recs arecs kind fn ln sub ovl arrs pull nm total=0 allok=1 ok anm aln afn asub aovl
+  local f g recs srecs kind fn ln sub status ovl ovfn ext total=0 allok=1 ok nm sk sn sl sf found
   local -a arr=()
   STEP_OVL=0
   ci_mode_active || return 0
@@ -261,28 +269,33 @@ compose_step_overlay() {
     compose_flow inv "${f}"; recs="${FLOW}"
     [[ -n "${recs//[$'\n']/}" ]] || continue
     compose_scope_of "${f}"
-    while IFS=$'\036' read -r kind fn ln sub ovl arrs pull; do
-      case "${kind}" in
-        W) total=$((total + 1)) ;;
-        I)
-          # A subcommand that pulls no image (config, down, logs, ps ...) needs no overlay.
-          [[ "${pull}" == 1 ]] || continue
-          total=$((total + 1)); ok=0
-          if [[ "${ovl}" == 1 ]] && compose_prepare_effective "${f}" "${ln}" "${fn}" "${SCOPE[@]}"; then ok=1; fi
-          if [[ "${ok}" -eq 0 && -n "${arrs}" ]]; then
-            IFS=, read -r -a arr <<<"${arrs}"
-            for nm in "${arr[@]}"; do
-              for g in "${SCOPE[@]}"; do
-                compose_flow inv "${g}"; arecs="${FLOW}"
-                while IFS=$'\036' read -r kind afn aln asub anm aovl; do
-                  [[ "${kind}" == A && "${anm}" == "${nm}" && "${aovl}" == 1 && "${asub}" != 1 ]] || continue
-                  if compose_prepare_effective "${g}" "${aln}" "${afn}" "${SCOPE[@]}"; then ok=1; break; fi
-                done <<<"${arecs}"
-                [[ "${ok}" -eq 0 ]] || break
-              done
-              [[ "${ok}" -eq 0 ]] || break
+    while IFS=$'\036' read -r kind fn ln sub status ovl ovfn ext; do
+      [[ "${kind}" == I ]] || continue
+      case "${status}" in
+        N) continue ;;
+        W) total=$((total + 1)); continue ;;
+        U | P) total=$((total + 1)); allok=0; continue ;;
+        A)
+          total=$((total + 1))
+          compose_prepare_effective "${f}" "${ovl}" "${ovfn}" "${SCOPE[@]}" || allok=0 ;;
+        X)
+          # arrays this file never assigns: some other file of the same shell must end with
+          # the overlay in each of them, with the prepare effective before that origin. The
+          # order of the files is not known, so a reset in another file is a static limit.
+          total=$((total + 1)); ok=1
+          IFS=, read -r -a arr <<<"${ext}"
+          for nm in "${arr[@]}"; do
+            found=0
+            for g in "${SCOPE[@]}"; do
+              [[ "${g}" != "${f}" && "${found}" -eq 0 ]] || continue
+              compose_flow inv "${g}"; srecs="${FLOW}"
+              while IFS=$'\036' read -r sk sn sl sf; do
+                [[ "${sk}" == S && "${sn}" == "${nm}" && "${sl}" -gt 0 ]] 2>/dev/null || continue
+                if compose_prepare_effective "${g}" "${sl}" "${sf}" "${SCOPE[@]}"; then found=1; fi
+              done <<<"${srecs}"
             done
-          fi
+            [[ "${found}" -eq 1 ]] || ok=0
+          done
           [[ "${ok}" -eq 1 ]] || allok=0 ;;
       esac
     done <<<"${recs}"
