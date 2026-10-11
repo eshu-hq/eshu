@@ -429,13 +429,14 @@ pi_expect green "caret-anchored private pattern does not hit mid-line" \
   pi_range_private "$d" "$tmp/pi-deny-anchored.txt"
 
 # --- F2: the lowercase hyphen carve-out is the ledger shape only ---
-# digits, hyphen, name, hyphen is the append-only ledger id. Any other hyphenated
-# resource, job or namespace name that carries the name is a hit.
+# digits only, hyphen, name, hyphen is the append-only ledger id. Any other
+# hyphenated resource, job or namespace name that carries the name is a hit,
+# including a letter-prefixed digit token (s3, ec2, web01).
 pi_ql="ops""qa"
 pi_pl="ops""prod"
 pi_f2_n=0
 for pi_c in "deploy-${pi_ql}-api" "eshu-${pi_pl}-postgres" "-${pi_ql}-x" "foo-${pi_ql}" \
-  "9-${pi_ql}" "6704-${pi_ql}"; do
+  "9-${pi_ql}" "6704-${pi_ql}" "s3-${pi_ql}-logs" "ec2-${pi_ql}-web" "web01-${pi_pl}-lb"; do
   pi_f2_n=$((pi_f2_n + 1))
   pi_case red "hyphen-$pi_f2_n" docs/notes.md "x $pi_c y" "hyphenated lowercase name outside the ledger shape $pi_f2_n"
   pi_case red "hyphen-col0-$pi_f2_n" docs/notes.md "$pi_c" "hyphenated lowercase name at column 0 $pi_f2_n"
@@ -446,6 +447,7 @@ pi_new_repo "$d"
 pi_commit "$d" docs/internal/measurements.jsonl "{\"id\":\"6704-${pi_ql}-directory-up\",\"n\":1}"
 pi_commit "$d" docs/internal/measurements.jsonl "6704-${pi_ql}-directory-up and 7088-${pi_ql}-migration-run-20261003.md"
 pi_commit "$d" docs/notes.md "ledger:6704-${pi_ql}-directory-api-warm-p95 and ](7088-${pi_ql}-migration-run-20261003.md)"
+pi_commit "$d" docs/notes.md "10-${pi_ql}-x and x-6704-${pi_ql}-y"
 pi_expect green "ledger id and evidence link shapes stay clean, also at column 0" pi_range "$d"
 
 # --- F3: the lowercase joined name before a capitalised word ---
