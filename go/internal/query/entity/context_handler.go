@@ -9,13 +9,13 @@ package entity
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -161,10 +161,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 					telemetry.LogKeyFailureClass, failureClass,
 				)
 			}
-			if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
-				return
-			}
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+			writeReadFailure(w, r, err, "code_search.fuzzy_symbol", entityContextQueryFailedMessage)
 			return
 		}
 	}
@@ -205,11 +202,14 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	if row == nil {
 		response, fallbackErr := h.getEntityContextFromContent(r.Context(), entityID)
 		if fallbackErr != nil {
-			if errors.Is(fallbackErr, errContentRelationshipBuilderNotConfigured) {
-				querycontract.WriteError(w, http.StatusServiceUnavailable, fallbackErr.Error())
+			if querycontract.WriteGraphReadError(w, r, fallbackErr, "code_search.fuzzy_symbol") {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", fallbackErr))
+			if unavailableSentinel(r.Context(), fallbackErr, errContentRelationshipBuilderNotConfigured) {
+				querycontract.WriteError(w, http.StatusServiceUnavailable, errContentRelationshipBuilderNotConfigured.Error())
+				return
+			}
+			tracing.WriteServerFailure(w, r, fallbackErr, http.StatusInternalServerError, entityContextContentFallbackFailedMessage)
 			return
 		}
 		if response == nil {
@@ -250,10 +250,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// is therefore the anchor loop budget plus one more bounded read.
 	hydrationCtx := querycontract.WithGraphQueryName(r.Context(), "entity.context")
 	if _, err := hydrateResolvedEntityRepoIdentity(hydrationCtx, h.Neo4j, h.Content, []map[string]any{response}); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
+		writeReadFailure(w, r, err, "code_search.fuzzy_symbol", entityContextRepoIdentityFailedMessage)
 		return
 	}
 	if access.Scoped() && !access.AllowsRepositoryID(querycontract.StringVal(response, "repo_id")) {
@@ -264,7 +261,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	}
 	enriched, err := h.EnrichEntityResultsWithContentMetadata(r.Context(), []map[string]any{response}, querycontract.StringVal(response, "repo_id"), querycontract.StringVal(row, "name"), 1)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich entity context: %v", err))
+		writeReadFailure(w, r, err, "code_search.fuzzy_symbol", entityContextEnrichmentFailedMessage)
 		return
 	}
 	response = enriched[0]

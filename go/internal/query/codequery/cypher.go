@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/visualization"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
@@ -96,7 +97,7 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 			writeCypherQueryError(w, r, readOnlyCypherCapability, http.StatusBadRequest, ErrorCodeInvalidArgument, "the graph rejected the Cypher statement: "+message)
 			return
 		}
-		writeCypherQueryError(w, r, readOnlyCypherCapability, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
+		writeCypherQueryFailure(w, r, readOnlyCypherCapability, err, readOnlyCypherFailedMessage)
 		return
 	}
 
@@ -130,6 +131,15 @@ func writeCypherQueryError(w http.ResponseWriter, r *http.Request, capability st
 		return
 	}
 	WriteError(w, status, message)
+}
+
+// writeCypherQueryFailure answers a Cypher read that WriteGraphReadError and
+// the statement-rejection 400 declined, with the fixed message and the
+// route's envelope/plain split: 500 internal_error with err recorded on the
+// request span, or 499 when the caller canceled the request.
+func writeCypherQueryFailure(w http.ResponseWriter, r *http.Request, capability string, err error, message string) {
+	status, errEnv := tracing.ServerFailureEnvelope(r.Context(), err, message, capability)
+	writeCypherQueryError(w, r, capability, status, errEnv.Code, errEnv.Message)
 }
 
 func boundedReadOnlyCypher(query string, requestedLimit int) (string, int, error) {
@@ -422,7 +432,7 @@ func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Reques
 			writeCypherQueryError(w, r, visualizationGraphQueryCapability, http.StatusBadRequest, ErrorCodeInvalidArgument, "the graph rejected the Cypher statement: "+message)
 			return
 		}
-		writeCypherQueryError(w, r, visualizationGraphQueryCapability, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
+		writeCypherQueryFailure(w, r, visualizationGraphQueryCapability, err, visualizationQueryFailedMessage)
 		return
 	}
 

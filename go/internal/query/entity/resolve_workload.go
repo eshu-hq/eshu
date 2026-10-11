@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 var errWorkloadGraphUnavailable = errors.New("authoritative graph workload resolution is unavailable")
@@ -27,14 +28,14 @@ func (h *Handler) writeWorkloadEntityResolution(
 
 	entities, err := h.ResolveWorkloadEntities(r.Context(), req.Name, req.RepoID, limit+1)
 	if err != nil {
-		if errors.Is(err, errWorkloadGraphUnavailable) {
-			querycontract.WriteError(w, http.StatusServiceUnavailable, err.Error())
-			return true
-		}
 		if querycontract.WriteGraphReadError(w, r, err, "code_search.exact_symbol") {
 			return true
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve workload: %v", err))
+		if unavailableSentinel(r.Context(), err, errWorkloadGraphUnavailable) {
+			querycontract.WriteError(w, http.StatusServiceUnavailable, errWorkloadGraphUnavailable.Error())
+			return true
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, resolveWorkloadEntitiesFailedMessage)
 		return true
 	}
 	for i := range entities {

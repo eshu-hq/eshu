@@ -91,10 +91,7 @@ func (h *CodeHandler) handleRouteToCaller(w http.ResponseWriter, r *http.Request
 
 	routeRows, err := h.routeToCallerRouteRows(r, req)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, RouteToCallerCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, RouteToCallerCapability, routeToCallerRouteFailedMessage)
 		return
 	}
 	route, status, ok := routes.SelectRoute(routeRows)
@@ -134,19 +131,13 @@ func (h *CodeHandler) handleRouteToCaller(w http.ResponseWriter, r *http.Request
 
 	relationshipRows, err := h.routeToCallerRelationshipRows(r, route.HandlerID, req)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, RouteToCallerCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, RouteToCallerCapability, routeToCallerRelationshipFailedMessage)
 		return
 	}
 	callers, callees, truncated := routes.SplitRelationships(relationshipRows, req.Limit)
 	impact, err := h.routeToCallerImpact(r, route, req.Limit)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, RouteToCallerCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, RouteToCallerCapability, routeToCallerImpactFailedMessage)
 		return
 	}
 	responseStatus := "complete"

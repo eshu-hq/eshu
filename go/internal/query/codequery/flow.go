@@ -5,7 +5,6 @@ package codequery
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -118,11 +117,7 @@ func (h *CodeHandler) handleCodeFlow(
 	}
 	model, err := h.CodeFlow.ListCodeFlow(r.Context(), filter)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			WriteError(w, http.StatusRequestTimeout, err.Error())
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, capability, codeFlowFailedMessage)
 		return
 	}
 	payload := buildCodeFlowPayload(kind, req, model)

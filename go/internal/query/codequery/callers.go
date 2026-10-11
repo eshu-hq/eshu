@@ -92,7 +92,7 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.resolveCallChainEntityIDs(r.Context(), &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeCallChainEndpointFailure(w, r, err, "call_graph.call_chain_path", callChainEndpointFailedMessage)
 		return
 	}
 
@@ -100,10 +100,7 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 	if h.graphBackend() == GraphBackendNornicDB {
 		nornicRows, err := h.nornicDBCallChainRows(r.Context(), req)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, "call_graph.call_chain_path") {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, "call_graph.call_chain_path", callChainGraphFailedMessage)
 			return
 		}
 		rows = nornicRows
@@ -111,10 +108,7 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 		cypher, params := chain.BuildCallChainCypher(req, h.graphBackend(), codeGrantAccessFilter(r.Context()))
 		neoRows, err := h.Neo4j.Run(r.Context(), cypher, params)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, "call_graph.call_chain_path") {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, "call_graph.call_chain_path", callChainGraphFailedMessage)
 			return
 		}
 		rows = neoRows
@@ -138,7 +132,7 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 		startRepoID := chain.StartRepoID(req)
 		startCandidates, err = entity.ResolveExactGraphEntityCandidates(ctx, h.Content, startRepoID, req.Start)
 		if err != nil {
-			return err
+			return callChainLookupError{err: err}
 		}
 		resolved, err := entity.SelectExactGraphEntityCandidate(startRepoID, req.Start, startCandidates)
 		startErr = err
@@ -151,7 +145,7 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 		endRepoID := chain.EndRepoID(req)
 		endCandidates, err = entity.ResolveExactGraphEntityCandidates(ctx, h.Content, endRepoID, req.End)
 		if err != nil {
-			return err
+			return callChainLookupError{err: err}
 		}
 		resolved, err := entity.SelectExactGraphEntityCandidate(endRepoID, req.End, endCandidates)
 		endErr = err
@@ -220,7 +214,7 @@ func (h *CodeHandler) resolveCallChainEntityIDsByReachability(
 
 	pairs, err := h.reachableCallChainCandidatePairs(ctx, req, startCandidates, endCandidates)
 	if err != nil {
-		return false, err
+		return false, callChainLookupError{err: err}
 	}
 	switch len(pairs) {
 	case 0:

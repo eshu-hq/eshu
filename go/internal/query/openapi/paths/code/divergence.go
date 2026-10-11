@@ -47,6 +47,7 @@ const Divergence = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -88,6 +89,7 @@ const Divergence = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

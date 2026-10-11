@@ -81,13 +81,14 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-		if selector.IsNotFound(err) {
+		var notFound selector.NotFoundError
+		if errors.As(err, &notFound) {
 			writeServiceStoryEnvelopeError(
 				w,
 				r,
 				http.StatusNotFound,
 				querycontract.ErrorCodeScopeNotFound,
-				err.Error(),
+				notFound.Error(),
 				nil,
 			)
 			return
@@ -110,10 +111,11 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 		Logger:                    h.Logger,
 		Operation:                 "service_investigation",
 	}); err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
+		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+		if unavailableSentinel(r.Context(), err, querycontract.ErrContentSubstringIndexesNotReady) {
+			querycontract.WriteError(w, http.StatusServiceUnavailable, querycontract.ErrContentSubstringIndexesNotReady.Error())
 			return
 		}
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, serviceInvestigationEnrichmentFailedMessage)

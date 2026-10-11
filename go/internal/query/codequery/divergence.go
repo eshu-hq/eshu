@@ -147,11 +147,10 @@ func (h *CodeHandler) handleDivergenceFindings(w http.ResponseWriter, r *http.Re
 
 	data, err := h.divergenceFindingsData(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, errDivergenceFindingsUnavailable) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, errDivergenceFindingsUnavailable, divergenceFindingsCapability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, divergenceFindingsCapability, divergenceFindingsFailedMessage)
 		return
 	}
 

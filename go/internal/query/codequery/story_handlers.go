@@ -5,7 +5,6 @@ package codequery
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -60,7 +59,7 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 
 	resolution, entity, err := h.resolveRelationshipStoryTarget(r.Context(), req)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, relationshipStoryCapability, relationshipStoryTargetFailedMessage)
 		return
 	}
 	if resolution.Status != "resolved" {
@@ -76,14 +75,10 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 
 	relationships, sourceBackend, basis, err := h.relationshipStoryRelationships(r.Context(), req, entity)
 	if err != nil {
-		if errors.Is(err, errSymbolBackendUnavailable) {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, errSymbolBackendUnavailable, relationshipStoryCapability) {
 			return
 		}
-		if WriteGraphReadError(w, r, err, relationshipStoryCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, relationshipStoryCapability, relationshipStoryFailedMessage)
 		return
 	}
 	data := story.Data(req, resolution, relationships)
@@ -91,10 +86,7 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 	if req.NormalizedQueryType() == "class_hierarchy" {
 		hierarchy, err := h.relationshipStoryClassHierarchy(r.Context(), req, entity, relationships)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, relationshipStoryCapability) {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			writeCodeReadFailure(w, r, err, relationshipStoryCapability, relationshipStoryHierarchyFailedMessage)
 			return
 		}
 		data["class_hierarchy"] = hierarchy
@@ -130,14 +122,10 @@ func (h *CodeHandler) handleRepoScopedOverrideStory(
 	}
 	rows, sourceBackend, basis, err := h.relationshipStoryOverrideRows(r.Context(), req)
 	if err != nil {
-		if err == errSymbolBackendUnavailable {
-			WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if writeCodeUnavailable(w, r, err, errSymbolBackendUnavailable, relationshipStoryCapability) {
 			return
 		}
-		if WriteGraphReadError(w, r, err, relationshipStoryCapability) {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCodeReadFailure(w, r, err, relationshipStoryCapability, relationshipStoryOverrideFailedMessage)
 		return
 	}
 	resolution := codemodel.RelationshipStoryResolution{

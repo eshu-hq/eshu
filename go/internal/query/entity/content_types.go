@@ -171,7 +171,7 @@ func (h *Handler) writeCanonicalContentEntityResolution(
 		req.RepoID,
 	)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve canonical content entity: %v", err))
+		writeReadFailure(w, r, err, "code_search.exact_symbol", resolveCanonicalContentEntityFailedMessage)
 		return true
 	}
 	if !handled {
@@ -179,10 +179,7 @@ func (h *Handler) writeCanonicalContentEntityResolution(
 	}
 	graphHydrated, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "code_search.exact_symbol") {
-			return true
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
+		writeReadFailure(w, r, err, "code_search.exact_symbol", resolveCanonicalRepoIdentityFailedMessage)
 		return true
 	}
 	entities = normalizeResolvedEntities(entities, limit+1)

@@ -21,4 +21,13 @@
 // requires methods to live with their receiver type, and ContentReader is a
 // later lane's family. Thin aliases and forwarders in the root
 // entity_alias.go keep every other caller compiling unchanged.
+//
+// Failure contract (#7626, #7674): every route and the BuildServiceStoryEnvelope
+// seam answer a failed read with querycontract.WriteGraphReadError's verdict
+// first (a reader fence answers 503 with Retry-After), then the route's
+// configuration-state 503 sentinels with only the sentinel's own text, then a
+// fixed per-step message through tracing.WriteServerFailure or
+// tracing.ServerFailureEnvelope: 500 with the error recorded on the request
+// span, or 499 with no span error when the client canceled. Backend error text
+// never reaches a response body.
 package entity
