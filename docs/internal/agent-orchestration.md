@@ -483,7 +483,7 @@ brain and the same gate floor:
 
 - **opencode** — `.opencode/opencode.jsonc` (`AGENTS.md` loads natively;
   `.agents/skills` is an auto-discovered compatibility source) + `.opencode/agent/*.md` role/permission
-  shims. Tracked shims do not pin personal model choices.
+  shims. Tracked shims pin only manifest tier models, not personal model choices.
 - **Codex** — root + per-directory `AGENTS.md`, `.codex/skills/`,
   `.codex/agents/*.toml`, `.codex/hooks.json`.
 - **Claude Code** — root + per-directory `AGENTS.md`, `.claude/skills/`,
