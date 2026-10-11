@@ -39,7 +39,7 @@ var productionChunkedRead = chunkedRead{
 // the chunked counterpart of the one-file-at-a-time read of the anchor
 // repository's full pass and keeps its row semantics:
 //
-//   - a path with no stored row leaves the list row in place, so the loader
+//   - a path with no stored row leaves the list row in place, so the load
 //     drops it as blank, exactly as an absent single-file row does;
 //   - list rows that share a path read the row once and each receive it;
 //   - rows are assigned by RelativePath, never by position;

@@ -42,7 +42,7 @@ const (
 
 // classifyHCLConfigFile is the selector the HCL extractor branches on. The
 // needed-content planner calls it too, so a file the extractor reads is
-// always a file the loader fetches.
+// always a file the load fetches.
 func classifyHCLConfigFile(relativePath string) hclConfigFileKind {
 	lowerBase := strings.ToLower(path.Base(relativePath))
 	switch {

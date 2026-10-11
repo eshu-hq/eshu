@@ -10,9 +10,9 @@ import (
 	"strings"
 )
 
-// configArtifactReadsContent reports whether BuildRepositoryConfigArtifacts
+// configArtifactReadsContent reports whether BuildConfigPaths
 // reads this file's own content. Every selector it consults is the one the
-// matching extractor branches on, so the set of files the loader fetches
+// matching extractor branches on, so the set of files the load fetches
 // cannot drift from the set the extractors read (#7126):
 //
 //   - kustomization files, which the kustomize walk decodes for references;
@@ -65,7 +65,7 @@ func planKustomizeResourceReads(files []File) map[string]struct{} {
 	return reads
 }
 
-// hydrateConfigFiles returns the files BuildRepositoryConfigArtifacts
+// hydrateConfigFiles returns the files BuildConfigPaths
 // should see for one repository: every config artifact candidate with
 // non-blank content, in list order. It produces the same extractor output as
 // reading every candidate in full, while fetching content only for files an
@@ -75,7 +75,7 @@ func planKustomizeResourceReads(files []File) map[string]struct{} {
 //     candidates in list order that carry no content yet).
 //  2. Fetch the content of the files configArtifactReadsContent accepts.
 //  3. For the other selected files, ask the store which are non-blank without
-//     moving content. The loader drops a blank file before building, and a
+//     moving content. The load drops a blank file before building, and a
 //     path-only row exists only for a non-blank file, so non-blankness is the
 //     whole of what the extractors need from them.
 //  4. Fetch the resource files the kustomizations reference, which phase 2
