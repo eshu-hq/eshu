@@ -355,3 +355,23 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/config/artifacts/dirty_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact walker's dirty join: failed derives and old extractor versions first, then missing state, then moved content, skipped repositories last, exact and newer-extractor rows excluded; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/encoding_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof that the config-artifact start-up encoding check accepts the UTF8 bootstrapped database and refuses a SQL_ASCII database on the same server; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/schema_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof of migration 170: row_digest equals a Go and a SQL recomputation over separators, multi-byte text, empty fields and a 20,000-character path; the digest key rejects a duplicate row; the wrapper is IMMUTABLE; autovacuum 0.02; no content_files trigger; the migration re-runs; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/walk_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact walker cursor claim: consecutive pages, wrap at a short page and at an exact page boundary, and disjoint pages for five concurrent claimers; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    runner: live-postgres-readiness
