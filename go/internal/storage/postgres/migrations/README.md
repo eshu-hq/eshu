@@ -75,6 +75,20 @@ existing pages are not rewritten, and new pages keep the free space that makes
 the #7389 write-start marker a HOT update. Keep each of these a single
 statement; see `docs/internal/evidence/7389-superseded-writer-overlay.md`.
 
+## Migration 169 lock contract (#7961)
+
+The header of `169_content_files_generation_id.sql` says the backfill takes
+row locks only and is online-safe. That is true only when the Eshu migrator
+applies the file. Since #7946 the migrator runs it in three committed phases:
+ALTER (AccessExclusiveLock, catalog-only, under 1 ms), UPDATE
+(RowExclusiveLock), then ANALYZE (ShareUpdateExclusiveLock). If a tool sends
+the whole file as one simple query, it holds AccessExclusiveLock through the
+backfill: 100.9 s of blocked reads at 157,422 rows on the production index
+set. The header cannot be corrected in place (immutable file, checksum
+pinned by #7946). The measured numbers and the live proof
+(`../migration_169_reader_bound_live_test.go`) are in
+`docs/internal/evidence/7760-generation-tag.md`.
+
 ## Verification
 
 ```bash

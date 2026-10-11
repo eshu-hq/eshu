@@ -142,3 +142,68 @@ events expose `path`, `phase`, and completed-phase `duration_ms`; existing
 `migration.lock_wait`, `migration.recorded`, and `migrations.complete` events
 show bounded contention and final receipt/progress. These are bootstrap logs,
 not a new high-cardinality metric.
+
+## Production Index Set Measurement (#7961)
+
+#7961 reported a 96.3 s blocked read during migration 169 on a fixture with
+the production `content_files` index set. That run used an image built before
+#7946, which sent the whole file as one message. From #7946 onward, the
+tracked migrator runs 169 in three committed phases. This section measures
+that phased path on the same fixture shape.
+
+Fixture: local PostgreSQL 18.6, `shared_buffers` 1 GB, `max_wal_size`
+400 MB, `full_page_writes` on, `wal_compression` off. Migrations 001-168 are
+applied through the tracked migrator. `content_files` carries all nine
+indexes (two trigram GIN) and both secret-lines triggers. The data is
+synthetic: 782 repository scopes and 157,422 rows of about 320 identifier
+tokens each. Every row is eligible for the backfill. Sizes: heap 28 MB,
+TOAST 622 MB, indexes 524 MB.
+
+| Execution | ALTER lock hold | Backfill | ANALYZE | WAL | Longest read wait |
+|---|---|---|---|---|---|
+| One message, pre-#7946 image (#7961 report) | whole run | 99.3 s total | in the same run | 8.35 GB | 96.3 s |
+| One message, control in the live test | whole run | about 101 s total | in the same run | not measured | 100.9 s |
+| Phased, tracked migrator (live test) | 0.61 ms | 102.1 s | 0.29 s | 9.10 GB | 48 ms over 1,021 reads |
+| Phased, psql phase slices | 32 ms | 101.1 s | 0.39 s | 9.06 GB | 89 ms over 625 reads |
+
+The reader loop ran one `content_files` read every 100 ms. A pg_locks
+sampler ran at the same rate. Lock sequence on `content_files`:
+
+1. `add_column`: AccessExclusiveLock, catalog-only, committed in under 1 ms.
+   It waits only for in-flight readers. The migrator's `lock_timeout` and
+   retry budget bound that wait.
+2. `backfill`: the UPDATE holds RowExclusiveLock and row locks. The sampler
+   saw no AccessExclusiveLock in this phase. The only other modes seen were
+   readers (AccessShareLock) and autovacuum (ShareUpdateExclusiveLock).
+3. `analyze`: ShareUpdateExclusiveLock, which blocks neither reads nor writes.
+   ANALYZE stays in its own phase: it costs 0.29 s, and a separate migration
+   would add a ledger row for no lock benefit.
+
+The receipt-skip and receipt-free replays are idempotent. The replayed
+backfill matched no rows (the `generation_id IS NULL` guard) and took 69 ms.
+
+The 169 header is imprecise and cannot be edited, because shipped migrations
+are immutable (#7002) and #7946 pins its checksum. The header says the
+backfill "takes row locks only" and is "online-safe". That holds only when
+the Eshu migrator applies the file. A tool that sends the whole file as one
+simple query holds AccessExclusiveLock through the backfill (control row
+above). Its figure of 30.9 s per 1,000,000 rows came from a fixture without
+the trigram GIN indexes. With the production index set, the backfill costs
+about 0.65 ms and 58 KB of WAL per row.
+
+The phased run removes the read block, but the WAL volume does not change. A
+streaming standby replays about 9.1 GB for this fixture. Replica replay lag
+was NOT_CHECKED.
+
+No-Regression Evidence (#7961): no SQL or executor change. The live test
+`TestMigration169PhasedBackfillReaderBoundLive` fails when any read waits
+over 1 s. With the tracked apply forced to one message (seeded violation,
+not committed), it failed: a read waited 4.49 s at 8,000 rows. On the
+unchanged tree it passes at 8,000 rows (19.06 s test time) and at 157,422
+rows (348 s). Rerun at scale with
+`-args -eshu.migration169.rows=157422`.
+
+No-Observability-Change (#7961): operators see schema application through the
+existing `bootstrap.postgres.migration.phase_applying` and `phase_applied`
+events (`path`, `phase`, `duration_ms`). The `migration.lock_wait`,
+`migration.recorded`, and `migrations.complete` events are unchanged.
