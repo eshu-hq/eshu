@@ -104,6 +104,7 @@ jobs:
   # Supported-backend scale/concurrency proof is a dedicated manual run.
   # Existing NornicDB PR, push and merge-group checks retain their identity.
   methodology-scale:
+    needs: queue-selection
     if: github.event_name == 'workflow_dispatch'
     name: methodology scale (neo4j)
     runs-on: ubuntu-latest
