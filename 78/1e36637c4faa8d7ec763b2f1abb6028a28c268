@@ -1,0 +1,22 @@
+go/cmd/api/main_test.go
+  s_29175cf8c573b8::t_57e1cc4e11baf0 85-101
+go/cmd/api/main.go
+  s_29175cf8c573b8::t_61a24560bab880 126,129,144-147
+  s_29175cf8c573b8::t_33af9359bb7e72 148-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "781e36637c4faa8d7ec763b2f1abb6028a28c268",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
