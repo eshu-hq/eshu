@@ -219,11 +219,19 @@ FROM (
 ) s;
 DROP TABLE vocab;
 RESET eshu.secret_lines_derive;
-ANALYZE content_files;
 ANALYZE ingestion_scopes;
 ANALYZE scope_generations;`, tokens, rows)
 	if _, err := database.ExecContext(ctx, seed); err != nil {
 		t.Fatalf("seed migration 169 fixture: %v", err)
+	}
+	// Vacuum the freshly loaded table so autovacuum has no pending work on it
+	// when the 169 ALTER asks for ACCESS EXCLUSIVE. An autovacuum worker yields
+	// that lock only after deadlock_timeout (1 s by default), and readers queue
+	// behind the waiting ALTER meanwhile: a real deployment hazard the 169
+	// deployment note documents, but not what this bound measures. VACUUM
+	// cannot run inside the seed's multi-statement implicit transaction.
+	if _, err := database.ExecContext(ctx, "VACUUM (ANALYZE) content_files"); err != nil {
+		t.Fatalf("vacuum seeded content_files: %v", err)
 	}
 }
 
