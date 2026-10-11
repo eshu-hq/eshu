@@ -80,13 +80,29 @@ statement; see `docs/internal/evidence/7389-superseded-writer-overlay.md`.
 The migrator sends each file as one message, and PostgreSQL runs a
 multi-statement message as one implicit transaction. A lock that an early
 statement takes is held until the last statement commits. Do not put
-table-locking DDL on an existing table (ALTER TABLE, CREATE INDEX or DROP
-INDEX without CONCURRENTLY, REINDEX, REFRESH MATERIALIZED VIEW, CLUSTER,
-VACUUM FULL, LOCK, TRUNCATE) in the same file as bulk DML (UPDATE, DELETE,
-MERGE, INSERT ... SELECT). Put the DDL in one migration and the backfill in
-the next, as 126 and 127 do. The `migration-immutability` gate enforces this
-for every added file (`scripts/lib/migration_lock_shape.py`). DDL on a table
-that the same file creates is exempt. There is no allowlist.
+table-locking DDL on an existing table in the same file as bulk DML. Put the
+DDL in one migration and the backfill in the next, as 126 and 127 do.
+
+The `migration-immutability` gate checks every added file
+(`scripts/lib/migration_lock_shape.py`). It is a static check:
+
+- Table-locking DDL: ALTER TABLE, ALTER INDEX, ALTER MATERIALIZED VIEW,
+  CREATE INDEX or DROP INDEX without CONCURRENTLY, REINDEX or REFRESH
+  MATERIALIZED VIEW without CONCURRENTLY, CREATE or DROP TRIGGER, CREATE or
+  DROP RULE, DROP TABLE, CLUSTER, VACUUM FULL, LOCK, TRUNCATE.
+- Bulk DML: UPDATE, DELETE, MERGE, INSERT ... SELECT, a data-modifying CTE.
+- It reads top-level statements, DO blocks (every IF, ELSIF, CASE, LOOP, and
+  EXCEPTION branch), and same-file functions that an executed statement
+  calls. An EXECUTE counts as DDL or DML when a string literal in its body
+  names one.
+- Only a plain `CREATE TABLE` in the same file exempts DDL on that table.
+  `CREATE TABLE IF NOT EXISTS` does not, because the table may already exist.
+- It does not see: trigger functions that the file's DML fires, functions
+  from other migrations, single-quoted SQL function bodies, or EXECUTE text
+  that no literal contains.
+
+There is no allowlist. 16 of the 188 shipped files have the refused shape.
+They are immutable and are never re-checked.
 
 ## Migration 169 deployment note (#7961)
 
@@ -101,8 +117,10 @@ its checksum. The header says the backfill "takes row locks only" and is
      per attempt, inside the 3-minute retry budget. While it waits, new
      readers queue behind it, so a long transaction on `content_files` at
      that moment can delay reads by up to 5 s per attempt. An autovacuum
-     worker on `content_files` also holds a conflicting lock; it yields only
-     after `deadlock_timeout` (1 s by default). A heap-scaled run saw that
+     worker on `content_files` also holds a conflicting lock. An ordinary
+     autovacuum yields only after `deadlock_timeout` (1 s by default). An
+     anti-wraparound autovacuum does not yield, so the ALTER then waits for the
+     full `lock_timeout` and retries. A heap-scaled run saw that
      case: add_column took 1,002 ms and a read waited 907 ms.
   2. `backfill`: the UPDATE holds ROW EXCLUSIVE and row locks only. Reads
      proceed.

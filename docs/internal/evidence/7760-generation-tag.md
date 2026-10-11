@@ -212,9 +212,10 @@ read wait was 481 ms over 967 reads. A replay with every row tagged took
 0.58 s. A backfill cancelled at 20 s by statement timeout left 0 tags and 0
 receipts, and its rerun recorded one receipt. In that rerun, add_column took
 1,002 ms and a read waited 907 ms. An autovacuum worker on `content_files`
-holds a lock that conflicts with the ALTER and yields only after
-`deadlock_timeout` (1 s by default), and readers queue behind the waiting
-ALTER. The live test vacuums the seeded table first, so its 1 s bound measures
+holds a lock that conflicts with the ALTER. An ordinary autovacuum yields
+only after `deadlock_timeout` (1 s by default); an anti-wraparound autovacuum
+does not yield, so the ALTER waits for its 5 s `lock_timeout`. Readers queue
+behind the waiting ALTER in both cases. The live test vacuums the seeded table first, so its 1 s bound measures
 the phases, not that wait. The deployment note in the migrations README
 records the hazard.
 
