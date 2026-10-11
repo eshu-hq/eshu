@@ -1,0 +1,25 @@
+specs/ci-gates.d/gates-09.yaml
+  s_b0d7e3abc26c5a::t_66642400cfffaa 68,99
+.github/workflows/live-postgres-readiness.yml
+  s_b0d7e3abc26c5a::t_3d65d0969ab30a 34,79,111-126
+docs/public/reference/ci-gates.md
+  s_b0d7e3abc26c5a::t_c18b37dc7ab0b6 288
+go/internal/cigates/readiness_job_split_test.go
+  s_b0d7e3abc26c5a::t_d9076d6a2dcabc 1-180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "557df1f0e665926566be364b60754fd18585df4c",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

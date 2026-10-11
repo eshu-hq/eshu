@@ -1,0 +1,39 @@
+scripts/lib/live_postgres_migrations.py
+  s_b0d7e3abc26c5a::t_904df4407c62ac 12,56-60,76,84,93,100,120-124
+  s_b0d7e3abc26c5a::t_e74d591b22e9e7 1-11,13-55,61-75,77-83,85-92,94-99,101-119,125-129
+scripts/test-verify-live-tests-ledger.sh
+  s_b0d7e3abc26c5a::t_1a1768c4ff85ef 81-82,99
+  s_b0d7e3abc26c5a::t_98762e9874af86 83-98
+scripts/lib/verify-live-tests-ledger.py
+  s_b0d7e3abc26c5a::t_60050c980d21b0 22,51-58
+scripts/lib/live_postgres_readiness_results.py
+  s_b0d7e3abc26c5a::t_1d5fa517e4e8be 69-70
+scripts/test-live-postgres-migrations.py
+  s_b0d7e3abc26c5a::t_ba42cfa370c4f2 1-14,16-39,46-49,51-59,78-89,91-98,119-122
+  s_b0d7e3abc26c5a::t_f076112ed42e0e 44-45,50
+  s_b0d7e3abc26c5a::t_63ac2139c7b3f2 60-77,99-109,111-118
+  s_b0d7e3abc26c5a::t_904df4407c62ac 15,40-43,90,110
+specs/live-tests.v1.yaml
+  s_b0d7e3abc26c5a::t_543228a75918d5 2,26,38-39
+  s_b0d7e3abc26c5a::t_1d5fa517e4e8be 27-28
+specs/live-tests.d/live-tests-06.yaml
+  s_b0d7e3abc26c5a::t_cb26f6c1eeb6c0 190-199
+specs/live-tests.d/live-tests-07.yaml
+  s_b0d7e3abc26c5a::t_cb26f6c1eeb6c0 142-146,167-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d40b954f4e190b79c76434c4b94044335c83494",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

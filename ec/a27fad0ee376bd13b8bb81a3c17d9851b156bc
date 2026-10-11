@@ -1,0 +1,25 @@
+go/internal/cigates/readiness_job_split_test.go
+  s_b0d7e3abc26c5a::t_0ca347a3e8afd6 241-258,261-268,278,280-284
+  s_b0d7e3abc26c5a::t_e03460012b916c 259-260,269-277,279
+  s_b0d7e3abc26c5a::t_ff49f1074b558a 42-44,137,307-308
+  s_b0d7e3abc26c5a::t_92e56ebe0dc3e3 127
+  s_b0d7e3abc26c5a::t_2a5091250cea75 138
+.github/workflows/live-postgres-readiness.yml
+  s_b0d7e3abc26c5a::t_c6158c09999648 132,138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eca27fad0ee376bd13b8bb81a3c17d9851b156bc",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

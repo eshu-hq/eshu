@@ -1,0 +1,23 @@
+.github/workflows/live-postgres-migrations.yml
+  s_b0d7e3abc26c5a::t_830897447c27a3 25-26,46-47
+scripts/test-live-postgres-migrations.py
+  s_b0d7e3abc26c5a::t_0650be0b6d95f0 39-40
+specs/ci-gates.d/gates-09.yaml
+  s_b0d7e3abc26c5a::t_830897447c27a3 126-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "286580f805f74bc870b84ce103937df03df027af",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
