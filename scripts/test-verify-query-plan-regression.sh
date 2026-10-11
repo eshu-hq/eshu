@@ -38,6 +38,24 @@ require_anchor "$verifier" 'verify-query-plan-regression: pass' \
 	'the gate must print its own pass line'
 require_anchor "$profile_verifier" 'neo4j@sha256:[0-9a-f]{64}' \
 	'the profile gate must pin its Neo4j image by digest, not by tag'
+# This consumer has a distinct engine profile from the paired methodology
+# proof. Compare its default with the independent image ledger, not merely
+# with the shape of a digest, so a valid but wrong engine pin fails.
+python3 - "${repo_root}/specs/ci-images.v1.json" "$profile_verifier" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+ledger = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+profile = next(image for image in ledger["images"]
+               if image["id"] == "neo4j-queryplan")
+source = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
+match = re.search(r'\$\{ESHU_QUERYPLAN_PROFILE_IMAGE:-([^}]+)\}', source)
+if match is None or match.group(1) != profile["runtime_sources"][0]:
+    sys.exit("test-verify-query-plan-regression: profile default differs "
+             "from the neo4j-queryplan image ledger")
+PY
 require_anchor "$profile_verifier" 'TestQueryplanForbiddenOperatorPolicyIsClosed' \
 	'the profile gate must run the forbidden-operator policy test'
 require_anchor "$profile_verifier" 'trap cleanup EXIT INT TERM' \
