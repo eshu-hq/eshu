@@ -65,26 +65,26 @@
 # docker assignment in the same file) counts as Docker Hub.
 #
 # A variable invoked as a command (V) is settled by name, against its assignments
-# (lib/dockerhub-login-vconf.awk). A V that its own script assigns is settled by
-# that script's assignments; a V its script never assigns takes the assignments of
-# the run text, the reached scripts and the step, job and workflow env. It may run
-# docker when one assignment holds the word docker (rt=docker, NAME=(docker
-# compose), NAME=$(command -v docker), a for-loop list), when one is unresolvable
-# ($(...), a backquote, ${!x}, read) in a script that itself names docker, or when
-# an unresolved ${{ }} env value reaches a script that names docker. A variable
-# assigned only from its own function's positional parameter ("${fail_fn}") takes
-# the caller's argument. A V that no script and no env assigns takes a value from
-# outside the repository: it passes, and that is a limit of this gate. A bare
-# trailing docker passed to a callee ("require_tools fail docker") is settled by
-# the callee: a function or script that invokes a variable assigned from that
-# parameter, or one that no reached script defines, may run docker. Words after
-# docker (retry 3 docker pull x) are the docker command that wrapper runs. A
-# variable invoked with a non-pulling subcommand (ps, exec, logs, ...) pulls
-# nothing. A for NAME in WORDS list is data. A [[ ... ]] test continued across
-# lines is one command. A step whose run reads ${{ matrix.KEY }} is expanded once
-# per static matrix cell (lib/dockerhub-login-matrix.awk); a matrix it cannot
-# expand (fromJSON, a missing key) stays an unresolved expression. A heredoc body
-# handed to a shell is lexed like a script.
+# (lib/dockerhub-login-vconf.awk). A V whose script, or a script it sources (source
+# or ., transitively), assigns it is settled by those assignments; a script that
+# is only run shares no shell and does not count. A V never assigned there takes
+# the assignments of the run text, the reached scripts and the step, job and
+# workflow env. It may run docker when one assignment holds the word docker
+# (rt=docker, NAME=(docker compose), NAME=$(command -v docker), a for-loop list),
+# when one is unresolvable ($(...), a backquote, ${!x}, read) in a script that
+# itself names docker, or when an unresolved ${{ }} env value reaches a script
+# that names docker. A variable assigned only from its own function's positional
+# parameter takes the caller's argument. A V that no script and no env assigns
+# takes a value from outside the repository: it passes, a limit of this gate. A
+# bare trailing docker passed to a callee ("require_tools fail docker") is settled
+# by the callee: a function or script that invokes a variable assigned from that
+# parameter, or one no reached script defines, may run docker. Words after docker
+# (retry 3 docker pull x) are the docker command the wrapper runs. A variable
+# invoked with a non-pulling subcommand (ps, exec, logs) pulls nothing. A for NAME
+# in WORDS list is data. A [[ ]] test continued across lines is one command. A
+# step whose run reads ${{ matrix.KEY }} is expanded once per static matrix cell
+# (lib/dockerhub-login-matrix.awk); a matrix it cannot expand (fromJSON, a missing
+# key) stays unresolved. A heredoc body handed to a shell is lexed like a script.
 # A docker word in a comment, in a quoted string that no shell evaluates, or in a
 # heredoc body that is data does not count. docker ps/exec/logs/rm/... and
 # docker compose ps/logs/down/... pull and build nothing and do not count.
@@ -158,10 +158,8 @@
 # (compose.yaml) are counted as Hub when none is named, and not followed
 # otherwise; a COMPOSE_FILE set only in a .env file; a function reached only
 # through a variable or an eval string (its parameters have no call to settle
-# from); a variable that holds docker only through a value from outside the
-# repository (the runner's own environment, a non-shell file read at run time)
-# and is invoked with an ordinary argument, which the repository's scripts,
-# steps and env do not assign.
+# from); a command variable that no script, step or env assigns (a runner or
+# non-shell-file value).
 #
 # ESHU_DOCKERHUB_LOGIN_ROOT points the verifier at a scratch repo tree.
 # ESHU_DOCKERHUB_LOGIN_EXPLAIN=1 prints the derived scope table;

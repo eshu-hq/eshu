@@ -78,6 +78,16 @@ write_wf "${d}" fixture-scan.yml fixture-scan '{"workflow_run": {"workflows": ["
   '{"scan": {"runs-on": "ubuntu-latest", "permissions": {"contents": "read", "packages": "read"}, "steps": [{"uses": "docker/login-action@v3", "with": {"registry": "ghcr.io", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}"}}, {"run": "docker pull '"${ghcr_digest}"'"}]}}'
 expect_green workflow-run-of-a-non-queue-workflow-and-the-ghcr-scan-shape-pass "${d}"
 
+# workflow_run with a scalar workflows: value, and a name shared by two workflows
+# (the follower names both, so it follows the queue-path one).
+queue_tree trig-follow-edge-red
+d="${QUEUE_DIR}"
+write_wf "${d}" fixture-scalar.yml follow-scalar '{"workflow_run": {"workflows": "fixture-queue"}}' "${hub_creds_job}"
+write_wf "${d}" fixture-dup-a.yml dup-name '{"push": {"tags": ["v*"]}}' '{"j": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo ok"}]}}'
+write_wf "${d}" fixture-dup-b.yml dup-name '{"pull_request": null}' '{"j": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo ok"}]}}'
+write_wf "${d}" fixture-dup-follow.yml follow-dup '{"workflow_run": {"workflows": ["dup-name"]}}' "${hub_creds_job}"
+expect_wf_red workflow-run-scalar-and-duplicate-name-follow-the-queue-path "${d}" fixture-scalar.yml:j fixture-dup-follow.yml:j
+
 # --- F2 and F3: the probes of the review, as seeded cases -------------------------
 queue_tree probes-red
 d="${QUEUE_DIR}"

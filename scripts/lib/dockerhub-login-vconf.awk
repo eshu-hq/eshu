@@ -7,6 +7,8 @@
 #                      docker
 #   S SRC NAME         SRC assigns NAME at all (any value)
 #   E env NAME         NAME is set from an unresolved ${{ }} expression in the env
+#   Y SRC FILE         SRC sources FILE (source or .); FILE shares SRC's shell, so
+#                      its assignments are SRC's own, transitively
 #   F NAME             a reached script defines function NAME
 #   P SRC FN K         in SRC, function FN (- for the top level) invokes a
 #                      variable assigned from positional parameter K (A: any)
@@ -16,8 +18,10 @@
 #   BS SRC FILE K WORDS  the same for a script CMD resolved to FILE ("?" when it
 #                      cannot be resolved)
 # It prints "SRC: WORDS" for the first conflict, and nothing when none:
-#   - a V whose variable SRC itself assigns is settled by SRC's own assignments
-#     (an A or X of SRC); a V whose variable SRC never assigns takes the value of
+#   - a V whose variable SRC itself assigns, or a script SRC sources assigns
+#     (transitively), is settled by those assignments (an A or X of SRC or of a
+#     sourced file; a script that is only run shares no shell and does not count);
+#     a V whose variable SRC never assigns takes the value of
 #     an assignment anywhere in the reached scripts or env: an A or X, or an E
 #     value when SRC names docker, may hold docker;
 #   - a B whose callee invokes that argument (a P record), or whose callee is not
@@ -29,6 +33,7 @@ $1 == "X" { x[$3] = 1; xs[$2 SUBSEP $3] = 1; next }
 $1 == "S" { s[$2 SUBSEP $3] = 1; next }
 $1 == "E" { e[$3] = 1; next }
 $1 == "F" { f[$2] = 1; next }
+$1 == "Y" { ny[$2]++; ye[$2, ny[$2]] = $3; next }
 $1 == "P" { p[$2 SUBSEP $3 SUBSEP $4] = 1; pf[$3 SUBSEP $4] = 1; next }
 $1 == "V" { nv++; vs[nv] = $2; vd[nv] = $3; vt[nv] = $4; next }
 $1 == "B" { nb++; bs[nb] = $2; bc[nb] = $3; bk[nb] = $4; bt[nb] = $5; bf[nb] = ""; next }
@@ -40,8 +45,13 @@ END {
     gsub(/["{}$]|\[[@*]\]/, "", n)
     sub(/[^A-Za-z0-9_].*$/, "", n)
     if (n == "") continue
-    if ((vs[i] SUBSEP n) in s) hit = ((vs[i] SUBSEP n) in as) || ((vs[i] SUBSEP n) in xs)
-    else hit = (n in a) || (n in x) || ((n in e) && vd[i] == 1)
+    assigned = 0; hit = 0
+    nown = own_files(vs[i])
+    for (k = 1; k <= nown; k++) {
+      if ((OWN[k] SUBSEP n) in s) assigned = 1
+      if (((OWN[k] SUBSEP n) in as) || ((OWN[k] SUBSEP n) in xs)) hit = 1
+    }
+    if (!assigned) hit = (n in a) || (n in x) || ((n in e) && vd[i] == 1)
     if (hit) { print vs[i] ": " gensub_us(vt[i]); exit }
   }
   for (i = 1; i <= nb; i++) {
@@ -55,3 +65,17 @@ END {
   }
 }
 function gensub_us(s) { gsub(/\037/, " ", s); return s }
+# own_files fills OWN with src and every file it sources, transitively and
+# cycle-safe, and returns the count.
+function own_files(src,   n, top, cur, j, f, seen) {
+  split("", OWN); split("", seen)
+  n = 1; OWN[1] = src; seen[src] = 1; top = 1
+  while (top <= n) {
+    cur = OWN[top++]
+    for (j = 1; j <= ny[cur]; j++) {
+      f = ye[cur, j]
+      if (!(f in seen)) { seen[f] = 1; OWN[++n] = f }
+    }
+  }
+  return n
+}

@@ -7,8 +7,9 @@
 # when
 #   - it runs on merge_group, pull_request or pull_request_target (the string,
 #     list or map form of on:); or
-#   - it runs on workflow_run and its workflows: list names, by name:, a workflow
-#     that is on the queue path (transitively, cycle-safe): a run that follows a
+#   - it runs on workflow_run and its workflows: (a list, or one scalar name)
+#     names, by name:, a workflow that is on the queue path (transitively,
+#     cycle-safe; a name two files share names both): a run that follows a
 #     queue-path run and goes red ejects a queued PR the same way; or
 #   - a queue-path workflow calls it as a reusable workflow (a job-level uses: of
 #     ./.github/workflows/<file>), which the callee inherits.
@@ -36,7 +37,7 @@ workflow_files() {
 # queue_path_workflows: sets queue_wfs to a newline-delimited set of the
 # basenames of the queue-path workflow files (leading and trailing newline).
 queue_path_workflows() {
-  local wf name callee pass changed wname target nm
+  local wf name callee pass changed wname target nm joined
   workflow_files
   queue_wfs=$'\n'
   : >"${tmp}/wfnames.tsv"
@@ -63,15 +64,19 @@ queue_path_workflows() {
           changed=1
         done < <(yq e '.jobs[] | (.uses // "") | select(test("^\\./\\.github/workflows/"))' "${wf}" 2>/dev/null || true)
       else
+        # workflows: is a list, or one name as a scalar. A name that two files
+        # share names both, so the follower follows the queue-path one.
+        joined=0
         while IFS= read -r nm; do
-          [[ -n "${nm}" ]] || continue
-          target="$(awk -F'\t' -v n="${nm}" '$1 == n { print $2; exit }' "${tmp}/wfnames.tsv")"
-          if [[ -n "${target}" && "${queue_wfs}" == *$'\n'"${target}"$'\n'* ]]; then
-            queue_wfs="${queue_wfs}${name}"$'\n'
-            changed=1
-            break
-          fi
-        done < <(yq e '.on | select(type == "!!map") | .workflow_run.workflows // [] | .[]' "${wf}" 2>/dev/null || true)
+          [[ -n "${nm}" && "${joined}" -eq 0 ]] || continue
+          while IFS= read -r target; do
+            if [[ -n "${target}" && "${queue_wfs}" == *$'\n'"${target}"$'\n'* ]]; then
+              queue_wfs="${queue_wfs}${name}"$'\n'
+              changed=1; joined=1
+              break
+            fi
+          done < <(awk -F'\t' -v n="${nm}" '$1 == n { print $2 }' "${tmp}/wfnames.tsv")
+        done < <(yq e '.on | select(type == "!!map") | (.workflow_run.workflows // []) | ((select(tag == "!!seq") | .[]), (select(tag == "!!str")))' "${wf}" 2>/dev/null || true)
       fi
     done
     [[ "${changed}" -eq 1 ]] || break

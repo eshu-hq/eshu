@@ -89,11 +89,12 @@ function finish_file(   c, nm, kind) {
   params_reset()
   parse_list("")
   # A variable invoked as a command: a docker value assigned anywhere in the file
-  # makes it unclassifiable (U); only literal non-docker assignments clear it.
+  # makes it unclassifiable (U); only literal non-docker assignments clear it, and
+  # not in a file that sources another (the sourced file may assign it too).
   for (c = 1; c <= VC_n; c++) {
     nm = VC_nm[c]
     if (nm in DOCKNAME) kind = "U"
-    else if ((nm in LITNAME) && !(nm in UNKN)) continue
+    else if ((nm in LITNAME) && !(nm in UNKN) && SRCN == 0) continue
     else kind = "V"
     print fname "\t" kind "\t" VC_txt[c]
   }
@@ -356,6 +357,7 @@ function end_cmd(w, n,   i, s, t, cw, k, d, m, v, nm, all, envw) {
   }
   if (cw ~ /^\$\{?([0-9]+|[@*])(\[[@*]\])?\}?$/) { nm = cw; gsub(/[^0-9@*]/, "", nm); note_invoke(nm ~ /^[0-9]+$/ ? nm : "A"); return }
   if (cw == "shift") { SHIFTED = 1; return }
+  if (cw == "source" || cw == ".") { note_source(w, i, n); return }
   if (cw == "read") { note_read(w, i, n); return }
   if (cw in HARMLESS) return
   # for NAME in WORDS ... and select NAME in WORDS: the list words are data. A

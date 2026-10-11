@@ -75,7 +75,7 @@ lex_load() {
       V) cur="${pfx}V_${KEY}"; printf -v "${cur}" '%s%s\n' "${!cur:-}" "${rest}"
          if [[ "${mode}" == repo ]]; then var_files="${var_files}${rel}"$'\n'; else runs_var="${runs_var}${rel}"$'\n'; fi ;;
       D) if [[ "${mode}" == repo ]]; then dock_files="${dock_files}${rel}"$'\n'; else runs_dock="${runs_dock}${rel}"$'\n'; fi ;;
-      A | X | S | F | P | B) cur="${pfx}${kind}_${KEY}"; printf -v "${cur}" '%s%s\n' "${!cur:-}" "${rest}" ;;
+      A | X | S | F | P | B | Y) cur="${pfx}${kind}_${KEY}"; printf -v "${cur}" '%s%s\n' "${!cur:-}" "${rest}" ;;
     esac
   done < <(awk -f "${lex_awk}" -f "${lex_params_awk}" "$@")
 }
@@ -175,6 +175,14 @@ emit_vc_facts() {
   cur="${pfx}X_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|X\t${src}\t|"
   cur="${pfx}S_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|S\t${src}\t|"
   cur="${pfx}F_${key}"; printf '%s' "${!cur:-}" | sed '/^$/d; s/^/F\t/'
+  cur="${pfx}Y_${key}"
+  while IFS= read -r tok; do
+    [[ -n "${tok}" ]] || continue
+    tok="${tok//[\"\']/}"; tok="$(printf '%s' "${tok}" | sed -E 's/^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\///; s/^\$\(\.\.\.\)\///')"
+    [[ "${tok}" == *.sh || "${tok}" == *.bash ]] || continue
+    resolve_token "${tok}" "${dir}"
+    [[ -z "${RESOLVED}" ]] || printf 'Y\t%s\t%s\n' "${src}" "${RESOLVED}"
+  done <<<"${!cur:-}"
   cur="${pfx}P_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|P\t${src}\t|"
   cur="${pfx}V_${key}"; printf '%s' "${!cur:-}" | sed "/^\$/d; s|^|V\t${src}\t${nd}\t|"
   cur="${pfx}B_${key}"

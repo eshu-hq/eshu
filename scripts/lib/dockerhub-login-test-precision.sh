@@ -144,3 +144,34 @@ pscript "${d}" fixture-p-env-user '#!/usr/bin/env bash\n"${RUNTIME}" frobnicate 
 qjob "${d}" p-docker-valued-variable-from-the-workflow-env "$(steps_run 'bash scripts/fixture-p-env-user.sh')"
 yq e -i '.env.RUNTIME = "docker"' "${d}/${queue_wf}"
 expect_queue_jobs_red queue-path-workflow-env-docker-value-fails "${d}" p-docker-valued-variable-from-the-workflow-env
+
+# --- a sourced file shares the script's shell, so its assignments are the script's ---
+queue_tree sourced-red
+d="${QUEUE_DIR}"
+pscript "${d}" fixture-s-lib '#!/usr/bin/env bash\nRT=docker\n'
+# The script assigns a non-docker value, then sources a lib that sets docker.
+pscript "${d}" fixture-s-after '#!/usr/bin/env bash\nRT=podman\nsource "$(dirname "$0")/fixture-s-lib.sh"\n"$RT" pull alpine:3.21\n'
+qjob "${d}" s-own-value-then-a-sourced-docker-value "$(steps_run 'bash scripts/fixture-s-after.sh')"
+# The lib is sourced first and the script assigns afterwards.
+pscript "${d}" fixture-s-before '#!/usr/bin/env bash\nsource "$(dirname "$0")/fixture-s-lib.sh"\nRT=podman\n"$RT" frobnicate x\n'
+qjob "${d}" s-sourced-docker-value-then-an-own-value "$(steps_run 'bash scripts/fixture-s-before.sh')"
+# The dot form, and a chain: main sources a, a sources b, b sets docker.
+pscript "${d}" fixture-s-dot '#!/usr/bin/env bash\nRT=podman\n. "$(dirname "$0")/fixture-s-lib.sh"\n"$RT" frobnicate x\n'
+qjob "${d}" s-dot-form-sources-a-docker-value "$(steps_run 'bash scripts/fixture-s-dot.sh')"
+pscript "${d}" fixture-s-chain-a '#!/usr/bin/env bash\nsource "$(dirname "$0")/fixture-s-lib.sh"\n'
+pscript "${d}" fixture-s-chain-main '#!/usr/bin/env bash\nRT=podman\nsource "$(dirname "$0")/fixture-s-chain-a.sh"\n"$RT" frobnicate x\n'
+qjob "${d}" s-doubly-sourced-docker-value "$(steps_run 'bash scripts/fixture-s-chain-main.sh')"
+expect_queue_jobs_red sourced-assignments-count-as-the-scripts-own "${d}" s-own-value-then-a-sourced-docker-value \
+  s-sourced-docker-value-then-an-own-value s-dot-form-sources-a-docker-value s-doubly-sourced-docker-value
+queue_tree sourced-green
+d="${QUEUE_DIR}"
+# A script that is run, not sourced, has its own process: its assignment does not
+# reach the caller.
+pscript "${d}" fixture-s-other '#!/usr/bin/env bash\nRT=docker\n'
+pscript "${d}" fixture-s-separate '#!/usr/bin/env bash\nRT=podman\nbash scripts/fixture-s-other.sh\n"$RT" frobnicate x\n'
+qjob "${d}" s-separately-run-script-does-not-shadow-in "$(steps_run 'bash scripts/fixture-s-separate.sh')"
+# A sourced lib that assigns the same name a non-docker value.
+pscript "${d}" fixture-s-nerdctl '#!/usr/bin/env bash\nRT=nerdctl\n'
+pscript "${d}" fixture-s-benign '#!/usr/bin/env bash\nRT=podman\nsource "$(dirname "$0")/fixture-s-nerdctl.sh"\n"$RT" frobnicate x\n'
+qjob "${d}" s-sourced-lib-with-a-non-docker-value "$(steps_run 'bash scripts/fixture-s-benign.sh')"
+expect_green sourced-and-separately-run-scripts-with-no-docker-value-pass "${d}"

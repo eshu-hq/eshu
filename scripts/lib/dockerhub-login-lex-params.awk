@@ -12,6 +12,9 @@
 #                            file) a variable assigned from positional parameter
 #                            K ("A" for any: "$@", "$*", or after a shift) is
 #                            invoked as a command, or "$K" itself is.
+#   Y <TAB> PATH             the file sources PATH (source or .): the sourced
+#                            file shares the script's shell, so its assignments
+#                            are the script's own.
 #   B <TAB> CMD <TAB> K <TAB> WORDS
 #                            a bare docker word is argument K of command CMD (a
 #                            function name or a script path). The caller decides
@@ -21,8 +24,8 @@
 
 function params_reset() {
   split("", PARAM); split("", XSET); split("", FNDEF); split("", PINV); split("", SEEN)
-  split("", BCMD); split("", BPOS); split("", BTXT)
-  BN = 0; SHIFTED = 0; DEPTH = 0; FNCUR = ""; FNPEND = ""; FNBASE = 0
+  split("", BCMD); split("", BPOS); split("", BTXT); split("", SRCP)
+  SRCN = 0; BN = 0; SHIFTED = 0; DEPTH = 0; FNCUR = ""; FNPEND = ""; FNBASE = 0
 }
 
 # positional_index returns the parameter a value reads ("1", "A" for $@ and $*),
@@ -103,6 +106,16 @@ function note_read(w, i, n,   k, t, skip) {
   }
 }
 
+# note_source records the path a source or . command reads (first non-flag word).
+function note_source(w, i, n,   k, t) {
+  for (k = i + 1; k <= n; k++) {
+    t = unq(w[k])
+    if (t ~ /^-/) continue
+    SRCN++; SRCP[SRCN] = t
+    return
+  }
+}
+
 # note_bare handles docker among the arguments of command w[i]: the words from
 # docker on are the docker command the caller runs, and a bare trailing docker
 # is argument (k - base) of the command, left to the caller's F and P records.
@@ -121,8 +134,9 @@ function note_bare(w, i, n, base,   k, t, d, m, j) {
   }
 }
 
-# params_emit prints the X, F, P and B records of the finished file.
+# params_emit prints the X, F, P, Y and B records of the finished file.
 function params_emit(   k, p, a) {
+  for (k = 1; k <= SRCN; k++) print fname "\tY\t" SRCP[k]
   if (FILE_D) for (k in XSET) print fname "\tX\t" k
   for (k in SEEN) print fname "\tS\t" k
   for (k in FNDEF) print fname "\tF\t" k
