@@ -17,7 +17,10 @@
 #
 #   scripts/run-live-backend-tests.sh [--backend nornicdb|neo4j|both]
 #       [--tags <go build tags>] [--keep] [--no-compose]
+#       [--shard 1/4|2/4|3/4|4/4] [--results <JSON path>]
 #
+#     --shard      isolated CI partition; default all (full suite)
+#     --results    exact-source coverage and per-target timing report
 #     --backend    which backend(s) to exercise (default: both)
 #     --tags       go test tags to run (default: live_nornicdb_answer_truth)
 #     --keep       leave the LAST file's stack up after the run
@@ -54,12 +57,16 @@ backend="both"
 tags="live_nornicdb_answer_truth"
 keep=0
 use_compose=1
+shard="all"
+results=""
 while [[ "$#" -gt 0 ]]; do
 	case "$1" in
 		--backend=*) backend="${1#--backend=}" ; shift ;;
 		--backend) backend="${2:?--backend needs a value}" ; shift 2 ;;
 		--tags=*) tags="${1#--tags=}" ; shift ;;
 		--tags) tags="${2:?--tags needs a value}" ; shift 2 ;;
+		--shard) shard="${2:?--shard needs a value}" ; shift 2 ;;
+		--results) results="${2:?--results needs a path}" ; shift 2 ;;
 		--keep) keep=1 ; shift ;;
 		--no-compose) use_compose=0 ; shift ;;
 		*) printf 'run-live-backend-tests: unknown argument %s\n' "$1" >&2; exit 2 ;;
@@ -69,6 +76,17 @@ case "${backend}" in
 	nornicdb|neo4j|both) ;;
 	*) printf 'run-live-backend-tests: --backend must be nornicdb, neo4j, or both\n' >&2; exit 2 ;;
 esac
+
+case "${shard}" in
+	all|1/4|2/4|3/4|4/4) ;;
+	*) printf 'run-live-backend-tests: invalid shard %s\n' "${shard}" >&2; exit 2 ;;
+esac
+if [[ "${shard}" != all && "${backend}" != both ]]; then
+	printf 'run-live-backend-tests: --shard requires --backend both\n' >&2; exit 2
+fi
+if [[ -n "${results}" && ( "${use_compose}" == 0 || "${keep}" == 1 ) ]]; then
+	printf 'run-live-backend-tests: coverage results require fresh, cleaned Compose stacks\n' >&2; exit 2
+fi
 
 # Neo4j runs on the Docker host's native platform (#7353). The pinned
 # neo4j image is a multi-arch index (linux/amd64 and linux/arm64, same
@@ -115,9 +133,6 @@ die() { printf 'run-live-backend-tests: %s\n' "$*" >&2; exit 1; }
 # shellcheck disable=SC1091
 . "${repo_root}/scripts/lib/live-gate-lock.sh"
 
-command -v docker >/dev/null 2>&1 || die "docker is required"
-command -v go >/dev/null 2>&1 || die "go is required"
-command -v curl >/dev/null 2>&1 || die "curl is required for backend health checks"
 [[ -f "${ledger}" ]] || die "ledger not found: ${ledger}"
 
 # Capture the extractor output explicitly: mapfile succeeds even when the
@@ -130,16 +145,24 @@ mapfile -t targets <<<"${targets_raw}"
 # marker records GATE_COMPOSE_PROJECT, and the reclaim path checks
 # `docker compose -p <project> ps -q` (bare `docker run` containers are
 # invisible to it, so lifecycle goes through compose files).
-compose_project="eshu-live-backend"
+compose_project="${ESHU_LIVE_COMPOSE_PROJECT:-eshu-live-backend}"
+[[ "${compose_project}" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || die "invalid Compose project"
 # Exported: retain_live_gate_lock records it in the --keep marker.
 export GATE_COMPOSE_PROJECT="${compose_project}"
 active_compose_file=""
+report_dir=""
+source_head=""
+shard_helper="${script_dir}/lib/live_backend_shards.py"
 compose_args=()
 # shellcheck source=scripts/lib/ci-image-compose.sh
 . "${repo_root}/scripts/lib/ci-image-compose.sh"
 
 compose_down() {
-	docker compose "${compose_args[@]}" down -v >/dev/null 2>&1 || true
+	local containers volumes
+	docker compose "${compose_args[@]}" down -v >/dev/null 2>&1 || return 1
+	containers="$(docker ps -aq --filter "label=com.docker.compose.project=${compose_project}")" || return 1
+	volumes="$(docker volume ls -q --filter "label=com.docker.compose.project=${compose_project}")" || return 1
+	[[ -z "${containers}" && -z "${volumes}" ]]
 }
 
 wait_healthy() {
@@ -162,7 +185,7 @@ wait_healthy() {
 cleanup() {
 	local status=$?
 	if [[ -n "${active_compose_file}" && "${keep}" == "0" ]]; then
-		compose_down "${active_compose_file}"
+		compose_down "${active_compose_file}" || status=1
 	fi
 	if [[ "${keep}" == "0" ]]; then
 		eshu_ci_compose_cleanup
@@ -172,6 +195,12 @@ cleanup() {
 	else
 		release_live_gate_lock
 	fi
+	if [[ -n "${report_dir}" ]]; then
+		python3 "${shard_helper}" report --head "${source_head}" --shard "${shard}" \
+			--plan "${report_dir}/full.plan" --events "${report_dir}/events.jsonl" \
+			--output "${results:-${report_dir}/result.json}" || status=1
+		rm -rf "${report_dir}"
+	fi
 	exit "${status}"
 }
 
@@ -180,7 +209,7 @@ cleanup() {
 # Args: backend, compose file, file, package, tests(|-joined), is_last(0/1).
 run_one() {
 	local name="$1" compose_file="$2" file="$3" package="$4" tests="$5" is_last="$6"
-	local health_path
+	local health_path started=$SECONDS setup_seconds test_seconds cleanup_started cleanup_seconds status=0
 	if [[ "${name}" == "nornicdb" ]]; then
 		health_path="/health"
 	else
@@ -196,13 +225,13 @@ run_one() {
 		if [[ -n "${ESHU_CI_COMPOSE_OVERLAY}" ]]; then
 			compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
 		fi
-		compose_down "${compose_file}"
+		compose_down "${compose_file}" || die "could not establish fresh ${name} stack"
 		# A failed up can leave a half-started stack behind, and the EXIT
 		# trap only knows stacks recorded in active_compose_file (assigned
 		# after a successful start), so tear the half-started stack down
 		# here before dying instead of littering it.
 		docker compose "${compose_args[@]}" up -d --wait --wait-timeout 180 ||
-			{ compose_down "${compose_file}"; die "could not start ${name} stack"; }
+			{ compose_down "${compose_file}" || true; die "could not start ${name} stack"; }
 		active_compose_file="${compose_file}"
 		wait_healthy "${NEO4J_HTTP_PORT}" "${health_path}" || die "${name} stack never became healthy"
 	fi
@@ -214,13 +243,16 @@ run_one() {
 	export ESHU_NEO4J_URI="bolt://127.0.0.1:${NEO4J_BOLT_PORT}" ESHU_LIVE_GRAPH_BACKEND="${name}"
 	export ESHU_NEO4J_DATABASE="${database}" ESHU_LIVE_GRAPH_DATABASE="${database}"
 	unset ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD || true
-	(cd "${repo_root}/go" && go test -tags "${tags}" -count=1 "${package}" -run "^(${tests})$")
-	local status=$?
+	setup_seconds=$((SECONDS - started))
+	started=$SECONDS
+	(cd "${repo_root}/go" && go test -tags "${tags}" -count=1 "${package}" -run "^(${tests})$") || status=$?
+	test_seconds=$((SECONDS - started))
+	cleanup_started=$SECONDS
 	if [[ "${use_compose}" == "1" ]]; then
 		# --keep retains only the last file's stack: earlier ones share
 		# the fixed host port, so keeping them all would collide.
 		if [[ "${keep}" == "0" || "${is_last}" == "0" ]]; then
-			compose_down "${compose_file}"
+			compose_down "${compose_file}" || die "could not clean ${name} stack after test"
 		else
 			printf 'run-live-backend-tests: --keep: stack left running (bolt 127.0.0.1:%s)\n' \
 				"${NEO4J_BOLT_PORT}"
@@ -231,37 +263,20 @@ run_one() {
 			eshu_ci_compose_cleanup
 		fi
 	fi
+	cleanup_seconds=$((SECONDS - cleanup_started))
+	python3 "${shard_helper}" record --run "${name}|${compose_file}|${file}|${package}|${tests}" \
+		--status "${status}" --setup-seconds "${setup_seconds}" --test-seconds "${test_seconds}" \
+		--cleanup-seconds "${cleanup_seconds}" --events "${report_dir}/events.jsonl" || die "could not record terminal run"
+	printf 'live-backend-target: shard=%s backend=%s file=%s setup=%ss test=%ss cleanup=%ss status=%s\n' \
+		"${shard}" "${name}" "${file}" "${setup_seconds}" "${test_seconds}" "${cleanup_seconds}" "${status}"
 	return "${status}"
 }
 
-acquire_live_gate_lock
-trap cleanup EXIT
-
-# Flatten (backend, compose file, target) tuples so the very last
-# invocation knows it is last for --keep retention. Ledger rows pin
-# which backends each file can run on (default both); backend-specific
-# tests (e.g. hardcoded-"nornic" database) never schedule elsewhere.
-mapfile -t runs < <(for target in "${targets[@]}"; do
-	# Target shape is file|package|tests|backends, but the tests field
-	# itself holds |-joined names, so the pinned backends come off the
-	# RIGHT end: a left-anchored split silently drops multi-Test files.
-	pinned="${target##*|}"
-	mid="${target%|*}"
-	file="${mid%%|*}"
-	rest="${mid#*|}"
-	package="${rest%%|*}"
-	tests="${rest#*|}"
-	if [[ "${backend}" == "nornicdb" || "${backend}" == "both" ]]; then
-		if [[ "${pinned}" == "nornicdb" || "${pinned}" == "both" ]]; then
-			printf 'nornicdb|%s|%s|%s|%s\n' "${nornicdb_compose}" "${file}" "${package}" "${tests}"
-		fi
-	fi
-	if [[ "${backend}" == "neo4j" || "${backend}" == "both" ]]; then
-		if [[ "${pinned}" == "neo4j" || "${pinned}" == "both" ]]; then
-			printf 'neo4j|%s|%s|%s|%s\n' "${neo4j_compose}" "${file}" "${package}" "${tests}"
-		fi
-	fi
-done)
+# Shared pure planner preserves backend pins and complete multi-Test fields.
+full_runs="$(printf '%s\n' "${targets[@]}" | python3 "${shard_helper}" expand --backend "${backend}")" || die "could not expand live-test targets"
+mapfile -t runs <<<"${full_runs}"
+selected_runs="$(printf '%s\n' "${runs[@]}" | python3 "${shard_helper}" plan --shard "${shard}")" || die "could not partition full live plan"
+mapfile -t runs <<<"${selected_runs}"
 
 # Plan probe for the static self-test: list the scheduled runs without
 # touching Docker or the lock.
@@ -270,6 +285,18 @@ if [[ "${ESHU_LIVE_RUNNER_SELFTEST:-0}" == "plan" ]]; then
 	exit 0
 fi
 
+command -v docker >/dev/null 2>&1 || die "docker is required"
+command -v go >/dev/null 2>&1 || die "go is required"
+command -v curl >/dev/null 2>&1 || die "curl is required for backend health checks"
+acquire_live_gate_lock
+trap cleanup EXIT
+
+source_head="$(git -C "${repo_root}" rev-parse HEAD)" || die "cannot identify tested source"
+report_dir="$(mktemp -d)"
+printf '%s\n' "${full_runs}" >"${report_dir}/full.plan"
+: >"${report_dir}/events.jsonl"
+printf 'live-backend-plan: head=%s shard=%s selected=%s full=%s\n' \
+	"${source_head}" "${shard}" "${#runs[@]}" "$(printf '%s\n' "${full_runs}" | wc -l | tr -d ' ')"
 failed=0
 total="${#runs[@]}"
 [[ "${total}" -gt 0 ]] || die "no ledger targets selected for --backend ${backend}"
