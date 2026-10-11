@@ -355,6 +355,7 @@ jobs:
             /tmp/ifa-fault-injection.*/current-cell
             /tmp/ifa-fault-injection.*/**/*.error
             /tmp/ifa-fault-injection.*/logs/*.log
+            /tmp/ifa-fault-injection.*/logs/expirelease-barrier.*
           if-no-files-found: error
           retention-days: 7
       - name: Tear down Docker services
