@@ -282,13 +282,12 @@ func TestTagHistoryRefusalMetricsPinEveryErrorReason(t *testing.T) {
 		durationMetric = "eshu_dp_query_container_image_tag_history_duration_seconds"
 		errorsMetric   = "eshu_dp_query_container_image_tag_history_errors_total"
 	)
-	namespace := ",service.namespace=" + telemetry.DefaultServiceNamespace
 	want := make([]tagHistoryExportedPoint, 0, 2*len(tagHistoryRefusalPaths))
 	for _, path := range tagHistoryRefusalPaths {
 		want = append(
 			want,
-			tagHistoryExportedPoint{Metric: durationMetric, Attrs: "outcome=" + path.reason + namespace, Value: 1},
-			tagHistoryExportedPoint{Metric: errorsMetric, Attrs: "reason=" + path.reason + namespace, Value: 1},
+			tagHistoryExportedPoint{Metric: durationMetric, Attrs: "outcome=" + path.reason, Value: 1},
+			tagHistoryExportedPoint{Metric: errorsMetric, Attrs: "reason=" + path.reason, Value: 1},
 		)
 	}
 	slices.SortFunc(want, tagHistoryPointOrder)

@@ -432,12 +432,18 @@ func boundedJQL(raw string, window CollectionWindow) string {
 	}
 	order := ""
 	lower := strings.ToLower(base)
-	if idx := strings.LastIndex(lower, " order by "); idx >= 0 {
+	if strings.HasPrefix(lower, "order by ") {
+		order = base
+		base = ""
+	} else if idx := strings.LastIndex(lower, " order by "); idx >= 0 {
 		order = strings.TrimSpace(base[idx:])
 		base = strings.TrimSpace(base[:idx])
 	}
 	if order == "" {
 		order = "ORDER BY updated ASC"
+	}
+	if base == "" {
+		return windowClause + " " + order
 	}
 	return fmt.Sprintf("(%s) AND %s %s", base, windowClause, order)
 }

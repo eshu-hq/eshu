@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
@@ -117,9 +116,9 @@ func TestTagHistoryUnscopedCallerRecordsNoScopedPages(t *testing.T) {
 // disposition="unattributed" restore the exposure in full and spell no banned
 // word anywhere.
 var tagHistoryPublicMetricSurface = map[string][]string{
-	"eshu_dp_query_container_image_tag_history_duration_seconds":   {"outcome", "service.namespace"},
-	"eshu_dp_query_container_image_tag_history_errors_total":       {"reason", "service.namespace"},
-	"eshu_dp_query_container_image_tag_history_scoped_pages_total": {"outcome", "service.namespace"},
+	"eshu_dp_query_container_image_tag_history_duration_seconds":   {"outcome"},
+	"eshu_dp_query_container_image_tag_history_errors_total":       {"reason"},
+	"eshu_dp_query_container_image_tag_history_scoped_pages_total": {"outcome"},
 }
 
 // tagHistoryExportedPoint is one exported datapoint reduced to everything a
@@ -258,16 +257,15 @@ func TestTagHistoryMetricsDiscloseNoWithheldCounts(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	namespace := ",service.namespace=" + telemetry.DefaultServiceNamespace
 	want := []tagHistoryExportedPoint{
 		{
 			Metric: "eshu_dp_query_container_image_tag_history_duration_seconds",
-			Attrs:  "outcome=ok" + namespace,
+			Attrs:  "outcome=ok",
 			Value:  1,
 		},
 		{
 			Metric: "eshu_dp_query_container_image_tag_history_scoped_pages_total",
-			Attrs:  "outcome=" + tagHistoryScopedPageComplete + namespace,
+			Attrs:  "outcome=" + tagHistoryScopedPageComplete,
 			Value:  1,
 		},
 	}

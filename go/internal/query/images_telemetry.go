@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -85,7 +84,6 @@ func recordImageListDuration(ctx context.Context, start time.Time, outcome strin
 		ctx, time.Since(start).Seconds(),
 		metric.WithAttributes(
 			attribute.String("outcome", outcome),
-			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
 		),
 	)
 }
@@ -101,7 +99,6 @@ func recordImageListError(ctx context.Context, reason string) {
 		ctx, 1,
 		metric.WithAttributes(
 			attribute.String("reason", reason),
-			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
 		),
 	)
 }

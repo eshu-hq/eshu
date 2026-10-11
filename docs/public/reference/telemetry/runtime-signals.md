@@ -33,6 +33,22 @@ The API, MCP server, ingester, projector, reducer, webhook listener, workflow
 coordinator, and hosted collectors follow this shape when they run as
 long-lived services.
 
+## Metrics Scrape Failures
+
+`/metrics` serves the OTEL data-plane series and the runtime status gauges. If
+a scrape returns a bare `500` while `/healthz` and `/readyz` stay `200`, the
+OTEL side failed to gather. A series whose attributes collide with a resource
+label (`service_name`, `service_namespace`) is the known cause: Eshu drops
+those two attributes before export, because the resource already supplies the
+value. For any other failing series the scrape still returns `200` with the
+healthy series, and:
+
+- the `telemetry.metrics.gather_failed` error log names the failing metric,
+  rate limited to one identical line per five minutes per process;
+- `eshu_dp_metrics_gather_errors_total` rises on every failing scrape.
+
+A scrape that gathers no series at all still returns `500`.
+
 ## First Checks By Runtime
 
 | Runtime | Check first |
