@@ -11,7 +11,7 @@ for storage comparison.
 
 It is a new package (not a simple move) created specifically to break an
 import cycle: `go/internal/facts` imports its nested families (its
-`schemaVersionFamilies` table references `cloud` through `compat_cloud.go`;
+`schemaVersionFamilies` table references `cloud` directly;
 its semantic and documentation encoders reference the `docs` package), so a
 nested family cannot import the facts root back to reach a shared helper.
 `encode` depends on neither, so both sides import it.

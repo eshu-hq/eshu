@@ -146,13 +146,14 @@ excludes every `.go` file in a package named `documentation`; see
 `docs/doc.go`. `supply/chain/` is nested rather than glued as `supplychain`
 per `docs/internal/naming.md` rule 3, matching `internal/query/supply/chain`.
 
-`compat_cloud.go` and `compat_supply_chain.go` are this package's
-transitional compatibility surface for those moves (`compat_code.go` and
-`compat_cloud_posture.go` already retired, `compat_docs.go` retired in
-#6950 batch 3): every entry is an alias or a thin forwarder, so a caller
-that spells a moved name `facts.X` gets the same type and the same value
-it did before. Each entry is deleted once its last caller has moved to
-the nested package directly — that migration is issue #6950. Nesting the
+Those moves kept a transitional compatibility surface in this package
+(`compat_cloud.go`, `compat_supply_chain.go`, `compat_code.go`,
+`compat_cloud_posture.go`, `compat_docs.go`): every entry was an alias or
+a thin forwarder, so a caller that spelled a moved name `facts.X` got the
+same type and the same value it did before. Issue #6950 moved every
+caller onto the nested packages and deleted each emptied entry, so no
+compat surface remains — every caller spells moved names `cloud.X`,
+`docs.X`, and so on directly. Nesting the
 `security_alert.go` / `secrets_iam.go` /
 `incident_*.go` groups and the remaining single-file families is issue
 #6951; the cap is already satisfied without them.

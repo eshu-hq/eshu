@@ -47,25 +47,20 @@ Go standard library only (`slices`). No internal package imports.
 
 ## Depended on by
 
-Today: the facts root's `compat_cloud.go` imports `cloud` and forwards
-only the remaining `AWSSchemaVersion` plus the IAMPermission and Warning
-kinds as `facts.<Name>` (e.g. `facts.AWSIAMPermissionFactKind` aliases
-`cloud.AWSIAMPermissionFactKind`), and
-`go/internal/facts/schema_version.go`'s `schemaVersionFamilies` table
-reaches `cloud.AWSFactKinds` directly while still referencing the
-remaining `AWSSchemaVersion` forwarder. The posture forwarders
-(`compat_cloud_posture.go`), the gcp stanza, the small-AWS entries
+Today: every caller uses the `cloud.<Name>` spelling directly —
+`go/internal/facts/schema_version.go`'s `schemaVersionFamilies` table,
+`go/cmd/capability-inventory/surfaces.go`,
+`go/cmd/fact-kind-registry/main.go`, and all collector, reducer,
+projector, storage, query, and mcp callers. The transitional
+`facts.<Name>` compat surface (`compat_cloud.go`,
+`compat_cloud_posture.go`) was retired in #6950 once the last caller
+moved: the posture forwarders, the gcp stanza, the small-AWS entries
 (`AWSFactKinds` plus the DNSRecord, ImageReference,
 ResourcePolicyPermission, SecurityGroupRule, and TagObservation kinds),
-and the `AWSResource` / `AWSRelationship` entries were retired in #6950
-once the last caller moved to the `cloud.<Name>`
-spelling. Every external caller that uses `cloud.AWSFactKinds` /
-`cloud.AzureFactKinds` / etc. — `go/cmd/capability-inventory/surfaces.go`,
-`go/cmd/fact-kind-registry/main.go`, and the `schema_version` table and
-its test — builds unchanged through that spelling today. A caller moves
-to `cloud.<Name>` directly only when the importer-migration follow-up on
-#6776 retires the corresponding compat entry; this package's contract
-does not change when that happens.
+the `AWSResource` / `AWSRelationship` entries, and finally the
+IAMPermission / Warning kinds plus `AWSSchemaVersion` (batch 5d, which
+deleted `compat_cloud.go` itself). No `facts.<Name>` spelling remains
+for any name this package owns.
 
 ## Telemetry
 
@@ -351,6 +346,46 @@ and the move adds, removes, or renames no metric, span, structured log, or
 status field in any touched package. The collector, reducer, projector,
 storage, and mcp telemetry that reads and writes facts of these kinds is
 untouched; operator signals are identical before and after.
+
+No-Regression Evidence (#6950 batch 5d): this change moves the last
+`cloud.*` compat entries' Go importers (the IAMPermission and Warning
+fact-kind and schema-version constants plus the `AWSSchemaVersion`
+accessor) off the transitional `facts.AWS*` spellings and deletes
+`compat_cloud.go` itself. No fact-kind string, payload shape, registry
+entry, or executable statement changes: across 88 files (83 caller
+files plus the file deletion and 4 package-doc rewords; this note, the
+two ledger rows, and the guidance rewords ride in the follow-up
+docs-only commit), every production hunk requalifies an identifier or
+import path only, and the build resolves with no dangling reference.
+Measurement: see ledger:6950-cloud-batch5d-before and
+ledger:6950-cloud-batch5d-after for identical before/after outcomes. The
+command is `go test -count=1 ./...` over the full tree on baseline
+`f3d560021` vs measurement commit `1d4ba3658` (this Evidence note, the
+two ledger rows, and the guidance rewords are the only later changes):
+1087 packages ok plus the same single pre-existing host-only
+`TestFetchChurnZombiesDrainedByReaper` failure (#7865, fails identically
+on the clean base) on both sides, with the ok-package set byte-identical
+after timing strip. `go test -list` inventory is identical on both sides
+(32101 names: 31747 Test + 354 Bench). The runtime `FactKindRegistry()`
+dump is byte-identical before/after (182 entries). Backend/version:
+go1.26.2 linux/amd64, in-memory; no backend touched. Input shape: n/a
+(no runtime input). Terminal queue/row counts: none — no queue, lease,
+Cypher, or SQL path is touched. Contract gates green on the branch:
+`verify-fact-kind-registry.sh` (generated artifacts current),
+`verify-factschema-diff.sh` (no breaking changes),
+`verify-payload-usage-manifest.sh`, `verify-contracttest.sh` (contract
+data current), `verify-package-docs.sh`, and `verify-openapi.sh` (261
+HandleFunc routes, 261 OpenAPI path entries). The change is safe because
+it cannot alter runtime behavior: the compiler resolves the same
+constants through their new paths, and the compat deletion is
+compile-enforced total — any missed caller would fail the build.
+
+No-Observability-Change (#6950 batch 5d): this package carries no
+instrumentation (see Telemetry above) and the move adds, removes, or
+renames no metric, span, structured log, or status field in any touched
+package. The collector, reducer, projector, storage, and mcp telemetry
+that reads and writes facts of these kinds is untouched; operator
+signals are identical before and after.
 
 ## Related docs
 
