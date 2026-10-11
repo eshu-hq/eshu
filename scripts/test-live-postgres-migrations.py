@@ -3,6 +3,7 @@
 
 import json
 import pathlib
+import re
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,40 @@ class MigrationProofInventoryTest(unittest.TestCase):
     def test_committed_ledger_and_inventory(self) -> None:
         self.assertEqual(verify_ledger(ROOT / "specs/live-tests.v1.yaml", ROOT), 0)
         self.assertEqual(sum(map(len, EXPECTED.values())), 7)
+
+    def test_ci_helper_changes_select_migration_proof(self) -> None:
+        workflow = (ROOT / ".github/workflows/live-postgres-migrations.yml").read_text(
+            encoding="utf-8"
+        )
+        registry = (ROOT / "specs/ci-gates.d/gates-09.yaml").read_text(
+            encoding="utf-8"
+        )
+        helper_paths = (
+            "scripts/ci/go-mod-download-retry.sh",
+            "scripts/ci/install-apt-packages.sh",
+        )
+        for event in ("pull_request", "push"):
+            match = re.search(
+                rf"(?m)^  {event}:\n    branches: [^\n]+\n    paths:\n"
+                r"((?:      - '[^']+'\n)+)",
+                workflow,
+            )
+            self.assertIsNotNone(match, f"missing {event} path filter")
+            paths = set(re.findall(r"(?m)^      - '([^']+)'$", match.group(1)))
+            for helper in helper_paths:
+                with self.subTest(selector=event, helper=helper):
+                    self.assertIn(helper, paths)
+
+        gate = re.search(
+            r"(?ms)^  - id: live-postgres-migrations\n.*?"
+            r"^    triggers:\n((?:      - \"[^\"]+\"\n)+)",
+            registry,
+        )
+        self.assertIsNotNone(gate, "missing migration gate triggers")
+        paths = set(re.findall(r'(?m)^      - "([^"]+)"$', gate.group(1)))
+        for helper in helper_paths:
+            with self.subTest(selector="registry", helper=helper):
+                self.assertIn(helper, paths)
 
     def test_wrong_runner_and_tag_fail(self) -> None:
         source = (ROOT / "specs/live-tests.v1.yaml").read_text(encoding="utf-8")
