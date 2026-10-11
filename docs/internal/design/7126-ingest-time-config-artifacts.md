@@ -214,7 +214,8 @@ path is the oracle, so PR3 changes no extraction semantics.
   order, then one dedup on `(path, source_repo, relative_path,
   evidence_kind)` and one sort. Two related repositories that share a graph
   name, or an anchor that also appears in the related list, then collapse
-  exactly as they do live. S0, S4 and the PR3c tests include both cases.
+  exactly as they do live. The two loader-level merge cases are outside
+  S0's scope. S4 and the PR3c tests cover both.
 - **Caps.** Both caps stay exactly: the first 5,000 files by `relative_path`,
   then the first 50 config candidates. The related-repository list has no
   sentinel, so a larger repository is cut without a label. That is an

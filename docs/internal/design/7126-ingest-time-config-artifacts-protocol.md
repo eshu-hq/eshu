@@ -74,9 +74,10 @@ Names are proposals. The migration number is chosen at build time.
 
   The fields are length-prefixed because a path can contain `|`. The four
   columns stay as data. A schema test recomputes the digest in SQL for every
-  seeded row and compares. No Go code computes it. S2 measured the read at
-  2.14 ms for 300 ids (Bitmap Heap Scan) and 5.2 MB for 17,175 rows, against
-  7.0 MB for the four-column key. S3 arm 1 includes the cost of the
+  seeded row and compares. No Go code computes it. S2 measured the paths read
+  at 2.14 ms for 300 ids with the digest key (Bitmap Heap Scan) and 5.2 MB
+  for 17,175 rows, against 7.0 MB for the four-column key. The digest-key
+  reader join itself is not measured. S3 arm 1 includes the cost of the
   generated column.
 - Why the wrapper: `convert_to` and `textsend` are STABLE, so the plain
   expression fails with `generation expression is not immutable` (evidence
