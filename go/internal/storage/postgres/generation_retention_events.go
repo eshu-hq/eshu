@@ -4,12 +4,13 @@
 package postgres
 
 // This file holds the generation retention event schema DDL and event writer,
-// the key-index guard (#7279), countRows, the row-limit selection rules, the
-// own-fact pre-screen and the selection re-lock (relockRetentionSelection,
-// #7334), which replaced narrowOverLimitBatch (#7127) when every pass moved to
-// plan-unlocked-then-relock. They share one file because this directory is at
-// its dirgate cap (scripts/lib/dirgate-grandfather.tsv), which admits no new
-// non-test file. Follow-up: extract a generationretention subpackage.
+// the key-index guard (#7279), countRows, the row-limit selection rules and
+// the own-fact pre-screen. The selection re-lock (relockRetentionSelection,
+// #7334) lives in generation_retention_relock.go since #7903 split it out
+// over the 500-line cap. They share one directory because it is at its
+// dirgate cap (scripts/lib/dirgate-grandfather.tsv), which admits no new
+// non-test file without a re-pin. Follow-up: extract a
+// generationretention subpackage.
 
 import (
 	"context"
@@ -434,66 +435,4 @@ func (s GenerationRetentionStore) prescreenOwnFacts(
 		return nil, fmt.Errorf("generation retention: pre-screen own facts: %w", err)
 	}
 	return ownFacts, nil
-}
-
-// relockRetentionSelection re-locks the provisionally selected set after the
-// selection's savepoint rollback (#7334 fix 1) and recounts it once under
-// the new locks; the recount's counts replace the unlocked planning counts
-// for the prune decision and the pruning events. The targeted query holds
-// only the selected rows (scope, generation) in deterministic order, so two
-// overlapping passes lock the same rows in the same sequence. A candidate
-// the re-lock misses was taken, re-activated or given work after the
-// rollback: the pass silently drops it and prunes the locked subset. held
-// reports whether the re-lock locked at least one row, so the caller can
-// scope its lock-hold measurement to the narrow window.
-func (s GenerationRetentionStore) relockRetentionSelection(
-	ctx context.Context,
-	tx db.Transaction,
-	now time.Time,
-	policy GenerationRetentionPolicy,
-	candidates []generationRetentionCandidate,
-	result *GenerationRetentionResult,
-) ([]generationRetentionCandidate, map[string]int64, map[string]map[string]int64, bool, error) {
-	if len(candidates) == 0 {
-		return nil, nil, nil, false, nil
-	}
-	if s.beforeTargetedLock != nil {
-		s.beforeTargetedLock()
-	}
-	phaseStart := time.Now()
-	rows, err := tx.QueryContext(ctx, generationRetentionTargetedCandidateQuery,
-		now.Add(-policy.MaxSupersededAge), policy.MinSupersededGenerations, []string{},
-		retentionScopeIDs(candidates), retentionGenerationIDs(candidates),
-		now.Add(-policy.HardMaxSupersededAge))
-	if err != nil {
-		return nil, nil, nil, false, fmt.Errorf("generation retention: lock candidates: %w", err)
-	}
-	locked, err := scanRetentionCandidates(rows)
-	result.PhaseDurations[GenerationRetentionPhaseSelectCandidates] += time.Since(phaseStart)
-	if err != nil {
-		return nil, nil, nil, false, fmt.Errorf("generation retention: lock candidates: %w", err)
-	}
-	if len(locked) == 0 {
-		return nil, nil, nil, false, nil
-	}
-	// The unlocked planning counts were taken under locks that no longer
-	// exist; the recount under the new locks is the authoritative one. One
-	// recount settles the batch: it counts exactly the locked set, so key
-	// attribution already reflects any member the re-lock dropped.
-	sortRetentionCandidatesOldestFirst(locked)
-	phaseStart = time.Now()
-	_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(locked), retentionGenerationIDs(locked))
-	result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
-	if err != nil {
-		return nil, nil, nil, false, err
-	}
-	selected, rowCounts, selectedEventRowCounts, skipped := selectCandidatesWithinRowLimit(
-		locked, eventRowCounts, policy.BatchRowLimit)
-	for _, generationID := range skipped {
-		result.Skipped[rowLimitSkipReason(eventRowCounts[generationID], policy.BatchRowLimit)]++
-	}
-	if len(selected) == 0 {
-		return nil, nil, nil, true, nil
-	}
-	return selected, rowCounts, selectedEventRowCounts, true, nil
 }

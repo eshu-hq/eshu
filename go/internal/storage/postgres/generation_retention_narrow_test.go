@@ -205,3 +205,31 @@ func TestGenerationRetentionRelockDropsMissedMembersAndPrunesTheRest(t *testing.
 		t.Fatalf("LockedScopeRows = %d, want 1 (scope-b only)", result.LockedScopeRows)
 	}
 }
+
+// TestGenerationRetentionRelockCountsNewlyUncoveredWriterAsSkipped is #7903
+// in the database double: when the targeted re-lock reports a member as
+// uncovered (it flipped coverage after the selection), the pass drops it
+// from the prune set and counts it as skipped so it surfaces in the cycle
+// log/counter instead of vanishing, while the still-covered member prunes.
+func TestGenerationRetentionRelockCountsNewlyUncoveredWriterAsSkipped(t *testing.T) {
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	database := narrowFake(now, 0)
+	flipped := recheckCandidate("scope-a", "a", now, 14)
+	flipped[len(flipped)-1] = true
+	database.targetedLockRows = [][]any{flipped, recheckCandidate("scope-b", "b", now, 13)}
+	store := NewGenerationRetentionStore(database)
+	store.Now = func() time.Time { return now }
+	result, err := store.PruneSupersededGenerations(context.Background(), ledgerRetentionPolicy(60))
+	if err != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v", err)
+	}
+	if got := deletedGenerations(database); !slices.Equal(got, []string{"b"}) {
+		t.Fatalf("deleted %v, want [b]: the flipped member a must leave the prune set", got)
+	}
+	if got := result.Skipped["uncovered_writer"]; got != 1 {
+		t.Fatalf(`Skipped["uncovered_writer"] = %d, want 1 (the flipped member a)`, got)
+	}
+	if result.LockedScopeRows != 1 {
+		t.Fatalf("LockedScopeRows = %d, want 1 (scope-b only)", result.LockedScopeRows)
+	}
+}
