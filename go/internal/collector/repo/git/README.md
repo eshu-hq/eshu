@@ -126,10 +126,10 @@ callback, so a change found there is logged but not counted in
 `DefaultBranchChanged`; the sync keeps that path-less entry in
 `DeltaByRepoPath`, and `buildSelectedRepositories` copies the flag to the
 default-branch `SelectedRepository` only, never to a pinned-ref entry. The
-fact builder then empties the generation's freshness hint: the snapshot hint
-does not fold git refs, so a rename that kept the tree would otherwise be
-dropped as unchanged and leave the old `default_branch` on the repository
-fact. It is not a reconciliation: unless a sweep reconciliation lands on the
+fact builder sets `ScopeGeneration.DefaultBranchChanged` and the v3 hint folds
+the default branch, so the store always stores that generation (#7978) and a
+rename that kept the tree does not leave the old `default_branch` on the
+repository fact. It is not a reconciliation: unless a sweep reconciliation lands on the
 same cycle, `reconciliation_generation` stays unset, so the old branch's
 removals do not count as drift on
 `eshu_dp_reconciliation_drift_retractions_total`, and no sweep budget or

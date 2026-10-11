@@ -68,15 +68,19 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `ActiveGenerationID`, `PreviousGenerationExists`, `Metadata`. Methods:
   `Validate`, `HasPriorGeneration`, `MetadataCopy`.
 - `ScopeGeneration` — one observed snapshot: `GenerationID`, `ScopeID`,
-  `ObservedAt`, `IngestedAt`, `Status`, `TriggerKind`, `FreshnessHint`.
-  Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
+  `ObservedAt`, `IngestedAt`, `Status`, `TriggerKind`, `FreshnessHint`,
+  `SourceCommitSHA`, `IsDelta`, `DeltaBaselineCommitSHA`, `ReconcileReason`
+  (the forced reconcile reason; never blanks the hint, #7978), and
+  `DefaultBranchChanged` (#7678, always stored). Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
   `TransitionTo`, `MarkActive`, `MarkCompleted`, `MarkSuperseded`, `MarkFailed`.
 - `FullReconcileState` — the reconciliation sweep's view of one scope's full
   (non-delta) generations: the newest activated full generation
   (`HasProjectedFull`, `LastProjectedFullAt`) and the newest full generation of
   any status (`HasLatestFull`, `LatestFullAt`, `LatestFullStatus`,
   `LatestFullProjected`). `internal/storage/postgres` fills it and the git
-  collector's sweep decides on it (#7288); it carries no behavior.
+  collector's sweep decides on it (#7288); it carries no behavior. While the
+  newest activated full is still active, a reconcile re-projection request
+  (#7978) counts as its `LastProjectedFullAt`.
 - `NewTerraformStateSnapshotScope` — builds a stable `state_snapshot` scope from
   backend kind and locator hash. The embedded locator hash is version-agnostic
   by design and MUST stay aligned with `terraformstate.ScopeLocatorHash`; the
