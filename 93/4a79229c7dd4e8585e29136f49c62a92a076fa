@@ -1,0 +1,28 @@
+go/internal/runtime/postgres/capability_test.go
+  s_b0d7e3abc26c5a::t_b4feaa4e7505e5 327-328,353,355-358,364-366,410-421,425-426
+  s_b0d7e3abc26c5a::t_e0c830763df222 287-296
+  s_b0d7e3abc26c5a::t_298c68fdf7e155 422-424,427
+go/internal/runtime/postgres/capability.go
+  s_b0d7e3abc26c5a::t_40b05aabdc77fc 43-52
+docs/internal/evidence/7957-snapshot-capability-guard.md
+  s_b0d7e3abc26c5a::t_551ca95d258858 82
+  s_b0d7e3abc26c5a::t_734eacfedb0487 3-9,45-50,56-81,83-87
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_ba455756659fb8 20-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "934a79229c7dd4e8585e29136f49c62a92a076fa",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
