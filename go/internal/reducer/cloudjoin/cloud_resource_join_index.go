@@ -5,6 +5,7 @@ package cloudjoin
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -87,7 +88,7 @@ func BuildCloudResourceJoinIndex(envelopes []facts.Envelope) (CloudResourceJoinI
 	var quarantined []factdecode.QuarantinedFact
 	scopeSeen := false
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
+		if env.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		resource, err := schemadecode.DecodeAWSResource(env)

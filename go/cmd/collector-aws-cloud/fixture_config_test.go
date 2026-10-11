@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -93,9 +93,9 @@ func TestBuildCollectorServiceWiresFixtureSource(t *testing.T) {
 	relationships := 0
 	for env := range collected.Facts {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources++
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			relationships++
 		}
 	}

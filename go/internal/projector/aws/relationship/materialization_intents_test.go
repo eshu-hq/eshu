@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -48,8 +49,8 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 	t.Run("queues from aws_relationship, anchored to the earliest fact", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			relationshipEnvelope("relationship-fact-1", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
-			relationshipEnvelope("relationship-fact-2", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			relationshipEnvelope("relationship-fact-1", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			relationshipEnvelope("relationship-fact-2", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -73,9 +74,9 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// the builder must ignore it and anchor to the first aws_relationship
 		// fact, not the first fact of the generation.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			relationshipEnvelope("resource-fact-1", facts.AWSResourceFactKind, "aws", "aws_cloud"),
-			relationshipEnvelope("relationship-fact-2", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
-			relationshipEnvelope("relationship-fact-3", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			relationshipEnvelope("resource-fact-1", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
+			relationshipEnvelope("relationship-fact-2", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			relationshipEnvelope("relationship-fact-3", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -92,7 +93,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// committed row the AWS resource builders publish under this exact
 		// key; a family-distinct key would let edges project before nodes.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			relationshipEnvelope("relationship-fact-1", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			relationshipEnvelope("relationship-fact-1", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -106,7 +107,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 	t.Run("falls back to CollectorKind when SourceSystem is blank", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			relationshipEnvelope("relationship-fact-1", facts.AWSRelationshipFactKind, "  ", "aws_cloud_collector"),
+			relationshipEnvelope("relationship-fact-1", cloud.AWSRelationshipFactKind, "  ", "aws_cloud_collector"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -120,7 +121,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 	t.Run("does not queue without aws_relationship facts", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			relationshipEnvelope("resource-fact-1", facts.AWSResourceFactKind, "aws", "aws_cloud"),
+			relationshipEnvelope("resource-fact-1", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {

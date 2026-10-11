@@ -90,7 +90,7 @@ func TestBuildMaterializationReducerIntentsSkipMissingKinds(t *testing.T) {
 
 	scopeID := "azure:subscription:sub-1"
 	generationID := "generation-1"
-	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: facts.AWSResourceFactKind}})
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: cloud.AWSResourceFactKind}})
 
 	if got, ok := BuildResourceMaterializationReducerIntent(scopeID, generationID, lookup); ok {
 		t.Fatalf("resource intent = %#v, want no intent", got)

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 )
@@ -40,7 +39,7 @@ func TestPostgresCloudInventoryEvidenceLoaderExtractsPerProviderAccountID(t *tes
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.AWSResourceFactKind, awsARN, []byte(`{
+				{cloud.AWSResourceFactKind, awsARN, []byte(`{
 					"arn":"` + awsARN + `",
 					"resource_type":"aws_s3_bucket",
 					"account_id":"111111111111",
@@ -115,7 +114,7 @@ func TestPostgresCloudInventoryEvidenceLoaderRejectsMalformedRequiredIdentityFor
 			{rows: [][]any{
 				// account_id entirely absent; every OTHER required field present, so
 				// only the missing identity field can explain the rejection.
-				{facts.AWSResourceFactKind, awsMissingAccountID, []byte(`{
+				{cloud.AWSResourceFactKind, awsMissingAccountID, []byte(`{
 					"arn":"` + awsMissingAccountID + `",
 					"resource_type":"aws_s3_bucket",
 					"resource_id":"missing-account-id",
@@ -124,7 +123,7 @@ func TestPostgresCloudInventoryEvidenceLoaderRejectsMalformedRequiredIdentityFor
 				// account_id present but a JSON number, not a string. The old
 				// coerceJSONString(123456789012) would have returned "123456789012",
 				// silently coercing a malformed type into a plausible-looking value.
-				{facts.AWSResourceFactKind, awsNonStringAccountID, []byte(`{
+				{cloud.AWSResourceFactKind, awsNonStringAccountID, []byte(`{
 					"arn":"` + awsNonStringAccountID + `",
 					"resource_type":"aws_s3_bucket",
 					"resource_id":"non-string-account-id",

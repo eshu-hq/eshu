@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func sampleLoadBalancer() LoadBalancer {
@@ -70,12 +71,12 @@ func TestScannerEmitsLoadBalancerAndTopologyEdges(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 1 {
-		t.Fatalf("aws_resource count = %d, want 1", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 1 {
+		t.Fatalf("aws_resource count = %d, want 1", counts[cloud.AWSResourceFactKind])
 	}
 	// 2 instances + 2 subnets + 1 security group + 1 vpc + 1 acm cert + 1 iam cert.
-	if counts[facts.AWSRelationshipFactKind] != 8 {
-		t.Fatalf("aws_relationship count = %d, want 8", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 8 {
+		t.Fatalf("aws_relationship count = %d, want 8", counts[cloud.AWSRelationshipFactKind])
 	}
 
 	loadBalancer := assertResourceType(t, envelopes, awscloud.ResourceTypeELBLoadBalancer)
@@ -294,7 +295,7 @@ func factKindCounts(envelopes []facts.Envelope) map[string]int {
 func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -313,7 +314,7 @@ func assertRelationship(
 ) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got != relationshipType {

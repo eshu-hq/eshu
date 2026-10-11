@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -27,8 +28,8 @@ func instanceProfileEnvelope(factID, sourceSystem, collectorKind string, roleARN
 		FactID:        factID,
 		ScopeID:       testScopeID,
 		GenerationID:  testGenerationID,
-		FactKind:      facts.AWSResourceFactKind,
-		SchemaVersion: facts.AWSResourceSchemaVersion,
+		FactKind:      cloud.AWSResourceFactKind,
+		SchemaVersion: cloud.AWSResourceSchemaVersion,
 		CollectorKind: collectorKind,
 		ObservedAt:    time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{
@@ -50,8 +51,8 @@ func iamRoleResourceEnvelope(factID string) facts.Envelope {
 		FactID:        factID,
 		ScopeID:       testScopeID,
 		GenerationID:  testGenerationID,
-		FactKind:      facts.AWSResourceFactKind,
-		SchemaVersion: facts.AWSResourceSchemaVersion,
+		FactKind:      cloud.AWSResourceFactKind,
+		SchemaVersion: cloud.AWSResourceSchemaVersion,
 		CollectorKind: "aws_cloud",
 		SourceRef: facts.Ref{
 			SourceSystem: "aws",

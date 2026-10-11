@@ -6,7 +6,6 @@ package postgres
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -42,7 +41,7 @@ func BenchmarkCloudInventoryRecordFromRowAWSAllowlist(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload); !ok {
+		if _, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload); !ok {
 			b.Fatal("aws row unexpectedly dropped")
 		}
 	}

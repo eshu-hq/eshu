@@ -77,7 +77,7 @@ type S3ExternalPrincipalGrantMaterializationHandler struct {
 }
 
 func s3ExternalPrincipalGrantFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, cloud.S3ExternalPrincipalGrantFactKind}
+	return []string{cloud.AWSResourceFactKind, cloud.S3ExternalPrincipalGrantFactKind}
 }
 
 // Handle executes one S3 external-principal grant materialization intent.
@@ -222,7 +222,7 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) shouldSkipRetract(ctx co
 func splitS3ExternalPrincipalGrantEnvelopes(envelopes []facts.Envelope) (resources, grants []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case cloud.S3ExternalPrincipalGrantFactKind:
 			grants = append(grants, env)

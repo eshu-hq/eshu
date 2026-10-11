@@ -98,11 +98,11 @@ func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 5 {
-		t.Fatalf("aws_resource count = %d, want 5", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 5 {
+		t.Fatalf("aws_resource count = %d, want 5", counts[cloud.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 7 {
-		t.Fatalf("aws_relationship count = %d, want 7", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 7 {
+		t.Fatalf("aws_relationship count = %d, want 7", counts[cloud.AWSRelationshipFactKind])
 	}
 	if counts[cloud.AWSSecurityGroupRuleFactKind] != 1 {
 		t.Fatalf("aws_security_group_rule count = %d, want 1", counts[cloud.AWSSecurityGroupRuleFactKind])
@@ -191,11 +191,11 @@ func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 	}
 	// #5717: two aws_resource facts now — the instance identity fact AND the
 	// AMI node-class fact the instance->AMI relationship resolves against.
-	if counts[facts.AWSResourceFactKind] != 2 {
-		t.Fatalf("aws_resource count = %d, want 2 (#5448 identity fact + #5717 AMI resource fact)", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 2 {
+		t.Fatalf("aws_resource count = %d, want 2 (#5448 identity fact + #5717 AMI resource fact)", counts[cloud.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 1 {
-		t.Fatalf("aws_relationship count = %d, want 1 (#5448 instance->AMI relationship)", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 1 {
+		t.Fatalf("aws_relationship count = %d, want 1 (#5448 instance->AMI relationship)", counts[cloud.AWSRelationshipFactKind])
 	}
 
 	identity := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
@@ -277,11 +277,11 @@ func TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank(t *testing.T
 	counts := factKindCounts(envelopes)
 	// #5717: no ImageID means no AMI resource fact either — only the instance
 	// identity fact.
-	if counts[facts.AWSResourceFactKind] != 1 {
-		t.Fatalf("aws_resource count = %d, want 1", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 1 {
+		t.Fatalf("aws_resource count = %d, want 1", counts[cloud.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 0 {
-		t.Fatalf("aws_relationship count = %d, want 0 (no AMI id to relate)", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 0 {
+		t.Fatalf("aws_relationship count = %d, want 0 (no AMI id to relate)", counts[cloud.AWSRelationshipFactKind])
 	}
 	identity := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
 	assertAttribute(t, identity, "ami_id", "")
@@ -370,7 +370,7 @@ func factKindCounts(envelopes []facts.Envelope) map[string]int {
 func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -384,7 +384,7 @@ func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType s
 func assertNoResourceType(t *testing.T, envelopes []facts.Envelope, resourceType string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -396,7 +396,7 @@ func assertNoResourceType(t *testing.T, envelopes []facts.Envelope, resourceType
 func assertResourceID(t *testing.T, envelopes []facts.Envelope, resourceID string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_id"].(string); got == resourceID {
@@ -421,7 +421,7 @@ func assertSecurityGroupRuleFact(t *testing.T, envelopes []facts.Envelope) facts
 func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

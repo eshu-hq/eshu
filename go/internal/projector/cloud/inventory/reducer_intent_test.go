@@ -66,7 +66,7 @@ func TestBuildReducerIntent(t *testing.T) {
 	t.Run("every provider source kind triggers on its own", func(t *testing.T) {
 		t.Parallel()
 		for kind, provider := range map[string]string{
-			facts.AWSResourceFactKind:        "aws",
+			cloud.AWSResourceFactKind:        "aws",
 			cloud.GCPCloudResourceFactKind:   "gcp",
 			cloud.AzureCloudResourceFactKind: "azure",
 		} {

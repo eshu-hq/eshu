@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
@@ -413,9 +414,9 @@ func IAMCanPerformFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          iamCanPerformFamilyScopeID,
 			GenerationID:     iamCanPerformFamilyGenerationID,
-			FactKind:         facts.AWSResourceFactKind,
-			StableFactKey:    iamCanPerformFamilyStableFactKey(facts.AWSResourceFactKind, fixture.ARN),
-			SchemaVersion:    facts.AWSResourceSchemaVersion,
+			FactKind:         cloud.AWSResourceFactKind,
+			StableFactKey:    iamCanPerformFamilyStableFactKey(cloud.AWSResourceFactKind, fixture.ARN),
+			SchemaVersion:    cloud.AWSResourceSchemaVersion,
 			CollectorKind:    iamCanPerformFamilyCollectorKind,
 			SourceConfidence: iamCanPerformFamilySourceConfidence,
 			Payload:          payload,

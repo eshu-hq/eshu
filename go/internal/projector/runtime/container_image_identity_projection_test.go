@@ -192,8 +192,8 @@ func TestBuildProjectionDoesNotQueueContainerImageIdentityFromInvalidAWSRelation
 		FactID:        "fact-invalid-aws-image-relationship",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
-		FactKind:      facts.AWSRelationshipFactKind,
-		SchemaVersion: facts.AWSRelationshipSchemaVersion,
+		FactKind:      cloud.AWSRelationshipFactKind,
+		SchemaVersion: cloud.AWSRelationshipSchemaVersion,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    generation.ObservedAt,
 		SourceRef: facts.Ref{

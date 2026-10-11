@@ -203,7 +203,7 @@ func (s ClaimedSource) recordEmissionCounts(ctx context.Context, target Target, 
 	tagObservationCount := int64(0)
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resourceType, _ := envelope.Payload["resource_type"].(string)
 			s.Instruments.AWSResourcesEmitted.Add(ctx, 1, metric.WithAttributes(
 				telemetry.AttrService(target.ServiceKind),
@@ -211,7 +211,7 @@ func (s ClaimedSource) recordEmissionCounts(ctx context.Context, target Target, 
 				telemetry.AttrRegion(target.Region),
 				telemetry.AttrResourceType(resourceType),
 			))
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			relationshipCount++
 		case cloud.AWSTagObservationFactKind:
 			tagObservationCount++

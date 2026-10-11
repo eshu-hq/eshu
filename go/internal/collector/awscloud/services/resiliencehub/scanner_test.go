@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -146,7 +146,7 @@ func TestScannerEmitsResilienceHubMetadataAndRelationships(t *testing.T) {
 
 	// No assessment-result / drift / recommendation leakage anywhere.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		attrs, _ := envelope.Payload["attributes"].(map[string]any)
@@ -198,7 +198,7 @@ func TestScannerOmitsPolicyEdgeWhenNoPolicyAttached(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got := envelope.Payload["relationship_type"]; got == awscloud.RelationshipResilienceHubAppUsesPolicy {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
@@ -245,7 +246,7 @@ func TestExtractEC2InstanceNodeRowsSkipsNonPostureFacts(t *testing.T) {
 	t.Parallel()
 
 	rows, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
-		{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{"resource_id": "ignored"}},
+		{FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{"resource_id": "ignored"}},
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-0abc123")),
 	})
 	if err != nil {

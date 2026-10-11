@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestMultiCloudObservedRowFromRowPopulatesAWSValueAttributes proves the
@@ -24,7 +24,7 @@ func TestMultiCloudObservedRowFromRowPopulatesAWSValueAttributes(t *testing.T) {
 		"attributes": {"ami_id": "ami-000000000000000a"}
 	}`)
 
-	row, ok := multiCloudObservedRowFromRow("aws:123456789012:us-east-1:ec2", facts.AWSResourceFactKind, arn, payload)
+	row, ok := multiCloudObservedRowFromRow("aws:123456789012:us-east-1:ec2", cloud.AWSResourceFactKind, arn, payload)
 	if !ok {
 		t.Fatalf("multiCloudObservedRowFromRow() ok = false, want true")
 	}

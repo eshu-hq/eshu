@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 type recordingWorkloadCloudRelationshipWriter struct {
@@ -149,7 +150,7 @@ func workloadCloudAWSResourceEnvelope(factID string, payload map[string]any) fac
 	return facts.Envelope{
 		FactID:        factID,
 		StableFactKey: "stable-" + factID,
-		FactKind:      facts.AWSResourceFactKind,
+		FactKind:      cloud.AWSResourceFactKind,
 		Payload:       payload,
 		SourceRef: facts.Ref{
 			SourceSystem:   "aws",

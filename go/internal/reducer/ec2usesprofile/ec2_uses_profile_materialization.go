@@ -132,7 +132,7 @@ type EC2UsesProfileMaterializationHandler struct {
 // the aws_resource IAM instance-profile node substrate for the join index and the
 // ec2_instance_posture facts that drive the edges.
 func ec2UsesProfileFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, cloud.EC2InstancePostureFactKind}
+	return []string{cloud.AWSResourceFactKind, cloud.EC2InstancePostureFactKind}
 }
 
 // Handle executes one EC2 USES_PROFILE materialization intent.
@@ -384,7 +384,7 @@ func (h EC2UsesProfileMaterializationHandler) recordSkipCounter(
 func splitEC2UsesProfileEnvelopes(envelopes []facts.Envelope) (resources, postures []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case cloud.EC2InstancePostureFactKind:
 			postures = append(postures, env)

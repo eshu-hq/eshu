@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -305,7 +306,7 @@ func assertResource(t *testing.T, envelopes []facts.Envelope, resourceType strin
 func allResources(envelopes []facts.Envelope, resourceType string) []facts.Envelope {
 	var out []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if envelope.Payload["resource_type"] == resourceType {
@@ -318,7 +319,7 @@ func allResources(envelopes []facts.Envelope, resourceType string) []facts.Envel
 func allRelationships(envelopes []facts.Envelope, relationshipType string) []facts.Envelope {
 	var out []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == relationshipType {

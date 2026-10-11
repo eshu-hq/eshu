@@ -202,7 +202,7 @@ func TestPostgresContainerImageIdentityWriterKeepsLegacyPublicationWinner(t *tes
 func awsTaskDefinitionUsesImageRelationshipFact(factID, image string) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,
-		FactKind:         facts.AWSRelationshipFactKind,
+		FactKind:         cloud.AWSRelationshipFactKind,
 		SourceConfidence: facts.SourceConfidenceReported,
 		Payload: map[string]any{
 			"relationship_type":  "ecs_task_definition_uses_image",

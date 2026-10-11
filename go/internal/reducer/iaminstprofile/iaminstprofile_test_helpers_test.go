@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
@@ -20,7 +21,7 @@ import (
 
 func awsResourceEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload:  payload,
 	}
 }
@@ -55,7 +56,7 @@ func iamInstanceProfileResourceEnvelope(accountID, profileName string, roleARNs 
 		roles = append(roles, arn)
 	}
 	return facts.Envelope{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload: map[string]any{
 			"account_id":          accountID,
 			"region":              "aws-global",

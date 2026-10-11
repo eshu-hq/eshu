@@ -71,7 +71,7 @@ var catalogSeed = []familyodu.CatalogOdu{
 // registry-only path (cloud.AWSTagObservationFactKind carries no
 // PayloadSchema) in the same Odù.
 var awsFamilySchemaBackedKinds = []string{
-	facts.AWSResourceFactKind,
+	cloud.AWSResourceFactKind,
 	cloud.AWSResourcePolicyPermissionFactKind,
 	cloud.AWSSecurityGroupRuleFactKind,
 	facts.AWSWarningFactKind,

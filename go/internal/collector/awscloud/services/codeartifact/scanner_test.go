@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsDomainsRepositoriesAndRelationships(t *testing.T) {
@@ -51,13 +52,13 @@ func TestScannerEmitsDomainsRepositoriesAndRelationships(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 2 {
-		t.Fatalf("aws_resource count = %d, want 2", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 2 {
+		t.Fatalf("aws_resource count = %d, want 2", counts[cloud.AWSResourceFactKind])
 	}
 	// repo->domain (1) + domain->kms (1) + repo->upstream (1, deduped) +
 	// repo->external-connection (1) = 4 relationships.
-	if counts[facts.AWSRelationshipFactKind] != 4 {
-		t.Fatalf("aws_relationship count = %d, want 4", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 4 {
+		t.Fatalf("aws_relationship count = %d, want 4", counts[cloud.AWSRelationshipFactKind])
 	}
 
 	assertResourceType(t, envelopes, awscloud.ResourceTypeCodeArtifactDomain)
@@ -148,11 +149,11 @@ func TestScannerOmitsKMSEdgeWhenDomainReportsNoKey(t *testing.T) {
 		t.Fatalf("Scan returned error: %v", err)
 	}
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 1 {
-		t.Fatalf("aws_resource count = %d, want 1", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 1 {
+		t.Fatalf("aws_resource count = %d, want 1", counts[cloud.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 0 {
-		t.Fatalf("aws_relationship count = %d, want 0", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 0 {
+		t.Fatalf("aws_relationship count = %d, want 0", counts[cloud.AWSRelationshipFactKind])
 	}
 }
 
@@ -245,7 +246,7 @@ func factKindCounts(envelopes []facts.Envelope) map[string]int {
 func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -266,7 +267,7 @@ type relationshipMatch struct {
 func assertRelationship(t *testing.T, envelopes []facts.Envelope, want relationshipMatch) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got != want.relType {

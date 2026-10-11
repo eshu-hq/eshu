@@ -13,7 +13,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -163,7 +162,7 @@ var azureCloudInventoryAttributeAllowlist = cloudInventoryAttributeAllowlist{}
 // adding its source fact kind both here and in the SQL allowlist so the two stay
 // in lockstep.
 var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMapping{
-	facts.AWSResourceFactKind: {
+	cloud.AWSResourceFactKind: {
 		provider:           cloudinventory.ProviderAWS,
 		resourceTypeKey:    "resource_type",
 		accountIDKey:       "account_id",

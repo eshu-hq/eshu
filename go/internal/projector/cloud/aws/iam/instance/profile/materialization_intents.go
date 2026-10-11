@@ -5,6 +5,7 @@ package profile
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -27,7 +28,7 @@ func BuildIAMInstanceProfileRoleMaterializationReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKindMatching(facts.AWSResourceFactKind, func(envelope facts.Envelope) bool {
+	envelope, ok := lookup.FirstOfKindMatching(cloud.AWSResourceFactKind, func(envelope facts.Envelope) bool {
 		resource, err := decodeIAMInstanceProfileAWSResource(envelope)
 		if err != nil {
 			return false

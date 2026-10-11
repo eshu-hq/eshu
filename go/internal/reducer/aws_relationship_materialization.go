@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -150,7 +151,7 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind, facts.AWSRelationshipFactKind},
+		[]string{cloud.AWSResourceFactKind, cloud.AWSRelationshipFactKind},
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for aws relationship materialization: %w", err)

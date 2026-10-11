@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsGroupsRulesAndEncryptionConfig(t *testing.T) {
@@ -390,7 +391,7 @@ func (c fakeClient) GetEncryptionConfig(context.Context) (*EncryptionConfig, err
 
 func firstResource(envelopes []facts.Envelope, resourceType string) (facts.Envelope, bool) {
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -403,7 +404,7 @@ func firstResource(envelopes []facts.Envelope, resourceType string) (facts.Envel
 func relationshipsOfType(envelopes []facts.Envelope, relationshipType string) []facts.Envelope {
 	var out []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

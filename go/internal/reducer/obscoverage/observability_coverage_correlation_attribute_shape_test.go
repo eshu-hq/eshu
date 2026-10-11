@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestBuildObservabilityCoverageDecisionsMalformedDimensionValueQuarantines
@@ -23,7 +24,7 @@ func TestBuildObservabilityCoverageDecisionsMalformedDimensionValueQuarantines(t
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "bad-dimension", false),
 		{
 			FactID:   "alarm-rel-bad",
-			FactKind: facts.AWSRelationshipFactKind,
+			FactKind: cloud.AWSRelationshipFactKind,
 			Payload: map[string]any{
 				"account_id":         testCoverageAccount,
 				"region":             testCoverageRegion,
@@ -82,7 +83,7 @@ func TestBuildObservabilityCoverageDecisionsMalformedXRayServiceNameQuarantines(
 		awsResourceFact("rule-res", "aws_xray_sampling_rule", ruleARN, ruleARN, "bad-service", false),
 		{
 			FactID:   "rule-rel-bad",
-			FactKind: facts.AWSRelationshipFactKind,
+			FactKind: cloud.AWSRelationshipFactKind,
 			Payload: map[string]any{
 				"account_id":         testCoverageAccount,
 				"region":             testCoverageRegion,

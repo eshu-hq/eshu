@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -93,7 +94,7 @@ func TestTriggerFactAWSRelationshipTargetingContainerImage(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.AWSRelationshipFactKind,
+		FactKind: cloud.AWSRelationshipFactKind,
 		Payload: map[string]any{
 			"account_id":         "111111111111",
 			"region":             "us-east-1",
@@ -112,7 +113,7 @@ func TestTriggerFactAWSRelationshipNotTargetingContainerImage(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.AWSRelationshipFactKind,
+		FactKind: cloud.AWSRelationshipFactKind,
 		Payload: map[string]any{
 			"account_id":         "111111111111",
 			"region":             "us-east-1",
@@ -134,7 +135,7 @@ func TestTriggerFactAWSRelationshipUndecodable(t *testing.T) {
 	// enforces; the trigger must discard the decode error and report false,
 	// not panic or propagate the error.
 	envelope := facts.Envelope{
-		FactKind: facts.AWSRelationshipFactKind,
+		FactKind: cloud.AWSRelationshipFactKind,
 		Payload:  map[string]any{},
 	}
 	if triggerFact(envelope) {

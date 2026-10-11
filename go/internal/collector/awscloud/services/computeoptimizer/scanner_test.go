@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -130,7 +131,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 
 	// EBS volume recommendation carries no edge in this scanner yet.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["target_type"].(string); got == awscloud.ResourceTypeEC2Volume {
@@ -140,7 +141,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 
 	// No utilization metric data points / cost values leak into any resource.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		attrs, _ := envelope.Payload["attributes"].(map[string]any)
@@ -162,7 +163,7 @@ func TestScannerCountsExactlyThreeEdges(t *testing.T) {
 	}
 	edges := 0
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			edges++
 		}
 	}
@@ -194,7 +195,7 @@ func TestScannerOmitsInstanceEdgeForNonInstanceARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("unexpected edge for non-instance ARN: %#v", envelope.Payload)
 		}
 	}
@@ -296,7 +297,7 @@ func resourcesByType(t *testing.T, envelopes []facts.Envelope, resourceType stri
 	t.Helper()
 	var out []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -309,7 +310,7 @@ func resourcesByType(t *testing.T, envelopes []facts.Envelope, resourceType stri
 func recommendationByResourceID(t *testing.T, envelopes []facts.Envelope, resourceID string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_id"].(string); got == resourceID {
@@ -323,7 +324,7 @@ func recommendationByResourceID(t *testing.T, envelopes []facts.Envelope, resour
 func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

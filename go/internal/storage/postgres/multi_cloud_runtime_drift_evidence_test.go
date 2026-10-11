@@ -11,7 +11,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -61,7 +60,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderJoinsObservedStateConfigByU
 		queryResponses: []queueFakeRows{
 			// Observed inventory facts for the three providers.
 			{rows: [][]any{
-				{facts.AWSResourceFactKind, orphanARN, []byte(`{"arn":"` + orphanARN + `","resource_type":"aws_iam_role","tags":{"Environment":"prod"}}`)},
+				{cloud.AWSResourceFactKind, orphanARN, []byte(`{"arn":"` + orphanARN + `","resource_type":"aws_iam_role","tags":{"Environment":"prod"}}`)},
 				{cloud.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
 				{cloud.AzureCloudResourceFactKind, azureID, []byte(`{"arm_resource_id":"` + azureID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
 			}},

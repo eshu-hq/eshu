@@ -108,7 +108,7 @@ func TestBuildMaterializationReducerIntentsPreserveEarliestMatch(t *testing.T) {
 func TestBuildMaterializationReducerIntentsSkipMissingKinds(t *testing.T) {
 	t.Parallel()
 
-	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: facts.AWSResourceFactKind}})
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: cloud.AWSResourceFactKind}})
 
 	if got, ok := BuildResourceMaterializationReducerIntent("scope-1", "generation-1", lookup); ok {
 		t.Fatalf("resource intent = %#v, want no intent", got)

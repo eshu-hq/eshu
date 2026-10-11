@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // awsCloudImageBenchCorpus mirrors awsRelationshipBenchCorpus's shape: one
@@ -23,11 +24,11 @@ func awsCloudImageBenchCorpus(count int) (resources, relationships []facts.Envel
 		imageRef := fmt.Sprintf(
 			"111122223333.dkr.ecr.us-east-1.amazonaws.com/fn-%d@sha256:%064d", i, i,
 		)
-		resources = append(resources, facts.Envelope{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+		resources = append(resources, facts.Envelope{FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"resource_type": "aws_lambda_function", "resource_id": fnARN, "arn": fnARN,
 		}})
-		relationships = append(relationships, facts.Envelope{FactKind: facts.AWSRelationshipFactKind, Payload: map[string]any{
+		relationships = append(relationships, facts.Envelope{FactKind: cloud.AWSRelationshipFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"relationship_type":  lambdaFunctionUsesImageRelationshipType,
 			"source_resource_id": fnARN, "source_arn": fnARN,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -49,8 +50,8 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 	t.Run("queues from aws_resource presence, anchored to the earliest fact", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("fact-aws-1", facts.AWSResourceFactKind, "aws", "aws_cloud"),
-			resourceEnvelope("fact-aws-2", facts.AWSResourceFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("fact-aws-1", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("fact-aws-2", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -74,8 +75,8 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// original input order, not the earliest fact overall. A substitute
 		// that anchored on inputFacts[0] would pick fact-rel-1 here.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("fact-rel-1", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
-			resourceEnvelope("fact-aws-2", facts.AWSResourceFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("fact-rel-1", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("fact-aws-2", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -92,7 +93,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// wins over CollectorKind. A single-tier CollectorKind-only substitute
 		// fails here.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("fact-aws-1", facts.AWSResourceFactKind, "  aws  ", "aws_cloud_collector"),
+			resourceEnvelope("fact-aws-1", cloud.AWSResourceFactKind, "  aws  ", "aws_cloud_collector"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -109,7 +110,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// falls through to the trimmed CollectorKind, and a blank source ref
 		// does not drop the intent.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("fact-aws-1", facts.AWSResourceFactKind, "  ", " aws_cloud_collector "),
+			resourceEnvelope("fact-aws-1", cloud.AWSResourceFactKind, "  ", " aws_cloud_collector "),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -123,7 +124,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 	t.Run("does not queue without aws_resource facts", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("fact-rel-1", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("fact-rel-1", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {

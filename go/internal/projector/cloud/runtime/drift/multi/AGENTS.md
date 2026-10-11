@@ -96,7 +96,7 @@
 - Do not widen the export surface past
   `BuildReducerIntent`. Every sibling family in this
   series exports exactly one builder and no types.
-- Do not add `facts.AWSResourceFactKind` to `candidateFactKinds`. AWS-only
+- Do not add `cloud.AWSResourceFactKind` to `candidateFactKinds`. AWS-only
   triggering for this domain was explicitly removed by issue #5759's
   partitioning fix; re-adding it reintroduces the duplicate-finding bug that
   fix closed.

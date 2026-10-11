@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -138,7 +139,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind},
+		[]string{cloud.AWSResourceFactKind},
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for workload cloud relationship materialization: %w", err)
@@ -395,7 +396,7 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 	seen := make(map[edgeKey]struct{}, len(envelopes))
 	rows := make([]map[string]any, 0, len(envelopes))
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
 		resource, err := decodeAWSResource(env)

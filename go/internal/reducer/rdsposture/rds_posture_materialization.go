@@ -213,7 +213,7 @@ func (h RDSPostureMaterializationHandler) Handle(
 }
 
 func rdsPostureFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, cloud.RDSInstancePostureFactKind}
+	return []string{cloud.AWSResourceFactKind, cloud.RDSInstancePostureFactKind}
 }
 
 func (h RDSPostureMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
@@ -247,7 +247,7 @@ func (h RDSPostureMaterializationHandler) shouldSkipRetract(ctx context.Context,
 func splitRDSPostureEnvelopes(envelopes []facts.Envelope) (resources, postures []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case cloud.RDSInstancePostureFactKind:
 			postures = append(postures, env)

@@ -15,7 +15,7 @@ import (
 // triggers shared cloud-inventory admission. It stays in lockstep with the
 // fact-kind allowlist the admission evidence loader reads.
 var cloudInventoryAdmissionSourceFactKinds = map[string]struct{}{
-	facts.AWSResourceFactKind:        {},
+	cloud.AWSResourceFactKind:        {},
 	cloud.GCPCloudResourceFactKind:   {},
 	cloud.AzureCloudResourceFactKind: {},
 }

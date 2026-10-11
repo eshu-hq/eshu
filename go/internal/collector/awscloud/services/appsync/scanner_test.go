@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func testBoundary() awscloud.Boundary {
@@ -163,7 +164,7 @@ func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
 
 	// Every target edge must carry a non-empty target_type so it cannot dangle.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if rt, _ := envelope.Payload["relationship_type"].(string); rt != awscloud.RelationshipAppSyncDataSourceTargetsResource {
@@ -368,7 +369,7 @@ func dataSourceTargetEdges(t *testing.T, envelopes []facts.Envelope) map[string]
 	t.Helper()
 	out := map[string]string{}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if rt, _ := envelope.Payload["relationship_type"].(string); rt != awscloud.RelationshipAppSyncDataSourceTargetsResource {
@@ -384,7 +385,7 @@ func dataSourceTargetEdges(t *testing.T, envelopes []facts.Envelope) map[string]
 func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -398,7 +399,7 @@ func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType strin
 func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
@@ -411,7 +412,7 @@ func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipTy
 func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

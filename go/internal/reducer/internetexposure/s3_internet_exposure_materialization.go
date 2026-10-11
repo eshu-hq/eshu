@@ -77,7 +77,7 @@ type S3InternetExposureMaterializationHandler struct {
 }
 
 func s3InternetExposureFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, cloud.S3BucketPostureFactKind}
+	return []string{cloud.AWSResourceFactKind, cloud.S3BucketPostureFactKind}
 }
 
 // Handle executes one S3 internet-exposure materialization intent.
@@ -257,7 +257,7 @@ func (h S3InternetExposureMaterializationHandler) recordDecisionCounters(ctx con
 func splitS3InternetExposureEnvelopes(envelopes []facts.Envelope) (resources, postures []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case cloud.S3BucketPostureFactKind:
 			postures = append(postures, env)

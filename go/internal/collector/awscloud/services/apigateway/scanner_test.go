@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships(t *testing.T) {
@@ -349,7 +350,7 @@ func resourceByTypeAndID(
 ) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if envelope.Payload["resource_type"] == resourceType && envelope.Payload["resource_id"] == resourceID {
@@ -363,7 +364,7 @@ func resourceByTypeAndID(
 func resourceEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
 	var resources []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSResourceFactKind {
+		if envelope.FactKind == cloud.AWSResourceFactKind {
 			resources = append(resources, envelope)
 		}
 	}
@@ -378,7 +379,7 @@ func assertRelationshipTarget(
 ) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == relationshipType &&
@@ -398,7 +399,7 @@ func singleRelationshipByTypeAndTarget(
 	t.Helper()
 	var matches []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == relationshipType &&

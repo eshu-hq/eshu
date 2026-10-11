@@ -38,18 +38,6 @@ const (
 	// AWSIAMPermissionSchemaVersion is the first derived IAM permission schema.
 	// See [cloud.AWSIAMPermissionSchemaVersion].
 	AWSIAMPermissionSchemaVersion = cloud.AWSIAMPermissionSchemaVersion
-	// AWSRelationshipFactKind identifies one relationship reported by AWS APIs.
-	// See [cloud.AWSRelationshipFactKind].
-	AWSRelationshipFactKind = cloud.AWSRelationshipFactKind
-	// AWSRelationshipSchemaVersion is the first AWS relationship fact schema. See
-	// [cloud.AWSRelationshipSchemaVersion].
-	AWSRelationshipSchemaVersion = cloud.AWSRelationshipSchemaVersion
-	// AWSResourceFactKind identifies one resource reported by an AWS API. See
-	// [cloud.AWSResourceFactKind].
-	AWSResourceFactKind = cloud.AWSResourceFactKind
-	// AWSResourceSchemaVersion is the first AWS resource fact schema. See
-	// [cloud.AWSResourceSchemaVersion].
-	AWSResourceSchemaVersion = cloud.AWSResourceSchemaVersion
 	// AWSWarningFactKind identifies one non-fatal AWS scanner warning. See
 	// [cloud.AWSWarningFactKind].
 	AWSWarningFactKind = cloud.AWSWarningFactKind

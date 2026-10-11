@@ -252,9 +252,9 @@ func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
 	var stats awsEnvelopeStats
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			stats.ResourceCount++
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			stats.RelationshipCount++
 		case cloud.AWSTagObservationFactKind:
 			stats.TagObservationCount++

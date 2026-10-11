@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -53,8 +54,8 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 	t.Run("queues from aws_resource presence, anchored to the earliest fact", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("resource-fact-1", facts.AWSResourceFactKind, "aws", "aws_cloud"),
-			resourceEnvelope("resource-fact-2", facts.AWSResourceFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("resource-fact-1", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("resource-fact-2", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -79,8 +80,8 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// retract-first logic runs. aws_resource presence ALONE is the trigger;
 		// an aws_relationship fact is neither required nor the anchor.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("relationship-fact-1", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
-			resourceEnvelope("resource-fact-2", facts.AWSResourceFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("relationship-fact-1", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("resource-fact-2", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -99,7 +100,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// reopen the readiness-gate bug (the intent enqueues, but the handler
 		// can never see its source nodes as ready).
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("resource-fact-1", facts.AWSResourceFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("resource-fact-1", cloud.AWSResourceFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -117,7 +118,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// SourceRef.SourceSystem over CollectorKind. A single-tier
 		// CollectorKind-only substitute fails here.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("resource-fact-1", facts.AWSResourceFactKind, "  aws  ", "aws_cloud_collector"),
+			resourceEnvelope("resource-fact-1", cloud.AWSResourceFactKind, "  aws  ", "aws_cloud_collector"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -134,7 +135,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// falls through to the trimmed CollectorKind, and a blank source ref
 		// does not drop the intent.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("resource-fact-1", facts.AWSResourceFactKind, "  ", " aws_cloud_collector "),
+			resourceEnvelope("resource-fact-1", cloud.AWSResourceFactKind, "  ", " aws_cloud_collector "),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -151,7 +152,7 @@ func TestBuildMaterializationReducerIntent(t *testing.T) {
 		// observe has nothing for sourceNodesReady to gate on and no
 		// aws_resource_materialization intent would exist either.
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			resourceEnvelope("relationship-fact-1", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
+			resourceEnvelope("relationship-fact-1", cloud.AWSRelationshipFactKind, "aws", "aws_cloud"),
 		})
 		got, ok := BuildMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {

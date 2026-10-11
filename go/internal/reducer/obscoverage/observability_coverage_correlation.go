@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -231,8 +232,8 @@ func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) ([]Observab
 
 func observabilityCoverageCorrelationFactKinds() []string {
 	return []string{
-		facts.AWSResourceFactKind,
-		facts.AWSRelationshipFactKind,
+		cloud.AWSResourceFactKind,
+		cloud.AWSRelationshipFactKind,
 		facts.ObservabilitySourceInstanceFactKind,
 		facts.ObservabilityDeclaredFolderFactKind,
 		facts.ObservabilityDeclaredDashboardFactKind,

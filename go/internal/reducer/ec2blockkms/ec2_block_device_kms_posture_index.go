@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -52,7 +53,7 @@ func buildEC2BlockDeviceKMSIndex(
 	}
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range resourceEnvelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
+		if env.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		resource, err := schemadecode.DecodeAWSResource(env)
@@ -90,7 +91,7 @@ func buildEC2BlockDeviceKMSIndex(
 		}
 	}
 	for _, env := range relationshipEnvelopes {
-		if env.FactKind != facts.AWSRelationshipFactKind {
+		if env.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		relationship, err := schemadecode.DecodeAWSRelationship(env)

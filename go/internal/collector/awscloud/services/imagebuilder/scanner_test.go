@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -74,7 +74,7 @@ func TestScannerEmitsPipelineResourceAndEdges(t *testing.T) {
 
 	// A pipeline with an image recipe must not emit a container recipe edge.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == awscloud.RelationshipImageBuilderPipelineUsesContainerRecipe {
@@ -107,7 +107,7 @@ func TestScannerEmitsImageRecipeWithParentImageAttribute(t *testing.T) {
 
 	// No AMI edge is emitted (there is no EC2 AMI resource type).
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("image recipe must not emit relationship edges, got %#v", envelope.Payload)
 		}
 	}
@@ -276,7 +276,7 @@ func TestScannerOmitsEdgesWhenDependenciesAbsent(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("unexpected relationship emitted with no dependencies: %#v", envelope.Payload)
 		}
 	}

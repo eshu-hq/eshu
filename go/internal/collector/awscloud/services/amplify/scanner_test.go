@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func testBoundary() awscloud.Boundary {
@@ -105,7 +106,7 @@ func resourcesByType(t *testing.T, envelopes []facts.Envelope, resourceType stri
 	t.Helper()
 	var matched []map[string]any
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
+		if env.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if env.Payload["resource_type"] == resourceType {
@@ -119,7 +120,7 @@ func relationshipsByType(t *testing.T, envelopes []facts.Envelope, relType strin
 	t.Helper()
 	var matched []map[string]any
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSRelationshipFactKind {
+		if env.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if env.Payload["relationship_type"] == relType {

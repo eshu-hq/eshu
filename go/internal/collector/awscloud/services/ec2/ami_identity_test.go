@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestScannerDedupesAMIResourceFactAcrossSharedInstances proves the #5717 AMI
@@ -44,12 +44,12 @@ func TestScannerDedupesAMIResourceFactAcrossSharedInstances(t *testing.T) {
 	}
 
 	// 2 instance identity facts + 1 deduped AMI resource fact.
-	if counts := factKindCounts(envelopes); counts[facts.AWSResourceFactKind] != 3 {
-		t.Fatalf("aws_resource count = %d, want 3 (2 instance identities + 1 deduped AMI resource fact)", counts[facts.AWSResourceFactKind])
+	if counts := factKindCounts(envelopes); counts[cloud.AWSResourceFactKind] != 3 {
+		t.Fatalf("aws_resource count = %d, want 3 (2 instance identities + 1 deduped AMI resource fact)", counts[cloud.AWSResourceFactKind])
 	}
 	amiResourceCount := 0
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == awscloud.ResourceTypeEC2AMI {
@@ -60,7 +60,7 @@ func TestScannerDedupesAMIResourceFactAcrossSharedInstances(t *testing.T) {
 		t.Fatalf("AMI resource fact count = %d, want 1 (deduped across 2 instances sharing the same AMI)", amiResourceCount)
 	}
 	// Both instances still resolve their own instance->AMI relationship.
-	if counts := factKindCounts(envelopes); counts[facts.AWSRelationshipFactKind] != 2 {
-		t.Fatalf("aws_relationship count = %d, want 2 (one per instance)", counts[facts.AWSRelationshipFactKind])
+	if counts := factKindCounts(envelopes); counts[cloud.AWSRelationshipFactKind] != 2 {
+		t.Fatalf("aws_relationship count = %d, want 2 (one per instance)", counts[cloud.AWSRelationshipFactKind])
 	}
 }

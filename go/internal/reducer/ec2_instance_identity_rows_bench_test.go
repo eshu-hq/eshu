@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // BenchmarkExtractCloudResourceNodeRowsExcludesEC2InstanceFleet measures the
@@ -27,7 +28,7 @@ func BenchmarkExtractCloudResourceNodeRowsExcludesEC2InstanceFleet(b *testing.B)
 		instanceID := fmt.Sprintf("i-%016d", i)
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("fact-identity-%d", i),
-			FactKind: facts.AWSResourceFactKind,
+			FactKind: cloud.AWSResourceFactKind,
 			Payload: map[string]any{
 				"account_id":    "111122223333",
 				"region":        "us-east-1",

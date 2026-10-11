@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsIAMResourcesAndRelationships(t *testing.T) {
@@ -47,11 +48,11 @@ func TestScannerEmitsIAMResourcesAndRelationships(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 3 {
-		t.Fatalf("aws_resource count = %d, want 3", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 3 {
+		t.Fatalf("aws_resource count = %d, want 3", counts[cloud.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 3 {
-		t.Fatalf("aws_relationship count = %d, want 3", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 3 {
+		t.Fatalf("aws_relationship count = %d, want 3", counts[cloud.AWSRelationshipFactKind])
 	}
 	for _, envelope := range envelopes {
 		if !isAWSCloudFact(envelope.FactKind) {
@@ -138,8 +139,8 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 
 	// The user resource and its permission fact are emitted; the user principal
 	// becomes its own aws_resource node.
-	if counts[facts.AWSResourceFactKind] != 2 {
-		t.Fatalf("aws_resource count = %d, want 2 (role + user)", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 2 {
+		t.Fatalf("aws_resource count = %d, want 2 (role + user)", counts[cloud.AWSResourceFactKind])
 	}
 
 	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourceTrust, "sts:assumerole")
@@ -357,8 +358,8 @@ func factKindCounts(envelopes []facts.Envelope) map[string]int {
 
 func isAWSCloudFact(factKind string) bool {
 	switch factKind {
-	case facts.AWSResourceFactKind,
-		facts.AWSRelationshipFactKind,
+	case cloud.AWSResourceFactKind,
+		cloud.AWSRelationshipFactKind,
 		facts.AWSIAMPermissionFactKind:
 		return true
 	default:
@@ -439,7 +440,7 @@ func assertNoForbiddenPayloadValue(t *testing.T, factKind string, value any, for
 func assertRelationshipType(t *testing.T, envelopes []facts.Envelope, relationshipType string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

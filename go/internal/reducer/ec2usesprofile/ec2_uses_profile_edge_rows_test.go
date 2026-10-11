@@ -22,7 +22,7 @@ import (
 func ec2UsesProfileResourceEnvelope(account, region, name string) facts.Envelope {
 	arn := "arn:aws:iam::" + account + ":instance-profile/" + name
 	return facts.Envelope{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload: map[string]any{
 			"account_id":          account,
 			"region":              region,

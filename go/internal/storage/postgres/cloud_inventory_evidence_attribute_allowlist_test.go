@@ -6,7 +6,6 @@ package postgres
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -34,7 +33,7 @@ func TestCloudInventoryRecordFromRowAWSRawLocatorsNotSurfaced(t *testing.T) {
 		}
 	}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}
@@ -72,7 +71,7 @@ func TestCloudInventoryRecordFromRowAWSECSTaskAllowlistFiltersRawKeys(t *testing
 		}
 	}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}
@@ -131,7 +130,7 @@ func TestCloudInventoryRecordFromRowAWSLambdaAllowlistFiltersRawKeys(t *testing.
 		}
 	}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}
@@ -179,7 +178,7 @@ func TestCloudInventoryRecordFromRowAWSLambdaAllowlistSurfacesPackageType(t *tes
 		}
 	}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}
@@ -218,7 +217,7 @@ func TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectUnderScalarKey(
 		}
 	}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}
@@ -252,7 +251,7 @@ func TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectContainerSubKey
 		}
 	}`)
 
-	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload)
 	if !ok {
 		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
 	}

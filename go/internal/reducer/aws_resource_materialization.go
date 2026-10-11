@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -130,7 +131,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind},
+		[]string{cloud.AWSResourceFactKind},
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for aws resource materialization: %w", err)
@@ -185,7 +186,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 		h.NodeRetracter,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind},
+		[]string{cloud.AWSResourceFactKind},
 		func(prior []facts.Envelope) (map[string]struct{}, error) {
 			priorRows, _, err := ExtractCloudResourceNodeRows(prior)
 			if err != nil {
@@ -267,7 +268,7 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any,
 	var quarantined []quarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
+		if env.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		row, uid, ok, err := cloudResourceNodeRow(env)

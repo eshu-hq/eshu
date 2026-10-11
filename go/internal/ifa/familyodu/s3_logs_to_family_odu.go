@@ -267,9 +267,9 @@ func S3LogsToFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          s3LogsToFamilyScopeID,
 			GenerationID:     s3LogsToFamilyGenerationID,
-			FactKind:         facts.AWSResourceFactKind,
-			StableFactKey:    s3LogsToFamilyStableFactKey(facts.AWSResourceFactKind, fixture.BucketName),
-			SchemaVersion:    facts.AWSResourceSchemaVersion,
+			FactKind:         cloud.AWSResourceFactKind,
+			StableFactKey:    s3LogsToFamilyStableFactKey(cloud.AWSResourceFactKind, fixture.BucketName),
+			SchemaVersion:    cloud.AWSResourceSchemaVersion,
 			CollectorKind:    s3LogsToFamilyCollectorKind,
 			SourceConfidence: s3LogsToFamilySourceConfidence,
 			Payload:          payload,

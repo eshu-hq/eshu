@@ -111,7 +111,7 @@ func buildRDSPostureResourceIndex(envelopes []facts.Envelope) (map[string]struct
 	index := make(map[string]struct{}, len(envelopes))
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
+		if env.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		resource, err := schemadecode.DecodeAWSResource(env)

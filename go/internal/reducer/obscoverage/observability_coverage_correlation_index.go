@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -120,7 +121,7 @@ func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityC
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resource, err := schemadecode.DecodeAWSResource(env)
 			if err != nil {
 				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
@@ -133,7 +134,7 @@ func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityC
 				continue
 			}
 			index.ingestResource(resource, env.FactID, env.IsTombstone)
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			relationship, err := schemadecode.DecodeAWSRelationship(env)
 			if err != nil {
 				q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
@@ -36,7 +35,7 @@ func cloudInventorySourceRows() [][]any {
 	gcpName := "//compute.googleapis.com/projects/p/zones/z/instances/i"
 	azureID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"
 	return [][]any{
-		{facts.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket","account_id":"111111111111","resource_id":"managed-bucket","region":"us-east-1"}`)},
+		{cloud.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket","account_id":"111111111111","resource_id":"managed-bucket","region":"us-east-1"}`)},
 		{cloud.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
 		{cloud.AzureCloudResourceFactKind, azureID, []byte(`{"arm_resource_id":"` + azureID + `","resource_type":"microsoft.compute/virtualmachines","subscription_id":"11111111-2222-3333-4444-555555555555","location":"eastus"}`)},
 	}

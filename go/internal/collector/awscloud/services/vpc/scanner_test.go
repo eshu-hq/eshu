@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsRouteTableAndRelationships(t *testing.T) {
@@ -54,7 +54,7 @@ func TestScannerEmitsRouteTableAndRelationships(t *testing.T) {
 	// Local route (gateway_id="local") MUST NOT generate an internet-gateway
 	// relationship. Only igw-prefixed gateway IDs are internet gateways.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == awscloud.RelationshipVPCRouteTargetsInternetGateway {
@@ -170,7 +170,7 @@ func TestScannerEmitsVPCPeeringBothSides(t *testing.T) {
 
 	var requesterSeen, accepterSeen bool
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] != awscloud.RelationshipVPCPeeringConnectsVPC {

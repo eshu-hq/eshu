@@ -56,8 +56,8 @@ func iamInstanceProfileResourceFact(factID, scopeID, generationID string, roleAR
 		FactID:        factID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
-		FactKind:      facts.AWSResourceFactKind,
-		SchemaVersion: facts.AWSResourceSchemaVersion,
+		FactKind:      cloud.AWSResourceFactKind,
+		SchemaVersion: cloud.AWSResourceSchemaVersion,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{
@@ -216,7 +216,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		// NOT also trigger container_image_identity.
 		{
 			FactID: "aws-relationship-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.AWSRelationshipFactKind, SchemaVersion: facts.AWSRelationshipSchemaVersion,
+			FactKind: cloud.AWSRelationshipFactKind, SchemaVersion: cloud.AWSRelationshipSchemaVersion,
 			CollectorKind: "aws_cloud", SourceRef: facts.Ref{SourceSystem: "aws"},
 			Payload: map[string]any{
 				"account_id": "123456789012", "region": "us-east-1",

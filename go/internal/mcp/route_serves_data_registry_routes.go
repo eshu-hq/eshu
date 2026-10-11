@@ -72,7 +72,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				Domain: "aws_cloud_runtime_drift",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_inventory_read_model.go", Marker: "reducer_cloud_resource_identity"},
-					{File: "go/internal/projector/cloud/inventory/reducer_intent.go", Marker: "facts.AWSResourceFactKind"},
+					{File: "go/internal/projector/cloud/inventory/reducer_intent.go", Marker: "cloud.AWSResourceFactKind"},
 				},
 			},
 			{

@@ -189,7 +189,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind, cloud.AWSSecurityGroupRuleFactKind},
+		[]string{cloud.AWSResourceFactKind, cloud.AWSSecurityGroupRuleFactKind},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for security group reachability materialization: %w", err)
@@ -420,7 +420,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) recordSkip(ctx context.
 func splitSecurityGroupReachabilityEnvelopes(envelopes []facts.Envelope) (resources, rules []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case cloud.AWSSecurityGroupRuleFactKind:
 			rules = append(rules, env)

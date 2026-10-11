@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestRecordSourceWalksEveryTargetTupleWithoutStores: record mode has no
@@ -18,7 +19,7 @@ import (
 func TestRecordSourceWalksEveryTargetTupleWithoutStores(t *testing.T) {
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 	factory := &stubScannerFactory{scanner: stubScanner{envelopes: []facts.Envelope{{
-		FactKind: facts.AWSResourceFactKind, StableFactKey: "resource-1", SchemaVersion: facts.AWSResourceSchemaVersion,
+		FactKind: cloud.AWSResourceFactKind, StableFactKey: "resource-1", SchemaVersion: cloud.AWSResourceSchemaVersion,
 		CollectorKind: awscloud.CollectorKind, FencingToken: 1, SourceConfidence: facts.SourceConfidenceReported,
 	}}}}
 	provider := &stubCredentialProvider{lease: &stubCredentialLease{}}

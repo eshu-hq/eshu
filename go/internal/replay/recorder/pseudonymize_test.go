@@ -75,8 +75,8 @@ func awsShapedGeneration() collector.CollectedGeneration {
 	image := rawAccount + ".dkr.ecr.us-east-1.amazonaws.com/" + rawRepo + ":1.4.2"
 	envs := []facts.Envelope{
 		{
-			FactKind:         facts.AWSResourceFactKind,
-			StableFactKey:    facts.StableID(facts.AWSResourceFactKind, map[string]any{"account_id": rawAccount, "region": "us-east-1", "resource_id": taskARN, "resource_type": "ecs.task"}),
+			FactKind:         cloud.AWSResourceFactKind,
+			StableFactKey:    facts.StableID(cloud.AWSResourceFactKind, map[string]any{"account_id": rawAccount, "region": "us-east-1", "resource_id": taskARN, "resource_type": "ecs.task"}),
 			SchemaVersion:    "1",
 			CollectorKind:    string(scope.CollectorAWS),
 			FencingToken:     1,

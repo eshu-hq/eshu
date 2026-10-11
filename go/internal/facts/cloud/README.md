@@ -48,16 +48,17 @@ Go standard library only (`slices`). No internal package imports.
 ## Depended on by
 
 Today: the facts root's `compat_cloud.go` imports `cloud` and forwards
-only the remaining big-four collector entries and `AWSSchemaVersion` as
-`facts.<Name>` (e.g. `facts.AWSResourceFactKind` aliases
-`cloud.AWSResourceFactKind`), and
+only the remaining `AWSSchemaVersion` plus the IAMPermission and Warning
+kinds as `facts.<Name>` (e.g. `facts.AWSIAMPermissionFactKind` aliases
+`cloud.AWSIAMPermissionFactKind`), and
 `go/internal/facts/schema_version.go`'s `schemaVersionFamilies` table
 reaches `cloud.AWSFactKinds` directly while still referencing the
 remaining `AWSSchemaVersion` forwarder. The posture forwarders
-(`compat_cloud_posture.go`), the gcp stanza, and the small-AWS entries
+(`compat_cloud_posture.go`), the gcp stanza, the small-AWS entries
 (`AWSFactKinds` plus the DNSRecord, ImageReference,
-ResourcePolicyPermission, SecurityGroupRule, and TagObservation kinds)
-were retired in #6950 once the last caller moved to the `cloud.<Name>`
+ResourcePolicyPermission, SecurityGroupRule, and TagObservation kinds),
+and the `AWSResource` / `AWSRelationship` entries were retired in #6950
+once the last caller moved to the `cloud.<Name>`
 spelling. Every external caller that uses `cloud.AWSFactKinds` /
 `cloud.AzureFactKinds` / etc. — `go/cmd/capability-inventory/surfaces.go`,
 `go/cmd/fact-kind-registry/main.go`, and the `schema_version` table and
@@ -309,6 +310,47 @@ or renames no metric, span, structured log, or status field in any touched
 package. The collector, reducer, projector, storage, and mcp telemetry that
 reads and writes facts of these kinds is untouched; operator signals are
 identical before and after.
+
+No-Regression Evidence (#6950 batch 5c): this change moves the two big
+AWS collector kinds' Go importers
+(`AWSResourceFactKind`, `AWSResourceSchemaVersion`,
+`AWSRelationshipFactKind`, `AWSRelationshipSchemaVersion`) off the
+transitional `facts.AWS*` compat spellings and deletes the four emptied
+entries from `compat_cloud.go`. No fact-kind string, payload shape,
+registry entry, or executable statement changes: across 290 files (289 Go
+caller files plus the four-entry deletion; this note, the two ledger rows,
+and the stale-guidance rewords ride in the follow-up docs-only commit),
+every production hunk requalifies an identifier or import path only, and
+the build resolves with no dangling reference. Measurement: identical
+before/after outcomes (ledger:6950-cloud-batch5c-before,
+ledger:6950-cloud-batch5c-after). The command is `go test -count=1 ./...`
+over the full tree on baseline `64f6600d9` vs measurement commit
+`df95f6ee7` (this Evidence note, the two ledger rows, and the
+stale-guidance rewords are the only later changes): 1087 packages ok plus
+the same single pre-existing host-only `TestFetchChurnZombiesDrainedByReaper`
+failure (#7865, fails identically on the clean base and on the untouched
+main checkout) on both sides, with the ok-package set byte-identical after
+timing strip. `go test -list` inventory is identical on both sides (32100
+names: 31746 Test + 354 Bench). The runtime `FactKindRegistry()` dump is
+byte-identical before/after (182 entries). Backend/version: go1.26.2
+linux/amd64, in-memory; no backend touched. Input shape: n/a (no runtime
+input). Terminal queue/row counts: none — no queue, lease, Cypher, or SQL
+path is touched. Contract gates green on the branch:
+`verify-fact-kind-registry.sh` (generated artifacts current),
+`verify-factschema-diff.sh` (no breaking changes),
+`verify-payload-usage-manifest.sh`, `verify-contracttest.sh` (contract
+data current), and `verify-openapi.sh` (261 HandleFunc routes, 261 OpenAPI
+path entries). The change is safe because it cannot alter runtime
+behavior: the compiler resolves the same constants through their new
+paths, and the compat deletion is compile-enforced total — any missed
+caller would fail the build.
+
+No-Observability-Change (#6950 batch 5c): this package carries no
+instrumentation (see Telemetry above)
+and the move adds, removes, or renames no metric, span, structured log, or
+status field in any touched package. The collector, reducer, projector,
+storage, and mcp telemetry that reads and writes facts of these kinds is
+untouched; operator signals are identical before and after.
 
 ## Related docs
 

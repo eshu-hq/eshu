@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -45,8 +46,8 @@ func TestRuntimeProjectSkipsContentMaterializationForNonRepositoryScopes(t *test
 			FactID:        "aws-resource-1",
 			ScopeID:       scopeValue.ScopeID,
 			GenerationID:  generationValue.GenerationID,
-			FactKind:      facts.AWSResourceFactKind,
-			SchemaVersion: facts.AWSResourceSchemaVersion,
+			FactKind:      cloud.AWSResourceFactKind,
+			SchemaVersion: cloud.AWSResourceSchemaVersion,
 			ObservedAt:    generationValue.ObservedAt,
 			Payload: map[string]any{
 				"account_id":    "123456789012",

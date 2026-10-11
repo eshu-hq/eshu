@@ -11,7 +11,6 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -101,7 +100,7 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind, cloud.AWSSecurityGroupRuleFactKind},
+		[]string{cloud.AWSResourceFactKind, cloud.AWSSecurityGroupRuleFactKind},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for security group rule materialization: %w", err)
