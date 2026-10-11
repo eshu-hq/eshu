@@ -81,12 +81,22 @@ the step reaches.
 | R | Every other call: `docker compose`, `docker-compose`, a command array, a variable command word, a wrapper call in a step without CI image mode, a look-alike path | Judged by the images its files name. An `-f` operand that does not resolve to a file is Docker Hub. |
 
 A wrapper call is W when the command word, behind `bash`, `sh`, `exec`,
-`timeout N`, `nice`, `sudo` or `env`, is the literal path tail
+`timeout N`, `nice`, `sudo -E` or `env`, is the literal path tail
 `scripts/ci/compose.sh` with no prefix, `./`, or one `${VAR}`, `$VAR` or `"$VAR"`
 followed by `/`. A literal `bash scripts/ci/compose.sh` in the arguments of a
 runner function, in a literal `bash -c` string, in a pipeline, a function, a
 subshell or a background job is W too: the wrapper is what runs. A path held in
 a variable is not W.
+
+Words that run before the path decide the call. It is R, whatever follows, when
+they hold a `docker` or `docker-compose` word (the wrapper path is then an
+argument of a Compose call, and `run` pulls the image first), `podman`,
+`kubectl`, `ssh`, `su`, `runuser`, `nsenter`, `chroot` or `systemd-run`, a
+`sudo` without `-E` (its default `env_reset` drops `GITHUB_ACTIONS` and CI image
+mode), `env -i`, `env -u` of `GITHUB_ACTIONS` or `ESHU_CI_IMAGES`, or a
+`NAME=value` word that sets `GITHUB_ACTIONS` to anything but `true` or
+`ESHU_CI_IMAGES` to anything but `1`. Each of these runs the wrapper in an
+environment where the run-time guard (which tests `GITHUB_ACTIONS`) never fires.
 
 `"${ESHU_CI_COMPOSE_OVERLAY}"` as an `-f` operand settles nothing. A direct
 `docker compose -f <file> -f "${ESHU_CI_COMPOSE_OVERLAY}" up` after a correct
@@ -100,9 +110,11 @@ overlay builder (`scripts/lib/ci_image_compose.py`) fails closed: a rendered
 service image that is Docker Hub and not a ledger runtime source, an image
 outside the allowlist, and a build that is not the canonical root Dockerfile all
 exit 1, and the wrapper exits 1 with them. A changed flag set, file or pin
-fails the signature check. In CI the wrapper also refuses to run when
-`ESHU_CI_IMAGES` is not `1` (`ci-compose: CI image mode is off in CI`), so a
-step that clears the variable becomes a red job, never a Docker Hub pull.
+fails the signature check. In CI (`GITHUB_ACTIONS=true`) the wrapper also
+refuses to run when `ESHU_CI_IMAGES` is not `1` (`ci-compose: CI image mode is
+off in CI`), so a step that clears the variable becomes a red job, never a
+Docker Hub pull. The guard cannot see a call that removed `GITHUB_ACTIONS`
+itself; the gate treats the `env` and prefix shapes that do so as R (above).
 `scripts/test-ci-image-compose.sh` runs these refusals.
 
 ### Migration rule
@@ -115,8 +127,14 @@ bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- up -d
 ```
 
 A script that makes many calls may call `eshu_ci_compose_prepare "${repo_root}"
-"${compose_args[@]}"` once, so the wrapper takes the signature path. Do not
-append the overlay by hand.
+"${compose_args[@]}"` once, so the wrapper takes the signature path. The
+signature hashes the value of every variable that a root `docker-compose*.y*ml`
+names, comments included, so after a prepare any `export`, `unset` or
+`NAME=value` prefix of such a variable makes the next wrapper call exit 1
+(`prepared overlay no longer matches`). Prepare after the last such write, or do
+not prepare and let each call render its own overlay (about 1 s). The golden
+corpus gate does not prepare: it runs one preflight call and exports the Ask and
+metrics source variables afterwards. Do not append the overlay by hand.
 
 ### Dockerfile ARGs and PATH-shadowed stubs
 
@@ -131,9 +149,14 @@ or a reset of `PATH` between the prepend and the call breaks the shadow.
 
 The gate reads text. It does not run a script, and main's gate had the same gaps.
 
-- A wrapper path held in a variable is not seen as the wrapper. A shell-level
-  write that clears `ESHU_CI_IMAGES` (`unset`, `env -i`, `ESHU_CI_IMAGES=0`) is
-  closed by the wrapper guard at run time, not by the gate.
+- A wrapper path held in a variable is not seen at all: the call is neither W
+  nor named as a look-alike, so a script that a variable names is judged only
+  by the gate's reader of scripts.
+- A statement before the call that removes the mode (`unset GITHUB_ACTIONS
+  ESHU_CI_IMAGES`, `export GITHUB_ACTIONS=false`) is not seen. The wrapper guard
+  closes a write of `ESHU_CI_IMAGES` while `GITHUB_ACTIONS` stays `true`; a script
+  that removes `GITHUB_ACTIONS` as well runs the wrapper raw. A runner function
+  that clears the mode inside its own body is not seen either.
 - The docker lexer reads a heredoc body only when the line that opens it is a
   shell (`bash <<EOF`). It does not read `cat <<EOF | bash`,
   `sh -c "$(cat <<EOF ...)"`, `eval "$(cat <<EOF ...)"`, `. /dev/stdin <<EOF`, or

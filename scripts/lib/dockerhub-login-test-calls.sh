@@ -47,7 +47,7 @@ wjob "${d}" w-unquoted-variable-prefix 1 'bash $repo_root/scripts/ci/compose.sh 
 wjob "${d}" w-dot-slash 1 './scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-timeout 1 'timeout 300 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-nice 1 'nice -n 5 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
-wjob "${d}" w-sudo 1 'sudo -u root bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" w-sudo-preserving-the-environment 1 'sudo -E -u root bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-env 1 'env FOO=1 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-exec 1 'exec bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-sh 1 'sh scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
@@ -62,6 +62,8 @@ wjob "${d}" w-under-xargs 1 'echo x | xargs bash scripts/ci/compose.sh -f docker
 wjob "${d}" w-as-the-argument-of-a-runner-function 1 'run_bounded() { "$@"; }' 'run_bounded bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-in-a-literal-bash-c-string 1 "bash -o pipefail -c 'bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- config'"
 wjob "${d}" w-in-a-command-array 1 'WC=(bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml --)' '"${WC[@]}" up -d'
+wjob "${d}" w-env-keeps-the-mode 1 'env GITHUB_ACTIONS=true ESHU_CI_IMAGES=1 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" w-prefix-keeps-the-mode 1 'ESHU_CI_IMAGES=1 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-pulling-nothing-beside 1 "${wrapper_cmd}" 'docker compose -f docker-compose.fixture-ledger.yaml down -v'
 expect_green queue-path-wrapper-calls-are-settled "${d}"
 
@@ -121,6 +123,26 @@ wjob "${d}" q-runner-argument-with-a-lookalike-path 1 \
 wjob "${d}" q-command-array-with-a-raw-call-beside 1 \
   'WC=(bash scripts/ci/compose.sh -f docker-compose.fixture-other.yaml --)' '"${WC[@]}" config' \
   'docker compose -f docker-compose.fixture-ledger.yaml up -d'
+# An env or a prefix that removes GITHUB_ACTIONS or CI image mode runs the wrapper raw:
+# the run-time guard tests GITHUB_ACTIONS, so it never fires. Those calls are raw.
+wjob "${d}" q-env-ignore-environment-before-the-wrapper 1 'env -i bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-env-unset-the-mode-before-the-wrapper 1 'env -u GITHUB_ACTIONS -u ESHU_CI_IMAGES bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-env-long-unset-before-the-wrapper 1 'env --unset=GITHUB_ACTIONS bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-prefix-turns-the-mode-off-before-the-wrapper 1 'GITHUB_ACTIONS=false ESHU_CI_IMAGES=0 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-prefix-turns-ci-images-off-before-the-wrapper 1 'ESHU_CI_IMAGES=0 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+# A docker compose call that carries the wrapper path as its own arguments is the raw
+# call it is: run pulls the service image before the container command starts. A
+# second raw name that is not Docker Hub must not hide it.
+printf 'services:\n  db:\n    image: %s\n' "${ledger_pin_alpine}" >"${d}/docker-compose.fixture-ghcr.yaml"
+wjob "${d}" q-compose-run-with-the-wrapper-as-its-command 1 \
+  'docker compose -f docker-compose.fixture-ghcr.yaml config' \
+  'docker compose -f docker-compose.fixture-ledger.yaml run --rm db bash scripts/ci/compose.sh'
+wjob "${d}" q-docker-compose-binary-with-the-wrapper-as-its-command 1 \
+  'docker compose -f docker-compose.fixture-ghcr.yaml config' \
+  'docker-compose -f docker-compose.fixture-ledger.yaml run --rm db bash scripts/ci/compose.sh'
+# sudo resets the environment by default (env_reset): GITHUB_ACTIONS and CI image mode
+# are gone, so the wrapper runs raw unless sudo is told to keep them.
+wjob "${d}" q-sudo-resets-the-environment-before-the-wrapper 1 'sudo -u root bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" q-wrapper-without-ci-mode 0 "${wrapper_cmd}"
 expect_queue_jobs_red queue-path-raw-compose-calls-fail "${d}" \
   q-raw-run-text q-raw-in-a-script q-raw-root-build q-raw-compose-run q-raw-docker-compose-binary q-raw-timeout \
@@ -129,7 +151,11 @@ expect_queue_jobs_red queue-path-raw-compose-calls-fail "${d}" \
   q-raw-overlay-operand-after-prepare q-raw-overlay-array-after-prepare q-raw-prepare-failure-swallowed \
   q-wrapper-other-directory q-wrapper-longer-name q-wrapper-with-two-prefixes q-wrapper-beside-a-raw-call q-wrapper-without-ci-mode \
   q-bash-c-string-with-a-raw-call-inside q-runner-function-with-a-raw-compose-inside \
-  q-runner-argument-with-a-lookalike-path q-command-array-with-a-raw-call-beside
+  q-runner-argument-with-a-lookalike-path q-command-array-with-a-raw-call-beside \
+  q-env-ignore-environment-before-the-wrapper q-env-unset-the-mode-before-the-wrapper \
+  q-env-long-unset-before-the-wrapper q-prefix-turns-the-mode-off-before-the-wrapper \
+  q-prefix-turns-ci-images-off-before-the-wrapper q-compose-run-with-the-wrapper-as-its-command \
+  q-docker-compose-binary-with-the-wrapper-as-its-command q-sudo-resets-the-environment-before-the-wrapper
 
 # A tree without the wrapper makes every wrapper call a raw call.
 ledger_tree queue-red-wrapper-missing

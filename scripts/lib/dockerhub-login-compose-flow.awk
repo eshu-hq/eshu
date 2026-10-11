@@ -215,7 +215,7 @@ function scan(s, fn, depth,   T, S, n, a, b, i, k, o, c, pk, nk) {
 }
 
 # command handles the words T[a..b] of one command.
-function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args, skip, had, haspath, pathv, isw, lk, sep, flg) {
+function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args, skip, had, haspath, pathv, isw, lk, sep, flg, pmo) {
   for (i = a; i <= b; i++) if (index(T[i], "$(") > 0 || substr(T[i], 1, 1) == "`") subst_scan(T[i], fn, depth)
   # leading control words, declaration keywords and flags
   while (a <= b) {
@@ -233,9 +233,14 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
     return
   }
   # leading NAME=value words
-  asgc = 0; haspath = 0; pathv = ""
+  asgc = 0; haspath = 0; pathv = ""; pmo = 0
   while (a <= b && T[a] ~ /^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=/) {
     w = T[a]; nm = w; sub(/[\[+=].*$/, "", nm)
+    # a prefix that turns GITHUB_ACTIONS or CI image mode off in front of the wrapper
+    if (nm == "GITHUB_ACTIONS" || nm == "ESHU_CI_IMAGES") {
+      v = w; sub(/^[^=]*=/, "", v)
+      if (nm == "GITHUB_ACTIONS" ? unq(v) != "true" : unq(v) != "1") pmo = 1
+    }
     if (nm == "PATH") { haspath = 1; v = w; sub(/^PATH\+?=/, "", v); pathv = v }
     if (tolower(nm) ~ /compose/) asgc = 1
     if (T[a + 1] == "(") asgc = 1
@@ -261,6 +266,7 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
     for (i = a + 1; i <= b; i++) { if (T[i] !~ /^-/) { print fn SEP T[i]; break } }
   }
   isw = (mode == "ops" || mode == "wnames" || mode == "wsum") ? is_wrapper(T, a, b) : 0
+  if (pmo) isw = 0
   # NAME=(bash .../scripts/ci/compose.sh args --): a command array that holds the wrapper
   if (isw == 0 && T[a] == "(" && (mode == "ops" || mode == "wnames" || mode == "wsum")) isw = is_wrapper(T, a + 1, b)
   if (mode == "wnames" && isw) wnames(T, a, b, fn)
@@ -323,9 +329,11 @@ function ops(T, a, b, ctx, fn, isw,   i, w, lw, inc, subc, suba, an, cn, lit, k,
 
 # is_wrapper is 1 when the command T[a..b] runs the CI compose wrapper: its command
 # word is the literal path tail scripts/ci/compose.sh, with no prefix, ./, or one
-# variable and a slash, behind any of bash, sh, exec, timeout, nice, sudo, env or a
+# variable and a slash, behind any of bash, sh, exec, timeout, nice, sudo -E, env or a
 # NAME=value word. A path held entirely in a variable, bash -c and any other
-# wrapper (xargs, retry) are not the wrapper: they are raw calls.
+# wrapper (xargs, retry) are not the wrapper: they are raw calls. Words that run
+# before the path decide the call too (headbad): a compose call, or a command that
+# removes GITHUB_ACTIONS or CI image mode from the wrapper's environment.
 function is_wrapper(T, a, b,   i, w, base, j) {
   # the literal wrapper path right after bash or sh anywhere in the command: a runner
   # function (retry, a capture helper) that is handed "bash scripts/ci/compose.sh ..."
@@ -334,7 +342,7 @@ function is_wrapper(T, a, b,   i, w, base, j) {
     if (base != "bash" && base != "sh") continue
     i = j + 1
     while (i <= b && unq(T[i]) ~ /^-/) { if (unq(T[i]) ~ /^-[A-Za-z]*c$/) break; i++ }
-    if (i <= b && unq(T[i]) !~ /^-/ && wpath(T[i])) return 1
+    if (i <= b && unq(T[i]) !~ /^-/ && wpath(T[i]) && !headbad(T, a, j - 1)) return 1
   }
   i = a
   while (i <= b) {
@@ -369,11 +377,49 @@ function is_wrapper(T, a, b,   i, w, base, j) {
     if (base == "bash" || base == "sh") {
       i++
       while (i <= b && unq(T[i]) ~ /^-/) { if (unq(T[i]) ~ /^-[A-Za-z]*c$/) return 0; i++ }
-      return (i <= b) ? wpath(T[i]) : 0
+      return (i <= b) ? (wpath(T[i]) && !headbad(T, a, i - 1)) : 0
     }
     break
   }
-  return (i <= b) ? wpath(T[i]) : 0
+  return (i <= b) ? (wpath(T[i]) && !headbad(T, a, i - 1)) : 0
+}
+
+# headbad is 1 when the words T[a..e], which run before the wrapper path, make the
+# call a raw call: a docker or docker-compose word (the wrapper path is then an
+# argument of a compose call, and run pulls the image first), a command that starts
+# another environment (podman, kubectl, ssh, su, runuser, nsenter, chroot,
+# systemd-run), sudo without -E (env_reset drops GITHUB_ACTIONS and the mode), env -i
+# or env -u of GITHUB_ACTIONS or ESHU_CI_IMAGES, and a NAME=value word that sets
+# GITHUB_ACTIONS to anything but true or ESHU_CI_IMAGES to anything but 1. The
+# run-time guard tests GITHUB_ACTIONS, so a call that removes it is never refused.
+function headbad(T, a, e,   k, m, w, base, n, v, keep) {
+  for (k = a; k <= e; k++) {
+    w = unq(T[k]); base = w; sub(/^.*\//, "", base)
+    if (base ~ /^(docker|docker-compose|podman|kubectl|ssh|su|runuser|nsenter|chroot|systemd-run)$/) return 1
+    if (base == "sudo") {
+      keep = 0
+      for (m = k + 1; m <= e; m++) {
+        n = unq(T[m])
+        if (n == "-E" || n == "--preserve-env") keep = 1
+        if (n == "-i" || n == "--login" || n == "-s" || n == "--shell") return 1
+      }
+      if (!keep) return 1
+    }
+    if (base == "env") {
+      for (m = k + 1; m <= e; m++) {
+        n = unq(T[m])
+        if (n == "--ignore-environment" || n ~ /^-[A-Za-z]*i[A-Za-z]*$/) return 1
+        v = ""
+        if (n == "-u" || n == "--unset") v = unq(T[m + 1])
+        else if (n ~ /^--unset=/) { v = n; sub(/^--unset=/, "", v) }
+        else if (n ~ /^-u./) { v = n; sub(/^-u/, "", v) }
+        if (v == "GITHUB_ACTIONS" || v == "ESHU_CI_IMAGES") return 1
+      }
+    }
+    if (w ~ /^GITHUB_ACTIONS=/) { v = w; sub(/^[^=]*=/, "", v); if (unq(v) != "true") return 1 }
+    if (w ~ /^ESHU_CI_IMAGES=/) { v = w; sub(/^[^=]*=/, "", v); if (unq(v) != "1") return 1 }
+  }
+  return 0
 }
 
 # wpath is 1 for the wrapper path tail with an allowed prefix.
