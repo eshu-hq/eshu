@@ -23,7 +23,7 @@ measurements are in the
 
 ## 1. Context
 
-On ops-qa, one repository story (R1) spends 6.63-6.95 s in the
+In the QA environment, one repository story (R1) spends 6.63-6.95 s in the
 `deployment_artifacts` stage on four calls. The route takes 6.92-7.97 s. The
 stage recomputes, on every request, the config artifacts of every related
 repository from file content in `content_files`.
@@ -61,7 +61,7 @@ published as a PR.
 The measured effects come from the PR1 and PR1b review verdicts and the CPU
 bench. Those are local kit notes, not in the repository.
 
-An earlier estimate put PR1 plus PR2 at 2.5-4.5 s for the stage on ops-qa.
+An earlier estimate put PR1 plus PR2 at 2.5-4.5 s for the stage in the QA environment.
 That is a theory until it is measured after the roll.
 
 ## 2. Options
@@ -168,7 +168,7 @@ summary:
 - The dirty set is a join of state and versions, not a
   table.
 - Size: R1 shows about 21 rows per repository. For the 815 repositories
-  ops-qa listed on 2026-10-10, that gives roughly 17,000 rows. This is an
+  the QA environment listed on 2026-10-10, that gives roughly 17,000 rows. This is an
   extrapolation. The count 815 comes from the local kit note
   `7126-story-span-probe-20261010.md`, which is not in the repository.
 
@@ -251,7 +251,7 @@ path is the oracle, so PR3 changes no extraction semantics.
    per repository, writers derive, and the walker backfills. The read mode
    stays `live`. **Proposed** variable name: `ESHU_CONFIG_ARTIFACT_READ_MODE`,
    with the values `live`, `shadow` and `stored`.
-3. ops-qa runs `shadow`: each request computes both answers, compares them per
+3. The QA environment runs `shadow`: each request computes both answers, compares them per
    repository, logs a mismatch, and serves the live answer.
 4. Cut over to `stored` when all of these hold (**Proposed** gates):
    - The backfill marker exists.
@@ -332,7 +332,7 @@ Follow-ups, to be filed as separate issues by the coordinator:
    50-candidate cap, with the S6 census.
 2. The cold-route stages outside PR3 (section 6).
 
-## 6. Acceptance on ops-qa after the roll
+## 6. Acceptance in the QA environment after the roll
 
 Measure the same R1 and R2 with the same method as the 2026-10-10 probes:
 serial story requests, `/metrics` deltas, stage log lines, cAdvisor CPU deltas.
@@ -374,7 +374,7 @@ those stages change, which is outside PR3.
 | PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences, and the arm 7 cases (1a, 1b, 2, 3). A schema test that recomputes every seeded digest in SQL. **Proposed**: a test that no Go statement deletes version rows outside a documented retirement path. The startup encoding check |
 | PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort. Split `normalizeRepoScopedPath` into clean and strip | after PR1, PR1b and PR2 merge | Existing tests and the PR1 differential pass unchanged. Tie count. The S0 tests run against the strip step |
 | PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
-| PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. Ops-qa shadow then acceptance |
+| PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. QA-environment shadow then acceptance |
 
 PR3a waits because PR1 edits the loader, hydration, kustomize, HCL and
 Ansible files, PR1b edits the HCL files and adds `prefilter/`, and PR2 edits
@@ -393,7 +393,7 @@ note. Details are in section 6 of the protocol companion.
 | S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names | store the name in the state row and run S5. **Ran: PASS**. The two loader-level merge cases are not part of S0. They are in S4 and PR3c |
 | S2 read plan | local PostgreSQL 18 | The reader's three-table join for 300 ids and the dirty join over 815 repositories. Each runs in at most 5 ms with a generic plan. No scan of a table that grows with `content_files` | change the key or the statement. **Ran: PASS** with the four-column key: reader join 2.44 ms, dirty join 0.18 ms. With the digest key only the paths read was measured (2.14 ms). The digest-key reader join is not measured. See the evidence appendix, section 4 |
 | S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write with few tombstones has two). A delta Write expects ceil((tombstones + reaped paths) / 500) delete transactions plus its upsert batches. Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1 | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
-| S6 cap census | ops-qa, read-only | counts recorded for the follow-up issue | none: input only |
+| S6 cap census | QA environment, read-only | counts recorded for the follow-up issue | none: input only |
 | S1 derive cost | local, PR1, PR1b and PR2 stacked | at most 10% of content-stage p95. At most 2 s for the worst repository | reopen F1 |
 | S4 equality | PR3b gate | Symmetric difference `0/0` for every golden-corpus repository. Two loader-level merge cases too: two related repositories with one graph name, and the anchor repeated in the related list | do not merge PR3b-2 |
 

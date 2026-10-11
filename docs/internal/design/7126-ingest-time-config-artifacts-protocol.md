@@ -83,7 +83,7 @@ Names are proposals. The migration number is chosen at build time.
   expression fails with `generation expression is not immutable` (evidence
   appendix, section 5). Rejected (re-ruling 3): a Go-filled column (two
   writers of one row shape, and the schema cannot refuse a wrong digest),
-  `md5` (128 bits, and not available on the FIPS-style ops-qa build), a
+  `md5` (128 bits, and not available on the FIPS-style QA build), a
   `text::bytea` cast (none exists), `textsend` (STABLE), and pgcrypto (an
   extension for one column). A `row_too_wide` fallback and a length
   precheck are rejected (re-ruling 2). SQLSTATE classification into
@@ -290,7 +290,7 @@ The reducer runs the walker, in the pattern of
   repository has a current state row.
 - An `extractor_version` bump re-derives every repository. The fallback
   window is about (S1 per-repository derive time) x 815 / K. The figure 815
-  is the repository count ops-qa listed on 2026-10-10 (local kit note
+  is the repository count the QA environment listed on 2026-10-10 (local kit note
   `7126-story-span-probe-20261010.md`, not in the repository).
 
 ## 5. Shared `content_files` SQL and the package home (F6)
@@ -361,14 +361,14 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    | 5 | Two concurrent Writes, one `repo_id`, 5,000 files each | B at most A + 10% per Write. Lock waits on the version row at most one batch time. 0 deadlocks in 20 rounds |
    | 6 | Version-row churn, counted by `xmin` changes or `n_tup_upd` | One rewrite per repository per content transaction, never per Write (re-ruling 2). A Write sends tombstones and reaped paths through one delete list, chunked at 500. It expects ceil((tombstones + reaped paths) / 500) delete transactions. It adds one per 500-row upsert batch. Arm 1 = 10. Arm 2 = 2 (one delete chunk, one upsert batch). Arm 3 = 1 per affected repository. Arm 4 = 1 |
 
-   Arm 3 also records the Write lock wait against the ops-qa p95 of
+   Arm 3 also records the Write lock wait against the QA-environment p95 of
    `eshu_dp_generation_retention_scope_lock_hold_seconds` (**Proposed**).
    The protocol needs two things only: every transaction that changes
    `content_files` bumps at least once, together with its content, and the
    derive reads `v0` after the Write's last content statement. The derive is
    the last step of a Write, so the second holds.
 
-4. **S6 cap census** (ops-qa, read-only). For all 815 repositories, count
+4. **S6 cap census** (QA environment, read-only). For all 815 repositories, count
    repositories with more than 50 candidates and more than 5,000 files, and
    the uncapped candidate total.
 5. **S1 derive cost** (local, PR1, PR1b and PR2 stacked). Use the real
@@ -379,7 +379,7 @@ today. Ownership, not a cycle, is the reason for the neutral package.
 6. **S4 equality** (PR3b gate). Symmetric difference `0/0` for every
    golden-corpus repository, plus two loader-level merge cases (one graph
    name for two repositories, the anchor repeated in the related list). On
-   ops-qa, shadow mode plus an offline differential under its own
+   the QA environment, shadow mode plus an offline differential under its own
    authorization.
 
 PR3b-1 also adds live interleaving tests, run before the trigger ships:

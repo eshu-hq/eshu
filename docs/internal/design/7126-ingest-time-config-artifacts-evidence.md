@@ -12,7 +12,7 @@ arbiter ruling and re-ruling of 2026-10-10. Source facts are read at
 
 ## 1. Measurements and their limits
 
-All ops-qa figures are read-only probes of 2026-10-10 on one repository story
+All QA-environment figures are read-only probes of 2026-10-10 on one repository story
 (R1) with a second repository (R2) as a contrast.
 
 | Measurement | Value | Source | Limit |
@@ -94,12 +94,12 @@ Theory (each has a shim in section 8 of the decision record):
 - The stage drops to 0.25 s or less, the route to 1.0 s or less warm, and API
   CPU to 0.7 CPU-s or less per R1 story. These targets are a budget built from
   the contributor list, not a measurement.
-- The estimate of 2.5-4.5 s for PR1 plus PR2 on ops-qa.
+- The estimate of 2.5-4.5 s for PR1 plus PR2 in the QA environment.
 - The content-version trigger meets the six S3 arms (protocol companion
   section 6). The R-1 lost update itself is a source-backed sequence, decided
   by the re-ruling.
 
-NOT_CHECKED: S2 on real R1 path widths, a disk-cold read, ops-prod, the related repositories the R1 body does not name,
+NOT_CHECKED: S2 on real R1 path widths, a disk-cold read, the production environment, the related repositories the R1 body does not name,
 the cap census (S6), concurrent stories, and the cold route after a pod
 restart.
 
@@ -136,7 +136,7 @@ S2 (PostgreSQL 18.6, generic plans, 5 runs, medians, 815 repositories,
 | Dirty join, all 815 repositories | 0.18 ms | Hash join over two seq scans |
 
 Caveats: host load1 was 6-10 during S2, so every time is an upper bound for
-that host and is not comparable to ops-qa. The OS cache was warm, also after a
+that host and is not comparable to the QA environment. The OS cache was warm, also after a
 server restart. Path widths come from synthetic md5-derived components, not
 from R1's real paths. S2 set the versions directly, with no trigger. The S2
 reader condition also excluded repositories with a failed derive.
