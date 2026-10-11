@@ -173,47 +173,7 @@ fi
 stub_bin="${tmp_dir}/bin"
 world="${tmp_dir}/world.json"
 mkdir -p "${stub_bin}"
-cat >"${stub_bin}/gh" <<'STUB'
-#!/usr/bin/env bash
-# Answers from ESHU_WORLD_JSON, every PR the base repository knows about.
-set -euo pipefail
-[[ "${1:-}" == api ]] || exit 79
-shift
-paginate=false
-slurp=false
-while [[ "${1:-}" == --* ]]; do
-	case "$1" in
-	--paginate) paginate=true ;;
-	--slurp) slurp=true ;;
-	*) exit 79 ;;
-	esac
-	shift
-done
-endpoint="${1:-}"
-case "${endpoint}" in
-"repos/${GITHUB_REPOSITORY}/commits/"*/pulls)
-	sha="${endpoint#"repos/${GITHUB_REPOSITORY}/commits/"}"
-	sha="${sha%/pulls}"
-	jq -c --arg repo "${GITHUB_REPOSITORY}" --arg sha "${sha}" \
-		'[.[] | select(.head.repo.full_name == $repo and .head.sha == $sha)]' "${ESHU_WORLD_JSON}"
-	;;
-"repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page="*)
-	per_page="${endpoint##*per_page=}"
-	pages="$(jq -c --argjson n "${per_page}" \
-		'[.[] | select(.state == "open")] | [range(0; length; $n) as $i | .[$i:$i + $n]] | if length == 0 then [[]] else . end' \
-		"${ESHU_WORLD_JSON}")"
-	if [[ "${paginate}" == true && "${slurp}" == true ]]; then
-		printf '%s\n' "${pages}"
-	elif [[ "${paginate}" == true ]]; then
-		jq -c 'add' <<<"${pages}"
-	else
-		jq -c '.[0]' <<<"${pages}"
-	fi
-	;;
-*) exit 79 ;;
-esac
-STUB
-chmod +x "${stub_bin}/gh"
+install -m 0755 "${repo_root}/scripts/lib/test-resolve-required-gates-pr-fake-gh.sh" "${stub_bin}/gh"
 
 fork_7818='{"number":7818,"state":"open","head":{"ref":"fix/7762-runtime-ssh-client","sha":"48d4f8c0d0310b738b6cf0e2ee2fc7a5e1cec964","repo":{"full_name":"smash-og/eshu","fork":true}},"base":{"ref":"main","repo":{"full_name":"eshu-hq/eshu","fork":false}}}'
 fork_sha=48d4f8c0d0310b738b6cf0e2ee2fc7a5e1cec964

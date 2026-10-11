@@ -368,6 +368,7 @@ gates:
       - "scripts/test-verify-live-required-status-checks.sh"
       - "scripts/resolve-required-gates-pr.sh"
       - "scripts/test-resolve-required-gates-pr.sh"
+      - "scripts/lib/test-resolve-required-gates-pr-fake-gh.sh"
       - "scripts/test-pre-pr-whole-module-gates.sh"
       - "scripts/lib/pre-pr-fixture-consumers.sh"
       - "scripts/lib/test-pre-pr-fixture-consumers.sh"
@@ -444,6 +445,7 @@ gates:
       - "scripts/verify-ci-gates-registry.sh"
       - "scripts/resolve-required-gates-pr.sh"
       - "scripts/test-resolve-required-gates-pr.sh"
+      - "scripts/lib/test-resolve-required-gates-pr-fake-gh.sh"
     local:
       command: "bash scripts/verify-ci-gates-registry.sh --drift"
       pre_push: floor
