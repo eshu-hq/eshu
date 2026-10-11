@@ -1,0 +1,52 @@
+go/internal/proof/content/corpus/abort_test.go
+  s_b0d7e3abc26c5a::t_3bdc757e69d445 355,364-366
+  s_b0d7e3abc26c5a::t_0a01dc708e7013 1-105,107-125,131-132,170-171,244-266,273-306,310-324,330-331,357-363,367-371
+  s_b0d7e3abc26c5a::t_530c793d0e6c73 172-208
+  s_b0d7e3abc26c5a::t_03f81086ef796e 126-130,133-134,169,267-272,307-309,356
+  s_b0d7e3abc26c5a::t_01aba8a6c567d1 106,135-168
+  s_b0d7e3abc26c5a::t_334db7f1818316 209-243
+  s_b0d7e3abc26c5a::t_e9af635c8d627d 325-329,333-342,344-354
+  s_b0d7e3abc26c5a::t_c740802c87361e 332,343
+go/internal/proof/content/corpus/copy.go
+  s_b0d7e3abc26c5a::t_eff3e58ecfff90 102,107-108,111,115,179-180,242
+  s_b0d7e3abc26c5a::t_6f3c5fb47a76af 62,104,109,156,181-189,235,243,245-246,262-277
+  s_b0d7e3abc26c5a::t_c001741e9706e3 44-49,244
+  s_29175cf8c573b8::t_f5685454148a64 278-279
+go/internal/proof/content/corpus/README.md
+  s_b0d7e3abc26c5a::t_ab1e62a51ce790 28-35,39-47,50-52
+  s_b0d7e3abc26c5a::t_16c23293966699 12-27
+  s_b0d7e3abc26c5a::t_aff00c198cde45 36-38
+go/internal/proof/content/corpus/session.go
+  s_b0d7e3abc26c5a::t_0254edb201c5e5 1-15,21-64,66-81
+  s_b0d7e3abc26c5a::t_eff3e58ecfff90 16-20,65
+go/internal/proof/content/corpus/abort.go
+  s_b0d7e3abc26c5a::t_aa2f0ac350519e 90-109,121,159
+  s_b0d7e3abc26c5a::t_eff3e58ecfff90 62-63,69-70
+  s_b0d7e3abc26c5a::t_e7223c50200cd7 1-58,60-61,64-68,71-89,110-120,122-132,134-135,137-138,142-149,151-152,154-158,160-162,175-184,193-197
+  s_b0d7e3abc26c5a::t_ebe9b20716a2ce 59,164-166,170-172,185-192
+  s_b0d7e3abc26c5a::t_65a187b754ad5c 133,136,139-141,150,153,163,167-169,173-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5309d217ff53c0c4e0ef73b101233c16f1db6bc0",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
