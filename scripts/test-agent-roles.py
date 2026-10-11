@@ -72,16 +72,40 @@ def main():
         assert stale.returncode != 0 and "debug-eshu-deep.toml" in stale.stderr
         binding.write_text(binding.read_text().replace('model = "wrong"', 'model = "' + chosen + '"'))
         reader = root / ".opencode" / "agent" / "debug-eshu.md"
-        assert "  bash: deny\n" in reader.read_text()
-        for before, after in (("  edit: deny", "  edit: allow"), ("  bash: deny", "  bash: allow")):
-            original = reader.read_text()
-            reader.write_text(original.replace(before, after))
-            stale = run(root, "check")
-            assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
-            reader.write_text(original)
+        reader_text = reader.read_text()
+        assert "mode: subagent\n" in reader_text
+        assert '  - action: edit\n    resource: "*"\n    effect: deny\n' in reader_text
+        assert '  - action: shell\n    resource: "*"\n    effect: deny\n' in reader_text
+        assert '  - action: subagent\n    resource: "*"\n    effect: deny\n' in reader_text
+        assert "model:" not in reader_text.split("---\n", 2)[1]
+        writer_op = (root / ".opencode" / "agent" / "develop-eshu.md").read_text()
+        assert '  - action: edit\n    resource: "*"\n    effect: allow\n' in writer_op
+        assert "action: shell" not in writer_op
+        original = reader.read_text()
+        reader.write_text(original.replace(
+            'action: edit\n    resource: "*"\n    effect: deny',
+            'action: edit\n    resource: "*"\n    effect: allow',
+        ))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
+        reader.write_text(original)
+        original = reader.read_text()
+        reader.write_text(original.replace(
+            'action: shell\n    resource: "*"\n    effect: deny',
+            'action: shell\n    resource: "*"\n    effect: allow',
+        ))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
+        reader.write_text(original)
         scan_front = (root / ".cursor" / "agents" / "scan-eshu.md").read_text().split("---\n")[1]
         line = next(x for x in scan_front.splitlines() if x.startswith("description: "))
         assert json.loads(line[len("description: "):]) == tricky and "\U0001F600" in line
+        oc_front = (root / ".opencode" / "agent" / "scan-eshu.md").read_text().split("---\n", 2)[1]
+        oc_line = next(x for x in oc_front.splitlines() if x.startswith("description: "))
+        # render_opencode escapes non-ASCII like render_claude (ensure_ascii
+        # default), so the contract here is the JSON round-trip, not a literal
+        # emoji in the file (unlike render_cursor, which passes ensure_ascii=False).
+        assert json.loads(oc_line[len("description: "):]) == tricky
         pinned = root / ".cursor" / "agents" / "develop-eshu.md"
         original = pinned.read_text()
         pinned.write_text(original.replace("model: inherit", "model: claude-opus-5"))
@@ -89,7 +113,7 @@ def main():
         assert stale.returncode != 0 and "develop-eshu.md" in stale.stderr
         pinned.write_text(original)
         reviewer = root / ".opencode" / "agent" / "review-eshu.md"
-        assert "  bash: deny\n" in reviewer.read_text()
+        assert '  - action: shell\n    resource: "*"\n    effect: deny\n' in reviewer.read_text()
         muse = run(root, "muse-exec", "review-eshu", "Review", "--dry-run")
         assert muse.returncode == 0
         assert ":read-only" in muse.stdout

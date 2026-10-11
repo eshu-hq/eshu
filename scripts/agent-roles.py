@@ -95,18 +95,25 @@ def render_claude(name, spec, model):
 
 
 def opencode_frontmatter(spec):
-    edit = "allow" if spec["access"] == "write" else "deny"
-    shell = "allow" if spec["access"] == "write" else "deny"
-    return (
-        "---\n"
-        + "description: " + json.dumps(spec["description"]) + "\n"
-        + "mode: all\npermission:\n"
-        + "  edit: " + edit + "\n"
-        + "  write: " + edit + "\n"
-        + "  bash: " + shell + "\n"
-        + "  task:\n    \"*\": deny\n"
-        + "---\n"
-    )
+    # V2 shape: mode subagent plus ordered permission rules (last match wins).
+    # Read roles keep the doctrine's shell denial, so the coordinator supplies
+    # blocked command output. Write roles emit no shell rule and inherit the
+    # user-level guards (push-to-main deny, --no-verify deny) from global config.
+    if spec["access"] == "write":
+        rules = [("edit", "allow")]
+    else:
+        rules = [("edit", "deny"), ("shell", "deny")]
+    rules.append(("subagent", "deny"))
+    lines = [
+        "---",
+        "description: " + json.dumps(spec["description"]),
+        "mode: subagent",
+        "permissions:",
+    ]
+    for action, effect in rules:
+        lines += ["  - action: " + action, '    resource: "*"', "    effect: " + effect]
+    lines.append("---")
+    return "\n".join(lines) + "\n"
 
 
 def render_opencode(spec):

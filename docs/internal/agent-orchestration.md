@@ -38,12 +38,12 @@ the codebase.
 | **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`, `.cursor/agents/*.md`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
-Claude Code, Codex, and opencode all read `AGENTS.md` (plus opencode's
-`instructions` array); per-directory `AGENTS.md` files scope rules for Codex
+Claude Code, Codex, and opencode all read `AGENTS.md` natively; per-directory
+`AGENTS.md` files scope rules for Codex
 and for Claude Code. There is no `CLAUDE.md`: it would make Claude read it
 instead of every `AGENTS.md`, and `scripts/verify-agent-canon.sh` refuses one.
-Skills are symlinked into `.claude/skills/` and `.codex/skills/`, pointed at
-by opencode's `skills.paths`, and discovered directly by Muse from `.agents/skills/`.
+Skills are symlinked into `.claude/skills/` and `.codex/skills/`, auto-discovered
+by opencode from the `.agents/skills/` project compatibility source, and discovered directly by Muse from `.agents/skills/`.
 
 ## Roles, models, and tools
 
@@ -91,9 +91,7 @@ Examples, with placeholder model IDs that must be replaced by `opencode models`
 output from the local machine:
 
 ```bash
-OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"openai/<gpt-5.6-sol-id>","variant":"high"}}}' opencode
-OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"anthropic/<opus-4.8-id>","variant":"high"}}}' opencode
-OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"deepseek/<deepseek-pro-id>","variant":"high"}}}' opencode
+OPENCODE_CONFIG_CONTENT='{"agents":{"perf-eshu":{"model":"<provider>/<model-id>#high"}}}' opencode
 ```
 
 The same override shape works for any tracked OpenCode role; change the agent
@@ -229,7 +227,7 @@ select the named role for this guard to apply.
 | Harness | Role artifact | Model binding | Read-only boxing |
 | --- | --- | --- | --- |
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |
-| opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write/bash: deny` for every read role |
+| opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | V2 `permissions:` rules deny `edit` and `shell` for every read role; every role also denies `subagent` (leaf) |
 | Codex | `.codex/agents/*.toml`; `scripts/agent-roles.py codex-exec ROLE TASK` when custom-role selection is unavailable | `model` and `model_reasoning_effort` in the role file or launcher arguments | `sandbox_mode = "read-only"` in the role file; `--sandbox read-only` in the launcher |
 | Muse Code | `scripts/agent-roles.py muse-exec ROLE TASK` | `--model` and `--reasoning-effort` from the manifest | `--permission-profile :read-only` for read roles |
 | Cursor | `.cursor/agents/*.md` | `model: inherit`: the session's model (Auto when the session is on Auto). Cursor also loads the `.claude/` and `.codex/` shims and would run their pinned models; the same-named `.cursor/` shim wins, so `-deep` and arbiter roles run the session's model too | `readonly: true` for every read role (no file edits, no state-changing shell commands) |
@@ -346,10 +344,11 @@ Render that spec format on every handoff before dispatching implementation.
 ## Dispatch
 
 The user or active primary agent delegates through the harness's subagent
-mechanism (in opencode, the **Task tool**) or invokes a role directly. The
+mechanism (in opencode, the **subagent tool**) or invokes a role through a
+launcher. The
 executor, debugger, performance engineer, and reviewer are leaf agents — they
-run as `mode: all` (both directly selectable and dispatchable) and their own
-`task` permission is denied, so they cannot dispatch further. Aggregation and
+run as `mode: subagent` (child sessions only) and their own
+`subagent` permission is denied, so they cannot dispatch further. Aggregation and
 sequencing stay with the user or primary agent.
 
 Routing: bounded lookup → `scan-eshu`; implementation → `develop-eshu`; unknown-cause failure → `debug-eshu`
@@ -477,8 +476,8 @@ GitHub bookkeeping, and cleanup. Long waits are not frontier-model work.
 The pattern is identical for every harness — thin config pointing at the shared
 brain and the same gate floor:
 
-- **opencode** — `.opencode/opencode.jsonc` (`instructions` → `AGENTS.md`;
-  `skills.paths` → `.agents/skills`) + `.opencode/agent/*.md` role/permission
+- **opencode** — `.opencode/opencode.jsonc` (`AGENTS.md` loads natively;
+  `.agents/skills` is an auto-discovered compatibility source) + `.opencode/agent/*.md` role/permission
   shims. Tracked shims do not pin personal model choices.
 - **Codex** — root + per-directory `AGENTS.md`, `.codex/skills/`,
   `.codex/agents/*.toml`, `.codex/hooks.json`.
