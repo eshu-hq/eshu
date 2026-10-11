@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -106,7 +107,7 @@ INSERT INTO scope_generations (
     payload,
     delta_baseline_commit_sha
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, '{}'::jsonb, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $12::jsonb, $11
 )
 ON CONFLICT (generation_id) DO UPDATE SET
     scope_id = EXCLUDED.scope_id,
@@ -278,6 +279,7 @@ func upsertScopeGeneration(
 		string(generation.Status),
 		activeTimestamp(generation),
 		payloadstore.EmptyToNil(strings.TrimSpace(generation.DeltaBaselineCommitSHA)),
+		scopeGenerationPayload(generation),
 	)
 	if err != nil {
 		return err
@@ -314,4 +316,23 @@ func activeTimestamp(generation scope.ScopeGeneration) any {
 	}
 
 	return nil
+}
+
+// scopeGenerationPayload returns the scope_generations.payload JSON a stored
+// generation carries (#7978): reconcile_reason for a forced reconciliation
+// snapshot and default_branch_changed for a #7678 default-branch observation,
+// so an operator can tell why a generation was stored; "{}" otherwise.
+func scopeGenerationPayload(generation scope.ScopeGeneration) string {
+	payload := make(map[string]any, 2)
+	if reason := strings.TrimSpace(generation.ReconcileReason); reason != "" {
+		payload["reconcile_reason"] = reason
+	}
+	if generation.DefaultBranchChanged {
+		payload["default_branch_changed"] = true
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "{}"
+	}
+	return string(encoded)
 }

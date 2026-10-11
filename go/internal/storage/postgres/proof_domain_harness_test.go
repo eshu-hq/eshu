@@ -183,7 +183,7 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		return newProofRows(rows), nil
 	case query == deltaBaselineFenceQuery:
 		return newProofRows(proofDeltaBaselineFenceRows(database.state, args)), nil
-	case strings.Contains(query, "SELECT generation.generation_id, COALESCE(generation.freshness_hint, '')"):
+	case query == unchangedGenerationCandidateQuery:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("active generation freshness args = %d, want 1", len(args))
 		}
@@ -199,6 +199,8 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		return newProofRows([][]any{{
 			generation.GenerationID,
 			generation.FreshnessHint,
+			generation.SourceCommitSHA,
+			string(generation.Status),
 		}}), nil
 	case strings.Contains(query, "FROM ingestion_scopes") && strings.Contains(query, "GROUP BY status"):
 		return newProofRows(proofScopeCountRows(database.state.scopeStatuses)), nil

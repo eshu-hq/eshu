@@ -83,6 +83,12 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 //   - last_projected_full_at: the ingest time of the newest full (non-delta)
 //     generation that was activated. A generation superseded while pending has
 //     activated_at NULL and does not count, so it cannot satisfy the sweep.
+//     While that generation is still active, a later reconcile_requested_at in
+//     its payload counts instead (#7978): an unchanged reconciliation snapshot
+//     re-opened its projector work rather than storing a duplicate generation,
+//     so the scope is reconciled for one interval. Once the generation is
+//     superseded or failed the stamp no longer counts: a re-projection that a
+//     newer generation fenced off, or that failed, must not hold the sweep off.
 //   - latest_full_*: the newest full generation of any status, so an in-flight
 //     or recently failed full generation can hold the sweep off. With no full
 //     generation the LEFT JOIN yields NULLs and latest_full_projected is false
@@ -94,7 +100,11 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 // compatibility; it has no scope_generations writer today.
 const fullReconcileStateQuery = `
 SELECT
-    (SELECT projected.ingested_at
+    (SELECT GREATEST(
+                projected.ingested_at,
+                CASE WHEN projected.status = 'active'
+                     THEN (projected.payload ->> 'reconcile_requested_at')::timestamptz
+                END)
      FROM scope_generations AS projected
      WHERE projected.scope_id = $1
        AND projected.is_delta = false
@@ -169,8 +179,12 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 // or failed rows with projection_write_started_at set and activated_at NULL,
 // whose write started after the write start of the newest activated full
 // generation. That full generation rewrote the whole tree after the overlay
-// landed, so it covers every earlier writer. The comparison is the exact write
-// start on both sides, never ingested_at or activated_at. A newest activated
+// landed, so it covers every earlier writer. A reconcile re-projection
+// requested for that generation while it is still active (#7978) covers the
+// writers that started before the request: the re-opened projector work
+// rewrites the whole tree. The comparison is the exact write start (or that
+// request time) against the writer's write start, never ingested_at or
+// activated_at. A newest activated
 // full with no write start (written before migration 149), or no activated
 // full at all, compares as -infinity, so every uncovered writer is returned
 // and the scope fails closed to a full snapshot. Pending generations are not
@@ -182,7 +196,11 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 // (docs/internal/evidence/7389-superseded-writer-overlay.md).
 const uncoveredProjectionWritersQuery = `
 WITH last_full AS (
-    SELECT projection_write_started_at AS pws
+    SELECT GREATEST(
+               projection_write_started_at,
+               CASE WHEN status = 'active'
+                    THEN (payload ->> 'reconcile_requested_at')::timestamptz
+               END) AS pws
     FROM scope_generations
     WHERE scope_id = $1
       AND is_delta = false
