@@ -5,6 +5,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -21,25 +22,21 @@ import (
 )
 
 const (
-	// MetricsGatherErrorsMetricName counts series the /metrics scrape could not
-	// gather. It rises once per failing series per scrape, so a persistent
-	// defect shows as a steady rate and an alert on increase() is enough. The
-	// failing instrument is named in the matching error log, not in a label.
+	// MetricsGatherErrorsMetricName counts registry gather errors. It rises
+	// once per reported error per scrape, so a persistent defect shows as a
+	// steady rate. The log reports a closed failure class, not metric data.
 	MetricsGatherErrorsMetricName = "eshu_dp_metrics_gather_errors_total"
 
 	// EventMetricsGatherFailed is the event_name of the error log written when
 	// the Prometheus gatherer reports one or more failing series.
 	EventMetricsGatherFailed = "telemetry.metrics.gather_failed"
 
-	// gatherErrorLogInterval bounds how often an unchanged gather error is
+	// gatherErrorLogInterval bounds how often a gather failure is
 	// logged. A scrape every 15 seconds would otherwise write thousands of
-	// identical lines a day for one broken instrument.
+	// lines a day for one broken instrument.
 	gatherErrorLogInterval = 5 * time.Minute
-
-	// gatherErrorLogLimit caps the error text in a log line. The text names the
-	// failing metrics and their label values, which are bounded, but a registry
-	// with many broken series should not write an unbounded line.
-	gatherErrorLogLimit = 2048
+	gatherFailureClass     = "prometheus_gather_error"
+	gatherFailureMessage   = "prometheus registry gather failed"
 )
 
 // prometheusResourceLabelKeys are the OTEL resource attributes the Prometheus
@@ -81,7 +78,7 @@ func registerMetricsGatherErrors(meter metric.Meter) (metric.Int64Counter, error
 	// verifier can see the registration.
 	counter, err := meter.Int64Counter(
 		"eshu_dp_metrics_gather_errors_total",
-		metric.WithDescription("Series the /metrics scrape could not gather; the failing instrument is named in the telemetry.metrics.gather_failed error log"),
+		metric.WithDescription("Registry gather errors on the /metrics scrape; the telemetry.metrics.gather_failed log reports a bounded failure class"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register %s counter: %w", MetricsGatherErrorsMetricName, err)
@@ -97,7 +94,7 @@ func registerMetricsGatherErrors(meter metric.Meter) (metric.Int64Counter, error
 // the failing series: one broken instrument must not blind every healthy one,
 // which the default error handling does with a bare 500 that never reaches a
 // log. The loss is reported instead of hidden: each failing scrape is logged
-// (rate limited) with the offending metric text and counted. A scrape that
+// (rate limited) with a closed failure class and counted. A scrape that
 // gathers nothing at all still fails with a 500, so a dead exporter is not
 // mistaken for a healthy empty one.
 func newMetricsHandler(registry *prometheus.Registry, logger *slog.Logger, errorCounter metric.Int64Counter, now func() time.Time) http.Handler {
@@ -116,7 +113,6 @@ type reportingGatherer struct {
 	now     func() time.Time
 
 	mu         sync.Mutex
-	lastText   string
 	lastLogged time.Time
 }
 
@@ -126,7 +122,9 @@ func (g *reportingGatherer) Gather() ([]*dto.MetricFamily, error) {
 	families, err := g.inner.Gather()
 	if err != nil {
 		g.report(err)
-		return families, fmt.Errorf("gather prometheus registry: %w", err)
+		// promhttp includes the returned error in a 500 response when no family
+		// survived. Registry errors can embed complete label values.
+		return families, errors.New(gatherFailureMessage)
 	}
 	return families, nil
 }
@@ -139,30 +137,25 @@ func (g *reportingGatherer) report(err error) {
 	if g.counter != nil {
 		g.counter.Add(context.Background(), count)
 	}
-	if g.logger == nil || !g.shouldLog(err.Error()) {
+	if g.logger == nil || !g.shouldLog() {
 		return
-	}
-	text := err.Error()
-	if len(text) > gatherErrorLogLimit {
-		text = text[:gatherErrorLogLimit] + "...(truncated)"
 	}
 	g.logger.Error("metrics scrape dropped series that failed to gather",
 		EventAttr(EventMetricsGatherFailed),
 		slog.Int64("error_count", count),
-		slog.String("error", text),
+		slog.String(LogKeyFailureClass, gatherFailureClass),
 	)
 }
 
-// shouldLog reports whether this error text is new or the last identical report
-// is older than gatherErrorLogInterval.
-func (g *reportingGatherer) shouldLog(text string) bool {
+// shouldLog allows at most one gather failure log per interval per handler.
+// The counter still records every reported error on every scrape.
+func (g *reportingGatherer) shouldLog() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	now := g.now()
-	if text == g.lastText && now.Sub(g.lastLogged) < gatherErrorLogInterval {
+	if !g.lastLogged.IsZero() && now.Sub(g.lastLogged) < gatherErrorLogInterval {
 		return false
 	}
-	g.lastText = text
 	g.lastLogged = now
 	return true
 }

@@ -194,9 +194,10 @@ duplicate-instrument error from the OTEL SDK.
   `metrics_gather.go` drops these keys before export; do not rely on it.
   `TestScrapeSurvivesAttributesThatShadowResourceLabels` is the regression.
   A single failing series no longer fails the scrape: `newMetricsHandler`
-  serves the rest, logs `telemetry.metrics.gather_failed`, and counts
-  `eshu_dp_metrics_gather_errors_total`. Alert on that counter rather than
-  assuming a green scrape means every series is present.
+  serves the rest, logs `telemetry.metrics.gather_failed` with only a closed
+  failure class and error count, and counts `eshu_dp_metrics_gather_errors_total`.
+  NEVER log raw registry errors: they can contain metric label values. Alert on
+  that counter rather than assuming a green scrape means every series is present.
 
 - **Dropping `WithResourceAsConstantLabels` from the Prometheus exporter**
   — `provider.go` keys the allow-keys filter to `service.name` and

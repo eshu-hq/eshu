@@ -36,10 +36,12 @@ collision, or an invalid label fails a series.
 - A meter provider view drops `service.name`, `service.namespace` and their
   underscore forms from every instrument before aggregation.
 - The six call sites no longer pass the attribute.
-- `/metrics` serves the healthy series when one series fails to gather, logs the
-  failing metric as `telemetry.metrics.gather_failed` (one identical line per five
-  minutes) and counts `eshu_dp_metrics_gather_errors_total`. A scrape that gathers
-  nothing still returns 500.
+- `/metrics` serves the healthy series when one series fails to gather and
+  counts `eshu_dp_metrics_gather_errors_total`. Diagnostics use
+  `telemetry.metrics.gather_failed` with a closed failure class and error count,
+  limited to one log per five minutes per handler. Raw registry errors can
+  contain label values and are omitted from logs and failure response bodies.
+  A scrape that gathers nothing still returns 500.
 
 ## Evidence
 
@@ -53,12 +55,14 @@ After: `TestScrapeSurvivesAttributesThatShadowResourceLabels` records the four
 spellings and gets 200, one series per instrument, the resource values
 `service_name="test-service"` and `service_namespace="eshu"`, and the
 instrument's own histogram buckets. With the view removed the same test fails,
-and the scrape is 200 without the shadowed series while the error log names both
-instruments. `TestMetricsHandlerServesHealthySeriesAndReportsGatherError`,
+and the scrape is 200 without the shadowed series. The original validation
+logged both instrument names; the privacy regression now verifies that raw
+collector errors and malformed metric labels are omitted.
+`TestMetricsHandlerServesHealthySeriesAndReportsGatherError`,
 `TestMetricsHandlerRateLimitsRepeatedGatherErrorLogs` and
 `TestMetricsHandlerFailsWhenNothingCanBeGathered` cover the handler.
 
-Performance Evidence: scratch benchmark, Apple M5 Max arm64, Go 1.27.1, OTEL SDK
+Performance Evidence: original scratch benchmark, Apple M5 Max arm64, Go 1.27.1, OTEL SDK
 metric v1.45.0, exporter prometheus v0.67.0, 3 runs of 2 s.
 
 | Path | Before | After |
@@ -73,12 +77,17 @@ within noise.
 No-Regression Evidence: record cost rises by about 38 ns per point with no
 extra allocation; the scrape cost is unchanged within noise; no queue, lease,
 claim, lock, batch, Cypher or worker path is touched. The reporting gatherer
-holds one mutex only on the error path, for a string compare and a timestamp.
+holds one mutex only on the error path. The original measurement used a string
+comparison and timestamp; the privacy correction now checks only the timestamp.
+These measurements have not been repeated for the privacy correction and do not
+establish deployed performance.
 
 Observability Evidence: `eshu_dp_metrics_gather_errors_total` rises once per
-failing series per scrape. The `telemetry.metrics.gather_failed` error log
-carries `error_count` and the exporter error text, which names the failing
-instrument. Alert on `increase(eshu_dp_metrics_gather_errors_total[10m]) > 0`.
+reported registry gather error per scrape and has constant `service_name` and
+`service_namespace` labels. The `telemetry.metrics.gather_failed` error log carries
+`error_count` and a closed `failure_class=prometheus_gather_error`, with no raw
+collector error, metric name, or label value. Alert on
+`increase(eshu_dp_metrics_gather_errors_total[10m]) > 0`.
 
 ## Not checked
 

@@ -11,10 +11,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -133,6 +135,34 @@ func (c invalidSeriesCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.NewInvalidMetric(prometheus.NewInvalidDesc(c.err), c.err)
 }
 
+// malformedLabelCollector makes the real registry validate a metric DTO whose
+// error text includes a private-looking, otherwise valid label value.
+type malformedLabelCollector struct {
+	desc    *prometheus.Desc
+	private string
+}
+
+func (c malformedLabelCollector) Describe(ch chan<- *prometheus.Desc) { ch <- c.desc }
+func (c malformedLabelCollector) Collect(ch chan<- prometheus.Metric) {
+	ch <- malformedLabelMetric(c)
+}
+
+type malformedLabelMetric struct {
+	desc    *prometheus.Desc
+	private string
+}
+
+func (m malformedLabelMetric) Desc() *prometheus.Desc { return m.desc }
+func (m malformedLabelMetric) Write(out *dto.Metric) error {
+	name, value, invalidName, invalidValue, gaugeValue := "owner", m.private, "x", "\xff", 1.0
+	out.Label = []*dto.LabelPair{
+		{Name: &name, Value: &value},
+		{Name: &invalidName, Value: &invalidValue},
+	}
+	out.Gauge = &dto.Gauge{Value: &gaugeValue}
+	return nil
+}
+
 func gatherErrorCount(t *testing.T, reader *sdkmetric.ManualReader) int64 {
 	t.Helper()
 	var rm metricdata.ResourceMetrics
@@ -154,10 +184,41 @@ func gatherErrorCount(t *testing.T, reader *sdkmetric.ManualReader) int64 {
 	return 0
 }
 
+func TestMetricsHandlerDoesNotLogMalformedMetricLabels(t *testing.T) {
+	private := "private-tenant-token-7934"
+	collector := malformedLabelCollector{
+		desc:    prometheus.NewDesc("eshu_dp_bad_series", "bad series", []string{"owner", "x"}, nil),
+		private: private,
+	}
+	handler, logs, reader, _ := newGatherErrorFixture(t, collector)
+
+	code, body := scrapeMetrics(handler)
+	require.Equal(t, http.StatusOK, code, body)
+	require.Contains(t, body, "eshu_dp_good_series 7")
+	require.NotContains(t, body, private)
+	require.NotContains(t, logs.String(), private)
+	require.NotContains(t, logs.String(), "eshu_dp_bad_series")
+	require.Contains(t, logs.String(), EventMetricsGatherFailed)
+	require.Contains(t, logs.String(), `"failure_class":"prometheus_gather_error"`)
+	require.Equal(t, int64(1), gatherErrorCount(t, reader))
+}
+
+func TestMetricsHandlerDoesNotExposeArbitraryCollectorError(t *testing.T) {
+	private := "private-collector-error-7934"
+	handler, logs, reader, _ := newGatherErrorFixture(t, invalidSeriesCollector{err: errors.New(private)})
+
+	code, body := scrapeMetrics(handler)
+	require.Equal(t, http.StatusOK, code, body)
+	require.Contains(t, body, "eshu_dp_good_series 7")
+	require.NotContains(t, logs.String(), private)
+	require.Contains(t, logs.String(), `"failure_class":"prometheus_gather_error"`)
+	require.Equal(t, int64(1), gatherErrorCount(t, reader))
+}
+
 // TestMetricsHandlerServesHealthySeriesAndReportsGatherError proves one bad
 // series no longer blinds the whole scrape, and that the loss is loud: the
-// healthy family is served with 200, the failing instrument is named in an
-// error log, and a counter rises so an alert can fire.
+// healthy family is served with 200, a bounded failure log is emitted, and a
+// counter rises so an alert can fire.
 func TestMetricsHandlerServesHealthySeriesAndReportsGatherError(t *testing.T) {
 	bad := errors.New(`collected metric "eshu_dp_bad_series" has a label named "x" whose value is not utf8`)
 	handler, logs, reader, _ := newGatherErrorFixture(t, invalidSeriesCollector{err: bad})
@@ -168,7 +229,8 @@ func TestMetricsHandlerServesHealthySeriesAndReportsGatherError(t *testing.T) {
 	require.NotContains(t, body, "eshu_dp_bad_series", "the failing series must be absent, never rendered wrong")
 
 	require.Contains(t, logs.String(), `"event_name":"`+EventMetricsGatherFailed+`"`)
-	require.Contains(t, logs.String(), "eshu_dp_bad_series", "the log must name the failing instrument")
+	require.NotContains(t, logs.String(), "eshu_dp_bad_series", "an arbitrary collector error is untrusted")
+	require.Contains(t, logs.String(), `"failure_class":"prometheus_gather_error"`)
 	require.Equal(t, int64(1), gatherErrorCount(t, reader))
 }
 
@@ -191,19 +253,42 @@ func TestMetricsHandlerRateLimitsRepeatedGatherErrorLogs(t *testing.T) {
 	require.Equal(t, int64(4), gatherErrorCount(t, reader))
 }
 
+func TestMetricsHandlerConcurrentFailuresKeepLogsBounded(t *testing.T) {
+	handler, logs, reader, _ := newGatherErrorFixture(t, invalidSeriesCollector{err: errors.New("private-concurrent-error-7934")})
+	const scrapes = 16
+	var wg sync.WaitGroup
+	for range scrapes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			code, body := scrapeMetrics(handler)
+			if code != http.StatusOK || !strings.Contains(body, "eshu_dp_good_series 7") {
+				t.Errorf("scrape status = %d, healthy family present = %t", code, strings.Contains(body, "eshu_dp_good_series 7"))
+			}
+		}()
+	}
+	wg.Wait()
+	require.Equal(t, 1, strings.Count(logs.String(), EventMetricsGatherFailed), logs.String())
+	require.NotContains(t, logs.String(), "private-concurrent-error-7934")
+	require.Equal(t, int64(scrapes), gatherErrorCount(t, reader))
+}
+
 // TestMetricsHandlerFailsWhenNothingCanBeGathered keeps the bare-failure
 // contract for a registry that yields no metric at all, so a dead exporter is
 // not mistaken for an empty-but-healthy scrape.
 func TestMetricsHandlerFailsWhenNothingCanBeGathered(t *testing.T) {
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(invalidSeriesCollector{err: errors.New("broken")})
+	private := "private-dead-registry-error-7934"
+	registry.MustRegister(invalidSeriesCollector{err: errors.New(private)})
 	b, err := NewBootstrap("test-service")
 	require.NoError(t, err)
 	var logs bytes.Buffer
 	handler := newMetricsHandler(registry, NewLoggerWithWriter(b, "metrics", "test", &logs), nil, time.Now)
 
-	code, _ := scrapeMetrics(handler)
+	code, body := scrapeMetrics(handler)
 	require.Equal(t, http.StatusInternalServerError, code)
+	require.NotContains(t, body, private)
+	require.NotContains(t, logs.String(), private)
 	require.Contains(t, logs.String(), EventMetricsGatherFailed)
 }
 

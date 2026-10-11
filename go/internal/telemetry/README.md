@@ -74,8 +74,7 @@ See `doc.go` for the godoc contract. Key groups:
   name, tracer name, logger name); built by `NewBootstrap`
 - `Providers` — holds `*sdktrace.TracerProvider`, `*sdkmetric.MeterProvider`,
   `PrometheusHandler`, and a combined `Shutdown` function; built by `NewProviders`
-- `NewProviders` — configures OTLP gRPC trace and metric exporters when
-  OTEL_EXPORTER_OTLP_ENDPOINT is set; always creates a Prometheus exporter
+- `NewProviders` — configures OTLP gRPC trace and metric exporters when OTEL_EXPORTER_OTLP_ENDPOINT is set; always creates a Prometheus exporter and `eshu_dp_metrics_gather_errors_total` (constant `service_name` and `service_namespace` labels; no point labels). Each registry gather error increments the counter; `telemetry.metrics.gather_failed` logs a closed failure class and count, at most once per five minutes per handler.
 - `RecordGOMEMLIMIT` — registers `eshu_dp_gomemlimit_bytes` as an observable
   gauge at startup
 

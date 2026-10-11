@@ -43,11 +43,16 @@ those two attributes before export, because the resource already supplies the
 value. For any other failing series the scrape still returns `200` with the
 healthy series, and:
 
-- the `telemetry.metrics.gather_failed` error log names the failing metric,
-  rate limited to one identical line per five minutes per process;
-- `eshu_dp_metrics_gather_errors_total` rises on every failing scrape.
+- the `telemetry.metrics.gather_failed` error log carries a closed
+  `failure_class=prometheus_gather_error` and `error_count`, with no raw collector
+  error, metric name, or label value; it is limited to one per five minutes per
+  handler;
+- `eshu_dp_metrics_gather_errors_total` rises once per reported registry error
+  on every failing scrape, with constant `service_name` and `service_namespace`
+  labels and no additional point labels.
 
-A scrape that gathers no series at all still returns `500`.
+A scrape that gathers no series at all still returns `500`, with a generic
+failure body that omits the registry error.
 
 ## First Checks By Runtime
 
