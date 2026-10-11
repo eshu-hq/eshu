@@ -103,3 +103,34 @@ None. This package performs no I/O; it defines the diff contract that
 
 - `docs/internal/naming.md` — the nesting rules this leaf was created under
 - Issue #6775 — the `internal/status` nest that introduced this package
+
+## Evidence
+
+No-Regression Evidence (#6949 batch 6, changedsince family): this change moves
+the 32 `changedsince.*` compat entries' Go importers (9 type aliases, 19
+consts, 3 vars, and 1 func, reached as both `status.*` and `statuspkg.*`)
+off the transitional compat spellings onto the destuttered `changedsince.*`
+names, and deletes the emptied `compat_changedsince.go`. Two files already
+imported the leaf; no `changedsince` shadowing locals exist, so no renames
+were needed. No type shape, wire field, SQL text, or executable statement
+changes: across 28 code files, every hunk requalifies an identifier or edits
+an import path only (410 refs; zero non-mechanical changed lines outside the
+compat deletion and this doc reword). The status README's changed-since
+section is reworded to the leaf names; the historical service-scope design
+doc is untouched.
+Measurement: packages ok on both sides with identical sets (ledger:6949-changedsince-batch6-after).
+Sibling before-row `6949-changedsince-batch6-before`; baseline `315fab3199`
+vs measurement commit `41ed1b42da` (this Evidence section and the two ledger
+rows are the only later changes), with the ok-package set byte-identical
+after timing strip.
+`go test -list` inventory is identical on both sides (3904 tests).
+Backend/version: go1.26.2 linux/amd64, in-memory; no backend touched. Input
+shape: n/a (no runtime input). Terminal queue/row counts: none — no queue,
+lease, Cypher, or SQL path is touched. Contract gates green on the branch:
+`verify-openapi.sh` (261/261 routes), `verify-contracttest.sh`,
+`verify-package-docs.sh`, and `verify-performance-evidence.sh`. The change
+is safe because it cannot alter runtime behavior: the compiler resolves the
+same types through their new paths, and the compat deletion is
+compile-enforced total — any missed caller would fail the build.
+No-Observability-Change: no metric, span, log line, or status output changes;
+telemetry evidence is the unchanged test outcomes above.
