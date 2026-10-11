@@ -98,8 +98,9 @@ Names are proposals. The migration number is chosen at build time.
   content Write proceeds, and reads stay live.
 - Autovacuum (re-ruling 2): each derive deletes and re-inserts a
   repository's rows. Without a vacuum, S2 measured the 300-id read at 2.47 ms
-  against 1.76 ms (9,202 `Heap Fetches`), because an Index Only Scan needs the
-  visibility map. The migration sets `autovacuum_vacuum_scale_factor` at most
+  (9,202 `Heap Fetches`) against 1.76 ms for the same rewritten rows after a
+  vacuum (0 `Heap Fetches`), because an Index Only Scan needs the visibility
+  map. The 1.74 ms of the evidence appendix is the read before any rewrite. The migration sets `autovacuum_vacuum_scale_factor` at most
   0.02 on `config_artifact_paths`. **Proposed** note, not measured: the
   digest key reads the heap anyway, but dead tuples still cost.
 

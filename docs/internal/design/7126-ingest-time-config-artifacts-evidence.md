@@ -129,6 +129,7 @@ S2 (PostgreSQL 18.6, generic plans, 5 runs, medians, 815 repositories,
 |---|---|---|
 | Paths read, four-column key | 1.74 ms | Index Only Scan on the key |
 | Paths read after a rewrite with no VACUUM | 2.47 ms | Index Only Scan, 9,202 `Heap Fetches` |
+| Paths read after the same rewrite and a VACUUM | 1.76 ms | Index Only Scan, 0 `Heap Fetches` |
 | Paths read, digest key | 2.14 ms | Bitmap Index Scan and Bitmap Heap Scan |
 | State read | 0.85 ms | Bitmap scan on the key |
 | Reader three-table join | 2.44 ms | Hash join over a seq scan of the 9-page versions table, then Index Only Scan on the paths key |

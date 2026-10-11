@@ -161,7 +161,7 @@ summary:
   definition and the rejected alternatives.
 - The migration sets `autovacuum_vacuum_scale_factor` at most 0.02 on the
   rows table (re-ruling 2), because S2 measured +40% on the read after a
-  rewrite with no vacuum.
+  rewrite with no vacuum (2.47 ms against 1.76 ms after a vacuum).
 - The state row records the `content_version` the derive read, the
   `extractor_version`, and `candidate_count`, `candidates_read`,
   `files_listed` and `list_truncated` for every derive.
