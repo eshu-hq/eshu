@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestClaimedSourceMarksThrottleWarningAsPartial(t *testing.T) {
@@ -34,7 +35,7 @@ func TestClaimedSourceMarksThrottleWarningAsPartial(t *testing.T) {
 				{operation: "GetResources", result: "error", throttled: true},
 			},
 			envelopes: []facts.Envelope{{
-				FactKind: facts.AWSWarningFactKind,
+				FactKind: cloud.AWSWarningFactKind,
 				Payload:  map[string]any{"warning_kind": WarningThrottleSustained},
 			}},
 		}},

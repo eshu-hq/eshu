@@ -23,8 +23,8 @@ func iamTrustPermissionEnvelope(factID, scopeID, generationID, policySource stri
 		FactID:        factID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
-		FactKind:      facts.AWSIAMPermissionFactKind,
-		SchemaVersion: facts.AWSIAMPermissionSchemaVersion,
+		FactKind:      cloud.AWSIAMPermissionFactKind,
+		SchemaVersion: cloud.AWSIAMPermissionSchemaVersion,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

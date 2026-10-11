@@ -25,7 +25,7 @@ var factSchemaWireKindCases = []struct {
 	{"aws_security_group_rule", factschema.FactKindAWSSecurityGroupRule, cloud.AWSSecurityGroupRuleFactKind},
 	{"ec2_instance_posture", factschema.FactKindEC2InstancePosture, cloud.EC2InstancePostureFactKind},
 	{"s3_bucket_posture", factschema.FactKindS3BucketPosture, cloud.S3BucketPostureFactKind},
-	{"aws_iam_permission", factschema.FactKindAWSIAMPermission, facts.AWSIAMPermissionFactKind},
+	{"aws_iam_permission", factschema.FactKindAWSIAMPermission, cloud.AWSIAMPermissionFactKind},
 	{"aws_resource_policy_permission", factschema.FactKindAWSResourcePolicyPermission, cloud.AWSResourcePolicyPermissionFactKind},
 	{"aws_iam_principal", factschema.FactKindAWSIAMPrincipal, facts.AWSIAMPrincipalFactKind},
 	{"aws_iam_trust_policy", factschema.FactKindAWSIAMTrustPolicy, facts.AWSIAMTrustPolicyFactKind},

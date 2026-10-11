@@ -85,7 +85,7 @@ func measure(t *testing.T, gens [][]facts.Envelope, scopeIDs []string) shape {
 				allRes = append(allRes, e)
 			case cloud.AWSRelationshipFactKind:
 				rel = append(rel, e)
-			case facts.AWSIAMPermissionFactKind:
+			case cloud.AWSIAMPermissionFactKind:
 				allPerm = append(allPerm, e)
 			}
 		}

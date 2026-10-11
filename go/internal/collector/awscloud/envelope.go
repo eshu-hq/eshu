@@ -197,7 +197,7 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 	if warningKind == "" {
 		return facts.Envelope{}, fmt.Errorf("aws warning observation requires warning_kind")
 	}
-	stableKey := facts.StableID(facts.AWSWarningFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AWSWarningFactKind, map[string]any{
 		"account_id":   observation.Boundary.AccountID,
 		"error_class":  strings.TrimSpace(observation.ErrorClass),
 		"generation":   observation.Boundary.GenerationID,
@@ -220,8 +220,8 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.AWSWarningFactKind,
-		facts.AWSWarningSchemaVersion,
+		cloud.AWSWarningFactKind,
+		cloud.AWSWarningSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, warningKind),
 		observation.SourceURI,

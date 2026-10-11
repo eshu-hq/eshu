@@ -7,7 +7,7 @@
 //
 // It exists to break an import cycle created by the facts-package nesting
 // (issue #6776): go/internal/facts imports its nested families (its
-// schemaVersionFamilies table references cloud through compat_cloud.go,
+// schemaVersionFamilies table references cloud directly,
 // and its semantic and documentation encoders reference the docs
 // package), so a nested family cannot import the facts root back to
 // reach a shared helper. This package depends on neither facts nor any

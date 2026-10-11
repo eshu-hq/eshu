@@ -76,7 +76,7 @@ type schemaVersionFamily struct {
 // central registry, classifier, and drift guard see it.
 var schemaVersionFamilies = []schemaVersionFamily{
 	{docs.FactKinds, docs.SchemaVersion},
-	{cloud.AWSFactKinds, AWSSchemaVersion},
+	{cloud.AWSFactKinds, cloud.AWSSchemaVersion},
 	{cloud.AzureFactKinds, cloud.AzureSchemaVersion},
 	{CICDRunFactKinds, CICDRunSchemaVersion},
 	{CodeownersFactKinds, CodeownersSchemaVersion},

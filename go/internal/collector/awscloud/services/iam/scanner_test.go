@@ -133,8 +133,8 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSIAMPermissionFactKind] != 5 {
-		t.Fatalf("aws_iam_permission count = %d, want 5", counts[facts.AWSIAMPermissionFactKind])
+	if counts[cloud.AWSIAMPermissionFactKind] != 5 {
+		t.Fatalf("aws_iam_permission count = %d, want 5", counts[cloud.AWSIAMPermissionFactKind])
 	}
 
 	// The user resource and its permission fact are emitted; the user principal
@@ -360,7 +360,7 @@ func isAWSCloudFact(factKind string) bool {
 	switch factKind {
 	case cloud.AWSResourceFactKind,
 		cloud.AWSRelationshipFactKind,
-		facts.AWSIAMPermissionFactKind:
+		cloud.AWSIAMPermissionFactKind:
 		return true
 	default:
 		return false
@@ -370,7 +370,7 @@ func isAWSCloudFact(factKind string) bool {
 func assertPermissionPresent(t *testing.T, envelopes []facts.Envelope, principalARN, policySource, action string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSIAMPermissionFactKind {
+		if envelope.FactKind != cloud.AWSIAMPermissionFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["principal_arn"].(string); got != principalARN {

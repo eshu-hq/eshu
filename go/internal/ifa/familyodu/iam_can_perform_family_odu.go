@@ -450,9 +450,9 @@ func IAMCanPerformFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          iamCanPerformFamilyScopeID,
 			GenerationID:     iamCanPerformFamilyGenerationID,
-			FactKind:         facts.AWSIAMPermissionFactKind,
-			StableFactKey:    iamCanPerformFamilyStableFactKey(facts.AWSIAMPermissionFactKind, fixture.PrincipalARN+":"+fixture.PolicySource+":"+fixture.Effect+":"+joinCanPerformKeyParts(fixture.Actions)+":"+joinCanPerformKeyParts(fixture.NotActions)+":"+joinCanPerformKeyParts(fixture.Resources)+":"+joinCanPerformKeyParts(fixture.ConditionKeys)),
-			SchemaVersion:    facts.AWSIAMPermissionSchemaVersion,
+			FactKind:         cloud.AWSIAMPermissionFactKind,
+			StableFactKey:    iamCanPerformFamilyStableFactKey(cloud.AWSIAMPermissionFactKind, fixture.PrincipalARN+":"+fixture.PolicySource+":"+fixture.Effect+":"+joinCanPerformKeyParts(fixture.Actions)+":"+joinCanPerformKeyParts(fixture.NotActions)+":"+joinCanPerformKeyParts(fixture.Resources)+":"+joinCanPerformKeyParts(fixture.ConditionKeys)),
+			SchemaVersion:    cloud.AWSIAMPermissionSchemaVersion,
 			CollectorKind:    iamCanPerformFamilyCollectorKind,
 			SourceConfidence: iamCanPerformFamilySourceConfidence,
 			Payload:          payload,

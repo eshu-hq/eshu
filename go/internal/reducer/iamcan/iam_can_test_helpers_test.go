@@ -99,7 +99,7 @@ func escalationPermissionEnvelope(
 	for _, opt := range opts {
 		opt(payload)
 	}
-	return facts.Envelope{FactKind: facts.AWSIAMPermissionFactKind, Payload: payload}
+	return facts.Envelope{FactKind: cloud.AWSIAMPermissionFactKind, Payload: payload}
 }
 
 func withConditions() func(map[string]any) {

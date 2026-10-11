@@ -285,7 +285,7 @@ func assertRelationshipType(t *testing.T, envelopes []facts.Envelope, relationsh
 func assertWarningKind(t *testing.T, envelopes []facts.Envelope, warningKind string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSWarningFactKind {
+		if envelope.FactKind != cloud.AWSWarningFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["warning_kind"].(string); got == warningKind {

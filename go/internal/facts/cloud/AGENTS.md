@@ -6,10 +6,9 @@ the root `AGENTS.md` still applies.
 ## Invariants
 
 - **No file in `package cloud` may import `go/internal/facts`.** The facts
-  root's `compat_cloud.go` already imports this package to reach its
-  schema-version accessors (the posture forwarders were retired in #6950,
-  and the root reaches the posture accessors directly now); the reverse
-  import cycles.
+  root already imports this package (its `schemaVersionFamilies` table
+  reaches the accessors directly now that #6950 retired the transitional
+  compat surface); the reverse import cycles.
   If you need something the facts root defines, it belongs in a leaf package
   instead, or the facts root should forward from here, not the other way
   around.
@@ -53,12 +52,10 @@ the root `AGENTS.md` still applies.
 ## What NOT to change without checking the wiring status
 
 - Renaming or removing any exported constant here breaks the facts root's
-  `compat_cloud.go` forwarders, the `schemaVersionFamilies` table, and every
-  external caller that has not yet migrated off `facts.<Name>` (see
-  `README.md`'s "Depended on by"). Issue #6776's root-wiring step has
-  already landed, so a rename must update the matching compat entry in the
-  same change; the posture names have no compat entry left (retired in
-  #6950), so a posture rename must update the direct callers instead.
+  `schemaVersionFamilies` table and every direct `cloud.<Name>` caller (see
+  `README.md`'s "Depended on by"). Issue #6950 retired the transitional
+  compat surface, so no compat entry exists to update — a rename must
+  update the table and the direct callers in the same change.
 
 ## Gates that will fire on your change
 

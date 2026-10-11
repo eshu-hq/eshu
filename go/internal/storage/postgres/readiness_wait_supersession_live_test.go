@@ -76,7 +76,7 @@ func (w *supersessionWriter) RetractIAMCanPerformEdges(context.Context, []string
 }
 
 func supersessionPermission(roleARN, action, resource string) facts.Envelope {
-	return facts.Envelope{FactKind: facts.AWSIAMPermissionFactKind, Payload: map[string]any{
+	return facts.Envelope{FactKind: cloud.AWSIAMPermissionFactKind, Payload: map[string]any{
 		"account_id": supersessionAccount, "region": "us-east-1", "principal_arn": roleARN,
 		"principal_type": "role", "policy_source": "inline", "effect": "Allow",
 		"actions": []any{action}, "not_actions": []any{}, "resources": []any{resource},

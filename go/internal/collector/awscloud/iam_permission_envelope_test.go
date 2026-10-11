@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestNewIAMPermissionEnvelopeNormalizesStatement(t *testing.T) {
@@ -32,11 +33,11 @@ func TestNewIAMPermissionEnvelopeNormalizesStatement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIAMPermissionEnvelope returned error: %v", err)
 	}
-	if envelope.FactKind != facts.AWSIAMPermissionFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSIAMPermissionFactKind)
+	if envelope.FactKind != cloud.AWSIAMPermissionFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.AWSIAMPermissionFactKind)
 	}
-	if envelope.SchemaVersion != facts.AWSIAMPermissionSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSIAMPermissionSchemaVersion)
+	if envelope.SchemaVersion != cloud.AWSIAMPermissionSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.AWSIAMPermissionSchemaVersion)
 	}
 	assertPayloadString(t, envelope.Payload, "principal_arn", "arn:aws:iam::123456789012:role/eshu-runtime")
 	assertPayloadString(t, envelope.Payload, "principal_type", ResourceTypeIAMRole)
@@ -206,7 +207,7 @@ func TestNewIAMPermissionEnvelopeStableIdentityIncludesConditionSummary(t *testi
 	if err != nil {
 		t.Fatalf("unconditional envelope error: %v", err)
 	}
-	wantUnconditionalKey := facts.StableID(facts.AWSIAMPermissionFactKind, map[string]any{
+	wantUnconditionalKey := facts.StableID(cloud.AWSIAMPermissionFactKind, map[string]any{
 		"account_id":    boundary.AccountID,
 		"actions":       "iam:passrole",
 		"effect":        "Allow",

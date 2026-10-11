@@ -192,7 +192,7 @@ func iamCanPerformCrossScopeRequests(scopeID string, permissionEnvelopes []facts
 	byAccount := make(map[string]map[CrossScopeTarget]struct{})
 	globs := 0
 	for _, env := range permissionEnvelopes {
-		if env.FactKind != facts.AWSIAMPermissionFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSIAMPermissionFactKind || env.IsTombstone {
 			continue
 		}
 		permission, err := schemadecode.DecodeAWSIAMPermission(env)

@@ -54,7 +54,7 @@ func BuildIAMCanPerformMaterializationReducerIntent(
 	envelope, ok := lookup.FirstAcrossKinds(
 		func(envelope facts.Envelope) bool {
 			switch envelope.FactKind {
-			case facts.AWSIAMPermissionFactKind:
+			case cloud.AWSIAMPermissionFactKind:
 				permission, err := decodeIAMCanPerformAWSIAMPermission(envelope)
 				if err != nil {
 					return false
@@ -68,7 +68,7 @@ func BuildIAMCanPerformMaterializationReducerIntent(
 				return false
 			}
 		},
-		facts.AWSIAMPermissionFactKind,
+		cloud.AWSIAMPermissionFactKind,
 		cloud.AWSResourcePolicyPermissionFactKind,
 	)
 	if !ok {

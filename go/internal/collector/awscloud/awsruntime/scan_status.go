@@ -258,7 +258,7 @@ func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
 			stats.RelationshipCount++
 		case cloud.AWSTagObservationFactKind:
 			stats.TagObservationCount++
-		case facts.AWSWarningFactKind:
+		case cloud.AWSWarningFactKind:
 			stats.WarningCount++
 			warningKind, _ := envelope.Payload["warning_kind"].(string)
 			switch strings.TrimSpace(warningKind) {
