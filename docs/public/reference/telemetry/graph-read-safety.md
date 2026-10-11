@@ -337,10 +337,11 @@ sees, so hashing NornicDB's `query` field will not reproduce it.
 ### Shared bounded-read loops
 
 A route that resolves an id through several sequential label-anchored reads --
-`GET /api/v0/entities/{entity_id}/context` and
-`POST /api/v0/infra/relationships`, both trying one label per candidate in a
-loop until a match or exhaustion, then one final unlabeled read so an id on
-any other label still resolves as it did before the loop existed -- derives ONE shared deadline once, before
+`POST /api/v0/infra/relationships`, and `GET /api/v0/entities/{entity_id}/context`
+on NornicDB, both trying one label per candidate in a loop until a match or
+exhaustion, then one final unlabeled read so an id on any other label still
+resolves as it did before the loop existed (on Neo4j entity context sends one
+indexed anchor statement instead, #7380 and #7212) -- derives ONE shared deadline once, before
 the loop, via `querycontract.WithBoundedGraphReadDeadline`, and reuses it for
 every candidate read. This bounds the whole loop by the same 10-second budget
 a single statement gets, instead of paying that budget once per candidate
