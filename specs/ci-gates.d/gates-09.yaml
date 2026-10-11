@@ -101,6 +101,45 @@ gates:
       - postgres
     ci_only_reason: ""
 
+  - id: live-postgres-migrations
+    name: Live PostgreSQL migration interruption and ownership proofs
+    category: exactness
+    layer: truth
+    purpose: "Runs the exact seven PostgreSQL 18.6 migration and fixture-ownership integration tests; every test and the package must pass without skips."
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/internal/storage/postgres/**"
+      - "go/go.mod"
+      - "go/go.sum"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - "scripts/lib/live_postgres_migrations.py"
+      - "scripts/lib/live_tests_registry.py"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/run-live-postgres-migrations.sh"
+      - "scripts/test-live-postgres-migrations.py"
+      - "scripts/test-run-live-postgres-migrations.sh"
+      - "scripts/testdata/live-postgres-migrations-fake-docker.sh"
+      - "scripts/testdata/live-postgres-migrations-fake-go.sh"
+      - ".github/workflows/live-postgres-migrations.yml"
+      - ".github/workflows/required-gates.yml"
+    local:
+      command: "bash scripts/test-run-live-postgres-migrations.sh"
+      test_command: "python3 scripts/test-live-postgres-migrations.py"
+    ci:
+      workflow: live-postgres-migrations.yml
+      job: "live-postgres-migrations (postgres18)"
+      check_names:
+        - "live-postgres-migrations (postgres18)"
+    requirements:
+      - go
+      - postgres
+    ci_only_reason: ""
+
   - id: golden-corpus-differential
     name: Differential NornicDB vs Neo4j oracle (Docker)
     category: exactness

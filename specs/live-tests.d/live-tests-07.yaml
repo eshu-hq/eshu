@@ -139,6 +139,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip (bootstraps an isolated schema per test; about 3.3s for the three tests laptop-local) — promote to blocking with CI timing evidence
+  - file: go/internal/storage/postgres/schema_7033_interrupt_rollback_live_test.go
+    tag: integration
+    class: postgres_ci
+    reason: "#7033 owned disposable PostgreSQL 18 interrupted migration rollback and DSN-guard proofs; exact seven-test migration runner, no skip accepted"
+    runner: live-postgres-migrations
   - file: go/internal/storage/postgres/schema_7237_indexes_live_test.go
     tag: integration
     class: scheduled
@@ -159,6 +164,11 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/schema_fixture_connection_guard_security_live_test.go
+    tag: integration
+    class: postgres_ci
+    reason: "#7033 owned disposable PostgreSQL 18 fixture-connector safety, inherited environment, and reconnect proofs; exact seven-test migration runner, no skip accepted"
+    runner: live-postgres-migrations
   - file: go/internal/storage/postgres/scope/completion/quiescence_live_test.go
     tag: ~
     class: scheduled

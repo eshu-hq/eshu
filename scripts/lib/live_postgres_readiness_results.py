@@ -66,7 +66,7 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
     selected = {}
     for path, body in rows:
         fields = dict(re.findall(r"^    (\w+): (.*)$", body, flags=re.MULTILINE))
-        if fields.get("class") == "postgres_ci":
+        if fields.get("runner") == "live-postgres-readiness" or path in EXPECTED:
             selected[path] = fields
     if set(selected) != set(EXPECTED):
         print(
@@ -76,6 +76,9 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
         )
         return 1
     for path, expected_tests in EXPECTED.items():
+        if selected[path].get("class") != "postgres_ci":
+            print(f"postgres_ci row has unexpected class: {path}", file=sys.stderr)
+            return 1
         if selected[path].get("tag") != "~":
             print(f"postgres_ci row has unexpected tag: {path}", file=sys.stderr)
             return 1

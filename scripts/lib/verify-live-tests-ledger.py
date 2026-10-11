@@ -19,6 +19,7 @@ import subprocess
 import sys
 
 from live_tests_registry import load_ledger_text
+from live_postgres_migrations import MIGRATION_PATHS
 
 if len(sys.argv) != 3:
     sys.exit(f"usage: {sys.argv[0]} <ledger_path> <repo_root>")
@@ -47,8 +48,14 @@ for path, tag, cls, reason, runner, backends in rows:
     if cls not in ("ci", "postgres_ci", "scheduled", "retired"):
         sys.exit(f"invalid class {cls!r} for {path}")
     if cls == "postgres_ci":
-        if runner != "live-postgres-readiness" or tag.strip() != "~" or backends:
-            sys.exit(f"PostgreSQL CI row needs its verified runner and untagged test: {path}")
+        readiness = runner == "live-postgres-readiness" and tag.strip() == "~"
+        migration = (
+            runner == "live-postgres-migrations"
+            and tag.strip() == "integration"
+            and path in MIGRATION_PATHS
+        )
+        if not (readiness or migration) or backends:
+            sys.exit(f"PostgreSQL CI row needs its verified runner and tag: {path}")
     elif runner:
         sys.exit(f"unexpected runner {runner!r} for {cls} row: {path}")
     if cls == "scheduled":

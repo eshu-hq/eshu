@@ -78,6 +78,25 @@ if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-runner.yaml" "${s
 	fail "validator accepted a PostgreSQL row with an unknown runner"
 fi
 
+# The integration-tag exception belongs only to the exact migration files.
+# Its dedicated runner and tag cannot be reassigned by editing one field.
+awk '
+  /^  - file: go\/internal\/storage\/postgres\/migration_169_interruption_live_test.go$/ { selected = 1 }
+  selected && /^    runner: live-postgres-migrations$/ { $0 = "    runner: wrong-runner"; selected = 0 }
+  { print }
+' "${ledger}" >"${legacy_probe}/wrong-migration-runner.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-migration-runner.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted an unknown migration runner"
+fi
+awk '
+  /^  - file: go\/internal\/storage\/postgres\/migration_169_interruption_live_test.go$/ { selected = 1 }
+  selected && /^    tag: integration$/ { $0 = "    tag: ~"; selected = 0 }
+  { print }
+' "${ledger}" >"${legacy_probe}/wrong-migration-tag.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-migration-tag.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted an untagged migration row"
+fi
+
 awk '/^    class: scheduled$/ && !changed { print "    class: postgres_ci"; changed = 1; next } { print }' \
 	"${ledger}" >"${legacy_probe}/unowned-promotion.yaml"
 if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/unowned-promotion.yaml" "${script}" >/dev/null 2>&1; then

@@ -1,0 +1,105 @@
+name: Live PostgreSQL Migrations
+
+# Dedicated, bounded migration correctness lane. The larger readiness suite
+# remains advisory; this exact seven-test fixture has its own blocking row.
+on:
+  merge_group:
+    types: [checks_requested]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'go/internal/storage/postgres/**'
+      - 'go/go.mod'
+      - 'go/go.sum'
+      - 'specs/live-tests.v1.yaml'
+      - 'specs/live-tests.d/**'
+      - 'specs/ci-gates.v1.yaml'
+      - 'specs/ci-gates.d/**'
+      - 'scripts/lib/live_postgres_migrations.py'
+      - 'scripts/lib/live_tests_registry.py'
+      - 'scripts/ci/go-mod-download-retry.sh'
+      - 'scripts/ci/install-apt-packages.sh'
+      - 'scripts/run-live-postgres-migrations.sh'
+      - 'scripts/test-live-postgres-migrations.py'
+      - 'scripts/test-run-live-postgres-migrations.sh'
+      - 'scripts/testdata/live-postgres-migrations-fake-docker.sh'
+      - 'scripts/testdata/live-postgres-migrations-fake-go.sh'
+      - '.github/workflows/live-postgres-migrations.yml'
+      - '.github/workflows/required-gates.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'go/internal/storage/postgres/**'
+      - 'go/go.mod'
+      - 'go/go.sum'
+      - 'specs/live-tests.v1.yaml'
+      - 'specs/live-tests.d/**'
+      - 'specs/ci-gates.v1.yaml'
+      - 'specs/ci-gates.d/**'
+      - 'scripts/lib/live_postgres_migrations.py'
+      - 'scripts/lib/live_tests_registry.py'
+      - 'scripts/ci/go-mod-download-retry.sh'
+      - 'scripts/ci/install-apt-packages.sh'
+      - 'scripts/run-live-postgres-migrations.sh'
+      - 'scripts/test-live-postgres-migrations.py'
+      - 'scripts/test-run-live-postgres-migrations.sh'
+      - 'scripts/testdata/live-postgres-migrations-fake-docker.sh'
+      - 'scripts/testdata/live-postgres-migrations-fake-go.sh'
+      - '.github/workflows/live-postgres-migrations.yml'
+      - '.github/workflows/required-gates.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  queue-selection:
+    uses: ./.github/workflows/queue-selection.yml
+    with:
+      workflow: live-postgres-migrations.yml
+
+  live-postgres-migrations:
+    needs: queue-selection
+    name: live-postgres-migrations (postgres18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
+
+      - name: Check out code
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Install ripgrep for fixture guards
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Check fail-closed migration runner
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}
+        run: bash scripts/test-run-live-postgres-migrations.sh
+
+      - name: Pull digest-pinned PostgreSQL 18.6 fixture
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}
+        run: docker pull 'ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c'
+
+      - name: Run migration proofs on disposable PostgreSQL
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-migrations (postgres18)') }}
+        run: bash scripts/run-live-postgres-migrations.sh '${{ github.run_id }}-${{ github.run_attempt }}'
