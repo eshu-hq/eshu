@@ -299,6 +299,7 @@ func migrationPhases(def Definition) ([]migrationPhase, error) {
 	}
 	update := strings.Index(def.SQL, contentGenerationUpdateStart)
 	analyze := strings.Index(def.SQL, contentGenerationAnalyzeStart)
+	// The pinned SQL has both markers in order; guard later marker-constant edits.
 	if update <= 0 || analyze <= update {
 		return nil, fmt.Errorf("migration %q immutable phase boundaries not found", def.Path)
 	}
