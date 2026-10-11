@@ -1,0 +1,39 @@
+docs/public/reference/http-api.md
+  s_b0d7e3abc26c5a::t_f0e03ecdeebea9 141-144
+go/internal/query/querycontract/graphreaderr.go
+  s_b0d7e3abc26c5a::t_f3e85ca4bdeea4 40-43,87,122-128,192-197
+  s_b0d7e3abc26c5a::t_961f217c056e11 83-85,141-142
+go/internal/query/codequery/README.md
+  s_b0d7e3abc26c5a::t_f3e85ca4bdeea4 87-91
+  s_b0d7e3abc26c5a::t_961f217c056e11 92-99,101-102
+  s_b0d7e3abc26c5a::t_17663cc755a8a2 100
+go/internal/mcp/dispatch_snapshot_denial_test.go
+  s_b0d7e3abc26c5a::t_9750584ca5caa8 1-39,41-49
+  s_b0d7e3abc26c5a::t_fd7d3a9d668475 40
+go/internal/query/codequery/topic_snapshot_denial_test.go
+  s_b0d7e3abc26c5a::t_fd7d3a9d668475 45,55
+  s_b0d7e3abc26c5a::t_9750584ca5caa8 1-44,46-54,56-61
+go/internal/query/querycontract/README.md
+  s_b0d7e3abc26c5a::t_f3e85ca4bdeea4 355-361
+  s_b0d7e3abc26c5a::t_9147f95523164e 362
+go/internal/query/querycontract/snapshot_denial_test.go
+  s_b0d7e3abc26c5a::t_f0e03ecdeebea9 1-40
+go/internal/query/openapi/components_responses.go
+  s_b0d7e3abc26c5a::t_f0e03ecdeebea9 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aacdebd5d2952361d013cd4037d0953393991047",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
