@@ -17,8 +17,8 @@ import (
 // extractor versions, then repositories with no state row, then moved content;
 // a repository over the failure limit for the current extractor is listed
 // last and marked skipped. Exact rows, every row from a newer extractor (exact,
-// moved, or failing), and a state row with no version row are not work: this
-// binary's derive could not replace a newer extractor's state.
+// moved, or failing), and a state row with no version row are not work: the
+// walker leaves newer-extractor rows to newer replicas (see dirtySQL for why).
 func TestListDirtyFindsTheWalkersWorkLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 	const extractor = 3

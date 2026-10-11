@@ -27,11 +27,16 @@ import (
 // list kept here.
 //
 // Go source is read one literal expression at a time (one string literal, or
-// one + chain of literals), so two statements in one const block or one
-// function are two statements. Known blind spots: SQL assembled from
-// non-literal values, and a retirement statement whose state DELETE names
-// another repository than its version DELETE (the guard sees that both deletes
-// are in one statement, not that they match on repo_id).
+// one run of literals joined by +), so two statements in one const block or
+// one function are two statements, and a non-literal operand in a + chain
+// splits the chain. SET lists are read at their own nesting level, past
+// strings, parenthesized groups and CASE ... END. Known blind spots: SQL
+// assembled from non-literal values (including plpgsql EXECUTE format(...)
+// with the table name as an argument), and a retirement statement whose state
+// DELETE names another repository than its version DELETE (the guard sees that
+// both deletes are in one statement, not that they match on repo_id). A
+// row-constructor SET that includes version is always reported, even as a
+// bump; write the bump as a plain version = version + 1.
 
 const versionsTable = "config_artifact_content_versions"
 
@@ -64,15 +69,18 @@ var (
 	// conflictUpdatePattern is an upsert into the versions table with a DO
 	// UPDATE action.
 	conflictUpdatePattern = regexp.MustCompile(`(?i)\bINSERT\s+INTO\s+` + versionsRef + `[^;]*?\bDO\s+UPDATE\s+SET\b`)
-	// setPattern starts a SET list; setEndPattern ends it.
-	setPattern    = regexp.MustCompile(`(?i)\bSET\b`)
-	setEndPattern = regexp.MustCompile(`(?i)\b(?:WHERE|WHEN|RETURNING|FROM)\b`)
-	// versionAssignPattern captures the right-hand side of a version
-	// assignment in a SET list, up to the next comma or the end of the list.
-	versionAssignPattern = regexp.MustCompile(`(?i)(?:^|[\s,(])"?version"?\s*=\s*([^,]*)`)
-	// rowSetPattern is a row-constructor assignment, SET (a, b) = (...); its
+	// versionsRenamePattern renames the table away, which leaves readers and
+	// the trigger without version rows.
+	versionsRenamePattern = regexp.MustCompile(`(?i)\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?` + versionsRef + `\s+RENAME\s+TO\b`)
+	// setPattern starts a SET list; setListItems reads its top-level
+	// assignments.
+	setPattern = regexp.MustCompile(`(?i)\bSET\b`)
+	// versionAssignPattern is one top-level assignment to version; it
+	// captures the right-hand side.
+	versionAssignPattern = regexp.MustCompile(`(?is)^"?version"?\s*=\s*(.*)$`)
+	// rowSetPattern is a row-constructor assignment, (a, b) = (...); its
 	// column list is captured.
-	rowSetPattern = regexp.MustCompile(`\(([^()]*)\)\s*=`)
+	rowSetPattern = regexp.MustCompile(`(?s)^\(([^()]*)\)\s*=`)
 	// versionColumnPattern is the version column in a column list.
 	versionColumnPattern = regexp.MustCompile(`(?i)(?:^|[\s,])"?version"?(?:$|[\s,])`)
 	// bumpPattern is the only allowed version assignment: one more than the
@@ -113,22 +121,21 @@ func versionStatementViolations(origin, text string) (violations []string, menti
 			report("TRUNCATE of")
 		case versionsDropPattern.MatchString(statement):
 			report("DROP TABLE of")
+		case versionsRenamePattern.MatchString(statement):
+			report("ALTER TABLE ... RENAME TO of")
 		}
 		if !merges && !versionsUpdatePattern.MatchString(statement) && !conflictUpdatePattern.MatchString(statement) {
 			continue
 		}
 		for _, setLoc := range setPattern.FindAllStringIndex(statement, -1) {
-			list := statement[setLoc[1]:]
-			if end := setEndPattern.FindStringIndex(list); end != nil {
-				list = list[:end[0]]
-			}
-			for _, assign := range versionAssignPattern.FindAllStringSubmatch(list, -1) {
-				if rhs := strings.TrimSpace(assign[1]); !bumpPattern.MatchString(rhs) {
-					report(fmt.Sprintf("version = %s reset of", rhs))
+			for _, item := range setListItems(statement, setLoc[1]) {
+				item = strings.TrimSpace(item)
+				if assign := versionAssignPattern.FindStringSubmatch(item); assign != nil {
+					if rhs := strings.TrimSpace(assign[1]); !bumpPattern.MatchString(rhs) {
+						report(fmt.Sprintf("version = %s reset of", rhs))
+					}
 				}
-			}
-			for _, row := range rowSetPattern.FindAllStringSubmatch(list, -1) {
-				if versionColumnPattern.MatchString(row[1]) {
+				if row := rowSetPattern.FindStringSubmatch(item); row != nil && versionColumnPattern.MatchString(row[1]) {
 					report(fmt.Sprintf("row assignment (%s) = ... of", row[1]))
 				}
 			}
@@ -138,9 +145,9 @@ func versionStatementViolations(origin, text string) (violations []string, menti
 }
 
 // goLiteralSQL returns the SQL texts of one Go file: one text per string
-// literal expression, where a + chain of literals is one expression (its
-// literal parts concatenated) and any non-literal operand is read on its own.
-// Two statements in one const block or one function are two texts.
+// literal, or per run of consecutive literal operands of a + chain (joined).
+// A non-literal operand ends the run and is read on its own. Two statements
+// in one const block or one function are two texts.
 func goLiteralSQL(t *testing.T, filename, src string) []string {
 	t.Helper()
 	fset := token.NewFileSet()
@@ -158,14 +165,25 @@ func goLiteralSQL(t *testing.T, filename, src string) []string {
 			if n.Op != token.ADD {
 				return true
 			}
-			var parts []string
-			var others []ast.Expr
-			flattenConcat(n, &parts, &others)
-			if len(parts) > 0 {
-				out = append(out, strings.Join(parts, ""))
+			var operands []ast.Expr
+			flattenConcat(n, &operands)
+			// Each run of consecutive literal operands is one text; a
+			// non-literal operand ends the run, because the guard cannot see
+			// what it adds (it may be a statement separator).
+			var run []string
+			for _, operand := range operands {
+				if value, ok := stringLiteral(operand); ok {
+					run = append(run, value)
+					continue
+				}
+				if len(run) > 0 {
+					out = append(out, strings.Join(run, ""))
+					run = nil
+				}
+				ast.Inspect(operand, visit)
 			}
-			for _, other := range others {
-				ast.Inspect(other, visit)
+			if len(run) > 0 {
+				out = append(out, strings.Join(run, ""))
 			}
 			return false
 		case *ast.BasicLit:
@@ -181,30 +199,31 @@ func goLiteralSQL(t *testing.T, filename, src string) []string {
 	return out
 }
 
-// flattenConcat collects the string literal operands of a + chain in order,
-// and the operands that are not string literals.
-func flattenConcat(expr ast.Expr, parts *[]string, others *[]ast.Expr) {
+// flattenConcat collects the operands of a + chain in order.
+func flattenConcat(expr ast.Expr, operands *[]ast.Expr) {
 	switch e := expr.(type) {
 	case *ast.ParenExpr:
-		flattenConcat(e.X, parts, others)
+		flattenConcat(e.X, operands)
 	case *ast.BinaryExpr:
 		if e.Op == token.ADD {
-			flattenConcat(e.X, parts, others)
-			flattenConcat(e.Y, parts, others)
+			flattenConcat(e.X, operands)
+			flattenConcat(e.Y, operands)
 			return
 		}
-		*others = append(*others, e)
-	case *ast.BasicLit:
-		if e.Kind == token.STRING {
-			if value, err := strconv.Unquote(e.Value); err == nil {
-				*parts = append(*parts, value)
-				return
-			}
-		}
-		*others = append(*others, e)
+		*operands = append(*operands, e)
 	default:
-		*others = append(*others, e)
+		*operands = append(*operands, e)
 	}
+}
+
+// stringLiteral returns the value of a string literal operand.
+func stringLiteral(expr ast.Expr) (string, bool) {
+	lit, ok := expr.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	value, err := strconv.Unquote(lit.Value)
+	return value, err == nil
 }
 
 // TestNoStatementDeletesVersionRowsOutsideRetirement holds every non-test Go
@@ -276,22 +295,30 @@ func TestVersionGuardSeededViolations(t *testing.T) {
 	t.Parallel()
 
 	red := map[string]string{
-		"delete":              "DELETE FROM config_artifact_content_versions WHERE repo_id = $1",
-		"delete only":         "delete from only config_artifact_content_versions",
-		"truncate":            "TRUNCATE config_artifact_paths, config_artifact_content_versions",
-		"drop":                "DROP TABLE IF EXISTS config_artifact_content_versions",
-		"update reset":        "UPDATE config_artifact_content_versions SET version = 0, bumped_at = now() WHERE repo_id = $1",
-		"update set param":    "UPDATE config_artifact_content_versions AS v SET bumped_at = now(), version = $2 WHERE v.repo_id = $1",
-		"upsert reset":        "INSERT INTO config_artifact_content_versions AS v (repo_id, version, bumped_xid, bumped_at) VALUES ($1, 0, pg_current_xact_id(), now()) ON CONFLICT (repo_id) DO UPDATE SET version = EXCLUDED.version",
-		"delete beside state": "DELETE FROM config_artifact_repo_state WHERE repo_id = $1; DELETE FROM config_artifact_content_versions WHERE repo_id = $1",
-		"quoted table":        `DELETE FROM "config_artifact_content_versions" WHERE repo_id = $1`,
-		"schema table":        "DELETE FROM public.config_artifact_content_versions WHERE repo_id = $1",
-		"quoted schema table": `DELETE FROM "public"."config_artifact_content_versions" WHERE repo_id = $1`,
-		"schema update reset": "UPDATE public.config_artifact_content_versions SET version = 0 WHERE repo_id = $1",
-		"merge delete":        "MERGE INTO config_artifact_content_versions AS v USING gone AS g ON v.repo_id = g.repo_id WHEN MATCHED THEN DELETE",
-		"merge reset":         "MERGE INTO config_artifact_content_versions AS v USING src AS s ON v.repo_id = s.repo_id WHEN MATCHED THEN UPDATE SET version = 0",
-		"row set reset":       "UPDATE config_artifact_content_versions SET (version, bumped_at) = (0, now()) WHERE repo_id = $1",
-		"upsert row set":      "INSERT INTO config_artifact_content_versions AS v (repo_id, version, bumped_xid, bumped_at) VALUES ($1, 0, pg_current_xact_id(), now()) ON CONFLICT (repo_id) DO UPDATE SET (version, bumped_at) = (EXCLUDED.version, now())",
+		"delete":               "DELETE FROM config_artifact_content_versions WHERE repo_id = $1",
+		"delete only":          "delete from only config_artifact_content_versions",
+		"truncate":             "TRUNCATE config_artifact_paths, config_artifact_content_versions",
+		"drop":                 "DROP TABLE IF EXISTS config_artifact_content_versions",
+		"update reset":         "UPDATE config_artifact_content_versions SET version = 0, bumped_at = now() WHERE repo_id = $1",
+		"update set param":     "UPDATE config_artifact_content_versions AS v SET bumped_at = now(), version = $2 WHERE v.repo_id = $1",
+		"upsert reset":         "INSERT INTO config_artifact_content_versions AS v (repo_id, version, bumped_xid, bumped_at) VALUES ($1, 0, pg_current_xact_id(), now()) ON CONFLICT (repo_id) DO UPDATE SET version = EXCLUDED.version",
+		"delete beside state":  "DELETE FROM config_artifact_repo_state WHERE repo_id = $1; DELETE FROM config_artifact_content_versions WHERE repo_id = $1",
+		"quoted table":         `DELETE FROM "config_artifact_content_versions" WHERE repo_id = $1`,
+		"schema table":         "DELETE FROM public.config_artifact_content_versions WHERE repo_id = $1",
+		"quoted schema table":  `DELETE FROM "public"."config_artifact_content_versions" WHERE repo_id = $1`,
+		"schema update reset":  "UPDATE public.config_artifact_content_versions SET version = 0 WHERE repo_id = $1",
+		"merge delete":         "MERGE INTO config_artifact_content_versions AS v USING gone AS g ON v.repo_id = g.repo_id WHEN MATCHED THEN DELETE",
+		"merge reset":          "MERGE INTO config_artifact_content_versions AS v USING src AS s ON v.repo_id = s.repo_id WHEN MATCHED THEN UPDATE SET version = 0",
+		"row set reset":        "UPDATE config_artifact_content_versions SET (version, bumped_at) = (0, now()) WHERE repo_id = $1",
+		"upsert row set":       "INSERT INTO config_artifact_content_versions AS v (repo_id, version, bumped_xid, bumped_at) VALUES ($1, 0, pg_current_xact_id(), now()) ON CONFLICT (repo_id) DO UPDATE SET (version, bumped_at) = (EXCLUDED.version, now())",
+		"reset after case":     "UPDATE config_artifact_content_versions SET bumped_at = CASE WHEN true THEN now() END, version = 0 WHERE repo_id = $1",
+		"reset after subquery": "UPDATE config_artifact_content_versions SET bumped_at = (SELECT now() FROM pg_class LIMIT 1), version = 0",
+		"reset after string":   "UPDATE config_artifact_content_versions SET bumped_at = now(), note = 'x where y', version = 0",
+		"upsert reset after case": "INSERT INTO config_artifact_content_versions AS v (repo_id, version, bumped_xid, bumped_at) VALUES ($1, 1, pg_current_xact_id(), now()) " +
+			"ON CONFLICT (repo_id) DO UPDATE SET bumped_at = CASE WHEN true THEN now() END, version = 0",
+		"reset in a cte":   "WITH x AS (UPDATE config_artifact_content_versions SET version = 0 WHERE repo_id = $1 RETURNING repo_id) SELECT count(*) FROM x",
+		"rename":           "ALTER TABLE config_artifact_content_versions RENAME TO config_artifact_content_versions_old",
+		"rename if exists": "ALTER TABLE IF EXISTS public.config_artifact_content_versions RENAME TO old_versions",
 	}
 	for name, statement := range red {
 		if v, n := versionStatementViolations(name, statement); len(v) == 0 || n == 0 {
@@ -330,6 +357,8 @@ WHERE v.bumped_xid IS DISTINCT FROM EXCLUDED.bumped_xid`,
 		"two execs": "package p\n\nfunc retire(db execer, id string) {\n" +
 			"\tdb.Exec(\"DELETE FROM config_artifact_repo_state WHERE repo_id = $1\", id)\n" +
 			"\tdb.Exec(\"DELETE FROM config_artifact_content_versions WHERE repo_id = $1\", id)\n}\n",
+		"mixed chain": "package p\n\nconst q = \"WITH s AS (DELETE FROM config_artifact_repo_state WHERE repo_id = $1) SELECT 1\" + sep +\n" +
+			"\t\"DELETE FROM config_artifact_content_versions WHERE repo_id = $1\"\n",
 	}
 	for name, src := range goRed {
 		if found := goSourceViolations(t, name+".go", src); len(found) != 1 {

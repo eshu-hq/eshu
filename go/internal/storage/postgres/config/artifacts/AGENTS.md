@@ -22,10 +22,13 @@ Scoped instructions for the config-artifact read model (#7126). The root
   one statement that also deletes the repository's
   `config_artifact_repo_state` row. The guard test fails the build otherwise.
   It reads one Go literal expression at a time, so keep each statement in one
-  literal or one `+` chain of literals. It cannot see SQL built from
-  non-literal values, and it cannot prove that the state `DELETE` and the
-  version `DELETE` of a retirement statement name the same `repo_id`; check
-  that by hand in review.
+  literal or one `+` chain of literals with no non-literal operand. It cannot
+  see SQL built from non-literal values (including plpgsql
+  `EXECUTE format(...)` with the table name as an argument), and it cannot
+  prove that the state `DELETE` and the version `DELETE` of a retirement
+  statement name the same `repo_id`; check both by hand in review. It reports
+  every row-constructor `SET (version, ...)`, so write a bump as
+  `version = version + 1`.
   The repository retirement design (#7766) must use that shared disposition.
 - `failed` means "no successful derive yet" in both `Classify` and
   `ListDirty`. A failed derive after a success is `retry`, a dirty-join label

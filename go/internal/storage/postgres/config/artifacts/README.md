@@ -59,14 +59,23 @@ because each derive rewrites a repository's rows.
   A version row created again while its state row survives counts up from 1
   and can reach the old `content_version`, so readers would trust stale
   rows. `TestNoStatementDeletesVersionRowsOutsideRetirement` enforces this
-  for every Go literal expression (one string literal or one `+` chain of
-  literals) and every migration. It reads `DELETE`, `MERGE ... THEN DELETE`,
-  `TRUNCATE`, `DROP TABLE`, and any `SET` of `version` (plain or
-  row-constructor) other than `version + 1`, with optional schema and quotes
-  on the table name. Known blind spots: SQL assembled from non-literal
-  values, and a retirement statement whose state `DELETE` names another
-  repository than its version `DELETE`. The guard sees that both deletes are
-  in one statement, not that they match on `repo_id`; review that by hand.
+  for every Go literal expression (one string literal, or one run of
+  literals joined by `+`; a non-literal operand splits the chain) and every
+  migration. It reads `DELETE`, `MERGE ... THEN DELETE`, `TRUNCATE`,
+  `DROP TABLE`, `ALTER TABLE ... RENAME TO`, and any top-level `SET` of
+  `version` (plain or row-constructor) other than `version + 1`, with
+  optional schema and quotes on the table name. A SET list is read at its
+  own nesting level, past strings, parenthesized groups and `CASE ... END`.
+  Known blind spots:
+  - SQL assembled from non-literal values, including plpgsql
+    `EXECUTE format('DELETE FROM %I', ...)` with the table name passed as an
+    argument;
+  - a retirement statement whose state `DELETE` names another repository
+    than its version `DELETE`: the guard sees that both deletes are in one
+    statement, not that they match on `repo_id`. Review that by hand.
+
+  A row-constructor `SET (version, ...) = (...)` is always reported, even as
+  a bump; write the bump as a plain `version = version + 1`.
 - **Trust.** `Classify` trusts stored rows only when the state's
   `content_version` equals the current version, its `extractor_version`
   equals the reader's, and `row_count` is not NULL. A later failed derive of
@@ -75,8 +84,12 @@ because each derive rewrites a repository's rows.
 - **Reasons.** `Classify` returns `missing`, `failed` (no successful derive
   yet), `stale_version`, or `stale_extractor`. `ListDirty` returns the same
   labels with the same meaning, plus `retry` (a failed derive after a
-  success), which the reader never uses. A state row from a newer extractor
-  is never dirty work: an older walker's derive could not replace it.
+  success), which the reader never uses. The walker leaves every state row
+  from a newer extractor to the newer replicas. A row with a successful
+  derive cannot be replaced by an older derive (protocol section 3, step 3).
+  A failure-only row could be (step 3's first, Proposed, clause); leaving it
+  is a design choice the record leaves open, and readers serve it live
+  meanwhile.
 - **Claims are not leases.** `ClaimPage` spreads work; the derive's advisory
   lock and advance-only write carry correctness.
 

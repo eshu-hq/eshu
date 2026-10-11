@@ -19,10 +19,14 @@ import (
 // $1 is the walker's extractor version, $2 the failure count that skips a
 // repository, $3 the row limit. A repository is skipped only while its last
 // failure came from the current extractor version, so a new extractor retries
-// it; a successful derive resets failure_count. A state row from a newer
-// extractor is never work, whether exact, moved or failing: under protocol
-// section 3 step 3 this binary's derive could not replace it, so listing it
-// would only make an older replica re-derive and discard it every cycle.
+// it; a successful derive resets failure_count. The walker leaves every state
+// row from a newer extractor to the newer replicas. For a row with a
+// successful derive, protocol section 3 step 3 forbids this binary's derive
+// from replacing it, so listing it would only make an older replica derive
+// and discard it every cycle. A failure-only row (row_count NULL) could be
+// replaced under step 3's first, Proposed, clause; leaving it is a design
+// choice the record leaves open: a newer replica or the next content Write
+// derives it, and readers serve it live as failed meanwhile.
 //
 // The join reads two tables that grow with repositories, not with files. With
 // a generic plan it is a hash join over two sequential scans; the measured
