@@ -4,6 +4,7 @@
 package artifacts
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -240,34 +241,122 @@ func TestNeededContentHydrationKustomizeShapesMatchFullHydration(t *testing.T) {
 	}
 }
 
-func TestNeededContentHydrationReferenceOutsideCapIsNotRead(t *testing.T) {
-	t.Parallel()
-
-	// 49 plain yaml files, the kustomization as the 50th candidate, then the
-	// resource it references as the 51st: the cap excludes the resource, so
-	// the full pass leaves it blank and drops it. The needed-content pass
-	// must also not fetch it.
-	files := make([]File, 0, 52)
+// referenceBeyondTheFloorFiles is 49 plain YAML files, a kustomization as the
+// 50th candidate, and the resource it references as the 51st.
+func referenceBeyondTheFloorFiles() []File {
+	files := make([]File, 0, 51)
 	for i := 0; i < 49; i++ {
 		files = append(files, fileRow(fmt.Sprintf("a-%02d.yaml", i), "k: v\n"))
 	}
-	files = append(files,
+	return append(files,
 		fileRow("b/kustomization.yaml", kustomizationFor("res.yaml")),
 		fileRow("b/res.yaml", policyResource("beyond")),
 	)
+}
+
+// TestNeededContentHydrationReferenceBeyondTheFloorIsRead is the inverse of the
+// pre-#7951 cap test: with the cap lifted, a resource a kustomization names
+// past the 50th candidate is read and its rows are returned, and the
+// needed-content pass still equals the full pass at the same allowance.
+func TestNeededContentHydrationReferenceBeyondTheFloorIsRead(t *testing.T) {
+	t.Parallel()
+
+	files := referenceBeyondTheFloorFiles()
+	oracleStore := newHydrationStore(files...)
+	gotStore := newHydrationStore(files...)
+	oracle := runConfigLoadAllowance(t, oracleStore, oracleStore.listed(t), fullConfigArtifactPasses, AllowanceWholeWindow)
+	got := runConfigLoadAllowance(t, gotStore, gotStore.listed(t), productionLoadPasses, AllowanceWholeWindow)
+	if got.err != nil || oracle.err != nil {
+		t.Fatalf("load errors: got %v, oracle %v", got.err, oracle.err)
+	}
+	if got.digest != oracle.digest {
+		t.Fatalf("needed-content output differs from the full pass at the whole window: got %d rows, oracle %d", got.rows, oracle.rows)
+	}
+	if got.rows == 0 {
+		t.Fatal("no rows: the resource beyond the 50th candidate was not read")
+	}
+	read := false
+	for _, call := range gotStore.getCalls {
+		read = read || call == "b/res.yaml"
+	}
+	if !read {
+		t.Fatal("the resource beyond the 50th candidate was not fetched")
+	}
+}
+
+// TestNeededContentHydrationReferenceOutsideTheAllowanceIsNotRead keeps the
+// floor behavior: at the allowance HydrationFloor the resource is the 51st
+// candidate, outside the selection, so neither pass reads it.
+func TestNeededContentHydrationReferenceOutsideTheAllowanceIsNotRead(t *testing.T) {
+	t.Parallel()
+
+	files := referenceBeyondTheFloorFiles()
 	newStore := func() *hydrationStore { return newHydrationStore(files...) }
-	oracle, _, _, gotStore := requireSameConfigOutput(t, "cap", newStore, productionLoadPasses)
+	oracle, _, _, gotStore := requireSameConfigOutput(t, "floor", newStore, productionLoadPasses)
 	if oracle.rows != 0 {
-		t.Fatalf("full pass produced %d rows; the resource sits beyond the cap and must be dropped", oracle.rows)
+		t.Fatalf("full pass produced %d rows; the resource sits beyond the allowance and must be dropped", oracle.rows)
 	}
 	for _, call := range gotStore.getCalls {
 		if call == "b/res.yaml" {
-			t.Fatal("fetched a resource beyond the 50-file hydration cap")
+			t.Fatal("fetched a resource beyond the allowance")
 		}
 	}
 	for _, paths := range gotStore.blankCalls {
-		if len(paths) > HydrationLimit {
-			t.Fatalf("blank check named %d paths, want at most the cap %d", len(paths), HydrationLimit)
+		if len(paths) > HydrationFloor {
+			t.Fatalf("blank check named %d paths, want at most the allowance %d", len(paths), HydrationFloor)
+		}
+	}
+}
+
+// TestNeededContentHydrationReferenceOutsideTheWindowIsNotRead proves the list
+// window bounds kustomize reads too: a resource whose path sorts past the
+// ListLimit window is never read, even at the whole-window allowance, and the
+// load reports the cut list.
+func TestNeededContentHydrationReferenceOutsideTheWindowIsNotRead(t *testing.T) {
+	t.Parallel()
+
+	tree := func(fillers int) []File {
+		files := []File{fileRow("a/kustomization.yaml", kustomizationFor("../z/res.yaml"))}
+		for i := 0; i < fillers; i++ {
+			files = append(files, fileRow(fmt.Sprintf("m/f%05d.yaml", i), "k: v\n"))
+		}
+		return append(files, fileRow("z/res.yaml", policyResource("outside")))
+	}
+
+	// Control: with the resource inside the window it is read, so the
+	// reference resolves and the check below is not vacuous.
+	inside := newHydrationStore(tree(ListLimit - 2)...)
+	if _, stats, err := LoadConfigPaths(context.Background(), inside,
+		Repository{ID: hydrationTestRepoID, Name: "svc"}, nil, false, AllowanceWholeWindow); err != nil || stats.ListTruncated {
+		t.Fatalf("control load: err = %v, ListTruncated = %v", err, stats.ListTruncated)
+	}
+	readInside := false
+	for _, call := range inside.getCalls {
+		readInside = readInside || call == "z/res.yaml"
+	}
+	if !readInside {
+		t.Fatal("control: the resource inside the window was not read; the reference does not resolve")
+	}
+
+	store := newHydrationStore(tree(ListLimit)...)
+	_, stats, err := LoadConfigPaths(context.Background(), store,
+		Repository{ID: hydrationTestRepoID, Name: "svc"}, nil, false, AllowanceWholeWindow)
+	if err != nil {
+		t.Fatalf("load error = %v", err)
+	}
+	if !stats.ListTruncated {
+		t.Fatal("ListTruncated = false for a list of ListLimit+2 files")
+	}
+	for _, call := range store.getCalls {
+		if call == "z/res.yaml" {
+			t.Fatal("fetched a resource outside the 5,000-file window")
+		}
+	}
+	for _, chunk := range store.blankCalls {
+		for _, path := range chunk {
+			if path == "z/res.yaml" {
+				t.Fatal("blank-checked a file outside the 5,000-file window")
+			}
 		}
 	}
 }

@@ -11,16 +11,31 @@ import "time"
 // statistics it logs.
 type ReadStats struct {
 	// FilesListed is the number of file rows the load considered: the
-	// supplied list, or the rows the list statement returned.
+	// supplied list, or the rows the list statement returned after the
+	// ListLimit clip.
 	FilesListed int
+	// ListTruncated is true when the list statement returned a row past
+	// ListLimit (the sentinel). The list was clipped to ListLimit files, so the
+	// candidates past the window are unknown. It is never set for a supplied
+	// list.
+	ListTruncated bool
+	// CandidateCount is the number of config-artifact candidates in the list
+	// window that carried no content: the pool the selection draws from.
+	CandidateCount int
+	// CandidatesHydrated is the number of candidates the selection took, up to
+	// the allowance: each was read or blank-checked. CandidateCount minus
+	// CandidatesHydrated candidates were left unread because the allowance
+	// ran out.
+	CandidatesHydrated int
 	// FilesHydrated is the number of config-artifact candidates whose content
 	// was fetched.
 	FilesHydrated int
-	// FilesSkipped is the number of candidates inside the hydration cap whose
-	// content was not fetched because no extractor reads it.
+	// FilesSkipped is the number of selected candidates whose content was
+	// not fetched because no extractor reads it; they were blank-checked.
 	FilesSkipped int
-	// BlankCheckStatements is the number of non-blank checks issued, at most
-	// one per repository.
+	// BlankCheckStatements is the number of NonBlankPaths statements issued:
+	// one per chunk of up to BlankCheckChunkSize paths, so it can exceed one
+	// per repository.
 	BlankCheckStatements int
 	// BatchStatements is the number of ReadFiles statements issued: one per
 	// chunk of up to BatchChunkSize paths.

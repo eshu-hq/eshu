@@ -23,7 +23,7 @@ const fullPassConcurrency = 8
 
 // fullPassCandidateFiles is a frozen copy of the query package's
 // HydrateRepositoryCandidateFiles, the full pass that reads the content of the
-// first HydrationLimit candidates that satisfy shouldHydrate one file per
+// first allowance candidates that satisfy shouldHydrate one file per
 // statement. The query package keeps the production version for the anchor
 // repository; this copy is the oracle of the neutral package's equality
 // tests, so a change to the needed-content pass cannot move its own reference.
@@ -33,13 +33,14 @@ func fullPassCandidateFiles(
 	repoID string,
 	files []File,
 	shouldHydrate func(File) bool,
+	allowance int,
 ) ([]File, error) {
 	if reader == nil || repoID == "" || len(files) == 0 || shouldHydrate == nil {
 		return files, nil
 	}
 
 	hydrated := append([]File(nil), files...)
-	indexes := SelectHydrationIndexes(hydrated, shouldHydrate, fileContent)
+	indexes, _ := SelectHydrationIndexes(hydrated, shouldHydrate, fileContent, allowance)
 	if len(indexes) == 0 {
 		return hydrated, nil
 	}

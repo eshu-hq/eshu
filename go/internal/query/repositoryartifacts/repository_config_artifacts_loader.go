@@ -203,6 +203,7 @@ func loadRepositoryConfigArtifactsForSources(
 			contentartifacts.Repository{ID: source.RepoID, Name: source.RepoName},
 			filesFromContract(source.Files),
 			source.HasFileList,
+			contentartifacts.HydrationFloor,
 		)
 		stats.addRepository(readStats)
 		if err != nil {

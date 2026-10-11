@@ -13,10 +13,12 @@ import (
 )
 
 const (
-	// RepositoryArtifactHydrationLimit bounds the files one hydration pass
-	// reads. Exported for #6060 so root performance tests can name it from
-	// outside this package.
-	RepositoryArtifactHydrationLimit       = contentartifacts.HydrationLimit
+	// RepositoryArtifactHydrationLimit bounds the files one pass of the
+	// anchor-only loaders (compose, workflow, controller and runtime
+	// artifacts) reads. It equals the config-artifact floor; the
+	// config-artifact load itself has no cap since #7951. Exported for #6060
+	// so root performance tests can name it from outside this package.
+	RepositoryArtifactHydrationLimit       = contentartifacts.HydrationFloor
 	repositoryArtifactHydrationConcurrency = 8
 )
 
@@ -55,9 +57,10 @@ func HydrateRepositoryCandidateFiles(
 // SelectHydrationIndexes, the single definition of the hydration set that the
 // config-artifact load's needed-content pass starts from too.
 func selectHydrationIndexes(files []querycontract.FileContent, shouldHydrate repositoryArtifactFilePredicate) []int {
-	return contentartifacts.SelectHydrationIndexes(files, shouldHydrate, func(file querycontract.FileContent) string {
+	indexes, _ := contentartifacts.SelectHydrationIndexes(files, shouldHydrate, func(file querycontract.FileContent) string {
 		return file.Content
-	})
+	}, RepositoryArtifactHydrationLimit)
+	return indexes
 }
 
 // hydrateFileIndexes replaces hydrated[i] with the stored row for every i in

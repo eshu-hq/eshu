@@ -362,6 +362,10 @@ PACKAGES = {
             "TestNonBlankRepoFilePathsMatchesTrimSpaceLive",
             "TestNonBlankSpaceSetMatchesGoOverEveryRuneLive",
         ),
+        "go/internal/query/content_reader_wide_window_live_test.go": (
+            "TestWideWindowChunkPlansUseAnIndexLive",
+            "TestWideWindowReadsMatchSingleReadsLive",
+        ),
         "go/internal/query/content_reader_search_unscoped_live_test.go": (
             "TestSearchFilesUnscopedMatchesOldStatementLive",
             "TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive",

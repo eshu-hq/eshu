@@ -33,6 +33,9 @@ type hydrationStore struct {
 	goneAfterCheck map[string]bool
 
 	blankErr error
+	// blankErrAfter is the number of NonBlankPaths statements that succeed
+	// before blankErr is returned; zero fails the first.
+	blankErrAfter int
 	// blankMode replaces the non-blank answer, to mutate the SQL predicate.
 	blankMode func(content string) bool
 
@@ -140,7 +143,7 @@ func (s *hydrationStore) NonBlankPaths(_ context.Context, _ string, relativePath
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.blankCalls = append(s.blankCalls, append([]string(nil), relativePaths...))
-	if s.blankErr != nil {
+	if s.blankErr != nil && len(s.blankCalls) > s.blankErrAfter {
 		return nil, s.blankErr
 	}
 	nonBlank := func(content string) bool { return strings.TrimSpace(content) != "" }
@@ -177,16 +180,18 @@ func (s *hydrationStore) listed(t testing.TB) []File {
 }
 
 // fullConfigHydration is the read-everything pass the loader ran before
-// #7126: hydrate the first 50 candidates in full, then keep candidates with
-// non-blank content. It is the equality oracle.
+// #7126: hydrate the selected candidates in full (the first 50 then; the first
+// allowance now), then keep candidates with non-blank content. It is the
+// equality oracle.
 func fullConfigHydration(
 	ctx context.Context,
 	reader Reader,
 	repoID string,
 	files []File,
+	allowance int,
 	_ *ReadStats,
 ) ([]File, error) {
-	hydrated, err := fullPassCandidateFiles(ctx, reader, repoID, files, isConfigArtifactCandidate)
+	hydrated, err := fullPassCandidateFiles(ctx, reader, repoID, files, isConfigArtifactCandidate, allowance)
 	if err != nil {
 		return nil, err
 	}
@@ -219,6 +224,8 @@ type loadOutcome struct {
 // query loader does for the stage statistics.
 func (o *loadOutcome) addStats(r ReadStats) {
 	o.stats.FilesListed += r.FilesListed
+	o.stats.CandidateCount += r.CandidateCount
+	o.stats.CandidatesHydrated += r.CandidatesHydrated
 	o.stats.FilesHydrated += r.FilesHydrated
 	o.stats.FilesSkipped += r.FilesSkipped
 	o.stats.BlankCheckStatements += r.BlankCheckStatements
@@ -233,7 +240,9 @@ func (o *loadOutcome) addStats(r ReadStats) {
 // list given, like the repository story) and one related source (file list
 // read from the store, like a related repository), merges the two with
 // MergeConfigPaths like the query loader, and digests the merged
-// config_paths.
+// config_paths. It runs at the allowance HydrationFloor, the selection every
+// repository always gets, so the equality tests written against the old cap
+// still compare the same selection.
 func runConfigLoad(
 	t testing.TB,
 	store *hydrationStore,
@@ -241,15 +250,27 @@ func runConfigLoad(
 	passes loadPasses,
 ) loadOutcome {
 	t.Helper()
+	return runConfigLoadAllowance(t, store, anchorFiles, passes, HydrationFloor)
+}
+
+// runConfigLoadAllowance is runConfigLoad at a chosen allowance.
+func runConfigLoadAllowance(
+	t testing.TB,
+	store *hydrationStore,
+	anchorFiles []File,
+	passes loadPasses,
+	allowance int,
+) loadOutcome {
+	t.Helper()
 	var outcome loadOutcome
 	ctx := context.Background()
-	anchorRows, anchorStats, err := loadConfigPaths(ctx, store, Repository{ID: hydrationTestRepoID, Name: "svc"}, anchorFiles, true, passes)
+	anchorRows, anchorStats, err := loadConfigPaths(ctx, store, Repository{ID: hydrationTestRepoID, Name: "svc"}, anchorFiles, true, allowance, passes)
 	outcome.addStats(anchorStats)
 	if err != nil {
 		outcome.err = err
 		return outcome
 	}
-	relatedRows, relatedStats, err := loadConfigPaths(ctx, store, Repository{ID: hydrationTestRepoID, Name: "related"}, nil, false, passes)
+	relatedRows, relatedStats, err := loadConfigPaths(ctx, store, Repository{ID: hydrationTestRepoID, Name: "related"}, nil, false, allowance, passes)
 	outcome.addStats(relatedStats)
 	if err != nil {
 		outcome.err = err

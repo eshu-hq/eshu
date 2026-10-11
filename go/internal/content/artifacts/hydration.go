@@ -71,11 +71,12 @@ func planKustomizeResourceReads(files []File) map[string]struct{} {
 // reading every candidate in full, while fetching content only for files an
 // extractor reads (#7126):
 //
-//  1. Select the hydration set exactly as the full pass does (first 50
-//     candidates in list order that carry no content yet).
+//  1. Select the hydration set exactly as the full pass does: the first
+//     allowance candidates in list order that carry no content yet, or every
+//     candidate for AllowanceWholeWindow.
 //  2. Fetch the content of the files configArtifactReadsContent accepts.
 //  3. For the other selected files, ask the store which are non-blank without
-//     moving content. The load drops a blank file before building, and a
+//     moving content, in chunks of BlankCheckChunkSize paths. The load drops a blank file before building, and a
 //     path-only row exists only for a non-blank file, so non-blankness is the
 //     whole of what the extractors need from them.
 //  4. Fetch the resource files the kustomizations reference, which phase 2
@@ -88,9 +89,10 @@ func hydrateConfigFiles(
 	reader Reader,
 	repoID string,
 	files []File,
+	allowance int,
 	stats *ReadStats,
 ) ([]File, error) {
-	return productionConfigHydration.hydrate(ctx, reader, repoID, files, stats)
+	return productionConfigHydration.hydrate(ctx, reader, repoID, files, allowance, stats)
 }
 
 // configContentFetcher reads the stored rows of hydrated at indexes and writes
@@ -129,6 +131,7 @@ func (policy configHydrationPolicy) hydrate(
 	reader Reader,
 	repoID string,
 	files []File,
+	allowance int,
 	stats *ReadStats,
 ) ([]File, error) {
 	hydrated := append([]File(nil), files...)
@@ -138,8 +141,10 @@ func (policy configHydrationPolicy) hydrate(
 		fetchedFull int
 	)
 	if reader != nil && repoID != "" && len(files) > 0 {
-		indexes := SelectHydrationIndexes(hydrated, isConfigArtifactCandidate, fileContent)
+		indexes, candidates := SelectHydrationIndexes(hydrated, isConfigArtifactCandidate, fileContent, allowance)
 		selected = len(indexes)
+		stats.CandidateCount += candidates
+		stats.CandidatesHydrated += selected
 		needed := make([]int, 0, len(indexes))
 		for _, index := range indexes {
 			if policy.readsContent(hydrated[index]) {
@@ -155,10 +160,9 @@ func (policy configHydrationPolicy) hydrate(
 		fetchedFull += len(needed)
 
 		if len(deferred) > 0 {
-			if err := markNonBlankDeferredFiles(ctx, reader, repoID, hydrated, deferred); err != nil {
+			if err := markNonBlankDeferredFiles(ctx, reader, repoID, hydrated, deferred, stats); err != nil {
 				return nil, err
 			}
-			stats.BlankCheckStatements++
 		}
 	}
 
@@ -234,14 +238,19 @@ func isDeferredNonBlank(deferred map[int]bool, position int) bool {
 	return ok && nonBlank
 }
 
-// markNonBlankDeferredFiles asks the store, in one statement, which of the
-// deferred files hold non-blank content, and records the answer in deferred.
+// markNonBlankDeferredFiles asks the store which of the deferred files hold
+// non-blank content, and records the answer in deferred. The distinct paths go
+// in sorted order, BlankCheckChunkSize per NonBlankPaths statement, one
+// statement after another; each statement issued adds one to
+// stats.BlankCheckStatements, also when it fails. The first failure fails the
+// pass.
 func markNonBlankDeferredFiles(
 	ctx context.Context,
 	reader Reader,
 	repoID string,
 	hydrated []File,
 	deferred map[int]bool,
+	stats *ReadStats,
 ) error {
 	paths := make([]string, 0, len(deferred))
 	seen := make(map[string]struct{}, len(deferred))
@@ -255,13 +264,17 @@ func markNonBlankDeferredFiles(
 	}
 	sort.Strings(paths)
 
-	nonBlankPaths, err := reader.NonBlankPaths(ctx, repoID, paths)
-	if err != nil {
-		return fmt.Errorf("check artifact file content: %w", err)
-	}
-	nonBlank := make(map[string]struct{}, len(nonBlankPaths))
-	for _, relativePath := range nonBlankPaths {
-		nonBlank[relativePath] = struct{}{}
+	nonBlank := make(map[string]struct{}, len(paths))
+	for start := 0; start < len(paths); start += BlankCheckChunkSize {
+		chunk := paths[start:min(start+BlankCheckChunkSize, len(paths))]
+		stats.BlankCheckStatements++
+		nonBlankPaths, err := reader.NonBlankPaths(ctx, repoID, chunk)
+		if err != nil {
+			return fmt.Errorf("check artifact file content: %w", err)
+		}
+		for _, relativePath := range nonBlankPaths {
+			nonBlank[relativePath] = struct{}{}
+		}
 	}
 	for position := range deferred {
 		_, ok := nonBlank[hydrated[position].RelativePath]

@@ -8,11 +8,15 @@
 // from the live answer for the same content_files state (#7126).
 //
 // The per-repository function is LoadConfigPaths. It lists a repository's
-// first ListLimit files by relative_path (or takes the caller's list), selects
-// the first HydrationLimit config-artifact candidates, reads only the content
+// first ListLimit files by relative_path with a one-row sentinel that reports
+// a cut list (or takes the caller's list), selects the first allowance
+// config-artifact candidates (HydrationFloor or more for a live load, every
+// candidate for AllowanceWholeWindow), reads only the content
 // an extractor consumes (kustomize, Docker Compose, Terraform and Terragrunt
-// HCL, Ansible playbooks), asks the store which other candidates are non-blank,
-// and runs BuildConfigPaths over the result. BuildConfigPaths("", files) is the
+// HCL, Ansible playbooks), asks the store which other candidates are non-blank
+// in chunks of BlankCheckChunkSize paths, and runs BuildConfigPaths over the
+// result. ReadStats reports the candidate pool, the candidates the allowance
+// took and a cut list, so the caller can disclose every bound. BuildConfigPaths("", files) is the
 // name-free build a stored read model keeps; the read-time name step is
 // StripRepositoryName on the rows whose evidence kind is name-scoped
 // (NameScoped), then source_repo. CleanRelativePath is the clean step and must
