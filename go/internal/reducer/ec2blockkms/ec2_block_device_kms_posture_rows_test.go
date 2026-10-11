@@ -37,7 +37,7 @@ func ec2BlockKMSPostureEnvelope(factID, account, region, instanceID string, volu
 func ec2BlockKMSVolumeEnvelope(account, region, volumeID string, encrypted any, kmsKeyID string, attachments []map[string]any) facts.Envelope {
 	arn := "arn:aws:ec2:" + region + ":" + account + ":volume/" + volumeID
 	return facts.Envelope{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload: map[string]any{
 			"account_id":    account,
 			"region":        region,
@@ -56,7 +56,7 @@ func ec2BlockKMSVolumeEnvelope(account, region, volumeID string, encrypted any, 
 
 func ec2BlockKMSKeyEnvelope(account, region, keyARN, manager string) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload: map[string]any{
 			"account_id":          account,
 			"region":              region,
@@ -73,7 +73,7 @@ func ec2BlockKMSKeyEnvelope(account, region, keyARN, manager string) facts.Envel
 
 func ec2BlockKMSRelationship(volumeID, volumeARN, keyARN string) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSRelationshipFactKind,
+		FactKind: cloud.AWSRelationshipFactKind,
 		Payload: map[string]any{
 			"account_id":         "111122223333",
 			"region":             "us-east-1",
@@ -342,7 +342,7 @@ func TestExtractEC2BlockDeviceKMSPostureRowsMalformedKeyManagerQuarantines(t *te
 	envelopes := []facts.Envelope{
 		{
 			FactID:   "bad-key",
-			FactKind: facts.AWSResourceFactKind,
+			FactKind: cloud.AWSResourceFactKind,
 			Payload: map[string]any{
 				"account_id":          account,
 				"region":              region,

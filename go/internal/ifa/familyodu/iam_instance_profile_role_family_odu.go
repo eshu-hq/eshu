@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -200,7 +201,7 @@ func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          iamInstanceProfileRoleFamilyScopeID,
 			GenerationID:     iamInstanceProfileRoleFamilyGenerationID,
-			FactKind:         facts.AWSResourceFactKind,
+			FactKind:         cloud.AWSResourceFactKind,
 			StableFactKey:    iamInstanceProfileRoleFamilyStableFactKey(fixture.ResourceType, fixture.ResourceID),
 			SchemaVersion:    iamInstanceProfileRoleFamilySchemaVersion,
 			CollectorKind:    iamInstanceProfileRoleFamilyCollectorKind,

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 )
@@ -31,7 +30,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.AWSResourceFactKind, awsARN, []byte(`{
+				{cloud.AWSResourceFactKind, awsARN, []byte(`{
 					"arn":"` + awsARN + `",
 					"resource_type":"aws_s3_bucket",
 					"account_id":"111111111111",
@@ -71,7 +70,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 	}
 
 	aws := byProvider["aws"]
-	if aws.FactKind != facts.AWSResourceFactKind || aws.RawIdentity != awsARN || aws.ResourceType != "aws_s3_bucket" {
+	if aws.FactKind != cloud.AWSResourceFactKind || aws.RawIdentity != awsARN || aws.ResourceType != "aws_s3_bucket" {
 		t.Fatalf("aws record = %#v", aws)
 	}
 	gcp := byProvider["gcp"]
@@ -99,7 +98,7 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 		t.Fatalf("query is not bound to scope+generation:\n%s", q.query)
 	}
 	for _, kind := range []string{
-		facts.AWSResourceFactKind,
+		cloud.AWSResourceFactKind,
 		cloud.GCPCloudResourceFactKind,
 		cloud.AzureCloudResourceFactKind,
 	} {
@@ -125,7 +124,7 @@ func TestPostgresCloudInventoryEvidenceLoaderSkipsBlankAndMalformedRows(t *testi
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket","account_id":"111111111111","resource_id":"ok","region":"us-east-1"}`)},
+				{cloud.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket","account_id":"111111111111","resource_id":"ok","region":"us-east-1"}`)},
 				// Blank raw identity: dropped.
 				{cloud.GCPCloudResourceFactKind, "", []byte(`{"full_resource_name":"","asset_type":"x"}`)},
 				// Undecodable payload: dropped.
@@ -165,7 +164,7 @@ func TestPostgresCloudInventoryEvidenceLoaderKeysRawIdentityPerProvider(t *testi
 				// aws CASE branch reads only arn, which is blank. A NULL scanned as
 				// *string is impossible here, so the fake returns the empty string
 				// the loader must reject.
-				{facts.AWSResourceFactKind, "", []byte(`{
+				{cloud.AWSResourceFactKind, "", []byte(`{
 					"arn":"",
 					"full_resource_name":"//compute.googleapis.com/projects/p/zones/z/instances/i",
 					"resource_type":"aws_s3_bucket"

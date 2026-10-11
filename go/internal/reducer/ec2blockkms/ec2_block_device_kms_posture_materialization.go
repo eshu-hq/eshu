@@ -84,8 +84,8 @@ type EC2BlockDeviceKMSPostureMaterializationHandler struct {
 
 func ec2BlockDeviceKMSPostureFactKinds() []string {
 	return []string{
-		facts.AWSResourceFactKind,
-		facts.AWSRelationshipFactKind,
+		cloud.AWSResourceFactKind,
+		cloud.AWSRelationshipFactKind,
 		cloud.EC2InstancePostureFactKind,
 	}
 }
@@ -286,9 +286,9 @@ func (h EC2BlockDeviceKMSPostureMaterializationHandler) recordDecisionCounters(
 func splitEC2BlockDeviceKMSPostureEnvelopes(envelopes []facts.Envelope) (resources, relationships, postures []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			relationships = append(relationships, env)
 		case cloud.EC2InstancePostureFactKind:
 			postures = append(postures, env)

@@ -97,7 +97,7 @@ type S3LogsToMaterializationHandler struct {
 // aws_resource S3 bucket node substrate for the join index and the
 // s3_bucket_posture facts that drive the edges.
 func s3LogsToFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, cloud.S3BucketPostureFactKind}
+	return []string{cloud.AWSResourceFactKind, cloud.S3BucketPostureFactKind}
 }
 
 // Handle executes one S3 LOGS_TO materialization intent.
@@ -327,7 +327,7 @@ func (h S3LogsToMaterializationHandler) recordSkipCounter(
 func splitS3LogsToEnvelopes(envelopes []facts.Envelope) (resources, postures []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case cloud.S3BucketPostureFactKind:
 			postures = append(postures, env)

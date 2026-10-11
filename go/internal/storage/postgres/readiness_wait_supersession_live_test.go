@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -44,7 +45,7 @@ type supersessionTargets struct{ ready, missing string }
 
 func (s supersessionTargets) LoadCrossScopeTargets(context.Context, iamcan.CrossScopeTargetRequest) (iamcan.CrossScopeTargetSnapshot, error) {
 	bucket := func(arn string) facts.Envelope {
-		return facts.Envelope{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+		return facts.Envelope{FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 			"account_id": supersessionAccount, "region": "us-east-1", "resource_type": awsv1.ResourceTypeS3Bucket,
 			"resource_id": arn, "arn": arn, "correlation_anchors": []any{},
 		}}
@@ -163,7 +164,7 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 	writer := &supersessionWriter{}
 	handler := iamcan.IAMCanPerformMaterializationHandler{
 		FactLoader: supersessionFacts{envelopes: []facts.Envelope{
-			{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+			{FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 				"account_id": supersessionAccount, "region": "us-east-1", "resource_type": awsv1.ResourceTypeIAMRole,
 				"resource_id": roleARN, "arn": roleARN, "correlation_anchors": []any{},
 			}},

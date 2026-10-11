@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -158,7 +158,7 @@ func TestScannerEmitsDatazoneMetadataAndRelationships(t *testing.T) {
 
 	// No glossary / asset / subscription content leakage in any resource payload.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		attrs, _ := envelope.Payload["attributes"].(map[string]any)
@@ -225,7 +225,7 @@ func TestScannerOmitsRelationshipsWhenDependenciesAbsent(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("unexpected relationship emitted: %#v", envelope.Payload)
 		}
 	}
@@ -253,7 +253,7 @@ func TestScannerOmitsNonRoleIAMTargetAndAliasKeyKMS(t *testing.T) {
 	}
 	// A non-role principal must not produce an IAM role edge.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == awscloud.RelationshipDatazoneDomainUsesIAMRole {

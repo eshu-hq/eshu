@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
 )
@@ -91,7 +92,7 @@ func resolveIAMEscalationMaterializedEdges(odu ifa.Odu, expectedEdgesPath string
 	var resources, permissions []facts.Envelope
 	for _, env := range odu.Facts {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case facts.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)

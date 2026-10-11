@@ -34,7 +34,7 @@ var candidateFactKinds = []string{
 	cloud.AWSImageReferenceFactKind,
 	cloud.AzureImageReferenceFactKind,
 	cloud.GCPImageReferenceFactKind,
-	facts.AWSRelationshipFactKind,
+	cloud.AWSRelationshipFactKind,
 	facts.CICDArtifactFactKind,
 	facts.CICDWorkflowImageEvidenceFactKind,
 	"content_entity",
@@ -85,7 +85,7 @@ func triggerFact(envelope facts.Envelope) bool {
 		return true
 	case cloud.GCPImageReferenceFactKind:
 		return true
-	case facts.AWSRelationshipFactKind:
+	case cloud.AWSRelationshipFactKind:
 		return awsRelationshipTargetsContainerImage(envelope)
 	case facts.CICDArtifactFactKind:
 		// A container-image artifact carries the digest that joins its run's

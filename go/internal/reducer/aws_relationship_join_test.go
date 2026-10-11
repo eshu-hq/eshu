@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func awsRelationshipEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSRelationshipFactKind,
+		FactKind: cloud.AWSRelationshipFactKind,
 		Payload:  payload,
 	}
 }

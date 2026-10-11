@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -193,7 +193,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	envelopes := scan(t, testBoundary(), fakeClient{snapshot: fullSnapshot()})
 	var observations []awscloud.RelationshipObservation
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		observations = append(observations, relationshipObservationFrom(t, envelope))
@@ -227,7 +227,7 @@ func TestScannerOmitsEdgesWhenDependenciesAbsent(t *testing.T) {
 		GlobalNetworks: []GlobalNetwork{{ARN: testGlobalNetARN, ID: testGlobalNetID, State: "AVAILABLE"}},
 	}})
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("unexpected relationship emitted: %#v", envelope.Payload)
 		}
 	}
@@ -236,7 +236,7 @@ func TestScannerOmitsEdgesWhenDependenciesAbsent(t *testing.T) {
 func TestScannerStaysMetadataOnly(t *testing.T) {
 	envelopes := scan(t, testBoundary(), fakeClient{snapshot: fullSnapshot()})
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		attrs, _ := envelope.Payload["attributes"].(map[string]any)

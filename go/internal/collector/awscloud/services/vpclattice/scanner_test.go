@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -156,7 +156,7 @@ func TestScannerEmitsVPCLatticeMetadataAndRelationships(t *testing.T) {
 
 	// No auth-policy / resource-policy / data-plane leakage anywhere.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		attrs, _ := envelope.Payload["attributes"].(map[string]any)
@@ -243,7 +243,7 @@ func TestScannerSkipsUnresolvableTargets(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		switch envelope.Payload["relationship_type"] {
@@ -290,7 +290,7 @@ func TestScannerOmitsRelationshipsWhenDependenciesAbsent(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("unexpected relationship emitted: %#v", envelope.Payload)
 		}
 	}

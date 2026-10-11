@@ -97,7 +97,7 @@ func resolveS3LogsToMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bo
 	var resources, postures []facts.Envelope
 	for _, env := range odu.Facts {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case cloud.S3BucketPostureFactKind:
 			postures = append(postures, env)

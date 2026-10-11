@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestLocationS3RelationshipDerivesPartition pins the GovCloud/China graph-join
@@ -170,7 +171,7 @@ func relationshipObservations(t *testing.T, envelopes []facts.Envelope) []awsclo
 	t.Helper()
 	var observations []awscloud.RelationshipObservation
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		relationshipType, _ := envelope.Payload["relationship_type"].(string)

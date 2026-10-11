@@ -21,7 +21,7 @@ const (
 func rdsResourceEnvelope(resourceType, arn, identifier string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "fact-resource-" + identifier,
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload: map[string]any{
 			"account_id":    testRDSAccount,
 			"region":        testRDSRegion,

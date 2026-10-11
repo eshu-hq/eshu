@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsAccessAnalyzerMetadataOnlyFactsAndRelationships(t *testing.T) {
@@ -256,7 +257,7 @@ func assertResourceCount(t *testing.T, envelopes []facts.Envelope, resourceType 
 	t.Helper()
 	var got int
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if envelope.Payload["resource_type"] == resourceType {
@@ -271,7 +272,7 @@ func assertResourceCount(t *testing.T, envelopes []facts.Envelope, resourceType 
 func assertRelationshipType(t *testing.T, envelopes []facts.Envelope, relationshipType string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
@@ -297,7 +298,7 @@ func assertWarningKind(t *testing.T, envelopes []facts.Envelope, warningKind str
 func assertNoResourceIDPrefix(t *testing.T, envelopes []facts.Envelope, prefix string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		resourceID, _ := envelope.Payload["resource_id"].(string)
@@ -310,7 +311,7 @@ func assertNoResourceIDPrefix(t *testing.T, envelopes []facts.Envelope, prefix s
 func resourceByTypeAndID(t *testing.T, envelopes []facts.Envelope, resourceType string, resourceID string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if envelope.Payload["resource_type"] == resourceType && envelope.Payload["resource_id"] == resourceID {

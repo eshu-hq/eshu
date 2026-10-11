@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -226,7 +227,7 @@ func TestScannerAllRelationshipsHaveTargetType(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got := envelope.Payload["target_type"]; got == "" || got == nil {
@@ -297,7 +298,7 @@ func assertResource(t *testing.T, envelopes []facts.Envelope, resourceType strin
 func allResources(envelopes []facts.Envelope, resourceType string) []facts.Envelope {
 	var out []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if envelope.Payload["resource_type"] == resourceType {
@@ -319,7 +320,7 @@ func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipTy
 func allRelationships(envelopes []facts.Envelope, relationshipType string) []facts.Envelope {
 	var out []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == relationshipType {

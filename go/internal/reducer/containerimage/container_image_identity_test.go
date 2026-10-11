@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -364,8 +365,8 @@ func awsImageRelationshipFact(factID string, imageRef string, resolvedImageRef s
 		FactID:           factID,
 		ScopeID:          "aws:123456789012:us-east-1:lambda",
 		GenerationID:     "generation-aws",
-		FactKind:         facts.AWSRelationshipFactKind,
-		SchemaVersion:    facts.AWSRelationshipSchemaVersion,
+		FactKind:         cloud.AWSRelationshipFactKind,
+		SchemaVersion:    cloud.AWSRelationshipSchemaVersion,
 		CollectorKind:    "aws_cloud",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),

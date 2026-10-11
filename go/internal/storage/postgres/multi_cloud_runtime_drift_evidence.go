@@ -18,7 +18,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/multicloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -336,7 +335,7 @@ func multiCloudStateConflictKey(row multiCloudStateRow) string {
 // normalized provider token. The set is closed and kept in lockstep with the SQL
 // allowlist so a new provider must be added in both places.
 var multiCloudSourceFactProvider = map[string]string{
-	facts.AWSResourceFactKind:        cloudinventory.ProviderAWS,
+	cloud.AWSResourceFactKind:        cloudinventory.ProviderAWS,
 	cloud.GCPCloudResourceFactKind:   cloudinventory.ProviderGCP,
 	cloud.AzureCloudResourceFactKind: cloudinventory.ProviderAzure,
 }

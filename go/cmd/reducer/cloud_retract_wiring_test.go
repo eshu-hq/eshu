@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -103,8 +102,8 @@ func (f *retractWiringDB) QueryContext(ctx context.Context, query string, args .
 		if gen, ok := args[1].(string); ok && gen == "generation-123" {
 			if kinds, ok := args[2].([]string); ok && len(kinds) > 0 {
 				switch kinds[0] {
-				case facts.AWSResourceFactKind:
-					return retractWiringEnvelopeRows(facts.AWSResourceFactKind, map[string]any{
+				case cloud.AWSResourceFactKind:
+					return retractWiringEnvelopeRows(cloud.AWSResourceFactKind, map[string]any{
 						"account_id":    "111122223333",
 						"region":        "us-east-1",
 						"resource_type": "aws_ec2_vpc",

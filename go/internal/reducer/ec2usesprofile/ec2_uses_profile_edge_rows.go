@@ -113,7 +113,7 @@ func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstancePr
 	index := ec2InstanceProfileJoinIndex{byARN: make(map[string]string, len(envelopes))}
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
+		if env.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		resource, err := schemadecode.DecodeAWSResource(env)

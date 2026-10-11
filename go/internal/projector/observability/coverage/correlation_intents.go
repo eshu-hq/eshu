@@ -5,6 +5,7 @@ package coverage
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -66,7 +67,7 @@ func BuildObservabilityCoverageCorrelationReducerIntent(
 // its per-envelope resource_type decode, which stays in
 // observabilityCoverageCorrelationTriggerFact as the final accept check.
 func observabilityCoverageCorrelationCandidateFactKind(kind string) bool {
-	if kind == facts.AWSResourceFactKind {
+	if kind == cloud.AWSResourceFactKind {
 		return true
 	}
 	if kind == facts.ObservabilitySourceInstanceFactKind {
@@ -77,7 +78,7 @@ func observabilityCoverageCorrelationCandidateFactKind(kind string) bool {
 }
 
 func observabilityCoverageCorrelationTriggerFact(envelope facts.Envelope) bool {
-	if envelope.FactKind == facts.AWSResourceFactKind {
+	if envelope.FactKind == cloud.AWSResourceFactKind {
 		_, ok := observabilityResourceTypes[awsResourceTypeForEnvelope(envelope)]
 		return ok
 	}
@@ -89,7 +90,7 @@ func observabilityCoverageCorrelationTriggerFact(envelope facts.Envelope) bool {
 }
 
 func observabilityCoverageCorrelationReason(envelope facts.Envelope) string {
-	if envelope.FactKind == facts.AWSResourceFactKind {
+	if envelope.FactKind == cloud.AWSResourceFactKind {
 		return "aws observability resource facts observed"
 	}
 	return "observability source facts observed"

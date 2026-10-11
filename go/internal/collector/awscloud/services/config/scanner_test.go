@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsConfigMetadataAndRelationships(t *testing.T) {
@@ -297,7 +298,7 @@ func (c fakeClient) RetentionConfigurations(context.Context) ([]RetentionConfigu
 func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -311,7 +312,7 @@ func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType strin
 func resourceByID(t *testing.T, envelopes []facts.Envelope, resourceID string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_id"].(string); got == resourceID {
@@ -325,7 +326,7 @@ func resourceByID(t *testing.T, envelopes []facts.Envelope, resourceID string) f
 func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
@@ -339,7 +340,7 @@ func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipTy
 func relationshipByTypeAndTarget(t *testing.T, envelopes []facts.Envelope, relationshipType, target string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		gotType, _ := envelope.Payload["relationship_type"].(string)
@@ -362,7 +363,7 @@ func assertRelationshipCount(t *testing.T, envelopes []facts.Envelope, relations
 func relationshipCount(envelopes []facts.Envelope, relationshipType string) int {
 	count := 0
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
@@ -385,7 +386,7 @@ func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
 // edge with an empty target type would mislead downstream graph consumers.
 func assertTargetTypeSet(t *testing.T, envelope facts.Envelope) {
 	t.Helper()
-	if envelope.FactKind != facts.AWSRelationshipFactKind {
+	if envelope.FactKind != cloud.AWSRelationshipFactKind {
 		return
 	}
 	if got, _ := envelope.Payload["target_type"].(string); strings.TrimSpace(got) == "" {
@@ -400,7 +401,7 @@ func assertTargetTypeSet(t *testing.T, envelope facts.Envelope) {
 func assertNoDanglingConfigRuleTargets(t *testing.T, envelopes []facts.Envelope) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got != awscloud.RelationshipConfigConformancePackContainsRule {

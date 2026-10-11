@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -140,7 +141,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind, facts.AWSIAMPermissionFactKind},
+		[]string{cloud.AWSResourceFactKind, facts.AWSIAMPermissionFactKind},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for iam escalation materialization: %w", err)
@@ -294,7 +295,7 @@ func (h IAMEscalationMaterializationHandler) recordSkip(ctx context.Context, rea
 func splitIAMEscalationEnvelopes(envelopes []facts.Envelope) (resources, permissions []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case facts.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)

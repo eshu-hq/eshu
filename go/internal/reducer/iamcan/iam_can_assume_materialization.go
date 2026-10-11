@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -97,7 +98,7 @@ type IAMCanAssumeMaterializationHandler struct {
 // the aws_resource node substrate for the join index and the aws_iam_permission
 // trust statements that drive the edges.
 func iamCanAssumeFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, facts.AWSIAMPermissionFactKind}
+	return []string{cloud.AWSResourceFactKind, facts.AWSIAMPermissionFactKind}
 }
 
 // Handle executes one IAM CAN_ASSUME materialization intent.
@@ -314,7 +315,7 @@ func (h IAMCanAssumeMaterializationHandler) recordEdgeCounter(
 func SplitIAMCanAssumeEnvelopes(envelopes []facts.Envelope) (resources, permissions []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case facts.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)

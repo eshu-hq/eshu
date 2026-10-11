@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestExtractCloudResourceNodeRowsResolvesDuplicateUIDByMaxOrderKey is the
@@ -22,7 +23,7 @@ func TestExtractCloudResourceNodeRowsResolvesDuplicateUIDByMaxOrderKey(t *testin
 	t.Parallel()
 
 	older := facts.Envelope{
-		FactKind:   facts.AWSResourceFactKind,
+		FactKind:   cloud.AWSResourceFactKind,
 		FactID:     "fact-older",
 		ObservedAt: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
@@ -31,7 +32,7 @@ func TestExtractCloudResourceNodeRowsResolvesDuplicateUIDByMaxOrderKey(t *testin
 		},
 	}
 	newer := facts.Envelope{
-		FactKind:   facts.AWSResourceFactKind,
+		FactKind:   cloud.AWSResourceFactKind,
 		FactID:     "fact-newer",
 		ObservedAt: time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
@@ -78,8 +79,8 @@ func TestExtractCloudResourceNodeRowsIdenticalPayloadTiesBreakDeterministically(
 		"account_id": "111122223333", "region": "us-east-1",
 		"resource_type": "aws_ec2_vpc", "resource_id": "vpc-shared", "name": "main", "state": "available",
 	}
-	low := facts.Envelope{FactKind: facts.AWSResourceFactKind, FactID: "fact-aaa", ObservedAt: sameInstant, Payload: payload}
-	high := facts.Envelope{FactKind: facts.AWSResourceFactKind, FactID: "fact-bbb", ObservedAt: sameInstant, Payload: payload}
+	low := facts.Envelope{FactKind: cloud.AWSResourceFactKind, FactID: "fact-aaa", ObservedAt: sameInstant, Payload: payload}
+	high := facts.Envelope{FactKind: cloud.AWSResourceFactKind, FactID: "fact-bbb", ObservedAt: sameInstant, Payload: payload}
 
 	forward, _, err := ExtractCloudResourceNodeRows([]facts.Envelope{low, high})
 	if err != nil {

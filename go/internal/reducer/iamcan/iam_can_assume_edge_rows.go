@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -129,7 +130,7 @@ func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) (iamRoleUserJoinIndex
 	index := iamRoleUserJoinIndex{byARN: make(map[string]iamPrincipalNode, len(envelopes))}
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
+		if env.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		resource, err := schemadecode.DecodeAWSResource(env)

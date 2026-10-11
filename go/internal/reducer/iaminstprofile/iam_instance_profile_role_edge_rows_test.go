@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -97,7 +98,7 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsMalformedRoleARNsQuarantines(t *te
 	envelopes := []facts.Envelope{
 		{
 			FactID:   "bad-profile",
-			FactKind: facts.AWSResourceFactKind,
+			FactKind: cloud.AWSResourceFactKind,
 			Payload: map[string]any{
 				"account_id":    acct,
 				"region":        "aws-global",

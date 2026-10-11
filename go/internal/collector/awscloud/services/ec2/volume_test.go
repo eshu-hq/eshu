@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsEBSVolumeMetadataAndKMSRelationship(t *testing.T) {
@@ -57,11 +57,11 @@ func TestScannerEmitsEBSVolumeMetadataAndKMSRelationship(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 1 {
-		t.Fatalf("aws_resource count = %d, want 1", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 1 {
+		t.Fatalf("aws_resource count = %d, want 1", counts[cloud.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 1 {
-		t.Fatalf("aws_relationship count = %d, want 1", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 1 {
+		t.Fatalf("aws_relationship count = %d, want 1", counts[cloud.AWSRelationshipFactKind])
 	}
 	assertNoResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
 
@@ -120,11 +120,11 @@ func TestScannerKeepsVolumesWithoutKMSRelationshipWhenKeyMissing(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 2 {
-		t.Fatalf("aws_resource count = %d, want 2", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 2 {
+		t.Fatalf("aws_resource count = %d, want 2", counts[cloud.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 0 {
-		t.Fatalf("aws_relationship count = %d, want 0 without KMS key evidence", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 0 {
+		t.Fatalf("aws_relationship count = %d, want 0 without KMS key evidence", counts[cloud.AWSRelationshipFactKind])
 	}
 
 	encryptedVolume := assertResourceID(t, envelopes, "vol-encrypted-missing-key")

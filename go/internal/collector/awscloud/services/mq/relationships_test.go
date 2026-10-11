@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestBrokerLogsRelationshipTargetsLogGroupARN proves the broker→CloudWatch Logs
@@ -156,7 +157,7 @@ func relationshipByTypeObs(t *testing.T, observations []awscloud.RelationshipObs
 func assertRelationshipTargetARN(t *testing.T, envelopes []facts.Envelope, relationshipType, want string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got != relationshipType {

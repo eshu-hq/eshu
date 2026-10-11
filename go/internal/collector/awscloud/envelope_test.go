@@ -23,14 +23,14 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 	route53Boundary := boundary
 	route53Boundary.ServiceKind = ServiceRoute53
 	builders := map[string]func() (facts.Envelope, error){
-		facts.AWSResourceFactKind: func() (facts.Envelope, error) {
+		cloud.AWSResourceFactKind: func() (facts.Envelope, error) {
 			return NewResourceEnvelope(ResourceObservation{
 				Boundary:     boundary,
 				ARN:          "arn:aws:iam::123456789012:role/eshu-runtime",
 				ResourceType: ResourceTypeIAMRole,
 			})
 		},
-		facts.AWSRelationshipFactKind: func() (facts.Envelope, error) {
+		cloud.AWSRelationshipFactKind: func() (facts.Envelope, error) {
 			return NewRelationshipEnvelope(RelationshipObservation{
 				Boundary:         boundary,
 				RelationshipType: RelationshipIAMRoleAttachedPolicy,
@@ -150,11 +150,11 @@ func TestNewResourceEnvelopeCarriesAWSProvenance(t *testing.T) {
 		t.Fatalf("NewResourceEnvelope returned error: %v", err)
 	}
 
-	if envelope.FactKind != facts.AWSResourceFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSResourceFactKind)
+	if envelope.FactKind != cloud.AWSResourceFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.AWSResourceFactKind)
 	}
-	if envelope.SchemaVersion != facts.AWSResourceSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSResourceSchemaVersion)
+	if envelope.SchemaVersion != cloud.AWSResourceSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.AWSResourceSchemaVersion)
 	}
 	if envelope.CollectorKind != CollectorKind {
 		t.Fatalf("CollectorKind = %q, want %q", envelope.CollectorKind, CollectorKind)

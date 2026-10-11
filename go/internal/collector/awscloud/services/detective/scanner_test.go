@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -122,7 +123,7 @@ func TestScannerOmitsGuardDutyDetectorEdgeWhenUnresolvable(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == awscloud.RelationshipDetectiveGraphSourcesGuardDutyDetector {
@@ -163,7 +164,7 @@ func TestScannerMemberResourceIDIsStableAcrossOrder(t *testing.T) {
 		}
 		ids := map[string]string{}
 		for _, envelope := range envelopes {
-			if envelope.FactKind != facts.AWSResourceFactKind {
+			if envelope.FactKind != cloud.AWSResourceFactKind {
 				continue
 			}
 			if envelope.Payload["resource_type"] != awscloud.ResourceTypeDetectiveMemberAccount {
@@ -303,7 +304,7 @@ func (c fakeClient) ListTags(_ context.Context, graphARN string) (map[string]str
 func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -317,7 +318,7 @@ func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType strin
 func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
@@ -345,7 +346,7 @@ func observationsFromEnvelopes(t *testing.T, envelopes []facts.Envelope) []awscl
 	t.Helper()
 	var observations []awscloud.RelationshipObservation
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		observation := awscloud.RelationshipObservation{

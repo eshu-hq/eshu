@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replay/recorder"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
@@ -68,7 +69,7 @@ func generation(scopeID string, metadata map[string]string, payloads ...map[stri
 	envs := make([]facts.Envelope, 0, len(payloads))
 	for i, payload := range payloads {
 		envs = append(envs, facts.Envelope{
-			FactKind: facts.AWSResourceFactKind, StableFactKey: fmt.Sprintf("key-%d", i), SchemaVersion: "1",
+			FactKind: cloud.AWSResourceFactKind, StableFactKey: fmt.Sprintf("key-%d", i), SchemaVersion: "1",
 			CollectorKind: "aws", FencingToken: 1, SourceConfidence: "reported", Payload: payload,
 			SourceRef: facts.Ref{SourceURI: "aws://" + scopeID, SourceRecordID: fmt.Sprintf("rec-%d", i)},
 		})

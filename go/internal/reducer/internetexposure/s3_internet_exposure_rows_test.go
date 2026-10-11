@@ -20,7 +20,7 @@ import (
 func s3BucketResourceEnvelope(account, region, name string) facts.Envelope {
 	arn := "arn:aws:s3:::" + name
 	return facts.Envelope{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload: map[string]any{
 			"account_id":          account,
 			"region":              region,

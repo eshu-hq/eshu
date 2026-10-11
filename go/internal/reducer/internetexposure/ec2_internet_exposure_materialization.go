@@ -79,7 +79,7 @@ type EC2InternetExposureMaterializationHandler struct {
 func ec2InternetExposureFactKinds() []string {
 	return []string{
 		cloud.EC2InstancePostureFactKind,
-		facts.AWSRelationshipFactKind,
+		cloud.AWSRelationshipFactKind,
 		cloud.AWSSecurityGroupRuleFactKind,
 	}
 }
@@ -263,7 +263,7 @@ func splitEC2InternetExposureEnvelopes(envelopes []facts.Envelope) (postures, re
 		switch env.FactKind {
 		case cloud.EC2InstancePostureFactKind:
 			postures = append(postures, env)
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			relationships = append(relationships, env)
 		case cloud.AWSSecurityGroupRuleFactKind:
 			rules = append(rules, env)

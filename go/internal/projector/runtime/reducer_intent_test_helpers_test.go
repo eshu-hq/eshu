@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -39,8 +40,8 @@ func awsResourceEnvelope(factID, scopeID, generationID string) facts.Envelope {
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.AWSResourceFactKind,
-		SchemaVersion:    facts.AWSResourceSchemaVersion,
+		FactKind:         cloud.AWSResourceFactKind,
+		SchemaVersion:    cloud.AWSResourceSchemaVersion,
 		CollectorKind:    "aws_cloud",
 		SourceConfidence: "reported",
 		ObservedAt:       time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -21,7 +22,7 @@ const (
 func awsResourceEnvelope(factID, sourceSystem, collectorKind string) facts.Envelope {
 	return facts.Envelope{
 		FactID:        factID,
-		FactKind:      facts.AWSResourceFactKind,
+		FactKind:      cloud.AWSResourceFactKind,
 		CollectorKind: collectorKind,
 		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

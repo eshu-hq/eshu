@@ -91,7 +91,7 @@ func decodeAzureCloudResourceForCloudInventory(env facts.Envelope) (azurev1.Clou
 // The typed decode dispatches at schema major "1"
 // (postgresDefaultSchemaMajorVersion) rather than reading
 // fact_records.schema_version, which this loader's SQL does not select: both
-// collectors emit only major 1 today (facts.AWSResourceSchemaVersion,
+// collectors emit only major 1 today (cloud.AWSResourceSchemaVersion,
 // cloud.AzureCloudResourceSchemaVersion = "1.0.0"), and this loader already
 // hardcodes v1 payload key names throughout (account_id, resource_id,
 // region, resource_type, ...), so this adds no new versioning assumption. A
@@ -104,7 +104,7 @@ func cloudInventoryResolveAccountID(
 	decoded map[string]any,
 ) (string, bool) {
 	switch factKind {
-	case facts.AWSResourceFactKind:
+	case cloud.AWSResourceFactKind:
 		resource, err := decodeAWSResourceForCloudInventory(facts.Envelope{
 			FactKind:      factKind,
 			SchemaVersion: postgresDefaultSchemaMajorVersion,

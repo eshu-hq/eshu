@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func testBoundary() awscloud.Boundary {
@@ -235,7 +235,7 @@ func TestScannerEmitsAPIGatewayV2Metadata(t *testing.T) {
 
 	// Every relationship must carry a non-empty target_type so no edge dangles.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if strings.TrimSpace(payloadString(t, envelope, "target_type")) == "" {

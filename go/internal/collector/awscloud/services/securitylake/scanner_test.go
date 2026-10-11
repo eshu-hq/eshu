@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -113,7 +114,7 @@ func TestScannerEmitsSecurityLakeMetadataAndRelationships(t *testing.T) {
 
 	// No subscriber credential / external id / endpoint leakage.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		attrs, _ := envelope.Payload["attributes"].(map[string]any)
@@ -141,7 +142,7 @@ func TestScannerOmitsEdgesWhenDependenciesAbsent(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("unexpected relationship emitted: %#v", envelope.Payload)
 		}
 	}
@@ -160,7 +161,7 @@ func TestScannerOmitsSubscriberRoleEdgeForNonARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipSecurityLakeSubscriberUsesIAMRole {
@@ -285,7 +286,7 @@ func (c fakeClient) Snapshot(context.Context) (Snapshot, error) {
 func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -299,7 +300,7 @@ func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType strin
 func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

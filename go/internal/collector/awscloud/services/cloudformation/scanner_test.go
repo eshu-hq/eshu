@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -316,7 +317,7 @@ func boundaryFor(serviceKind string) awscloud.Boundary {
 func findResource(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if envelope.Payload["resource_type"] == resourceType {
@@ -331,7 +332,7 @@ func findRelationships(t *testing.T, envelopes []facts.Envelope) []facts.Envelop
 	t.Helper()
 	var out []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			out = append(out, envelope)
 		}
 	}

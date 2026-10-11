@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apprunner"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -79,7 +80,7 @@ func resourcesByType(t *testing.T, envelopes []facts.Envelope, resourceType stri
 	t.Helper()
 	var out []map[string]any
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if envelope.Payload["resource_type"] == resourceType {
@@ -93,7 +94,7 @@ func relationshipsByType(t *testing.T, envelopes []facts.Envelope, relationshipT
 	t.Helper()
 	var out []map[string]any
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == relationshipType {

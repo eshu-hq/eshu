@@ -46,7 +46,7 @@ func TestEC2PostureIntentBuildersPreserveContract(t *testing.T) {
 		generationID = "aws-generation-1"
 	)
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactKind: facts.AWSResourceFactKind, FactID: "resource-first"},
+		{FactKind: cloud.AWSResourceFactKind, FactID: "resource-first"},
 		postureEnvelope("posture-first", " aws ", " aws_cloud ", ""),
 		postureEnvelope("posture-second", "ignored-source", "ignored-collector", ""),
 	})
@@ -115,7 +115,7 @@ func TestEC2PostureIntentBuildersRejectMissingTrigger(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		FactID:   "resource-only",
 	}})
 	builders := []struct {

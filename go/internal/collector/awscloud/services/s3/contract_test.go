@@ -18,7 +18,7 @@ func s3Contract() contract.CollectorContract {
 		CollectorKind: awscloud.CollectorKind,
 		FactKinds: []contract.FactKindShape{
 			{
-				Kind: facts.AWSResourceFactKind,
+				Kind: cloud.AWSResourceFactKind,
 				RequiredPayloadKeys: []string{
 					"account_id", "region", "service_kind", "collector_instance_id",
 					"arn", "resource_id", "resource_type", "name", "state", "tags",
@@ -26,7 +26,7 @@ func s3Contract() contract.CollectorContract {
 				},
 			},
 			{
-				Kind: facts.AWSRelationshipFactKind,
+				Kind: cloud.AWSRelationshipFactKind,
 				RequiredPayloadKeys: []string{
 					"account_id", "region", "service_kind", "collector_instance_id",
 					"relationship_type", "source_resource_id", "source_arn",

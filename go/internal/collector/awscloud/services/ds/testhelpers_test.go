@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func testBoundary() awscloud.Boundary {
@@ -54,7 +55,7 @@ func (c fakeClient) ListLDAPSSettings(_ context.Context, directoryID string) ([]
 func resourceByID(t *testing.T, envelopes []facts.Envelope, resourceID string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_id"].(string); got == resourceID {
@@ -68,7 +69,7 @@ func resourceByID(t *testing.T, envelopes []facts.Envelope, resourceID string) f
 func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
@@ -89,7 +90,7 @@ func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipTy
 func assertRelationshipJoinKeys(t *testing.T, envelopes []facts.Envelope) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		relType, _ := envelope.Payload["relationship_type"].(string)
@@ -105,7 +106,7 @@ func assertRelationshipJoinKeys(t *testing.T, envelopes []facts.Envelope) {
 func countResources(envelopes []facts.Envelope, resourceType string) int {
 	count := 0
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -118,7 +119,7 @@ func countResources(envelopes []facts.Envelope, resourceType string) int {
 func countRelationships(envelopes []facts.Envelope, relationshipType string) int {
 	count := 0
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

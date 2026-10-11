@@ -32,7 +32,7 @@ func NewResourceEnvelope(observation ResourceObservation) (facts.Envelope, error
 	if resourceType == "" {
 		return facts.Envelope{}, fmt.Errorf("aws resource observation requires resource_type")
 	}
-	stableKey := facts.StableID(facts.AWSResourceFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AWSResourceFactKind, map[string]any{
 		"account_id":    observation.Boundary.AccountID,
 		"region":        observation.Boundary.Region,
 		"resource_id":   resourceID,
@@ -58,8 +58,8 @@ func NewResourceEnvelope(observation ResourceObservation) (facts.Envelope, error
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.AWSResourceFactKind,
-		facts.AWSResourceSchemaVersion,
+		cloud.AWSResourceFactKind,
+		cloud.AWSResourceSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, resourceID),
 		observation.SourceURI,
@@ -88,7 +88,7 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 	if sourceID == "" || targetID == "" {
 		return facts.Envelope{}, fmt.Errorf("aws relationship observation requires source and target identity")
 	}
-	stableKey := facts.StableID(facts.AWSRelationshipFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.AWSRelationshipFactKind, map[string]any{
 		"account_id":         observation.Boundary.AccountID,
 		"region":             observation.Boundary.Region,
 		"relationship_type":  relationshipType,
@@ -111,8 +111,8 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.AWSRelationshipFactKind,
-		facts.AWSRelationshipSchemaVersion,
+		cloud.AWSRelationshipFactKind,
+		cloud.AWSRelationshipSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, sourceID+"->"+targetID),
 		observation.SourceURI,

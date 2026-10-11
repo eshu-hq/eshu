@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducerawscloud "github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
@@ -79,10 +80,10 @@ func measure(t *testing.T, gens [][]facts.Envelope, scopeIDs []string) shape {
 		var res, rel []facts.Envelope
 		for _, e := range envs {
 			switch e.FactKind {
-			case facts.AWSResourceFactKind:
+			case cloud.AWSResourceFactKind:
 				res = append(res, e)
 				allRes = append(allRes, e)
-			case facts.AWSRelationshipFactKind:
+			case cloud.AWSRelationshipFactKind:
 				rel = append(rel, e)
 			case facts.AWSIAMPermissionFactKind:
 				allPerm = append(allPerm, e)
@@ -229,7 +230,7 @@ func TestAWSCorpusSiblingsJoin(t *testing.T) {
 					resolvedImage = v
 				}
 			}
-			if e.FactKind == facts.AWSResourceFactKind && e.Payload["resource_type"] == "aws_ec2_instance" {
+			if e.FactKind == cloud.AWSResourceFactKind && e.Payload["resource_type"] == "aws_ec2_instance" {
 				ec2ARN, _ = e.Payload["arn"].(string)
 			}
 		}

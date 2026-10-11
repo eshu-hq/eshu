@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // BenchmarkExtractCloudResourceNodeRows measures the in-memory projection of
@@ -19,7 +20,7 @@ func BenchmarkExtractCloudResourceNodeRows(b *testing.B) {
 	envelopes := make([]facts.Envelope, 0, resourceCount)
 	for i := 0; i < resourceCount; i++ {
 		envelopes = append(envelopes, facts.Envelope{
-			FactKind: facts.AWSResourceFactKind,
+			FactKind: cloud.AWSResourceFactKind,
 			Payload: map[string]any{
 				"account_id":          "111122223333",
 				"region":              "us-east-1",

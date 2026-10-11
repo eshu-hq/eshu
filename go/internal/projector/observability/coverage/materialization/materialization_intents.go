@@ -5,6 +5,7 @@ package materialization
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -42,7 +43,7 @@ func BuildObservabilityCoverageMaterializationReducerIntent(
 	generation scope.ScopeGeneration,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKindMatching(facts.AWSResourceFactKind, func(envelope facts.Envelope) bool {
+	envelope, ok := lookup.FirstOfKindMatching(cloud.AWSResourceFactKind, func(envelope facts.Envelope) bool {
 		_, ok := observabilityResourceTypes[awsResourceTypeForEnvelope(envelope)]
 		return ok
 	})

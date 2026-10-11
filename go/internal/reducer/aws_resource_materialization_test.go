@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // recordingCloudResourceNodeWriter captures the rows handed to the node writer
@@ -35,7 +36,7 @@ func (w *recordingCloudResourceNodeWriter) WriteCloudResourceNodes(
 
 func awsResourceEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload:  payload,
 	}
 }
@@ -170,7 +171,7 @@ func TestExtractCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		{FactKind: facts.AWSRelationshipFactKind, Payload: map[string]any{"resource_id": "ignored"}},
+		{FactKind: cloud.AWSRelationshipFactKind, Payload: map[string]any{"resource_id": "ignored"}},
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",

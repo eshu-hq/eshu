@@ -31,9 +31,9 @@ func TestClaimedSourceScansMatchedIAMClaim(t *testing.T) {
 			FactID:           "fact-1",
 			ScopeID:          item.ScopeID,
 			GenerationID:     item.GenerationID,
-			FactKind:         facts.AWSResourceFactKind,
+			FactKind:         cloud.AWSResourceFactKind,
 			StableFactKey:    "resource-1",
-			SchemaVersion:    facts.AWSResourceSchemaVersion,
+			SchemaVersion:    cloud.AWSResourceSchemaVersion,
 			CollectorKind:    awscloud.CollectorKind,
 			FencingToken:     item.CurrentFencingToken,
 			SourceConfidence: facts.SourceConfidenceReported,
@@ -187,19 +187,19 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 		Credentials: &stubCredentialProvider{lease: &stubCredentialLease{}},
 		Scanners: &stubScannerFactory{scanner: stubScanner{envelopes: []facts.Envelope{
 			{
-				FactKind: facts.AWSResourceFactKind,
+				FactKind: cloud.AWSResourceFactKind,
 				Payload: map[string]any{
 					"resource_type": awscloud.ResourceTypeECRRepository,
 				},
 			},
 			{
-				FactKind: facts.AWSResourceFactKind,
+				FactKind: cloud.AWSResourceFactKind,
 				Payload: map[string]any{
 					"resource_type": awscloud.ResourceTypeECRLifecyclePolicy,
 				},
 			},
-			{FactKind: facts.AWSRelationshipFactKind},
-			{FactKind: facts.AWSRelationshipFactKind},
+			{FactKind: cloud.AWSRelationshipFactKind},
+			{FactKind: cloud.AWSRelationshipFactKind},
 			{FactKind: cloud.AWSTagObservationFactKind},
 		}}},
 		Clock:       func() time.Time { return now },
@@ -273,7 +273,7 @@ func TestClaimedSourceRecordsScanStatusWithAPICallStats(t *testing.T) {
 				{operation: "ListPolicies", result: "error", throttled: true},
 			},
 			envelopes: []facts.Envelope{
-				{FactKind: facts.AWSResourceFactKind},
+				{FactKind: cloud.AWSResourceFactKind},
 				{FactKind: facts.AWSWarningFactKind, Payload: map[string]any{"warning_kind": WarningBudgetExhausted}},
 			},
 		}},

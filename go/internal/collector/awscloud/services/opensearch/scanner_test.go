@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
@@ -215,7 +216,7 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 
 	// Every relationship must carry a non-empty target_type to graph-join.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["target_type"].(string); got == "" {
@@ -330,7 +331,7 @@ func (c fakeClient) ListVPCEndpoints(context.Context) ([]VPCEndpoint, error) {
 func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -344,7 +345,7 @@ func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType strin
 func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
@@ -358,7 +359,7 @@ func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipTy
 func assertRelationshipTarget(t *testing.T, envelopes []facts.Envelope, relationshipType, targetID string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got != relationshipType {
@@ -377,7 +378,7 @@ func assertRelationshipTarget(t *testing.T, envelopes []facts.Envelope, relation
 func assertRelationshipTargetType(t *testing.T, envelopes []facts.Envelope, relationshipType, targetType string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got != relationshipType {
@@ -393,7 +394,7 @@ func assertRelationshipTargetType(t *testing.T, envelopes []facts.Envelope, rela
 func assertRelationshipSourceRecordID(t *testing.T, envelopes []facts.Envelope, relationshipType, want string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got != relationshipType {
@@ -409,7 +410,7 @@ func assertRelationshipSourceRecordID(t *testing.T, envelopes []facts.Envelope, 
 func countRelationships(envelopes []facts.Envelope) int {
 	var count int
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			count++
 		}
 	}
@@ -419,7 +420,7 @@ func countRelationships(envelopes []facts.Envelope) int {
 func countRelationshipsOfType(envelopes []facts.Envelope, relationshipType string) int {
 	var count int
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

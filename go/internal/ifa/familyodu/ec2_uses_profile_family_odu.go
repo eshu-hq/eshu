@@ -264,9 +264,9 @@ func EC2UsesProfileFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          ec2UsesProfileFamilyScopeID,
 			GenerationID:     ec2UsesProfileFamilyGenerationID,
-			FactKind:         facts.AWSResourceFactKind,
-			StableFactKey:    ec2UsesProfileFamilyStableFactKey(facts.AWSResourceFactKind, fixture.ProfileARN),
-			SchemaVersion:    facts.AWSResourceSchemaVersion,
+			FactKind:         cloud.AWSResourceFactKind,
+			StableFactKey:    ec2UsesProfileFamilyStableFactKey(cloud.AWSResourceFactKind, fixture.ProfileARN),
+			SchemaVersion:    cloud.AWSResourceSchemaVersion,
 			CollectorKind:    ec2UsesProfileFamilyCollectorKind,
 			SourceConfidence: ec2UsesProfileFamilySourceConfidence,
 			Payload:          payload,

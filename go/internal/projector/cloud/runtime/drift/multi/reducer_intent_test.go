@@ -16,7 +16,7 @@ func TestBuildReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 	}})
 	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a multi_cloud_runtime_drift intent for an AWS-only generation")

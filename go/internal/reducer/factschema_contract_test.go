@@ -20,8 +20,8 @@ var factSchemaWireKindCases = []struct {
 	contract string
 	wireKind string
 }{
-	{"aws_resource", factschema.FactKindAWSResource, facts.AWSResourceFactKind},
-	{"aws_relationship", factschema.FactKindAWSRelationship, facts.AWSRelationshipFactKind},
+	{"aws_resource", factschema.FactKindAWSResource, cloud.AWSResourceFactKind},
+	{"aws_relationship", factschema.FactKindAWSRelationship, cloud.AWSRelationshipFactKind},
 	{"aws_security_group_rule", factschema.FactKindAWSSecurityGroupRule, cloud.AWSSecurityGroupRuleFactKind},
 	{"ec2_instance_posture", factschema.FactKindEC2InstancePosture, cloud.EC2InstancePostureFactKind},
 	{"s3_bucket_posture", factschema.FactKindS3BucketPosture, cloud.S3BucketPostureFactKind},
@@ -165,7 +165,7 @@ func TestFactSchemaWireKindCasesCoverSemanticFacts(t *testing.T) {
 func TestPartitionDecodeFailures(t *testing.T) {
 	t.Parallel()
 
-	env := facts.Envelope{FactID: "fact-123", FactKind: facts.AWSResourceFactKind}
+	env := facts.Envelope{FactID: "fact-123", FactKind: cloud.AWSResourceFactKind}
 
 	t.Run("input_invalid decode error is quarantined", func(t *testing.T) {
 		t.Parallel()
@@ -186,8 +186,8 @@ func TestPartitionDecodeFailures(t *testing.T) {
 		if fatal != nil {
 			t.Fatalf("fatal = %v, want nil for a quarantinable error", fatal)
 		}
-		if q.FactID != "fact-123" || q.FactKind != facts.AWSResourceFactKind {
-			t.Fatalf("quarantined fact identity = {%q,%q}, want {fact-123, %q}", q.FactID, q.FactKind, facts.AWSResourceFactKind)
+		if q.FactID != "fact-123" || q.FactKind != cloud.AWSResourceFactKind {
+			t.Fatalf("quarantined fact identity = {%q,%q}, want {fact-123, %q}", q.FactID, q.FactKind, cloud.AWSResourceFactKind)
 		}
 		if q.Field != "account_id" {
 			t.Fatalf("quarantined field = %q, want account_id", q.Field)

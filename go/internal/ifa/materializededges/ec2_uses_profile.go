@@ -95,7 +95,7 @@ func resolveEC2UsesProfileMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 	var resources, postures []facts.Envelope
 	for _, env := range odu.Facts {
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources = append(resources, env)
 		case cloud.EC2InstancePostureFactKind:
 			postures = append(postures, env)

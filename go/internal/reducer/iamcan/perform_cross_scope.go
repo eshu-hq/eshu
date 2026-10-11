@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -294,7 +295,7 @@ func decideCrossScopeTargets(targets []CrossScopeTarget, snapshot CrossScopeTarg
 	sort.Strings(scopeIDs)
 	for _, scopeID := range scopeIDs {
 		for _, env := range snapshot.Resources[scopeID] {
-			if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
+			if env.FactKind != cloud.AWSResourceFactKind || env.IsTombstone {
 				continue
 			}
 			arn := payloadcore.AnyToString(env.Payload["arn"])

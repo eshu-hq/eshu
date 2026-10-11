@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsCertificateFactsMetadataOnlyAndInUseRelationships(t *testing.T) {
@@ -131,7 +132,7 @@ func TestScannerSkipsRelationshipsWhenInUseByIsEmpty(t *testing.T) {
 	}
 
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("relationship emitted for certificate with no in-use-by ARNs: %#v", envelope.Payload)
 		}
 	}
@@ -151,7 +152,7 @@ func TestScannerSkipsRelationshipForUnshapedInUseByEntry(t *testing.T) {
 	}
 
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSRelationshipFactKind {
+		if envelope.FactKind == cloud.AWSRelationshipFactKind {
 			t.Fatalf("relationship emitted for non-ARN in_use_by entry: %#v", envelope.Payload)
 		}
 	}
@@ -198,7 +199,7 @@ func (c fakeClient) ListCertificates(context.Context) ([]Certificate, error) {
 func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {
@@ -212,7 +213,7 @@ func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType strin
 func relationshipsByType(envelopes []facts.Envelope, relationshipType string) []facts.Envelope {
 	var result []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {

@@ -97,7 +97,7 @@ type ParsedContainerImageRef struct {
 // error (an unsupported schema major) is returned fatally so the whole intent
 // fails for durable triage.
 //
-// factload.FactKindContentEntity, factload.FactKindRepository, and facts.AWSRelationshipFactKind
+// factload.FactKindContentEntity, factload.FactKindRepository, and cloud.AWSRelationshipFactKind
 // are read raw here on purpose: they are generic cross-kind envelope/scope
 // anchors and a differently-scoped AWS relationship kind, not part of the
 // image_reference family this migration covers (#4685 scope note).
@@ -155,7 +155,7 @@ func extractContainerImageRefsWithQuarantine(
 			if ok {
 				quarantined = append(quarantined, q)
 			}
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			if payloadcore.PayloadStr(envelope.Payload, "target_type") != "container_image" {
 				continue
 			}

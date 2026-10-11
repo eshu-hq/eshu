@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // fakeClient is a deterministic in-memory Service Catalog client for scanner
@@ -116,7 +117,7 @@ func scanFixture(t *testing.T, client Client) []facts.Envelope {
 func findResource(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if envelope.Payload["resource_type"] == resourceType {
@@ -130,7 +131,7 @@ func findResource(t *testing.T, envelopes []facts.Envelope, resourceType string)
 func findRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if envelope.Payload["relationship_type"] == relationshipType {
@@ -310,7 +311,7 @@ func TestScanOmitsNonCFNStackProvisionedProductEdge(t *testing.T) {
 		PhysicalID: "arn:aws:s3:::tf-state-bucket",
 	}}
 	for _, envelope := range scanFixture(t, client) {
-		if envelope.FactKind == facts.AWSRelationshipFactKind &&
+		if envelope.FactKind == cloud.AWSRelationshipFactKind &&
 			envelope.Payload["relationship_type"] ==
 				awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack {
 			t.Fatal("emitted a stack edge for a non-CFN_STACK provisioned product")
@@ -330,7 +331,7 @@ func TestScanOmitsNonRolePrincipalEdge(t *testing.T) {
 		},
 	}
 	for _, envelope := range scanFixture(t, client) {
-		if envelope.FactKind == facts.AWSRelationshipFactKind &&
+		if envelope.FactKind == cloud.AWSRelationshipFactKind &&
 			envelope.Payload["relationship_type"] ==
 				awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal {
 			t.Fatalf("emitted a role edge for a non-role / wildcard principal: %v",
@@ -357,7 +358,7 @@ func TestScanEmitsNoSecretShapedPayload(t *testing.T) {
 		),
 	}
 	for _, envelope := range scanFixture(t, sampleClient()) {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		resourceType, _ := envelope.Payload["resource_type"].(string)
@@ -396,7 +397,7 @@ func TestScanEmitsEveryDocumentedAttribute(t *testing.T) {
 	}
 	seen := make(map[string]map[string]struct{}, len(documented))
 	for _, envelope := range scanFixture(t, sampleClient()) {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		resourceType, _ := envelope.Payload["resource_type"].(string)

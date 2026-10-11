@@ -36,8 +36,8 @@ func TestBuildProjectionQueuesAWSCloudImageMaterialization(t *testing.T) {
 	intents := appendScopeGenerationReducerIntents(nil, scopeValue, generation, []facts.Envelope{
 		{
 			FactID:           "fact-lambda-resource-1",
-			FactKind:         facts.AWSResourceFactKind,
-			SchemaVersion:    facts.AWSResourceSchemaVersion,
+			FactKind:         cloud.AWSResourceFactKind,
+			SchemaVersion:    cloud.AWSResourceSchemaVersion,
 			SourceRef:        facts.Ref{SourceSystem: "aws"},
 			SourceConfidence: facts.SourceConfidenceReported,
 			Payload: map[string]any{
@@ -55,8 +55,8 @@ func TestBuildProjectionQueuesAWSCloudImageMaterialization(t *testing.T) {
 		},
 		{
 			FactID:           "fact-lambda-relationship-1",
-			FactKind:         facts.AWSRelationshipFactKind,
-			SchemaVersion:    facts.AWSRelationshipSchemaVersion,
+			FactKind:         cloud.AWSRelationshipFactKind,
+			SchemaVersion:    cloud.AWSRelationshipSchemaVersion,
 			SourceRef:        facts.Ref{SourceSystem: "aws"},
 			SourceConfidence: facts.SourceConfidenceReported,
 			Payload: map[string]any{
@@ -130,8 +130,8 @@ func TestBuildProjectionQueuesAWSCloudImageMaterializationWithoutLambdaRelations
 	intents := appendScopeGenerationReducerIntents(nil, scopeValue, generation, []facts.Envelope{
 		{
 			FactID:        "fact-ecs-resource-1",
-			FactKind:      facts.AWSResourceFactKind,
-			SchemaVersion: facts.AWSResourceSchemaVersion,
+			FactKind:      cloud.AWSResourceFactKind,
+			SchemaVersion: cloud.AWSResourceSchemaVersion,
 			SourceRef:     facts.Ref{SourceSystem: "aws"},
 			Payload: map[string]any{
 				"arn":           "arn:aws:ecs:us-east-1:123456789012:task-definition/demo:1",
@@ -143,8 +143,8 @@ func TestBuildProjectionQueuesAWSCloudImageMaterializationWithoutLambdaRelations
 		},
 		{
 			FactID:        "fact-ecs-relationship-1",
-			FactKind:      facts.AWSRelationshipFactKind,
-			SchemaVersion: facts.AWSRelationshipSchemaVersion,
+			FactKind:      cloud.AWSRelationshipFactKind,
+			SchemaVersion: cloud.AWSRelationshipSchemaVersion,
 			SourceRef:     facts.Ref{SourceSystem: "aws"},
 			Payload: map[string]any{
 				"account_id":         "123456789012",
@@ -158,8 +158,8 @@ func TestBuildProjectionQueuesAWSCloudImageMaterializationWithoutLambdaRelations
 		},
 		{
 			FactID:        "fact-unrelated-relationship-1",
-			FactKind:      facts.AWSRelationshipFactKind,
-			SchemaVersion: facts.AWSRelationshipSchemaVersion,
+			FactKind:      cloud.AWSRelationshipFactKind,
+			SchemaVersion: cloud.AWSRelationshipSchemaVersion,
 			SourceRef:     facts.Ref{SourceSystem: "aws"},
 			Payload: map[string]any{
 				"account_id":         "123456789012",

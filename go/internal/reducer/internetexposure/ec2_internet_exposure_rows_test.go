@@ -38,7 +38,7 @@ func ec2ExposurePostureEnvelope(factID, instanceID string, payload map[string]an
 func ec2ExposureRelationshipEnvelope(factID, relType, sourceID, targetID, targetType string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AWSRelationshipFactKind,
+		FactKind: cloud.AWSRelationshipFactKind,
 		Payload: map[string]any{
 			"account_id":           ec2ExposureAccount,
 			"region":               ec2ExposureRegion,

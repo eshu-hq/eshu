@@ -144,7 +144,7 @@ func TestBuildSecurityIntentsPreserveEarliestMatchAndDeterminism(t *testing.T) {
 func TestBuildSecurityIntentsSkipMissingKinds(t *testing.T) {
 	t.Parallel()
 
-	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: facts.AWSResourceFactKind}})
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: cloud.AWSResourceFactKind}})
 	for index, build := range []intentBuilder{
 		BuildSecurityAlertReconciliationReducerIntent,
 		BuildSecurityGroupEndpointMaterializationReducerIntent,

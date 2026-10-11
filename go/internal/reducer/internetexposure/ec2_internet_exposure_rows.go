@@ -281,7 +281,7 @@ func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) (ec2I
 	}
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSRelationshipFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSRelationshipFactKind || env.IsTombstone {
 			continue
 		}
 		relationship, err := schemadecode.DecodeAWSRelationship(env)

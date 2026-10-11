@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -89,7 +89,7 @@ type IAMInstanceProfileRoleMaterializationHandler struct {
 }
 
 func iamInstanceProfileRoleFactKinds() []string {
-	return []string{facts.AWSResourceFactKind}
+	return []string{cloud.AWSResourceFactKind}
 }
 
 func (h IAMInstanceProfileRoleMaterializationHandler) Handle(

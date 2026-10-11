@@ -56,8 +56,8 @@ func TestScannerEmitsECRRepositoriesImagesAndLifecyclePolicies(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 2 {
-		t.Fatalf("aws_resource count = %d, want 2", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 2 {
+		t.Fatalf("aws_resource count = %d, want 2", counts[cloud.AWSResourceFactKind])
 	}
 	if counts[cloud.AWSImageReferenceFactKind] != 2 {
 		t.Fatalf("aws_image_reference count = %d, want 2", counts[cloud.AWSImageReferenceFactKind])
@@ -149,7 +149,7 @@ func factKindCounts(envelopes []facts.Envelope) map[string]int {
 func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["resource_type"].(string); got == resourceType {

@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ram"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 type fakeClient struct {
@@ -65,9 +66,9 @@ func collectByType(t *testing.T, envelopes []facts.Envelope) (resources, relatio
 	t.Helper()
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources++
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			relationships++
 		default:
 			t.Fatalf("unexpected fact kind %q", envelope.FactKind)
@@ -88,8 +89,8 @@ type relationshipView struct {
 
 func relationshipFromEnvelope(t *testing.T, envelope facts.Envelope) relationshipView {
 	t.Helper()
-	if envelope.FactKind != facts.AWSRelationshipFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSRelationshipFactKind)
+	if envelope.FactKind != cloud.AWSRelationshipFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.AWSRelationshipFactKind)
 	}
 	return relationshipView{
 		RelationshipType: payloadString(envelope, "relationship_type"),
@@ -103,7 +104,7 @@ func relationshipFromEnvelope(t *testing.T, envelope facts.Envelope) relationshi
 func findRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType string) relationshipView {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if payloadString(envelope, "relationship_type") == relationshipType {
@@ -229,7 +230,7 @@ func TestScanEveryRelationshipHasNonEmptyTargetTypeAndJoinKey(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		rel := relationshipFromEnvelope(t, envelope)
@@ -260,7 +261,7 @@ func TestScanDeduplicatesPermissionResourceAcrossShares(t *testing.T) {
 	}
 	permissionResources := 0
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
+		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
 		if resourceTypeFromEnvelope(t, envelope) == awscloud.ResourceTypeRAMPermission {
@@ -292,7 +293,7 @@ func TestScanShareResourceWithBlankTypeFallsBackToGenericTargetType(t *testing.T
 	}
 	// The blank RAM-reported type must not be carried as a false resource_type.
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		if payloadString(envelope, "relationship_type") != awscloud.RelationshipRAMShareIncludesResource {
@@ -318,7 +319,7 @@ func TestScanUnknownPrincipalDoesNotMasqueradeAsAccount(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
+		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		relType := payloadString(envelope, "relationship_type")
@@ -361,7 +362,7 @@ func TestScanShareWithBlankArnFallsBackToName(t *testing.T) {
 	}
 	var shareResource facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSResourceFactKind {
+		if envelope.FactKind == cloud.AWSResourceFactKind {
 			shareResource = envelope
 		}
 	}

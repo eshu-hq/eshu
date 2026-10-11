@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -36,7 +37,7 @@ func ExtractEC2InstanceIdentityNodeRows(envelopes []facts.Envelope) ([]map[strin
 	var quarantined []factdecode.QuarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
 		row, uid, ok, err := ec2InstanceIdentityNodeRow(env)

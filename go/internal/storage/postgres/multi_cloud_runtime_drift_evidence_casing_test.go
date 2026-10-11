@@ -10,7 +10,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -65,7 +64,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderAzureStateCaseInsensitiveJo
 		queryResponses: []queueFakeRows{
 			// Observed inventory facts carry the mixed-case identities.
 			{rows: [][]any{
-				{facts.AWSResourceFactKind, awsObservedARN, []byte(`{"arn":"` + awsObservedARN + `","resource_type":"aws_s3_bucket"}`)},
+				{cloud.AWSResourceFactKind, awsObservedARN, []byte(`{"arn":"` + awsObservedARN + `","resource_type":"aws_s3_bucket"}`)},
 				{cloud.GCPCloudResourceFactKind, gcpObservedName, []byte(`{"full_resource_name":"` + gcpObservedName + `","asset_type":"compute.googleapis.com/Instance"}`)},
 				{cloud.AzureCloudResourceFactKind, azureObservedID, []byte(`{"arm_resource_id":"` + azureObservedID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
 			}},

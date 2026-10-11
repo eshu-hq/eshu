@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // Regression for #6162, AWS side. CloudResourceEdgeWriter stamps rel.scope_id
@@ -32,17 +33,17 @@ func TestExtractAWSRelationshipEdgeRowsRefusesCrossScopeEndpoint(t *testing.T) {
 	)
 
 	resources := []facts.Envelope{
-		{ScopeID: foreignScope, FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+		{ScopeID: foreignScope, FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 			"account_id": "999988887777", "region": "us-east-1",
 			"resource_type": "aws_lambda_function", "resource_id": foreignFn, "arn": foreignFn,
 		}},
-		{ScopeID: intentScope, FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"resource_type": "aws_kms_key", "resource_id": localKey, "arn": localKey,
 		}},
 	}
 	rels := []facts.Envelope{
-		{ScopeID: intentScope, FactKind: facts.AWSRelationshipFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.AWSRelationshipFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"relationship_type":  "USES_KMS_KEY",
 			"source_resource_id": foreignFn, "source_arn": foreignFn,
@@ -79,17 +80,17 @@ func TestExtractAWSRelationshipEdgeRowsAdmitsSameScopeEndpoint(t *testing.T) {
 	)
 
 	resources := []facts.Envelope{
-		{ScopeID: intentScope, FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"resource_type": "aws_lambda_function", "resource_id": fn, "arn": fn,
 		}},
-		{ScopeID: intentScope, FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"resource_type": "aws_kms_key", "resource_id": key, "arn": key,
 		}},
 	}
 	rels := []facts.Envelope{
-		{ScopeID: intentScope, FactKind: facts.AWSRelationshipFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.AWSRelationshipFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"relationship_type":  "USES_KMS_KEY",
 			"source_resource_id": fn, "source_arn": fn,
@@ -121,17 +122,17 @@ func TestExtractAWSRelationshipEdgeRowsEmptyIntentScopeKeepsLegacyJoin(t *testin
 	)
 
 	resources := []facts.Envelope{
-		{ScopeID: "scope-a", FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+		{ScopeID: "scope-a", FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 			"account_id": "999988887777", "region": "us-east-1",
 			"resource_type": "aws_lambda_function", "resource_id": foreignFn, "arn": foreignFn,
 		}},
-		{ScopeID: "scope-b", FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
+		{ScopeID: "scope-b", FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"resource_type": "aws_kms_key", "resource_id": localKey, "arn": localKey,
 		}},
 	}
 	rels := []facts.Envelope{
-		{ScopeID: "scope-b", FactKind: facts.AWSRelationshipFactKind, Payload: map[string]any{
+		{ScopeID: "scope-b", FactKind: cloud.AWSRelationshipFactKind, Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
 			"relationship_type":  "USES_KMS_KEY",
 			"source_resource_id": foreignFn, "source_arn": foreignFn,

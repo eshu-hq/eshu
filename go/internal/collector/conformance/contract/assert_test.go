@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestAssertFactKinds(t *testing.T) {
 	contract := CollectorContract{
 		CollectorKind: "aws",
 		FactKinds: []FactKindShape{
-			{Kind: facts.AWSResourceFactKind},
-			{Kind: facts.AWSRelationshipFactKind},
+			{Kind: cloud.AWSResourceFactKind},
+			{Kind: cloud.AWSRelationshipFactKind},
 		},
 	}
 	envelopes := []facts.Envelope{
-		{FactKind: facts.AWSResourceFactKind},
-		{FactKind: facts.AWSRelationshipFactKind},
+		{FactKind: cloud.AWSResourceFactKind},
+		{FactKind: cloud.AWSRelationshipFactKind},
 	}
 	AssertFactShape(t, contract, envelopes) // should not fail
 }
@@ -31,11 +32,11 @@ func TestAssertRequiredPayloadKeys(t *testing.T) {
 	contract := CollectorContract{
 		CollectorKind: "aws",
 		FactKinds: []FactKindShape{
-			{Kind: facts.AWSResourceFactKind, RequiredPayloadKeys: []string{"arn", "resource_type"}},
+			{Kind: cloud.AWSResourceFactKind, RequiredPayloadKeys: []string{"arn", "resource_type"}},
 		},
 	}
 	envelopes := []facts.Envelope{
-		{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{"arn": "a", "resource_type": "t"}},
+		{FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{"arn": "a", "resource_type": "t"}},
 	}
 	AssertFactShape(t, contract, envelopes)
 }
@@ -44,27 +45,27 @@ func TestValidateCollectorKind(t *testing.T) {
 	contract := CollectorContract{
 		CollectorKind: "aws",
 		FactKinds: []FactKindShape{
-			{Kind: facts.AWSResourceFactKind},
+			{Kind: cloud.AWSResourceFactKind},
 		},
 	}
 	envelopes := []facts.Envelope{
-		{FactKind: facts.AWSResourceFactKind, CollectorKind: "aws"},
+		{FactKind: cloud.AWSResourceFactKind, CollectorKind: "aws"},
 	}
 	ValidateCollectorKind(t, contract, envelopes) // should not fail
 }
 
 func TestEnvelopeCounts(t *testing.T) {
 	envelopes := []facts.Envelope{
-		{FactKind: facts.AWSResourceFactKind},
-		{FactKind: facts.AWSResourceFactKind},
-		{FactKind: facts.AWSRelationshipFactKind},
+		{FactKind: cloud.AWSResourceFactKind},
+		{FactKind: cloud.AWSResourceFactKind},
+		{FactKind: cloud.AWSRelationshipFactKind},
 	}
 	counts := EnvelopeCounts(envelopes)
-	if counts[facts.AWSResourceFactKind] != 2 {
-		t.Errorf("aws_resource count = %d, want 2", counts[facts.AWSResourceFactKind])
+	if counts[cloud.AWSResourceFactKind] != 2 {
+		t.Errorf("aws_resource count = %d, want 2", counts[cloud.AWSResourceFactKind])
 	}
-	if counts[facts.AWSRelationshipFactKind] != 1 {
-		t.Errorf("aws_relationship count = %d, want 1", counts[facts.AWSRelationshipFactKind])
+	if counts[cloud.AWSRelationshipFactKind] != 1 {
+		t.Errorf("aws_relationship count = %d, want 1", counts[cloud.AWSRelationshipFactKind])
 	}
 }
 

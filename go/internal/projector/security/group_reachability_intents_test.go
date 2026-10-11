@@ -78,7 +78,7 @@ func TestSecurityGroupReachabilityIntentsSkipWithoutRuleFacts(t *testing.T) {
 	t.Parallel()
 
 	// An aws_resource fact, but no aws_security_group_rule fact.
-	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: facts.AWSResourceFactKind, FactID: "r-1"}})
+	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: cloud.AWSResourceFactKind, FactID: "r-1"}})
 
 	for _, build := range []intentBuilder{
 		BuildSecurityGroupEndpointMaterializationReducerIntent,

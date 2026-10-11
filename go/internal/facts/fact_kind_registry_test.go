@@ -6,6 +6,8 @@ package facts
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestGeneratedFactKindRegistryCoversCoreContracts(t *testing.T) {
@@ -185,7 +187,7 @@ func TestValidateFactKindRegistryAcceptsPopulatedV11Fields(t *testing.T) {
 	entries := FactKindRegistry()
 	found := false
 	for i := range entries {
-		if entries[i].Kind == AWSResourceFactKind {
+		if entries[i].Kind == cloud.AWSResourceFactKind {
 			entries[i].PayloadSchema = "sdk/go/factschema/schema/aws_resource.v1.schema.json"
 			entries[i].DeprecatedIn = "1.2.0"
 			entries[i].RemovedIn = "2.0.0"
@@ -194,7 +196,7 @@ func TestValidateFactKindRegistryAcceptsPopulatedV11Fields(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("test fixture missing %q", AWSResourceFactKind)
+		t.Fatalf("test fixture missing %q", cloud.AWSResourceFactKind)
 	}
 	if err := ValidateFactKindRegistry(entries); err != nil {
 		t.Fatalf("ValidateFactKindRegistry() with populated v1.1 fields error = %v, want nil", err)

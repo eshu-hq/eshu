@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -19,7 +20,7 @@ const (
 func ec2InstanceIdentityEnvelope(instanceID, arn, amiID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "fact-identity-" + instanceID,
-		FactKind: facts.AWSResourceFactKind,
+		FactKind: cloud.AWSResourceFactKind,
 		Payload: map[string]any{
 			"account_id":    testEC2IdentityAccount,
 			"region":        testEC2IdentityRegion,
@@ -91,7 +92,7 @@ func TestExtractEC2InstanceIdentityNodeRowsIgnoresNonEC2InstanceResources(t *tes
 	envelopes := []facts.Envelope{
 		{
 			FactID:   "fact-resource-vpc",
-			FactKind: facts.AWSResourceFactKind,
+			FactKind: cloud.AWSResourceFactKind,
 			Payload: map[string]any{
 				"account_id":    testEC2IdentityAccount,
 				"region":        testEC2IdentityRegion,
@@ -116,7 +117,7 @@ func TestExtractEC2InstanceIdentityNodeRowsSkipsIncompleteIdentity(t *testing.T)
 	envelopes := []facts.Envelope{
 		{
 			FactID:   "fact-identity-empty",
-			FactKind: facts.AWSResourceFactKind,
+			FactKind: cloud.AWSResourceFactKind,
 			Payload: map[string]any{
 				"account_id":    testEC2IdentityAccount,
 				"region":        testEC2IdentityRegion,

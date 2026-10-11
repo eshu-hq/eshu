@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -56,7 +57,7 @@ func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, []fact
 	index := iamRoleJoinIndex{byARN: make(map[string]string, len(envelopes))}
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
 		resource, err := schemadecode.DecodeAWSResource(env)
@@ -128,7 +129,7 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 	rows := make([]map[string]any, 0, len(envelopes))
 
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
+		if env.FactKind != cloud.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
 		resource, err := schemadecode.DecodeAWSResource(env)

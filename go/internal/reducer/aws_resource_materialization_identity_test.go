@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestExtractCloudResourceNodeRowsRequiresIdentity proves an aws_resource fact
@@ -88,8 +89,8 @@ func TestExtractCloudResourceNodeRowsQuarantinesMissingRequiredField(t *testing.
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-account_id fact must be quarantined", len(quarantined))
 	}
-	if quarantined[0].FactKind != facts.AWSResourceFactKind {
-		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, facts.AWSResourceFactKind)
+	if quarantined[0].FactKind != cloud.AWSResourceFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, cloud.AWSResourceFactKind)
 	}
 	if quarantined[0].Field != "account_id" {
 		t.Fatalf("quarantined field = %q, want %q", quarantined[0].Field, "account_id")

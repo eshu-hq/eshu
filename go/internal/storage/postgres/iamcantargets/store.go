@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -134,7 +135,7 @@ func (s Store) LoadCrossScopeTargets(
 			continue
 		}
 		envelopes, err := s.Facts.ListFactsByKindAndPayloadValue(
-			ctx, scope.ScopeID, scope.ActiveGenerationID, facts.AWSResourceFactKind, "arn", arns,
+			ctx, scope.ScopeID, scope.ActiveGenerationID, cloud.AWSResourceFactKind, "arn", arns,
 		)
 		if err != nil {
 			return iamcan.CrossScopeTargetSnapshot{}, fmt.Errorf("load cross-scope aws_resource targets for scope %s: %w", scope.ScopeID, err)

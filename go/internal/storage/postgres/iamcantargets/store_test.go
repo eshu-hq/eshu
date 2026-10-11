@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -52,7 +53,7 @@ func (f *crossScopeTargetFactsStub) ListFactsByKindAndPayloadValue(
 	f.calls = append(f.calls, recordedFactListCall{scopeID, generationID, factKind, payloadKey, slices.Clone(values)})
 	out := make([]facts.Envelope, 0, len(values))
 	for _, value := range values {
-		out = append(out, facts.Envelope{FactKind: facts.AWSResourceFactKind, ScopeID: scopeID, Payload: map[string]any{"arn": value}})
+		out = append(out, facts.Envelope{FactKind: cloud.AWSResourceFactKind, ScopeID: scopeID, Payload: map[string]any{"arn": value}})
 	}
 	return out, nil
 }
@@ -104,7 +105,7 @@ func TestStoreLoadsPinnedActiveGenerations(t *testing.T) {
 	}
 	wantCalls := []recordedFactListCall{{
 		scopeID: "aws:123456789012:us-east-1:s3", generationID: "s3-gen-2",
-		factKind: facts.AWSResourceFactKind, payloadKey: "arn", values: []string{"arn:aws:s3:::receipts"},
+		factKind: cloud.AWSResourceFactKind, payloadKey: "arn", values: []string{"arn:aws:s3:::receipts"},
 	}}
 	if len(factsStub.calls) != 1 || factsStub.calls[0].scopeID != wantCalls[0].scopeID ||
 		factsStub.calls[0].generationID != wantCalls[0].generationID ||

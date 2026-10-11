@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -179,7 +180,7 @@ func ExtractAWSRelationshipEdgeRows(
 	rows := make([]map[string]any, 0, len(relationshipEnvelopes))
 
 	for _, env := range relationshipEnvelopes {
-		if env.FactKind != facts.AWSRelationshipFactKind {
+		if env.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
 		relationship, err := decodeAWSRelationship(env)

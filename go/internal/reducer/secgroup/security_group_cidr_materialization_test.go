@@ -324,7 +324,7 @@ func TestExtractSecurityGroupEndpointRowsSkipsNonRuleFacts(t *testing.T) {
 	t.Parallel()
 
 	cidr, _, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
-		{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{"resource_id": "ignored"}},
+		{FactKind: cloud.AWSResourceFactKind, Payload: map[string]any{"resource_id": "ignored"}},
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "10.0.0.0/8")),
 	})
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 const (
@@ -59,7 +60,7 @@ func (w *recordingObservabilityCoverageCorrelationWriter) WriteObservabilityCove
 func awsResourceFact(factID, resourceType, resourceID, arn, name string, tombstone bool) facts.Envelope {
 	return facts.Envelope{
 		FactID:      factID,
-		FactKind:    facts.AWSResourceFactKind,
+		FactKind:    cloud.AWSResourceFactKind,
 		IsTombstone: tombstone,
 		Payload: map[string]any{
 			"account_id":          testCoverageAccount,
@@ -84,7 +85,7 @@ func alarmObservesMetricFact(factID, alarmARN, metricID string, dimensions []map
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AWSRelationshipFactKind,
+		FactKind: cloud.AWSRelationshipFactKind,
 		Payload: map[string]any{
 			"account_id":         testCoverageAccount,
 			"region":             testCoverageRegion,
@@ -107,7 +108,7 @@ func alarmObservesMetricFact(factID, alarmARN, metricID string, dimensions []map
 func xraySamplingMatchesServiceFact(factID, ruleARN, serviceName string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.AWSRelationshipFactKind,
+		FactKind: cloud.AWSRelationshipFactKind,
 		Payload: map[string]any{
 			"account_id":         testCoverageAccount,
 			"region":             testCoverageRegion,

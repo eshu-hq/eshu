@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -106,7 +107,7 @@ func TestFixtureSourceNextEmitsExpectedFacts(t *testing.T) {
 			t.Fatalf("envelope generation id = %q, want %q", env.GenerationID, collected.Generation.GenerationID)
 		}
 		switch env.FactKind {
-		case facts.AWSResourceFactKind:
+		case cloud.AWSResourceFactKind:
 			resources++
 			if env.Payload["resource_type"] != "aws_s3_bucket" {
 				t.Fatalf("resource_type = %v, want aws_s3_bucket", env.Payload["resource_type"])
@@ -114,7 +115,7 @@ func TestFixtureSourceNextEmitsExpectedFacts(t *testing.T) {
 			if env.Payload["arn"] == "arn:aws:s3:::eshu-fixture-unmanaged" {
 				sawUnmanaged = true
 			}
-		case facts.AWSRelationshipFactKind:
+		case cloud.AWSRelationshipFactKind:
 			relationships++
 			if env.Payload["relationship_type"] != "contains" {
 				t.Fatalf("relationship_type = %v, want contains", env.Payload["relationship_type"])
