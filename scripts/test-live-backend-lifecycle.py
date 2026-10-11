@@ -80,14 +80,17 @@ exit 0
             self.assertFalse(json.loads((root / "result.json").read_text())["ok"])
 
     def test_failed_test_attempts_rest_and_reports_failure(self) -> None:
+        selected = subprocess.check_output(
+            ["bash", str(ROOT / "scripts/run-live-backend-tests.sh"), "--shard", "1/4"],
+            env=dict(os.environ, ESHU_LIVE_RUNNER_SELFTEST="plan"), text=True).splitlines()
         result, root, directory = self.run_fixture(False, True)
         with directory:
             self.assertNotEqual(result.returncode, 0)
             report = json.loads((root / "result.json").read_text())
             self.assertFalse(report["ok"])
-            self.assertEqual(len(report["runs"]), 31)
+            self.assertEqual(len(report["runs"]), len(selected))
             self.assertEqual(sum(row["status"] != 0 for row in report["runs"]), 1)
-            self.assertEqual(len((root / "go.log").read_text().splitlines()), 31)
+            self.assertEqual(len((root / "go.log").read_text().splitlines()), len(selected))
             self.assertTrue(all("-count=1" in line for line in (root / "go.log").read_text().splitlines()))
 
 

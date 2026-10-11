@@ -36,6 +36,11 @@ events, and nonzero test statuses. An idle queue selection skips the matrix
 before allocating runners; the aggregate accepts skipped shards only with
 successful, explicitly idle selection.
 
+Artifacts are scoped to both the workflow run and attempt. After a failed
+shard, rerun all jobs so all four shards and the aggregate produce and consume
+reports from the same attempt. Rerunning only failed jobs leaves successful
+shards at the previous attempt; the aggregate rejects that incomplete set.
+
 Logs identify the source SHA, shard, planned count, and each target's setup,
 test, cleanup, and exit status. JSON reports retain the same terminal records.
 Phase seconds are diagnostic observations; they do not establish a causal
