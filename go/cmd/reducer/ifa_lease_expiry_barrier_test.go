@@ -206,8 +206,43 @@ func TestIfaLeaseExpiryBarrierRejectsFailedWriteAndCancellation(t *testing.T) {
 			if tc.fail && !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("failed write published held marker: %v", err)
 			}
+			if tc.cancel {
+				assertLeaseBarrierTerminal(t, path, intent, "cancelled")
+			}
 		})
 	}
+}
+
+func assertLeaseBarrierTerminal(t *testing.T, path string, intent reducer.Intent, state string) {
+	t.Helper()
+	data, err := os.ReadFile(path + ".finished.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record ifaLeaseExpiryRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.State != state || record.WorkItemID != intent.IntentID || record.ClaimedAt != intent.ClaimedAt.UTC().Format(time.RFC3339Nano) || record.AttemptCount != intent.AttemptCount || record.Domain != string(intent.Domain) {
+		t.Fatalf("terminal record = %+v, want state %q and claim %+v", record, state, intent)
+	}
+}
+
+func TestIfaLeaseExpiryBarrierDeadlinePublishesTerminalClaim(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lease")
+	barrier, err := newIfaLeaseExpiryBarrier(func(string) string { return path })
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	intent := leaseBarrierIntent("deadline", 1, time.Now().UTC())
+	runtime := barrier.wrapReducer(leaseBarrierReducerStub{graph: barrier.wrapGraph(&leaseBarrierGraphStub{})})
+	_, err = runtime.Execute(ctx, intent)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("handler error = %v, want deadline exceeded", err)
+	}
+	assertLeaseBarrierTerminal(t, path, intent, "timeout")
 }
 
 func TestIfaLeaseExpiryBarrierRejectsInvalidConfiguration(t *testing.T) {

@@ -149,6 +149,10 @@ type ifaLeaseExpiryGraphGroupProbeExecutor struct {
 	ifaLeaseExpiryGraphGroupExecutor
 }
 
+func (e ifaLeaseExpiryGraphGroupProbeExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
+	return e.ifaLeaseExpiryGraphGroupExecutor.ExecuteGroup(ctx, stmts)
+}
+
 func (e ifaLeaseExpiryGraphGroupProbeExecutor) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
 	return e.inner.(sourcecypher.ProbeExecutor).ExecuteProbe(ctx, stmt)
 }
