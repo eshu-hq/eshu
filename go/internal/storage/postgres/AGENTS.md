@@ -887,7 +887,7 @@ now fails decode and the row is dropped and logged like any other undecodable
 fact, matching the loader's existing visible-failure contract instead of
 silently attaching wrong evidence. `aws_tag_observation` is intentionally left
 untyped: no reducer/query/mcp consumer reads its payload fields raw (the two
-touch points that reference `facts.AWSTagObservationFactKind` — the AWS runtime
+touch points that reference `cloud.AWSTagObservationFactKind` — the AWS runtime
 collector's emission counter and scan-status summarizer — only switch on the
 fact kind to count occurrences), so a decode struct for it would be a hollow,
 never-validated contract.
