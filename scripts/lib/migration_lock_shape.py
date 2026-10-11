@@ -15,7 +15,11 @@ DDL in one migration, the DML in the next.
 Table-locking DDL: ALTER TABLE, ALTER INDEX, ALTER MATERIALIZED VIEW,
 CREATE INDEX or DROP INDEX without CONCURRENTLY, REINDEX or REFRESH
 MATERIALIZED VIEW without CONCURRENTLY, CREATE TRIGGER, DROP TRIGGER,
-CREATE RULE, DROP RULE, DROP TABLE, CLUSTER, VACUUM FULL, LOCK, TRUNCATE.
+CREATE RULE, DROP RULE, DROP TABLE, CLUSTER, VACUUM FULL, TRUNCATE, and LOCK
+in any mode except ACCESS SHARE, ROW SHARE, or ROW EXCLUSIVE. Those three
+conflict with neither readers (ACCESS SHARE) nor writers (ROW EXCLUSIVE) in
+PostgreSQL's table-lock conflict table, and none is stronger than the ROW
+EXCLUSIVE the backfill's own UPDATE takes. A bare LOCK is ACCESS EXCLUSIVE.
 
 Bulk DML: UPDATE, DELETE, MERGE, INSERT ... SELECT, and a data-modifying CTE.
 
@@ -40,7 +44,9 @@ NOT EXISTS in migration N, the idempotent seed or backfill in migration N+1.
 There is no allowlist.
 
 Conservative choices: statement order is ignored, so DDL after the last DML
-in a file is refused too.
+in a file is refused too. LOCK IN SHARE UPDATE EXCLUSIVE MODE is refused
+although it blocks neither reads nor writes, because it blocks VACUUM,
+ANALYZE, and index builds for the whole backfill.
 
 Static limits (the check does not see these): a trigger function fired by
 the file's own DML; a function or procedure defined in another migration; a
@@ -86,7 +92,11 @@ _LOCKING_DDL = (
      re.compile(r'^CLUSTER\s+(?:VERBOSE\s+)?' + _IDENT, re.I)),
     ('VACUUM FULL', re.compile(r'^VACUUM\s*(?:\([^)]*\bFULL\b[^)]*\)|FULL\b)', re.I),
      re.compile(r'^VACUUM\s*(?:\([^)]*\))?\s*(?:FULL\s+)?' + _IDENT, re.I)),
-    ('LOCK', re.compile(r'^LOCK\b', re.I),
+    # ACCESS SHARE, ROW SHARE and ROW EXCLUSIVE conflict with neither readers
+    # nor writers and are no stronger than the backfill's own UPDATE: exempt.
+    ('LOCK', re.compile(
+        r'^LOCK\b(?!.*\bIN\s+(?:ACCESS\s+SHARE|ROW\s+SHARE|ROW\s+EXCLUSIVE)\s+MODE\b)',
+        re.I | re.S),
      re.compile(r'^LOCK\s+(?:TABLE\s+)?(?:ONLY\s+)?' + _IDENT, re.I)),
     ('TRUNCATE', re.compile(r'^TRUNCATE\b', re.I),
      re.compile(r'^TRUNCATE\s+(?:TABLE\s+)?(?:ONLY\s+)?' + _IDENT, re.I)),

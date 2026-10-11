@@ -77,7 +77,8 @@ statement; see `docs/internal/evidence/7389-superseded-writer-overlay.md`.
 
 ## Keep table-locking DDL and bulk DML in separate files (#7961)
 
-The migrator sends each file as one message, and PostgreSQL runs a
+The migrator sends each file as one message (except the grandfathered 169,
+phased since #7946: see the deployment note below), and PostgreSQL runs a
 multi-statement message as one implicit transaction. A lock that an early
 statement takes is held until the last statement commits. Do not put
 table-locking DDL on an existing table in the same file as bulk DML. Put the
@@ -96,7 +97,10 @@ The `migration-immutability` gate checks every added file
 - Table-locking DDL: ALTER TABLE, ALTER INDEX, ALTER MATERIALIZED VIEW,
   CREATE INDEX or DROP INDEX without CONCURRENTLY, REINDEX or REFRESH
   MATERIALIZED VIEW without CONCURRENTLY, CREATE or DROP TRIGGER, CREATE or
-  DROP RULE, DROP TABLE, CLUSTER, VACUUM FULL, LOCK, TRUNCATE.
+  DROP RULE, DROP TABLE, CLUSTER, VACUUM FULL, TRUNCATE, and LOCK in any mode
+  except ACCESS SHARE, ROW SHARE, or ROW EXCLUSIVE (those block neither
+  readers nor writers). LOCK IN SHARE UPDATE EXCLUSIVE MODE is refused too: it
+  blocks VACUUM, ANALYZE, and index builds for the whole backfill.
 - Bulk DML: UPDATE, DELETE, MERGE, INSERT ... SELECT, a data-modifying CTE.
 - It reads top-level statements, DO blocks (every IF, ELSIF, CASE, LOOP, and
   EXCEPTION branch), and same-file functions that an executed statement
