@@ -9,22 +9,22 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 type recordingServiceChangedSinceReader struct {
-	summary    status.ServiceChangedSinceSummary
+	summary    changedsince.ServiceSummary
 	err        error
-	lastFilter status.ServiceChangedSinceFilter
+	lastFilter changedsince.ServiceFilter
 }
 
 func (r *recordingServiceChangedSinceReader) ComputeServiceChangedSinceDelta(
 	_ context.Context,
-	filter status.ServiceChangedSinceFilter,
-) (status.ServiceChangedSinceSummary, error) {
+	filter changedsince.ServiceFilter,
+) (changedsince.ServiceSummary, error) {
 	r.lastFilter = filter
 	if r.err != nil {
-		return status.ServiceChangedSinceSummary{}, r.err
+		return changedsince.ServiceSummary{}, r.err
 	}
 	return r.summary, nil
 }
@@ -39,13 +39,13 @@ func newServiceChangedSinceMux(reader ServiceChangedSinceReader) *http.ServeMux 
 func TestServiceChangedSinceUnchangedProducesNoFalseDeltas(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingServiceChangedSinceReader{summary: status.ServiceChangedSinceSummary{
+	reader := &recordingServiceChangedSinceReader{summary: changedsince.ServiceSummary{
 		ServiceID:                 "svc-checkout",
 		SinceGenerationID:         "gen-prior",
 		CurrentActiveGenerationID: "gen-current",
 		SampleLimit:               25,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryOwnership, Counts: status.ChangedSinceCounts{Unchanged: 3}},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryOwnership, Counts: changedsince.Counts{Unchanged: 3}},
 		},
 	}}
 	mux := newServiceChangedSinceMux(reader)
@@ -71,7 +71,7 @@ func TestServiceChangedSinceUnchangedProducesNoFalseDeltas(t *testing.T) {
 func TestServiceChangedSinceUnknownServiceNotFound(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingServiceChangedSinceReader{summary: status.ServiceChangedSinceSummary{}}
+	reader := &recordingServiceChangedSinceReader{summary: changedsince.ServiceSummary{}}
 	mux := newServiceChangedSinceMux(reader)
 
 	w := doFreshnessRequest(t, mux, "/api/v0/freshness/services/changed-since?service_id=missing&since_generation_id=gen-prior")
@@ -87,12 +87,12 @@ func TestServiceChangedSinceUnknownServiceNotFound(t *testing.T) {
 func TestServiceChangedSinceUnavailableWhenNoActiveGeneration(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingServiceChangedSinceReader{summary: status.ServiceChangedSinceSummary{
+	reader := &recordingServiceChangedSinceReader{summary: changedsince.ServiceSummary{
 		ServiceID:   "svc-checkout",
 		SampleLimit: 25,
 		Unavailable: true,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryOwnership, Unavailable: true},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryOwnership, Unavailable: true},
 		},
 	}}
 	mux := newServiceChangedSinceMux(reader)
@@ -110,7 +110,7 @@ func TestServiceChangedSinceUnavailableWhenNoActiveGeneration(t *testing.T) {
 func TestServiceChangedSinceUnknownPriorGenerationNotFound(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingServiceChangedSinceReader{summary: status.ServiceChangedSinceSummary{
+	reader := &recordingServiceChangedSinceReader{summary: changedsince.ServiceSummary{
 		ServiceID:                 "svc-checkout",
 		CurrentActiveGenerationID: "gen-current",
 		SampleLimit:               25,

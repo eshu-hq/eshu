@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // TestChangedSinceRefusesDeltaGenerationWindowLive drives the production
@@ -51,9 +51,9 @@ func TestChangedSinceRefusesDeltaGenerationWindowLive(t *testing.T) {
 	seedChangedSinceDeltaWindow(ctx, t, db)
 	store := NewStatusStore(SQLDB{DB: db})
 
-	compute := func(t *testing.T, scopeID, since string) statuspkg.ChangedSinceSummary {
+	compute := func(t *testing.T, scopeID, since string) changedsince.Summary {
 		t.Helper()
-		summary, err := store.ComputeChangedSinceDelta(ctx, statuspkg.ChangedSinceFilter{
+		summary, err := store.ComputeChangedSinceDelta(ctx, changedsince.Filter{
 			ScopeID: scopeID, SinceGenerationID: since, SampleLimit: 10,
 		})
 		if err != nil {
@@ -61,11 +61,11 @@ func TestChangedSinceRefusesDeltaGenerationWindowLive(t *testing.T) {
 		}
 		return summary
 	}
-	assertRefused := func(t *testing.T, got statuspkg.ChangedSinceSummary, since, current string, sinceDelta, currentDelta bool) {
+	assertRefused := func(t *testing.T, got changedsince.Summary, since, current string, sinceDelta, currentDelta bool) {
 		t.Helper()
-		if !got.Unavailable || got.UnavailableReason != statuspkg.ChangedSinceUnavailableBaselineNotComparable {
+		if !got.Unavailable || got.UnavailableReason != changedsince.UnavailableBaselineNotComparable {
 			t.Fatalf("unavailable=%v reason=%q categories=%+v; want the raw diff refused as %q",
-				got.Unavailable, got.UnavailableReason, got.Categories, statuspkg.ChangedSinceUnavailableBaselineNotComparable)
+				got.Unavailable, got.UnavailableReason, got.Categories, changedsince.UnavailableBaselineNotComparable)
 		}
 		if got.SinceGenerationID != since || got.CurrentActiveGenerationID != current {
 			t.Fatalf("window = %s -> %s, want %s -> %s", got.SinceGenerationID, got.CurrentActiveGenerationID, since, current)
@@ -74,11 +74,11 @@ func TestChangedSinceRefusesDeltaGenerationWindowLive(t *testing.T) {
 			t.Fatalf("since_is_delta=%v current_is_delta=%v, want %v and %v",
 				got.SinceIsDelta, got.CurrentIsDelta, sinceDelta, currentDelta)
 		}
-		if len(got.Categories) != len(statuspkg.ChangedSinceCategories) {
-			t.Fatalf("categories = %d, want %d", len(got.Categories), len(statuspkg.ChangedSinceCategories))
+		if len(got.Categories) != len(changedsince.Categories) {
+			t.Fatalf("categories = %d, want %d", len(got.Categories), len(changedsince.Categories))
 		}
 		for _, category := range got.Categories {
-			if !category.Unavailable || category.Counts != (statuspkg.ChangedSinceCounts{}) || len(category.Samples) > 0 {
+			if !category.Unavailable || category.Counts != (changedsince.Counts{}) || len(category.Samples) > 0 {
 				t.Fatalf("category %s = %+v; want unavailable with no counts or samples", category.Category, category)
 			}
 		}
@@ -97,15 +97,15 @@ func TestChangedSinceRefusesDeltaGenerationWindowLive(t *testing.T) {
 		if got.Unavailable || got.UnavailableReason != "" || got.SinceIsDelta || got.CurrentIsDelta {
 			t.Fatalf("summary = %+v; want a served diff between two full generations", got)
 		}
-		want := statuspkg.ChangedSinceCounts{Updated: 1, Unchanged: 3, Superseded: 1}
+		want := changedsince.Counts{Updated: 1, Unchanged: 3, Superseded: 1}
 		for _, category := range got.Categories {
 			switch category.Category {
-			case statuspkg.ChangedSinceCategoryFiles, statuspkg.ChangedSinceCategoryContentEntities:
+			case changedsince.CategoryFiles, changedsince.CategoryContentEntities:
 				if category.Counts != want {
 					t.Errorf("%s counts = %+v, want %+v", category.Category, category.Counts, want)
 				}
 			default:
-				if category.Counts != (statuspkg.ChangedSinceCounts{}) {
+				if category.Counts != (changedsince.Counts{}) {
 					t.Errorf("%s counts = %+v, want none", category.Category, category.Counts)
 				}
 			}

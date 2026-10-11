@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -18,19 +18,19 @@ import (
 
 // notComparableSummary is the reader answer for a window with a delta
 // generation at one or both ends (#7282).
-func notComparableSummary(sinceDelta, currentDelta bool) status.ChangedSinceSummary {
-	return status.ChangedSinceSummary{
+func notComparableSummary(sinceDelta, currentDelta bool) changedsince.Summary {
+	return changedsince.Summary{
 		ScopeID:                   "git-repository-scope:acme/app",
 		ScopeKind:                 "repository",
 		SinceGenerationID:         "gen-prior",
 		CurrentActiveGenerationID: "gen-current",
 		Unavailable:               true,
-		UnavailableReason:         status.ChangedSinceUnavailableBaselineNotComparable,
+		UnavailableReason:         changedsince.UnavailableBaselineNotComparable,
 		SinceIsDelta:              sinceDelta,
 		CurrentIsDelta:            currentDelta,
 		SampleLimit:               25,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryFiles, Unavailable: true},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryFiles, Unavailable: true},
 		},
 	}
 }
@@ -92,7 +92,7 @@ func TestChangedSinceBaselineNotComparableSurfaces(t *testing.T) {
 // span, and a served diff carries none. It swaps this package's tracer, so it
 // does not run in parallel.
 func TestChangedSinceUnavailableReasonIsRecordedOnTheSpan(t *testing.T) {
-	record := func(t *testing.T, summary status.ChangedSinceSummary) map[string]any {
+	record := func(t *testing.T, summary changedsince.Summary) map[string]any {
 		t.Helper()
 		recorder := tracetest.NewSpanRecorder()
 		provider := tracesdk.NewTracerProvider(tracesdk.WithSpanProcessor(recorder))
@@ -135,7 +135,7 @@ func TestChangedSinceUnknownUnavailableReasonIsNotMistakenForNoCurrentGeneration
 	t.Parallel()
 
 	handler := &Handler{}
-	noCurrent := handler.changedSinceTruthEnvelope(status.ChangedSinceSummary{Unavailable: true})
+	noCurrent := handler.changedSinceTruthEnvelope(changedsince.Summary{Unavailable: true})
 	if !strings.Contains(noCurrent.Freshness.Detail, "no current active generation") {
 		t.Fatalf("empty reason detail = %q, want the no-current-generation explanation", noCurrent.Freshness.Detail)
 	}
@@ -143,7 +143,7 @@ func TestChangedSinceUnknownUnavailableReasonIsNotMistakenForNoCurrentGeneration
 		t.Fatalf("empty reason cause = %q, want %q", noCurrent.Freshness.Cause, CausePendingRepoGeneration)
 	}
 
-	unknown := handler.changedSinceTruthEnvelope(status.ChangedSinceSummary{
+	unknown := handler.changedSinceTruthEnvelope(changedsince.Summary{
 		Unavailable:       true,
 		UnavailableReason: "some_future_reason",
 	})

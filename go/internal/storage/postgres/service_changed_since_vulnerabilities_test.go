@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 func TestComputeServiceChangedSinceDeltaClassifiesVulnerabilitiesFamily(t *testing.T) {
@@ -42,7 +42,7 @@ func TestComputeServiceChangedSinceDeltaClassifiesVulnerabilitiesFamily(t *testi
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -50,33 +50,33 @@ func TestComputeServiceChangedSinceDeltaClassifiesVulnerabilitiesFamily(t *testi
 	if err != nil {
 		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
 	}
-	vulns := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryVulnerabilities)
+	vulns := serviceCategoryDelta(t, summary, changedsince.CategoryVulnerabilities)
 	c := vulns.Counts
 	if c.Added != 1 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
 		t.Fatalf("vulnerabilities counts wrong: %+v", c)
 	}
-	if got := vulns.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "vulnerabilities:svc-a:GHSA-4:go:golang.org/x/net" {
+	if got := vulns.Samples[changedsince.Retired]; len(got) != 1 || got[0].StableFactKey != "vulnerabilities:svc-a:GHSA-4:go:golang.org/x/net" {
 		t.Fatalf("vulnerabilities retired samples wrong: %+v", got)
 	}
-	if got := vulns.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "vulnerabilities:svc-a:GHSA-5:maven:org.apache.logging" {
+	if got := vulns.Samples[changedsince.Superseded]; len(got) != 1 || got[0].StableFactKey != "vulnerabilities:svc-a:GHSA-5:maven:org.apache.logging" {
 		t.Fatalf("vulnerabilities superseded samples wrong: %+v", got)
 	}
-	if got := vulns.Samples[statuspkg.ChangedSinceRetired]; got[0].FactKind != "vulnerabilities" {
+	if got := vulns.Samples[changedsince.Retired]; got[0].FactKind != "vulnerabilities" {
 		t.Fatalf("vulnerabilities sample fact_kind = %q, want vulnerabilities", got[0].FactKind)
 	}
 	// Ownership stayed unchanged: a vulnerabilities-only change must not invent
 	// ownership deltas, and the deployment/runtime/dependencies/docs/incidents
 	// families report zero deltas (never silently dropped).
-	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
+	owner := serviceCategoryDelta(t, summary, changedsince.CategoryOwnership)
 	if owner.Counts.Added != 0 || owner.Counts.Updated != 0 || owner.Counts.Retired != 0 || owner.Counts.Superseded != 0 {
 		t.Fatalf("ownership family must not churn on a vulnerabilities-only change: %+v", owner.Counts)
 	}
-	for _, family := range []statuspkg.ChangedSinceCategory{
-		statuspkg.ChangedSinceCategoryDeployment,
-		statuspkg.ChangedSinceCategoryRuntime,
-		statuspkg.ChangedSinceCategoryDependencies,
-		statuspkg.ChangedSinceCategoryDocs,
-		statuspkg.ChangedSinceCategoryIncidents,
+	for _, family := range []changedsince.Category{
+		changedsince.CategoryDeployment,
+		changedsince.CategoryRuntime,
+		changedsince.CategoryDependencies,
+		changedsince.CategoryDocs,
+		changedsince.CategoryIncidents,
 	} {
 		if delta := serviceCategoryDelta(t, summary, family); delta.Counts.Total() != 0 {
 			t.Fatalf("%s family should report zero deltas for a vulnerabilities-only change: %+v", family, delta.Counts)
@@ -100,7 +100,7 @@ func TestComputeServiceChangedSinceDeltaUnchangedProducesNoFalseVulnerabilityDel
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -108,7 +108,7 @@ func TestComputeServiceChangedSinceDeltaUnchangedProducesNoFalseVulnerabilityDel
 	if err != nil {
 		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
 	}
-	vulns := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryVulnerabilities)
+	vulns := serviceCategoryDelta(t, summary, changedsince.CategoryVulnerabilities)
 	c := vulns.Counts
 	if c.Added != 0 || c.Updated != 0 || c.Retired != 0 || c.Superseded != 0 {
 		t.Fatalf("unchanged vulnerabilities generation produced false deltas: %+v", c)

@@ -42,7 +42,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/freshness"
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
@@ -82,13 +82,13 @@ func (r fixedGenerationReader) ListGenerationLifecycle(
 // fixedChangedSinceReader is a deterministic changed-since fixture returning one
 // prepared summary regardless of filter.
 type fixedChangedSinceReader struct {
-	summary status.ChangedSinceSummary
+	summary changedsince.Summary
 }
 
 func (r fixedChangedSinceReader) ComputeChangedSinceDelta(
 	_ context.Context,
-	_ status.ChangedSinceFilter,
-) (status.ChangedSinceSummary, error) {
+	_ changedsince.Filter,
+) (changedsince.Summary, error) {
 	return r.summary, nil
 }
 
@@ -351,18 +351,18 @@ func TestCLIFreshnessGenerationsParityUnknownScopeNotFound(t *testing.T) {
 // SAME changed-since envelope and reports the SAME since/current generation ids
 // and the SAME retired count — retired must not collapse into superseded.
 func TestCLIFreshnessChangedSinceParityRetiredEvidence(t *testing.T) {
-	client := cliFreshnessServer(t, nil, fixedChangedSinceReader{summary: status.ChangedSinceSummary{
+	client := cliFreshnessServer(t, nil, fixedChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:                   "git-repository-scope:acme/app",
 		ScopeKind:                 "repository",
 		Repository:                "acme/app",
 		SinceGenerationID:         "gen-prior",
 		CurrentActiveGenerationID: "gen-current",
 		SampleLimit:               25,
-		Categories: []status.ChangedSinceCategoryDelta{{
-			Category: status.ChangedSinceCategoryFiles,
-			Counts:   status.ChangedSinceCounts{Added: 1, Unchanged: 7, Retired: 2},
-			Samples: map[status.ChangedSinceClassification][]status.ChangedSinceSample{
-				status.ChangedSinceRetired: {
+		Categories: []changedsince.CategoryDelta{{
+			Category: changedsince.CategoryFiles,
+			Counts:   changedsince.Counts{Added: 1, Unchanged: 7, Retired: 2},
+			Samples: map[changedsince.Classification][]changedsince.Sample{
+				changedsince.Retired: {
 					{StableFactKey: "file:removed-a", FactKind: "file"},
 					{StableFactKey: "file:removed-b", FactKind: "file"},
 				},
@@ -398,14 +398,14 @@ func TestCLIFreshnessChangedSinceParityRetiredEvidence(t *testing.T) {
 // surfaced as exactly "unavailable" through the CLI transport and rendered as a
 // non-green diff-unavailable line, never as zero deltas.
 func TestCLIFreshnessChangedSinceParityUnavailable(t *testing.T) {
-	client := cliFreshnessServer(t, nil, fixedChangedSinceReader{summary: status.ChangedSinceSummary{
+	client := cliFreshnessServer(t, nil, fixedChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:     "git-repository-scope:acme/app",
 		ScopeKind:   "repository",
 		Repository:  "acme/app",
 		Unavailable: true,
 		SampleLimit: 25,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryFiles, Unavailable: true},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryFiles, Unavailable: true},
 		},
 	}})
 

@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
@@ -32,7 +31,7 @@ func TestComputeServiceChangedSinceDeltaBindsGrantAndLineage(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:            " component:default/api ",
 		ScopeID:              " scope-a ",
 		SinceGenerationID:    "gen-prior",
@@ -74,7 +73,7 @@ func TestComputeServiceChangedSinceDeltaUnattributedPriorBindsNull(t *testing.T)
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID: "svc", SinceGenerationID: "gen-prior",
 	})
 	if err != nil {
@@ -102,7 +101,7 @@ func TestComputeServiceChangedSinceDeltaAmbiguityIsBoundedAndSorted(t *testing.T
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: rows}}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID: "svc", SinceGenerationID: "gen-prior",
 	})
 	if err != nil {
@@ -129,7 +128,7 @@ func TestComputeServiceChangedSinceDeltaOutsideGrantProbesOnlyForScopedCallers(t
 	t.Parallel()
 
 	scoped := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}, {rows: [][]any{{true}}}}}
-	summary, err := NewStatusStore(scoped).ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := NewStatusStore(scoped).ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID: "svc", SinceGenerationID: "gen-prior", Scoped: true, AllowedScopeIDs: []string{"scope-a"},
 	})
 	if err != nil {
@@ -143,7 +142,7 @@ func TestComputeServiceChangedSinceDeltaOutsideGrantProbesOnlyForScopedCallers(t
 	}
 
 	unscoped := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
-	summary, err = NewStatusStore(unscoped).ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err = NewStatusStore(unscoped).ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID: "svc", SinceGenerationID: "gen-prior",
 	})
 	if err != nil {

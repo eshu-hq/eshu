@@ -10,7 +10,6 @@ import (
 	"sort"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
@@ -44,17 +43,17 @@ import (
 //     handler reports an unavailable diff rather than zero deltas.
 func (s StatusStore) ComputeServiceChangedSinceDelta(
 	ctx context.Context,
-	filter statuspkg.ServiceChangedSinceFilter,
-) (statuspkg.ServiceChangedSinceSummary, error) {
+	filter changedsince.ServiceFilter,
+) (changedsince.ServiceSummary, error) {
 	if s.queryer == nil {
-		return statuspkg.ServiceChangedSinceSummary{}, fmt.Errorf("queryer is required")
+		return changedsince.ServiceSummary{}, fmt.Errorf("queryer is required")
 	}
 
 	filter = filter.Normalize()
 
 	lineages, err := s.resolveServiceChangedSinceLineages(ctx, filter)
 	if err != nil {
-		return statuspkg.ServiceChangedSinceSummary{}, err
+		return changedsince.ServiceSummary{}, err
 	}
 	scope, ambiguous, ok := selectServiceChangedSinceLineage(filter, lineages)
 	if len(ambiguous) > 0 {
@@ -62,7 +61,7 @@ func (s StatusStore) ComputeServiceChangedSinceDelta(
 		if truncated {
 			ambiguous = ambiguous[:changedsince.MaxServiceScopeCandidates]
 		}
-		return statuspkg.ServiceChangedSinceSummary{
+		return changedsince.ServiceSummary{
 			ServiceID:          filter.ServiceID,
 			SampleLimit:        filter.SampleLimit,
 			AmbiguousScopeIDs:  ambiguous,
@@ -72,22 +71,22 @@ func (s StatusStore) ComputeServiceChangedSinceDelta(
 	if !ok {
 		// Unknown or ungranted service: empty ServiceID signals not-found
 		// upstream, byte-identically for both.
-		summary := statuspkg.ServiceChangedSinceSummary{}
+		summary := changedsince.ServiceSummary{}
 		if filter.Scoped {
 			summary.OutsideGrant, err = s.serviceChangedSinceLineageExists(ctx, filter.ServiceID)
 			if err != nil {
-				return statuspkg.ServiceChangedSinceSummary{}, err
+				return changedsince.ServiceSummary{}, err
 			}
 		}
 		return summary, nil
 	}
 
-	summary := statuspkg.ServiceChangedSinceSummary{
+	summary := changedsince.ServiceSummary{
 		ServiceID:                 filter.ServiceID,
 		ScopeID:                   scope.scopeID,
 		Unattributed:              scope.unattributed,
 		CurrentActiveGenerationID: scope.currentGenerationID,
-		CurrentObservedAt:         statuspkg.ChangedSinceTimestamp(scope.currentObservedAt),
+		CurrentObservedAt:         changedsince.Timestamp(scope.currentObservedAt),
 		SampleLimit:               filter.SampleLimit,
 		Building:                  scope.hasPending,
 	}
@@ -100,22 +99,22 @@ func (s StatusStore) ComputeServiceChangedSinceDelta(
 
 	prior, priorOK, err := s.resolveServiceChangedSincePriorGeneration(ctx, filter.ServiceID, scope, filter.SinceGenerationID)
 	if err != nil {
-		return statuspkg.ServiceChangedSinceSummary{}, err
+		return changedsince.ServiceSummary{}, err
 	}
 	if !priorOK {
 		return summary, nil
 	}
 	summary.SinceGenerationID = prior.generationID
-	summary.SinceObservedAt = statuspkg.ChangedSinceTimestamp(prior.observedAt)
+	summary.SinceObservedAt = changedsince.Timestamp(prior.observedAt)
 
 	counts, err := s.serviceChangedSinceCounts(ctx, prior.generationID, scope.currentGenerationID)
 	if err != nil {
-		return statuspkg.ServiceChangedSinceSummary{}, err
+		return changedsince.ServiceSummary{}, err
 	}
 
-	categories := make([]statuspkg.ChangedSinceCategoryDelta, 0, len(statuspkg.ServiceChangedSinceCategories))
-	for _, category := range statuspkg.ServiceChangedSinceCategories {
-		delta := statuspkg.ChangedSinceCategoryDelta{
+	categories := make([]changedsince.CategoryDelta, 0, len(changedsince.ServiceCategories))
+	for _, category := range changedsince.ServiceCategories {
+		delta := changedsince.CategoryDelta{
 			Category: category,
 			Counts:   counts[category],
 		}
@@ -128,7 +127,7 @@ func (s StatusStore) ComputeServiceChangedSinceDelta(
 			filter.SampleLimit,
 		)
 		if sampleErr != nil {
-			return statuspkg.ServiceChangedSinceSummary{}, sampleErr
+			return changedsince.ServiceSummary{}, sampleErr
 		}
 		if len(samples) > 0 {
 			delta.Samples = samples
@@ -167,7 +166,7 @@ type serviceChangedSinceLineage struct {
 // regresses. Only when neither side has an active generation does an
 // attributed lineage with no active generation answer, as an unavailable diff.
 func selectServiceChangedSinceLineage(
-	filter statuspkg.ServiceChangedSinceFilter,
+	filter changedsince.ServiceFilter,
 	lineages []serviceChangedSinceLineage,
 ) (serviceChangedSinceLineage, []string, bool) {
 	var attributed, active []serviceChangedSinceLineage
@@ -215,7 +214,7 @@ func pickServiceChangedSinceLineage(
 
 func (s StatusStore) resolveServiceChangedSinceLineages(
 	ctx context.Context,
-	filter statuspkg.ServiceChangedSinceFilter,
+	filter changedsince.ServiceFilter,
 ) ([]serviceChangedSinceLineage, error) {
 	rows, err := s.queryer.QueryContext(
 		ctx,
@@ -328,7 +327,7 @@ func (s StatusStore) resolveServiceChangedSincePriorGeneration(
 func (s StatusStore) serviceChangedSinceCounts(
 	ctx context.Context,
 	priorGenerationID, currentGenerationID string,
-) (map[statuspkg.ChangedSinceCategory]statuspkg.ChangedSinceCounts, error) {
+) (map[changedsince.Category]changedsince.Counts, error) {
 	rows, err := s.queryer.QueryContext(
 		ctx,
 		serviceChangedSinceCountsQuery,
@@ -340,7 +339,7 @@ func (s StatusStore) serviceChangedSinceCounts(
 	}
 	defer func() { _ = rows.Close() }()
 
-	counts := map[statuspkg.ChangedSinceCategory]statuspkg.ChangedSinceCounts{}
+	counts := map[changedsince.Category]changedsince.Counts{}
 	for rows.Next() {
 		var family string
 		var classification string
@@ -348,9 +347,9 @@ func (s StatusStore) serviceChangedSinceCounts(
 		if err := rows.Scan(&family, &classification, &keyCount); err != nil {
 			return nil, fmt.Errorf("service changed-since counts: %w", err)
 		}
-		bucket := counts[statuspkg.ChangedSinceCategory(family)]
+		bucket := counts[changedsince.Category(family)]
 		applyChangedSinceCount(&bucket, classification, int(keyCount))
-		counts[statuspkg.ChangedSinceCategory(family)] = bucket
+		counts[changedsince.Category(family)] = bucket
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("service changed-since counts: %w", err)
@@ -361,14 +360,14 @@ func (s StatusStore) serviceChangedSinceCounts(
 func (s StatusStore) serviceChangedSinceSamples(
 	ctx context.Context,
 	priorGenerationID, currentGenerationID string,
-	category statuspkg.ChangedSinceCategory,
-	counts statuspkg.ChangedSinceCounts,
+	category changedsince.Category,
+	counts changedsince.Counts,
 	sampleLimit int,
-) (map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample, map[statuspkg.ChangedSinceClassification]bool, error) {
-	samples := map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample{}
-	truncated := map[statuspkg.ChangedSinceClassification]bool{}
+) (map[changedsince.Classification][]changedsince.Sample, map[changedsince.Classification]bool, error) {
+	samples := map[changedsince.Classification][]changedsince.Sample{}
+	truncated := map[changedsince.Classification]bool{}
 
-	for _, classification := range statuspkg.ChangedSinceClassifications {
+	for _, classification := range changedsince.Classifications {
 		if changedSinceClassificationCount(counts, classification) == 0 {
 			continue
 		}
@@ -397,7 +396,7 @@ func (s StatusStore) serviceChangedSinceSampleBucket(
 	ctx context.Context,
 	priorGenerationID, currentGenerationID, family, classification string,
 	sampleLimit int,
-) ([]statuspkg.ChangedSinceSample, bool, error) {
+) ([]changedsince.Sample, bool, error) {
 	fetch := sampleLimit + 1
 	rows, err := s.queryer.QueryContext(
 		ctx,
@@ -413,7 +412,7 @@ func (s StatusStore) serviceChangedSinceSampleBucket(
 	}
 	defer func() { _ = rows.Close() }()
 
-	bucket := make([]statuspkg.ChangedSinceSample, 0, sampleLimit)
+	bucket := make([]changedsince.Sample, 0, sampleLimit)
 	for rows.Next() {
 		var evidenceKey string
 		if err := rows.Scan(&evidenceKey); err != nil {
@@ -421,7 +420,7 @@ func (s StatusStore) serviceChangedSinceSampleBucket(
 		}
 		// FactKind carries the evidence family so a caller can drill into the row
 		// the same way repository-scope samples carry fact_kind.
-		bucket = append(bucket, statuspkg.ChangedSinceSample{StableFactKey: evidenceKey, FactKind: family})
+		bucket = append(bucket, changedsince.Sample{StableFactKey: evidenceKey, FactKind: family})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, false, fmt.Errorf("service changed-since samples: %w", err)
@@ -434,10 +433,10 @@ func (s StatusStore) serviceChangedSinceSampleBucket(
 	return bucket, truncated, nil
 }
 
-func unavailableServiceChangedSinceCategories() []statuspkg.ChangedSinceCategoryDelta {
-	categories := make([]statuspkg.ChangedSinceCategoryDelta, 0, len(statuspkg.ServiceChangedSinceCategories))
-	for _, category := range statuspkg.ServiceChangedSinceCategories {
-		categories = append(categories, statuspkg.ChangedSinceCategoryDelta{
+func unavailableServiceChangedSinceCategories() []changedsince.CategoryDelta {
+	categories := make([]changedsince.CategoryDelta, 0, len(changedsince.ServiceCategories))
+	for _, category := range changedsince.ServiceCategories {
+		categories = append(categories, changedsince.CategoryDelta{
 			Category:    category,
 			Unavailable: true,
 		})
