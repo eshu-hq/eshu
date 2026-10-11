@@ -1,0 +1,19 @@
+.github/workflows/live-postgres-migrations.yml
+  s_b0d7e3abc26c5a::t_b6d4b5e25a29c0 59-63,65,70-73,75,81,88,92,96,100,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03cefb7186d71cea7acab7db8f3e37e78bd16e39",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
