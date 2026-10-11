@@ -13,6 +13,7 @@ import (
 	semanticstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // recordingQueryer captures every issued query and returns an empty result set
@@ -128,7 +129,7 @@ func TestReadStatusSnapshotFilteredSemanticOnlyReadsOneStatement(t *testing.T) {
 	if len(queryer.queries) != 1 || queryer.queries[0] != semanticstore.SemanticExtractionObservabilityQuery {
 		t.Fatalf("queries = %d; want semantic observability statement only", len(queryer.queries))
 	}
-	if !raw.AsOf.Equal(asOf.UTC()) || raw.SemanticExtraction.State != statuspkg.SemanticExtractionUnavailable {
+	if !raw.AsOf.Equal(asOf.UTC()) || raw.SemanticExtraction.State != semantic.ExtractionUnavailable {
 		t.Fatalf("raw = %+v; want semantic unavailable and UTC asOf", raw)
 	}
 	if len(raw.ScopeCounts) != 0 || len(raw.GenerationCounts) != 0 || raw.Queue != (statuspkg.QueueSnapshot{}) {

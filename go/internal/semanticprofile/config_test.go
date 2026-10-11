@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 func TestLoadStatusesFromEnvReturnsNilForBlankConfig(t *testing.T) {
@@ -75,8 +75,8 @@ func TestLoadStatusesFromEnvProjectsRedactedDeepSeekProfile(t *testing.T) {
 	if !got.SourcePolicyConfigured {
 		t.Fatal("SourcePolicyConfigured = false, want true")
 	}
-	if got.State != status.SemanticProviderProfileConfigured {
-		t.Fatalf("State = %q, want %q", got.State, status.SemanticProviderProfileConfigured)
+	if got.State != semantic.ProviderProfileConfigured {
+		t.Fatalf("State = %q, want %q", got.State, semantic.ProviderProfileConfigured)
 	}
 
 	encoded, err := json.Marshal(statuses)

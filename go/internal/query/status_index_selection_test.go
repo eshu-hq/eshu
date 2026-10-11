@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // selectionRecordingReader captures the selection requested through the filtered
@@ -123,8 +124,8 @@ func TestGetSemanticExtractionStatusRequestsSemanticOnlySelection(t *testing.T) 
 	reader := &selectionRecordingReader{
 		snapshot: statuspkg.RawSnapshot{
 			AsOf: time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC),
-			SemanticExtraction: statuspkg.SemanticExtractionStatus{
-				State:              statuspkg.SemanticExtractionAvailable,
+			SemanticExtraction: semantic.ExtractionStatus{
+				State:              semantic.ExtractionAvailable,
 				ProviderConfigured: true,
 			},
 		},
@@ -146,7 +147,7 @@ func TestGetSemanticExtractionStatusRequestsSemanticOnlySelection(t *testing.T) 
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
 	}
-	if got := envelope.Data.(map[string]any)["state"]; got != statuspkg.SemanticExtractionAvailable {
+	if got := envelope.Data.(map[string]any)["state"]; got != semantic.ExtractionAvailable {
 		t.Fatalf("state = %v, want available", got)
 	}
 	if envelope.Truth == nil || envelope.Truth.Freshness.State != querycontract.FreshnessFresh {

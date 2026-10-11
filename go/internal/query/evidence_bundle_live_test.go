@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // evidenceBundleFixtureSnapshot is the shared RawSnapshot fixture for the
@@ -64,7 +65,7 @@ func evidenceBundleFixtureSnapshot() statuspkg.RawSnapshot {
 				},
 			},
 		},
-		SemanticExtraction: statuspkg.SemanticExtractionStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
 			State: "unavailable", Reason: "provider_not_configured", ProviderConfigured: false,
 		},
 	}

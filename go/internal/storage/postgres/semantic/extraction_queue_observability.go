@@ -12,15 +12,16 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/semanticqueue"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // ObservabilitySnapshot returns audit-safe semantic extraction queue, budget,
 // and enablement aggregates for operator status surfaces.
 func (s SemanticExtractionQueueStore) ObservabilitySnapshot(
 	ctx context.Context,
-) (statuspkg.SemanticExtractionStatus, error) {
+) (semantic.ExtractionStatus, error) {
 	if s.database == nil {
-		return statuspkg.SemanticExtractionStatus{}, fmt.Errorf("semantic extraction queue store db is required")
+		return semantic.ExtractionStatus{}, fmt.Errorf("semantic extraction queue store db is required")
 	}
 	return ReadSemanticExtractionObservability(ctx, s.database)
 }
@@ -32,14 +33,14 @@ func (s SemanticExtractionQueueStore) ObservabilitySnapshot(
 func ReadSemanticExtractionObservability(
 	ctx context.Context,
 	queryer db.Queryer,
-) (statuspkg.SemanticExtractionStatus, error) {
+) (semantic.ExtractionStatus, error) {
 	rows, err := queryer.QueryContext(ctx, SemanticExtractionObservabilityQuery)
 	if err != nil {
-		return statuspkg.SemanticExtractionStatus{}, fmt.Errorf("read semantic extraction observability: %w", err)
+		return semantic.ExtractionStatus{}, fmt.Errorf("read semantic extraction observability: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	snapshot := statuspkg.DefaultSemanticExtractionStatus()
+	snapshot := semantic.DefaultExtractionStatus()
 	for rows.Next() {
 		row := semanticExtractionObservabilityRow{}
 		if err := rows.Scan(
@@ -69,12 +70,12 @@ func ReadSemanticExtractionObservability(
 			&row.remainingCostMicros,
 			&row.updatedAt,
 		); err != nil {
-			return statuspkg.SemanticExtractionStatus{}, fmt.Errorf("scan semantic extraction observability: %w", err)
+			return semantic.ExtractionStatus{}, fmt.Errorf("scan semantic extraction observability: %w", err)
 		}
 		applySemanticExtractionObservabilityRow(&snapshot, row)
 	}
 	if err := rows.Err(); err != nil {
-		return statuspkg.SemanticExtractionStatus{}, fmt.Errorf("iterate semantic extraction observability: %w", err)
+		return semantic.ExtractionStatus{}, fmt.Errorf("iterate semantic extraction observability: %w", err)
 	}
 	report := statuspkg.BuildReport(
 		statuspkg.RawSnapshot{SemanticExtraction: snapshot},
@@ -112,7 +113,7 @@ type semanticExtractionObservabilityRow struct {
 }
 
 func applySemanticExtractionObservabilityRow(
-	snapshot *statuspkg.SemanticExtractionStatus,
+	snapshot *semantic.ExtractionStatus,
 	row semanticExtractionObservabilityRow,
 ) {
 	count := int(row.count)
@@ -124,20 +125,20 @@ func applySemanticExtractionObservabilityRow(
 	snapshot.Queue.SourceClassCounts = appendNamedCount(snapshot.Queue.SourceClassCounts, row.sourceClass, count)
 	snapshot.Queue.FailureClassCounts = appendNamedCount(snapshot.Queue.FailureClassCounts, row.failureClass, count)
 	snapshot.Queue.ProviderProfileCounts = append(snapshot.Queue.ProviderProfileCounts,
-		statuspkg.SemanticExtractionProviderProfileQueueCount{
+		semantic.ExtractionProviderProfileQueueCount{
 			ProviderKind:         row.providerKind,
 			ProviderProfileID:    row.providerProfileID,
 			ProviderProfileClass: row.providerProfileClass,
 			Count:                count,
 		})
 	snapshot.Queue.PolicyDecisionCounts = append(snapshot.Queue.PolicyDecisionCounts,
-		statuspkg.SemanticExtractionDecisionCount{
+		semantic.ExtractionDecisionCount{
 			State:  row.policyState,
 			Reason: row.policyReason,
 			Count:  count,
 		})
 	snapshot.Queue.GuardDecisionCounts = append(snapshot.Queue.GuardDecisionCounts,
-		statuspkg.SemanticExtractionDecisionCount{
+		semantic.ExtractionDecisionCount{
 			State:  row.guardState,
 			Reason: row.guardReason,
 			Count:  count,
@@ -155,7 +156,7 @@ func applySemanticExtractionObservabilityRow(
 }
 
 func applySemanticExtractionQueueStatus(
-	snapshot *statuspkg.SemanticExtractionQueueSnapshot,
+	snapshot *semantic.ExtractionQueueSnapshot,
 	status string,
 	count int,
 ) {
@@ -192,7 +193,7 @@ func applySemanticExtractionQueueStatus(
 }
 
 func applySemanticExtractionBudget(
-	snapshot *statuspkg.SemanticExtractionStatus,
+	snapshot *semantic.ExtractionStatus,
 	row semanticExtractionObservabilityRow,
 	count int,
 ) {
@@ -209,7 +210,7 @@ func applySemanticExtractionBudget(
 		snapshot.Budget.Exhausted += count
 	}
 	snapshot.Budget.DecisionCounts = append(snapshot.Budget.DecisionCounts,
-		statuspkg.SemanticExtractionBudgetDecisionCount{
+		semantic.ExtractionBudgetDecisionCount{
 			State:      row.budgetState,
 			Reason:     row.budgetReason,
 			BudgetUnit: row.budgetUnit,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 const semanticExtractionStatusCapability = "semantic_extraction.status"
@@ -21,7 +22,7 @@ func (h *StatusHandler) profile() QueryProfile {
 }
 
 func (h *StatusHandler) getSemanticExtractionStatus(w http.ResponseWriter, r *http.Request) {
-	semanticStatus := status.SemanticExtractionStatus{}
+	semanticStatus := semantic.ExtractionStatus{}
 	if h != nil && h.StatusReader != nil {
 		loaded, err := status.LoadSemanticExtractionStatus(r.Context(), h.StatusReader, time.Now())
 		if err != nil {
@@ -39,7 +40,7 @@ func (h *StatusHandler) getSemanticExtractionStatus(w http.ResponseWriter, r *ht
 	)
 }
 
-func semanticExtractionStatusToMap(snapshot status.SemanticExtractionStatus) map[string]any {
+func semanticExtractionStatusToMap(snapshot semantic.ExtractionStatus) map[string]any {
 	statusJSON := statusJSONFromSemanticExtraction(snapshot)
 	result := map[string]any{
 		"state":                                 statusJSON.State,
@@ -73,7 +74,7 @@ func semanticExtractionStatusToMap(snapshot status.SemanticExtractionStatus) map
 	return result
 }
 
-func statusJSONFromSemanticExtraction(snapshot status.SemanticExtractionStatus) semanticExtractionStatusView {
+func statusJSONFromSemanticExtraction(snapshot semantic.ExtractionStatus) semanticExtractionStatusView {
 	normalized := status.BuildReport(status.RawSnapshot{SemanticExtraction: snapshot}, status.DefaultOptions()).SemanticExtraction
 	view := semanticExtractionStatusView{
 		State:                            normalized.State,
@@ -84,8 +85,8 @@ func statusJSONFromSemanticExtraction(snapshot status.SemanticExtractionStatus) 
 		CodeHintsEnabled:                 normalized.CodeHintsEnabled,
 		DeterministicPathsAffected:       normalized.DeterministicPathsAffected,
 		ProviderProfiles:                 semanticProviderProfilesToMaps(normalized.ProviderProfiles),
-		SupportedStates:                  status.SemanticExtractionSupportedStates(),
-		SupportedProviderProfileStates:   status.SemanticProviderProfileSupportedStates(),
+		SupportedStates:                  semantic.ExtractionSupportedStates(),
+		SupportedProviderProfileStates:   semantic.ProviderProfileSupportedStates(),
 	}
 	if semanticExtractionQueueHasValues(normalized.Queue) {
 		view.Queue = semanticExtractionQueueToMap(normalized.Queue)
@@ -119,7 +120,7 @@ type semanticExtractionStatusView struct {
 	SupportedProviderProfileStates   []string
 }
 
-func semanticProviderProfilesToMaps(profiles []status.SemanticProviderProfileStatus) []map[string]any {
+func semanticProviderProfilesToMaps(profiles []semantic.ProviderProfileStatus) []map[string]any {
 	if len(profiles) == 0 {
 		return nil
 	}
@@ -155,12 +156,12 @@ func semanticProviderProfilesToMaps(profiles []status.SemanticProviderProfileSta
 	return rows
 }
 
-func semanticExtractionQueueHasValues(snapshot status.SemanticExtractionQueueSnapshot) bool {
+func semanticExtractionQueueHasValues(snapshot semantic.ExtractionQueueSnapshot) bool {
 	return snapshot.Total > 0 || len(snapshot.StatusCounts) > 0 ||
 		len(snapshot.ProviderProfileCounts) > 0
 }
 
-func semanticExtractionQueueToMap(snapshot status.SemanticExtractionQueueSnapshot) map[string]any {
+func semanticExtractionQueueToMap(snapshot semantic.ExtractionQueueSnapshot) map[string]any {
 	out := map[string]any{
 		"total":                snapshot.Total,
 		"pending":              snapshot.Pending,
@@ -201,7 +202,7 @@ func semanticExtractionQueueToMap(snapshot status.SemanticExtractionQueueSnapsho
 	return out
 }
 
-func semanticExtractionBudgetHasValues(snapshot status.SemanticExtractionBudgetSnapshot) bool {
+func semanticExtractionBudgetHasValues(snapshot semantic.ExtractionBudgetSnapshot) bool {
 	return snapshot.EstimatedInputTokens > 0 || snapshot.EstimatedOutputTokens > 0 ||
 		snapshot.EstimatedCostMicros > 0 || snapshot.ActualInputTokens > 0 ||
 		snapshot.ActualOutputTokens > 0 || snapshot.ActualCostMicros > 0 ||
@@ -209,7 +210,7 @@ func semanticExtractionBudgetHasValues(snapshot status.SemanticExtractionBudgetS
 		snapshot.Exhausted > 0 || len(snapshot.DecisionCounts) > 0
 }
 
-func semanticExtractionBudgetToMap(snapshot status.SemanticExtractionBudgetSnapshot) map[string]any {
+func semanticExtractionBudgetToMap(snapshot semantic.ExtractionBudgetSnapshot) map[string]any {
 	out := map[string]any{
 		"estimated_input_tokens":  snapshot.EstimatedInputTokens,
 		"estimated_output_tokens": snapshot.EstimatedOutputTokens,
@@ -227,12 +228,12 @@ func semanticExtractionBudgetToMap(snapshot status.SemanticExtractionBudgetSnaps
 	return out
 }
 
-func semanticExtractionAuditHasValues(snapshot status.SemanticExtractionAuditSnapshot) bool {
+func semanticExtractionAuditHasValues(snapshot semantic.ExtractionAuditSnapshot) bool {
 	return len(snapshot.ActorClassCounts) > 0 || len(snapshot.ACLStateCounts) > 0 ||
 		!snapshot.LastProcessedAt.IsZero()
 }
 
-func semanticExtractionAuditToMap(snapshot status.SemanticExtractionAuditSnapshot) map[string]any {
+func semanticExtractionAuditToMap(snapshot semantic.ExtractionAuditSnapshot) map[string]any {
 	out := map[string]any{}
 	if len(snapshot.ActorClassCounts) > 0 {
 		out["actor_class_counts"] = namedCountsToMaps(snapshot.ActorClassCounts)
@@ -255,7 +256,7 @@ func namedCountsToMaps(rows []status.NamedCount) []map[string]any {
 }
 
 func semanticProviderProfileQueueCountsToMaps(
-	rows []status.SemanticExtractionProviderProfileQueueCount,
+	rows []semantic.ExtractionProviderProfileQueueCount,
 ) []map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
@@ -269,7 +270,7 @@ func semanticProviderProfileQueueCountsToMaps(
 	return out
 }
 
-func semanticDecisionCountsToMaps(rows []status.SemanticExtractionDecisionCount) []map[string]any {
+func semanticDecisionCountsToMaps(rows []semantic.ExtractionDecisionCount) []map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, map[string]any{
@@ -282,7 +283,7 @@ func semanticDecisionCountsToMaps(rows []status.SemanticExtractionDecisionCount)
 }
 
 func semanticBudgetDecisionCountsToMaps(
-	rows []status.SemanticExtractionBudgetDecisionCount,
+	rows []semantic.ExtractionBudgetDecisionCount,
 ) []map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
@@ -296,7 +297,7 @@ func semanticBudgetDecisionCountsToMaps(
 	return out
 }
 
-func semanticExtractionStatusTruth(profile QueryProfile, snapshot status.SemanticExtractionStatus) *TruthEnvelope {
+func semanticExtractionStatusTruth(profile QueryProfile, snapshot semantic.ExtractionStatus) *TruthEnvelope {
 	view := statusJSONFromSemanticExtraction(snapshot)
 	truth := BuildTruthEnvelope(
 		profile,
@@ -304,7 +305,7 @@ func semanticExtractionStatusTruth(profile QueryProfile, snapshot status.Semanti
 		TruthBasisHybrid,
 		view.Detail,
 	)
-	if view.State != status.SemanticExtractionAvailable {
+	if view.State != semantic.ExtractionAvailable {
 		truth.Level = TruthLevelFallback
 		truth.Freshness = TruthFreshness{
 			State:  FreshnessUnavailable,

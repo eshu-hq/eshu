@@ -85,7 +85,7 @@ See `doc.go` for the godoc contract. Key types and functions:
   extraction status route. It reads only semantic queue, budget, and audit
   aggregates through the existing SQL and decoder; it cannot be combined with
   optional collector or registry sections. The partial raw snapshot is
-  projected only to `SemanticExtractionStatus`, never to a full health report.
+  projected only to `semantic.ExtractionStatus`, never to a full health report.
   The zero-value mode retains the standard read and its optional-section flags;
   unknown or contradictory modes fail before status SQL or snapshot BEGIN.
 - `ReadinessChecker` — separate bounded migration-receipt and core-schema check
@@ -154,7 +154,7 @@ See `doc.go` for the godoc contract. Key types and functions:
 - `VulnerabilitySourceState` — per vulnerability source target checkpoint,
   freshness, retry, result count, warning count, and terminal state; does not
   expose raw advisory payloads, source URLs, package names, or API keys
-- `SemanticExtractionStatus` — optional LLM-assisted extraction liveness. The
+- `semantic.ExtractionStatus` — optional LLM-assisted extraction liveness. The
   zero-key default is `unavailable` with code hints and documentation
   observations disabled; deterministic indexing, reducer projection, API reads,
   MCP tools, and docs verification stay unaffected and healthy.

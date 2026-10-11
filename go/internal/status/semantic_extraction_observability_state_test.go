@@ -10,27 +10,28 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 func TestSemanticExtractionObservabilitySurvivesMissingCapabilityState(t *testing.T) {
 	t.Parallel()
 
 	report := status.BuildReport(status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
-			Queue: status.SemanticExtractionQueueSnapshot{
+		SemanticExtraction: semantic.ExtractionStatus{
+			Queue: semantic.ExtractionQueueSnapshot{
 				Total:   2,
 				Pending: 2,
 			},
-			Budget: status.SemanticExtractionBudgetSnapshot{
+			Budget: semantic.ExtractionBudgetSnapshot{
 				EstimatedInputTokens: 120,
 			},
-			Audit: status.SemanticExtractionAuditSnapshot{
+			Audit: semantic.ExtractionAuditSnapshot{
 				ActorClassCounts: []status.NamedCount{{Name: "hosted_worker", Count: 2}},
 			},
 		},
 	}, status.DefaultOptions())
 
-	if got, want := report.SemanticExtraction.State, status.SemanticExtractionUnavailable; got != want {
+	if got, want := report.SemanticExtraction.State, semantic.ExtractionUnavailable; got != want {
 		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
 	}
 	if report.SemanticExtraction.DeterministicPathsAffected {
@@ -51,13 +52,13 @@ func TestLoadSemanticExtractionStatusPreservesProjectionAndWrappers(t *testing.T
 	t.Parallel()
 	asOf := time.Date(2026, 10, 1, 10, 0, 0, 0, time.FixedZone("EDT", -4*60*60))
 	base := &fakeReader{snapshot: status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
-			Queue:  status.SemanticExtractionQueueSnapshot{Total: 3, Pending: 2},
-			Budget: status.SemanticExtractionBudgetSnapshot{EstimatedInputTokens: 42},
-			Audit:  status.SemanticExtractionAuditSnapshot{ActorClassCounts: []status.NamedCount{{Name: "worker", Count: 3}}},
+		SemanticExtraction: semantic.ExtractionStatus{
+			Queue:  semantic.ExtractionQueueSnapshot{Total: 3, Pending: 2},
+			Budget: semantic.ExtractionBudgetSnapshot{EstimatedInputTokens: 42},
+			Audit:  semantic.ExtractionAuditSnapshot{ActorClassCounts: []status.NamedCount{{Name: "worker", Count: 3}}},
 		},
 	}}
-	profile := status.SemanticProviderProfileStatus{ProfileID: "configured", State: status.SemanticProviderProfileConfigured}
+	profile := semantic.ProviderProfileStatus{ProfileID: "configured", State: semantic.ProviderProfileConfigured}
 	wrapped := status.WithRetryPolicies(status.WithSemanticProviderProfiles(base, profile))
 	got, err := status.LoadSemanticExtractionStatus(t.Context(), wrapped, asOf)
 	if err != nil {
@@ -67,7 +68,7 @@ func TestLoadSemanticExtractionStatusPreservesProjectionAndWrappers(t *testing.T
 		t.Fatalf("selection=%+v asOf=%v; want semantic-only and UTC", base.selection, base.asOf)
 	}
 	wantRaw := base.snapshot
-	wantRaw.SemanticExtraction.ProviderProfiles = []status.SemanticProviderProfileStatus{profile}
+	wantRaw.SemanticExtraction.ProviderProfiles = []semantic.ProviderProfileStatus{profile}
 	want := status.BuildReport(wantRaw, status.DefaultOptions()).SemanticExtraction
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("semantic status=%+v, want %+v", got, want)
@@ -81,7 +82,7 @@ func TestLoadSemanticExtractionStatusFailsClosed(t *testing.T) {
 	}
 	want := errors.New("semantic read failed")
 	got, err := status.LoadSemanticExtractionStatus(t.Context(), &fakeReader{err: want}, time.Now())
-	if !errors.Is(err, want) || !reflect.DeepEqual(got, status.SemanticExtractionStatus{}) {
+	if !errors.Is(err, want) || !reflect.DeepEqual(got, semantic.ExtractionStatus{}) {
 		t.Fatalf("status=%+v err=%v, want zero and wrapped failure", got, err)
 	}
 }

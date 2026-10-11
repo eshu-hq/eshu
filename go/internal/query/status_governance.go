@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 const hostedGovernanceStatusCapability = "hosted_governance.status"
@@ -117,7 +118,7 @@ func GovernanceStatusConfigFromEnv(
 
 func buildGovernanceStatus(
 	config GovernanceStatusConfig,
-	semantic status.SemanticExtractionStatus,
+	extraction semantic.ExtractionStatus,
 ) map[string]any {
 	normalized := normalizeGovernanceConfig(config)
 	reasons := governanceReasons(normalized)
@@ -126,16 +127,16 @@ func buildGovernanceStatus(
 		"state":                normalized.State,
 		"source_kind":          normalized.SourceKind,
 		"policy_revision_hash": normalized.PolicyRevisionHash,
-		"readiness":            governanceReadiness(normalized, semantic),
+		"readiness":            governanceReadiness(normalized, extraction),
 		"identity":             governanceIdentity(normalized),
 		"tenancy":              governanceTenancy(normalized),
 		"egress":               map[string]any{"mode": normalized.EgressMode},
-		"semantic":             governanceSemantic(semantic),
+		"semantic":             governanceSemantic(extraction),
 		"extensions":           map[string]any{"mode": normalized.ExtensionMode},
 		"redaction":            map[string]any{"state": normalized.RedactionState},
 		"retention":            map[string]any{"mode": normalized.RetentionMode},
-		"audit":                governanceAudit(normalized, semantic),
-		"aggregates":           governanceAggregates(normalized, semantic),
+		"audit":                governanceAudit(normalized, extraction),
+		"aggregates":           governanceAggregates(normalized, extraction),
 		"reasons":              reasons,
 		// Derived from the caller's raw config through the same
 		// ScopedRoutePolicyForGovernanceMode both commands wire into their
@@ -210,16 +211,16 @@ func governanceReasons(config GovernanceStatusConfig) []any {
 	return stringsToAny(uniqueAllowedReasons(reasons))
 }
 
-func governanceReadiness(config GovernanceStatusConfig, semantic status.SemanticExtractionStatus) map[string]any {
+func governanceReadiness(config GovernanceStatusConfig, extraction semantic.ExtractionStatus) map[string]any {
 	return map[string]any{
 		"identity":   config.AuthMode != "none",
 		"tenant":     safeConfigured(config.TenantMode) && safeConfigured(config.WorkspaceMode),
 		"egress":     safeConfigured(config.EgressMode) && config.EgressMode != "broad",
-		"semantic":   semantic.ProviderConfigured && semantic.State == status.SemanticExtractionAvailable,
+		"semantic":   extraction.ProviderConfigured && extraction.State == semantic.ExtractionAvailable,
 		"extensions": safeConfigured(config.ExtensionMode),
 		"redaction":  safeConfigured(config.RedactionState),
 		"retention":  safeConfigured(config.RetentionMode),
-		"audit":      safeConfigured(config.AuditState) || semanticExtractionAuditHasValues(semantic.Audit),
+		"audit":      safeConfigured(config.AuditState) || semanticExtractionAuditHasValues(extraction.Audit),
 	}
 }
 
@@ -238,19 +239,19 @@ func governanceTenancy(config GovernanceStatusConfig) map[string]any {
 	}
 }
 
-func governanceSemantic(semantic status.SemanticExtractionStatus) map[string]any {
-	view := statusJSONFromSemanticExtraction(semantic)
+func governanceSemantic(extraction semantic.ExtractionStatus) map[string]any {
+	view := statusJSONFromSemanticExtraction(extraction)
 	return map[string]any{
 		"state":                   view.State,
 		"reason":                  view.Reason,
 		"provider_configured":     view.ProviderConfigured,
 		"provider_profile_count":  len(view.ProviderProfiles),
-		"policy_denied_count":     semantic.Queue.PolicyDenied,
-		"audit_actor_class_count": len(semantic.Audit.ActorClassCounts),
+		"policy_denied_count":     extraction.Queue.PolicyDenied,
+		"audit_actor_class_count": len(extraction.Audit.ActorClassCounts),
 	}
 }
 
-func governanceAudit(config GovernanceStatusConfig, semantic status.SemanticExtractionStatus) map[string]any {
+func governanceAudit(config GovernanceStatusConfig, extraction semantic.ExtractionStatus) map[string]any {
 	summary := normalizeGovernanceAuditSummary(config.AuditSummary)
 	return map[string]any{
 		"state":                      config.AuditState,
@@ -258,20 +259,20 @@ func governanceAudit(config GovernanceStatusConfig, semantic status.SemanticExtr
 		"denied_decision_count":      summary.Denied,
 		"unavailable_decision_count": summary.Unavailable,
 		"event_type_count":           len(summary.EventTypeCounts),
-		"actor_class_count":          governanceAuditActorClassCount(summary, semantic.Audit),
+		"actor_class_count":          governanceAuditActorClassCount(summary, extraction.Audit),
 		"scope_class_count":          len(summary.ScopeClassCounts),
 		"reason_count":               len(summary.ReasonCounts),
-		"acl_state_count":            len(semantic.Audit.ACLStateCounts),
+		"acl_state_count":            len(extraction.Audit.ACLStateCounts),
 	}
 }
 
-func governanceAggregates(config GovernanceStatusConfig, semantic status.SemanticExtractionStatus) map[string]any {
+func governanceAggregates(config GovernanceStatusConfig, extraction semantic.ExtractionStatus) map[string]any {
 	denied := config.DeniedDecisions
 	if denied == 0 {
 		denied = normalizeGovernanceAuditSummary(config.AuditSummary).Denied
 	}
 	if denied == 0 {
-		denied = semantic.Queue.PolicyDenied
+		denied = extraction.Queue.PolicyDenied
 	}
 	return map[string]any{
 		"policy_section_count":  config.PolicySectionCount,
@@ -367,7 +368,7 @@ func normalizeGovernanceAuditCounts(rows []governanceaudit.Count) []governanceau
 
 func governanceAuditActorClassCount(
 	summary governanceaudit.Summary,
-	semanticAudit status.SemanticExtractionAuditSnapshot,
+	semanticAudit semantic.ExtractionAuditSnapshot,
 ) int {
 	names := map[string]struct{}{}
 	for _, row := range summary.ActorClassCounts {

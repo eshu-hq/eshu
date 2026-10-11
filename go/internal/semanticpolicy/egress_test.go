@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 func TestEvaluateRequiresSemanticProviderEgressAllow(t *testing.T) {
@@ -25,7 +25,7 @@ func TestEvaluateRequiresSemanticProviderEgressAllow(t *testing.T) {
 	if decision.Allowed {
 		t.Fatal("Evaluate() Allowed = true, want false without egress allow")
 	}
-	if got, want := decision.State, status.SemanticExtractionDisabledByPolicy; got != want {
+	if got, want := decision.State, semantic.ExtractionDisabledByPolicy; got != want {
 		t.Fatalf("Evaluate() State = %q, want %q", got, want)
 	}
 	if got, want := decision.Reason, semanticpolicy.ReasonEgressPolicyMissing; got != want {

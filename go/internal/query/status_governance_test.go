@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 func TestStatusHandlerGovernanceLocalNoPolicyReturnsEnvelope(t *testing.T) {
@@ -66,10 +67,10 @@ func TestStatusHandlerGovernanceEnforcingReportsSafeAggregates(t *testing.T) {
 		StatusReader: fakeStatusReader{
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: time.Date(2026, 6, 9, 16, 5, 0, 0, time.UTC),
-				SemanticExtraction: statuspkg.SemanticExtractionStatus{
-					State:              statuspkg.SemanticExtractionAvailable,
+				SemanticExtraction: semantic.ExtractionStatus{
+					State:              semantic.ExtractionAvailable,
 					ProviderConfigured: true,
-					ProviderProfiles: []statuspkg.SemanticProviderProfileStatus{
+					ProviderProfiles: []semantic.ProviderProfileStatus{
 						{
 							ProfileID:              "semantic-docs-default",
 							ProviderKind:           "internal_gateway",
@@ -77,15 +78,15 @@ func TestStatusHandlerGovernanceEnforcingReportsSafeAggregates(t *testing.T) {
 							CredentialConfigured:   true,
 							SourceClasses:          []string{"documentation"},
 							SourcePolicyConfigured: true,
-							State:                  statuspkg.SemanticProviderProfileConfigured,
+							State:                  semantic.ProviderProfileConfigured,
 							Detail:                 credentialHandle,
 						},
 					},
-					Queue: statuspkg.SemanticExtractionQueueSnapshot{
+					Queue: semantic.ExtractionQueueSnapshot{
 						Total:        4,
 						PolicyDenied: 1,
 					},
-					Audit: statuspkg.SemanticExtractionAuditSnapshot{
+					Audit: semantic.ExtractionAuditSnapshot{
 						ActorClassCounts: []statuspkg.NamedCount{{Name: "hosted_worker", Count: 4}},
 						ACLStateCounts:   []statuspkg.NamedCount{{Name: "acl_allowed", Count: 3}},
 					},
@@ -206,7 +207,7 @@ func TestGovernanceStatusConfigNormalizesPolicyStates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			payload := buildGovernanceStatus(tc.config, statuspkg.SemanticExtractionStatus{})
+			payload := buildGovernanceStatus(tc.config, semantic.ExtractionStatus{})
 			if got := payload["state"]; got != tc.wantState {
 				t.Fatalf("state = %#v, want %#v", got, tc.wantState)
 			}
@@ -236,7 +237,7 @@ func TestGovernanceStatusConfigDropsUnsafeStatusValues(t *testing.T) {
 			"/Users/operator/policy.json",
 			"https://redacted.invalid",
 		},
-	}, statuspkg.SemanticExtractionStatus{})
+	}, semantic.ExtractionStatus{})
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -280,8 +281,8 @@ func TestGovernanceStatusReportsAuditAggregates(t *testing.T) {
 	envelope, body := governanceStatusEnvelope(t, &StatusHandler{
 		StatusReader: fakeStatusReader{
 			snapshot: statuspkg.RawSnapshot{
-				SemanticExtraction: statuspkg.SemanticExtractionStatus{
-					Audit: statuspkg.SemanticExtractionAuditSnapshot{
+				SemanticExtraction: semantic.ExtractionStatus{
+					Audit: semantic.ExtractionAuditSnapshot{
 						ActorClassCounts: []statuspkg.NamedCount{
 							{Name: string(governanceaudit.ActorClassScopedToken), Count: 3},
 							{Name: "hosted_worker", Count: 1},

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 func normalizeRequest(request Request) Request {
@@ -39,14 +39,14 @@ func deny(state, reason, detail string, request Request) Decision {
 }
 
 func profileAllowsRequest(
-	profiles []status.SemanticProviderProfileStatus,
+	profiles []semantic.ProviderProfileStatus,
 	request Request,
 ) bool {
 	for _, profile := range profiles {
 		if strings.TrimSpace(profile.ProfileID) != request.ProviderProfileID {
 			continue
 		}
-		if profile.State == status.SemanticProviderProfileUnhealthy ||
+		if profile.State == semantic.ProviderProfileUnhealthy ||
 			!profile.CredentialConfigured {
 			return false
 		}
@@ -97,7 +97,7 @@ func sourceMatches(selectors []SourceSelector, request Request) bool {
 }
 
 func allowedProfileSourceClasses(
-	profile status.SemanticProviderProfileStatus,
+	profile semantic.ProviderProfileStatus,
 	policy Policy,
 	denied map[string]struct{},
 ) []string {

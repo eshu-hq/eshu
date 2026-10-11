@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // TestGovernanceStatusReadbackAgreesWithAllScopeAdmission pins the two
@@ -59,7 +59,7 @@ func TestGovernanceStatusReadbackAgreesWithAllScopeAdmission(t *testing.T) {
 			t.Parallel()
 
 			config := GovernanceStatusConfig{Mode: tc.mode}
-			payload := buildGovernanceStatus(config, statuspkg.SemanticExtractionStatus{})
+			payload := buildGovernanceStatus(config, semantic.ExtractionStatus{})
 
 			if got := payload["mode"]; got != tc.wantMode {
 				t.Fatalf("mode = %#v, want %#v", got, tc.wantMode)
@@ -101,7 +101,7 @@ func TestGovernanceStatusUnrecognizedModeCarriesReason(t *testing.T) {
 
 	payload := buildGovernanceStatus(
 		GovernanceStatusConfig{Mode: "hosted-multi-tenant"},
-		statuspkg.SemanticExtractionStatus{},
+		semantic.ExtractionStatus{},
 	)
 	requireStringSliceContains(t, payload["reasons"], "governance_mode_unrecognized")
 }

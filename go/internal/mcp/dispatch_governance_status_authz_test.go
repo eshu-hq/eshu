@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 type fakeMCPStatusReader struct {
@@ -95,8 +96,8 @@ func TestDispatchToolSemanticExtractionStatusAllowsScopedRoute(t *testing.T) {
 		StatusReader: fakeMCPStatusReader{
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: time.Date(2026, 6, 10, 4, 35, 0, 0, time.UTC),
-				SemanticExtraction: statuspkg.SemanticExtractionStatus{
-					State:              statuspkg.SemanticExtractionAvailable,
+				SemanticExtraction: semantic.ExtractionStatus{
+					State:              semantic.ExtractionAvailable,
 					ProviderConfigured: true,
 				},
 			},
