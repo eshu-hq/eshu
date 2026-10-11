@@ -1,0 +1,23 @@
+go/internal/storage/postgres/schema_7033_interrupt_rollback_live_test.go
+  s_b0d7e3abc26c5a::t_02ddbd6b5c85c4 14,33-35,143-149,156-158,181,183-184,187-188,248,256-262
+  s_b0d7e3abc26c5a::t_07e72d322e9da6 17,112-116,118,126,286,288-350,352-353
+  s_b0d7e3abc26c5a::t_6fdfe3abe7bcb1 131-132
+  s_b0d7e3abc26c5a::t_2d904d42e96eed 1-13,15-16,18-32,36-111,117,119-125,127-130,133-142,178-180,182,185-186,189-247,249-255,263-285,287,351,354-373
+  s_b0d7e3abc26c5a::t_cbadc892613e78 150-155,159-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8871cb933f3789f0ec263e5a008c5854ea9267b",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

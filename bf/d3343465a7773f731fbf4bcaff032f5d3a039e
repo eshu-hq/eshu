@@ -1,0 +1,23 @@
+scripts/test-run-live-postgres-migrations.sh
+  s_b0d7e3abc26c5a::t_1fd7a0cfe4c17e 13-14
+scripts/testdata/live-postgres-migrations-fake-go.sh
+  s_b0d7e3abc26c5a::t_0d90782db44515 1-30
+scripts/testdata/live-postgres-migrations-fake-docker.sh
+  s_b0d7e3abc26c5a::t_0d90782db44515 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bfd3343465a7773f731fbf4bcaff032f5d3a039e",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
