@@ -90,9 +90,16 @@ func Assign(repoIDs []string, workers int) [][]string {
 }
 
 // workerFor maps a repository to a worker with FNV-1a, which is stable across
-// processes and releases.
+// processes and releases. The modulo runs in int, which holds every uint32 on
+// the 64-bit platforms Eshu ships (linux/amd64 and linux/arm64 images), so the result equals the PR3b-1a form
+// (Sum32 % uint32(workers)) for every worker count that fits in uint32, and
+// stays a valid index above that, where the uint32 form truncated the count.
+// Assign never passes fewer than one worker; a count below one maps to 0.
 func workerFor(repoID string, workers int) int {
+	if workers < 1 {
+		return 0
+	}
 	hash := fnv.New32a()
 	_, _ = hash.Write([]byte(repoID))
-	return int(hash.Sum32() % uint32(workers))
+	return int(hash.Sum32()) % workers
 }
