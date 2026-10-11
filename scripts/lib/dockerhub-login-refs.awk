@@ -70,12 +70,55 @@ BEGIN {
 # not in command position (a quoted path that starts a continuation line of a
 # for-list or an argument list is data). A line with a comment is never joined: a
 # backslash at the end of a comment does not continue it.
-FNR == 1 { if (buf != "") { scan(buf); buf = "" } fname = FILENAME }
+FNR == 1 { if (buf != "") { scan(buf); buf = "" } fname = FILENAME; HDn = 0 }
+# A heredoc body is the stdin of its command, not commands, unless a shell reads
+# it. HDrun is set by hd_open from the line that opened it. Lines of an unquoted
+# body that hold $( or a backquote are scanned (they execute at expansion).
+HDn > 0 {
+  line = $0
+  if (HDdash[HDi]) sub(/^\t+/, "", line)
+  if (line == HDword[HDi]) { HDi++; if (HDi > HDn) HDn = 0; next }
+  if (HDrun[HDi] || (!HDquoted[HDi] && (index(line, "$(") > 0 || index(line, "`") > 0))) scan(line)
+  next
+}
 {
   if ($0 ~ /\\$/ && $0 !~ /\\\\$/ && $0 !~ /(^|[ \t])#/) { buf = buf substr($0, 1, length($0) - 1) " "; next }
-  scan(buf $0); buf = ""
+  full = buf $0; buf = ""
+  scan(full)
+  hd_open(full)
 }
 END { if (buf != "") scan(buf) }
+
+# hd_open finds the heredocs a logical line opens (<<WORD, <<-WORD, <<'WORD',
+# <<"WORD", <<\WORD; not <<< and not inside quotes or a comment) and arms the body
+# handler. A body is run as code when the line holds a shell word (bash, sh, zsh,
+# dash, ksh, eval, source, a dot command) or ends in a pipe, && or || (the body
+# feeds a command on a later line): the gate fails closed on those.
+function hd_open(s,   i, n, ch, q, w, d, lit, code, run, tail) {
+  n = length(s); q = ""; HDn = 0
+  code = s
+  run = (code ~ /(^|[^A-Za-z0-9_.\/-])(bash|sh|zsh|dash|ksh|eval|source)([^A-Za-z0-9_]|$)/ || code ~ /(^|[ \t;&|(])\.[ \t]/ || code ~ /(\||&&)[ \t]*$/)
+  for (i = 1; i <= n; i++) {
+    ch = substr(s, i, 1)
+    if (q != "") { if (ch == "\\" && q == "\"") i++; else if (ch == q) q = ""; continue }
+    if (ch == "'" || ch == "\"") { q = ch; continue }
+    if (ch == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t]/)) break
+    if (ch == "<" && substr(s, i + 1, 1) == "<" && substr(s, i + 2, 1) != "<" && (i == 1 || substr(s, i - 1, 1) != "<")) {
+      d = 0; lit = 0; i += 2
+      if (substr(s, i, 1) == "-") { d = 1; i++ }
+      while (substr(s, i, 1) ~ /[ \t]/) i++
+      ch = substr(s, i, 1)
+      if (ch == "'" || ch == "\"") { lit = 1; i++ } else if (ch == "\\") { lit = 1; i++ }
+      w = ""
+      while (substr(s, i, 1) ~ /[A-Za-z0-9_]/) { w = w substr(s, i, 1); i++ }
+      if (w == "") continue
+      HDn++; HDword[HDn] = w; HDdash[HDn] = d; HDquoted[HDn] = lit; HDrun[HDn] = run
+      if (substr(s, i, 1) == "'" || substr(s, i, 1) == "\"") i++
+      i--
+    }
+  }
+  HDi = 1
+}
 
 # first_special returns the index of the first quote, backslash or # in s, or 0.
 function first_special(s,   i, best, k, ch) {
