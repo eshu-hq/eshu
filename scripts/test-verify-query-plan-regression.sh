@@ -41,43 +41,8 @@ require_anchor "$profile_verifier" 'neo4j@sha256:[0-9a-f]{64}' \
 # This consumer has a distinct engine profile from the paired methodology
 # proof. Capture its actual Docker argument and compare with the independent ledger.
 # Neither a digest-shaped string nor a correct-looking comment proves the pin.
-python3 - "${repo_root}/specs/ci-images.v1.json" "$profile_verifier" <<'PY'
-import json
-import os
-import pathlib
-import subprocess
-import sys
-import tempfile
-
-ledger = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-profile = next(image for image in ledger["images"]
-               if image["id"] == "neo4j-queryplan")
-with tempfile.TemporaryDirectory(prefix="queryplan-image-contract-") as directory:
-    temporary = pathlib.Path(directory)
-    arguments = temporary / "docker-arguments.txt"
-    docker = temporary / "docker"
-    docker.write_text(
-        '#!/bin/sh\n'
-        'if [ "$1" = run ]; then\n'
-        '  printf "%s\\n" "$@" > "$ESHU_PROFILE_PIN_TEST_ARGS"\n'
-        '  exit 91\n'
-        'fi\n'
-        'exit 0\n', encoding="utf-8")
-    docker.chmod(0o700)
-    environment = dict(os.environ)
-    environment.pop("ESHU_QUERYPLAN_PROFILE_IMAGE", None)
-    environment["PATH"] = str(temporary) + os.pathsep + environment["PATH"]
-    environment["ESHU_PROFILE_PIN_TEST_ARGS"] = str(arguments)
-    result = subprocess.run(
-        ["bash", sys.argv[2]], env=environment, capture_output=True,
-        text=True, timeout=5, check=False)
-    if result.returncode != 91 or not arguments.is_file():
-        sys.exit("test-verify-query-plan-regression: profile did not reach "
-                 "the isolated Docker invocation")
-    if arguments.read_text(encoding="utf-8").splitlines()[-1] != profile["runtime_sources"][0]:
-        sys.exit("test-verify-query-plan-regression: executable profile default "
-                 "differs from the neo4j-queryplan image ledger")
-PY
+python3 "${repo_root}/scripts/lib/test-queryplan-profile-image-contract.py" \
+	"${repo_root}/specs/ci-images.v1.json" "$profile_verifier"
 require_anchor "$profile_verifier" 'TestQueryplanForbiddenOperatorPolicyIsClosed' \
 	'the profile gate must run the forbidden-operator policy test'
 require_anchor "$profile_verifier" 'trap cleanup EXIT INT TERM' \
@@ -124,6 +89,7 @@ for required_trigger in \
 	"specs/ci-images.v1.json" \
 	"scripts/verify-query-plan-regression.sh" \
 	"scripts/verify-query-plan-profile.sh" \
+	"scripts/lib/test-queryplan-profile-image-contract.py" \
 	"scripts/test-verify-query-plan-regression.sh"; do
 	if ! printf '%s\n' "$gate_triggers" | rg --fixed-strings "\"${required_trigger}\"" >/dev/null ; then
 		printf 'test-verify-query-plan-regression: %s is not in the query-plan-regression triggers in specs/ci-gates.v1.yaml, so a change to it alone would not re-run this gate in CI\n' \
