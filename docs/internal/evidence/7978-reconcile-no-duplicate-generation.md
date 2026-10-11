@@ -65,19 +65,21 @@ it did retract that drift.
 
 ## Performance Evidence
 
-Performance Evidence: the source is branch `fix/7978-reconcile-no-duplicate-generation`
-at `d8d22ce65a` on base `f41526bf8a`. The backend is a private local
-PostgreSQL 18.6 cluster (Homebrew). `TestUnchangedReconcileStoresNothingLive`
-measures the store commit time through the production `IngestionStore` and
-`ProjectorQueue`. The "before" column is the same reconcile with the blank hint
-that the collector sent before this change, which is the path main takes. Each
-figure is a single-process wall time on a shared developer host, so treat it as
-an order-of-magnitude result and not as a latency distribution.
+Performance Evidence: measured at `ccbef3a3ec` on base `47ea898275` (the code
+of the final head; later commits change only docs). The backend is a private
+local PostgreSQL 18.6 cluster (Homebrew) on a shared host with load average
+about 28. `TestUnchangedReconcileStoresNothingLive`, with its fixture set to
+6,800 facts for this run, measures the store commit time through the
+production `IngestionStore` and `ProjectorQueue`. The "before" column is the
+same reconcile with the blank hint that main's collector sends. Each figure is
+a single-process wall time, so treat it as an order-of-magnitude result.
 
 | facts per generation | fixed reconcile | blank-hint reconcile (before) | rows written by the fixed reconcile |
 | ---: | --- | --- | --- |
-| 200 | 1.6-1.8 ms (2 runs) | 33-142 ms (2 runs) | 0 generation, 0 fact, 0 search, 0 content |
-| 6,800 | 1.6-2.5 ms (3 runs) | 419-497 ms (3 runs) | 0 generation, 0 fact, 0 search, 0 content |
+| 6,800 | 1.03-1.15 ms (3 runs) | 308-366 ms (3 runs) | 0 generation, 0 fact, 0 search, 0 content |
+
+The independent review measured 1.36 ms against 13.0 ms at 200 facts on its
+own PostgreSQL 18.6 instance.
 
 The before path also writes 1 generation row, every fact row, and 1 work row.
 The reducer then rebuilds documents and terms; that cost was not measured
@@ -101,6 +103,26 @@ memory (quicksort, 25 kB) to take the newest; that is the same plan as the
 `activeGenerationFreshnessQuery` it replaces. The projector claim change adds one
 expression to the SELECT list over the already-joined generation row. Its plan
 was not re-measured.
+
+## Differences From The Old Path
+
+The old path stored a new generation for every forced reconcile. The new path
+re-projects the active generation instead, which differs in three ways:
+
+1. Graph state stamped with the active generation id itself is not retracted
+   (ruling a9-117 Q1); only a projector defect or a manual graph edit can
+   create it. `TestUnchangedReconcileKnownGapActiveStampedDriftLive` pins it.
+2. Reducer-owned truth is not re-derived: the reducer queue admits none of the
+   re-projected generation's intents (`ON CONFLICT DO NOTHING`, #7285), so
+   reducer-domain drift is not retracted by a reconcile.
+3. `eshu_dp_reconciliation_drift_retractions_total` does not count the
+   re-projection's retractions: the re-projected generation's repository fact
+   carries no reconciliation marker. Carrying it needs one more projector claim
+   column and its shared scan (13 test fixtures, two other queries), so it is a
+   follow-up.
+
+An explicit reindex is not a difference: it still stores the re-parse (ruling
+a9-125).
 
 ## Concurrency Evidence
 
