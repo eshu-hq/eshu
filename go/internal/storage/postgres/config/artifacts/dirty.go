@@ -12,40 +12,51 @@ import (
 
 // dirtySQL is the walker's dirty join (protocol section 1): every repository
 // in the versions table whose stored rows need a derive. It is wider than the
-// reader's trust condition: a repository with a failed derive since its last
-// success is work even when its rows still match the current version.
+// reader's trust condition: a repository whose last derive failed after an
+// earlier success (retry) is work even when its rows still match the current
+// version.
 //
 // $1 is the walker's extractor version, $2 the failure count that skips a
 // repository, $3 the row limit. A repository is skipped only while its last
 // failure came from the current extractor version, so a new extractor retries
 // it; a successful derive resets failure_count. A state row from a newer
-// extractor is not work: this binary's derive could not replace it.
+// extractor is never work, whether exact, moved or failing: under protocol
+// section 3 step 3 this binary's derive could not replace it, so listing it
+// would only make an older replica re-derive and discard it every cycle.
 //
-// The join reads two tables that grow with repositories, not with files; S2
-// measured it at 0.18 ms over 815 repositories.
+// The join reads two tables that grow with repositories, not with files. With
+// a generic plan it is a hash join over two sequential scans; the measured
+// figures are in the package README.
 const dirtySQL = `
-SELECT v.repo_id,
-       CASE
-           WHEN s.failure_count > 0 THEN 'failed'
-           WHEN s.extractor_version < $1 THEN 'stale_extractor'
-           WHEN s.repo_id IS NULL THEN 'missing'
-           ELSE 'stale_version'
-       END AS reason,
-       coalesce(s.failure_count >= $2 AND s.last_failure_extractor_version = $1, false) AS skipped
-FROM config_artifact_content_versions AS v
-LEFT JOIN config_artifact_repo_state AS s ON s.repo_id = v.repo_id
-WHERE s.repo_id IS NULL
-   OR s.failure_count > 0
-   OR s.extractor_version < $1
-   OR s.content_version IS DISTINCT FROM v.version
+SELECT repo_id, reason, skipped
+FROM (
+    SELECT v.repo_id,
+           CASE
+               WHEN s.repo_id IS NULL THEN 'missing'
+               WHEN s.row_count IS NULL THEN 'failed'
+               WHEN s.failure_count > 0 THEN 'retry'
+               WHEN s.extractor_version < $1 THEN 'stale_extractor'
+               ELSE 'stale_version'
+           END AS reason,
+           coalesce(s.failure_count >= $2 AND s.last_failure_extractor_version = $1, false) AS skipped
+    FROM config_artifact_content_versions AS v
+    LEFT JOIN config_artifact_repo_state AS s ON s.repo_id = v.repo_id
+    WHERE (s.repo_id IS NULL OR s.extractor_version <= $1)
+      AND (s.repo_id IS NULL
+           OR s.row_count IS NULL
+           OR s.failure_count > 0
+           OR s.extractor_version < $1
+           OR s.content_version IS DISTINCT FROM v.version)
+) AS dirty
 ORDER BY skipped,
-         CASE
-             WHEN s.failure_count > 0 THEN 0
-             WHEN s.extractor_version < $1 THEN 1
-             WHEN s.repo_id IS NULL THEN 2
-             ELSE 3
+         CASE reason
+             WHEN 'failed' THEN 0
+             WHEN 'retry' THEN 1
+             WHEN 'stale_extractor' THEN 2
+             WHEN 'missing' THEN 3
+             ELSE 4
          END,
-         v.repo_id
+         repo_id
 LIMIT $3`
 
 // DirtyRequest selects the walker's work.
@@ -60,9 +71,10 @@ type DirtyRequest struct {
 }
 
 // Dirty is one repository the walker must derive, or reports as skipped.
-// Reason is ReasonFailed (failure_count > 0), ReasonStaleExtractor,
-// ReasonMissing (no state row), or ReasonStaleVersion. Skipped repositories
-// are listed for status and not derived.
+// Reason is ReasonFailed (no successful derive yet), ReasonRetry (a failed
+// derive after a success), ReasonStaleExtractor, ReasonMissing (no state
+// row), or ReasonStaleVersion. Skipped repositories are listed for status and
+// not derived.
 type Dirty struct {
 	RepoID  string
 	Reason  Reason
@@ -70,8 +82,8 @@ type Dirty struct {
 }
 
 // ListDirty returns up to req.Limit repositories from the dirty join, work
-// first in the order failed, stale_extractor, missing, stale_version (then
-// repo_id), and skipped repositories last.
+// first in the order failed, retry, stale_extractor, missing, stale_version
+// (then repo_id), and skipped repositories last.
 func ListDirty(ctx context.Context, queryer db.Queryer, req DirtyRequest) ([]Dirty, error) {
 	if req.Limit <= 0 {
 		return nil, fmt.Errorf("list dirty config artifact repositories: limit must be positive, got %d", req.Limit)

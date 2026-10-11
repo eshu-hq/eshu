@@ -12,11 +12,13 @@ import (
 )
 
 // TestListDirtyFindsTheWalkersWorkLive seeds one repository per dirty-join
-// case and checks the walker's work list (protocol sections 1 and 4): failed
-// derives and old extractor versions first, then repositories with no state
-// row, then moved content; a repository over the failure limit for the
-// current extractor is listed last and marked skipped; exact rows, rows from
-// a newer extractor, and a state row with no version row are not work.
+// case and checks the walker's work list (protocol sections 1 and 4): never
+// derived (failed), then a failed derive after a success (retry), then old
+// extractor versions, then repositories with no state row, then moved content;
+// a repository over the failure limit for the current extractor is listed
+// last and marked skipped. Exact rows, every row from a newer extractor (exact,
+// moved, or failing), and a state row with no version row are not work: this
+// binary's derive could not replace a newer extractor's state.
 func TestListDirtyFindsTheWalkersWorkLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 	const extractor = 3
@@ -24,6 +26,7 @@ func TestListDirtyFindsTheWalkersWorkLive(t *testing.T) {
 	seedVersions(ctx, t, db, map[string]int64{
 		"r-clean": 5, "r-nostate": 1, "r-moved": 6, "r-oldext": 5, "r-newext": 5,
 		"r-failed-exact": 5, "r-failonly": 2, "r-skip": 2, "r-skip-oldext": 2,
+		"r-newext-moved": 6, "r-newext-failed": 5, "r-newext-failonly": 2,
 	})
 	for _, state := range []struct {
 		repo                 string
@@ -42,6 +45,9 @@ func TestListDirtyFindsTheWalkersWorkLive(t *testing.T) {
 		{"r-skip", nil, extractor, nil, 5, extractor},
 		{"r-skip-oldext", nil, extractor, nil, 5, extractor - 1},
 		{"r-state-without-version", 1, extractor, 0, 0, nil},
+		{"r-newext-moved", 5, extractor + 1, 2, 0, nil},
+		{"r-newext-failed", 5, extractor + 1, 2, 1, extractor + 1},
+		{"r-newext-failonly", nil, extractor + 1, nil, 2, extractor + 1},
 	} {
 		if _, err := db.ExecContext(ctx, `
 INSERT INTO config_artifact_repo_state
@@ -60,9 +66,9 @@ VALUES ($1, $2, $3, $4, $5, $6)`,
 		t.Fatalf("ListDirty() error = %v", err)
 	}
 	want := []artifacts.Dirty{
-		{RepoID: "r-failed-exact", Reason: artifacts.ReasonFailed},
 		{RepoID: "r-failonly", Reason: artifacts.ReasonFailed},
 		{RepoID: "r-skip-oldext", Reason: artifacts.ReasonFailed},
+		{RepoID: "r-failed-exact", Reason: artifacts.ReasonRetry},
 		{RepoID: "r-oldext", Reason: artifacts.ReasonStaleExtractor},
 		{RepoID: "r-nostate", Reason: artifacts.ReasonMissing},
 		{RepoID: "r-moved", Reason: artifacts.ReasonStaleVersion},
