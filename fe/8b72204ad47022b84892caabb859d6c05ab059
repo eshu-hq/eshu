@@ -1,0 +1,35 @@
+.github/workflows/required-gates.yml
+  s_b0d7e3abc26c5a::t_b7c845985e03c3 19
+.github/workflows/live-postgres-migrations.yml
+  s_b0d7e3abc26c5a::t_36c4fd3fa0625b 70-72
+  s_b0d7e3abc26c5a::t_3fa02d53ff875b 1-69,73-80
+specs/ci-gates.d/gates-09.yaml
+  s_b0d7e3abc26c5a::t_1494781fdbc9cd 104-139
+scripts/test-run-live-postgres-migrations.sh
+  s_b0d7e3abc26c5a::t_1a7855ce3d94d2 45-48,76,111-116
+  s_b0d7e3abc26c5a::t_f44d0fa4e06310 69-74
+  s_b0d7e3abc26c5a::t_3a533ccd8839a3 1-20,23-30,32-44,49-68,75,77-96,117-125
+  s_b0d7e3abc26c5a::t_5e2020a4b8042e 22
+  s_b0d7e3abc26c5a::t_fd68692b72e9ed 21,31,97-110
+scripts/run-live-postgres-migrations.sh
+  s_b0d7e3abc26c5a::t_2cb85e64bc4157 1-110,112-116
+  s_b0d7e3abc26c5a::t_1c5d16de30318a 111
+docs/public/reference/ci-gates.md
+  s_b0d7e3abc26c5a::t_b371b97e400160 11,164,170,292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fe8b72204ad47022b84892caabb859d6c05ab059",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
