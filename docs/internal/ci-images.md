@@ -66,61 +66,74 @@ step is not a finding of this rule.
 
 The gate reads `specs/ci-images.v1.json` and the required image ids in
 `scripts/lib/ci_image_compose.py` from the tree under test at run time. It holds
-no copy of a digest or an image name. A job is in CI image mode when
+no copy of a digest or an image name. A step is in CI image mode when
 `ESHU_CI_IMAGES=1` and every required env pin equals the ledger
-`destination@digest`. CI image mode alone settles nothing: the overlay changes
-only a Compose call that applies it. The gate accepts the overlay for a step
-only when every Compose call it can find that may pull an image applies it. A
-call is found by searching the whole command, so a wrapper (`timeout 300`,
-`nice -n 5`, `sudo -u root`, `retry 3`, `xargs`) needs no list. A call that is
-held in an array, or a command whose command word is a variable and that passes
-`compose`, is a call without the overlay unless the array holds the overlay. A
-call pulls unless its subcommand is a literal word from the list of subcommands
-that pull nothing (`config`, `down`, `logs`, `ps`, `exec`, `ls`, `version`,
-`images`, `top`, `port`, `events`, `stop`, `kill`, `rm`, `pause`, `unpause`,
-`start`, `restart`, `cp`, `wait`, `attach`, `stats`). `up`, `run`, `build`,
-`pull`, `create`, `scale`, a subcommand read from a variable and a call with no
-subcommand pull. Compose flags that take a value (`-f`, `-p`, `--profile`,
-`--env-file`, `--project-directory`) are skipped before the subcommand.
+`destination@digest`.
 
-A call applies the overlay when `"${ESHU_CI_COMPOSE_OVERLAY}"` (or a variable
-assigned from it) is the value of an `-f` or `--file` option, or when an array
-that holds such an operand at that point is expanded, after
-`eshu_ci_compose_prepare` ran in the same shell scope. The last assignment before
-the call wins, and a reset clears it. The overlay in `--env-file` counts for
-nothing. A call through `scripts/ci/compose.sh` applies it. A prepare inside a
-subshell, a command substitution, a background job or a pipeline, a prepare
-inside a function nothing calls, and a prepare followed by `|| true`, `|| :` or
-`|| echo` do not count.
+### Two classes of Compose call
 
-One call without the overlay makes the step judged by the images its files
-name, as outside CI image mode. A plain `docker compose -f <file> up` in a job
-with `ESHU_CI_IMAGES=1` pulls from Docker Hub, and the gate reports it. A call
-that pulls nothing (`config`, `down`, `logs`, `ps`) needs no overlay. When the
-overlay is applied:
+The gate classifies each Compose call it finds in a run text and in every script
+the step reaches.
 
-- A Compose service image that is a ledger runtime source, a runtime pin, or a
-  `runtime_allowlist` entry is accepted. Any other image fails the helper, so it
-  is a reach.
-- A build of the root `Dockerfile` from the repository root gets the ledger
-  build args. Any other build is judged by its own `FROM` lines.
-- `"${ESHU_CI_COMPOSE_OVERLAY}"` settles only after `eshu_ci_compose_prepare`
-  (or `scripts/ci/compose.sh`) runs earlier in the same shell scope. A script
-  that appends the overlay without that call reaches Docker Hub.
+| Class | Call | Verdict |
+|---|---|---|
+| W | `scripts/ci/compose.sh` as the command word (see below), in a step in CI image mode, with the wrapper in the tree | Settled. The gate does not read the call's `-f` operands or the names inside it. |
+| R | Every other call: `docker compose`, `docker-compose`, a command array, a variable command word, a wrapper call in a step without CI image mode, a look-alike path | Judged by the images its files name. An `-f` operand that does not resolve to a file is Docker Hub. |
 
-Outside CI image mode the images the files name apply. A Dockerfile `ARG` takes
-its value from `--build-arg`, then from its default; the environment reaches it
-only through `--build-arg NAME=${NAME}`. A script that writes a `docker` stub into
-a directory and puts that directory first on `PATH`, both before any `docker` use
-in the same shell scope, has no docker reach for itself or the scripts it runs.
-A call by absolute path, a prepend in a subshell, or a reset of `PATH` between
-the prepend and the call breaks the shadow.
+A wrapper call is W when the command word, behind `bash`, `sh`, `exec`,
+`timeout N`, `nice`, `sudo` or `env`, is the literal path tail
+`scripts/ci/compose.sh` with no prefix, `./`, or one `${VAR}`, `$VAR` or `"$VAR"`
+followed by `/`. A literal `bash scripts/ci/compose.sh` in the arguments of a
+runner function, in a literal `bash -c` string, in a pipeline, a function, a
+subshell or a background job is W too: the wrapper is what runs. A path held in
+a variable is not W.
+
+`"${ESHU_CI_COMPOSE_OVERLAY}"` as an `-f` operand settles nothing. A direct
+`docker compose -f <file> -f "${ESHU_CI_COMPOSE_OVERLAY}" up` after a correct
+prepare is an R call, and a Docker Hub image in its file is a reach. The gate
+holds no model of prepare calls, arrays, aliases or flow.
+
+### Why the wrapper is trusted
+
+`scripts/ci/compose.sh` renders an overlay for the exact flag set of the call. The
+overlay builder (`scripts/lib/ci_image_compose.py`) fails closed: a rendered
+service image that is Docker Hub and not a ledger runtime source, an image
+outside the allowlist, and a build that is not the canonical root Dockerfile all
+exit 1, and the wrapper exits 1 with them. A changed flag set, file or pin
+fails the signature check. In CI the wrapper also refuses to run when
+`ESHU_CI_IMAGES` is not `1` (`ci-compose: CI image mode is off in CI`), so a
+step that clears the variable becomes a red job, never a Docker Hub pull.
+`scripts/test-ci-image-compose.sh` runs these refusals.
+
+### Migration rule
+
+A CI Compose call goes through `scripts/ci/compose.sh`. A direct `docker compose`
+on the queue path is judged by its files. Pass the file flags before `--`:
+
+```text
+bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- up -d
+```
+
+A script that makes many calls may call `eshu_ci_compose_prepare "${repo_root}"
+"${compose_args[@]}"` once, so the wrapper takes the signature path. Do not
+append the overlay by hand.
+
+### Dockerfile ARGs and PATH-shadowed stubs
+
+A Dockerfile `ARG` takes its value from `--build-arg`, then from its default;
+the environment reaches it only through `--build-arg NAME=${NAME}`. A script that
+writes a `docker` stub into a directory and puts that directory first on `PATH`,
+both before any `docker` use in the same shell scope, has no docker reach for
+itself or the scripts it runs. A call by absolute path, a prepend in a subshell,
+or a reset of `PATH` between the prepend and the call breaks the shadow.
 
 ### Static limits
 
-The gate reads text. It does not run a script. Shapes it does not follow, so a
-reach in them passes. Main's gate had the same gaps:
+The gate reads text. It does not run a script, and main's gate had the same gaps.
 
+- A wrapper path held in a variable is not seen as the wrapper. A shell-level
+  write that clears `ESHU_CI_IMAGES` (`unset`, `env -i`, `ESHU_CI_IMAGES=0`) is
+  closed by the wrapper guard at run time, not by the gate.
 - The docker lexer reads a heredoc body only when the line that opens it is a
   shell (`bash <<EOF`). It does not read `cat <<EOF | bash`,
   `sh -c "$(cat <<EOF ...)"`, `eval "$(cat <<EOF ...)"`, `. /dev/stdin <<EOF`, or
@@ -128,25 +141,18 @@ reach in them passes. Main's gate had the same gaps:
 - Variable-held command names. Seen: a variable or array assigned the word
   `docker` (`DOCKER_BIN=docker; $DOCKER_BIN pull ...`, `DC=(docker compose ...);
   "${DC[@]}" up`) and a variable command word that passes `compose`
-  (`$DOCKER compose up`). Each compose form counts as a pulling call without the
-  overlay. Not seen: a name built from quoted pieces (`dock""er`), by
-  concatenation or by `printf`, and a command word read from a file, from the
-  environment or from a command substitution.
+  (`$DOCKER compose up`). Each is a raw call. Not seen: a name built from quoted
+  pieces (`dock""er`), by concatenation or by `printf`, and a command word read
+  from a file, from the environment or from a command substitution.
 - A stub directory variable that changes between the write and the prepend is
   not seen by the PATH-shadow model.
-- The prepare check is lexical. A function that is called before its definition
-  is not seen, a `return` before the prepare, and a prepare under a condition
-  that is false at run time, are not seen as such: the prepare counts.
-- An array that another file of the same shell fills with the overlay counts as
-  filled. The order of the files is not known, so a reset in another file is not
-  seen.
 
-The reference reader (which scripts a file runs) fails closed on these: a
-heredoc body is read as commands when its opening line holds a shell word, a
-dot command, or a pipe, when it is written to a file (`> file`, `>> file`,
-`tee`), when it has no delimiter line, or when it substitutes a command. An
-arithmetic `<<` (`$(( 1 << 2 ))`, `(( x = 1 << 3 ))`, `let`) opens no heredoc.
-A conditional literal in a workflow env settles only in the form
+The reference reader (which scripts a file runs) fails closed on shapes it
+cannot place: a heredoc body is read as commands when its opening line holds a
+shell word, a dot command, or a pipe, when it is written to a file (`> file`,
+`>> file`, `tee`), when it has no delimiter line, or when it substitutes a
+command. An arithmetic `<<` (`$(( 1 << 2 ))`, `(( x = 1 << 3 ))`, `let`) opens
+no heredoc. A conditional literal in a workflow env settles only in the form
 `cond && 'a' || cond && 'b' || 'c'`, and every literal must settle.
 
 ## Refresh and proof

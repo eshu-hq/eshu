@@ -369,7 +369,7 @@ check_job() {
         # A variable invoked as a command next to a docker word anywhere in the
         # run text or the scripts it reaches may hold docker: fail closed.
         var_conflict "${seq}" "${cfiles}" "${env64}" "${job}"
-        [[ -z "${VCONF}" ]] || possible=1
+        [[ -z "${VCONF}" ]] && ! compose_wrapper_seen_in "${runf}" "${cfiles}" || possible=1
         [[ "${possible}" -gt 0 ]] || continue
         step_hub_why "${runf}" "${d_other}" "${d_comp}" "${cfiles}" "${env64}" "${job}"
         [[ -z "${trace}" ]] || printf 'trace %s steps[%s] other=%s compose=%s files=%s -> %s\n' "${where}" "${idx}" "${d_other}" "${d_comp}" "$(printf '%s' "${cfiles}" | rg -c .)" "${HUBWHY:-none}" >&2

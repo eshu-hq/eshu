@@ -4,12 +4,13 @@
 # bodies and full-line comments are skipped, and a quoted string is data unless
 # it follows -c or eval. One mode per run, chosen with -v mode=:
 #
-#   ops      prints FUNCTION <RS> OPERAND <RS> LINE (RS is octal 036), the operand as written, of every -f,
+#   ops      prints FUNCTION <RS> OPERAND <RS> LINE <RS> WRAPPER (RS is octal 036), the operand as written, of every -f,
 #            --file, --file=X and -f=X option that belongs to a compose
 #            invocation. An option belongs to one when its command names compose
 #            and the option comes before the compose subcommand ("docker compose
 #            logs -f db" and "rm -f x" carry no file operand), or when one of the
 #            command's -f operands is itself a docker-compose*.y*ml name.
+#            WRAPPER is 1 when the command is a wrapper call (is_wrapper).
 #   assign   prints FUNCTION <RS> NAME <RS> VALUE for every assignment, local
 #            or declare, for-in word, and "@READ@" for a name that read, mapfile
 #            or printf -v fills. FUNCTION is "" at the top level.
@@ -19,15 +20,15 @@
 #            PATH) and D<RS>line<RS>plain|abs (a docker command word). sub is 1
 #            for a command in a subshell, where a prepend does not reach the
 #            parent shell.
-#   prepare  prints FUNCTION <RS> LINE <RS> SUB <RS> SWALLOWED for every call of
-#            eshu_ci_compose_prepare. SUB is 1 for a call in a subshell, a command
-#            substitution, a pipeline or a background job, whose export does not
-#            reach the parent shell. SWALLOWED is 1 when the call is followed by
-#            || true, || : or || echo, which turns its failure into success.
-#   callat   prints CALLEE <RS> CALLER <RS> LINE <RS> SUB for every command whose
-#            first word is a plain name (a function call lookup with line numbers).
-#   inv      compose call facts, read with lib/dockerhub-login-compose-calls.awk
-#            (awk -f flow -f calls); see that file.
+#   wnames   prints FUNCTION <RS> NAME for every docker-compose*.y*ml name that sits
+#            inside a call of the CI compose wrapper (see is_wrapper), one record
+#            per occurrence, so the caller can tell a name used only by wrapper
+#            calls from a name a raw call also uses.
+#   wsum     prints one line, WRAPPER <RS> RAW <RS> LOOKALIKE: the number of
+#            wrapper calls, the number of other commands that name compose, and
+#            the number of other commands that look like a wrapper call: a word
+#            that ends in compose.sh, a -f or -p option and a -- word (another
+#            directory, a longer name, a second prefix).
 #   sources  prints FUNCTION <RS> PATH for every source or . command (the first
 #            non-flag word, as written).
 #   calls    prints CALLEE <RS> CALLER <RS> ARG1 <US> ARG2 ... for every command
@@ -40,8 +41,7 @@
 # the header's indent.
 
 BEGIN {
-  PAREN = 0; SUBC = 0
-  PULLS = " up run build pull create watch "
+  PAREN = 0; SUBC = 0; STRN = 0
   SUBS = " up down logs ps run exec build config pull push create start stop restart rm kill top port images events cp ls pause unpause version wait watch attach commit export stats scale publish convert alpha "
   CTRL = " if then do else elif while until ! { ( time exec command builtin local declare typeset export readonly "
   US = "\037"; SEP = "\036"
@@ -206,7 +206,6 @@ function scan(s, fn, depth,   T, S, n, a, b, i, k, o, c, pk, nk) {
         # a pipeline element and a background job run in a subshell
         pk = (a > 1) ? S[a - 1] : ""; nk = (i <= n) ? S[i] : ""
         if (pk == "|" || nk == "|" || nk == "&") SUBC = 1
-        PSWALLOW = (nk == "||" && i < n && unq(T[i + 1]) ~ /^(true|:|echo|printf)$/) ? 1 : 0
         command(T, a, i - 1, fn, depth)
         if (depth == 0) { PAREN += o - c; if (PAREN < 0) PAREN = 0 }
       }
@@ -216,7 +215,7 @@ function scan(s, fn, depth,   T, S, n, a, b, i, k, o, c, pk, nk) {
 }
 
 # command handles the words T[a..b] of one command.
-function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args, skip, had, haspath, pathv) {
+function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args, skip, had, haspath, pathv, isw, lk, sep, flg) {
   for (i = a; i <= b; i++) if (index(T[i], "$(") > 0 || substr(T[i], 1, 1) == "`") subst_scan(T[i], fn, depth)
   # leading control words, declaration keywords and flags
   while (a <= b) {
@@ -234,16 +233,14 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
     return
   }
   # leading NAME=value words
-  asgc = 0; haspath = 0; pathv = ""; ARRNM = ""; ARRPLUS = 0
+  asgc = 0; haspath = 0; pathv = ""
   while (a <= b && T[a] ~ /^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=/) {
     w = T[a]; nm = w; sub(/[\[+=].*$/, "", nm)
     if (nm == "PATH") { haspath = 1; v = w; sub(/^PATH\+?=/, "", v); pathv = v }
     if (tolower(nm) ~ /compose/) asgc = 1
-    if (T[a + 1] == "(") { asgc = 1; ARRNM = nm; ARRPLUS = (w ~ /\+=/) }
+    if (T[a + 1] == "(") asgc = 1
     v = w; sub(/^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=/, "", v)
-    if (mode == "inv" && T[a + 1] != "(") inv_var(nm, v, fn)
     if (mode == "assign") print fn SEP nm SEP v
-    if (mode == "inv" && index(v, "ESHU_CI_COMPOSE_OVERLAY") > 0) OVLALIAS[nm] = 1
     a++
   }
   if (mode == "shadow" && haspath && a > b) path_note(pathv)
@@ -263,12 +260,28 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
   if (mode == "sources" && (w0 == "source" || w0 == ".")) {
     for (i = a + 1; i <= b; i++) { if (T[i] !~ /^-/) { print fn SEP T[i]; break } }
   }
-  if (mode == "prepare" && w0 == "eshu_ci_compose_prepare") print fn SEP NR SEP SUBC SEP PSWALLOW
-  if (mode == "callat" && w0 ~ /^[A-Za-z_][A-Za-z0-9_.:-]*$/) print w0 SEP fn SEP NR SEP SUBC
-  if (mode == "inv") { if (ARRNM != "") inv_array(ARRNM, ARRPLUS, T, a, b, fn); else inv_call(T, a, b, fn) }
-  if (w0 == "eval") { s = ""; for (i = a + 1; i <= b; i++) s = s " " unq(T[i]); scan(s, fn, depth + 1) }
+  isw = (mode == "ops" || mode == "wnames" || mode == "wsum") ? is_wrapper(T, a, b) : 0
+  # NAME=(bash .../scripts/ci/compose.sh args --): a command array that holds the wrapper
+  if (isw == 0 && T[a] == "(" && (mode == "ops" || mode == "wnames" || mode == "wsum")) isw = is_wrapper(T, a + 1, b)
+  if (mode == "wnames" && isw) wnames(T, a, b, fn)
+  if (mode == "wsum") {
+    if (isw) NW++
+    else {
+      for (i = a; i <= b; i++) if (tolower(T[i]) ~ /compose/) { NRC++; break }
+      lk = 0; sep = 0; flg = 0
+      for (i = a; i <= b; i++) {
+        w = unq(T[i])
+        if (w ~ /(^|\/)compose\.sh[A-Za-z0-9_.~-]*$/) lk = 1
+        else if (w == "--") sep = 1
+        else if (w == "-f" || w == "-p" || w == "--file" || w == "--project-name") flg = 1
+      }
+      if (lk && sep && flg) NLK++
+    }
+  }
+  # a literal string handed to eval or bash -c is read as commands
+  if (w0 == "eval") { s = ""; for (i = a + 1; i <= b; i++) s = s " " unq(T[i]); STRN++; scan(s, fn, depth + 1); STRN-- }
   if (w0 ~ /(^|\/)(bash|sh|zsh|dash|ksh)$/) {
-    for (i = a + 1; i < b; i++) if (T[i] ~ /^-[A-Za-z]*c$/) { scan(unq(T[i + 1]), fn, depth + 1); break }
+    for (i = a + 1; i < b; i++) if (T[i] ~ /^-[A-Za-z]*c$/) { STRN++; scan(unq(T[i + 1]), fn, depth + 1); STRN--; break }
   }
   if (mode == "calls" && w0 ~ /^[A-Za-z_][A-Za-z0-9_.:-]*$/) {
     args = ""; skip = 0; argn = 0
@@ -281,11 +294,11 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
     }
     print w0 SEP fn SEP args
   }
-  if (mode == "ops") ops(T, a, b, asgc, fn)
+  if (mode == "ops") ops(T, a, b, asgc, fn, isw)
 }
 
 # ops emits the compose -f operands of the command T[a..b].
-function ops(T, a, b, ctx, fn,   i, w, lw, inc, subc, suba, an, cn, lit, k, A, C, op) {
+function ops(T, a, b, ctx, fn, isw,   i, w, lw, inc, subc, suba, an, cn, lit, k, A, C, op) {
   inc = ctx; subc = 0; suba = 0; an = 0; cn = 0; lit = 0
   for (i = a; i <= b; i++) {
     w = T[i]; lw = w; gsub(/["'`]/, "", lw)
@@ -304,9 +317,83 @@ function ops(T, a, b, ctx, fn,   i, w, lw, inc, subc, suba, an, cn, lit, k, A, C
     k = op; gsub(/["'`]/, "", k)
     if (k ~ /docker-compose[A-Za-z0-9_.-]*\.ya?ml$/) lit = 1
   }
-  if (lit) { for (k = 1; k <= an; k++) print fn SEP A[k] SEP NR }
-  else { for (k = 1; k <= cn; k++) print fn SEP C[k] SEP NR }
+  if (lit) { for (k = 1; k <= an; k++) print fn SEP A[k] SEP NR SEP isw + 0 }
+  else { for (k = 1; k <= cn; k++) print fn SEP C[k] SEP NR SEP isw + 0 }
 }
+
+# is_wrapper is 1 when the command T[a..b] runs the CI compose wrapper: its command
+# word is the literal path tail scripts/ci/compose.sh, with no prefix, ./, or one
+# variable and a slash, behind any of bash, sh, exec, timeout, nice, sudo, env or a
+# NAME=value word. A path held entirely in a variable, bash -c and any other
+# wrapper (xargs, retry) are not the wrapper: they are raw calls.
+function is_wrapper(T, a, b,   i, w, base, j) {
+  # the literal wrapper path right after bash or sh anywhere in the command: a runner
+  # function (retry, a capture helper) that is handed "bash scripts/ci/compose.sh ..."
+  for (j = a; j < b; j++) {
+    w = unq(T[j]); base = w; sub(/^.*\//, "", base)
+    if (base != "bash" && base != "sh") continue
+    i = j + 1
+    while (i <= b && unq(T[i]) ~ /^-/) { if (unq(T[i]) ~ /^-[A-Za-z]*c$/) break; i++ }
+    if (i <= b && unq(T[i]) !~ /^-/ && wpath(T[i])) return 1
+  }
+  i = a
+  while (i <= b) {
+    w = unq(T[i]); base = w; sub(/^.*\//, "", base)
+    if (w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) { i++; continue }
+    if (base == "timeout") {
+      i++
+      while (i <= b && unq(T[i]) ~ /^-/) { if (unq(T[i]) ~ /^(-k|-s|--kill-after|--signal)$/) i++; i++ }
+      if (i <= b && unq(T[i]) ~ /^[0-9][0-9.]*[smhd]?$/) i++
+      continue
+    }
+    if (base == "nice") {
+      i++
+      while (i <= b && unq(T[i]) ~ /^-/) { if (unq(T[i]) ~ /^(-n|--adjustment)$/) i++; i++ }
+      continue
+    }
+    if (base == "sudo") {
+      i++
+      while (i <= b && unq(T[i]) ~ /^-/) { if (unq(T[i]) ~ /^(-u|-g|-h|-p|-C|-D|-R|-T|-U)$/) i++; i++ }
+      continue
+    }
+    if (base == "env") {
+      i++
+      while (i <= b && (unq(T[i]) ~ /^-/ || unq(T[i]) ~ /^[A-Za-z_][A-Za-z0-9_]*=/)) { if (unq(T[i]) ~ /^(-u|-C|-S|--unset|--chdir)$/) i++; i++ }
+      continue
+    }
+    if (base == "exec" || base == "command" || base == "nohup" || base == "time") {
+      i++
+      while (i <= b && unq(T[i]) ~ /^-[A-Za-z]+$/) i++
+      continue
+    }
+    if (base == "bash" || base == "sh") {
+      i++
+      while (i <= b && unq(T[i]) ~ /^-/) { if (unq(T[i]) ~ /^-[A-Za-z]*c$/) return 0; i++ }
+      return (i <= b) ? wpath(T[i]) : 0
+    }
+    break
+  }
+  return (i <= b) ? wpath(T[i]) : 0
+}
+
+# wpath is 1 for the wrapper path tail with an allowed prefix.
+function wpath(w,   q) {
+  q = unq(w)
+  return (q ~ /^(\.\/|\$\{[A-Za-z_][A-Za-z0-9_]*\}\/|\$[A-Za-z_][A-Za-z0-9_]*\/|"\$[A-Za-z_][A-Za-z0-9_]*"\/|"\$\{[A-Za-z_][A-Za-z0-9_]*\}"\/)?scripts\/ci\/compose\.sh$/) ? 1 : 0
+}
+
+# wnames prints every docker-compose*.y*ml name inside the words of a wrapper call.
+function wnames(T, a, b, fn,   i, w) {
+  for (i = a; i <= b; i++) {
+    w = T[i]
+    while (match(w, /[A-Za-z0-9_.\/-]*docker-compose[A-Za-z0-9_.-]*\.ya?ml/)) {
+      print fn SEP substr(w, RSTART, RLENGTH)
+      w = substr(w, RSTART + RLENGTH)
+    }
+  }
+}
+
+END { if (mode == "wsum") print NW + 0 SEP NRC + 0 SEP NLK + 0 }
 
 # path_note records a standalone PATH assignment: a prepend (the value starts
 # with a directory and keeps $PATH) is "P", an overwrite is "R", an append does

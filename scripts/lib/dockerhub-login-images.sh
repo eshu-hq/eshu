@@ -394,6 +394,17 @@ step_hub_why() {
     kept="${kept}${f}"$'\n'
   done <<<"${cfiles}"
   cfiles="${kept}"
+  # The CI compose wrapper and its helper are the trusted unit: a step in CI image
+  # mode that reaches them is judged by its own calls of the wrapper, not by the
+  # wrapper's text (ci_wrapper_active, lib/dockerhub-login-ledger.sh).
+  if [[ $'\n'"${cfiles}" == *$'\n'scripts/ci/compose.sh$'\n'* || $'\n'"${cfiles}" == *$'\n'scripts/lib/ci-image-compose.sh$'\n'* ]] && ci_wrapper_active; then
+    kept=""
+    while IFS= read -r f; do
+      [[ -n "${f}" && "${f}" != scripts/ci/compose.sh && "${f}" != scripts/lib/ci-image-compose.sh ]] || continue
+      kept="${kept}${f}"$'\n'
+    done <<<"${cfiles}"
+    cfiles="${kept}"
+  fi
   while IFS= read -r f; do [[ -z "${f}" ]] || files+=("${f}"); done <<<"${cfiles}"
   if [[ "${run_other}" -eq 1 ]]; then
     cur="RO_${seq}"
@@ -413,6 +424,8 @@ step_hub_why() {
       [[ "${line}" != *'$'* ]] || need_vars=1
     done <<<"${!cur:-}"
   done
+  # A wrapper call that is not settled, or a look-alike of it, runs Compose too.
+  [[ "${need_compose}" -eq 1 ]] || ! compose_wrapper_seen_in "${runf}" "${cfiles}" || need_compose=1
   # A compose step settles its -f operands from the same tables.
   [[ "${need_compose}" -ne 1 ]] || need_vars=1
   clear_step_tables

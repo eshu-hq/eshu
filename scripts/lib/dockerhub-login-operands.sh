@@ -14,16 +14,12 @@
 # whatever its other -f files hold: an override-only file is not a waiver for a
 # base file the gate cannot read.
 #
-# The rendered CI overlay is the one operand with no file: "$ESHU_CI_COMPOSE_OVERLAY"
-# settles only in CI image mode (lib/dockerhub-login-ledger.sh) and only when
-# eshu_ci_compose_prepare is called lexically before it, in the same file or a file
-# it sources; without that call the variable is empty and the stack keeps its
-# Docker Hub defaults, so the operand is unresolved.
+# "$ESHU_CI_COMPOSE_OVERLAY" as an operand is an unresolved variable like any
+# other: it settles nothing. A call that applies the overlay is safe only through
+# the CI compose wrapper (ci_wrapper_active in lib/dockerhub-login-ledger.sh),
+# which the caller exempts before it reads operands.
 #
 # shellcheck disable=SC2034,SC2154  # globals are shared with the sourcing verifier
-
-# The compose call reader (mode inv) is read together with the flow reader.
-calls_awk="${flow_awk%/*}/dockerhub-login-compose-calls.awk"
 
 # compose_cache_key <file>: sets KEY for a per-file cache. A run-text file lives
 # under ${tmp}, and the same path holds another text in the next workflow, so its
@@ -42,10 +38,10 @@ compose_flow() {
   compose_cache_key "${f}"; c="CF${mode}_${KEY}"
   if [[ -z "${!c+x}" ]]; then
     # ops records only come from text that names compose: skip the awk run otherwise.
-    if [[ "${mode}" == ops || "${mode}" == inv ]] && ! rg -qi -e compose -- "${f}" 2>/dev/null; then
+    if [[ "${mode}" == ops || "${mode}" == wnames || "${mode}" == wsum ]] && ! rg -qi -e compose -- "${f}" 2>/dev/null; then
       printf -v "${c}" '%s' ""
     else
-      printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode="${mode}" -f "${flow_awk}" -f "${calls_awk}" "${f}" 2>/dev/null || true)"
+      printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode="${mode}" -f "${flow_awk}" "${f}" 2>/dev/null || true)"
     fi
   fi
   FLOW="${!c}"
@@ -158,12 +154,6 @@ compose_settle_value() {
   else
     return 1
   fi
-  # The overlay variable itself, reached through an assignment (base="${ESHU_CI_COMPOSE_OVERLAY}"):
-  # it settles like the direct operand, by the step verdict (compose_step_overlay).
-  if [[ "${name:-}" == ESHU_CI_COMPOSE_OVERLAY ]]; then
-    [[ "${STEP_OVL:-0}" -eq 1 ]] && return 0
-    return 1
-  fi
   if [[ -n "${def}" && "${def}" != *'$'* ]]; then compose_settle_value "${def}" "${fn}" $((d + 1)) "$@" || return 1; fi
   if [[ -n "${k:-}" ]]; then
     [[ -n "${fn}" ]] || return 1
@@ -202,97 +192,33 @@ compose_settle_value() {
   return 0
 }
 
-# compose_prepare_effective <file> <line> <function> <scope file>...: 0 when a
-# call of eshu_ci_compose_prepare has run, in the shell that reaches <file> at
-# <line> (inside <function>, "" at the top level):
-#   - at the top level of <file> on an earlier line, or at the top level of any
-#     other file of the scope (a file the shell sources);
-#   - in the same function on an earlier line;
-#   - inside another function that the scope calls (in <file> only on an
-#     earlier line);
-#   - never in a subshell or command substitution, which exports nothing to the
-#     parent, and never inside a function nothing calls.
-compose_prepare_effective() {
-  local f="$1" line="$2" ofn="$3" g h recs crecs pfn pln psub psw callee caller cln csub
-  shift 3
-  [[ -n "${f}" && -n "${line}" ]] || return 1
-  for g in "$@"; do
-    compose_flow prepare "${g}"; recs="${FLOW}"
-    while IFS=$'\036' read -r pfn pln psub psw; do
-      # a prepare in a subshell, pipeline or background job exports nothing to the
-      # parent, and one followed by || true has its failure swallowed
-      [[ -n "${pln}" && "${psub}" != 1 && "${psw}" != 1 ]] || continue
-      if [[ -z "${pfn}" ]]; then
-        if [[ "${g}" != "${f}" || "${pln}" -lt "${line}" ]]; then return 0; fi
-      elif [[ "${g}" == "${f}" && "${pfn}" == "${ofn}" && "${pln}" -lt "${line}" ]]; then
-        return 0
-      else
-        for h in "$@"; do
-          compose_flow callat "${h}"; crecs="${FLOW}"
-          while IFS=$'\036' read -r callee caller cln csub; do
-            [[ "${callee}" == "${pfn}" && -n "${cln}" && "${csub}" != 1 ]] || continue
-            if [[ "${h}" != "${f}" || "${cln}" -lt "${line}" ]]; then return 0; fi
-          done <<<"${crecs}"
-        done
-      fi
-    done <<<"${recs}"
+# compose_wrapper_seen <text file>...: 0 when a text holds a call of the CI compose
+# wrapper that is not settled (CI image mode is off or the wrapper is not in the
+# tree), or a command whose word ends in compose.sh but is not the wrapper call
+# (a path held in a variable, another directory, a longer name). Such a command
+# runs Compose at run time, so the step is read as a compose step and judged by
+# the images its files name.
+compose_wrapper_seen() {
+  local f nw nrc nlk
+  local active=1
+  ci_wrapper_active || active=0
+  for f in "$@"; do
+    [[ -f "${f}" ]] || continue
+    compose_flow wsum "${f}"
+    IFS=$'\036' read -r nw nrc nlk <<<"${FLOW}"
+    [[ "${nlk:-0}" -eq 0 ]] || return 0
+    [[ "${active}" -eq 1 || "${nw:-0}" -eq 0 ]] || return 0
   done
   return 1
 }
 
-# compose_step_overlay <text file>...: sets STEP_OVL to 1 when the CI overlay is
-# applied by every compose call the step reaches that can pull an image. The step
-# is in CI image mode (ledger lib) and has at least one such call, and each one
-# either has the overlay as an -f operand (or in an array filled with it) with the
-# prepare call effective before that operand, or runs through scripts/ci/compose.sh.
-# A call the reader cannot place (a variable as the command word, an unknown wrapper
-# is no problem: the whole command is searched) counts as a call without the
-# overlay, and so does a call whose subcommand is not a literal that pulls nothing.
-# One such call makes the whole step judged by the images its files name, as
-# outside CI image mode. The records come from lib/dockerhub-login-compose-calls.awk.
-# Needs compose_scopes to have run over the same files.
-compose_step_overlay() {
-  local f g recs srecs kind fn ln sub status ovl ovfn ext total=0 allok=1 ok nm sk sn sl sf found
-  local -a arr=()
-  STEP_OVL=0
-  ci_mode_active || return 0
-  for f in "$@"; do
-    compose_flow inv "${f}"; recs="${FLOW}"
-    [[ -n "${recs//[$'\n']/}" ]] || continue
-    compose_scope_of "${f}"
-    while IFS=$'\036' read -r kind fn ln sub status ovl ovfn ext; do
-      [[ "${kind}" == I ]] || continue
-      case "${status}" in
-        N) continue ;;
-        W) total=$((total + 1)); continue ;;
-        U | P) total=$((total + 1)); allok=0; continue ;;
-        A)
-          total=$((total + 1))
-          compose_prepare_effective "${f}" "${ovl}" "${ovfn}" "${SCOPE[@]}" || allok=0 ;;
-        X)
-          # arrays this file never assigns: some other file of the same shell must end with
-          # the overlay in each of them, with the prepare effective before that origin. The
-          # order of the files is not known, so a reset in another file is a static limit.
-          total=$((total + 1)); ok=1
-          IFS=, read -r -a arr <<<"${ext}"
-          for nm in "${arr[@]}"; do
-            found=0
-            for g in "${SCOPE[@]}"; do
-              [[ "${g}" != "${f}" && "${found}" -eq 0 ]] || continue
-              compose_flow inv "${g}"; srecs="${FLOW}"
-              while IFS=$'\036' read -r sk sn sl sf; do
-                [[ "${sk}" == S && "${sn}" == "${nm}" && "${sl}" -gt 0 ]] 2>/dev/null || continue
-                if compose_prepare_effective "${g}" "${sl}" "${sf}" "${SCOPE[@]}"; then found=1; fi
-              done <<<"${srecs}"
-            done
-            [[ "${found}" -eq 1 ]] || ok=0
-          done
-          [[ "${ok}" -eq 1 ]] || allok=0 ;;
-      esac
-    done <<<"${recs}"
-  done
-  [[ "${total}" -ge 1 && "${allok}" -eq 1 ]] && STEP_OVL=1
-  return 0
+# compose_wrapper_seen_in <run text file> <newline-separated repo-relative files>:
+# compose_wrapper_seen over the run text and the files.
+compose_wrapper_seen_in() {
+  local f
+  local -a texts=("$1")
+  while IFS= read -r f; do [[ -z "${f}" ]] || texts+=("${root}/${f}"); done <<<"$2"
+  compose_wrapper_seen "${texts[@]}"
 }
 
 # compose_operand_check <operand> <function> <where> <text file>...: settles one operand. A
@@ -303,13 +229,6 @@ compose_operand_check() {
   local op="$1" fn="$2" where="$3" cf q
   shift 3
   OPFILES=""; COMPOSE_SEEN="|"
-  # The rendered CI overlay names no file: it settles by the step verdict (STEP_OVL).
-  q="${op#\"}"; q="${q%\"}"
-  if [[ "${q}" == '$ESHU_CI_COMPOSE_OVERLAY' || "${q}" == '${ESHU_CI_COMPOSE_OVERLAY}' ]]; then
-    if [[ "${STEP_OVL:-0}" -eq 1 ]]; then return 0; fi
-    COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES}${COMPOSE_HUB_FILES:+, }${op} (${where}, the CI overlay settles only when every compose call that pulls applies it after eshu_ci_compose_prepare)"
-    return 0
-  fi
   # A cycle through call arguments contributes nothing, so an operand whose walk
   # was cut by one must also have reached a literal file: a name that only passes
   # itself through a function parameter has no source. A function with no call in

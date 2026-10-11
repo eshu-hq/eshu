@@ -20,7 +20,7 @@
 # leaves the invocation unresolved.
 #
 # The caller defines root, tmp, mkkey, expand, image_is_hub, dockerfile_is_hub,
-# STEP_OVL (compose_step_overlay), ci_service_image_ok, ci_overlay_build_args (ledger lib),
+# ci_wrapper_active (ledger lib),
 # compose_file_re, flow_awk and the E_/J_/W_/V_ tables.
 #
 # shellcheck disable=SC2034,SC2154  # globals are shared with the sourcing verifier
@@ -160,15 +160,7 @@ compose_is_hub() {
       S)
         svc_effective "${f}" "${r_name}" 0
         [[ "${EFF_FAIL}" -eq 0 ]] || return 0
-        if [[ -n "${EFF_IMG}" ]]; then
-          if [[ "${STEP_OVL:-0}" -eq 1 ]]; then
-            # Overlay applied (compose_step_overlay): it accepts only ledger images (see the ledger lib).
-            expand "${EFF_IMG}" ""
-            ci_service_image_ok "${EXP}" || return 0
-          elif image_is_hub "${EFF_IMG}"; then
-            return 0
-          fi
-        fi
+        if [[ -n "${EFF_IMG}" ]] && image_is_hub "${EFF_IMG}"; then return 0; fi
         if [[ "${EFF_BUILD}" -eq 1 ]]; then
           [[ "${EFF_INLINE}" -eq 0 ]] || return 0
           expand "${EFF_DF}" ""
@@ -176,14 +168,7 @@ compose_is_hub() {
           dir_join "${EFF_CTX}" "${EXP}"
           [[ -n "${JOIN}" ]] || return 0
           DF_ARGS=""
-          if [[ "${STEP_OVL:-0}" -eq 1 ]]; then
-            # The overlay accepts only the root Dockerfile built from the root and
-            # gives it the ledger build args; any other build fails the helper.
-            [[ "${JOIN#./}" == Dockerfile ]] || return 0
-            ci_overlay_build_args
-          fi
-          if dockerfile_is_hub "${JOIN}"; then DF_ARGS=""; return 0; fi
-          DF_ARGS=""
+          if dockerfile_is_hub "${JOIN}"; then return 0; fi
         fi ;;
     esac
   done <<<"${rows}"
@@ -196,21 +181,41 @@ compose_is_hub() {
 # full-line comments are not commands and do not count. A name in a default
 # (${X:-docker-compose.yaml}) is read without the :- operator dash. Sets
 # COMPOSE_HUB_FILES to the named files that are not provably non-Hub.
+#
+# A call of the CI compose wrapper (is_wrapper in the flow reader) is settled when
+# the step is in CI image mode and the wrapper is in the tree (ci_wrapper_active):
+# the wrapper renders an overlay that covers every image or exits 1, so the names
+# and -f operands that sit only inside wrapper calls are not read. A name that a
+# raw command also uses stays named. Every other call is judged raw.
 compose_step_is_hub() {
-  local tok cf found=0 f rel
-  local -a texts=("$1") existing=()
+  local tok cf found=0 f rel cnt wrecs wfn wname wk wex=0
+  local -a texts=("$1") existing=() wseen=()
   COMPOSE_HUB_FILES=""
+  ci_wrapper_active && wex=1
   while IFS= read -r f; do [[ -z "${f}" ]] || texts+=("${root}/${f}"); done <<<"$2"
   for f in "${texts[@]}"; do [[ -f "${f}" ]] && existing+=("${f}"); done
-  # The shell groups and the overlay verdict come first: compose_is_hub judges a
-  # named file by what the overlay does only when every invocation applies it.
   compose_scopes ${existing[@]+"${existing[@]}"}
-  compose_step_overlay ${existing[@]+"${existing[@]}"}
   for f in "${texts[@]}"; do
     [[ -f "${f}" ]] || continue
     rel="${f#"${root}"/}"
     [[ "${f}" != "$1" ]] || rel="the run text"
-    while IFS= read -r tok; do
+    # occurrences of each name that sit inside wrapper calls of this file
+    wseen=()
+    if [[ "${wex}" -eq 1 ]]; then
+      compose_flow wnames "${f}"; wrecs="${FLOW}"
+      while IFS=$'\036' read -r wfn wname; do
+        [[ -n "${wname}" ]] || continue
+        mkkey "${wname}"; wk="WN_${KEY}"
+        printf -v "${wk}" '%s' $(( ${!wk:-0} + 1 ))
+        wseen+=("${wk}")
+      done <<<"${wrecs}"
+    fi
+    while read -r cnt tok; do
+      [[ -n "${tok}" ]] || continue
+      if [[ "${wex}" -eq 1 ]]; then
+        mkkey "${tok}"; wk="WN_${KEY}"
+        [[ "${!wk:-0}" -ge "${cnt}" ]] && continue
+      fi
       while [[ "${tok}" == -* ]]; do tok="${tok#-}"; done
       tok="${tok#./}"; tok="${tok#/}"; cf=""
       if [[ -f "${root}/${tok}" ]]; then cf="${tok}"; elif [[ -f "${root}/${tok##*/}" ]]; then cf="${tok##*/}"; fi
@@ -219,20 +224,29 @@ compose_step_is_hub() {
       if compose_is_hub "${cf}"; then
         [[ "${COMPOSE_HUB_FILES}" == *"${cf} (named in "* ]] || COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES}${COMPOSE_HUB_FILES:+, }${cf} (named in ${rel##*/})"
       fi
-    done < <({ rg -v -N -e '^[[:space:]]*#' -- "${f}" | rg -o -N --no-filename -e "${compose_file_re}" || true; } | sort -u)
+    done < <({ rg -v -N -e '^[[:space:]]*#' -- "${f}" | rg -o -N --no-filename -e "${compose_file_re}" || true; } | sort | uniq -c)
+    for wk in ${wseen[@]+"${wseen[@]}"}; do unset "${wk}"; done
   done
   # Every -f operand and COMPOSE_FILE entry must settle to checked files.
-  local op ofn oln
+  local op ofn oln isw
   for f in ${existing[@]+"${existing[@]}"}; do
     rel="${f#"${root}"/}"
     [[ "${f}" != "$1" ]] || rel="the run text"
     compose_flow ops "${f}"
     compose_scope_of "${f}"
-    while IFS=$'\036' read -r ofn op oln; do
+    while IFS=$'\036' read -r ofn op oln isw; do
       [[ -n "${op}" ]] || continue
+      [[ "${wex}" -eq 1 && "${isw}" == 1 ]] && continue
       compose_operand_check "${op}" "${ofn}" "-f operand in ${rel##*/}" "${SCOPE[@]}"
       compose_scope_of "${f}"
     done <<<"${FLOW}"
+    # COMPOSE_FILE names the files of an invocation without -f: a file whose only
+    # compose commands are wrapper calls has no such invocation.
+    if [[ "${wex}" -eq 1 ]]; then
+      compose_flow wsum "${f}"
+      IFS=$'\036' read -r wfn wname cnt <<<"${FLOW}"
+      [[ "${wname:-0}" != 0 || "${cnt:-0}" != 0 ]] || continue
+    fi
     rg -qi -e compose -- "${f}" 2>/dev/null && compose_file_entries_check "${f}"
   done
   if [[ "${found}" -ne 1 ]]; then
