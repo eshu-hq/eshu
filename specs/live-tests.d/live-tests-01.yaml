@@ -1,4 +1,63 @@
 tests:
+  - file: go/internal/mcp/methodology_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: isolated Neo4j MCP terminal-cap root; required PASS event in blocking query-plan-regression
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_artifact_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j artifact helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_cases_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j case helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_cycle_cap_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j cycle-cap helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_fixture_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j fixture helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: isolated Neo4j import-dependency graph root; required PASS event in blocking query-plan-regression
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_measure_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j measurement helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_oracle_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j oracle helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_graph_profile_live_test.go
+    tag: queryplan_profile_live
+    class: dedicated_ci
+    reason: Neo4j PROFILE helpers compile with the isolated graph root
+    runner: query-methodology
+    backends: neo4j
+  - file: go/internal/query/methodology_postgres_live_test.go
+    tag: integration
+    class: dedicated_ci
+    reason: isolated PostgreSQL emitted-statement root; required PASS event in blocking query-plan-regression
+    runner: query-methodology
   - file: go/cmd/api/issue7033_canary_startup_live_test.go
     tag: issue7033_canary_startup
     class: scheduled

@@ -89,6 +89,7 @@ func handlerQueryplanProductionCypher() map[string]string {
 		// scoped shapes are covered by the import-dependency variant family
 		// (queryplan_import_dependencies_variants_test.go), which enumerates
 		// both caller classes.
+		"QP-CODE-IMPORT-CYCLE-EDGES": codemodel.FileImportCycleEdgeRowsCypher(codemodel.ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10, Access: allAccess}),
 		"QP-CODE-IMPORT-ROWS-REPOSITORY": codemodel.DirectImportRowsCypher(codemodel.ImportDependencyRequest{
 			RepoID:     "proof-repository",
 			SourceFile: "proof.go",

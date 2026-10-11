@@ -5,6 +5,9 @@ description: Use when writing or reviewing Eshu Cypher reads, graph writes, inde
 
 # Cypher Query Rigor
 
+For a covered query family, follow [Query Engineering](../../../docs/internal/query-engineering.md).
+Update its executable contract and run the linked production evidence runner.
+
 ## Operating Rule
 
 MUST NOT write or change Cypher until you understand the graph model, data
