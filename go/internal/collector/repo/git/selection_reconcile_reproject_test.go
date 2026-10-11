@@ -111,3 +111,38 @@ func TestRecordReconciliationWarnsOnStaleRequest(t *testing.T) {
 		}
 	}
 }
+
+// TestReconcilePolicyStaleRequestForcesOncePerInterval proves the stale path
+// cannot loop (lead ask on ruling a9-117 Q3): after a stale request forced a
+// full, that full is the newest full generation. While it is pending and
+// younger than Interval, or failed and inside the backoff, the sweep holds the
+// scope even though the active generation still carries the stale request, so
+// a scope gets at most one stale-forced full per Interval, not one per cycle.
+func TestReconcilePolicyStaleRequestForcesOncePerInterval(t *testing.T) {
+	t.Parallel()
+	policy := reconcilePolicy{Interval: 24 * time.Hour}
+	now := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
+	staleActive := scope.FullReconcileState{
+		HasProjectedFull: true, LastProjectedFullAt: now.Add(-72 * time.Hour),
+		HasLatestFull: true, LatestFullAt: now.Add(-72 * time.Hour),
+		LatestFullStatus: scope.GenerationStatusActive, LatestFullProjected: true,
+		ReconcileRequestedAt: now.Add(-25 * time.Hour),
+	}
+	if due, reason := policy.decide(now, staleActive); !due || reason != scope.ReconcileReasonRequestStale {
+		t.Fatalf("cycle 0 decide() = (%v, %q), want the stale force", due, reason)
+	}
+	afterMint := staleActive
+	afterMint.LatestFullAt = now.Add(time.Minute)
+	afterMint.LatestFullStatus = scope.GenerationStatusPending
+	afterMint.LatestFullProjected = false
+	for _, cycle := range []time.Duration{6 * time.Minute, 12 * time.Hour, 24*time.Hour - time.Second} {
+		if due, reason := policy.decide(now.Add(cycle), afterMint); due || reason != reconcileReasonInFlight {
+			t.Fatalf("decide() %s after the stale full = (%v, %q), want held as %q", cycle, due, reason, reconcileReasonInFlight)
+		}
+	}
+	failedMint := afterMint
+	failedMint.LatestFullStatus = scope.GenerationStatusFailed
+	if due, reason := policy.decide(now.Add(time.Hour), failedMint); due || reason != reconcileReasonRetryBackoff {
+		t.Fatalf("decide() after the stale full failed = (%v, %q), want %q", due, reason, reconcileReasonRetryBackoff)
+	}
+}

@@ -248,10 +248,16 @@ func resolveReindexWatermark(
 // fulls stay pending, and four per Interval while they keep failing.
 func (p reconcilePolicy) decide(now time.Time, s scope.FullReconcileState) (bool, string) {
 	if pending, stale := p.reprojectionRequest(now, s); pending {
-		if stale {
-			return true, scope.ReconcileReasonRequestStale
+		if !stale {
+			return false, reconcileReasonInFlight
 		}
-		return false, reconcileReasonInFlight
+		// The full a stale request forced is the newest full: the shared
+		// throttle holds the scope while it is in flight or backing off, so a
+		// stale request forces at most one full per Interval, not per cycle.
+		if suppressed, reason := p.throttle(now, s); suppressed {
+			return false, reason
+		}
+		return true, scope.ReconcileReasonRequestStale
 	}
 	if s.HasProjectedFull && now.Sub(s.LastProjectedFullAt) < p.Interval {
 		return false, reconcileReasonFresh
