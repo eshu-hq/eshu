@@ -25,10 +25,24 @@ between the last full observation and now is deleted from the graph.
 Each generation records whether it was a delta on `scope_generations.is_delta`.
 The sweep reads `FullReconcileState` for the scope: the ingest time of the
 newest **activated** full generation, and the newest full generation of any
-status. A reconciliation generation carries an **empty** freshness hint so the
-commit-time skip never elides it: it must re-project even when the content hash
-is unchanged, otherwise drift in the graph would survive and the reconciliation
-timer would never advance.
+status. A reconciliation snapshot keeps its content freshness hint and carries
+its reason on the generation (#7978). It never stores a duplicate:
+
+- When the snapshot's hint (v3: content plus collector, parser, and fact-schema
+  version) and commit equal the **active** full generation's, the ingestion
+  store re-opens that generation's projector work instead of storing a new
+  generation. The projector re-projects the same `generation_id`, which
+  retracts every canonical node and edge stamped with another generation id.
+  It records `reconcile_reason` and `reconcile_requested_at` on the generation,
+  and the Ack records `reconcile_projected_at`.
+- When they equal a **pending** generation, the store stores nothing: that
+  generation's own projection is still queued.
+- Otherwise (new content, a new commit, a version change, an active delta, or a
+  default-branch change) the store stores a new generation as before.
+
+A re-projection does not retract graph state stamped with the active generation
+id itself; only a projector defect or a manual graph edit can create such
+state (ruling a9-117 Q1).
 
 The obligation is measured on the last projected full generation, and the
 throttle on the latest full attempt (#7288). With `Interval` =
@@ -37,7 +51,9 @@ is the bounded label on the sweep's counters and log:
 
 | Scope state | Decision | Reason |
 | --- | --- | --- |
-| newest activated full generation is younger than `Interval` | hold | `fresh` |
+| active full generation has a re-projection request younger than `Interval` and no Ack since | hold | `reconcile_in_flight` |
+| the same request is `Interval` old, or its re-projection was dead-lettered | force; the store stores a generation | `reconcile_request_stale` |
+| newest activated full generation (or its last re-projection Ack) is younger than `Interval` | hold | `fresh` |
 | newest full generation is `pending`, younger than `Interval` | hold | `reconcile_in_flight` |
 | newest full generation is `pending`, `Interval` old or older | force | `in_flight_expired` |
 | newest full generation failed, or was superseded before it activated, and is younger than `Interval / 4` | hold | `reconcile_retry_backoff` |
@@ -76,22 +92,36 @@ cost as a first sync, paid on a documented cadence. Each forced reconciliation
 increments `eshu_dp_collector_reconciliation_full_snapshots_total`, labeled by
 `reason` (`never_reconciled`, `interval_elapsed`, `in_flight_expired`,
 `retry_after_unprojected`, `graph_dirty`, `reindex_requested`,
-`repository_reindex_requested`), and logs `git_reconcile_forced` with
+`repository_reindex_requested`, `reconcile_request_stale`), and logs `git_reconcile_forced` with
 `scope_id`, `reason`, `last_projected_full_at`, `latest_full_at`, and
 `latest_full_status` (plus `reindex_requested_at` for the two reindex reasons).
-The log is WARN for `in_flight_expired` and `retry_after_unprojected`: repeats of
-either mean projection is not keeping up with the sweep. Each evaluation the
+The log is WARN for `in_flight_expired`, `retry_after_unprojected`, and
+`reconcile_request_stale` (which also logs `reconcile_requested_at`,
+`reconcile_projected_at`, and `reconcile_dead_lettered_at`): repeats of any
+mean projection is not keeping up with the sweep. Each evaluation the
 sweep holds off increments `eshu_dp_collector_reconciliation_suppressed_total`,
 labeled by `reason` (`reconcile_in_flight`, `reconcile_retry_backoff`). A
 sustained suppression rate with few forced reconciliations points at projector
 lag, not at the sweep.
+
+The store side of each forced snapshot shows on
+`eshu_runtime_refresh_skipped_by_reason_total{reason}`: `reconcile_reprojected`
+(the active generation was re-opened, nothing stored), `reconcile_reprojection_pending`
+(its work was already open or leased), `reconcile_superseded` (a newer
+generation won the scope lock; the snapshot is dropped), and
+`pending_same_identity` (a pending generation already holds that content). A
+re-projection that is dead-lettered leaves the generation active and its scope
+pointer in place; the next sweep forces `reconcile_request_stale`, which stores
+a generation.
 
 When the canonical graph writer applies that forced snapshot, successful stale
 cleanup statements also increment
 `eshu_dp_reconciliation_drift_retractions_total` with bounded labels:
 `domain="canonical_graph"`, `write_phase`, and `kind="node"` or `kind="edge"`.
 The full-snapshot counter answers "did reconciliation run?"; the drift
-retraction counter answers "did it actually delete stale graph state?" Alert on
+retraction counter answers "did it actually delete stale graph state?" A
+re-projection of the active generation (#7978) does not carry the
+reconciliation marker, so its retractions are not counted there yet. Alert on
 sustained nonzero retractions after the first reconciliation window, and use
 projector logs/spans keyed by `scope_id`, `repo_id`, and `generation_id` for the
 specific source. Those identifiers are intentionally not metric labels.

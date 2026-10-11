@@ -122,7 +122,7 @@ Use these first when asking whether a runtime is alive, ready, or stuck:
 - `eshu_runtime_scope_changed`
 - `eshu_runtime_scope_unchanged`
 - `eshu_runtime_refresh_skipped_total`
-- `eshu_runtime_refresh_skipped_by_reason_total{service_name,reason}` — the same skips split by the closed `reason` set (#7978): `unchanged` (hint and commit equal the current generation), `reconcile_reprojected` (an unchanged reconcile re-opened the active generation's projector work instead of storing a duplicate), `reconcile_reprojection_pending` (that work was already open), `reconcile_superseded` (a newer generation activated first; the snapshot is dropped), `finalized_generation_replay`, and `other`. A rising `reconcile_reprojected` with flat `scope_generations` growth is the expected sweep shape.
+- `eshu_runtime_refresh_skipped_by_reason_total{service_name,reason}` — the same skips split by the closed `reason` set (#7978): `unchanged` (hint and commit equal the active generation), `pending_same_identity` (they equal a generation still pending; a rising rate means the projector or reducer is behind), `reconcile_reprojected` (an unchanged reconcile re-opened the active generation's projector work instead of storing a duplicate), `reconcile_reprojection_pending` (that work was already open), `reconcile_superseded` (a newer generation activated first; the snapshot is dropped), `finalized_generation_replay`, and `other`. A rising `reconcile_reprojected` with flat `scope_generations` growth is the expected sweep shape.
 - `eshu_runtime_retry_policy_max_attempts`
 - `eshu_runtime_retry_policy_retry_delay_seconds`
 

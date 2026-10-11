@@ -19,26 +19,41 @@ document, or term row.
 
 | Snapshot | Store action | `refresh_skip_reason` |
 | --- | --- | --- |
-| Duplicate, not a reconcile | drain the stream, store nothing | `unchanged` |
-| Duplicate reconcile, newest match is `pending` | drain, store nothing | `unchanged` |
+| Duplicate, not a reconcile, match is `active` | drain the stream, store nothing | `unchanged` |
+| Duplicate of a `pending` generation (ruling a9-120) | drain, store nothing | `pending_same_identity` |
 | Duplicate reconcile, match is `active` | re-open the active generation's projector work | `reconcile_reprojected` |
-| Same, work row already pending or leased | stamp the request only | `reconcile_reprojection_pending` |
+| Same, work row already pending or under a live lease | no re-open, no stamp | `reconcile_reprojection_pending` |
 | Same, a newer generation activated before the scope lock | drop the snapshot | `reconcile_superseded` |
-| Different hint, commit, or version; or `DefaultBranchChanged` | store a generation | none |
+| Different hint, commit, or version; `DefaultBranchChanged`; reason `reconcile_request_stale`; or a `failed` match | store a generation | none |
 
-The re-open mirrors the #7209 zombie heal. It uses the same canonical
-`work_item_id`, `ON CONFLICT DO UPDATE`, the in-flight guard, and a monotonic
-`attempt_count`. It runs after the scope row lock, which is the first lock
-every blocking path takes. It is fenced on the generation still being the
-scope's active generation with the same hint and commit. It stamps
-`reconcile_reason` and `reconcile_requested_at` in the generation payload.
-`fullReconcileStateQuery` and the #7389 writer coverage count the stamp only
-while the generation stays `active`.
+The re-open mirrors the #7209 zombie heal: the same canonical `work_item_id`,
+`ON CONFLICT DO UPDATE`, and the in-flight guard. Ruling a9-117 changes two
+things. It resets `attempt_count` to 0 when the row had succeeded (a monotonic
+`payload.reconcile_reopen_count` stays for operators). It stamps
+`reconcile_reason` and `reconcile_requested_at` in the generation payload only
+when the row was really re-opened. The statement runs after the scope row lock,
+which is the first lock every blocking path takes, and it is fenced on the
+generation still being the scope's active generation with the same hint and
+commit.
 
-The re-projection retracts drift that carries another generation id. The
-projector service treats a claim with `attempt_count > 1` as a non-first
-generation, and the claim also reports an activated generation as having a
-prior generation. The re-projection does NOT retract drift stamped with the
+The lifecycle after the re-open:
+
+- Ack of the re-projection stamps `reconcile_projected_at`; `activated_at`
+  keeps the original activation.
+- `fullReconcileStateQuery` reads the three stamps only while the generation is
+  `active`. `decide` holds a request without an Ack for one interval
+  (`reconcile_in_flight`). After one interval, or at once when the
+  re-projection was dead-lettered, it forces `reconcile_request_stale`, and the
+  store stores that snapshot as a new generation.
+- `failProjectorWorkQuery` never marks an activated generation `failed` and
+  never clears the scope pointer. It stamps `reconcile_dead_lettered_at`
+  instead.
+
+The re-projection retracts drift that carries another generation id. Because
+the re-open resets `attempt_count`, the projector service's `attempt_count > 1`
+rule no longer applies. The claim reports an activated generation as having a
+prior generation, which keeps canonical retraction on: without that claim
+change, the Neo4j proof below keeps the planted node. The re-projection does NOT retract drift stamped with the
 active generation id itself, because canonical retraction filters on
 `generation_id <> $current`. The old behaviour stored a new generation id, so
 it did retract that drift.
@@ -71,9 +86,10 @@ holds 3,040 of them. The query text came from the Go constants.
 | statement | plan | execution |
 | --- | --- | ---: |
 | candidate read | `scope_generations_scope_idx`, LIMIT 1 | 0.034-0.050 ms |
-| full reconcile state | `scope_generations_scope_latest_lookup_idx` x2 | 0.032-0.037 ms |
-| uncovered writers | existing plan; the CTE runs on the LIMIT 1 row | 0.122-0.436 ms |
-| re-open (in `BEGIN`/`ROLLBACK`) | pkey, `scope_generations_active_scope_idx`, `ingestion_scopes_active_generation_idx` | 0.354-0.787 ms |
+| full reconcile state (LATERAL, payload stamps) | `scope_generations_scope_latest_lookup_idx` x2 | 0.060-0.093 ms |
+| re-open (in `BEGIN`/`ROLLBACK`) | pkey, `scope_generations_active_scope_idx`, `ingestion_scopes_active_generation_idx` | 0.220-2.109 ms |
+| Ack activate with the projected stamp (in `BEGIN`/`ROLLBACK`) | pkey | 0.053-0.066 ms |
+| dead letter with the activated guard (in `BEGIN`/`ROLLBACK`) | existing plan, no owned row | 0.075-0.106 ms |
 
 No plan used a sequential scan or a sort. The projector claim change adds one
 expression to the SELECT list over the already-joined generation row. Its plan
@@ -94,6 +110,35 @@ row as `superseded`, and the stamp stops counting.
 
 A repeated reconcile while the re-open is pending writes nothing and reports
 `reconcile_reprojection_pending`.
+
+A re-open while the active generation's row is under a live lease leaves the
+lease, the attempt count, and the stamps alone
+(`TestReconcileReopenSkipsLiveLeaseWithoutStampLive`). A dead-lettered
+re-projection keeps the generation and its scope pointer active
+(`TestReconcileReprojectionDeadLetterKeepsActiveGenerationLive`). A snapshot
+equal to a pending generation stores nothing, and the same snapshot against a
+failed generation stores one (`TestPendingSameIdentitySkipsAndFailedStoresLive`).
+
+A second projection of the same generation re-emits its reducer and shared
+intents. `TestReducerQueueReprojectionReEnqueueAdmitsNothingLive` shows that
+the reducer queue admits none of them (`ON CONFLICT DO NOTHING`), and
+`TestSharedIntentUpsertCreatedAtLastWriterWinsLive` shows that shared intents
+upsert in place on a stable `intent_id` and never reopen `completed_at`. Both
+pass on PostgreSQL 18.6. The Neo4j proof fixture emits no reducer or shared
+intents (0 rows before and after), so it does not cover this part.
+
+## Content Version Gate
+
+`TestGenerationContentVersionPinsCollectorOutput` parses
+`testdata/content_version` (12 files in 10 languages) through the production
+snapshotter and fact builder. It pins a digest of the 95 normalized facts next
+to `gitGenerationContentVersion` in `testdata/content_version_pin.json`. When
+the output moves while the constant stays the same, the test fails and tells
+the author to bump the constant. Seeded violation: appending one Python
+function to the fixture turned it RED (96 facts, new digest), and restoring the
+file turned it GREEN. `TestContentVersionFixtureDigestIsDeterministic` guards
+the gate: content-entity ids (which hash the temp checkout path) and
+`indexed_at` are normalized out.
 
 ## Graph Truth Evidence
 

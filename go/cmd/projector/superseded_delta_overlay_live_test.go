@@ -320,6 +320,7 @@ WHERE generation_id = $1`, overlayGenA.id); err != nil {
 	}
 
 	generationsBefore := h.generationCount(ctx)
+	intentsBefore := h.intentRows(ctx)
 	reconcile := overlayGen{id: "gen-7978-reconcile-a", commit: overlayCommitA, files: overlayTreeA}
 	if got := h.reconcileReason(ctx, reconcile); got != "interval_elapsed" {
 		t.Fatalf("reconcile reason = %q, want interval_elapsed", got)
@@ -333,6 +334,12 @@ WHERE generation_id = $1`, overlayGenA.id); err != nil {
 		t.Fatalf("scope_generations rows %d -> %d after an unchanged reconcile, want unchanged", generationsBefore, got)
 	}
 	h.assertFiles(ctx, "after G_A re-projected", []string{"keep.go", "w.go"})
+	// a9-117 d7: a second projection of the same generation re-emits its
+	// reducer and shared intents; they must upsert or no-op, never add rows.
+	if got := h.intentRows(ctx); got != intentsBefore {
+		t.Fatalf("intent rows after the re-projection = %+v, want %+v (no duplicates)", got, intentsBefore)
+	}
+	t.Logf("intent rows before and after the re-projection: %+v", intentsBefore)
 	if got := h.reconcileReason(ctx, reconcile); got != "" {
 		t.Fatalf("reconcile reason after re-projection = %q, want none (scope fresh)", got)
 	}
@@ -357,7 +364,7 @@ func (h *overlayHarness) waitReprojected(ctx context.Context, generationID strin
 	var status string
 	var got int
 	for time.Now().Before(deadline) {
-		_ = h.sqlDB.QueryRowContext(ctx, `SELECT status, COALESCE((payload ->> 'reconcile_reprojection_count')::int, 0)
+		_ = h.sqlDB.QueryRowContext(ctx, `SELECT status, COALESCE((payload ->> 'reconcile_reopen_count')::int, 0)
 FROM fact_work_items WHERE stage = 'projector' AND generation_id = $1`, generationID).Scan(&status, &got)
 		if status == "succeeded" && got >= reopens {
 			return
@@ -366,4 +373,31 @@ FROM fact_work_items WHERE stage = 'projector' AND generation_id = $1`, generati
 	}
 	h.logGenerations(ctx)
 	h.t.Fatalf("generation %s work status=%q reopens=%d, want succeeded after %d re-opens", generationID, status, got, reopens)
+}
+
+// overlayIntentRows counts the rows a projection emits downstream of the
+// canonical graph: reducer work items and shared projection intents.
+type overlayIntentRows struct {
+	reducerWorkItems    int
+	reducerSucceeded    int
+	sharedIntents       int
+	sharedIntentsClosed int
+}
+
+// intentRows reads the scope's reducer work items and shared projection
+// intents.
+func (h *overlayHarness) intentRows(ctx context.Context) overlayIntentRows {
+	h.t.Helper()
+	var rows overlayIntentRows
+	if err := h.sqlDB.QueryRowContext(ctx, `
+SELECT count(*), count(*) FILTER (WHERE status = 'succeeded')
+FROM fact_work_items WHERE stage = 'reducer' AND scope_id = $1`, h.scope.ScopeID).Scan(&rows.reducerWorkItems, &rows.reducerSucceeded); err != nil {
+		h.t.Fatalf("count reducer work items: %v", err)
+	}
+	if err := h.sqlDB.QueryRowContext(ctx, `
+SELECT count(*), count(*) FILTER (WHERE completed_at IS NOT NULL)
+FROM shared_projection_intents WHERE scope_id = $1`, h.scope.ScopeID).Scan(&rows.sharedIntents, &rows.sharedIntentsClosed); err != nil {
+		h.t.Fatalf("count shared projection intents: %v", err)
+	}
+	return rows
 }
