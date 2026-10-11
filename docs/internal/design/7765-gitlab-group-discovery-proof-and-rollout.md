@@ -262,7 +262,8 @@ then, the figures on this page are the only record.
   `gitScopeIdentityForRepositoryID`, and the host is `gitlab.com`.
 - `observeSelection` observes `gitlabGroup` on shard 0 only.
 - Config rejections: missing group, `githubApp`, `ssh`, `GITHUB_TOKEN`-only, and
-  a path-form group with an exact rule outside its prefix.
+  a path-form group with an exact rule outside its prefix, including one that
+  differs from the prefix only in case.
 - `TestDiscoverSelectionGitLabGroupRejectsExactRuleOutsideResolvedGroup`: with
   `ESHU_GITLAB_GROUP=42` (numeric) config load succeeds. A fixture
   `GET /groups/42` returns `full_path="acme/platform"` and an exact rule

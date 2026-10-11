@@ -117,15 +117,15 @@ a new guarded migration is required. `githubOrg` does no fork filtering
 | `ESHU_GIT_TOKEN` | Required. **`GITHUB_TOKEN` is not accepted as a fallback in this mode** (`selection_config.go:159` reads both). That fallback would send a GitHub credential to gitlab.com. |
 
 An exact rule must start with `gitlab/<group full path>/`, compared
-case-insensitively. One that does not could never match, and every project would
-silently read `rule_excluded`. Where the check runs depends on the group's form:
+case-sensitively like every exact rule, so the right path in the wrong case fails
+too. A rule that does not could never match, and every project would silently
+read `rule_excluded`. Where the check runs depends on the group's form:
 
 - A numeric ID has no known prefix at config load, so the authoritative check
   runs in `discoverSelection` right after `ResolveGroup`, against the resolved
   `full_path` and before the project listing. A mismatch fails the cycle with
   `failure_class=config_invalid` and writes no rows.
-- A path-form group may also be checked at config load, as an early error with
-  the same message.
+- A path-form group is also checked at config load, with the same message.
 
 Regex rules match the full `gitlab/...` ID and cannot be checked statically, so
 the docs say so.
