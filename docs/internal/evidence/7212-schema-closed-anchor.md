@@ -75,7 +75,7 @@ Performance Evidence: baseline is origin/main 3893445a26 (anchor, then the
 unlabeled fallback on a miss); after is this change (anchor only). Backend:
 Neo4j 2026.08.1 community on the QA environment, read-only PROFILE, 3
 interleaved rounds with alternating first mover. A miss fell from 2,267,161 db
-hits (124 + 2,267,037) and 1,086 to 1,214 ms server time to 124 db hits and 2
+hits (124 + 2,267,037) and 1,083 to 1,214 ms server time to 124 db hits and 2
 to 4 ms warm, with 0 rows both ways. A hit sends the same single statement
 before and after (309 to 10,224 db hits by label, 1 row with the expected label,
 9 populated labels). On a local Neo4j 2026.05.0 seeded with one node per census
@@ -85,7 +85,7 @@ worker. It is safe because the QA reducer census read 0 unreachable nodes of
 901,221 and 901,302 id-bearing nodes on two passes, so no id reachable only
 through the removed statement existed there. Tables follow.
 
-Observability Evidence: no new signal. The existing
+Observability Evidence: no new metric; two new alerts on the existing census gauges (see Telemetry). The existing
 eshu_dp_entity_context_resolution_total{resolved_by} counter and the
 eshu.entity_context.resolved_by and eshu.entity_context.statements_tried span
 attributes show the change: on Neo4j a miss reads resolved_by=none with
@@ -154,6 +154,23 @@ operator finds lost answers on the census gauge
 entity id that entity context answers 404. A 404 increase with
 `resolved_by=none` and a nonzero gauge point to a writer that left the schema
 contract.
+
+No new metric, but two new alerts on the existing census gauges (review round
+1, F3), in `deploy/observability/alerts.yaml` and
+`deploy/observability/id-anchor-census-prometheus-rule.yaml`:
+
+- `EshuGraphIDAnchorUnreachableNodes`:
+  `max(eshu_dp_graph_id_anchor_unreachable_nodes) > 0 and max(eshu_dp_graph_id_anchor_id_bearing_nodes) > 0`
+  for 2h. It pages on ids that answer 404 on Neo4j.
+- `EshuGraphIDAnchorCensusStale`: no successful pass in 3h, for 15m. A stale
+  gauge would otherwise hide new unreachable nodes.
+
+`alert_rule_test.go` in `go/internal/reducer/maintenance/census` checks four
+things: the two files carry the same expression, duration, and severity; each
+expression reads the gauges it needs; each metric it reads is one the telemetry
+package registers; and each alert has a runbook. Five planted violations prove
+the check has teeth. The runbook is in
+`docs/public/reference/telemetry/id-anchor-census.md`.
 
 ## Gates moved with the change
 

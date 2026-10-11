@@ -280,7 +280,8 @@ The census is the authority, and four classes stay outside what it can see:
 The hourly gauge on the QA environment and the production environment covers class 1 for writers that have
 already run there and class 2 wholesale. It does not pre-empt a future writer
 (class 1) and does not close class 4. An alert rule on the gauge is a follow-up for
-the second change.
+the second change (it landed with it: `EshuGraphIDAnchorUnreachableNodes` and
+`EshuGraphIDAnchorCensusStale`, see `7212-schema-closed-anchor.md`).
 
 Arbiter ruling 2026-10-08, repeat findings F3/F4: the pre-filter and the sweep are
 heuristic, the census is the authority, and a further analyzer miss blocks only if

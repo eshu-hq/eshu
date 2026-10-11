@@ -46,6 +46,13 @@ Never `internal/reducer`.
 - The gauge and the last-success time move only on a successful pass.
 - Each replica reports its own snapshot; alert on the maximum across
   replicas.
+- The alerts on these gauges (`EshuGraphIDAnchorUnreachableNodes`,
+  `EshuGraphIDAnchorCensusStale`) live in `deploy/observability/alerts.yaml`
+  and `deploy/observability/id-anchor-census-prometheus-rule.yaml`.
+  `alert_rule_test.go` fails when the two files disagree, when an alert reads a
+  metric this runner does not register, or when a runbook is missing. Since
+  #7212 PR-B a nonzero unreachable count means ids that entity context answers
+  404 on Neo4j.
 
 ## Related docs
 
