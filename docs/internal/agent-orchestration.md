@@ -38,31 +38,32 @@ the codebase.
 | **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`, `.cursor/agents/*.md`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
-Claude Code, Codex, and opencode all read `AGENTS.md` (plus opencode's
-`instructions` array); per-directory `AGENTS.md` files scope rules for Codex
+Claude Code, Codex, and opencode all read `AGENTS.md` natively; per-directory
+`AGENTS.md` files scope rules for Codex
 and for Claude Code. There is no `CLAUDE.md`: it would make Claude read it
 instead of every `AGENTS.md`, and `scripts/verify-agent-canon.sh` refuses one.
-Skills are symlinked into `.claude/skills/` and `.codex/skills/`, pointed at
-by opencode's `skills.paths`, and discovered directly by Muse from `.agents/skills/`.
+Skills are symlinked into `.claude/skills/` and `.codex/skills/`, auto-discovered
+by opencode from the `.agents/skills/` project compatibility source, and discovered directly by Muse from `.agents/skills/`.
 
 ## Roles, models, and tools
 
 An agent earns its existence when it has a distinct **job or tool boundary**.
 Knowledge differences belong in skills. The `-deep` variants are explicit
 escalation points for the same job and skill body, so the coordinator can choose
-a stronger model without copying the method. OpenCode model and provider
-selection remains a user/runtime concern: use opencode's
-active model, `opencode run --model`, `/models`, `OPENCODE_CONFIG_CONTENT`, or a
-personal config directory to override the model without changing tracked role
-files. Under that test, the opencode roster is:
+a stronger model without copying the method. OpenCode roles pin their tier model
+in the tracked file, from `models.opencode` in `.agents/roles.json`, like the
+codex and claude bindings do; a contributor overrides a role's model with
+`opencode run --model`, `/models`, `OPENCODE_CONFIG_CONTENT`, or a personal
+config directory instead of editing the tracked file. Under that contract, the
+opencode roster is:
 
 | Role | Runtime model binding | Tools | Responsibility |
 | --- | --- | --- | --- |
-| **Scanner** (`scan-eshu`) | user's selected fast model | read-only | Gather bounded evidence and return a cited handoff. |
-| **Executor** (`develop-eshu`) | user's selected implementation model | full write, **one surface at a time** | Implement one scoped task and run focused proof; the coordinator owns promotion and publication. |
-| **Debugger** (`debug-eshu`) | user's selected diagnostic model | **read, no write** | Diagnose to root cause from available observations; request command results from the coordinator when the harness blocks shell execution. |
-| **Performance engineer** (`perf-eshu`) | user's selected performance model | **read, no write** | Analyze measurements through `eshu-performance-rigor`; route proven code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
-| **Reviewer** (`review-eshu`) | user's selected review model | **read, no write** | Run `eshu-code-review` against final diffs and PR evidence. Keeps judgment separate from authorship. |
+| **Scanner** (`scan-eshu`) | pinned `fast` tier | read-only | Gather bounded evidence and return a cited handoff. |
+| **Executor** (`develop-eshu`) | pinned `workhorse` tier | full write, **one surface at a time** | Implement one scoped task and run focused proof; the coordinator owns promotion and publication. |
+| **Debugger** (`debug-eshu`) | pinned `workhorse` tier | **read, no write** | Diagnose to root cause from available observations; request command results from the coordinator when the harness blocks shell execution. |
+| **Performance engineer** (`perf-eshu`) | pinned `workhorse` tier | **read, no write** | Analyze measurements through `eshu-performance-rigor`; route proven code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
+| **Reviewer** (`review-eshu`) | pinned `workhorse` tier | **read, no write** | Run `eshu-code-review` against final diffs and PR evidence. Keeps judgment separate from authorship. |
 
 `debug-eshu-deep`, `perf-eshu-deep`, `develop-eshu-deep` and
 `review-eshu-deep` inherit their base role's method and access but use the deep
@@ -81,19 +82,18 @@ opencode's built-in `explore`/`plan` agents and its name collides with Eshu's
 own Ask product surface (`POST /api/v0/ask`). Add it only when a distinct need
 appears.
 
-The repo does not pin personal model economics into tracked opencode role files.
-If a task needs a stronger or cheaper provider, choose it in the opencode
-session or with a higher-precedence local override. opencode does not provide
-credit-aware automatic provider failover; when a provider is exhausted, switch
-the active model or restart with another override.
+OpenCode role files bind their tier model from `.agents/roles.json`
+`models.opencode`, the same way the codex, claude, and muse bindings do.
+Contributors without those providers, or wanting different economics, override
+the model for a role through config rather than editing the tracked file.
+OpenCode provides no credit-aware automatic provider failover; when a provider
+is exhausted, override the model or restart with another override.
 
 Examples, with placeholder model IDs that must be replaced by `opencode models`
 output from the local machine:
 
 ```bash
-OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"openai/<gpt-5.6-sol-id>","variant":"high"}}}' opencode
-OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"anthropic/<opus-4.8-id>","variant":"high"}}}' opencode
-OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"deepseek/<deepseek-pro-id>","variant":"high"}}}' opencode
+OPENCODE_CONFIG_CONTENT='{"agents":{"perf-eshu":{"model":"<provider>/<model-id>#high"}}}' opencode
 ```
 
 The same override shape works for any tracked OpenCode role; change the agent
@@ -119,10 +119,14 @@ passes (a different model lineage catches what a single family rationalizes
 away).
 
 The manifest currently maps these tiers to Claude Haiku/Sonnet/Opus,
-Codex Luna at high effort and Sol at medium or high effort, and Muse Spark
-at low/high/xhigh effort. The arbiter tier is Claude Fable and Codex Astra, both
-at high effort rather than xhigh to limit token cost on those models, and Muse
-Spark at xhigh.
+Codex Luna at high effort and Sol at medium or high effort, Muse Spark
+at low/high/xhigh effort, and OpenCode DeepSeek Flash at the low variant with
+DeepSeek V4 Pro at the high or max variant. The arbiter tier is Claude Fable and Codex Astra, both
+at high effort rather than xhigh to limit token cost on those models, Muse
+Spark at xhigh, and OpenCode MiniMax-M3, a family distinct from both OpenCode
+build tiers; MiniMax-M3 exposes no effort variants, so its pin is the bare
+model reference. The OpenCode `#variant` suffix is how that harness carries
+reasoning effort, the peer of the `effort` field the other harnesses use.
 When a Codex spawn tool selects a custom role, that role file takes
 precedence over a spawn model override. If custom-role selection is absent,
 the coordinator passes the manifest model and effort explicitly or uses
@@ -156,8 +160,8 @@ handling a race or lease. The coordinator preserves explicit phase ordering,
 ownership, and model choices in the goal. Small coupled work can stay in the
 main session; its selected model remains unchanged. Model savings come from
 bounded child work routed to the manifest tier.
-OpenCode is deliberately session-selected and is outside this manifest's
-model bindings.
+OpenCode roles bind the same manifest tiers through their frontmatter model
+reference.
 
 ### Task-to-skill map
 
@@ -229,7 +233,7 @@ select the named role for this guard to apply.
 | Harness | Role artifact | Model binding | Read-only boxing |
 | --- | --- | --- | --- |
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |
-| opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write/bash: deny` for every read role |
+| opencode | `.opencode/agent/*.md` | `models.opencode` tier → `model:` frontmatter; the `#variant` suffix carries effort | V2 `permissions:` rules deny `edit` and `shell` for every read role; every role also denies `subagent` (leaf) |
 | Codex | `.codex/agents/*.toml`; `scripts/agent-roles.py codex-exec ROLE TASK` when custom-role selection is unavailable | `model` and `model_reasoning_effort` in the role file or launcher arguments | `sandbox_mode = "read-only"` in the role file; `--sandbox read-only` in the launcher |
 | Muse Code | `scripts/agent-roles.py muse-exec ROLE TASK` | `--model` and `--reasoning-effort` from the manifest | `--permission-profile :read-only` for read roles |
 | Cursor | `.cursor/agents/*.md` | `model: inherit`: the session's model (Auto when the session is on Auto). Cursor also loads the `.claude/` and `.codex/` shims and would run their pinned models; the same-named `.cursor/` shim wins, so `-deep` and arbiter roles run the session's model too | `readonly: true` for every read role (no file edits, no state-changing shell commands) |
@@ -307,13 +311,12 @@ failure rather than prompting, so the role sets `approval_policy =
 edits, and an approval prompt for one is the signal that the reviewer is doing
 something it should not.
 
-The Claude and Codex roles pin a model while the opencode role stays unpinned.
-That is not an inconsistency: Workhorse is the tier this repo already declares
-for review in the table above, so those roles transcribe repo policy rather than
-one contributor's economics. opencode stays unpinned because its per-session
-override path is the documented one and costs nothing to use; the other two have
-no equivalent per-session role override, so an unpinned role there would
-silently review on whatever the caller happens to be.
+Every harness role file except Cursor's session-inheriting shims pins its tier
+model. That is not one contributor's economics: Workhorse is the tier this repo
+already declares for review in the table above, so the pins transcribe repo
+policy. Contributors without a pinned provider change the agent key in their
+local config (the `OPENCODE_CONFIG_CONTENT` example above), not the tracked
+role file.
 
 ## The handoff contract
 
@@ -346,10 +349,11 @@ Render that spec format on every handoff before dispatching implementation.
 ## Dispatch
 
 The user or active primary agent delegates through the harness's subagent
-mechanism (in opencode, the **Task tool**) or invokes a role directly. The
+mechanism (in opencode, the **subagent tool**) or invokes a role through a
+launcher. The
 executor, debugger, performance engineer, and reviewer are leaf agents — they
-run as `mode: all` (both directly selectable and dispatchable) and their own
-`task` permission is denied, so they cannot dispatch further. Aggregation and
+run as `mode: subagent` (child sessions only) and their own
+`subagent` permission is denied, so they cannot dispatch further. Aggregation and
 sequencing stay with the user or primary agent.
 
 Routing: bounded lookup → `scan-eshu`; implementation → `develop-eshu`; unknown-cause failure → `debug-eshu`
@@ -477,9 +481,9 @@ GitHub bookkeeping, and cleanup. Long waits are not frontier-model work.
 The pattern is identical for every harness — thin config pointing at the shared
 brain and the same gate floor:
 
-- **opencode** — `.opencode/opencode.jsonc` (`instructions` → `AGENTS.md`;
-  `skills.paths` → `.agents/skills`) + `.opencode/agent/*.md` role/permission
-  shims. Tracked shims do not pin personal model choices.
+- **opencode** — `.opencode/opencode.jsonc` (`AGENTS.md` loads natively;
+  `.agents/skills` is an auto-discovered compatibility source) + `.opencode/agent/*.md` role/permission
+  shims. Tracked shims pin only manifest tier models, not personal model choices.
 - **Codex** — root + per-directory `AGENTS.md`, `.codex/skills/`,
   `.codex/agents/*.toml`, `.codex/hooks.json`.
 - **Claude Code** — root + per-directory `AGENTS.md`, `.claude/skills/`,

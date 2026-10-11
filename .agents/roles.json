@@ -18,6 +18,12 @@
       "workhorse": {"model": "muse-spark-1.3", "effort": "high"},
       "deep": {"model": "muse-spark-1.3", "effort": "xhigh"},
       "arbiter": {"model": "muse-spark-1.3", "effort": "xhigh"}
+    },
+    "opencode": {
+      "fast": {"model": "deepseek/deepseek-flash#low"},
+      "workhorse": {"model": "deepseek/deepseek-v4-pro#high"},
+      "deep": {"model": "deepseek/deepseek-v4-pro#max"},
+      "arbiter": {"model": "minimax/minimax-m3"}
     }
   },
   "roles": {

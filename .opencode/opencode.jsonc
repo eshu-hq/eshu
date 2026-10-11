@@ -1,25 +1,21 @@
 {
   "$schema": "https://opencode.ai/config.json",
   // Binding rules live once in AGENTS.md, the only root agent canon (there is
-  // no CLAUDE.md; Claude Code reads AGENTS.md natively).
+  // no CLAUDE.md; Claude Code and OpenCode read AGENTS.md natively, so no
+  // `instructions` list is needed — V2 does not load one).
   // The orchestration model the eshu agents implement is in
   // docs/internal/agent-orchestration.md.
-  "instructions": [
-    "AGENTS.md",
-    "docs/internal/agent-guide.md",
-    "docs/internal/agent-orchestration.md"
-  ],
+  // Relative paths below resolve from the directory containing this file.
   // Keep rules in scope through context compaction.
   "compaction": {
-    "tail_turns": 50,
     "auto": true
   },
   "references": {
-    "agent-guide": "docs/internal/agent-guide.md",
-    "orchestration": "docs/internal/agent-orchestration.md"
-  },
-  // Shared skills (also symlinked into .claude/skills and .codex/skills).
-  "skills": {
-    "paths": [".agents/skills"]
+    "agent-docs": {
+      "path": "../docs/internal",
+      "description": "Eshu agent canon: agent-guide.md (contracts, ownership, evidence rules) and agent-orchestration.md (roles, model tiers, per-harness wiring). Read before delegating or changing contracts."
+    }
   }
+  // No `skills` entry needed: V2 auto-discovers `.agents/skills` as a project
+  // compatibility source (see opencode.ai/v2/docs/skills, Discovery table).
 }

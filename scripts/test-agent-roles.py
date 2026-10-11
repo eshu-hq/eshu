@@ -43,6 +43,18 @@ def main():
 
         assert run(root, "generate").returncode == 0
         assert run(root, "check").returncode == 0
+        # Seeded RED for the opencode tier validator: dropping only its deep
+        # tier must fail generate naming the first deep role. A wholly unknown
+        # tier would be caught by the earlier codex guard, so this isolates the
+        # opencode check.
+        guarded = json.loads((root / ".agents" / "roles.json").read_text())
+        del guarded["models"]["opencode"]["deep"]
+        (root / ".agents" / "roles.json").write_text(json.dumps(guarded))
+        missing = run(root, "generate")
+        assert missing.returncode != 0
+        assert "unknown opencode model tier for develop-eshu-deep" in missing.stderr
+        (root / ".agents" / "roles.json").write_text(json.dumps(manifest))
+        assert run(root, "check").returncode == 0
         binding = root / ".codex" / "agents" / "debug-eshu-deep.toml"
         assert "eshu-diagnostic-rigor" in binding.read_text()
         message_rule = "Use native agent messaging, when available"
@@ -72,16 +84,65 @@ def main():
         assert stale.returncode != 0 and "debug-eshu-deep.toml" in stale.stderr
         binding.write_text(binding.read_text().replace('model = "wrong"', 'model = "' + chosen + '"'))
         reader = root / ".opencode" / "agent" / "debug-eshu.md"
-        assert "  bash: deny\n" in reader.read_text()
-        for before, after in (("  edit: deny", "  edit: allow"), ("  bash: deny", "  bash: allow")):
-            original = reader.read_text()
-            reader.write_text(original.replace(before, after))
-            stale = run(root, "check")
-            assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
-            reader.write_text(original)
+        reader_text = reader.read_text()
+        assert "mode: subagent\n" in reader_text
+        assert '  - action: edit\n    resource: "*"\n    effect: deny\n' in reader_text
+        assert '  - action: shell\n    resource: "*"\n    effect: deny\n' in reader_text
+        assert '  - action: subagent\n    resource: "*"\n    effect: deny\n' in reader_text
+        # Each OpenCode role pins its tier model from the manifest, as the codex
+        # and claude bindings do; the #variant suffix carries reasoning effort.
+        oc = manifest["models"]["opencode"]
+        assert "model: " + oc["workhorse"]["model"] + "\n" in reader_text
+        writer_op = (root / ".opencode" / "agent" / "develop-eshu.md").read_text()
+        assert '  - action: edit\n    resource: "*"\n    effect: allow\n' in writer_op
+        assert "action: shell" not in writer_op
+        assert "model: " + oc["workhorse"]["model"] + "\n" in writer_op
+        assert "model: " + oc["fast"]["model"] + "\n" in (
+            root / ".opencode" / "agent" / "scan-eshu.md").read_text()
+        assert "model: " + oc["deep"]["model"] + "\n" in (
+            root / ".opencode" / "agent" / "review-eshu-deep.md").read_text()
+        assert "model: " + oc["arbiter"]["model"] + "\n" in (
+            root / ".opencode" / "agent" / "arbiter-eshu.md").read_text()
+        original = reader.read_text()
+        reader.write_text(original.replace(
+            "model: " + oc["workhorse"]["model"], "model: bogus/model"))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
+        reader.write_text(original)
+        original = reader.read_text()
+        reader.write_text(original.replace(
+            'action: edit\n    resource: "*"\n    effect: deny',
+            'action: edit\n    resource: "*"\n    effect: allow',
+        ))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
+        reader.write_text(original)
+        original = reader.read_text()
+        reader.write_text(original.replace(
+            'action: shell\n    resource: "*"\n    effect: deny',
+            'action: shell\n    resource: "*"\n    effect: allow',
+        ))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
+        reader.write_text(original)
+        # The leaf guard is the highest-stakes rule; tamper it like the other two.
+        original = reader.read_text()
+        reader.write_text(original.replace(
+            'action: subagent\n    resource: "*"\n    effect: deny',
+            'action: subagent\n    resource: "*"\n    effect: allow',
+        ))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
+        reader.write_text(original)
         scan_front = (root / ".cursor" / "agents" / "scan-eshu.md").read_text().split("---\n")[1]
         line = next(x for x in scan_front.splitlines() if x.startswith("description: "))
         assert json.loads(line[len("description: "):]) == tricky and "\U0001F600" in line
+        oc_front = (root / ".opencode" / "agent" / "scan-eshu.md").read_text().split("---\n", 2)[1]
+        oc_line = next(x for x in oc_front.splitlines() if x.startswith("description: "))
+        # render_opencode escapes non-ASCII like render_claude (ensure_ascii
+        # default), so the contract here is the JSON round-trip, not a literal
+        # emoji in the file (unlike render_cursor, which passes ensure_ascii=False).
+        assert json.loads(oc_line[len("description: "):]) == tricky
         pinned = root / ".cursor" / "agents" / "develop-eshu.md"
         original = pinned.read_text()
         pinned.write_text(original.replace("model: inherit", "model: claude-opus-5"))
@@ -89,7 +150,7 @@ def main():
         assert stale.returncode != 0 and "develop-eshu.md" in stale.stderr
         pinned.write_text(original)
         reviewer = root / ".opencode" / "agent" / "review-eshu.md"
-        assert "  bash: deny\n" in reviewer.read_text()
+        assert '  - action: shell\n    resource: "*"\n    effect: deny\n' in reviewer.read_text()
         muse = run(root, "muse-exec", "review-eshu", "Review", "--dry-run")
         assert muse.returncode == 0
         assert ":read-only" in muse.stdout
