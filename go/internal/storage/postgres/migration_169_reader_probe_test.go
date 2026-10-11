@@ -177,6 +177,7 @@ SELECT clock_timestamp(), l.mode, l.granted, left(regexp_replace(a.query, '\s+',
 FROM pg_locks AS l
 JOIN pg_stat_activity AS a ON a.pid = l.pid
 WHERE l.locktype = 'relation'
+  AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
   AND l.relation = 'content_files'::regclass
   AND a.pid <> pg_backend_pid()
   AND a.query <> $1`, migration169ProbeRead)
