@@ -51,6 +51,13 @@ var generationContentVersion = sync.OnceValue(func() string {
 // (gitGenerationContentVersion) plus a digest of the supported fact-schema
 // registry. Two snapshots of the same content produce the same hint only when
 // this identity is also the same.
+//
+// The digest covers the whole registry, not only the fact kinds the git
+// collector emits, so a schema bump of any kind makes every git scope store one
+// new generation. That errs toward storing: a registry restricted to git kinds
+// would turn a missed kind into a silent duplicate skip of new output. The
+// schema version files changed in 13 commits in the 60 days before this change,
+// an upper bound on such bumps.
 func GenerationContentVersion() string {
 	return generationContentVersion()
 }
@@ -62,7 +69,11 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 }
 
 // snapshotFreshnessHintForVersion computes a deterministic hash from the
-// content version, the default branch, file digests, and entity metadata. The
+// content version, the default branch, file digests, and entity metadata. It
+// does not fold the non-default git refs the repository fact carries
+// (git_refs): no reader consumes them today (the repository fact builder is the
+// only producer and nothing reads the key back), and pinned refs are their own
+// scopes. A ref move with unchanged content therefore stores nothing. The
 // ingestion store treats a snapshot whose hint and commit equal the active
 // generation's as unchanged and stores nothing (#7978), so every input that
 // changes emitted facts must reach this hash. It avoids JSON-marshaling the

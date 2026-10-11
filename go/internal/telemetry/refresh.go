@@ -28,7 +28,8 @@ const (
 	RefreshSkipReasonReconcileReprojected = "reconcile_reprojected"
 	// RefreshSkipReasonReconcileReprojectionPending means a reconciliation
 	// snapshot matched the active generation whose projector work was already
-	// pending or in flight, so the store only recorded the request.
+	// pending, retrying, or under a live lease, so the store stored nothing and
+	// stamped nothing: the work already queued is the re-projection.
 	RefreshSkipReasonReconcileReprojectionPending = "reconcile_reprojection_pending"
 	// RefreshSkipReasonReconcileSuperseded means a reconciliation snapshot
 	// matched the active generation, but a newer generation activated before
@@ -42,8 +43,9 @@ const (
 	RefreshSkipReasonOther = "other"
 )
 
-// refreshSkipReasons is the closed, ordered reason set.
-var refreshSkipReasons = []string{
+// refreshSkipReasons is the closed, ordered reason set. The counter array
+// below is sized from it, so adding a reason here cannot index past the end.
+var refreshSkipReasons = [...]string{
 	RefreshSkipReasonUnchanged,
 	RefreshSkipReasonPendingSameIdentity,
 	RefreshSkipReasonReconcileReprojected,
@@ -55,12 +57,12 @@ var refreshSkipReasons = []string{
 
 var (
 	skippedRefreshCount         atomic.Uint64
-	skippedRefreshCountByReason [7]atomic.Uint64
+	skippedRefreshCountByReason [len(refreshSkipReasons)]atomic.Uint64
 )
 
 // refreshSkipReasonIndex maps reason onto the closed set.
 func refreshSkipReasonIndex(reason string) int {
-	if index := slices.Index(refreshSkipReasons, reason); index >= 0 {
+	if index := slices.Index(refreshSkipReasons[:], reason); index >= 0 {
 		return index
 	}
 	return len(refreshSkipReasons) - 1
@@ -68,7 +70,7 @@ func refreshSkipReasonIndex(reason string) int {
 
 // RefreshSkipReasons returns the closed, ordered set of refresh skip reasons.
 func RefreshSkipReasons() []string {
-	return slices.Clone(refreshSkipReasons)
+	return slices.Clone(refreshSkipReasons[:])
 }
 
 // RecordSkippedRefresh increments the process-local skipped refresh counter
@@ -87,7 +89,7 @@ func SkippedRefreshCount() uint64 {
 // SkippedRefreshCountByReason reports the process-local skipped refresh count
 // for one reason of the closed set, or zero for any other value.
 func SkippedRefreshCountByReason(reason string) uint64 {
-	index := slices.Index(refreshSkipReasons, reason)
+	index := slices.Index(refreshSkipReasons[:], reason)
 	if index < 0 {
 		return 0
 	}

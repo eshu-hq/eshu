@@ -90,13 +90,15 @@ holds 3,040 of them. The query text came from the Go constants.
 
 | statement | plan | execution |
 | --- | --- | ---: |
-| candidate read | `scope_generations_scope_idx`, LIMIT 1 | 0.034-0.050 ms |
+| candidate read | `scope_generations_scope_idx`, then a top-N in-memory Sort (1 row, 25 kB), LIMIT 1 | 0.034-0.050 ms |
 | full reconcile state (LATERAL, payload stamps) | `scope_generations_scope_latest_lookup_idx` x2 | 0.060-0.093 ms |
 | re-open (in `BEGIN`/`ROLLBACK`) | pkey, `scope_generations_active_scope_idx`, `ingestion_scopes_active_generation_idx` | 0.220-2.109 ms |
 | Ack activate with the projected stamp (in `BEGIN`/`ROLLBACK`) | pkey | 0.053-0.066 ms |
 | dead letter with the activated guard (in `BEGIN`/`ROLLBACK`) | existing plan, no owned row | 0.075-0.106 ms |
 
-No plan used a sequential scan or a sort. The projector claim change adds one
+No plan used a sequential scan. The candidate read sorts its scope's rows in
+memory (quicksort, 25 kB) to take the newest; that is the same plan as the
+`activeGenerationFreshnessQuery` it replaces. The projector claim change adds one
 expression to the SELECT list over the already-joined generation row. Its plan
 was not re-measured.
 
