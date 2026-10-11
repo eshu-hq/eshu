@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -50,12 +50,12 @@ func TestCloudFunctionV1OfflineFixtureEndToEnd(t *testing.T) {
 	var v1Attrs map[string]any
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == cloudFunctionV1FullName {
 				v1Attrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			switch stringOrEmpty(env.Payload["relationship_type"]) {
 			case relationshipTypeFunctionUsesVPCConnector:
 				connectorEdges++

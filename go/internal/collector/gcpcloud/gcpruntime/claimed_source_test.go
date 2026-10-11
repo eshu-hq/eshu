@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -45,7 +45,7 @@ func TestSourceNextClaimedCollectsMatchingWorkItem(t *testing.T) {
 		t.Fatalf("GenerationID = %q, want work-item generation %q", got, want)
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got == 0 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got == 0 {
 		t.Fatal("gcp_cloud_resource count = 0, want claimed source facts")
 	}
 }

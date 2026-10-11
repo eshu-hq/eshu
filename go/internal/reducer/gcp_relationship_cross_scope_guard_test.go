@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // Regression for #6162: an endpoint scanned in a different scope must not
@@ -36,13 +37,13 @@ func TestExtractGCPRelationshipEdgeRowsRefusesCrossScopeEndpoint(t *testing.T) {
 	)
 
 	resources := []facts.Envelope{
-		{ScopeID: foreignScope, FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
+		{ScopeID: foreignScope, FactKind: cloud.GCPCloudResourceFactKind, Payload: map[string]any{
 			"full_resource_name": foreignVM,
 			"asset_type":         "compute.googleapis.com/Instance",
 			"project_id":         "acme-demo-gcp-00",
 			"location":           "z",
 		}},
-		{ScopeID: intentScope, FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.GCPCloudResourceFactKind, Payload: map[string]any{
 			"full_resource_name": localDisk,
 			"asset_type":         "compute.googleapis.com/Disk",
 			"project_id":         "acme-demo-gcp-03",
@@ -51,7 +52,7 @@ func TestExtractGCPRelationshipEdgeRowsRefusesCrossScopeEndpoint(t *testing.T) {
 	}
 
 	rels := []facts.Envelope{
-		{ScopeID: intentScope, FactKind: facts.GCPCloudRelationshipFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.GCPCloudRelationshipFactKind, Payload: map[string]any{
 			"source_full_resource_name": foreignVM,
 			"target_full_resource_name": localDisk,
 			"relationship_type":         "INSTANCE_TO_DISK",
@@ -90,13 +91,13 @@ func TestExtractGCPRelationshipEdgeRowsAdmitsSameScopeEndpoint(t *testing.T) {
 	)
 
 	resources := []facts.Envelope{
-		{ScopeID: intentScope, FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.GCPCloudResourceFactKind, Payload: map[string]any{
 			"full_resource_name": vm,
 			"asset_type":         "compute.googleapis.com/Instance",
 			"project_id":         "acme-demo-gcp-03",
 			"location":           "z",
 		}},
-		{ScopeID: intentScope, FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.GCPCloudResourceFactKind, Payload: map[string]any{
 			"full_resource_name": disk,
 			"asset_type":         "compute.googleapis.com/Disk",
 			"project_id":         "acme-demo-gcp-03",
@@ -104,7 +105,7 @@ func TestExtractGCPRelationshipEdgeRowsAdmitsSameScopeEndpoint(t *testing.T) {
 		}},
 	}
 	rels := []facts.Envelope{
-		{ScopeID: intentScope, FactKind: facts.GCPCloudRelationshipFactKind, Payload: map[string]any{
+		{ScopeID: intentScope, FactKind: cloud.GCPCloudRelationshipFactKind, Payload: map[string]any{
 			"source_full_resource_name": vm,
 			"target_full_resource_name": disk,
 			"relationship_type":         "INSTANCE_TO_DISK",
@@ -135,19 +136,19 @@ func TestExtractGCPRelationshipEdgeRowsEmptyIntentScopeKeepsLegacyJoin(t *testin
 	const localDisk = "//compute.googleapis.com/projects/p/zones/z/disks/disk-local"
 
 	resources := []facts.Envelope{
-		{ScopeID: "scope-a", FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
+		{ScopeID: "scope-a", FactKind: cloud.GCPCloudResourceFactKind, Payload: map[string]any{
 			"full_resource_name": foreignVM,
 			"asset_type":         "compute.googleapis.com/Instance",
 			"project_id":         "other", "location": "z",
 		}},
-		{ScopeID: "scope-b", FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
+		{ScopeID: "scope-b", FactKind: cloud.GCPCloudResourceFactKind, Payload: map[string]any{
 			"full_resource_name": localDisk,
 			"asset_type":         "compute.googleapis.com/Disk",
 			"project_id":         "p", "location": "z",
 		}},
 	}
 	rels := []facts.Envelope{
-		{ScopeID: "scope-b", FactKind: facts.GCPCloudRelationshipFactKind, Payload: map[string]any{
+		{ScopeID: "scope-b", FactKind: cloud.GCPCloudRelationshipFactKind, Payload: map[string]any{
 			"source_full_resource_name": foreignVM,
 			"target_full_resource_name": localDisk,
 			"relationship_type":         "INSTANCE_TO_DISK",

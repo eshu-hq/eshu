@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -84,10 +85,10 @@ func TestGenerationBuildEmitsTagObservationForLabeledResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 2 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 2 {
 		t.Fatalf("resource fact count = %d, want 2", got)
 	}
-	if got := countKind(envelopes, facts.GCPTagObservationFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPTagObservationFactKind); got != 1 {
 		t.Fatalf("tag fact count = %d, want 1", got)
 	}
 
@@ -96,7 +97,7 @@ func TestGenerationBuildEmitsTagObservationForLabeledResources(t *testing.T) {
 		if payload := fmt.Sprintf("%#v", env.Payload); strings.Contains(payload, "prod") || strings.Contains(payload, "platform-owner") {
 			t.Fatalf("raw label value leaked in %s payload: %s", env.FactKind, payload)
 		}
-		if env.FactKind == facts.GCPTagObservationFactKind {
+		if env.FactKind == cloud.GCPTagObservationFactKind {
 			tag = env
 		}
 	}
@@ -127,10 +128,10 @@ func TestGenerationBuildSkipsTagObservationWithoutRedactionKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envelopes, facts.GCPTagObservationFactKind); got != 0 {
+	if got := countKind(envelopes, cloud.GCPTagObservationFactKind); got != 0 {
 		t.Fatalf("tag fact count = %d, want 0", got)
 	}
 }

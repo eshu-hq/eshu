@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -44,14 +45,14 @@ func TestGenerationBuildEmitsDNSRecordObservationsForRecordSets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envelopes, facts.GCPDNSRecordFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPDNSRecordFactKind); got != 1 {
 		t.Fatalf("dns fact count = %d, want 1", got)
 	}
 
-	dns := firstFactKind(t, envelopes, facts.GCPDNSRecordFactKind)
+	dns := firstFactKind(t, envelopes, cloud.GCPDNSRecordFactKind)
 	for _, env := range envelopes {
 		payload := fmt.Sprintf("%#v", env.Payload)
 		sourceRef := fmt.Sprintf("%#v", env.SourceRef)
@@ -85,10 +86,10 @@ func TestGenerationBuildSkipsDNSRecordObservationsWithoutRedactionKey(t *testing
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envelopes, facts.GCPDNSRecordFactKind); got != 0 {
+	if got := countKind(envelopes, cloud.GCPDNSRecordFactKind); got != 0 {
 		t.Fatalf("dns fact count = %d, want 0", got)
 	}
 }

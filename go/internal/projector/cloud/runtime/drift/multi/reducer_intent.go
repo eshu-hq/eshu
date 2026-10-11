@@ -14,7 +14,7 @@ import (
 // Azure cloud-inventory facts. aws_resource is deliberately excluded; see
 // BuildReducerIntent for why.
 var candidateFactKinds = []string{
-	facts.GCPCloudResourceFactKind,
+	cloud.GCPCloudResourceFactKind,
 	cloud.AzureCloudResourceFactKind,
 }
 

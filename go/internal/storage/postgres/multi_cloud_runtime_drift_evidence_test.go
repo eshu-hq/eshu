@@ -62,7 +62,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderJoinsObservedStateConfigByU
 			// Observed inventory facts for the three providers.
 			{rows: [][]any{
 				{facts.AWSResourceFactKind, orphanARN, []byte(`{"arn":"` + orphanARN + `","resource_type":"aws_iam_role","tags":{"Environment":"prod"}}`)},
-				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
+				{cloud.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
 				{cloud.AzureCloudResourceFactKind, azureID, []byte(`{"arm_resource_id":"` + azureID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
 			}},
 			// Active Terraform state resources: GCP unmanaged + Azure managed.
@@ -198,7 +198,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderMarksUnknownAndAmbiguous(t 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.GCPCloudResourceFactKind, unknownName, []byte(`{"full_resource_name":"` + unknownName + `","asset_type":"compute.googleapis.com/Instance"}`)},
+				{cloud.GCPCloudResourceFactKind, unknownName, []byte(`{"full_resource_name":"` + unknownName + `","asset_type":"compute.googleapis.com/Instance"}`)},
 				{cloud.AzureCloudResourceFactKind, ambiguousID, []byte(`{"arm_resource_id":"` + ambiguousID + `","resource_type":"microsoft.storage/storageaccounts"}`)},
 			}},
 			{rows: [][]any{
@@ -266,8 +266,8 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderSkipsUnresolvableIdentities
 			{rows: [][]any{
 				// Malformed GCP identity: not a // full resource name -> ambiguous,
 				// not keyable.
-				{facts.GCPCloudResourceFactKind, "compute/Instance/bad", []byte(`{"full_resource_name":"compute/Instance/bad","asset_type":"compute.googleapis.com/Instance"}`)},
-				{facts.GCPCloudResourceFactKind, okName, []byte(`{"full_resource_name":"` + okName + `","asset_type":"compute.googleapis.com/Instance"}`)},
+				{cloud.GCPCloudResourceFactKind, "compute/Instance/bad", []byte(`{"full_resource_name":"compute/Instance/bad","asset_type":"compute.googleapis.com/Instance"}`)},
+				{cloud.GCPCloudResourceFactKind, okName, []byte(`{"full_resource_name":"` + okName + `","asset_type":"compute.googleapis.com/Instance"}`)},
 			}},
 			// State scan: only the ok identity is in the allowlist.
 			{rows: [][]any{}},
@@ -344,7 +344,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderRaceSafe(t *testing.T) {
 			db := &fakeExecQueryer{
 				queryResponses: []queueFakeRows{
 					{rows: [][]any{
-						{facts.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
+						{cloud.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
 					}},
 					{rows: [][]any{}},
 				},

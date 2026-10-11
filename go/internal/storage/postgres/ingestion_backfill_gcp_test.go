@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -17,7 +18,7 @@ import (
 // in discoverGCPCloudRelationshipEvidence (issue #3500).
 func gcpRelationshipFact(sourceAlias, targetAlias string) facts.Envelope {
 	return facts.Envelope{
-		FactKind:      facts.GCPCloudRelationshipFactKind,
+		FactKind:      cloud.GCPCloudRelationshipFactKind,
 		ScopeID:       "gcp:project:demo:relationship:global",
 		StableFactKey: "gcp-rel-" + sourceAlias + "-" + targetAlias,
 		Payload: map[string]any{

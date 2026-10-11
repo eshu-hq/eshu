@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -47,12 +47,12 @@ func TestFirewallOfflineFixtureEndToEnd(t *testing.T) {
 	const allowWebFullName = "//compute.googleapis.com/projects/demo-project/global/firewalls/allow-web"
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == allowWebFullName {
 				allowAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeFirewallAppliesToNetwork {
 				networkEdges++
 			}

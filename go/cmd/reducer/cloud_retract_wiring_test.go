@@ -120,8 +120,8 @@ func (f *retractWiringDB) QueryContext(ctx context.Context, query string, args .
 						"location":               "eastus",
 						"kind":                   "linux",
 					})
-				case facts.GCPCloudResourceFactKind:
-					return retractWiringEnvelopeRows(facts.GCPCloudResourceFactKind, map[string]any{
+				case cloud.GCPCloudResourceFactKind:
+					return retractWiringEnvelopeRows(cloud.GCPCloudResourceFactKind, map[string]any{
 						"full_resource_name": "//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/instances/deleted",
 						"asset_type":         "compute.googleapis.com/Instance",
 						"project_id":         "demo-proj",

@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -47,7 +48,7 @@ func TestGCPResourceMaterializationRecordsPrometheusSignals(t *testing.T) {
 
 	factAttrs := map[string]string{
 		telemetry.MetricDimensionDomain:   string(DomainGCPResourceMaterialization),
-		telemetry.MetricDimensionFactKind: facts.GCPCloudResourceFactKind,
+		telemetry.MetricDimensionFactKind: cloud.GCPCloudResourceFactKind,
 	}
 	if got := reducerCounterValue(t, rm, "eshu_dp_gcp_materialization_facts_total", factAttrs); got != 2 {
 		t.Fatalf("gcp resource fact count = %d, want 2", got)
@@ -102,14 +103,14 @@ func TestGCPRelationshipMaterializationRecordsPrometheusSignals(t *testing.T) {
 
 	resourceFactAttrs := map[string]string{
 		telemetry.MetricDimensionDomain:   string(DomainGCPRelationshipMaterialization),
-		telemetry.MetricDimensionFactKind: facts.GCPCloudResourceFactKind,
+		telemetry.MetricDimensionFactKind: cloud.GCPCloudResourceFactKind,
 	}
 	if got := reducerCounterValue(t, rm, "eshu_dp_gcp_materialization_facts_total", resourceFactAttrs); got != 2 {
 		t.Fatalf("gcp relationship resource fact count = %d, want 2", got)
 	}
 	relationshipFactAttrs := map[string]string{
 		telemetry.MetricDimensionDomain:   string(DomainGCPRelationshipMaterialization),
-		telemetry.MetricDimensionFactKind: facts.GCPCloudRelationshipFactKind,
+		telemetry.MetricDimensionFactKind: cloud.GCPCloudRelationshipFactKind,
 	}
 	if got := reducerCounterValue(t, rm, "eshu_dp_gcp_materialization_facts_total", relationshipFactAttrs); got != 2 {
 		t.Fatalf("gcp relationship fact count = %d, want 2", got)

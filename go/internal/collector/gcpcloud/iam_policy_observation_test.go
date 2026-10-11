@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -36,7 +36,7 @@ func TestNewIAMPolicyObservationEnvelopeFingerprintsMembers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIAMPolicyObservationEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.GCPIAMPolicyObservationFactKind {
+	if env.FactKind != cloud.GCPIAMPolicyObservationFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
 	if env.Payload["role"] != "roles/storage.admin" {

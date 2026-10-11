@@ -237,7 +237,9 @@ a speculative empty-string match; the authoritative `input_invalid` dead letter 
 still emitted when the reducer decodes the same fact for its own domain. A
 version-less envelope (empty schema version, or the persist-layer `0.0.0` sentinel)
 is normalized to the family's major-1 schema version before decode, so existing
-persisted facts continue to resolve unchanged.
+persisted facts continue to resolve unchanged. The `GCPCloudRelationshipFactKind`
+and `GCPCloudRelationshipSchemaVersion` constants the extractor matches are owned
+by `go/internal/facts/cloud`.
 
 The cross-repo resolver does not consume raw `gcp_iam_policy_observation`,
 `gcp_dns_record`, `gcp_collection_warning`, or `gcp_image_reference` facts.

@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/gcpruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -61,7 +62,7 @@ func TestBuildSourceWiresFixtureGCPSource(t *testing.T) {
 	}
 	count := 0
 	for env := range collected.Facts {
-		if env.FactKind == facts.GCPCloudResourceFactKind {
+		if env.FactKind == cloud.GCPCloudResourceFactKind {
 			count++
 		}
 	}
@@ -99,7 +100,7 @@ func TestStatusCommitterWritesFactsAndRecordsClaim(t *testing.T) {
 		TriggerKind:  scope.TriggerKindSnapshot,
 	}
 	stream := make(chan facts.Envelope, 1)
-	stream <- facts.Envelope{FactKind: facts.GCPCloudResourceFactKind}
+	stream <- facts.Envelope{FactKind: cloud.GCPCloudResourceFactKind}
 	close(stream)
 
 	if err := committer.CommitScopeGeneration(context.Background(), scopeValue, generation, stream); err != nil {

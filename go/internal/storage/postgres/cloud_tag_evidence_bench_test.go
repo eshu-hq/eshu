@@ -6,7 +6,6 @@ package postgres
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -39,7 +38,7 @@ func BenchmarkCloudTagEvidenceRecordFromRow(b *testing.B) {
 		if _, ok := cloudTagEvidenceRecordFromRow(cloud.AzureTagObservationFactKind, azureID, azurePayload); !ok {
 			b.Fatal("azure row unexpectedly dropped")
 		}
-		if _, ok := cloudTagEvidenceRecordFromRow(facts.GCPTagObservationFactKind, gcpID, gcpPayload); !ok {
+		if _, ok := cloudTagEvidenceRecordFromRow(cloud.GCPTagObservationFactKind, gcpID, gcpPayload); !ok {
 			b.Fatal("gcp row unexpectedly dropped")
 		}
 	}

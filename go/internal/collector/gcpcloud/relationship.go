@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
@@ -93,7 +94,7 @@ func NewCloudRelationshipEnvelope(obs RelationshipObservation) (facts.Envelope, 
 		return facts.Envelope{}, err
 	}
 
-	stableKey := facts.StableID(facts.GCPCloudRelationshipFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.GCPCloudRelationshipFactKind, map[string]any{
 		"source_full_resource_name": sourceName,
 		"target_full_resource_name": targetName,
 		"relationship_type":         relationshipType,
@@ -136,8 +137,8 @@ func NewCloudRelationshipEnvelope(obs RelationshipObservation) (facts.Envelope, 
 
 	return newEnvelope(
 		obs.Boundary,
-		facts.GCPCloudRelationshipFactKind,
-		facts.GCPCloudRelationshipSchemaVersion,
+		cloud.GCPCloudRelationshipFactKind,
+		cloud.GCPCloudRelationshipSchemaVersion,
 		stableKey,
 		sourceRecordID(obs.SourceRecordID, sourceName+"|"+relationshipType+"|"+targetName),
 		obs.SourceURI,

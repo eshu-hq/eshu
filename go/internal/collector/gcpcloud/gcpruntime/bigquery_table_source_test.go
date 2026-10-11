@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestSourceEmitsBigQueryTableTypedDepthFromFixture proves the collector runtime
@@ -32,15 +32,15 @@ func TestSourceEmitsBigQueryTableTypedDepthFromFixture(t *testing.T) {
 	}
 
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
 	// Parent Dataset + KMS-key typed edges.
-	if got := countKind(envs, facts.GCPCloudRelationshipFactKind); got != 2 {
+	if got := countKind(envs, cloud.GCPCloudRelationshipFactKind); got != 2 {
 		t.Fatalf("relationship fact count = %d, want 2 (dataset, kms)", got)
 	}
 
-	resource := firstEnvelopeKind(t, envs, facts.GCPCloudResourceFactKind)
+	resource := firstEnvelopeKind(t, envs, cloud.GCPCloudResourceFactKind)
 	attrs, ok := resource.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("resource fact carried no attributes map: %#v", resource.Payload["attributes"])

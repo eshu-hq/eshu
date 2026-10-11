@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // payloadMatchesAnchorsSim mirrors the SQL predicate
@@ -194,7 +195,7 @@ func allExtractorSupersetFixtures() []supersetFixture {
 			name: "gcp_cloud_relationship",
 			envelope: facts.Envelope{
 				ScopeID:  "gcp:project:demo",
-				FactKind: facts.GCPCloudRelationshipFactKind,
+				FactKind: cloud.GCPCloudRelationshipFactKind,
 				Payload: map[string]any{
 					"source_full_resource_name": "//run.googleapis.com/projects/demo/services/order-gateway",
 					"target_full_resource_name": "//secretmanager.googleapis.com/projects/demo/secrets/payments-service",

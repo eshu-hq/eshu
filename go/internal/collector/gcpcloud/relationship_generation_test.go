@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func testRelationshipResourceObservation() ResourceObservation {
@@ -42,14 +42,14 @@ func TestGenerationBuildEmitsRelationshipObservationsForRelatedAssets(t *testing
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envelopes, facts.GCPCloudRelationshipFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudRelationshipFactKind); got != 1 {
 		t.Fatalf("relationship fact count = %d, want 1", got)
 	}
 
-	rel := firstFactKind(t, envelopes, facts.GCPCloudRelationshipFactKind)
+	rel := firstFactKind(t, envelopes, cloud.GCPCloudRelationshipFactKind)
 	if rel.Payload["relationship_type"] != "INSTANCE_TO_DISK" {
 		t.Fatalf("relationship_type = %#v, want INSTANCE_TO_DISK", rel.Payload["relationship_type"])
 	}

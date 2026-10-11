@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -54,10 +55,10 @@ func TestGenerationBuildEmitsIAMPolicyObservationsForBindings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envelopes, facts.GCPIAMPolicyObservationFactKind); got != 2 {
+	if got := countKind(envelopes, cloud.GCPIAMPolicyObservationFactKind); got != 2 {
 		t.Fatalf("iam policy fact count = %d, want 2", got)
 	}
 
@@ -69,7 +70,7 @@ func TestGenerationBuildEmitsIAMPolicyObservationsForBindings(t *testing.T) {
 				t.Fatalf("raw IAM value leaked in %s payload: %s", env.FactKind, payload)
 			}
 		}
-		if env.FactKind == facts.GCPIAMPolicyObservationFactKind &&
+		if env.FactKind == cloud.GCPIAMPolicyObservationFactKind &&
 			env.Payload["role"] == "roles/storage.objectViewer" {
 			viewer = env
 		}
@@ -98,10 +99,10 @@ func TestGenerationBuildSkipsIAMPolicyObservationsWithoutRedactionKey(t *testing
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envelopes, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envelopes, facts.GCPIAMPolicyObservationFactKind); got != 0 {
+	if got := countKind(envelopes, cloud.GCPIAMPolicyObservationFactKind); got != 0 {
 		t.Fatalf("iam policy fact count = %d, want 0", got)
 	}
 }

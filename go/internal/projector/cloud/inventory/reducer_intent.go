@@ -16,7 +16,7 @@ import (
 // fact-kind allowlist the admission evidence loader reads.
 var cloudInventoryAdmissionSourceFactKinds = map[string]struct{}{
 	facts.AWSResourceFactKind:        {},
-	facts.GCPCloudResourceFactKind:   {},
+	cloud.GCPCloudResourceFactKind:   {},
 	cloud.AzureCloudResourceFactKind: {},
 }
 

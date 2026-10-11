@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // BenchmarkExtractGCPRelationshipEdgeRows measures the bounded in-memory join of
@@ -24,20 +25,20 @@ func BenchmarkExtractGCPRelationshipEdgeRows(b *testing.B) {
 		disk := fmt.Sprintf("//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/disks/disk-%d", i)
 		resources = append(
 			resources,
-			facts.Envelope{FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
+			facts.Envelope{FactKind: cloud.GCPCloudResourceFactKind, Payload: map[string]any{
 				"full_resource_name": instance,
 				"asset_type":         "compute.googleapis.com/Instance",
 				"project_id":         "demo-proj",
 				"location":           "us-central1-a",
 			}},
-			facts.Envelope{FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
+			facts.Envelope{FactKind: cloud.GCPCloudResourceFactKind, Payload: map[string]any{
 				"full_resource_name": disk,
 				"asset_type":         "compute.googleapis.com/Disk",
 				"project_id":         "demo-proj",
 				"location":           "us-central1-a",
 			}},
 		)
-		rels = append(rels, facts.Envelope{FactKind: facts.GCPCloudRelationshipFactKind, Payload: map[string]any{
+		rels = append(rels, facts.Envelope{FactKind: cloud.GCPCloudRelationshipFactKind, Payload: map[string]any{
 			"source_full_resource_name": instance,
 			"target_full_resource_name": disk,
 			"relationship_type":         "INSTANCE_TO_DISK",

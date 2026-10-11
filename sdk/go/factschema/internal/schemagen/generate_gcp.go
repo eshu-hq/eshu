@@ -12,7 +12,7 @@ import (
 const GCPCloudResourceSchemaID = schemaBaseID + "gcp/v1/resource.schema.json"
 
 // GCPCloudResourceSchema returns the JSON Schema bytes for gcpv1.Resource.
-// The title names schema version 1.1.0 (facts.GCPCloudResourceSchemaVersion)
+// The title names schema version 1.1.0 (cloud.GCPCloudResourceSchemaVersion)
 // because this kind is one minor ahead of the rest of the gcp family; the
 // decode seam still dispatches on the schema-version major only.
 func GCPCloudResourceSchema() ([]byte, error) {

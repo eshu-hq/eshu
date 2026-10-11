@@ -45,7 +45,7 @@ func TestBuildReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			{FactID: "decoy-1", FactKind: "file"},
 			admissionEnvelope("fact-azure-1", cloud.AzureCloudResourceFactKind, "azure", ""),
-			admissionEnvelope("fact-gcp-1", facts.GCPCloudResourceFactKind, "gcp", ""),
+			admissionEnvelope("fact-gcp-1", cloud.GCPCloudResourceFactKind, "gcp", ""),
 		})
 		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
@@ -67,7 +67,7 @@ func TestBuildReducerIntent(t *testing.T) {
 		t.Parallel()
 		for kind, provider := range map[string]string{
 			facts.AWSResourceFactKind:        "aws",
-			facts.GCPCloudResourceFactKind:   "gcp",
+			cloud.GCPCloudResourceFactKind:   "gcp",
 			cloud.AzureCloudResourceFactKind: "azure",
 		} {
 			lookup := projectorintent.NewFactLookup([]facts.Envelope{
@@ -90,7 +90,7 @@ func TestBuildReducerIntent(t *testing.T) {
 	t.Run("falls back to CollectorKind when SourceRef is blank", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
-			admissionEnvelope("fact-gcp-1", facts.GCPCloudResourceFactKind, "  ", "gcp"),
+			admissionEnvelope("fact-gcp-1", cloud.GCPCloudResourceFactKind, "  ", "gcp"),
 		})
 		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {

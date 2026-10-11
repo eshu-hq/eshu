@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // BenchmarkExtractGCPCloudResourceNodeRows measures the in-memory projection of
@@ -21,7 +22,7 @@ func BenchmarkExtractGCPCloudResourceNodeRows(b *testing.B) {
 	envelopes := make([]facts.Envelope, 0, resourceCount)
 	for i := 0; i < resourceCount; i++ {
 		envelopes = append(envelopes, facts.Envelope{
-			FactKind: facts.GCPCloudResourceFactKind,
+			FactKind: cloud.GCPCloudResourceFactKind,
 			Payload: map[string]any{
 				"full_resource_name": fmt.Sprintf("//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/instances/vm-%d", i),
 				"asset_type":         "compute.googleapis.com/Instance",

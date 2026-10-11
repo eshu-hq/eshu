@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestSourceRecordsTagFactsEmittedTelemetry proves runtime telemetry records the
@@ -45,7 +45,7 @@ func TestSourceRecordsTagFactsEmittedTelemetry(t *testing.T) {
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("collect metrics: %v", err)
 	}
-	if got := factsEmittedCount(rm, facts.GCPTagObservationFactKind); got != 2 {
+	if got := factsEmittedCount(rm, cloud.GCPTagObservationFactKind); got != 2 {
 		t.Fatalf("tag facts_emitted count = %d, want 2", got)
 	}
 	if got := freshnessLagSum(rm); got != 5 {

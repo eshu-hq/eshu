@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // GCP relationship support states, mirrored from the gcpcloud collector
@@ -111,7 +112,7 @@ func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) (gcpCloudResourc
 	}
 	var quarantined []quarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.GCPCloudResourceFactKind {
+		if env.FactKind != cloud.GCPCloudResourceFactKind {
 			continue
 		}
 		row, uid, ok, err := gcpCloudResourceNodeRow(env)
@@ -313,7 +314,7 @@ func ExtractGCPRelationshipEdgeRows(
 	rows := make([]map[string]any, 0, len(relationshipEnvelopes))
 
 	for _, env := range relationshipEnvelopes {
-		if env.FactKind != facts.GCPCloudRelationshipFactKind {
+		if env.FactKind != cloud.GCPCloudRelationshipFactKind {
 			continue
 		}
 		relationship, err := decodeGCPCloudRelationship(env)

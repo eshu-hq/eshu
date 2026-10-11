@@ -47,7 +47,7 @@ func TestPostgresCloudInventoryEvidenceLoaderExtractsPerProviderAccountID(t *tes
 					"resource_id":"managed-bucket",
 					"region":"us-east-1"
 				}`)},
-				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{
+				{cloud.GCPCloudResourceFactKind, gcpName, []byte(`{
 					"full_resource_name":"` + gcpName + `",
 					"asset_type":"compute.googleapis.com/Instance",
 					"project_id":"synthetic-gcp-project"
@@ -220,7 +220,7 @@ func TestPostgresCloudInventoryEvidenceLoaderGCPBlankProjectIDDerivesFromFullRes
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{
+				{cloud.GCPCloudResourceFactKind, gcpName, []byte(`{
 					"full_resource_name":"` + gcpName + `",
 					"asset_type":"compute.googleapis.com/Instance",
 					"project_id":""
@@ -258,7 +258,7 @@ func TestPostgresCloudInventoryEvidenceLoaderGCPBlankProjectIDWithNoDerivableSeg
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{
+				{cloud.GCPCloudResourceFactKind, gcpName, []byte(`{
 					"full_resource_name":"` + gcpName + `",
 					"asset_type":"cloudresourcemanager.googleapis.com/Organization",
 					"project_id":""

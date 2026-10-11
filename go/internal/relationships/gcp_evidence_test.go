@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
@@ -27,7 +28,7 @@ func emitterGCPRelationshipEnvelope(t *testing.T, schemaVersion string, rel gcpv
 		t.Fatalf("EncodeGCPCloudRelationship: %v", err)
 	}
 	return facts.Envelope{
-		FactKind:      facts.GCPCloudRelationshipFactKind,
+		FactKind:      cloud.GCPCloudRelationshipFactKind,
 		SchemaVersion: schemaVersion,
 		ScopeID:       "gcp:project:demo:relationship:global",
 		StableFactKey: "gcp-rel-emitter-1",
@@ -47,7 +48,7 @@ func TestDiscoverGCPCloudRelationshipEvidenceFromRealEmitterEnvelope(t *testing.
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		emitterGCPRelationshipEnvelope(t, facts.GCPCloudRelationshipSchemaVersion, gcpv1.Relationship{
+		emitterGCPRelationshipEnvelope(t, cloud.GCPCloudRelationshipSchemaVersion, gcpv1.Relationship{
 			SourceFullResourceName: "//run.googleapis.com/projects/demo/locations/us-central1/services/order-gateway",
 			TargetFullResourceName: "//secretmanager.googleapis.com/projects/demo/secrets/payments-service",
 			RelationshipType:       "run_service_uses_secret",
@@ -126,7 +127,7 @@ func TestDiscoverGCPCloudRelationshipEvidenceFromCatalogAnchoredResourceReferenc
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind:      facts.GCPCloudRelationshipFactKind,
+			FactKind:      cloud.GCPCloudRelationshipFactKind,
 			ScopeID:       "gcp:project:demo:relationship:global",
 			StableFactKey: "gcp-rel-1",
 			SourceRef: facts.Ref{
@@ -187,7 +188,7 @@ func TestDiscoverGCPEvidenceRequiresSourceAndTargetCatalogMatches(t *testing.T) 
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: facts.GCPCloudRelationshipFactKind,
+			FactKind: cloud.GCPCloudRelationshipFactKind,
 			ScopeID:  "gcp:project:demo:relationship:global",
 			Payload: map[string]any{
 				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/unmatched-runtime",
@@ -212,7 +213,7 @@ func TestDiscoverGCPCloudRelationshipSkipsAmbiguousOrSelfMatches(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: facts.GCPCloudRelationshipFactKind,
+			FactKind: cloud.GCPCloudRelationshipFactKind,
 			ScopeID:  "gcp:project:demo:relationship:global",
 			Payload: map[string]any{
 				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/shared-api",
@@ -222,7 +223,7 @@ func TestDiscoverGCPCloudRelationshipSkipsAmbiguousOrSelfMatches(t *testing.T) {
 			},
 		},
 		{
-			FactKind: facts.GCPCloudRelationshipFactKind,
+			FactKind: cloud.GCPCloudRelationshipFactKind,
 			ScopeID:  "gcp:project:demo:relationship:global",
 			Payload: map[string]any{
 				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/payments-service",
@@ -249,7 +250,7 @@ func TestDiscoverGCPNonResolverFactsDoNotEmitRelationshipEvidence(t *testing.T) 
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: facts.GCPIAMPolicyObservationFactKind,
+			FactKind: cloud.GCPIAMPolicyObservationFactKind,
 			ScopeID:  "gcp:project:demo:iam:global",
 			Payload: map[string]any{
 				"repo_id":            "repo-infra",
@@ -258,7 +259,7 @@ func TestDiscoverGCPNonResolverFactsDoNotEmitRelationshipEvidence(t *testing.T) 
 			},
 		},
 		{
-			FactKind: facts.GCPDNSRecordFactKind,
+			FactKind: cloud.GCPDNSRecordFactKind,
 			ScopeID:  "gcp:project:demo:dns:global",
 			Payload: map[string]any{
 				"repo_id":                 "repo-infra",
@@ -267,7 +268,7 @@ func TestDiscoverGCPNonResolverFactsDoNotEmitRelationshipEvidence(t *testing.T) 
 			},
 		},
 		{
-			FactKind: facts.GCPImageReferenceFactKind,
+			FactKind: cloud.GCPImageReferenceFactKind,
 			ScopeID:  "gcp:project:demo:image:global",
 			Payload: map[string]any{
 				"repo_id":               "repo-infra",
@@ -276,7 +277,7 @@ func TestDiscoverGCPNonResolverFactsDoNotEmitRelationshipEvidence(t *testing.T) 
 			},
 		},
 		{
-			FactKind: facts.GCPCloudRelationshipFactKind,
+			FactKind: cloud.GCPCloudRelationshipFactKind,
 			ScopeID:  "gcp:project:demo:relationship:global",
 			Payload: map[string]any{
 				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/order-gateway",
@@ -286,7 +287,7 @@ func TestDiscoverGCPNonResolverFactsDoNotEmitRelationshipEvidence(t *testing.T) 
 			},
 		},
 		{
-			FactKind: facts.GCPCloudRelationshipFactKind,
+			FactKind: cloud.GCPCloudRelationshipFactKind,
 			ScopeID:  "gcp:project:demo:relationship:global",
 			Payload: map[string]any{
 				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/order-gateway",
@@ -316,7 +317,7 @@ func TestHasSupportedGCPRelationshipFact(t *testing.T) {
 
 	supported := func() facts.Envelope {
 		return facts.Envelope{
-			FactKind: facts.GCPCloudRelationshipFactKind,
+			FactKind: cloud.GCPCloudRelationshipFactKind,
 			Payload: map[string]any{
 				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/order-gateway",
 				"relationship_type":         "run_service_uses_secret",
@@ -345,7 +346,7 @@ func TestHasSupportedGCPRelationshipFact(t *testing.T) {
 	delete(missingType.Payload, "relationship_type")
 
 	wrongKind := supported()
-	wrongKind.FactKind = facts.GCPIAMPolicyObservationFactKind
+	wrongKind.FactKind = cloud.GCPIAMPolicyObservationFactKind
 
 	cases := []struct {
 		name      string
@@ -392,7 +393,7 @@ func TestResolveGCPRelationshipRepoLinksSourceThenTarget(t *testing.T) {
 	}
 	supported := []facts.Envelope{
 		{
-			FactKind: facts.GCPCloudRelationshipFactKind,
+			FactKind: cloud.GCPCloudRelationshipFactKind,
 			Payload: map[string]any{
 				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/order-gateway",
 				"relationship_type":         "run_service_uses_secret",
@@ -415,7 +416,7 @@ func TestResolveGCPRelationshipRepoLinksSourceThenTarget(t *testing.T) {
 
 	noGCP := []facts.Envelope{
 		{
-			FactKind: facts.GCPIAMPolicyObservationFactKind,
+			FactKind: cloud.GCPIAMPolicyObservationFactKind,
 			Payload:  map[string]any{"repo_id": "repo-infra"},
 		},
 	}

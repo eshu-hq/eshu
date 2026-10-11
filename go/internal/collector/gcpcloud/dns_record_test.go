@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -33,7 +33,7 @@ func TestNewDNSRecordEnvelopeFingerprintsNameAndTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDNSRecordEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.GCPDNSRecordFactKind {
+	if env.FactKind != cloud.GCPDNSRecordFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
 	if env.Payload["record_type"] != "A" {

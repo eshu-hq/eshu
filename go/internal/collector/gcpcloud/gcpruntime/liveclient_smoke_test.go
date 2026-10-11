@@ -16,7 +16,7 @@ import (
 	"google.golang.org/api/impersonate"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -170,7 +170,7 @@ func TestLiveSmokeCloudAssetInventory(t *testing.T) {
 			totalFacts++
 			factKindCounts[envelope.FactKind]++
 			switch envelope.FactKind {
-			case facts.GCPCloudResourceFactKind:
+			case cloud.GCPCloudResourceFactKind:
 				assetType, _ := envelope.Payload["asset_type"].(string)
 				if assetType != "" {
 					assetTypeCounts[assetType]++
@@ -179,7 +179,7 @@ func TestLiveSmokeCloudAssetInventory(t *testing.T) {
 				if strings.TrimSpace(policyVersion) == "" {
 					missingRedaction++
 				}
-			case facts.GCPCollectionWarningFactKind:
+			case cloud.GCPCollectionWarningFactKind:
 				warningCount++
 			}
 			if totalFacts >= maxFacts {
@@ -199,8 +199,8 @@ func TestLiveSmokeCloudAssetInventory(t *testing.T) {
 	if totalFacts == 0 {
 		t.Fatal("live smoke collected zero facts; want real gcp_cloud_resource data to flow")
 	}
-	if factKindCounts[facts.GCPCloudResourceFactKind] == 0 {
-		t.Fatalf("live smoke collected zero %s facts", facts.GCPCloudResourceFactKind)
+	if factKindCounts[cloud.GCPCloudResourceFactKind] == 0 {
+		t.Fatalf("live smoke collected zero %s facts", cloud.GCPCloudResourceFactKind)
 	}
 	if missingRedaction > 0 {
 		t.Fatalf("%d gcp_cloud_resource facts are missing redaction_policy_version", missingRedaction)

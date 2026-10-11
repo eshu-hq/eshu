@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestSourceEmitsImageReferenceFactsFromFixturePage(t *testing.T) {
@@ -36,13 +36,13 @@ func TestSourceEmitsImageReferenceFactsFromFixturePage(t *testing.T) {
 		t.Fatalf("Next: ok=%v err=%v", ok, err)
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 2 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 2 {
 		t.Fatalf("resource fact count = %d, want 2", got)
 	}
-	if got := countKind(envs, facts.GCPImageReferenceFactKind); got != 3 {
+	if got := countKind(envs, cloud.GCPImageReferenceFactKind); got != 3 {
 		t.Fatalf("image reference fact count = %d, want 3", got)
 	}
-	image := firstEnvelopeKind(t, envs, facts.GCPImageReferenceFactKind)
+	image := firstEnvelopeKind(t, envs, cloud.GCPImageReferenceFactKind)
 	if image.Payload["read_time"] == nil {
 		t.Fatal("image reference read_time missing")
 	}
@@ -51,7 +51,7 @@ func TestSourceEmitsImageReferenceFactsFromFixturePage(t *testing.T) {
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("collect metrics: %v", err)
 	}
-	if got := factsEmittedCount(rm, facts.GCPImageReferenceFactKind); got != 3 {
+	if got := factsEmittedCount(rm, cloud.GCPImageReferenceFactKind); got != 3 {
 		t.Fatalf("image reference facts_emitted count = %d, want 3", got)
 	}
 }

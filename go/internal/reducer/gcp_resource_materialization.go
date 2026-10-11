@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -111,7 +112,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.GCPCloudResourceFactKind},
+		[]string{cloud.GCPCloudResourceFactKind},
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for gcp resource materialization: %w", err)
@@ -169,7 +170,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 		h.NodeRetracter,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.GCPCloudResourceFactKind},
+		[]string{cloud.GCPCloudResourceFactKind},
 		func(prior []facts.Envelope) (map[string]struct{}, error) {
 			priorRows, _, err := ExtractGCPCloudResourceNodeRows(prior)
 			if err != nil {
@@ -236,7 +237,7 @@ func (h GCPResourceMaterializationHandler) recordMetrics(
 	if h.Instruments == nil {
 		return
 	}
-	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPResourceMaterialization, facts.GCPCloudResourceFactKind, timing.factCount)
+	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPResourceMaterialization, cloud.GCPCloudResourceFactKind, timing.factCount)
 	recordGCPMaterializationGraphWrites(ctx, h.Instruments, DomainGCPResourceMaterialization, "node", timing.nodeCount)
 	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPResourceMaterialization, "load_facts", timing.loadDuration)
 	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPResourceMaterialization, "extract", timing.extractDuration)
@@ -265,7 +266,7 @@ func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]a
 	var quarantined []quarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
-		if env.FactKind != facts.GCPCloudResourceFactKind {
+		if env.FactKind != cloud.GCPCloudResourceFactKind {
 			continue
 		}
 		row, uid, ok, err := gcpCloudResourceNodeRow(env)

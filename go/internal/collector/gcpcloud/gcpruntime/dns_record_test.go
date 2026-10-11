@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestSourceEmitsDNSRecordFactsFromFixturePage(t *testing.T) {
@@ -36,13 +36,13 @@ func TestSourceEmitsDNSRecordFactsFromFixturePage(t *testing.T) {
 		t.Fatalf("Next: ok=%v err=%v", ok, err)
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envs, facts.GCPDNSRecordFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPDNSRecordFactKind); got != 1 {
 		t.Fatalf("dns fact count = %d, want 1", got)
 	}
-	dns := firstEnvelopeKind(t, envs, facts.GCPDNSRecordFactKind)
+	dns := firstEnvelopeKind(t, envs, cloud.GCPDNSRecordFactKind)
 	if dns.Payload["read_time"] == nil {
 		t.Fatal("DNS observation read_time missing")
 	}
@@ -51,7 +51,7 @@ func TestSourceEmitsDNSRecordFactsFromFixturePage(t *testing.T) {
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("collect metrics: %v", err)
 	}
-	if got := factsEmittedCount(rm, facts.GCPDNSRecordFactKind); got != 1 {
+	if got := factsEmittedCount(rm, cloud.GCPDNSRecordFactKind); got != 1 {
 		t.Fatalf("dns facts_emitted count = %d, want 1", got)
 	}
 }

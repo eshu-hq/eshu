@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -81,7 +80,7 @@ func TestPostgresCloudTagEvidenceLoaderMapsGCPTagFacts(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.GCPTagObservationFactKind, fullResourceName, []byte(`{
+				{cloud.GCPTagObservationFactKind, fullResourceName, []byte(`{
 					"full_resource_name":"` + fullResourceName + `",
 					"asset_type":"compute.googleapis.com/Instance",
 					"tag_value_fingerprints":{"env":"gcp-env-marker","owner":"gcp-owner-marker"}

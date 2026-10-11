@@ -6,7 +6,7 @@ package gcpcloud
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -30,7 +30,7 @@ func TestNewTagObservationEnvelopeFingerprintsValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTagObservationEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.GCPTagObservationFactKind {
+	if env.FactKind != cloud.GCPTagObservationFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
 	fps, ok := env.Payload["tag_value_fingerprints"].(map[string]string)

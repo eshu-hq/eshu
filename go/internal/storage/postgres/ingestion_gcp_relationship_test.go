@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
@@ -50,7 +51,7 @@ func TestIngestionStoreCommitScopeGenerationSkipsStreamingGCPRelationshipEvidenc
 		FactID:        "gcp-relationship-1",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
-		FactKind:      facts.GCPCloudRelationshipFactKind,
+		FactKind:      cloud.GCPCloudRelationshipFactKind,
 		StableFactKey: "gcp-rel-1",
 		ObservedAt:    generation.ObservedAt,
 		Payload: map[string]any{

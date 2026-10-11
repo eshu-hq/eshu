@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -46,7 +46,7 @@ func TestWorkloadIdentityPoolOfflineFixtureEndToEnd(t *testing.T) {
 	var poolAttrs, awsProviderAttrs map[string]any
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			switch env.Payload["full_resource_name"] {
 			case workloadIdentityPoolFullName:
@@ -54,7 +54,7 @@ func TestWorkloadIdentityPoolOfflineFixtureEndToEnd(t *testing.T) {
 			case wifProviderFullName:
 				awsProviderAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeWIFProviderOfPool {
 				poolEdges++
 			}

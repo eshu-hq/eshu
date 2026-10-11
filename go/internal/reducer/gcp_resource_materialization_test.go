@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // gcpResourceEnvelope builds a gcp_cloud_resource fact envelope for tests from
 // the bounded set of payload fields the node projection reads.
 func gcpResourceEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.GCPCloudResourceFactKind,
+		FactKind: cloud.GCPCloudResourceFactKind,
 		Payload:  payload,
 	}
 }
@@ -225,7 +226,7 @@ func TestExtractGCPCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		{FactKind: facts.GCPCloudRelationshipFactKind, Payload: map[string]any{"source_full_resource_name": "ignored"}},
+		{FactKind: cloud.GCPCloudRelationshipFactKind, Payload: map[string]any{"source_full_resource_name": "ignored"}},
 		gcpResourceEnvelope(map[string]any{
 			"full_resource_name": "//storage.googleapis.com/projects/_/buckets/b",
 			"asset_type":         "storage.googleapis.com/Bucket",

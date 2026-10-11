@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -51,12 +51,12 @@ func TestOrgPolicyOfflineFixtureEndToEnd(t *testing.T) {
 	edgeTargets := map[string]string{}
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == orgPolicyOrgFixtureFullName {
 				orgAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeOrgPolicyAppliesToResource {
 				appliesToEdges++
 				edgeTargets[stringOrEmpty(env.Payload["source_full_resource_name"])] = stringOrEmpty(env.Payload["target_full_resource_name"])

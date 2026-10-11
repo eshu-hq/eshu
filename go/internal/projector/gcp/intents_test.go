@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -29,7 +30,7 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 			name: "resource prefers source ref",
 			fact: facts.Envelope{
 				FactID:        "gcp-resource-1",
-				FactKind:      facts.GCPCloudResourceFactKind,
+				FactKind:      cloud.GCPCloudResourceFactKind,
 				CollectorKind: "gcp-collector",
 				SourceRef:     facts.Ref{SourceSystem: " cloud-asset-inventory "},
 			},
@@ -43,7 +44,7 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 			name: "relationship falls back to collector",
 			fact: facts.Envelope{
 				FactID:        "gcp-relationship-1",
-				FactKind:      facts.GCPCloudRelationshipFactKind,
+				FactKind:      cloud.GCPCloudRelationshipFactKind,
 				CollectorKind: " gcp-collector ",
 			},
 			build:         BuildRelationshipMaterializationReducerIntent,
@@ -88,10 +89,10 @@ func TestBuildMaterializationReducerIntentsPreserveEarliestMatch(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactID: "resource-first", FactKind: facts.GCPCloudResourceFactKind},
-		{FactID: "relationship-first", FactKind: facts.GCPCloudRelationshipFactKind},
-		{FactID: "resource-later", FactKind: facts.GCPCloudResourceFactKind},
-		{FactID: "relationship-later", FactKind: facts.GCPCloudRelationshipFactKind},
+		{FactID: "resource-first", FactKind: cloud.GCPCloudResourceFactKind},
+		{FactID: "relationship-first", FactKind: cloud.GCPCloudRelationshipFactKind},
+		{FactID: "resource-later", FactKind: cloud.GCPCloudResourceFactKind},
+		{FactID: "relationship-later", FactKind: cloud.GCPCloudRelationshipFactKind},
 	})
 
 	resource, ok := BuildResourceMaterializationReducerIntent("scope-1", "generation-1", lookup)

@@ -419,7 +419,7 @@ func liveFamilies() []liveFamily {
 		{"codeowners", facts.CodeownersFactKinds, facts.CodeownersSchemaVersion},
 		{"documentation", docs.FactKinds, docs.SchemaVersion},
 		{"ec2_instance_posture", cloud.EC2InstancePostureFactKinds, cloud.EC2InstancePostureSchemaVersion},
-		{"gcp", facts.GCPFactKinds, facts.GCPSchemaVersion},
+		{"gcp", cloud.GCPFactKinds, cloud.GCPSchemaVersion},
 		{"incident_context", facts.IncidentContextFactKinds, facts.IncidentContextSchemaVersion},
 		{"incident_routing", facts.IncidentRoutingFactKinds, facts.IncidentRoutingSchemaVersion},
 		{"kubernetes_live", cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},

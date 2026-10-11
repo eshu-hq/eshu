@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -44,7 +44,7 @@ func TestBigQueryDatasetOfflineFixtureEndToEnd(t *testing.T) {
 	var analyticsAnchors []any
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == "//bigquery.googleapis.com/projects/demo-project/datasets/analytics" {
 				analyticsAttrs, _ = env.Payload["attributes"].(map[string]any)
@@ -57,7 +57,7 @@ func TestBigQueryDatasetOfflineFixtureEndToEnd(t *testing.T) {
 					}
 				}
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			relTypes[stringOrEmpty(env.Payload["relationship_type"])]++
 		}
 	}

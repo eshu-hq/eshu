@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func testRelationshipObservation() RelationshipObservation {
@@ -33,10 +33,10 @@ func TestNewCloudRelationshipEnvelopeBuildsContractFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCloudRelationshipEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.GCPCloudRelationshipFactKind {
+	if env.FactKind != cloud.GCPCloudRelationshipFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
-	if env.SchemaVersion != facts.GCPCloudRelationshipSchemaVersion {
+	if env.SchemaVersion != cloud.GCPCloudRelationshipSchemaVersion {
 		t.Fatalf("SchemaVersion = %q", env.SchemaVersion)
 	}
 	if env.Payload["source_full_resource_name"] != obs.SourceFullResourceName {

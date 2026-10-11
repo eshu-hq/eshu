@@ -6,7 +6,7 @@ package gcpcloud
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -30,7 +30,7 @@ func TestNewImageReferenceEnvelopeDigestFirstConfidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewImageReferenceEnvelope error: %v", err)
 	}
-	if env.FactKind != facts.GCPImageReferenceFactKind {
+	if env.FactKind != cloud.GCPImageReferenceFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
 	if env.Payload["tag_digest_confidence"] != ImageConfidenceDigest {

@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestSourceEmitsRelationshipFactsFromFixturePage(t *testing.T) {
@@ -36,13 +36,13 @@ func TestSourceEmitsRelationshipFactsFromFixturePage(t *testing.T) {
 		t.Fatalf("Next: ok=%v err=%v", ok, err)
 	}
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
-	if got := countKind(envs, facts.GCPCloudRelationshipFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCloudRelationshipFactKind); got != 1 {
 		t.Fatalf("relationship fact count = %d, want 1", got)
 	}
-	rel := firstEnvelopeKind(t, envs, facts.GCPCloudRelationshipFactKind)
+	rel := firstEnvelopeKind(t, envs, cloud.GCPCloudRelationshipFactKind)
 	if rel.Payload["read_time"] == nil {
 		t.Fatal("relationship observation read_time missing")
 	}
@@ -51,7 +51,7 @@ func TestSourceEmitsRelationshipFactsFromFixturePage(t *testing.T) {
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("collect metrics: %v", err)
 	}
-	if got := factsEmittedCount(rm, facts.GCPCloudRelationshipFactKind); got != 1 {
+	if got := factsEmittedCount(rm, cloud.GCPCloudRelationshipFactKind); got != 1 {
 		t.Fatalf("relationship facts_emitted count = %d, want 1", got)
 	}
 }

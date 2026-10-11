@@ -182,7 +182,7 @@ func extractContainerImageRefsWithQuarantine(
 			if ok {
 				quarantined = append(quarantined, q)
 			}
-		case facts.GCPImageReferenceFactKind:
+		case cloud.GCPImageReferenceFactKind:
 			q, ok, fatal := addGCPImageReference(byRef, envelope)
 			if fatal != nil {
 				return nil, nil, nil, fatal

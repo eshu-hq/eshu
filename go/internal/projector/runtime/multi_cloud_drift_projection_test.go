@@ -153,8 +153,8 @@ func multiCloudGCPResourceEnvelope(factID, scopeID, generationID string) facts.E
 		FactID:        factID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
-		FactKind:      facts.GCPCloudResourceFactKind,
-		SchemaVersion: facts.GCPCloudResourceSchemaVersion,
+		FactKind:      cloud.GCPCloudResourceFactKind,
+		SchemaVersion: cloud.GCPCloudResourceSchemaVersion,
 		CollectorKind: "gcp_cloud",
 		SourceRef:     facts.Ref{SourceSystem: "gcp"},
 		Payload: map[string]any{

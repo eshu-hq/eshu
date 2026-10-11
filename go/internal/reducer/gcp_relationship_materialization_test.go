@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -20,7 +21,7 @@ import (
 // tests from the bounded set of payload fields the edge projection reads.
 func gcpRelationshipEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.GCPCloudRelationshipFactKind,
+		FactKind: cloud.GCPCloudRelationshipFactKind,
 		Payload:  payload,
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -47,7 +47,7 @@ func TestForwardingRuleOfflineFixtureEndToEnd(t *testing.T) {
 	var internalAttrs map[string]any
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.GCPCloudResourceFactKind:
+		case cloud.GCPCloudResourceFactKind:
 			resourceCount++
 			switch env.Payload["full_resource_name"] {
 			case "//compute.googleapis.com/projects/demo-project/regions/us-central1/forwardingRules/frontend-lb":
@@ -55,7 +55,7 @@ func TestForwardingRuleOfflineFixtureEndToEnd(t *testing.T) {
 			case "//compute.googleapis.com/projects/demo-project/regions/us-central1/forwardingRules/internal-lb":
 				internalAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
-		case facts.GCPCloudRelationshipFactKind:
+		case cloud.GCPCloudRelationshipFactKind:
 			relTypeCounts[stringOrEmpty(env.Payload["relationship_type"])]++
 		}
 	}

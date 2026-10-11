@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
@@ -78,7 +79,7 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 	targets, targetsTruncated := fingerprintDNSTargets(obs.Targets, recordType, key)
 	recordNameFingerprint := dnsRecordNameFingerprint(recordName, recordType, key)
 
-	stableKey := facts.StableID(facts.GCPDNSRecordFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.GCPDNSRecordFactKind, map[string]any{
 		"managed_zone_full_resource_name": zoneName,
 		"record_type":                     recordType,
 		"record_name":                     recordName,
@@ -110,8 +111,8 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 
 	return newEnvelope(
 		obs.Boundary,
-		facts.GCPDNSRecordFactKind,
-		facts.GCPDNSRecordSchemaVersion,
+		cloud.GCPDNSRecordFactKind,
+		cloud.GCPDNSRecordSchemaVersion,
 		stableKey,
 		sourceRecordID(obs.SourceRecordID, zoneName+"|"+recordType+"|"+recordNameFingerprint),
 		obs.SourceURI,

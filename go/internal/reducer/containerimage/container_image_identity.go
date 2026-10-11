@@ -355,7 +355,7 @@ func containerImageIdentityFactKinds() []string {
 		facts.AWSRelationshipFactKind,
 		facts.AWSImageReferenceFactKind,
 		cloud.AzureImageReferenceFactKind,
-		facts.GCPImageReferenceFactKind,
+		cloud.GCPImageReferenceFactKind,
 		chain.OCIImageTagObservationFactKind,
 		chain.OCIImageManifestFactKind,
 		chain.OCIImageIndexFactKind,

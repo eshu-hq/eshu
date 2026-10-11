@@ -337,7 +337,7 @@ func multiCloudStateConflictKey(row multiCloudStateRow) string {
 // allowlist so a new provider must be added in both places.
 var multiCloudSourceFactProvider = map[string]string{
 	facts.AWSResourceFactKind:        cloudinventory.ProviderAWS,
-	facts.GCPCloudResourceFactKind:   cloudinventory.ProviderGCP,
+	cloud.GCPCloudResourceFactKind:   cloudinventory.ProviderGCP,
 	cloud.AzureCloudResourceFactKind: cloudinventory.ProviderAzure,
 }
 
@@ -394,7 +394,7 @@ func multiCloudObservedRowFromRow(
 // resource/asset type under.
 func multiCloudResourceTypeKey(factKind string) string {
 	switch factKind {
-	case facts.GCPCloudResourceFactKind:
+	case cloud.GCPCloudResourceFactKind:
 		return "asset_type"
 	default:
 		return "resource_type"

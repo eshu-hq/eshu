@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestSourceEmitsServiceAccountTypedDepthFromFixture proves the collector runtime
@@ -34,15 +34,15 @@ func TestSourceEmitsServiceAccountTypedDepthFromFixture(t *testing.T) {
 	}
 
 	envs := drainFacts(t, collected)
-	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 1 {
+	if got := countKind(envs, cloud.GCPCloudResourceFactKind); got != 1 {
 		t.Fatalf("resource fact count = %d, want 1", got)
 	}
 	// The service account derives no outbound typed edges from its own data.
-	if got := countKind(envs, facts.GCPCloudRelationshipFactKind); got != 0 {
+	if got := countKind(envs, cloud.GCPCloudRelationshipFactKind); got != 0 {
 		t.Fatalf("relationship fact count = %d, want 0", got)
 	}
 
-	resource := firstEnvelopeKind(t, envs, facts.GCPCloudResourceFactKind)
+	resource := firstEnvelopeKind(t, envs, cloud.GCPCloudResourceFactKind)
 	// The typed-depth output must fingerprint the email; the full resource name
 	// legitimately embeds it as the provider's canonical identity, so the leak
 	// check is scoped to the extractor's own output.

@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
@@ -61,7 +62,7 @@ func relationshipReferenceCandidateKeyRows(envelopes []facts.Envelope) []relatio
 
 func relationshipReferenceFactKind(factKind string) bool {
 	switch factKind {
-	case "content", "file", facts.GCPCloudRelationshipFactKind:
+	case "content", "file", cloud.GCPCloudRelationshipFactKind:
 		return true
 	default:
 		return false

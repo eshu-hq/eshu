@@ -90,7 +90,7 @@ func TestContainerImageIdentityHandlerQuarantinesGCPImageReferenceMissingOwningF
 
 	malformed := facts.Envelope{
 		FactID:   "malformed-gcp-image",
-		FactKind: facts.GCPImageReferenceFactKind,
+		FactKind: cloud.GCPImageReferenceFactKind,
 		Payload: map[string]any{
 			// "owning_full_resource_name" intentionally absent.
 			"tag_digest_confidence": "digest",
