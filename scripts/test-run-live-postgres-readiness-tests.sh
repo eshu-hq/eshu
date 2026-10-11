@@ -376,7 +376,8 @@ out="$(run_runner)" && fail "verifier dropping ${last_pkg} while the ledger carr
 awk -v list="${seed_dir}/dropped-files" '
   BEGIN { while ((getline f < list) > 0) drop["  - file: " f] = 1 }
   ($0 in drop) { hit = 1 }
-  hit && $0 == "    class: postgres_ci" { print "    class: scheduled"; hit = 0; next }
+  hit && $0 == "    class: postgres_ci" { print "    class: scheduled"; next }
+  hit && $0 == "    runner: live-postgres-readiness" { print "    runner: unrelated"; hit = 0; next }
   { print }
 ' "${flat_ledger}" >"${tree}/specs/live-tests.v1.yaml"
 cmp -s "${flat_ledger}" "${tree}/specs/live-tests.v1.yaml" && fail "seeded ledger reclassification changed nothing"
