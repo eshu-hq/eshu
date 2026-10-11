@@ -42,7 +42,7 @@ def matrix_rows(event: str, queue_jobs: list[str]) -> list[dict[str, Any]]:
 
 
 class TaggedBuildBudgetTest(unittest.TestCase):
-    """A cold cache cannot consume the proof's cleanup headroom."""
+    """The lifecycle policy preserves the historical timeline reserve."""
 
     def test_failed_run_timeline_has_restore_and_cleanup_reserve(self) -> None:
         """The real matrix deadline covers the observed cold gate and reserve."""

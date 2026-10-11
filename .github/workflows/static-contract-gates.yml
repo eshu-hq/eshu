@@ -166,7 +166,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.dockerhublogin }}" "dockerhublogin" "Verify Docker Hub login gate" "bash scripts/test-verify-dockerhub-login.sh && bash scripts/test-ci-image-compose.sh && bash scripts/ci/test-image-overrides.sh && bash scripts/ci/test-build-reproducibility-image.sh && bash scripts/ci/test-mirror-images.sh && python3 scripts/ci/test-tools-workflow.py" "bash scripts/verify-dockerhub-login.sh" 30
           # The observed cold sweep took 25m31s for 73 configurations. Its old
           # 30m job expired during a 3m35s cache save, after vet passed. A 40m
-          # envelope covers the sweep, bounded restore, setup/cleanup, and
+          # envelope covers that recorded sweep, bounded restore, setup/cleanup, and
           # at least 25% sweep reserve. This cell restores but never saves.
           append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh && python3 scripts/ci/test-tagged-build-budget.py" "bash scripts/verify-tagged-builds.sh --all" 40
 
@@ -206,8 +206,8 @@ jobs:
       - if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key != 'taggedbuilds' }}
         uses: actions/cache@v4
         with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
-      # Cache transport is acceleration, not proof. Tagged builds must fit a
-      # cold job and must not archive its large cache after the assertions.
+      # Cache transport is acceleration, not proof. Tagged builds must run on a
+      # cache miss and must not archive its large cache after the assertions.
       - name: Restore tagged-build cache
         id: tagged-cache
         if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key == 'taggedbuilds' }}
