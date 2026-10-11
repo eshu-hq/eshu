@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -29,19 +28,18 @@ func TestMigration169InterruptedBackfillLive(t *testing.T) {
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_MIGRATION169_TEST_DSN for a disposable loopback PostgreSQL fixture")
 	}
-	parsed, err := url.Parse(dsn)
-	if err != nil || parsed.Hostname() != "127.0.0.1" || parsed.Path != "/eshu169fixture" {
-		t.Fatal("migration 169 interruption fixture requires loopback host and eshu169fixture database")
-	}
-	admin, err := sql.Open("pgx", dsn)
+	expectedID := os.Getenv("ESHU_TEST_POSTGRES_SYSTEM_IDENTIFIER")
+	openCtx, cancelOpen := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelOpen()
+	admin, err := openOwnedFixtureDB(openCtx, dsn, func() string { return expectedID }, ownedFixtureMigration169, fixtureSession{})
 	if err != nil {
-		t.Fatalf("open migration 169 fixture admin: %v", err)
+		t.Fatalf("open and validate migration 169 fixture admin: %v", err)
 	}
 	t.Cleanup(func() { _ = admin.Close() })
 	definition := migration169Definition(t)
 	for _, mode := range []string{"cancel_context", "terminate_backend"} {
 		t.Run(mode, func(t *testing.T) {
-			testMigration169InterruptedBackfill(t, admin, parsed, definition, mode)
+			testMigration169InterruptedBackfill(t, admin, dsn, expectedID, definition, mode)
 		})
 	}
 }
@@ -49,7 +47,8 @@ func TestMigration169InterruptedBackfillLive(t *testing.T) {
 func testMigration169InterruptedBackfill(
 	t *testing.T,
 	admin *sql.DB,
-	base *url.URL,
+	dsn string,
+	expectedID string,
 	definition Definition,
 	mode string,
 ) {
@@ -70,14 +69,12 @@ func testMigration169InterruptedBackfill(
 
 	openScoped := func(application string) *sql.DB {
 		t.Helper()
-		copyURL := *base
-		query := copyURL.Query()
-		query.Set("search_path", schema+",public")
-		query.Set("application_name", application)
-		copyURL.RawQuery = query.Encode()
-		database, err := sql.Open("pgx", copyURL.String())
+		openCtx, cancelOpen := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelOpen()
+		database, err := openOwnedFixtureDB(openCtx, dsn, func() string { return expectedID },
+			ownedFixtureMigration169, fixtureSession{searchPath: schema + ",public", applicationName: application})
 		if err != nil {
-			t.Fatalf("open migration 169 %s pool: %v", application, err)
+			t.Fatalf("open and validate migration 169 %s pool: %v", application, err)
 		}
 		database.SetMaxOpenConns(3)
 		t.Cleanup(func() { _ = database.Close() })

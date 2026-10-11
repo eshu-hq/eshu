@@ -11,15 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
-
-const rollbackTestDatabase = "eshu_7033_rollback"
 
 // TestBootstrapInterruptedDefinitionRollsBackLive exercises the real tracked
 // migration and advisory-lock path on an isolated, disposable PostgreSQL 18
@@ -33,26 +30,27 @@ func TestBootstrapInterruptedDefinitionRollsBackLive(t *testing.T) {
 	if err := assertLoopbackRollbackDSN(dsn); err != nil {
 		t.Fatal(err)
 	}
+	expectedID := os.Getenv("ESHU_TEST_POSTGRES_SYSTEM_IDENTIFIER")
 	for _, mode := range []string{"terminate_backend", "cancel_context"} {
 		t.Run(mode, func(t *testing.T) {
-			bootstrapInterruptedDefinitionCase(t, dsn, mode)
+			bootstrapInterruptedDefinitionCase(t, dsn, expectedID, mode)
 		})
 	}
 }
 
-func bootstrapInterruptedDefinitionCase(t *testing.T, dsn, mode string) {
+func bootstrapInterruptedDefinitionCase(t *testing.T, dsn, expectedID, mode string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	runner, err := sql.Open("pgx", dsn)
+	runner, err := openOwnedFixtureDB(ctx, dsn, func() string { return expectedID }, ownedFixtureRollback, fixtureSession{})
 	if err != nil {
-		t.Fatalf("open fixture database: %v", err)
+		t.Fatalf("open and validate fixture runner: %v", err)
 	}
 	runner.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = runner.Close() })
-	observer, err := sql.Open("pgx", dsn)
+	observer, err := openOwnedFixtureDB(ctx, dsn, func() string { return expectedID }, ownedFixtureRollback, fixtureSession{})
 	if err != nil {
-		t.Fatalf("open fixture observer: %v", err)
+		t.Fatalf("open and validate fixture observer: %v", err)
 	}
 	t.Cleanup(func() { _ = observer.Close() })
 	if err := assertOwnedRollbackFixture(ctx, runner); err != nil {
@@ -143,19 +141,8 @@ func bootstrapInterruptedDefinitionCase(t *testing.T, dsn, mode string) {
 }
 
 func assertLoopbackRollbackDSN(dsn string) error {
-	parsed, err := url.Parse(dsn)
-	if err != nil {
-		return fmt.Errorf("parse rollback fixture DSN: %w", err)
-	}
-	port, err := strconv.Atoi(parsed.Port())
-	if err != nil || port < 1 || port > 65535 {
-		return fmt.Errorf("refuse invalid rollback fixture port")
-	}
-	want := fmt.Sprintf("postgres://postgres@127.0.0.1:%d/%s?sslmode=disable", port, rollbackTestDatabase)
-	if dsn != want {
-		return fmt.Errorf("refuse non-loopback or non-owned rollback DSN")
-	}
-	return nil
+	_, err := parseOwnedFixtureEndpoint(dsn, ownedFixtureRollback)
+	return err
 }
 
 func TestRollbackFixtureDSNGuard(t *testing.T) {

@@ -9,7 +9,6 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -27,18 +26,15 @@ func TestMigration169PhasedTrackedLive(t *testing.T) {
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_MIGRATION169_TEST_DSN for a disposable loopback PostgreSQL fixture")
 	}
-	address, err := url.Parse(dsn)
-	if err != nil || address.Hostname() != "127.0.0.1" || address.Path != "/eshu169fixture" {
-		t.Fatalf("migration 169 fixture requires loopback host and eshu169fixture database")
-	}
-	database, err := sql.Open("pgx", dsn)
+	expectedID := os.Getenv("ESHU_TEST_POSTGRES_SYSTEM_IDENTIFIER")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	database, err := openOwnedFixtureDB(ctx, dsn, func() string { return expectedID }, ownedFixtureMigration169, fixtureSession{})
 	if err != nil {
-		t.Fatalf("open migration 169 fixture: %v", err)
+		t.Fatalf("open and validate migration 169 fixture: %v", err)
 	}
 	database.SetMaxOpenConns(8)
 	t.Cleanup(func() { _ = database.Close() })
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
 	if _, err := database.ExecContext(ctx, `
 CREATE TABLE content_files (repo_id text, relative_path text, indexed_at timestamptz, generation_id text);
 ALTER TABLE content_files DROP COLUMN generation_id;
