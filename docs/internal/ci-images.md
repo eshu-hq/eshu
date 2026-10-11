@@ -57,6 +57,36 @@ profile uses `ESHU_QUERYPLAN_PROFILE_IMAGE`. These separate consumers must match
 their ledger entries. Buildx uses the `CI_BUILDKIT_IMAGE` mirror explicitly so
 its builder startup does not add an implicit Docker Hub pull.
 
+## Queue-path gate
+
+`scripts/verify-dockerhub-login.sh` fails a job that reaches Docker Hub when its
+workflow runs on `merge_group`, `pull_request`, or `pull_request_target`, follows
+such a workflow through `workflow_run`, or is a reusable callee of one. A login
+step is not a finding of this rule.
+
+The gate reads `specs/ci-images.v1.json` and the required image ids in
+`scripts/lib/ci_image_compose.py` from the tree under test at run time. It holds
+no copy of a digest or an image name. A job is in CI image mode when
+`ESHU_CI_IMAGES=1` and every required env pin equals the ledger
+`destination@digest`. Only then does the gate model the overlay:
+
+- A Compose service image that is a ledger runtime source, a runtime pin, or a
+  `runtime_allowlist` entry is accepted. Any other image fails the helper, so it
+  is a reach.
+- A build of the root `Dockerfile` from the repository root gets the ledger
+  build args. Any other build is judged by its own `FROM` lines.
+- `"${ESHU_CI_COMPOSE_OVERLAY}"` settles only after `eshu_ci_compose_prepare`
+  (or `scripts/ci/compose.sh`) runs earlier in the same shell scope. A script
+  that appends the overlay without that call reaches Docker Hub.
+
+Outside CI image mode the images the files name apply. A Dockerfile `ARG` takes
+its value from `--build-arg`, then from its default; the environment reaches it
+only through `--build-arg NAME=${NAME}`. A script that writes a `docker` stub into
+a directory and puts that directory first on `PATH`, both before any `docker` use
+in the same shell scope, has no docker reach for itself or the scripts it runs.
+A call by absolute path, a prepend in a subshell, or a reset of `PATH` between
+the prepend and the call breaks the shadow.
+
 ## Refresh and proof
 
 1. Read the upstream recipe, license notices, corresponding source records,

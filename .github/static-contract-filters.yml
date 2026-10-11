@@ -438,6 +438,7 @@ dockerpublish:
   - 'scripts/dev/test-publish-ci-image-mirrors.sh'
   - 'scripts/dev/test-docker-publish-ci-mirror-mode.sh'
 dockerhublogin:
+  - "scripts/lib/ci_image_compose.py"
   - "scripts/lib/ci_image_compose_signature.py"
   - "scripts/ci/tools.Dockerfile"
   - "scripts/ci/test-tools-workflow.py"
