@@ -35,6 +35,10 @@ on:
       - 'scripts/test-run-live-backend-tests.sh'
       - 'scripts/verify-live-tests-ledger.sh'
       - 'scripts/test-verify-live-tests-ledger.sh'
+      - 'scripts/lib/live_backend_shards.py'
+      - 'scripts/test-live-backend-shards.py'
+      - 'scripts/test-live-backend-lifecycle.py'
+      - 'scripts/test-live-backend-workflow.py'
       - 'scripts/lib/live_backend_test_targets.py'
       - 'scripts/lib/live_tests_registry.py'
       - 'scripts/lib/verify-live-tests-ledger.py'
@@ -115,17 +119,26 @@ jobs:
 
       - name: Test the live-backend runner
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
-        run: bash scripts/test-run-live-backend-tests.sh
+        run: |
+          bash scripts/test-run-live-backend-tests.sh
+          python3 scripts/test-live-backend-shards.py
+          python3 scripts/test-live-backend-lifecycle.py
+          python3 scripts/test-live-backend-workflow.py
 
-  live-backend:
+  live-backend-shards:
     needs: queue-selection
-    name: live-backend (nornicdb and neo4j)
+    name: live-backend shard (${{ matrix.shard }}/4)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
       # CI runners are isolated: no sibling worktree contends for the
       # fixed host ports, so the cross-run mutex is bypassed.
       ESHU_SKIP_LIVE_GATE_LOCK: 1
+      ESHU_LIVE_COMPOSE_PROJECT: eshu-live-backend-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
       DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
@@ -163,10 +176,51 @@ jobs:
 
       - name: Run live-backend tests on both backends
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
-        run: bash scripts/run-live-backend-tests.sh --backend both
+        run: bash scripts/run-live-backend-tests.sh --shard "${{ matrix.shard }}/4" --results live-backend-result.json
+
+      - name: Upload exact-source shard coverage
+        if: ${{ always() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-backend-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: live-backend-result.json
+          if-no-files-found: error
 
       - name: Tear down backend stacks
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)'))) && (always()) }}
         run: |
-          bash scripts/ci/compose.sh -p eshu-live-backend -f docker-compose.live-backend-nornicdb.yml -- down -v || true
-          bash scripts/ci/compose.sh -p eshu-live-backend -f docker-compose.live-backend-neo4j.yml -- down -v || true
+          bash scripts/ci/compose.sh -p "${ESHU_LIVE_COMPOSE_PROJECT}" -f docker-compose.live-backend-nornicdb.yml -- down -v || true
+          bash scripts/ci/compose.sh -p "${ESHU_LIVE_COMPOSE_PROJECT}" -f docker-compose.live-backend-neo4j.yml -- down -v || true
+
+  live-backend:
+    name: live-backend (nornicdb and neo4j)
+    needs: [queue-selection, live-backend-shards]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require selection and every shard to succeed
+        env:
+          SELECTION_RESULT: ${{ needs.queue-selection.result }}
+          SHARD_RESULT: ${{ needs.live-backend-shards.result }}
+        run: |
+          test "$SELECTION_RESULT" = success
+          test "$SHARD_RESULT" = success
+
+      - name: Check out exact source
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
+        uses: actions/checkout@v5
+
+      - name: Download current-attempt coverage
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: live-backend-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: live-backend-reports
+
+      - name: Verify complete live-backend coverage
+        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
+        run: |
+          ESHU_LIVE_RUNNER_SELFTEST=plan bash scripts/run-live-backend-tests.sh > live-backend-full.plan
+          python3 scripts/lib/live_backend_shards.py verify --head "$(git rev-parse HEAD)" \
+            --plan live-backend-full.plan live-backend-reports/*/live-backend-result.json

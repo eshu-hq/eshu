@@ -231,4 +231,18 @@ for pinned in complexity_list_answer_truth nornicdb_incoming_anchor; do
 		fail "${pinned} scheduled on neo4j despite nornicdb pin"
 done
 
+# Shards must partition the real ledger plan, including every multi-Test field.
+shard_plan="${seed_dir}/shards.plan"
+: >"${shard_plan}"
+for shard in 1/4 2/4 3/4 4/4; do
+    ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --shard "${shard}" >>"${shard_plan}"
+done
+printf '%s\n' "${plan[@]}" | sort >"${seed_dir}/full.plan"
+sort "${shard_plan}" >"${seed_dir}/shards.sorted"
+cmp "${seed_dir}/full.plan" "${seed_dir}/shards.sorted" || fail "shards lose or duplicate ledger coverage"
+probe --shard 0/4 >/dev/null 2>&1 && fail "invalid shard passed"
+probe --shard 1/3 >/dev/null 2>&1 && fail "unsupported shard count passed"
+probe --shard 1/4 --no-compose --results "${seed_dir}/unsafe.json" >/dev/null 2>&1 &&
+    fail "ambient backend run can emit a CI coverage result"
+
 printf 'test-run-live-backend-tests: static probes passed (%s targets, %s planned runs)\n' "${#lines[@]}" "${#plan[@]}"

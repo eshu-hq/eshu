@@ -18,6 +18,10 @@ gates:
       - "scripts/test-run-live-backend-tests.sh"
       - "scripts/verify-live-tests-ledger.sh"
       - "scripts/test-verify-live-tests-ledger.sh"
+      - "scripts/lib/live_backend_shards.py"
+      - "scripts/test-live-backend-shards.py"
+      - "scripts/test-live-backend-lifecycle.py"
+      - "scripts/test-live-backend-workflow.py"
       - "scripts/lib/live_backend_test_targets.py"
       - "scripts/lib/verify-live-tests-ledger.py"
       - "scripts/lib/live-gate-lock.sh"
@@ -30,7 +34,7 @@ gates:
       - ".github/workflows/live-backend-tests.yml"
     local:
       command: "bash scripts/verify-live-tests-ledger.sh"
-      test_command: "bash scripts/test-verify-live-tests-ledger.sh"
+      test_command: "bash scripts/test-verify-live-tests-ledger.sh && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py"
     ci:
       workflow: live-backend-tests.yml
       job: "static-mirror (ledger and runner probes)"
