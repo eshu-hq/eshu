@@ -47,24 +47,24 @@ Context routes are canonical-ID oriented:
 - service context is an alias over workload context and adds
   `requested_as=service`
 
-Repository context `workload_count` counts distinct materialized `Workload` nodes linked by `DEFINES`.
-The count never comes from read-model workload names (repository context does not load them); a graph read
-failure returns an error, not an inferred count.
+Repository context `workload_count` counts distinct materialized `Workload` nodes linked by `DEFINES`, never read-model
+workload names (repository context does not load them); a graph read failure returns an error, not an inferred count.
 
 When a repository has workload identity facts but no materialized `Workload` node,
 service context can fall back to the repository read model. Responses use
 `materialization_status=identity_only`, `query_basis=repository_read_model`, an empty
 `instances` array, and a `limitations` entry of `workload_identity_not_materialized`.
 
-Workload and service context also carry `limitations` on the primary graph-materialized
-path, not only the read-model fallback above: once a repository is resolved, an auxiliary
-infrastructure read that fails degrades the response to a 200 with an empty
-`infrastructure` list and appends `infrastructure_read_degraded`, and a healthy
-infrastructure read that lands past its bound appends `infrastructure_truncated`.
-`partial_reasons` promotes these same reasons into its sorted, de-duplicated array.
-A failed outgoing dependencies, API surface, language or source-tool read degrades
-the same way (#6810): `relationships_read_degraded`, `api_surface_read_degraded`,
-`languages_read_degraded`, `source_tool_breakdown_read_degraded`.
+Workload and service context also carry `limitations` on the primary graph-materialized path, not only the read-model
+fallback above: once a repository is resolved, an auxiliary infrastructure read that fails degrades the response to a 200
+with an empty `infrastructure` list and appends `infrastructure_read_degraded`, and a healthy infrastructure read that lands
+past its bound appends `infrastructure_truncated`. `partial_reasons` promotes these same reasons into its sorted,
+de-duplicated array. A failed outgoing dependencies, API surface, language or source-tool read degrades the same way (#6810):
+`relationships_read_degraded`, `api_surface_read_degraded`, `languages_read_degraded`, `source_tool_breakdown_read_degraded`.
+A deployment-artifact candidate bound (#7951) appends `deployment_artifacts_candidates_budget_reached` (the 12,000-candidate
+request budget ran out), `deployment_artifacts_related_file_list_truncated_at_5000` (a related repository has more than 5,000
+files) or `deployment_artifacts_anchor_file_list_truncated_at_5000` (the service repository has more than 5,000 files). Each
+makes the deployment evidence a lower bound and sets `result_limits.truncated`.
 
 Entity context may include semantic narrative fields when normalized semantic
 metadata exists: `semantic_summary`, `semantic_profile`, and `story`.
