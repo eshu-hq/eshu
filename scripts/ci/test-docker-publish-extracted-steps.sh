@@ -40,12 +40,22 @@ git -C "${repo}" commit -qam docker
 image_head="$(git -C "${repo}" rev-parse HEAD)"
 
 run_selection() {
-  local event="$1" head="$2" pr_base="${3:-${base}}"
+  local event="$1" head="$2" pr_base="${3:-${base}}" ref_type="${4:-branch}"
   : > "${scratch}/output"
   (cd "${repo}" && GITHUB_OUTPUT="${scratch}/output" GITHUB_EVENT_NAME="${event}" \
-    GITHUB_REF_TYPE=branch GITHUB_SHA="${head}" PR_BASE_SHA="${pr_base}" \
+    GITHUB_REF_TYPE="${ref_type}" GITHUB_SHA="${head}" PR_BASE_SHA="${pr_base}" \
     PR_HEAD_SHA="${head}" BEFORE_SHA="${base}" bash -c "${selection_run}")
 }
+for mode in tag workflow_dispatch; do
+  if [[ "${mode}" == tag ]]; then
+    run_selection push "${base}" "${base}" tag
+  else
+    run_selection workflow_dispatch "${base}"
+  fi
+  for lane in image chart apkfloors; do
+    rg -q "^${lane}=true$" "${scratch}/output"
+  done
+done
 run_selection merge_group "${image_head}"
 rg -q '^image=true$' "${scratch}/output"
 rg -q '^chart=false$' "${scratch}/output"
