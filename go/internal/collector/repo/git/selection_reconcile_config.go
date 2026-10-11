@@ -78,11 +78,11 @@ const (
 	reconcileReasonGraphDirty = "graph_dirty"
 	// reconcileReasonReindexRequested (#7620): an operator requested a reindex
 	// after the scope's newest activated full generation was ingested.
-	reconcileReasonReindexRequested = "reindex_requested"
+	reconcileReasonReindexRequested = scope.ReconcileReasonReindexRequested
 	// reconcileReasonRepositoryReindexRequested (#7620): an operator requested
 	// a reindex of this repository by name, later than any fleet request, after
 	// the scope's newest activated full generation was ingested.
-	reconcileReasonRepositoryReindexRequested = "repository_reindex_requested"
+	reconcileReasonRepositoryReindexRequested = scope.ReconcileReasonRepositoryReindexRequested
 )
 
 // RepositoryReindexWatermarkReader reads the per-repository reindex

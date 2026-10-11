@@ -145,9 +145,14 @@ writer, is then checked against it:
 | in-flight or recently failed full (the throttle rows above) | hold | `reconcile_in_flight` or `reconcile_retry_backoff` |
 | otherwise, including a scope with no activated full | force | `reindex_requested` |
 
-A forced reindex takes the same path as any reconciliation: an empty freshness
-hint, no delta, and a slot in `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`, so a large
-fleet re-parses over several cycles. The request is never claimed and has no
+A forced reindex takes no delta and a slot in
+`ESHU_REPO_RECONCILE_MAX_PER_CYCLE`, so a large fleet re-parses over several
+cycles. An explicit reindex request stores the re-parse as a new generation
+even when the content identity (commit, hint, and content version) is
+unchanged (ruling a9-125); the sweep, `graph_dirty`, webhook, and scheduled
+sync re-project the active generation instead (#7978). The content-version
+gate narrows, but cannot close, the window where a parser change does not
+change the hint; an explicit reindex is the remedy. The request is never claimed and has no
 completion status. It is satisfied scope by scope: a forced full is ingested at
 the cycle's start time, which is at or after the watermark, so once it activates
 the scope stays `fresh`. A later request moves the watermark forward and starts

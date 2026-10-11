@@ -149,6 +149,9 @@ PACKAGES = {
             "TestPendingSameIdentitySkipsAndFailedStoresLive",
             "TestReconcileReopenResetsAttemptsSoRetryRetriesLive",
             "TestStaleReconcileSkipsPendingSameIdentityLive",
+            "TestReindexStoresUnchangedIdentityLive",
+            "TestStaleFullActivationReadsFreshLive",
+            "TestReconcileReopenWorkRowShapesLive",
         ),
         "go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go": (
             "TestUnchangedReconcileStoresNothingLive",

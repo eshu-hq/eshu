@@ -53,6 +53,20 @@ type FullReconcileState struct {
 // heal, bounded to one per interval per scope (ruling a9-117 Q3).
 const ReconcileReasonRequestStale = "reconcile_request_stale"
 
+// Explicit reindex reasons (#7620). They come only from an operator request:
+// the fleet watermark (POST /api/v0/admin/reindex) or a repository-scoped
+// request. The ingestion store always stores a generation that carries one,
+// even when its identity equals the active generation's (ruling a9-125): an
+// explicit reindex is the remedy for a parser change the content-version gate
+// did not catch.
+const (
+	// ReconcileReasonReindexRequested is the fleet reindex watermark reason.
+	ReconcileReasonReindexRequested = "reindex_requested"
+	// ReconcileReasonRepositoryReindexRequested is the repository-scoped
+	// reindex reason.
+	ReconcileReasonRepositoryReindexRequested = "repository_reindex_requested"
+)
+
 // UncoveredProjectionWriter is a generation that started writing the canonical
 // graph and never activated, and that no later activated full generation has
 // covered (#7389). Its overlay may still be in the graph, so the git collector

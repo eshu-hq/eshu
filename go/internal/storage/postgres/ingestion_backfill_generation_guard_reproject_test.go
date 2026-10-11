@@ -323,7 +323,12 @@ func TestDecideUnchangedGenerationCells(t *testing.T) {
 		{"active match, ordinary sync", snapshot("hint", "sha", ""), active, true, unchangedActionSkip, telemetry.RefreshSkipReasonUnchanged},
 		{"active match, interval_elapsed", snapshot("hint", "sha", "interval_elapsed"), active, true, unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected},
 		{"active match, graph_dirty", snapshot("hint", "sha", "graph_dirty"), active, true, unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected},
-		{"active match, reindex_requested", snapshot("hint", "sha", "reindex_requested"), active, true, unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected},
+		{"active match, unspecified reconcile", snapshot("hint", "sha", "unspecified"), active, true, unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected},
+		// Ruling a9-125: an explicit reindex is the operator remedy for a
+		// parser change the content-version gate did not catch, so it stores
+		// the re-parse even when the identity is unchanged.
+		{"active match, fleet reindex", snapshot("hint", "sha", scope.ReconcileReasonReindexRequested), active, true, unchangedActionStore, ""},
+		{"active match, repository reindex", snapshot("hint", "sha", scope.ReconcileReasonRepositoryReindexRequested), active, true, unchangedActionStore, ""},
 		{"active match, stale request", snapshot("hint", "sha", scope.ReconcileReasonRequestStale), active, true, unchangedActionStore, ""},
 		{"pending match, ordinary sync", snapshot("hint", "sha", ""), pending, true, unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity},
 		{"pending match, in_flight_expired", snapshot("hint", "sha", "in_flight_expired"), pending, true, unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity},

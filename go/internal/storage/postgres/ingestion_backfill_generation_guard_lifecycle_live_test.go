@@ -194,3 +194,104 @@ func TestStaleReconcileSkipsPendingSameIdentityLive(t *testing.T) {
 		t.Fatalf("second stale reconcile rows %v -> %v, want unchanged (pending same identity)", afterFirst, afterSecond)
 	}
 }
+
+// TestReindexStoresUnchangedIdentityLive (ruling a9-125): an explicit reindex
+// with the same sha, hint, and version as the active generation stores a new
+// generation and its whole fact stream, and counts no skipped refresh.
+func TestReindexStoresUnchangedIdentityLive(t *testing.T) {
+	for _, reason := range []string{scope.ReconcileReasonReindexRequested, scope.ReconcileReasonRepositoryReindexRequested} {
+		t.Run(reason, func(t *testing.T) {
+			telemetry.ResetSkippedRefreshCountForTesting()
+			t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+			p := openReprojectProof(t)
+			p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+			p.project()
+			before := p.rowCounts()
+			p.commit(p.generation("gen-reindex", "hint-a", "sha-a", reason))
+			after := p.rowCounts()
+			if after["scope_generations"] != before["scope_generations"]+1 || after["fact_records"] != before["fact_records"]+p.facts {
+				t.Fatalf("reindex rows %v -> %v, want one stored generation and %d facts", before, after, p.facts)
+			}
+			if got := telemetry.SkippedRefreshCount(); got != 0 {
+				t.Fatalf("skipped refreshes = %d, want 0 for a reindex", got)
+			}
+			if status, reopens, _ := p.workRow("gen-a"); status != "succeeded" || reopens != 0 {
+				t.Fatalf("gen-a work = %s reopens=%d, want untouched", status, reopens)
+			}
+		})
+	}
+}
+
+// TestStaleFullActivationReadsFreshLive (lead ask on F1): once the full a
+// stale request stored activates, the old generation and its stale stamp are
+// superseded, the scope reads fresh on the new full, and the next unchanged
+// ordinary sync stores nothing.
+func TestStaleFullActivationReadsFreshLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	ctx := context.Background()
+	p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+	p.project()
+	p.commit(p.generation("gen-r", "hint-a", "sha-a", "interval_elapsed"))
+	staleFull := p.generation("gen-stale", "hint-a", "sha-a", scope.ReconcileReasonRequestStale)
+	p.commit(staleFull)
+	if got := p.project(); len(got) == 0 || got[len(got)-1] != "gen-stale" {
+		t.Fatalf("projected = %v, want gen-stale activated last", got)
+	}
+	state, err := p.store.FullReconcileState(ctx, p.scope.ScopeID)
+	if err != nil {
+		t.Fatalf("FullReconcileState: %v", err)
+	}
+	if !state.ReconcileRequestedAt.IsZero() || !state.LastProjectedFullAt.Equal(staleFull.IngestedAt.UTC()) {
+		t.Fatalf("after the stale full activated: request=%v last=%v, want no request and last=%v",
+			state.ReconcileRequestedAt, state.LastProjectedFullAt, staleFull.IngestedAt.UTC())
+	}
+	before := p.rowCounts()
+	p.commit(p.generation("gen-sync", "hint-a", "sha-a", ""))
+	if after := p.rowCounts(); after["scope_generations"] != before["scope_generations"] {
+		t.Fatalf("unchanged sync after activation rows %v -> %v, want unchanged", before, after)
+	}
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonUnchanged); got != 1 {
+		t.Fatalf("unchanged skips = %d, want 1", got)
+	}
+}
+
+// TestReconcileReopenWorkRowShapesLive covers the re-open cells review F9
+// listed: a missing work row is inserted pending; an expired lease and a
+// dead_letter row are re-opened with their attempt count carried (only a
+// succeeded row resets to 0).
+func TestReconcileReopenWorkRowShapesLive(t *testing.T) {
+	cases := []struct {
+		name         string
+		setup        string
+		wantAttempts int
+	}{
+		{"missing row", `DELETE FROM fact_work_items WHERE stage = 'projector' AND generation_id = 'gen-a'`, 0},
+		{"expired lease", `UPDATE fact_work_items SET status = 'running', lease_owner = 'gone', attempt_count = 2,
+		    claim_until = now() - interval '1 minute' WHERE stage = 'projector' AND generation_id = 'gen-a'`, 2},
+		{"dead letter", `UPDATE fact_work_items SET status = 'dead_letter', attempt_count = 3
+		    WHERE stage = 'projector' AND generation_id = 'gen-a'`, 3},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := openReprojectProof(t)
+			ctx := context.Background()
+			p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+			p.project()
+			if _, err := p.db.ExecContext(ctx, tc.setup); err != nil {
+				t.Fatalf("setup: %v", err)
+			}
+			p.commit(p.generation("gen-r", "hint-a", "sha-a", "interval_elapsed"))
+			status, reopens, owner, attempts := p.workRowAttempts("gen-a")
+			if status != "pending" || reopens != 1 || owner.Valid || attempts != tc.wantAttempts {
+				t.Fatalf("gen-a work = %s reopens=%d owner=%v attempts=%d, want pending reopens=1 no owner attempts=%d",
+					status, reopens, owner, attempts, tc.wantAttempts)
+			}
+			state, err := p.store.FullReconcileState(ctx, p.scope.ScopeID)
+			if err != nil || state.ReconcileRequestedAt.IsZero() {
+				t.Fatalf("ReconcileRequestedAt = %v (%v), want the re-open stamp", state.ReconcileRequestedAt, err)
+			}
+		})
+	}
+}

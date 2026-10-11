@@ -322,6 +322,10 @@ func generationNeedsDuplicateCheck(generation scope.ScopeGeneration) bool {
 //   - Same identity as the active generation, reconcile reason
 //     reconcile_request_stale (ruling a9-117 Q3): store; the re-projection was
 //     not acknowledged within one interval, so take today's heal.
+//   - Same identity as the active generation, an explicit reindex reason
+//     (reindex_requested, repository_reindex_requested): store. It is the
+//     operator remedy for a parser change the content-version gate did not
+//     catch (ruling a9-125).
 //   - Same identity as the active generation, any other reconcile reason:
 //     re-project the active generation. Ruling a9-117 Q1 accepts that this
 //     does not retract graph state stamped with the active generation id
@@ -340,7 +344,8 @@ func decideUnchangedGeneration(
 	switch strings.TrimSpace(generation.ReconcileReason) {
 	case "":
 		return unchangedActionSkip, telemetry.RefreshSkipReasonUnchanged
-	case scope.ReconcileReasonRequestStale:
+	case scope.ReconcileReasonRequestStale,
+		scope.ReconcileReasonReindexRequested, scope.ReconcileReasonRepositoryReindexRequested:
 		return unchangedActionStore, ""
 	default:
 		return unchangedActionReprojectActive, telemetry.RefreshSkipReasonReconcileReprojected
