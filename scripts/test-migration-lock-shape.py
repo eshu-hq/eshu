@@ -146,6 +146,25 @@ class FindViolationTest(unittest.TestCase):
             with self.subTest(sql=sql):
                 self.assertIsNone(migration_lock_shape.find_violation(sql))
 
+    def test_lock_modes(self) -> None:
+        """LOCK: only modes that block neither readers nor writers pass.
+
+        PostgreSQL's table-lock conflict table: ACCESS SHARE, ROW SHARE, and
+        ROW EXCLUSIVE conflict with neither ACCESS SHARE (readers) nor ROW
+        EXCLUSIVE (writers), and none is stronger than the ROW EXCLUSIVE the
+        backfill's own UPDATE takes. A bare LOCK is ACCESS EXCLUSIVE.
+        """
+        for mode in ('', ' IN SHARE MODE', ' IN SHARE ROW EXCLUSIVE MODE', ' IN EXCLUSIVE MODE',
+                     ' IN ACCESS EXCLUSIVE MODE', ' IN SHARE UPDATE EXCLUSIVE MODE'):
+            with self.subTest(refused=mode):
+                self.assertIsNotNone(migration_lock_shape.find_violation(
+                    f'LOCK TABLE t{mode};\nUPDATE t SET c = 1;'))
+        for mode in (' IN ACCESS SHARE MODE', ' IN ROW SHARE MODE', ' IN ROW EXCLUSIVE MODE',
+                     ' in row exclusive mode nowait'):
+            with self.subTest(clean=mode):
+                self.assertIsNone(migration_lock_shape.find_violation(
+                    f'LOCK TABLE t, u{mode};\nUPDATE t SET c = 1;'))
+
     def test_safe_shapes_pass(self) -> None:
         """GREEN: single-purpose and non-blocking files pass."""
         clean = (
