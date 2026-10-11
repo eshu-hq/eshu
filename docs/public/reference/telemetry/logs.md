@@ -65,22 +65,34 @@ The repository story `deployment_artifacts` stage line
 (`repository_query.stage_completed`, `stage=deployment_artifacts`) carries the
 read counts of the deployment-artifact load (#7126): `related_repository_count`,
 `files_listed`, `files_hydrated` (config candidates whose content was fetched),
-`files_skipped` (candidates inside the 50-file cap whose content no extractor
-reads), `hydrated_bytes` and `statements` (every content-store list, get,
-batched get and non-blank check of the stage), `blank_check_statements`,
+`files_skipped` (selected candidates whose content no extractor reads; they are
+blank-checked), `hydrated_bytes` and `statements` (every content-store list, get,
+batched get and non-blank check of the stage), `blank_check_statements` (one per
+chunk of up to 500 paths, so it can exceed the repository count),
 `batch_statements` (the `GetFileContents` statements of the config-artifact
 load, one per chunk of up to `batch_chunk_size` paths, which replace one get per
 hydrated file), `batch_chunk_size` (10; 0 when the load issued no such
 statement, including when the request ended before the first chunk),
 `batch_chunks_in_flight_max` (the most chunk reads of one repository that ran
 at once, at most 8), `list_seconds`, `hydrate_seconds`, `parse_seconds`, and
-`error`. The repository context
-`content_infrastructure_overview` line carries the same counts. A failed load
+`error`. Since #7951 it also carries the candidate counts of the load, summed
+over the request with no repository id or path: `candidate_count` (candidates
+inside every walked list window), `candidates_hydrated` (taken by the
+per-repository allowances), `candidates_unhydrated` (left unread because the
+request budget ran out), `repositories_budget_capped`,
+`repositories_list_truncated` (related lists cut at 5,000 files),
+`hydration_budget` (12,000) and `hydration_floor` (50). The repository context
+`content_infrastructure_overview` line and the service routes'
+`deployment_evidence` line (`service_query.stage_completed`, when the content
+fallback ran) carry the same counts; the service line adds
+`anchor_list_truncated` (0 or 1, the service repository's own list). A failed load
 also logs `repository_query.deployment_artifacts_degraded` (WARN) with the
 error text and the same counts, sets an error status on the request span, and
 adds `deployment_artifacts_read_degraded` to the response `limitations`
-(story) or `partial_reasons` (context). No metric was added; the counts are
-log fields.
+(story) or `partial_reasons` (context). The counter
+`eshu_dp_config_artifact_candidates_total{outcome}` (`hydrated`, `unhydrated`,
+`list_truncated`) carries the same candidate outcomes, so a dashboard shows the
+budget biting without a log search.
 
 `graph.write_timeout.unbounded` is a startup WARN from the ingester, reducer,
 projector, and bootstrap-index when the graph backend is Neo4j and the
