@@ -8,7 +8,7 @@ route-to-caller, cypher, visualize, and bundles.
 
 It moved out of root package `query` (#6060 lane A) so the family can be
 read, tested, and changed without pulling in the rest of the query
-surface. The directory stays under the dirgate file cap.
+surface. The directory is exempt from the dirgate file cap by the existing //nolint:dirgate justification on doc.go.
 
 ## How it connects
 

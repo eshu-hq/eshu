@@ -101,12 +101,12 @@ const (
 	routeToCallerRelationshipFailedMessage = "route-to-caller relationship read failed"
 	routeToCallerImpactFailedMessage       = "route-to-caller impact read failed"
 
-	divergenceFindingsFailedMessage      = "divergence findings read failed"
-	divergenceReportFailedMessage        = "divergence report read failed"
-	divergenceWrapperBypassFailedMessage = "divergence wrapper-bypass investigation read failed"
-	divergenceOutlierFailedMessage       = "divergence convention-outlier investigation read failed"
-	divergenceDriftedFailedMessage       = "divergence drifted finding read failed"
-	divergenceMembersFailedMessage       = "divergence finding members read failed"
+	divergenceFindingsFailedMessage             = "divergence findings read failed"
+	divergenceReportFailedMessage               = "divergence report read failed"
+	divergenceWrapperInvestigationFailedMessage = "divergence wrapper-bypass investigation read failed"
+	divergenceOutlierFailedMessage              = "divergence convention-outlier investigation read failed"
+	divergenceDriftedFailedMessage              = "divergence drifted finding read failed"
+	divergenceMembersFailedMessage              = "divergence finding members read failed"
 
 	readOnlyCypherFailedMessage     = "read-only Cypher query failed"
 	visualizationQueryFailedMessage = "visualization graph query failed"

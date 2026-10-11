@@ -120,7 +120,7 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 				WriteError(w, http.StatusNotFound, "divergence finding not found")
 				return
 			}
-			writeCodeReadFailure(w, r, err, divergenceFindingsCapability, divergenceWrapperBypassFailedMessage)
+			writeCodeReadFailure(w, r, err, divergenceFindingsCapability, divergenceWrapperInvestigationFailedMessage)
 			return
 		}
 		finding = assembled
