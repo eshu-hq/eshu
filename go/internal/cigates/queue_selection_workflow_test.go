@@ -40,6 +40,7 @@ func TestQueueWorkflowsShareSelection(t *testing.T) {
 			var workflow struct {
 				Jobs map[string]struct {
 					Uses  string    `yaml:"uses"`
+					If    string    `yaml:"if"`
 					Needs yaml.Node `yaml:"needs"`
 				} `yaml:"jobs"`
 			}
@@ -53,9 +54,55 @@ func TestQueueWorkflowsShareSelection(t *testing.T) {
 				if key == "queue-selection" {
 					continue
 				}
+				if key == "publish-ci-service-mirrors" || key == "verify-public-ci-service-mirrors" {
+					if !manualMirrorConditionMatches(key, job.If) {
+						t.Errorf("manual mirror job %s must keep its exact dispatch, repository, and main guards", key)
+					}
+					if len(jobNeeds(job.Needs)) != 0 {
+						t.Errorf("manual mirror job %s must not wait for release queue selection", key)
+					}
+					continue
+				}
 				if !strings.Contains(strings.Join(jobNeeds(job.Needs), ","), "queue-selection") {
 					t.Errorf("job %s does not wait for selection", key)
 				}
+			}
+		})
+	}
+}
+
+func manualMirrorConditionMatches(job, condition string) bool {
+	mode := map[string]string{
+		"publish-ci-service-mirrors":       "ci-mirrors-publish",
+		"verify-public-ci-service-mirrors": "ci-mirrors-verify-public",
+	}[job]
+	if mode == "" {
+		return false
+	}
+	want := "github.event_name == 'workflow_dispatch' && inputs.mode == '" + mode + "' && " +
+		"github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'"
+	return strings.Join(strings.Fields(condition), " ") == want
+}
+
+func TestManualMirrorConditionRejectsWeakenedGuards(t *testing.T) {
+	tests := []struct {
+		name      string
+		job       string
+		condition string
+		want      bool
+	}{
+		{"publisher", "publish-ci-service-mirrors", "github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'", true},
+		{"verifier", "verify-public-ci-service-mirrors", "github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'", true},
+		{"release job", "build-and-push-image", "github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'", false},
+		{"wrong mode", "publish-ci-service-mirrors", "github.event_name == 'workflow_dispatch' && inputs.mode == 'release' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'", false},
+		{"wrong repository", "publish-ci-service-mirrors", "github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' && github.repository == 'other/eshu' && github.ref == 'refs/heads/main'", false},
+		{"branch broadened", "publish-ci-service-mirrors", "github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' && github.repository == 'eshu-hq/eshu' && github.ref != 'refs/heads/main'", false},
+		{"boolean bypass", "publish-ci-service-mirrors", "github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main' || true", false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := manualMirrorConditionMatches(test.job, test.condition); got != test.want {
+				t.Fatalf("manualMirrorConditionMatches(%q, %q) = %t, want %t", test.job, test.condition, got, test.want)
 			}
 		})
 	}

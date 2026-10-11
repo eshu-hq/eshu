@@ -17,6 +17,7 @@ gates:
     triggers:
       - "Dockerfile"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
       - "scripts/verify-apk-floors.sh"
       - "scripts/test-verify-apk-floors.sh"
       - "scripts/fixtures/apk-floors/**"
@@ -60,6 +61,8 @@ gates:
     triggers:
       - "deploy/helm/**"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
+      - "scripts/ci/push-helm-chart.sh"
     ci:
       workflow: docker-publish.yml
       job: "package-and-push-chart"

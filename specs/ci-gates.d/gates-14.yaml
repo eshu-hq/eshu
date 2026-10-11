@@ -295,6 +295,7 @@ gates:
       - "Dockerfile"
       - ".dockerignore"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
     ci:
       workflow: docker-publish.yml
       job: "build-and-push-image"
@@ -313,6 +314,7 @@ gates:
       - "Dockerfile"
       - ".dockerignore"
       - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/select-docker-publish-lanes.sh"
       - "scripts/ci/build-reproducibility-image.sh"
       - "specs/ci-images.v1.json"
     ci:
@@ -338,6 +340,9 @@ gates:
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
       - "scripts/ci/promote-moving-tags.sh"
+      - "scripts/ci/select-docker-publish-lanes.sh"
+      - "scripts/ci/push-helm-chart.sh"
+      - "scripts/ci/test-docker-publish-extracted-steps.sh"
       - "scripts/ci/resolve-image-scan-ref.sh"
       - "scripts/test-promote-moving-tags.sh"
       - "scripts/fixtures/promote-moving-tags-stub-curl.sh"
@@ -351,8 +356,8 @@ gates:
       - "scripts/dev/test-publish-ci-image-mirrors.sh"
       - "scripts/dev/test-docker-publish-ci-mirror-mode.sh"
     local:
-      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
-      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
+      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh"
+      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify docker-publish shape gate"

@@ -9,7 +9,7 @@ on:
       - 'v*'
     paths: [
       'Dockerfile', '.dockerignore', 'go/**',
-      'deploy/helm/**', '.github/workflows/docker-publish.yml', 'scripts/verify-apk-floors.sh',
+      'deploy/helm/**', '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/ci/push-helm-chart.sh', 'scripts/verify-apk-floors.sh',
       'scripts/test-verify-apk-floors.sh', 'scripts/fixtures/apk-floors/**',
     ]
   pull_request:
@@ -18,7 +18,8 @@ on:
     paths: [
       'scripts/ci/build-reproducibility-image.sh', 'specs/ci-images.v1.json',
       'Dockerfile', '.dockerignore', 'deploy/helm/**',
-      '.github/workflows/docker-publish.yml', 'scripts/verify-apk-floors.sh', 'scripts/test-verify-apk-floors.sh',
+      '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh',
+      'scripts/ci/push-helm-chart.sh', 'scripts/verify-apk-floors.sh', 'scripts/test-verify-apk-floors.sh',
       'scripts/fixtures/apk-floors/**',
     ]
   workflow_dispatch:
@@ -36,7 +37,6 @@ on:
         description: Exact independently reviewed branch SHA required for mirror publication
         required: false
         type: string
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -58,7 +58,6 @@ jobs:
       workflow: docker-publish.yml
   changes:
     needs: queue-selection
-    # Mirror dispatches must never enter the normal release graph.
     if: github.event_name != 'workflow_dispatch' || inputs.mode == 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -79,66 +78,11 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'attach-release-sbom') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'build-and-push-image') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'package-and-push-chart') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-apk-floors') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility')) }}
         id: filter
         shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_REF_TYPE}" == "tag" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            {
-              echo "image=true"
-              echo "chart=true"
-              echo "apkfloors=true"
-            } >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          merge_group_lane=false
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            base_sha="${{ github.event.pull_request.base.sha }}"
-            head_sha="${{ github.event.pull_request.head.sha }}"
-          elif [[ "${GITHUB_EVENT_NAME}" == "merge_group" ]]; then
-            merge_group_lane=true
-            head_sha="${GITHUB_SHA}"
-            base_sha="$(git merge-base origin/main "${head_sha}")"
-          else
-            base_sha="${{ github.event.before }}"
-            head_sha="${GITHUB_SHA}"
-            if [[ "${base_sha}" =~ ^0+$ ]]; then
-              base_sha="$(git rev-parse "${head_sha}^")"
-            fi
-          fi
-          image=false
-          chart=false
-          apkfloors=false
-          while IFS= read -r path; do
-            case "${path}" in
-              Dockerfile)
-                image=true
-                apkfloors=true
-                ;;
-              .dockerignore)
-                image=true
-                ;;
-              scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*)
-                apkfloors=true
-                ;;
-              go/*)
-                if [[ "${merge_group_lane}" == "false" ]]; then
-                  image=true
-                fi
-                ;;
-              deploy/helm/*)
-                chart=true
-                ;;
-              .github/workflows/docker-publish.yml)
-                image=true
-                chart=true
-                apkfloors=true
-                ;;
-            esac
-          done < <(git diff --name-only "${base_sha}" "${head_sha}")
-          {
-            echo "image=${image}"
-            echo "chart=${chart}"
-            echo "apkfloors=${apkfloors}"
-          } >> "${GITHUB_OUTPUT}"
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: bash scripts/ci/select-docker-publish-lanes.sh
   verify-apk-floors:
     needs: [queue-selection, changes]
     if: >-
@@ -165,11 +109,6 @@ jobs:
         run: bash scripts/verify-apk-floors.sh
   build-and-push-image:
     needs: [queue-selection, changes]
-    # Always runs on merge_group so a truncated queue selection (every
-    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
-    # and a queue entry that does not touch this lane passes as a no-op.
-    # `changes` diffs the full merge-base range with no file cap, a superset
-    # of what required-gates.yml selects, so a selected lane always builds.
     if: >-
       (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
       (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')
@@ -192,14 +131,12 @@ jobs:
       - name: Checkout repository
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'attach-release-sbom') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'build-and-push-image') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         uses: actions/checkout@v5
-
       - name: Log in to Docker Hub
         if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Set up Docker Buildx
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'attach-release-sbom') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'build-and-push-image') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         uses: docker/setup-buildx-action@v3
@@ -337,14 +274,12 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
       - name: Log in to Docker Hub
         if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Set up Docker Buildx
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'promote-moving-tags')) }}
         uses: docker/setup-buildx-action@v3
@@ -368,11 +303,6 @@ jobs:
         run: bash scripts/ci/promote-moving-tags.sh
   verify-reproducibility:
     needs: [queue-selection, changes, build-and-push-image]
-    # Always runs on merge_group so a truncated queue selection (every
-    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
-    # and a queue entry that does not touch this lane passes as a no-op.
-    # `changes` diffs the full merge-base range with no file cap, a superset
-    # of what required-gates.yml selects, so a selected lane always builds.
     if: >-
       (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
       (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')
@@ -390,14 +320,12 @@ jobs:
       - name: Checkout repository
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         uses: actions/checkout@v5
-
       - name: Log in to Docker Hub
         if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Set up Docker Buildx
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         uses: docker/setup-buildx-action@v3
@@ -461,7 +389,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for attempt in {1..30}; do
+          for _ in {1..30}; do
             if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
               exit 0
             fi
@@ -478,11 +406,6 @@ jobs:
             --clobber
   package-and-push-chart:
     needs: [queue-selection, changes]
-    # Always runs on merge_group so a truncated queue selection (every
-    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
-    # and a queue entry that does not touch this lane passes as a no-op.
-    # `changes` diffs the full merge-base range with no file cap, a superset
-    # of what required-gates.yml selects, so a selected lane always builds.
     if: >-
       (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
       (github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true')
@@ -510,38 +433,12 @@ jobs:
         run: helm lint ${{ env.CHART_PATH }}
       - name: Package Helm chart
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'package-and-push-chart'))) && (env.LANE_APPLIES == 'true') }}
-        run: |
-          mkdir -p dist
-          helm package ${{ env.CHART_PATH }} --destination dist
+        run: mkdir -p dist && helm package ${{ env.CHART_PATH }} --destination dist
       - name: Push Helm chart to GHCR
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'package-and-push-chart'))) && (github.event_name != 'pull_request' && github.event_name != 'merge_group') }}
-        run: |
-          helm registry login ${{ env.REGISTRY }} \
-            --username "${{ github.actor }}" \
-            --password "${{ secrets.GITHUB_TOKEN }}"
-          set +e
-          push_output="$(helm push dist/eshu-*.tgz ${{ env.CHART_REGISTRY }} 2>&1)"
-          push_status=$?
-          set -e
-          if [[ "${push_status}" -eq 0 ]]; then
-            printf '%s\n' "${push_output}"
-            exit 0
-          fi
-          version="$(awk '/^version:/ {print $2; exit}' "${{ env.CHART_PATH }}/Chart.yaml")"
-          remote_dir="$(mktemp -d)"
-          if helm pull "${{ env.CHART_REGISTRY }}/eshu" --version "${version}" \
-              --destination "${remote_dir}" >/dev/null 2>&1; then
-            for local_tgz in dist/eshu-*.tgz; do
-              if cmp -s "${local_tgz}" "${remote_dir}/eshu-${version}.tgz"; then
-                echo "::notice::Chart ${version} already published with identical bytes; treating the duplicate push as success."
-                exit 0
-              fi
-            done
-          fi
-          printf '%s\n' "${push_output}" >&2
-          echo "::error::Helm push failed and the published ${version} differs (or is unreadable); not overwriting." >&2
-          exit "${push_status}"
-
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci/push-helm-chart.sh
   publish-ci-service-mirrors:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' &&
@@ -575,7 +472,6 @@ jobs:
           CRANE_BIN: ${{ runner.temp }}/crane
           EXPECTED_REVIEWED_SHA: ${{ inputs.expected_sha }}
         run: bash scripts/dev/publish-ci-image-mirrors.sh publish
-
   verify-public-ci-service-mirrors:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' &&
