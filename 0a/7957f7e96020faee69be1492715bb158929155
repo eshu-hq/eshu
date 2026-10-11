@@ -1,0 +1,21 @@
+go/internal/proof/content/corpus/process_death_test.go
+  s_b0d7e3abc26c5a::t_4c6cb0a4537475 180-181,189
+  s_b0d7e3abc26c5a::t_4dd0a1716ade39 1-31,33-58,65-75,77-160,162-179,182,184-188,190-194,196-199,202-207,209,211-222,224-228,230-231,233-235,237
+  s_b0d7e3abc26c5a::t_31ee253b3927b3 32,59-64,76,161,183,195,200-201,208,210,223,229,232,236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a7957f7e96020faee69be1492715bb158929155",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
