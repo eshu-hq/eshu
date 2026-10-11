@@ -315,7 +315,7 @@ in PR 1. The HTTP API, OpenAPI and MCP surfaces are unchanged (no wire change).
 Ingest-time extraction (PR 3), a parse cache, request budgets, a batch for the
 anchor repository's controller, runtime, workflow and compose loaders, a
 cross-repository batch, and any change to worker counts. Pod CPU and the
-ops-qa stage seconds of the response set are NOT_CHECKED. CPU at the fixed head
+QA-environment stage seconds of the response set are NOT_CHECKED. CPU at the fixed head
 on a quiet host (load1 under 9) is NOT_CHECKED: the only CPU measured at the
 fixed head is the busy-host rerun. Server-side detoast
 on the standby for a large chunk, API heap for a chunk of large files, and
