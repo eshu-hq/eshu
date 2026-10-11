@@ -1,0 +1,27 @@
+scripts/test-run-live-postgres-migrations.sh
+  s_b0d7e3abc26c5a::t_c63033e74a6400 21,38
+  s_b0d7e3abc26c5a::t_bbd7486db3db68 24,26,32-37,44,87,102-107,109
+  s_b0d7e3abc26c5a::t_4d71755f8d9bdc 29,110-122
+  s_b0d7e3abc26c5a::t_71fc6c403af274 25,101,108
+scripts/run-live-postgres-migrations.sh
+  s_b0d7e3abc26c5a::t_b514ba50161b29 38,45-46,49-50
+  s_b0d7e3abc26c5a::t_02c7570ddafc8d 31-32,37,39-44,47-48,51,61,65
+go/internal/storage/postgres/schema_bootstrap_files_test.go
+  s_b0d7e3abc26c5a::t_e52d502a619bab 29-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7195e67802d2fe8e14d41b5cdcef64251b7915a3",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
