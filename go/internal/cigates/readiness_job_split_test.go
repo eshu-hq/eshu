@@ -39,9 +39,9 @@ type readinessService struct {
 }
 
 const (
-	readinessHermeticSelection = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}"
-	readinessLiveSelection     = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}"
-	readinessCleanupSelection  = "${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) && (always()) }}"
+	readinessQueueSelection     = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}"
+	readinessUnemittedSelection = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}"
+	readinessCleanupSelection   = "${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) && (always()) }}"
 )
 
 type readinessStep struct {
@@ -124,7 +124,7 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		return problem
 	}
 	counts := map[string]int{}
-	for name, job := range map[string]readinessJob{"hermetic": hermetic, "live": live} {
+	for _, job := range map[string]readinessJob{"hermetic": hermetic, "live": live} {
 		for _, step := range job.Steps {
 			for _, script := range []string{
 				"scripts/test-run-live-postgres-readiness-tests.sh",
@@ -134,12 +134,8 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 					if strings.TrimSpace(step.Run) != "bash "+script {
 						return "proof runner must be a standalone command"
 					}
-					want := readinessHermeticSelection
-					if name == "live" {
-						want = readinessLiveSelection
-					}
-					if step.If != want || step.ContinueOnError != "" {
-						return "proof runner must use its own queue selection without waiving failure"
+					if step.If != readinessQueueSelection || step.ContinueOnError != "" {
+						return "proof runner must use the registry queue selection without waiving failure"
 					}
 					counts[script]++
 				}
@@ -242,6 +238,50 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	if problem := checkReadinessSplit(workflow, *gate); problem != "" {
 		t.Fatal(problem)
 	}
+	t.Run("merge queue selects both proof jobs", func(t *testing.T) {
+		selection, err := SelectQueueWorkflow(
+			[]*Registry{registry},
+			[]string{"go/internal/cigates/readiness_job_split_test.go"},
+			false,
+			"live-postgres-readiness.yml",
+			"",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !selection.Selected || !slices.Equal(selection.Jobs, []string{gate.CI.Job}) {
+			t.Fatalf("unexpected queue jobs: %+v", selection)
+		}
+		var parsed readinessWorkflow
+		if err := yaml.Unmarshal(workflow, &parsed); err != nil {
+			t.Fatal(err)
+		}
+		const conditionPrefix = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), '"
+		const conditionSuffix = "')) }}"
+		for _, jobName := range []string{"hermetic", "live-postgres-readiness"} {
+			job := parsed.Jobs[jobName]
+			for _, step := range job.Steps {
+				if step.Uses != "actions/checkout@v5" &&
+					!strings.Contains(step.Run, "scripts/test-run-live-postgres-readiness-tests.sh") &&
+					!strings.Contains(step.Run, "scripts/run-live-postgres-readiness-tests.sh") {
+					continue
+				}
+				queueJob, ok := strings.CutPrefix(step.If, conditionPrefix)
+				if !ok {
+					t.Errorf("%s step %q has an unsupported queue condition", jobName, step.Name)
+					continue
+				}
+				queueJob, ok = strings.CutSuffix(queueJob, conditionSuffix)
+				if !ok {
+					t.Errorf("%s step %q has an unsupported queue condition", jobName, step.Name)
+					continue
+				}
+				if !slices.Contains(selection.Jobs, queueJob) {
+					t.Errorf("%s step %q skips selected queue job %q", jobName, step.Name, gate.CI.Job)
+				}
+			}
+		}
+	})
 	for _, mutation := range []struct {
 		name string
 		edit func(*Gate)
@@ -264,8 +304,8 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		{"missing hermetic", "run: bash scripts/test-run-live-postgres-readiness-tests.sh", "run: true"},
 		{"missing live", "run: bash scripts/run-live-postgres-readiness-tests.sh", "run: true"},
 		{"missing queue selector", "    uses: ./.github/workflows/queue-selection.yml", "    uses: actions/checkout@v5"},
-		{"wrong hermetic selection", "        if: " + readinessHermeticSelection + "\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh", "        if: " + readinessLiveSelection + "\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh"},
-		{"wrong live selection", "      - name: Run live readiness proofs\n        if: " + readinessLiveSelection, "      - name: Run live readiness proofs\n        if: " + readinessHermeticSelection},
+		{"wrong hermetic selection", "        if: " + readinessQueueSelection + "\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh", "        if: " + readinessUnemittedSelection + "\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh"},
+		{"wrong live selection", "      - name: Run live readiness proofs\n        if: " + readinessQueueSelection, "      - name: Run live readiness proofs\n        if: " + readinessUnemittedSelection},
 		{"skip hermetic", "  hermetic:\n", "  hermetic:\n    if: false\n"},
 		{"waive live", "  live-postgres-readiness:\n", "  live-postgres-readiness:\n    continue-on-error: true\n"},
 		{"compound runner", "run: bash scripts/run-live-postgres-readiness-tests.sh", "run: bash scripts/run-live-postgres-readiness-tests.sh || true"},

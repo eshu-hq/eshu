@@ -129,13 +129,13 @@ jobs:
         if: ${{ always() && github.event_name == 'merge_group' }}
         run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Check runner fail-closed behavior
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
   live-postgres-readiness:
