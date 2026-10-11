@@ -90,7 +90,10 @@ selection, so the rows are a superset of the pre-#7951 rows.
 `CandidatesBudgetReachedReason` when any candidate inside a window was left
 unread, and `RelatedFileListTruncatedReason` when a related list returned the
 sentinel row. `AnchorFileListTruncatedReason` is the service routes' reason for
-a cut service-repository list. The handlers in `repository` and `service`
+a cut service-repository list. The three strings are defined in
+`querycontract` (`DeploymentArtifactBoundReasons`), which folds them into
+`result_limits.truncated` on the service and workload context routes; the
+constants here alias them. The handlers in `repository` and `service`
 attach the reasons, log the counts and add them to
 `eshu_dp_config_artifact_candidates_total`; this leaf package emits no
 telemetry. The budget is a struct field of `configArtifactLoader`, the test

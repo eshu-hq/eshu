@@ -17,6 +17,50 @@ import (
 // change. Package query keeps forwarding wrappers under the original
 // names, so its own callers compile unchanged.
 
+// Deployment-artifact bound reasons (#7951). The service and workload routes
+// append them to ctx["limitations"] when the deployment-artifact load stopped
+// at a candidate bound, so the config rows behind deployment_evidence are a
+// lower bound. They live here, not in the loader package, because this
+// package folds them into result_limits.truncated and the loader package
+// already imports it: one list, read by the loader, the service story fold
+// and WorkloadContextResultLimits.
+const (
+	// DeploymentArtifactsCandidatesBudgetReachedReason names a response whose
+	// config-artifact rows are a lower bound because the request candidate
+	// budget ran out.
+	DeploymentArtifactsCandidatesBudgetReachedReason = "deployment_artifacts_candidates_budget_reached"
+	// DeploymentArtifactsRelatedFileListTruncatedReason names a response where
+	// a related repository's file list returned a row past the 5,000-file
+	// window.
+	DeploymentArtifactsRelatedFileListTruncatedReason = "deployment_artifacts_related_file_list_truncated_at_5000"
+	// DeploymentArtifactsAnchorFileListTruncatedReason names a service response
+	// whose own repository file list returned a row past the 5,000-file window.
+	DeploymentArtifactsAnchorFileListTruncatedReason = "deployment_artifacts_anchor_file_list_truncated_at_5000"
+)
+
+// DeploymentArtifactBoundReasons returns every limitation reason the
+// deployment-artifact load can append for a candidate bound. Each one makes
+// the response a lower bound, so each folds into result_limits.truncated.
+// The slice is a fresh copy.
+func DeploymentArtifactBoundReasons() []string {
+	return []string{
+		DeploymentArtifactsCandidatesBudgetReachedReason,
+		DeploymentArtifactsRelatedFileListTruncatedReason,
+		DeploymentArtifactsAnchorFileListTruncatedReason,
+	}
+}
+
+// HasDeploymentArtifactBound reports whether limitations carries any
+// deployment-artifact bound reason.
+func HasDeploymentArtifactBound(limitations []string) bool {
+	for _, reason := range DeploymentArtifactBoundReasons() {
+		if slices.Contains(limitations, reason) {
+			return true
+		}
+	}
+	return false
+}
+
 // ContextPartialReasons promotes the context payload's limitations into an
 // explicit partial_reasons array. Callers see missing or unsupported
 // evidence directly instead of inferring completeness from an absent field.
@@ -119,10 +163,21 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	// partial_reasons by reading the same ctx["limitations"] slice; without
 	// also ORing it in here, a caller could see partial_reasons contain
 	// "infrastructure_truncated" right next to result_limits.truncated: false.
+	//
+	// #7951: the deployment-artifact candidate bounds are the fifth signal.
+	// loadServiceDeploymentEvidence (service/deployment_evidence.go) appends
+	// DeploymentArtifactBoundReasons to the same ctx["limitations"] slice when
+	// the config-artifact load stopped at its per-request budget or at a
+	// 5,000-file list window, so the deployment_evidence config rows are a
+	// lower bound. The service story folds the same list in
+	// buildServiceResultLimitsWithContext; this covers the service context,
+	// workload context and workload story routes.
+	limitations := StringSliceVal(ctx, "limitations")
 	upstreamTruncated := BoolVal(ctx, "dependents_truncated") ||
 		BoolVal(ctx, "consumer_repositories_truncated") ||
 		BoolVal(ctx, "provisioning_source_chains_truncated") ||
-		slices.Contains(StringSliceVal(ctx, "limitations"), "infrastructure_truncated")
+		slices.Contains(limitations, "infrastructure_truncated") ||
+		HasDeploymentArtifactBound(limitations)
 	truncated := instTrunc || depTrunc || conTrunc || hostTrunc || entryTrunc || pathTrunc || budgetTrunc || upstreamTruncated
 	drilldownTool := "get_workload_story"
 	if surface == "story" {

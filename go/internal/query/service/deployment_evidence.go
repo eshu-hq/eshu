@@ -123,17 +123,7 @@ func deploymentEvidenceStageAttrs(load serviceDeploymentEvidenceLoad) []slog.Att
 // a deployment-artifact bound reason (#7951), which makes the service story
 // a lower bound.
 func deploymentArtifactsBoundHit(workloadContext map[string]any) bool {
-	limitations := querycontract.StringSliceVal(workloadContext, "limitations")
-	for _, reason := range []string{
-		artifacts.CandidatesBudgetReachedReason,
-		artifacts.RelatedFileListTruncatedReason,
-		artifacts.AnchorFileListTruncatedReason,
-	} {
-		if querycontract.ContainsString(limitations, reason) {
-			return true
-		}
-	}
-	return false
+	return querycontract.HasDeploymentArtifactBound(querycontract.StringSliceVal(workloadContext, "limitations"))
 }
 
 func queryServiceGraphDeploymentEvidence(ctx context.Context, graph querycontract.GraphQuery, content querycontract.ContentStore, repoID string) (map[string]any, error) {

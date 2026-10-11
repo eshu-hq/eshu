@@ -7,6 +7,7 @@ import (
 	"context"
 
 	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -24,19 +25,19 @@ const (
 	// related repository has candidates inside its list window that were not
 	// hydrated. Story limitations, context partial_reasons and service story
 	// limitations carry it.
-	CandidatesBudgetReachedReason = "deployment_artifacts_candidates_budget_reached"
+	CandidatesBudgetReachedReason = querycontract.DeploymentArtifactsCandidatesBudgetReachedReason
 
 	// RelatedFileListTruncatedReason names a response where at least one
 	// related repository's file list returned a row past the 5,000-file
 	// window: its candidates past the window are unknown.
-	RelatedFileListTruncatedReason = "deployment_artifacts_related_file_list_truncated_at_5000"
+	RelatedFileListTruncatedReason = querycontract.DeploymentArtifactsRelatedFileListTruncatedReason
 
 	// AnchorFileListTruncatedReason names a service response whose own
 	// repository file list (the service route's anchor list) returned a row
 	// past the 5,000-file window: the deployment artifacts derived from that
 	// list are a lower bound. The repository story and context routes disclose
 	// their anchor list with their own reasons.
-	AnchorFileListTruncatedReason = "deployment_artifacts_anchor_file_list_truncated_at_5000"
+	AnchorFileListTruncatedReason = querycontract.DeploymentArtifactsAnchorFileListTruncatedReason
 )
 
 // configArtifactLoad is the per-repository config-artifact function the
