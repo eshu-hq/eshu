@@ -15,7 +15,8 @@ case "${image}" in
   "${image_default}"|postgres:18.6-bookworm) ;;
   *) die 'image must be the approved PostgreSQL 18.6 fixture reference' ;;
 esac
-for command in docker go python3 openssl; do
+command -v docker >/dev/null 2>&1 || die 'docker is required'
+for command in go python3 openssl; do
   command -v "${command}" >/dev/null 2>&1 || die "${command} is required"
 done
 if env | rg -q '^PG[A-Za-z_]*='; then
