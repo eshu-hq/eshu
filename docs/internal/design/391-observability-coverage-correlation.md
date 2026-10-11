@@ -146,13 +146,13 @@ a new collector. The facts already exist; only the correlation read model is new
 
 ### 3.1 Inputs (all already on `main` — no collector change)
 
-- **`aws_resource`** facts (`facts.AWSResourceFactKind`) whose `resource_type` is
+- **`aws_resource`** facts (`cloud.AWSResourceFactKind`) whose `resource_type` is
   an observability object:
   `ResourceTypeCloudWatchAlarm`, `ResourceTypeCloudWatchCompositeAlarm`,
   `ResourceTypeCloudWatchDashboard`, `ResourceTypeCloudWatchLogsLogGroup`,
   X-Ray group / sampling-rule types. Each carries `arn`, `resource_id`, `name`,
   `account_id`, `region`, `service_kind`, and `correlation_anchors`.
-- **`aws_relationship`** facts (`facts.AWSRelationshipFactKind`) that link an
+- **`aws_relationship`** facts (`cloud.AWSRelationshipFactKind`) that link an
   observability object to what it watches:
   `cloudwatch_alarm_observes_metric` (alarm → metric identity, dimensions
   redacted), `cloudwatch_alarm_notifies_sns_topic` (paging fan-out),

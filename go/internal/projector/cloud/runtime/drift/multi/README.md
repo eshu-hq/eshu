@@ -87,7 +87,7 @@ span, metric, or log boundary.
   top of this package's own tests.
 - `aws_resource` facts alone must never trigger this domain. That exclusion is
   deliberate (see Purpose above), not an oversight to "fix" by adding
-  `facts.AWSResourceFactKind` to `candidateFactKinds`.
+  `cloud.AWSResourceFactKind` to `candidateFactKinds`.
 
 ## Related docs
 
