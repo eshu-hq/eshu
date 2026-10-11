@@ -105,6 +105,8 @@ case "$1 $2" in
       if [[ "$1" == --destination ]]; then shift; destination="$1"; break; fi
       shift
     done
+STUB
+cat >> "${scratch}/helm" <<'STUB'
     if [[ "${HELM_MODE}" == missing ]]; then exit 1; fi
     if [[ "${HELM_MODE}" == duplicate ]]; then
       cp dist/eshu-1.2.3.tgz "${destination}/eshu-1.2.3.tgz"
