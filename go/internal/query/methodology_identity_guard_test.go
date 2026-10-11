@@ -6,6 +6,8 @@
 package query
 
 import (
+	"bufio"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,12 +15,56 @@ import (
 	"testing"
 )
 
+func checkMethodologyScratchGitDoesNotStartMaintenance(t *testing.T) {
+	profileDir := t.TempDir()
+	profile := filepath.Join(profileDir, "forced-maintenance.gitconfig")
+	config := "[maintenance]\n\tauto = true\n\tautoDetach = true\n[maintenance \"commit-graph\"]\n\tenabled = true\n\tauto = -1\n[gc]\n\tauto = -1\n"
+	if err := os.WriteFile(profile, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(profileDir, "git-trace.json")
+	t.Setenv("GIT_CONFIG_GLOBAL", profile)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_TRACE2_EVENT", trace)
+	checkMethodologyProductionTreeScenario(t, "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD", "", "", "", false, false, false, "")
+
+	file, err := os.Open(trace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = file.Close() }()
+	scanner := bufio.NewScanner(file)
+	sawCommit := false
+	for scanner.Scan() {
+		var event struct {
+			Event string   `json:"event"`
+			Argv  []string `json:"argv"`
+		}
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			t.Fatal(err)
+		}
+		if event.Event == "start" && len(event.Argv) >= 2 && event.Argv[0] == "git" && event.Argv[1] == "commit" {
+			sawCommit = true
+		}
+		if event.Event == "child_start" && len(event.Argv) >= 2 && filepath.Base(event.Argv[0]) == "git" && event.Argv[1] == "maintenance" {
+			t.Fatalf("scratch Git started automatic maintenance: %s", scanner.Bytes())
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !sawCommit {
+		t.Fatal("scratch Git trace did not record the fixture commit")
+	}
+}
+
 func TestMethodologyProductionTreeRejectsBaseOnlyMigration(t *testing.T) {
 	const childMarker = "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD"
 	if base := os.Getenv(childMarker); base != "" {
 		methodologyVerifySameProductionTree(t, base, os.Getenv("ESHU_METHODOLOGY_IDENTITY_GUARD_CANDIDATE"), "go/internal/storage/postgres/migrations", "*.sql")
 		return
 	}
+	t.Run("scratch_maintenance_isolation", checkMethodologyScratchGitDoesNotStartMaintenance)
 
 	for _, testCase := range []struct {
 		name          string
@@ -73,6 +119,8 @@ func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, a
 		return strings.TrimSpace(string(output))
 	}
 	runGit("init", "--quiet")
+	runGit("config", "--local", "maintenance.auto", "false")
+	runGit("config", "--local", "gc.auto", "0")
 	runGit("config", "user.name", "Eshu Test")
 	runGit("config", "user.email", "eshu-test@example.invalid")
 	runGit("add", "go/internal/storage/postgres/migrations")
@@ -161,6 +209,8 @@ func TestMethodologyCombinedCheckoutUsesIntegratedBase(t *testing.T) {
 		}
 	}
 	runGit("init", "--quiet", "--initial-branch=main")
+	runGit("config", "--local", "maintenance.auto", "false")
+	runGit("config", "--local", "gc.auto", "0")
 	runGit("config", "user.name", "Eshu Test")
 	runGit("config", "user.email", "eshu-test@example.invalid")
 	write("001.sql")
