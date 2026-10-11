@@ -135,3 +135,26 @@ func TestBuildStreamingGenerationDefaultBranchChangeKeepsHint(t *testing.T) {
 		t.Fatal("default branch main -> trunk kept the same hint; want the default branch folded")
 	}
 }
+
+// TestSnapshotFreshnessHintFoldsDeltaBaseline (ruling a9-120 §7.5): two deltas
+// at the same head with the same paths but different baselines describe
+// different diffs and must not share a hint; a re-diff from the same baseline
+// keeps it, so the store can treat it as a duplicate. A full snapshot never
+// carries a baseline, so its hint is unchanged.
+func TestSnapshotFreshnessHintFoldsDeltaBaseline(t *testing.T) {
+	t.Parallel()
+	delta := func(baseline string) RepositorySnapshot {
+		snapshot := testCollectorSnapshot("/repos/proof", "package main\n", "digest-1")
+		snapshot.Delta = true
+		snapshot.DeltaRelativePaths = []string{"main.go"}
+		snapshot.DeltaBaselineCommitSHA = baseline
+		return snapshot
+	}
+	if snapshotFreshnessHint(delta("sha-a")) == snapshotFreshnessHint(delta("sha-b")) {
+		t.Fatal("deltas from different baselines share a hint")
+	}
+	first := snapshotFreshnessHint(delta("sha-a"))
+	if again := snapshotFreshnessHint(delta("sha-a")); again != first {
+		t.Fatalf("re-diff from the same baseline changed the hint: %s then %s", first, again)
+	}
+}

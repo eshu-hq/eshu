@@ -50,7 +50,8 @@ inside the per-cycle budget, and `decideGraphDirty` shares `throttle` with
 forced-reconcile path so the reason reaches `ScopeGeneration.ReconcileReason`;
 the store then re-projects a matching active generation (#7978). Never blank
 the hint: bump `gitGenerationContentVersion` when emitted facts change for
-unchanged input, or the store drops the new output as a duplicate. The `deltaFallback*` constants are the closed
+unchanged input (`TestGenerationContentVersionPinsCollectorOutput` fails until
+you do, then re-pin), or the store drops the new output as a duplicate. The `deltaFallback*` constants are the closed
 `skip_reason` set and the `reconcileReason*` constants the closed reconcile
 `reason` set; add a value there and in the telemetry docs together.
 

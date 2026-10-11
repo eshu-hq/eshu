@@ -247,6 +247,12 @@ func resolveReindexWatermark(
 // Interval: the worst case per scope is one forced full per Interval while
 // fulls stay pending, and four per Interval while they keep failing.
 func (p reconcilePolicy) decide(now time.Time, s scope.FullReconcileState) (bool, string) {
+	if pending, stale := p.reprojectionRequest(now, s); pending {
+		if stale {
+			return true, scope.ReconcileReasonRequestStale
+		}
+		return false, reconcileReasonInFlight
+	}
 	if s.HasProjectedFull && now.Sub(s.LastProjectedFullAt) < p.Interval {
 		return false, reconcileReasonFresh
 	}
@@ -263,6 +269,21 @@ func (p reconcilePolicy) decide(now time.Time, s scope.FullReconcileState) (bool
 		return true, reconcileReasonNeverReconciled
 	}
 	return true, reconcileReasonIntervalElapsed
+}
+
+// reprojectionRequest reports whether the active full generation carries an
+// unacknowledged re-projection request (#7978): an unchanged reconcile
+// re-opened its projector work and no Ack has stamped it since. Such a request
+// holds the sweep off like a pending full (reconcile_in_flight) for one
+// interval. It is stale at the interval, or at once when the re-projection was
+// dead-lettered after the request; a stale request forces a full that the
+// store stores (scope.ReconcileReasonRequestStale). It is pure.
+func (p reconcilePolicy) reprojectionRequest(now time.Time, s scope.FullReconcileState) (pending bool, stale bool) {
+	if !s.HasProjectedFull || s.ReconcileRequestedAt.IsZero() || !s.ReconcileRequestedAt.After(s.ReconcileProjectedAt) {
+		return false, false
+	}
+	deadLettered := !s.ReconcileDeadLetteredAt.IsZero() && !s.ReconcileDeadLetteredAt.Before(s.ReconcileRequestedAt)
+	return true, deadLettered || now.Sub(s.ReconcileRequestedAt) >= p.Interval
 }
 
 // throttle is the one rule both reconcile paths share: a pending full younger

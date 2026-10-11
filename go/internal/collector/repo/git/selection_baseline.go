@@ -343,8 +343,9 @@ func (b gitDeltaBaseline) recordFallback(ctx context.Context, reason string) {
 // often the periodic sweep forces a full re-observation, why, and for which
 // scope. scope_id rides only on the log: it is unbounded and never a metric
 // label. The log is WARN when the forced full replaces an expired in-flight
-// full or retries an unprojected one, since a repeat of either means projection
-// is not keeping up. Best-effort: a nil Instruments or logger is a no-op.
+// full, retries an unprojected one, or replaces a stale #7978 re-projection
+// request, since a repeat of any means projection is not keeping up.
+// Best-effort: a nil Instruments or logger is a no-op.
 func (b gitDeltaBaseline) recordReconciliation(ctx context.Context, logger *slog.Logger, decision reconcileDecision) {
 	if b.Instruments != nil && b.Instruments.ReconciliationFullSnapshots != nil {
 		b.Instruments.ReconciliationFullSnapshots.Add(ctx, 1, metric.WithAttributes(
@@ -355,7 +356,8 @@ func (b gitDeltaBaseline) recordReconciliation(ctx context.Context, logger *slog
 		return
 	}
 	level := slog.LevelInfo
-	if decision.Reason == reconcileReasonInFlightExpired || decision.Reason == reconcileReasonRetryAfterUnprojected {
+	if decision.Reason == reconcileReasonInFlightExpired || decision.Reason == reconcileReasonRetryAfterUnprojected ||
+		decision.Reason == scope.ReconcileReasonRequestStale {
 		level = slog.LevelWarn
 	}
 	attrs := []slog.Attr{
@@ -374,6 +376,7 @@ func (b gitDeltaBaseline) recordReconciliation(ctx context.Context, logger *slog
 	if !decision.ReindexRequestedAt.IsZero() {
 		attrs = append(attrs, slog.Time("reindex_requested_at", decision.ReindexRequestedAt))
 	}
+	attrs = appendReprojectionRequestAttrs(attrs, decision.State)
 	logger.LogAttrs(ctx, level, "git_reconcile_forced", attrs...)
 }
 
@@ -459,4 +462,23 @@ func notifyDeltaFallback(onFallback func(reason string), reason string) {
 	if onFallback != nil {
 		onFallback(reason)
 	}
+}
+
+// appendReprojectionRequestAttrs adds the #7978 re-projection request, Ack,
+// and dead-letter times the decision read, when set, so a WARN for
+// reconcile_request_stale shows why the request went stale.
+func appendReprojectionRequestAttrs(attrs []slog.Attr, state scope.FullReconcileState) []slog.Attr {
+	for _, stamp := range []struct {
+		key string
+		at  time.Time
+	}{
+		{"reconcile_requested_at", state.ReconcileRequestedAt},
+		{"reconcile_projected_at", state.ReconcileProjectedAt},
+		{"reconcile_dead_lettered_at", state.ReconcileDeadLetteredAt},
+	} {
+		if !stamp.at.IsZero() {
+			attrs = append(attrs, slog.Time(stamp.key, stamp.at))
+		}
+	}
+	return attrs
 }

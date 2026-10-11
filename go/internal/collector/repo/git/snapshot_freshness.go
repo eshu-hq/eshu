@@ -18,8 +18,11 @@ import (
 // hint and a new generation, while a release that does not change the output
 // keeps every hint and stores nothing. Bump it in the same change that alters
 // emitted facts for unchanged input (a parser fix, a new fact field, a changed
-// stable key). Do not derive it from the build version: that would store a
-// duplicate generation of every repository on every release.
+// stable key). TestGenerationContentVersionPinsCollectorOutput enforces it: it
+// pins a digest of the facts emitted for testdata/content_version to this
+// value and fails when the output moves without a bump (ruling a9-117 d6). Do
+// not derive it from the build version: that would store a duplicate
+// generation of every repository on every release.
 const gitGenerationContentVersion = "git-collector.v1"
 
 // GenerationReconcileReasonUnspecified is the reconcile reason a generation
@@ -70,6 +73,11 @@ func snapshotFreshnessHintForVersion(snapshot RepositorySnapshot, contentVersion
 	writeFreshnessHashf(h, "default_branch=%s\n", repositoryDefaultBranch(snapshot.GitRefs))
 	writeFreshnessHashf(h, "file_count=%d\n", snapshot.FileCount)
 	writeFreshnessHashf(h, "delta=%t\n", snapshot.Delta)
+	if snapshot.Delta {
+		// A delta is a diff from its baseline (#7319); the same head and paths
+		// from another baseline is a different observation (ruling a9-120).
+		writeFreshnessHashf(h, "delta_baseline=%s\n", snapshot.DeltaBaselineCommitSHA)
+	}
 	for _, relativePath := range snapshot.DeltaRelativePaths {
 		writeFreshnessHashf(h, "delta_path:%s\n", relativePath)
 	}
