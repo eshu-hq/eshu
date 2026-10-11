@@ -139,6 +139,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Freshness:                  pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
 			Profile:                    queryProfile,
 			Logger:                     logger,
+			Instruments:                instruments,
 		},
 		Entities: &query.EntityHandler{
 			GraphBackend:             graphBackend,

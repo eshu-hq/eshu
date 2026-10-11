@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // QueryEnrichmentOptions controls how much graph-derived enrichment
@@ -41,6 +42,9 @@ type QueryEnrichmentOptions struct {
 	// Operation names the enrichment operation for per-stage logging and
 	// defaults to "service_context" when left blank.
 	Operation string
+	// Instruments records eshu_dp_config_artifact_candidates_total for the
+	// deployment-evidence content fallback (#7951); nil records none.
+	Instruments *telemetry.Instruments
 }
 
 func EnrichServiceQueryContextWithOptions(
@@ -337,8 +341,10 @@ func EnrichServiceQueryContextWithOptions(
 		workloadContext["documentation_overview"] = documentationOverview
 	}
 	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "deployment_evidence")
-	deploymentEvidence, err := loadServiceDeploymentEvidence(ctx, graph, content, workloadContext)
-	timer.Done(ctx, slog.Bool("has_result", len(deploymentEvidence) > 0))
+	evidenceLoad, err := loadServiceDeploymentEvidence(ctx, graph, content, workloadContext)
+	deploymentEvidence := evidenceLoad.evidence
+	timer.Done(ctx, deploymentEvidenceStageAttrs(evidenceLoad)...)
+	repository.RecordDeploymentArtifactCandidates(ctx, opts.Instruments, evidenceLoad.stats)
 	if err != nil {
 		return fmt.Errorf("load service deployment evidence: %w", err)
 	}

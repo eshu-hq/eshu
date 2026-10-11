@@ -90,6 +90,7 @@ func fetchServiceTraceContext(
 		MaxDepth:                  traceOptions.MaxDepth,
 		Logger:                    logger,
 		Operation:                 "deployment_trace",
+		Instruments:               instruments,
 	}); err != nil {
 		return nil, fmt.Errorf("enrich service trace context: %w", err)
 	}

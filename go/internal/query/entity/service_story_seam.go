@@ -64,6 +64,7 @@ func (h *Handler) BuildServiceStoryEnvelope(
 	if err := service.EnrichServiceQueryContextWithOptions(ctx, h.Neo4j, h.Content, workloadCtx, service.QueryEnrichmentOptions{
 		IncludeRelatedModuleUsage: true,
 		Logger:                    h.Logger,
+		Instruments:               h.Instruments,
 		Operation:                 operation,
 	}); err != nil {
 		if status, errEnv, ok := querycontract.GraphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {

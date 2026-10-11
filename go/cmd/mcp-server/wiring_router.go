@@ -133,8 +133,9 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			// GET /api/v0/repositories/{id}/freshness works on cmd/api --
 			// the B-7 golden-corpus gate's MCP query-truth phase asserts
 			// this tool live against this binary.
-			Freshness: pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
-			Profile:   queryProfile,
+			Freshness:   pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
+			Profile:     queryProfile,
+			Instruments: instruments,
 		},
 		Entities: &query.EntityHandler{
 			GraphBackend:             graphBackend,

@@ -121,6 +121,20 @@ new spans, metrics, or logs. The existing `service_query.stage_*`
 telemetry events moved with their handlers unchanged; operator signals are
 identical to base.
 
+## Deployment-evidence fallback bounds (#7951)
+
+When the graph has no deployment evidence for the service, the
+`deployment_evidence` stage lists the service repository with a one-row
+sentinel (5,001 rows), clips it to 5,000, and runs
+`LoadDeploymentArtifactOverviewWithStats`. A cut service-repository list adds
+`deployment_artifacts_anchor_file_list_truncated_at_5000`, and the load's
+`BoundReasons` add the budget and related-list reasons, to
+`workloadContext["limitations"]`; the service story folds each into
+`result_limits.truncated`, so `answer_metadata.truncated` follows. The stage
+line carries the read and candidate counts plus `anchor_list_truncated` (0 or
+1), and `QueryEnrichmentOptions.Instruments` records
+`eshu_dp_config_artifact_candidates_total`.
+
 ## Failed reads (#7674)
 
 A failed store read on `GET /api/v0/service-catalog/correlations` answers

@@ -10,8 +10,8 @@ served through the same handler, the entity-semantics shaping the story
 reads share with the entity layer, and the deployment/config/workflow
 evidence shaping behind the story responses. The `Handler` struct
 keeps its `Neo4j`, `Content`, `CICDRunCorrelations`,
-`ServiceCatalogCorrelations`, `Freshness`, `Profile`, and `Logger`
-dependencies; `cmd/api` and `cmd/mcp-server` wire it through the root
+`ServiceCatalogCorrelations`, `Freshness`, `Profile`, `Logger`, and
+`Instruments` dependencies; `cmd/api` and `cmd/mcp-server` wire it through the root
 `query.RepositoryHandler` alias unchanged. The OpenAPI fragments
 documenting the repository routes live in `openapi/paths/repository/`
 (the B2 precedent for family moves): the census co-move assumed room the
@@ -90,6 +90,19 @@ recorder.
 `semantic_overview` stage (`loadRepositorySemanticOverview` returns it), and
 shares that read-only slice with the infrastructure, deployment, narrative, and
 CI/CD stages instead of listing the repository again per stage (#7126).
+
+## Deployment-artifact bounds (#7951)
+
+The story and context deployment-artifact stage runs
+`repositoryartifacts.LoadDeploymentArtifactOverviewWithStats`. Its
+`BoundReasons` go to story `limitations` (which then sets `truncated` and
+`answer_metadata.truncated`) and context `partial_reasons`.
+`DeploymentArtifactsReadCountAttrs` puts the read and candidate counts on the
+`deployment_artifacts` and `content_infrastructure_overview` stage lines, and
+`RecordDeploymentArtifactCandidates` adds the outcomes to
+`eshu_dp_config_artifact_candidates_total` through the handler's
+`Instruments` (nil records nothing). The service routes call both exported
+helpers for their `deployment_evidence` stage.
 
 ## Ownership boundary
 

@@ -308,7 +308,10 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	// result_limits.truncated directly)
 	// both reported answer_metadata.truncated/answer_packet.truncated as
 	// false for a service whose infrastructure evidence was clipped.
-	infrastructureTruncated := querycontract.ContainsString(querycontract.StringSliceVal(workloadContext, "limitations"), repository.InfrastructureTruncatedReason)
+	// A deployment-artifact bound (#7951) folds in the same way: the config
+	// rows behind deployment_evidence are then a lower bound.
+	infrastructureTruncated := querycontract.ContainsString(querycontract.StringSliceVal(workloadContext, "limitations"), repository.InfrastructureTruncatedReason) ||
+		deploymentArtifactsBoundHit(workloadContext)
 	// #5720 round-2 P1-1: same disclosure gap as BuildServiceDownstreamConsumers
 	// above -- the count-vs-serviceStoryItemLimit comparisons below can never
 	// fire on the default (25-row) indirect-evidence search limit, so the
