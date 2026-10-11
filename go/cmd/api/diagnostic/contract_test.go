@@ -6,6 +6,7 @@ package diagnostic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -114,7 +116,7 @@ func TestStatusDiagnosticsConcurrentCorrelationAndPrivacy(t *testing.T) {
 }
 
 func TestStatusDiagnosticsAuthAndCheckpointFailures(t *testing.T) {
-	diag, path, _ := newStatusDiagnosticFixture(t)
+	diag, path, provider := newStatusDiagnosticFixture(t)
 	checkpoint := diag.PostAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
@@ -124,7 +126,7 @@ func TestStatusDiagnosticsAuthAndCheckpointFailures(t *testing.T) {
 			return
 		}
 		checkpoint.ServeHTTP(w, r)
-	}), "eshu-api", otelhttp.WithTracerProvider(diag.provider)))
+	}), "eshu-api", otelhttp.WithTracerProvider(provider)))
 	for _, denied := range []bool{true, false} {
 		req := httptest.NewRequest(http.MethodGet, statusDiagnosticPath, nil)
 		if denied {
@@ -172,11 +174,11 @@ func TestStatusDiagnosticsOverflowAndUnfinishedFailClosed(t *testing.T) {
 }
 
 func TestStatusDiagnosticsIgnoresClientIDAndSecuresArtifact(t *testing.T) {
-	diag, path, _ := newStatusDiagnosticFixture(t)
+	diag, path, provider := newStatusDiagnosticFixture(t)
 	handler := diag.Middleware(otelhttp.NewHandler(diag.PostAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		recordStatusDiagnosticStages(r.Context(), diag.provider.Tracer("fixture"))
+		recordStatusDiagnosticStages(r.Context(), provider.Tracer("fixture"))
 		w.WriteHeader(http.StatusOK)
-	})), "eshu-api", otelhttp.WithTracerProvider(diag.provider)))
+	})), "eshu-api", otelhttp.WithTracerProvider(provider)))
 	req := httptest.NewRequest(http.MethodGet, statusDiagnosticPath, nil)
 	req.Header.Set(statusDiagnosticHeader, "client-forged")
 	recorder := httptest.NewRecorder()
@@ -244,5 +246,45 @@ func TestStatusDiagnosticsMissingSuccessfulReadStagesIsIncomplete(t *testing.T) 
 	report := readStatusDiagnosticReport(t, path)
 	if report.Complete || len(report.Errors) == 0 {
 		t.Fatalf("missing stages report: %+v", report)
+	}
+}
+
+type failingForeignProcessor struct {
+	flushCalls atomic.Int32
+}
+
+func (*failingForeignProcessor) OnStart(context.Context, sdktrace.ReadWriteSpan) {}
+func (*failingForeignProcessor) OnEnd(sdktrace.ReadOnlySpan)                     {}
+func (*failingForeignProcessor) Shutdown(context.Context) error                  { return nil }
+func (p *failingForeignProcessor) ForceFlush(context.Context) error {
+	p.flushCalls.Add(1)
+	return errors.New("PRIVATE_FOREIGN_EXPORTER_FAILURE")
+}
+
+func TestStatusDiagnosticsFlushDoesNotTouchForeignProcessors(t *testing.T) {
+	foreign := &failingForeignProcessor{}
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(foreign))
+	path := filepath.Join(t.TempDir(), "report.json")
+	diag, err := New(func(string) string { return path }, provider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := diag.Middleware(otelhttp.NewHandler(diag.PostAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recordStatusDiagnosticStages(r.Context(), provider.Tracer("fixture"))
+		w.WriteHeader(http.StatusOK)
+	})), "eshu-api", otelhttp.WithTracerProvider(provider)))
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, statusDiagnosticPath, nil))
+	if err := diag.Flush(context.Background()); err != nil {
+		t.Fatalf("in-process report failed on foreign exporter: %v", err)
+	}
+	if got := foreign.flushCalls.Load(); got != 0 {
+		t.Fatalf("foreign processor flush calls = %d", got)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !readStatusDiagnosticReport(t, path).Complete || strings.Contains(string(data), "PRIVATE_FOREIGN_EXPORTER_FAILURE") {
+		t.Fatal("private report incomplete or contains foreign failure")
 	}
 }

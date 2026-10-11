@@ -17,7 +17,6 @@ func (d *Collector) Flush(ctx context.Context) error {
 	if d == nil {
 		return nil
 	}
-	flushErr := d.provider.ForceFlush(ctx)
 	d.mu.Lock()
 	report := statusDiagnosticReport{
 		SchemaVersion: 1,
@@ -29,8 +28,8 @@ func (d *Collector) Flush(ctx context.Context) error {
 	if d.closed {
 		report.Errors = append(report.Errors, "duplicate_flush")
 	}
-	if flushErr != nil {
-		report.Errors = append(report.Errors, "provider_flush_failed")
+	if ctx.Err() != nil {
+		report.Errors = append(report.Errors, "flush_context_canceled")
 	}
 	if len(report.Requests) == 0 {
 		report.Errors = append(report.Errors, "no_target_requests")

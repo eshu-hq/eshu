@@ -74,7 +74,6 @@ type statusDiagnosticPending struct {
 // Collector retains bounded status-route span evidence until graceful shutdown.
 type Collector struct {
 	path         string
-	provider     *sdktrace.TracerProvider
 	tracer       trace.Tracer
 	mu           sync.Mutex
 	nextID       uint64
@@ -100,7 +99,6 @@ func New(getenv func(string) string, provider *sdktrace.TracerProvider) (*Collec
 	}
 	d := &Collector{
 		path:         path,
-		provider:     provider,
 		tracer:       provider.Tracer("eshu-api/status-diagnostic"),
 		requestIndex: make(map[string]int),
 		active:       make(map[trace.TraceID]string),
