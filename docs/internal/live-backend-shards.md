@@ -11,6 +11,10 @@ chunks of `ceil(Neo4j tuples / 3)`. Backend pins and complete test expressions
 come from the ledger extractor. New rows enter the partition automatically.
 An empty selected shard fails instead of certifying missing coverage.
 
+NornicDB stays in one shard because profiling found Neo4j consumed roughly
+three quarters of the serial lane. Reassess this allocation as the ledger grows;
+per-target phase timings expose a new long pole without dropping coverage.
+
 For an individual shard, run:
 
 ```bash

@@ -272,33 +272,9 @@ run_one() {
 	return "${status}"
 }
 
-# Flatten (backend, compose file, target) tuples so the very last
-# invocation knows it is last for --keep retention. Ledger rows pin
-# which backends each file can run on (default both); backend-specific
-# tests (e.g. hardcoded-"nornic" database) never schedule elsewhere.
-mapfile -t runs < <(for target in "${targets[@]}"; do
-	# Target shape is file|package|tests|backends, but the tests field
-	# itself holds |-joined names, so the pinned backends come off the
-	# RIGHT end: a left-anchored split silently drops multi-Test files.
-	pinned="${target##*|}"
-	mid="${target%|*}"
-	file="${mid%%|*}"
-	rest="${mid#*|}"
-	package="${rest%%|*}"
-	tests="${rest#*|}"
-	if [[ "${backend}" == "nornicdb" || "${backend}" == "both" ]]; then
-		if [[ "${pinned}" == "nornicdb" || "${pinned}" == "both" ]]; then
-			printf 'nornicdb|%s|%s|%s|%s\n' "${nornicdb_compose}" "${file}" "${package}" "${tests}"
-		fi
-	fi
-	if [[ "${backend}" == "neo4j" || "${backend}" == "both" ]]; then
-		if [[ "${pinned}" == "neo4j" || "${pinned}" == "both" ]]; then
-			printf 'neo4j|%s|%s|%s|%s\n' "${neo4j_compose}" "${file}" "${package}" "${tests}"
-		fi
-	fi
-done)
-
-full_runs="$(printf '%s\n' "${runs[@]}")"
+# Shared pure planner preserves backend pins and complete multi-Test fields.
+full_runs="$(printf '%s\n' "${targets[@]}" | python3 "${shard_helper}" expand --backend "${backend}")" || die "could not expand live-test targets"
+mapfile -t runs <<<"${full_runs}"
 selected_runs="$(printf '%s\n' "${runs[@]}" | python3 "${shard_helper}" plan --shard "${shard}")" || die "could not partition full live plan"
 mapfile -t runs <<<"${selected_runs}"
 

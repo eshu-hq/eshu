@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Partition the live backend plan and account for every scheduled run.
 
-The full plan comes from the existing ledger-backed runner. This module never
-owns a file allowlist: each report and the aggregate are checked against that
+The full plan comes from the ledger extractor shared by runner and aggregate.
+This module never owns a file allowlist: each report is checked against that
 same canonical input, including backend pins and complete test expressions.
 """
 
@@ -80,6 +80,24 @@ def _validate_plan(runs: list[str]) -> None:
     duplicates = [line for line, count in Counter(runs).items() if count != 1]
     if duplicates:
         raise ValueError(f"duplicate planned run: {duplicates[0]}")
+
+
+def expand_targets(targets: list[str], backend: str) -> list[str]:
+    """Expand ledger targets into complete backend-pinned runner tuples."""
+    if backend not in (*COMPOSE_FILES, "both"):
+        raise ValueError(f"invalid backend: {backend}")
+    runs: list[str] = []
+    for target in targets:
+        fields = target.split("|")
+        if len(fields) < 4 or fields[-1] not in (*COMPOSE_FILES, "both"):
+            raise ValueError(f"malformed ledger target: {target!r}")
+        file_path, package, *tests = fields[:-1]
+        pinned = fields[-1]
+        for name, compose in COMPOSE_FILES.items():
+            if backend in (name, "both") and pinned in (name, "both"):
+                runs.append("|".join((name, compose, file_path, package, *tests)))
+    _validate_plan(runs)
+    return runs
 
 
 def partition_runs(runs: list[str], shard: str) -> list[str]:
@@ -218,7 +236,8 @@ def _verify(head: str, plan_path: Path, report_paths: list[Path]) -> bool:
     _validate_head(head)
     plan = _read_plan(plan_path)
     if len(report_paths) != 4:
-        raise ValueError(f"expected exactly four shard reports, got {len(report_paths)}")
+        paths = sorted(str(path) for path in report_paths)
+        raise ValueError(f"expected exactly four shard reports, got {len(report_paths)}: {paths}")
     seen_shards: set[str] = set()
     assigned: list[str] = []
     errors: list[str] = []
@@ -291,6 +310,8 @@ def main() -> int:
     """Dispatch planner, event recorder, report writer, or aggregate gate."""
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    expand = commands.add_parser("expand")
+    expand.add_argument("--backend", default="both")
     plan = commands.add_parser("plan")
     plan.add_argument("--shard", required=True)
     record = commands.add_parser("record")
@@ -306,6 +327,10 @@ def main() -> int:
     verify.add_argument("reports", nargs="*")
     args = parser.parse_args()
     try:
+        if args.command == "expand":
+            for line in expand_targets(sys.stdin.read().splitlines(), args.backend):
+                print(line)
+            return 0
         if args.command == "plan":
             for line in partition_runs(sys.stdin.read().splitlines(), args.shard):
                 print(line)

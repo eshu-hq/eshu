@@ -147,6 +147,29 @@ class ShardContractTest(unittest.TestCase):
         stale = self.write_report("4/4", [event(self.plan[6])], "b" * 40)
         self.assertNotEqual(self.verify([*reports[:3], stale]).returncode, 0)
 
+    def test_expand_backend_pins_and_complete_test_expressions(self) -> None:
+        """Pure planning preserves canonical backend order and multi-Test rows."""
+        targets = "go/pkg/a_live_test.go|./pkg|TestOne|TestTwo|both\n" + (
+            "go/pkg/b_live_test.go|./pkg|TestOne|neo4j\n")
+        expected = [run("nornicdb", "a", "TestOne|TestTwo"),
+                    run("neo4j", "a", "TestOne|TestTwo"), run("neo4j", "b")]
+        for backend in ("both", "nornicdb", "neo4j"):
+            result = self.invoke("expand", "--backend", backend, input_text=targets)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines(),
+                             [line for line in expected if backend == "both" or line.startswith(backend + "|")])
+        for bad in ("", targets.replace("|both", "|unknown"), targets + targets,
+                    targets.replace("TestTwo", "bad")):
+            self.assertNotEqual(self.invoke("expand", "--backend", "both", input_text=bad).returncode, 0)
+
+    def test_report_count_error_names_received_paths_in_order(self) -> None:
+        """Distinguish missing coverage from unexpected download nesting."""
+        paths = [self.directory / "z.json", self.directory / "a.json"]
+        result = self.verify(paths)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(str(sorted(str(path) for path in paths)), result.stderr)
+        self.assertIn("expected exactly four shard reports, got 2", result.stderr)
+
     def test_verify_rejects_failed_shard_report(self) -> None:
         reports = self.good_reports()
         failed = self.write_report("4/4", [event(self.plan[6], 1)])

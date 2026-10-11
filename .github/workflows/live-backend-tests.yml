@@ -226,6 +226,7 @@ jobs:
       - name: Verify complete live-backend coverage
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
         run: |
-          ESHU_LIVE_RUNNER_SELFTEST=plan bash scripts/run-live-backend-tests.sh > live-backend-full.plan
+          python3 scripts/lib/live_backend_test_targets.py specs/live-tests.v1.yaml . |
+            python3 scripts/lib/live_backend_shards.py expand > live-backend-full.plan
           python3 scripts/lib/live_backend_shards.py verify --head "$(git rev-parse HEAD)" \
             --plan live-backend-full.plan live-backend-reports/*/live-backend-result.json
