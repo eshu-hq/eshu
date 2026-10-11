@@ -4,11 +4,12 @@ This appendix belongs to
 [Derive repository config artifacts when content is written](7126-ingest-time-config-artifacts.md)
 and its [protocol companion](7126-ingest-time-config-artifacts-protocol.md).
 It holds the measurements the decision rests on, the source facts, and the
-split between evidence and theory. No new measurement was taken for this
-record. Every figure below comes from an earlier read-only probe, a local
-bench, a local kit note (named where used, not in the repository), or the
-arbiter ruling and re-ruling of 2026-10-10. Source facts are read at
-`origin/main` `b7ca5f2f0a`. The cited paths are unchanged at `6ddfc65d55`.
+split between evidence and theory. No measurement was taken for this record.
+Every figure below comes from an earlier read-only probe, a local bench, a
+local kit note (named where used, not in the repository), or an arbiter
+ruling of 2026-10-10 or 2026-10-11. Source facts are read at `origin/main`
+`b7ca5f2f0a`. The cited paths are unchanged at `6ddfc65d55`. The S3 ruling
+read the retention source at `main` `64f6600d98`.
 
 ## 1. Measurements and their limits
 
@@ -57,9 +58,11 @@ otherwise. Each source names a symbol, not a line.
 | The infra read model backfill runs in the API process today | `StartInfraInventoryBackfill` in `go/internal/query/cloud_resource_owner_backfill.go` |
 | Rows from HCL and compose pass through `normalizeRepoScopedPath`. Kustomize and Ansible rows do not | `appendConfigArtifactRow` and its callers in `repository_config_artifacts_hcl.go` and `repository_config_artifacts_compose.go`, against `extractKustomizeConfigPathRows` and `extractAnsibleConfigPathRows` |
 | The anchor list is read with limit+1 and sets a truncated flag | `loadRepositorySemanticOverview` in `go/internal/query/repository/semantics.go` |
-| `content_files` batches run one after another inside one Write | `upsertContentFileBatches` in `go/internal/storage/postgres/content_writer_upserts.go` |
+| `content_files` batches run one after another inside one Write. Entity batches run concurrently and do not write `content_files` | `upsertContentFileBatches` and `upsertContentEntityBatches` in `go/internal/storage/postgres/content_writer_upserts.go` |
 | Generation retention deletes `content_files` rows, and only the reducer wires retention | `pruneContentFilesForGenerationsQuery` in `go/internal/storage/postgres/generation_retention_sql.go`, `go/cmd/reducer/generation_retention_wiring.go` |
 | Migration 109 uses statement-level INSERT and UPDATE triggers with transition tables and a row-level DELETE trigger | `109_infra_resource_entities.sql` |
+| Triggers of one event on one relation fire in alphabetical order by name. Row-level AFTER triggers fire before statement-level AFTER triggers | PostgreSQL 18 documentation, trigger definition. The names of the migration 138 triggers are in `138_content_file_secret_lines.sql` |
+| The retention transaction sets `work_mem` to 64 MB, times named phases, and runs the content prune as one DELETE in the phase `prune_content_files`. The row limit 100,000 counts facts and content rows together | `generationRetentionWorkMemStatement`, `GenerationRetentionPhasePruneFiles`, `defaultGenerationRetentionRowLimit` in `go/internal/storage/postgres/generation_retention.go` |
 | Row-level AFTER triggers fire at the end of the statement. Retention deletes `content_files` in one statement per transaction | PostgreSQL trigger documentation, and the retention step list of `GenerationRetentionStore` in `go/internal/storage/postgres/generation_retention.go` |
 | No import cycle blocks a shared package | `go list -deps` on `./internal/query/querycontract`, `./internal/query/repositoryartifacts`, `./internal/content` and `./internal/storage/postgres` at `b7ca5f2f0a` |
 | The newest migration on `origin/main` | `169_content_files_generation_id.sql`. No open PR adds a migration (checked with `gh pr list --state open` on 2026-10-10) |
@@ -80,6 +83,8 @@ Evidence (observed or read from source):
 - The stored reads meet 5 ms at 300 ids on a laptop with synthetic paths
   (S2, section 4).
 - A four-column TEXT key fails at a 2,610-byte incompressible path (S2).
+- S3 arms 1, 2, 4 and 6 pass on a private PostgreSQL 18.6, with a load note
+  on arms 1, 2 and 6 (section 6).
 
 Theory (each has a shim in section 8 of the decision record):
 
@@ -95,13 +100,23 @@ Theory (each has a shim in section 8 of the decision record):
   CPU to 0.7 CPU-s or less per R1 story. These targets are a budget built from
   the contributor list, not a measurement.
 - The estimate of 2.5-4.5 s for PR1 plus PR2 in the QA environment.
-- The content-version trigger meets the six S3 arms (protocol companion
-  section 6). The R-1 lost update itself is a source-backed sequence, decided
-  by the re-ruling.
+- The content-version trigger meets S3 arm 3 (on the real `prune_content_files`
+  phase) and arm 5 (with attributed waits). Both rerun (sections 6 and 7).
+  The R-1 lost update itself is a source-backed sequence, decided by the
+  re-ruling.
+- The fallback of the protocol companion (section 2) is a design, not a
+  measurement. It applies only if the arm 3 rerun fails both shapes.
 
 NOT_CHECKED: S2 on real R1 path widths, a disk-cold read, the production environment, the related repositories the R1 body does not name,
 the cap census (S6), concurrent stories, and the cold route after a pod
-restart.
+restart. From the S3 ruling: the cause of the 2.0 s heavyweight wait in arm
+5, the real `prune_content_files` duration at 100,000 rows (no figure is
+recorded), that a transition table is bounded by `work_mem` (a recollection of
+the PostgreSQL source), that a GIN pending-list cleanup by an inserting
+backend takes the metapage lock conditionally (a recollection; if wrong,
+`page` is a fifth wait class, which the `wait_event` column shows either
+way), and the QA-environment p95 of
+`eshu_dp_generation_retention_scope_lock_hold_seconds`.
 
 ## 4. S0 and S2 results (local, 2026-10-10)
 
@@ -200,3 +215,152 @@ CREATE TRIGGER a AFTER DELETE ON cf FOR EACH ROW EXECUTE FUNCTION after_del();
 DELETE FROM cf;
 SELECT kind, min(n), max(n), count(*) FROM evlog GROUP BY kind ORDER BY 2;
 ```
+
+## 6. S3 results (local, 2026-10-11)
+
+Source: local kit notes `7126-s3-results-20261011.md` and
+`7126-s3-ruling-20261011.md` (the arbiter's reading of the logs), and the shim
+branch `proof/7126-s3-fence-cost` at `772376924b`. None is in the repository.
+Private native PostgreSQL 18.6, default configuration (`shared_buffers`
+128 MB, `work_mem` 4 MB, `fsync` on). Rule PD: load1 below 9.0 as the in-run
+maximum. The run wrapper waits for load1 below 7 for 20 s, then samples it
+every second. The control canary is arm A of the same round.
+
+| Run | Arms | In-run max load1 | Valid under PD | Note |
+|---|---|---|---|---|
+| A | 1, 2, 4, 6 | 17.63 | No | A peer ran a `git grep` burst. Arm 4 read +41.86%. Void |
+| A4r2 | 4, 9 rounds | 5.05 | Yes | A 2.823 s, B 2.854 s, +1.07%, ranges overlap |
+| Q1 | 1, 2, 6 | 9.88 | Accepted with a deviation note | The peak lasted 25 s (15:04:51-15:05:15). By the subtest durations (arm 1 132.19 s, from about 15:02:20) it falls in arm 2, which began about 15:04:32. The in-arm maximum of arm 1 was 7.25 (15:02:36). The shim's own test binary and database backend (arm 2 seeding) and foreign processes (a system profiler, Spotlight, a peer's build and docs scan) were all running. The arbiter read the peak as overlapping the last round of arm 1. The logs place it in arm 2, which still passes (+1.47% against +5%, ranges overlap). Arm 6 counts are exact, so load cannot change them. Arm 1 rides along with the arm 5 rerun, and a reversal there reopens it |
+| Q3 | 3 | 5.62 | Yes | |
+| Q5 | 5 | 7.47 | Yes | A spread 9.23-16.14 s (1.75x). The 7.47 was the test binary's link step before the arm started |
+
+| Arm | Measure | A | B | Delta | Bar | Result |
+|---|---|---|---|---|---|---|
+| 1 | full Write, 5,000 files incl. derive (Q1) | 10.678 s | 10.754 s | +0.71% | +5% | PASS |
+| 1 | trigger only (Q1) | 10.678 s | 10.749 s | +0.66% | +5% | PASS |
+| 1 micro | 50,000 rows, 500-row statements (Q1) | 141.2 ms | 153.0 ms | +0.236 us/row | 0.5 us/row | PASS |
+| 2 | delta Write, 1 file + 3 tombstones (Q1) | 2.322 ms | 2.356 ms | +1.47% | +5% | PASS |
+| 4 | one 50,000-row INSERT (A4r2) | 2.823 s | 2.854 s | +1.07% | +5% | PASS |
+| 6 | version-row rewrites (Q1) | exact | exact | 0 off | exact | PASS: full 10, delta 2, reap 4, bulk 1, prune 50 on both shapes |
+| 6 | seeded per-row trigger | RED (5,000 vs 10) | | | | RED then GREEN |
+| 3 | prune 100,000 rows, 50 repos, row-level DELETE (Q3) | 528.1 ms | 817.4 ms | +54.79% | +5% | FAIL on a proxy denominator |
+| 3 | same, `OLD TABLE` DELETE (Q3) | 528.1 ms | 662.5 ms | +25.46% | +5% | FAIL on a proxy denominator |
+| 5 | per Write, trigger last (Q5) | 11.844 s | 12.649 s | +6.79% | +10% | PASS |
+| 5 | per Write, trigger first (Q5) | 11.844 s | 11.623 s | -1.87% | +10% | PASS |
+| 5 | slower of pair, trigger last / first (Q5) | 12.029 s | 13.535 s / 12.202 s | +12.52% / +1.44% | +10% | not a protocol bar |
+| 5 | longest version-row lock wait, last / first (Q5) | | 2.018 s / 1.950 s | | one solo batch (0.969 s) | FAIL on an unattributed wait |
+| 5 | deadlocks over 20 rounds | | 0 | | 0 | PASS |
+
+What the S3 ruling says about the two failures:
+
+- Arm 3 is not final, because the shim measured a proxy, not the protocol
+  denominator. Four deviations each inflate the ratio. (1) The shim deletes
+  from a pre-materialized key table. The real statement first computes the
+  candidate keys from `fact_records` and probes each key. The shim log
+  itself calls its denominator a lower bound. (2) The shim bodies are
+  1,024 bytes (the ruling read the shim source; the results note says 512),
+  below the TOAST threshold, so the `OLD TABLE` transition table carries the
+  full content of 100,000 rows. Production 8 KiB bodies are TOAST pointers.
+  Small files stay inline in production, so this class is real, but it is
+  the worst case. (3) The shim ran at the server `work_mem` of 4 MB. The
+  real transaction sets 64 MB. (4) The shim has no advisory locks and not
+  the eight other statements. That is fine for the trigger delta and wrong
+  for the denominator.
+- The numbers that survive are the per-row costs: `OLD TABLE` +1.344 us and
+  row-level +2.893 us per row. The ranges are disjoint from A (A 517-542 ms,
+  `OLD TABLE` 641-769 ms, row-level 799-864 ms). At the row limit of 100,000
+  the worst-case add is about 134 ms and 289 ms per retention cycle, with
+  inline bodies and 4 MB `work_mem`. This is context, not the protocol bar.
+- Arm 5: the bar of one solo batch is mis-specified. Under two writers a
+  batch takes about 1.2-1.8 s, and a waiter can only wait for the holder's
+  remaining hold. The sampler counts every `Lock` wait of any type and cannot
+  name the version row. Arm A's waits were sampled and never reported, so
+  there is no control. Candidates that exist in A too are an `advisory` wait
+  (both Writes end in `inventory.Mirror`), an `extend` wait, and sampler
+  merging of short waits. With the trigger last, the version row is held for
+  a commit, so a 2.0 s hold on it is not credible. Both modes show the same
+  maximum, and trigger first shows less total wait (501 ms against 771 ms
+  per round). A cause outside the version row fits. This is an inference,
+  not a measurement. The rerun measures it.
+- The slower-of-pair metric is the shim author's addition. Its +12.52%
+  inverts against trigger first (+1.44%), over an A spread of 1.75x, so it is
+  noise-dominated. It is neither a pass nor a defect. The -1.87% of trigger
+  first is inside the noise band and does not overturn the argument for a
+  trigger that fires last.
+- Not run at full size: the variant that strips secret lines (it isolates the
+  version trigger from migration 138), arm 5 with overlapping keys, and a
+  first Write of a repository with no seeded version row.
+- Arm 3 write probe (informational): a 500-file Write of a pruned repository
+  waited for the prune commit. With a 250 ms tail the extra wait was 227 ms
+  (`OLD TABLE`) and -335 ms (row-level, sample noise). Waits were on the
+  version row only (disjoint content keys).
+
+## 7. S3 rerun specification (S3 ruling, 2026-10-11)
+
+Both reruns use the private PostgreSQL 18.6 and the PD rule: a quiet host,
+load1 below 9.0 for the whole run, arm A as the control canary.
+
+Arm 3, on the real retention statement:
+
+- Statement: the real `GenerationRetentionStore.PruneSupersededGenerations`
+  (or the in-package `pruneCandidates`), so `SET LOCAL work_mem`, the advisory locks and
+  `pruneContentFilesForGenerationsQuery` all run. Denominator:
+  `PhaseDurations["prune_content_files"]`. Also record `ScopeLockHold` and
+  the whole-transaction wall.
+- Fixture: 50 scopes, one superseded prunable generation each, 2,000
+  `content_files` rows per repository (100,000 rows), a non-tombstone `file`
+  fact per row in the doomed generation and none retained, so every row is
+  doomed. Set `BatchRowLimit` high enough to admit one transaction (the
+  default 100,000 counts facts and content rows together; the note says so).
+  Build the schema as `generation_retention_large_fixture_live_test.go` does:
+  migrated, key indexes present.
+- Arms: A (no version trigger), B1 (row-level DELETE trigger), B2 (`OLD TABLE`
+  DELETE trigger). Interleaved, first mover rotating, 5 measured rounds after
+  one discarded round (the shim's `versionFenceInterleave`).
+- Body classes, both required and reported separately: 1 KiB inline and 8 KiB
+  TOASTed.
+- Pass: the chosen shape at most +5% of `prune_content_files` on both
+  classes. At equal cost prefer `OLD TABLE`. Report the `ScopeLockHold` delta
+  in seconds as informational. Fail: both shapes over 5% on either class.
+  The fallback of the protocol companion then becomes available as the
+  Proposed fallback, which needs an F2 amendment by ruling. Without it,
+  retention pays the trigger.
+- The arm 3 write probe of section 6 (a Write of a pruned repository waits
+  for the prune commit) is informational. It is not part of the rerun bar.
+
+Arm 5, attributed:
+
+- Sampler first, as its own shim commit: add `wait_event` to the sample SQL.
+  For `transactionid` and `tuple` waits, add the blocking pid
+  (`pg_blocking_pids`) and the waiter's query prefix. Classify each episode:
+  `version_row` (the waiter runs a content INSERT, UPDATE or DELETE and the
+  blocker runs a content statement of the other writer), `advisory`,
+  `extend`, `other`. Report the maximum and the total per round, per class
+  and mode, including A.
+- Runs: modes A, B-last and B-first, 20 measured rounds, with disjoint keys
+  (default). Then the same with the shim's overlap switch (two scopes
+  writing the same paths: the production shape), 20 rounds.
+- Bars: per Write at most A + 10%. `version_row`: A must be 0. The B-last
+  maximum is at most one contended batch (B-last per-Write median / 10). The
+  B-first maximum is at least the B-last maximum. If it is not, the
+  classification is wrong and the run is void. `advisory` and `extend` are
+  equal between A and B within the A spread. 0 deadlocks in 20 rounds.
+- Add arm 1 (5 rounds, default sizes) to the same session, as a confirmation
+  of Q1.
+
+## 8. Delete paths on `content_files` (S3 ruling, 2026-10-11)
+
+Source: `rg` over `go/` for `DELETE FROM content_files` and
+`TRUNCATE ... content_files`, outside tests. This is the inventory the
+fallback needs. Every path keeps the trigger except the one statement that
+bumps itself.
+
+| Path | Shape | Fence under the fallback |
+|---|---|---|
+| `pruneContentFilesForGenerationsQuery` in `generation_retention_sql.go` (reducer only) | one statement per transaction | self-bump in the statement. The trigger is gated off by `SET LOCAL` |
+| `deleteContentFilesChunk` in `content_writer_delete_batch.go`: tombstones and the full-snapshot reap, autocommit, chunks of 500 | row-level trigger, at most 500 rows (500 x 2.893 us is about 1.45 ms, an extrapolation from the non-final arm 3 proxy) | trigger. One bump per chunk. Arm 6 counts 4 in the reap case (1,200 reaped paths plus 3 tombstones) |
+| `deleteContentFileQuery` through `ContentStore.Write` (`content_writer_sql.go`, `content_store_writes.go`) | one row per statement | trigger. `NewContentStore` has no caller outside tests (`rg`, not a build-graph query), and it stays fenced |
+| `TRUNCATE content_files` | no production path (a note in `go/internal/storage/postgres/secret/lines/README.md`) | the statement-level TRUNCATE trigger bumps every version row |
+| Manual SQL, migrations, older binaries | arbitrary | trigger |
+| Repository retirement (#7766, draft PR #7871) | future | must adopt one disposition for the versions and state tables (protocol companion, section 1). The DELETE trigger covers its content delete, unless it used the gate, which it must not |
+| Foreign key cascades into `content_files` | none. `content_files` references no parent (`contentStoreBaseSchemaSQL`, migration 004). `content_file_secret_lines` is its child (migration 138) | not applicable |

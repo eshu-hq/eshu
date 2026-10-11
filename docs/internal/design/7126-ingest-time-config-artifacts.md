@@ -1,10 +1,15 @@
 # Derive repository config artifacts when content is written (#7126)
 
 Status: Accepted with changes (arbiter ruling and re-rulings 1, 2 and 3,
-2026-10-10).
-Shims S0 and S2 ran locally and pass. S1, S3, S4 and S6 have not run. This
-record does not approve the schema, the migration number or any rollout.
-Each of those waits for the shims in section 8. Refs #7126.
+2026-10-10, and the S3 ruling, 2026-10-11).
+Shims S0 and S2 pass. S3 arms 1, 2, 4 and 6 pass. Arms 1, 2 and 6 ran in a
+run whose in-run load1 maximum was 9.88 against the 9.0 bound, for 25 s, from
+foreign processes and the shim's own seeding. The arbiter accepted them with
+that deviation noted
+(evidence appendix, section 6). The arm 3 and arm 5 reruns are pending. S1,
+S4 and S6 have not run. This record does not approve the schema, the
+migration number or any rollout. Each of those waits for the shims in
+section 8. Refs #7126.
 
 **Decision: compute the `config_paths` rows of each repository once, after the
 content writer commits that repository's content, and store them in Postgres
@@ -119,11 +124,18 @@ sessions that do not derive.
    moved, the stored version stays behind, so readers fall back.
 6. The reducer owns repair. Its walker runs the same derive protocol for
    reconcile, backfill and extractor version changes.
-7. A startup check guards the UTF8 invariant (re-ruling 3). Each deriving
-   binary and the API run `SHOW server_encoding` once. On a value other than
+7. A startup check guards two invariants. Each deriving binary and the API
+   run `SHOW server_encoding` once (re-ruling 3). On a value other than
    `UTF8` they skip every derive with outcome `encoding_unsupported` and
-   report the read model as `not_installed`. The Write proceeds, and reads
-   stay live.
+   report the read model as `not_installed`. The S3 ruling adds a second
+   check: the four `content_files_version_fence_*` triggers (protocol
+   companion, section 2) must exist on `content_files` in `pg_trigger`. If
+   one is missing, they skip every derive with outcome `fence_missing` and
+   report `not_installed` with reason `version_fence_missing`. A dropped or
+   disabled trigger then fails loud and does not serve stale rows as
+   trusted. The detection is ruled. The mechanism is **Proposed**: the check
+   requires `tgenabled IN ('O','A')`, so a disabled (`D`) or replica-only
+   (`R`) trigger counts as missing. The Write proceeds, and reads stay live.
 
 This departs from #6793. `deriveInfraInventory` fails the Write, which is
 right for a SQL-only copy. The config derive runs Go regexes and `yaml.v3`
@@ -176,8 +188,10 @@ Retention: the rows mirror latest-wins `content_files`, not a generation.
 `Write` tombstones and the full-snapshot reap run before the derive, so the
 derive covers them. Generation retention deletes `content_files` rows, which
 fires the trigger, so retention needs no new code path. S3 chooses the shape
-of the DELETE trigger. If neither shape meets the prune bar, retention bumps
-the versions explicitly.
+of the DELETE trigger, measured on the real `prune_content_files` phase
+(section 8). A fallback design exists (protocol companion, section 2). It is
+**Proposed**, applies only if the arm 3 rerun fails both shapes, and requires
+an F2 amendment by ruling.
 
 ### 3.3 Accuracy
 
@@ -247,8 +261,9 @@ path is the oracle, so PR3 changes no extraction semantics.
 ### 3.4 Rollout
 
 1. PR3a merges: no behavior change except the tie order.
-2. PR3b deploys: the migration creates the tables and seeds one version row
-   per repository, writers derive, and the walker backfills. The read mode
+2. PR3b deploys (1a, then 1b, then 2): the migrations create the tables, the
+   triggers and one seeded version row per repository, writers derive, and
+   the walker backfills. The read mode
    stays `live`. **Proposed** variable name: `ESHU_CONFIG_ARTIFACT_READ_MODE`,
    with the values `live`, `shadow` and `stored`.
 3. The QA environment runs `shadow`: each request computes both answers, compares them per
@@ -270,20 +285,21 @@ states this number in its PR. A bump is a performance event, not a silent one.
 ### 3.5 Telemetry
 
 All names in this section are **Proposed**, except what a ruling named: the
-G9 stage log fields, and from re-ruling 3 the log `postgres.server_encoding`,
-the derive outcome `encoding_unsupported` and the `not_installed` status with
-a reason.
+G9 stage log fields, from re-ruling 3 the log `postgres.server_encoding`, the
+derive outcome `encoding_unsupported` and the `not_installed` status with a
+reason, and from the S3 ruling the derive outcome `fence_missing` and the
+reason `version_fence_missing`.
 
 | Signal | Name | Answers |
 |---|---|---|
 | Counter | `eshu_dp_config_artifact_reads_total{source,reason}` | related repositories served stored or live, and why (`missing`, `stale_version`, `stale_extractor`, `failed`, `mode_live`) |
 | Counter | `eshu_dp_config_artifact_shadow_compare_total{outcome}` | `match`, `mismatch`, `stored_missing` |
-| Counter, histogram | `eshu_dp_config_artifact_derives_total{trigger,outcome}`, `eshu_dp_config_artifact_derive_duration_seconds{trigger}` | write, backfill and repair derives. `ok`, `superseded`, `error`, `panic`, `timeout`, `encoding_unsupported` |
+| Counter, histogram | `eshu_dp_config_artifact_derives_total{trigger,outcome}`, `eshu_dp_config_artifact_derive_duration_seconds{trigger}` | write, backfill and repair derives. `ok`, `superseded`, `error`, `panic`, `timeout`, `encoding_unsupported`, `fence_missing` |
 | Counter | `eshu_dp_config_artifact_reconcile_total{outcome}` | `match`, `repaired`, `superseded`, `error`, `skipped` |
 | Gauge | `eshu_dp_config_artifact_stale_repos{reason}` | how far the read model is behind, from the dirty join |
 | Span | one `config_artifacts.load` span per request. One derive span per Write | replaces up to about 49,600 per-statement spans of an R1 story |
 | Log | `postgres.server_encoding` at INFO (ERROR when not UTF8, re-ruling 3), `config_artifacts.derive.failed` at ERROR, `config_artifacts.shadow.mismatch`, `config_artifacts.reconcile.drift`, content-writer stage `derive_config_artifacts` | repository id, outcome, row and candidate counts |
-| Status | `/admin/status` field `config_artifacts`: `not_installed` (with a reason, such as a non-UTF8 database), `backfilling`, `ready`, plus stale and skipped repository counts | whether stored reads are trusted |
+| Status | `/admin/status` field `config_artifacts`: `not_installed` (with a reason, such as a non-UTF8 database or `version_fence_missing`), `backfilling`, `ready`, plus stale and skipped repository counts | whether stored reads are trusted |
 
 The stage log line `deployment_artifacts` lacks N and statement counts today.
 PR3c adds `read_mode`, `related_repository_count`, `stored_repository_count`,
@@ -371,9 +387,10 @@ those stages change, which is outside PR3.
 | PR | Content | Starts | Proof |
 |---|---|---|---|
 | S0 test, version guard | The S0 name-free equality test (exists on the local branch `proof/7126-pr3-shims`, `953f68712e`) and the `extractor_version` digest guard, as new files | now | S0 passes (done locally). Seeded RED/GREEN for the guard |
-| PR3b-1 | Migration, version table and trigger, state and row tables, walker skeleton, read-model port | now. The trigger only after S3 arms 1-6 pass | S2, S3. Live Postgres tests. Interleaving tests for the R-1, two-scope and prune sequences, and the arm 7 cases (1a, 1b, 2, 3). A schema test that recomputes every seeded digest in SQL. **Proposed**: a test that no Go statement deletes version rows outside a documented retirement path. The startup encoding check |
+| PR3b-1a | Migration N: version, state and rows tables with `config_artifact_utf8` and the generated `row_digest`, the autovacuum setting, the backfill marker and reconcile cursor tables. No trigger, no seed. The UTF8 startup check, the walker skeleton (no derive), the read-model port, docs | now. It changes no `content_files` behavior, so no S3 arm gates it | Ordinary code-change proof. Live Postgres tests. A schema test that recomputes every digest in SQL. **Proposed**: a test that no Go statement deletes version rows outside a documented retirement path |
+| PR3b-1b | Migration N+1, one transaction: the four `content_files_version_fence_*` triggers first (DELETE shape from S3), then one version-0 row per repository. The trigger-order schema test | after the arm 3 rerun on the real `prune_content_files` phase and the attributed arm 5 rerun pass | S3. Arm 7 cases 1a, 1b, 2 and 3 under the chosen shape (1b and 2 under both). R-1, two-scope and prune interleaving tests. Time the seed scan: `CREATE TRIGGER` stalls content writes until commit |
 | PR3a | Move the per-repository function and extractors to the neutral package. Shared `content_files` SQL. Total sort. Split `normalizeRepoScopedPath` into clean and strip | after PR1, PR1b and PR2 merge | Existing tests and the PR1 differential pass unchanged. Tie count. The S0 tests run against the strip step |
-| PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
+| PR3b-2 | Derive call in `ContentWriter.Write`, projector wiring, walker derive, the startup fence-trigger check (section 3.1), telemetry. Register the timeout and walker variables in `go/internal/envregistry/entries.go`, regenerate the env registry page, and update the telemetry reference and `telemetry-coverage.md` | after PR3a and PR3b-1b. It must not deploy before 1b | S1, then S4. `verify-env-registry-doc.sh` and `verify-docs-cli-env-refs.sh` |
 | PR3c | Read mode flag and its env registry entry, name step, one merge and dedup, per-repository fallback, shadow compare, stage log fields, access test, docs | after PR3b-2 | Handler tests per fallback reason. Out-of-grant test. Two related repositories with one graph name. Anchor repeated in the related list. QA-environment shadow then acceptance |
 
 PR3a waits because PR1 edits the loader, hydration, kustomize, HCL and
@@ -392,7 +409,7 @@ note. Details are in section 6 of the protocol companion.
 |---|---|---|---|
 | S0 name-free rows | local Go test | 0 differing rows between the named build and the name-free build plus the name step, for 3 or more names | store the name in the state row and run S5. **Ran: PASS**. The two loader-level merge cases are not part of S0. They are in S4 and PR3c |
 | S2 read plan | local PostgreSQL 18 | The reader's three-table join for 300 ids and the dirty join over 815 repositories. Each runs in at most 5 ms with a generic plan. No scan of a table that grows with `content_files` | change the key or the statement. **Ran: PASS** with the four-column key: reader join 2.44 ms, dirty join 0.18 ms. With the digest key only the paths read was measured (2.14 ms). The digest-key reader join is not measured. See the evidence appendix, section 4 |
-| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most 5% of the prune phase. Two concurrent Writes at most +10%, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write with few tombstones has two). A delta Write expects ceil((tombstones + reaped paths) / 500) delete transactions plus its upsert batches. Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1 | other DELETE shape, then explicit bumps in retention. Do not build the trigger |
+| S3 fence cost | local PostgreSQL 18 | Six arms (companion 6). Full Write, delta Write and a 50,000-row insert at most +5%. Prune at most +5% of `prune_content_files` of the real retention store, at 1 KiB inline and 8 KiB TOASTed bodies. Two concurrent Writes at most +10% per Write, lock waits attributed by class, 0 deadlocks in 20 rounds. One version-row rewrite per repository per content transaction, never per Write (a delta Write with few tombstones has two). A delta Write expects ceil((tombstones + reaped paths) / 500) delete transactions plus its upsert batches. Arm 1 includes the generated `row_digest` insert. Arm 7 is a separate correctness test in PR3b-1b | other DELETE shape, then the **Proposed** fallback (companion 2, needs an F2 amendment). Do not build the trigger. **Ran 2026-10-11**: arms 1, 2, 4 and 6 PASS. Arm 3 failed on a proxy denominator and arm 5 failed a mis-specified bar, so both rerun (appendix section 6) |
 | S6 cap census | QA environment, read-only | counts recorded for the follow-up issue | none: input only |
 | S1 derive cost | local, PR1, PR1b and PR2 stacked | at most 10% of content-stage p95. At most 2 s for the worst repository | reopen F1 |
 | S4 equality | PR3b gate | Symmetric difference `0/0` for every golden-corpus repository. Two loader-level merge cases too: two related repositories with one graph name, and the anchor repeated in the related list | do not merge PR3b-2 |
@@ -406,18 +423,19 @@ against 2.44 ms). The versions table grows with repositories, not with files.
 Re-ruling 2 set the bar to "execution at most 5 ms at 300 ids and no scan of
 a table that grows with file count", and accepted the hash join.
 
-## 9. Arbiter rulings of 2026-10-10
+## 9. Arbiter rulings of 2026-10-10 and 2026-10-11
 
 The ruling and re-rulings 1, 2 and 3 bind. The re-ruling replaced the first
 fence. Re-ruling 2 decided the trigger lock order, the arm 6 count, the row
 key and the S2 bar. Re-ruling 3 adopted the IMMUTABLE wrapper and the UTF8
 startup check, stated the trigger timing again, and reduced arm 7 case 3 to a
-convergence check. This table maps each item to its section here.
+convergence check. The S3 ruling of 2026-10-11 judged the first full-size S3
+run. This table maps each item to its section here.
 
 | Fork | Ruling | Where |
 |---|---|---|
 | F1 place of the derive | B, with the derive never failing the Write, a deadline, panic recovery, and parse outside the lock. The re-ruling replaced the conditional mark delete with an advance-only write | 3.1, companion 3 |
-| F2 fence (re-ruled) | a content version bumped by a `content_files` trigger for every session, once per transaction per repository. No mark table, no pre-write mark, no session setting | 3.1, 3.2, companion 2 |
+| F2 fence (re-ruled) | a content version bumped by a `content_files` trigger for every session, once per transaction per repository. No mark table, no pre-write mark, no session setting. A fallback gate that sets a transaction-local setting needs an F2 amendment by ruling (companion 2) | 3.1, 3.2, companion 2 |
 | F3 caps | keep both caps, parity-first, file the defect separately with S6 | 3.3, 5 |
 | F4 anchor | stays live | 3.3 |
 | F5 repair vehicle | reducer walker, same protocol, K workers by `repo_id`, skip after 5 failures | 3.1, companion 4 |
@@ -430,6 +448,7 @@ convergence check. This table maps each item to its section here.
 | G8 key width (re-rulings 2 and 3) | Stored generated digest key through the IMMUTABLE wrapper `config_artifact_utf8`. `row_too_wide` and a length precheck rejected. A UTF8 startup check | 3.1, 3.2, companion 1 |
 | Trigger lock order and arm 7 (re-rulings 2 and 3) | `ORDER BY r.repo_id` accepted. No cross-table cycle through a version row for a prune against a Write, under either DELETE shape. S3 cost alone picks the shape, with `OLD TABLE` as the tie-breaker. Arm 7 has three cases, case 3 a convergence check. Case 1 split into 1a and 1b (**Proposed**) | companion 2 and 6 |
 | Arm 6 count and S2 bar (re-ruling 2) | one rewrite per content transaction. At most 5 ms and no scan that grows with file count | 8, companion 6 |
+| S3 ruling (2026-10-11) | Arm 3 is not final: re-measure both DELETE shapes on the real `prune_content_files` phase before any fallback. Arm 5 fails only a mis-specified, unattributed bar: rerun with wait-class attribution. Q1 stands, with a load note. Fence trigger names fix the firing order. PR3b-1 splits into 1a (no trigger) and 1b (trigger and seed). The startup check covers the fence triggers | 3.1, 3.2, 3.5, 7, 8, companion 2 and 6 |
 | G9 stage log | the new fields land in PR3c | 3.5 |
 | R-1 and G3 (lost update) | decided: the version fence replaces the mark protocol | companion 7 |
 
