@@ -268,15 +268,102 @@ WHERE generation_id = $1 AND stage = 'projector'`, overlayGenB.id).Scan(&class);
 		t.Fatalf("UncoveredProjectionWriters() = %v, want [%s]: the collector must see the refused writer", got, overlayGenB.id)
 	}
 
-	// The full snapshot the collector's graph_dirty fallback emits.
+	// The full snapshot the collector's graph_dirty fallback emits. It has the
+	// same tree and commit as the active G_C, so #7978 stores no generation:
+	// the store re-opens G_C's projector work and the production projector
+	// re-projects G_C, which retracts G_B's overlay.
+	generationsBefore := h.generationCount(ctx)
 	fullC := overlayGen{id: "gen-7389-full-c", commit: overlayCommitC, files: overlayTreeA}
 	if err := h.commit(ctx, fullC); err != nil {
 		t.FailNow()
 	}
-	h.waitGeneration(ctx, fullC.id, "active")
-	h.logState(ctx, "after the graph_dirty full generation at C activated")
-	h.assertFiles(ctx, "after full generation at C", []string{"keep.go", "w.go"})
-	if got := h.uncoveredWriters(ctx); len(got) != 0 {
-		t.Fatalf("UncoveredProjectionWriters() after the full = %v, want none (covered)", got)
+	h.waitReprojected(ctx, genC.id, 1)
+	h.logState(ctx, "after the graph_dirty reconcile re-projected G_C")
+	if got := h.generationCount(ctx); got != generationsBefore {
+		t.Fatalf("scope_generations rows %d -> %d after an unchanged reconcile, want unchanged", generationsBefore, got)
 	}
+	h.assertFiles(ctx, "after G_C re-projected", []string{"keep.go", "w.go"})
+	if got := h.uncoveredWriters(ctx); len(got) != 0 {
+		t.Fatalf("UncoveredProjectionWriters() after the re-projection = %v, want none (covered)", got)
+	}
+}
+
+// TestUnchangedReconcileRetractsPlantedDriftLive (#7978): a scope with one
+// active full generation, a File node planted in the graph under the
+// repository with another generation id, and an elapsed sweep interval. The
+// reconcile snapshot has the same tree and commit, so the store re-opens the
+// active generation instead of storing a duplicate; the production projector
+// re-projects it as a non-first generation and retracts the planted node.
+func TestUnchangedReconcileRetractsPlantedDriftLive(t *testing.T) {
+	dsn := overlayProofEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	h := newOverlayHarness(ctx, t, dsn)
+	svc, _ := h.buildService(ctx)
+	h.run(ctx, svc)
+
+	if err := h.commit(ctx, overlayGenA); err != nil {
+		t.FailNow()
+	}
+	h.waitGeneration(ctx, overlayGenA.id, "active")
+	h.assertFiles(ctx, "baseline G_A", []string{"keep.go", "w.go"})
+	h.runCypher(ctx, `MATCH (r:Repository {id: $repo_id})
+CREATE (r)-[:REPO_CONTAINS]->(:File {path: $path, relative_path: 'drift.go', repo_id: $repo_id,
+  generation_id: 'gen-7978-stale', evidence_source: 'projector/canonical'})`,
+		map[string]any{"repo_id": h.repo.ID, "path": h.repo.LocalPath + "/drift.go"})
+	h.assertFiles(ctx, "drift planted", []string{"drift.go", "keep.go", "w.go"})
+	// Age the active generation past the 24 h sweep interval.
+	if _, err := h.sqlDB.ExecContext(ctx, `UPDATE scope_generations
+SET ingested_at = ingested_at - interval '48 hours', observed_at = observed_at - interval '48 hours'
+WHERE generation_id = $1`, overlayGenA.id); err != nil {
+		t.Fatalf("age G_A: %v", err)
+	}
+
+	generationsBefore := h.generationCount(ctx)
+	reconcile := overlayGen{id: "gen-7978-reconcile-a", commit: overlayCommitA, files: overlayTreeA}
+	if got := h.reconcileReason(ctx, reconcile); got != "interval_elapsed" {
+		t.Fatalf("reconcile reason = %q, want interval_elapsed", got)
+	}
+	if err := h.commit(ctx, reconcile); err != nil {
+		t.FailNow()
+	}
+	h.waitReprojected(ctx, overlayGenA.id, 1)
+	h.logState(ctx, "after the unchanged reconcile re-projected G_A")
+	if got := h.generationCount(ctx); got != generationsBefore {
+		t.Fatalf("scope_generations rows %d -> %d after an unchanged reconcile, want unchanged", generationsBefore, got)
+	}
+	h.assertFiles(ctx, "after G_A re-projected", []string{"keep.go", "w.go"})
+	if got := h.reconcileReason(ctx, reconcile); got != "" {
+		t.Fatalf("reconcile reason after re-projection = %q, want none (scope fresh)", got)
+	}
+}
+
+// generationCount returns the scope's scope_generations row count.
+func (h *overlayHarness) generationCount(ctx context.Context) int {
+	h.t.Helper()
+	var n int
+	if err := h.sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM scope_generations WHERE scope_id = $1`,
+		h.scope.ScopeID).Scan(&n); err != nil {
+		h.t.Fatalf("count generations: %v", err)
+	}
+	return n
+}
+
+// waitReprojected waits until generationID's projector work row was re-opened
+// by a #7978 reconcile at least reopens times and has succeeded again.
+func (h *overlayHarness) waitReprojected(ctx context.Context, generationID string, reopens int) {
+	h.t.Helper()
+	deadline := time.Now().Add(90 * time.Second)
+	var status string
+	var got int
+	for time.Now().Before(deadline) {
+		_ = h.sqlDB.QueryRowContext(ctx, `SELECT status, COALESCE((payload ->> 'reconcile_reprojection_count')::int, 0)
+FROM fact_work_items WHERE stage = 'projector' AND generation_id = $1`, generationID).Scan(&status, &got)
+		if status == "succeeded" && got >= reopens {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	h.logGenerations(ctx)
+	h.t.Fatalf("generation %s work status=%q reopens=%d, want succeeded after %d re-opens", generationID, status, got, reopens)
 }
