@@ -60,14 +60,31 @@ lj() {
 # --- GREEN: CI image mode settles what the overlay rewrites -------------------------
 ledger_tree queue-green-ci-image-mode
 d="${QUEUE_DIR}"
-lj "${d}" g-ledger-runtime-source 'docker compose -f docker-compose.fixture-ledger.yaml up -d' 1
-lj "${d}" g-root-build-gets-ledger-build-args 'docker compose -f docker-compose.fixture-root-build.yaml up -d --build' 1
 lput "${d}" fixture-l-prepare-then-overlay.sh <<'EOF'
 source "$(dirname "$0")/lib/ci-image-compose.sh"
 eshu_ci_compose_prepare docker-compose.fixture-ledger.yaml
 docker compose -f docker-compose.fixture-ledger.yaml -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
 EOF
 lj "${d}" g-overlay-operand-after-prepare 'bash scripts/fixture-l-prepare-then-overlay.sh' 1
+# The overlay is applied by the invocation: ledger runtime source and root build.
+lput "${d}" fixture-l-array-overlay.sh <<'EOF2'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+compose_args=(-f docker-compose.fixture-root-build.yaml)
+eshu_ci_compose_prepare "${compose_args[@]}"
+compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
+docker compose "${compose_args[@]}" up -d --build
+EOF2
+lj "${d}" g-array-overlay-after-prepare 'bash scripts/fixture-l-array-overlay.sh' 1
+lput "${d}" fixture-l-prepare-in-called-function.sh <<'EOF2'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+prepare_overlay() { eshu_ci_compose_prepare docker-compose.fixture-ledger.yaml; }
+prepare_overlay
+docker compose -f docker-compose.fixture-ledger.yaml -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
+EOF2
+lj "${d}" g-prepare-in-a-called-function 'bash scripts/fixture-l-prepare-in-called-function.sh' 1
+mkdir -p "${d}/scripts/ci"
+cp "${repo_root}/scripts/ci/compose.sh" "${d}/scripts/ci/compose.sh"
+lj "${d}" g-call-through-the-ci-compose-wrapper 'bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d' 1
 lj "${d}" g-build-arg-names-a-ledger-pin "docker build --build-arg BASE=${ledger_pin_alpine} -f Dockerfile.fixture-arg ."  0
 lj "${d}" g-arg-default-is-ledger-pin 'docker build -f Dockerfile.fixture-arg-ghcr .' 0
 lj "${d}" g-build-arg-from-env-reference 'docker build --build-arg BASE=${BASE} -f Dockerfile.fixture-arg .' 0 "{\"BASE\": \"${ledger_pin_alpine}\"}"
@@ -77,6 +94,27 @@ expect_green queue-path-ci-image-mode-and-build-args-settle-the-stack "${d}"
 ledger_tree queue-red-ci-image-mode-bounds
 d="${QUEUE_DIR}"
 lj "${d}" r-ledger-source-without-ci-mode 'docker compose -f docker-compose.fixture-ledger.yaml up -d' 0
+# CI image mode does not apply to a compose call that never applies the overlay.
+lj "${d}" r-ci-mode-plain-run-text 'docker compose -f docker-compose.fixture-ledger.yaml up -d' 1
+lput "${d}" fixture-l-plain-compose.sh <<'EOF2'
+docker compose -f docker-compose.fixture-ledger.yaml up -d
+EOF2
+lj "${d}" r-ci-mode-plain-compose-in-a-script 'bash scripts/fixture-l-plain-compose.sh' 1
+lj "${d}" r-ci-mode-root-build-without-overlay 'docker compose -f docker-compose.fixture-root-build.yaml up -d --build' 1
+lj "${d}" r-ci-mode-compose-run-without-overlay 'docker compose -f docker-compose.fixture-ledger.yaml run --rm db true' 1
+lput "${d}" fixture-l-prepare-in-subshell.sh <<'EOF2'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+( eshu_ci_compose_prepare docker-compose.fixture-ledger.yaml )
+docker compose -f docker-compose.fixture-ledger.yaml -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
+EOF2
+lj "${d}" r-prepare-in-a-subshell 'bash scripts/fixture-l-prepare-in-subshell.sh' 1
+lput "${d}" fixture-l-prepare-in-uncalled-function.sh <<'EOF2'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+prepare_overlay() { eshu_ci_compose_prepare docker-compose.fixture-ledger.yaml; }
+docker compose -f docker-compose.fixture-ledger.yaml -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
+EOF2
+lj "${d}" r-prepare-only-in-an-uncalled-function 'bash scripts/fixture-l-prepare-in-uncalled-function.sh' 1
+lj "${d}" r-one-applied-and-one-plain-invocation 'bash scripts/fixture-l-prepare-then-overlay.sh && bash scripts/fixture-l-plain-compose.sh' 1
 lj "${d}" r-ci-mode-non-ledger-image 'docker compose -f docker-compose.fixture-other.yaml up -d' 1
 lj "${d}" r-ci-mode-non-root-build 'docker compose -f docker-compose.fixture-other-build.yaml up -d --build' 1
 lj "${d}" r-root-build-without-ci-mode 'docker compose -f docker-compose.fixture-root-build.yaml up -d --build' 0
@@ -99,7 +137,10 @@ lj "${d}" r-build-arg-from-unset-env-reference 'docker build --build-arg BASE=${
 expect_queue_jobs_red queue-path-ci-image-mode-bounds-fail "${d}" r-ledger-source-without-ci-mode r-ci-mode-non-ledger-image \
   r-ci-mode-non-root-build r-root-build-without-ci-mode r-ci-mode-one-pin-missing r-ci-mode-flag-without-pins \
   r-overlay-operand-without-prepare r-overlay-operand-before-prepare r-arg-default-hub-without-build-arg \
-  r-env-does-not-reach-an-arg r-build-arg-overrides-to-hub r-build-arg-from-unset-env-reference
+  r-env-does-not-reach-an-arg r-build-arg-overrides-to-hub r-build-arg-from-unset-env-reference \
+  r-ci-mode-plain-run-text r-ci-mode-plain-compose-in-a-script r-ci-mode-root-build-without-overlay \
+  r-ci-mode-compose-run-without-overlay r-prepare-in-a-subshell r-prepare-only-in-an-uncalled-function \
+  r-one-applied-and-one-plain-invocation
 
 # --- the operand cache is keyed by path and content --------------------------------
 # One script, two workflows: the script settles -f "${COMPOSE_FILE}" from the
@@ -108,7 +149,9 @@ expect_queue_jobs_red queue-path-ci-image-mode-bounds-fail "${d}" r-ledger-sourc
 ledger_tree queue-cache-two-workflows
 d="${QUEUE_DIR}"
 lput "${d}" fixture-l-compose-file-var.sh <<'EOF'
-docker compose -f "${COMPOSE_FILE}" up -d
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+eshu_ci_compose_prepare -f "${COMPOSE_FILE}"
+docker compose -f "${COMPOSE_FILE}" -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
 EOF
 yq e -n '.name = "fixture-queue-b" | .on.merge_group.types = ["checks_requested"] | .on.pull_request = null | .jobs = {}' >"${d}/.github/workflows/fixture-queue-b.yml"
 lj "${d}" c-first-workflow-ledger-file 'bash scripts/fixture-l-compose-file-var.sh' 1 '{"COMPOSE_FILE": "docker-compose.fixture-ledger.yaml"}'
@@ -126,10 +169,15 @@ fi
 # --- a conditional literal in a workflow env settles to its branches ---------------
 ledger_tree queue-conditional-literal
 d="${QUEUE_DIR}"
-lj "${d}" l-both-branches-ledger 'docker compose -f "${COMPOSE_FILE}" up -d' 1 \
+lput "${d}" fixture-l-compose-file-var.sh <<'EOF'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+eshu_ci_compose_prepare -f "${COMPOSE_FILE}"
+docker compose -f "${COMPOSE_FILE}" -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
+EOF
+lj "${d}" l-both-branches-ledger 'bash scripts/fixture-l-compose-file-var.sh' 1 \
   '{"COMPOSE_FILE": "${{ github.event_name == '"'"'merge_group'"'"' && '"'"'docker-compose.fixture-ledger.yaml'"'"' || '"'"'docker-compose.fixture-root-build.yaml'"'"' }}"}'
 expect_green queue-path-conditional-literal-compose-file-with-ledger-branches "${d}"
-lj "${d}" l-one-branch-other-image 'docker compose -f "${COMPOSE_FILE}" up -d' 1 \
+lj "${d}" l-one-branch-other-image 'bash scripts/fixture-l-compose-file-var.sh' 1 \
   '{"COMPOSE_FILE": "${{ github.event_name == '"'"'merge_group'"'"' && '"'"'docker-compose.fixture-ledger.yaml'"'"' || '"'"'docker-compose.fixture-other.yaml'"'"' }}"}'
 expect_queue_jobs_red queue-path-conditional-literal-with-a-non-ledger-branch "${d}" l-one-branch-other-image
 

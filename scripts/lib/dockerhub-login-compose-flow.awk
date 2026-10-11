@@ -19,7 +19,23 @@
 #            PATH) and D<RS>line<RS>plain|abs (a docker command word). sub is 1
 #            for a command in a subshell, where a prepend does not reach the
 #            parent shell.
-#   prepare  prints FUNCTION <RS> LINE for every call of eshu_ci_compose_prepare.
+#   prepare  prints FUNCTION <RS> LINE <RS> SUB for every call of
+#            eshu_ci_compose_prepare. SUB is 1 for a call in a subshell or
+#            command substitution, whose export does not reach the parent shell.
+#   callat   prints CALLEE <RS> CALLER <RS> LINE for every command whose first
+#            word is a plain name (a function call lookup with line numbers).
+#   inv      prints compose invocation facts, one record per command:
+#              I<RS>function<RS>line<RS>sub<RS>overlay<RS>arrays<RS>pull   a docker
+#              compose or docker-compose command (also behind env, sudo, ...);
+#              overlay is 1 when a word names ESHU_CI_COMPOSE_OVERLAY or a
+#              variable assigned from it; arrays lists the "${NAME[@]}"
+#              expansions (comma separated); pull is 1 for up, run, build, pull,
+#              create and watch, and for a command whose subcommand is not a
+#              literal word (an invocation that may pull);
+#              A<RS>function<RS>line<RS>sub<RS>NAME<RS>overlay   an array
+#              assignment NAME=(...) or NAME+=(...), overlay as above;
+#              W<RS>function<RS>line<RS>sub   a call of scripts/ci/compose.sh,
+#              which prepares and appends the overlay itself.
 #   sources  prints FUNCTION <RS> PATH for every source or . command (the first
 #            non-flag word, as written).
 #   calls    prints CALLEE <RS> CALLER <RS> ARG1 <US> ARG2 ... for every command
@@ -33,6 +49,7 @@
 
 BEGIN {
   PAREN = 0; SUBC = 0
+  PULLS = " up run build pull create watch "
   SUBS = " up down logs ps run exec build config pull push create start stop restart rm kill top port images events cp ls pause unpause version wait watch attach commit export stats scale publish convert alpha "
   CTRL = " if then do else elif while until ! { ( time exec command builtin local declare typeset export readonly "
   US = "\037"; SEP = "\036"
@@ -218,14 +235,15 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
     return
   }
   # leading NAME=value words
-  asgc = 0; haspath = 0; pathv = ""
+  asgc = 0; haspath = 0; pathv = ""; ARRNM = ""
   while (a <= b && T[a] ~ /^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=/) {
     w = T[a]; nm = w; sub(/[\[+=].*$/, "", nm)
     if (nm == "PATH") { haspath = 1; v = w; sub(/^PATH\+?=/, "", v); pathv = v }
     if (tolower(nm) ~ /compose/) asgc = 1
-    if (T[a + 1] == "(") asgc = 1
+    if (T[a + 1] == "(") { asgc = 1; ARRNM = nm }
     v = w; sub(/^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=/, "", v)
     if (mode == "assign") print fn SEP nm SEP v
+    if (mode == "inv" && index(v, "ESHU_CI_COMPOSE_OVERLAY") > 0) OVLALIAS[nm] = 1
     a++
   }
   if (mode == "shadow" && haspath && a > b) path_note(pathv)
@@ -245,7 +263,9 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
   if (mode == "sources" && (w0 == "source" || w0 == ".")) {
     for (i = a + 1; i <= b; i++) { if (T[i] !~ /^-/) { print fn SEP T[i]; break } }
   }
-  if (mode == "prepare" && w0 == "eshu_ci_compose_prepare") print fn SEP NR
+  if (mode == "prepare" && w0 == "eshu_ci_compose_prepare") print fn SEP NR SEP SUBC
+  if (mode == "callat" && w0 ~ /^[A-Za-z_][A-Za-z0-9_.:-]*$/) print w0 SEP fn SEP NR
+  if (mode == "inv") inv(T, a, b, ARRNM, fn)
   if (w0 == "eval") { s = ""; for (i = a + 1; i <= b; i++) s = s " " unq(T[i]); scan(s, fn, depth + 1) }
   if (w0 ~ /(^|\/)(bash|sh|zsh|dash|ksh)$/) {
     for (i = a + 1; i < b; i++) if (T[i] ~ /^-[A-Za-z]*c$/) { scan(unq(T[i + 1]), fn, depth + 1); break }
@@ -286,6 +306,54 @@ function ops(T, a, b, ctx, fn,   i, w, lw, inc, subc, suba, an, cn, lit, k, A, C
   }
   if (lit) { for (k = 1; k <= an; k++) print fn SEP A[k] SEP NR }
   else { for (k = 1; k <= cn; k++) print fn SEP C[k] SEP NR }
+}
+
+# inv emits the compose invocation facts of the command T[a..b] (mode inv). arr is
+# the name of an array assigned by the command, or "".
+function inv(T, a, b, arr, fn,   i, w, lw, ovl, comp, arrs, nm, w0, base, k, nx, sc, pull, al) {
+  ovl = 0; comp = 0; arrs = ""
+  w0 = unq(T[a]); base = w0; sub(/^.*\//, "", base)
+  for (i = a; i <= b; i++) {
+    w = T[i]; lw = w; gsub(/["'`]/, "", lw)
+    if (index(w, "ESHU_CI_COMPOSE_OVERLAY") > 0) ovl = 1
+    else for (al in OVLALIAS) if (index(w, "$" al) > 0 || index(w, "${" al) > 0) ovl = 1
+    if (lw ~ /^\$\{?[A-Za-z_][A-Za-z0-9_]*\[[@*]\]\}?$/) {
+      nm = lw; sub(/^\$\{?/, "", nm); sub(/\[.*$/, "", nm)
+      arrs = arrs (arrs == "" ? "" : ",") nm
+    }
+  }
+  if (arr != "") { print "A" SEP fn SEP NR SEP SUBC SEP arr SEP ovl; return }
+  # the command word, behind a wrapper
+  k = a
+  if (base ~ /^(env|sudo|doas|exec|command|builtin|nohup|time|timeout|nice|stdbuf|setsid|ionice)$/) {
+    for (k = a + 1; k <= b; k++) {
+      lw = unq(T[k])
+      if (lw ~ /^-/ || lw ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue
+      break
+    }
+  }
+  if (k > b) return
+  lw = unq(T[k]); base = lw; sub(/^.*\//, "", base)
+  if (lw ~ /ci\/compose\.sh$/) { print "W" SEP fn SEP NR SEP SUBC; return }
+  if ((base == "bash" || base == "sh") && k < b && unq(T[k + 1]) ~ /ci\/compose\.sh$/) { print "W" SEP fn SEP NR SEP SUBC; return }
+  if (base == "docker-compose") comp = 1
+  else if (base == "docker") {
+    for (i = k + 1; i <= b; i++) {
+      nx = unq(T[i])
+      if (nx ~ /^-/) { if (nx ~ /^(--context|--config|-H|--host|-c|-l|--log-level)$/) i++; continue }
+      if (nx == "compose") comp = 1
+      break
+    }
+  }
+  if (!comp) return
+  # the subcommand: the first word that names one
+  sc = ""
+  for (i = k + 1; i <= b; i++) {
+    nx = unq(T[i])
+    if (index(SUBS, " " nx " ") > 0) { sc = nx; break }
+  }
+  pull = (sc == "" || index(PULLS, " " sc " ") > 0) ? 1 : 0
+  print "I" SEP fn SEP NR SEP SUBC SEP ovl SEP arrs SEP pull
 }
 
 # path_note records a standalone PATH assignment: a prepend (the value starts

@@ -68,7 +68,20 @@ The gate reads `specs/ci-images.v1.json` and the required image ids in
 `scripts/lib/ci_image_compose.py` from the tree under test at run time. It holds
 no copy of a digest or an image name. A job is in CI image mode when
 `ESHU_CI_IMAGES=1` and every required env pin equals the ledger
-`destination@digest`. Only then does the gate model the overlay:
+`destination@digest`. CI image mode alone settles nothing: the overlay changes
+only a Compose call that applies it. The gate accepts the overlay for a step
+only when every Compose call that can pull an image (`up`, `run`, `build`,
+`pull`, `create`, `watch`, or a subcommand the gate cannot read) applies it. A
+call applies the overlay when it names `"${ESHU_CI_COMPOSE_OVERLAY}"` (or an
+array or variable filled from it) after `eshu_ci_compose_prepare` ran in the
+same shell scope, or when it runs through `scripts/ci/compose.sh`. A prepare
+inside a subshell, or inside a function nothing calls, does not count.
+
+One call without the overlay makes the step judged by the images its files
+name, as outside CI image mode. A plain `docker compose -f <file> up` in a job
+with `ESHU_CI_IMAGES=1` pulls from Docker Hub, and the gate reports it. A call
+that pulls nothing (`config`, `down`, `logs`, `ps`) needs no overlay. When the
+overlay is applied:
 
 - A Compose service image that is a ledger runtime source, a runtime pin, or a
   `runtime_allowlist` entry is accepted. Any other image fails the helper, so it

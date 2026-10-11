@@ -20,7 +20,7 @@
 # leaves the invocation unresolved.
 #
 # The caller defines root, tmp, mkkey, expand, image_is_hub, dockerfile_is_hub,
-# ci_mode_active, ci_service_image_ok, ci_overlay_build_args (ledger lib),
+# STEP_OVL (compose_step_overlay), ci_service_image_ok, ci_overlay_build_args (ledger lib),
 # compose_file_re, flow_awk and the E_/J_/W_/V_ tables.
 #
 # shellcheck disable=SC2034,SC2154  # globals are shared with the sourcing verifier
@@ -161,8 +161,8 @@ compose_is_hub() {
         svc_effective "${f}" "${r_name}" 0
         [[ "${EFF_FAIL}" -eq 0 ]] || return 0
         if [[ -n "${EFF_IMG}" ]]; then
-          if ci_mode_active; then
-            # CI image mode: the overlay accepts only ledger images (see the ledger lib).
+          if [[ "${STEP_OVL:-0}" -eq 1 ]]; then
+            # Overlay applied (compose_step_overlay): it accepts only ledger images (see the ledger lib).
             expand "${EFF_IMG}" ""
             ci_service_image_ok "${EXP}" || return 0
           elif image_is_hub "${EFF_IMG}"; then
@@ -176,7 +176,7 @@ compose_is_hub() {
           dir_join "${EFF_CTX}" "${EXP}"
           [[ -n "${JOIN}" ]] || return 0
           DF_ARGS=""
-          if ci_mode_active; then
+          if [[ "${STEP_OVL:-0}" -eq 1 ]]; then
             # The overlay accepts only the root Dockerfile built from the root and
             # gives it the ledger build args; any other build fails the helper.
             [[ "${JOIN#./}" == Dockerfile ]] || return 0
@@ -198,9 +198,14 @@ compose_is_hub() {
 # COMPOSE_HUB_FILES to the named files that are not provably non-Hub.
 compose_step_is_hub() {
   local tok cf found=0 f rel
-  local -a texts=("$1")
+  local -a texts=("$1") existing=()
   COMPOSE_HUB_FILES=""
   while IFS= read -r f; do [[ -z "${f}" ]] || texts+=("${root}/${f}"); done <<<"$2"
+  for f in "${texts[@]}"; do [[ -f "${f}" ]] && existing+=("${f}"); done
+  # The shell groups and the overlay verdict come first: compose_is_hub judges a
+  # named file by what the overlay does only when every invocation applies it.
+  compose_scopes ${existing[@]+"${existing[@]}"}
+  compose_step_overlay ${existing[@]+"${existing[@]}"}
   for f in "${texts[@]}"; do
     [[ -f "${f}" ]] || continue
     rel="${f#"${root}"/}"
@@ -217,10 +222,7 @@ compose_step_is_hub() {
     done < <({ rg -v -N -e '^[[:space:]]*#' -- "${f}" | rg -o -N --no-filename -e "${compose_file_re}" || true; } | sort -u)
   done
   # Every -f operand and COMPOSE_FILE entry must settle to checked files.
-  local -a existing=()
-  for f in "${texts[@]}"; do [[ -f "${f}" ]] && existing+=("${f}"); done
   local op ofn oln
-  compose_scopes ${existing[@]+"${existing[@]}"}
   for f in ${existing[@]+"${existing[@]}"}; do
     rel="${f#"${root}"/}"
     [[ "${f}" != "$1" ]] || rel="the run text"
@@ -228,9 +230,9 @@ compose_step_is_hub() {
     compose_scope_of "${f}"
     while IFS=$'\036' read -r ofn op oln; do
       [[ -n "${op}" ]] || continue
-      OP_FILE="${f}"; OP_LINE="${oln}"
+      OP_FILE="${f}"; OP_LINE="${oln}"; OP_FN="${ofn}"
       compose_operand_check "${op}" "${ofn}" "-f operand in ${rel##*/}" "${SCOPE[@]}"
-      OP_FILE=""; OP_LINE=""
+      OP_FILE=""; OP_LINE=""; OP_FN=""
       compose_scope_of "${f}"
     done <<<"${FLOW}"
     rg -qi -e compose -- "${f}" 2>/dev/null && compose_file_entries_check "${f}"

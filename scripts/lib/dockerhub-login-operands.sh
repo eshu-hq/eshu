@@ -39,7 +39,7 @@ compose_flow() {
   compose_cache_key "${f}"; c="CF${mode}_${KEY}"
   if [[ -z "${!c+x}" ]]; then
     # ops records only come from text that names compose: skip the awk run otherwise.
-    if [[ "${mode}" == ops ]] && ! rg -qi -e compose -- "${f}" 2>/dev/null; then
+    if [[ "${mode}" == ops || "${mode}" == inv ]] && ! rg -qi -e compose -- "${f}" 2>/dev/null; then
       printf -v "${c}" '%s' ""
     else
       printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode="${mode}" -f "${flow_awk}" "${f}" 2>/dev/null || true)"
@@ -113,7 +113,7 @@ compose_settle_value() {
   # The overlay variable itself, reached through an assignment (base="${ESHU_CI_COMPOSE_OVERLAY}"):
   # the same conditions as the direct operand, judged at the operand's line.
   if [[ "${name:-}" == ESHU_CI_COMPOSE_OVERLAY ]]; then
-    compose_overlay_ok "${OP_FILE:-}" "${OP_LINE:-}" "$@" && return 0
+    compose_overlay_ok "${OP_FILE:-}" "${OP_LINE:-}" "${OP_FN:-}" "$@" && return 0
     return 1
   fi
   if [[ -n "${def}" && "${def}" != *'$'* ]]; then compose_settle_value "${def}" "${fn}" $((d + 1)) "$@" || return 1; fi
@@ -154,31 +154,96 @@ compose_settle_value() {
   return 0
 }
 
-# compose_overlay_ok <file> <line> <scope file>...: 0 when "$ESHU_CI_COMPOSE_OVERLAY"
-# at that line settles: the step is in CI image mode (ledger lib) and
-# eshu_ci_compose_prepare is called on an earlier line of the same file, or in a
-# file it sources (transitively, up to depth 4; SD_ holds the direct sources).
-compose_overlay_ok() {
-  local f="$1" line="$2" fn ln i=0 g v t seen
-  local -a q=()
-  ci_mode_active || return 1
+# compose_prepare_effective <file> <line> <function> <scope file>...: 0 when a
+# call of eshu_ci_compose_prepare has run, in the shell that reaches <file> at
+# <line> (inside <function>, "" at the top level):
+#   - at the top level of <file> on an earlier line, or at the top level of any
+#     other file of the scope (a file the shell sources);
+#   - in the same function on an earlier line;
+#   - inside another function that the scope calls (in <file> only on an
+#     earlier line);
+#   - never in a subshell or command substitution, which exports nothing to the
+#     parent, and never inside a function nothing calls.
+compose_prepare_effective() {
+  local f="$1" line="$2" ofn="$3" g h recs crecs pfn pln psub callee caller cln
+  shift 3
   [[ -n "${f}" && -n "${line}" ]] || return 1
-  compose_flow prepare "${f}"
-  while IFS=$'\036' read -r fn ln; do
-    [[ -n "${ln}" && "${ln}" -lt "${line}" ]] && return 0
-  done <<<"${FLOW}"
-  q=("${f}"); seen="|${f}|"
-  while [[ "${i}" -lt "${#q[@]}" && "${i}" -lt 24 ]]; do
-    g="${q[$i]}"; i=$((i + 1))
-    mkkey "${g}"; v="SD_${KEY}"
-    while IFS= read -r t; do
-      [[ -n "${t}" && "${seen}" != *"|${t}|"* ]] || continue
-      seen="${seen}${t}|"; q+=("${t}")
-      compose_flow prepare "${t}"
-      [[ -z "${FLOW//[$'\n']/}" ]] || return 0
-    done <<<"${!v:-}"
+  for g in "$@"; do
+    compose_flow prepare "${g}"; recs="${FLOW}"
+    while IFS=$'\036' read -r pfn pln psub; do
+      [[ -n "${pln}" && "${psub}" != 1 ]] || continue
+      if [[ -z "${pfn}" ]]; then
+        if [[ "${g}" != "${f}" || "${pln}" -lt "${line}" ]]; then return 0; fi
+      elif [[ "${g}" == "${f}" && "${pfn}" == "${ofn}" && "${pln}" -lt "${line}" ]]; then
+        return 0
+      else
+        for h in "$@"; do
+          compose_flow callat "${h}"; crecs="${FLOW}"
+          while IFS=$'\036' read -r callee caller cln; do
+            [[ "${callee}" == "${pfn}" && -n "${cln}" ]] || continue
+            if [[ "${h}" != "${f}" || "${cln}" -lt "${line}" ]]; then return 0; fi
+          done <<<"${crecs}"
+        done
+      fi
+    done <<<"${recs}"
   done
   return 1
+}
+
+# compose_overlay_ok <file> <line> <function> <scope file>...: 0 when "$ESHU_CI_COMPOSE_OVERLAY"
+# at that line settles: the step is in CI image mode (ledger lib) and the prepare
+# call reaches it (compose_prepare_effective).
+compose_overlay_ok() {
+  ci_mode_active || return 1
+  [[ -n "$1" && -n "$2" ]] || return 1
+  compose_prepare_effective "$@"
+}
+
+# compose_step_overlay <text file>...: sets STEP_OVL to 1 when the CI overlay is
+# applied by every pulling compose invocation the step reaches. The step is in CI image
+# mode (ledger lib), has at least one compose invocation or scripts/ci/compose.sh
+# call, and each invocation either names the overlay operand, expands an array a
+# scope file fills with it, or is a scripts/ci/compose.sh call, with the prepare
+# call effective before the operand. One invocation without the overlay makes the
+# whole step judged by the images its files name, as outside CI image mode.
+# Needs compose_scopes to have run over the same files.
+compose_step_overlay() {
+  local f g recs arecs kind fn ln sub ovl arrs pull nm total=0 allok=1 ok anm aln afn asub aovl
+  local -a arr=()
+  STEP_OVL=0
+  ci_mode_active || return 0
+  for f in "$@"; do
+    compose_flow inv "${f}"; recs="${FLOW}"
+    [[ -n "${recs//[$'\n']/}" ]] || continue
+    compose_scope_of "${f}"
+    while IFS=$'\036' read -r kind fn ln sub ovl arrs pull; do
+      case "${kind}" in
+        W) total=$((total + 1)) ;;
+        I)
+          # A subcommand that pulls no image (config, down, logs, ps ...) needs no overlay.
+          [[ "${pull}" == 1 ]] || continue
+          total=$((total + 1)); ok=0
+          if [[ "${ovl}" == 1 ]] && compose_prepare_effective "${f}" "${ln}" "${fn}" "${SCOPE[@]}"; then ok=1; fi
+          if [[ "${ok}" -eq 0 && -n "${arrs}" ]]; then
+            IFS=, read -r -a arr <<<"${arrs}"
+            for nm in "${arr[@]}"; do
+              for g in "${SCOPE[@]}"; do
+                compose_flow inv "${g}"; arecs="${FLOW}"
+                while IFS=$'\036' read -r kind afn aln asub anm aovl; do
+                  [[ "${kind}" == A && "${anm}" == "${nm}" && "${aovl}" == 1 && "${asub}" != 1 ]] || continue
+                  if compose_prepare_effective "${g}" "${aln}" "${afn}" "${SCOPE[@]}"; then ok=1; break; fi
+                done <<<"${arecs}"
+                [[ "${ok}" -eq 0 ]] || break
+              done
+              [[ "${ok}" -eq 0 ]] || break
+            done
+          fi
+          [[ "${ok}" -eq 1 ]] || allok=0 ;;
+      esac
+    done <<<"${recs}"
+  done
+  [[ "${total}" -ge 1 && "${allok}" -eq 1 ]] && STEP_OVL=1
+  return 0
 }
 
 # compose_operand_check <operand> <function> <where> <text file>...: settles one operand. A
@@ -192,7 +257,7 @@ compose_operand_check() {
   # The rendered CI overlay names no file; see compose_overlay_ok.
   q="${op#\"}"; q="${q%\"}"
   if [[ "${q}" == '$ESHU_CI_COMPOSE_OVERLAY' || "${q}" == '${ESHU_CI_COMPOSE_OVERLAY}' ]]; then
-    if compose_overlay_ok "${OP_FILE:-}" "${OP_LINE:-}" "$@"; then return 0; fi
+    if compose_overlay_ok "${OP_FILE:-}" "${OP_LINE:-}" "${OP_FN:-}" "$@"; then return 0; fi
     COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES}${COMPOSE_HUB_FILES:+, }${op} (${where}, the CI overlay settles only in CI image mode after eshu_ci_compose_prepare)"
     return 0
   fi
