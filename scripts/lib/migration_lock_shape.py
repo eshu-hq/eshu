@@ -24,18 +24,29 @@ body of a DO block (including IF/ELSIF/ELSE, CASE WHEN, LOOP and EXCEPTION
 WHEN branches), and the body of a function or procedure created in the same
 file when an executed statement names it (for example ``SELECT f()``,
 ``PERFORM f()``, or ``CALL p()``). In those bodies, an EXECUTE counts as DDL
-or DML when any string literal of the body names a DDL or DML keyword: the
-check cannot evaluate the string, so it assumes the worst.
+or DML when any single-quoted or dollar-quoted text of the body names a DDL or
+DML keyword: the check cannot evaluate the string, so it assumes the worst.
+A RAISE message that names UPDATE beside an EXECUTE of DDL is therefore
+refused too.
 
 Exemption: DDL on a table that a plain ``CREATE TABLE`` in the same file
 creates, because no other session can hold or wait for a lock on it. ``CREATE
-TABLE IF NOT EXISTS`` does not exempt: the table may already exist. There is
-no allowlist.
+TABLE IF NOT EXISTS`` does not exempt: the table may already exist. Do not
+write a plain ``CREATE TABLE`` to earn the exemption: every migration must
+stay re-runnable, because the local supervisor re-applies every definition
+on each start with no ledger, and a plain ``CREATE TABLE`` fails the second
+time. For a new table, use the split form: the table and its indexes with IF
+NOT EXISTS in migration N, the idempotent seed or backfill in migration N+1.
+There is no allowlist.
+
+Conservative choices: statement order is ignored, so DDL after the last DML
+in a file is refused too.
 
 Static limits (the check does not see these): a trigger function fired by
 the file's own DML; a function or procedure defined in another migration; a
 SQL-language function body written as a single-quoted string; EXECUTE of
-text that no literal in the body contains.
+text that no literal in the body contains; a foreign key that exempt DDL on
+a new table adds, which locks the referenced table (SHARE ROW EXCLUSIVE).
 
 Usage: migration_lock_shape.py check NAME < migration.sql
 Exit codes: 0 clean, 1 violation (described on stderr), 2 usage error.
@@ -210,7 +221,8 @@ def _run_plpgsql(body: str, routines: dict[str, str], created: set[str],
                  findings: _Findings, visited: set[str]) -> None:
     """Checks a PL/pgSQL body that runs at migration time."""
     statements = scan(body)
-    literal_text = ' '.join(lit for s in statements for lit in s.literals)
+    # Dollar-quoted text is EXECUTE input too (shipped 088 uses EXECUTE $ddl$).
+    literal_text = ' '.join(text for s in statements for text in (*s.literals, *s.bodies))
     for statement in statements:
         for piece in _PLPGSQL_CONTROL.split(statement.text):
             piece = piece.strip()

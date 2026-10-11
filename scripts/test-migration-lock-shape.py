@@ -94,7 +94,9 @@ class FindViolationTest(unittest.TestCase):
     def test_review_f2_guards_stay_clean(self) -> None:
         """GREEN: the F2 fixes do not flag these safe shapes."""
         clean = (
-            # A trigger on a table this file creates cannot block anyone.
+            # A trigger on a table this file creates cannot block anyone. This
+            # pins the plain-CREATE-TABLE exemption only: a plain CREATE TABLE
+            # is not re-runnable, so new migrations use the split form below.
             'CREATE TABLE u (c int);\nCREATE TRIGGER tr AFTER INSERT ON u FOR EACH ROW EXECUTE FUNCTION f();\n'
             'INSERT INTO u (c) SELECT c FROM t;',
             # A function defined but never called does not run.
@@ -110,6 +112,40 @@ class FindViolationTest(unittest.TestCase):
             with self.subTest(sql=sql):
                 self.assertIsNone(migration_lock_shape.find_violation(sql))
 
+    def test_dollar_quoted_execute_is_refused(self) -> None:
+        """RED (review F3): EXECUTE of dollar-quoted text is read like a literal."""
+        cases = {
+            'dynamic DDL in $ddl$': (
+                'DO $$ BEGIN EXECUTE $ddl$ ALTER TABLE t ADD COLUMN c int $ddl$; END $$;\n'
+                'UPDATE t SET c = 1;'),
+            'dynamic DML in $dml$': (
+                'ALTER TABLE t ADD COLUMN c int;\n'
+                'DO $$ BEGIN EXECUTE $dml$ UPDATE t SET c = 1 $dml$; END $$;'),
+        }
+        for name, sql in cases.items():
+            with self.subTest(shape=name):
+                self.assertIsNotNone(migration_lock_shape.find_violation(sql), sql)
+
+    def test_recommended_new_table_split_passes(self) -> None:
+        """GREEN: the re-runnable split form for a new table passes file by file.
+
+        Migration N creates the table and its indexes with IF NOT EXISTS;
+        migration N+1 seeds it idempotently. Each file can be re-applied.
+        Dollar-quoted text that never runs (a function that is not called, a
+        RAISE message) is not read as EXECUTE input.
+        """
+        files = (
+            'CREATE TABLE IF NOT EXISTS u (c TEXT PRIMARY KEY);\n'
+            'CREATE INDEX IF NOT EXISTS u_c_idx ON u (c);',
+            'INSERT INTO u (c) SELECT c FROM t ON CONFLICT (c) DO NOTHING;',
+            'ALTER TABLE t ADD COLUMN c int;\nCREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $fn$\n'
+            'BEGIN EXECUTE $q$UPDATE t SET c = 1$q$; END $fn$;',
+            'ALTER TABLE t ADD COLUMN c int;\nDO $$ BEGIN RAISE NOTICE $m$schema step done$m$; END $$;',
+        )
+        for sql in files:
+            with self.subTest(sql=sql):
+                self.assertIsNone(migration_lock_shape.find_violation(sql))
+
     def test_safe_shapes_pass(self) -> None:
         """GREEN: single-purpose and non-blocking files pass."""
         clean = (
@@ -119,6 +155,7 @@ class FindViolationTest(unittest.TestCase):
             'DROP INDEX CONCURRENTLY IF EXISTS t_c_idx;\nUPDATE t SET c = 1;',
             'INSERT INTO t (c) VALUES (1);\nALTER TABLE t SET (fillfactor = 90);',
             # A new table cannot block anyone, so DDL on it may sit with DML.
+            # Pins the exemption only; new migrations use the split form.
             'CREATE TABLE u (c TEXT);\nCREATE INDEX u_c_idx ON u (c);\n'
             'ALTER TABLE u ADD COLUMN d TEXT;\nINSERT INTO u (c) SELECT c FROM t;',
             # A function body does not run at migration time.
