@@ -42,6 +42,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh fmt-all"
       pre_push: floor
@@ -64,6 +65,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh lint-all"
       pre_push: floor
@@ -125,6 +127,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/test-precommit-go-filecap.sh"
       - "scripts/lib/test-precommit-go-filecap-cases.sh"
       # The Go plugin is the AUTHORITY the two bash variants mirror, and
@@ -181,6 +184,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/verify-dirgate.sh"
       # Glob, not the four-or-so exact paths this used to list. Every dirgate
       # file under scripts/lib/ is part of this gate: the core implementation,
@@ -1184,6 +1188,7 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "specs/product-claims.v1.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
@@ -1495,6 +1500,7 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
@@ -1523,6 +1529,7 @@ gates:
       - "scripts/*verify-telemetry-coverage*.sh"
       - "scripts/lib/telemetry-coverage-bucket-check.sh"
       - "scripts/lib/telemetry-coverage-row-check.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/lib/test-verify-telemetry-coverage-*"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
@@ -1992,14 +1999,20 @@ gates:
       - "go/**/evidence-*.md"
       - "scripts/verify-measurement-citations.sh"
       - "scripts/test-verify-measurement-citations.sh"
+      - "scripts/test-verify-measurement-citations-wrapper.sh"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "specs/ci-gates.v1.yaml"
       - ".github/workflows/static-contract-gates.yml"
     self_test_triggers:
       - "scripts/verify-measurement-citations.sh"
       - "scripts/test-verify-measurement-citations.sh"
+      - "scripts/test-verify-measurement-citations-wrapper.sh"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
     local:
       command: "bash scripts/verify-measurement-citations.sh"
-      test_command: "bash scripts/test-verify-measurement-citations.sh"
+      test_command: "bash scripts/test-verify-measurement-citations.sh && bash scripts/test-verify-measurement-citations-wrapper.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify measurement-citations gate"
@@ -2449,6 +2462,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/ci/go-install-retry.sh"
     # Whole-module gosec here so the ci-gates runner (which passes no file list)
@@ -2477,6 +2491,7 @@ gates:
       - "go/go.sum"
       - "go/**/*.go"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/test-precommit-go-toolchain-isolation.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/ci/go-install-retry.sh"
@@ -2516,6 +2531,7 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/dev/nancy-local.sh"
       - "scripts/test-nancy-local.sh"
       - "scripts/ci/go-mod-download-retry.sh"
@@ -5186,6 +5202,7 @@ gates:
       - "go/internal/query/**"
       - "go/internal/runtime/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/precommit-evidence-gates.sh"
       - "scripts/verify-performance-evidence.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-keep-marker.sh"
