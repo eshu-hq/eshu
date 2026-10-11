@@ -315,6 +315,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "docs/internal/ci-service-image-mirrors.md"
       - ".github/workflows/docker-publish.yml"
       - ".github/workflows/security-scan.yml"
       - ".github/workflows/static-contract-gates.yml"
@@ -327,9 +328,15 @@ gates:
       - "scripts/test-resolve-image-scan-ref.sh"
       - "scripts/test-verify-docker-publish-pr-platforms.sh"
       - "scripts/test-verify-docker-publish-moving-tags.sh"
+      - "scripts/dev/publish-ci-image-mirrors.sh"
+      - "scripts/dev/fixtures/ci-image-mirror-crane-stub.sh"
+      - "scripts/dev/fixtures/ci-image-mirror-publish-job.txt"
+      - "scripts/dev/fixtures/ci-image-mirror-verify-public-job.txt"
+      - "scripts/dev/test-publish-ci-image-mirrors.sh"
+      - "scripts/dev/test-docker-publish-ci-mirror-mode.sh"
     local:
-      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
-      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
+      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
+      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify docker-publish shape gate"
@@ -415,52 +422,51 @@ gates:
       - credentials
     ci_only_reason: "attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group"
 
-  - id: apk-floors
-    name: Alpine apk floors match the repository
-    category: exactness
-    layer: contract
-    purpose: "Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves."
-    tier: pre-pr
-    blocking: true
-    # Path-triggered only: the Dockerfile, the publish workflow, and the
-    # verifier with its own self-test and fixtures. Unrelated PRs never select
-    # it. The same paths gate docker-publish.yml's on.paths and its `changes`
-    # job, so the verify-apk-floors check exists on every pull_request and
-    # merge_group run that selects this row. The job is skipped on push, tag,
-    # and dispatch so a post-merge stale floor cannot redden the publish run;
-    # the apk-floors-drift row covers main daily.
-    triggers:
-      - "Dockerfile"
-      - ".github/workflows/docker-publish.yml"
-      - "scripts/verify-apk-floors.sh"
-      - "scripts/test-verify-apk-floors.sh"
-      - "scripts/fixtures/apk-floors/**"
-    local:
-      command: "bash scripts/verify-apk-floors.sh"
-      test_command: "bash scripts/test-verify-apk-floors.sh"
-    ci:
-      workflow: docker-publish.yml
-      job: "verify-apk-floors"
-    requirements:
-      - network
-    ci_only_reason: ""
-
-  - id: apk-floors-drift
-    name: Alpine apk floors drift (daily)
-    category: exactness
+  # Owner rows for the two CI service image mirror jobs of docker-publish.yml.
+  # Both jobs run only on a workflow_dispatch of the main branch of eshu-hq/eshu
+  # with inputs.mode set to their own mirror mode, so they are skipped on every
+  # pull_request, merge_group, push, and tag run and no merge can depend on
+  # them. The rows exist so the job-ownership drift check and main-health read
+  # each job as a deliberate advisory decision instead of an unowned job. The
+  # shape of both jobs is pinned by docker-publish-shape (blocking).
+  - id: ci-service-mirror-publish
+    name: CI service image mirror publish
+    category: release
     layer: secondary
-    purpose: "Runs the apk floor check daily against the live Alpine repository so a stale floor surfaces without a Dockerfile change."
-    tier: ci-heavy
+    purpose: "Copies the reviewed upstream CI service images to GHCR by digest on a main-only manual dispatch; it never runs on a pull request or merge group."
+    tier: manual
     blocking: false
     triggers:
-      - "Dockerfile"
-      - ".github/workflows/apk-floors-drift.yml"
-      - "scripts/verify-apk-floors.sh"
-      - "scripts/test-verify-apk-floors.sh"
-      - "scripts/fixtures/apk-floors/**"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/dev/publish-ci-image-mirrors.sh"
+      - "scripts/dev/test-publish-ci-image-mirrors.sh"
+      - "scripts/dev/fixtures/ci-image-mirror-crane-stub.sh"
+      - "scripts/ci/go-install-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
     ci:
-      workflow: apk-floors-drift.yml
-      job: "Apk floors drift (daily)"
+      workflow: docker-publish.yml
+      job: "publish-ci-service-mirrors"
+    requirements:
+      - credentials
+    ci_only_reason: "manual main-only dispatch with packages: write and a GHCR login; no merge depends on it and it never runs on a pull_request or merge_group"
+
+  - id: ci-service-mirror-verify-public
+    name: CI service image mirror public verify
+    category: release
+    layer: secondary
+    purpose: "Verifies on a main-only manual dispatch that the mirrored CI service images resolve to the reviewed digests without registry credentials."
+    tier: manual
+    blocking: false
+    triggers:
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/dev/publish-ci-image-mirrors.sh"
+      - "scripts/dev/test-publish-ci-image-mirrors.sh"
+      - "scripts/dev/fixtures/ci-image-mirror-crane-stub.sh"
+      - "scripts/ci/go-install-retry.sh"
+      - "scripts/ci/install-apt-packages.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-public-ci-service-mirrors"
     requirements:
       - network
-    ci_only_reason: "daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script"
+    ci_only_reason: "manual main-only dispatch that needs live registry reads; no merge depends on it and it never runs on a pull_request or merge_group"

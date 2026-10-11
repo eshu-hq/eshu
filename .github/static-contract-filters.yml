@@ -413,6 +413,7 @@ pgstatementreport:
   - 'scripts/pg-statement-report.sh'
   - 'scripts/test-pg-statement-report.sh'
 dockerpublish:
+  - 'docs/internal/ci-service-image-mirrors.md'
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
   - 'specs/ci-gates.d/**'
@@ -425,6 +426,12 @@ dockerpublish:
   - 'scripts/test-resolve-image-scan-ref.sh'
   - 'scripts/test-verify-docker-publish-pr-platforms.sh'
   - 'scripts/test-verify-docker-publish-moving-tags.sh'
+  - 'scripts/dev/publish-ci-image-mirrors.sh'
+  - 'scripts/dev/fixtures/ci-image-mirror-crane-stub.sh'
+  - 'scripts/dev/fixtures/ci-image-mirror-publish-job.txt'
+  - 'scripts/dev/fixtures/ci-image-mirror-verify-public-job.txt'
+  - 'scripts/dev/test-publish-ci-image-mirrors.sh'
+  - 'scripts/dev/test-docker-publish-ci-mirror-mode.sh'
 dockerhublogin:
   - '.github/**'
   - '**/*.*sh'
