@@ -130,7 +130,6 @@ gates:
     local:
       command: "bash scripts/test-run-live-postgres-migrations.sh"
       test_command: "python3 scripts/test-live-postgres-migrations.py"
-      pre_push: floor
     ci:
       workflow: live-postgres-migrations.yml
       job: "live-postgres-migrations (postgres18)"

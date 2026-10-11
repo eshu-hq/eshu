@@ -62,6 +62,19 @@ class MigrationProofInventoryTest(unittest.TestCase):
             with self.subTest(selector="registry", helper=helper):
                 self.assertIn(helper, paths)
 
+    def test_ci_heavy_migration_gate_does_not_claim_pre_push_floor(self) -> None:
+        """A CI-only live gate must not promise a local pre-push run."""
+        registry = (ROOT / "specs/ci-gates.d/gates-09.yaml").read_text(
+            encoding="utf-8"
+        )
+        gate = re.search(
+            r"(?ms)^  - id: live-postgres-migrations\n(.*?)(?=^  - id:|\Z)",
+            registry,
+        )
+        self.assertIsNotNone(gate, "missing migration gate")
+        self.assertIn("    tier: ci-heavy\n", gate.group(1))
+        self.assertNotIn("      pre_push: floor\n", gate.group(1))
+
     def test_wrong_runner_and_tag_fail(self) -> None:
         source = (ROOT / "specs/live-tests.v1.yaml").read_text(encoding="utf-8")
         fragment = ROOT / "specs/live-tests.d/live-tests-06.yaml"
