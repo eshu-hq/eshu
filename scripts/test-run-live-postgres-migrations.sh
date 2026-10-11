@@ -18,19 +18,30 @@ case "$1" in
   inspect)
     [[ -f "${FAKE_CONTAINER}" ]] || exit 1
     if [[ "$*" == *'.State.Running'* ]]; then printf 'true\n'; fi
+    if [[ "$*" == *'{{.Id}}'* ]]; then printf '%064d\n' 0; fi
     if [[ "$*" == *'"eshu.fixture"'* ]]; then printf '%s\n' "${FAKE_DOCKER_OWNER:-live-postgres-migrations}"; fi
     if [[ "$*" == *'"eshu.fixture-id"'* ]]; then printf 'testfixture\n'; fi
+    if [[ "$*" == *'"eshu.fixture-token"'* ]]; then
+      printf '%s\n' "${FAKE_DOCKER_TOKEN_OVERRIDE:-$(<"${FAKE_CONTAINER_TOKEN}")}"
+    fi
     ;;
   run)
+    [[ "${FAKE_DOCKER_RUN_MODE:-pass}" != no_create_failure ]] || exit 7
     [[ ! -f "${FAKE_CONTAINER}" ]] || exit 1
     : >"${FAKE_CONTAINER}"
-    printf 'fixture-container-id\n'
+    for argument in "$@"; do
+      if [[ "${argument}" == eshu.fixture-token=* ]]; then
+        printf '%s\n' "${argument#eshu.fixture-token=}" >"${FAKE_CONTAINER_TOKEN}"
+      fi
+    done
+    [[ "${FAKE_DOCKER_RUN_MODE:-pass}" != created_failure ]] || exit 7
+    printf '%064d\n' 0
     ;;
   port) printf '127.0.0.1:15432\n' ;;
   exec)
     if [[ "$*" == *'pg_control_system()'* ]]; then printf '%s\n' "${FAKE_DOCKER_IDENTITY:-123456789|180006}"; fi
     ;;
-  rm) rm -f "${FAKE_CONTAINER}" ;;
+  rm) rm -f "${FAKE_CONTAINER}" "${FAKE_CONTAINER_TOKEN}" ;;
   *) exit 9 ;;
 esac
 DOCKER
@@ -73,6 +84,7 @@ printf '0123456789abcdef0123456789abcdef\n'
 OPENSSL
 chmod +x "${scratch}/bin/docker" "${scratch}/bin/go" "${scratch}/bin/openssl"
 export FAKE_CALLS="${scratch}/calls" FAKE_CONTAINER="${scratch}/container"
+export FAKE_CONTAINER_TOKEN="${scratch}/container-token"
 export FAKE_GO_STARTED="${scratch}/go-started"
 export PATH="${scratch}/bin:${PATH}"
 export ESHU_POSTGRES_MIGRATIONS_IMAGE='ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c'
@@ -86,7 +98,28 @@ export FAKE_GO_MODE=pass
 run_case || fail "seven PASS events rejected: ${output}"
 [[ "${output}" == *'7/7 PASS'* ]] || fail "PASS summary absent: ${output}"
 [[ ! -f "${FAKE_CONTAINER}" ]] || fail 'success left the fixture container'
-rg -q '^rm -f ' "${FAKE_CALLS}" || fail 'success did not remove the fixture container'
+rg -q '^rm -f 0{64}$' "${FAKE_CALLS}" || fail 'success did not remove the owned container ID'
+
+export FAKE_DOCKER_RUN_MODE=created_failure
+run_case && fail 'Docker run failure after creation was accepted'
+[[ "${output}" == *'cannot start owned PostgreSQL fixture'* ]] ||
+  fail "Docker run failure not named: ${output}"
+[[ ! -f "${FAKE_CONTAINER}" ]] || fail 'failed Docker run left its created fixture container'
+rg -q '^rm -f 0{64}$' "${FAKE_CALLS}" || fail 'failed Docker run did not remove its created container ID'
+unset FAKE_DOCKER_RUN_MODE
+
+export FAKE_DOCKER_RUN_MODE=no_create_failure
+run_case && fail 'Docker failure before creation was accepted'
+[[ ! -f "${FAKE_CONTAINER}" ]] || fail 'failed Docker run created an unexpected fixture container'
+unset FAKE_DOCKER_RUN_MODE
+
+export FAKE_DOCKER_RUN_MODE=created_failure FAKE_DOCKER_TOKEN_OVERRIDE=other
+run_case && fail 'Docker failure accepted a replaced container'
+[[ "${output}" == *'refusing to remove unowned container'* ]] ||
+  fail "replacement ownership guard not named: ${output}"
+[[ -f "${FAKE_CONTAINER}" ]] || fail 'replacement container was removed'
+rm -f "${FAKE_CONTAINER}" "${FAKE_CONTAINER_TOKEN}"
+unset FAKE_DOCKER_RUN_MODE FAKE_DOCKER_TOKEN_OVERRIDE
 
 for mode in skip omit fail; do
   export FAKE_GO_MODE="${mode}"

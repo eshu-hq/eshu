@@ -28,18 +28,27 @@ pattern="$(python3 "${checker}" pattern)" || die 'migration test pattern is inva
 
 name="eshu-live-postgres-migrations-${fixture_id}"
 docker inspect "${name}" >/dev/null 2>&1 && die "fixture container ${name} already exists"
+container_token="$(openssl rand -hex 16)" || die 'cannot generate fixture ownership token'
+[[ "${container_token}" =~ ^[0-9a-f]{32}$ ]] || die 'fixture ownership token is invalid'
 scratch="$(mktemp -d)"
 started=0
 cleanup() {
   if [[ "${started}" -eq 1 ]]; then
-    local owner id
-    owner="$(docker inspect --format '{{index .Config.Labels "eshu.fixture"}}' "${name}" 2>/dev/null)" ||
-      die "cannot inspect fixture ownership for ${name}"
-    id="$(docker inspect --format '{{index .Config.Labels "eshu.fixture-id"}}' "${name}" 2>/dev/null)" ||
-      die "cannot inspect fixture ID for ${name}"
-    [[ "${owner}" == live-postgres-migrations && "${id}" == "${fixture_id}" ]] ||
-      die "refusing to remove unowned container ${name}"
-    docker rm -f "${name}" >/dev/null || die "cannot remove ${name}"
+    if docker inspect "${name}" >/dev/null 2>&1; then
+      local owner id token container_id
+      owner="$(docker inspect --format '{{index .Config.Labels "eshu.fixture"}}' "${name}" 2>/dev/null)" ||
+        die "cannot inspect fixture ownership for ${name}"
+      id="$(docker inspect --format '{{index .Config.Labels "eshu.fixture-id"}}' "${name}" 2>/dev/null)" ||
+        die "cannot inspect fixture ID for ${name}"
+      token="$(docker inspect --format '{{index .Config.Labels "eshu.fixture-token"}}' "${name}" 2>/dev/null)" ||
+        die "cannot inspect fixture ownership token for ${name}"
+      container_id="$(docker inspect --format '{{.Id}}' "${name}" 2>/dev/null)" ||
+        die "cannot inspect fixture container ID for ${name}"
+      [[ "${owner}" == live-postgres-migrations && "${id}" == "${fixture_id}" && "${token}" == "${container_token}" ]] ||
+        die "refusing to remove unowned container ${name}"
+      [[ "${container_id}" =~ ^[0-9a-f]{64}$ ]] || die "invalid fixture container ID for ${name}"
+      docker rm -f "${container_id}" >/dev/null || die "cannot remove ${name}"
+    fi
   fi
   rm -rf "${scratch}"
 }
@@ -49,15 +58,16 @@ trap 'exit 143' TERM
 
 # PG18 stores its data under /var/lib/postgresql. A tmpfs avoids retaining an
 # anonymous Docker volume; the exact named container is always removed.
+started=1
 docker run -d --name "${name}" \
   --label 'eshu.fixture=live-postgres-migrations' \
   --label "eshu.fixture-id=${fixture_id}" \
+  --label "eshu.fixture-token=${container_token}" \
   --tmpfs '/var/lib/postgresql:rw,size=2g' \
   -p '127.0.0.1::5432' \
   -e 'POSTGRES_PASSWORD=local-proof-only' \
   -e 'POSTGRES_HOST_AUTH_METHOD=trust' \
   "${image}" >/dev/null || die 'cannot start owned PostgreSQL fixture'
-started=1
 ready=0
 for ((attempt = 0; attempt < 30; attempt++)); do
   if docker exec -u postgres "${name}" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
