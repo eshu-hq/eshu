@@ -20,7 +20,7 @@ import (
 
 // TestMigration169PhasedTrackedLive checks the actual tracked bootstrap route
 // on an empty, explicitly named disposable PostgreSQL database. It does not
-// accept an ops-qa or other remotely hosted DSN.
+// accept a remotely hosted DSN.
 func TestMigration169PhasedTrackedLive(t *testing.T) {
 	dsn := os.Getenv("ESHU_POSTGRES_MIGRATION169_TEST_DSN")
 	if dsn == "" {
