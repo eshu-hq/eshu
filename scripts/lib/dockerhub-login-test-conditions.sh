@@ -23,6 +23,8 @@ login_condition_case wrapped-queue-and-guard "\${{ ${queue_condition} }}" green
 login_condition_case queue-and-guard-extra-whitespace "\${{ ( github.event_name != 'merge_group' || contains( fromJSON( needs.queue-selection.outputs.jobs || '[]' ), 'fixture-docker' ) ) && env.DOCKERHUB_LOGIN_ENABLED == 'true' }}" green
 
 login_condition_case or-bypasses-guard "(github.event_name != 'merge_group' || env.DOCKERHUB_LOGIN_ENABLED == 'true')" red
+login_condition_case split-identifier "en v.DOCKERHUB_LOGIN_ENABLED == 'true'" red
+login_condition_case split-operator "${queue_condition/&&/\& \&}" red
 login_condition_case negated-guard "!env.DOCKERHUB_LOGIN_ENABLED == 'true'" red
 login_condition_case quoted-guard-spoof "contains('env.DOCKERHUB_LOGIN_ENABLED == '\''true'\''', 'true')" red
 login_condition_case malformed-wrapper "\${{ env.DOCKERHUB_LOGIN_ENABLED == 'true' }" red
@@ -30,6 +32,8 @@ login_condition_case mismatched-parentheses "(env.DOCKERHUB_LOGIN_ENABLED == 'tr
 login_condition_case wrong-env "env.DOCKERHUB_LOGIN_ENABLE == 'true'" red
 login_condition_case wrong-value "env.DOCKERHUB_LOGIN_ENABLED == 'false'" red
 login_condition_case quoted-whitespace-value "env.DOCKERHUB_LOGIN_ENABLED == 'tru e'" red
+newline_value="env.DOCKERHUB_LOGIN_ENABLED == 'tr"$'\n'"ue'"
+login_condition_case quoted-newline-value "${newline_value}" red
 login_condition_case quoted-whitespace-job "\${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fixture -docker')) && env.DOCKERHUB_LOGIN_ENABLED == 'true' }}" red
 login_condition_case wrong-job "\${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'other-job')) && env.DOCKERHUB_LOGIN_ENABLED == 'true' }}" red
 login_condition_case suffix-bypass "env.DOCKERHUB_LOGIN_ENABLED == 'true' || always()" red

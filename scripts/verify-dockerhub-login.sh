@@ -227,7 +227,7 @@ check_job() {
           ""|docker.io|index.docker.io|registry-1.docker.io)
             if [[ -z "${login_idx}" ]]; then
               login_idx="${idx}"; login_uses="${uses}"
-              login_if="$(printf '%s' "${cond#x}" | b64d | tr -d '\n')"
+              login_if="$(printf '%s' "${cond#x}" | b64d)"
               login_user="${user#x}"; login_pass="${pass#x}"; login_coe="${coe}"
             fi ;;
         esac
