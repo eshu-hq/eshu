@@ -55,7 +55,8 @@ importing a query package. This package keeps:
 
 - the loader (`LoadSharedRepositoryConfigArtifacts`,
   `LoadDeploymentArtifactOverview`): the related-repository graph read, the
-  grant filter, and one merge across repositories (`MergeConfigPaths`);
+  grant filter, the sort by RepoID, the per-request candidate budget, and one
+  merge across repositories (`MergeConfigPaths`);
 - the adapter (`repository_config_artifacts.go`): `BuildRepositoryConfigArtifacts`,
   `CleanRepositoryRelativePath` and `NormalizeConfigArtifactExpression` under
   the names the handlers call, the `querycontract.FileContent` conversion, and
@@ -64,10 +65,36 @@ importing a query package. This package keeps:
   the adapter, so every read is counted;
 - `HydrateRepositoryCandidateFiles`, the one-file-per-statement full pass the
   anchor repository's controller, runtime, workflow and compose loaders use.
-  Its hydration set comes from `contentartifacts.SelectHydrationIndexes`, so
-  the cap and the order are the config-artifact load's;
+  Its hydration set comes from `contentartifacts.SelectHydrationIndexes` at
+  the allowance `RepositoryArtifactHydrationLimit` (the 50-candidate floor), so
+  the order is the config-artifact load's. These anchor-only loaders keep
+  their silent 50 cap until the follow-up of #7951 moves them to the chunked
+  reader;
 - `ConfigArtifactReadStats`, which sums the per-repository `ReadStats` of the
   neutral package with the stage's statement and byte counts.
+
+## Candidate floor and request budget (#7951)
+
+The deployment-artifact load walks the anchor repository first, then the
+related repositories the grant filter kept, sorted by RepoID so the body does
+not depend on the graph backend's row order. Each repository's allowance is
+`HydrationFloor` (50) plus what is left of `CandidateHydrationBudget`
+(12,000, provisional until the deployed read); a repository that takes more
+than the floor spends the difference. The floor keeps every repository's old
+selection, so the rows are a superset of the pre-#7951 rows.
+
+`ConfigArtifactReadStats` sums the candidate counts after the grant filter:
+`CandidateCount`, `CandidatesHydrated`, `CandidatesUnhydrated`,
+`RepositoriesBudgetCapped`, `RepositoriesListTruncated`, `HydrationBudget`,
+`HydrationFloor`. `BoundReasons` names what the response must carry:
+`CandidatesBudgetReachedReason` when any candidate inside a window was left
+unread, and `RelatedFileListTruncatedReason` when a related list returned the
+sentinel row. `AnchorFileListTruncatedReason` is the service routes' reason for
+a cut service-repository list. The handlers in `repository` and `service`
+attach the reasons, log the counts and add them to
+`eshu_dp_config_artifact_candidates_total`; this leaf package emits no
+telemetry. The budget is a struct field of `configArtifactLoader`, the test
+seam, never an environment setting.
 
 The content-fetch rules, the HCL scan prefilter and their proofs are in
 [content/artifacts](../../content/artifacts/README.md).

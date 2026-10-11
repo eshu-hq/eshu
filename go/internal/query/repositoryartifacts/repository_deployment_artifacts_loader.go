@@ -9,6 +9,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// LoadDeploymentArtifactOverview merges the deployment artifacts of the
+// anchor repository (config, controller, CloudFormation, runtime and workflow)
+// and of its related repositories into overview. It is
+// LoadDeploymentArtifactOverviewWithStats without the stats.
 func LoadDeploymentArtifactOverview(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -28,8 +32,25 @@ func LoadDeploymentArtifactOverview(
 // LoadDeploymentArtifactOverviewWithStats is LoadDeploymentArtifactOverview
 // plus the read counts the stage reports (#7126). The overview and error are
 // identical to LoadDeploymentArtifactOverview's; the stats are returned even
-// when the load fails, so an operator sees how far it got.
+// when the load fails, so an operator sees how far it got. The stats carry the
+// candidate counts of the floor and request budget (#7951), and BoundReasons
+// names the reasons the caller must add to the response.
 func LoadDeploymentArtifactOverviewWithStats(
+	ctx context.Context,
+	graph querycontract.GraphQuery,
+	content querycontract.ContentStore,
+	repoID string,
+	repoName string,
+	files []querycontract.FileContent,
+	infrastructure []map[string]any,
+	overview map[string]any,
+) (map[string]any, ConfigArtifactReadStats, error) {
+	return productionConfigArtifactLoader.loadDeploymentArtifactOverviewWithStats(
+		ctx, graph, content, repoID, repoName, files, infrastructure, overview,
+	)
+}
+
+func (l configArtifactLoader) loadDeploymentArtifactOverviewWithStats(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	content querycontract.ContentStore,
@@ -45,7 +66,7 @@ func LoadDeploymentArtifactOverviewWithStats(
 		counter = &countingContentStore{ContentStore: content}
 		content = counter
 	}
-	merged, err := loadDeploymentArtifactOverview(
+	merged, err := l.loadDeploymentArtifactOverview(
 		ctx, graph, content, repoID, repoName, files, infrastructure, overview, &stats,
 	)
 	if counter != nil {
@@ -55,7 +76,7 @@ func LoadDeploymentArtifactOverviewWithStats(
 	return merged, stats, err
 }
 
-func loadDeploymentArtifactOverview(
+func (l configArtifactLoader) loadDeploymentArtifactOverview(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	content querycontract.ContentStore,
@@ -79,7 +100,7 @@ func loadDeploymentArtifactOverview(
 		}
 	}
 
-	configArtifacts, err := loadSharedRepositoryConfigArtifacts(
+	configArtifacts, err := l.loadShared(
 		ctx,
 		graph,
 		content,

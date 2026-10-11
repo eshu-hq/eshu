@@ -21,6 +21,12 @@
   new `ContentStore` call in this package. The statement counting wrapper
   (`countingContentStore`) must stay under `contentStoreReader` so every read
   is counted.
+- The config-artifact load has no silent bound (#7951). Keep the RepoID sort
+  after the grant filter, the floor plus budget allowance, the related-list
+  sentinel, and the candidate counts in `ConfigArtifactReadStats`. A new bound
+  needs a reason in `BoundReasons` and a field on the stage line. Change the
+  budget through `configArtifactLoader`, never an environment variable. The
+  checks and their seeded pair are in `candidate_budget_test.go`.
 - Artifact predicates feed access decisions (`filter...ForAccess` callers);
   keep the fail-closed behavior and bounded limits exactly as they are.
 
