@@ -143,6 +143,16 @@ func extractHCLConfigAssetRowsWith(prefilters *prefilter.Set, repoName string, f
 	return rows
 }
 
+// NormalizeConfigArtifactExpression resolves one Terraform or Terragrunt
+// expression to the local config path it names, or the empty string when it
+// names none. It strips inline comments and a trailing comma, reads the path
+// out of a file(), templatefile(), lookup() or path-join form, and substitutes
+// local variable references from localAssignments (nil is allowed). It keeps
+// the value only when the expression is helper-built (path.module, local.,
+// join(), get_terragrunt_dir() and the like) or the value looks like a local
+// path: a ./, ../ or / prefix, a config file extension, or a slash with no URL
+// scheme and no query. The extractors and the query impact handlers share it,
+// so both read an expression the same way.
 func NormalizeConfigArtifactExpression(expression string, localAssignments map[string]string) string {
 	trimmed := strings.TrimSpace(stripHCLInlineComments(expression))
 	if trimmed == "" {
