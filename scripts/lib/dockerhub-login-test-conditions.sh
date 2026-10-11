@@ -64,3 +64,44 @@ if login_condition_is_safe "env.DOCKERHUB_LOGIN_ENABLED == 'true'" "fixture'dock
 else
   echo 'ok - malformed-current-job-id'
 fi
+
+# GitHub env precedence is step, then job, then workflow. Presence matters:
+# an explicitly empty value shadows the less specific scope.
+login_flag_case() { # <name> <step|job> <value|missing> <green|red> [job value] [workflow value]
+  local dir wf
+  dir="$(new_case "$1")"
+  wf="${dir}/.github/workflows/verify-agent-hygiene.yml"
+  add_job "${dir}" verify-agent-hygiene fixture-docker 'docker pull postgres:18'
+  ENABLED_EXPR="${enabled_json}" yq e -i '.env.DOCKERHUB_LOGIN_ENABLED = strenv(ENABLED_EXPR) | .jobs.fixture-docker.env.DOCKERHUB_LOGIN_ENABLED = strenv(ENABLED_EXPR) | .jobs.fixture-docker.steps = [{"uses": "docker/login-action@v3", "if": "env.DOCKERHUB_LOGIN_ENABLED == '\''true'\''", "with": {"username": "${{ secrets.DOCKERHUB_USERNAME }}", "password": "${{ secrets.DOCKERHUB_TOKEN }}"}}] + .jobs.fixture-docker.steps' "${wf}"
+  if [[ ${5+x} ]]; then
+    LOGIN_FLAG_VALUE="$5" yq e -i '.jobs.fixture-docker.env.DOCKERHUB_LOGIN_ENABLED = strenv(LOGIN_FLAG_VALUE)' "${wf}"
+  fi
+  if [[ ${6+x} ]]; then
+    LOGIN_FLAG_VALUE="$6" yq e -i '.env.DOCKERHUB_LOGIN_ENABLED = strenv(LOGIN_FLAG_VALUE)' "${wf}"
+  fi
+  if [[ "$3" == missing ]]; then
+    case "$2" in
+      step) yq e -i 'del(.jobs.fixture-docker.steps[0].env.DOCKERHUB_LOGIN_ENABLED)' "${wf}" ;;
+      job) yq e -i 'del(.jobs.fixture-docker.env.DOCKERHUB_LOGIN_ENABLED)' "${wf}" ;;
+    esac
+  else
+    case "$2" in
+      step) LOGIN_FLAG_VALUE="$3" yq e -i '.jobs.fixture-docker.steps[0].env.DOCKERHUB_LOGIN_ENABLED = strenv(LOGIN_FLAG_VALUE)' "${wf}" ;;
+      job) LOGIN_FLAG_VALUE="$3" yq e -i '.jobs.fixture-docker.env.DOCKERHUB_LOGIN_ENABLED = strenv(LOGIN_FLAG_VALUE)' "${wf}" ;;
+    esac
+  fi
+  if [[ "$4" == green ]]; then
+    expect_green "$1" "${dir}"
+  else
+    expect_red "$1" "${dir}" 'must define DOCKERHUB_LOGIN_ENABLED from both secrets'
+  fi
+}
+
+login_flag_case step-overrides-valid-job step false red
+login_flag_case empty-step-overrides-valid-job step '' red
+login_flag_case valid-step-overrides-job step "${enabled_json}" green false
+login_flag_case missing-step-uses-job step missing green
+login_flag_case empty-job-overrides-valid-workflow job '' red
+login_flag_case missing-job-uses-workflow job missing green
+login_flag_case valid-job-overrides-workflow job "${enabled_json}" green "${enabled_json}" false
+login_flag_case false-workflow-without-job job missing red "${enabled_json}" false
