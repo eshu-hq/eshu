@@ -52,10 +52,26 @@ generations, 10% of filler rows indexed after the activation. ADD COLUMN:
 rows and skipping 109,700 (30 pending-scope manifests plus 9,970
 pending-scope filler rows by clause i, 99,700 late filler rows by clause
 iii; the skip counts cross-check the seed arithmetic exactly). ANALYZE:
-1.0 s. The UPDATE takes row locks only (ROW EXCLUSIVE): concurrent reads
-proceed, no maintenance window. Re-runs are idempotent via the `WHERE
+1.0 s. These are individual statement timings, not proof that readers could
+run during the original bootstrap call. Its single `ExecContext` sent ALTER,
+UPDATE, and ANALYZE in one multi-statement message. PostgreSQL kept the ALTER's
+ACCESS EXCLUSIVE lock until the message's implicit transaction ended, across
+the long UPDATE, so concurrent reads could be blocked. Re-runs are idempotent via the `WHERE
 generation_id IS NULL` guard, which also never clobbers tags the new writer
 stamps mid-migration.
+
+The migration executor now recognizes only the shipped migration 169 full
+variant at its frozen path and SHA-256, then sends its exact ALTER, UPDATE,
+and ANALYZE byte slices as three separately committed calls on the same
+advisory-lock-owning connection. The brief catalog ALTER can still block a
+reader while it holds ACCESS EXCLUSIVE; the long UPDATE takes ROW EXCLUSIVE
+and row locks after that ALTER commits, so an ordinary SELECT can proceed.
+The tracker writes the unchanged full-file checksum receipt only after all
+three calls succeed. An interruption after ALTER or UPDATE leaves no receipt;
+the next run repeats the idempotent ALTER and NULL-guarded backfill. Other
+migrations retain their existing one-call execution and error wrapping.
+Phase start and finish structured logs name the migration path and phase;
+the existing lock-wait and completion events retain their meaning.
 
 Read-side proof on the same fixture, `EXPLAIN (ANALYZE, BUFFERS)` of the
 final `PackageManifestsQuery`: 865.8 ms first run (cold cache), then 46.1 ms
@@ -103,7 +119,15 @@ the MAX aggregate and IN-subquery leg; no new index). The loader runs this
 read once per code-call materialization pass, not per key, so the sub-50 ms
 read keeps its budget. Migration: ADD COLUMN 4.0 ms (catalog-only),
 backfill UPDATE 30.9 s over 1M rows (890,300 tagged, 109,700 skipped with
-counts cross-checked), ANALYZE 1.0 s; row locks only, idempotent re-run.
+counts cross-checked), ANALYZE 1.0 s. These are per-statement timings;
+the original one-message execution retained the ALTER lock across the backfill.
+
+No-Regression Evidence (#7033 migration 169 execution): the phased executor
+keeps the same SQL bytes and full-file checksum and moves only the transaction
+boundary. The migration-specific tracked live proof covers a failed backfill
+and receipt-free retry, concurrent read and legacy NULL-tag write during the
+backfill, ownership exclusion, completed-receipt replay, and a bounded 55P03
+retry of only the UPDATE phase.
 
 Observability Evidence (#7760): `eshu_dp_producer_manifest_tag_outcomes_total`
 counts every manifest row by kind (package|gomod) and outcome
@@ -111,3 +135,10 @@ counts every manifest row by kind (package|gomod) and outcome
 non-clean share means tags are failing safe. Post-deploy per-outcome counts
 come from the diagnostic query above; coverage row and metrics reference
 updated in the same PR.
+
+Observability Evidence (#7033 migration 169 execution):
+`bootstrap.postgres.migration.phase_applying` and `phase_applied` structured
+events expose `path`, `phase`, and completed-phase `duration_ms`; existing
+`migration.lock_wait`, `migration.recorded`, and `migrations.complete` events
+show bounded contention and final receipt/progress. These are bootstrap logs,
+not a new high-cardinality metric.

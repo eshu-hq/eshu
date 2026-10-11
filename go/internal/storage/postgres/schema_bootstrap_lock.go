@@ -270,6 +270,9 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		if def.Variant != "" && def.FullChecksum == "" {
 			return fmt.Errorf("migration %q variant %q lacks a full checksum", def.Path, def.Variant)
 		}
+		if _, err := migrationPhases(def); err != nil {
+			return err
+		}
 	}
 
 	started := time.Now()
@@ -340,61 +343,10 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		if !plan.apply {
 			continue
 		}
-		migrationStarted := time.Now()
-		logger.InfoContext(ctx, "postgres schema migration applying",
-			telemetry.EventAttr("bootstrap.postgres.migration.applying"),
-			"path", plan.definition.Path,
-			"variant", plan.variant,
-			"recovery", plan.recorded,
-			"index", index+1,
-			"total", len(plans),
-		)
-		if plan.recorded {
-			// A concurrent index drop commits before its replacement build. Clear the
-			// success receipt first so a crash or failed build remains retryable.
-			result, err := executor.ExecContext(ctx,
-				"DELETE FROM "+ledger.table+" WHERE path = $1 AND variant = $2 AND checksum_sha256 = $3",
-				plan.definition.Path, plan.variant, plan.checksum,
-			)
-			if err != nil {
-				return fmt.Errorf("clear schema migration recovery receipt %s: %w", plan.definition.Name, err)
-			}
-			deleted, err := result.RowsAffected()
-			if err != nil {
-				return fmt.Errorf("count cleared schema migration recovery receipts %s: %w", plan.definition.Name, err)
-			}
-			if deleted != 1 {
-				return fmt.Errorf("clear schema migration recovery receipt %s: deleted %d rows, want 1",
-					plan.definition.Name, deleted)
-			}
-		}
-		retryPolicy := coordination.LockRetryPolicy{
-			Allowance:      retryAllowance,
-			InitialBackoff: max(lockTimeout, time.Second),
-			MaxBackoff:     schemaLockRetryMaxBackoff,
-		}
-		if err := coordination.RetryOnLockTimeout(ctx, logger, plan.definition.Path, retryPolicy, coordination.SleepContext, time.Now, func() error {
-			_, err := executor.execContextWithLockTimeout(ctx, plan.definition.SQL, lockTimeout)
+		if err := executor.applyTrackedMigration(ctx, plan, ledger, bounds, retryAllowance, logger, index, len(plans)); err != nil {
 			return err
-		}); err != nil {
-			return fmt.Errorf("apply %s: %w", plan.definition.Name, err)
-		}
-		if _, err := executor.ExecContext(ctx,
-			"INSERT INTO "+ledger.table+" (path, variant, checksum_sha256) VALUES ($1, $2, $3)",
-			plan.definition.Path, plan.variant, plan.checksum,
-		); err != nil {
-			return fmt.Errorf("record schema migration %s: %w", plan.definition.Name, err)
 		}
 		appliedCount++
-		logger.InfoContext(ctx, "postgres schema migration recorded",
-			telemetry.EventAttr("bootstrap.postgres.migration.recorded"),
-			"path", plan.definition.Path,
-			"variant", plan.variant,
-			"recovery", plan.recorded,
-			"index", index+1,
-			"total", len(plans),
-			"duration_ms", time.Since(migrationStarted).Milliseconds(),
-		)
 	}
 	logger.InfoContext(ctx, "postgres schema migrations complete",
 		telemetry.EventAttr("bootstrap.postgres.migrations.complete"),

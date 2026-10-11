@@ -47,8 +47,30 @@ func TestApplyPostgresSchemaReachesTheMigratorWithAcceptedKnobs(t *testing.T) {
 		t.Fatalf("applyPostgresSchema: %v", err)
 	}
 	// The fake is not a lock-capable SQLDB, so the bootstrap runs the plain
-	// definition loop; every bootstrap definition must have been executed.
-	if want := len(postgres.BootstrapDefinitions()); db.execCalls != want {
-		t.Fatalf("migrator executed %d statements, want %d bootstrap definitions", db.execCalls, want)
+	// definition loop. A definition may take multiple ordered Exec calls.
+	assertPostgresBootstrapSQLMatchesDefinitions(t, db.execs, postgres.BootstrapDefinitions())
+}
+
+func assertPostgresBootstrapSQLMatchesDefinitions(t *testing.T, executed []fakeBootstrapCall, definitions []postgres.Definition) {
+	t.Helper()
+	call := 0
+	for _, definition := range definitions {
+		var combined strings.Builder
+		for combined.Len() < len(definition.SQL) {
+			if call == len(executed) {
+				t.Fatalf("missing SQL for definition %q after %d calls", definition.Name, call)
+			}
+			if executed[call].query == "" || len(executed[call].args) != 0 {
+				t.Fatalf("invalid SQL call %d for definition %q", call, definition.Name)
+			}
+			combined.WriteString(executed[call].query)
+			if !strings.HasPrefix(definition.SQL, combined.String()) {
+				t.Fatalf("SQL at call %d differs from definition %q", call, definition.Name)
+			}
+			call++
+		}
+	}
+	if call != len(executed) {
+		t.Fatalf("%d extra SQL calls after the last definition", len(executed)-call)
 	}
 }

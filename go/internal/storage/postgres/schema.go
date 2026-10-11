@@ -6,14 +6,15 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/migrations"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Definition describes one ordered bootstrap SQL payload. It is an alias for
@@ -129,21 +130,39 @@ func ApplyDefinitionsWithLockTimeout(
 	if exec == nil {
 		return fmt.Errorf("executor is required")
 	}
+	phases := make([][]migrationPhase, len(defs))
+	for i, def := range defs {
+		var err error
+		phases[i], err = migrationPhases(def)
+		if err != nil {
+			return err
+		}
+	}
 
 	if lockTimeout > 0 {
 		if lockExec, ok := exec.(schemaLockTimeoutExecutor); ok {
-			for _, def := range defs {
-				if _, err := lockExec.execContextWithLockTimeout(ctx, def.SQL, lockTimeout); err != nil {
-					return fmt.Errorf("apply %s: %w", def.Name, err)
+			for i, def := range defs {
+				for _, phase := range phases[i] {
+					if _, err := lockExec.execContextWithLockTimeout(ctx, phase.sql, lockTimeout); err != nil {
+						if len(phases[i]) > 1 {
+							return fmt.Errorf("apply %s phase %s: %w", def.Name, phase.name, err)
+						}
+						return fmt.Errorf("apply %s: %w", def.Name, err)
+					}
 				}
 			}
 			return nil
 		}
 	}
 
-	for _, def := range defs {
-		if _, err := exec.ExecContext(ctx, def.SQL); err != nil {
-			return fmt.Errorf("apply %s: %w", def.Name, err)
+	for i, def := range defs {
+		for _, phase := range phases[i] {
+			if _, err := exec.ExecContext(ctx, phase.sql); err != nil {
+				if len(phases[i]) > 1 {
+					return fmt.Errorf("apply %s phase %s: %w", def.Name, phase.name, err)
+				}
+				return fmt.Errorf("apply %s: %w", def.Name, err)
+			}
 		}
 	}
 
@@ -245,138 +264,6 @@ func applyBootstrapDefinitionsWith(
 	return ApplyDefinitions(ctx, exec, definitions)
 }
 
-// EnsureContentSearchIndexes creates and validates the trigram indexes that
-// accelerate content file and path plus entity source and name search. A
-// transaction-scoped advisory lock serializes the complete finalization
-// lifecycle, so concurrent finalizers wait and then recheck durable readiness
-// instead of racing DDL.
-func EnsureContentSearchIndexes(ctx context.Context, database db.Beginner) error {
-	if database == nil {
-		return fmt.Errorf("executor is required")
-	}
-	claimed, err := claimContentSearchIndexBuild(ctx, database)
-	if err != nil {
-		return errors.Join(err, markContentSearchIndexBuildFailed(database))
-	}
-	if !claimed {
-		return nil
-	}
-
-	tx, err := database.Begin(ctx)
-	if err != nil {
-		return errors.Join(
-			fmt.Errorf("begin content search index finalization: %w", err),
-			markContentSearchIndexBuildFailed(database),
-		)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, contentSearchIndexFinalizerLockSQL); err != nil {
-		_ = tx.Rollback()
-		return errors.Join(
-			fmt.Errorf("lock content search index finalization: %w", err),
-			markContentSearchIndexBuildFailed(database),
-		)
-	}
-	if err := ensureContentSearchIndexesInTransaction(ctx, tx); err != nil {
-		_ = tx.Rollback()
-		return errors.Join(err, markContentSearchIndexBuildFailed(database))
-	}
-	if err := tx.Commit(); err != nil {
-		_ = tx.Rollback()
-		return errors.Join(
-			fmt.Errorf("commit content search index finalization: %w", err),
-			markContentSearchIndexBuildFailed(database),
-		)
-	}
-	return nil
-}
-
-func claimContentSearchIndexBuild(ctx context.Context, database db.Beginner) (bool, error) {
-	tx, err := database.Begin(ctx)
-	if err != nil {
-		return false, fmt.Errorf("begin content search index build claim: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, contentSearchIndexFinalizerLockSQL); err != nil {
-		return false, fmt.Errorf("lock content search index build claim: %w", err)
-	}
-	claim, err := tx.ExecContext(ctx, contentSearchIndexClaimBuildSQL)
-	if err != nil {
-		return false, fmt.Errorf("claim content search index build: %w", err)
-	}
-	claimed, err := claim.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("read content search index build claim: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("commit content search index build claim: %w", err)
-	}
-	return claimed == 1, nil
-}
-
-func ensureContentSearchIndexesInTransaction(ctx context.Context, exec db.Executor) error {
-	claim, err := exec.ExecContext(ctx, contentSearchIndexClaimBuildSQL)
-	if err != nil {
-		return fmt.Errorf("claim content search index build: %w", err)
-	}
-	claimed, err := claim.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("read content search index build claim: %w", err)
-	}
-	if claimed == 0 {
-		return nil
-	}
-
-	buildSteps := []struct {
-		name string
-		sql  string
-	}{
-		{name: "content_files", sql: contentFilesSearchIndexSchemaSQL},
-		{name: "content_entities", sql: contentEntitiesSearchIndexSchemaSQL},
-		{name: "content_entity_names", sql: contentEntityNamesSearchIndexSchemaSQL},
-		{name: "content_files_relative_path", sql: contentFilesRelativePathSearchIndexSchemaSQL},
-		{name: "analyze", sql: "ANALYZE content_files; ANALYZE content_entities;"},
-	}
-	for _, step := range buildSteps {
-		if _, err := exec.ExecContext(ctx, step.sql); err != nil {
-			return fmt.Errorf("build content search index %s: %w", step.name, err)
-		}
-	}
-
-	ready, err := exec.ExecContext(ctx, contentSearchIndexPublishReadySQL)
-	if err != nil {
-		return fmt.Errorf("publish content search indexes ready: %w", err)
-	}
-	published, err := ready.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("read content search index ready publication: %w", err)
-	}
-	if published != 1 {
-		return fmt.Errorf("publish content search indexes ready: exact valid indexes not found")
-	}
-	return nil
-}
-
-func markContentSearchIndexBuildFailed(database db.Beginner) error {
-	failedCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	tx, err := database.Begin(failedCtx)
-	if err != nil {
-		return fmt.Errorf("begin content search index failure publication: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(failedCtx, contentSearchIndexFinalizerLockSQL); err != nil {
-		return fmt.Errorf("lock content search index failure publication: %w", err)
-	}
-	if _, err := tx.ExecContext(failedCtx, contentSearchIndexPublishFailedSQL); err != nil {
-		return fmt.Errorf("publish content search indexes failed: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit content search index failure publication: %w", err)
-	}
-	return nil
-}
-
 // MigrationSQL returns the SQL payload for the named migration definition.
 // It panics if the name is not found in the embedded migrations.
 func MigrationSQL(defName string) string {
@@ -386,4 +273,132 @@ func MigrationSQL(defName string) string {
 		}
 	}
 	panic("postgres: migration not found: " + defName)
+}
+
+const (
+	contentGenerationMigrationPath = "go/internal/storage/postgres/migrations/169_content_files_generation_id.sql"
+	contentGenerationMigrationSHA  = "28871f0d7b0bc493b3d22949ac475b98129bc3668fe93e1d1409543714a3878b"
+	contentGenerationUpdateStart   = "\n\nUPDATE content_files AS f\n"
+	contentGenerationAnalyzeStart  = "\n\nANALYZE content_files;"
+)
+
+type migrationPhase struct {
+	name string
+	sql  string
+}
+
+// migrationPhases preserves ordinary migration execution and splits only the
+// shipped full variant of 169 at its immutable byte boundaries. A changed 169
+// fails closed rather than reverting to the read-blocking one-message path.
+func migrationPhases(def Definition) ([]migrationPhase, error) {
+	if def.Path != contentGenerationMigrationPath {
+		return []migrationPhase{{name: "whole", sql: def.SQL}}, nil
+	}
+	if variant := migrationVariant(def); variant != "full" || migrationChecksum(def.SQL) != contentGenerationMigrationSHA {
+		return nil, fmt.Errorf("migration %q requires the shipped full variant and checksum %s", def.Path, contentGenerationMigrationSHA)
+	}
+	update := strings.Index(def.SQL, contentGenerationUpdateStart)
+	analyze := strings.Index(def.SQL, contentGenerationAnalyzeStart)
+	// The pinned SQL has both markers in order; guard later marker-constant edits.
+	if update <= 0 || analyze <= update {
+		return nil, fmt.Errorf("migration %q immutable phase boundaries not found", def.Path)
+	}
+	return []migrationPhase{
+		{name: "add_column", sql: def.SQL[:update]},
+		{name: "backfill", sql: def.SQL[update:analyze]},
+		{name: "analyze", sql: def.SQL[analyze:]},
+	}, nil
+}
+
+// applyTrackedMigration owns the per-migration receipt. Each phase is a
+// separate autocommit statement on the advisory-lock-owning connection, so
+// the catalog-only ALTER releases ACCESS EXCLUSIVE before the long UPDATE.
+// A crash after any phase leaves no receipt and safely replays from the ALTER.
+func (executor schemaConnectionExecutor) applyTrackedMigration(
+	ctx context.Context,
+	plan schemaMigrationPlan,
+	ledger schemaMigrationLedger,
+	bounds schemaStatementBounds,
+	retryAllowance *coordination.LockRetryAllowance,
+	logger *slog.Logger,
+	index, total int,
+) error {
+	migrationStarted := time.Now()
+	logger.InfoContext(ctx, "postgres schema migration applying",
+		telemetry.EventAttr("bootstrap.postgres.migration.applying"),
+		"path", plan.definition.Path,
+		"variant", plan.variant,
+		"recovery", plan.recorded,
+		"index", index+1,
+		"total", total,
+	)
+	if plan.recorded {
+		// A concurrent index drop commits before its replacement build. Clear the
+		// success receipt first so a crash or failed build remains retryable.
+		result, err := executor.ExecContext(ctx,
+			"DELETE FROM "+ledger.table+" WHERE path = $1 AND variant = $2 AND checksum_sha256 = $3",
+			plan.definition.Path, plan.variant, plan.checksum,
+		)
+		if err != nil {
+			return fmt.Errorf("clear schema migration recovery receipt %s: %w", plan.definition.Name, err)
+		}
+		deleted, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("count cleared schema migration recovery receipts %s: %w", plan.definition.Name, err)
+		}
+		if deleted != 1 {
+			return fmt.Errorf("clear schema migration recovery receipt %s: deleted %d rows, want 1",
+				plan.definition.Name, deleted)
+		}
+	}
+	phases, err := migrationPhases(plan.definition)
+	if err != nil {
+		return err
+	}
+	for _, phase := range phases {
+		phaseStarted := time.Now()
+		if len(phases) > 1 {
+			logger.InfoContext(ctx, "postgres schema migration phase applying",
+				telemetry.EventAttr("bootstrap.postgres.migration.phase_applying"),
+				"path", plan.definition.Path, "phase", phase.name,
+			)
+		}
+		retryPolicy := coordination.LockRetryPolicy{
+			Allowance:      retryAllowance,
+			InitialBackoff: max(bounds.lockTimeout, time.Second),
+			MaxBackoff:     schemaLockRetryMaxBackoff,
+		}
+		if err := coordination.RetryOnLockTimeout(ctx, logger, plan.definition.Path, retryPolicy, coordination.SleepContext, time.Now, func() error {
+			_, err := executor.execContextWithLockTimeout(ctx, phase.sql, bounds.lockTimeout)
+			return err
+		}); err != nil {
+			if len(phases) > 1 {
+				return fmt.Errorf("apply %s phase %s: %w", plan.definition.Name, phase.name, err)
+			}
+			return fmt.Errorf("apply %s: %w", plan.definition.Name, err)
+		}
+		if len(phases) > 1 {
+			logger.InfoContext(ctx, "postgres schema migration phase applied",
+				telemetry.EventAttr("bootstrap.postgres.migration.phase_applied"),
+				"path", plan.definition.Path, "phase", phase.name,
+				"duration_ms", time.Since(phaseStarted).Milliseconds(),
+			)
+		}
+	}
+	if _, err := executor.ExecContext(ctx,
+		"INSERT INTO "+ledger.table+" (path, variant, checksum_sha256) VALUES ($1, $2, $3)",
+		plan.definition.Path, plan.variant, plan.checksum,
+	); err != nil {
+		return fmt.Errorf("record schema migration %s: %w", plan.definition.Name, err)
+	}
+	logger.InfoContext(ctx, "postgres schema migration recorded",
+		telemetry.EventAttr("bootstrap.postgres.migration.recorded"),
+		"path", plan.definition.Path,
+		"variant", plan.variant,
+		"recovery", plan.recorded,
+		"index", index+1,
+		"total", total,
+		"duration_ms", time.Since(migrationStarted).Milliseconds(),
+	)
+	return nil
 }

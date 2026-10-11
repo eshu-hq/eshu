@@ -3,11 +3,17 @@
 
 package postgres
 
-// This file holds the content-store schema DDL: the base tables and indexes for
-// indexed repository content (files, entities, file references, refs) plus the
-// search and filter index variants. It is split out of schema.go to keep each
-// schema file under the package size limit; the bootstrap assembly and apply
-// helpers stay in schema.go and reference these constants.
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+)
+
+// This file owns content-store schema DDL and the finalization lifecycle for
+// its search indexes. The bootstrap assembly stays in schema.go.
 
 const contentStoreBaseSchemaSQL = `
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -126,3 +132,135 @@ CREATE INDEX IF NOT EXISTS content_entities_iac_relevant_idx
 `
 
 const contentStoreSchemaWithoutSearchIndexesSQL = contentStoreBaseSchemaSQL + contentStoreFilterIndexSchemaSQL
+
+// EnsureContentSearchIndexes creates and validates the trigram indexes that
+// accelerate content file and path plus entity source and name search. A
+// transaction-scoped advisory lock serializes the complete finalization
+// lifecycle, so concurrent finalizers wait and then recheck durable readiness
+// instead of racing DDL.
+func EnsureContentSearchIndexes(ctx context.Context, database db.Beginner) error {
+	if database == nil {
+		return fmt.Errorf("executor is required")
+	}
+	claimed, err := claimContentSearchIndexBuild(ctx, database)
+	if err != nil {
+		return errors.Join(err, markContentSearchIndexBuildFailed(database))
+	}
+	if !claimed {
+		return nil
+	}
+
+	tx, err := database.Begin(ctx)
+	if err != nil {
+		return errors.Join(
+			fmt.Errorf("begin content search index finalization: %w", err),
+			markContentSearchIndexBuildFailed(database),
+		)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, contentSearchIndexFinalizerLockSQL); err != nil {
+		_ = tx.Rollback()
+		return errors.Join(
+			fmt.Errorf("lock content search index finalization: %w", err),
+			markContentSearchIndexBuildFailed(database),
+		)
+	}
+	if err := ensureContentSearchIndexesInTransaction(ctx, tx); err != nil {
+		_ = tx.Rollback()
+		return errors.Join(err, markContentSearchIndexBuildFailed(database))
+	}
+	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
+		return errors.Join(
+			fmt.Errorf("commit content search index finalization: %w", err),
+			markContentSearchIndexBuildFailed(database),
+		)
+	}
+	return nil
+}
+
+func claimContentSearchIndexBuild(ctx context.Context, database db.Beginner) (bool, error) {
+	tx, err := database.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("begin content search index build claim: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, contentSearchIndexFinalizerLockSQL); err != nil {
+		return false, fmt.Errorf("lock content search index build claim: %w", err)
+	}
+	claim, err := tx.ExecContext(ctx, contentSearchIndexClaimBuildSQL)
+	if err != nil {
+		return false, fmt.Errorf("claim content search index build: %w", err)
+	}
+	claimed, err := claim.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read content search index build claim: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit content search index build claim: %w", err)
+	}
+	return claimed == 1, nil
+}
+
+func ensureContentSearchIndexesInTransaction(ctx context.Context, exec db.Executor) error {
+	claim, err := exec.ExecContext(ctx, contentSearchIndexClaimBuildSQL)
+	if err != nil {
+		return fmt.Errorf("claim content search index build: %w", err)
+	}
+	claimed, err := claim.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read content search index build claim: %w", err)
+	}
+	if claimed == 0 {
+		return nil
+	}
+
+	buildSteps := []struct {
+		name string
+		sql  string
+	}{
+		{name: "content_files", sql: contentFilesSearchIndexSchemaSQL},
+		{name: "content_entities", sql: contentEntitiesSearchIndexSchemaSQL},
+		{name: "content_entity_names", sql: contentEntityNamesSearchIndexSchemaSQL},
+		{name: "content_files_relative_path", sql: contentFilesRelativePathSearchIndexSchemaSQL},
+		{name: "analyze", sql: "ANALYZE content_files; ANALYZE content_entities;"},
+	}
+	for _, step := range buildSteps {
+		if _, err := exec.ExecContext(ctx, step.sql); err != nil {
+			return fmt.Errorf("build content search index %s: %w", step.name, err)
+		}
+	}
+
+	ready, err := exec.ExecContext(ctx, contentSearchIndexPublishReadySQL)
+	if err != nil {
+		return fmt.Errorf("publish content search indexes ready: %w", err)
+	}
+	published, err := ready.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read content search index ready publication: %w", err)
+	}
+	if published != 1 {
+		return fmt.Errorf("publish content search indexes ready: exact valid indexes not found")
+	}
+	return nil
+}
+
+func markContentSearchIndexBuildFailed(database db.Beginner) error {
+	failedCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	tx, err := database.Begin(failedCtx)
+	if err != nil {
+		return fmt.Errorf("begin content search index failure publication: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(failedCtx, contentSearchIndexFinalizerLockSQL); err != nil {
+		return fmt.Errorf("lock content search index failure publication: %w", err)
+	}
+	if _, err := tx.ExecContext(failedCtx, contentSearchIndexPublishFailedSQL); err != nil {
+		return fmt.Errorf("publish content search indexes failed: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit content search index failure publication: %w", err)
+	}
+	return nil
+}
