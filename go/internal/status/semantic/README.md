@@ -84,6 +84,49 @@ here.
   from root `status.go`/`json.go`) are unexported today and must be exported
   on the move.
 
+## Evidence
+
+No-Regression Evidence (#6949 batch 5, semantic family): this change moves
+the 22 `semantic.*` compat entries' Go importers (8 type aliases, 11 consts,
+and 3 funcs, reached as both `status.*` and `statuspkg.*` plus 3 bare
+same-package uses in root `status.go`) off the transitional compat spellings
+onto the destuttered `semantic.*` names, and deletes the emptied
+`compat_semantic.go`. Locals named `semantic` in `status_governance.go` (5
+params) and `semantic_extraction_test.go` (8 sites) are renamed to
+`extraction` so the leaf import is never shadowed; wire keys, log keys,
+comments, and failure-message text are byte-identical. No type shape, wire
+field, SQL text, or executable statement changes: across 23 code files,
+every production hunk requalifies an identifier, renames a local, or edits
+an import path only (80 changed non-import production lines per side
+verified identical modulo the mapping plus the documented local rename; the
+other 9 changed lines are import adds/removes), every other hunk is a
+package-doc rewording, a ledger row, or the compat file's own deletion, and
+the build resolves with no dangling reference.
+Measurement: identical before/after outcomes (ledger:6949-semantic-batch5-before, ledger:6949-semantic-batch5-after). The command is `go test -count=1` over
+the 7 affected package targets (`./internal/status/...`,
+`./internal/query/...`, `./internal/storage/postgres/...`,
+`./internal/mcp/...`, `./cmd/eshu/...`, `./internal/semanticpolicy/...`,
+`./internal/semanticprofile/...`) on baseline `f41526bf8a` vs measurement
+commit `acdba0a226` (this Evidence section and the two ledger rows are the
+only later changes): 159 packages ok, 0 fail on both sides, with the
+ok-package set byte-identical after timing strip. `go test -list`
+inventory is identical on both sides (11197 tests). Backend/version:
+go1.26.2 linux/amd64, in-memory; no backend touched. Input shape: n/a
+(no runtime input). Terminal queue/row counts: none — no queue, lease,
+Cypher, or SQL path is touched. Contract gates green on the branch:
+`verify-openapi.sh` (261/261 routes), `verify-contracttest.sh`,
+`verify-package-docs.sh`, and `verify-performance-evidence.sh`. The change
+is safe because it cannot alter runtime behavior: the compiler resolves
+the same types through their new paths, and the compat deletion is
+compile-enforced total — any missed caller would fail the build.
+
+No-Observability-Change (#6949 batch 5, semantic family): this package
+carries no instrumentation (see Telemetry above) and the move adds,
+removes, or renames no metric, span, structured log, or status field in
+any touched package. The status readers, query handlers, governance
+routes, and postgres readers that use these types are untouched;
+operator signals are identical before and after.
+
 ## Related docs
 
 - `docs/internal/naming.md` — the nesting rules this leaf was created under
