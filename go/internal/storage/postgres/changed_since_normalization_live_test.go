@@ -9,7 +9,7 @@ import (
 	"slices"
 	"testing"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // changedSinceCountsByCategory runs the shipped single statement and returns the
@@ -19,21 +19,21 @@ func changedSinceCountsByCategory(
 	t *testing.T,
 	tx *sql.Tx,
 	scope string,
-) map[statuspkg.ChangedSinceCategory]statuspkg.ChangedSinceCategoryDelta {
+) map[changedsince.Category]changedsince.CategoryDelta {
 	t.Helper()
 	categories, err := StatusStore{queryer: &countingTxQueryer{tx: tx}}.
 		changedSinceCategories(ctx, scope, "prior", "current", 25)
 	if err != nil {
 		t.Fatalf("changedSinceCategories: %v", err)
 	}
-	byCategory := map[statuspkg.ChangedSinceCategory]statuspkg.ChangedSinceCategoryDelta{}
+	byCategory := map[changedsince.Category]changedsince.CategoryDelta{}
 	for _, category := range categories {
 		byCategory[category.Category] = category
 	}
 	return byCategory
 }
 
-func sampleKeys(delta statuspkg.ChangedSinceCategoryDelta, classification statuspkg.ChangedSinceClassification) []string {
+func sampleKeys(delta changedsince.CategoryDelta, classification changedsince.Classification) []string {
 	var keys []string
 	for _, sample := range delta.Samples[classification] {
 		keys = append(keys, sample.StableFactKey)
@@ -74,15 +74,15 @@ func TestChangedSinceIgnoresIndexedAtChurnOnContentEntitiesLive(t *testing.T) {
 	insertChangedSinceFixtureRows(ctx, t, tx, rows)
 
 	got := changedSinceCountsByCategory(ctx, t, tx, "n1")
-	entities := got[statuspkg.ChangedSinceCategoryContentEntities]
-	if want := (statuspkg.ChangedSinceCounts{Updated: 1, Unchanged: 2}); entities.Counts != want {
+	entities := got[changedsince.CategoryContentEntities]
+	if want := (changedsince.Counts{Updated: 1, Unchanged: 2}); entities.Counts != want {
 		t.Fatalf("content_entities counts = %+v, want %+v (indexed_at churn must not count as change)", entities.Counts, want)
 	}
-	if keys := sampleKeys(entities, statuspkg.ChangedSinceUpdated); !slices.Equal(keys, []string{"entity/real-change"}) {
+	if keys := sampleKeys(entities, changedsince.Updated); !slices.Equal(keys, []string{"entity/real-change"}) {
 		t.Fatalf("updated content entities = %v, want only the real change", keys)
 	}
-	files := got[statuspkg.ChangedSinceCategoryFiles]
-	if want := (statuspkg.ChangedSinceCounts{Updated: 1}); files.Counts != want {
+	files := got[changedsince.CategoryFiles]
+	if want := (changedsince.Counts{Updated: 1}); files.Counts != want {
 		t.Fatalf("files counts = %+v, want %+v (indexed_at is only normalized on content_entity)", files.Counts, want)
 	}
 }
@@ -107,11 +107,11 @@ func TestChangedSinceExcludesReducerDerivedFactsLive(t *testing.T) {
 	}
 	insertChangedSinceFixtureRows(ctx, t, tx, rows)
 
-	facts := changedSinceCountsByCategory(ctx, t, tx, "n1")[statuspkg.ChangedSinceCategoryFacts]
-	if want := (statuspkg.ChangedSinceCounts{Added: 1, Unchanged: 1}); facts.Counts != want {
+	facts := changedSinceCountsByCategory(ctx, t, tx, "n1")[changedsince.CategoryFacts]
+	if want := (changedsince.Counts{Added: 1, Unchanged: 1}); facts.Counts != want {
 		t.Fatalf("facts counts = %+v, want %+v (reducer_* rows must not classify)", facts.Counts, want)
 	}
-	if keys := sampleKeys(facts, statuspkg.ChangedSinceAdded); !slices.Equal(keys, []string{"reducerx/added"}) {
+	if keys := sampleKeys(facts, changedsince.Added); !slices.Equal(keys, []string{"reducerx/added"}) {
 		t.Fatalf("added facts = %v, want only the non-reducer-derived kind", keys)
 	}
 }
@@ -128,11 +128,11 @@ func TestChangedSinceRepositorySourceRunIDReportsUpdatedLive(t *testing.T) {
 	}
 	insertChangedSinceFixtureRows(ctx, t, tx, rows)
 
-	facts := changedSinceCountsByCategory(ctx, t, tx, "n1")[statuspkg.ChangedSinceCategoryFacts]
-	if want := (statuspkg.ChangedSinceCounts{Updated: 1}); facts.Counts != want {
+	facts := changedSinceCountsByCategory(ctx, t, tx, "n1")[changedsince.CategoryFacts]
+	if want := (changedsince.Counts{Updated: 1}); facts.Counts != want {
 		t.Fatalf("facts counts = %+v, want %+v", facts.Counts, want)
 	}
-	if keys := sampleKeys(facts, statuspkg.ChangedSinceUpdated); !slices.Equal(keys, []string{"repository:r"}) {
+	if keys := sampleKeys(facts, changedsince.Updated); !slices.Equal(keys, []string{"repository:r"}) {
 		t.Fatalf("updated facts = %v, want the repository key", keys)
 	}
 }
@@ -154,11 +154,11 @@ func TestChangedSinceScalarContentEntityPayloadDoesNotErrorLive(t *testing.T) {
 	}
 	insertChangedSinceFixtureRows(ctx, t, tx, rows)
 
-	entities := changedSinceCountsByCategory(ctx, t, tx, "n1")[statuspkg.ChangedSinceCategoryContentEntities]
-	if want := (statuspkg.ChangedSinceCounts{Updated: 2, Unchanged: 1}); entities.Counts != want {
+	entities := changedSinceCountsByCategory(ctx, t, tx, "n1")[changedsince.CategoryContentEntities]
+	if want := (changedsince.Counts{Updated: 2, Unchanged: 1}); entities.Counts != want {
 		t.Fatalf("content_entities counts = %+v, want %+v", entities.Counts, want)
 	}
-	if keys := sampleKeys(entities, statuspkg.ChangedSinceUpdated); !slices.Equal(keys, []string{"entity/scalar-diff", "entity/scalar-to-object"}) {
+	if keys := sampleKeys(entities, changedsince.Updated); !slices.Equal(keys, []string{"entity/scalar-diff", "entity/scalar-to-object"}) {
 		t.Fatalf("updated content entities = %v", keys)
 	}
 }

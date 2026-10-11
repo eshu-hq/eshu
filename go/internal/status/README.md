@@ -187,13 +187,13 @@ See `doc.go` for the godoc contract. Key types and functions:
   with the owning scope identity, per-generation `generation.QueueStatus` rollup,
   and `generation.LatestFailure`. `HasScopeSelector` drives not-found instead of
   confident emptiness.
-- `ChangedSinceFilter` / `ChangedSinceSummary` / `ChangedSinceCategoryDelta` —
+- `changedsince.Filter` / `changedsince.Summary` / `changedsince.CategoryDelta` —
   bounded repository-scope changed-since delta: a diff of one prior generation's
   fact set against the current active generation's fact set, grouped into the
-  `ChangedSinceCategory` evidence buckets (files, content entities, facts) and
-  the closed `ChangedSinceClassification` verdict set (added, updated, unchanged,
-  retired, superseded). Counts are exact; `ChangedSinceFilter.Normalize` clamps
-  the per-classification sample handles to `MaxChangedSinceSampleLimit`. The
+  `changedsince.Category` evidence buckets (files, content entities, facts) and
+  the closed `changedsince.Classification` verdict set (added, updated, unchanged,
+  retired, superseded). Counts are exact; `changedsince.Filter.Normalize` clamps
+  the per-classification sample handles to `changedsince.MaxSampleLimit`. The
   `Unavailable` flag separates a scope with no current active generation from a
   genuinely empty delta. Service-scope deltas are not modeled here yet.
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 )
@@ -38,13 +38,13 @@ func TestRetentionBoundP3(t *testing.T) {
 			links, activations, headless)
 	}
 
-	summary, err := postgres.NewStatusStore(l.store).ComputeChangedSinceDelta(l.ctx, status.ChangedSinceFilter{
+	summary, err := postgres.NewStatusStore(l.store).ComputeChangedSinceDelta(l.ctx, changedsince.Filter{
 		ScopeID: "scope-p3", SinceGenerationID: "x0", SampleLimit: 5,
 	})
 	if err != nil {
 		t.Fatalf("ComputeChangedSinceDelta: %v", err)
 	}
-	if !summary.Unavailable || summary.UnavailableReason != status.ChangedSinceUnavailableRetentionExpired {
+	if !summary.Unavailable || summary.UnavailableReason != changedsince.UnavailableRetentionExpired {
 		t.Fatalf("changed-since from the pruned x0 = unavailable %v reason %q, want retention_expired",
 			summary.Unavailable, summary.UnavailableReason)
 	}

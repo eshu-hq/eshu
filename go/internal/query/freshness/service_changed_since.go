@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -23,7 +23,7 @@ const serviceChangedSinceRoute = "GET /api/v0/freshness/services/changed-since"
 // implemented by the Postgres status store and consumed here so the handler does
 // not depend on a concrete database driver.
 type ServiceChangedSinceReader interface {
-	ComputeServiceChangedSinceDelta(context.Context, status.ServiceChangedSinceFilter) (status.ServiceChangedSinceSummary, error)
+	ComputeServiceChangedSinceDelta(context.Context, changedsince.ServiceFilter) (changedsince.ServiceSummary, error)
 }
 
 func (h *Handler) listServiceChangedSince(w http.ResponseWriter, r *http.Request) {
@@ -195,7 +195,7 @@ func (h *Handler) serviceChangedSinceGrantAdmits(
 func (h *Handler) writeServiceChangedSinceAmbiguous(
 	w http.ResponseWriter,
 	r *http.Request,
-	summary status.ServiceChangedSinceSummary,
+	summary changedsince.ServiceSummary,
 ) {
 	trace.SpanFromContext(r.Context()).SetAttributes(
 		attribute.Int(telemetry.SpanAttrServiceChangedSinceAmbiguousScopeCount, len(summary.AmbiguousScopeIDs)),
@@ -282,8 +282,8 @@ func (h *Handler) writeServiceChangedSinceNotFound(
 	)
 }
 
-func (h *Handler) parseServiceChangedSinceFilter(w http.ResponseWriter, r *http.Request) (status.ServiceChangedSinceFilter, bool) {
-	filter := status.ServiceChangedSinceFilter{
+func (h *Handler) parseServiceChangedSinceFilter(w http.ResponseWriter, r *http.Request) (changedsince.ServiceFilter, bool) {
+	filter := changedsince.ServiceFilter{
 		ServiceID:         querycontract.QueryParam(r, "service_id"),
 		ScopeID:           querycontract.QueryParam(r, "scope_id"),
 		SinceGenerationID: querycontract.QueryParam(r, "since_generation_id"),
@@ -291,23 +291,23 @@ func (h *Handler) parseServiceChangedSinceFilter(w http.ResponseWriter, r *http.
 
 	if !filter.HasServiceSelector() {
 		querycontract.WriteError(w, http.StatusBadRequest, "service_id is required")
-		return status.ServiceChangedSinceFilter{}, false
+		return changedsince.ServiceFilter{}, false
 	}
 	if !filter.HasSinceReference() {
 		querycontract.WriteError(w, http.StatusBadRequest, "since_generation_id is required")
-		return status.ServiceChangedSinceFilter{}, false
+		return changedsince.ServiceFilter{}, false
 	}
 
 	limit, ok := h.parseChangedSinceLimit(w, r)
 	if !ok {
-		return status.ServiceChangedSinceFilter{}, false
+		return changedsince.ServiceFilter{}, false
 	}
 	filter.SampleLimit = limit
 
 	return filter.Normalize(), true
 }
 
-func (h *Handler) serviceChangedSinceTruthEnvelope(summary status.ServiceChangedSinceSummary) *querycontract.TruthEnvelope {
+func (h *Handler) serviceChangedSinceTruthEnvelope(summary changedsince.ServiceSummary) *querycontract.TruthEnvelope {
 	envelope := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		ServiceChangedSinceCapability,
@@ -327,7 +327,7 @@ func (h *Handler) serviceChangedSinceTruthEnvelope(summary status.ServiceChanged
 	return envelope
 }
 
-func serviceChangedSinceSpanAttributes(summary status.ServiceChangedSinceSummary) []attribute.KeyValue {
+func serviceChangedSinceSpanAttributes(summary changedsince.ServiceSummary) []attribute.KeyValue {
 	changed := 0
 	for _, category := range summary.Categories {
 		changed += category.Counts.Added +

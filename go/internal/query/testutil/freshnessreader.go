@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
@@ -111,14 +112,14 @@ type GrantMirroringChangedSince struct {
 	// asserts against it because a status code alone cannot tell "the grant
 	// was bound and matched nothing" from "the grant was never bound at all"
 	// (#5167 review, round 2).
-	LastFilter status.ChangedSinceFilter
+	LastFilter changedsince.Filter
 	Called     bool
 }
 
 // ComputeChangedSinceDelta implements freshness.ChangedSinceReader.
 func (g *GrantMirroringChangedSince) ComputeChangedSinceDelta(
-	_ context.Context, filter status.ChangedSinceFilter,
-) (status.ChangedSinceSummary, error) {
+	_ context.Context, filter changedsince.Filter,
+) (changedsince.Summary, error) {
 	g.LastFilter = filter
 	g.Called = true
 
@@ -135,23 +136,23 @@ func (g *GrantMirroringChangedSince) ComputeChangedSinceDelta(
 		if filter.Scoped && !changedSinceTwoTenantGrantAdmits(filter, scope) {
 			continue
 		}
-		return status.ChangedSinceSummary{
+		return changedsince.Summary{
 			ScopeID:                   scope.ScopeID,
 			ScopeKind:                 scope.ScopeKind,
 			Repository:                scope.SourceKey,
 			SinceGenerationID:         ChangedSinceTwoTenantPriorGeneration,
 			CurrentActiveGenerationID: "gen-current-" + scope.SourceKey,
 			SampleLimit:               filter.SampleLimit,
-			Categories: []status.ChangedSinceCategoryDelta{{
-				Category: status.ChangedSinceCategoryFiles,
-				Counts:   status.ChangedSinceCounts{Added: 1},
+			Categories: []changedsince.CategoryDelta{{
+				Category: changedsince.CategoryFiles,
+				Counts:   changedsince.Counts{Added: 1},
 			}},
 		}, nil
 	}
 	// No row: the ungranted scope is indistinguishable from a missing one,
 	// which is the whole point of binding the grant in the WHERE clause
 	// instead of comparing strings in the handler.
-	return status.ChangedSinceSummary{}, nil
+	return changedsince.Summary{}, nil
 }
 
 // changedSinceTwoTenantGrantAdmits is the $3/$4/$5 arm of the shipped
@@ -159,7 +160,7 @@ func (g *GrantMirroringChangedSince) ComputeChangedSinceDelta(
 // the repository grant, and any scope is admitted by scope_id membership in
 // the scope grant.
 func changedSinceTwoTenantGrantAdmits(
-	filter status.ChangedSinceFilter, scope TwoTenantChangedSinceScope,
+	filter changedsince.Filter, scope TwoTenantChangedSinceScope,
 ) bool {
 	if scope.ScopeKind == "repository" {
 		for _, granted := range filter.AllowedRepositoryIDs {

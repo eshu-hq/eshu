@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -227,7 +227,7 @@ func legacyChangedSinceCategories(
 	queryer *countingTxQueryer,
 	scopeID, prior, current string,
 	sampleLimit int,
-) []statuspkg.ChangedSinceCategoryDelta {
+) []changedsince.CategoryDelta {
 	t.Helper()
 	countsQuery := changedSinceClassificationCTEs + legacyChangedSinceCountsTail
 	samplesQuery := changedSinceClassificationCTEs + legacyChangedSinceSamplesTail
@@ -236,28 +236,28 @@ func legacyChangedSinceCategories(
 	if err != nil {
 		t.Fatalf("legacy counts: %v", err)
 	}
-	counts := map[statuspkg.ChangedSinceCategory]statuspkg.ChangedSinceCounts{}
+	counts := map[changedsince.Category]changedsince.Counts{}
 	for rows.Next() {
 		var category, classification string
 		var keyCount int64
 		if err := rows.Scan(&category, &classification, &keyCount); err != nil {
 			t.Fatalf("legacy counts scan: %v", err)
 		}
-		bucket := counts[statuspkg.ChangedSinceCategory(category)]
+		bucket := counts[changedsince.Category(category)]
 		applyChangedSinceCount(&bucket, classification, int(keyCount))
-		counts[statuspkg.ChangedSinceCategory(category)] = bucket
+		counts[changedsince.Category(category)] = bucket
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("legacy counts rows: %v", err)
 	}
 	_ = rows.Close()
 
-	categories := make([]statuspkg.ChangedSinceCategoryDelta, 0, len(statuspkg.ChangedSinceCategories))
-	for _, category := range statuspkg.ChangedSinceCategories {
-		delta := statuspkg.ChangedSinceCategoryDelta{Category: category, Counts: counts[category]}
-		samples := map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample{}
-		truncated := map[statuspkg.ChangedSinceClassification]bool{}
-		for _, classification := range statuspkg.ChangedSinceClassifications {
+	categories := make([]changedsince.CategoryDelta, 0, len(changedsince.Categories))
+	for _, category := range changedsince.Categories {
+		delta := changedsince.CategoryDelta{Category: category, Counts: counts[category]}
+		samples := map[changedsince.Classification][]changedsince.Sample{}
+		truncated := map[changedsince.Classification]bool{}
+		for _, classification := range changedsince.Classifications {
 			if changedSinceClassificationCount(counts[category], classification) == 0 {
 				continue
 			}
@@ -267,9 +267,9 @@ func legacyChangedSinceCategories(
 			if err != nil {
 				t.Fatalf("legacy samples: %v", err)
 			}
-			bucket := make([]statuspkg.ChangedSinceSample, 0, sampleLimit)
+			bucket := make([]changedsince.Sample, 0, sampleLimit)
 			for sampleRows.Next() {
-				var sample statuspkg.ChangedSinceSample
+				var sample changedsince.Sample
 				if err := sampleRows.Scan(&sample.StableFactKey, &sample.FactKind); err != nil {
 					t.Fatalf("legacy samples scan: %v", err)
 				}
@@ -356,7 +356,7 @@ func TestChangedSinceSingleStatementMatchesLegacyFlowLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("changedSinceCategories: %v", err)
 	}
-	var total statuspkg.ChangedSinceCounts
+	var total changedsince.Counts
 	for _, category := range got {
 		total.Added += category.Counts.Added
 		total.Updated += category.Counts.Updated

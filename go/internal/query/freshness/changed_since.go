@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -22,7 +22,7 @@ const changedSinceRoute = "GET /api/v0/freshness/changed-since"
 // set. It is implemented by the Postgres status store and consumed here so the
 // handler does not depend on a concrete database driver.
 type ChangedSinceReader interface {
-	ComputeChangedSinceDelta(context.Context, status.ChangedSinceFilter) (status.ChangedSinceSummary, error)
+	ComputeChangedSinceDelta(context.Context, changedsince.Filter) (changedsince.Summary, error)
 }
 
 func (h *Handler) listChangedSince(w http.ResponseWriter, r *http.Request) {
@@ -155,8 +155,8 @@ func (h *Handler) listChangedSince(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, h.changedSinceTruthEnvelope(summary))
 }
 
-func (h *Handler) parseChangedSinceFilter(w http.ResponseWriter, r *http.Request) (status.ChangedSinceFilter, bool) {
-	filter := status.ChangedSinceFilter{
+func (h *Handler) parseChangedSinceFilter(w http.ResponseWriter, r *http.Request) (changedsince.Filter, bool) {
+	filter := changedsince.Filter{
 		ScopeID:           querycontract.QueryParam(r, "scope_id"),
 		Repository:        querycontract.QueryParam(r, "repository"),
 		SinceGenerationID: querycontract.QueryParam(r, "since_generation_id"),
@@ -164,26 +164,26 @@ func (h *Handler) parseChangedSinceFilter(w http.ResponseWriter, r *http.Request
 
 	if !filter.HasScopeSelector() {
 		querycontract.WriteError(w, http.StatusBadRequest, "scope_id or repository is required")
-		return status.ChangedSinceFilter{}, false
+		return changedsince.Filter{}, false
 	}
 
 	if raw := querycontract.QueryParam(r, "since_observed_at"); raw != "" {
 		parsed, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
 			querycontract.WriteError(w, http.StatusBadRequest, "since_observed_at must be an RFC3339 timestamp")
-			return status.ChangedSinceFilter{}, false
+			return changedsince.Filter{}, false
 		}
 		filter.SinceObservedAt = parsed
 	}
 
 	if !filter.HasSinceReference() {
 		querycontract.WriteError(w, http.StatusBadRequest, "since_generation_id or since_observed_at is required")
-		return status.ChangedSinceFilter{}, false
+		return changedsince.Filter{}, false
 	}
 
 	limit, ok := h.parseChangedSinceLimit(w, r)
 	if !ok {
-		return status.ChangedSinceFilter{}, false
+		return changedsince.Filter{}, false
 	}
 	filter.SampleLimit = limit
 
@@ -193,17 +193,17 @@ func (h *Handler) parseChangedSinceFilter(w http.ResponseWriter, r *http.Request
 func (h *Handler) parseChangedSinceLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 	raw := querycontract.QueryParam(r, "sample_limit")
 	if raw == "" {
-		return status.DefaultChangedSinceSampleLimit, true
+		return changedsince.DefaultSampleLimit, true
 	}
 	limit := querycontract.QueryParamInt(r, "sample_limit", -1)
-	if limit <= 0 || limit > status.MaxChangedSinceSampleLimit {
-		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("sample_limit must be between 1 and %d", status.MaxChangedSinceSampleLimit))
+	if limit <= 0 || limit > changedsince.MaxSampleLimit {
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("sample_limit must be between 1 and %d", changedsince.MaxSampleLimit))
 		return 0, false
 	}
 	return limit, true
 }
 
-func (h *Handler) changedSinceTruthEnvelope(summary status.ChangedSinceSummary) *querycontract.TruthEnvelope {
+func (h *Handler) changedSinceTruthEnvelope(summary changedsince.Summary) *querycontract.TruthEnvelope {
 	envelope := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		ChangedSinceCapability,
@@ -214,10 +214,10 @@ func (h *Handler) changedSinceTruthEnvelope(summary status.ChangedSinceSummary) 
 	case summary.Unavailable:
 		envelope.Freshness.State = querycontract.FreshnessUnavailable
 		switch summary.UnavailableReason {
-		case status.ChangedSinceUnavailableRetentionExpired:
+		case changedsince.UnavailableRetentionExpired:
 			envelope.Freshness.Detail = "the prior generation was pruned by the retention policy, so the changed-since diff is no longer available"
 			WithCause(envelope, CauseRetentionExpired)
-		case status.ChangedSinceUnavailableBaselineNotComparable:
+		case changedsince.UnavailableBaselineNotComparable:
 			// No closed FreshnessCause fits: nothing is lagging. The window
 			// itself cannot be diffed, and unavailable_reason carries why.
 			envelope.Freshness.Detail = changedSinceNotComparableDetail(summary)
@@ -243,7 +243,7 @@ func (h *Handler) changedSinceTruthEnvelope(summary status.ChangedSinceSummary) 
 // and names the side that is a delta generation, since the remedy differs: a
 // delta baseline needs a full generation as the since reference, while a delta
 // current generation needs the next full generation to activate.
-func changedSinceNotComparableDetail(summary status.ChangedSinceSummary) string {
+func changedSinceNotComparableDetail(summary changedsince.Summary) string {
 	const prefix = "a delta generation holds only the changed files' facts plus tombstones, not a full snapshot, so the raw diff is refused"
 	switch {
 	case summary.SinceIsDelta && summary.CurrentIsDelta:
@@ -255,7 +255,7 @@ func changedSinceNotComparableDetail(summary status.ChangedSinceSummary) string 
 	}
 }
 
-func changedSinceScopeNotFoundMessage(filter status.ChangedSinceFilter) string {
+func changedSinceScopeNotFoundMessage(filter changedsince.Filter) string {
 	switch {
 	case filter.ScopeID != "":
 		return fmt.Sprintf("no scope found for scope_id %q", filter.ScopeID)
@@ -266,14 +266,14 @@ func changedSinceScopeNotFoundMessage(filter status.ChangedSinceFilter) string {
 	}
 }
 
-func changedSinceGenerationNotFoundMessage(filter status.ChangedSinceFilter) string {
+func changedSinceGenerationNotFoundMessage(filter changedsince.Filter) string {
 	if filter.SinceGenerationID != "" {
 		return fmt.Sprintf("no generation %q for the requested scope", filter.SinceGenerationID)
 	}
 	return "no generation observed at or before the requested since_observed_at for the scope"
 }
 
-func changedSinceSpanAttributes(summary status.ChangedSinceSummary) []attribute.KeyValue {
+func changedSinceSpanAttributes(summary changedsince.Summary) []attribute.KeyValue {
 	changed := 0
 	for _, category := range summary.Categories {
 		changed += category.Counts.Added +

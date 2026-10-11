@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // TestServiceMaterializationWriterKeepsScopedLineagesLive drives the production
@@ -215,7 +215,7 @@ VALUES ($1, $2, $3, 'service_catalog_correlation',
 		serviceID := "svc-resolve-" + tc.name
 		// Repeat the read: a nondeterministic pick can pass once.
 		for attempt := 0; attempt < 3; attempt++ {
-			filter := statuspkg.ServiceChangedSinceFilter{ServiceID: serviceID}
+			filter := changedsince.ServiceFilter{ServiceID: serviceID}
 			lineages, err := store.resolveServiceChangedSinceLineages(ctx, filter)
 			if err != nil {
 				t.Fatalf("%s: resolve: %v", tc.name, err)

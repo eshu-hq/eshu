@@ -44,7 +44,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
@@ -260,12 +260,12 @@ func (r fixedGenerationReader) ListGenerationLifecycle(
 // fixedChangedSinceReader is a deterministic changed-since fixture returning one
 // prepared summary regardless of filter.
 type fixedChangedSinceReader struct {
-	summary status.ChangedSinceSummary
+	summary changedsince.Summary
 }
 
 func (r fixedChangedSinceReader) ComputeChangedSinceDelta(
 	_ context.Context,
-	_ status.ChangedSinceFilter,
-) (status.ChangedSinceSummary, error) {
+	_ changedsince.Filter,
+) (changedsince.Summary, error) {
 	return r.summary, nil
 }

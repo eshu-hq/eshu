@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // Real-Postgres proofs for #7258: the service catalog correlation handler,
@@ -233,9 +233,9 @@ func activeGeneration(t *testing.T, generations map[string]string) string {
 
 // deploymentDelta returns the deployment category of changed-since between
 // since and the current active generation.
-func (h serviceCatalogFenceHarness) deploymentDelta(t *testing.T, since string) statuspkg.ChangedSinceCategoryDelta {
+func (h serviceCatalogFenceHarness) deploymentDelta(t *testing.T, since string) changedsince.CategoryDelta {
 	t.Helper()
-	summary, err := h.status.ComputeServiceChangedSinceDelta(h.ctx, statuspkg.ServiceChangedSinceFilter{
+	summary, err := h.status.ComputeServiceChangedSinceDelta(h.ctx, changedsince.ServiceFilter{
 		ServiceID: serviceCatalogFenceServiceID, SinceGenerationID: since,
 	})
 	if err != nil {
@@ -247,7 +247,7 @@ func (h serviceCatalogFenceHarness) deploymentDelta(t *testing.T, since string) 
 		}
 	}
 	t.Fatalf("changed-since summary has no deployment category: %+v", summary)
-	return statuspkg.ChangedSinceCategoryDelta{}
+	return changedsince.CategoryDelta{}
 }
 
 func TestServiceCatalogCorpusFenceDefersAndPreservesEvidenceLive(t *testing.T) {

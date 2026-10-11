@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -40,39 +40,39 @@ import (
 // the normalized SampleLimit, with a Truncated flag when more keys matched.
 func (s StatusStore) ComputeChangedSinceDelta(
 	ctx context.Context,
-	filter statuspkg.ChangedSinceFilter,
-) (statuspkg.ChangedSinceSummary, error) {
+	filter changedsince.Filter,
+) (changedsince.Summary, error) {
 	if s.queryer == nil {
-		return statuspkg.ChangedSinceSummary{}, fmt.Errorf("queryer is required")
+		return changedsince.Summary{}, fmt.Errorf("queryer is required")
 	}
 
 	filter = filter.Normalize()
 	if !filter.HasScopeSelector() {
-		return statuspkg.ChangedSinceSummary{}, fmt.Errorf("scope_id or repository is required")
+		return changedsince.Summary{}, fmt.Errorf("scope_id or repository is required")
 	}
 	if filter.HasConflictingScopeSelectors() {
-		return statuspkg.ChangedSinceSummary{}, fmt.Errorf("scope_id and repository are mutually exclusive")
+		return changedsince.Summary{}, fmt.Errorf("scope_id and repository are mutually exclusive")
 	}
 
 	scope, ok, err := s.resolveChangedSinceScope(ctx, filter)
 	if err != nil {
-		return statuspkg.ChangedSinceSummary{}, err
+		return changedsince.Summary{}, err
 	}
 	if !ok {
 		// Unknown scope/repository: empty ScopeID signals not-found upstream.
-		return statuspkg.ChangedSinceSummary{}, nil
+		return changedsince.Summary{}, nil
 	}
 	repository := ""
 	if scope.scopeKind == "repository" {
 		repository = scope.repository
 	}
 
-	summary := statuspkg.ChangedSinceSummary{
+	summary := changedsince.Summary{
 		ScopeID:                   scope.scopeID,
 		ScopeKind:                 scope.scopeKind,
 		Repository:                repository,
 		CurrentActiveGenerationID: scope.currentGenerationID,
-		CurrentObservedAt:         statuspkg.ChangedSinceTimestamp(scope.currentObservedAt),
+		CurrentObservedAt:         changedsince.Timestamp(scope.currentObservedAt),
 		SampleLimit:               filter.SampleLimit,
 		Building:                  scope.hasPending,
 	}
@@ -87,18 +87,18 @@ func (s StatusStore) ComputeChangedSinceDelta(
 
 	prior, priorOK, err := s.resolveChangedSincePriorGeneration(ctx, scope.scopeID, filter)
 	if err != nil {
-		return statuspkg.ChangedSinceSummary{}, err
+		return changedsince.Summary{}, err
 	}
 	if !priorOK {
 		expired, expiredObservedAt, expiredErr := s.changedSinceRetentionExpired(ctx, scope.scopeID, filter)
 		if expiredErr != nil {
-			return statuspkg.ChangedSinceSummary{}, expiredErr
+			return changedsince.Summary{}, expiredErr
 		}
 		if expired {
 			summary.Unavailable = true
-			summary.UnavailableReason = statuspkg.ChangedSinceUnavailableRetentionExpired
+			summary.UnavailableReason = changedsince.UnavailableRetentionExpired
 			summary.SinceGenerationID = filter.SinceGenerationID
-			summary.SinceObservedAt = statuspkg.ChangedSinceTimestamp(expiredObservedAt)
+			summary.SinceObservedAt = changedsince.Timestamp(expiredObservedAt)
 			summary.Categories = unavailableChangedSinceCategories()
 			return summary, nil
 		}
@@ -106,11 +106,11 @@ func (s StatusStore) ComputeChangedSinceDelta(
 		return summary, nil
 	}
 	summary.SinceGenerationID = prior.generationID
-	summary.SinceObservedAt = statuspkg.ChangedSinceTimestamp(prior.observedAt)
+	summary.SinceObservedAt = changedsince.Timestamp(prior.observedAt)
 
 	if prior.isDelta || scope.currentIsDelta {
 		summary.Unavailable = true
-		summary.UnavailableReason = statuspkg.ChangedSinceUnavailableBaselineNotComparable
+		summary.UnavailableReason = changedsince.UnavailableBaselineNotComparable
 		summary.SinceIsDelta = prior.isDelta
 		summary.CurrentIsDelta = scope.currentIsDelta
 		summary.Categories = unavailableChangedSinceCategories()
@@ -125,7 +125,7 @@ func (s StatusStore) ComputeChangedSinceDelta(
 		filter.SampleLimit,
 	)
 	if err != nil {
-		return statuspkg.ChangedSinceSummary{}, err
+		return changedsince.Summary{}, err
 	}
 	summary.Categories = categories
 
@@ -144,7 +144,7 @@ type changedSinceScope struct {
 
 func (s StatusStore) resolveChangedSinceScope(
 	ctx context.Context,
-	filter statuspkg.ChangedSinceFilter,
+	filter changedsince.Filter,
 ) (changedSinceScope, bool, error) {
 	rows, err := s.queryer.QueryContext(
 		ctx,
@@ -198,7 +198,7 @@ type changedSincePrior struct {
 func (s StatusStore) resolveChangedSincePriorGeneration(
 	ctx context.Context,
 	scopeID string,
-	filter statuspkg.ChangedSinceFilter,
+	filter changedsince.Filter,
 ) (changedSincePrior, bool, error) {
 	sinceObserved := filter.SinceObservedAt
 	rows, err := s.queryer.QueryContext(
@@ -237,7 +237,7 @@ func (s StatusStore) resolveChangedSincePriorGeneration(
 func (s StatusStore) changedSinceRetentionExpired(
 	ctx context.Context,
 	scopeID string,
-	filter statuspkg.ChangedSinceFilter,
+	filter changedsince.Filter,
 ) (bool, time.Time, error) {
 	generationHash := ""
 	if filter.SinceGenerationID != "" {
@@ -284,7 +284,7 @@ func (s StatusStore) changedSinceCategories(
 	ctx context.Context,
 	scopeID, priorGenerationID, currentGenerationID string,
 	sampleLimit int,
-) ([]statuspkg.ChangedSinceCategoryDelta, error) {
+) ([]changedsince.CategoryDelta, error) {
 	rows, err := s.queryer.QueryContext(
 		ctx,
 		changedSinceDeltaQuery,
@@ -298,8 +298,8 @@ func (s StatusStore) changedSinceCategories(
 	}
 	defer func() { _ = rows.Close() }()
 
-	counts := map[statuspkg.ChangedSinceCategory]statuspkg.ChangedSinceCounts{}
-	samples := map[statuspkg.ChangedSinceCategory]map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample{}
+	counts := map[changedsince.Category]changedsince.Counts{}
+	samples := map[changedsince.Category]map[changedsince.Classification][]changedsince.Sample{}
 	for rows.Next() {
 		var category, classification string
 		var keyCount int64
@@ -307,8 +307,8 @@ func (s StatusStore) changedSinceCategories(
 		if err := rows.Scan(&category, &classification, &keyCount, &stableFactKey, &factKind); err != nil {
 			return nil, fmt.Errorf("changed-since diff: %w", err)
 		}
-		cat := statuspkg.ChangedSinceCategory(category)
-		class := statuspkg.ChangedSinceClassification(classification)
+		cat := changedsince.Category(category)
+		class := changedsince.Classification(classification)
 		bucket := counts[cat]
 		applyChangedSinceCount(&bucket, classification, int(keyCount))
 		counts[cat] = bucket
@@ -316,9 +316,9 @@ func (s StatusStore) changedSinceCategories(
 			continue
 		}
 		if samples[cat] == nil {
-			samples[cat] = map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample{}
+			samples[cat] = map[changedsince.Classification][]changedsince.Sample{}
 		}
-		samples[cat][class] = append(samples[cat][class], statuspkg.ChangedSinceSample{
+		samples[cat][class] = append(samples[cat][class], changedsince.Sample{
 			StableFactKey: stableFactKey.String,
 			FactKind:      factKind.String,
 		})
@@ -327,10 +327,10 @@ func (s StatusStore) changedSinceCategories(
 		return nil, fmt.Errorf("changed-since diff: %w", err)
 	}
 
-	categories := make([]statuspkg.ChangedSinceCategoryDelta, 0, len(statuspkg.ChangedSinceCategories))
-	for _, category := range statuspkg.ChangedSinceCategories {
-		delta := statuspkg.ChangedSinceCategoryDelta{Category: category, Counts: counts[category]}
-		truncated := map[statuspkg.ChangedSinceClassification]bool{}
+	categories := make([]changedsince.CategoryDelta, 0, len(changedsince.Categories))
+	for _, category := range changedsince.Categories {
+		delta := changedsince.CategoryDelta{Category: category, Counts: counts[category]}
+		truncated := map[changedsince.Classification]bool{}
 		for classification, bucket := range samples[category] {
 			if len(bucket) > sampleLimit {
 				bucket = bucket[:sampleLimit]
@@ -349,42 +349,42 @@ func (s StatusStore) changedSinceCategories(
 	return categories, nil
 }
 
-func applyChangedSinceCount(bucket *statuspkg.ChangedSinceCounts, classification string, value int) {
-	switch statuspkg.ChangedSinceClassification(classification) {
-	case statuspkg.ChangedSinceAdded:
+func applyChangedSinceCount(bucket *changedsince.Counts, classification string, value int) {
+	switch changedsince.Classification(classification) {
+	case changedsince.Added:
 		bucket.Added = value
-	case statuspkg.ChangedSinceUpdated:
+	case changedsince.Updated:
 		bucket.Updated = value
-	case statuspkg.ChangedSinceUnchanged:
+	case changedsince.Unchanged:
 		bucket.Unchanged = value
-	case statuspkg.ChangedSinceRetired:
+	case changedsince.Retired:
 		bucket.Retired = value
-	case statuspkg.ChangedSinceSuperseded:
+	case changedsince.Superseded:
 		bucket.Superseded = value
 	}
 }
 
-func changedSinceClassificationCount(counts statuspkg.ChangedSinceCounts, classification statuspkg.ChangedSinceClassification) int {
+func changedSinceClassificationCount(counts changedsince.Counts, classification changedsince.Classification) int {
 	switch classification {
-	case statuspkg.ChangedSinceAdded:
+	case changedsince.Added:
 		return counts.Added
-	case statuspkg.ChangedSinceUpdated:
+	case changedsince.Updated:
 		return counts.Updated
-	case statuspkg.ChangedSinceUnchanged:
+	case changedsince.Unchanged:
 		return counts.Unchanged
-	case statuspkg.ChangedSinceRetired:
+	case changedsince.Retired:
 		return counts.Retired
-	case statuspkg.ChangedSinceSuperseded:
+	case changedsince.Superseded:
 		return counts.Superseded
 	default:
 		return 0
 	}
 }
 
-func unavailableChangedSinceCategories() []statuspkg.ChangedSinceCategoryDelta {
-	categories := make([]statuspkg.ChangedSinceCategoryDelta, 0, len(statuspkg.ChangedSinceCategories))
-	for _, category := range statuspkg.ChangedSinceCategories {
-		categories = append(categories, statuspkg.ChangedSinceCategoryDelta{
+func unavailableChangedSinceCategories() []changedsince.CategoryDelta {
+	categories := make([]changedsince.CategoryDelta, 0, len(changedsince.Categories))
+	for _, category := range changedsince.Categories {
+		categories = append(categories, changedsince.CategoryDelta{
 			Category:    category,
 			Unavailable: true,
 		})

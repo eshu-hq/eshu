@@ -10,24 +10,24 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 type recordingChangedSinceReader struct {
-	summary    status.ChangedSinceSummary
+	summary    changedsince.Summary
 	err        error
-	lastFilter status.ChangedSinceFilter
+	lastFilter changedsince.Filter
 	callCount  int
 }
 
 func (r *recordingChangedSinceReader) ComputeChangedSinceDelta(
 	_ context.Context,
-	filter status.ChangedSinceFilter,
-) (status.ChangedSinceSummary, error) {
+	filter changedsince.Filter,
+) (changedsince.Summary, error) {
 	r.callCount++
 	r.lastFilter = filter
 	if r.err != nil {
-		return status.ChangedSinceSummary{}, r.err
+		return changedsince.Summary{}, r.err
 	}
 	return r.summary, nil
 }
@@ -60,16 +60,16 @@ func newChangedSinceMux(reader ChangedSinceReader) *http.ServeMux {
 func TestChangedSinceUnchangedProducesNoFalseDeltas(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{
+	reader := &recordingChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:                   "git-repository-scope:acme/app",
 		ScopeKind:                 "repository",
 		SinceGenerationID:         "gen-prior",
 		CurrentActiveGenerationID: "gen-current",
 		SampleLimit:               25,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryFiles, Counts: status.ChangedSinceCounts{Unchanged: 10}},
-			{Category: status.ChangedSinceCategoryContentEntities, Counts: status.ChangedSinceCounts{Unchanged: 4}},
-			{Category: status.ChangedSinceCategoryFacts, Counts: status.ChangedSinceCounts{Unchanged: 2}},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryFiles, Counts: changedsince.Counts{Unchanged: 10}},
+			{Category: changedsince.CategoryContentEntities, Counts: changedsince.Counts{Unchanged: 4}},
+			{Category: changedsince.CategoryFacts, Counts: changedsince.Counts{Unchanged: 2}},
 		},
 	}}
 	mux := newChangedSinceMux(reader)
@@ -98,19 +98,19 @@ func TestChangedSinceUnchangedProducesNoFalseDeltas(t *testing.T) {
 func TestChangedSinceAllVerdictsSurfaceSeparately(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{
+	reader := &recordingChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:                   "git-repository-scope:acme/app",
 		ScopeKind:                 "repository",
 		SinceGenerationID:         "gen-prior",
 		CurrentActiveGenerationID: "gen-current",
 		SampleLimit:               25,
-		Categories: []status.ChangedSinceCategoryDelta{
+		Categories: []changedsince.CategoryDelta{
 			{
-				Category: status.ChangedSinceCategoryFiles,
-				Counts:   status.ChangedSinceCounts{Added: 2, Updated: 1, Unchanged: 5, Retired: 1, Superseded: 1},
-				Samples: map[status.ChangedSinceClassification][]status.ChangedSinceSample{
-					status.ChangedSinceRetired:    {{StableFactKey: "file:gone", FactKind: "file"}},
-					status.ChangedSinceSuperseded: {{StableFactKey: "file:dropped", FactKind: "file"}},
+				Category: changedsince.CategoryFiles,
+				Counts:   changedsince.Counts{Added: 2, Updated: 1, Unchanged: 5, Retired: 1, Superseded: 1},
+				Samples: map[changedsince.Classification][]changedsince.Sample{
+					changedsince.Retired:    {{StableFactKey: "file:gone", FactKind: "file"}},
+					changedsince.Superseded: {{StableFactKey: "file:dropped", FactKind: "file"}},
 				},
 			},
 		},
@@ -140,13 +140,13 @@ func TestChangedSinceAllVerdictsSurfaceSeparately(t *testing.T) {
 func TestChangedSinceUnavailableMapsToUnavailableFreshness(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{
+	reader := &recordingChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:     "git-repository-scope:acme/app",
 		ScopeKind:   "repository",
 		Unavailable: true,
 		SampleLimit: 25,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryFiles, Unavailable: true},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryFiles, Unavailable: true},
 		},
 	}}
 	mux := newChangedSinceMux(reader)
@@ -168,16 +168,16 @@ func TestChangedSinceUnavailableMapsToUnavailableFreshness(t *testing.T) {
 func TestChangedSinceRetentionExpiredReasonSurfaces(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{
+	reader := &recordingChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:                   "git-repository-scope:acme/app",
 		ScopeKind:                 "repository",
 		SinceGenerationID:         "gen-pruned",
 		CurrentActiveGenerationID: "gen-current",
 		Unavailable:               true,
-		UnavailableReason:         status.ChangedSinceUnavailableRetentionExpired,
+		UnavailableReason:         changedsince.UnavailableRetentionExpired,
 		SampleLimit:               25,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryFiles, Unavailable: true},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryFiles, Unavailable: true},
 		},
 	}}
 	mux := newChangedSinceMux(reader)
@@ -203,7 +203,7 @@ func TestChangedSinceRetentionExpiredReasonSurfaces(t *testing.T) {
 		t.Fatalf("freshness next_check.tool = %q, want %q", got, want)
 	}
 	data := envelope.Data.(map[string]any)
-	if got, want := data["unavailable_reason"], string(status.ChangedSinceUnavailableRetentionExpired); got != want {
+	if got, want := data["unavailable_reason"], string(changedsince.UnavailableRetentionExpired); got != want {
 		t.Fatalf("unavailable_reason = %v, want %v", got, want)
 	}
 }
@@ -211,15 +211,15 @@ func TestChangedSinceRetentionExpiredReasonSurfaces(t *testing.T) {
 func TestChangedSinceBuildingMapsToBuildingFreshness(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{
+	reader := &recordingChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:                   "git-repository-scope:acme/app",
 		ScopeKind:                 "repository",
 		SinceGenerationID:         "gen-prior",
 		CurrentActiveGenerationID: "gen-current",
 		Building:                  true,
 		SampleLimit:               25,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryFiles, Counts: status.ChangedSinceCounts{Added: 1}},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryFiles, Counts: changedsince.Counts{Added: 1}},
 		},
 	}}
 	mux := newChangedSinceMux(reader)
@@ -237,7 +237,7 @@ func TestChangedSinceBuildingMapsToBuildingFreshness(t *testing.T) {
 func TestChangedSinceUnknownScopeNotFound(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{}}
+	reader := &recordingChangedSinceReader{summary: changedsince.Summary{}}
 	mux := newChangedSinceMux(reader)
 
 	w := doFreshnessRequest(t, mux, "/api/v0/freshness/changed-since?scope_id=missing&since_generation_id=gen-prior")
@@ -254,7 +254,7 @@ func TestChangedSinceUnknownSinceGenerationNotFound(t *testing.T) {
 	t.Parallel()
 
 	// Scope resolved, but no prior generation and not unavailable.
-	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{
+	reader := &recordingChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:                   "git-repository-scope:acme/app",
 		ScopeKind:                 "repository",
 		CurrentActiveGenerationID: "gen-current",
@@ -338,13 +338,13 @@ func TestChangedSinceNilReaderUnavailable(t *testing.T) {
 func TestChangedSinceObservedAtParsed(t *testing.T) {
 	t.Parallel()
 
-	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{
+	reader := &recordingChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:                   "git-repository-scope:acme/app",
 		ScopeKind:                 "repository",
 		SinceGenerationID:         "gen-prior",
 		CurrentActiveGenerationID: "gen-current",
 		SampleLimit:               25,
-		Categories:                []status.ChangedSinceCategoryDelta{{Category: status.ChangedSinceCategoryFiles}},
+		Categories:                []changedsince.CategoryDelta{{Category: changedsince.CategoryFiles}},
 	}}
 	mux := newChangedSinceMux(reader)
 
