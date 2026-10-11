@@ -425,9 +425,9 @@ sentinel row more: only then does the story add
 `repository_semantic_read_truncated_at_5000` to `limitations` and set
 `answer_metadata.truncated`. With it, every file-derived stage is a lower bound.
 
-Deployment artifacts (#7951): each repository hydrates at least 50
-config-artifact candidates, plus a request budget of 12,000 spent in
-repository-id order; each related list reads a sentinel row.
+Deployment artifacts (#7951): each repository hydrates its first 50
+config-artifact candidates (all if fewer) plus a share of a 12,000 budget, drawn
+anchor first, then in repository-id order; each related list reads a sentinel row.
 `deployment_artifacts_candidates_budget_reached` (budget spent, candidates left
 unread) and `deployment_artifacts_related_file_list_truncated_at_5000` go to
 `limitations` (story, service story; both then set `truncated`) or
