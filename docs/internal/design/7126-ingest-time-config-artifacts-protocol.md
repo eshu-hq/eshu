@@ -423,8 +423,8 @@ today. Ownership, not a cycle, is the reason for the neutral package.
    the last step of a Write, so the second holds.
 
 4. **S6 cap census** (QA environment, read-only). For all 815 repositories, count
-   repositories with more than 50 candidates and more than 5,000 files, and
-   the uncapped candidate total.
+   repositories with more than 50 candidates and more than 5,000 files, the
+   uncapped candidate total and the hidden bytes by class. It sets E (ADR 3.3).
 5. **S1 derive cost** (local, PR1, PR1b and PR2 stacked). Use the real
    `ContentWriter.Write` on the golden corpus and on the 300-repository,
    8,000-file synthetic set of the CPU bench. Pass: at most 10% of content

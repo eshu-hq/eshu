@@ -364,3 +364,135 @@ bumps itself.
 | Manual SQL, migrations, older binaries | arbitrary | trigger |
 | Repository retirement (#7766, draft PR #7871) | future | must adopt one disposition for the versions and state tables (protocol companion, section 1). The DELETE trigger covers its content delete, unless it used the gate, which it must not |
 | Foreign key cascades into `content_files` | none. `content_files` references no parent (`contentStoreBaseSchemaSQL`, migration 004). `content_file_secret_lines` is its child (migration 138) | not applicable |
+
+## 9. Limits on the deployment-artifact chain (cap ruling, 2026-10-11)
+
+Source: the local kit note `7126-cap-fix-ruling-20261011.md` (the arbiter's
+reading, not in the repository). Each symbol was re-checked with `git grep`
+at `origin/main` `75d40f219e` on 2026-10-11. Paths are under
+`go/internal/query/`. The PR3a branch (`ef4430bb5d`, not merged) moves the
+selection to `content/artifacts/`. Symbols, not lines, because a raw line
+citation fails the citation gate.
+
+| # | Where (file, symbol) | Limit today | Disclosed today | End state |
+|---|---|---|---|---|
+| L1 | `repositoryartifacts/repository_config_artifacts_loader.go`, `loadRepositoryConfigArtifactsForSources`: `ListRepoFiles` with `RepositorySemanticEntityLimit` | 5,000 files per related repository, no sentinel | No | Read limit+1, clip, set a per-repository `ListTruncated`, count per request, the window reason (section 10) |
+| L2 | `repositoryartifacts/repository_artifact_hydration.go`, `selectHydrationIndexes` and `repositoryArtifactHydrationLimit` (= 50). PR3a: `content/artifacts/hydration_select.go`, `SelectHydrationIndexes`, `HydrationLimit` | first 50 candidates per related repository | No | Lifted. Selection takes an allowance: floor 50 plus a share of the request budget. `HydrationLimit` becomes `HydrationFloor` |
+| L3 | `repositoryartifacts/repository_config_artifacts_hydration.go`, `hydrate`: kustomize resource reads only among the selected candidates (`working`) | derived from L2 | No | Follows L2. A resource the kustomization names inside the list window is read |
+| L4 | `repository/semantics.go`, `loadRepositorySemanticOverview` | 5,000, anchor, limit+1 | Yes (`repository_semantic_read_truncated_at_5000`) | Unchanged |
+| L5 | `repository/context.go`, `getRepositoryContext`: `ListRepoFiles` with `fileLimit+1` | 5,000, anchor | Yes (`repository_context_file_read_truncated_at_5000`) | Unchanged |
+| L6 | `service/deployment_evidence.go`, `loadServiceDeploymentEvidence`: `ListRepoFiles`, then `LoadDeploymentArtifactOverview` (no stats) | 5,000, anchor, no sentinel. L1 and L2 for its related set | No | limit+1, clip, append the reason to `workloadContext["limitations"]` (the slot exists in `service/query_enrichment.go`), call `LoadDeploymentArtifactOverviewWithStats`, log the counts on the `deployment_evidence` stage |
+| L7 | `repositoryartifacts/repository_deployment_artifacts_loader.go`, `hydrateRepositoryArtifactFiles` to `HydrateRepositoryCandidateFiles` (compose and GitHub Actions pre-read, anchor) | 50, per-file reader | No | PR-cap-2: chunked reader, same allowance and disclosure |
+| L8 | `repositoryartifacts/repository_config_artifacts_loader.go`, `LoadRepositoryControllerArtifacts` to `HydrateRepositoryCandidateFiles` (anchor) | 50. `ListRepoFiles` at 5,000 with no sentinel when `files` is nil | No | PR-cap-2 |
+| L9 | `repositoryartifacts/repository_runtime_artifacts.go`, `loadRepositoryRuntimeArtifacts` to `HydrateRepositoryCandidateFiles` (anchor) | 50. List at 5,000 with no sentinel when `files` is nil | No | PR-cap-2 |
+| L10 | `repositoryartifacts/repository_workflow_artifacts_loader.go`, `LoadRepositoryWorkflowArtifacts` (anchor) | 50. List at 5,000 with no sentinel when `files` is nil | No | PR-cap-2 |
+| L11 | `repositoryartifacts/workflow_evidence.go`, `StaticWorkflowArtifactEvidence` | 5,000 with limit+1. Path list capped by `cicdStaticWorkflowEvidencePathLimit`, with `truncated` | Yes (`candidate_pool_status`, `repository_file_scan_limit_reached`) | Unchanged. It is the disclosure precedent to copy |
+
+Re-check result: every symbol above exists at `origin/main` `75d40f219e`,
+except the PR3a names in L2 (and the allowance parameter of `LoadConfigPaths`),
+which exist only on the PR3a branch.
+
+Routes that share the loader: `getRepositoryStory` and `getRepositoryContext`
+in `repository/`, and the service story and context fallback
+(`loadServiceDeploymentEvidence`). The MCP tools `get_repo_story` and
+`get_repo_context` are transport-only proxies and inherit the fix. The source
+order is backend-dependent today (the Neo4j UNION order). The body does not
+depend on it now (one dedup, one sort). A request budget makes it matter, so
+the access-filtered sources are sorted by `RepoID` before the walk.
+
+## 10. Request budget, proof and acceptance plan (cap ruling, 2026-10-11)
+
+Why a bound. With L2 gone, the only per-repository bound is the 5,000-file
+window, so the worst case per request is N x 5,000 candidates: 1.5 million
+at N about 300 (an extrapolation, decision record section 1). That fails the
+performance and reliability contract. The bound is a request budget known
+before any read, so a repeated request has a stable body. Wall time was
+rejected as a unit (a host-dependent body), and bytes too (the list statement
+returns no size). Serialization and a lower worker count are no part of the
+control. The chunk size 10 and the in-flight bound 8 stay.
+
+Estimate (theory: measured per-statement and per-MB rates applied to the
+known hidden set of 3,763 candidates, from the local kit note
+`7126-batch-shim-20261010.md`; nothing here ran on the new code):
+
+| Term | Estimate |
+|---|---|
+| Extra chunk statements for R1 | about 223 (3,763 x 0.592 / 10) |
+| Statement CPU | about 0.18 CPU-s (223 x 0.82 ms) |
+| Extra HCL bytes | about 10.1 MB (3,763 x 0.54 x 4,952 B) |
+| Parse CPU | about 0.18 CPU-s gated, 0.95 ungated |
+| R1 total | about +0.4 CPU-s (+0.2 to +1.1 across the mix brackets), +5% to +15% on a 2.5-4.5 s stage |
+| Worst case at E = 10,000 | about +1.0 CPU-s gated (+3.0 if every gate misses), on top of the floors. Headroom over R1's known extra: 2.7x |
+
+Census rule: after S6, E must satisfy E >= 1.5 x R1's measured total extra
+over all related repositories, or E is raised and this table redone in the PR.
+
+Disclosure the response and the stage line carry when a bound bites. Reasons
+(story `limitations`, context `partial_reasons`, service story
+`limitations`) each also set `answer_metadata.truncated`. The budget reason is
+`deployment_artifacts_candidates_budget_reached` (E exhausted, and a related
+repository has candidates in its window that were not hydrated). The window
+reason is `deployment_artifacts_related_file_list_truncated_at_5000` (a
+related list returned the sentinel row, so its pool past the window is
+unknown). Counts, exact within the window, summed per request, no repository
+id or path: `candidate_count`, `candidates_hydrated`,
+`candidates_unhydrated`, `repositories_budget_capped`,
+`repositories_list_truncated`, `hydration_budget` and `hydration_floor`. One
+counter, `eshu_dp_config_artifact_candidates_total{outcome}`. The stage lines
+are `deployment_artifacts` (story), `content_infrastructure_overview`
+(context) and `deployment_evidence` (service).
+`deployment_artifacts_read_degraded` is unchanged.
+
+Proof before an executor starts (time box 2 h, prove-the-theory-first):
+
+1. Cap shim on the `proof/7126-cpu-bench` harness with the observed tail
+   (about 8,000 hidden candidates over the capped repositories). Arms, nine
+   ABBA rounds, load1 under 9: A cap 50 (shipped), B F = 50 and E = 10,000
+   (no bite), C F = 50 and a small E (bite). Pass: B - A within about +0.5 to
+   +2.5 CPU-s at 300 repositories, statements about +470 to +1,300, A's
+   digest unchanged, B's rows a superset of A's.
+2. Plan shim: `EXPLAIN (ANALYZE, BUFFERS)` of the blank-check and batched
+   statements with arrays of 10, 500, 1,000 and 4,950 paths, custom and
+   forced generic plan. Pass: index scan, no sequential or bitmap heap scan
+   at 4,950.
+3. Heap shim: peak heap of one 3,678-candidate repository against the API pod
+   limit. Pass: growth under 25% of the limit.
+
+PR-cap-1 accuracy checks (each is a behavior test): 51, 500 and 5,001
+candidates (exactly 5,000 gives no window reason); a budget bite through a
+loader test seam, not an env var; byte-identical bodies for three shuffled
+source orders; a monotonic differential (the new `config_paths` is a superset
+of the capped one, byte-identical when no repository exceeds 50); kustomize
+inversion of `TestNeededContentHydrationReferenceOutsideCapIsNotRead`;
+disclosure fields on all three routes, absent when nothing bites; a seeded
+violation (selection that stops at 50 and drops the reason) turning the tests
+RED; live plan and equality tests at 4,950 paths; an out-of-grant repository
+adds nothing to any count (counts follow the grant filter); the golden-corpus
+gate (`config_paths` is in two cassettes); `-race`, OpenAPI and package-docs
+gates.
+
+Roll image check (2026-10-11). `794b56a3fb` is the image the cap ruling named
+(the merge of #7949, 04:22 UTC). `1ac63e871a` is the image the QA environment
+was reported to run (the merge of #7946, 08:31 UTC; the environment's own
+report is NOT_CHECKED here). `794b56a3fb` is an ancestor of `1ac63e871a`. Both
+hold PR1 only.
+
+| Commit | Change | In `794b56a3fb` | In `1ac63e871a` |
+|---|---|---|---|
+| `1be621eb11` | PR1, #7941 | yes | yes |
+| `e8f934d294` | PR1b, #7959 | no | no |
+| `050b0f5304` | this ADR, #7954 | no | no |
+| `6b761d2145` | PR2, #7962 | no | no |
+
+Command: `git merge-base --is-ancestor <commit> <image>`. Read 2 pins main
+`6b761d2145` (the #7962 merge, an ancestor of `64f6600d98`), which holds PR1,
+PR1b and PR2 and excludes PR3a, PR-cap-1 and PR3b-1a. Whether an image of it
+is built is NOT_CHECKED here.
+
+NOT_CHECKED (cap ruling): the class mix, bytes and hidden rows of the 3,763
+hidden candidates, the hidden candidates of the about 160 unnamed related
+repositories of R1, the exact N of R1, the API pod memory limit and heap
+growth at the worst repository, the blank-check plan at 1,000-4,950 element
+arrays, whether any golden-corpus repository exceeds 50 candidates, the CPU of
+a chunk statement (0.82 ms was measured on single-file statements), and
+whether the private PostgreSQL pair of the PR1 and PR2 bench is running.
