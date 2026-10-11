@@ -78,6 +78,51 @@ given.
   Changing one without the other breaks that promise even though nothing
   enforces it at compile time.
 
+## Evidence
+
+No-Regression Evidence (#6949 batch 4, generation family): this change moves
+the ten `generation.*` compat entries' Go importers (`GenerationTransitionSnapshot`,
+`GenerationLifecycleFilter`, `GenerationLifecycleRecord`, `GenerationLifecyclePage`,
+`GenerationQueueStatus`, `GenerationLatestFailure`, `GenerationPriorFailure`,
+`MaxGenerationLifecycleLimit`, `DefaultGenerationLifecycleLimit`, and
+`GenerationLifecycleTimestamp`, reached as both `status.*` and `statuspkg.*`)
+off the transitional compat spellings onto `generation.TransitionSnapshot`,
+`generation.LifecycleFilter`, `generation.LifecycleRecord`, `generation.LifecyclePage`,
+`generation.QueueStatus`, `generation.LatestFailure`, `generation.PriorFailure`,
+`generation.MaxLifecycleLimit`, `generation.DefaultLifecycleLimit`, and
+`generation.LifecycleTimestamp`, and deletes the emptied `compat_generation.go`.
+No type shape, wire field, SQL text, or executable statement changes:
+across 18 code files, every production hunk requalifies an identifier or
+import path only (40 changed non-import production lines per side verified
+identical modulo the mapping; the other 8 changed lines are import
+adds/removes),
+every other hunk is a package-doc rewording, a ledger row, or the
+compat file's own deletion, and the build resolves with no dangling reference.
+Measurement: identical before/after outcomes (ledger:6949-generation-batch4-before, ledger:6949-generation-batch4-after). The command is `go test -count=1` over
+the 6 affected package targets (`./internal/status/...`,
+`./internal/query/...`, `./internal/storage/postgres/...`,
+`./internal/mcp/...`, `./cmd/admin-status/...`, `./cmd/eshu/...`) on baseline
+`9394b424e9` vs measurement commit `9e64b12f5d` (this Evidence section,
+the two ledger rows, a doc-comment fix, and content-identical rebases
+tracking main are the only later changes): 158 packages ok, 0 fail on both sides, with the
+ok-package set byte-identical after timing strip. `go test -list`
+inventory is identical on both sides (11175 tests). Backend/version:
+go1.26.2 linux/amd64, in-memory; no backend touched. Input shape: n/a
+(no runtime input). Terminal queue/row counts: none — no queue, lease,
+Cypher, or SQL path is touched. Contract gates green on the branch:
+`verify-openapi.sh` (261/261 routes), `verify-contracttest.sh`, and
+`verify-package-docs.sh`. The change is safe because it cannot alter
+runtime behavior: the compiler resolves the same types through their
+new paths, and the compat deletion is compile-enforced total — any
+missed caller would fail the build.
+
+No-Observability-Change (#6949 batch 4, generation family): this package
+carries no instrumentation (see Telemetry above) and the move adds,
+removes, or renames no metric, span, structured log, or status field in
+any touched package. The status readers, query handlers, freshness
+routes, and postgres readers that use these types are untouched;
+operator signals are identical before and after.
+
 ## Related docs
 
 - `docs/internal/naming.md` — the nesting rules this leaf was created under
