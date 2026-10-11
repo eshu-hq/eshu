@@ -1,0 +1,21 @@
+scripts/test-verify-query-plan-regression.sh
+  s_29175cf8c573b8::t_85530335471bc1 41-58
+scripts/verify-query-plan-profile.sh
+  s_29175cf8c573b8::t_75f634b755ba5d 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e12b2b6fc1bda4be79b5b1a8317b1f709fbdc9f9",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
