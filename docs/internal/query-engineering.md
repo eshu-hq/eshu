@@ -87,9 +87,11 @@ its size and representative insert/update cost when evaluating an index.
 
 ## Cypher patterns
 
-Use the supported Neo4j pin from `docker-compose.neo4j.yml`; record the actual
-engine and Cypher version. The profile and methodology runners use the same
-supported pin. Read the
+Use the supported deployment pin from `docker-compose.neo4j.yml` for runtime
+queries. Record the actual engine and Cypher version. The legacy PROFILE runner
+uses the `neo4j-queryplan` ledger image; paired methodology uses
+`neo4j-community`. Treat measurements from these profiles as separate evidence.
+Keep paired base/candidate measurements on the same pinned image. Read the
 [Cypher 25 execution plan reference](https://neo4j.com/docs/cypher-manual/25/planning-and-tuning/execution-plans/)
 for plan semantics; verify version-specific features on the selected binary.
 

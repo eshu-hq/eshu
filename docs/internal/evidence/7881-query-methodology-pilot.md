@@ -105,7 +105,7 @@ bash scripts/verify-read-api-latency-gate.sh
 
 Keep its default scale: 800 scopes, 150,000 nodes per infrastructure label,
 150,000 IaC facts with large payloads and 2.5 million shared projection intents.
-Reserve a quiet host and a 30-minute time bound. Archive resource observations
+Reserve a quiet host and a 45-minute time bound. Archive resource observations
 and exact exits alongside the reports. Preserve the required NornicDB lane.
 
 NOT_CHECKED in this calibration note: the final combined-head live runner and
