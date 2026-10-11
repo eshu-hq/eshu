@@ -155,6 +155,7 @@ func configContentMutants() map[string]struct {
 				return configArtifactReadsContent(file)
 			},
 			planResources: planKustomizeResourceReads,
+			fetch:         productionConfigHydration.fetch,
 		}
 	}
 	production := productionConfigHydration
@@ -173,9 +174,11 @@ func configContentMutants() map[string]struct {
 		"drop phase 2 resource reads": {policy: configHydrationPolicy{
 			readsContent:  production.readsContent,
 			planResources: func([]querycontract.FileContent) map[string]struct{} { return nil },
+			fetch:         production.fetch,
 		}},
 		"phase 2 reads only the first kustomization": {policy: configHydrationPolicy{
 			readsContent: production.readsContent,
+			fetch:        production.fetch,
 			planResources: func(files []querycontract.FileContent) map[string]struct{} {
 				for i, file := range files {
 					if isKustomizationIndexPath(CleanRepositoryRelativePath(file.RelativePath)) {
@@ -266,6 +269,7 @@ func TestNeededContentHydrationSupersetReadIsOutputNeutral(t *testing.T) {
 	readEverything := configHydrationPolicy{
 		readsContent:  func(querycontract.FileContent) bool { return true },
 		planResources: planKustomizeResourceReads,
+		fetch:         productionConfigHydration.fetch,
 	}
 	passes := configArtifactPasses{hydrate: readEverything.hydrate, build: buildRepositoryConfigArtifacts}
 	for scenario, files := range mutantCorpus() {

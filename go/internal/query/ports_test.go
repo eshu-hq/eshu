@@ -108,6 +108,10 @@ func (f fakePortContentStore) GetFileContent(ctx context.Context, repoID, relati
 	return f.promoted().GetFileContent(ctx, repoID, relativePath)
 }
 
+func (f fakePortContentStore) GetFileContents(ctx context.Context, repoID string, relativePaths []string) ([]FileContent, error) {
+	return f.promoted().GetFileContents(ctx, repoID, relativePaths)
+}
+
 func (f fakePortContentStore) GetFileLines(
 	ctx context.Context,
 	repoID, relativePath string,

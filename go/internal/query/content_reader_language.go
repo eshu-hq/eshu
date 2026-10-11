@@ -262,3 +262,77 @@ func (cr *ContentReader) NonBlankRepoFilePaths(ctx context.Context, repoID strin
 	}
 	return nonBlank, nil
 }
+
+// getFileContentsStatement is the one statement GetFileContents issues. It is a
+// constant so the live plan test explains the text the reader sends, and keeps
+// the column list of GetFileContent so both scan into the same FileContent.
+const getFileContentsStatement = `
+		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
+		       content, content_hash, line_count, coalesce(language, ''),
+		       coalesce(artifact_type, '')
+		FROM content_files
+		WHERE repo_id = $1 AND relative_path = ANY($2::text[])
+	`
+
+// GetFileContents returns the stored rows for relativePaths in one statement
+// (#7126). Each row is selected with the columns of GetFileContent and scanned
+// the same way, so a caller that read N files with N GetFileContent calls
+// reads the same rows with one call. The predicate is `relative_path =
+// ANY($2)`: equality against the array, not LIKE, so a path with %, _, a
+// backslash, a quote or a space matches only itself. The (repo_id,
+// relative_path) primary key leaves at most one row per path, which the
+// content_files_repo_path_pattern_idx index serves without a sequential scan.
+//
+// The input is deduplicated on exact string value (no trimming: a padded path
+// is a different path), and an empty input issues no statement. A path with no
+// stored row is absent from the result, as GetFileContent returns no row for
+// it. Row order is unspecified; callers key rows by RelativePath. An error from
+// the query, a scan or the row iteration returns no rows.
+func (cr *ContentReader) GetFileContents(ctx context.Context, repoID string, relativePaths []string) ([]FileContent, error) {
+	if len(relativePaths) == 0 {
+		return nil, nil
+	}
+
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "get_file_contents"),
+			attribute.String("db.sql.table", "content_files"),
+		),
+	)
+	defer span.End()
+
+	paths := make([]string, 0, len(relativePaths))
+	seen := make(map[string]struct{}, len(relativePaths))
+	for _, relativePath := range relativePaths {
+		if _, ok := seen[relativePath]; ok {
+			continue
+		}
+		seen[relativePath] = struct{}{}
+		paths = append(paths, relativePath)
+	}
+
+	rows, err := cr.db.QueryContext(ctx, getFileContentsStatement, repoID, array.StringArray(paths))
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("get file contents: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	files := make([]FileContent, 0, len(paths))
+	for rows.Next() {
+		var f FileContent
+		if err := rows.Scan(&f.RepoID, &f.RelativePath, &f.CommitSHA,
+			&f.Content, &f.ContentHash, &f.LineCount, &f.Language, &f.ArtifactType); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan file contents: %w", err)
+		}
+		files = append(files, f)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("get file contents: %w", err)
+	}
+	return files, nil
+}
