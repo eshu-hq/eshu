@@ -123,10 +123,10 @@ func main() {
 
 	logger.Info("eshu-api listening on address", telemetry.EventAttr("runtime.server.listening"), "address", addr)
 	serveErr := srv.ListenAndServe()
-	if serveErr != nil && serveErr != http.ErrServerClosed {
+	if diagnostics != nil && serveErr != nil && serveErr != http.ErrServerClosed {
 		cancel()
 	}
-	<-shutdownDone
+	waitForDiagnosticShutdown(diagnostics != nil, shutdownDone)
 	if diagnostics != nil {
 		flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if err := diagnostics.Flush(flushCtx); err != nil {
@@ -139,6 +139,12 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("eshu-api shutdown complete", telemetry.EventAttr("runtime.server.stopped"))
+}
+
+func waitForDiagnosticShutdown(enabled bool, shutdownDone <-chan struct{}) {
+	if enabled {
+		<-shutdownDone
+	}
 }
 
 // newAPIServer keeps the response budget longer than the recovery drain fence.
