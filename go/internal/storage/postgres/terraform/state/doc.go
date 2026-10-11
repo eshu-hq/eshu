@@ -4,7 +4,7 @@
 // Package statestore reads Terraform-state admin evidence for the operator
 // status surface: the most recent observed serial per state_snapshot scope
 // (keyed by safe locator hash), and up to
-// statuspkg.MaxTerraformStateRecentWarnings recent warning_fact rows per
+// tfstate.MaxRecentWarnings recent warning_fact rows per
 // locator or Git backend-source handle.
 //
 // ReadTerraformStateAdminEvidence runs both bounded queries in one call and

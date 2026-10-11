@@ -15,10 +15,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
-
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // summaryEncodingTag names the stored entry encoding. It is part of the source
@@ -35,8 +34,8 @@ const (
 )
 
 // serialWire and warningWire are the stored JSON shapes of the live rows. They
-// carry exactly the fields of statuspkg.TerraformStateLocatorSerial and
-// TerraformStateLocatorWarning; observed_at is RFC 3339 with its sub-second
+// carry exactly the fields of tfstate.LocatorSerial and
+// tfstate.LocatorWarning; observed_at is RFC 3339 with its sub-second
 // part, or null when the live row had none.
 type serialWire struct {
 	SafeLocatorHash string  `json:"safe_locator_hash"`
@@ -66,11 +65,11 @@ type warningWire struct {
 // skipped here, so a stored row decodes to exactly what the live read
 // returns. The statements take no clock and return no ages, so the stored
 // rows need no age correction when they are read. The per-locator warning limit
-// is statuspkg.MaxTerraformStateRecentWarnings, the same constant
+// is tfstate.MaxRecentWarnings, the same constant
 // SummarySourceSHA256 digests, so the rows computed and the digest stored with
 // them cannot disagree.
 func SummaryEntries(ctx context.Context, queryer db.Queryer) ([]summary.Entry, error) {
-	evidence, err := ReadTerraformStateAdminEvidence(ctx, queryer, statuspkg.MaxTerraformStateRecentWarnings, time.Time{})
+	evidence, err := ReadTerraformStateAdminEvidence(ctx, queryer, tfstate.MaxRecentWarnings, time.Time{})
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +105,8 @@ func SummaryEntries(ctx context.Context, queryer db.Queryer) ([]summary.Entry, e
 // serving a row it only half understands.
 func DecodeSummaryEntries(entries []summary.Entry) (TerraformStateAdminEvidence, error) {
 	evidence := TerraformStateAdminEvidence{
-		LastSerials:    []statuspkg.TerraformStateLocatorSerial{},
-		RecentWarnings: []statuspkg.TerraformStateLocatorWarning{},
+		LastSerials:    []tfstate.LocatorSerial{},
+		RecentWarnings: []tfstate.LocatorWarning{},
 	}
 	for _, entry := range entries {
 		switch entry.Section {
@@ -120,7 +119,7 @@ func DecodeSummaryEntries(entries []summary.Entry) (TerraformStateAdminEvidence,
 			if err != nil {
 				return TerraformStateAdminEvidence{}, fmt.Errorf("decode terraform state serial %d: %w", entry.Ordinal, err)
 			}
-			evidence.LastSerials = append(evidence.LastSerials, statuspkg.TerraformStateLocatorSerial{
+			evidence.LastSerials = append(evidence.LastSerials, tfstate.LocatorSerial{
 				SafeLocatorHash: wire.SafeLocatorHash, BackendKind: wire.BackendKind, Lineage: wire.Lineage,
 				Serial: wire.Serial, GenerationID: wire.GenerationID, ObservedAt: observed,
 			})
@@ -133,7 +132,7 @@ func DecodeSummaryEntries(entries []summary.Entry) (TerraformStateAdminEvidence,
 			if err != nil {
 				return TerraformStateAdminEvidence{}, fmt.Errorf("decode terraform state warning %d: %w", entry.Ordinal, err)
 			}
-			evidence.RecentWarnings = append(evidence.RecentWarnings, statuspkg.TerraformStateLocatorWarning{
+			evidence.RecentWarnings = append(evidence.RecentWarnings, tfstate.LocatorWarning{
 				SafeLocatorHash: wire.SafeLocatorHash, BackendKind: wire.BackendKind, WarningKind: wire.WarningKind,
 				Reason: wire.Reason, Severity: wire.Severity, Actionability: wire.Actionability, Source: wire.Source,
 				SourceHandle: wire.SourceHandle, GenerationID: wire.GenerationID, ObservedAt: observed,
@@ -150,7 +149,7 @@ func DecodeSummaryEntries(entries []summary.Entry) (TerraformStateAdminEvidence,
 // entry encoding. The writer stores it with the row and the reader compares it
 // with its own, so a row from another statement or encoding is never decoded.
 func SummarySourceSHA256() string {
-	return summarySourceSHA256(terraformStateLastSerialQuery, terraformStateRecentWarningsQuery, statuspkg.MaxTerraformStateRecentWarnings)
+	return summarySourceSHA256(terraformStateLastSerialQuery, terraformStateRecentWarningsQuery, tfstate.MaxRecentWarnings)
 }
 
 func summarySourceSHA256(serialQuery, warningQuery string, limit int) string {

@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
-
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 func TestListTerraformStateLastSerialsParsesGenerationID(t *testing.T) {
@@ -182,8 +181,8 @@ func TestListTerraformStateRecentWarningsAppliesContractDefaultLimit(t *testing.
 	if _, err := listTerraformStateRecentWarnings(context.Background(), queryer, 0); err != nil {
 		t.Fatalf("listTerraformStateRecentWarnings() error = %v, want nil", err)
 	}
-	if statuspkg.MaxTerraformStateRecentWarnings <= 0 {
-		t.Fatalf("MaxTerraformStateRecentWarnings = %d, want positive bound", statuspkg.MaxTerraformStateRecentWarnings)
+	if tfstate.MaxRecentWarnings <= 0 {
+		t.Fatalf("tfstate.MaxRecentWarnings = %d, want positive bound", tfstate.MaxRecentWarnings)
 	}
 }
 

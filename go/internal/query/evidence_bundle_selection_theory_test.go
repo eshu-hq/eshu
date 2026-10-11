@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 // TestEvidenceBundleTerraformOmissionTheory checks whether the complete live
@@ -24,11 +25,11 @@ func TestEvidenceBundleTerraformOmissionTheory(t *testing.T) {
 
 	fixed := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	base := evidenceBundleFixtureSnapshot()
-	base.TerraformStateLastSerials = []statuspkg.TerraformStateLocatorSerial{{
+	base.TerraformStateLastSerials = []tfstate.LocatorSerial{{
 		SafeLocatorHash: "safe-hash", BackendKind: "s3", Serial: 42,
 		GenerationID: "generation-42", ObservedAt: fixed,
 	}}
-	base.TerraformStateRecentWarnings = []statuspkg.TerraformStateLocatorWarning{{
+	base.TerraformStateRecentWarnings = []tfstate.LocatorWarning{{
 		SafeLocatorHash: "safe-hash", BackendKind: "s3", WarningKind: "state_missing",
 		Reason: "state_missing", GenerationID: "generation-42", ObservedAt: fixed,
 	}}

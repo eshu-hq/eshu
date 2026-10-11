@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 // fakeStatusReader is an unexported adapter over testutil.FakeStatusReader
@@ -86,7 +87,7 @@ func TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary(t *testing.
 		StatusReader: fakeStatusReader{
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
-				TerraformStateRecentWarnings: []statuspkg.TerraformStateLocatorWarning{
+				TerraformStateRecentWarnings: []tfstate.LocatorWarning{
 					{SafeLocatorHash: "hash-a", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source-a", SourceHandle: "state_snapshot:s3:hash-a", ObservedAt: now},
 					{SafeLocatorHash: "hash-b", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source-b", SourceHandle: "state_snapshot:s3:hash-b", ObservedAt: now.Add(time.Second)},
 				},

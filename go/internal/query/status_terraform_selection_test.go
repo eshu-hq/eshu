@@ -13,6 +13,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 // terraformSelectionAsOf is the fixed status clock for the #7009 Terraform
@@ -77,10 +78,10 @@ func terraformSelectionSnapshot() statuspkg.RawSnapshot {
 	raw.ScopeActivity = statuspkg.ScopeActivitySnapshot{Active: 2, Changed: 1, Unchanged: 1}
 	raw.StageCounts = []statuspkg.StageStatusCount{{Stage: "projector", Status: "pending", Count: 1}}
 	raw.DomainBacklogs = []statuspkg.DomainBacklog{{Domain: "code_calls", Outstanding: 1}}
-	raw.TerraformStateLastSerials = []statuspkg.TerraformStateLocatorSerial{
+	raw.TerraformStateLastSerials = []tfstate.LocatorSerial{
 		{SafeLocatorHash: "hash-a", BackendKind: "s3", Serial: 7, ObservedAt: terraformSelectionAsOf},
 	}
-	raw.TerraformStateRecentWarnings = []statuspkg.TerraformStateLocatorWarning{
+	raw.TerraformStateRecentWarnings = []tfstate.LocatorWarning{
 		{SafeLocatorHash: "hash-a", BackendKind: "s3", WarningKind: "state_missing", ObservedAt: terraformSelectionAsOf},
 		{SafeLocatorHash: "repo-1:infra/main.tf", BackendKind: "git", WarningKind: "unresolved_backend_expression", ObservedAt: terraformSelectionAsOf},
 	}

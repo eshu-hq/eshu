@@ -197,7 +197,7 @@ the concrete adapters stay here.
   `statestore.ReadTerraformStateAdminEvidence`
   (`terraform/state/status.go`) so the admin status response carries one row
   per Terraform-state safe locator hash or Git backend-source handle plus up
-  to `MaxTerraformStateRecentWarnings` recent warning facts grouped by
+  to `tfstate.MaxRecentWarnings` recent warning facts grouped by
   `warning_kind`. Git-scope unresolved-backend warnings use repo id plus
   repo-relative source path as the safe handle and do not invent a state
   locator.

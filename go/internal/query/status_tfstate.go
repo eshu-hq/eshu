@@ -3,9 +3,12 @@
 
 package query
 
-import "github.com/eshu-hq/eshu/go/internal/status"
+import (
+	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
+)
 
-func terraformStateStatusToMap(report status.TerraformStateReport) map[string]any {
+func terraformStateStatusToMap(report tfstate.Report) map[string]any {
 	summary := make([]map[string]any, 0, len(report.WarningSummary))
 	for _, row := range report.WarningSummary {
 		summary = append(summary, map[string]any{
