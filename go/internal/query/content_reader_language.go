@@ -7,9 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
-	"unicode"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -186,28 +185,6 @@ func (cr *ContentReader) ListRepoFilesByPath(ctx context.Context, repoID, pathPr
 	return results, nil
 }
 
-var (
-	goSpaceCharactersOnce sync.Once
-	goSpaceCharacters     string
-)
-
-// goSpaceCharacterSet returns every rune for which unicode.IsSpace holds, the
-// exact set strings.TrimSpace trims. It is derived by enumeration so the SQL
-// predicate below cannot drift from the Go standard library: a Unicode table
-// update in a later Go release changes the set with the toolchain.
-func goSpaceCharacterSet() string {
-	goSpaceCharactersOnce.Do(func() {
-		var builder strings.Builder
-		for r := rune(0); r <= unicode.MaxRune; r++ {
-			if unicode.IsSpace(r) {
-				builder.WriteRune(r)
-			}
-		}
-		goSpaceCharacters = builder.String()
-	})
-	return goSpaceCharacters
-}
-
 // NonBlankRepoFilePaths returns the paths among relativePaths whose content is
 // not blank under strings.TrimSpace, without moving any content bytes (#7126).
 //
@@ -234,13 +211,10 @@ func (cr *ContentReader) NonBlankRepoFilePaths(ctx context.Context, repoID strin
 	)
 	defer span.End()
 
-	rows, err := cr.db.QueryContext(ctx, `
-		SELECT relative_path
-		FROM content_files
-		WHERE repo_id = $1
-		  AND relative_path = ANY($2::text[])
-		  AND btrim(content, $3::text) <> ''
-	`, repoID, array.StringArray(relativePaths), goSpaceCharacterSet())
+	rows, err := cr.db.QueryContext(
+		ctx, contentartifacts.NonBlankPathsStatement,
+		repoID, array.StringArray(relativePaths), contentartifacts.SpaceCharacters(),
+	)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("non-blank repo file paths: %w", err)
@@ -250,7 +224,7 @@ func (cr *ContentReader) NonBlankRepoFilePaths(ctx context.Context, repoID strin
 	nonBlank := make([]string, 0, len(relativePaths))
 	for rows.Next() {
 		var relativePath string
-		if err := rows.Scan(&relativePath); err != nil {
+		if err := rows.Scan(contentartifacts.RelativePathScanTargets(&relativePath)...); err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("scan non-blank repo file path: %w", err)
 		}
@@ -262,17 +236,6 @@ func (cr *ContentReader) NonBlankRepoFilePaths(ctx context.Context, repoID strin
 	}
 	return nonBlank, nil
 }
-
-// getFileContentsStatement is the one statement GetFileContents issues. It is a
-// constant so the live plan test explains the text the reader sends, and keeps
-// the column list of GetFileContent so both scan into the same FileContent.
-const getFileContentsStatement = `
-		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
-		       content, content_hash, line_count, coalesce(language, ''),
-		       coalesce(artifact_type, '')
-		FROM content_files
-		WHERE repo_id = $1 AND relative_path = ANY($2::text[])
-	`
 
 // GetFileContents returns the stored rows for relativePaths in one statement
 // (#7126). Each row is selected with the columns of GetFileContent and scanned
@@ -313,7 +276,7 @@ func (cr *ContentReader) GetFileContents(ctx context.Context, repoID string, rel
 		paths = append(paths, relativePath)
 	}
 
-	rows, err := cr.db.QueryContext(ctx, getFileContentsStatement, repoID, array.StringArray(paths))
+	rows, err := cr.db.QueryContext(ctx, contentartifacts.GetFilesStatement, repoID, array.StringArray(paths))
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("get file contents: %w", err)
@@ -322,17 +285,34 @@ func (cr *ContentReader) GetFileContents(ctx context.Context, repoID string, rel
 
 	files := make([]FileContent, 0, len(paths))
 	for rows.Next() {
-		var f FileContent
-		if err := rows.Scan(&f.RepoID, &f.RelativePath, &f.CommitSHA,
-			&f.Content, &f.ContentHash, &f.LineCount, &f.Language, &f.ArtifactType); err != nil {
+		var file contentartifacts.File
+		if err := rows.Scan(contentartifacts.FileScanTargets(&file)...); err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("scan file contents: %w", err)
 		}
-		files = append(files, f)
+		files = append(files, fileContentFromStoredFile(file))
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("get file contents: %w", err)
 	}
 	return files, nil
+}
+
+// fileContentFromStoredFile adapts a row mapped by the shared content_files
+// statements (go/internal/content/artifacts) to the query contract's file
+// type. The statements and the row mapper are defined once, in that package,
+// so the live reader and the config-artifact derive read the same columns in
+// the same order.
+func fileContentFromStoredFile(file contentartifacts.File) FileContent {
+	return FileContent{
+		RepoID:       file.RepoID,
+		RelativePath: file.RelativePath,
+		CommitSHA:    file.CommitSHA,
+		Content:      file.Content,
+		ContentHash:  file.ContentHash,
+		LineCount:    file.LineCount,
+		Language:     file.Language,
+		ArtifactType: file.ArtifactType,
+	}
 }

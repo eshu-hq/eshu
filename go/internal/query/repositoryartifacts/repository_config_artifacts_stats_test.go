@@ -6,6 +6,7 @@ package repositoryartifacts
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -26,6 +27,104 @@ func (emptyGraph) RunSingle(context.Context, string, map[string]any) (map[string
 	return nil, nil
 }
 
+// fakeContentStore is an in-memory ContentStore for the loader tests. It
+// serves one repository's rows from every read shape the loader uses and
+// counts each statement, so a test sees which reads the neutral package's
+// per-repository function issued through the adapter.
+type fakeContentStore struct {
+	querycontract.ContentStore
+
+	mu          sync.Mutex
+	rows        map[string][]querycontract.FileContent
+	listCalls   int
+	batchCalls  [][]string
+	blankCalls  [][]string
+	singleCalls int
+}
+
+func newFakeContentStore(rows map[string][]querycontract.FileContent) *fakeContentStore {
+	return &fakeContentStore{rows: rows}
+}
+
+func (s *fakeContentStore) ListRepoFiles(_ context.Context, repoID string, limit int) ([]querycontract.FileContent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.listCalls++
+	listed := make([]querycontract.FileContent, 0, len(s.rows[repoID]))
+	for _, file := range s.rows[repoID] {
+		file.RepoID = repoID
+		file.Content = ""
+		listed = append(listed, file)
+	}
+	sort.Slice(listed, func(i, j int) bool { return listed[i].RelativePath < listed[j].RelativePath })
+	if limit > 0 && len(listed) > limit {
+		listed = listed[:limit]
+	}
+	return listed, nil
+}
+
+func (s *fakeContentStore) GetFileContent(_ context.Context, repoID, relativePath string) (*querycontract.FileContent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.singleCalls++
+	for _, file := range s.rows[repoID] {
+		if file.RelativePath == relativePath {
+			file.RepoID = repoID
+			return &file, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *fakeContentStore) GetFileContents(_ context.Context, repoID string, paths []string) ([]querycontract.FileContent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.batchCalls = append(s.batchCalls, append([]string(nil), paths...))
+	var out []querycontract.FileContent
+	for _, path := range paths {
+		for _, file := range s.rows[repoID] {
+			if file.RelativePath == path {
+				file.RepoID = repoID
+				out = append(out, file)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *fakeContentStore) NonBlankRepoFilePaths(_ context.Context, repoID string, paths []string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.blankCalls = append(s.blankCalls, append([]string(nil), paths...))
+	var out []string
+	for _, path := range paths {
+		for _, file := range s.rows[repoID] {
+			if file.RelativePath == path && strings.TrimSpace(file.Content) != "" {
+				out = append(out, path)
+			}
+		}
+	}
+	return out, nil
+}
+
+const statsTestRepoID = "repo-anchor"
+
+func contractFile(relativePath, content string) querycontract.FileContent {
+	return querycontract.FileContent{RelativePath: relativePath, Content: content}
+}
+
+// terraformFiles returns n Terraform files that each hold one module source.
+func terraformFiles(n int) []querycontract.FileContent {
+	files := make([]querycontract.FileContent, 0, n)
+	for i := 0; i < n; i++ {
+		files = append(files, contractFile(
+			fmt.Sprintf("infra/m%03d/main.tf", i),
+			fmt.Sprintf("module \"m%d\" {\n  source = \"./mod%d\"\n}\n", i, i),
+		))
+	}
+	return files
+}
+
 // TestConfigArtifactReadStatsCountBatchedBytes proves the stage statistics see
 // the bytes of a batched read. HydratedBytes is the content length the store
 // returned across every read shape, so it must equal the bytes of the rows the
@@ -33,7 +132,7 @@ func (emptyGraph) RunSingle(context.Context, string, map[string]any) (map[string
 func TestConfigArtifactReadStatsCountBatchedBytes(t *testing.T) {
 	t.Parallel()
 
-	files := tfFiles(23)
+	files := terraformFiles(23)
 	for i := range files {
 		// Distinct sizes, so a sum cannot match by accident.
 		files[i].Content += strings.Repeat("# pad\n", i+1)
@@ -42,9 +141,14 @@ func TestConfigArtifactReadStatsCountBatchedBytes(t *testing.T) {
 	for _, file := range files {
 		want += int64(len(file.Content))
 	}
-	store := newHydrationStore(files...)
+	store := newFakeContentStore(map[string][]querycontract.FileContent{statsTestRepoID: files})
+	listed, err := store.ListRepoFiles(context.Background(), statsTestRepoID, 5000)
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+	store.listCalls = 0
 	_, stats, err := LoadDeploymentArtifactOverviewWithStats(
-		context.Background(), emptyGraph{}, store, hydrationTestRepoID, "svc", store.listed(t), nil, nil,
+		context.Background(), emptyGraph{}, store, statsTestRepoID, "svc", listed, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("load error = %v", err)
@@ -137,17 +241,15 @@ func TestConfigArtifactReadStatsKeepTheLargestInFlightAcrossRepositories(t *test
 	t.Parallel()
 
 	store := newMeetingStore(map[string][]querycontract.FileContent{
-		"repo-wide":   tfFiles(30),
-		"repo-narrow": tfFiles(12),
+		"repo-wide":   terraformFiles(30),
+		"repo-narrow": terraformFiles(12),
 	})
 	sources := []repositoryArtifactSource{
 		{RepoID: "repo-wide", RepoName: "wide"},
 		{RepoID: "repo-narrow", RepoName: "narrow"},
 	}
 	var stats ConfigArtifactReadStats
-	if _, err := loadRepositoryConfigArtifactsForSources(
-		context.Background(), store, sources, &stats, productionConfigArtifactPasses,
-	); err != nil {
+	if _, err := loadRepositoryConfigArtifactsForSources(context.Background(), store, sources, &stats); err != nil {
 		t.Fatalf("load error = %v", err)
 	}
 	if stats.BatchChunksInFlightMax != 3 {

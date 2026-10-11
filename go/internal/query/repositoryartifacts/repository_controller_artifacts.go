@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -144,16 +145,16 @@ func collectAnsibleControllerMetadata(files []querycontract.FileContent) map[str
 		lowerPath := strings.ToLower(CleanRepositoryRelativePath(relativePath))
 		lowerBase := strings.ToLower(filepath.Base(relativePath))
 
-		if ansibleInventoryEvidencePath(lowerPath, lowerBase) {
+		if contentartifacts.AnsibleInventoryEvidencePath(lowerPath, lowerBase) {
 			inventories[CleanRepositoryRelativePath(relativePath)] = struct{}{}
 		}
-		if ansibleVarsEvidencePath(lowerPath, lowerBase) {
+		if contentartifacts.AnsibleVarsEvidencePath(lowerPath, lowerBase) {
 			varFiles[CleanRepositoryRelativePath(relativePath)] = struct{}{}
 		}
-		if ansibleTaskEntrypointEvidencePath(lowerPath, lowerBase) {
+		if contentartifacts.AnsibleTaskEntrypointEvidencePath(lowerPath, lowerBase) {
 			taskEntrypoints[CleanRepositoryRelativePath(relativePath)] = struct{}{}
 		}
-		if rolePath := ansibleRoleEvidencePath(lowerPath); rolePath != "" {
+		if rolePath := contentartifacts.AnsibleRoleEvidencePath(lowerPath); rolePath != "" {
 			rolePaths[CleanRepositoryRelativePath(rolePath)] = struct{}{}
 		}
 	}

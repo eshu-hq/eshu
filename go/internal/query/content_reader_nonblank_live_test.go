@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -137,7 +138,7 @@ func TestNonBlankSpaceSetMatchesGoOverEveryRuneLive(t *testing.T) {
 		SELECT cp FROM generate_series(1, 1114111) cp
 		WHERE cp NOT BETWEEN 55296 AND 57343
 		  AND btrim(chr(cp), $1::text) = ''
-		ORDER BY cp`, goSpaceCharacterSet())
+		ORDER BY cp`, contentartifacts.SpaceCharacters())
 	if err != nil {
 		t.Fatalf("query trimmed code points: %v", err)
 	}

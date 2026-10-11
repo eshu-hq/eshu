@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -61,6 +62,25 @@ type ConfigArtifactReadStats struct {
 	HydrateDuration time.Duration
 	// ParseDuration is time spent in the config-artifact extractors.
 	ParseDuration time.Duration
+}
+
+// addRepository folds the statistics of one repository's load into the stage
+// statistics: counts and durations sum, the chunk size is the last one a
+// repository reported, and the in-flight peak is the maximum over every
+// repository.
+func (s *ConfigArtifactReadStats) addRepository(r contentartifacts.ReadStats) {
+	s.FilesListed += r.FilesListed
+	s.FilesHydrated += r.FilesHydrated
+	s.FilesSkipped += r.FilesSkipped
+	s.BlankCheckStatements += r.BlankCheckStatements
+	s.BatchStatements += r.BatchStatements
+	if r.BatchChunkSize > 0 {
+		s.BatchChunkSize = r.BatchChunkSize
+	}
+	s.BatchChunksInFlightMax = max(s.BatchChunksInFlightMax, r.BatchChunksInFlightMax)
+	s.ListDuration += r.ListDuration
+	s.HydrateDuration += r.HydrateDuration
+	s.ParseDuration += r.ParseDuration
 }
 
 // countingContentStore counts the statements and content bytes that pass

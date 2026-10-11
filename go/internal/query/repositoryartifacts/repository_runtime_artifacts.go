@@ -6,9 +6,9 @@ package repositoryartifacts
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -452,12 +452,11 @@ func composeRuntimeValues(values []string) []string {
 	return result
 }
 
+// IsDockerComposeArtifact reports whether a file is a Docker Compose file. It
+// is contentartifacts.IsDockerComposeArtifact, so the runtime artifacts and
+// the config-artifact extractors share one definition.
 func IsDockerComposeArtifact(file querycontract.FileContent) bool {
-	if strings.EqualFold(file.ArtifactType, "docker_compose") {
-		return true
-	}
-
-	return IsDockerComposeFilename(strings.ToLower(filepath.Base(file.RelativePath)))
+	return contentartifacts.IsDockerComposeArtifact(fileFromContract(file))
 }
 
 func composeArtifactType(file querycontract.FileContent) string {
@@ -485,12 +484,10 @@ func yamlKeyValue(line string) (string, string, bool) {
 	return key, value, true
 }
 
+// IsDockerComposeFilename reports whether a lower-cased base name is a Docker
+// Compose file name. It is contentartifacts.IsDockerComposeFilename.
 func IsDockerComposeFilename(name string) bool {
-	return name == "compose.yaml" ||
-		name == "compose.yml" ||
-		name == "docker-compose.yaml" ||
-		name == "docker-compose.yml" ||
-		(strings.HasPrefix(name, "docker-compose.") && (strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml")))
+	return contentartifacts.IsDockerComposeFilename(name)
 }
 
 // leadingWhitespaceWidth returns the count of leading spaces/tabs in value,

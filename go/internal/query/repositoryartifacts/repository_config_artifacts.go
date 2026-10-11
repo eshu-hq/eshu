@@ -4,124 +4,102 @@
 package repositoryartifacts
 
 import (
-	"path"
-	"sort"
-	"strings"
+	"context"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// The config-artifact extractors, the per-repository function and the shared
+// content_files statements live in go/internal/content/artifacts, so a derive
+// in storage/postgres can run the same code without importing a query package.
+// This file is the query package's adapter to it: the exported names the
+// repository handlers and the service handlers already call, the file type
+// conversion, and the content-store port.
+
+// BuildRepositoryConfigArtifacts extracts the config-path rows of one
+// repository from its hydrated files. It adapts the file type and calls
+// contentartifacts.BuildConfigPaths.
 func BuildRepositoryConfigArtifacts(repoName string, files []querycontract.FileContent) map[string]any {
-	configPaths := make([]map[string]any, 0)
-	configPaths = append(configPaths, extractKustomizeConfigPathRows(repoName, files)...)
-	configPaths = append(configPaths, extractDockerComposeConfigPathRows(repoName, files)...)
-	configPaths = append(configPaths, extractHCLConfigAssetRows(repoName, files)...)
-	configPaths = append(configPaths, extractAnsibleConfigPathRows(repoName, files)...)
-	if len(configPaths) == 0 {
+	return contentartifacts.BuildConfigPaths(repoName, filesFromContract(files))
+}
+
+// CleanRepositoryRelativePath normalizes a repository-relative path. It is
+// contentartifacts.CleanRelativePath under the name the handlers already use.
+func CleanRepositoryRelativePath(relativePath string) string {
+	return contentartifacts.CleanRelativePath(relativePath)
+}
+
+// NormalizeConfigArtifactExpression resolves a Terraform or Terragrunt
+// expression to a local config path. It is
+// contentartifacts.NormalizeConfigArtifactExpression under the name the impact
+// handlers already use.
+func NormalizeConfigArtifactExpression(expression string, localAssignments map[string]string) string {
+	return contentartifacts.NormalizeConfigArtifactExpression(expression, localAssignments)
+}
+
+// decodeYAMLMaps keeps the in-package spelling for the workflow and GitHub
+// Actions readers; the decoder is shared with the compose and kustomize
+// extractors.
+func decodeYAMLMaps(content string) ([]map[string]any, error) {
+	return contentartifacts.DecodeYAMLMaps(content)
+}
+
+// fileFromContract adapts one querycontract.FileContent to the neutral file
+// type. SearchBackend is a search-page marker, not a content_files column, and
+// is not carried.
+func fileFromContract(file querycontract.FileContent) contentartifacts.File {
+	return contentartifacts.File{
+		RepoID:       file.RepoID,
+		RelativePath: file.RelativePath,
+		CommitSHA:    file.CommitSHA,
+		Content:      file.Content,
+		ContentHash:  file.ContentHash,
+		LineCount:    file.LineCount,
+		Language:     file.Language,
+		ArtifactType: file.ArtifactType,
+	}
+}
+
+// filesFromContract adapts a file list. A nil list stays nil.
+func filesFromContract(files []querycontract.FileContent) []contentartifacts.File {
+	if files == nil {
 		return nil
 	}
-	sort.Slice(configPaths, func(i, j int) bool {
-		leftPath := querycontract.StringVal(configPaths[i], "path")
-		rightPath := querycontract.StringVal(configPaths[j], "path")
-		if leftPath != rightPath {
-			return leftPath < rightPath
-		}
-		leftKind := querycontract.StringVal(configPaths[i], "evidence_kind")
-		rightKind := querycontract.StringVal(configPaths[j], "evidence_kind")
-		if leftKind != rightKind {
-			return leftKind < rightKind
-		}
-		return querycontract.StringVal(configPaths[i], "relative_path") < querycontract.StringVal(configPaths[j], "relative_path")
-	})
-	return map[string]any{"config_paths": configPaths}
+	adapted := make([]contentartifacts.File, len(files))
+	for i, file := range files {
+		adapted[i] = fileFromContract(file)
+	}
+	return adapted
 }
 
-func isConfigArtifactCandidate(file querycontract.FileContent) bool {
-	relativePath := strings.TrimSpace(file.RelativePath)
-	if relativePath == "" {
-		return false
-	}
-
-	lowerBase := strings.ToLower(path.Base(relativePath))
-	switch {
-	case lowerBase == "kustomization.yaml", lowerBase == "kustomization.yml", lowerBase == "kustomization":
-		return true
-	case strings.HasPrefix(lowerBase, "docker-compose"):
-		return true
-	case lowerBase == "terragrunt.hcl":
-		return true
-	case strings.HasSuffix(lowerBase, ".tfvars"), strings.HasSuffix(lowerBase, ".tfvars.json"):
-		return true
-	case strings.HasSuffix(lowerBase, ".tf"), strings.HasSuffix(lowerBase, ".hcl"):
-		return true
-	case strings.HasSuffix(lowerBase, ".yaml"), strings.HasSuffix(lowerBase, ".yml"), strings.HasSuffix(lowerBase, ".json"):
-		return true
-	default:
-		return false
-	}
+// contentStoreReader adapts a querycontract.ContentStore to the neutral
+// contentartifacts.Reader. The store's ListRepoFiles, GetFileContents and
+// NonBlankRepoFilePaths run the shared statements of the neutral package, so
+// the statement counting wrapper around the store still sees every read.
+type contentStoreReader struct {
+	store querycontract.ContentStore
 }
 
-func appendConfigArtifactRow(rows []map[string]any, seen map[string]struct{}, pathValue, repoName, relativePath, evidenceKind string) []map[string]any {
-	pathValue = normalizeRepoScopedPath(pathValue, repoName)
-	if pathValue == "" {
-		return rows
+// ListFiles lists a repository's files through ContentStore.ListRepoFiles.
+func (r contentStoreReader) ListFiles(ctx context.Context, repoID string, limit int) ([]contentartifacts.File, error) {
+	rows, err := r.store.ListRepoFiles(ctx, repoID, limit)
+	if err != nil {
+		return nil, err
 	}
-	key := strings.Join([]string{pathValue, repoName, relativePath, evidenceKind}, "|")
-	if _, ok := seen[key]; ok {
-		return rows
-	}
-	seen[key] = struct{}{}
-	return append(rows, map[string]any{
-		"path":          pathValue,
-		"source_repo":   repoName,
-		"relative_path": relativePath,
-		"evidence_kind": evidenceKind,
-	})
+	return filesFromContract(rows), nil
 }
 
-func normalizeTerragruntParentConfigPath(match []string) string {
-	for _, candidate := range match[1:] {
-		cleaned := strings.TrimSpace(candidate)
-		if cleaned != "" {
-			return normalizeLocalConfigAssetPathValue(cleaned, nil)
-		}
+// ReadFiles reads stored rows through ContentStore.GetFileContents.
+func (r contentStoreReader) ReadFiles(ctx context.Context, repoID string, relativePaths []string) ([]contentartifacts.File, error) {
+	rows, err := r.store.GetFileContents(ctx, repoID, relativePaths)
+	if err != nil {
+		return nil, err
 	}
-	return "terragrunt.hcl"
+	return filesFromContract(rows), nil
 }
 
-func normalizeRepoScopedPath(pathValue, repoName string) string {
-	cleanedPath := CleanRepositoryRelativePath(pathValue)
-	trimmedRepoName := strings.TrimSpace(repoName)
-	if cleanedPath == "" || trimmedRepoName == "" {
-		return cleanedPath
-	}
-
-	parts := strings.Split(cleanedPath, "/")
-	for index := range parts {
-		prefix := path.Join(parts[:index+1]...)
-		if path.Base(prefix) != trimmedRepoName {
-			continue
-		}
-		suffix := path.Join(parts[index+1:]...)
-		if suffix != "" && suffix != "." {
-			return suffix
-		}
-	}
-	return cleanedPath
-}
-
-func CleanRepositoryRelativePath(relativePath string) string {
-	relativePath = path.Clean(strings.TrimSpace(relativePath))
-	switch relativePath {
-	case "", ".", "/":
-		return ""
-	default:
-		return strings.TrimPrefix(relativePath, "./")
-	}
-}
-
-// buildRepositoryConfigArtifacts keeps the in-package spelling after the
-// #6060 export; repository story tests name BuildRepositoryConfigArtifacts.
-func buildRepositoryConfigArtifacts(repoName string, files []querycontract.FileContent) map[string]any {
-	return BuildRepositoryConfigArtifacts(repoName, files)
+// NonBlankPaths asks the store which paths hold non-blank content.
+func (r contentStoreReader) NonBlankPaths(ctx context.Context, repoID string, relativePaths []string) ([]string, error) {
+	return r.store.NonBlankRepoFilePaths(ctx, repoID, relativePaths)
 }

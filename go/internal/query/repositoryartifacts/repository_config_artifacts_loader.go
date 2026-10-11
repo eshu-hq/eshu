@@ -6,10 +6,9 @@ package repositoryartifacts
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
-	"time"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -58,7 +57,7 @@ func loadSharedRepositoryConfigArtifacts(
 	sources = append(sources, relatedSources...)
 	stats.RelatedRepositoryCount = len(relatedSources)
 
-	configArtifacts, err := loadRepositoryConfigArtifactsForSources(ctx, reader, sources, stats, productionConfigArtifactPasses)
+	configArtifacts, err := loadRepositoryConfigArtifactsForSources(ctx, reader, sources, stats)
 	if err != nil {
 		return nil, err
 	}
@@ -177,121 +176,46 @@ func FilterRepositoryArtifactSourcesForAccess(
 	return filtered
 }
 
-// configArtifactPasses are the two per-repository steps of the config-artifact
-// load: choose and read the files, then extract rows from them. Production
-// wires hydrateConfigArtifactFiles and buildRepositoryConfigArtifacts. The
-// equality tests substitute a pass that reads every candidate in full, and a
-// builder that reads content a new way, and compare through this same loader.
-type configArtifactPasses struct {
-	hydrate configFileHydrator
-	build   func(repoName string, files []querycontract.FileContent) map[string]any
-}
-
-var productionConfigArtifactPasses = configArtifactPasses{
-	hydrate: hydrateConfigArtifactFiles,
-	build:   buildRepositoryConfigArtifacts,
-}
-
-// configFileHydrator returns the files BuildRepositoryConfigArtifacts should
-// see for one repository: candidates with non-blank content.
-type configFileHydrator func(
-	ctx context.Context,
-	reader querycontract.ContentStore,
-	repoID string,
-	files []querycontract.FileContent,
-	stats *ConfigArtifactReadStats,
-) ([]querycontract.FileContent, error)
-
+// loadRepositoryConfigArtifactsForSources runs the per-repository config
+// artifact function of the neutral package for each source in order, then
+// merges every repository's rows with one dedup map and one total sort. A
+// source with no id or no name is skipped. The statistics of every repository
+// are summed into stats, also when a repository fails.
 func loadRepositoryConfigArtifactsForSources(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	sources []repositoryArtifactSource,
 	stats *ConfigArtifactReadStats,
-	passes configArtifactPasses,
 ) (map[string]any, error) {
 	if reader == nil || len(sources) == 0 {
 		return nil, nil
 	}
 
-	rows := make([]map[string]any, 0)
-	seen := map[string]struct{}{}
+	port := contentStoreReader{store: reader}
+	perRepository := make([][]map[string]any, 0, len(sources))
 	for _, source := range sources {
 		if source.RepoID == "" || source.RepoName == "" {
 			continue
 		}
-
-		files := source.Files
-		if !source.HasFileList {
-			var err error
-			listStarted := time.Now()
-			files, err = reader.ListRepoFiles(ctx, source.RepoID, querycontract.RepositorySemanticEntityLimit)
-			stats.ListDuration += time.Since(listStarted)
-			if err != nil {
-				return nil, fmt.Errorf("list config artifact files for %q: %w", source.RepoID, err)
-			}
-		}
-		stats.FilesListed += len(files)
-
-		hydrateStarted := time.Now()
-		contentFiles, err := passes.hydrate(ctx, reader, source.RepoID, files, stats)
-		stats.HydrateDuration += time.Since(hydrateStarted)
+		rows, readStats, err := contentartifacts.LoadConfigPaths(
+			ctx,
+			port,
+			contentartifacts.Repository{ID: source.RepoID, Name: source.RepoName},
+			filesFromContract(source.Files),
+			source.HasFileList,
+		)
+		stats.addRepository(readStats)
 		if err != nil {
-			return nil, fmt.Errorf("hydrate config artifact files for %q: %w", source.RepoID, err)
+			return nil, err
 		}
-
-		parseStarted := time.Now()
-		artifacts := passes.build(source.RepoName, contentFiles)
-		stats.ParseDuration += time.Since(parseStarted)
-		for _, row := range querycontract.MapSliceValue(artifacts, "config_paths") {
-			key := strings.Join([]string{
-				querycontract.StringVal(row, "path"),
-				querycontract.StringVal(row, "source_repo"),
-				querycontract.StringVal(row, "relative_path"),
-				querycontract.StringVal(row, "evidence_kind"),
-			}, "|")
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			rows = append(rows, row)
-		}
+		perRepository = append(perRepository, rows)
 	}
 
-	if len(rows) > 0 {
-		sort.Slice(rows, func(i, j int) bool {
-			leftPath := querycontract.StringVal(rows[i], "path")
-			rightPath := querycontract.StringVal(rows[j], "path")
-			if leftPath != rightPath {
-				return leftPath < rightPath
-			}
-			leftRepo := querycontract.StringVal(rows[i], "source_repo")
-			rightRepo := querycontract.StringVal(rows[j], "source_repo")
-			if leftRepo != rightRepo {
-				return leftRepo < rightRepo
-			}
-			return querycontract.StringVal(rows[i], "relative_path") < querycontract.StringVal(rows[j], "relative_path")
-		})
-	}
-
-	if len(rows) == 0 {
+	merged := contentartifacts.MergeConfigPaths(perRepository...)
+	if len(merged) == 0 {
 		return nil, nil
 	}
-
-	sort.Slice(rows, func(i, j int) bool {
-		leftPath := querycontract.StringVal(rows[i], "path")
-		rightPath := querycontract.StringVal(rows[j], "path")
-		if leftPath != rightPath {
-			return leftPath < rightPath
-		}
-		leftRepo := querycontract.StringVal(rows[i], "source_repo")
-		rightRepo := querycontract.StringVal(rows[j], "source_repo")
-		if leftRepo != rightRepo {
-			return leftRepo < rightRepo
-		}
-		return querycontract.StringVal(rows[i], "relative_path") < querycontract.StringVal(rows[j], "relative_path")
-	})
-
-	return map[string]any{"config_paths": rows}, nil
+	return map[string]any{contentartifacts.ConfigPathsKey: merged}, nil
 }
 
 // loadRepositoryControllerArtifacts keeps the in-package spelling after the

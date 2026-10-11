@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -15,7 +16,7 @@ const (
 	// RepositoryArtifactHydrationLimit bounds the files one hydration pass
 	// reads. Exported for #6060 so root performance tests can name it from
 	// outside this package.
-	RepositoryArtifactHydrationLimit       = 50
+	RepositoryArtifactHydrationLimit       = contentartifacts.HydrationLimit
 	repositoryArtifactHydrationConcurrency = 8
 )
 
@@ -50,22 +51,13 @@ func HydrateRepositoryCandidateFiles(
 
 // selectHydrationIndexes returns the positions of the first
 // RepositoryArtifactHydrationLimit files that satisfy shouldHydrate and have
-// no content yet, in list order. A file that already carries content does not
-// use a slot. It is the single definition of the hydration set: the full pass
-// and the needed-content pass in repository_config_artifacts_hydration.go both
-// start from it, so the cap and the candidate order cannot differ between them.
+// no content yet, in list order. It is the neutral package's
+// SelectHydrationIndexes, the single definition of the hydration set that the
+// config-artifact load's needed-content pass starts from too.
 func selectHydrationIndexes(files []querycontract.FileContent, shouldHydrate repositoryArtifactFilePredicate) []int {
-	indexes := make([]int, 0, repositoryArtifactHydrationLimit)
-	for i, file := range files {
-		if len(indexes) >= repositoryArtifactHydrationLimit {
-			break
-		}
-		if !shouldHydrate(file) || file.Content != "" {
-			continue
-		}
-		indexes = append(indexes, i)
-	}
-	return indexes
+	return contentartifacts.SelectHydrationIndexes(files, shouldHydrate, func(file querycontract.FileContent) string {
+		return file.Content
+	})
 }
 
 // hydrateFileIndexes replaces hydrated[i] with the stored row for every i in
@@ -135,5 +127,3 @@ sendLoop:
 	wg.Wait()
 	return firstErr
 }
-
-const repositoryArtifactHydrationLimit = RepositoryArtifactHydrationLimit
