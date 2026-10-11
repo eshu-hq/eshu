@@ -13,8 +13,10 @@ import (
 )
 
 // entityContextFallbackAnchor is the unlabeled pre-#7006 anchor. It matches an
-// id on any label that carries an id property, so it is the exact-answer
-// fallback after every indexed read misses, on both dialects.
+// id on any label that carries an id property. Only the NornicDB per-label
+// loop still ends with it (entityContextAnchors): on Neo4j the schema-closed
+// anchor reaches every id-bearing node a writer produces, so the whole-graph
+// scan is never sent (#7212).
 const entityContextFallbackAnchor = "(e) WHERE e.id = $entity_id"
 
 // neo4jContextAnchor is neo4jEntityContextAnchor's text, built once: the label
@@ -45,8 +47,18 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 // miss the anchor and pay the unlabeled whole-graph fallback on every request.
 // Both sets are derived from the schema tables, not hand-listed. A label with
 // neither constraint (Directory, keyed by path; the canonical writer never
-// sets Directory.id) has no index to seek, so it is left to the unlabeled
-// fallback rather than paying a label scan on every request.
+// sets Directory.id) has no index to seek and is not in the anchor.
+//
+// The anchor is schema-closed (#7212 PR-B): it is the only Neo4j statement.
+// The unlabeled whole-graph fallback that used to follow it is gone, because
+// the id-anchor census (go/internal/graph/anchor, the reducer gauge
+// eshu_dp_graph_id_anchor_unreachable_nodes, and the golden-corpus
+// graph/anchor_census check) proves that every id-bearing node a writer
+// produces sits on an id-constrained label, or on a uid-constrained label with
+// uid equal to id. A node outside that shape (a Directory with an id, an
+// id-only or id != uid node on a uid label) answers not-found on Neo4j; the
+// census counts it as unreachable, so a deployment that grows one shows it on
+// the gauge.
 //
 // The inline `{uid: $x}` map is what makes Neo4j seek: a plain
 // `MATCH (e:A|B) WHERE e.id = $x` disjunction plans as UnionNodeByLabelsScan
@@ -146,25 +158,30 @@ func buildNeo4jEntityContextAnchor() string {
 		"\t\tLIMIT 1"
 }
 
-// entityContextStatements returns GetEntityContext's anchor statements in try
+// EntityContextStatements returns GetEntityContext's anchor statements in try
 // order for the request's graph backend and caller shape. The loop stops at the
 // first statement that returns a row.
 //
-// On Neo4j it is two statements: the indexed CALL () anchor, then the
-// unlabeled fallback (#7380). On NornicDB, and for the zero value, it is the
-// per-label loop from entityContextAnchors, because a label disjunction or a
-// many-branch UNION is unreliable there (#7006).
+// On Neo4j it is one statement, the schema-closed CALL () anchor (#7380,
+// #7212). On NornicDB, and for the zero value, it is the per-label loop from
+// entityContextAnchors, ending in the unlabeled fallback, because a label
+// disjunction or a many-branch UNION is unreliable there (#7006).
 //
 // EntityContextStatements is exported so the backend-divergence allowlist pin
 // (go/internal/graph/capture) can excuse exactly the statements this handler
 // runs; it reads only the handler's GraphBackend field.
 func (h *Handler) EntityContextStatements(access querycontract.RepositoryAccessFilter) []string {
+	statements, _ := h.entityContextPlan(access)
+	return statements
+}
+
+// entityContextPlan returns EntityContextStatements and whether its last
+// statement is the unlabeled fallback, so the resolution signal can tell a
+// fallback answer from an anchor answer without matching statement text.
+func (h *Handler) entityContextPlan(access querycontract.RepositoryAccessFilter) ([]string, bool) {
 	if h.GraphBackend == querycontract.GraphBackendNeo4j {
 		if anchor := neo4jEntityContextAnchor(); anchor != "" {
-			return []string{
-				entityContextStatement(anchor, access),
-				entityContextCypher(entityContextFallbackAnchor, access),
-			}
+			return []string{entityContextStatement(anchor, access)}, false
 		}
 	}
 	anchors := entityContextAnchors()
@@ -172,5 +189,5 @@ func (h *Handler) EntityContextStatements(access querycontract.RepositoryAccessF
 	for i, anchor := range anchors {
 		statements[i] = entityContextCypher(anchor, access)
 	}
-	return statements
+	return statements, true
 }

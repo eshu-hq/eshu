@@ -69,12 +69,15 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// infra-entity id). A many-branch `CALL{UNION}` resolver did not return
 	// within 15s for 28 branches on the same deployment.
 	//
-	// On Neo4j (Handler.GraphBackend) the fast path is one indexed CALL ()
-	// anchor over every anchor label (neo4jEntityContextAnchor, #7380), then the
-	// same unlabeled fallback only when it returns no row: two statement texts
-	// per caller shape instead of sixteen, because a cold Neo4j plans every
-	// distinct text a request sends. The rest of this comment describes the
-	// per-label loop NornicDB and the zero value keep.
+	// On Neo4j (Handler.GraphBackend) the read is one indexed CALL () anchor
+	// over every uid- and id-constrained label (neo4jEntityContextAnchor,
+	// #7380), and nothing after it: the anchor is schema-closed (#7212), the
+	// id-anchor census proves every writer-produced id-bearing node reachable
+	// through it, so a miss there is a true miss and goes straight to the
+	// content read. One statement text per caller shape instead of sixteen,
+	// because a cold Neo4j plans every distinct text a request sends. The rest
+	// of this comment describes the per-label loop NornicDB and the zero value
+	// keep.
 	//
 	// So the anchor is a fast path plus an exact fallback. First, one
 	// single-label `MATCH (e:<Label>)` per EntityContextAnchorLabels entry,
@@ -121,8 +124,9 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			querycontract.WithGraphQueryName(r.Context(), "entity.context"),
 		)
 		defer cancel()
-		statements := h.EntityContextStatements(access)
+		statements, fallbackLast := h.entityContextPlan(access)
 		res.statementsTotal = len(statements)
+		res.fallbackLast = fallbackLast
 		labelsAttempted := 0
 		for _, statement := range statements {
 			labelsAttempted++
@@ -273,9 +277,10 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
 }
 
-// entityContextAnchors returns GetEntityContext's anchor clauses in try
-// order: one single-label clause per EntityContextAnchorLabels entry, then
-// the unlabeled pre-#7006 clause as the exact-answer fallback.
+// entityContextAnchors returns the NornicDB per-label loop's anchor clauses
+// in try order: one single-label clause per EntityContextAnchorLabels entry,
+// then the unlabeled pre-#7006 clause (entityContextFallbackAnchor) as the
+// exact-answer fallback. Neo4j does not use it (EntityContextStatements).
 //
 // A label whose schema carries a uid uniqueness constraint
 // (graph.HasUIDUniquenessConstraint) anchors on
@@ -301,7 +306,7 @@ func entityContextAnchors() []string {
 		}
 		anchors = append(anchors, "(e:"+label+") WHERE e.id = $entity_id")
 	}
-	return append(anchors, "(e) WHERE e.id = $entity_id")
+	return append(anchors, entityContextFallbackAnchor)
 }
 
 // entityContextCypher renders GetEntityContext's read for one anchor clause

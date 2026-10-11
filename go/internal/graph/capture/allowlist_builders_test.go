@@ -25,9 +25,11 @@ const backendDivergenceAllowlistPath = "../../../../specs/backend-divergence-all
 
 // allowlistEntryCount is the entry count after the #7417 refresh (10
 // refreshed Neo4j-shaped story/CALLS/traversal entries plus 17 newly
-// named entity-context and degree-read entries). Update it when entries
-// are deliberately added or removed, alongside the diff that does so.
-const allowlistEntryCount = 63
+// named entity-context and degree-read entries), plus the #7212 entry for
+// the unlabeled entity-context fallback that only NornicDB still sends.
+// Update it when entries are deliberately added or removed, alongside the
+// diff that does so.
+const allowlistEntryCount = 64
 
 // loadBackendDivergenceAllowlist parses the real allowlist, so the pins
 // below run against the text the gate excuses.
@@ -136,31 +138,32 @@ func TestAllowlistCoversCurrentNeo4jStoryReads(t *testing.T) {
 }
 
 // entityContextFallbackPrefix is the fingerprinted head of the unlabeled
-// entity-context fallback both backends run only after every indexed read
-// misses. The corpus run never reaches it, so the allowlist names no entry
-// for it; every other entity-context statement must be excused.
+// entity-context fallback. Since #7212 only the NornicDB per-label loop ends
+// with it; Neo4j sends the schema-closed anchor alone.
 const entityContextFallbackPrefix = "MATCH (e) WHERE e.id = $entity_id"
 
-// TestAllowlistCoversCurrentEntityContextReads pins the 16 entity-context
+// TestAllowlistCoversCurrentEntityContextReads pins the entity-context
 // entries to the production builders: the Neo4j single-anchor statement and
-// each NornicDB per-label loop probe must excuse as a missing-kind
-// divergence. The only statement allowed to lack an entry is the
-// never-recorded unlabeled fallback, which must appear exactly once per
-// backend. (The 17th new entry, the graph-summary degree read, stays
-// guarded by the count pin and the gate: its builder is an unexported
-// query-package const pinned by queryplan source hashes, so exporting it
-// for this pin would churn that contract for no behavioral gain.)
+// each NornicDB per-label loop probe, including the unlabeled fallback that
+// ends the loop, must excuse as a missing-kind divergence. The fallback must
+// appear exactly once on NornicDB and never on Neo4j (#7212). (The
+// graph-summary degree read stays guarded by the count pin and the gate: its
+// builder is an unexported query-package const pinned by queryplan source
+// hashes, so exporting it for this pin would churn that contract for no
+// behavioral gain.)
 func TestAllowlistCoversCurrentEntityContextReads(t *testing.T) {
 	t.Parallel()
 	allow := loadBackendDivergenceAllowlist(t)
 	unscoped := querycontract.RepositoryAccessFilter{AllScopes: true}
-	backends := []querycontract.GraphBackend{
-		querycontract.GraphBackendNeo4j,
-		querycontract.GraphBackendNornicDB,
-	}
-	for _, backend := range backends {
-		t.Run(string(backend), func(t *testing.T) {
-			handler := &entity.Handler{GraphBackend: backend}
+	for _, tc := range []struct {
+		backend       querycontract.GraphBackend
+		wantFallbacks int
+	}{
+		{querycontract.GraphBackendNeo4j, 0},
+		{querycontract.GraphBackendNornicDB, 1},
+	} {
+		t.Run(string(tc.backend), func(t *testing.T) {
+			handler := &entity.Handler{GraphBackend: tc.backend}
 			statements := handler.EntityContextStatements(unscoped)
 			fallbacks := 0
 			for _, cypher := range statements {
@@ -170,7 +173,6 @@ func TestAllowlistCoversCurrentEntityContextReads(t *testing.T) {
 				}
 				if strings.HasPrefix(fingerprint.Statement, entityContextFallbackPrefix) {
 					fallbacks++
-					continue
 				}
 				diff := backendconformance.DifferentialDifference{
 					Fingerprint: fingerprint,
@@ -186,11 +188,11 @@ func TestAllowlistCoversCurrentEntityContextReads(t *testing.T) {
 				}
 				if !excused {
 					t.Errorf("no allowlist entry excuses the current %s entity-context statement %.120q; refresh specs/backend-divergence-allowlist.v1.yaml",
-						backend, fingerprint.Statement)
+						tc.backend, fingerprint.Statement)
 				}
 			}
-			if fallbacks != 1 {
-				t.Errorf("entity-context fallbacks = %d, want exactly 1 (the unlabeled never-recorded tail)", fallbacks)
+			if fallbacks != tc.wantFallbacks {
+				t.Errorf("entity-context fallbacks = %d, want %d", fallbacks, tc.wantFallbacks)
 			}
 		})
 	}

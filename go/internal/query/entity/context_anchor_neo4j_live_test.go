@@ -6,7 +6,7 @@
 // Live proof for issue #7380 on a real Neo4j with Eshu's schema applied: the
 // single CALL () entity-context anchor returns the same answer as the
 // 16-statement per-label loop it replaces, on every scenario the loop was
-// specified by, while sending at most two statements. The loop is the oracle:
+// specified by, while sending one statement. The loop is the oracle:
 // the same seeded graph is read through a NornicDB-dialect handler (the loop,
 // which is valid Cypher on Neo4j) and a Neo4j-dialect handler (the anchor), and
 // the two responses must be identical. The plan is also checked: the anchor
@@ -16,7 +16,16 @@
 // uid or id uniqueness constraint. The loop still resolves those labels, through
 // its unlabeled fallback, so it stays the oracle; the scenarios for
 // TerraformVariable (uid-constrained), Endpoint and CloudAction (id-constrained)
-// pin that they now resolve on the anchor, in one statement.
+// pin that they resolve on the anchor, in one statement.
+//
+// Issue #7212 PR-B made the anchor schema-closed: Neo4j sends it alone, with no
+// unlabeled fallback after it. Three seeded shapes no writer produces (a
+// Directory with an id, an id-only Function, a TerraformVariable whose id
+// differs from its uid) are the ones the id-anchor census counts as
+// unreachable. The loop still resolves them through its fallback; Neo4j answers
+// the not-found shape. Those rows are marked censusUnreachable and compared
+// against the census definition instead of the loop. Every census label is
+// covered in context_anchor_census_live_test.go.
 //
 // This proves Neo4j only. The anchor is not used on NornicDB (#7006), so the
 // test skips on that backend. Run it with, for example:
@@ -68,8 +77,9 @@ const (
 
 // anchorSeed builds one graph covering the scenarios of the theory shim. Every
 // entity that the loop resolves through a labeled read carries id == uid (the
-// canonical shape); the fallback cases carry no uid or a label outside the
-// anchor set; the two dup ids are shared by two nodes on different labels.
+// canonical shape); the census-unreachable cases carry no uid, a uid that
+// differs from the id, or a label with no uid or id constraint; the two dup ids
+// are shared by two nodes on different labels.
 var anchorSeed = []string{
 	`CREATE (:Repository {id: '` + anchorSeedRepoID + `', name: 'anchor-repo'})`,
 	`CREATE (:Repository {id: '` + anchorSeedOtherRepoID + `', name: 'anchor-repo-other'})`,
@@ -95,7 +105,7 @@ var anchorSeed = []string{
 	`CREATE (:Endpoint {id: '` + anchorSeedPrefix + `endpoint0', name: 'endpoint0'})`,
 	`CREATE (:CloudAction {id: '` + anchorSeedPrefix + `action0', name: 'action0'})`,
 	// tfvar-split: a TerraformVariable whose id differs from its uid; the uid
-	// seek cannot reach it, so it resolves through the fallback as before.
+	// seek cannot reach it and the census counts it unreachable.
 	`CREATE (:TerraformVariable {id: '` + anchorSeedTFVarSplitUID + `', uid: '` + anchorSeedTFVarSplitUID + `-uid', name: 'tfvarSplit'})`,
 	// dup-old-new: one id on a widened label (TerraformVariable, created first)
 	// and an old loop label (WorkloadInstance); the old label outranks it, as
@@ -121,32 +131,32 @@ type anchorScenario struct {
 	id         string
 	wantStatus int
 	wantLabel  string
-	// wantStatements is the number of statements the Neo4j-dialect handler
-	// may send: 1 when the CALL () anchor resolves the row, 2 when only the
-	// unlabeled fallback does or nothing does.
-	wantStatements int
+	// censusUnreachable marks a shape the id-anchor census counts as
+	// unreachable: the loop oracle still resolves it through its unlabeled
+	// fallback, while the schema-closed Neo4j anchor answers 404 (#7212).
+	censusUnreachable bool
 }
 
 var anchorScenarios = []anchorScenario{
-	{"Function label position 1", anchorSeedPrefix + "fn0", http.StatusOK, "Function", 1},
-	{"Class label position 2", anchorSeedPrefix + "class0", http.StatusOK, "Class", 1},
-	{"Enum label position 10", anchorSeedPrefix + "enum0", http.StatusOK, "Enum", 1},
-	{"Workload id-keyed", anchorSeedPrefix + "workload0", http.StatusOK, "Workload", 1},
-	{"WorkloadInstance label position 15", anchorSeedPrefix + "wi0", http.StatusOK, "WorkloadInstance", 1},
-	{"Repository id-keyed", anchorSeedRepoID, http.StatusOK, "Repository", 1},
-	{"Directory with an id resolves through the fallback", anchorSeedPrefix + "dir0", http.StatusOK, "Directory", 2},
-	{"id-only Function resolves through the fallback", anchorSeedPrefix + "fn-id-only", http.StatusOK, "Function", 2},
-	{"Trait, outside the old 15, resolves on the anchor", anchorSeedPrefix + "trait0", http.StatusOK, "Trait", 1},
-	{"uid-constrained TerraformVariable resolves on the anchor", anchorSeedPrefix + "tfvar0", http.StatusOK, "TerraformVariable", 1},
-	{"id-constrained Endpoint resolves on the anchor", anchorSeedPrefix + "endpoint0", http.StatusOK, "Endpoint", 1},
-	{"id-constrained CloudAction resolves on the anchor", anchorSeedPrefix + "action0", http.StatusOK, "CloudAction", 1},
-	{"TerraformVariable with id != uid resolves through the fallback", anchorSeedTFVarSplitUID, http.StatusOK, "TerraformVariable", 2},
-	{"id shared by an old and a widened label resolves to the old label", anchorSeedDupOldNew, http.StatusOK, "WorkloadInstance", 1},
-	{"File uid-only must not match", anchorSeedFileUIDOnly, http.StatusNotFound, "", 2},
-	{"File uid must not match", anchorSeedFileUID, http.StatusNotFound, "", 2},
-	{"not found", anchorSeedPrefix + "nope", http.StatusNotFound, "", 2},
-	{"id shared by Function and Class resolves to the Function", anchorSeedDupID, http.StatusOK, "Function", 1},
-	{"id shared by WorkloadInstance and Enum resolves to the Enum", anchorSeedDupLateFirst, http.StatusOK, "Enum", 1},
+	{"Function label position 1", anchorSeedPrefix + "fn0", http.StatusOK, "Function", false},
+	{"Class label position 2", anchorSeedPrefix + "class0", http.StatusOK, "Class", false},
+	{"Enum label position 10", anchorSeedPrefix + "enum0", http.StatusOK, "Enum", false},
+	{"Workload id-keyed", anchorSeedPrefix + "workload0", http.StatusOK, "Workload", false},
+	{"WorkloadInstance label position 15", anchorSeedPrefix + "wi0", http.StatusOK, "WorkloadInstance", false},
+	{"Repository id-keyed", anchorSeedRepoID, http.StatusOK, "Repository", false},
+	{"Directory with an id is census-unreachable", anchorSeedPrefix + "dir0", http.StatusNotFound, "", true},
+	{"id-only Function is census-unreachable", anchorSeedPrefix + "fn-id-only", http.StatusNotFound, "", true},
+	{"Trait, outside the old 15, resolves on the anchor", anchorSeedPrefix + "trait0", http.StatusOK, "Trait", false},
+	{"uid-constrained TerraformVariable resolves on the anchor", anchorSeedPrefix + "tfvar0", http.StatusOK, "TerraformVariable", false},
+	{"id-constrained Endpoint resolves on the anchor", anchorSeedPrefix + "endpoint0", http.StatusOK, "Endpoint", false},
+	{"id-constrained CloudAction resolves on the anchor", anchorSeedPrefix + "action0", http.StatusOK, "CloudAction", false},
+	{"TerraformVariable with id != uid is census-unreachable", anchorSeedTFVarSplitUID, http.StatusNotFound, "", true},
+	{"id shared by an old and a widened label resolves to the old label", anchorSeedDupOldNew, http.StatusOK, "WorkloadInstance", false},
+	{"File uid-only must not match", anchorSeedFileUIDOnly, http.StatusNotFound, "", false},
+	{"File uid must not match", anchorSeedFileUID, http.StatusNotFound, "", false},
+	{"not found", anchorSeedPrefix + "nope", http.StatusNotFound, "", false},
+	{"id shared by Function and Class resolves to the Function", anchorSeedDupID, http.StatusOK, "Function", false},
+	{"id shared by WorkloadInstance and Enum resolves to the Enum", anchorSeedDupLateFirst, http.StatusOK, "Enum", false},
 }
 
 // statementRecorder counts the anchor-statement reads GetEntityContext sends
@@ -245,7 +255,18 @@ func TestLiveNeo4jEntityContextAnchorMatchesLoop(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			loopReader.take()
 			anchorReader.take()
-			_, anchorRec := compare(t, scenario.id, nil)
+			var anchorRec *httptest.ResponseRecorder
+			if scenario.censusUnreachable {
+				// The loop oracle still resolves this shape through its
+				// unlabeled fallback; the census counts it unreachable, and
+				// the schema-closed anchor answers not-found.
+				if loopRec := get(loopHandler, scenario.id, nil); loopRec.Code != http.StatusOK {
+					t.Fatalf("loop oracle status = %d, want 200 (the shape must exist in the seed); body = %s", loopRec.Code, loopRec.Body.String())
+				}
+				anchorRec = get(anchorHandler, scenario.id, nil)
+			} else {
+				_, anchorRec = compare(t, scenario.id, nil)
+			}
 			anchorReads := anchorReader.take()
 			if anchorRec.Code != scenario.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %s", anchorRec.Code, scenario.wantStatus, anchorRec.Body.String())
@@ -261,11 +282,8 @@ func TestLiveNeo4jEntityContextAnchorMatchesLoop(t *testing.T) {
 					t.Fatalf("resolved labels = %v, want first label %q", body.Labels, scenario.wantLabel)
 				}
 			}
-			if anchorReads != scenario.wantStatements {
-				t.Fatalf("anchor handler sent %d statements, want %d", anchorReads, scenario.wantStatements)
-			}
-			if anchorReads > 2 {
-				t.Fatalf("anchor handler sent %d statements, the contract is at most 2", anchorReads)
+			if anchorReads != 1 {
+				t.Fatalf("anchor handler sent %d statements, want 1 (the schema-closed anchor, #7212)", anchorReads)
 			}
 		})
 	}

@@ -79,52 +79,9 @@ func neo4jContextRequest(
 	return calls, rec
 }
 
-// TestNeo4jEntityContextIssuesAtMostTwoAnchorStatements pins issue #7380: a
-// cold Neo4j plans every distinct Cypher text a request sends, so the 16-text
-// per-label loop cost about 3-5 s cold under load and blew the shared 10 s
-// budget on a miss. On Neo4j a request that misses everything sends exactly
-// two texts, the indexed CALL () anchor and the unlabeled fallback, for both
-// the unscoped and the scoped caller shape.
-func TestNeo4jEntityContextIssuesAtMostTwoAnchorStatements(t *testing.T) {
-	t.Parallel()
-
-	for _, scoped := range []bool{false, true} {
-		name := "unscoped"
-		if scoped {
-			name = "scoped"
-		}
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			calls, _ := neo4jContextRequest(t, "entity-miss", scoped, func(string) (map[string]any, error) {
-				return nil, nil
-			})
-			if got, want := len(calls), 2; got != want {
-				t.Fatalf("graph reads on a full miss = %d, want %d (the anchor, then the unlabeled fallback)", got, want)
-			}
-			if !strings.Contains(calls[0], "CALL () {") {
-				t.Errorf("first read is not the CALL () anchor:\n%s", calls[0])
-			}
-			if strings.Contains(calls[0], entityContextUnlabeledAnchor) {
-				t.Errorf("the anchor read must not be the unlabeled scan:\n%s", calls[0])
-			}
-			if !strings.Contains(calls[1], entityContextUnlabeledAnchor+"\n") {
-				t.Errorf("last read anchor = %q, want the unlabeled fallback", anchorLine(calls[1]))
-			}
-			distinct := map[string]bool{}
-			for _, cypher := range calls {
-				distinct[cypher] = true
-			}
-			if len(distinct) > 2 {
-				t.Errorf("distinct statement texts = %d, want at most 2", len(distinct))
-			}
-		})
-	}
-}
-
-// TestNeo4jEntityContextAnchorHitSkipsFallback: the unlabeled fallback is a
-// whole-graph scan on Neo4j (600k db hits at 300k nodes), so it runs only when
-// the indexed anchor returns no row.
+// TestNeo4jEntityContextAnchorHitSkipsFallback: an anchor hit answers after
+// one read. The one-statement miss path, and the removal of the unlabeled
+// fallback (#7212), are pinned in context_anchor_closed_test.go.
 func TestNeo4jEntityContextAnchorHitSkipsFallback(t *testing.T) {
 	t.Parallel()
 
@@ -142,32 +99,8 @@ func TestNeo4jEntityContextAnchorHitSkipsFallback(t *testing.T) {
 	}
 }
 
-// TestNeo4jEntityContextFallsBackOnlyWhenAnchorMisses: a node the indexed
-// anchor cannot seek (an id-only Function, a Directory with no uid or id
-// constraint, or a node whose id differs from its uid) still resolves,
-// through the unlabeled fallback, as it did with the 16-statement loop.
-func TestNeo4jEntityContextFallsBackOnlyWhenAnchorMisses(t *testing.T) {
-	t.Parallel()
-
-	calls, rec := neo4jContextRequest(t, "cr-1", false, func(cypher string) (map[string]any, error) {
-		if !strings.Contains(cypher, entityContextUnlabeledAnchor) {
-			return nil, nil
-		}
-		return map[string]any{
-			"id": "cr-1", "labels": []any{"Directory"}, "name": "cr-1",
-			"relationships": []any{},
-		}, nil
-	})
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
-	}
-	if len(calls) != 2 {
-		t.Fatalf("graph reads = %d, want 2", len(calls))
-	}
-}
-
 // TestNeo4jEntityContextStatementTextIsConstantAcrossIDs: the id travels as a
-// bound parameter, so the same two texts serve every request. A per-id
+// bound parameter, so the same text serves every request. A per-id
 // literal would defeat the plan cache the whole change relies on.
 func TestNeo4jEntityContextStatementTextIsConstantAcrossIDs(t *testing.T) {
 	t.Parallel()

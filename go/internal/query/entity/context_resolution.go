@@ -23,7 +23,9 @@ const (
 	// NornicDB per-label loop.
 	resolvedByAnchor = "anchor"
 	// resolvedByFallback means the final unlabeled `MATCH (e)` statement
-	// returned the row after every anchor statement missed.
+	// returned the row after every anchor statement missed. Only the NornicDB
+	// per-label loop has that statement; on Neo4j the schema-closed anchor is
+	// the only statement (#7212), so Neo4j never records fallback.
 	resolvedByFallback = "fallback"
 	// resolvedByContent means the graph produced no usable row and the content
 	// store answered.
@@ -48,6 +50,10 @@ type entityContextResolution struct {
 	// ended. Both are zero when no graph reader is configured.
 	statementsTotal int
 	statementsTried int
+	// fallbackLast is true when the final statement is the unlabeled
+	// fallback (the NornicDB per-label loop), false when every statement is
+	// an anchor (the Neo4j schema-closed anchor).
+	fallbackLast bool
 	// resolvedBy is empty until the request ends in an answer (200 or a
 	// 404). A request that ends in an error never sets it.
 	resolvedBy string
@@ -55,9 +61,10 @@ type entityContextResolution struct {
 
 // graphResolvedBy names how the graph answered after the statement loop
 // returned a row. The loop stops at the first row, so the answering statement
-// is the last one tried, and only the final statement is the fallback.
+// is the last one tried, and only the final statement of a list that ends in
+// the unlabeled fallback is a fallback answer.
 func (r *entityContextResolution) graphResolvedBy() string {
-	if r.statementsTried == r.statementsTotal {
+	if r.fallbackLast && r.statementsTried == r.statementsTotal {
 		return resolvedByFallback
 	}
 	return resolvedByAnchor

@@ -147,7 +147,7 @@ func TestGetEntityContextErrorAfterTheGraphReadEmitsNoResolvedBy(t *testing.T) {
 			content:    failingContentStore{getErr: boom},
 			builder:    scriptedContentRelationshipBuilder{},
 			wantStatus: http.StatusInternalServerError,
-			wantTried:  2,
+			wantTried:  1,
 		},
 		{
 			// The graph misses, content has the entity, but no relationship
@@ -157,7 +157,7 @@ func TestGetEntityContextErrorAfterTheGraphReadEmitsNoResolvedBy(t *testing.T) {
 				EntityID: "fn-1", RepoID: "repo-1", RelativePath: "a.yaml", EntityType: "K8sResource", EntityName: "web",
 			}},
 			wantStatus: http.StatusServiceUnavailable,
-			wantTried:  2,
+			wantTried:  1,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
