@@ -142,3 +142,65 @@ The extension mirror checks missing defaults, old-key replacement, missing or
 duplicate new rows, byte preservation and idempotency. Real gate selection
 checks cover both extension helper paths. Final candidate backend runs and
 current-head combined artifacts are NOT_CHECKED in this historical note.
+
+
+## Hosted runner calibration, 2026-10-11
+
+Performance Evidence: [run 38144865929](https://github.com/eshu-hq/eshu/actions/runs/38144865929)
+completed with all five jobs successful at source
+`1f71b47d672946b390c49647e29eef29a61e0fce`. The workflow was dispatched on the
+reviewed branch with its ordinary defaults and no inputs or workload overrides.
+These results describe that source, not a later integration or merge commit.
+
+The supported Neo4j job retained 68 exercised operations out of 116 inventoried
+routes, 4,080 serial timing samples, and 60 concurrent samples across three
+pilots. Its corpus used 800 scopes, 150,000 nodes per infrastructure label,
+150,000 IaC facts and 2.5 million shared projection intents. It ran three passes,
+20 iterations per operation, two warmups, four concurrent workers and 20
+requests per concurrent pilot. Each pilot returned 20 successful responses with
+peak client concurrency four. Concurrent p95 values were 567.199389 ms for
+`GET /api/v0/status/ingesters/{ingester}`, 393.494791 ms for
+`MCP get_index_status`, and 34.067902 ms for
+`POST /api/v0/relationships/catalog`. The first two use unchanged 1,000 ms
+ceilings; the POST operation uses the unchanged 1,500 ms default ceiling.
+The required NornicDB job also succeeded and retained its complete 68-row work
+report.
+
+| Artifact | GitHub artifact ID | Work report SHA-256 |
+|---|---:|---|
+| `methodology-scale-1f71b47d672946b390c49647e29eef29a61e0fce` | 11704238623 | `174bbc1bea07df8663db96dcef842427dbca6babc3b31641606eb24bff32f60f` |
+| `read-api-work-report` | 11704418181 | `190b62b4dd1dfc7fa2cc3a2b62ae1b464c032ae6feb33a8a655675f720ce51b1` |
+
+The Neo4j latency and concurrency reports agree on source, API binary digest
+`5671b4a1febf9fb906d28af58b9f0233da2369e762f0a7774dca016a92b32203`,
+backend and workload settings. The NornicDB work report has no intrinsic source
+identity block; its provenance is the exact workflow job and artifact metadata.
+The Neo4j resource observer sampled roughly every ten seconds and retained
+container statistics. This does not establish one-second quiet-host sampling,
+paired noise calibration, a speedup, an operating-system cold cache, or universal
+route coverage. Historical paired fixture proof remains a separate measurement.
+
+The unchanged renderer consumed both complete GREEN work reports. Its ratchet
+baseline contained only the two provisional rows being replaced; the named
+route catalog remained complete. It rendered these selected counters:
+
+| Operation | Calls | Blocks | Rows |
+|---|---:|---:|---:|
+| `GET /api/v0/status/ingesters/{ingester}` | 38 | 19,311 | 82 |
+| `MCP get_index_status` | 42 | 19,368 | 82 |
+
+The existing extension helper imports those two rows and preserves every byte
+of the original prefix, including the default counters of 13 calls, 18 blocks
+and 14 rows. Repeated rendering and extension produced identical bytes. No
+ratchet acceptance flag was used.
+
+A full-table refresh separately failed with exit 3: the existing
+`GET /api/v0/status/semantic-extraction` block budget would collapse from
+59,619 to 33. That warning remains unresolved. Its existing budget is preserved;
+this calibration neither establishes a cause nor accepts an optimization or
+corpus-equivalence claim for that operation. The full renderer's changed
+default counters are also excluded from the scoped update.
+
+NOT_CHECKED by this hosted run: final integrated-source paired proof, final
+independent review, required PR and merge-group checks, and merged-main
+acceptance. The original nine issue criteria remain the completion contract.

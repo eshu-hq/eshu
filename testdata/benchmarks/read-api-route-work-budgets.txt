@@ -35,6 +35,6 @@ GET /api/v0/status/semantic-extraction	39	59619	80	GREEN-derived work guard
 GET /api/v0/supply-chain/container-images/identities/count	13	18	14	GREEN-derived work guard
 GET /api/v0/supply-chain/impact/findings/count	13	18	14	GREEN-derived work guard
 
-# Added rows from local #7881 bootstrap GREEN f84fc95b; work report sha256 117ad459298827700d5c0feea3c392b89b5ac3070e67db4cd41f2e176ef54ee4; CI runner calibration pending; existing budgets retained byte-for-byte.
-GET /api/v0/status/ingesters/{ingester}	38	13158	82	GREEN-derived work guard
-MCP get_index_status	42	13215	82	GREEN-derived work guard
+# Added rows from hosted GREEN run 38144865929 at 1f71b47d672946b390c49647e29eef29a61e0fce; Neo4j work sha256 174bbc1bea07df8663db96dcef842427dbca6babc3b31641606eb24bff32f60f; NornicDB work sha256 190b62b4dd1dfc7fa2cc3a2b62ae1b464c032ae6feb33a8a655675f720ce51b1; scoped two-row ratchet; full-table collapse warning unresolved; existing budgets retained byte-for-byte.
+GET /api/v0/status/ingesters/{ingester}	38	19311	82	GREEN-derived work guard
+MCP get_index_status	42	19368	82	GREEN-derived work guard
