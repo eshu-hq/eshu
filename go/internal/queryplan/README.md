@@ -48,6 +48,11 @@ pilot membership: the cloud-resource SQL page and the import-dependency Cypher
 family. Other entries remain visible as `legacy` in `PilotCoverage`; they have
 not gained executable methodology proof.
 
+Manifest and contract YAML must contain one document and only recognized fields;
+misspelled guard names fail loading. Contract paths must be canonical relative
+`.yaml` paths under `contracts/`. Directory handles confine reads to that root,
+including symlink resolution. Relative symlinks within the root remain valid.
+
 The contract states result, grant, history, null, duplicate, order, page, and
 partial-result semantics. It also names the considered patterns, rationale,
 alternatives, index cost, representative workload, engine, fixture, oracle,

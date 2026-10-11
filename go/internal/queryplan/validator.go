@@ -7,11 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -88,7 +85,7 @@ func LoadManifestFile(path string) (Manifest, error) {
 		return Manifest{}, err
 	}
 	var manifest Manifest
-	if err := yaml.Unmarshal(data, &manifest); err != nil {
+	if err := decodeStrictYAML(data, &manifest); err != nil {
 		return Manifest{}, err
 	}
 	if err := loadSourceCoverageFiles(path, data, &manifest); err != nil {
@@ -102,22 +99,11 @@ func LoadManifestFile(path string) (Manifest, error) {
 		if entry.Contract != nil {
 			return Manifest{}, fmt.Errorf("%s: contract and contract_file cannot both be set", entry.ID)
 		}
-		clean := filepath.Clean(entry.ContractFile)
-		if filepath.IsAbs(clean) || clean != entry.ContractFile || filepath.Ext(clean) != ".yaml" ||
-			!strings.HasPrefix(filepath.ToSlash(clean), "contracts/") ||
-			strings.HasPrefix(filepath.ToSlash(clean), "contracts/../") {
-			return Manifest{}, fmt.Errorf("%s: contract_file must be a clean relative YAML path under contracts/", entry.ID)
+		contract, err := loadPilotContractFile(path, entry.ContractFile)
+		if err != nil {
+			return Manifest{}, fmt.Errorf("%s: %w", entry.ID, err)
 		}
-		contractPath := filepath.Join(filepath.Dir(path), clean)
-		contractData, readErr := os.ReadFile(contractPath) // #nosec G304 -- constrained manifest-relative contract file
-		if readErr != nil {
-			return Manifest{}, fmt.Errorf("%s: read contract_file: %w", entry.ID, readErr)
-		}
-		var contract PilotContract
-		if unmarshalErr := yaml.Unmarshal(contractData, &contract); unmarshalErr != nil {
-			return Manifest{}, fmt.Errorf("%s: parse contract_file: %w", entry.ID, unmarshalErr)
-		}
-		entry.Contract = &contract
+		entry.Contract = contract
 	}
 	return manifest, nil
 }
