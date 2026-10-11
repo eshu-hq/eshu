@@ -129,6 +129,19 @@ repos:
         language: script
         stages: [commit-msg]
 
+      - id: no-private-identifiers-content
+        name: no environment or organization identifiers (staged content)
+        entry: scripts/verify-no-private-identifiers.sh --staged
+        language: script
+        always_run: true
+        pass_filenames: false
+
+      - id: no-private-identifiers-message
+        name: no environment or organization identifiers (commit message)
+        entry: scripts/verify-no-private-identifiers.sh --message
+        language: script
+        stages: [commit-msg]
+
       - id: go-fmt
         name: gofumpt formatting (golangci-lint fmt)
         entry: scripts/dev/precommit-go.sh fmt

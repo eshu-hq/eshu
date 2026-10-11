@@ -227,6 +227,57 @@ gates:
     ci_only_reason: ""
     hook_id: no-ai-attribution-content
 
+  - id: no-private-identifiers
+    name: No environment or organization identifiers in commits/docs
+    category: hygiene
+    layer: hygiene
+    purpose: "Scans commit messages and added diff lines for environment and organization identifiers and blocks them."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # Like no-ai-attribution, the CI check scans every commit message and
+      # every added diff line, so required-gate selection waits for it on every
+      # non-empty PR.
+      - "**"
+      # The gate's own files, listed beside the catch-all because a
+      # self_test_trigger must also appear in triggers: editing one selects the
+      # test mirror that exercises it.
+      - "scripts/verify-no-private-identifiers.sh"
+      - "scripts/lib/private-identifier-pattern.sh"
+      - "scripts/lib/test-private-identifier-cases.sh"
+      - "scripts/lib/test-private-identifier-path-cases.sh"
+      - "scripts/test-verify-agent-hygiene.sh"
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - ".pre-commit-config.yaml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    self_test_triggers:
+      - "scripts/verify-no-private-identifiers.sh"
+      - "scripts/lib/private-identifier-pattern.sh"
+      - "scripts/lib/test-private-identifier-cases.sh"
+      - "scripts/lib/test-private-identifier-path-cases.sh"
+      - "scripts/test-verify-agent-hygiene.sh"
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - ".pre-commit-config.yaml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/verify-no-private-identifiers.sh"
+      pre_push: floor
+      # The seeded RED/GREEN cases sit in the agent-hygiene test mirror beside
+      # the attribution cases; CI runs the same mirror in the test-verify job.
+      test_command: "bash scripts/test-verify-agent-hygiene.sh"
+    ci:
+      # Runs as a "No environment or organization identifiers" step in the
+      # same Agent hygiene gate job as no-ai-attribution. The private denylist
+      # mode (ESHU_PRIVATE_IDENTIFIER_FILE) is local-only and never set in CI.
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    # Pure bash plus git and rg, like markdown-file-cap: no Go toolchain.
+    requirements: []
+    ci_only_reason: ""
+    hook_id: no-private-identifiers-content
+
   - id: license-header
     name: Go license header verification
     category: hygiene
