@@ -11,7 +11,9 @@
 # The fixtures below are the real shape of `commits/<sha>/pulls`: it returns
 # every OPEN pr CONTAINING the commit, which on a stacked branch is the lane
 # itself plus every lane above it in the train. That is what makes base.ref
-# unusable and head.sha correct.
+# unusable and head.sha correct. Since #7950 the resolver reads the open pull
+# request list instead, which holds every lane; these payloads are subsets of it
+# and still pin the head.sha selection. The fork cases at the end drive the fetch.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -156,6 +158,130 @@ if [[ "${old_bottom}" -ne 1 ]]; then
 else
 	echo "ok - regression control: the old base.ref filter returns 1 for a main-based lane, which is why the bug stayed hidden"
 fi
+
+# ---------------------------------------------------------------------------
+# Fork pull requests (#7950). The cases above feed the resolver a payload; these
+# drive its own `gh api` fetch through a stub that answers like GitHub does, so a
+# wrong endpoint, a dropped --paginate, or a page-merge bug turns them red.
+#
+# `commits/<sha>/pulls` lists only PRs whose head branch is in the base
+# repository. For #7818, whose head lives in smash-og/eshu, it returned [] (live:
+# `gh api repos/eshu-hq/eshu/commits/48d4f8c0d031/pulls` -> []), so the PR was
+# treated as closed and required-gates-complete was never published on it. The
+# base repository's open pull request list does include fork PRs.
+# ---------------------------------------------------------------------------
+stub_bin="${tmp_dir}/bin"
+world="${tmp_dir}/world.json"
+mkdir -p "${stub_bin}"
+cat >"${stub_bin}/gh" <<'STUB'
+#!/usr/bin/env bash
+# Answers from ESHU_WORLD_JSON, every PR the base repository knows about.
+set -euo pipefail
+[[ "${1:-}" == api ]] || exit 79
+shift
+paginate=false
+slurp=false
+while [[ "${1:-}" == --* ]]; do
+	case "$1" in
+	--paginate) paginate=true ;;
+	--slurp) slurp=true ;;
+	*) exit 79 ;;
+	esac
+	shift
+done
+endpoint="${1:-}"
+case "${endpoint}" in
+"repos/${GITHUB_REPOSITORY}/commits/"*/pulls)
+	sha="${endpoint#"repos/${GITHUB_REPOSITORY}/commits/"}"
+	sha="${sha%/pulls}"
+	jq -c --arg repo "${GITHUB_REPOSITORY}" --arg sha "${sha}" \
+		'[.[] | select(.head.repo.full_name == $repo and .head.sha == $sha)]' "${ESHU_WORLD_JSON}"
+	;;
+"repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page="*)
+	per_page="${endpoint##*per_page=}"
+	pages="$(jq -c --argjson n "${per_page}" \
+		'[.[] | select(.state == "open")] | [range(0; length; $n) as $i | .[$i:$i + $n]] | if length == 0 then [[]] else . end' \
+		"${ESHU_WORLD_JSON}")"
+	if [[ "${paginate}" == true && "${slurp}" == true ]]; then
+		printf '%s\n' "${pages}"
+	elif [[ "${paginate}" == true ]]; then
+		jq -c 'add' <<<"${pages}"
+	else
+		jq -c '.[0]' <<<"${pages}"
+	fi
+	;;
+*) exit 79 ;;
+esac
+STUB
+chmod +x "${stub_bin}/gh"
+
+fork_7818='{"number":7818,"state":"open","head":{"ref":"fix/7762-runtime-ssh-client","sha":"48d4f8c0d0310b738b6cf0e2ee2fc7a5e1cec964","repo":{"full_name":"smash-og/eshu","fork":true}},"base":{"ref":"main","repo":{"full_name":"eshu-hq/eshu","fork":false}}}'
+fork_sha=48d4f8c0d0310b738b6cf0e2ee2fc7a5e1cec964
+
+world_with() { # extra PR objects after 150 open same-repo PRs, newest first
+	jq -cn --argjson extra "[$(
+		IFS=,
+		echo "$*"
+	)]" '[range(8100; 7950; -1) | {number: ., state: "open",
+		head: {ref: "lane/\(.)", sha: "inrepo\(.)", repo: {full_name: "eshu-hq/eshu", fork: false}},
+		base: {ref: "main", repo: {full_name: "eshu-hq/eshu", fork: false}}}] + $extra' >"${world}"
+}
+
+fetch_resolver() { # head_sha; the resolver's own fetch, through the stub
+	PATH="${stub_bin}:${PATH}" GITHUB_REPOSITORY=eshu-hq/eshu ESHU_WORLD_JSON="${world}" \
+		HEAD_SHA="$1" "${resolver}"
+}
+
+expect_fetch_number() { # label head_sha want
+	local label="$1" sha="$2" want="$3" got rc
+	got="$(fetch_resolver "${sha}" 2>/dev/null)" && rc=0 || rc=$?
+	if [[ "${rc}" -ne 0 || "${got}" != "${want}" ]]; then
+		echo "FAIL ${label}: resolver exited ${rc} with '${got}', expected PR ${want}" >&2
+		failures=$((failures + 1))
+		return
+	fi
+	echo "ok - ${label}"
+}
+
+expect_fetch_fail_closed() { # label head_sha
+	local label="$1" sha="$2"
+	if fetch_resolver "${sha}" >/dev/null 2>&1; then
+		echo "FAIL ${label}: resolver succeeded; it must fail closed" >&2
+		failures=$((failures + 1))
+		return
+	fi
+	echo "ok - ${label}"
+}
+
+# 6. The fork PR sits on page 2 of the open list, behind 150 newer PRs, so the
+#    resolver must page through all of it.
+world_with "${fork_7818}"
+fork_via_commits="$(PATH="${stub_bin}:${PATH}" GITHUB_REPOSITORY=eshu-hq/eshu ESHU_WORLD_JSON="${world}" \
+	gh api "repos/eshu-hq/eshu/commits/${fork_sha}/pulls" | jq 'length')"
+if [[ "${fork_via_commits}" -ne 0 ]]; then
+	echo "FAIL regression control: commits/<sha>/pulls must model the live API and omit the fork PR, got ${fork_via_commits}" >&2
+	failures=$((failures + 1))
+else
+	echo "ok - regression control: commits/<sha>/pulls returns 0 for the fork head, as it did live for #7818"
+fi
+expect_fetch_number "an open fork PR on page 2 resolves by head sha" "${fork_sha}" 7818
+
+# 7. A same-repo PR still resolves through the same fetch.
+expect_fetch_number "a same-repo PR on page 1 resolves through the open list" inrepo8042 8042
+
+# 8. A fork PR and a same-repo PR sharing one head must stay ambiguous. A lookup
+#    that only saw same-repo heads would pick 8042 here.
+world_with "$(jq -c '.head.sha = "inrepo8042"' <<<"${fork_7818}")"
+expect_fetch_fail_closed "a fork PR and a same-repo PR sharing a head fail closed" inrepo8042
+
+# 9. A closed fork PR is not open, so nothing owns the head.
+world_with "$(jq -c '.state = "closed"' <<<"${fork_7818}")"
+expect_fetch_fail_closed "a closed fork PR fails closed" "${fork_sha}"
+
+# 10. A PR opened between two page requests shifts the list, so the last PR of
+#     one page comes back again at the top of the next. That is one PR, not two.
+world_with "${fork_7818}" "${fork_7818}"
+expect_fetch_number "a PR listed on two pages resolves once" "${fork_sha}" 7818
 
 if [[ "${failures}" -ne 0 ]]; then
 	echo "test-resolve-required-gates-pr: ${failures} case(s) failed" >&2

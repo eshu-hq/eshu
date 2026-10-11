@@ -26,13 +26,23 @@
 # against it, in the same fixture-mirror style as the sibling
 # scripts/verify-live-required-status-checks.sh.
 #
+# WHY THE OPEN PULL REQUEST LIST AND NOT commits/<sha>/pulls
+#
+# `commits/<sha>/pulls` lists only PRs whose head branch is in this
+# repository. A PR from a fork is absent: for #7818 the endpoint returned []
+# while the PR was open, so every fork PR looked closed and never got
+# required-gates-complete (#7950). The open list (`pulls?state=open`) includes
+# fork PRs, and every lane of a stacked train, so head.sha selection works for
+# both. It is paginated; a PR opened between two page requests can repeat on
+# the next page, so matches are deduplicated by number before counting.
+#
 # Inputs:
 #   HEAD_SHA           required; the commit whose owning PR we want.
 #   GITHUB_REPOSITORY  required unless ESHU_PULLS_JSON is set; owner/repo.
-#   ESHU_PULLS_JSON    optional; path to a file holding the
-#                      `commits/<sha>/pulls` response. Set by the tests so they
-#                      run hermetically. When unset the payload is fetched with
-#                      `gh api`.
+#   ESHU_PULLS_JSON    optional; path to a file holding a pull request array,
+#                      as one page of the open list. Set by the tests so they
+#                      run hermetically. When unset every page of the open
+#                      list is fetched with `gh api`.
 set -euo pipefail
 
 : "${HEAD_SHA:?HEAD_SHA is required}"
@@ -45,18 +55,22 @@ if [[ -n "${ESHU_PULLS_JSON:-}" ]]; then
 	pulls="$(cat "${ESHU_PULLS_JSON}")"
 else
 	: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required when ESHU_PULLS_JSON is unset}"
-	pulls="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls")"
+	# --slurp wraps every page in one outer array whatever gh version runs.
+	pages="$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100")"
+	pulls="$(jq -c 'if type == "array" and length > 0 and all(.[]; type == "array")
+		then add else error("expected an array of pull request pages") end' <<<"${pages}")"
 fi
 
 # head.sha identifies the owning PR in the normal case; when it is not
 # unique (two open PRs can share a head commit), the count -ne 1 branch
 # below fails closed rather than guessing. That fail-closed branch is what
 # makes the non-unique case safe -- case 4 of
-# scripts/test-resolve-required-gates-pr.sh models it. base.ref is not
-# unique within the set either, and for a stacked lane no element of the
-# set carries a default-branch value of it at all.
+# scripts/test-resolve-required-gates-pr.sh models it. base.ref cannot
+# identify the PR either: many open PRs share a base, and a stacked lane's
+# base is another feature branch, not the default branch.
 matches="$(jq -c --arg sha "${HEAD_SHA}" \
-	'[.[] | select(.state == "open" and .head.sha == $sha)]' <<<"${pulls}")"
+	'if type != "array" then error("expected a pull request array") else
+		[.[] | select(.state == "open" and .head.sha == $sha)] | unique_by(.number) end' <<<"${pulls}")"
 count="$(jq 'length' <<<"${matches}")"
 
 if [[ "${count}" -ne 1 ]]; then

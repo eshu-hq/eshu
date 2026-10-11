@@ -221,13 +221,26 @@ func runRequiredStepWithPRs(t *testing.T, step requiredWorkflowStep, event, pull
 	}
 	ghCalls := filepath.Join(dir, "gh-calls")
 	outputs := filepath.Join(dir, "outputs")
+	// The fixture is every PR the repository knows about; the stub answers
+	// each lookup the way GitHub does. commits/<sha>/pulls omits a PR whose
+	// head lives in a fork (#7950). The open list includes it, and comes back
+	// one PR per page here so every case crosses a page boundary.
 	stub := `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$ESHU_GH_CALLS"
-if [[ "$1" == api && "$2" == repos/*/commits/*/pulls ]]; then
-  if [[ "$(cat "$ESHU_PULLS_JSON")" == API_ERROR ]]; then
+answer() {
+  local body
+  body="$(cat "$ESHU_PULLS_JSON")"
+  if [[ "$body" == API_ERROR ]]; then
     exit 70
   fi
-  cat "$ESHU_PULLS_JSON"
+  jq -c "$1" <<<"$body" 2>/dev/null || printf '%s\n' "$body"
+}
+if [[ "$1" == api && "$2" == repos/*/commits/*/pulls ]]; then
+  answer '[.[] | select(.head.repo.fork != true)]'
+  exit 0
+fi
+if [[ "$1 $2 $3" == "api --paginate --slurp" && "$4" == "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" ]]; then
+  answer '[.[] | select(.state == "open") | [.]] | if length == 0 then [[]] else . end'
   exit 0
 fi
 if [[ "$1" == api && "$2" == -X && "$3" == POST ]]; then

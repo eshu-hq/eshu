@@ -92,10 +92,17 @@ jobs:
           # leaves the last verified success alone.
           disposition=active
           if [[ "${RUN_EVENT}" == "pull_request" ]]; then
-            pulls="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls")"
+            # Read the open PR list, not commits/<sha>/pulls: that endpoint
+            # omits a PR whose head lives in a fork, so every fork PR read as
+            # closed and never got this status (#7950). This step runs before
+            # the checkout, so it cannot call scripts/resolve-required-gates-pr.sh;
+            # keep the three lookups in this file and that script in step.
+            # --slurp wraps the pages; unique_by drops a PR repeated across
+            # pages by a concurrent open.
+            pages="$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100")"
             matches="$(jq -ec --arg sha "${HEAD_SHA}" \
-              'if type != "array" then error("expected PR array") else
-                 [.[] | select(.state == "open" and .head.sha == $sha)] end' <<<"${pulls}")"
+              'if type != "array" or length == 0 or any(.[]; type != "array") then error("expected PR pages") else
+                 [add[] | select(.state == "open" and .head.sha == $sha)] | unique_by(.number) end' <<<"${pages}")"
             count="$(jq 'length' <<<"${matches}")"
             case "${count}" in
               0)
@@ -143,10 +150,11 @@ jobs:
           set -euo pipefail
           # Selection lives in scripts/resolve-required-gates-pr.sh so it can be
           # exercised locally; scripts/test-resolve-required-gates-pr.sh replays
-          # real commits/<sha>/pulls payload shapes against it. It sat inline
-          # here before, which is why nobody caught that base.ref == the default
-          # branch matches ZERO open PRs for a stacked lane: that endpoint
-          # returns the lane plus the lanes ABOVE it, none of them main-based.
+          # real pull request payload shapes against it, fork PRs included
+          # (#7950). It sat inline here before, which is why nobody caught that
+          # base.ref == the default branch matches ZERO open PRs for a stacked
+          # lane: commits/<sha>/pulls, which it read then, returns the lane plus
+          # the lanes ABOVE it, none of them main-based.
           # The step then exited 1, aggregate never wrote code=, and the
           # publisher fell through to its catch-all (run 33308583604: "...got 0").
           # This runs from the trusted default-branch checkout above, never from
@@ -245,10 +253,11 @@ jobs:
           # The PR may have merged during setup or the await. A fresh lookup
           # narrows the window for a late terminal result to overwrite it.
           if [[ "${RUN_EVENT}" == "pull_request" ]]; then
-            pulls="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls")"
+            # Same open-list lookup as the pending step, so a fork PR is seen (#7950).
+            pages="$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100")"
             matches="$(jq -ec --arg sha "${HEAD_SHA}" \
-              'if type != "array" then error("expected PR array") else
-                 [.[] | select(.state == "open" and .head.sha == $sha)] end' <<<"${pulls}")"
+              'if type != "array" or length == 0 or any(.[]; type != "array") then error("expected PR pages") else
+                 [add[] | select(.state == "open" and .head.sha == $sha)] | unique_by(.number) end' <<<"${pages}")"
             count="$(jq 'length' <<<"${matches}")"
             if [[ "${count}" -eq 0 ]]; then
               echo '::notice::source PR closed before terminal publication; skipping a late verdict'
