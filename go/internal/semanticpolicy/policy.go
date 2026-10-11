@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 const (
@@ -88,7 +88,7 @@ const (
 	// ReasonACLNotAllowed marks denied, missing, partial, or stale ACL state.
 	ReasonACLNotAllowed = "acl_not_allowed"
 	// ReasonScopeDisabled marks a source class or scope outside the allowlist.
-	ReasonScopeDisabled = status.SemanticExtractionReasonScopeDisabled
+	ReasonScopeDisabled = semantic.ExtractionReasonScopeDisabled
 	// ReasonSourceNotAllowlisted marks a source outside an otherwise matching rule.
 	ReasonSourceNotAllowlisted = "source_not_allowlisted"
 )
@@ -251,27 +251,27 @@ func Normalize(policy Policy) (Policy, error) {
 func Evaluate(
 	policy Policy,
 	request Request,
-	profiles []status.SemanticProviderProfileStatus,
+	profiles []semantic.ProviderProfileStatus,
 ) Decision {
 	policy, err := Normalize(policy)
 	if err != nil {
-		return deny(status.SemanticExtractionDisabledByPolicy, ReasonInvalidPolicy, err.Error(), request)
+		return deny(semantic.ExtractionDisabledByPolicy, ReasonInvalidPolicy, err.Error(), request)
 	}
 	request = normalizeRequest(request)
 	if !policy.Enabled {
-		return deny(status.SemanticExtractionDisabledByPolicy, ReasonPolicyDisabled, "semantic extraction policy is disabled", request)
+		return deny(semantic.ExtractionDisabledByPolicy, ReasonPolicyDisabled, "semantic extraction policy is disabled", request)
 	}
 	if !isSupportedSourceClass(request.SourceClass) {
-		return deny(status.SemanticExtractionDisabledByPolicy, ReasonUnsupportedSourceClass, "source class is unsupported", request)
+		return deny(semantic.ExtractionDisabledByPolicy, ReasonUnsupportedSourceClass, "source class is unsupported", request)
 	}
 	if slices.Contains(policy.DeniedSourceClasses, request.SourceClass) {
-		return deny(status.SemanticExtractionAvailableButDisabledForScope, ReasonSourceClassDenied, "source class is denied by policy", request)
+		return deny(semantic.ExtractionAvailableButDisabledForScope, ReasonSourceClassDenied, "source class is denied by policy", request)
 	}
 	if request.ACLState != ACLAllowed {
-		return deny(status.SemanticExtractionDisabledByPolicy, ReasonACLNotAllowed, "source ACL does not allow egress", request)
+		return deny(semantic.ExtractionDisabledByPolicy, ReasonACLNotAllowed, "source ACL does not allow egress", request)
 	}
 	if !profileAllowsRequest(profiles, request) {
-		return deny(status.SemanticExtractionDisabledByPolicy, ReasonProviderProfileNotAllowed, "provider profile is not configured for this source class", request)
+		return deny(semantic.ExtractionDisabledByPolicy, ReasonProviderProfileNotAllowed, "provider profile is not configured for this source class", request)
 	}
 
 	var scopeMatched bool
@@ -288,11 +288,11 @@ func Evaluate(
 		}
 		egressAllowed, reason, detail := egressAllowsRequest(policy.Egress, request)
 		if !egressAllowed {
-			return deny(status.SemanticExtractionDisabledByPolicy, reason, detail, request)
+			return deny(semantic.ExtractionDisabledByPolicy, reason, detail, request)
 		}
 		return Decision{
 			Allowed:           true,
-			State:             status.SemanticExtractionAvailable,
+			State:             semantic.ExtractionAvailable,
 			Reason:            ReasonAllowed,
 			PolicyID:          policy.PolicyID,
 			RuleID:            rule.RuleID,
@@ -302,20 +302,20 @@ func Evaluate(
 		}
 	}
 	if scopeMatched {
-		return deny(status.SemanticExtractionAvailableButDisabledForScope, ReasonSourceNotAllowlisted, "source is outside the allowlist", request)
+		return deny(semantic.ExtractionAvailableButDisabledForScope, ReasonSourceNotAllowlisted, "source is outside the allowlist", request)
 	}
-	return deny(status.SemanticExtractionAvailableButDisabledForScope, ReasonScopeDisabled, "scope is outside the allowlist", request)
+	return deny(semantic.ExtractionAvailableButDisabledForScope, ReasonScopeDisabled, "scope is outside the allowlist", request)
 }
 
 // ApplyToProviderStatuses projects policy allowlists into redacted status rows.
 func ApplyToProviderStatuses(
-	profiles []status.SemanticProviderProfileStatus,
+	profiles []semantic.ProviderProfileStatus,
 	policy Policy,
-) []status.SemanticProviderProfileStatus {
+) []semantic.ProviderProfileStatus {
 	if len(profiles) == 0 {
 		return nil
 	}
-	out := make([]status.SemanticProviderProfileStatus, 0, len(profiles))
+	out := make([]semantic.ProviderProfileStatus, 0, len(profiles))
 	normalizedPolicy, err := Normalize(policy)
 	policyUsable := err == nil && normalizedPolicy.Enabled
 	denied := map[string]struct{}{}

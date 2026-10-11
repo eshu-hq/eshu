@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 func TestSemanticExtractionDefaultsUnavailableWithoutAffectingHealth(t *testing.T) {
@@ -22,23 +23,23 @@ func TestSemanticExtractionDefaultsUnavailableWithoutAffectingHealth(t *testing.
 	if got, want := report.Health.State, "healthy"; got != want {
 		t.Fatalf("Health.State = %q, want %q", got, want)
 	}
-	semantic := report.SemanticExtraction
-	if got, want := semantic.State, status.SemanticExtractionUnavailable; got != want {
+	extraction := report.SemanticExtraction
+	if got, want := extraction.State, semantic.ExtractionUnavailable; got != want {
 		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
 	}
-	if got, want := semantic.Reason, status.SemanticExtractionReasonProviderNotConfigured; got != want {
+	if got, want := extraction.Reason, semantic.ExtractionReasonProviderNotConfigured; got != want {
 		t.Fatalf("SemanticExtraction.Reason = %q, want %q", got, want)
 	}
-	if semantic.ProviderConfigured {
+	if extraction.ProviderConfigured {
 		t.Fatal("ProviderConfigured = true, want false for no-provider mode")
 	}
-	if semantic.DocumentationObservationsEnabled {
+	if extraction.DocumentationObservationsEnabled {
 		t.Fatal("DocumentationObservationsEnabled = true, want false for no-provider mode")
 	}
-	if semantic.CodeHintsEnabled {
+	if extraction.CodeHintsEnabled {
 		t.Fatal("CodeHintsEnabled = true, want false for no-provider mode")
 	}
-	if semantic.DeterministicPathsAffected {
+	if extraction.DeterministicPathsAffected {
 		t.Fatal("DeterministicPathsAffected = true, want false so no-provider mode cannot block indexing")
 	}
 }
@@ -48,35 +49,35 @@ func TestSemanticExtractionProviderConfiguredMatchesState(t *testing.T) {
 
 	tests := []struct {
 		name                   string
-		snapshot               status.SemanticExtractionStatus
+		snapshot               semantic.ExtractionStatus
 		wantProviderConfigured bool
 	}{
 		{
 			name: "unavailable clears provider flag",
-			snapshot: status.SemanticExtractionStatus{
-				State:              status.SemanticExtractionUnavailable,
+			snapshot: semantic.ExtractionStatus{
+				State:              semantic.ExtractionUnavailable,
 				ProviderConfigured: true,
 			},
 			wantProviderConfigured: false,
 		},
 		{
 			name: "provider unhealthy implies configured provider",
-			snapshot: status.SemanticExtractionStatus{
-				State: status.SemanticExtractionProviderUnhealthy,
+			snapshot: semantic.ExtractionStatus{
+				State: semantic.ExtractionProviderUnhealthy,
 			},
 			wantProviderConfigured: true,
 		},
 		{
 			name: "policy disabled without provider stays unconfigured",
-			snapshot: status.SemanticExtractionStatus{
-				State: status.SemanticExtractionDisabledByPolicy,
+			snapshot: semantic.ExtractionStatus{
+				State: semantic.ExtractionDisabledByPolicy,
 			},
 			wantProviderConfigured: false,
 		},
 		{
 			name: "policy disabled with provider preserves configured flag",
-			snapshot: status.SemanticExtractionStatus{
-				State:              status.SemanticExtractionDisabledByPolicy,
+			snapshot: semantic.ExtractionStatus{
+				State:              semantic.ExtractionDisabledByPolicy,
 				ProviderConfigured: true,
 			},
 			wantProviderConfigured: true,
@@ -102,8 +103,8 @@ func TestSemanticExtractionProviderProfilesEnableScopedCapabilities(t *testing.T
 	t.Parallel()
 
 	report := status.BuildReport(status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
-			ProviderProfiles: []status.SemanticProviderProfileStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
+			ProviderProfiles: []semantic.ProviderProfileStatus{
 				{
 					ProfileID:              "semantic-code-hints",
 					DisplayName:            "Code hints",
@@ -115,7 +116,7 @@ func TestSemanticExtractionProviderProfilesEnableScopedCapabilities(t *testing.T
 					EndpointProfileID:      "deepseek-public-api",
 					SourceClasses:          []string{"code_hints"},
 					SourcePolicyConfigured: true,
-					State:                  status.SemanticProviderProfileConfigured,
+					State:                  semantic.ProviderProfileConfigured,
 				},
 				{
 					ProfileID:              "semantic-docs-default",
@@ -128,32 +129,32 @@ func TestSemanticExtractionProviderProfilesEnableScopedCapabilities(t *testing.T
 					EndpointProfileID:      "deepseek-public-api",
 					SourceClasses:          []string{"documentation"},
 					SourcePolicyConfigured: true,
-					State:                  status.SemanticProviderProfileConfigured,
+					State:                  semantic.ProviderProfileConfigured,
 				},
 			},
 		},
 	}, status.DefaultOptions())
 
-	semantic := report.SemanticExtraction
-	if got, want := semantic.State, status.SemanticExtractionAvailable; got != want {
+	extraction := report.SemanticExtraction
+	if got, want := extraction.State, semantic.ExtractionAvailable; got != want {
 		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
 	}
-	if !semantic.ProviderConfigured {
+	if !extraction.ProviderConfigured {
 		t.Fatal("ProviderConfigured = false, want true")
 	}
-	if !semantic.DocumentationObservationsEnabled {
+	if !extraction.DocumentationObservationsEnabled {
 		t.Fatal("DocumentationObservationsEnabled = false, want true")
 	}
-	if !semantic.CodeHintsEnabled {
+	if !extraction.CodeHintsEnabled {
 		t.Fatal("CodeHintsEnabled = false, want true")
 	}
-	if len(semantic.ProviderProfiles) != 2 {
-		t.Fatalf("len(ProviderProfiles) = %d, want 2", len(semantic.ProviderProfiles))
+	if len(extraction.ProviderProfiles) != 2 {
+		t.Fatalf("len(ProviderProfiles) = %d, want 2", len(extraction.ProviderProfiles))
 	}
-	if got, want := semantic.ProviderProfiles[0].ProfileID, "semantic-code-hints"; got != want {
+	if got, want := extraction.ProviderProfiles[0].ProfileID, "semantic-code-hints"; got != want {
 		t.Fatalf("ProviderProfiles[0].ProfileID = %q, want sorted %q", got, want)
 	}
-	if got, want := semantic.ProviderProfiles[1].ProfileID, "semantic-docs-default"; got != want {
+	if got, want := extraction.ProviderProfiles[1].ProfileID, "semantic-docs-default"; got != want {
 		t.Fatalf("ProviderProfiles[1].ProfileID = %q, want sorted %q", got, want)
 	}
 }
@@ -162,8 +163,8 @@ func TestSemanticExtractionProviderProfilesRemainPolicyGated(t *testing.T) {
 	t.Parallel()
 
 	report := status.BuildReport(status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
-			ProviderProfiles: []status.SemanticProviderProfileStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
+			ProviderProfiles: []semantic.ProviderProfileStatus{
 				{
 					ProfileID:              "semantic-docs-default",
 					ProviderKind:           "deepseek",
@@ -172,26 +173,26 @@ func TestSemanticExtractionProviderProfilesRemainPolicyGated(t *testing.T) {
 					ModelID:                "deepseek-chat",
 					SourceClasses:          []string{"documentation"},
 					SourcePolicyConfigured: false,
-					State:                  status.SemanticProviderProfileConfigured,
+					State:                  semantic.ProviderProfileConfigured,
 				},
 			},
 		},
 	}, status.DefaultOptions())
 
-	semantic := report.SemanticExtraction
-	if got, want := semantic.State, status.SemanticExtractionDisabledByPolicy; got != want {
+	extraction := report.SemanticExtraction
+	if got, want := extraction.State, semantic.ExtractionDisabledByPolicy; got != want {
 		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
 	}
-	if !semantic.ProviderConfigured {
+	if !extraction.ProviderConfigured {
 		t.Fatal("ProviderConfigured = false, want true because profile metadata is configured")
 	}
-	if semantic.DocumentationObservationsEnabled {
+	if extraction.DocumentationObservationsEnabled {
 		t.Fatal("DocumentationObservationsEnabled = true, want false while source policy is absent")
 	}
-	if semantic.CodeHintsEnabled {
+	if extraction.CodeHintsEnabled {
 		t.Fatal("CodeHintsEnabled = true, want false while source policy is absent")
 	}
-	if got, want := semantic.Reason, status.SemanticExtractionReasonPolicyDisabled; got != want {
+	if got, want := extraction.Reason, semantic.ExtractionReasonPolicyDisabled; got != want {
 		t.Fatalf("SemanticExtraction.Reason = %q, want %q", got, want)
 	}
 }
@@ -200,8 +201,8 @@ func TestSemanticExtractionUnhealthyProviderProfileRemainsConfigured(t *testing.
 	t.Parallel()
 
 	report := status.BuildReport(status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
-			ProviderProfiles: []status.SemanticProviderProfileStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
+			ProviderProfiles: []semantic.ProviderProfileStatus{
 				{
 					ProfileID:              "semantic-docs-default",
 					ProviderKind:           "deepseek",
@@ -210,23 +211,23 @@ func TestSemanticExtractionUnhealthyProviderProfileRemainsConfigured(t *testing.
 					ModelID:                "deepseek-chat",
 					SourceClasses:          []string{"documentation"},
 					SourcePolicyConfigured: true,
-					State:                  status.SemanticProviderProfileUnhealthy,
+					State:                  semantic.ProviderProfileUnhealthy,
 				},
 			},
 		},
 	}, status.DefaultOptions())
 
-	semantic := report.SemanticExtraction
-	if got, want := semantic.State, status.SemanticExtractionProviderUnhealthy; got != want {
+	extraction := report.SemanticExtraction
+	if got, want := extraction.State, semantic.ExtractionProviderUnhealthy; got != want {
 		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
 	}
-	if !semantic.ProviderConfigured {
+	if !extraction.ProviderConfigured {
 		t.Fatal("ProviderConfigured = false, want true for unhealthy configured profile")
 	}
-	if semantic.DocumentationObservationsEnabled {
+	if extraction.DocumentationObservationsEnabled {
 		t.Fatal("DocumentationObservationsEnabled = true, want false while provider is unhealthy")
 	}
-	if semantic.CodeHintsEnabled {
+	if extraction.CodeHintsEnabled {
 		t.Fatal("CodeHintsEnabled = true, want false while provider is unhealthy")
 	}
 }
@@ -236,8 +237,8 @@ func TestRenderStatusIncludesRedactedSemanticProviderProfiles(t *testing.T) {
 
 	const credentialHandle = "DEEPSEEK_API_KEY"
 	report := status.BuildReport(status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
-			ProviderProfiles: []status.SemanticProviderProfileStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
+			ProviderProfiles: []semantic.ProviderProfileStatus{
 				{
 					ProfileID:              "semantic-docs-default",
 					DisplayName:            "Documentation default",
@@ -249,7 +250,7 @@ func TestRenderStatusIncludesRedactedSemanticProviderProfiles(t *testing.T) {
 					EndpointProfileID:      "deepseek-public-api",
 					SourceClasses:          []string{"documentation"},
 					SourcePolicyConfigured: true,
-					State:                  status.SemanticProviderProfileConfigured,
+					State:                  semantic.ProviderProfileConfigured,
 				},
 			},
 		},
@@ -282,13 +283,13 @@ func TestRenderStatusIncludesRedactedSemanticProviderProfiles(t *testing.T) {
 	if err := json.Unmarshal(encoded, &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	semantic, ok := payload["semantic_extraction"].(map[string]any)
+	extraction, ok := payload["semantic_extraction"].(map[string]any)
 	if !ok {
 		t.Fatalf("semantic_extraction missing or wrong type: %s", encoded)
 	}
-	profiles, ok := semantic["provider_profiles"].([]any)
+	profiles, ok := extraction["provider_profiles"].([]any)
 	if !ok {
-		t.Fatalf("provider_profiles missing or wrong type: %#v", semantic["provider_profiles"])
+		t.Fatalf("provider_profiles missing or wrong type: %#v", extraction["provider_profiles"])
 	}
 	if len(profiles) != 1 {
 		t.Fatalf("len(provider_profiles) = %d, want 1", len(profiles))
@@ -334,17 +335,17 @@ func TestRenderStatusIncludesSemanticExtractionNoProvider(t *testing.T) {
 	if err := json.Unmarshal(encoded, &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	semantic, ok := payload["semantic_extraction"].(map[string]any)
+	extraction, ok := payload["semantic_extraction"].(map[string]any)
 	if !ok {
 		t.Fatalf("semantic_extraction missing or wrong type: %s", encoded)
 	}
-	if got, want := semantic["state"], "unavailable"; got != want {
+	if got, want := extraction["state"], "unavailable"; got != want {
 		t.Fatalf("semantic_extraction.state = %#v, want %#v", got, want)
 	}
-	if got, want := semantic["code_hints_enabled"], false; got != want {
+	if got, want := extraction["code_hints_enabled"], false; got != want {
 		t.Fatalf("semantic_extraction.code_hints_enabled = %#v, want %#v", got, want)
 	}
-	if got, want := semantic["deterministic_paths_affected"], false; got != want {
+	if got, want := extraction["deterministic_paths_affected"], false; got != want {
 		t.Fatalf("semantic_extraction.deterministic_paths_affected = %#v, want %#v", got, want)
 	}
 }
@@ -354,11 +355,11 @@ func TestSemanticExtractionQueueBudgetAndAuditDoNotAffectDeterministicHealth(t *
 
 	report := status.BuildReport(status.RawSnapshot{
 		AsOf: time.Date(2026, time.June, 9, 6, 0, 0, 0, time.UTC),
-		SemanticExtraction: status.SemanticExtractionStatus{
-			State:                      status.SemanticExtractionAvailable,
+		SemanticExtraction: semantic.ExtractionStatus{
+			State:                      semantic.ExtractionAvailable,
 			ProviderConfigured:         true,
 			DeterministicPathsAffected: true,
-			Queue: status.SemanticExtractionQueueSnapshot{
+			Queue: semantic.ExtractionQueueSnapshot{
 				Total:           5,
 				Pending:         2,
 				Retrying:        1,
@@ -372,12 +373,12 @@ func TestSemanticExtractionQueueBudgetAndAuditDoNotAffectDeterministicHealth(t *
 					{Name: "dead_letter", Count: 1},
 				},
 			},
-			Budget: status.SemanticExtractionBudgetSnapshot{
+			Budget: semantic.ExtractionBudgetSnapshot{
 				EstimatedInputTokens: 500,
 				ActualCostMicros:     250,
 				Exhausted:            1,
 			},
-			Audit: status.SemanticExtractionAuditSnapshot{
+			Audit: semantic.ExtractionAuditSnapshot{
 				ActorClassCounts: []status.NamedCount{{Name: "hosted_worker", Count: 5}},
 				ACLStateCounts:   []status.NamedCount{{Name: "acl_allowed", Count: 5}},
 			},
@@ -387,14 +388,14 @@ func TestSemanticExtractionQueueBudgetAndAuditDoNotAffectDeterministicHealth(t *
 	if got, want := report.Health.State, "healthy"; got != want {
 		t.Fatalf("Health.State = %q, want %q", got, want)
 	}
-	semantic := report.SemanticExtraction
-	if semantic.DeterministicPathsAffected {
+	extraction := report.SemanticExtraction
+	if extraction.DeterministicPathsAffected {
 		t.Fatal("DeterministicPathsAffected = true, want semantic queue/budget to stay advisory")
 	}
-	if got, want := semantic.Queue.BudgetExhausted, 1; got != want {
+	if got, want := extraction.Queue.BudgetExhausted, 1; got != want {
 		t.Fatalf("Queue.BudgetExhausted = %d, want %d", got, want)
 	}
-	if got, want := semantic.Budget.EstimatedInputTokens, int64(500); got != want {
+	if got, want := extraction.Budget.EstimatedInputTokens, int64(500); got != want {
 		t.Fatalf("Budget.EstimatedInputTokens = %d, want %d", got, want)
 	}
 }
@@ -403,10 +404,10 @@ func TestRenderStatusIncludesSemanticExtractionObservability(t *testing.T) {
 	t.Parallel()
 
 	report := status.BuildReport(status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
-			State:              status.SemanticExtractionAvailable,
+		SemanticExtraction: semantic.ExtractionStatus{
+			State:              semantic.ExtractionAvailable,
 			ProviderConfigured: true,
-			Queue: status.SemanticExtractionQueueSnapshot{
+			Queue: semantic.ExtractionQueueSnapshot{
 				Total:           3,
 				Pending:         1,
 				Succeeded:       1,
@@ -415,14 +416,14 @@ func TestRenderStatusIncludesSemanticExtractionObservability(t *testing.T) {
 					{Name: "documentation", Count: 2},
 				},
 			},
-			Budget: status.SemanticExtractionBudgetSnapshot{
+			Budget: semantic.ExtractionBudgetSnapshot{
 				EstimatedInputTokens: 220,
 				EstimatedCostMicros:  330,
 				ActualInputTokens:    90,
 				ActualCostMicros:     120,
 				Exhausted:            1,
 			},
-			Audit: status.SemanticExtractionAuditSnapshot{
+			Audit: semantic.ExtractionAuditSnapshot{
 				ActorClassCounts: []status.NamedCount{{Name: "hosted_worker", Count: 3}},
 			},
 		},
@@ -449,16 +450,16 @@ func TestRenderStatusIncludesSemanticExtractionObservability(t *testing.T) {
 	if err := json.Unmarshal(encoded, &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	semantic := payload["semantic_extraction"].(map[string]any)
-	queue := semantic["queue"].(map[string]any)
+	extraction := payload["semantic_extraction"].(map[string]any)
+	queue := extraction["queue"].(map[string]any)
 	if got, want := queue["budget_exhausted"], float64(1); got != want {
 		t.Fatalf("queue.budget_exhausted = %#v, want %#v", got, want)
 	}
-	budget := semantic["budget"].(map[string]any)
+	budget := extraction["budget"].(map[string]any)
 	if got, want := budget["estimated_input_tokens"], float64(220); got != want {
 		t.Fatalf("budget.estimated_input_tokens = %#v, want %#v", got, want)
 	}
-	audit := semantic["audit"].(map[string]any)
+	audit := extraction["audit"].(map[string]any)
 	if _, ok := audit["actor_class_counts"]; !ok {
 		t.Fatalf("audit.actor_class_counts missing: %#v", audit)
 	}

@@ -30,6 +30,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // parityStatusReader is a deterministic status.Reader fixture: one stage, one
@@ -119,7 +120,7 @@ func evidenceBundleParityRawSnapshot() status.RawSnapshot {
 				},
 			},
 		},
-		SemanticExtraction: status.SemanticExtractionStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
 			State: "unavailable", Reason: "provider_not_configured", ProviderConfigured: false,
 		},
 	}
