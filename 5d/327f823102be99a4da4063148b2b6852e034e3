@@ -1,0 +1,21 @@
+docs/internal/evidence/7881-query-methodology-pilot.md
+  s_29175cf8c573b8::t_c2706fdd644ce9 145-206
+testdata/benchmarks/read-api-route-work-budgets.txt
+  s_29175cf8c573b8::t_5ea6d34ef86507 38-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d327f823102be99a4da4063148b2b6852e034e3",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
