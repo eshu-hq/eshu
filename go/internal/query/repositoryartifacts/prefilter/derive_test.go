@@ -26,7 +26,7 @@ func TestDeriveDescribesRequiredLiterals(t *testing.T) {
 		{"required plus optional", `foo(?:bar)?baz`, `("foo" AND "baz")`, true},
 		{"star requires nothing", `(?:foo)*`, `TRUE`, false},
 		{"plus requires its body", `(?:foo)+bar`, `("foo" AND "bar")`, true},
-		{"quest requires nothing", `foo?`, `"fo"`, true},
+		{"quest keeps the required prefix", `foo?`, `"fo"`, true},
 		{"class is not a requirement", `[a-z]+`, `TRUE`, false},
 		{"small class is exact", `a[xy]b`, `("axb" OR "ayb")`, true},
 		{"wildcard is not a requirement", `.*`, `TRUE`, false},
