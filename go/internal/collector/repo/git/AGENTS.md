@@ -72,6 +72,22 @@ full generation, which re-emits id keys. A new follow-up envelope takes
 `repoID` and calls the helper; add its domain to `followupKeyPrefixes` in
 `followup_key_test.go` so the count assertion covers it.
 
+## Git auth follows the checkout path
+
+Pass the managed checkout path (`<ReposDir>/<repoID>`) to `gitCommandEnv` and
+`gitRun` for every command that reaches a remote. Token auth derives the
+credential's host from that path (#7763) and fails closed for any other path:
+`tokenAuthProvider` applies the `repoCheckoutName` rule the clone path uses, so
+a path outside `ReposDir` or under the reserved `.eshu-ref-worktrees` namespace
+gets no credential header at all. A network command run from such a path goes
+out anonymous and fails at the remote instead of offering a GitLab or Bitbucket
+token to github.com. The skip has no runtime signal: the function cannot tell a
+local command from a network one, and ref worktrees run local commands every
+cycle, so a log there would be noise.
+`TestGitCommandEnvTokenAuthUnmanagedPathSendsNoHeader` pins the skip. Keep the
+header host and `repoRemoteURL` in lockstep:
+`TestGitCommandEnvTokenHeaderMatchesCloneURLHost` covers that contract.
+
 ## Directory size
 
 This directory is grandfathered over the 40-file cap. The ledger row is a

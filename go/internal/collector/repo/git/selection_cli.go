@@ -182,7 +182,7 @@ func cloneRepository(
 		remoteURL,
 		repoPath,
 	)
-	command.Env = gitCommandEnv(config, token)
+	command.Env = gitCommandEnv(config, token, repoPath)
 	var stderr bytes.Buffer
 	progress := newGitProgressWriter(ctx, logger, event, &stderr)
 	command.Stderr = progress
