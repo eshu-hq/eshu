@@ -313,7 +313,7 @@ python3 "${repo_root}/scripts/lib/live_tests_registry.py" flatten "${ledger}" >"
 sed 's/class: postgres_ci/class: scheduled/g' "${flat_ledger}" >"${seed_dir}/ledger-missing.yaml"
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-missing.yaml" "${repo_root}" 2>&1)" &&
   fail "missing postgres_ci ledger row passed"
-[[ "${out}" == *"ledger files differ"* ]] || fail "ledger drift not named: ${out}"
+[[ "${out}" == *"unexpected class"* ]] || fail "ledger drift not named: ${out}"
 sed 's/runner: live-postgres-readiness/runner: unrelated/g' "${flat_ledger}" >"${seed_dir}/ledger-wrong-runner.yaml"
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-wrong-runner.yaml" "${repo_root}" 2>&1)" &&
   fail "wrong postgres_ci runner passed"
