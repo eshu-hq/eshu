@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Prepare the caller's Compose file array after it acquires the live-gate lock.
+# Prepare the overlay for the caller's Compose file array after it acquires the
+# live-gate lock. Every Compose call of the gate goes through scripts/ci/compose.sh,
+# which appends the overlay itself; the array is not changed here.
 # shellcheck disable=SC2154  # The sourced library reads gate-owned globals.
 
 golden_corpus_prepare_ci_overlay() {
@@ -10,7 +12,4 @@ golden_corpus_prepare_ci_overlay() {
         release_live_gate_lock
         die "CI image overlay preflight failed"
     }
-    if [[ -n "${ESHU_CI_COMPOSE_OVERLAY}" ]]; then
-        compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
-    fi
 }

@@ -335,7 +335,7 @@ for compose_case in \
 	"${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh:1"; do
 	compose_owner="${compose_case%:*}"
 	expected_count="${compose_case##*:}"
-	actual_count="$(rg --count --fixed-strings 'docker compose "${compose_args[@]}"' "${compose_owner}" || true)"
+	actual_count="$(rg --count --fixed-strings 'bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" --' "${compose_owner}" || true)"
 	[[ "${actual_count:-0}" -eq "${expected_count}" ]] ||
 		fail "$(basename "${compose_owner}") must carry explicit Compose project on all ${expected_count} calls; found ${actual_count:-0}"
 done

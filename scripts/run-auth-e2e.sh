@@ -52,9 +52,6 @@ compose_args=(-p "$project" -f docker-compose.e2e.yaml)
 # shellcheck source=scripts/lib/ci-image-compose.sh
 source "$repo_root/scripts/lib/ci-image-compose.sh"
 eshu_ci_compose_prepare "$repo_root" "${compose_args[@]}"
-if [[ -n "$ESHU_CI_COMPOSE_OVERLAY" ]]; then
-  compose_args+=(-f "$ESHU_CI_COMPOSE_OVERLAY")
-fi
 
 teardown() {
   local exit_code=$?
@@ -69,7 +66,7 @@ teardown() {
     exit "$exit_code"
   fi
   echo "run-auth-e2e: tearing down project $project"
-  if ! docker compose "${compose_args[@]}" down -v --remove-orphans >/dev/null 2>&1; then
+  if ! bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- down -v --remove-orphans >/dev/null 2>&1; then
     echo "run-auth-e2e: Compose teardown failed for project $project" >&2
     exit_code=1
   fi
@@ -85,7 +82,7 @@ echo "run-auth-e2e: building the exact-source eshu CLI"
 auth_e2e_cli_build "$repo_root"
 
 echo "run-auth-e2e: bringing up a FRESH stack (project $project) — zero identities required for the acceptance items"
-docker compose "${compose_args[@]}" up -d --build --wait
+bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- up -d --build --wait
 
 api_base="http://${bind_addr}:${api_port}"
 echo "run-auth-e2e: probing readiness at $api_base"

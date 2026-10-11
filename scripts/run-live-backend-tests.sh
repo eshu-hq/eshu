@@ -159,7 +159,7 @@ compose_args=()
 
 compose_down() {
 	local containers volumes
-	docker compose "${compose_args[@]}" down -v >/dev/null 2>&1 || return 1
+	bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- down -v >/dev/null 2>&1 || return 1
 	containers="$(docker ps -aq --filter "label=com.docker.compose.project=${compose_project}")" || return 1
 	volumes="$(docker volume ls -q --filter "label=com.docker.compose.project=${compose_project}")" || return 1
 	[[ -z "${containers}" && -z "${volumes}" ]]
@@ -210,6 +210,11 @@ cleanup() {
 run_one() {
 	local name="$1" compose_file="$2" file="$3" package="$4" tests="$5" is_last="$6"
 	local health_path started=$SECONDS setup_seconds test_seconds cleanup_started cleanup_seconds status=0
+	# Before the overlay is prepared: the wrapper's signature hashes the value of
+	# every variable a root Compose file names (ESHU_NEO4J_PASSWORD is one), so an
+	# unset after the prepare would make the teardown call exit 1. The live-backend
+	# stacks do not read either variable and the tests must not see them.
+	unset ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD || true
 	if [[ "${name}" == "nornicdb" ]]; then
 		health_path="/health"
 	else
@@ -222,15 +227,12 @@ run_one() {
 	if [[ "${use_compose}" == "1" ]]; then
 		compose_args=(-p "${compose_project}" -f "${repo_root}/${compose_file}")
 		eshu_ci_compose_prepare "${repo_root}" "${compose_args[@]}" || die "CI image overlay preflight failed"
-		if [[ -n "${ESHU_CI_COMPOSE_OVERLAY}" ]]; then
-			compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
-		fi
 		compose_down "${compose_file}" || die "could not establish fresh ${name} stack"
 		# A failed up can leave a half-started stack behind, and the EXIT
 		# trap only knows stacks recorded in active_compose_file (assigned
 		# after a successful start), so tear the half-started stack down
 		# here before dying instead of littering it.
-		docker compose "${compose_args[@]}" up -d --wait --wait-timeout 180 ||
+		bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- up -d --wait --wait-timeout 180 ||
 			{ compose_down "${compose_file}" || true; die "could not start ${name} stack"; }
 		active_compose_file="${compose_file}"
 		wait_healthy "${NEO4J_HTTP_PORT}" "${health_path}" || die "${name} stack never became healthy"
@@ -242,7 +244,6 @@ run_one() {
 	[[ "${name}" == "nornicdb" ]] || database="neo4j"
 	export ESHU_NEO4J_URI="bolt://127.0.0.1:${NEO4J_BOLT_PORT}" ESHU_LIVE_GRAPH_BACKEND="${name}"
 	export ESHU_NEO4J_DATABASE="${database}" ESHU_LIVE_GRAPH_DATABASE="${database}"
-	unset ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD || true
 	setup_seconds=$((SECONDS - started))
 	started=$SECONDS
 	(cd "${repo_root}/go" && go test -tags "${tags}" -count=1 "${package}" -run "^(${tests})$") || status=$?
@@ -256,7 +257,7 @@ run_one() {
 		else
 			printf 'run-live-backend-tests: --keep: stack left running (bolt 127.0.0.1:%s)\n' \
 				"${NEO4J_BOLT_PORT}"
-			docker compose "${compose_args[@]}" ps
+			bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- ps
 		fi
 		active_compose_file=""
 		if [[ "${keep}" == "0" || "${is_last}" == "0" ]]; then
@@ -303,14 +304,7 @@ total="${#runs[@]}"
 for (( i = 0; i < total; i++ )); do
 	name="${runs[$i]%%|*}"
 	rest="${runs[$i]#*|}"
-	# The row carries the compose file as its second field; it is always one
-	# of the two files above, so name them here and skip the field. A literal
-	# -f operand is one a static reader (verify-dockerhub-login.sh) can check.
-	case "${name}" in
-		nornicdb) compose_file="${nornicdb_compose}" ;;
-		neo4j) compose_file="${neo4j_compose}" ;;
-		*) die "unknown backend in run row: ${name}" ;;
-	esac
+	compose_file="${rest%%|*}"
 	rest="${rest#*|}"
 	file="${rest%%|*}"
 	rest="${rest#*|}"
