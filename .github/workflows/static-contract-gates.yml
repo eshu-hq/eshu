@@ -225,6 +225,12 @@ jobs:
           set -euo pipefail
           if [[ "${CACHE_OUTCOME}" != success ]]; then
             echo "::warning::Tagged-build cache restore failed or timed out; discard partial cache and run the full cold proof."
+            # Go module-cache directories are read-only after extraction.
+            for cache_dir in "${GOCACHE}" "${GOMODCACHE}"; do
+              if [[ -d "${cache_dir}" ]]; then
+                chmod -R u+w "${cache_dir}"
+              fi
+            done
             rm -rf -- "${GOCACHE}" "${GOMODCACHE}"
           elif [[ "${CACHE_HIT}" != true ]]; then
             echo "::notice::Tagged-build cache miss; run the full cold proof."

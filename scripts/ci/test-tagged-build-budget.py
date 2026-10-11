@@ -67,11 +67,10 @@ class TaggedBuildBudgetTest(unittest.TestCase):
         self.assertEqual(restore["uses"], "actions/cache/restore@v4")
         self.assertEqual(restore["timeout-minutes"], 2)
         self.assertTrue(restore["continue-on-error"])
-        self.assertIn("matrix.key == 'taggedbuilds'", restore["if"])
-        self.assertIn("matrix.queue_selected", restore["if"])
+        self.assertEqual(restore["if"], "${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key == 'taggedbuilds' }}")
         ordinary = next(step for step in steps
                         if step.get("uses") == "actions/cache@v4")
-        self.assertIn("matrix.key != 'taggedbuilds'", ordinary["if"])
+        self.assertEqual(ordinary["if"], "${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key != 'taggedbuilds' }}")
         self.assertFalse(any(step.get("uses", "").startswith("actions/cache/save")
                              for step in steps))
         for step in steps:
@@ -116,6 +115,7 @@ class TaggedBuildBudgetTest(unittest.TestCase):
                 for directory in cache_dirs:
                     directory.mkdir()
                     (directory / "partial").write_text("fixture", encoding="utf-8")
+                    directory.chmod(0o555)
                 output = subprocess.check_output(
                     ["bash", "-euo", "pipefail", "-c", report["run"]], text=True,
                     env={**os.environ, "CACHE_OUTCOME": outcome, "CACHE_HIT": hit,
@@ -123,6 +123,8 @@ class TaggedBuildBudgetTest(unittest.TestCase):
                 )
                 for directory in cache_dirs:
                     self.assertEqual(directory.exists(), outcome == "success")
+                    if directory.exists():
+                        directory.chmod(0o755)
                 if outcome != "success":
                     self.assertIn("::warning::", output)
                     self.assertIn("full cold proof", output)
