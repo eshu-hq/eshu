@@ -1,0 +1,91 @@
+go/cmd/read-api-latency-gate/operation_run.go
+  s_29175cf8c573b8::t_f4cbe02b191076 37-39,67,74-87
+  s_29175cf8c573b8::t_8dea063f0091af 7,10
+go/cmd/read-api-latency-gate/concurrent.go
+  s_29175cf8c573b8::t_f4cbe02b191076 61
+  s_29175cf8c573b8::t_fd06bf2a77692f 48-51,72-74
+go/cmd/read-api-latency-gate/diagnostic_client_test.go
+  s_29175cf8c573b8::t_937d2e499bc3e6 7,10-11,17-44
+  s_29175cf8c573b8::t_18583ae58ece1a 8-9,45-66
+  s_29175cf8c573b8::t_0ced1295827b49 1-6,13-16,67-74,76-83,85-92,94-101,107,109-114
+  s_29175cf8c573b8::t_004adf5d97b8d8 12,75,84
+  s_29175cf8c573b8::t_ed67adc76832b0 93,102-106,108
+go/cmd/read-api-latency-gate/diagnostic_client_report.go
+  s_29175cf8c573b8::t_f4cbe02b191076 1-61
+go/cmd/read-api-latency-gate/README.md
+  s_29175cf8c573b8::t_5fb82d926b4f8d 29-37
+  s_29175cf8c573b8::t_189517dad9f597 159-201
+go/internal/envregistry/coverage_test.go
+  s_29175cf8c573b8::t_affa2c4b7ababd 48
+go/cmd/read-api-latency-gate/diagnostic_client.go
+  s_29175cf8c573b8::t_004adf5d97b8d8 1-15,29-118
+  s_29175cf8c573b8::t_f4cbe02b191076 22-28
+  s_29175cf8c573b8::t_cf0c8d9592b0c1 16-21
+docs/public/reference/cli-reference.md
+  s_29175cf8c573b8::t_5fb82d926b4f8d 316-331
+go/cmd/read-api-latency-gate/main.go
+  s_29175cf8c573b8::t_f4cbe02b191076 8,49,80,115-117,120,135-140,170-179
+  s_29175cf8c573b8::t_a6a07c3b55f9aa 180-181
+docs/public/observability/telemetry-coverage.md
+  s_29175cf8c573b8::t_51b4042c752cca 810,815
+go/internal/envregistry/registry_test.go
+  s_29175cf8c573b8::t_affa2c4b7ababd 19-32
+go/cmd/read-api-latency-gate/sweep.go
+  s_29175cf8c573b8::t_f4cbe02b191076 81-82
+  s_29175cf8c573b8::t_cf0c8d9592b0c1 271-276
+  s_29175cf8c573b8::t_d3029959ebb7e5 83-86,130,148,150,179,241,260,279-281
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_b86bf8b538a4ae 49-54,73-77,162,242
+docs/public/reference/env-registry.md
+  s_29175cf8c573b8::t_c1ac0248a73117 43
+go/cmd/read-api-latency-gate/diagnostic_boundary_test.go
+  s_29175cf8c573b8::t_a0e31c4c7541d4 1-52
+go/cmd/read-api-latency-gate/diagnostic_finalize_test.go
+  s_29175cf8c573b8::t_a6fe97c0bc7109 1-42
+go/cmd/read-api-latency-gate/diagnostic_integration_test.go
+  s_29175cf8c573b8::t_8741ff165e3188 1-91
+go/cmd/read-api-latency-gate/diagnostic_plan_test.go
+  s_29175cf8c573b8::t_73e19814af1bd3 1-126
+go/cmd/read-api-latency-gate/diagnostic_statements.go
+  s_29175cf8c573b8::t_593af4580c8015 1-417
+go/cmd/read-api-latency-gate/diagnostic_statements_test.go
+  s_29175cf8c573b8::t_8953157d4e3ac8 1-56
+go/cmd/read-api-latency-gate/diagnostic_workflow_test.go
+  s_29175cf8c573b8::t_147ab7c6caec95 1-57
+go/cmd/read-api-latency-gate/report_print.go
+  s_29175cf8c573b8::t_52cb875c670d84 1-76
+go/internal/envregistry/entries.go
+  s_29175cf8c573b8::t_2ac3c88d3e59dc 69
+scripts/lib/status-diagnostic-runner.sh
+  s_29175cf8c573b8::t_44efff9a31a31d 1-74
+scripts/lib/status_diagnostic_artifacts.py
+  s_29175cf8c573b8::t_145b5487990d7e 1-425
+scripts/lib/status_diagnostic_resources.py
+  s_29175cf8c573b8::t_b7c7e0d79db2cb 1-131
+scripts/test-status-diagnostic-artifacts.py
+  s_29175cf8c573b8::t_a096246b1c7b58 1-237
+scripts/test-status-diagnostic-resources.py
+  s_29175cf8c573b8::t_0c54c2ca2c85c8 1-68
+scripts/test-status-diagnostic-runner.sh
+  s_29175cf8c573b8::t_119d9193caa3ae 1-85
+scripts/verify-read-api-latency-gate.sh
+  s_29175cf8c573b8::t_450061f98c071c 77,133-142,155-171,173-176,202-205,386-391,426-429
+specs/ci-gates.d/gates-08.yaml
+  s_29175cf8c573b8::t_8ca1e49ed7326b 181-186,229-234,264-269,271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "247dea7e540988ce69c1e56c389c22a9eda9c448",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
