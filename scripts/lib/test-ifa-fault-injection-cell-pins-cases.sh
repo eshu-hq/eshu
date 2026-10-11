@@ -67,11 +67,9 @@ run_ifa_fault_injection_cell_pins_cases() {
 	# Candidate-adjacent kill/reclaim cells (generic, SQL, code-call,
 	# documentation, and rationale):
 	# real kill -9 + a fresh process, not the hermetic-only faultreplay kind.
-	# EXACTLY TWO: the killworker and expirelease cells each wait for a claimed
-	# row before firing, and the two call sites are byte-identical. `-ge 1` was
-	# satisfied by either, so one cell could fire its fault before anything was
-	# claimed and prove nothing, with the mirror green (#6161).
-	require_cells_count "claimed-row wait before kill, in both kill cells" "ifa_fault_wait_for_claimed" 2
+	# Killworker still waits for a live claim. Expirelease uses an exact
+	# held-handler handshake instead of an observation-only count (#7939).
+	require_cells_count "claimed-row wait before generic kill" "ifa_fault_wait_for_claimed" 1
 	require_cells "kill, join, and untrack the live reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'
 	require_cells "fresh reducer process after kill" "reducer-killworker-after"
 	require_sql_cells "SQL-targeted claimed-row wait before kill" "ifa_fault_wait_for_claimed"
@@ -80,8 +78,11 @@ run_ifa_fault_injection_cell_pins_cases() {
 
 	# Cell 3 (expire-lease-mid-handler): direct SQL forced expiry, no kill.
 	# The SQL itself (claimed/running rows, ack lock order) lives in
-	# ifa_fault_expire_reducer_claims and is proven by the reclaim-assert cases.
-	require_cells "forced lease expiry through the lock-ordered helper" "ifa_fault_expire_reducer_claims"
+	# ifa_fault_expire_held_claim and is proven by the barrier cases.
+	require_cells "forced lease expiry through the lock-ordered helper" "ifa_fault_expire_held_claim"
+	require_cells "claim-bound held handler" "ifa_fault_wait_for_held_claim"
+	require_cells "same-item replacement while original held" "ifa_fault_wait_for_held_replacement"
+	require_cells "identity-bound release" "ifa_fault_release_held_claim"
 	require_cells "expire-lease proves the expiry caused a re-claim" "ifa_fault_assert_reclaimed_above"
 	require_cells "expire-lease captures the pre-expiry re-claim baseline" 'reclaimed_before="$(ifa_fault_count_reclaimed'
 

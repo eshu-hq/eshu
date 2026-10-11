@@ -176,6 +176,8 @@ gates:
       - "go/internal/storage/postgres/graph/owner/store.go"
       - "go/internal/storage/cypher/fault/executor/*.go"
       - "go/internal/replay/faultreplay/**"
+      - "go/cmd/reducer/ifa_lease_expiry*.go"
+      - "scripts/test-ifa-fault-lease-expiry-barrier.sh"
       - "go/cmd/reducer/ifa_fault_wiring.go"
       - "go/cmd/reducer/ifa_fault_wiring_off.go"
       - "go/cmd/ifa/assert_edges.go"

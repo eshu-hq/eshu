@@ -81,26 +81,15 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 
-	// Two independent permit pools bound reducer graph writes: a canonical gate
-	// and a semantic gate (#3560, #3652, #4448; see reducerGraphWriteGate).
-	// Splitting by class prevents a slow write on one class from exhausting the
-	// other class's permits (head-of-line blocking). rawNeo4jExec is the
-	// unbounded base for the semantic path's outside-the-timeout permit;
-	// neo4jExec and cypherExec are wrapped with the canonical gate.
-	// ifa fault injection (#4580 P6 S4, seam fixed by #5048): wraps neo4jExec
-	// (whose adapter holds the reducer's persistent RetryingExecutor) before
-	// it feeds both the canonical/edge and semantic paths. Under the
-	// ifafaultinjection tag it also arms a decorator below that RetryingExecutor
-	// so the executor-retry lane retries in place; a no-op otherwise. See
-	// ifa_fault_wiring.go / ifa_fault_wiring_off.go.
-	neo4jExec, err = wrapIfaFaultExecutor(neo4jExec, getenv, logger)
+	graphChain, err := buildReducerGraphWriteChain(neo4jExec, cypherExec, getenv, instruments, logger)
 	if err != nil {
 		return reducer.Service{}, err
 	}
-	graphWriteGate := newReducerGraphWriteGate(getenv, instruments)
-	rawNeo4jExec := neo4jExec
-	neo4jExec = graphWriteGate.boundExecutor(neo4jExec)
-	cypherExec = graphWriteGate.boundCypherExecutor(cypherExec)
+	graphWriteGate := graphChain.gate
+	rawNeo4jExec := graphChain.raw
+	neo4jExec = graphChain.canonical
+	cypherExec = graphChain.cypher
+	leaseExpiryBarrier := graphChain.barrier
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
 	edgeWriterForHandlers.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
@@ -383,6 +372,7 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
+	serviceExecutor := leaseExpiryBarrier.wrapReducer(executor)
 
 	// graphReader already satisfies OrphanSweepReader (query.GraphQuery.Run has
 	// the same shape) and is the same read port graphOrphanSweepRunnerFor uses.
@@ -398,7 +388,7 @@ func buildReducerService(
 	return reducer.Service{
 		PollInterval:               time.Second,
 		WorkSource:                 workQueue,
-		Executor:                   executor,
+		Executor:                   serviceExecutor,
 		WorkSink:                   workQueue,
 		Heartbeater:                workQueue,
 		HeartbeatInterval:          reducerHeartbeatInterval,
