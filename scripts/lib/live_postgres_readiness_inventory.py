@@ -137,6 +137,9 @@ PACKAGES = {
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),
+        "go/internal/storage/postgres/migration_169_reader_bound_live_test.go": (
+            "TestMigration169PhasedBackfillReaderBoundLive",
+        ),
         "go/internal/storage/postgres/prefetch_batch_plan_live_test.go": (
             "TestPrefetchBatchQueriesUsePrimaryKeyLive",
         ),
