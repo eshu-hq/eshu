@@ -1,5 +1,5 @@
 version: live-tests/v1
-updated_at: 2026-10-02
+updated_at: 2026-10-10
 issue: 6784
 parent_issue: 6788
 owners:
@@ -23,8 +23,9 @@ purpose: >
   legacy-scheduled exemption, or retired with
   a reason and explicit execution or exemption ownership. The graph
   live-backend CI job runs every ci-class row on its selected backend; the
-  PostgreSQL readiness job runs the postgres_ci rows. The ledger
-  validator (scripts/verify-live-tests-ledger.sh) fails on any live test
+  PostgreSQL readiness job runs its untagged postgres_ci rows; the
+  migration job runs only its exact integration-tagged postgres_ci rows. The
+  ledger validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
   pass as clean. A live test is any *_live_test.go file plus any
   *_test.go that carries a live_* build-tag atom and defines a Test func,
@@ -34,7 +35,8 @@ purpose: >
 
 design: >
   One row per *_live_test.go file. class is ci (graph live-backend CI
-  job, selected backends), postgres_ci (the named PostgreSQL runner),
+  job, selected backends), postgres_ci (the named PostgreSQL runner;
+  integration-tagged migration proofs have their own exact-file runner),
   scheduled (an exact-file legacy exemption from this ledger's verified
   runner mapping, tracked by issue 7533; independently owned blocking
   runners may exist, but a reason does not prove execution), or retired (a

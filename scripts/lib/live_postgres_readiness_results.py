@@ -66,7 +66,8 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
     selected = {}
     for path, body in rows:
         fields = dict(re.findall(r"^    (\w+): (.*)$", body, flags=re.MULTILINE))
-        if fields.get("class") == "postgres_ci":
+        if (fields.get("class") == "postgres_ci" and
+                fields.get("runner") == "live-postgres-readiness"):
             selected[path] = fields
     if set(selected) != set(EXPECTED):
         print(

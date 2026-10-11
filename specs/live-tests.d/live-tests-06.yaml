@@ -187,6 +187,16 @@ tests:
     tag: ~
     class: scheduled
     reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/migration_169_interruption_live_test.go
+    tag: integration
+    class: postgres_ci
+    reason: "#7033 owned disposable PostgreSQL 18 migration 169 backfill interruption proof; exact seven-test migration runner, no skip accepted"
+    runner: live-postgres-migrations
+  - file: go/internal/storage/postgres/migration_169_phased_live_test.go
+    tag: integration
+    class: postgres_ci
+    reason: "#7033 owned disposable PostgreSQL 18 tracked migration 169 phase and reader-lock proof; exact seven-test migration runner, no skip accepted"
+    runner: live-postgres-migrations
   - file: go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go
     tag: ~
     class: postgres_ci
