@@ -135,15 +135,25 @@ intents (0 rows before and after), so it does not cover this part.
 ## Content Version Gate
 
 `TestGenerationContentVersionPinsCollectorOutput` parses
-`testdata/content_version` (12 files in 12 formats: Go, Python, TypeScript, Java, Rust, Ruby, C#, Terraform, Dockerfile, SQL, Markdown, shell) through the production
-snapshotter and fact builder. It pins a digest of the 95 normalized facts next
-to `gitGenerationContentVersion` in `testdata/content_version_pin.json`. When
-the output moves while the constant stays the same, the test fails and tells
-the author to bump the constant. Seeded violation: appending one Python
-function to the fixture turned it RED (96 facts, new digest), and restoring the
-file turned it GREEN. `TestContentVersionFixtureDigestIsDeterministic` guards
-the gate: content-entity ids (which hash the temp checkout path) and
-`indexed_at` are normalized out.
+`testdata/content_version` (44 files) through the production snapshotter and
+fact builder. It pins a digest of the 238 normalized facts next to
+`gitGenerationContentVersion` in `testdata/content_version_pin.json`. When the
+output moves while the constant stays the same, the test fails and tells the
+author to bump the constant. Seeded violation: appending one Python function to
+the fixture turned it RED, and restoring the file turned it GREEN.
+`TestContentVersionFixtureDigestIsDeterministic` guards the gate:
+content-entity ids (which hash the temp checkout path) and `indexed_at` are
+normalized out.
+
+`TestContentVersionFixtureCoversEveryParser` (review F2) enumerates
+`parser.DefaultRegistry().ParserKeys()` (35 keys) and fails when the fixture
+has no file for one. Seeded violation: removing `jvm/pom.xml` failed it with
+`[maven]`; restoring it passed. YAML is covered by Kubernetes, Helm, Argo CD,
+CloudFormation, and GitHub workflow files.
+
+The gate is a sample of inputs, so it narrows, but cannot close, the window
+where a parser change does not move the hint (ruling a9-125). An explicit
+reindex stores the re-parse in that case.
 
 ## Graph Truth Evidence
 

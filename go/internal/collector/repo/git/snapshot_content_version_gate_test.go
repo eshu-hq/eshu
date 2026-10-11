@@ -103,6 +103,48 @@ func TestContentVersionFixtureDigestIsDeterministic(t *testing.T) {
 	}
 }
 
+// TestContentVersionFixtureCoversEveryParser keeps the content-version gate
+// honest as parsers are added (review F2 on #7978): every parser the default
+// registry dispatches to must parse at least one file of
+// testdata/content_version, or a change to that parser could ship without a
+// version bump and leave unchanged repositories on old facts. The list comes
+// from parser.DefaultRegistry, so a new parser fails here until the fixture
+// gets a file for it. The gate still samples inputs; an explicit reindex is the
+// remedy for a parser change it misses (ruling a9-125).
+func TestContentVersionFixtureCoversEveryParser(t *testing.T) {
+	t.Parallel()
+	registry := parser.DefaultRegistry()
+	covered := map[string]string{}
+	err := filepath.WalkDir("testdata/content_version", func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return walkErr
+		}
+		rel, err := filepath.Rel("testdata/content_version", path)
+		if err != nil {
+			return err
+		}
+		if definition, ok := registry.LookupByPath(filepath.ToSlash(rel)); ok {
+			if _, seen := covered[definition.ParserKey]; !seen {
+				covered[definition.ParserKey] = rel
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk fixture: %v", err)
+	}
+	var missing []string
+	for _, key := range registry.ParserKeys() {
+		if _, ok := covered[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) > 0 {
+		t.Fatalf("testdata/content_version has no file for parser keys %v: add one per key, then bump "+
+			"gitGenerationContentVersion only if existing output changed, and re-pin with -update-content-version-pin", missing)
+	}
+}
+
 // contentVersionFixtureDigest copies testdata/content_version to a temp root,
 // snapshots it with the production parser engine, builds its fact stream, and
 // returns a digest of the facts with the temp root, content-entity ids, and
