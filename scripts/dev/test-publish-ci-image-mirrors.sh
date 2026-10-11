@@ -191,6 +191,40 @@ for index in "${!row_names[@]}"; do
   [[ -f "${scratch}/${row_names[index]}" ]] || fail "rerun did not restore ${row_names[index]}"
 done
 
+# A malformed row that follows a valid row must stop both modes with a named
+# error. It must not inherit the valid row's name, source, target or digest and
+# publish or verify that row a second time under the broken row's position.
+zero_digest='sha256:0000000000000000000000000000000000000000000000000000000000000000'
+malformed_rows=(
+  'broken|mirror.gcr.io/library/broken'
+  ''
+  "|mirror.gcr.io/library/x|ci-x|${zero_digest}"
+  'bad-digest|mirror.gcr.io/library/x|ci-x|sha256:abc'
+  "extra|mirror.gcr.io/library/x|ci-x|${zero_digest}|surplus"
+)
+for malformed in "${malformed_rows[@]}"; do
+  awk -v bad="${malformed}" '
+    { print }
+    /^  \047postgres-alpine\|/ && !done { print "  \047" bad "\047"; done = 1 }
+  ' "${publisher}" > "${scratch}/malformed-publisher.sh"
+  [[ "$(rg -c '^  .postgres-alpine\|' "${scratch}/malformed-publisher.sh")" == 1 ]] ||
+    fail 'seeded malformed publisher lost its first row'
+  [[ "$(awk '/^readonly mirror_rows=\(/ { inside = 1; next } inside && /^\)/ { exit } inside { n++ } END { print n }' \
+    "${scratch}/malformed-publisher.sh")" == "$((row_count + 1))" ]] ||
+    fail "seeded malformed row was not inserted: ${malformed}"
+  for mode in publish verify-public; do
+    before_copies="$(copy_count)"
+    expect_failure bash "${scratch}/malformed-publisher.sh" "${mode}"
+    rg -Fq -- 'malformed mirror row' "${scratch}/out" ||
+      fail "${mode}: malformed row was not reported by name: ${malformed}"
+    [[ "$(copy_count)" == "${before_copies}" ]] ||
+      fail "${mode}: malformed row caused a copy: ${malformed}"
+    # The first row is read once. A second line means the broken row reused it.
+    [[ "$(rg -c '^(published|already published|public) postgres-alpine ' "${scratch}/out")" == 1 ]] ||
+      fail "${mode}: malformed row reused the previous row: ${malformed}"
+  done
+done
+
 # After bootstrap, the publisher must reject the temporary branch.
 before_copies="$(copy_count)"
 export GITHUB_REF=refs/heads/fix/ci-owned-image-mirror-20261009

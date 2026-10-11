@@ -50,10 +50,17 @@ which holds `DefaultImage` and `TrustedRepo`; commit `0dbe87f`).
 That image is a moving tag. The mirror pins the index it resolved to on
 2026-10-10, so a later consumer switch sets
 `driver-opts: image=ghcr.io/eshu-hq/ci-buildkit@sha256:...` and no longer follows
-the tag. Buildx verifies a tag only inside the `docker.io/moby/buildkit`
-repository, so an image from another registry needs no `allow-untrusted-image`
-driver option. The BuildKit digest has no pin in the tree yet: this change adds
-the package and no consumer.
+the tag. At `v0.38.0`, buildx verifies a tag only inside the
+`docker.io/moby/buildkit` repository: `VerifyImageRef` returns a reference
+unchanged when it is pinned by digest without a tag, or when it is outside that
+repository
+([`driver/image.go` lines 15-38 at `0dbe87f`](https://github.com/docker/buildx/blob/0dbe87f36ed472fe36b6796c3f70b4210a731fc5/driver/image.go#L15-L38)).
+A `ghcr.io/eshu-hq/ci-buildkit@sha256:...` reference is both, so it is expected
+to need no `allow-untrusted-image` driver option. That is a reading of the
+`v0.38.0` source, not a run. The `docker/setup-buildx-action` steps set no
+`version:` input, so the buildx on a runner can differ from `v0.38.0`. The
+consumer switch (PR-S2) is the first build that exercises it. The BuildKit
+digest has no pin in the tree yet: this change adds the package and no consumer.
 
 The source references of the build-base rows keep the Dockerfile tag next to
 the digest for provenance. The registry resolves the digest and ignores the tag.

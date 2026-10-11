@@ -18,6 +18,7 @@ readonly mirror_rows=(
   'buildkit|mirror.gcr.io/moby/buildkit:buildx-stable-1|ci-buildkit|sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea'
 )
 readonly crane_bin="${CRANE_BIN:-crane}"
+readonly digest_pattern='^sha256:[0-9a-f]{64}$'
 
 if [[ "$#" -ne 1 ]]; then
   printf 'usage: %s publish|verify-public\n' "$0" >&2
@@ -95,18 +96,39 @@ verify_public_one() {
   printf 'public %s %s %s\n' "${name}" "${target}" "${observed}"
 }
 
-# Split one row into name, source, target and digest. The source and the target
-# both carry the row's own digest, so a copy cannot change it.
+# Split one row into row_name, row_source, row_target and row_digest. These
+# four globals are the results of this function, by contract. They are emptied
+# on entry and set only when the row has exactly four fields and a well-formed
+# digest, so a malformed row leaves them empty and never holds the previous
+# row's values. The source and the target both carry the row's own digest, so a
+# copy cannot change it. Do not read the results without load_row: it stops on
+# an empty result. This script avoids `local -g` (bash 4.2) so that it runs on
+# the bash 3.2 that macOS ships, like the other scripts in this directory.
 split_row() {
-  local row="$1" repository package
-  IFS='|' read -r row_name repository package row_digest <<< "${row}"
-  row_source="${repository}@${row_digest}"
-  row_target="ghcr.io/eshu-hq/${package}@${row_digest}"
+  local row="$1" name repository package digest extra=''
+  row_name='' row_source='' row_target='' row_digest=''
+  IFS='|' read -r name repository package digest extra <<< "${row}"
+  [[ -n "${name}" && -n "${repository}" && -n "${package}" && -z "${extra}" &&
+     "${digest}" =~ ${digest_pattern} ]] || return 0
+  row_name="${name}"
+  row_source="${repository}@${digest}"
+  row_target="ghcr.io/eshu-hq/${package}@${digest}"
+  row_digest="${digest}"
+}
+
+# Split one row and stop when it is malformed. A table row that cannot be read
+# is a defect in this file, so the run fails before it copies or verifies it.
+load_row() {
+  split_row "$1"
+  if [[ -z "${row_name}" || -z "${row_source}" || -z "${row_target}" || -z "${row_digest}" ]]; then
+    printf 'malformed mirror row: %s\n' "$1" >&2
+    exit 1
+  fi
 }
 
 if [[ "$1" == publish ]]; then
   for row in "${mirror_rows[@]}"; do
-    split_row "${row}"
+    load_row "${row}"
     publish_one "${row_name}" "${row_source}" "${row_target}" "${row_digest}"
   done
   printf 'New GHCR packages may be private. Make all %s public, then run verify-public before changing consumers.\n' "${#mirror_rows[@]}"
@@ -119,6 +141,6 @@ anonymous_config="$(mktemp -d)"
 trap 'rm -r -- "${anonymous_config}"' EXIT
 export DOCKER_CONFIG="${anonymous_config}"
 for row in "${mirror_rows[@]}"; do
-  split_row "${row}"
+  load_row "${row}"
   verify_public_one "${row_name}" "${row_target}" "${row_digest}"
 done
