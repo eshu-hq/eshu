@@ -62,8 +62,15 @@ Neither alert covers a reducer that runs no census pass at all (the reducer
 is down, or `ESHU_ID_ANCHOR_CENSUS_ENABLED=false`): it exports none of these
 series. A reducer that is down is caught by the runtime health alerts, not by
 these. Because `increase()` does not count the first sample of a new series,
-the failed-pass clause fires from the second failed pass after a restart (about
-one poll interval later), then after the 15m `for`.
+the failed-pass clause becomes true from the second failed pass after a
+restart. `unless` holds it back while any pass succeeded in the last 3h, so
+the page timing depends on history:
+
+- A fresh install with no earlier success pages about one poll interval after
+  the restart (the second failed pass), then after the 15m `for`.
+- A rollout of a previously healthy reducer pages about three intervals after
+  the last success, when the predecessor's ok samples leave the 3h window,
+  then after the 15m `for`. This matches the alert summary.
 
 ## When it is nonzero
 

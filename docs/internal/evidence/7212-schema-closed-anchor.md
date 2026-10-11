@@ -170,8 +170,11 @@ No new metric, but two new alerts on the existing census gauges (review round
 `alert_rule_test.go` in `go/internal/reducer/maintenance/census` checks four
 things: the two files carry the same expression, duration, and severity; each
 expression reads the gauges it needs; each metric it reads is one the telemetry
-package registers; and each alert has a runbook. Five planted violations prove
-the check has teeth. The runbook is in
+package registers; and each alert has a runbook. Six planted violations prove
+the check has teeth: an alert dropped from the operator file, a threshold that
+differs between the files, the empty-graph guard removed, a renamed metric, the
+failed-without-success clause dropped from both files, and a runbook removed.
+The runbook is in
 `docs/public/reference/telemetry/id-anchor-census.md`.
 
 ## Gates moved with the change
