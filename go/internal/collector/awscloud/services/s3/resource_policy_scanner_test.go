@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
@@ -88,7 +89,7 @@ func TestScannerEmitsNoResourcePolicyPermissionFactWithoutPolicy(t *testing.T) {
 func countResourcePolicyPermissions(envelopes []facts.Envelope) int {
 	var count int
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSResourcePolicyPermissionFactKind {
+		if envelope.FactKind == cloud.AWSResourcePolicyPermissionFactKind {
 			count++
 		}
 	}
@@ -98,7 +99,7 @@ func countResourcePolicyPermissions(envelopes []facts.Envelope) int {
 func resourcePolicyPermissionByEffect(t *testing.T, envelopes []facts.Envelope, effect string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourcePolicyPermissionFactKind {
+		if envelope.FactKind != cloud.AWSResourcePolicyPermissionFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["effect"].(string); got == effect {

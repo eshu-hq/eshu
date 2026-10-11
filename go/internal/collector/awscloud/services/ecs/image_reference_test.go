@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -55,8 +56,8 @@ func TestScannerEmitsImageReferenceForRunningECRContainer(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSImageReferenceFactKind] != 1 {
-		t.Fatalf("aws_image_reference count = %d, want 1: %#v", counts[facts.AWSImageReferenceFactKind], envelopes)
+	if counts[cloud.AWSImageReferenceFactKind] != 1 {
+		t.Fatalf("aws_image_reference count = %d, want 1: %#v", counts[cloud.AWSImageReferenceFactKind], envelopes)
 	}
 	envelope := imageReferenceEnvelope(t, envelopes)
 	assertPayloadString(t, envelope, "account_id", "123456789012")
@@ -98,7 +99,7 @@ func TestScannerSkipsImageReferenceForBlankDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	if got := factKindCounts(envelopes)[facts.AWSImageReferenceFactKind]; got != 0 {
+	if got := factKindCounts(envelopes)[cloud.AWSImageReferenceFactKind]; got != 0 {
 		t.Fatalf("aws_image_reference count = %d, want 0 for blank digest", got)
 	}
 }
@@ -135,7 +136,7 @@ func TestScannerSkipsImageReferenceForNonECRImage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	if got := factKindCounts(envelopes)[facts.AWSImageReferenceFactKind]; got != 0 {
+	if got := factKindCounts(envelopes)[cloud.AWSImageReferenceFactKind]; got != 0 {
 		t.Fatalf("aws_image_reference count = %d, want 0 for non-ECR image", got)
 	}
 }
@@ -170,7 +171,7 @@ func TestScannerSkipsImageReferenceForNonRunningTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	if got := factKindCounts(envelopes)[facts.AWSImageReferenceFactKind]; got != 0 {
+	if got := factKindCounts(envelopes)[cloud.AWSImageReferenceFactKind]; got != 0 {
 		t.Fatalf("aws_image_reference count = %d, want 0 for a non-RUNNING task", got)
 	}
 }
@@ -258,7 +259,7 @@ func TestParseECRImage(t *testing.T) {
 func imageReferenceEnvelope(t *testing.T, envelopes []facts.Envelope) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.AWSImageReferenceFactKind {
+		if envelope.FactKind == cloud.AWSImageReferenceFactKind {
 			return envelope
 		}
 	}

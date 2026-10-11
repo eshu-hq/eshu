@@ -5,6 +5,7 @@ package perform
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -60,7 +61,7 @@ func BuildIAMCanPerformMaterializationReducerIntent(
 				}
 				_, qualifies := iamCanPerformIdentityPolicySources[permission.PolicySource]
 				return qualifies
-			case facts.AWSResourcePolicyPermissionFactKind:
+			case cloud.AWSResourcePolicyPermissionFactKind:
 				_, err := decodeIAMCanPerformAWSResourcePolicyPermission(envelope)
 				return err == nil
 			default:
@@ -68,7 +69,7 @@ func BuildIAMCanPerformMaterializationReducerIntent(
 			}
 		},
 		facts.AWSIAMPermissionFactKind,
-		facts.AWSResourcePolicyPermissionFactKind,
+		cloud.AWSResourcePolicyPermissionFactKind,
 	)
 	if !ok {
 		return projectorintent.ReducerIntent{}, false

@@ -48,7 +48,7 @@ func s3Contract() contract.CollectorContract {
 				},
 			},
 			{
-				Kind: facts.AWSResourcePolicyPermissionFactKind,
+				Kind: cloud.AWSResourcePolicyPermissionFactKind,
 				RequiredPayloadKeys: []string{
 					"account_id", "region", "service_kind", "collector_instance_id",
 					"resource_arn", "resource_type", "effect", "actions",

@@ -40,7 +40,7 @@ func TestContainerImageIdentityHandlerQuarantinesAWSImageReferenceMissingRegion(
 
 	malformed := facts.Envelope{
 		FactID:   "malformed-aws-image",
-		FactKind: facts.AWSImageReferenceFactKind,
+		FactKind: cloud.AWSImageReferenceFactKind,
 		Payload: map[string]any{
 			// "region" intentionally absent.
 			"account_id":      "123456789012",
@@ -194,7 +194,7 @@ func TestContainerImageIdentityHandlerQuarantineReplayIsIdempotent(t *testing.T)
 
 	malformed := facts.Envelope{
 		FactID:   "malformed-aws-image-replay",
-		FactKind: facts.AWSImageReferenceFactKind,
+		FactKind: cloud.AWSImageReferenceFactKind,
 		Payload: map[string]any{
 			// "region" intentionally absent.
 			"account_id":      "123456789012",

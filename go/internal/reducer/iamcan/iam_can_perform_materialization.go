@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -189,7 +190,7 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 			facts.AWSResourceFactKind,
 			facts.AWSIAMPermissionFactKind,
 			facts.AWSIAMPermissionBoundaryFactKind,
-			facts.AWSResourcePolicyPermissionFactKind,
+			cloud.AWSResourcePolicyPermissionFactKind,
 		},
 	)
 	if err != nil {
@@ -453,7 +454,7 @@ func splitIAMCanPerformEnvelopes(envelopes []facts.Envelope) (resources, permiss
 			permissions = append(permissions, env)
 		case facts.AWSIAMPermissionBoundaryFactKind:
 			permissionBoundaries = append(permissionBoundaries, env)
-		case facts.AWSResourcePolicyPermissionFactKind:
+		case cloud.AWSResourcePolicyPermissionFactKind:
 			resourcePolicies = append(resourcePolicies, env)
 		}
 	}

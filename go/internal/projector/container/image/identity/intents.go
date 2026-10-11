@@ -31,7 +31,7 @@ var candidateFactKinds = []string{
 	chain.OCIImageIndexFactKind,
 	chain.OCIImageTagObservationFactKind,
 	chain.OCIImageReferrerFactKind,
-	facts.AWSImageReferenceFactKind,
+	cloud.AWSImageReferenceFactKind,
 	cloud.AzureImageReferenceFactKind,
 	cloud.GCPImageReferenceFactKind,
 	facts.AWSRelationshipFactKind,
@@ -79,7 +79,7 @@ func triggerFact(envelope facts.Envelope) bool {
 		chain.OCIImageTagObservationFactKind,
 		chain.OCIImageReferrerFactKind:
 		return true
-	case facts.AWSImageReferenceFactKind:
+	case cloud.AWSImageReferenceFactKind:
 		return true
 	case cloud.AzureImageReferenceFactKind:
 		return true

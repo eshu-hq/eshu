@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsECRRepositoriesImagesAndLifecyclePolicies(t *testing.T) {
@@ -58,8 +59,8 @@ func TestScannerEmitsECRRepositoriesImagesAndLifecyclePolicies(t *testing.T) {
 	if counts[facts.AWSResourceFactKind] != 2 {
 		t.Fatalf("aws_resource count = %d, want 2", counts[facts.AWSResourceFactKind])
 	}
-	if counts[facts.AWSImageReferenceFactKind] != 2 {
-		t.Fatalf("aws_image_reference count = %d, want 2", counts[facts.AWSImageReferenceFactKind])
+	if counts[cloud.AWSImageReferenceFactKind] != 2 {
+		t.Fatalf("aws_image_reference count = %d, want 2", counts[cloud.AWSImageReferenceFactKind])
 	}
 	assertResourceType(t, envelopes, awscloud.ResourceTypeECRRepository)
 	assertResourceType(t, envelopes, awscloud.ResourceTypeECRLifecyclePolicy)
@@ -161,7 +162,7 @@ func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType s
 func assertImageReference(t *testing.T, envelopes []facts.Envelope, repository string, digest string, tag string) {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSImageReferenceFactKind {
+		if envelope.FactKind != cloud.AWSImageReferenceFactKind {
 			continue
 		}
 		if envelope.Payload["repository_name"] == repository &&

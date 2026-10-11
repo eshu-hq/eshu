@@ -111,7 +111,7 @@ func TestSchemaVersionDispatchesToFamilies(t *testing.T) {
 	}{
 		{"terraform state", cloud.TerraformStateFactKinds()[0]},
 		{"oci registry", chain.OCIRegistryFactKinds()[0]},
-		{"aws", AWSFactKinds()[0]},
+		{"aws", cloud.AWSFactKinds()[0]},
 		{"observability", ObservabilityFactKinds()[0]},
 	}
 	for _, tc := range cases {

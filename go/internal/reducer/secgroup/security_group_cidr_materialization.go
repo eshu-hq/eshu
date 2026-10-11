@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -152,7 +153,7 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSSecurityGroupRuleFactKind},
+		[]string{cloud.AWSSecurityGroupRuleFactKind},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for security group cidr materialization: %w", err)
@@ -266,7 +267,7 @@ func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, pre
 	cidrByUID := make(map[string]map[string]any)
 	prefixByUID := make(map[string]map[string]any)
 	for _, env := range envelopes {
-		if env.FactKind != facts.AWSSecurityGroupRuleFactKind {
+		if env.FactKind != cloud.AWSSecurityGroupRuleFactKind {
 			continue
 		}
 		// A tombstoned rule no longer grants reachability, so its endpoint is not

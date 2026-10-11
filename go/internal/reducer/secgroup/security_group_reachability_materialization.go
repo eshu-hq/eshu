@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -188,7 +189,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind, facts.AWSSecurityGroupRuleFactKind},
+		[]string{facts.AWSResourceFactKind, cloud.AWSSecurityGroupRuleFactKind},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for security group reachability materialization: %w", err)
@@ -421,7 +422,7 @@ func splitSecurityGroupReachabilityEnvelopes(envelopes []facts.Envelope) (resour
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.AWSSecurityGroupRuleFactKind:
+		case cloud.AWSSecurityGroupRuleFactKind:
 			rules = append(rules, env)
 		}
 	}

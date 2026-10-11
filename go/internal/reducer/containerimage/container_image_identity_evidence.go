@@ -166,7 +166,7 @@ func extractContainerImageRefsWithQuarantine(
 				containerImageAnchorsFromEnvelope(envelope),
 				envelope.FactID,
 			)
-		case facts.AWSImageReferenceFactKind:
+		case cloud.AWSImageReferenceFactKind:
 			q, ok, fatal := addAWSImageReference(byRef, envelope)
 			if fatal != nil {
 				return nil, nil, nil, fatal
