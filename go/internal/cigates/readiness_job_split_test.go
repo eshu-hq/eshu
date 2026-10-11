@@ -238,7 +238,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	if problem := checkReadinessSplit(workflow, *gate); problem != "" {
 		t.Fatal(problem)
 	}
-	t.Run("merge queue selects both proof jobs", func(t *testing.T) {
+	t.Run("merge queue selects both proof jobs via the shared ci.job token", func(t *testing.T) {
 		selection, err := SelectQueueWorkflow(
 			[]*Registry{registry},
 			[]string{"go/internal/cigates/readiness_job_split_test.go"},
