@@ -256,6 +256,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-images.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-compose.sh"
 # shellcheck source=lib/dockerhub-login-queue.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-queue.sh"
+# shellcheck source=lib/dockerhub-login-matrix.sh disable=SC2034
+source "${repo_root}/scripts/lib/dockerhub-login-matrix.sh"
 
 # check_job <workflow> <job> <workflow env> <queue 0|1>: evaluates one job. A job
 # of a queue-path workflow must not reach Docker Hub or keep any Docker Hub login
@@ -439,20 +441,7 @@ for wf in ${wf_files[@]+"${wf_files[@]}"}; do
   rm -rf "${tmp}/runs"; mkdir -p "${tmp}/runs"
   yq e '.jobs | to_entries | .[] | select(.value.steps | type == "!!seq") | select(.value.steps | length > 0) | ((.value.steps // []) | to_entries | .[] | ("@@STEP\n" + (.value.run // "")))' "${wf}" |
     awk -v dir="${tmp}/runs" '/^@@STEP$/ { if (out != "") close(out); n++; out = dir "/" n; next } { print > out }'
-  # A step that reads ${{ matrix.KEY }} is expanded once per static matrix cell.
-  if rg -q -F -e '${{ matrix.' -e '${{matrix.' "${tmp}/runs" 2>/dev/null; then
-    yq e '.jobs | to_entries | .[] | .key as $j | ((.value.steps // []) | .[] | $j + "")' "${wf}" >"${tmp}/stepjobs.txt"
-    yq e '.jobs | to_entries | .[] | .key as $j | (.value.strategy.matrix | select(tag == "!!map")) as $m | (
-        (($m.include // []) | .[] | select(tag == "!!map") | ["I", $j, (to_entries | map(select((.value | tag) != "!!map" and (.value | tag) != "!!seq") | .key + "=" + (.value | tostring)) | join(";;"))] | join("\t")),
-        ($m | to_entries | .[] | select(.key != "include" and .key != "exclude" and (.value | tag) == "!!seq") | ["X", $j, .key, ((.value | map(tostring)) | join("@@"))] | join("\t")))' "${wf}" >"${tmp}/matrix.tsv"
-    sn=0
-    while IFS= read -r sjob; do
-      sn=$((sn + 1))
-      [[ -f "${tmp}/runs/${sn}" ]] && rg -q -e '\$\{\{ *matrix\.' "${tmp}/runs/${sn}" || continue
-      awk -v job="${sjob}" -v mfile="${tmp}/matrix.tsv" -f "${repo_root}/scripts/lib/dockerhub-login-matrix.awk" "${tmp}/runs/${sn}" >"${tmp}/runs/${sn}.x"
-      mv "${tmp}/runs/${sn}.x" "${tmp}/runs/${sn}"
-    done <"${tmp}/stepjobs.txt"
-  fi
+  matrix_expand_runs "${wf}"
   runs_other=$'\n'; runs_compose=$'\n'; runs_unclass=$'\n'; runs_var=$'\n'; runs_dock=$'\n'
   while IFS= read -r v; do unset "${v}"; done < <(compgen -v RO_ || true; compgen -v RU_ || true; compgen -v RV_ || true)
   run_inputs=()
