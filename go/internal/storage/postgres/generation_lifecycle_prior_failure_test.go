@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 // #7385: a superseded work item keeps its old failure under
@@ -33,10 +33,10 @@ func lifecycleRowWithDetails(failureDetails string) []any {
 	return row
 }
 
-func listLifecycleFailure(t *testing.T, failureDetails string) *statuspkg.GenerationLatestFailure {
+func listLifecycleFailure(t *testing.T, failureDetails string) *generation.LatestFailure {
 	t.Helper()
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{lifecycleRowWithDetails(failureDetails)}}}}
-	page, err := NewStatusStore(queryer).ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{Limit: 50})
+	page, err := NewStatusStore(queryer).ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{Limit: 50})
 	if err != nil {
 		t.Fatalf("ListGenerationLifecycle() error = %v, want nil for any failure_details text", err)
 	}
@@ -54,7 +54,7 @@ func TestListGenerationLifecycleParsesPriorFailure(t *testing.T) {
 		`"updated_at":"2026-06-09T09:00:00.123456+00:00"}}`
 	failure := listLifecycleFailure(t, details)
 
-	want := statuspkg.GenerationPriorFailure{
+	want := generation.PriorFailure{
 		Status:         "dead_letter",
 		FailureClass:   "graph_write_timeout",
 		FailureMessage: "neo4j execute group timed out",
@@ -94,7 +94,7 @@ func TestListGenerationLifecycleQuerySelectsFailureDetails(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: nil}}}
-	if _, err := NewStatusStore(queryer).ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{Limit: 5}); err != nil {
+	if _, err := NewStatusStore(queryer).ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{Limit: 5}); err != nil {
 		t.Fatalf("ListGenerationLifecycle() error = %v", err)
 	}
 	if len(queryer.queries) == 0 || !strings.Contains(queryer.queries[0], "work.failure_details") {

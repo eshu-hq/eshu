@@ -11,20 +11,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 type recordingGenerations struct {
 	called bool
-	filter status.GenerationLifecycleFilter
+	filter generation.LifecycleFilter
 }
 
 func (r *recordingGenerations) ListGenerationLifecycle(
-	_ context.Context, filter status.GenerationLifecycleFilter,
-) (status.GenerationLifecyclePage, error) {
+	_ context.Context, filter generation.LifecycleFilter,
+) (generation.LifecyclePage, error) {
 	r.called = true
 	r.filter = filter
-	return status.GenerationLifecyclePage{}, nil
+	return generation.LifecyclePage{}, nil
 }
 
 // TestGenerationLifecycleBindsGrantForGenerationIDOnlyQuery is the #5167

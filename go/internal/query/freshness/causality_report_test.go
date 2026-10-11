@@ -8,6 +8,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 func causeStatus(t *testing.T, fc Causality, cause Cause) CauseStatus {
@@ -130,7 +131,7 @@ func TestFreshnessCausalityRetractionTransitions(t *testing.T) {
 	fc := freshnessCausalityFromReport(statuspkg.Report{
 		AsOf:              time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
 		GenerationHistory: statuspkg.GenerationHistorySnapshot{Active: 2, Superseded: 3},
-		GenerationTransitions: []statuspkg.GenerationTransitionSnapshot{
+		GenerationTransitions: []generation.TransitionSnapshot{
 			{ScopeID: "scope-1", GenerationID: "gen-old", Status: "superseded", SupersededAt: time.Date(2026, 6, 19, 2, 0, 0, 0, time.UTC)},
 		},
 	})

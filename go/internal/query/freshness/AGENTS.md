@@ -137,6 +137,6 @@ The root `freshness_alias.go` keeps every old exported spelling for staying
 callers. `causality_report.go`'s `Transition.FreshnessHint` field is an
 exception the naming audit flags and this file explains: it is a struct
 field (out of scope for the rule-4 exported-identifier check per the move
-brief), and it keeps the exact name of the `status.GenerationTransitionSnapshot
+brief), and it keeps the exact name of the `generation.TransitionSnapshot
 .FreshnessHint` field it copies in `freshnessTransitions` -- renaming it
 would diverge from that source field's name for no benefit.

@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -20,7 +20,7 @@ const generationLifecycleRoute = "GET /api/v0/freshness/generations"
 // lifecycle drilldown rows. It is implemented by the Postgres status store and
 // consumed here so the handler does not depend on a concrete database driver.
 type GenerationLifecycleReader interface {
-	ListGenerationLifecycle(context.Context, status.GenerationLifecycleFilter) (status.GenerationLifecyclePage, error)
+	ListGenerationLifecycle(context.Context, generation.LifecycleFilter) (generation.LifecyclePage, error)
 }
 
 // Handler exposes the bounded generation lifecycle drilldown and the
@@ -84,7 +84,7 @@ func (h *Handler) listGenerationLifecycle(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	filter := status.GenerationLifecycleFilter{
+	filter := generation.LifecycleFilter{
 		ScopeID:       querycontract.QueryParam(r, "scope_id"),
 		Repository:    querycontract.QueryParam(r, "repository"),
 		CollectorKind: querycontract.QueryParam(r, "collector_kind"),
@@ -152,7 +152,7 @@ func (h *Handler) listGenerationLifecycle(w http.ResponseWriter, r *http.Request
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, h.truthEnvelope(page))
 }
 
-func (h *Handler) truthEnvelope(page status.GenerationLifecyclePage) *querycontract.TruthEnvelope {
+func (h *Handler) truthEnvelope(page generation.LifecyclePage) *querycontract.TruthEnvelope {
 	envelope := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		GenerationLifecycleCapability,
@@ -169,11 +169,11 @@ func (h *Handler) truthEnvelope(page status.GenerationLifecyclePage) *querycontr
 func (h *Handler) parseLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 	raw := querycontract.QueryParam(r, "limit")
 	if raw == "" {
-		return status.DefaultGenerationLifecycleLimit, true
+		return generation.DefaultLifecycleLimit, true
 	}
 	limit := querycontract.QueryParamInt(r, "limit", -1)
-	if limit <= 0 || limit > status.MaxGenerationLifecycleLimit {
-		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", status.MaxGenerationLifecycleLimit))
+	if limit <= 0 || limit > generation.MaxLifecycleLimit {
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", generation.MaxLifecycleLimit))
 		return 0, false
 	}
 	return limit, true
@@ -200,7 +200,7 @@ func knownGenerationLifecycleStatus(value string) bool {
 	}
 }
 
-func generationLifecycleHasBuilding(records []status.GenerationLifecycleRecord) bool {
+func generationLifecycleHasBuilding(records []generation.LifecycleRecord) bool {
 	for _, record := range records {
 		if record.Status == "pending" || record.QueueStatus.Outstanding > 0 {
 			return true
@@ -209,14 +209,14 @@ func generationLifecycleHasBuilding(records []status.GenerationLifecycleRecord) 
 	return false
 }
 
-func generationLifecycleNotFoundCode(filter status.GenerationLifecycleFilter) querycontract.ErrorCode {
+func generationLifecycleNotFoundCode(filter generation.LifecycleFilter) querycontract.ErrorCode {
 	if filter.ScopeID != "" || filter.Repository != "" {
 		return querycontract.ErrorCodeScopeNotFound
 	}
 	return querycontract.ErrorCodeNotFound
 }
 
-func generationLifecycleNotFoundMessage(filter status.GenerationLifecycleFilter) string {
+func generationLifecycleNotFoundMessage(filter generation.LifecycleFilter) string {
 	switch {
 	case filter.GenerationID != "":
 		return fmt.Sprintf("no generation lifecycle record for generation_id %q", filter.GenerationID)
@@ -229,7 +229,7 @@ func generationLifecycleNotFoundMessage(filter status.GenerationLifecycleFilter)
 	}
 }
 
-func generationLifecycleSpanAttributes(page status.GenerationLifecyclePage) []attribute.KeyValue {
+func generationLifecycleSpanAttributes(page generation.LifecyclePage) []attribute.KeyValue {
 	activeCount := 0
 	failureCount := 0
 	for _, record := range page.Records {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 // Freshness causality observability classes. A runtime cause is visible from
@@ -224,7 +225,7 @@ func freshnessGenerations(h status.GenerationHistorySnapshot) Generations {
 	}
 }
 
-func freshnessTransitions(rows []status.GenerationTransitionSnapshot) []Transition {
+func freshnessTransitions(rows []generation.TransitionSnapshot) []Transition {
 	out := make([]Transition, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, Transition{

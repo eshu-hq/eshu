@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 func TestBuildReportIncludesGenerationTransitions(t *testing.T) {
@@ -17,7 +18,7 @@ func TestBuildReportIncludesGenerationTransitions(t *testing.T) {
 	report := status.BuildReport(
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 4, 12, 16, 0, 0, 0, time.UTC),
-			GenerationTransitions: []status.GenerationTransitionSnapshot{
+			GenerationTransitions: []generation.TransitionSnapshot{
 				{
 					ScopeID:                   "scope-1",
 					GenerationID:              "generation-a",
@@ -48,7 +49,7 @@ func TestRenderTextIncludesGenerationTransitions(t *testing.T) {
 	report := status.BuildReport(
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 4, 12, 16, 0, 0, 0, time.UTC),
-			GenerationTransitions: []status.GenerationTransitionSnapshot{
+			GenerationTransitions: []generation.TransitionSnapshot{
 				{
 					ScopeID:                   "scope-1",
 					GenerationID:              "generation-b",
@@ -82,7 +83,7 @@ func TestRenderJSONIncludesGenerationTransitions(t *testing.T) {
 	report := status.BuildReport(
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 4, 12, 16, 0, 0, 0, time.UTC),
-			GenerationTransitions: []status.GenerationTransitionSnapshot{
+			GenerationTransitions: []generation.TransitionSnapshot{
 				{
 					ScopeID:                   "scope-1",
 					GenerationID:              "generation-a",

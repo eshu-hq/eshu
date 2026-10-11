@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 func TestPrintAdminStatusVersionFlagReturnsBeforePostgresOpen(t *testing.T) {
@@ -50,7 +51,7 @@ func TestRenderStatusOutputsTextFromSharedStatusReport(t *testing.T) {
 				{Name: "completed", Count: 2},
 				{Name: "superseded", Count: 1},
 			},
-			GenerationTransitions: []statuspkg.GenerationTransitionSnapshot{
+			GenerationTransitions: []generation.TransitionSnapshot{
 				{
 					ScopeID:       "scope-1",
 					GenerationID:  "generation-b",
@@ -124,7 +125,7 @@ func TestRenderStatusOutputsJSONFromSharedStatusReport(t *testing.T) {
 				{Name: "superseded", Count: 1},
 				{Name: "failed", Count: 1},
 			},
-			GenerationTransitions: []statuspkg.GenerationTransitionSnapshot{
+			GenerationTransitions: []generation.TransitionSnapshot{
 				{
 					ScopeID:                   "scope-2",
 					GenerationID:              "generation-c",

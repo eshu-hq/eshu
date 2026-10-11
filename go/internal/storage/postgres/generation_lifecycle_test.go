@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 func lifecycleRow(
@@ -48,7 +48,7 @@ func TestListGenerationLifecycleActiveRecord(t *testing.T) {
 	}}}}
 	store := NewStatusStore(queryer)
 
-	page, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{
+	page, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{
 		ScopeID: "git-repository-scope:acme/app",
 		Limit:   50,
 	})
@@ -97,7 +97,7 @@ func TestListGenerationLifecyclePendingBuildingRecord(t *testing.T) {
 	}}}}
 	store := NewStatusStore(queryer)
 
-	page, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{
+	page, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{
 		Repository: "acme/app",
 		Limit:      50,
 	})
@@ -129,7 +129,7 @@ func TestListGenerationLifecycleSupersededRecord(t *testing.T) {
 	}}}}
 	store := NewStatusStore(queryer)
 
-	page, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{
+	page, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{
 		GenerationID: "gen-old",
 		Limit:        50,
 	})
@@ -162,7 +162,7 @@ func TestListGenerationLifecycleFailedRecordCarriesLatestFailure(t *testing.T) {
 	}}}}
 	store := NewStatusStore(queryer)
 
-	page, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{
+	page, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{
 		ScopeID: "git-repository-scope:acme/app",
 		Status:  "failed",
 		Limit:   50,
@@ -204,7 +204,7 @@ func TestListGenerationLifecycleTruncatesAtLimit(t *testing.T) {
 
 	// limit 2 means the reader fetched limit+1 = 3 rows and must report
 	// truncation while trimming the page back to 2.
-	page, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{
+	page, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{
 		CollectorKind: "git",
 		Limit:         2,
 	})
@@ -236,7 +236,7 @@ func TestListGenerationLifecycleSkippedRefreshHasNoOutstandingQueue(t *testing.T
 	}}}}
 	store := NewStatusStore(queryer)
 
-	page, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{
+	page, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{
 		ScopeID: "git-repository-scope:acme/app",
 		Limit:   50,
 	})
@@ -258,8 +258,8 @@ func TestListGenerationLifecyclePassesNormalizedLimitPlusOne(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{{}}}
 	store := NewStatusStore(queryer)
 
-	if _, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{
-		Limit: statuspkg.MaxGenerationLifecycleLimit + 100,
+	if _, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{
+		Limit: generation.MaxLifecycleLimit + 100,
 	}); err != nil {
 		t.Fatalf("ListGenerationLifecycle() error = %v", err)
 	}
@@ -275,7 +275,7 @@ func TestListGenerationLifecycleRequiresQueryer(t *testing.T) {
 	t.Parallel()
 
 	var store StatusStore
-	if _, err := store.ListGenerationLifecycle(context.Background(), statuspkg.GenerationLifecycleFilter{}); err == nil {
+	if _, err := store.ListGenerationLifecycle(context.Background(), generation.LifecycleFilter{}); err == nil {
 		t.Fatal("expected error for nil queryer")
 	}
 }
