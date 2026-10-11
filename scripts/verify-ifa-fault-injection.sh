@@ -110,6 +110,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
 # ifa_fault_injection_common.sh sits at 498 of the 500-line cap.
 # shellcheck source=scripts/lib/ifa_fault_reclaim_assert.sh
 source "${repo_root}/scripts/lib/ifa_fault_reclaim_assert.sh"
+# shellcheck source=scripts/lib/ifa_fault_lease_expiry_barrier.sh
+source "${repo_root}/scripts/lib/ifa_fault_lease_expiry_barrier.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_sources.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_sources.sh"
 

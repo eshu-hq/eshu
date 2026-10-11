@@ -28,6 +28,13 @@ var executeProbeReceiverPattern = regexp.MustCompile(`(?m)^func \((?:[A-Za-z_][A
 // welcome; removing one to silence a real regression is not what this map
 // is for.
 var executeGroupProbeAllowlist = map[string]string{
+	"ifaLeaseExpiryGraphGroupExecutor": "cmd/reducer: intentional group-only arm of " +
+		"ifaLeaseExpiryBarrier.wrapGraph, selected only when the inner supports Group but " +
+		"not Probe. Advertising Probe here would invent an unsupported capability. " +
+		"Probe-capable grouped inputs use ifaLeaseExpiryGraphGroupProbeExecutor, which " +
+		"explicitly forwards both methods and remains subject to this scan. " +
+		"TestIfaLeaseExpiryBarrierPreservesOptionalCapabilities and the forwarding tests " +
+		"cover factory selection and actual dispatch; this exception does not cover the combined arm.",
 	"bootstrapNeo4jExecutor": "cmd/bootstrap-index: no ExecuteProbe yet. The #5998 review F1 " +
 		"pass found this gap; bootstrap-index's executor chain does not currently reach any " +
 		"RetractEdges dispatch that would use it, so it is a known gap recorded here rather " +

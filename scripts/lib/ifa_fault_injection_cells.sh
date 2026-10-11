@@ -127,23 +127,24 @@ cell_expirelease() {
 	log "cell expire-lease-mid-handler: fresh stack"
 	fresh_stack expirelease
 	drive_all_cassettes expirelease
-	local projector_pid reducer_pid claimed_before reclaimed_before reclaimed_after
-	ifa_det_start_bg "${log_dir}" "projector-expirelease" projector_pid "${bin_dir}/eshu-projector"
-	ifa_det_start_bg "${log_dir}" "reducer-expirelease" reducer_pid "${bin_dir}/eshu-reducer"
-	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
-		|| die "expire-lease-mid-handler: no row was ever claimed before the forced expiry -- non-vacuous precondition failed"
-	printf 'expire-lease-mid-handler: non-vacuous: %s claimed/running row(s) observed before forced expiry\n' "${claimed_before}"
-	# Captured BEFORE the expiry so the assertion after the drain measures what
-	# this expiry caused, not a retry that predated it.
+	local projector_pid reducer_pid reclaimed_before reclaimed_after barrier
+	barrier="${log_dir}/expirelease-barrier"
 	reclaimed_before="$(ifa_fault_count_reclaimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}")"
-	log "expire-lease-mid-handler: force claim_until = now() on every claimed/running reducer row (SQL, no kill, ack lock order)"
-	ifa_fault_expire_reducer_claims "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" >/dev/null
+	ifa_det_start_bg "${log_dir}" "projector-expirelease" projector_pid "${bin_dir}/eshu-projector"
+	ifa_det_start_bg "${log_dir}" "reducer-expirelease" reducer_pid \
+		env "ESHU_IFA_LEASE_EXPIRY_BARRIER=${barrier}" "${tagged_bin_dir}/eshu-reducer"
+	ifa_fault_wait_for_held_claim "${barrier}" "${reducer_pid}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "expire-lease-mid-handler: no live claim-bound handler reached the graph-write barrier"
+	log "expire-lease-mid-handler: force expiry of the exact held claim (SQL, no kill, ack lock order)"
+	ifa_fault_expire_held_claim "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${barrier}" \
+		|| die "expire-lease-mid-handler: expiry did not commit on the exact held claim"
+	ifa_fault_wait_for_held_replacement "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${barrier}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "expire-lease-mid-handler: no replacement epoch while the original handler remained held"
+	ifa_fault_release_held_claim "${barrier}" \
+		|| die "expire-lease-mid-handler: could not release the exact held handler"
 	run_drain_gate expirelease
-	# The result, not the precondition. claimed_before proves rows were held
-	# when the expiry landed; only a rise in the re-claimed count proves the
-	# expiry actually made another worker take one over mid-handler. Without
-	# this the cell passes identically whether it exercised the race or the
-	# handlers had already finished.
+	# Retain the strict global counter check in addition to the exact same-item
+	# replacement proof. Neither a claim poll nor a zero-row expiry can pass.
 	reclaimed_after="$(ifa_fault_assert_reclaimed_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${reclaimed_before}")" \
 		|| die "expire-lease-mid-handler: the forced expiry never produced a re-claim -- reducer rows with attempt_count > 1 never rose above the pre-expiry count of ${reclaimed_before}. The cell drained without exercising the mid-handler reclaim it exists to test, so a pass here would prove nothing. Root-cause the claim poll or the handler timing before trusting this gate."
 	printf 'expire-lease-mid-handler: non-vacuous: re-claimed rows rose %s -> %s after the forced expiry\n' "${reclaimed_before}" "${reclaimed_after}"

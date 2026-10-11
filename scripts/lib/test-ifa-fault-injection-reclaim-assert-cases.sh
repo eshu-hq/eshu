@@ -117,7 +117,7 @@ test_ifa_expire_reducer_claims_locks_in_ack_order() (
 		|| fail "forced expiry does not lock claimed reducer rows in the ack's work_item_id COLLATE \"C\" order: ${compact}"
 	[[ "$(_ifa_count_code_matches "UPDATE fact_work_items SET claim_until = now() WHERE stage = 'reducer'" "${cells_lib}")" -eq 0 ]] \
 		|| fail "cell 3 still runs the unordered forced-expiry UPDATE that deadlocked with AckBatch"
-	[[ "$(_ifa_count_code_matches 'ifa_fault_expire_reducer_claims' "${cells_lib}")" -eq 1 ]] \
+	[[ "$(_ifa_count_code_matches 'ifa_fault_expire_held_claim' "${cells_lib}")" -eq 1 ]] \
 		|| fail "cell 3 does not call the lock-ordered forced-expiry helper"
 )
 

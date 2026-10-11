@@ -74,6 +74,7 @@ test_ifa_fault_failure_artifact_contract() {
 		'/tmp/ifa-fault-injection.*/diagnostics-complete' \
 		'/tmp/ifa-fault-injection.*/current-cell' \
 		'/tmp/ifa-fault-injection.*/logs/*.log' \
+		'/tmp/ifa-fault-injection.*/logs/expirelease-barrier.*' \
 		'if-no-files-found: error' \
 		'retention-days: 7'; do
 		rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
@@ -81,6 +82,26 @@ test_ifa_fault_failure_artifact_contract() {
 	done
 	ifa_fault_upload_is_failure_only "$(cat "${workflow}")" \
 		|| fail "fault diagnostic upload can run without a failed fault matrix"
+	# Exercise the workflow's actual marker glob against representative files.
+	# It must preserve failed holds as well as successful expiry/replacement,
+	# without selecting unrelated files from the log directory.
+	local marker_glob marker_dir marker selected
+	marker_glob="$(awk '/^            \/tmp\/ifa-fault-injection\.\*\/logs\/expirelease-barrier\./ {sub(/^.*\/logs\//, ""); print}' "${workflow}")"
+	[[ "${marker_glob}" == 'expirelease-barrier.*' ]] || fail "lease-expiry marker upload glob drifted"
+	marker_dir="$(mktemp -d)"
+	for marker in held.json expired.json replacement.json finished.json release owner; do
+		: >"${marker_dir}/expirelease-barrier.${marker}"
+	done
+	: >"${marker_dir}/unrelated-private.json"
+	selected=0
+	for marker in "${marker_dir}"/*; do
+		# shellcheck disable=SC2053 # Test the upload glob, not a literal filename.
+		if [[ "${marker##*/}" == ${marker_glob} ]]; then
+			selected=$((selected + 1))
+		fi
+	done
+	rm -rf "${marker_dir}"
+	[[ "${selected}" -eq 6 ]] || fail "lease-expiry upload omitted markers or included unrelated data"
 	# #6162 follow-up: a literal per-cell name here (instead of the glob above)
 	# would silently drop every OTHER cell's graph-<cell>.dump (expirelease,
 	# killworker, etc.) from the uploaded artifact.
