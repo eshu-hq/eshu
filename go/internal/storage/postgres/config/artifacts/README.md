@@ -77,6 +77,30 @@ and at ERROR otherwise (with `config_artifacts_status=not_installed` and the
 statement runs through the caller's `db.Queryer`, which in the runtimes is the
 instrumented Postgres wrapper.
 
+## Evidence (PR3b-1a)
+
+No-Regression Evidence: baseline is `origin/main` `f3d560021c`, where none of
+these tables or functions exist. PR3b-1a adds no caller in any runtime binary
+and no trigger on `content_files`, so no existing hot path runs new work; the
+only runtime change is migration 170 at bootstrap (five `CREATE TABLE IF NOT
+EXISTS` and one `CREATE OR REPLACE FUNCTION` on empty tables, recorded at 5 ms
+by the tracked migrator on a fresh PostgreSQL 18.6 database). The two new
+statements a future walker runs were measured on PostgreSQL 18.6 (Homebrew,
+local) with 2,000 version rows and 1,990 state rows: the walk page
+(`walkPageSQL`, 500 rows) is an Index Only Scan on
+`config_artifact_content_versions_pkey`, 0.066 ms, 9 buffers; the dirty join
+(`dirtySQL`, generic plan via `PREPARE`/`EXECUTE` with
+`plan_cache_mode = force_generic_plan`, 10 dirty of 2,000) is a hash join over
+two sequential scans of tables that grow with repositories, not files,
+0.78 ms, 51 buffers. Both tables are O(repositories) (815 in the QA
+environment on 2026-10-10).
+
+No-Observability-Change: no runtime path calls this package in PR3b-1a, so it
+emits no metric, span, or log in production. When PR3b-2 and PR3c call
+`CheckEncoding`, it logs `event_name=postgres.server_encoding` at INFO or
+ERROR, and every statement here runs through the caller's instrumented
+Postgres wrapper (`eshu_dp_postgres_query_duration_seconds`).
+
 ## Verification
 
 ```bash
