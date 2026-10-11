@@ -125,8 +125,13 @@ reach in them passes. Main's gate had the same gaps:
   shell (`bash <<EOF`). It does not read `cat <<EOF | bash`,
   `sh -c "$(cat <<EOF ...)"`, `eval "$(cat <<EOF ...)"`, `. /dev/stdin <<EOF`, or
   a body written to a file that a later command runs.
-- It does not see a command name built from quoted pieces (`dock""er`) or a name
-  made by `printf`. A variable that holds the name (`DOCKER_BIN=docker`) is seen.
+- Variable-held command names. Seen: a variable or array assigned the word
+  `docker` (`DOCKER_BIN=docker; $DOCKER_BIN pull ...`, `DC=(docker compose ...);
+  "${DC[@]}" up`) and a variable command word that passes `compose`
+  (`$DOCKER compose up`). Each compose form counts as a pulling call without the
+  overlay. Not seen: a name built from quoted pieces (`dock""er`), by
+  concatenation or by `printf`, and a command word read from a file, from the
+  environment or from a command substitution.
 - A stub directory variable that changes between the write and the prepend is
   not seen by the PATH-shadow model.
 - The prepare check is lexical. A function that is called before its definition

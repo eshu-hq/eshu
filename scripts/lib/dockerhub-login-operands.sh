@@ -159,9 +159,9 @@ compose_settle_value() {
     return 1
   fi
   # The overlay variable itself, reached through an assignment (base="${ESHU_CI_COMPOSE_OVERLAY}"):
-  # the same conditions as the direct operand, judged at the operand's line.
+  # it settles like the direct operand, by the step verdict (compose_step_overlay).
   if [[ "${name:-}" == ESHU_CI_COMPOSE_OVERLAY ]]; then
-    compose_overlay_ok "${OP_FILE:-}" "${OP_LINE:-}" "${OP_FN:-}" "$@" && return 0
+    [[ "${STEP_OVL:-0}" -eq 1 ]] && return 0
     return 1
   fi
   if [[ -n "${def}" && "${def}" != *'$'* ]]; then compose_settle_value "${def}" "${fn}" $((d + 1)) "$@" || return 1; fi
@@ -240,15 +240,6 @@ compose_prepare_effective() {
   return 1
 }
 
-# compose_overlay_ok <file> <line> <function> <scope file>...: 0 when "$ESHU_CI_COMPOSE_OVERLAY"
-# at that line settles: the step is in CI image mode (ledger lib) and the prepare
-# call reaches it (compose_prepare_effective).
-compose_overlay_ok() {
-  ci_mode_active || return 1
-  [[ -n "$1" && -n "$2" ]] || return 1
-  compose_prepare_effective "$@"
-}
-
 # compose_step_overlay <text file>...: sets STEP_OVL to 1 when the CI overlay is
 # applied by every compose call the step reaches that can pull an image. The step
 # is in CI image mode (ledger lib) and has at least one such call, and each one
@@ -312,11 +303,11 @@ compose_operand_check() {
   local op="$1" fn="$2" where="$3" cf q
   shift 3
   OPFILES=""; COMPOSE_SEEN="|"
-  # The rendered CI overlay names no file; see compose_overlay_ok.
+  # The rendered CI overlay names no file: it settles by the step verdict (STEP_OVL).
   q="${op#\"}"; q="${q%\"}"
   if [[ "${q}" == '$ESHU_CI_COMPOSE_OVERLAY' || "${q}" == '${ESHU_CI_COMPOSE_OVERLAY}' ]]; then
-    if compose_overlay_ok "${OP_FILE:-}" "${OP_LINE:-}" "${OP_FN:-}" "$@"; then return 0; fi
-    COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES}${COMPOSE_HUB_FILES:+, }${op} (${where}, the CI overlay settles only in CI image mode after eshu_ci_compose_prepare)"
+    if [[ "${STEP_OVL:-0}" -eq 1 ]]; then return 0; fi
+    COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES}${COMPOSE_HUB_FILES:+, }${op} (${where}, the CI overlay settles only when every compose call that pulls applies it after eshu_ci_compose_prepare)"
     return 0
   fi
   # A cycle through call arguments contributes nothing, so an operand whose walk

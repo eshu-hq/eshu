@@ -230,9 +230,7 @@ compose_step_is_hub() {
     compose_scope_of "${f}"
     while IFS=$'\036' read -r ofn op oln; do
       [[ -n "${op}" ]] || continue
-      OP_FILE="${f}"; OP_LINE="${oln}"; OP_FN="${ofn}"
       compose_operand_check "${op}" "${ofn}" "-f operand in ${rel##*/}" "${SCOPE[@]}"
-      OP_FILE=""; OP_LINE=""; OP_FN=""
       compose_scope_of "${f}"
     done <<<"${FLOW}"
     rg -qi -e compose -- "${f}" 2>/dev/null && compose_file_entries_check "${f}"
