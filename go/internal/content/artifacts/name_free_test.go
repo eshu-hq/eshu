@@ -97,11 +97,25 @@ func TestNameFreeHarnessCatchesWrongApplyName(t *testing.T) {
 	}
 }
 
+// legacyCleanRepositoryRelativePath is a frozen copy of the clean step as it
+// stood in query/repositoryartifacts before #7126 PR 3a
+// (CleanRepositoryRelativePath). It shares no code with the production
+// CleanRelativePath, so a change to that function cannot move its own oracle.
+func legacyCleanRepositoryRelativePath(relativePath string) string {
+	relativePath = path.Clean(strings.TrimSpace(relativePath))
+	switch relativePath {
+	case "", ".", "/":
+		return ""
+	default:
+		return strings.TrimPrefix(relativePath, "./")
+	}
+}
+
 // legacyNormalizeRepoScopedPath is a frozen copy of normalizeRepoScopedPath
-// before #7126 PR3a split it into a clean step and a strip step. It is the
-// oracle of TestStripStepEqualsTheLegacyNormalize.
+// before #7126 PR 3a split it into a clean step and a strip step, clean step
+// included. It is the oracle of TestStripStepEqualsTheLegacyNormalize.
 func legacyNormalizeRepoScopedPath(pathValue, repoName string) string {
-	cleanedPath := CleanRelativePath(pathValue)
+	cleanedPath := legacyCleanRepositoryRelativePath(pathValue)
 	trimmedRepoName := strings.TrimSpace(repoName)
 	if cleanedPath == "" || trimmedRepoName == "" {
 		return cleanedPath
@@ -144,12 +158,12 @@ func TestStripStepEqualsTheLegacyNormalize(t *testing.T) {
 		}
 		name := names[rng.Intn(len(names))]
 		stored := CleanRelativePath(original)
+		if legacy := legacyCleanRepositoryRelativePath(original); stored != legacy {
+			t.Fatalf("original %q: CleanRelativePath=%q, legacy clean=%q", original, stored, legacy)
+		}
 		want := legacyNormalizeRepoScopedPath(original, name)
 		if got := StripRepositoryName(stored, name); got != want {
 			t.Fatalf("original %q stored %q name %q: strip=%q, legacy normalize(original)=%q", original, stored, name, got, want)
-		}
-		if got := normalizeRepoScopedPath(original, name); got != want {
-			t.Fatalf("original %q name %q: normalizeRepoScopedPath=%q, legacy=%q", original, name, got, want)
 		}
 		if normalizeRepoScopedPath(stored, name) != want {
 			recleanDiffers++

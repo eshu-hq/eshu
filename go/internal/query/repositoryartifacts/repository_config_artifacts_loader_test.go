@@ -5,6 +5,7 @@ package repositoryartifacts
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -159,5 +160,44 @@ func TestConfigArtifactLoadMatchesTheAnchorFullPass(t *testing.T) {
 	}
 	if !reflect.DeepEqual(rows, want) {
 		t.Fatalf("production load differs from the full pass\n  load: %v\n  full: %v", rows, want)
+	}
+}
+
+// TestFileFromContractCopiesEveryFileField pins the adapter field by field. It
+// sets every field of the contract's file to a distinct non-zero value and
+// requires each field of the neutral file to carry the value of the field of
+// the same name. A field added to contentartifacts.File that the adapter does
+// not copy, or that the contract type lacks, fails here and not as a silent
+// zero in a derived row.
+func TestFileFromContractCopiesEveryFileField(t *testing.T) {
+	t.Parallel()
+
+	var source querycontract.FileContent
+	sourceValue := reflect.ValueOf(&source).Elem()
+	for i := 0; i < sourceValue.NumField(); i++ {
+		field := sourceValue.Field(i)
+		switch field.Kind() {
+		case reflect.String:
+			field.SetString(fmt.Sprintf("value-of-%s", sourceValue.Type().Field(i).Name))
+		case reflect.Int:
+			field.SetInt(int64(100 + i))
+		}
+	}
+
+	got := reflect.ValueOf(fileFromContract(source))
+	for i := 0; i < got.NumField(); i++ {
+		name := got.Type().Field(i).Name
+		want := sourceValue.FieldByName(name)
+		if !want.IsValid() {
+			t.Errorf("contentartifacts.File.%s has no field of that name in querycontract.FileContent", name)
+			continue
+		}
+		if want.IsZero() {
+			t.Errorf("fixture left FileContent.%s zero; the check is vacuous", name)
+			continue
+		}
+		if !reflect.DeepEqual(got.Field(i).Interface(), want.Interface()) {
+			t.Errorf("File.%s = %v, want %v from FileContent.%s", name, got.Field(i).Interface(), want.Interface(), name)
+		}
 	}
 }
