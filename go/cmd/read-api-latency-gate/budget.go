@@ -19,6 +19,10 @@ type RouteLatency struct {
 	// Route is "METHOD /path", matching the capabilitycatalog surface
 	// inventory Name field for an api_route entry.
 	Route string
+	// Method, Path, and MCP identify the HTTP request sent for this operation.
+	Method string
+	Path   string
+	MCP    bool
 	// P95 is the measured p95 latency. Meaningful only when Exercised is
 	// true; a not-exercised route was never sampled past its first probe.
 	P95 time.Duration
@@ -47,18 +51,17 @@ type RouteLatency struct {
 	// meaningful only then. See WorkPerRequest.
 	Metered bool
 	Work    WorkPerRequest
-	// Samples holds the COLD (first) run's counted-iteration sample
+	// Samples holds the first pass's counted-iteration sample
 	// durations, in request order. Populated whenever Exercised is true,
 	// regardless of SweepOptions.Runs. P95 is computed from these samples
 	// when Runs <= 1 (the default), so this is the same sample set that has
 	// always backed the gate's own budget check.
 	Samples []time.Duration
 	// WarmSamples holds every counted sample from runs 2..Runs, pooled in
-	// run order (empty when Runs <= 1). Run 1's cold connection and cold
-	// Postgres/NornicDB caches make it unrepresentative of steady state
-	// (the same reasoning as warmupRequests, one level up); WarmSamples is
-	// what a multi-run latency report's distribution is computed from, and
-	// what P95 is computed from when Runs > 1.
+	// run order (empty when Runs <= 1). The first pass follows discarded
+	// warmups; later passes have no additional warmup. WarmSamples supplies
+	// a multi-run report's distribution and P95 when Runs > 1. These fields
+	// do not establish cold-cache or steady-state conditions.
 	WarmSamples []time.Duration
 	// WarmRunP95s holds the nearest-rank p95 of EACH individual warm run
 	// (runs 2..Runs), in run order — not the p95 of the pooled WarmSamples.
@@ -66,6 +69,13 @@ type RouteLatency struct {
 	// a host under variable load can produce a stable pooled p95 while
 	// individual runs swing widely.
 	WarmRunP95s []time.Duration
+	// Concurrent-only load evidence. Zero for the sequential route sweep.
+	Requested    int
+	Succeeded    int
+	Workers      int
+	PeakInFlight int
+	Wall         time.Duration
+	Statuses     []int
 }
 
 // BudgetBreach is one route that failed the gate: either its measured p95

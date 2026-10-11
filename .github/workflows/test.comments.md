@@ -108,6 +108,14 @@ Original lines 135–136.
       # PRs get none). Expose the boolean, not the secrets, so no step sees them.
 ```
 
+## Methodology proof comment
+
+Original methodology workflow line 143.
+
+```yaml
+          # The methodology proof validates exact event commits and ancestry.
+```
+
 ## Comment group 7
 
 Original lines 145–146.

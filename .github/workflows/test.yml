@@ -101,7 +101,7 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Log in to Docker Hub
         if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) && env.DOCKERHUB_LOGIN_ENABLED == 'true' }}
@@ -116,9 +116,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-      - name: Install ripgrep
+      - name: Install ripgrep and jq
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
-        run: scripts/ci/install-apt-packages.sh ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep jq
       - name: Pre-warm Go modules
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/ci/go-mod-download-retry.sh
@@ -142,11 +142,31 @@ jobs:
         run: |
           scripts/test-verify-performance-evidence.sh
           scripts/verify-performance-evidence.sh
+      - name: Set up Python for query methodology hook proof
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install query methodology hook runner
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
+        run: python -m pip install pre-commit==4.6.2
       - name: Verify query-plan regression gate
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          python3 scripts/test-query-methodology-comparison-identity.py
+          python3 scripts/test-verify-query-methodology-live-contract.py
+          scripts/test-verify-query-methodology.sh
           scripts/test-verify-query-plan-regression.sh
           scripts/verify-query-plan-regression.sh
+      - name: Archive query methodology evidence
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts'))) && (always()) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: query-methodology-${{ github.sha }}
+          path: .proof-artifacts/query-methodology/*.json
+          if-no-files-found: error
       - name: Verify scale corpus suite
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: |

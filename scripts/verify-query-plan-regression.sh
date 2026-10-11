@@ -18,4 +18,6 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 "${repo_root}/scripts/verify-query-plan-profile.sh"
 
+"${repo_root}/scripts/verify-query-methodology.sh" --live
+
 printf 'verify-query-plan-regression: pass\n'
