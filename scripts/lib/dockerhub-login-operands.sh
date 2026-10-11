@@ -67,6 +67,49 @@ compose_calls_of() {
   FLOW="${!v:-}"
 }
 
+# compose_cond_literals <${{ expression }}>: returns 0 and leaves the result
+# literals of a conditional chain in COND_LITS, one per line. The expression must
+# be "cond && 'lit' || cond && 'lit' || ... || 'lit'": cut at the top-level ||
+# (outside quotes and parentheses), every part but the last ends in "&& 'lit'",
+# and the last is one literal. Anything else (a bare value arm, "a || 'b'", no
+# literal at the end) returns 1, so the operand is not settled.
+compose_cond_literals() {
+  local e="$1" i ch n q="" depth=0 cur="" part lit
+  local -a parts=()
+  COND_LITS=""
+  e="${e#\$\{\{}"; e="${e%\}\}}"
+  n=${#e}
+  for ((i = 0; i < n; i++)); do
+    ch="${e:i:1}"
+    if [[ -n "${q}" ]]; then
+      cur+="${ch}"; [[ "${ch}" != "${q}" ]] || q=""
+      continue
+    fi
+    case "${ch}" in
+      "'") q="'"; cur+="${ch}" ;;
+      "(") depth=$((depth + 1)); cur+="${ch}" ;;
+      ")") depth=$((depth - 1)); cur+="${ch}" ;;
+      "|")
+        if [[ "${depth}" -eq 0 && "${e:i+1:1}" == "|" ]]; then parts+=("${cur}"); cur=""; i=$((i + 1)); else cur+="${ch}"; fi ;;
+      *) cur+="${ch}" ;;
+    esac
+  done
+  [[ -z "${q}" && "${depth}" -eq 0 ]] || return 1
+  parts+=("${cur}")
+  [[ "${#parts[@]}" -ge 2 ]] || return 1
+  for ((i = 0; i < ${#parts[@]}; i++)); do
+    part="${parts[$i]}"
+    if [[ "$i" -eq $((${#parts[@]} - 1)) ]]; then
+      [[ "${part}" =~ ^[[:space:]]*\'([^\']*)\'[[:space:]]*$ ]] || return 1
+    else
+      [[ "${part}" =~ \&\&[[:space:]]*\'([^\']*)\'[[:space:]]*$ ]] || return 1
+    fi
+    lit="${BASH_REMATCH[1]}"
+    COND_LITS="${COND_LITS}${lit}"$'\n'
+  done
+  return 0
+}
+
 # compose_settle_value <raw value> <function holding it> <depth> <text file>...
 # settles a -f operand, an assigned value or a call argument to literal compose
 # files: appends each repo-relative file to OPFILES and returns 0, or returns 1
@@ -84,11 +127,13 @@ compose_settle_value() {
   [[ "${d}" -le 6 ]] || return 1
   v="${v#\"}"; v="${v%\"}"; v="${v#\'}"; v="${v%\'}"
   [[ -n "${v}" ]] || return 0
-  # ${{ guard && 'a' || 'b' }}: the result is one of two literals, both settled.
-  if [[ "${v}" =~ ^\$\{\{.*\&\&[[:space:]]*\'([^\']*)\'[[:space:]]*\|\|[[:space:]]*\'([^\']*)\'[[:space:]]*\}\}$ ]]; then
-    local la="${BASH_REMATCH[1]}" lb="${BASH_REMATCH[2]}"
-    compose_settle_value "${la}" "${fn}" $((d + 1)) "$@" || return 1
-    compose_settle_value "${lb}" "${fn}" $((d + 1)) "$@" || return 1
+  # ${{ c1 && 'a' || c2 && 'b' || 'c' }}: the value is one of the quoted literals,
+  # and every one is settled. Any other shape of ${{ }} is not settled below.
+  if [[ "${v}" == '${{'*'}}' ]] && compose_cond_literals "${v}"; then
+    local lit
+    while IFS= read -r lit; do
+      compose_settle_value "${lit}" "${fn}" $((d + 1)) "$@" || return 1
+    done <<<"${COND_LITS}"
     return 0
   fi
   case "${v}" in *'`'* | *'$('* | *'${{'* | *'*'* | *'?'* | *' '* | '@READ@') return 1 ;; esac

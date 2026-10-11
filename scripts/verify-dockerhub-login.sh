@@ -84,10 +84,10 @@
 # in WORDS list is data. A [[ ]] test continued across lines is one command. A
 # step whose run reads ${{ matrix.KEY }} is expanded once per static matrix cell
 # (lib/dockerhub-login-matrix.awk); a matrix it cannot expand (fromJSON, a missing
-# key) stays unresolved. A heredoc body handed to a shell is lexed like a script.
-# A docker word in a comment, in a quoted string that no shell evaluates, or in a
-# heredoc body that is data does not count. docker ps/exec/logs/rm/... and
-# docker compose ps/logs/down/... pull and build nothing and do not count.
+# key) stays unresolved. A heredoc body is lexed when its opening line is a shell;
+# the unread shapes are static limits (docs/internal/ci-images.md). A docker word
+# in a comment, a quoted string no shell evaluates, or a data heredoc does not
+# count. docker (compose) ps/exec/logs/rm/down/... pulls and builds nothing.
 #
 # A docker command reaches Docker Hub by the HOST of the image it names (derived
 # in lib/dockerhub-login-images.sh): a ref with no host, or docker.io (also
@@ -189,7 +189,7 @@ token_expr='${{ secrets.DOCKERHUB_TOKEN }}'
 enabled_expr="\${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}"
 gate_expr="env.DOCKERHUB_LOGIN_ENABLED == 'true'"
 
-for tool in yq rg base64 awk; do
+for tool in yq rg base64 awk jq; do
   command -v "${tool}" >/dev/null 2>&1 || { echo "verify-dockerhub-login: ${tool} is required" >&2; exit 1; }
 done
 [[ -d "${root}/.github/workflows" ]] || { echo "verify-dockerhub-login: ${root}/.github/workflows is missing" >&2; exit 1; }
@@ -268,8 +268,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-queue.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-matrix.sh"
 
 # check_job <workflow> <job> <workflow env> <queue 0|1>: evaluates one job. A job
-# of a queue-path workflow must not reach Docker Hub or keep any Docker Hub login
-# wiring; every other job needs the authenticated pull path.
+# of a queue-path workflow must not reach Docker Hub (a login is not judged here);
+# every other job needs the authenticated pull path.
 check_job() {
   local name="$1" job="$2" wf_env="$3" queue="$4" where="$1:$2" job_env kind sname image cuser cpass reasons="" qtag=""
   local seq idx uses cond reg user pass dfile dctx why first_reach="" first_why=""
@@ -485,7 +485,7 @@ done
 
 if [[ -n "${explain}" ]]; then
   printf 'scope: %s Docker Hub-reaching job(s) derived from %s workflow file(s)\n' "${reaching_jobs}" "${workflows_seen}"
-  printf 'queue-path: %s workflow file(s) are on the queue path (merge_group, pull_request, pull_request_target, or following one); every job in them must pull from ghcr.io only\n' "$(printf '%s' "${queue_wfs}" | rg -c .)"
+  printf 'queue-path: %s workflow file(s) are on the queue path (merge_group, pull_request, pull_request_target, or following one); every job in them must not reach Docker Hub\n' "$(printf '%s' "${queue_wfs}" | rg -c .)"
   sort "${tmp}/scope.tsv" | awk -F'\t' '{printf "  %s\t%s\n", $1, $2}'
   printf 'rule: %s\n' "${unresolved_rule}"
 fi

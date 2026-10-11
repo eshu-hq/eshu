@@ -81,6 +81,16 @@ prepare_overlay() { eshu_ci_compose_prepare docker-compose.fixture-ledger.yaml; 
 prepare_overlay
 docker compose -f docker-compose.fixture-ledger.yaml -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
 EOF2
+lput "${d}" fixture-l-conditional-append.sh <<'EOF2'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+compose_args=(-f docker-compose.fixture-ledger.yaml)
+eshu_ci_compose_prepare "${compose_args[@]}"
+if [[ -n "${ESHU_CI_COMPOSE_OVERLAY}" ]]; then
+  compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
+fi
+docker compose "${compose_args[@]}" up -d
+EOF2
+lj "${d}" g-conditional-append-after-prepare 'bash scripts/fixture-l-conditional-append.sh' 1
 lj "${d}" g-prepare-in-a-called-function 'bash scripts/fixture-l-prepare-in-called-function.sh' 1
 mkdir -p "${d}/scripts/ci"
 cp "${repo_root}/scripts/ci/compose.sh" "${d}/scripts/ci/compose.sh"
@@ -114,6 +124,16 @@ prepare_overlay() { eshu_ci_compose_prepare docker-compose.fixture-ledger.yaml; 
 docker compose -f docker-compose.fixture-ledger.yaml -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
 EOF2
 lj "${d}" r-prepare-only-in-an-uncalled-function 'bash scripts/fixture-l-prepare-in-uncalled-function.sh' 1
+lput "${d}" fixture-l-subshell-prepare-conditional-append.sh <<'EOF2'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+compose_args=(-f docker-compose.fixture-ledger.yaml)
+( eshu_ci_compose_prepare "${compose_args[@]}" )
+if [[ -n "${ESHU_CI_COMPOSE_OVERLAY}" ]]; then
+  compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
+fi
+docker compose "${compose_args[@]}" up -d
+EOF2
+lj "${d}" r-subshell-prepare-then-conditional-append 'bash scripts/fixture-l-subshell-prepare-conditional-append.sh' 1
 lj "${d}" r-one-applied-and-one-plain-invocation 'bash scripts/fixture-l-prepare-then-overlay.sh && bash scripts/fixture-l-plain-compose.sh' 1
 lj "${d}" r-ci-mode-non-ledger-image 'docker compose -f docker-compose.fixture-other.yaml up -d' 1
 lj "${d}" r-ci-mode-non-root-build 'docker compose -f docker-compose.fixture-other-build.yaml up -d --build' 1
@@ -140,7 +160,7 @@ expect_queue_jobs_red queue-path-ci-image-mode-bounds-fail "${d}" r-ledger-sourc
   r-env-does-not-reach-an-arg r-build-arg-overrides-to-hub r-build-arg-from-unset-env-reference \
   r-ci-mode-plain-run-text r-ci-mode-plain-compose-in-a-script r-ci-mode-root-build-without-overlay \
   r-ci-mode-compose-run-without-overlay r-prepare-in-a-subshell r-prepare-only-in-an-uncalled-function \
-  r-one-applied-and-one-plain-invocation
+  r-one-applied-and-one-plain-invocation r-subshell-prepare-then-conditional-append
 
 # --- the operand cache is keyed by path and content --------------------------------
 # One script, two workflows: the script settles -f "${COMPOSE_FILE}" from the
@@ -219,3 +239,38 @@ done
 EOF2
 lj "${d}" g-runner-compose-file-selected-by-name 'bash scripts/fixture-l-runner-case-select.sh' 0
 expect_green queue-path-compose-file-selected-by-backend-name "${d}"
+
+# A longer chain settles every literal: the first arm is a non-ledger image.
+ledger_tree queue-conditional-chain
+d="${QUEUE_DIR}"
+lput "${d}" fixture-l-compose-file-var.sh <<'EOF'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+eshu_ci_compose_prepare -f "${COMPOSE_FILE}"
+docker compose -f "${COMPOSE_FILE}" -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
+EOF
+lj "${d}" l-chain-all-ledger 'bash scripts/fixture-l-compose-file-var.sh' 1 \
+  '{"COMPOSE_FILE": "${{ github.event_name == '"'"'push'"'"' && '"'"'docker-compose.fixture-ledger.yaml'"'"' || github.event_name == '"'"'merge_group'"'"' && '"'"'docker-compose.fixture-root-build.yaml'"'"' || '"'"'docker-compose.fixture-ledger.yaml'"'"' }}"}'
+expect_green queue-path-conditional-chain-with-ledger-arms "${d}"
+lj "${d}" l-chain-first-arm-other 'bash scripts/fixture-l-compose-file-var.sh' 1 \
+  '{"COMPOSE_FILE": "${{ github.event_name == '"'"'push'"'"' && '"'"'docker-compose.fixture-other.yaml'"'"' || github.event_name == '"'"'merge_group'"'"' && '"'"'docker-compose.fixture-ledger.yaml'"'"' || '"'"'docker-compose.fixture-ledger.yaml'"'"' }}"}'
+lj "${d}" l-chain-bare-value-arm 'bash scripts/fixture-l-compose-file-var.sh' 1 \
+  '{"COMPOSE_FILE": "${{ inputs.compose_file || '"'"'docker-compose.fixture-ledger.yaml'"'"' }}"}'
+expect_queue_jobs_red queue-path-conditional-chain-first-arm-and-bare-arm "${d}" l-chain-first-arm-other l-chain-bare-value-arm
+
+# An unreadable ledger is said out loud and fails closed.
+ledger_tree queue-ledger-unreadable
+d="${QUEUE_DIR}"
+rm -f "${d}/specs/ci-images.v1.json"
+lj "${d}" u-ledger-missing 'bash scripts/fixture-l-conditional-append.sh' 1
+lput "${d}" fixture-l-conditional-append.sh <<'EOF'
+source "$(dirname "$0")/lib/ci-image-compose.sh"
+eshu_ci_compose_prepare -f docker-compose.fixture-ledger.yaml
+docker compose -f docker-compose.fixture-ledger.yaml -f "${ESHU_CI_COMPOSE_OVERLAY}" up -d
+EOF
+if out="$(run_verifier "${d}")"; then
+  printf 'not ok - ledger-unreadable-fails-closed: the job passed without a ledger\n'; failures=$((failures + 1))
+elif [[ "${out}" == *"the CI image ledger is unreadable"* && "${out}" == *"u-ledger-missing"* ]]; then
+  printf 'ok - ledger-unreadable-fails-closed\n'
+else
+  printf 'not ok - ledger-unreadable-fails-closed: unexpected output:\n%s\n' "${out}"; failures=$((failures + 1))
+fi

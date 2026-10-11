@@ -6,8 +6,8 @@
 # helpers (new_case, add_job, run_verifier, expect_red, expect_green) and its
 # failure counter.
 #
-# A job of a workflow whose on: has merge_group or pull_request must pull from
-# ghcr.io only: the RED batch plants one Docker Hub reach per class as a separate
+# A job of a workflow whose on: has merge_group or pull_request must not reach
+# Docker Hub: the RED batch plants one Docker Hub reach per class as a separate
 # job in ONE scratch queue workflow (fixture-queue.yml) and checks that the
 # verifier names every job, and the GREEN batch plants the ghcr.io digest form of
 # the same classes and checks that the whole tree passes. The login rule for jobs
@@ -15,8 +15,10 @@
 #
 # shellcheck disable=SC2154  # failures, repo_root, verifier come from the test
 
-ghcr_digest='ghcr.io/eshu-hq/ci-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d'
-ghcr_buildkit='ghcr.io/eshu-hq/ci-buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea'
+# Two ghcr.io digest refs for the host checks, read from the ledger so the test
+# copies no digest (specs/ci-images.v1.json is the only approved list).
+ghcr_digest="$(jq -r '.images[] | select(.id == "alpine") | .destination + "@" + .digest' "${repo_root}/specs/ci-images.v1.json")"
+ghcr_buildkit="$(jq -r '.images[] | select(.id == "buildkit") | .destination + "@" + .digest' "${repo_root}/specs/ci-images.v1.json")"
 queue_wf='.github/workflows/fixture-queue.yml'
 
 queue_job_red() { printf 'fixture-queue.yml:%s: queue-path job (its workflow runs on merge_group or pull_request) must not reach Docker Hub' "$1"; }

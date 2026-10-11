@@ -100,6 +100,28 @@ in the same shell scope, has no docker reach for itself or the scripts it runs.
 A call by absolute path, a prepend in a subshell, or a reset of `PATH` between
 the prepend and the call breaks the shadow.
 
+### Static limits
+
+The gate reads text. It does not run a script. Shapes it does not follow, so a
+reach in them passes. Main's gate had the same gaps:
+
+- The docker lexer reads a heredoc body only when the line that opens it is a
+  shell (`bash <<EOF`). It does not read `cat <<EOF | bash`,
+  `sh -c "$(cat <<EOF ...)"`, `. /dev/stdin <<EOF`, or a body written to a file
+  that a later command runs.
+- It does not see a command name built from quoted pieces (`dock""er`), a
+  variable that holds the name, or a name made by `printf`.
+- A stub directory variable that changes between the write and the prepend is
+  not seen by the PATH-shadow model.
+
+The reference reader (which scripts a file runs) fails closed on these: a
+heredoc body is read as commands when its opening line holds a shell word, a
+dot command, or a pipe, when it is written to a file (`> file`, `>> file`,
+`tee`), when it has no delimiter line, or when it substitutes a command. An
+arithmetic `<<` (`$(( 1 << 2 ))`, `(( x = 1 << 3 ))`, `let`) opens no heredoc.
+A conditional literal in a workflow env settles only in the form
+`cond && 'a' || cond && 'b' || 'c'`, and every literal must settle.
+
 ## Refresh and proof
 
 1. Read the upstream recipe, license notices, corresponding source records,

@@ -27,6 +27,13 @@ LEDGER_PINS=""       # pins of images that have runtime sources, one per line
 LEDGER_ALLOW=""      # runtime_allowlist pins, one per line
 LEDGER_BUILDARGS=""  # NAME=pin per ledger build_arg
 
+# ledger_unreadable <reason>: says on stderr that CI image mode cannot be active.
+# The tables stay empty, so every overlay-settled job is judged by the images its
+# files name (the gate fails closed).
+ledger_unreadable() {
+  printf 'verify-dockerhub-login: the CI image ledger is unreadable (%s); CI image mode cannot be active, so a job that relies on the overlay is judged by the images its files name\n' "$1" >&2
+}
+
 # ledger_load: reads the ledger and the helper's required ids once. Leaves the
 # tables empty (CI image mode can never be active) when either file is missing or
 # unreadable.
@@ -34,10 +41,10 @@ ledger_load() {
   local ledger="${root}/specs/ci-images.v1.json" helper="${root}/scripts/lib/ci_image_compose.py" ids id rows
   [[ "${LEDGER_LOADED}" -eq 0 ]] || return 0
   LEDGER_LOADED=1
-  [[ -f "${ledger}" && -f "${helper}" ]] || return 0
+  if [[ ! -f "${ledger}" || ! -f "${helper}" ]]; then ledger_unreadable "missing ${ledger##*/} or ${helper##*/}"; return 0; fi
   ids="$(rg -o -N '_REQUIRED = frozenset\(\{[^}]*\}\)' "${helper}" | rg -o '"[a-z0-9-]+"' | tr -d '"' || true)"
-  [[ -n "${ids}" ]] || return 0
-  rows="$(jq -r '.images[] | [.id, (.env // ""), (.destination + "@" + .digest)] | @tsv' "${ledger}" 2>/dev/null)" || return 0
+  [[ -n "${ids}" ]] || { ledger_unreadable "no required image ids in ${helper##*/}"; return 0; }
+  rows="$(jq -r '.images[] | [.id, (.env // ""), (.destination + "@" + .digest)] | @tsv' "${ledger}" 2>/dev/null)" || { ledger_unreadable "${ledger##*/} is not valid ledger JSON"; return 0; }
   while IFS= read -r id; do
     [[ -n "${id}" ]] || continue
     LEDGER_REQUIRED="${LEDGER_REQUIRED}$(printf '%s\n' "${rows}" | awk -F'\t' -v id="${id}" '$1 == id { print }')"$'\n'

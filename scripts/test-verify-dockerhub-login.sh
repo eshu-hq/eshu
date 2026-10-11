@@ -19,7 +19,7 @@
 # and workflow_dispatch, and a legacy-hub.yml fixture with the Docker Hub login
 # shapes, so every login case runs on a non-queue workflow. The queue-path batch
 # (service image, compose image, Dockerfile FROM, docker run in a script,
-# setup-buildx, setup-qemu, expression run, trigger forms, leftover login wiring)
+# setup-buildx, setup-qemu, expression run, trigger forms)
 # lives in lib/dockerhub-login-test-queue.sh.
 set -euo pipefail
 
