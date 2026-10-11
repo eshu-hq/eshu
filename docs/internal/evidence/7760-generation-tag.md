@@ -231,7 +231,8 @@ No-Regression Evidence (#7961): no SQL or executor change. The live test
 `TestMigration169PhasedBackfillReaderBoundLive` fails when any read waits
 over 1 s. With the tracked apply forced to one message (seeded violation,
 not committed), it failed: a read waited 4.49 s at 8,000 rows. On the
-unchanged tree it passes at 8,000 rows (29.71 s test time) and at 157,422
+unchanged tree it passes at 8,000 rows (about 25 s of test time: 22.3 s to
+29.7 s over three runs, host load varied) and at 157,422
 rows (582 s, every step including interruption and control). Rerun at scale with
 `-args -eshu.migration169.rows=157422`.
 
