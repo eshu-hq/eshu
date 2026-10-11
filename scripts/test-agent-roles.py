@@ -125,6 +125,15 @@ def main():
         stale = run(root, "check")
         assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
         reader.write_text(original)
+        # The leaf guard is the highest-stakes rule; tamper it like the other two.
+        original = reader.read_text()
+        reader.write_text(original.replace(
+            'action: subagent\n    resource: "*"\n    effect: deny',
+            'action: subagent\n    resource: "*"\n    effect: allow',
+        ))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
+        reader.write_text(original)
         scan_front = (root / ".cursor" / "agents" / "scan-eshu.md").read_text().split("---\n")[1]
         line = next(x for x in scan_front.splitlines() if x.startswith("description: "))
         assert json.loads(line[len("description: "):]) == tricky and "\U0001F600" in line

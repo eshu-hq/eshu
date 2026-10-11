@@ -311,11 +311,12 @@ failure rather than prompting, so the role sets `approval_policy =
 edits, and an approval prompt for one is the signal that the reviewer is doing
 something it should not.
 
-Every harness role file pins its tier model. That is not one contributor's
-economics: Workhorse is the tier this repo already declares for review in the
-table above, so the pins transcribe repo policy. Contributors without a pinned
-provider change the agent key in their local config (the
-`OPENCODE_CONFIG_CONTENT` example above), not the tracked role file.
+Every harness role file except Cursor's session-inheriting shims pins its tier
+model. That is not one contributor's economics: Workhorse is the tier this repo
+already declares for review in the table above, so the pins transcribe repo
+policy. Contributors without a pinned provider change the agent key in their
+local config (the `OPENCODE_CONFIG_CONTENT` example above), not the tracked
+role file.
 
 ## The handoff contract
 
