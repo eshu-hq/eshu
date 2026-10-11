@@ -1,0 +1,31 @@
+go/internal/proof/content/corpus/copy_test.go
+  s_b0d7e3abc26c5a::t_c7e6367bf56f82 4,14,114-123,208-249,259-261,288-299,301-317,327-349
+  s_b0d7e3abc26c5a::t_27907f9898f03a 300
+go/internal/proof/content/corpus/doc.go
+  s_b0d7e3abc26c5a::t_c7e6367bf56f82 1-7
+go/internal/proof/content/corpus/README.md
+  s_b0d7e3abc26c5a::t_dabee926859851 6-8,14-17
+  s_b0d7e3abc26c5a::t_c7e6367bf56f82 1-5,9-13,18-37
+go/internal/proof/content/corpus/artifact.go
+  s_b0d7e3abc26c5a::t_c7e6367bf56f82 4,37,58-62,65-70,83-86
+go/internal/proof/content/corpus/copy.go
+  s_b0d7e3abc26c5a::t_c7e6367bf56f82 4,89,112-116,178-187,190-191
+go/internal/proof/content/corpus/source.go
+  s_b0d7e3abc26c5a::t_c7e6367bf56f82 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6aa786ca0a11c377adc2e09412efaf70e0f31123",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
