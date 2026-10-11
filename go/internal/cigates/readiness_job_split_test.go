@@ -23,7 +23,9 @@ type readinessWorkflow struct {
 type readinessJob struct {
 	Name            string                      `yaml:"name"`
 	If              string                      `yaml:"if"`
-	Needs           yaml.Node                   `yaml:"needs"`
+	Needs           string                      `yaml:"needs"`
+	Uses            string                      `yaml:"uses"`
+	With            map[string]string           `yaml:"with"`
 	ContinueOnError string                      `yaml:"continue-on-error"`
 	TimeoutMinutes  int                         `yaml:"timeout-minutes"`
 	Env             map[string]string           `yaml:"env"`
@@ -32,12 +34,15 @@ type readinessJob struct {
 }
 
 type readinessService struct {
+	Image       string    `yaml:"image"`
 	Credentials yaml.Node `yaml:"credentials"`
 }
 
-const readinessServiceCredentials = "        credentials:\n" +
-	"          username: ${{ secrets.DOCKERHUB_USERNAME }}\n" +
-	"          password: ${{ secrets.DOCKERHUB_TOKEN }}\n"
+const (
+	readinessHermeticSelection = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}"
+	readinessLiveSelection     = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}"
+	readinessCleanupSelection  = "${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) && (always()) }}"
+)
 
 type readinessStep struct {
 	Name            string            `yaml:"name"`
@@ -62,8 +67,13 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	}) {
 		return "registry must name both independent checks"
 	}
-	if len(parsed.Jobs) != 2 {
-		return "workflow must have exactly two independent jobs"
+	if len(parsed.Jobs) != 3 {
+		return "workflow must have queue selection and two proof jobs"
+	}
+	selector := parsed.Jobs["queue-selection"]
+	if selector.Uses != "./.github/workflows/queue-selection.yml" ||
+		selector.With["workflow"] != "live-postgres-readiness.yml" {
+		return "workflow must use the shared queue selector"
 	}
 	for _, trigger := range []string{"merge_group", "pull_request", "push"} {
 		if _, ok := parsed.On[trigger]; !ok {
@@ -87,25 +97,24 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	if hermetic.TimeoutMinutes != 30 || live.TimeoutMinutes != 60 {
 		return "hermetic and live jobs must retain independent 30/60-minute limits"
 	}
-	for name, job := range parsed.Jobs {
-		if job.If != "" || job.ContinueOnError != "" || job.Needs.Kind != 0 {
-			return name + " must not skip, waive, or depend on another job"
+	for name, job := range map[string]readinessJob{"hermetic": hermetic, "live": live} {
+		if job.If != "" || job.ContinueOnError != "" || job.Needs != "queue-selection" {
+			return name + " must wait for queue selection without skipping or waiving"
 		}
 	}
 	if len(hermetic.Services) != 0 || len(live.Services) != 2 {
 		return "only the live job must start both disposable backends"
 	}
-	for _, service := range []string{"postgres", "neo4j"} {
+	for service, imagePrefix := range map[string]string{
+		"postgres": "ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:",
+		"neo4j":    "ghcr.io/eshu-hq/ci-neo4j-community@sha256:",
+	} {
 		configuration, ok := live.Services[service]
 		if !ok {
 			return "missing live service " + service
 		}
-		var credentials map[string]string
-		if configuration.Credentials.Kind != yaml.MappingNode ||
-			configuration.Credentials.Decode(&credentials) != nil || len(credentials) != 2 ||
-			credentials["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
-			credentials["password"] != "${{ secrets.DOCKERHUB_TOKEN }}" {
-			return service + " must use username/password job-init credentials"
+		if !strings.HasPrefix(configuration.Image, imagePrefix) || configuration.Credentials.Kind != 0 {
+			return service + " must use the current public GHCR mirror without Docker Hub credentials"
 		}
 	}
 	if problem := checkReadinessDockerHubLogin(live); problem != "" {
@@ -115,7 +124,7 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		return problem
 	}
 	counts := map[string]int{}
-	for _, job := range parsed.Jobs {
+	for name, job := range map[string]readinessJob{"hermetic": hermetic, "live": live} {
 		for _, step := range job.Steps {
 			for _, script := range []string{
 				"scripts/test-run-live-postgres-readiness-tests.sh",
@@ -125,8 +134,12 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 					if strings.TrimSpace(step.Run) != "bash "+script {
 						return "proof runner must be a standalone command"
 					}
-					if step.If != "" || step.ContinueOnError != "" {
-						return "proof runner step must not skip or waive failure"
+					want := readinessHermeticSelection
+					if name == "live" {
+						want = readinessLiveSelection
+					}
+					if step.If != want || step.ContinueOnError != "" {
+						return "proof runner must use its own queue selection without waiving failure"
 					}
 					counts[script]++
 				}
@@ -152,7 +165,7 @@ func checkReadinessCleanup(job readinessJob) string {
 			continue
 		}
 		count++
-		if strings.TrimSpace(step.Run) != stop || step.If != "always()" || step.ContinueOnError != "" {
+		if strings.TrimSpace(step.Run) != stop || step.If != readinessCleanupSelection || step.ContinueOnError != "" {
 			return "standby cleanup must run on every live-job outcome"
 		}
 	}
@@ -250,6 +263,9 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	}{
 		{"missing hermetic", "run: bash scripts/test-run-live-postgres-readiness-tests.sh", "run: true"},
 		{"missing live", "run: bash scripts/run-live-postgres-readiness-tests.sh", "run: true"},
+		{"missing queue selector", "    uses: ./.github/workflows/queue-selection.yml", "    uses: actions/checkout@v5"},
+		{"wrong hermetic selection", "        if: " + readinessHermeticSelection + "\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh", "        if: " + readinessLiveSelection + "\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh"},
+		{"wrong live selection", "      - name: Run live readiness proofs\n        if: " + readinessLiveSelection, "      - name: Run live readiness proofs\n        if: " + readinessHermeticSelection},
 		{"skip hermetic", "  hermetic:\n", "  hermetic:\n    if: false\n"},
 		{"waive live", "  live-postgres-readiness:\n", "  live-postgres-readiness:\n    continue-on-error: true\n"},
 		{"compound runner", "run: bash scripts/run-live-postgres-readiness-tests.sh", "run: bash scripts/run-live-postgres-readiness-tests.sh || true"},
@@ -268,7 +284,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		{"short hermetic timeout", "timeout-minutes: 30", "timeout-minutes: 20"},
 		{"changed live timeout", "timeout-minutes: 60", "timeout-minutes: 61"},
 		{"missing standby cleanup", "run: bash scripts/ci/live-postgres-standby-fixture.sh stop", "run: true # bash scripts/ci/live-postgres-standby-fixture.sh stop"},
-		{"skipped standby cleanup", "        if: always()", "        if: false"},
+		{"skipped standby cleanup", "        if: " + readinessCleanupSelection, "        if: false"},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
 			if !strings.Contains(string(workflow), mutation.old) {
@@ -280,27 +296,20 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			}
 		})
 	}
-	workflowText := string(workflow)
-	if strings.Count(workflowText, readinessServiceCredentials) != 2 {
-		t.Fatal("expected one credential block for each live service")
-	}
 	for _, mutation := range []struct {
-		name, replacement string
-		last              bool
+		name, old, replacement string
 	}{
-		{"missing postgres credentials", "", false},
-		{"missing neo4j credentials", "", true},
-		{"partial postgres credentials", "        credentials:\n          username: ${{ secrets.DOCKERHUB_USERNAME }}\n", false},
-		{"partial neo4j credentials", "        credentials:\n          password: ${{ secrets.DOCKERHUB_TOKEN }}\n", true},
+		{"postgres mirror changed", "image: ghcr.io/eshu-hq/ci-postgres-bookworm@", "image: docker.io/library/postgres@"},
+		{"neo4j mirror changed", "image: ghcr.io/eshu-hq/ci-neo4j-community@", "image: docker.io/library/neo4j@"},
+		{"postgres credentials added", "      postgres:\n        image:", "      postgres:\n        credentials: ${{ secrets.DOCKERHUB_TOKEN }}\n        image:"},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {
-			index := strings.Index(workflowText, readinessServiceCredentials)
-			if mutation.last {
-				index = strings.LastIndex(workflowText, readinessServiceCredentials)
+			if !strings.Contains(string(workflow), mutation.old) {
+				t.Fatalf("mutation anchor missing: %s", mutation.old)
 			}
-			changed := workflowText[:index] + mutation.replacement + workflowText[index+len(readinessServiceCredentials):]
+			changed := strings.Replace(string(workflow), mutation.old, mutation.replacement, 1)
 			if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
-				t.Fatal("seeded service credential violation passed")
+				t.Fatal("seeded service image violation passed")
 			}
 		})
 	}
@@ -321,25 +330,4 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			t.Fatal("late Docker Hub login passed")
 		}
 	})
-}
-
-func TestReadinessServiceCredentialsUseMainMapping(t *testing.T) {
-	t.Parallel()
-	workflow, err := os.ReadFile(filepath.Join("..", "..", "..", ".github", "workflows", "live-postgres-readiness.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var parsed readinessWorkflow
-	if err := yaml.Unmarshal(workflow, &parsed); err != nil {
-		t.Fatal(err)
-	}
-	for _, service := range []string{"postgres", "neo4j"} {
-		credentials := parsed.Jobs["live-postgres-readiness"].Services[service].Credentials
-		var got map[string]string
-		if credentials.Kind != yaml.MappingNode || credentials.Decode(&got) != nil ||
-			got["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
-			got["password"] != "${{ secrets.DOCKERHUB_TOKEN }}" || len(got) != 2 {
-			t.Fatalf("%s service credentials must use main's username/password mapping", service)
-		}
-	}
 }
