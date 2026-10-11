@@ -376,7 +376,7 @@ citation fails the citation gate.
 
 | # | Where (file, symbol) | Limit today | Disclosed today | End state |
 |---|---|---|---|---|
-| L1 | `repositoryartifacts/repository_config_artifacts_loader.go`, `loadRepositoryConfigArtifactsForSources`: `ListRepoFiles` with `RepositorySemanticEntityLimit` | 5,000 files per related repository, no sentinel | No | Read limit+1, clip, set a per-repository `ListTruncated`, count per request, reason R2 |
+| L1 | `repositoryartifacts/repository_config_artifacts_loader.go`, `loadRepositoryConfigArtifactsForSources`: `ListRepoFiles` with `RepositorySemanticEntityLimit` | 5,000 files per related repository, no sentinel | No | Read limit+1, clip, set a per-repository `ListTruncated`, count per request, the window reason (section 10) |
 | L2 | `repositoryartifacts/repository_artifact_hydration.go`, `selectHydrationIndexes` and `repositoryArtifactHydrationLimit` (= 50). PR3a: `content/artifacts/hydration_select.go`, `SelectHydrationIndexes`, `HydrationLimit` | first 50 candidates per related repository | No | Lifted. Selection takes an allowance: floor 50 plus a share of the request budget. `HydrationLimit` becomes `HydrationFloor` |
 | L3 | `repositoryartifacts/repository_config_artifacts_hydration.go`, `hydrate`: kustomize resource reads only among the selected candidates (`working`) | derived from L2 | No | Follows L2. A resource the kustomization names inside the list window is read |
 | L4 | `repository/semantics.go`, `loadRepositorySemanticOverview` | 5,000, anchor, limit+1 | Yes (`repository_semantic_read_truncated_at_5000`) | Unchanged |
@@ -403,18 +403,17 @@ the access-filtered sources are sorted by `RepoID` before the walk.
 ## 10. Request budget, proof and acceptance plan (cap ruling, 2026-10-11)
 
 Why a bound. With L2 gone, the only per-repository bound is the 5,000-file
-window, so the worst case per request is N x 5,000 candidates. With N about
-300 (an extrapolation, decision record section 1) that is 1.5 million
-candidates, which fails the performance and reliability contract. The bound
-is a request budget known before any read, so a repeated request has a stable
-body. Wall time was rejected as a unit (a host-dependent body), bytes too
-(the list statement returns no size), and statements follow from files.
-Serialization and a lower worker count are no part of the control. The chunk
-size 10 and the in-flight bound 8 stay.
+window, so the worst case per request is N x 5,000 candidates: 1.5 million
+at N about 300 (an extrapolation, decision record section 1). That fails the
+performance and reliability contract. The bound is a request budget known
+before any read, so a repeated request has a stable body. Wall time was
+rejected as a unit (a host-dependent body), and bytes too (the list statement
+returns no size). Serialization and a lower worker count are no part of the
+control. The chunk size 10 and the in-flight bound 8 stay.
 
-Estimate (theory, an extrapolation of measured per-statement and per-MB rates
-to the known hidden set of 3,763 candidates, from the local kit note
-`7126-batch-shim-20261010.md`; nothing here was measured on the new code):
+Estimate (theory: measured per-statement and per-MB rates applied to the
+known hidden set of 3,763 candidates, from the local kit note
+`7126-batch-shim-20261010.md`; nothing here ran on the new code):
 
 | Term | Estimate |
 |---|---|
@@ -426,23 +425,23 @@ to the known hidden set of 3,763 candidates, from the local kit note
 | Worst case at E = 10,000 | about +1.0 CPU-s gated (+3.0 if every gate misses), on top of the floors. Headroom over R1's known extra: 2.7x |
 
 Census rule: after S6, E must satisfy E >= 1.5 x R1's measured total extra
-over all related repositories. If it does not, raise E and redo this table in
-the PR.
+over all related repositories, or E is raised and this table redone in the PR.
 
-Disclosure the response and the stage line must carry when a bound bites.
-Reasons (story `limitations`, context `partial_reasons`, service story
-`limitations`), each also setting `answer_metadata.truncated`:
+Disclosure the response and the stage line carry when a bound bites. Reasons
+(story `limitations`, context `partial_reasons`, service story
+`limitations`) each also set `answer_metadata.truncated`. The budget reason is
 `deployment_artifacts_candidates_budget_reached` (E exhausted, and a related
-repository has candidates in its window that were not hydrated) and
-`deployment_artifacts_related_file_list_truncated_at_5000` (a related list
-returned the sentinel row). Counts, summed per request, no repository id or
-path: `candidate_count`, `candidates_hydrated`, `candidates_unhydrated`,
-`repositories_budget_capped`, `repositories_list_truncated`,
-`hydration_budget` and `hydration_floor`. One counter,
-`eshu_dp_config_artifact_candidates_total{outcome}`. The stage lines are
-`deployment_artifacts` (story), `content_infrastructure_overview` (context)
-and `deployment_evidence` (service). `deployment_artifacts_read_degraded` is
-unchanged.
+repository has candidates in its window that were not hydrated). The window
+reason is `deployment_artifacts_related_file_list_truncated_at_5000` (a
+related list returned the sentinel row, so its pool past the window is
+unknown). Counts, exact within the window, summed per request, no repository
+id or path: `candidate_count`, `candidates_hydrated`,
+`candidates_unhydrated`, `repositories_budget_capped`,
+`repositories_list_truncated`, `hydration_budget` and `hydration_floor`. One
+counter, `eshu_dp_config_artifact_candidates_total{outcome}`. The stage lines
+are `deployment_artifacts` (story), `content_infrastructure_overview`
+(context) and `deployment_evidence` (service).
+`deployment_artifacts_read_degraded` is unchanged.
 
 Proof before an executor starts (time box 2 h, prove-the-theory-first):
 
@@ -453,44 +452,47 @@ Proof before an executor starts (time box 2 h, prove-the-theory-first):
    +2.5 CPU-s at 300 repositories, statements about +470 to +1,300, A's
    digest unchanged, B's rows a superset of A's.
 2. Plan shim: `EXPLAIN (ANALYZE, BUFFERS)` of the blank-check and batched
-   statements with arrays of 10, 500, 1,000 and 4,950 paths, under a custom
-   and a forced generic plan. Pass: index scan, no sequential or bitmap heap
-   scan at 4,950.
+   statements with arrays of 10, 500, 1,000 and 4,950 paths, custom and
+   forced generic plan. Pass: index scan, no sequential or bitmap heap scan
+   at 4,950.
 3. Heap shim: peak heap of one 3,678-candidate repository against the API pod
    limit. Pass: growth under 25% of the limit.
 
 PR-cap-1 accuracy checks (each is a behavior test): 51, 500 and 5,001
-candidates (exactly 5,000 gives no R2); a budget bite through a loader test
-seam, not an env var; byte-identical bodies for three shuffled source orders;
-a monotonic differential (the new `config_paths` is a superset of the capped
-one, byte-identical when no repository exceeds 50); kustomize inversion of
-`TestNeededContentHydrationReferenceOutsideCapIsNotRead`; disclosure fields on
-all three routes and their absence when nothing bites; a seeded violation
-(selection that stops at 50 and drops the reason) turning the tests RED;
-live plan and equality tests at 4,950 paths; an out-of-grant repository adds
-nothing to any count (counts are computed after the grant filter); the
-golden-corpus gate (`config_paths` appears in two cassettes); `-race`,
-OpenAPI and package-docs gates.
+candidates (exactly 5,000 gives no window reason); a budget bite through a
+loader test seam, not an env var; byte-identical bodies for three shuffled
+source orders; a monotonic differential (the new `config_paths` is a superset
+of the capped one, byte-identical when no repository exceeds 50); kustomize
+inversion of `TestNeededContentHydrationReferenceOutsideCapIsNotRead`;
+disclosure fields on all three routes, absent when nothing bites; a seeded
+violation (selection that stops at 50 and drops the reason) turning the tests
+RED; live plan and equality tests at 4,950 paths; an out-of-grant repository
+adds nothing to any count (counts follow the grant filter); the golden-corpus
+gate (`config_paths` is in two cassettes); `-race`, OpenAPI and package-docs
+gates.
 
-Roll image check (2026-10-11). `794b56a3fb` is the merge of #7949 at
-2026-10-11 04:22 UTC.
+Roll image check (2026-10-11). `794b56a3fb` is the image the cap ruling named
+(the merge of #7949, 04:22 UTC). `1ac63e871a` is the image the QA environment
+was reported to run (the merge of #7946, 08:31 UTC; the environment's own
+report is NOT_CHECKED here). `794b56a3fb` is an ancestor of `1ac63e871a`. Both
+hold PR1 only.
 
-| Commit | Change | Contained in `794b56a3fb` |
-|---|---|---|
-| `1be621eb11` | PR1, #7941 | yes |
-| `e8f934d294` | PR1b, #7959 | no |
-| `050b0f5304` | this ADR, #7954 | no |
-| `6b761d2145` | PR2, #7962 | no |
+| Commit | Change | In `794b56a3fb` | In `1ac63e871a` |
+|---|---|---|---|
+| `1be621eb11` | PR1, #7941 | yes | yes |
+| `e8f934d294` | PR1b, #7959 | no | no |
+| `050b0f5304` | this ADR, #7954 | no | no |
+| `6b761d2145` | PR2, #7962 | no | no |
 
-Command: `git merge-base --is-ancestor <commit> 794b56a3fb`. `6b761d2145` is
-an ancestor of `64f6600d98`, so a pinned SHA in that range holds PR1, PR1b and
-PR2.
+Command: `git merge-base --is-ancestor <commit> <image>`. Read 2 pins main
+`6b761d2145` (the #7962 merge, an ancestor of `64f6600d98`), which holds PR1,
+PR1b and PR2 and excludes PR3a, PR-cap-1 and PR3b-1a. Whether an image of it
+is built is NOT_CHECKED here.
 
 NOT_CHECKED (cap ruling): the class mix, bytes and hidden rows of the 3,763
 hidden candidates, the hidden candidates of the about 160 unnamed related
 repositories of R1, the exact N of R1, the API pod memory limit and heap
 growth at the worst repository, the blank-check plan at 1,000-4,950 element
 arrays, whether any golden-corpus repository exceeds 50 candidates, the CPU of
-a chunk statement against a single-file statement (0.82 ms was measured on
-single-file statements), and whether the private PostgreSQL pair of the
-PR1 and PR2 bench is running.
+a chunk statement (0.82 ms was measured on single-file statements), and
+whether the private PostgreSQL pair of the PR1 and PR2 bench is running.
