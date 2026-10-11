@@ -184,6 +184,14 @@ for consistency, permissions, multiple hosts, and qualification limits.
 
 
 - `ESHU_API_ADDR` — listen address, default `:8080`
+- `ESHU_STATUS_DIAGNOSTIC_REPORT` — optional private output path for a bounded
+  diagnostic of exact `GET /api/v0/status/ingesters/repository` requests. When
+  set, responses carry a server-generated `X-Eshu-Diagnostic-ID`. At graceful
+  shutdown, the API writes a mode `0600` JSON report atomically with request,
+  HTTP status, checkpoint/reader stage, and status snapshot span timings. An
+  overflow or unfinished span sets `complete: false`; the report never includes
+  SQL, credentials, raw errors, or arbitrary span attributes. Leave unset for
+  ordinary operation; retain the report privately.
 - `ESHU_POSTGRES_DSN` (or legacy `ESHU_CONTENT_STORE_DSN`) — required
 - `ESHU_QUERY_PROFILE` — default `production`
 - `ESHU_GRAPH_BACKEND` — `neo4j` or `nornicdb`

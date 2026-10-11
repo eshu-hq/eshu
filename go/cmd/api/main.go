@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/metric"
 
+	statusdiag "github.com/eshu-hq/eshu/go/cmd/api/diagnostic"
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
@@ -54,6 +55,11 @@ func main() {
 			logger.Error("telemetry shutdown failed", telemetry.EventAttr("runtime.shutdown.failed"), "error", err)
 		}
 	}()
+	diagnostics, err := statusdiag.New(os.Getenv, providers.TracerProvider)
+	if err != nil {
+		logger.Error("status diagnostic startup failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+		os.Exit(1)
+	}
 
 	pprofSrv, err := runtimecfg.NewPprofServer(os.Getenv)
 	if err != nil {
@@ -71,7 +77,7 @@ func main() {
 		}()
 	}
 
-	mux, cleanup, instruments, err := wireAPI(ctx, os.Getenv, logger, providers.PrometheusHandler)
+	mux, cleanup, instruments, err := wireAPI(ctx, os.Getenv, logger, providers.PrometheusHandler, diagnostics)
 	if err != nil {
 		logger.Error("wire api failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
@@ -87,12 +93,17 @@ func main() {
 		mux, "eshu-api",
 		otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
 	)
+	if diagnostics != nil {
+		handler = diagnostics.Middleware(handler)
+	}
 
 	srv := newAPIServer(addr, handler)
 
 	shutdownTimeout := apiShutdownTimeout(os.Getenv)
+	shutdownDone := make(chan struct{})
 	go func() {
 		<-ctx.Done()
+		defer close(shutdownDone)
 		start := time.Now()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer shutdownCancel()
@@ -111,8 +122,20 @@ func main() {
 	}()
 
 	logger.Info("eshu-api listening on address", telemetry.EventAttr("runtime.server.listening"), "address", addr)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Error("api listen failed", telemetry.EventAttr("runtime.server.failed"), "error", err, "address", addr)
+	serveErr := srv.ListenAndServe()
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		cancel()
+	}
+	<-shutdownDone
+	if diagnostics != nil {
+		flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := diagnostics.Flush(flushCtx); err != nil {
+			logger.Error("status diagnostic flush failed", telemetry.EventAttr("runtime.shutdown.failed"), "error", err)
+		}
+		flushCancel()
+	}
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		logger.Error("api listen failed", telemetry.EventAttr("runtime.server.failed"), "error", serveErr, "address", addr)
 		os.Exit(1)
 	}
 	logger.Info("eshu-api shutdown complete", telemetry.EventAttr("runtime.server.stopped"))
