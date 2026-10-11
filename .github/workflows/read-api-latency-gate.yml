@@ -121,9 +121,19 @@ jobs:
       GATE_CONCURRENT_WORKERS: 4
       GATE_CONCURRENT_REQUESTS: 20
       GATE_RUNS: 3
+      # #7886: CI images stay on approved GHCR pins. This login covers the
+      # verifier's conservative unresolved Compose source classification.
+      # Absent secrets skip login; invalid present credentials fail the job.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Set up Go
         uses: actions/setup-go@v6
         with:

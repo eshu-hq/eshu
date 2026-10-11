@@ -474,6 +474,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-test-shapes.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-test-script-refs.sh"
 # shellcheck source=lib/dockerhub-login-test-expressions.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-expressions.sh"
+# shellcheck source=lib/dockerhub-login-test-conditions.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-conditions.sh"
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "test-verify-dockerhub-login: ${failures} case(s) failed" >&2

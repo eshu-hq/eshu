@@ -79,7 +79,9 @@
 #     secrets (pulled at job init, before any step, so a login cannot cover them);
 #   - for steps, a docker/login-action@v3 step with no registry: (or docker.io),
 #     BEFORE the first reaching step, which includes a setup-buildx or setup-qemu
-#     step (a login placed after one does not cover its pull), gated by `env.DOCKERHUB_LOGIN_ENABLED == 'true'`, with no continue-on-error
+#     step (a login placed after one does not cover its pull), gated by
+#     `env.DOCKERHUB_LOGIN_ENABLED == 'true'` alone or after this job's canonical
+#     queue selector, with no continue-on-error
 #     (a failed login would fall back to anonymous pulls and hide invalid
 #     secrets), using the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN secrets, with the
 #     job (or workflow) env building DOCKERHUB_LOGIN_ENABLED from both secrets.
@@ -194,6 +196,8 @@ done < <([[ "${#ref_inputs[@]}" -eq 0 ]] || LC_ALL=C awk -f "${refs_awk}" "${ref
 source "${repo_root}/scripts/lib/dockerhub-login-images.sh"
 # shellcheck source=lib/dockerhub-login-compose.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-compose.sh"
+# shellcheck source=lib/dockerhub-login-conditions.sh
+source "${repo_root}/scripts/lib/dockerhub-login-conditions.sh"
 
 # check_job <workflow> <job> <workflow env>: evaluates one job.
 check_job() {
@@ -325,7 +329,7 @@ check_job() {
   esac
   [[ "${login_uses}" == docker/login-action@v3 || "${login_uses}" == docker/login-action@v3.* ]] ||
     fail "${where}: steps[${login_idx}] must use docker/login-action@v3, not ${login_uses}"
-  [[ "${login_if}" == "${gate_expr}" ]] ||
+  login_condition_is_safe "${login_if}" "${job}" ||
     fail "${where}: login steps[${login_idx}] must run only when DOCKERHUB_LOGIN_ENABLED is true (if: ${gate_expr})"
   [[ "${login_user}" == "${user_expr}" && "${login_pass}" == "${token_expr}" ]] ||
     fail "${where}: login steps[${login_idx}] must use the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets"
