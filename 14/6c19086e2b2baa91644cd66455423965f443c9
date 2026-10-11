@@ -1,0 +1,22 @@
+go/internal/proof/content/corpus/signals.go
+  s_b0d7e3abc26c5a::t_059adc2964d2ae 51,65-67,79-90
+go/internal/proof/content/corpus/signals_test.go
+  s_b0d7e3abc26c5a::t_889772947a6291 13,178-236
+  s_b0d7e3abc26c5a::t_e7bdde5f6c3262 237-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "146c19086e2b2baa91644cd66455423965f443c9",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
