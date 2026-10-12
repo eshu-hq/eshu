@@ -225,6 +225,26 @@ new_case in-group-failing
 queue_self
 edit checks.json '. + [{name:"go-core",state:"FAILURE",bucket:"fail"}]'
 expect_red "queued PR with a failing check" checks
+# A queued PR accepts only UNKNOWN or CLEAN (ruling a9-139.2): any other merge
+# state still fails, labeled IN-GROUP and naming the value.
+new_case in-group-clean
+queue_self
+edit pr.json '.mergeStateStatus = "CLEAN"'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+rg -q '^PASS checks +IN-GROUP: complete; required-gates-complete=success; mergeStateStatus=CLEAN ' <<<"${OUT}" || ok=1
+check "GREEN a queued PR with mergeStateStatus CLEAN passes" "${ok}"
+for state in BLOCKED DIRTY BEHIND; do
+	new_case "in-group-${state}"
+	queue_self
+	# shellcheck disable=SC2016 # jq variable, not a shell expansion.
+	edit pr.json '.mergeStateStatus = $m' --arg m "${state}"
+	expect_red "queued PR with mergeStateStatus ${state}" checks
+	ok=0
+	rg -q "^FAIL checks +IN-GROUP: mergeStateStatus=${state}; \$" <<<"${OUT}" || ok=1
+	check "RED the queued ${state} row names the merge state" "${ok}"
+done
 new_case unknown-not-queued
 edit pr.json '.mergeStateStatus = "UNKNOWN"'
 expect_red "mergeStateStatus UNKNOWN on a PR that is not queued" checks

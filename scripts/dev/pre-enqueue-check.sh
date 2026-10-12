@@ -37,9 +37,9 @@ usage() {
 		'                  PR; an empty queue passes with "queue empty"' \
 		'  checks          gh pr checks: pending == 0 and fail == 0 by state bucket' \
 		'                  (skipping allowed); commit status required-gates-complete' \
-		'                  == success; mergeStateStatus == CLEAN, except for a PR' \
-		'                  already in the merge queue (GitHub reports UNKNOWN): the' \
-		'                  row is labeled IN-GROUP and judged on the check rows' \
+		'                  == success; mergeStateStatus == CLEAN; a PR already in' \
+		'                  the merge queue is labeled IN-GROUP and accepts UNKNOWN' \
+		'                  (GitHub reports it for a queued PR) or CLEAN' \
 		'  threads         unresolved review threads == 0' \
 		'  body            at least one issue reference (#N) or closing keyword' \
 		'                  (Closes/Fixes/Resolves #N), labeled for the caller to' \
@@ -254,11 +254,12 @@ rgc="$(jq -r '[.statuses[]? | select(.context == "required-gates-complete") | .s
 [[ "${rgc}" == success ]] || checks_bad+=("required-gates-complete=${rgc}")
 mss="$(jq -r '.mergeStateStatus // "?"' <<<"${pr_json}")"
 # A PR already in a merge group reads mergeStateStatus UNKNOWN (PR #8000,
-# ruling a9-135.2): the row is then labeled IN-GROUP and judged on the check
-# rows and required-gates-complete alone. Any other PR still needs CLEAN.
+# rulings a9-135.2, a9-139.2): the row is labeled IN-GROUP and accepts only
+# UNKNOWN or CLEAN; any other value fails. Any other PR still needs CLEAN.
 group_label=""
 if [[ "${in_group}" -eq 1 ]]; then
 	group_label="IN-GROUP: "
+	[[ "${mss}" == UNKNOWN || "${mss}" == CLEAN ]] || checks_bad+=("mergeStateStatus=${mss}")
 else
 	[[ "${mss}" == CLEAN ]] || checks_bad+=("mergeStateStatus=${mss}")
 fi
