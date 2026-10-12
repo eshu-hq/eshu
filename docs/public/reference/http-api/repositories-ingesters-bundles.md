@@ -92,10 +92,10 @@ panel failed: `entry_points_read_degraded`, `relationships_read_degraded`,
 `relationships_read_degraded` in `limitations`. This mirrors the `partial_reasons` shape the inventory
 route already uses (below) rather than inventing a new one. None of those
 reads adds a `_truncated` reason (`api_surface` alone is bounded and discloses
-it as `detail_truncated` on its own panel). The deployment-artifact stage
-is not bounded, but a failed content or graph read in it is named (#7126): both routes add
-`deployment_artifacts_read_degraded` (`partial_reasons` on context, `limitations` on story).
-The response keeps the artifacts of the loads that succeeded and lacks those of the failed load.
+it as `detail_truncated` on its own panel). A failed deployment-artifact read adds
+`deployment_artifacts_read_degraded` (#7126; the loads that succeeded are kept); its candidate
+bounds add `deployment_artifacts_candidates_budget_reached` or
+`deployment_artifacts_related_file_list_truncated_at_5000` (#7951, [details](story-routes.md)).
 
 `GET /api/v0/repositories` accepts `limit` and `offset` and returns
 `truncated=true` when more indexed repositories are available. If the graph

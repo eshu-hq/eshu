@@ -39,9 +39,10 @@ and adapts `querycontract.FileContent` to `File`.
 - `ListStatement`, `GetFileStatement`, `GetFilesStatement`,
   `NonBlankPathsStatement`, `FileScanTargets`, `RelativePathScanTargets`, `SpaceCharacters` —
   the shared `content_files` statements and row mappers
-- `HydrationLimit`, `ListLimit`, `ReadChunkSize`, `ReadChunksInFlight`,
-  `SelectHydrationIndexes` — the caps and the single definition of the
-  hydration set
+- `HydrationFloor`, `AllowanceWholeWindow`, `ListLimit`, `ReadChunkSize`,
+  `ReadChunksInFlight`, `BlankCheckChunkSize`, `SelectHydrationIndexes` — the
+  floor, the allowance sentinel, the list window, the statement sizes and the
+  single definition of the hydration set
 - `IsDockerComposeArtifact`, `IsDockerComposeFilename`,
   `AnsibleInventoryEvidencePath` and its siblings,
   `NormalizeConfigArtifactExpression`, `DecodeYAMLMaps` — path rules the query
@@ -87,9 +88,9 @@ stage log line and the content store's `postgres.query` spans are unchanged.
 ## Content is fetched only for the consumed set (#7126)
 
 The per-repository function `LoadConfigPaths` fetches file content only for
-files an extractor reads. The selection is the first
-50 candidates in `relative_path` order, as before; the rest is what is read
-for them:
+files an extractor reads. The selection is the first `allowance` candidates in
+`relative_path` order (see "The allowance and the list window" below); the rest
+is what is read for them:
 
 1. `configArtifactReadsContent` names the files an extractor reads by itself:
    kustomization files, Docker Compose artifacts, `terragrunt.hcl`/`.tf`/`.hcl`
@@ -103,7 +104,9 @@ for them:
    vars, role and task paths) exists only for a non-blank file, so they get one
    `Reader.NonBlankPaths` statement per repository. It decides
    `strings.TrimSpace(content) != ""` where the content lives and returns no
-   bytes.
+   bytes. The paths go in sorted order, `BlankCheckChunkSize` (500) per
+   statement, one statement after another, so a repository can issue more
+   than one blank check: at most 10 for a full 5,000-file window.
 3. `planKustomizeResourceReads` runs the kustomize walk's own
    `collectKustomizeResourceFiles` over the files and names the resource files
    the kustomizations reference; only those are fetched in a second pass.
@@ -111,9 +114,8 @@ for them:
 Both content reads (steps 1 and 3) go through `Reader.ReadFiles`,
 one statement per chunk of 10 paths (`chunkedRead`,
 `hydration_chunked.go`), with at most 8 chunk reads of one
-repository in flight (#7126 PR 2). A repository holds at most five chunks per
-read, because the cap is 50 files. Repositories are still visited one after
-another. The statement is `relative_path = ANY($2)`, equality on the repository
+repository in flight (#7126 PR 2). A repository issues ceil(selected reads /
+10) chunks per read. Repositories are still visited one after another. The statement is `relative_path = ANY($2)`, equality on the repository
 and path key, so it uses the `content_files_repo_path_pattern_idx` index. A
 chunk, not a whole repository, because one statement detoasts its rows on one
 backend: a single statement for a 7.4 MB repository ran 2.4 times slower than
@@ -145,6 +147,37 @@ issued. Any read the extractors need still fails the repository load.
 query package's `LoadDeploymentArtifactOverviewWithStats` sums them into the
 stage statistics the repository story and context handlers log on the
 `deployment_artifacts` stage line.
+
+## The allowance and the list window (#7951)
+
+Until #7951 the load read only the first 50 candidates of a repository and
+said nothing about the rest. Now `LoadConfigPaths` takes an `allowance`:
+
+- A positive allowance selects that many candidates in list order. The live
+  query load passes `HydrationFloor` (50) plus what is left of the request's
+  extra-candidate budget, so every repository gets at least the old selection
+  and the rows are a superset of the old rows
+  (`TestLiftedCapIsMonotoneOverGeneratedTrees`).
+- `AllowanceWholeWindow` (-1) selects every candidate in the window. A
+  content-write derive passes it, so stored rows never carry a budget cut.
+- Any other negative allowance is an error, so a miscomputed budget cannot
+  read as an unbounded one.
+
+The list statement reads `ListLimit+1` rows. A row past `ListLimit` clips the
+list to `ListLimit` files and sets `ReadStats.ListTruncated`; the clipped
+files are never read, and a kustomize resource outside the window is not
+read. A supplied list (the anchor repository) is used as given.
+
+`ReadStats.CandidateCount` is the candidate pool of the window and
+`CandidatesHydrated` the part the allowance took; the query package turns them
+into the request's disclosure counts and reasons.
+
+The blank check is chunked at 500 paths because a measured PostgreSQL 18 plan
+of `NonBlankPathsStatement` keeps an index scan on
+`content_files_repo_path_pattern_idx` at 500 paths and moves to a bitmap heap
+scan at about 1,171 paths or more, at a size that depends on the table
+statistics. No size gave a sequential scan. The live plan tests in the query
+package (`content_reader_wide_window_live_test.go`) pin 500 and 4,950 paths.
 
 ## HCL scan prefilter (#7126)
 

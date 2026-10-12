@@ -24,8 +24,8 @@ func TestConfigArtifactListLimitMatchesTheSemanticEntityLimit(t *testing.T) {
 	if contentartifacts.ListLimit != querycontract.RepositorySemanticEntityLimit {
 		t.Fatalf("ListLimit = %d, RepositorySemanticEntityLimit = %d", contentartifacts.ListLimit, querycontract.RepositorySemanticEntityLimit)
 	}
-	if contentartifacts.HydrationLimit != RepositoryArtifactHydrationLimit {
-		t.Fatalf("HydrationLimit = %d, RepositoryArtifactHydrationLimit = %d", contentartifacts.HydrationLimit, RepositoryArtifactHydrationLimit)
+	if contentartifacts.HydrationFloor != RepositoryArtifactHydrationLimit {
+		t.Fatalf("HydrationFloor = %d, RepositoryArtifactHydrationLimit = %d", contentartifacts.HydrationFloor, RepositoryArtifactHydrationLimit)
 	}
 }
 

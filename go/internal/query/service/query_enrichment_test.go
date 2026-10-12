@@ -24,7 +24,8 @@ func TestLoadServiceDeploymentEvidenceUsesGraphEvidenceWithoutContentHydration(t
 		},
 	}
 
-	got, err := loadServiceDeploymentEvidence(context.Background(), nil, content, workloadContext)
+	load, err := loadServiceDeploymentEvidence(context.Background(), nil, content, workloadContext)
+	got := load.evidence
 	if err != nil {
 		t.Fatalf("loadServiceDeploymentEvidence() error = %v, want nil", err)
 	}

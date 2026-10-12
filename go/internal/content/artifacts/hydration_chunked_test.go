@@ -31,7 +31,8 @@ func tfFiles(n int) []File {
 // TestBatchedHydrationIssuesOneStatementPerChunkOfTen is the statement-shape
 // contract of #7126 PR 2: the consumed files of one repository are read with
 // one ReadFiles statement per chunk of ten, and GetFileContent is not
-// used. The cap of 50 bounds a repository at five chunks.
+// used. runConfigLoad runs at the floor allowance of 50, which bounds a
+// repository at five chunks.
 func TestBatchedHydrationIssuesOneStatementPerChunkOfTen(t *testing.T) {
 	t.Parallel()
 
@@ -64,8 +65,8 @@ func TestBatchedHydrationIssuesOneStatementPerChunkOfTen(t *testing.T) {
 				read += len(call)
 			}
 			wantRead := tc.files
-			if wantRead > HydrationLimit {
-				wantRead = HydrationLimit
+			if wantRead > HydrationFloor {
+				wantRead = HydrationFloor
 			}
 			if read != 2*wantRead {
 				t.Fatalf("paths read = %d, want %d (the first 50 candidates, twice)", read, 2*wantRead)

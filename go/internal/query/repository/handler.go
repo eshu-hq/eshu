@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 var repositoryBaseCypher = fmt.Sprintf(`
@@ -41,6 +42,9 @@ type Handler struct {
 	Freshness FreshnessReader
 	Profile   querycontract.QueryProfile
 	Logger    *slog.Logger
+	// Instruments records eshu_dp_config_artifact_candidates_total for the
+	// story and context deployment-artifact loads (#7951). Nil records none.
+	Instruments *telemetry.Instruments
 }
 
 // Mount registers all repository routes on the given mux.
@@ -363,6 +367,11 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 			storyLimitations = append(storyLimitations, deploymentArtifactsReadDegradedReason)
 			reportDeploymentArtifactsFailure(r.Context(), h.Logger, "repository_story", repoID, deploymentErr, deploymentStats)
 		}
+		if bound := deploymentStats.BoundReasons(); len(bound) > 0 {
+			// A candidate bound bit (#7951): the config rows are a lower bound.
+			storyLimitations, storyTruncated = append(storyLimitations, bound...), true
+		}
+		RecordDeploymentArtifactCandidates(r.Context(), h.Instruments, deploymentStats)
 		timer.Done(r.Context(), deploymentArtifactsStageAttrs(deploymentOverview != nil, deploymentErr, deploymentStats)...)
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "narrative_files")
 		narrativeFiles, err = hydrateRepositoryNarrativeFiles(r.Context(), h.Content, repoID, files)

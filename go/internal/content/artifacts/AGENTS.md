@@ -43,6 +43,16 @@
   and the launch decision stays under the mutex that records a failure (a
   chunk is launched only while no failure is recorded and the context is
   live).
+- The selection takes an allowance (#7951). Never reintroduce a fixed cap in
+  `SelectHydrationIndexes` or `LoadConfigPaths`: a live load passes the floor
+  plus the request budget, a derive passes `AllowanceWholeWindow`. Keep the
+  list sentinel (`ListLimit+1`, clip, `ListTruncated`) and the candidate
+  counts in `ReadStats`; the query package's disclosure depends on them. The
+  monotonicity differential (`monotonicity_test.go`) and its seeded pair must
+  stay green.
+- The blank check sends at most `BlankCheckChunkSize` (500) paths per
+  statement. Raise it only with a plan proof at the new size: the custom plan
+  leaves the index scan at about 1,171 paths.
 - The HCL extractor skips a regex scan only when `prefilter` proves the pattern
   has no match. Do not hand-write literals for a gate: derive from the compiled
   pattern. A new or edited HCL pattern needs its pinned derivation and mutation

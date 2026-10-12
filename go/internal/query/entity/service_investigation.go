@@ -109,6 +109,7 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.QueryEnrichmentOptions{
 		IncludeRelatedModuleUsage: true,
 		Logger:                    h.Logger,
+		Instruments:               h.Instruments,
 		Operation:                 "service_investigation",
 	}); err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {

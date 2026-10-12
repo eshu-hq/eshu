@@ -960,6 +960,18 @@ type Instruments struct {
 	// reindex_unsupported). Never carries scope ids. Registered in
 	// instruments_recovery_delta_active.go.
 	RecoveryDeltaActiveScopes metric.Int64Counter
+	// ConfigArtifactCandidates counts the config-artifact candidates of the
+	// deployment-artifact load of the repository story, repository context
+	// and service story or context routes (issue #7951), by outcome:
+	// hydrated (read or blank-checked under the per-repository floor and the
+	// per-request budget), unhydrated (inside a list window but left unread
+	// because the request budget ran out), list_truncated (one per related
+	// repository whose file list was cut at the 5,000-file window; its
+	// candidates past the window are unknown). A non-zero unhydrated or
+	// list_truncated rate is the operator signal that responses carried a
+	// budget or window reason. No repository label. Registered in
+	// instruments_config_artifact_candidates.go.
+	ConfigArtifactCandidates metric.Int64Counter
 	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
 	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
 	// K8sResource) whose K8sResource candidate scan hit the
@@ -5124,6 +5136,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerRecoveryDeltaActiveScopes(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerConfigArtifactCandidates(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {

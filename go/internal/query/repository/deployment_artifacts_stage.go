@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
@@ -24,15 +25,28 @@ import (
 // partial_reasons, the same fields the other degraded reads use.
 const deploymentArtifactsReadDegradedReason = "deployment_artifacts_read_degraded"
 
-// deploymentArtifactsReadCountAttrs are the read counts of one deployment
+// DeploymentArtifactsReadCountAttrs are the read counts of one deployment
 // artifact load, as stage-log attributes. All values are counts, seconds or
-// booleans; none names a path, repository or content.
-func deploymentArtifactsReadCountAttrs(stats artifacts.ConfigArtifactReadStats) []slog.Attr {
+// booleans; none names a path, repository or content. The repository story
+// logs them on its deployment_artifacts stage, the repository context on
+// content_infrastructure_overview, and the service routes on
+// deployment_evidence. The candidate counts (#7951) are summed per request:
+// candidates_unhydrated above zero means the request budget bit, and
+// repositories_list_truncated above zero means a related file list was cut at
+// the 5,000-file window.
+func DeploymentArtifactsReadCountAttrs(stats artifacts.ConfigArtifactReadStats) []slog.Attr {
 	return []slog.Attr{
 		slog.Int("related_repository_count", stats.RelatedRepositoryCount),
 		slog.Int("files_listed", stats.FilesListed),
 		slog.Int("files_hydrated", stats.FilesHydrated),
 		slog.Int("files_skipped", stats.FilesSkipped),
+		slog.Int("candidate_count", stats.CandidateCount),
+		slog.Int("candidates_hydrated", stats.CandidatesHydrated),
+		slog.Int("candidates_unhydrated", stats.CandidatesUnhydrated),
+		slog.Int("repositories_budget_capped", stats.RepositoriesBudgetCapped),
+		slog.Int("repositories_list_truncated", stats.RepositoriesListTruncated),
+		slog.Int("hydration_budget", stats.HydrationBudget),
+		slog.Int("hydration_floor", stats.HydrationFloor),
 		slog.Int64("hydrated_bytes", stats.HydratedBytes),
 		slog.Int("statements", stats.Statements),
 		slog.Int("blank_check_statements", stats.BlankCheckStatements),
@@ -42,6 +56,35 @@ func deploymentArtifactsReadCountAttrs(stats artifacts.ConfigArtifactReadStats) 
 		slog.Float64("list_seconds", stats.ListDuration.Seconds()),
 		slog.Float64("hydrate_seconds", stats.HydrateDuration.Seconds()),
 		slog.Float64("parse_seconds", stats.ParseDuration.Seconds()),
+	}
+}
+
+// deploymentArtifactsReadCountAttrs keeps the in-package spelling.
+func deploymentArtifactsReadCountAttrs(stats artifacts.ConfigArtifactReadStats) []slog.Attr {
+	return DeploymentArtifactsReadCountAttrs(stats)
+}
+
+// RecordDeploymentArtifactCandidates adds one deployment-artifact load's
+// candidate outcomes to eshu_dp_config_artifact_candidates_total (#7951):
+// hydrated and unhydrated candidates, and one list_truncated per related
+// repository whose file list was cut. A zero outcome is not added, so a
+// series exists only once its outcome happened. Nil instruments record
+// nothing. It carries no repository label.
+func RecordDeploymentArtifactCandidates(ctx context.Context, instruments *telemetry.Instruments, stats artifacts.ConfigArtifactReadStats) {
+	if instruments == nil || instruments.ConfigArtifactCandidates == nil {
+		return
+	}
+	for _, outcome := range []struct {
+		name  string
+		count int
+	}{
+		{telemetry.ConfigArtifactCandidateOutcomeHydrated, stats.CandidatesHydrated},
+		{telemetry.ConfigArtifactCandidateOutcomeUnhydrated, stats.CandidatesUnhydrated},
+		{telemetry.ConfigArtifactCandidateOutcomeListTruncated, stats.RepositoriesListTruncated},
+	} {
+		if outcome.count > 0 {
+			instruments.ConfigArtifactCandidates.Add(ctx, int64(outcome.count), metric.WithAttributes(telemetry.AttrOutcome(outcome.name)))
+		}
 	}
 }
 

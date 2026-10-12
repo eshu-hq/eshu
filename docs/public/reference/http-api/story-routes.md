@@ -420,22 +420,22 @@ repository and service stories; none is graph work.
   and CI/CD stages. The `content_files` stage log is gone; `semantic_overview`
   now reports `file_count`.
 
-The semantic overview and file list stay capped at 5,000 rows
-(`RepositorySemanticEntityLimit`), so every stage that shares them sees the same
-rows as before. The read now asks for one more row as a sentinel: only when that
-sentinel row exists does the repository story append
-`repository_semantic_read_truncated_at_5000` to `limitations` and
-`answer_metadata.partial_reasons` and set `answer_metadata.truncated` (the same
-vocabulary as `story_rows_truncated` and `infrastructure_truncated`). A
-repository with exactly 5,000 entities or files, or fewer, gets a response
-without the reason. When the reason is present, the semantic overview counts,
-language and signal totals, and the file-derived infrastructure, deployment,
-narrative, and CI/CD stages are lower bounds. The sentinel raises the two
-`ListRepoEntities` and `ListRepoFiles` limits from 5,000 to 5,001, one extra row
-on the same ordered, repository-scoped read.
+The semantic overview and file list stay capped at 5,000 rows and read one
+sentinel row more: only then does the story add
+`repository_semantic_read_truncated_at_5000` to `limitations` and set
+`answer_metadata.truncated`. With it, every file-derived stage is a lower bound.
 
-Measurements, the migration 122 to 124 write-cost figures, and the proof
-commands for these reads are recorded in
+Deployment artifacts (#7951): each repository hydrates its first 50
+config-artifact candidates (all if fewer) plus a share of a 12,000 budget, drawn
+anchor first, then in repository-id order; each related list reads a sentinel row.
+`deployment_artifacts_candidates_budget_reached` (budget spent, candidates left
+unread) and `deployment_artifacts_related_file_list_truncated_at_5000` go to
+`limitations` (story, service story; both then set `truncated`) or
+`partial_reasons` (context); service routes add
+`deployment_artifacts_anchor_file_list_truncated_at_5000`. Counts:
+[logs](../telemetry/logs.md).
+
+Measurements, the migration 122 to 124 write-cost figures and proof commands:
 `docs/internal/evidence/7126-story-read-cost.md`.
 
 ## Investigation packets

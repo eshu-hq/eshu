@@ -12,5 +12,9 @@
 // extractors and the per-repository function that fetches file content only for
 // the files an extractor reads (#7126) live in go/internal/content/artifacts;
 // this package adapts querycontract.FileContent to it and merges the rows of
-// every repository. See README.md.
+// every repository. The loader gives each repository a floor of
+// contentartifacts.HydrationFloor candidates and shares CandidateHydrationBudget
+// more per request in RepoID order (#7951); ConfigArtifactReadStats carries the
+// candidate counts and BoundReasons the reasons a response must disclose. See
+// README.md.
 package repositoryartifacts

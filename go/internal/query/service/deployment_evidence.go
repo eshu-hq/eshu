@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"sort"
 	"strings"
 
@@ -13,28 +14,55 @@ import (
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
+// serviceDeploymentEvidenceLoad is the outcome of the service routes'
+// content fallback for deployment evidence (#7951): the evidence, the read
+// counts of the deployment-artifact load, whether the fallback listed the
+// service repository at all, and whether that list was cut at the window.
+type serviceDeploymentEvidenceLoad struct {
+	evidence            map[string]any
+	stats               artifacts.ConfigArtifactReadStats
+	ran                 bool
+	anchorListTruncated bool
+}
+
+// loadServiceDeploymentEvidence returns the graph deployment evidence when
+// the workload already carries it. Otherwise it lists the service
+// repository's files with a one-row sentinel, clips the list to the 5,000-file
+// window, and runs the deployment-artifact load over it. Every bound that bit
+// is appended to workloadContext["limitations"]: the anchor reason for a cut
+// service-repository list, and the candidate budget and related-list reasons
+// of the load (#7951). The service story folds them into
+// result_limits.truncated.
 func loadServiceDeploymentEvidence(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	content querycontract.ContentStore,
 	workloadContext map[string]any,
-) (map[string]any, error) {
+) (serviceDeploymentEvidenceLoad, error) {
+	var load serviceDeploymentEvidenceLoad
 	if content == nil || len(workloadContext) == 0 {
-		return nil, nil
+		return load, nil
 	}
 	if graphEvidence := querycontract.MapValue(workloadContext, "deployment_evidence"); len(graphEvidence) > 0 {
-		return graphEvidence, nil
+		load.evidence = graphEvidence
+		return load, nil
 	}
 
 	repoID := querycontract.SafeStr(workloadContext, "repo_id")
 	repoName := querycontract.SafeStr(workloadContext, "repo_name")
 	if repoID == "" || repoName == "" {
-		return nil, nil
+		return load, nil
 	}
 
-	files, err := content.ListRepoFiles(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
+	const fileLimit = querycontract.RepositorySemanticEntityLimit
+	files, err := content.ListRepoFiles(ctx, repoID, fileLimit+1)
 	if err != nil {
-		return nil, err
+		return load, err
+	}
+	load.ran = true
+	if len(files) > fileLimit {
+		files = files[:fileLimit]
+		load.anchorListTruncated = true
 	}
 	if files == nil {
 		files = []querycontract.FileContent{}
@@ -44,7 +72,7 @@ func loadServiceDeploymentEvidence(
 		querycontract.MapSliceValue(workloadContext, "infrastructure"),
 		files,
 	)
-	overview, err = artifacts.LoadDeploymentArtifactOverview(
+	overview, load.stats, err = artifacts.LoadDeploymentArtifactOverviewWithStats(
 		ctx,
 		graph,
 		content,
@@ -55,7 +83,14 @@ func loadServiceDeploymentEvidence(
 		overview,
 	)
 	if err != nil {
-		return nil, err
+		return load, err
+	}
+	bounds := load.stats.BoundReasons()
+	if load.anchorListTruncated {
+		bounds = append([]string{artifacts.AnchorFileListTruncatedReason}, bounds...)
+	}
+	if len(bounds) > 0 {
+		workloadContext["limitations"] = append(querycontract.StringSliceVal(workloadContext, "limitations"), bounds...)
 	}
 	if relationshipOverview := repository.BuildRepositoryRelationshipOverview(querycontract.MapSliceValue(workloadContext, "dependencies")); relationshipOverview != nil {
 		if overview == nil {
@@ -63,7 +98,32 @@ func loadServiceDeploymentEvidence(
 		}
 		overview["relationship_overview"] = relationshipOverview
 	}
-	return buildServiceDeploymentEvidenceFromOverview(overview), nil
+	load.evidence = buildServiceDeploymentEvidenceFromOverview(overview)
+	return load, nil
+}
+
+// deploymentEvidenceStageAttrs are the deployment_evidence stage-line
+// attributes: whether evidence was found and, when the content fallback ran,
+// the read and candidate counts of its deployment-artifact load plus
+// anchor_list_truncated (0 or 1) for the service repository's own list.
+func deploymentEvidenceStageAttrs(load serviceDeploymentEvidenceLoad) []slog.Attr {
+	attrs := []slog.Attr{slog.Bool("has_result", len(load.evidence) > 0)}
+	if !load.ran {
+		return attrs
+	}
+	attrs = append(attrs, repository.DeploymentArtifactsReadCountAttrs(load.stats)...)
+	anchorListTruncated := 0
+	if load.anchorListTruncated {
+		anchorListTruncated = 1
+	}
+	return append(attrs, slog.Int("anchor_list_truncated", anchorListTruncated))
+}
+
+// deploymentArtifactsBoundHit reports whether the workload limitations carry
+// a deployment-artifact bound reason (#7951), which makes the service story
+// a lower bound.
+func deploymentArtifactsBoundHit(workloadContext map[string]any) bool {
+	return querycontract.HasDeploymentArtifactBound(querycontract.StringSliceVal(workloadContext, "limitations"))
 }
 
 func queryServiceGraphDeploymentEvidence(ctx context.Context, graph querycontract.GraphQuery, content querycontract.ContentStore, repoID string) (map[string]any, error) {

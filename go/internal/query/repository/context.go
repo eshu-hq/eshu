@@ -232,6 +232,8 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 				partialReasons = append(partialReasons, deploymentArtifactsReadDegradedReason)
 				reportDeploymentArtifactsFailure(ctx, h.Logger, "repository_context", repoID, deploymentErr, deploymentStats)
 			}
+			partialReasons = append(partialReasons, deploymentStats.BoundReasons()...)
+			RecordDeploymentArtifactCandidates(ctx, h.Instruments, deploymentStats)
 			if overview != nil {
 				if deploymentArtifacts := querycontract.MapValue(overview, "deployment_artifacts"); len(deploymentArtifacts) > 0 {
 					result["deployment_artifacts"] = deploymentArtifacts

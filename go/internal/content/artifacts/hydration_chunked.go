@@ -19,6 +19,16 @@ const (
 	// ReadChunksInFlight bounds the chunk reads of one repository that run at
 	// once, the same bound the per-file reader used for its file reads.
 	ReadChunksInFlight = 8
+	// BlankCheckChunkSize is the number of paths one Reader.NonBlankPaths
+	// statement names (#7951). With the 50-candidate cap lifted, one
+	// repository can defer thousands of paths. A measured PostgreSQL 18 plan
+	// of NonBlankPathsStatement keeps an index scan on
+	// content_files_repo_path_pattern_idx at 500 paths and moves to a bitmap
+	// heap scan at about 1,171 or more, at a size that depends on the table
+	// statistics; no size gave a sequential scan. 500 keeps the index-scan
+	// plan with a margin and costs at most ceil(n/500) statements per
+	// repository: 10 for a full 5,000-file window.
+	BlankCheckChunkSize = 500
 )
 
 // chunkedRead reads the rows of a set of list positions with one
