@@ -154,7 +154,15 @@ func TestContentVersionFixtureCoversEveryParser(t *testing.T) {
 // indexed_at removed.
 func contentVersionFixtureDigest(t *testing.T) (string, int) {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "content-version-repo")
+	// Resolve the temp root first: on macOS t.TempDir() is under /var, a
+	// symlink to /private/var, and the snapshot would then emit file graph ids
+	// such as "../../<root>/x" where Linux emits "x", so the pinned digest
+	// would depend on the host (it failed CI's Linux race shard on #7997).
+	tempRoot, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolve temp root: %v", err)
+	}
+	root := filepath.Join(tempRoot, "content-version-repo")
 	copyContentVersionFixture(t, "testdata/content_version", root)
 	engine, err := parser.DefaultEngine()
 	if err != nil {
