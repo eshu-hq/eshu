@@ -159,6 +159,8 @@ on:
       - 'specs/demo-first-answers.v1.yaml'
       - 'scripts/verify-golden-corpus-gate.sh'
       - 'scripts/test-verify-golden-corpus-gate.sh'
+      - 'scripts/test-golden-documentation-section-reseed.sh'
+      - 'scripts/fixtures/golden-documentation-reseed-schema.sql'
       # The orchestrator sources these; an edit to one changes what the gate
       # does, so they must trigger it too (the live-gate mutex included).
       - 'scripts/lib/golden-corpus-*.sh'
