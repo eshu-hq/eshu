@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -86,16 +86,16 @@ LIMIT 200
 func readCollectorFactEvidence(
 	ctx context.Context,
 	queryer db.Queryer,
-) ([]statuspkg.CollectorFactEvidence, error) {
+) ([]collector.FactEvidence, error) {
 	rows, err := queryer.QueryContext(ctx, collectorFactEvidenceQuery)
 	if err != nil {
 		return nil, fmt.Errorf("read collector fact evidence: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	output := []statuspkg.CollectorFactEvidence{}
+	output := []collector.FactEvidence{}
 	for rows.Next() {
-		var row statuspkg.CollectorFactEvidence
+		var row collector.FactEvidence
 		var observationCount int64
 		var sourceSystems array.StringArray
 		if err := rows.Scan(

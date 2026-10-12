@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -406,7 +407,7 @@ type collectorInstanceMetricRow struct {
 	Count         int
 }
 
-func summarizeCollectorInstances(instances []statuspkg.CollectorInstanceSummary) []collectorInstanceMetricRow {
+func summarizeCollectorInstances(instances []collector.InstanceSummary) []collectorInstanceMetricRow {
 	if len(instances) == 0 {
 		return nil
 	}

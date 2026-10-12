@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 const collectorGenerationDeadLetterStatusQuery = `
@@ -35,18 +35,18 @@ func readCollectorGenerationDeadLetterSnapshot(
 	ctx context.Context,
 	queryer db.Queryer,
 	asOf time.Time,
-) (statuspkg.CollectorGenerationDeadLetterSnapshot, error) {
+) (collector.GenerationDeadLetterSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, collectorGenerationDeadLetterStatusQuery, asOf.UTC())
 	if err != nil {
-		return statuspkg.CollectorGenerationDeadLetterSnapshot{}, fmt.Errorf("read collector generation dead-letter snapshot: %w", err)
+		return collector.GenerationDeadLetterSnapshot{}, fmt.Errorf("read collector generation dead-letter snapshot: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return statuspkg.CollectorGenerationDeadLetterSnapshot{}, fmt.Errorf("read collector generation dead-letter snapshot: %w", err)
+			return collector.GenerationDeadLetterSnapshot{}, fmt.Errorf("read collector generation dead-letter snapshot: %w", err)
 		}
-		return statuspkg.CollectorGenerationDeadLetterSnapshot{}, nil
+		return collector.GenerationDeadLetterSnapshot{}, nil
 	}
 
 	var deadLetterCount int64
@@ -54,13 +54,13 @@ func readCollectorGenerationDeadLetterSnapshot(
 	var replayAttemptCount int64
 	var oldestAgeSeconds float64
 	if err := rows.Scan(&deadLetterCount, &replayRequestedCount, &replayAttemptCount, &oldestAgeSeconds); err != nil {
-		return statuspkg.CollectorGenerationDeadLetterSnapshot{}, fmt.Errorf("read collector generation dead-letter snapshot: %w", err)
+		return collector.GenerationDeadLetterSnapshot{}, fmt.Errorf("read collector generation dead-letter snapshot: %w", err)
 	}
 	if err := rows.Err(); err != nil {
-		return statuspkg.CollectorGenerationDeadLetterSnapshot{}, fmt.Errorf("read collector generation dead-letter snapshot: %w", err)
+		return collector.GenerationDeadLetterSnapshot{}, fmt.Errorf("read collector generation dead-letter snapshot: %w", err)
 	}
 
-	return statuspkg.CollectorGenerationDeadLetterSnapshot{
+	return collector.GenerationDeadLetterSnapshot{
 		DeadLetter:          int(deadLetterCount),
 		ReplayRequested:     int(replayRequestedCount),
 		ReplayAttempts:      int(replayAttemptCount),

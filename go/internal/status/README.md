@@ -102,7 +102,7 @@ See `doc.go` for the godoc contract. Key types and functions:
   metric labels
 - `queue.Blockage` — conflict-domain-blocked work: stage, domain, conflict
   domain, conflict key, blocked count, oldest age
-- `CollectorGenerationDeadLetterSnapshot` — commit failures that happened
+- `collector.GenerationDeadLetterSnapshot` — commit failures that happened
   before projector work items existed, including dead-lettered count,
   unresolved replay-requested count, replay attempts, and oldest dead-letter age
 - `DomainBacklog` — backlog depth and active in-flight work for one reducer or
@@ -118,7 +118,7 @@ See `doc.go` for the godoc contract. Key types and functions:
 - `CoordinatorSnapshot` — optional workflow-coordinator state: collector
   instances, run and work-item status counts, completeness counts, active and
   overdue claims, and optional `RecentFailures`
-- `CollectorBackpressureSnapshot` — bounded claim-aware collector pressure by
+- `collector.BackpressureSnapshot` — bounded claim-aware collector pressure by
   collector family/instance/source-system tuple: pending, claimed, retrying,
   terminal, expired, active and overdue claims, collector-generation dead
   letters, oldest ages, next retry delay, and aggregate failure-class counts
@@ -127,13 +127,13 @@ See `doc.go` for the godoc contract. Key types and functions:
 - `CoordinatorRecentFailures` — failure counts bounded to a recent window
   (failed runs, blocked completeness, terminal work items) that drive the
   degraded health state; cumulative counts stay available as detail
-- `CollectorInstanceSummary` — one configured collector runtime instance
-- `CollectorRuntimeStatus` — derived coordinator/direct collector runtime
+- `collector.InstanceSummary` — one configured collector runtime instance
+- `collector.RuntimeStatus` — derived coordinator/direct collector runtime
   classification for `coordinator_managed`, `direct_mode`, `disabled`,
   `unregistered`, and explicit `profile_gated` status rows; persisted
   source/reducer fact evidence is reflected as bounded source names and counts
   without payload identifiers
-- `CollectorFactEvidence` — aggregate active fact metadata by collector kind,
+- `collector.FactEvidence` — aggregate active fact metadata by collector kind,
   optional coordinator instance, evidence source (`source_facts` or
   `reducer_facts`), bounded source systems, count, and timestamps; it never
   carries raw payload, source URI, source record ID, repository name, package
@@ -151,7 +151,7 @@ See `doc.go` for the godoc contract. Key types and functions:
   warning count, and budget/credential flags
 - `cloud.AWSFreshnessSnapshot` — aggregate AWS Config/EventBridge freshness trigger
   status counts and oldest queued age; does not expose resource identifiers
-- `VulnerabilitySourceState` — per vulnerability source target checkpoint,
+- `collector.VulnerabilitySourceState` — per vulnerability source target checkpoint,
   freshness, retry, result count, warning count, and terminal state; does not
   expose raw advisory payloads, source URLs, package names, or API keys
 - `semantic.ExtractionStatus` — optional LLM-assisted extraction liveness. The
@@ -222,17 +222,17 @@ See `doc.go` for the godoc contract. Key types and functions:
 
 ### Collector promotion proofs
 
-`CollectorPromotionProofs(report, opts)` projects the runtime collector evidence
+`collector.PromotionProofs(report.CollectorEvidence(), opts)` projects the runtime collector evidence
 into a deterministic, credential-safe **promotion proof** per collector family or
 instance. It is the machine-checkable readiness report a reviewer uses to promote
 or reject a collector without manually stitching together claim, fact, reducer,
 and telemetry state.
 
-The catalog is the spine. `DefaultCollectorCatalog()` is built from
+The catalog is the spine. `collector.DefaultCatalog()` is built from
 `scope.AllCollectorKinds()`, so every known family yields at least one proof
 (a no-instance proof when nothing is configured) and adding a collector to
 `scope.AllCollectorKinds()` automatically surfaces a readiness lane — there is no
-separate checklist to drift. `KnownCollectorKinds()` exposes the catalog spine as
+separate checklist to drift. `collector.KnownKinds()` exposes the catalog spine as
 strings.
 
 Promotion states (closed vocabulary, reused by the readiness read model):
@@ -242,7 +242,7 @@ Promotion states (closed vocabulary, reused by the readiness read model):
 | `implemented` | Healthy, fresh evidence that reached reducer readback. The only "ready to promote" state. |
 | `partial` | Some evidence, but the implemented contract is not yet met (reducer readback pending, claims inactive, or a fixture-only lane). |
 | `failed` | Runtime health degraded (failures, dead-letters, credential/budget). |
-| `stale` | Newest evidence older than `CollectorPromotionOptions.StaleAfter`. |
+| `stale` | Newest evidence older than `collector.PromotionOptions.StaleAfter`. |
 | `gated` | Claim-driven family with claims disabled, or hidden by an active runtime profile gate. |
 | `disabled` | Registered family disabled by config or deactivated by reconciliation. |
 | `permission_hidden` | Hidden from the caller by an active permission scope; the proof is redacted to instance-free metadata. |
@@ -261,11 +261,11 @@ The global `RenderJSON`/`RenderText` surfaces emit promotion proofs only for
 collectors that are **present** in the report (`collector_promotion_proofs` is
 omitted when none are present). The full-fleet enumeration — including
 no-instance and unsupported lanes — is produced by calling
-`CollectorPromotionProofs` with the default catalog and is exposed through the
+`collector.PromotionProofs` with the default catalog and is exposed through the
 dedicated collector-readiness read model.
 
-`No-Regression Evidence:` `CollectorPromotionProofs` is a pure in-memory
-projection over `CollectorRuntimeStatuses(report)` (O(collectors)); it performs
+`No-Regression Evidence:` `collector.PromotionProofs` is a pure in-memory
+projection over `collector.RuntimeStatuses(report.CollectorEvidence())` (O(collectors)); it performs
 no I/O, no graph or Cypher access, and runs only inside the already-bounded
 status render. Covered by `go test ./internal/status ./internal/scope -count=1`.
 `No-Observability-Change:` reuses the existing `/admin/status` text/JSON signal;
@@ -381,8 +381,8 @@ and `eshu_dp_postgres_query_duration_seconds`.
 - **`CoordinatorSnapshot` is optional.** When the workflow coordinator is not
   wired, `RawSnapshot.Coordinator` is nil and `Report.Coordinator` is nil.
   Callers must nil-check before rendering coordinator lines.
-- **Collector runtime classification is derived.** `CollectorRuntimeStatuses`
-  uses coordinator rows, durable direct status rows already present in the
+- **Collector runtime classification is derived.** `collector.RuntimeStatuses`
+  (over `report.CollectorEvidence()`) uses coordinator rows, durable direct status rows already present in the
   report, and bounded active fact metadata. It does not call Kubernetes, Docker,
   or another deployment inventory API, so a pod with no coordinator row, no
   durable status row, and no active persisted facts remains outside the central
@@ -400,7 +400,7 @@ and `eshu_dp_postgres_query_duration_seconds`.
   committed. A row with scanner status `succeeded` and commit status
   `committed` is healthy even if older retry metadata is still present; current
   degraded rows must expose the AWS scan-status evidence source and bounded
-  failure reason in `CollectorRuntimeStatus.Detail`.
+  failure reason in `collector.RuntimeStatus.Detail`.
 - **AWS freshness status is aggregate only.** `cloud.AWSFreshnessSnapshot` shows
   queued, claimed, handed-off, and failed trigger counts plus oldest queued age.
   Resource IDs, ARNs, event IDs, and raw payloads stay out of the status

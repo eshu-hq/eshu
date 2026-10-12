@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
@@ -59,7 +60,7 @@ func TestEvidenceBundleSelectsAllExceptTerraformState(t *testing.T) {
 	raw := evidenceBundleFixtureSnapshot()
 	raw.TerraformStateLastSerials = []tfstate.LocatorSerial{{SafeLocatorHash: "safe-hash", Serial: 42, ObservedAt: fixed}}
 	raw.TerraformStateRecentWarnings = []tfstate.LocatorWarning{{SafeLocatorHash: "safe-hash", WarningKind: "state_missing", ObservedAt: fixed}}
-	raw.CollectorFactEvidence = []statuspkg.CollectorFactEvidence{{
+	raw.CollectorFactEvidence = []collector.FactEvidence{{
 		InstanceID: "git-1", CollectorKind: "git", EvidenceSource: "file", ObservationCount: 8, LastObservedAt: fixed,
 	}}
 	raw.RegistryCollectors = []statuspkg.RegistryCollectorSnapshot{{CollectorKind: "package_registry", ConfiguredInstances: 1}}

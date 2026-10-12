@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
@@ -293,7 +294,7 @@ func TestBuildReportDegradesOnCollectorGenerationDeadLetters(t *testing.T) {
 	report := status.BuildReport(
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 6, 12, 18, 45, 0, 0, time.UTC),
-			CollectorGenerationDeadLetters: status.CollectorGenerationDeadLetterSnapshot{
+			CollectorGenerationDeadLetters: collector.GenerationDeadLetterSnapshot{
 				DeadLetter:          2,
 				ReplayRequested:     1,
 				ReplayAttempts:      3,

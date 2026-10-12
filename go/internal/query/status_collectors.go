@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
-func collectorRuntimeStatusesToSlice(rows []status.CollectorRuntimeStatus) []map[string]any {
+func collectorRuntimeStatusesToSlice(rows []collector.RuntimeStatus) []map[string]any {
 	collectors := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		collectors = append(collectors, collectorRuntimeStatusToMap(row))
@@ -19,7 +19,7 @@ func collectorRuntimeStatusesToSlice(rows []status.CollectorRuntimeStatus) []map
 	return collectors
 }
 
-func collectorRuntimeStatusToMap(row status.CollectorRuntimeStatus) map[string]any {
+func collectorRuntimeStatusToMap(row collector.RuntimeStatus) map[string]any {
 	return map[string]any{
 		"instance_id":            row.InstanceID,
 		"collector_kind":         row.CollectorKind,
@@ -42,7 +42,7 @@ func collectorRuntimeStatusToMap(row status.CollectorRuntimeStatus) map[string]a
 	}
 }
 
-func scopedCollectorRuntimeStatusesToSlice(rows []status.CollectorRuntimeStatus) []map[string]any {
+func scopedCollectorRuntimeStatusesToSlice(rows []collector.RuntimeStatus) []map[string]any {
 	type aggregate struct {
 		collectorKind              string
 		runtimeMode                string
@@ -137,7 +137,7 @@ func sortedCollectorEvidenceSources(sources map[string]struct{}) []string {
 	return result
 }
 
-func collectorRuntimeUpdatedAt(rows []status.CollectorRuntimeStatus) any {
+func collectorRuntimeUpdatedAt(rows []collector.RuntimeStatus) any {
 	var latest time.Time
 	for _, row := range rows {
 		if row.UpdatedAt.After(latest) {

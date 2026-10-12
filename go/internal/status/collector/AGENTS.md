@@ -14,24 +14,20 @@ import in the other direction is an import cycle. If you find yourself
 needing a type from the root here, the type is in the wrong place — move it
 down, do not reach up.
 
-## The unresolved Report coupling
+## The Report coupling
 
-As of the #6775 nest, `RuntimeStatuses`, `PromotionProofs`, and the catalog's
-internal `presentCollectorCatalog` helper still read the root `Report` type
-directly (`Report.Coordinator`, `.AWSCloudScans`, `.VulnerabilitySources`,
-`.CollectorFactEvidence`). That cannot compile once this package excludes
-root. Before treating any of these three as done:
-
-1. Give each a collector-native signature that takes the raw ingredient
-   slices/pointers instead of `Report`.
-2. Add (or update) `status/compat_collector.go` with a `Report`-shaped
-   forwarder under the original root name, since `internal/query`'s
-   collector-readiness and evidence-bundle surfaces call
-   `status.CollectorRuntimeStatuses(report)` and
-   `status.CollectorPromotionProofs(report, opts)` directly today.
-3. Do not silently narrow either function's behavior while changing its
-   signature — diff the derived `RuntimeStatus`/`PromotionProof` rows before
-   and after on a fixture snapshot.
+`RuntimeStatuses`, `PromotionProofs`, and the catalog's `PresentCatalog`
+helper take the collector-native `Evidence` value (coordinator instances, AWS
+scans, vulnerability sources, collector fact evidence) instead of the root
+`Report` type, because this package cannot import root `Report`. Callers
+project with `report.CollectorEvidence()` and call
+`collector.RuntimeStatuses(report.CollectorEvidence())` and
+`collector.PromotionProofs(report.CollectorEvidence(), opts)` directly; the
+transitional `status/compat_collector.go` forwarders were deleted in #6949
+batch 7. Do not reintroduce a `Report`-shaped signature here — that would be
+an import cycle. When changing these signatures, do not silently narrow
+behavior — diff the derived `RuntimeStatus`/`PromotionProof` rows before and
+after on a fixture snapshot.
 
 ## Exporting the render/clone/JSON surface
 

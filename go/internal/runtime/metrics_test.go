@@ -11,6 +11,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -50,7 +51,7 @@ func TestStatusMetricsHandlerServesRuntimeMetrics(t *testing.T) {
 				OverdueClaims:                         0,
 			},
 			GenerationCounts: []statuspkg.NamedCount{{Name: "completed", Count: 3}},
-			CollectorGenerationDeadLetters: statuspkg.CollectorGenerationDeadLetterSnapshot{
+			CollectorGenerationDeadLetters: collector.GenerationDeadLetterSnapshot{
 				DeadLetter:          2,
 				ReplayRequested:     1,
 				ReplayAttempts:      3,
@@ -193,7 +194,7 @@ func TestStatusMetricsHandlerIncludesCoordinatorSnapshotMetrics(t *testing.T) {
 		snapshot: statuspkg.RawSnapshot{
 			AsOf: time.Date(2026, 4, 20, 16, 0, 0, 0, time.UTC),
 			Coordinator: &statuspkg.CoordinatorSnapshot{
-				CollectorInstances: []statuspkg.CollectorInstanceSummary{
+				CollectorInstances: []collector.InstanceSummary{
 					{
 						InstanceID:    "collector-git-default",
 						CollectorKind: "git",

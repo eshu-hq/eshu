@@ -12,6 +12,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
@@ -31,7 +32,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsHostedReadinessRoute(t *testing.T) 
 				AsOf:          now,
 				ScopeActivity: statuspkg.ScopeActivitySnapshot{Active: 1},
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					CollectorInstances: []collector.InstanceSummary{{
 						InstanceID:     privateInstanceID,
 						CollectorKind:  "aws",
 						Mode:           "continuous",

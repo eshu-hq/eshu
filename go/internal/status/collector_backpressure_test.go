@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 func TestRenderStatusIncludesCollectorBackpressure(t *testing.T) {
@@ -18,7 +19,7 @@ func TestRenderStatusIncludesCollectorBackpressure(t *testing.T) {
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 6, 17, 4, 10, 0, 0, time.UTC),
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorBackpressure: []status.CollectorBackpressureSnapshot{{
+				CollectorBackpressure: []collector.BackpressureSnapshot{{
 					CollectorKind:       "package_registry",
 					CollectorInstanceID: "pkg-registry-primary",
 					SourceSystem:        "package_registry",

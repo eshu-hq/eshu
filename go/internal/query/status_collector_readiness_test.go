@@ -13,6 +13,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 func collectorReadinessByKind(t *testing.T, body []byte) map[string]map[string]any {
@@ -66,7 +67,7 @@ func TestCollectorReadinessNoCollectorsAreUnsupported(t *testing.T) {
 	if !ok {
 		t.Fatalf("readiness missing jira; got kinds %v", keysOf(byKind))
 	}
-	if jira["promotion_state"] != statuspkg.CollectorPromotionUnsupported {
+	if jira["promotion_state"] != collector.PromotionUnsupported {
 		t.Fatalf("jira promotion_state = %v, want unsupported", jira["promotion_state"])
 	}
 	if action, _ := jira["recommended_next_action"].(string); action == "" {
@@ -88,7 +89,7 @@ func TestCollectorReadinessClassifiesConfiguredCollectors(t *testing.T) {
 	reader := fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 		AsOf: now,
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector-jira", CollectorKind: "jira", Enabled: true, ClaimsEnabled: true, LastObservedAt: now, UpdatedAt: now},
 				{InstanceID: "collector-pagerduty", CollectorKind: "pagerduty", Enabled: true, ClaimsEnabled: false, LastObservedAt: now, UpdatedAt: now},
 				{InstanceID: "collector-sbom", CollectorKind: "sbom_attestation", Enabled: false, LastObservedAt: now, UpdatedAt: now},
@@ -98,17 +99,17 @@ func TestCollectorReadinessClassifiesConfiguredCollectors(t *testing.T) {
 		AWSCloudScans: []cloud.AWSScanStatus{
 			{CollectorInstanceID: "collector-aws", Status: "failed_terminal", CredentialFailed: true, FailureClass: "credential_denied", UpdatedAt: now},
 		},
-		CollectorFactEvidence: []statuspkg.CollectorFactEvidence{
+		CollectorFactEvidence: []collector.FactEvidence{
 			{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "reducer_facts", ObservationCount: 4, LastObservedAt: now, UpdatedAt: now},
 		},
 	}}
 
 	byKind := collectorReadinessByKind(t, getCollectorReadinessBody(t, reader))
 	cases := map[string]string{
-		"jira":             statuspkg.CollectorPromotionImplemented,
-		"pagerduty":        statuspkg.CollectorPromotionGated,
-		"sbom_attestation": statuspkg.CollectorPromotionDisabled,
-		"aws":              statuspkg.CollectorPromotionFailed,
+		"jira":             collector.PromotionImplemented,
+		"pagerduty":        collector.PromotionGated,
+		"sbom_attestation": collector.PromotionDisabled,
+		"aws":              collector.PromotionFailed,
 	}
 	for kind, want := range cases {
 		entry, ok := byKind[kind]
@@ -123,7 +124,7 @@ func TestCollectorReadinessClassifiesConfiguredCollectors(t *testing.T) {
 		}
 	}
 
-	if jira := byKind["jira"]; jira["reducer_readback"] != statuspkg.CollectorReadbackAvailable {
+	if jira := byKind["jira"]; jira["reducer_readback"] != collector.ReadbackAvailable {
 		t.Errorf("jira reducer_readback = %v, want available", jira["reducer_readback"])
 	}
 }
@@ -139,17 +140,17 @@ func TestCollectorReadinessMarksStaleEvidence(t *testing.T) {
 	reader := fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 		AsOf: now,
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector-jira", CollectorKind: "jira", Enabled: true, ClaimsEnabled: true, LastObservedAt: old, UpdatedAt: old},
 			},
 		},
-		CollectorFactEvidence: []statuspkg.CollectorFactEvidence{
+		CollectorFactEvidence: []collector.FactEvidence{
 			{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "reducer_facts", ObservationCount: 4, LastObservedAt: old, UpdatedAt: old},
 		},
 	}}
 
 	jira := collectorReadinessByKind(t, getCollectorReadinessBody(t, reader))["jira"]
-	if jira["promotion_state"] != statuspkg.CollectorPromotionStale {
+	if jira["promotion_state"] != collector.PromotionStale {
 		t.Fatalf("jira promotion_state = %v, want stale", jira["promotion_state"])
 	}
 	if action, _ := jira["recommended_next_action"].(string); action == "" {
@@ -164,17 +165,17 @@ func TestCollectorReadinessClaimCapableWithoutEvidenceIsPartial(t *testing.T) {
 	reader := fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 		AsOf: now,
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector-grafana", CollectorKind: "grafana", Enabled: true, ClaimsEnabled: true, LastObservedAt: now, UpdatedAt: now},
 			},
 		},
 	}}
 
 	grafana := collectorReadinessByKind(t, getCollectorReadinessBody(t, reader))["grafana"]
-	if grafana["promotion_state"] != statuspkg.CollectorPromotionPartial {
+	if grafana["promotion_state"] != collector.PromotionPartial {
 		t.Fatalf("grafana promotion_state = %v, want partial", grafana["promotion_state"])
 	}
-	if grafana["reducer_readback"] != statuspkg.CollectorReadbackUnavailable {
+	if grafana["reducer_readback"] != collector.ReadbackUnavailable {
 		t.Fatalf("grafana reducer_readback = %v, want unavailable", grafana["reducer_readback"])
 	}
 	if action, _ := grafana["recommended_next_action"].(string); action == "" {
@@ -228,10 +229,10 @@ func TestCollectorReadinessEnvelopeShape(t *testing.T) {
 func TestCollectorReadinessRedactsInstanceForScopedCallers(t *testing.T) {
 	t.Parallel()
 
-	proofs := []statuspkg.CollectorPromotionProof{{
+	proofs := []collector.PromotionProof{{
 		CollectorKind:  "jira",
 		InstanceID:     "collector-jira",
-		PromotionState: statuspkg.CollectorPromotionImplemented,
+		PromotionState: collector.PromotionImplemented,
 	}}
 
 	unscoped := collectorReadinessEntries(proofs, false)
@@ -281,11 +282,11 @@ func TestCollectorReadinessCacheHitReturnsCached(t *testing.T) {
 		fakeStatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 			AsOf: now,
 			Coordinator: &statuspkg.CoordinatorSnapshot{
-				CollectorInstances: []statuspkg.CollectorInstanceSummary{
+				CollectorInstances: []collector.InstanceSummary{
 					{InstanceID: "collector-jira", CollectorKind: "jira", Enabled: true, ClaimsEnabled: true, LastObservedAt: now, UpdatedAt: now},
 				},
 			},
-			CollectorFactEvidence: []statuspkg.CollectorFactEvidence{
+			CollectorFactEvidence: []collector.FactEvidence{
 				{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "reducer_facts", ObservationCount: 4, LastObservedAt: now, UpdatedAt: now},
 			},
 		}},
@@ -371,7 +372,7 @@ func TestCollectorReadinessCacheDoesNotCrossScopes(t *testing.T) {
 		fakeStatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 			AsOf: now,
 			Coordinator: &statuspkg.CoordinatorSnapshot{
-				CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+				CollectorInstances: []collector.InstanceSummary{{
 					InstanceID:     privateInstanceID,
 					CollectorKind:  "aws",
 					Enabled:        true,

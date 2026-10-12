@@ -120,7 +120,7 @@ func Operations(report Report, activity []LiveActivityRow, truncated bool, limit
 	return OperationsReport{
 		AsOf:             report.AsOf,
 		Health:           report.Health,
-		Collectors:       collector.RuntimeStatuses(collectorEvidence(report)),
+		Collectors:       collector.RuntimeStatuses(report.CollectorEvidence()),
 		StageSummaries:   cloneStageSummaries(report.StageSummaries),
 		DomainBacklogs:   cloneDomainBacklogs(report.DomainBacklogs),
 		Queue:            report.Queue,

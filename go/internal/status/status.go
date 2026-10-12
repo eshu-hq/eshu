@@ -215,7 +215,7 @@ func deriveScopeActivity(scopeTotals map[string]int, generationTotals map[string
 func RenderText(report Report) string {
 	// Project the collector evidence once: the three readbacks below all
 	// consume the same slice of the report.
-	evidence := collectorEvidence(report)
+	evidence := report.CollectorEvidence()
 
 	lines := []string{
 		fmt.Sprintf("Version: %s", buildinfo.AppVersion()),
@@ -396,4 +396,23 @@ func cloneCounts(values map[string]int) map[string]int {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+// CollectorEvidence projects the report down to the slice the collector
+// readbacks consume. It lives on Report because the leaf must not name it:
+// the root aggregates every family into Report, so a leaf taking one would be
+// an import cycle. Callers pass the result to [collector.RuntimeStatuses] and
+// [collector.PromotionProofs]. A nil Coordinator yields nil Instances, which
+// the readbacks treat the same as a coordinator with no registrations.
+func (r Report) CollectorEvidence() collector.Evidence {
+	evidence := collector.Evidence{
+		AsOf:                 r.AsOf,
+		AWSScans:             r.AWSCloudScans,
+		VulnerabilitySources: r.VulnerabilitySources,
+		FactEvidence:         r.CollectorFactEvidence,
+	}
+	if r.Coordinator != nil {
+		evidence.Instances = r.Coordinator.CollectorInstances
+	}
+	return evidence
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 func TestBuildReportClampsNegativeAges(t *testing.T) {
@@ -63,7 +64,7 @@ func TestRenderJSONNormalizesCoordinatorSnapshot(t *testing.T) {
 		status.RawSnapshot{
 			AsOf: now,
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorInstances: []status.CollectorInstanceSummary{{
+				CollectorInstances: []collector.InstanceSummary{{
 					InstanceID:     "collector-git-default",
 					CollectorKind:  "git",
 					Mode:           "continuous",

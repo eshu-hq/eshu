@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
@@ -34,7 +35,7 @@ func TestDispatchToolIngesterStatusAllowsScopedRoutes(t *testing.T) {
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					CollectorInstances: []collector.InstanceSummary{{
 						InstanceID:     privateInstanceID,
 						CollectorKind:  "git",
 						Mode:           "continuous",

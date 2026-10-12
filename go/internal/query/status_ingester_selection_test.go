@@ -11,6 +11,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // ingesterSelectionSnapshot returns a snapshot whose health, queue, and
@@ -27,7 +28,7 @@ func ingesterSelectionSnapshot(asOf time.Time) statuspkg.RawSnapshot {
 			InFlight:    1,
 		},
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{
 					InstanceID:     "collector-a",
 					CollectorKind:  "git",

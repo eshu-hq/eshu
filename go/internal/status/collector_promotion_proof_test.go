@@ -11,12 +11,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // promotionTestCatalog is a small deterministic catalog used to exercise every
 // promotion lane without depending on the full default catalog.
-func promotionTestCatalog() []status.CollectorCatalogEntry {
-	return []status.CollectorCatalogEntry{
+func promotionTestCatalog() []collector.CatalogEntry {
+	return []collector.CatalogEntry{
 		{CollectorKind: "git", DisplayName: "Git", ClaimDriven: false, SourceScope: "repository"},
 		{CollectorKind: "aws", DisplayName: "AWS Cloud", ClaimDriven: true, SourceScope: "account"},
 		{CollectorKind: "jira", DisplayName: "Jira", ClaimDriven: true, SourceScope: "jira_site"},
@@ -30,7 +31,7 @@ func promotionScenarioReport(now time.Time) status.Report {
 	return status.BuildReport(status.RawSnapshot{
 		AsOf: now,
 		Coordinator: &status.CoordinatorSnapshot{
-			CollectorInstances: []status.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector-git", CollectorKind: "git", Mode: "snapshot", Enabled: true, ClaimsEnabled: false, LastObservedAt: now.Add(-2 * time.Minute), UpdatedAt: now.Add(-2 * time.Minute)},
 				{InstanceID: "collector-aws", CollectorKind: "aws", Mode: "claim", Enabled: true, ClaimsEnabled: true, LastObservedAt: now.Add(-2 * time.Minute), UpdatedAt: now.Add(-2 * time.Minute)},
 				{InstanceID: "collector-jira", CollectorKind: "jira", Mode: "claim", Enabled: true, ClaimsEnabled: true, LastObservedAt: now.Add(-2 * time.Minute), UpdatedAt: now.Add(-2 * time.Minute)},
@@ -41,7 +42,7 @@ func promotionScenarioReport(now time.Time) status.Report {
 		AWSCloudScans: []cloud.AWSScanStatus{
 			{CollectorInstanceID: "collector-aws", AccountID: "acct", Region: "us-east-1", ServiceKind: "ec2", Status: "failed_terminal", CredentialFailed: true, FailureClass: "credential_denied", LastObservedAt: now.Add(-3 * time.Minute), UpdatedAt: now.Add(-3 * time.Minute)},
 		},
-		CollectorFactEvidence: []status.CollectorFactEvidence{
+		CollectorFactEvidence: []collector.FactEvidence{
 			{InstanceID: "collector-git", CollectorKind: "git", EvidenceSource: "source_facts", SourceSystems: []string{"git"}, ObservationCount: 12, LastObservedAt: now.Add(-2 * time.Minute), UpdatedAt: now.Add(-2 * time.Minute)},
 			{InstanceID: "collector-git", CollectorKind: "git", EvidenceSource: "reducer_facts", ObservationCount: 9, LastObservedAt: now.Add(-1 * time.Minute), UpdatedAt: now.Add(-1 * time.Minute)},
 			{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "source_facts", SourceSystems: []string{"jira"}, ObservationCount: 5, LastObservedAt: now.Add(-2 * time.Minute), UpdatedAt: now.Add(-2 * time.Minute)},
@@ -49,7 +50,7 @@ func promotionScenarioReport(now time.Time) status.Report {
 	}, status.Options{})
 }
 
-func findPromotionProof(t *testing.T, proofs []status.CollectorPromotionProof, kind string) status.CollectorPromotionProof {
+func findPromotionProof(t *testing.T, proofs []collector.PromotionProof, kind string) collector.PromotionProof {
 	t.Helper()
 	for _, proof := range proofs {
 		if proof.CollectorKind == kind {
@@ -57,7 +58,7 @@ func findPromotionProof(t *testing.T, proofs []status.CollectorPromotionProof, k
 		}
 	}
 	t.Fatalf("no promotion proof for collector kind %q in %#v", kind, proofs)
-	return status.CollectorPromotionProof{}
+	return collector.PromotionProof{}
 }
 
 func TestCollectorPromotionProofsClassifiesEveryLane(t *testing.T) {
@@ -65,19 +66,19 @@ func TestCollectorPromotionProofsClassifiesEveryLane(t *testing.T) {
 
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	report := promotionScenarioReport(now)
-	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{
 		Catalog:    promotionTestCatalog(),
 		AsOf:       now,
 		StaleAfter: 24 * time.Hour,
 	})
 
 	cases := map[string]string{
-		"git":              status.CollectorPromotionImplemented,
-		"aws":              status.CollectorPromotionFailed,
-		"jira":             status.CollectorPromotionPartial,
-		"pagerduty":        status.CollectorPromotionGated,
-		"sbom_attestation": status.CollectorPromotionDisabled,
-		"grafana":          status.CollectorPromotionUnsupported,
+		"git":              collector.PromotionImplemented,
+		"aws":              collector.PromotionFailed,
+		"jira":             collector.PromotionPartial,
+		"pagerduty":        collector.PromotionGated,
+		"sbom_attestation": collector.PromotionDisabled,
+		"grafana":          collector.PromotionUnsupported,
 	}
 	for kind, want := range cases {
 		proof := findPromotionProof(t, proofs, kind)
@@ -87,16 +88,16 @@ func TestCollectorPromotionProofsClassifiesEveryLane(t *testing.T) {
 	}
 
 	git := findPromotionProof(t, proofs, "git")
-	if git.ReducerReadback != status.CollectorReadbackAvailable {
-		t.Errorf("git reducer readback = %q, want %q", git.ReducerReadback, status.CollectorReadbackAvailable)
+	if git.ReducerReadback != collector.ReadbackAvailable {
+		t.Errorf("git reducer readback = %q, want %q", git.ReducerReadback, collector.ReadbackAvailable)
 	}
 	if len(git.TelemetryHandles) == 0 {
 		t.Errorf("git telemetry handles must not be empty")
 	}
 
 	jira := findPromotionProof(t, proofs, "jira")
-	if jira.ReducerReadback != status.CollectorReadbackPending {
-		t.Errorf("jira reducer readback = %q, want %q", jira.ReducerReadback, status.CollectorReadbackPending)
+	if jira.ReducerReadback != collector.ReadbackPending {
+		t.Errorf("jira reducer readback = %q, want %q", jira.ReducerReadback, collector.ReadbackPending)
 	}
 	if len(jira.Blockers) == 0 {
 		t.Errorf("partial jira proof must record a blocker")
@@ -106,8 +107,8 @@ func TestCollectorPromotionProofsClassifiesEveryLane(t *testing.T) {
 	if grafana.InstanceID != "" {
 		t.Errorf("no-instance grafana proof instance id = %q, want empty", grafana.InstanceID)
 	}
-	if grafana.ReducerReadback != status.CollectorReadbackUnavailable {
-		t.Errorf("grafana reducer readback = %q, want %q", grafana.ReducerReadback, status.CollectorReadbackUnavailable)
+	if grafana.ReducerReadback != collector.ReadbackUnavailable {
+		t.Errorf("grafana reducer readback = %q, want %q", grafana.ReducerReadback, collector.ReadbackUnavailable)
 	}
 }
 
@@ -116,10 +117,10 @@ func TestCollectorPromotionProofsAreDeterministicAndSorted(t *testing.T) {
 
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	report := promotionScenarioReport(now)
-	opts := status.CollectorPromotionOptions{Catalog: promotionTestCatalog(), AsOf: now, StaleAfter: 24 * time.Hour}
+	opts := collector.PromotionOptions{Catalog: promotionTestCatalog(), AsOf: now, StaleAfter: 24 * time.Hour}
 
-	first := status.CollectorPromotionProofs(report, opts)
-	second := status.CollectorPromotionProofs(report, opts)
+	first := collector.PromotionProofs(report.CollectorEvidence(), opts)
+	second := collector.PromotionProofs(report.CollectorEvidence(), opts)
 	if !reflect.DeepEqual(first, second) {
 		t.Fatalf("promotion proofs not deterministic:\nfirst=%#v\nsecond=%#v", first, second)
 	}
@@ -141,26 +142,26 @@ func TestCollectorPromotionProofsTreatPartialHealthAsPartial(t *testing.T) {
 	report := status.BuildReport(status.RawSnapshot{
 		AsOf: now,
 		Coordinator: &status.CoordinatorSnapshot{
-			CollectorInstances: []status.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector-vuln", CollectorKind: "vulnerability_intelligence", Mode: "claim", Enabled: true, ClaimsEnabled: true, LastObservedAt: now.Add(-2 * time.Minute), UpdatedAt: now.Add(-2 * time.Minute)},
 			},
 		},
-		VulnerabilitySources: []status.VulnerabilitySourceState{
+		VulnerabilitySources: []collector.VulnerabilitySourceState{
 			{CollectorInstanceID: "collector-vuln", ScopeID: "scope", Source: "osv", TerminalStatus: "partial", UpdatedAt: now.Add(-2 * time.Minute)},
 		},
-		CollectorFactEvidence: []status.CollectorFactEvidence{
+		CollectorFactEvidence: []collector.FactEvidence{
 			{InstanceID: "collector-vuln", CollectorKind: "vulnerability_intelligence", EvidenceSource: "reducer_facts", ObservationCount: 4, LastObservedAt: now.Add(-2 * time.Minute), UpdatedAt: now.Add(-2 * time.Minute)},
 		},
 	}, status.Options{})
 
-	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{
-		Catalog:    []status.CollectorCatalogEntry{{CollectorKind: "vulnerability_intelligence", DisplayName: "Vuln", ClaimDriven: true, SourceScope: "vulnerability_intelligence"}},
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{
+		Catalog:    []collector.CatalogEntry{{CollectorKind: "vulnerability_intelligence", DisplayName: "Vuln", ClaimDriven: true, SourceScope: "vulnerability_intelligence"}},
 		AsOf:       now,
 		StaleAfter: 24 * time.Hour,
 	})
 	proof := findPromotionProof(t, proofs, "vulnerability_intelligence")
-	if proof.PromotionState != status.CollectorPromotionPartial {
-		t.Fatalf("partial-health collector promotion state = %q, want %q", proof.PromotionState, status.CollectorPromotionPartial)
+	if proof.PromotionState != collector.PromotionPartial {
+		t.Fatalf("partial-health collector promotion state = %q, want %q", proof.PromotionState, collector.PromotionPartial)
 	}
 }
 
@@ -172,22 +173,22 @@ func TestCollectorPromotionProofsUnregisteredEvidenceIsPartialNotGated(t *testin
 	// it must not be reported as gated with a "claims disabled" blocker.
 	report := status.BuildReport(status.RawSnapshot{
 		AsOf: now,
-		CollectorFactEvidence: []status.CollectorFactEvidence{
+		CollectorFactEvidence: []collector.FactEvidence{
 			{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "reducer_facts", ObservationCount: 3, LastObservedAt: now.Add(-2 * time.Minute), UpdatedAt: now.Add(-2 * time.Minute)},
 		},
 	}, status.Options{})
 
-	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{
-		Catalog:    []status.CollectorCatalogEntry{{CollectorKind: "jira", DisplayName: "Jira", ClaimDriven: true, SourceScope: "jira_site"}},
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{
+		Catalog:    []collector.CatalogEntry{{CollectorKind: "jira", DisplayName: "Jira", ClaimDriven: true, SourceScope: "jira_site"}},
 		AsOf:       now,
 		StaleAfter: 24 * time.Hour,
 	})
 	proof := findPromotionProof(t, proofs, "jira")
-	if proof.PromotionState == status.CollectorPromotionGated {
+	if proof.PromotionState == collector.PromotionGated {
 		t.Fatalf("unregistered evidence must not be gated: %#v", proof)
 	}
-	if proof.PromotionState != status.CollectorPromotionPartial {
-		t.Fatalf("unregistered claim-driven evidence promotion state = %q, want %q", proof.PromotionState, status.CollectorPromotionPartial)
+	if proof.PromotionState != collector.PromotionPartial {
+		t.Fatalf("unregistered claim-driven evidence promotion state = %q, want %q", proof.PromotionState, collector.PromotionPartial)
 	}
 	for _, blocker := range proof.Blockers {
 		if strings.Contains(blocker, "claims disabled") {
@@ -201,9 +202,9 @@ func TestCollectorPromotionProofsDoNotAliasRuntimeSlices(t *testing.T) {
 
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	report := promotionScenarioReport(now)
-	opts := status.CollectorPromotionOptions{Catalog: promotionTestCatalog(), AsOf: now, StaleAfter: 24 * time.Hour}
+	opts := collector.PromotionOptions{Catalog: promotionTestCatalog(), AsOf: now, StaleAfter: 24 * time.Hour}
 
-	proofs := status.CollectorPromotionProofs(report, opts)
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), opts)
 	for i := range proofs {
 		if len(proofs[i].EvidenceSources) > 0 {
 			proofs[i].EvidenceSources[0] = "MUTATED"
@@ -214,7 +215,7 @@ func TestCollectorPromotionProofsDoNotAliasRuntimeSlices(t *testing.T) {
 	}
 
 	// A fresh derivation must be unaffected by the mutation above.
-	fresh := status.CollectorPromotionProofs(report, opts)
+	fresh := collector.PromotionProofs(report.CollectorEvidence(), opts)
 	for _, proof := range fresh {
 		for _, source := range proof.EvidenceSources {
 			if source == "MUTATED" {
@@ -236,23 +237,23 @@ func TestCollectorPromotionProofsMarkStaleEvidence(t *testing.T) {
 	report := status.BuildReport(status.RawSnapshot{
 		AsOf: now,
 		Coordinator: &status.CoordinatorSnapshot{
-			CollectorInstances: []status.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector-jira", CollectorKind: "jira", Mode: "claim", Enabled: true, ClaimsEnabled: true, LastObservedAt: now.Add(-48 * time.Hour), UpdatedAt: now.Add(-48 * time.Hour)},
 			},
 		},
-		CollectorFactEvidence: []status.CollectorFactEvidence{
+		CollectorFactEvidence: []collector.FactEvidence{
 			{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "reducer_facts", ObservationCount: 5, LastObservedAt: now.Add(-48 * time.Hour), UpdatedAt: now.Add(-48 * time.Hour)},
 		},
 	}, status.Options{})
 
-	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{
-		Catalog:    []status.CollectorCatalogEntry{{CollectorKind: "jira", DisplayName: "Jira", ClaimDriven: true, SourceScope: "jira_site"}},
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{
+		Catalog:    []collector.CatalogEntry{{CollectorKind: "jira", DisplayName: "Jira", ClaimDriven: true, SourceScope: "jira_site"}},
 		AsOf:       now,
 		StaleAfter: 24 * time.Hour,
 	})
 	proof := findPromotionProof(t, proofs, "jira")
-	if proof.PromotionState != status.CollectorPromotionStale {
-		t.Fatalf("stale jira promotion state = %q, want %q", proof.PromotionState, status.CollectorPromotionStale)
+	if proof.PromotionState != collector.PromotionStale {
+		t.Fatalf("stale jira promotion state = %q, want %q", proof.PromotionState, collector.PromotionStale)
 	}
 }
 
@@ -261,7 +262,7 @@ func TestCollectorPromotionProofsHidePermissionScoped(t *testing.T) {
 
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	report := promotionScenarioReport(now)
-	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{
 		Catalog:          promotionTestCatalog(),
 		AsOf:             now,
 		StaleAfter:       24 * time.Hour,
@@ -269,8 +270,8 @@ func TestCollectorPromotionProofsHidePermissionScoped(t *testing.T) {
 	})
 
 	proof := findPromotionProof(t, proofs, "aws")
-	if proof.PromotionState != status.CollectorPromotionPermissionHidden {
-		t.Fatalf("hidden aws promotion state = %q, want %q", proof.PromotionState, status.CollectorPromotionPermissionHidden)
+	if proof.PromotionState != collector.PromotionPermissionHidden {
+		t.Fatalf("hidden aws promotion state = %q, want %q", proof.PromotionState, collector.PromotionPermissionHidden)
 	}
 	// Permission-hidden lanes must not leak instance, evidence, or failure detail.
 	if proof.InstanceID != "" || len(proof.EvidenceSources) != 0 || len(proof.SourceSystems) != 0 || proof.Health != "" {
@@ -283,7 +284,7 @@ func TestCollectorPromotionProofsMarkFixtureOnly(t *testing.T) {
 
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	report := promotionScenarioReport(now)
-	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{
 		Catalog:     promotionTestCatalog(),
 		AsOf:        now,
 		StaleAfter:  24 * time.Hour,
@@ -294,7 +295,7 @@ func TestCollectorPromotionProofsMarkFixtureOnly(t *testing.T) {
 	if !proof.FixtureOnly {
 		t.Fatalf("git proof FixtureOnly = false, want true")
 	}
-	if proof.PromotionState == status.CollectorPromotionImplemented {
+	if proof.PromotionState == collector.PromotionImplemented {
 		t.Fatalf("fixture-only lane must not be promoted to implemented: %#v", proof)
 	}
 }
@@ -333,14 +334,14 @@ func TestCollectorPromotionProofsDefaultCatalogCoversFullFleet(t *testing.T) {
 
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	report := status.BuildReport(status.RawSnapshot{AsOf: now}, status.DefaultOptions())
-	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{AsOf: now})
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{AsOf: now})
 
-	if len(proofs) != len(status.KnownCollectorKinds()) {
-		t.Fatalf("default catalog produced %d proofs, want %d", len(proofs), len(status.KnownCollectorKinds()))
+	if len(proofs) != len(collector.KnownKinds()) {
+		t.Fatalf("default catalog produced %d proofs, want %d", len(proofs), len(collector.KnownKinds()))
 	}
 	for _, proof := range proofs {
-		if proof.PromotionState != status.CollectorPromotionUnsupported {
-			t.Errorf("collector %q with no evidence = %q, want %q", proof.CollectorKind, proof.PromotionState, status.CollectorPromotionUnsupported)
+		if proof.PromotionState != collector.PromotionUnsupported {
+			t.Errorf("collector %q with no evidence = %q, want %q", proof.CollectorKind, proof.PromotionState, collector.PromotionUnsupported)
 		}
 	}
 }
@@ -348,7 +349,7 @@ func TestCollectorPromotionProofsDefaultCatalogCoversFullFleet(t *testing.T) {
 func TestDefaultCollectorCatalogCoversEveryCollectorKind(t *testing.T) {
 	t.Parallel()
 
-	catalog := status.DefaultCollectorCatalog()
+	catalog := collector.DefaultCatalog()
 	if len(catalog) == 0 {
 		t.Fatal("default collector catalog is empty")
 	}
@@ -365,7 +366,7 @@ func TestDefaultCollectorCatalogCoversEveryCollectorKind(t *testing.T) {
 		}
 		seen[entry.CollectorKind] = true
 	}
-	for _, kind := range status.KnownCollectorKinds() {
+	for _, kind := range collector.KnownKinds() {
 		if !seen[kind] {
 			t.Errorf("default catalog missing known collector kind %q", kind)
 		}
