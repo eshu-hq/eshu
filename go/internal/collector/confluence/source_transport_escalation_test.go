@@ -8,10 +8,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -68,20 +69,27 @@ func TestHTTPClientRetriesBodyTruncatedMidResponse(t *testing.T) {
 	}
 }
 
+// refusedRoundTripper fails every request with ECONNREFUSED without opening a
+// connection. A closed listener's port can be rebound by a sibling test's
+// httptest server before the last attempt (#7875), so the refused endpoint
+// must not depend on any real port.
+type refusedRoundTripper struct{}
+
+func (refusedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, &url.Error{Op: req.Method, URL: req.URL.String(), Err: syscall.ECONNREFUSED}
+}
+
 // refusedSource builds a Source whose provider refuses every connection, the
 // shape of a wrong host or port. now is advanced by the caller so each Next
 // call is past the previous backoff window.
 func refusedSource(t *testing.T, now *time.Time, logger *slog.Logger) *Source {
 	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Listen() error = %v", err)
-	}
-	baseURL := "http://" + listener.Addr().String()
-	if err := listener.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
-	client, err := NewHTTPClient(HTTPClientConfig{BaseURL: baseURL, BearerToken: "token"})
+	const baseURL = "http://confluence-refused.invalid"
+	client, err := NewHTTPClient(HTTPClientConfig{
+		BaseURL:     baseURL,
+		BearerToken: "token",
+		Client:      &http.Client{Transport: refusedRoundTripper{}},
+	})
 	if err != nil {
 		t.Fatalf("NewHTTPClient() error = %v", err)
 	}
