@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 func appendUniqueSupplyChainImpactFacts(envelopes []facts.Envelope, active ...facts.Envelope) []facts.Envelope {
@@ -223,8 +224,8 @@ func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
 	out := append([]string(nil), ids...)
 	for _, repositoryID := range ids {
 		repositoryID = strings.TrimSpace(repositoryID)
-		if repositoryID != "" && !strings.HasPrefix(repositoryID, "git-repository-scope:") {
-			out = append(out, "git-repository-scope:"+repositoryID)
+		if repositoryID != "" && !strings.HasPrefix(repositoryID, scope.GitRepositoryScopePrefix) {
+			out = append(out, scope.GitRepositoryScopePrefix+repositoryID)
 		}
 	}
 	return payloadcore.UniqueSortedStrings(out)

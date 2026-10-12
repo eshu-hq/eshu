@@ -9,11 +9,12 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 const (
 	serviceCatalogLocalDescriptorEvidenceLimit = 20
-	serviceCatalogGitRepositoryScopePrefix     = "git-repository-scope:"
+	serviceCatalogGitRepositoryScopePrefix     = scope.GitRepositoryScopePrefix
 )
 
 // CatalogEvidenceSummary explains catalog evidence separate from

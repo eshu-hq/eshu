@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // Hint is one package registry source_hint fact, reduced to the fields
@@ -73,7 +74,7 @@ func ExtractRepositories(envelopes []facts.Envelope) []Repository {
 // fallback ExtractRepositories uses when a repository fact carries no explicit
 // ID field, so it must keep its original, looser behavior.
 func RepositoryIDFromScope(scopeID string) string {
-	const prefix = "git-repository-scope:"
+	const prefix = scope.GitRepositoryScopePrefix
 	return strings.TrimSpace(strings.TrimPrefix(scopeID, prefix))
 }
 

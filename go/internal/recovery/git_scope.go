@@ -3,15 +3,20 @@
 
 package recovery
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
 
 // GitRepositoryScopePrefix is the scope id prefix of a git repository's
 // ingestion scope. A default-branch scope is the prefix plus the repository
-// id; a ref scope appends "@<ref>". This is the single source of the literal:
+// id; a ref scope appends "@<ref>". It aliases scope.GitRepositoryScopePrefix,
+// the single source of the literal, and
 // querycontract.GitRepositoryScopePrefix is defined as this constant, so the
 // prefix cannot drift. The classification logic still exists in both packages,
 // and a test in query/admin pins the two together on every edge case.
-const GitRepositoryScopePrefix = "git-repository-scope:"
+const GitRepositoryScopePrefix = scope.GitRepositoryScopePrefix
 
 // IsGitDefaultBranchScope reports whether scopeID names a git default-branch
 // repository scope: the only kind a per-repository reindex watermark can force

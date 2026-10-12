@@ -11,9 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-const serviceCatalogGitRepositoryScopePrefix = "git-repository-scope:"
+const serviceCatalogGitRepositoryScopePrefix = scope.GitRepositoryScopePrefix
 
 type serviceCatalogEntityEvidence struct {
 	factID             string

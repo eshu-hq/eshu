@@ -57,6 +57,15 @@ const (
 	KindRepositoryRef ScopeKind = "repository_ref"
 )
 
+// GitRepositoryScopePrefix is the scope id prefix the git collector writes
+// for repository scopes: a default-branch scope is the prefix plus the
+// canonical repository id, and a ref scope appends "@<ref>". Every package
+// that builds or reads a git repository scope id names this constant, so one
+// edit cannot silently split how packages classify a repository scope
+// (#7879). recovery.GitRepositoryScopePrefix and (through it)
+// querycontract.GitRepositoryScopePrefix alias this constant.
+const GitRepositoryScopePrefix = "git-repository-scope:"
+
 // CollectorKind identifies the collector family that owns the scope.
 type CollectorKind string
 

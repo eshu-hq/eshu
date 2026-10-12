@@ -7,18 +7,20 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // RepositoryIDFromReducerScope extracts the repository identity from a reducer
-// scope ID, accepting an already-canonical "repository:" scope or a
-// "git-repository-scope:" prefix. It returns "" for any other scope shape.
+// scope ID, accepting an already-canonical "repository:" scope or a git
+// repository scope (scope.GitRepositoryScopePrefix). It returns "" for any
+// other scope shape.
 func RepositoryIDFromReducerScope(scopeID string) string {
 	scopeID = strings.TrimSpace(scopeID)
 	if strings.HasPrefix(scopeID, "repository:") {
 		return scopeID
 	}
-	if strings.HasPrefix(scopeID, "git-repository-scope:") {
-		return strings.TrimSpace(strings.TrimPrefix(scopeID, "git-repository-scope:"))
+	if strings.HasPrefix(scopeID, scope.GitRepositoryScopePrefix) {
+		return strings.TrimSpace(strings.TrimPrefix(scopeID, scope.GitRepositoryScopePrefix))
 	}
 	return ""
 }

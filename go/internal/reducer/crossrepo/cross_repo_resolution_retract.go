@@ -12,6 +12,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 func buildResolvedEdgeRetractionIntentRows(
@@ -110,7 +111,7 @@ func repoIDFromRelationshipScope(scopeID string) string {
 	if scopeID == "" {
 		return ""
 	}
-	if strings.HasPrefix(scopeID, "git-repository-scope:") {
+	if strings.HasPrefix(scopeID, scope.GitRepositoryScopePrefix) {
 		return normalizeReducerRepositoryID(scopeID)
 	}
 	if strings.HasPrefix(scopeID, "repository:") {
