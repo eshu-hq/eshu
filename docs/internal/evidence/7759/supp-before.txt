@@ -1,0 +1,147 @@
+SET
+=== S1 codetopic tiny-repo rare ===
+                                                                                               QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=346.37..346.38 rows=1 width=8) (actual time=0.279..0.280 rows=1 loops=1)
+   Buffers: shared hit=30 read=8
+   CTE terms
+     ->  Result  (cost=0.00..0.01 rows=1 width=32) (actual time=0.001..0.001 rows=1 loops=1)
+   ->  Nested Loop  (cost=143.66..346.23 rows=52 width=0) (actual time=0.276..0.277 rows=1 loops=1)
+         Buffers: shared hit=30 read=8
+         ->  CTE Scan on terms  (cost=0.00..0.02 rows=1 width=32) (actual time=0.006..0.006 rows=1 loops=1)
+         ->  Limit  (cost=143.66..345.17 rows=52 width=96) (actual time=0.269..0.270 rows=1 loops=1)
+               Buffers: shared hit=30 read=8
+               ->  Bitmap Heap Scan on content_entities e  (cost=143.66..345.17 rows=52 width=96) (actual time=0.267..0.268 rows=1 loops=1)
+                     Recheck Cond: ((repo_id = 'repository:tiny'::text) AND ((entity_name ~~* (('%'::text || terms.term) || '%'::text)) OR (source_cache ~~* (('%'::text || terms.term) || '%'::text))))
+                     Heap Blocks: exact=1
+                     Buffers: shared hit=30 read=8
+                     ->  BitmapAnd  (cost=143.66..143.66 rows=52 width=0) (actual time=0.248..0.249 rows=0 loops=1)
+                           Buffers: shared hit=30 read=7
+                           ->  Bitmap Index Scan on content_entities_repo_idx  (cost=0.00..59.62 rows=5226 width=0) (actual time=0.116..0.116 rows=5000 loops=1)
+                                 Index Cond: (repo_id = 'repository:tiny'::text)
+                                 Buffers: shared read=7
+                           ->  BitmapOr  (cost=83.78..83.78 rows=5850 width=0) (actual time=0.126..0.126 rows=0 loops=1)
+                                 Buffers: shared hit=30
+                                 ->  Bitmap Index Scan on content_entities_name_trgm_idx  (cost=0.00..31.56 rows=2925 width=0) (actual time=0.066..0.066 rows=96 loops=1)
+                                       Index Cond: (entity_name ~~* (('%'::text || terms.term) || '%'::text))
+                                       Buffers: shared hit=15
+                                 ->  Bitmap Index Scan on content_entities_source_trgm_idx  (cost=0.00..52.19 rows=2925 width=0) (actual time=0.056..0.056 rows=99 loops=1)
+                                       Index Cond: (source_cache ~~* (('%'::text || terms.term) || '%'::text))
+                                       Buffers: shared hit=15
+ Planning:
+   Buffers: shared hit=312 read=1
+ Planning Time: 0.904 ms
+ Execution Time: 0.852 ms
+(30 rows)
+
+                                                                                               QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=346.37..346.38 rows=1 width=8) (actual time=0.140..0.141 rows=1 loops=1)
+   Buffers: shared hit=38
+   CTE terms
+     ->  Result  (cost=0.00..0.01 rows=1 width=32) (actual time=0.000..0.001 rows=1 loops=1)
+   ->  Nested Loop  (cost=143.66..346.23 rows=52 width=0) (actual time=0.138..0.140 rows=1 loops=1)
+         Buffers: shared hit=38
+         ->  CTE Scan on terms  (cost=0.00..0.02 rows=1 width=32) (actual time=0.001..0.001 rows=1 loops=1)
+         ->  Limit  (cost=143.66..345.17 rows=52 width=96) (actual time=0.136..0.137 rows=1 loops=1)
+               Buffers: shared hit=38
+               ->  Bitmap Heap Scan on content_entities e  (cost=143.66..345.17 rows=52 width=96) (actual time=0.135..0.136 rows=1 loops=1)
+                     Recheck Cond: ((repo_id = 'repository:tiny'::text) AND ((entity_name ~~* (('%'::text || terms.term) || '%'::text)) OR (source_cache ~~* (('%'::text || terms.term) || '%'::text))))
+                     Heap Blocks: exact=1
+                     Buffers: shared hit=38
+                     ->  BitmapAnd  (cost=143.66..143.66 rows=52 width=0) (actual time=0.131..0.131 rows=0 loops=1)
+                           Buffers: shared hit=37
+                           ->  Bitmap Index Scan on content_entities_repo_idx  (cost=0.00..59.62 rows=5226 width=0) (actual time=0.070..0.070 rows=5000 loops=1)
+                                 Index Cond: (repo_id = 'repository:tiny'::text)
+                                 Buffers: shared hit=7
+                           ->  BitmapOr  (cost=83.78..83.78 rows=5850 width=0) (actual time=0.056..0.056 rows=0 loops=1)
+                                 Buffers: shared hit=30
+                                 ->  Bitmap Index Scan on content_entities_name_trgm_idx  (cost=0.00..31.56 rows=2925 width=0) (actual time=0.026..0.026 rows=96 loops=1)
+                                       Index Cond: (entity_name ~~* (('%'::text || terms.term) || '%'::text))
+                                       Buffers: shared hit=15
+                                 ->  Bitmap Index Scan on content_entities_source_trgm_idx  (cost=0.00..52.19 rows=2925 width=0) (actual time=0.029..0.029 rows=99 loops=1)
+                                       Index Cond: (source_cache ~~* (('%'::text || terms.term) || '%'::text))
+                                       Buffers: shared hit=15
+ Planning:
+   Buffers: shared hit=2
+ Planning Time: 0.138 ms
+ Execution Time: 0.158 ms
+(30 rows)
+
+=== S2 codetopic small-repo rare ===
+                                                                                                QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=1052.62..1052.63 rows=1 width=8) (actual time=0.541..0.542 rows=1 loops=1)
+   Buffers: shared hit=37 read=17
+   CTE terms
+     ->  Result  (cost=0.00..0.01 rows=1 width=32) (actual time=0.000..0.001 rows=1 loops=1)
+   ->  Nested Loop  (cost=305.89..1052.11 rows=199 width=0) (actual time=0.508..0.539 rows=7 loops=1)
+         Buffers: shared hit=37 read=17
+         ->  CTE Scan on terms  (cost=0.00..0.02 rows=1 width=32) (actual time=0.002..0.002 rows=1 loops=1)
+         ->  Limit  (cost=305.89..1048.11 rows=199 width=96) (actual time=0.506..0.535 rows=7 loops=1)
+               Buffers: shared hit=37 read=17
+               ->  Bitmap Heap Scan on content_entities e  (cost=305.89..1048.11 rows=199 width=96) (actual time=0.505..0.533 rows=7 loops=1)
+                     Recheck Cond: (((entity_name ~~* (('%'::text || terms.term) || '%'::text)) OR (source_cache ~~* (('%'::text || terms.term) || '%'::text))) AND (repo_id = 'repository:small'::text))
+                     Heap Blocks: exact=4
+                     Buffers: shared hit=37 read=17
+                     ->  BitmapAnd  (cost=305.89..305.89 rows=199 width=0) (actual time=0.485..0.485 rows=0 loops=1)
+                           Buffers: shared hit=33 read=17
+                           ->  BitmapOr  (cost=83.85..83.85 rows=5850 width=0) (actual time=0.045..0.045 rows=0 loops=1)
+                                 Buffers: shared hit=30
+                                 ->  Bitmap Index Scan on content_entities_name_trgm_idx  (cost=0.00..31.56 rows=2925 width=0) (actual time=0.025..0.025 rows=96 loops=1)
+                                       Index Cond: (entity_name ~~* (('%'::text || terms.term) || '%'::text))
+                                       Buffers: shared hit=15
+                                 ->  Bitmap Index Scan on content_entities_source_trgm_idx  (cost=0.00..52.19 rows=2925 width=0) (actual time=0.019..0.019 rows=99 loops=1)
+                                       Index Cond: (source_cache ~~* (('%'::text || terms.term) || '%'::text))
+                                       Buffers: shared hit=15
+                           ->  Bitmap Index Scan on content_entities_repo_idx  (cost=0.00..221.74 rows=19909 width=0) (actual time=0.425..0.425 rows=20000 loops=1)
+                                 Index Cond: (repo_id = 'repository:small'::text)
+                                 Buffers: shared hit=3 read=17
+ Planning:
+   Buffers: shared hit=2
+ Planning Time: 0.138 ms
+ Execution Time: 0.564 ms
+(30 rows)
+
+=== S3 k8s-ssd big ===
+SET
+                                                                                 QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.41..16.86 rows=500 width=60) (actual time=0.043..0.151 rows=500 loops=1)
+   Buffers: shared hit=3 read=7
+   ->  Index Only Scan using content_entities_k8s_select_partial_idx on content_entities  (cost=0.41..143.72 rows=4355 width=60) (actual time=0.042..0.123 rows=500 loops=1)
+         Index Cond: (repo_id = 'repository:big'::text)
+         Heap Fetches: 0
+         Buffers: shared hit=3 read=7
+ Planning:
+   Buffers: shared hit=61
+ Planning Time: 0.206 ms
+ Execution Time: 0.175 ms
+(10 rows)
+
+RESET
+=== S4 k8s-ssd k8smono ===
+SET
+                                                                                 QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.41..16.83 rows=500 width=60) (actual time=0.028..0.133 rows=500 loops=1)
+   Buffers: shared hit=11
+   ->  Index Only Scan using content_entities_k8s_select_partial_idx on content_entities  (cost=0.41..35.72 rows=1075 width=60) (actual time=0.028..0.105 rows=500 loops=1)
+         Index Cond: (repo_id = 'repository:k8smono'::text)
+         Heap Fetches: 0
+         Buffers: shared hit=11
+ Planning Time: 0.066 ms
+ Execution Time: 0.155 ms
+(8 rows)
+
+RESET
+=== S5 reap-leg tiny ===
+                                                                             QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Index Only Scan using content_entities_repo_entity_idx on content_entities ce  (cost=0.42..251.88 rows=5226 width=23) (actual time=0.038..0.655 rows=5000 loops=1)
+   Index Cond: (repo_id = 'repository:tiny'::text)
+   Heap Fetches: 0
+   Buffers: shared hit=2 read=38
+ Planning Time: 0.037 ms
+ Execution Time: 0.802 ms
+(6 rows)

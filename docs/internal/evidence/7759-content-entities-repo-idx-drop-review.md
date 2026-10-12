@@ -187,3 +187,24 @@ No-Observability-Change: this review adds one evidence note and no code,
 index, worker, lease, route, metric, or runtime knob. Index use stays
 visible through `pg_stat_user_indexes`; the touched reads keep their
 existing `postgres.query` spans.
+
+## Decision (2026-10-12, arbiter-eshu)
+
+This supersedes the "needs an owner decision" lines in Verdict and Proof
+item 4. Verdict: **(c) keep `content_entities_repo_idx` and close the
+review with the documented reason.** No owner act is needed for (c).
+
+Weight of evidence: items 1-3 support the drop on the shim but do not
+clear production (shim PG 16.15 with 585k rows and a 4 MB index versus
+production PG 18.3 with 2.24M rows and 82 MB; read-replica confirmation
+never ran; Q7-big defaults to an O(corpus) seq scan; the 284-buffer
+optimal bitmap-AND is note-reported only). Item 4 is mechanically
+blocked (004 immutable per #7002; replay guard red; no guard converges;
+tombstone rejected). Option (a) would record a known defect in
+`replayRebuiltIndexNames` against its own comment and inflict
+per-restart blocking rebuild plus drop on local databases; option (b)
+is disproportionate platform work for 82 MB and about 5% WAL.
+
+Close-out: keep the index. Revisit only if the bootstrap gains a retire
+path or production evidence demands it. Raw battery inputs and outputs
+are committed under `docs/internal/evidence/7759/`. Refs #7759.
