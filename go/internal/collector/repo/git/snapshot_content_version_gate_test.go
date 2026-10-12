@@ -109,8 +109,11 @@ func TestContentVersionFixtureDigestIsDeterministic(t *testing.T) {
 // testdata/content_version, or a change to that parser could ship without a
 // version bump and leave unchanged repositories on old facts. The list comes
 // from parser.DefaultRegistry, so a new parser fails here until the fixture
-// gets a file for it. The gate still samples inputs; an explicit reindex is the
-// remedy for a parser change it misses (ruling a9-125).
+// gets a file for it. Coverage is per parser key, not per extension or
+// semantic family: a new extension on an existing key, or a new YAML or JSON
+// dialect, passes this guard (review r2 N5). The gate still samples inputs; an
+// explicit reindex is the remedy for a parser change it misses (ruling a9-125,
+// #7986).
 func TestContentVersionFixtureCoversEveryParser(t *testing.T) {
 	t.Parallel()
 	registry := parser.DefaultRegistry()

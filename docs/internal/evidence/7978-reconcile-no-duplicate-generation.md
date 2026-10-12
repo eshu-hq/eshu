@@ -182,8 +182,10 @@ has no file for one. Seeded violation: removing `jvm/pom.xml` failed it with
 CloudFormation, and GitHub workflow files.
 
 The gate is a sample of inputs, so it narrows, but cannot close, the window
-where a parser change does not move the hint (ruling a9-125). An explicit
-reindex stores the re-parse in that case.
+where a parser change does not move the hint (ruling a9-125, #7986). Coverage
+is per parser key, not per extension or YAML/JSON dialect (review r2 N5), and
+the pin test cannot tell fixture growth from a parser change in the same edit
+(N4): review catches that case. An explicit reindex stores the re-parse.
 
 ## Graph Truth Evidence
 
