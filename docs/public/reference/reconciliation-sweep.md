@@ -160,7 +160,8 @@ discovery ignore and preserve globs, the [value-flow gate](value-flow-emission.m
 `SCIP_LANGUAGES` and the stat of each SCIP indexer binary, and the bootstrap
 dependency settings). Every stored generation and every re-open after a parse
 stamps the identity on the generation. The first sweep after a deploy parses
-and stamps; later sweeps compare.
+and stamps; later sweeps compare. The ingester and collector-git run the skip on
+both their scheduled and webhook selectors; bootstrap-index only stamps.
 
 | Condition | Result | `outcome` |
 | --- | --- | --- |
