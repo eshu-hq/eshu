@@ -46,7 +46,10 @@ var globalGraphOnlyEntityTypes = map[string]struct{}{
 
 // EntityContextAnchorLabelDisjunction is the fast-path label set
 // GetEntityContext tries, one label per MATCH, before its unlabeled fallback
-// (issue #7006).
+// (issue #7006). This per-label loop runs on NornicDB; on Neo4j the
+// schema-closed indexed anchor seeks every uid- or id-constrained schema
+// label instead (#7212, see neo4jAnchorRankOrder) and no unlabeled fallback
+// follows it.
 //
 // It covers every label resolve_entity can return with no content-store
 // fallback row -- querycontract.GraphBackedEntityTypes (Repository,
@@ -55,9 +58,11 @@ var globalGraphOnlyEntityTypes = map[string]struct{}{
 // the other common id-indexed labels a caller holds ids for: Interface and
 // TypeAlias from call-chain responses, WorkloadInstance from workload
 // context. It is a latency list, not a completeness list: the pre-#7006
-// `MATCH (e) WHERE e.id = $entity_id` matched an id on any label, so
-// GetEntityContext finishes with that unlabeled read when every label here
-// misses, and an id on any other label still resolves.
+// `MATCH (e) WHERE e.id = $entity_id` matched an id on any label, so on
+// NornicDB GetEntityContext finishes with that unlabeled read when every
+// label here misses, and an id on any other label still resolves there. On
+// Neo4j an id outside the schema-closed anchor answers not-found; the
+// id-anchor census counts such nodes as unreachable.
 //
 // This is kept as a "|"-joined string (rather than only the slice below) so
 // TestEntityContextAnchorLabelDisjunctionCoversEveryGraphOnlyResolveEntityType
