@@ -1,0 +1,20 @@
+go/internal/query/methodology_identity_guard_test.go
+  s_29175cf8c573b8::t_4b0996082a9ce3 272-280,282-308
+  s_29175cf8c573b8::t_1608851e2e9ebc 28,86,91-104,127,178,212,255,281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e4aafb00085cffb4ea84b44066942b5a0ba815c6",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
