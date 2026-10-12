@@ -120,6 +120,7 @@ func (r Recorder) record(ctx context.Context, attempt Attempt, input Input, outc
 			attribute.String(telemetry.MetricDimensionOutcome, string(outcome))))
 	}
 	trace.SpanFromContext(ctx).AddEvent("git.reconcile.parse_skip_decision", trace.WithAttributes(
+		attribute.String(telemetry.LogKeyScopeID, attempt.ScopeID),
 		attribute.String("eshu.reconcile.parse_skip_outcome", string(outcome)),
 		attribute.Bool("eshu.reconcile.parse_skipped", parseSkipped(outcome))))
 	if r.Logger == nil {

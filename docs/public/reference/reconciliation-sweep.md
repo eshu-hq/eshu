@@ -197,8 +197,8 @@ with an error that names the variable and the value.
 
 Each decision increments
 `eshu_dp_collector_reconcile_parse_skip_decisions_total{outcome}` and adds a span
-event `git.reconcile.parse_skip_decision` (`eshu.reconcile.parse_skipped`,
-`eshu.reconcile.parse_skip_outcome`). A skip or a pending re-projection logs INFO
+event `git.reconcile.parse_skip_decision` (`scope_id`,
+`eshu.reconcile.parse_skipped`, `eshu.reconcile.parse_skip_outcome`). A skip or a pending re-projection logs INFO
 `git_reconcile_parse_skipped` (`scope_id`, `reason`, `generation_id`,
 `commit_sha`, `preparse_skips`, `config_digest`, `outcome`); an identity
 mismatch, a fenced re-open, or a store error logs WARN
