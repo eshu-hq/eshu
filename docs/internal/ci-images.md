@@ -172,6 +172,11 @@ The gate reads text. It does not run a script, and main's gate had the same gaps
   the word after the array-held flags is `exec`. An array that itself holds a
   pulling subcommand (`flags=(-f x up)`) followed by a non-pulling word is not
   seen.
+- `exec` with other options before `-c` (for example `exec -a NAME -c bash
+  scripts/ci/compose.sh ...`) is not seen. Named raw: `exec -c`, `exec -lc`,
+  `builtin exec -c`, `command exec -c` and `FOO=1 exec -c`. No workflow uses
+  `exec` before the wrapper.
+- `env -S '-i ...'` (a split-string argument that carries the flag) is not seen.
 - A statement before the call that removes the mode (`unset GITHUB_ACTIONS
   ESHU_CI_IMAGES`, `export GITHUB_ACTIONS=false`) is not seen. The wrapper guard
   closes a write of `ESHU_CI_IMAGES` while `GITHUB_ACTIONS` stays `true`; a script
