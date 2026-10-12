@@ -368,7 +368,7 @@ gates:
     name: Docker Hub login in image-pulling workflows
     category: hygiene
     layer: hygiene
-    purpose: "Fails when a workflow job that can pull Docker Hub images, directly or via a script it runs, has no gated login before its first pull (shared anonymous limit)."
+    purpose: "Fails when a merge_group or pull_request job reaches Docker Hub (reads the CI image ledger); other Docker Hub-pulling jobs need a gated login before a pull."
     tier: pre-pr
     blocking: true
     triggers:
@@ -390,7 +390,7 @@ gates:
       - "scripts/ci/tools.Dockerfile"
       - "scripts/ci/test-tools-workflow.py"
       - "specs/ci-images.v1.json"
-      - "scripts/lib/ci_image_compose_signature.py"
+      - "scripts/lib/ci_image_*.py"
     local:
       command: "bash scripts/verify-dockerhub-login.sh"
       test_command: "bash scripts/test-verify-dockerhub-login.sh"

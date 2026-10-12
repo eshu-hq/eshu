@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -90,5 +91,19 @@ func (h compositeMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	_, _ = w.Write([]byte(telemetry.RuntimeStatusSnapshotAvailableMetric + " " + available + "\n"))
 	if available == "1" {
 		_, _ = w.Write(statusRecorder.Body.Bytes())
+	}
+}
+
+// writeRefreshSkipReasonGauges writes the skipped-refresh count for each value
+// of the closed telemetry.RefreshSkipReasons set (#7978), so an operator can
+// tell an unchanged snapshot from a reconcile that re-projected the active
+// generation instead of storing a duplicate.
+func writeRefreshSkipReasonGauges(writeGauge func(string, map[string]string, string), serviceName string) {
+	for _, reason := range telemetry.RefreshSkipReasons() {
+		writeGauge(
+			"eshu_runtime_refresh_skipped_by_reason_total",
+			map[string]string{"service_name": serviceName, "reason": reason},
+			strconv.FormatUint(telemetry.SkippedRefreshCountByReason(reason), 10),
+		)
 	}
 }

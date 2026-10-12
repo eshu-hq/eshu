@@ -67,18 +67,13 @@ cleanup() {
  exit "$status"
 }
 trap cleanup EXIT INT TERM
-# Read the approved CI mirrors from one ledger so both paired revisions run
-# against the same declared engine profile. The earlier Docker Hub PostgreSQL
-# digest is a different Debian build and its timing is separate evidence.
-image_ledger="$repo_root/specs/ci-images.v1.json"
-postgres_image="$(jq -er '.images[] | select(.id == "postgres-bookworm") | .destination + "@" + .digest' "$image_ledger")" || {
- printf 'missing approved postgres-bookworm methodology image\n' >&2
- exit 1
-}
-graph_image="$(jq -er '.images[] | select(.id == "neo4j-community") | .destination + "@" + .digest' "$image_ledger")" || {
- printf 'missing approved neo4j-community methodology image\n' >&2
- exit 1
-}
+# Both paired revisions run against the approved CI mirrors so they share one
+# declared engine profile. The earlier Docker Hub PostgreSQL digest is a
+# different Debian build and its timing is separate evidence. The references are
+# literal so the Docker Hub login gate can see they are GHCR digests;
+# test-verify-query-methodology.sh compares them with specs/ci-images.v1.json.
+postgres_image="ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c"
+graph_image="ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
 docker run --rm -d --name "$postgres" -p 127.0.0.1::5432 -e POSTGRES_DB=methodology -e "POSTGRES_PASSWORD=$password" "$postgres_image" >/dev/null
 docker run --rm -d --name "$graph" -p 127.0.0.1::7687 -e "NEO4J_AUTH=neo4j/$password" "$graph_image" >/dev/null
 ready=false

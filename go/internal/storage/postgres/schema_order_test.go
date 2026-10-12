@@ -402,4 +402,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// backfills legacy rows to the scope's active generation where the
 	// fail-safe guard clauses hold.
 	"content_files_generation_id",
+	// Migration 170 (#7126) creates the empty config-artifact read model
+	// tables: no trigger, no seed.
+	"config_artifact_read_model",
 }

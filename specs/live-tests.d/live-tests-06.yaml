@@ -115,6 +115,21 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_backfill_generation_guard_lifecycle_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7978 disposable PostgreSQL 18 proof of the reconcile re-projection lifecycle (rulings a9-117, a9-120): a live lease is left alone with no request stamp, a dead-lettered re-projection keeps the active generation and its scope pointer, and a pending same-identity snapshot stores nothing while a failed one stores; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_dead_letter_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7978 disposable PostgreSQL 18 proof of the projector dead-letter guard (rulings a9-130, a9-130.1): only an unacknowledged reconcile re-open on the canonical projector row keeps an active generation and its scope pointer; a stamp-free, acknowledged, never-activated, or refinalize dead letter fails the generation and clears the pointer; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7978 disposable PostgreSQL 18 proof that an unchanged reconcile stores no generation, fact, search, or content row and re-opens the active generation's projector work, with the scope-lock race and supersede fences; enrolled in the live-postgres-readiness runner; about 20 s locally, wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_backfill_relationship_family_index_migration_live_test.go
     tag: ~
     class: scheduled

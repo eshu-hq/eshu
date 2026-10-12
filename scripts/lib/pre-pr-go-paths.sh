@@ -24,11 +24,32 @@ changed_go_files() {
 # "directory not found [setup failed]". CI's authoritative whole-module
 # `go build ./...` skips absent dirs naturally; this focused selector must do
 # the same.
+#
+# Dirs that `./...` never matches are dropped too: any path segment named
+# "testdata" or beginning with "." or "_" (`go help packages`). A named dir is
+# built even when `./...` would skip it, so a fixture such as a `package main`
+# file without main() under testdata/ failed `go build` here while CI, which
+# builds `./...`, never compiles it (#7978).
 changed_go_dirs() {
 	local f d
 	changed_go_files | while IFS= read -r f; do
 		printf './%s\n' "$(dirname "${f#go/}")"
 	done | sort -u | while IFS= read -r d; do
+		go_dir_ignored_by_wildcard "${d}" && continue
 		[[ -d "${go_dir}/${d#./}" ]] && printf '%s\n' "${d}"
 	done
+}
+
+# go_dir_ignored_by_wildcard reports (exit 0) whether a ./-relative dir has a
+# path segment the go tool's `./...` pattern skips: "testdata", or a name that
+# begins with "." or "_". A bare "." segment (the module root, "./.") is the
+# current directory, not a hidden name, so it is kept.
+go_dir_ignored_by_wildcard() {
+	local seg segs=()
+	IFS=/ read -r -a segs <<<"${1#./}"
+	for seg in "${segs[@]}"; do
+		[[ "${seg}" == . ]] && continue
+		[[ "${seg}" == testdata || "${seg}" == .* || "${seg}" == _* ]] && return 0
+	done
+	return 1
 }

@@ -213,6 +213,27 @@ rg -q -- '^precommit-go (fmt|lint) .*go/internal/deleted/pkg\.go' "${fixture}.ar
 	{ cat "${fixture}.args" >&2; fail "case D: the deleted file must never reach precommit-go.sh fmt/lint"; }
 true
 
+# ── Case J: changed_go_dirs skips the dirs `go build ./...` ignores ──
+# `go help packages`: names beginning with "." or "_" are ignored by the go
+# tool, as are directories named "testdata". CI builds `./...`, so it never
+# compiles a fixture under go/**/testdata; a named dir is built anyway, so the
+# focused selector must drop those dirs itself (#7978: a `package main`
+# fixture without main() failed `go build` on the floor only).
+case_j_out="$(
+	go_dir="${temp_root}/case-j/go"
+	mkdir -p "${go_dir}/internal/pkg/testdata/src" "${go_dir}/internal/pkg/_scratch" \
+		"${go_dir}/internal/pkg/.hidden" "${go_dir}/internal/pkg"
+	# shellcheck disable=SC2329  # called by the sourced changed_go_files
+	collect_changed_paths() {
+		printf '%s\n' go/root.go go/internal/pkg/a.go go/internal/pkg/testdata/src/main.go \
+			go/internal/pkg/_scratch/x.go go/internal/pkg/.hidden/y.go
+	}
+	# shellcheck source=lib/pre-pr-go-paths.sh
+	source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
+	changed_go_dirs
+)"
+[[ "${case_j_out}" == $'./.\n./internal/pkg' ]] || fail "case J: changed_go_dirs = [${case_j_out}], want ./. and ./internal/pkg only (testdata, _ and . dirs are skipped like ./...; the module root stays)"
+
 # ── Cases E-I: the merge-tree step (#7111 F5) ──
 # shellcheck source=lib/test-pre-push-merge-cases.sh
 source "${repo_root}/scripts/lib/test-pre-push-merge-cases.sh"

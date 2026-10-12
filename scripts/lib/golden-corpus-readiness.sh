@@ -36,7 +36,7 @@ start_golden_corpus_backends() {
 
 	log "start Postgres + ${graph_service}"
 	ESHU_NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}" ESHU_POSTGRES_PASSWORD="${ESHU_POSTGRES_PASSWORD}" \
-		docker compose "${compose_args[@]}" up -d "${graph_service}" postgres
+		bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- up -d "${graph_service}" postgres
 
 	log "wait for backends"
 	backends_ready=false

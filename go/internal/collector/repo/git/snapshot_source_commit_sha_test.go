@@ -200,6 +200,7 @@ func TestSnapshotUsesCopyBoundFilesystemSourceCommitSHA(t *testing.T) {
 		synced.SourceCommitSHAByRepoPath,
 		nil,
 		nil,
+		nil,
 	)
 	attachFilesystemGitTreePaths(config, []string{"."}, repositories)
 	if len(repositories) != 1 {
@@ -297,6 +298,7 @@ func TestSnapshotManagedCopyOmitsCommitSHAForDivergentSource(t *testing.T) {
 				nil,
 				nil,
 				synced.SourceCommitSHAByRepoPath,
+				nil,
 				nil,
 				nil,
 			)

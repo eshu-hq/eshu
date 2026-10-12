@@ -33,15 +33,15 @@ func syncExistingRepository(
 	logger *slog.Logger,
 	event gitSyncLogEvent,
 	baseline gitDeltaBaseline,
-	forceReconcile bool,
+	forceReconcile bool, holdIfHead string,
 ) (bool, GitSyncDelta, string, error) {
 	if forceReconcile {
 		// Force a full re-observation regardless of any usable baseline. An empty
-		// baseline drives updateRepository's full-snapshot path; the nil
-		// onFallback suppresses the baseline-fallback counter so the sweep is not
-		// double-counted. The caller records the reconciliation metric only when
-		// the forced sync actually produced a generation.
-		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil)
+		// baseline drives updateRepository's full-snapshot path (held at
+		// holdIfHead, a9-126); the nil onFallback avoids double-counting the
+		// sweep. The caller records the reconciliation metric only when the
+		// forced sync actually produced a generation.
+		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil, holdIfHead)
 	}
 	baselineSHA, err := baseline.resolveScopeBaseline(ctx, config, repoPath)
 	if err != nil {
@@ -51,10 +51,10 @@ func syncExistingRepository(
 		// updateRepository's own emission (nil onFallback) to avoid a double
 		// count. The empty baseline still drives a safe full snapshot.
 		baseline.recordFallback(ctx, deltaFallbackBaselineLookupError)
-		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil)
+		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil, "")
 	}
 	onFallback := func(reason string) { baseline.recordFallback(ctx, reason) }
-	return updateRepository(ctx, config, repoPath, token, logger, event, baselineSHA, onFallback)
+	return updateRepository(ctx, config, repoPath, token, logger, event, baselineSHA, onFallback, "")
 }
 
 // DeltaBaselineResolver resolves the durable incremental-sync baseline for a
@@ -184,11 +184,11 @@ func (b gitDeltaBaseline) reconcileDue(ctx context.Context, config RepoSyncConfi
 	return b.decideForScope(ctx, scopeID, logger)
 }
 
-// decideForScope reads the scope's full-generation state and decides. When the
-// sweep obligation is not due and no throttle holds it, it probes for #7389
-// uncovered projection writers: any writer forces a graph_dirty reconcile,
-// subject only to the throttle. A scope still fresh after both is checked
-// against the active reindex watermark (#7620, see decideReindex). With
+// decideForScope reads the scope's full-generation state and decides. A
+// reindex watermark (#7620) that no stored full satisfies is decided first
+// (decideReindex, a9-125). Otherwise, when the sweep obligation is not due and
+// no throttle holds it, it probes for #7389 uncovered projection writers: any
+// writer forces a graph_dirty reconcile, subject only to the throttle. With
 // reconciliation disabled only the watermark is evaluated. A lookup error
 // returns not-due: a transient outage must not trigger a fleet of forced
 // fulls, and the scope is decided again next cycle. An in-flight or
@@ -200,6 +200,21 @@ func (b gitDeltaBaseline) decideForScope(ctx context.Context, scopeID string, lo
 	}
 	now := b.now()
 	decision := reconcileDecision{ScopeID: scopeID, State: state, Reason: reconcileReasonFresh}
+	// A pending reindex watermark is decided first (ruling a9-125, review r2
+	// N1): its forced full must carry the reindex reason so the store stores
+	// the re-parse; under interval_elapsed or graph_dirty it would only
+	// re-project old parse output.
+	watermark, watermarkReason := b.reindexWatermarkFor(scopeID)
+	if !watermark.IsZero() && !reindexSatisfied(watermark, state) {
+		decision.Due, decision.Reason = b.Reconcile.decideReindex(now, watermark, state)
+		if decision.Due {
+			decision.Reason = watermarkReason
+		}
+		decision.ReindexRequestedAt = watermark
+		b.recordSuppressedDecision(ctx, decision.Reason)
+		return decision
+	}
+	decision.ReindexRequestedAt = watermark
 	if b.Reconcile.enabled() {
 		decision.Due, decision.Reason = b.Reconcile.decide(now, state)
 		if !decision.Due && decision.Reason == reconcileReasonFresh {
@@ -214,50 +229,15 @@ func (b gitDeltaBaseline) decideForScope(ctx context.Context, scopeID string, lo
 			}
 		}
 	}
-	if watermark, reason := b.reindexWatermarkFor(scopeID); !decision.Due && decision.Reason == reconcileReasonFresh && !watermark.IsZero() {
-		decision.Due, decision.Reason = b.Reconcile.decideReindex(now, watermark, state)
-		if decision.Due {
-			decision.Reason = reason
-		}
-		decision.ReindexRequestedAt = watermark
-	}
-	if decision.Reason == reconcileReasonInFlight || decision.Reason == reconcileReasonRetryBackoff {
-		b.recordReconcileSuppressed(ctx, decision.Reason)
-	}
+	b.recordSuppressedDecision(ctx, decision.Reason)
 	return decision
 }
 
-// ReconcileSweepDecision reports whether the git collector's reconciliation
-// sweep, including the #7389 graph_dirty reason and the #7620 reindex
-// watermarks, would force a full snapshot for scopeID at now with the given
-// interval, active fleet watermark, and active per-repository watermark for
-// scopeID (each zero when none), and the bounded reason. It runs the same
-// decision the sync loop runs, without a per-cycle budget, so an end-to-end
-// proof can derive a generation's reconcile flag from production.
-func ReconcileSweepDecision(
-	ctx context.Context,
-	resolver DeltaBaselineResolver,
-	interval time.Duration,
-	reindexRequestedAt time.Time,
-	repositoryReindexRequestedAt time.Time,
-	now time.Time,
-	scopeID string,
-	logger *slog.Logger,
-) (bool, string) {
-	if resolver == nil || (interval <= 0 && reindexRequestedAt.IsZero() && repositoryReindexRequestedAt.IsZero()) {
-		return false, ""
+// recordSuppressedDecision counts an in-flight or retry-backoff hold.
+func (b gitDeltaBaseline) recordSuppressedDecision(ctx context.Context, reason string) {
+	if reason == reconcileReasonInFlight || reason == reconcileReasonRetryBackoff {
+		b.recordReconcileSuppressed(ctx, reason)
 	}
-	baseline := gitDeltaBaseline{
-		Resolver:           resolver,
-		Reconcile:          reconcilePolicy{Interval: interval},
-		ReindexRequestedAt: reindexRequestedAt,
-		Now:                func() time.Time { return now },
-	}
-	if !repositoryReindexRequestedAt.IsZero() {
-		baseline.RepositoryReindexRequestedAt = map[string]time.Time{scopeID: repositoryReindexRequestedAt}
-	}
-	decision := baseline.decideForScope(ctx, scopeID, logger)
-	return decision.Due, decision.Reason
 }
 
 // resolveScopeBaseline returns the last projected commit SHA for the managed
@@ -343,8 +323,9 @@ func (b gitDeltaBaseline) recordFallback(ctx context.Context, reason string) {
 // often the periodic sweep forces a full re-observation, why, and for which
 // scope. scope_id rides only on the log: it is unbounded and never a metric
 // label. The log is WARN when the forced full replaces an expired in-flight
-// full or retries an unprojected one, since a repeat of either means projection
-// is not keeping up. Best-effort: a nil Instruments or logger is a no-op.
+// full, retries an unprojected one, or replaces a stale #7978 re-projection
+// request, since a repeat of any means projection is not keeping up.
+// Best-effort: a nil Instruments or logger is a no-op.
 func (b gitDeltaBaseline) recordReconciliation(ctx context.Context, logger *slog.Logger, decision reconcileDecision) {
 	if b.Instruments != nil && b.Instruments.ReconciliationFullSnapshots != nil {
 		b.Instruments.ReconciliationFullSnapshots.Add(ctx, 1, metric.WithAttributes(
@@ -355,7 +336,8 @@ func (b gitDeltaBaseline) recordReconciliation(ctx context.Context, logger *slog
 		return
 	}
 	level := slog.LevelInfo
-	if decision.Reason == reconcileReasonInFlightExpired || decision.Reason == reconcileReasonRetryAfterUnprojected {
+	if decision.Reason == reconcileReasonInFlightExpired || decision.Reason == reconcileReasonRetryAfterUnprojected ||
+		decision.Reason == scope.ReconcileReasonRequestStale {
 		level = slog.LevelWarn
 	}
 	attrs := []slog.Attr{
@@ -374,6 +356,7 @@ func (b gitDeltaBaseline) recordReconciliation(ctx context.Context, logger *slog
 	if !decision.ReindexRequestedAt.IsZero() {
 		attrs = append(attrs, slog.Time("reindex_requested_at", decision.ReindexRequestedAt))
 	}
+	attrs = appendReprojectionRequestAttrs(attrs, decision.State)
 	logger.LogAttrs(ctx, level, "git_reconcile_forced", attrs...)
 }
 
@@ -459,4 +442,23 @@ func notifyDeltaFallback(onFallback func(reason string), reason string) {
 	if onFallback != nil {
 		onFallback(reason)
 	}
+}
+
+// appendReprojectionRequestAttrs adds the #7978 re-projection request, Ack,
+// and dead-letter times the decision read, when set, so a WARN for
+// reconcile_request_stale shows why the request went stale.
+func appendReprojectionRequestAttrs(attrs []slog.Attr, state scope.FullReconcileState) []slog.Attr {
+	for _, stamp := range []struct {
+		key string
+		at  time.Time
+	}{
+		{"reconcile_requested_at", state.ReconcileRequestedAt},
+		{"reconcile_projected_at", state.ReconcileProjectedAt},
+		{"reconcile_dead_lettered_at", state.ReconcileDeadLetteredAt},
+	} {
+		if !stamp.at.IsZero() {
+			attrs = append(attrs, slog.Time(stamp.key, stamp.at))
+		}
+	}
+	return attrs
 }

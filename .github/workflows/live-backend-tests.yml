@@ -33,6 +33,8 @@ on:
       - 'specs/live-tests.d/**'
       - 'scripts/run-live-backend-tests.sh'
       - 'scripts/test-run-live-backend-tests.sh'
+      - 'scripts/lib/ci_image_pins.py'
+      - 'scripts/lib/test-ci-image-compose-golden-order.sh'
       - 'scripts/verify-live-tests-ledger.sh'
       - 'scripts/test-verify-live-tests-ledger.sh'
       - 'scripts/lib/live_backend_shards.py'

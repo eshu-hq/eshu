@@ -59,6 +59,7 @@ esac
 		gitSyncLogEventFor("example/private-service", 1, 1),
 		"oldsha",
 		nil,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("updateRepository() error = %v, want nil", err)
@@ -98,7 +99,7 @@ func TestBuildSelectedRepositoriesCarriesGitDeltaFileTargets(t *testing.T) {
 		},
 	}
 
-	selected := buildSelectedRepositories(config, selection.SelectedRepoPaths, selection.DeltaByRepoPath, selection.ReconcileByRepoPath, nil, nil, nil)
+	selected := buildSelectedRepositories(config, selection.SelectedRepoPaths, selection.DeltaByRepoPath, selection.ReconcileByRepoPath, nil, nil, nil, nil)
 	if len(selected) != 1 {
 		t.Fatalf("selected repositories = %d, want 1", len(selected))
 	}

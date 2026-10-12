@@ -15,8 +15,13 @@
 # leaves the repo, an inline Dockerfile, a cycle or a chain deeper than
 # compose_max_depth.
 #
+# A compose invocation is also read by its -f operands and COMPOSE_FILE entries
+# (lib/dockerhub-login-operands.sh): one that does not settle to a checked file
+# leaves the invocation unresolved.
+#
 # The caller defines root, tmp, mkkey, expand, image_is_hub, dockerfile_is_hub,
-# compose_file_re and the E_/J_/W_/V_ tables.
+# ci_wrapper_active (ledger lib),
+# compose_file_re, flow_awk and the E_/J_/W_/V_ tables.
 #
 # shellcheck disable=SC2034,SC2154  # globals are shared with the sourcing verifier
 
@@ -24,7 +29,10 @@ compose_max_depth=6
 # One row per include (I|path) and per service
 # (S|name|image|context|dockerfile|extends file|extends service|inline|has build).
 # A build map without a context leaves the context empty, so an extending
-# service inherits the base's.
+# service inherits the base's. A non-empty service map with no image, build or
+# extends is an override of a service another -f file defines (environment,
+# command, ports): it names no image of its own. A non-map service and an empty
+# map stay unresolved.
 compose_rows_expr='explode(.) as $r
 | ( (("S|@UNRESOLVED@|@UNRESOLVED@||||||" | select(($r | tag) != "!!map" or (($r | has("services")) and ($r.services | tag) != "!!map")))), ($r.include
     | ((select(tag == "!!null") | []),
@@ -39,7 +47,7 @@ compose_rows_expr='explode(.) as $r
        (select(tag != "!!str" and tag != "!!map") | ["@UNRESOLVED@"]))
     | .[] | "I|" + .),
     (($r.services // {}) | to_entries | .[] | .key as $n | .value as $v
-      | "S|" + $n + "|" + (("@UNRESOLVED@" | select(($v | tag) != "!!map" or (($v | has("image")) == false and ($v | has("build")) == false and ($v | has("extends")) == false))) // ($v.image | select(tag == "!!str" and . != "")) // ("@UNRESOLVED@" | select($v | has("image"))) // "") + "|"
+      | "S|" + $n + "|" + (("@UNRESOLVED@" | select(($v | tag) != "!!map" or ($v | length) == 0)) // ($v.image | select(tag == "!!str" and . != "")) // ("@UNRESOLVED@" | select($v | has("image"))) // "") + "|"
         + (($v.build | select(tag == "!!str")) // ($v.build | select(tag == "!!map") | .context) // "") + "|"
         + (($v.build | select(tag == "!!map") | .dockerfile) // "") + "|"
         + (($v.extends | select(tag == "!!map") | .file) // "") + "|"
@@ -159,6 +167,7 @@ compose_is_hub() {
           [[ "${EXP}" != *@UNRESOLVED@* && "${EXP}" != *'$'* ]] || return 0
           dir_join "${EFF_CTX}" "${EXP}"
           [[ -n "${JOIN}" ]] || return 0
+          DF_ARGS=""
           if dockerfile_is_hub "${JOIN}"; then return 0; fi
         fi ;;
     esac
@@ -168,18 +177,87 @@ compose_is_hub() {
 
 # compose_step_is_hub <run file> <closure files>: the step reaches docker
 # compose. Exempt only when it names at least one compose file and every named
-# file derives non-Hub; a step that names none cannot be derived.
+# file derives non-Hub; a step that names none cannot be derived. Names in
+# full-line comments are not commands and do not count. A name in a default
+# (${X:-docker-compose.yaml}) is read without the :- operator dash. Sets
+# COMPOSE_HUB_FILES to the named files that are not provably non-Hub.
+#
+# A call of the CI compose wrapper (is_wrapper in the flow reader) is settled when
+# the step is in CI image mode and the wrapper is in the tree (ci_wrapper_active):
+# the wrapper renders an overlay that covers every image or exits 1, so the names
+# and -f operands that sit only inside wrapper calls are not read. A name that a
+# raw command also uses stays named. Every other call is judged raw.
 compose_step_is_hub() {
-  local tok cf found=0 f
-  local -a texts=("$1")
+  local tok cf found=0 f rel cnt wrecs wfn wname wk wex=0
+  local -a texts=("$1") existing=() wseen=()
+  COMPOSE_HUB_FILES=""
+  ci_wrapper_active && wex=1
   while IFS= read -r f; do [[ -z "${f}" ]] || texts+=("${root}/${f}"); done <<<"$2"
-  while IFS= read -r tok; do
-    tok="${tok#./}"; tok="${tok#/}"; cf=""
-    if [[ -f "${root}/${tok}" ]]; then cf="${tok}"; elif [[ -f "${root}/${tok##*/}" ]]; then cf="${tok##*/}"; fi
-    [[ -n "${cf}" ]] || continue
-    found=1
-    if compose_is_hub "${cf}"; then return 0; fi
-  done < <({ rg -o -N --no-filename -e "${compose_file_re}" -- "${texts[@]}" || true; } | sort -u)
-  [[ "${found}" -eq 1 ]] || return 0
+  for f in "${texts[@]}"; do [[ -f "${f}" ]] && existing+=("${f}"); done
+  compose_scopes ${existing[@]+"${existing[@]}"}
+  for f in "${texts[@]}"; do
+    [[ -f "${f}" ]] || continue
+    rel="${f#"${root}"/}"
+    [[ "${f}" != "$1" ]] || rel="the run text"
+    # occurrences of each name that sit inside wrapper calls of this file
+    wseen=()
+    if [[ "${wex}" -eq 1 ]]; then
+      compose_flow wnames "${f}"; wrecs="${FLOW}"
+      while IFS=$'\036' read -r wfn wname; do
+        [[ -n "${wname}" ]] || continue
+        mkkey "${wname}"; wk="WN_${KEY}"
+        printf -v "${wk}" '%s' $(( ${!wk:-0} + 1 ))
+        wseen+=("${wk}")
+      done <<<"${wrecs}"
+    fi
+    while read -r cnt tok; do
+      [[ -n "${tok}" ]] || continue
+      if [[ "${wex}" -eq 1 ]]; then
+        mkkey "${tok}"; wk="WN_${KEY}"
+        [[ "${!wk:-0}" -ge "${cnt}" ]] && continue
+      fi
+      while [[ "${tok}" == -* ]]; do tok="${tok#-}"; done
+      tok="${tok#./}"; tok="${tok#/}"; cf=""
+      if [[ -f "${root}/${tok}" ]]; then cf="${tok}"; elif [[ -f "${root}/${tok##*/}" ]]; then cf="${tok##*/}"; fi
+      [[ -n "${cf}" ]] || continue
+      found=1
+      if compose_is_hub "${cf}"; then
+        [[ "${COMPOSE_HUB_FILES}" == *"${cf} (named in "* ]] || COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES}${COMPOSE_HUB_FILES:+, }${cf} (named in ${rel##*/})"
+      fi
+    done < <({ rg -v -N -e '^[[:space:]]*#' -- "${f}" | rg -o -N --no-filename -e "${compose_file_re}" || true; } | sort | uniq -c)
+    for wk in ${wseen[@]+"${wseen[@]}"}; do unset "${wk}"; done
+  done
+  # Every -f operand and COMPOSE_FILE entry must settle to checked files.
+  local op ofn oln isw
+  for f in ${existing[@]+"${existing[@]}"}; do
+    rel="${f#"${root}"/}"
+    [[ "${f}" != "$1" ]] || rel="the run text"
+    compose_flow ops "${f}"
+    compose_scope_of "${f}"
+    while IFS=$'\036' read -r ofn op oln isw; do
+      [[ -n "${op}" ]] || continue
+      [[ "${wex}" -eq 1 && "${isw}" == 1 ]] && continue
+      compose_operand_check "${op}" "${ofn}" "-f operand in ${rel##*/}" "${SCOPE[@]}"
+      compose_scope_of "${f}"
+    done <<<"${FLOW}"
+    # COMPOSE_FILE names the files of an invocation without -f: a file whose only
+    # compose commands are wrapper calls has no such invocation.
+    if [[ "${wex}" -eq 1 ]]; then
+      compose_flow wsum "${f}"
+      IFS=$'\036' read -r wfn wname cnt <<<"${FLOW}"
+      [[ "${wname:-0}" != 0 || "${cnt:-0}" != 0 ]] || continue
+    fi
+    rg -qi -e compose -- "${f}" 2>/dev/null && compose_file_entries_check "${f}"
+  done
+  if [[ "${found}" -ne 1 ]]; then
+    COMPOSE_HUB_FILES="(no compose file named; docker compose runs in:"
+    for f in "${texts[@]:1}"; do
+      [[ "${compose_files}" != *$'\n'"${f#"${root}"/}"$'\n'* ]] || COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES} ${f#"${root}"/}"
+    done
+    [[ "${runs_compose}" != *$'\n'"${1##*/}"$'\n'* ]] || COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES} the run text"
+    COMPOSE_HUB_FILES="${COMPOSE_HUB_FILES})"
+    return 0
+  fi
+  [[ -z "${COMPOSE_HUB_FILES}" ]] || return 0
   return 1
 }

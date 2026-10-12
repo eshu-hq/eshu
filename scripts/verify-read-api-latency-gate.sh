@@ -115,7 +115,7 @@ fi
 . "${repo_root}/scripts/lib/live-gate-lock.sh"
 # shellcheck source=scripts/lib/compose_verification_runtime_common.sh
 . "${repo_root}/scripts/lib/compose_verification_runtime_common.sh"
-COMPOSE_CMD=(docker compose "${compose_args[@]}")
+COMPOSE_CMD=(bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" --)
 
 # work_dir/bin_dir/log_dir/bg_pids are referenced by cleanup() below but not
 # populated until after the lock is held; declared empty here (rather than
@@ -187,7 +187,7 @@ cleanup() {
 		exit "${status}"
 	fi
 	if [[ "${use_compose}" -eq 1 && "${stack_up}" -eq 1 ]]; then
-		docker compose "${compose_args[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+		bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- down -v --remove-orphans >/dev/null 2>&1 || true
 	fi
 	if declare -F eshu_ci_compose_cleanup >/dev/null; then
 		eshu_ci_compose_cleanup
@@ -256,10 +256,11 @@ unset ESHU_PPROF_ADDR || true
 if [[ "${use_compose}" -eq 1 ]]; then
 	# shellcheck source=scripts/lib/ci-image-compose.sh
 	. "${repo_root}/scripts/lib/ci-image-compose.sh"
-	eshu_ci_compose_prepare "${stack_dir}" "${compose_args[@]}" || die "CI image overlay preflight failed"
-	if [[ -n "${ESHU_CI_COMPOSE_OVERLAY}" ]]; then
-		compose_args+=(-f "${ESHU_CI_COMPOSE_OVERLAY}")
-		COMPOSE_CMD=(docker compose "${compose_args[@]}")
+	# scripts/ci/compose.sh renders against its own repo root. Prepare once here, so
+	# the wrapper takes its signature path, only when the stack is that root;
+	# otherwise the wrapper prepares per call.
+	if [[ "${stack_dir}" == "${repo_root}" ]]; then
+		eshu_ci_compose_prepare "${repo_root}" "${compose_args[@]}" || die "CI image overlay preflight failed"
 	fi
 fi
 
@@ -267,8 +268,8 @@ if [[ "${use_compose}" -eq 1 ]]; then
 	log "bring up Postgres + ${ESHU_GRAPH_BACKEND} (Compose project ${GATE_COMPOSE_PROJECT})"
 	# Set before `up` so a partially created project is still torn down.
 	stack_up=1
-	docker compose "${compose_args[@]}" up -d --wait postgres "${ESHU_GRAPH_BACKEND}" \
-		|| { docker compose "${compose_args[@]}" logs --tail=200 || true; die "compose up failed"; }
+	bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- up -d --wait postgres "${ESHU_GRAPH_BACKEND}" \
+		|| { bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- logs --tail=200 || true; die "compose up failed"; }
 	# db-migrate is a one-shot job that exits(0) once schema bootstrap
 	# completes; it must not be a `--wait` target above alongside the
 	# long-running postgres/graph services, because compose's --wait treats
@@ -276,10 +277,10 @@ if [[ "${use_compose}" -eq 1 ]]; then
 	# exit code, so a clean db-migrate exit was reported as "compose up
 	# failed" (issue #6797 live-gate incident). Start it separately and wait
 	# for its own clean exit via the shared one-shot-service helper.
-	docker compose "${compose_args[@]}" up -d db-migrate \
-		|| { docker compose "${compose_args[@]}" logs --tail=200 || true; die "compose up failed"; }
+	bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- up -d db-migrate \
+		|| { bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- logs --tail=200 || true; die "compose up failed"; }
 	eshu_compose_wait_for_named_exit db-migrate 120 \
-		|| { docker compose "${compose_args[@]}" logs --tail=200 db-migrate || true; die "db-migrate failed"; }
+		|| { bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- logs --tail=200 db-migrate || true; die "db-migrate failed"; }
 
 	# nornicdb's healthcheck only probes its HTTP port (7474/health), not
 	# its Bolt listener (7687) — the two ports come up at slightly

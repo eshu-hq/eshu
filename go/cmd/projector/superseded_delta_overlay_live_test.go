@@ -268,15 +268,185 @@ WHERE generation_id = $1 AND stage = 'projector'`, overlayGenB.id).Scan(&class);
 		t.Fatalf("UncoveredProjectionWriters() = %v, want [%s]: the collector must see the refused writer", got, overlayGenB.id)
 	}
 
-	// The full snapshot the collector's graph_dirty fallback emits.
+	// The full snapshot the collector's graph_dirty fallback emits. It has the
+	// same tree and commit as the active G_C, so #7978 stores no generation:
+	// the store re-opens G_C's projector work and the production projector
+	// re-projects G_C, which retracts G_B's overlay.
+	generationsBefore := h.generationCount(ctx)
 	fullC := overlayGen{id: "gen-7389-full-c", commit: overlayCommitC, files: overlayTreeA}
 	if err := h.commit(ctx, fullC); err != nil {
 		t.FailNow()
 	}
-	h.waitGeneration(ctx, fullC.id, "active")
-	h.logState(ctx, "after the graph_dirty full generation at C activated")
-	h.assertFiles(ctx, "after full generation at C", []string{"keep.go", "w.go"})
+	h.waitReprojected(ctx, genC.id, 1)
+	h.logState(ctx, "after the graph_dirty reconcile re-projected G_C")
+	if got := h.generationCount(ctx); got != generationsBefore {
+		t.Fatalf("scope_generations rows %d -> %d after an unchanged reconcile, want unchanged", generationsBefore, got)
+	}
+	h.assertFiles(ctx, "after G_C re-projected", []string{"keep.go", "w.go"})
 	if got := h.uncoveredWriters(ctx); len(got) != 0 {
-		t.Fatalf("UncoveredProjectionWriters() after the full = %v, want none (covered)", got)
+		t.Fatalf("UncoveredProjectionWriters() after the re-projection = %v, want none (covered)", got)
+	}
+}
+
+// TestUnchangedReconcileRetractsPlantedDriftLive (#7978): a scope with one
+// active full generation, a File node planted in the graph under the
+// repository with another generation id, and an elapsed sweep interval. The
+// reconcile snapshot has the same tree and commit, so the store re-opens the
+// active generation instead of storing a duplicate; the production projector
+// re-projects it as a non-first generation and retracts the planted node.
+func TestUnchangedReconcileRetractsPlantedDriftLive(t *testing.T) {
+	dsn := overlayProofEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	h := newOverlayHarness(ctx, t, dsn)
+	drift := h.withDriftReader(t)
+	svc, _ := h.buildService(ctx)
+	h.run(ctx, svc)
+
+	if err := h.commit(ctx, overlayGenA); err != nil {
+		t.FailNow()
+	}
+	h.waitGeneration(ctx, overlayGenA.id, "active")
+	h.assertFiles(ctx, "baseline G_A", []string{"keep.go", "w.go"})
+	if got := driftRetractions(ctx, t, drift); got != 0 {
+		t.Fatalf("drift retractions after the first projection = %d, want 0 (a first projection is not a reconciliation)", got)
+	}
+	h.runCypher(ctx, `MATCH (r:Repository {id: $repo_id})
+CREATE (r)-[:REPO_CONTAINS]->(:File {path: $path, relative_path: 'drift.go', repo_id: $repo_id,
+  generation_id: 'gen-7978-stale', evidence_source: 'projector/canonical'})`,
+		map[string]any{"repo_id": h.repo.ID, "path": h.repo.LocalPath + "/drift.go"})
+	h.assertFiles(ctx, "drift planted", []string{"drift.go", "keep.go", "w.go"})
+	// Age the active generation past the 24 h sweep interval.
+	if _, err := h.sqlDB.ExecContext(ctx, `UPDATE scope_generations
+SET ingested_at = ingested_at - interval '48 hours', observed_at = observed_at - interval '48 hours'
+WHERE generation_id = $1`, overlayGenA.id); err != nil {
+		t.Fatalf("age G_A: %v", err)
+	}
+
+	generationsBefore := h.generationCount(ctx)
+	intentsBefore := h.intentRows(ctx)
+	reconcile := overlayGen{id: "gen-7978-reconcile-a", commit: overlayCommitA, files: overlayTreeA}
+	if got := h.reconcileReason(ctx, reconcile); got != "interval_elapsed" {
+		t.Fatalf("reconcile reason = %q, want interval_elapsed", got)
+	}
+	if err := h.commit(ctx, reconcile); err != nil {
+		t.FailNow()
+	}
+	h.waitReprojected(ctx, overlayGenA.id, 1)
+	h.logState(ctx, "after the unchanged reconcile re-projected G_A")
+	if got := h.generationCount(ctx); got != generationsBefore {
+		t.Fatalf("scope_generations rows %d -> %d after an unchanged reconcile, want unchanged", generationsBefore, got)
+	}
+	h.assertFiles(ctx, "after G_A re-projected", []string{"keep.go", "w.go"})
+	// Review F5: the re-projection's retraction of the planted node counts.
+	if got := driftRetractions(ctx, t, drift); got < 1 {
+		t.Fatalf("eshu_dp_reconciliation_drift_retractions_total = %d after the re-projection, want >= 1", got)
+	}
+	// a9-117 d7: a second projection of the same generation re-emits its
+	// reducer and shared intents; they must upsert or no-op, never add rows.
+	if got := h.intentRows(ctx); got != intentsBefore {
+		t.Fatalf("intent rows after the re-projection = %+v, want %+v (no duplicates)", got, intentsBefore)
+	}
+	t.Logf("intent rows before and after the re-projection: %+v", intentsBefore)
+	if got := h.reconcileReason(ctx, reconcile); got != "" {
+		t.Fatalf("reconcile reason after re-projection = %q, want none (scope fresh)", got)
+	}
+}
+
+// TestUnchangedReconcileKnownGapActiveStampedDriftLive documents the one
+// retraction difference ruling a9-117 Q1 accepts for #7978. A node stamped with
+// the ACTIVE generation's own id, but not derived from that generation's facts,
+// survives the re-projection: canonical retraction filters on
+// generation_id <> $generation_id, and the re-projection keeps the id. The old
+// path stored a new generation id and retracted it. Only a projector defect or
+// a manual graph edit can create such a node. If a later change retracts this
+// class too (a projection epoch), this test fails and must be inverted.
+func TestUnchangedReconcileKnownGapActiveStampedDriftLive(t *testing.T) {
+	dsn := overlayProofEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	h := newOverlayHarness(ctx, t, dsn)
+	svc, _ := h.buildService(ctx)
+	h.run(ctx, svc)
+	if err := h.commit(ctx, overlayGenA); err != nil {
+		t.FailNow()
+	}
+	h.waitGeneration(ctx, overlayGenA.id, "active")
+	h.runCypher(ctx, `MATCH (r:Repository {id: $repo_id})
+CREATE (r)-[:REPO_CONTAINS]->(:File {path: $path, relative_path: 'gap.go', repo_id: $repo_id,
+  generation_id: $generation_id, evidence_source: 'projector/canonical'})`,
+		map[string]any{"repo_id": h.repo.ID, "path": h.repo.LocalPath + "/gap.go", "generation_id": overlayGenA.id})
+	if _, err := h.sqlDB.ExecContext(ctx, `UPDATE scope_generations
+SET ingested_at = ingested_at - interval '48 hours', observed_at = observed_at - interval '48 hours'
+WHERE generation_id = $1`, overlayGenA.id); err != nil {
+		t.Fatalf("age G_A: %v", err)
+	}
+	if err := h.commit(ctx, overlayGen{id: "gen-7978-gap", commit: overlayCommitA, files: overlayTreeA}); err != nil {
+		t.FailNow()
+	}
+	h.waitReprojected(ctx, overlayGenA.id, 1)
+	h.assertFiles(ctx, "known gap: active-stamped drift survives the re-projection", []string{"gap.go", "keep.go", "w.go"})
+}
+
+// TestReindexAfterReprojectionStoresLive is the review r2 N1 proof for ruling
+// a9-125 through the production decision, store, and projector: a reindex
+// watermark is not satisfied by a re-projection Ack. With the sweep on, an
+// overdue scope first re-projects (interval_elapsed); after that Ack the
+// pending watermark still decides reindex_requested, the store stores the
+// re-parse as a new generation, and the next decision reads fresh (no loop).
+// Ruling a9-128 adds one wedged cycle: a full pending 30 h at the remote head
+// with live work holds the reindex (in_flight_expired_held); a moved head
+// forces it; once the wedged full is dead-lettered the reindex forces once and
+// the store keeps the re-parse.
+func TestReindexAfterReprojectionStoresLive(t *testing.T) {
+	dsn := overlayProofEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	h := newOverlayHarness(ctx, t, dsn)
+	svc, _ := h.buildService(ctx)
+	h.run(ctx, svc)
+	if err := h.commit(ctx, overlayGenA); err != nil {
+		t.FailNow()
+	}
+	h.waitGeneration(ctx, overlayGenA.id, "active")
+	if _, err := h.sqlDB.ExecContext(ctx, `UPDATE scope_generations
+SET ingested_at = ingested_at - interval '48 hours', observed_at = observed_at - interval '48 hours'
+WHERE generation_id = $1`, overlayGenA.id); err != nil {
+		t.Fatalf("age G_A: %v", err)
+	}
+	decide := func(watermark time.Time) (bool, string) { return h.sweepDecision(ctx, watermark) }
+	if err := h.commit(ctx, overlayGen{id: "gen-7978-sweep", commit: overlayCommitA, files: overlayTreeA}); err != nil {
+		t.FailNow()
+	}
+	h.waitReprojected(ctx, overlayGenA.id, 1)
+	// The watermark predates the re-projection's Ack.
+	var watermark time.Time
+	if err := h.sqlDB.QueryRowContext(ctx, `SELECT (payload ->> 'reconcile_requested_at')::timestamptz
+FROM scope_generations WHERE generation_id = $1`, overlayGenA.id).Scan(&watermark); err != nil {
+		t.Fatalf("read request time: %v", err)
+	}
+	h.plantWedgedPendingFull(ctx, t, overlayGenA.id, "gen-7978-wedged")
+	if due, reason := h.sweepDecisionAtHead(ctx, watermark, overlayCommitA); due || reason != "in_flight_expired_held" {
+		t.Fatalf("reindex over a wedged pending full at the head = (%v, %q), want held", due, reason)
+	}
+	if due, reason := h.sweepDecisionAtHead(ctx, watermark, overlayCommitB); !due || reason != gitReindexReason {
+		t.Fatalf("reindex with the head moved = (%v, %q), want (true, %q)", due, reason, gitReindexReason)
+	}
+	h.deadLetterWedged(ctx, t, "gen-7978-wedged")
+	if due, reason := h.sweepDecisionAtHead(ctx, watermark, overlayCommitA); !due || reason != gitReindexReason {
+		t.Fatalf("decision after the re-projection Ack and the dead letter = (%v, %q), want (true, %q)", due, reason, gitReindexReason)
+	}
+	before := h.generationCount(ctx)
+	h.seq = time.Now().UTC()
+	reindex := overlayGen{id: "gen-7978-reindex", commit: overlayCommitA, files: overlayTreeA}
+	if err := h.commitWithReason(ctx, reindex, gitReindexReason); err != nil {
+		t.FailNow()
+	}
+	h.waitGeneration(ctx, reindex.id, "active")
+	if got := h.generationCount(ctx); got != before+1 {
+		t.Fatalf("generations %d -> %d after the reindex, want one stored", before, got)
+	}
+	if due, reason := decide(watermark); due {
+		t.Fatalf("decision after the reindex stored = (%v, %q), want held (no loop)", due, reason)
 	}
 }

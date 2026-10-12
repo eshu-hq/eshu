@@ -99,3 +99,32 @@ are the same before and after the move.
 - [Reducer package](../README.md)
 - [Package restructure design](../../../../docs/internal/design/package-restructure.md)
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)
+
+## Evidence
+
+No-Regression Evidence (#6626 batch 2): this change moves the last callers
+of `ComponentEvidence` (type alias), `ComponentEvidenceLess` and
+`ComponentEvidenceTupleEqual` (thin forwarders with identical signatures),
+and `MaxSBOMAttachmentComponentEvidenceRows` (const) off the reducer root
+onto this leaf, and deletes the 4 emptied entries from
+`compat_correlation.go`. The 2 caller files are both in `internal/query`
+(`sbom_attestation_attachment_rows.go`, 9 sites, plus its legacy-bound
+test); no other external or root-internal caller exists. No type shape,
+wire field, SQL text, or executable statement changes: every hunk
+requalifies an identifier or edits an import path only.
+Measurement: packages ok on both sides with identical sets (ledger:6626-sbomattest-batch2-after).
+Sibling before-row `6626-sbomattest-batch2-before`; baseline `41e247aeaf`
+vs measurement commit `12d5520783` (the two ledger rows and this Evidence
+section are the only later changes), with the ok-package set byte-identical
+after timing strip (156/156).
+`go test -list` inventory is identical on both sides (10156 tests).
+Backend/version: go1.26.2 linux/amd64, in-memory; no backend touched. Input
+shape: n/a (no runtime input). Terminal queue/row counts: none — no queue,
+lease, Cypher, or SQL path is touched. Contract gates green on the branch:
+`verify-openapi.sh` (261/261 routes), `verify-contracttest.sh`,
+`verify-package-docs.sh`, and `verify-performance-evidence.sh`. The change
+is safe because it cannot alter runtime behavior: the compiler resolves the
+same types and functions through their new paths, and the entry deletions
+are compile-enforced total — any missed caller would fail the build.
+No-Observability-Change: no metric, span, log line, or status output changes;
+telemetry evidence is the unchanged test outcomes above.

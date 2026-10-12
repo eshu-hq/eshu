@@ -73,16 +73,20 @@ const (
 	reconcileReasonRetryAfterUnprojected = "retry_after_unprojected"
 	reconcileReasonNeverReconciled       = "never_reconciled"
 	reconcileReasonIntervalElapsed       = "interval_elapsed"
+	// reconcileReasonInFlightExpiredHeld (ruling a9-126): a pending full older
+	// than Interval is at the remote head and its work is live, so the scope
+	// is held, not forced. Counted on the suppression counter.
+	reconcileReasonInFlightExpiredHeld = "in_flight_expired_held"
 	// reconcileReasonGraphDirty (#7389): a generation wrote the graph, never
 	// activated, and no later activated full covers it.
 	reconcileReasonGraphDirty = "graph_dirty"
 	// reconcileReasonReindexRequested (#7620): an operator requested a reindex
 	// after the scope's newest activated full generation was ingested.
-	reconcileReasonReindexRequested = "reindex_requested"
+	reconcileReasonReindexRequested = scope.ReconcileReasonReindexRequested
 	// reconcileReasonRepositoryReindexRequested (#7620): an operator requested
 	// a reindex of this repository by name, later than any fleet request, after
 	// the scope's newest activated full generation was ingested.
-	reconcileReasonRepositoryReindexRequested = "repository_reindex_requested"
+	reconcileReasonRepositoryReindexRequested = scope.ReconcileReasonRepositoryReindexRequested
 )
 
 // RepositoryReindexWatermarkReader reads the per-repository reindex
@@ -244,9 +248,27 @@ func resolveReindexWatermark(
 //
 // A negative age (clock skew) compares as less than every bound and
 // suppresses. No single generation suppresses the sweep for longer than
-// Interval: the worst case per scope is one forced full per Interval while
-// fulls stay pending, and four per Interval while they keep failing.
+// Interval; four forced fulls per Interval while they keep failing. A pending
+// full older than Interval returns in_flight_expired here, but the sync holds
+// the scope (in_flight_expired_held, ruling a9-126) while that full's commit
+// equals the remote head and its projector work is live: no snapshot, no
+// parse, no budget slot (see expiredPendingHoldHead). It is forced when the
+// head moved or the work is gone; worst case one forced full per Interval.
+// The hold covers an explicit reindex too (ruling a9-128): the re-parse waits
+// one activation of the pending full, then decideReindex forces it.
 func (p reconcilePolicy) decide(now time.Time, s scope.FullReconcileState) (bool, string) {
+	if pending, stale := p.reprojectionRequest(now, s); pending {
+		if !stale {
+			return false, reconcileReasonInFlight
+		}
+		// The full a stale request forced is the newest full: the shared
+		// throttle holds the scope while it is in flight or backing off, so a
+		// stale request forces at most one full per Interval, not per cycle.
+		if suppressed, reason := p.throttle(now, s); suppressed {
+			return false, reason
+		}
+		return true, scope.ReconcileReasonRequestStale
+	}
 	if s.HasProjectedFull && now.Sub(s.LastProjectedFullAt) < p.Interval {
 		return false, reconcileReasonFresh
 	}
@@ -263,6 +285,21 @@ func (p reconcilePolicy) decide(now time.Time, s scope.FullReconcileState) (bool
 		return true, reconcileReasonNeverReconciled
 	}
 	return true, reconcileReasonIntervalElapsed
+}
+
+// reprojectionRequest reports whether the active full generation carries an
+// unacknowledged re-projection request (#7978): an unchanged reconcile
+// re-opened its projector work and no Ack has stamped it since. Such a request
+// holds the sweep off like a pending full (reconcile_in_flight) for one
+// interval. It is stale at the interval, or at once when the re-projection was
+// dead-lettered after the request; a stale request forces a full that the
+// store stores (scope.ReconcileReasonRequestStale). It is pure.
+func (p reconcilePolicy) reprojectionRequest(now time.Time, s scope.FullReconcileState) (pending bool, stale bool) {
+	if !s.HasProjectedFull || s.ReconcileRequestedAt.IsZero() || !s.ReconcileRequestedAt.After(s.ReconcileProjectedAt) {
+		return false, false
+	}
+	deadLettered := !s.ReconcileDeadLetteredAt.IsZero() && !s.ReconcileDeadLetteredAt.Before(s.ReconcileRequestedAt)
+	return true, deadLettered || now.Sub(s.ReconcileRequestedAt) >= p.Interval
 }
 
 // throttle is the one rule both reconcile paths share: a pending full younger
@@ -296,16 +333,24 @@ func (p reconcilePolicy) decideGraphDirty(now time.Time, s scope.FullReconcileSt
 	return true, reconcileReasonGraphDirty
 }
 
+// reindexSatisfied reports whether a stored full generation answers the reindex
+// watermark: the newest activated full was itself ingested at or after it. A
+// re-projection Ack (#7978) never counts, because it re-projects old parse
+// output instead of storing a re-parse (ruling a9-125, review r2 N1).
+func reindexSatisfied(watermark time.Time, s scope.FullReconcileState) bool {
+	return s.HasProjectedFull && !s.LastStoredFullAt.Before(watermark)
+}
+
 // decideReindex is decide for an active reindex watermark (#7620). A scope
-// whose newest activated full was ingested at or after the watermark already
-// reflects the request and stays fresh. Any other scope, including one with no
+// whose newest activated full was ingested (stored, not re-projected) at or
+// after the watermark already reflects the request and stays fresh. Any other scope, including one with no
 // activated full, is forced with reason reindex_requested unless the shared
 // throttle holds it off. With reconciliation disabled (Interval 0) the
 // throttle uses the default interval's bounds, so a disabled sweep still
 // cannot stack fulls on one in flight or retry a failing scope every cycle.
 // It is pure.
 func (p reconcilePolicy) decideReindex(now, watermark time.Time, s scope.FullReconcileState) (bool, string) {
-	if s.HasProjectedFull && !s.LastProjectedFullAt.Before(watermark) {
+	if reindexSatisfied(watermark, s) {
 		return false, reconcileReasonFresh
 	}
 	bounds := p
@@ -320,4 +365,121 @@ func (p reconcilePolicy) decideReindex(now, watermark time.Time, s scope.FullRec
 
 func (p reconcilePolicy) enabled() bool {
 	return p.Interval > 0
+}
+
+// expiredPendingHoldHead returns the commit at which a forced decision holds
+// instead of forcing (rulings a9-126, a9-128); empty when it must force. It
+// applies to four reasons, in_flight_expired, reconcile_request_stale,
+// reindex_requested, and repository_reindex_requested, over a newest full that
+// is pending, not activated, and has live projector work. For a reindex the
+// hold delays the forced re-parse by one activation: once that pending full
+// activates before the watermark, reindexSatisfied stays false and the next
+// cycle forces it, and the store keeps the re-parse (a9-125). The sync compares it
+// with the remote head after the fetch: at the same head the scope holds with
+// reason in_flight_expired_held (no snapshot, no parse, no budget slot); when
+// the head moved or the work is gone, the forced full proceeds and is stored.
+// It is pure.
+func expiredPendingHoldHead(reason string, s scope.FullReconcileState) string {
+	switch reason {
+	case reconcileReasonInFlightExpired, scope.ReconcileReasonRequestStale,
+		scope.ReconcileReasonReindexRequested, scope.ReconcileReasonRepositoryReindexRequested:
+	default:
+		return ""
+	}
+	if !s.HasLatestFull || s.LatestFullProjected || s.LatestFullStatus != scope.GenerationStatusPending || !s.LatestFullWorkLive {
+		return ""
+	}
+	return strings.TrimSpace(s.LatestFullSourceCommitSHA)
+}
+
+// logReconcileHeld logs one a9-126 hold: the scope's forced reconcile was held
+// because its newest full is pending at the remote head with live work. A
+// repeat for one scope means the projector or reducer is behind on it.
+func logReconcileHeld(ctx context.Context, logger *slog.Logger, decision reconcileDecision, head string) {
+	if logger == nil {
+		return
+	}
+	attrs := []any{
+		log.ScopeID(decision.ScopeID),
+		slog.String("reason", reconcileReasonInFlightExpiredHeld),
+		slog.String("forced_reason", decision.Reason),
+		slog.String("pending_commit_sha", head),
+		slog.Time("latest_full_at", decision.State.LatestFullAt),
+	}
+	if !decision.ReindexRequestedAt.IsZero() {
+		attrs = append(attrs, slog.Time("reindex_requested_at", decision.ReindexRequestedAt))
+	}
+	logger.InfoContext(ctx, "git_reconcile_held", attrs...)
+}
+
+// ReconcileSweepDecision reports whether the git collector's reconciliation
+// sweep, including the #7389 graph_dirty reason and the #7620 reindex
+// watermarks, would force a full snapshot for scopeID at now with the given
+// interval, active fleet watermark, and active per-repository watermark for
+// scopeID (each zero when none), and the bounded reason. It runs the same
+// decision the sync loop runs, without a per-cycle budget, so an end-to-end
+// proof can derive a generation's reconcile flag from production. It does not
+// apply the post-fetch a9-126 hold, which needs the remote head; see
+// ReconcileSweepDecisionAtHead.
+func ReconcileSweepDecision(
+	ctx context.Context,
+	resolver DeltaBaselineResolver,
+	interval time.Duration,
+	reindexRequestedAt time.Time,
+	repositoryReindexRequestedAt time.Time,
+	now time.Time,
+	scopeID string,
+	logger *slog.Logger,
+) (bool, string) {
+	decision := sweepDecision(ctx, resolver, interval, reindexRequestedAt, repositoryReindexRequestedAt, now, scopeID, logger)
+	return decision.Due, decision.Reason
+}
+
+// ReconcileSweepDecisionAtHead is ReconcileSweepDecision with the post-fetch
+// hold the sync loop applies (rulings a9-126, a9-128): when a forced decision
+// meets a newest full that is pending at remoteHead with live projector work,
+// it returns (false, "in_flight_expired_held"). End-to-end proofs use it to
+// drive the production hold without a git remote.
+func ReconcileSweepDecisionAtHead(
+	ctx context.Context,
+	resolver DeltaBaselineResolver,
+	interval time.Duration,
+	reindexRequestedAt time.Time,
+	repositoryReindexRequestedAt time.Time,
+	now time.Time,
+	scopeID string,
+	remoteHead string,
+	logger *slog.Logger,
+) (bool, string) {
+	decision := sweepDecision(ctx, resolver, interval, reindexRequestedAt, repositoryReindexRequestedAt, now, scopeID, logger)
+	if decision.Due {
+		if head := expiredPendingHoldHead(decision.Reason, decision.State); head != "" && head == remoteHead {
+			return false, reconcileReasonInFlightExpiredHeld
+		}
+	}
+	return decision.Due, decision.Reason
+}
+
+// sweepDecision builds the sync loop's baseline for one scope and decides it.
+func sweepDecision(
+	ctx context.Context,
+	resolver DeltaBaselineResolver,
+	interval time.Duration,
+	reindexRequestedAt, repositoryReindexRequestedAt, now time.Time,
+	scopeID string,
+	logger *slog.Logger,
+) reconcileDecision {
+	if resolver == nil || (interval <= 0 && reindexRequestedAt.IsZero() && repositoryReindexRequestedAt.IsZero()) {
+		return reconcileDecision{}
+	}
+	baseline := gitDeltaBaseline{
+		Resolver:           resolver,
+		Reconcile:          reconcilePolicy{Interval: interval},
+		ReindexRequestedAt: reindexRequestedAt,
+		Now:                func() time.Time { return now },
+	}
+	if !repositoryReindexRequestedAt.IsZero() {
+		baseline.RepositoryReindexRequestedAt = map[string]time.Time{scopeID: repositoryReindexRequestedAt}
+	}
+	return baseline.decideForScope(ctx, scopeID, logger)
 }

@@ -330,6 +330,7 @@ func TestBuildSelectedRepositoriesRefOnlyEmitsNoMainline(t *testing.T) {
 			mainRepoPath: {{Name: "main", Kind: "branch", HeadSHA: "def456"}},
 		},
 		refWorktreesByRepoPath,
+		nil,
 	)
 
 	// Must produce exactly one ref-scoped entry, zero main-line entries.

@@ -138,12 +138,21 @@ WHERE generation.generation_id = superseded_work.generation_id
 // locked row, EvalPlanQual re-evaluates it against a supersede that committed
 // after this statement's snapshot, including the claim path's stale-generation
 // supersede, which locks the generation row but not the scope row. Ack treats
-// zero affected rows as a superseded generation and rolls back.
+// zero affected rows as a superseded generation and rolls back. Acking a
+// re-projection of an already-activated generation that a #7978 reconcile
+// requested stamps payload.reconcile_projected_at; activated_at keeps the
+// original activation, so chronology is unchanged.
 const activateProjectorGenerationQuery = `
 UPDATE scope_generations
 SET status = 'active',
     activated_at = COALESCE(activated_at, $1),
-    superseded_at = NULL
+    superseded_at = NULL,
+    payload = CASE
+        WHEN activated_at IS NOT NULL
+         AND (payload ->> 'reconcile_requested_at') IS NOT NULL
+        THEN payload || jsonb_build_object('reconcile_projected_at', $1::timestamptz)
+        ELSE payload
+    END
 WHERE scope_id = $2
   AND generation_id = $3
   AND status <> 'superseded'
@@ -207,6 +216,15 @@ WHERE stage = 'projector'
   AND status IN ('claimed', 'running')
 `
 
+// failProjectorWorkQuery dead-letters the owned projector work rows and marks
+// their generation failed, clearing the scope pointer it held (the pre-#7978
+// contract the #7584 and #7471 tests pin). spared_generation is the exception
+// (rulings a9-130, a9-130.1): an active, activated generation with every owned
+// row canonical (projector_<scope>_<generation>; a refinalize_ or other row, even
+// as a sibling, is not spared) and reconcile_requested_at later than
+// reconcile_projected_at, an unacknowledged #7978 re-open. It stays active with
+// its pointer and gets reconcile_dead_lettered_at, so the sweep stores a full. A
+// #7209 heal or a re-drive of an acknowledged re-open is not spared.
 const failProjectorWorkQuery = `
 WITH locked_scope AS MATERIALIZED (
     SELECT scope_id
@@ -225,6 +243,16 @@ owned_work AS MATERIALIZED (
       AND work.status IN ('claimed', 'running')
     FOR UPDATE OF work
 ),
+spared_generation AS (
+    SELECT generation.generation_id
+    FROM owned_work JOIN scope_generations AS generation
+      ON generation.generation_id = owned_work.generation_id AND generation.scope_id = owned_work.scope_id
+    WHERE generation.status = 'active' AND generation.activated_at IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM owned_work AS sibling WHERE sibling.work_item_id <> 'projector_' || sibling.scope_id || '_' || sibling.generation_id)
+      AND (generation.payload ? 'reconcile_requested_at')
+      AND (generation.payload ->> 'reconcile_requested_at')::timestamptz
+          > COALESCE((generation.payload ->> 'reconcile_projected_at')::timestamptz, '-infinity'::timestamptz)
+),
 failed_generation AS (
     UPDATE scope_generations AS generation
     SET status = 'failed'
@@ -232,7 +260,14 @@ failed_generation AS (
     WHERE generation.generation_id = owned_work.generation_id
       AND generation.scope_id = owned_work.scope_id
       AND generation.status IN ('pending', 'active')
+      AND NOT EXISTS (SELECT 1 FROM spared_generation)
     RETURNING generation.scope_id, generation.generation_id
+),
+dead_lettered_reprojection AS (
+    UPDATE scope_generations AS generation
+    SET payload = COALESCE(generation.payload, '{}'::jsonb)
+        || jsonb_build_object('reconcile_dead_lettered_at', $1::timestamptz)
+    FROM spared_generation WHERE generation.generation_id = spared_generation.generation_id
 ),
 scope_update AS (
     UPDATE ingestion_scopes AS scope

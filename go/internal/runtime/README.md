@@ -242,6 +242,8 @@ at `/metrics` exposes hand-rolled Prometheus-style gauges derived from the
 - `eshu_runtime_status_summary_stale` and `eshu_runtime_status_summary_age_seconds` — labeled `service_name` and `model_key`; rendered only while `ESHU_STATUS_SUMMARY_READ_ENABLED=true`. The scrape reads the stored active-work summary row and never the live statement (`metricsSnapshotSelection`): a stale, missing, or unservable row serves the newest row the process can decode (a stale row included, aged to the read), or the empty summary (age `NaN`), and sets stale to `1`
 - `eshu_runtime_scope_active`, `eshu_runtime_scope_changed`, `eshu_runtime_scope_unchanged`
 - `eshu_runtime_refresh_skipped_total`
+- `eshu_runtime_refresh_skipped_by_reason_total{reason}` (closed
+  `telemetry.RefreshSkipReasons` set, #7978)
 - `eshu_runtime_retry_policy_max_attempts`, `eshu_runtime_retry_policy_retry_delay_seconds`
 - `eshu_runtime_health_state` — labeled `state` (healthy/progressing/degraded/stalled)
 - `eshu_runtime_queue_total`, `eshu_runtime_queue_outstanding`, and queue depth gauges

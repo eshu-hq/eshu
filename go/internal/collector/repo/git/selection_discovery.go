@@ -51,6 +51,10 @@ type GitSyncSelection struct {
 	// reconciliation snapshot this cycle so their generation bypasses the
 	// freshness-hint skip and always re-projects to retract drift.
 	ReconcileByRepoPath map[string]bool
+	// ReconcileReasonByRepoPath carries the bounded reconcile decision reason
+	// (for example interval_elapsed or graph_dirty) for each repo path in
+	// ReconcileByRepoPath. The generation records it as reconcile_reason (#7978).
+	ReconcileReasonByRepoPath map[string]string
 	// SourceCommitSHAByRepoPath carries the selector-proven commit SHA for each
 	// repo path updated this cycle. Git sync provides its resolved remote HEAD;
 	// filesystem managed-copy provides the clean source commit only when every
@@ -85,6 +89,10 @@ type GitSyncDelta struct {
 	// DeltaByRepoPath even though it carries no paths, and the selection
 	// carries it to SelectedRepository.DefaultBranchChanged.
 	DefaultBranchChanged bool
+	// ReconcileHeld marks a forced reconcile that the sync held after the
+	// fetch, because the remote head equals a pending full with live work
+	// (ruling a9-126). Such a sync produces no snapshot.
+	ReconcileHeld bool
 }
 
 func selectGitHubRepositoryIDs(

@@ -1,0 +1,4 @@
+[project]
+name = "content-version"
+version = "1.0.0"
+dependencies = ["httpx>=0.27"]

@@ -95,6 +95,16 @@ with a row. This directory is pinned at its file count by the dirgate ledger,
 so the code lives in `selection_reconcile_config.go` and
 `selection_baseline.go`, not a new file.
 
+An expired pending full holds its scope (#7978, ruling a9-126). When `decide`
+forces `in_flight_expired` or `reconcile_request_stale` over a newest full that
+is pending with live projector work, `expiredPendingHoldHead` returns that
+full's commit. `updateRepository` compares it with the remote head after the
+fetch. At the same head the sync returns `GitSyncDelta.ReconcileHeld`: no
+snapshot, no parse, and no per-cycle budget slot, counted as
+`in_flight_expired_held` with an INFO `git_reconcile_held` log. Every entry
+path (scheduled sync, sweep, webhook) goes through this loop, so each has the
+remote head when it holds.
+
 Performance Evidence (#7620, per-repository): the read is one sequential scan
 per cycle per shard, about 1 ms per 10,000 rows on PostgreSQL 18. Ordering
 derives a scope ID per repository only when at least one row is active, using
@@ -126,10 +136,10 @@ callback, so a change found there is logged but not counted in
 `DefaultBranchChanged`; the sync keeps that path-less entry in
 `DeltaByRepoPath`, and `buildSelectedRepositories` copies the flag to the
 default-branch `SelectedRepository` only, never to a pinned-ref entry. The
-fact builder then empties the generation's freshness hint: the snapshot hint
-does not fold git refs, so a rename that kept the tree would otherwise be
-dropped as unchanged and leave the old `default_branch` on the repository
-fact. It is not a reconciliation: unless a sweep reconciliation lands on the
+fact builder sets `ScopeGeneration.DefaultBranchChanged` and the v3 hint folds
+the default branch, so the store always stores that generation (#7978) and a
+rename that kept the tree does not leave the old `default_branch` on the
+repository fact. It is not a reconciliation: unless a sweep reconciliation lands on the
 same cycle, `reconciliation_generation` stays unset, so the old branch's
 removals do not count as drift on
 `eshu_dp_reconciliation_drift_retractions_total`, and no sweep budget or

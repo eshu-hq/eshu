@@ -182,27 +182,6 @@ image_is_hub() {
   return 0
 }
 
-# dockerfile_is_hub <repo-relative Dockerfile>: 0 when any FROM can pull from
-# Docker Hub (scratch and earlier stage aliases excluded); 0 when unreadable.
-dockerfile_is_hub() {
-  local f="$1" line ref aliases="|" tok prev
-  [[ -f "${root}/${f}" ]] || return 0
-  while IFS= read -r line; do
-    ref=""; prev=""
-    for tok in ${line}; do
-      case "${tok}" in
-        [Ff][Rr][Oo][Mm] | --*) ;;
-        *) if [[ -z "${ref}" ]]; then ref="${tok}"; fi ;;
-      esac
-      case "${prev}" in [Aa][Ss]) aliases="${aliases}${tok}|" ;; esac
-      prev="${tok}"
-    done
-    [[ -n "${ref}" && "${ref}" != scratch && "${aliases}" != *"|${ref}|"* ]] || continue
-    if image_is_hub "${ref}"; then return 0; fi
-  done < <(rg -N -i -e '^[[:space:]]*FROM[[:space:]]+' "${root}/${f}" || true)
-  return 1
-}
-
 # text_assigns <file>: prints NAME<TAB>VALUE assignments, cached per file.
 text_assigns() {
   local c
@@ -246,19 +225,24 @@ run_image() {
   return 1
 }
 
-# build_context <tokens...>: sets BUILD_FILE (-f/--file value or "") and
-# BUILD_CTX (the last positional token).
+# build_context <tokens...>: sets BUILD_FILE (-f/--file value or ""), BUILD_CTX
+# (the last positional token) and BUILD_ARGS (one raw NAME=VALUE or NAME per
+# --build-arg, newline-separated).
 build_context() {
   local t skip=0 prev="" last=""
-  BUILD_FILE=""
+  BUILD_FILE=""; BUILD_ARGS=""
   for t in "$@"; do
     if [[ "${skip}" -eq 1 ]]; then
       skip=0
-      case "${prev}" in -f | --file) BUILD_FILE="${t}" ;; esac
+      case "${prev}" in
+        -f | --file) BUILD_FILE="${t}" ;;
+        --build-arg) BUILD_ARGS="${BUILD_ARGS}${t}"$'\n' ;;
+      esac
       continue
     fi
     case "${t}" in
       --file=*) BUILD_FILE="${t#--file=}" ;;
+      --build-arg=*) BUILD_ARGS="${BUILD_ARGS}${t#--build-arg=}"$'\n' ;;
       --*=*) ;;
       --* | -?) if [[ "${build_value_flags}" == *" ${t} "* ]]; then skip=1; prev="${t}"; fi ;;
       -* | \>* | 2\>* | \&* | \|*) ;;
@@ -266,6 +250,24 @@ build_context() {
     esac
   done
   BUILD_CTX="${last}"
+}
+
+# expand_build_args <raw args, newline-separated>: sets DF_ARGS to NAME=VALUE
+# lines with every value expanded from the tables; a bare NAME takes the process
+# env value, as docker build does for --build-arg NAME.
+expand_build_args() {
+  local line name val
+  DF_ARGS=""
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    unquote "${line}"; line="${UNQ}"
+    if [[ "${line}" == *=* ]]; then
+      name="${line%%=*}"; expand "${line#*=}" ""; val="${EXP}"
+    else
+      name="${line}"; proc_env "${name}"; val="${LOOK}"
+    fi
+    DF_ARGS="${DF_ARGS}${name}=${val}"$'\n'
+  done <<<"$1"
 }
 
 # ref_is_hub <verb> <ref token>: 0 (and sets FACT_WHY) when the ref can pull from
@@ -348,38 +350,61 @@ fact_is_hub() {
       fi
       [[ "${df}" != *@UNRESOLVED@* ]] || { FACT_WHY="docker build with an underivable Dockerfile"; return 0; }
       df="${df#./}"
-      if dockerfile_is_hub "${df}"; then FACT_WHY="docker build of ${df}, which has a Docker Hub FROM"; return 0; fi
+      expand_build_args "${BUILD_ARGS}"
+      if dockerfile_is_hub "${df}"; then DF_ARGS=""; FACT_WHY="docker build of ${df}, which has a Docker Hub FROM"; return 0; fi
+      DF_ARGS=""
       return 1 ;;
   esac
   return 1
 }
 
-# var_example <seq> <files...>: prints the first variable-as-command record (the
-# run text first), for the failure message.
-var_example() {
-  local seq="$1" f cur line
-  shift
-  cur="RV_${seq}"
-  line="$(printf '%s' "${!cur:-}" | head -n 1 | tr '\037' ' ')"
-  if [[ -n "${line}" ]]; then printf 'run: %s' "${line}"; return 0; fi
-  for f in "$@"; do
-    mkkey "${f}"; cur="FV_${KEY}"
-    line="$(printf '%s' "${!cur:-}" | head -n 1 | tr '\037' ' ')"
-    if [[ -n "${line}" ]]; then printf '%s: %s' "${f}" "${line}"; return 0; fi
-  done
-  printf '(not recorded)'
+# load_step_env <env64>: loads the step env (base64 NAME=VALUE lines) into E_.
+load_step_env() {
+  local line name
+  [[ -n "$1" ]] || return 0
+  # The decoded text has no trailing newline: keep a last unterminated line.
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" == *=* ]] || continue
+    printf -v "E_${line%%=*}" '%s' "${line#*=}"
+  done < <(printf '%s' "$1" | b64d)
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" == *=* ]] || continue
+    name="${line%%=*}"
+    expand "${line#*=}" ""
+    printf -v "E_${name}" '%s' "${EXP}"
+  done < <(printf '%s' "$1" | b64d)
 }
 
 # step_hub_why <run file> <run has other> <run has compose> <closure files>
-# <env64> <run has var> <run has docker word>: sets HUBWHY to a reason when the
+# <env64> <job>: sets HUBWHY to a reason when the
 # step can pull from Docker Hub, "" otherwise. The has-flags are 1 when the run
 # text itself matches. Variable
 # tables load only when a docker command carries a $ reference. A docker word
 # the lexer could not classify (RU_/FU_ records) counts as Docker Hub last.
 step_hub_why() {
-  local runf="$1" run_other="$2" cfiles="$4" env64="$5" run_var="${6:-0}" run_dock="${7:-0}" f line name need_compose="$3" need_vars=0 i cur seq="${1##*/}"
+  local runf="$1" run_other="$2" cfiles="$4" env64="$5" job="${6:-}" f line name need_compose="$3" need_vars=0 i cur seq="${1##*/}"
   local -a files=() fact_text=() fact_src=()
+  local kept=""
   HUBWHY=""
+  # A script whose docker is a PATH-shadowed stub (lib/dockerhub-login-shadow.sh)
+  # has no docker reach: drop it and what it runs before reading any fact.
+  shadow_files "${cfiles}"
+  while IFS= read -r f; do
+    [[ -n "${f}" && "${SHADOWED}" != *$'\n'"${f}"$'\n'* ]] || continue
+    kept="${kept}${f}"$'\n'
+  done <<<"${cfiles}"
+  cfiles="${kept}"
+  # The CI compose wrapper and its helper are the trusted unit: a step in CI image
+  # mode that reaches them is judged by its own calls of the wrapper, not by the
+  # wrapper's text (ci_wrapper_active, lib/dockerhub-login-ledger.sh).
+  if [[ $'\n'"${cfiles}" == *$'\n'scripts/ci/compose.sh$'\n'* || $'\n'"${cfiles}" == *$'\n'scripts/lib/ci-image-compose.sh$'\n'* ]] && ci_wrapper_active; then
+    kept=""
+    while IFS= read -r f; do
+      [[ -n "${f}" && "${f}" != scripts/ci/compose.sh && "${f}" != scripts/lib/ci-image-compose.sh ]] || continue
+      kept="${kept}${f}"$'\n'
+    done <<<"${cfiles}"
+    cfiles="${kept}"
+  fi
   while IFS= read -r f; do [[ -z "${f}" ]] || files+=("${f}"); done <<<"${cfiles}"
   if [[ "${run_other}" -eq 1 ]]; then
     cur="RO_${seq}"
@@ -399,21 +424,13 @@ step_hub_why() {
       [[ "${line}" != *'$'* ]] || need_vars=1
     done <<<"${!cur:-}"
   done
+  # A wrapper call that is not settled, or a look-alike of it, runs Compose too.
+  [[ "${need_compose}" -eq 1 ]] || ! compose_wrapper_seen_in "${runf}" "${cfiles}" || need_compose=1
+  # A compose step settles its -f operands from the same tables.
+  [[ "${need_compose}" -ne 1 ]] || need_vars=1
   clear_step_tables
   if [[ "${need_vars}" -eq 1 ]]; then
-    if [[ -n "${env64}" ]]; then
-      # The decoded text has no trailing newline: keep a last unterminated line.
-      while IFS= read -r line || [[ -n "${line}" ]]; do
-        [[ "${line}" == *=* ]] || continue
-        printf -v "E_${line%%=*}" '%s' "${line#*=}"
-      done < <(printf '%s' "${env64}" | b64d)
-      while IFS= read -r line || [[ -n "${line}" ]]; do
-        [[ "${line}" == *=* ]] || continue
-        name="${line%%=*}"
-        expand "${line#*=}" ""
-        printf -v "E_${name}" '%s' "${EXP}"
-      done < <(printf '%s' "${env64}" | b64d)
-    fi
+    load_step_env "${env64}"
     # Assignments: reached scripts first, then the run text itself.
     for f in ${files[@]+"${files[@]}"}; do load_assigns "${root}/${f}"; done
     load_assigns "${runf}"
@@ -426,14 +443,15 @@ step_hub_why() {
   done
   # Compose: every compose file the reached text names must derive non-Hub.
   if [[ "${need_compose}" -eq 1 ]] && compose_step_is_hub "${runf}" "${cfiles}"; then
-    HUBWHY="docker compose with compose files not provably non-Hub"
+    HUBWHY="docker compose with compose files not provably non-Hub: ${COMPOSE_HUB_FILES}"
     return 0
   fi
-  # A variable invoked as a command (V) next to a docker word (D) in the run text
-  # or the scripts it reaches may hold docker (fail closed).
-  has_vd "${cfiles}" "${run_dock}"
-  if [[ ( "${run_var}" -eq 1 || "${HAS_V}" -eq 1 ) && "${HAS_D}" -eq 1 ]]; then
-    HUBWHY="a variable is invoked as a command where docker is also named, so the gate cannot tell whether it runs docker: $(var_example "${seq}" "${files[@]+"${files[@]}"}")"
+  # A variable invoked as a command (V) that is assigned a docker or an
+  # unresolvable value, or a bare docker passed to a callee that invokes its
+  # argument (B), may run docker (fail closed; see var_conflict).
+  var_conflict "${seq}" "${cfiles}" "${env64}" "${job}"
+  if [[ -n "${VCONF}" ]]; then
+    HUBWHY="a variable invoked as a command, or a bare docker argument, may run docker (a docker or unresolvable value is assigned to the variable, or the callee invokes the argument), so the gate cannot tell: ${VCONF}"
     return 0
   fi
   # A docker word the lexer could not classify counts as Docker Hub (fail closed).

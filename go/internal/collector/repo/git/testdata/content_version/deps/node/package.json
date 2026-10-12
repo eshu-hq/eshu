@@ -1,0 +1,6 @@
+{
+  "name": "@acme/format-kit",
+  "version": "1.0.0",
+  "description": "Price and date formatting helpers published by the format-kit fixture repository (#7601 cross-repository JS call keys).",
+  "license": "MIT"
+}

@@ -17,8 +17,8 @@
 #      with the global flags (--config, --context, -H, ...) removed.
 #   C  docker compose / docker-compose; words start with docker or
 #      docker-compose.
-#   U  a bare docker word the lexer cannot classify (an unknown command with
-#      docker as an argument, a variable invoked as a command whose name says
+#   U  a bare docker word the lexer cannot classify (a variable invoked as a
+#      command whose name says
 #      docker or that was assigned a docker value the lexer cannot follow, a
 #      heredoc body run by a shell). Callers count it as Docker Hub.
 #   V  a variable invoked as a command ("$rt" pull ...) that this file never
@@ -26,8 +26,12 @@
 #      the environment or a sourced file. It means nothing alone.
 #   D  the file mentions the word docker in a command (any command word, an
 #      assignment value such as rt=docker or ${X:-docker}, or a $(command -v
-#      docker) lookup). Callers fail closed when V and D meet in one run text or
-#      one transitive script set: the unresolved variable may hold docker.
+#      docker) lookup).
+#   A  NAME: the file assigns NAME a docker value (rt=docker, NAME=(docker
+#      compose), NAME=$(command -v docker)), whether or not it invokes NAME.
+#      Callers fail closed when a V record's variable is an A name anywhere in
+#      one run text or one transitive script set, or in the step, job or
+#      workflow env: that variable may hold docker.
 #
 # Commands that merely inspect or stop containers (ps, exec, rm, logs, ...)
 # emit nothing. A docker word in a comment or a quoted string is data, not an
@@ -82,17 +86,21 @@ function finish_file(   c, nm, kind) {
   split("", ASSIGN); split("", DOCKNAME); split("", LITNAME); split("", UNKN)
   VC_n = 0; FILE_D = 0
   HD_n = 0
+  params_reset()
   parse_list("")
   # A variable invoked as a command: a docker value assigned anywhere in the file
-  # makes it unclassifiable (U); only literal non-docker assignments clear it.
+  # makes it unclassifiable (U); only literal non-docker assignments clear it, and
+  # not in a file that sources another (the sourced file may assign it too).
   for (c = 1; c <= VC_n; c++) {
     nm = VC_nm[c]
     if (nm in DOCKNAME) kind = "U"
-    else if ((nm in LITNAME) && !(nm in UNKN)) continue
+    else if ((nm in LITNAME) && !(nm in UNKN) && SRCN == 0) continue
     else kind = "V"
     print fname "\t" kind "\t" VC_txt[c]
   }
   if (FILE_D) print fname "\tD\t"
+  for (nm in DOCKNAME) print fname "\tA\t" nm
+  params_emit()
   text = ""
 }
 
@@ -185,8 +193,10 @@ function docker_alias(v,   t) {
 # ${X:-default}) names a script (ends in .sh or .bash). For an array only the first word, the
 # command, counts.
 function record_assign(name, val, isarr,   al, cls) {
+  SEEN[name] = 1
   al = docker_alias(val)
   if (al != "") { ASSIGN[name] = al; DOCKNAME[name] = 1; return }
+  if (note_value(name, val)) return
   if (!(name in DOCKNAME)) ASSIGN[name] = val
   cls = val
   if (isarr) { sub(/^ +/, "", cls); sub(/ .*$/, "", cls) }
@@ -236,7 +246,7 @@ function compose_cmd(o, from, m,   j, t) {
   while (j <= m) {
     t = unq(o[j])
     if (index(CFV, " " t " ") > 0) { j += 2; continue }
-    if (t ~ /^-/) { j++; continue }
+    if (t ~ /^-/ || t ~ /^\$\{[A-Za-z_][A-Za-z0-9_]*\[[@*]\]\}$/) { j++; continue }
     break
   }
   if (j <= m && (unq(o[j]) in CNOPULL)) return
@@ -271,8 +281,9 @@ function end_cmd(w, n,   i, s, t, cw, k, d, m, v, nm, all, envw) {
   for (k = 1; k <= n; k++) if (has_docker_word(w[k])) { DOCK_SEEN++; FILE_D = 1 }
   # Leading keywords (then, else, do, if, !, {, ...) are not part of the command.
   s = 1
-  while (s <= n && (unq(w[s]) in KW)) s++
+  while (s <= n && (unq(w[s]) in KW)) { note_group(unq(w[s])); s++ }
   if (s > n) return
+  if (note_function_word(w, s, n)) return
   i = s
   if (unq(w[i]) in EXPORT) { i++; while (i <= n && w[i] ~ /^-/) i++ }
   all = 1
@@ -303,7 +314,7 @@ function end_cmd(w, n,   i, s, t, cw, k, d, m, v, nm, all, envw) {
       t = unq(w[k])
       if (t == "-o" || t == "+o" || t == "-O" || t == "+O") { k++; continue }
       if (t ~ /^-[A-Za-z]*c[A-Za-z]*$/) { lex_string(unq(w[k + 1])); return }
-      if (t !~ /^[-+]/) break
+      if (t !~ /^[-+]/) { note_bare(w, k, n, k); break }
     }
     return
   }
@@ -333,16 +344,31 @@ function end_cmd(w, n,   i, s, t, cw, k, d, m, v, nm, all, envw) {
       return
     }
     if (nm in ASSIGN && run_alias(ASSIGN[nm], w, i + 1, n)) return
+    # A variable assigned only from this function's own positional parameter takes
+    # its value from the caller's argument, which the B records settle.
+    if (((FNCUR SUBSEP nm) in PARAM) && !(nm in XSET) && !(nm in DOCKNAME)) { note_invoke(PARAM[FNCUR SUBSEP nm]); return }
+    # Whatever the variable holds (docker, docker compose), a first argument that
+    # is a non-pulling subcommand (ps, exec, logs, down, ...) pulls nothing.
+    if (i < n && (unq(w[i + 1]) in CNOPULL || unq(w[i + 1]) in NOPULL)) return
     if (tolower(nm) ~ /docker|compose|^dc$|_dc$|^dc_/) { emit("U", w, 1, n); return }
     # Unresolved here: finish_file decides from every assignment in the file.
     VC_n++; VC_nm[VC_n] = nm; VC_txt[VC_n] = join_words(w, 1, n)
     return
   }
+  if (cw ~ /^\$\{?([0-9]+|[@*])(\[[@*]\])?\}?$/) { nm = cw; gsub(/[^0-9@*]/, "", nm); note_invoke(nm ~ /^[0-9]+$/ ? nm : "A"); return }
+  if (cw == "shift") { SHIFTED = 1; return }
+  if (cw == "source" || cw == ".") { note_source(w, i, n); return }
+  if (cw == "read") { note_read(w, i, n); return }
   if (cw in HARMLESS) return
-  for (k = i + 1; k <= n; k++) {
-    t = unq(w[k])
-    if (t == "docker" || t == "docker-compose") { emit("U", w, 1, n); return }
-  }
+  # for NAME in WORDS ... and select NAME in WORDS: the list words are data. A
+  # loop variable later invoked as a command is a V record on its own.
+  if ((cw == "for" || cw == "select") && unq(w[i + 2]) == "in") { note_for(w, i, n); return }
+  # An unknown command (a wrapper such as retry 3 docker pull x, or a helper that
+  # forwards its arguments) with docker among its arguments: the words from docker
+  # on are read as the docker command the wrapper runs, so its subcommand and image
+  # are classified like a direct call. A bare trailing docker becomes a B record
+  # for the caller to settle (see dockerhub-login-lex-params.awk).
+  note_bare(w, i, n, i)
 }
 
 # parse_list lexes commands until the terminator (")" or a backtick), or EOF.
@@ -396,6 +422,11 @@ function parse_list(term,   w, n, cur, inw, c, nx, j, s, q, dash, run, k, nm, db
       while (P <= N && A[P] != "\n") P++
       continue
     }
+    if (c == "\n" && dbr) {
+      # A newline inside [[ ... ]] (after && or ||) continues the test.
+      if (inw) { n++; w[n] = cur; cur = ""; inw = 0 }
+      P++; continue
+    }
     if (c == "\n" || c == ";" || (!dbr && (c == "|" || (c == "&" && substr(cur, length(cur)) != ">" && substr(cur, length(cur)) != "<")))) {
       if (inw) { n++; w[n] = cur; cur = ""; inw = 0 }
       end_cmd(w, n); n = 0; dbr = 0
@@ -416,6 +447,7 @@ function parse_list(term,   w, n, cur, inw, c, nx, j, s, q, dash, run, k, nm, db
         cur = ""; inw = 0; continue
       }
       if (inw) { n++; w[n] = cur; cur = ""; inw = 0 }
+      note_header(w, n)
       end_cmd(w, n); n = 0
       P++; continue
     }

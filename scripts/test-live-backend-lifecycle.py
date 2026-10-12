@@ -49,6 +49,9 @@ exit 0
                            DOWN_FAILS=str(int(down_fails)), TEST_FAILS=str(int(test_fails)),
                            CLEANUP_FAILS=str(int(cleanup_fails)), LEFTOVERS=leftovers,
                            ESHU_SKIP_LIVE_GATE_LOCK="1", ESHU_CI_IMAGES="0")
+        # The CI compose wrapper refuses to run in CI without CI image mode; this
+        # fixture runs the runner with the mode off and stub docker, as a laptop does.
+        environment.pop("GITHUB_ACTIONS", None)
         result = subprocess.run(["bash", str(ROOT / "scripts/run-live-backend-tests.sh"),
                                  "--shard", "1/4", "--results", str(root / "result.json")],
                                 env=environment, capture_output=True, text=True, check=False)

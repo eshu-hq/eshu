@@ -53,11 +53,11 @@ INSERT INTO fact_work_items (
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	store := NewIngestionStore(SQLDB{DB: database})
-	skip, err := store.shouldSkipUnchangedGeneration(ctx, "scope-recommit", "old-hint")
+	candidate, found, err := store.unchangedGeneration(ctx, "scope-recommit")
 	if err != nil {
 		t.Fatalf("check freshness guard: %v", err)
 	}
-	if skip {
+	if found && candidate.matches(scope.ScopeGeneration{FreshnessHint: "old-hint"}) {
 		t.Fatal("older published generation unexpectedly skipped with newer pending hint")
 	}
 

@@ -130,6 +130,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 			synced.SourceCommitSHAByRepoPath,
 			collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, synced.SelectedRepoPaths),
 			nil,
+			nil,
 		)
 		attachFilesystemGitTreePaths(s.Config, selection.RepositoryIDs, repositories)
 		return SelectionBatch{ObservedAt: observedAt, Repositories: repositories}, nil
@@ -163,6 +164,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 				synced.SourceCommitSHAByRepoPath,
 				synced.RefsByRepoPath,
 				synced.RefWorktreesByRepoPath,
+				synced.ReconcileReasonByRepoPath,
 			),
 		}, nil
 	default:
@@ -214,6 +216,7 @@ func buildSelectedRepositories(
 	sourceCommitSHAByRepoPath map[string]string,
 	refsByRepoPath map[string][]GitRef,
 	refWorktreesByRepoPath map[string][]RefWorktreeEntry,
+	reconcileReasonByRepoPath map[string]string,
 ) []SelectedRepository {
 	repositories := make([]SelectedRepository, 0, len(repoPaths))
 	for _, repoPath := range repoPaths {
@@ -249,6 +252,12 @@ func buildSelectedRepositories(
 			Reconcile:    reconcileByRepoPath[repoPath] || reconcileByRepoPath[absolutePath],
 			DefaultBranchChanged: deltaByRepoPath[repoPath].DefaultBranchChanged ||
 				deltaByRepoPath[absolutePath].DefaultBranchChanged,
+		}
+		if repository.Reconcile {
+			repository.ReconcileReason = reconcileReasonByRepoPath[repoPath]
+			if repository.ReconcileReason == "" {
+				repository.ReconcileReason = reconcileReasonByRepoPath[absolutePath]
+			}
 		}
 		if delta, ok := deltaByRepoPath[repoPath]; ok && !delta.IsEmpty() {
 			repository.Delta = true
@@ -303,6 +312,7 @@ func buildSelectedRepositories(
 				Language:        repository.Language,
 				GitRefs:         repository.GitRefs,
 				Reconcile:       repository.Reconcile,
+				ReconcileReason: repository.ReconcileReason,
 				SourceCommitSHA: entry.HeadSHA,
 				Ref:             entry.Ref,
 			})

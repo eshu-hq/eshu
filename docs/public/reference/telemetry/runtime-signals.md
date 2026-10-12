@@ -95,6 +95,9 @@ changed scopes still drain through projection and reducer queues. Watch:
 - `eshu_runtime_scope_changed`
 - `eshu_runtime_scope_unchanged`
 - `eshu_runtime_refresh_skipped_total`
+- `eshu_runtime_refresh_skipped_by_reason_total{reason}`: `reconcile_reprojected`
+  means the reconcile sweep re-projected an unchanged repository without storing
+  a duplicate generation (#7978)
 
 If refresh skips rise while users report stale results, inspect source
 freshness, generation status, and reducer/shared backlog before changing the
