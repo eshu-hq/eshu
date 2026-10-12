@@ -138,3 +138,139 @@ func TestJobOwnershipOverrideAggregatorCoversEachNeedItReadsDirectly(t *testing.
 		t.Errorf("an aggregator reading every need it lists covers them all, got: %v", errs)
 	}
 }
+
+// gatingWorkflow is an owner job with the given job-level if: that needs dep,
+// with the given steps block. It pins issue #7882: only a result read that
+// gates the job covers the dependency.
+func gatingWorkflow(jobIf, steps string) string {
+	wf := "name: Gating\non: [push]\njobs:\n" +
+		"  dep:\n    runs-on: ubuntu-latest\n    steps: []\n" +
+		"  owned:\n    name: owned-job\n    needs: dep\n"
+	if jobIf != "" {
+		// Double-quoted so a leading `!` is not read as a YAML tag.
+		wf += "    if: \"" + jobIf + "\"\n"
+	}
+	return wf + "    runs-on: ubuntu-latest\n    steps:\n" + steps
+}
+
+// TestJobOwnershipResultReadMustGate pins #7882: a mention of
+// needs.<job>.result that does not gate the job leaves the dependency
+// uncovered, while a read in the job if:, a shell test, or a value a shell
+// test branches on covers it. A step-level if: is not a gate: skipping one
+// step leaves the job green, so the dependency stays uncovered.
+func TestJobOwnershipResultReadMustGate(t *testing.T) {
+	t.Parallel()
+
+	const always = "${{ always() }}"
+	cases := map[string]struct {
+		jobIf   string
+		steps   string
+		covered bool
+	}{
+		"echo bare mention is not a gate": {
+			jobIf:   always,
+			steps:   "      - run: echo needs.dep.result\n",
+			covered: false,
+		},
+		"echo interpolated mention is not a gate": {
+			jobIf:   always,
+			steps:   "      - run: echo \"${{ needs.dep.result }}\"\n",
+			covered: false,
+		},
+		"grep pattern is not a gate": {
+			jobIf:   always,
+			steps:   "      - run: grep \"needs.dep.result\" file.txt\n",
+			covered: false,
+		},
+		"comment only is not a gate": {
+			jobIf: always,
+			steps: "      # needs.dep.result is checked by the aggregator\n" +
+				"      - run: echo hi\n",
+			covered: false,
+		},
+		"no mention is not a gate": {
+			jobIf:   always,
+			steps:   "      - run: echo hi\n",
+			covered: false,
+		},
+		"bare job if gates": {
+			jobIf:   "always() && needs.dep.result == 'success'",
+			steps:   "      - run: echo hi\n",
+			covered: true,
+		},
+		"interpolated job if gates": {
+			jobIf:   "${{ always() && needs.dep.result == 'success' }}",
+			steps:   "      - run: echo hi\n",
+			covered: true,
+		},
+		"shell test gates": {
+			jobIf:   always,
+			steps:   "      - run: test \"${{ needs.dep.result }}\" = success\n",
+			covered: true,
+		},
+		"shell test on outcome gates": {
+			jobIf:   always,
+			steps:   "      - run: test \"${{ needs.dep.outcome }}\" = success\n",
+			covered: true,
+		},
+		"shell variable branched on gates": {
+			jobIf: always,
+			steps: "      - run: |\n" +
+				"          result=\"${{ needs.dep.result }}\"\n" +
+				"          test \"$result\" = success\n",
+			covered: true,
+		},
+		"shell variable echoed does not gate": {
+			jobIf: always,
+			steps: "      - run: |\n" +
+				"          result=\"${{ needs.dep.result }}\"\n" +
+				"          echo \"$result\"\n",
+			covered: false,
+		},
+		"env value branched on gates": {
+			jobIf: always,
+			steps: "      - env:\n" +
+				"          DEP_RESULT: ${{ needs.dep.result }}\n" +
+				"        run: test \"$DEP_RESULT\" = success\n",
+			covered: true,
+		},
+		"env value echoed does not gate": {
+			jobIf: always,
+			steps: "      - env:\n" +
+				"          DEP_RESULT: ${{ needs.dep.result }}\n" +
+				"        run: echo \"$DEP_RESULT\"\n",
+			covered: false,
+		},
+		"repo script argument gates": {
+			jobIf:   always,
+			steps:   "      - run: bash scripts/lib/check.sh \"${{ needs.dep.result }}\"\n",
+			covered: true,
+		},
+		"echoed script path does not gate": {
+			jobIf:   always,
+			steps:   "      - run: echo \"scripts/lib/check.sh ${{ needs.dep.result }}\"\n",
+			covered: false,
+		},
+		"step if does not gate the job": {
+			jobIf: always,
+			steps: "      - if: ${{ needs.dep.result == 'success' }}\n" +
+				"        run: echo hi\n",
+			covered: false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := buildDriftRepo(t, minimalPreCommit("a"), nil)
+			writeWorkflow(t, root, "g.yml", gatingWorkflow(tc.jobIf, tc.steps))
+			reg := minimalReg([]cigates.Gate{ownershipGate("a", "g.yml", "owned-job")}, nil, nil)
+			errs := ownershipErrors(t, root, reg)
+			if tc.covered && len(errs) != 0 {
+				t.Errorf("want dep covered, got: %v", errs)
+			}
+			if !tc.covered && (len(errs) != 1 || !strings.Contains(errs[0], `"dep"`)) {
+				t.Errorf("want one finding for dep, got: %v", errs)
+			}
+		})
+	}
+}
