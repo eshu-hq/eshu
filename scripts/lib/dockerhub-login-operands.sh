@@ -41,7 +41,7 @@ compose_flow() {
     if [[ "${mode}" == ops || "${mode}" == wnames || "${mode}" == wsum ]] && ! rg -qi -e compose -- "${f}" 2>/dev/null; then
       printf -v "${c}" '%s' ""
     else
-      printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode="${mode}" -f "${flow_awk}" "${f}" 2>/dev/null || true)"
+      printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode="${mode}" -f "${flow_awk}" -f "${flow_awk%/*}/dockerhub-login-wrapper-head.awk" "${f}" 2>/dev/null || true)"
     fi
   fi
   FLOW="${!c}"
@@ -60,7 +60,7 @@ compose_calls_of() {
       [[ -n "${callee}" ]] || continue
       mkkey "${callee}"; v="CS_${fk}_${KEY}"
       printf -v "${v}" '%s%s\n' "${!v:-}" "${caller}"$'\036'"${args}"
-    done < <(LC_ALL=C awk -v mode=calls -f "${flow_awk}" "$2" 2>/dev/null || true)
+    done < <(LC_ALL=C awk -v mode=calls -f "${flow_awk}" -f "${flow_awk%/*}/dockerhub-login-wrapper-head.awk" "$2" 2>/dev/null || true)
   fi
   mkkey "$1"; v="CS_${fk}_${KEY}"
   FLOW="${!v:-}"

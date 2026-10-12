@@ -384,44 +384,6 @@ function is_wrapper(T, a, b,   i, w, base, j) {
   return (i <= b) ? (wpath(T[i]) && !headbad(T, a, i - 1)) : 0
 }
 
-# headbad is 1 when the words T[a..e], which run before the wrapper path, make the
-# call a raw call: a docker or docker-compose word (the wrapper path is then an
-# argument of a compose call, and run pulls the image first), a command that starts
-# another environment (podman, kubectl, ssh, su, runuser, nsenter, chroot,
-# systemd-run), sudo without -E (env_reset drops GITHUB_ACTIONS and the mode), env -i
-# or env -u of GITHUB_ACTIONS or ESHU_CI_IMAGES, and a NAME=value word that sets
-# GITHUB_ACTIONS to anything but true or ESHU_CI_IMAGES to anything but 1. The
-# run-time guard tests GITHUB_ACTIONS, so a call that removes it is never refused.
-function headbad(T, a, e,   k, m, w, base, n, v, keep) {
-  for (k = a; k <= e; k++) {
-    w = unq(T[k]); base = w; sub(/^.*\//, "", base)
-    if (base ~ /^(docker|docker-compose|podman|kubectl|ssh|su|runuser|nsenter|chroot|systemd-run)$/) return 1
-    if (base == "sudo") {
-      keep = 0
-      for (m = k + 1; m <= e; m++) {
-        n = unq(T[m])
-        if (n == "-E" || n == "--preserve-env") keep = 1
-        if (n == "-i" || n == "--login" || n == "-s" || n == "--shell") return 1
-      }
-      if (!keep) return 1
-    }
-    if (base == "env") {
-      for (m = k + 1; m <= e; m++) {
-        n = unq(T[m])
-        if (n == "--ignore-environment" || n ~ /^-[A-Za-z]*i[A-Za-z]*$/) return 1
-        v = ""
-        if (n == "-u" || n == "--unset") v = unq(T[m + 1])
-        else if (n ~ /^--unset=/) { v = n; sub(/^--unset=/, "", v) }
-        else if (n ~ /^-u./) { v = n; sub(/^-u/, "", v) }
-        if (v == "GITHUB_ACTIONS" || v == "ESHU_CI_IMAGES") return 1
-      }
-    }
-    if (w ~ /^GITHUB_ACTIONS=/) { v = w; sub(/^[^=]*=/, "", v); if (unq(v) != "true") return 1 }
-    if (w ~ /^ESHU_CI_IMAGES=/) { v = w; sub(/^[^=]*=/, "", v); if (unq(v) != "1") return 1 }
-  }
-  return 0
-}
-
 # wpath is 1 for the wrapper path tail with an allowed prefix.
 function wpath(w,   q) {
   q = unq(w)

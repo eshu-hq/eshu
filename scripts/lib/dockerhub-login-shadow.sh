@@ -36,7 +36,7 @@ shadow_region() {
   local -a ws=() ps=() rs=() ds=()
   mkkey "SH:${f}"; c="SHR_${KEY}"
   if [[ -z "${!c+x}" ]]; then
-    printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode=shadow -f "${flow_awk}" "${root}/${f}" 2>/dev/null || true)"
+    printf -v "${c}" '%s' "$(LC_ALL=C awk -v mode=shadow -f "${flow_awk}" -f "${flow_awk%/*}/dockerhub-login-wrapper-head.awk" "${root}/${f}" 2>/dev/null || true)"
   fi
   rec="${!c}"
   SH_HAS=0; SH_L0=0; SH_L1=999999999; SH_BAD=0; SH_RESET=0; SH_ABS=0

@@ -330,15 +330,17 @@ if rg -q '^export ESHU_QUERY_PROFILE="local_full_stack"$' "${script}"; then
 	fail "query profile must honor an explicit caller override"
 fi
 for compose_case in \
-	"${repo_root}/scripts/lib/golden-corpus-readiness.sh:4" \
+	"${repo_root}/scripts/lib/golden-corpus-readiness.sh:3" \
 	"${cleanup_lib}:1" "${host_helpers_lib}:1" \
 	"${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh:1"; do
 	compose_owner="${compose_case%:*}"
 	expected_count="${compose_case##*:}"
-	actual_count="$(rg --count --fixed-strings 'bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" --' "${compose_owner}" || true)"
+	actual_count="$(rg --count --fixed-strings 'docker compose "${compose_args[@]}"' "${compose_owner}" || true)"
 	[[ "${actual_count:-0}" -eq "${expected_count}" ]] ||
 		fail "$(basename "${compose_owner}") must carry explicit Compose project on all ${expected_count} calls; found ${actual_count:-0}"
 done
+# The one pulling call (up) goes through the CI wrapper; the polls and the teardown stay direct.
+require_in "backend up through the CI wrapper" "${repo_root}/scripts/lib/golden-corpus-readiness.sh" 'scripts/ci/compose.sh" "${compose_args[@]}" -- up -d'
 # A collector that no-ops must not let the gate pass: liveness + facts-landed
 # checks, the fixed-sleep regression guard, and a functional exercise of
 # wait_for_collector_settle against a mocked pg()/die() all live in the

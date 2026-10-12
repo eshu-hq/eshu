@@ -88,12 +88,15 @@ runner function, in a literal `bash -c` string, in a pipeline, a function, a
 subshell or a background job is W too: the wrapper is what runs. A path held in
 a variable is not W.
 
-Words that run before the path decide the call. It is R, whatever follows, when
+Words that run before the path decide the call
+(`scripts/lib/dockerhub-login-wrapper-head.awk`). It is R, whatever follows, when
 they hold a `docker` or `docker-compose` word (the wrapper path is then an
-argument of a Compose call, and `run` pulls the image first), `podman`,
-`kubectl`, `ssh`, `su`, `runuser`, `nsenter`, `chroot` or `systemd-run`, a
-`sudo` without `-E` (its default `env_reset` drops `GITHUB_ACTIONS` and CI image
-mode), `env -i`, `env -u` of `GITHUB_ACTIONS` or `ESHU_CI_IMAGES`, or a
+argument of a Compose call, and `run` pulls the image first), a variable or
+array expansion at command position (`$DOCKER compose ...`: what it holds is not
+read), `podman`, `kubectl`, `ssh`, `su`, `runuser`, `nsenter`, `chroot`,
+`systemd-run`, `doas`, `bwrap`, `bubblewrap` or `firejail`, a `sudo` without `-E`
+(its default `env_reset` drops `GITHUB_ACTIONS` and CI image mode), `env -i`,
+`env -`, `exec -c`, `env -u` of `GITHUB_ACTIONS` or `ESHU_CI_IMAGES`, or a
 `NAME=value` word that sets `GITHUB_ACTIONS` to anything but `true` or
 `ESHU_CI_IMAGES` to anything but `1`. Each of these runs the wrapper in an
 environment where the run-time guard (which tests `GITHUB_ACTIONS`) never fires.
@@ -119,8 +122,13 @@ itself; the gate treats the `env` and prefix shapes that do so as R (above).
 
 ### Migration rule
 
-A CI Compose call goes through `scripts/ci/compose.sh`. A direct `docker compose`
-on the queue path is judged by its files. Pass the file flags before `--`:
+A CI Compose call that can pull or build (`up`, `run`, `pull`, `create`,
+`build`) goes through `scripts/ci/compose.sh`. A direct `docker compose` with
+one of those subcommands on the queue path is judged by its files. A direct call
+with a non-pulling subcommand (`exec`, `ps`, `logs`, `down`, `config`, `stop`,
+`restart`) reaches no image and stays outside the gate, as in main's gate; a
+script may keep such calls direct where a wrapper call would render an overlay
+per iteration of a poll. Pass the file flags before `--`:
 
 ```text
 bash "${repo_root}/scripts/ci/compose.sh" "${compose_args[@]}" -- up -d
@@ -133,8 +141,10 @@ names, comments included, so after a prepare any `export`, `unset` or
 `NAME=value` prefix of such a variable makes the next wrapper call exit 1
 (`prepared overlay no longer matches`). Prepare after the last such write, or do
 not prepare and let each call render its own overlay (about 1 s). The golden
-corpus gate does not prepare: it runs one preflight call and exports the Ask and
-metrics source variables afterwards. Do not append the overlay by hand.
+corpus gate does not prepare: it runs one preflight call and one wrapper `up`,
+keeps its readiness polls, `psql` helper and teardown direct, and exports the Ask
+and metrics source variables afterwards (two wrapper renders per job instead of
+about one per poll). Do not append the overlay by hand.
 
 ### Dockerfile ARGs and PATH-shadowed stubs
 

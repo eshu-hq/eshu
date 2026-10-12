@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Fail the gate early when the CI image overlay cannot cover the caller's Compose
-# stack, after the gate holds the live-gate lock. Every Compose call of the gate
-# goes through scripts/ci/compose.sh, which renders and appends its own overlay.
+# stack, after the gate holds the live-gate lock. The pulling call (up) goes through
+# scripts/ci/compose.sh, which renders and appends its own overlay; the polls, the
+# psql helper and the teardown are non-pulling Compose calls and stay direct, so
+# the readiness and settle loops do not render an overlay per iteration.
 # The gate shell holds no prepared overlay on purpose: the wrapper hashes the
 # value of every variable a root Compose file names, and the gate exports such
 # variables after this point (the Ask and metrics sources, the runtime
