@@ -43,10 +43,13 @@ func (r RepoSyncRepositoryRule) Matches(repositoryID string) bool {
 
 // RepoSyncConfig captures the environment-driven sync contract for Go-owned runtimes.
 type RepoSyncConfig struct {
-	ReposDir               string
-	SourceMode             string
-	GitAuthMethod          string
-	GithubOrg              string
+	ReposDir      string
+	SourceMode    string
+	GitAuthMethod string
+	GithubOrg     string
+	// GitlabHost is the provider host for gitlab/ IDs from ESHU_GITLAB_HOST
+	// (#7764); empty keeps the gitlab.com default.
+	GitlabHost             string
 	Repositories           []string
 	FilesystemRoot         string
 	FilesystemDirect       bool
@@ -144,6 +147,10 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	if gitAuthMethod == "" {
 		gitAuthMethod = "githubApp"
 	}
+	gitlabHost, err := normalizeGitlabHost(getenv("ESHU_GITLAB_HOST"))
+	if err != nil {
+		return RepoSyncConfig{}, err
+	}
 	cloneDepth := intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1)
 	repoLimit := intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000)
 	repoShardCount, repoShardIndex, err := loadRepoShardConfig(getenv)
@@ -156,6 +163,7 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		SourceMode:             sourceMode,
 		GitAuthMethod:          gitAuthMethod,
 		GithubOrg:              strings.TrimSpace(getenv("ESHU_GITHUB_ORG")),
+		GitlabHost:             gitlabHost,
 		Repositories:           extractExactRepositoryIDs(sourceMode, repositoryRules),
 		FilesystemRoot:         strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
 		FilesystemDirect:       boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),

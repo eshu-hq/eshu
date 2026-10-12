@@ -206,6 +206,7 @@ func PreparseConfigFor(
 		DependencyMode:     sync.DependencyMode,
 		DependencyName:     sync.DependencyName,
 		DependencyLanguage: sync.DependencyLanguage,
+		GitlabHost:         effectiveGitlabHost(sync),
 	}
 	for _, rule := range snapshotter.DiscoveryOptions.IgnoredPathGlobs {
 		config.IgnoredPathGlobs = append(config.IgnoredPathGlobs, rule.Pattern+"="+rule.Reason)

@@ -64,7 +64,7 @@ func gitCommandEnv(config RepoSyncConfig, token string, repoPath string) []strin
 		env = append(
 			env,
 			fmt.Sprintf("GIT_CONFIG_COUNT=%d", 1),
-			"GIT_CONFIG_KEY_0=http.https://"+repoProviderHost(provider)+"/.extraheader",
+			"GIT_CONFIG_KEY_0=http.https://"+repoProviderHost(config, provider)+"/.extraheader",
 			"GIT_CONFIG_VALUE_0="+httpBasicExtraHeader(tokenAuthUsername(provider), token),
 		)
 	case "ssh":

@@ -96,6 +96,7 @@ func TestPreparseConfigForFoldsEachInput(t *testing.T) {
 		"dependency mode": identity(base, RepoSyncConfig{DependencyMode: true}, lookPath, stat(1)),
 		"dependency name": identity(base, RepoSyncConfig{DependencyName: "pkg"}, lookPath, stat(1)),
 		"dependency lang": identity(base, RepoSyncConfig{DependencyLanguage: "go"}, lookPath, stat(1)),
+		"gitlab host":     identity(base, RepoSyncConfig{GitlabHost: "gitlab.acme.example"}, lookPath, stat(1)),
 	}
 	for name, got := range cells {
 		if got == want {
