@@ -350,6 +350,9 @@ func TestDecideUnchangedGenerationCells(t *testing.T) {
 		{"marked active match, ordinary sync", snapshot("hint", "sha", ""), markedActive, true, unchangedActionStore, storeReasonStreamDroppedCandidate},
 		{"marked pending match", snapshot("hint", "sha", ""), markedPending, true, unchangedActionStore, storeReasonStreamDroppedCandidate},
 		{"marked candidate, different hint", snapshot("other", "sha", ""), markedActive, true, unchangedActionStore, ""},
+		// Review F7-5: the mark decides on its own; a snapshot without a
+		// pre-parse identity still stores over a marked candidate.
+		{"marked active match, snapshot without identity", snapshot("hint", "sha", "interval_elapsed"), markedActive, true, unchangedActionStore, storeReasonStreamDroppedCandidate},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

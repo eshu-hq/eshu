@@ -325,3 +325,25 @@ func TestStreamDroppedGenerationHealsLive(t *testing.T) {
 		t.Fatalf("run 3: gen-2 identity = %q, want %q after the re-open", identity, preparseIdentityB)
 	}
 }
+
+// TestIdentitylessStreamDropIsMarkedLive (#7978 review F7-5, ruling
+// a9-143.23): a generation that had no pre-parse identity (the first
+// generation of a new clone, a dirty checkout, a failed tree check) and whose
+// stream dropped a file is still marked stream_dropped, so the next equal
+// snapshot stores a NEW generation instead of re-opening it and stamping an
+// identity onto incomplete facts.
+func TestIdentitylessStreamDropIsMarkedLive(t *testing.T) {
+	p := openReprojectProof(t)
+	p.commitStreamed(p.identityGeneration("gen-1", "hint-b", "sha-b", "", ""), true, true)
+	if marked, _ := p.streamDroppedMark("gen-1"); !marked {
+		t.Fatal("run 1: gen-1 had no identity and its stream dropped a file, but it is not marked stream_dropped")
+	}
+	p.project()
+	p.commitStreamed(p.identityGeneration("gen-2", "hint-b", "sha-b", "interval_elapsed", preparseIdentityB), true, false)
+	if _, exists := p.streamDroppedMark("gen-2"); !exists {
+		t.Fatal("run 2: no new generation gen-2 was stored; the marked gen-1 was re-opened instead")
+	}
+	if identity, _ := p.preparseStamp("gen-1"); identity != "" {
+		t.Fatalf("gen-1 identity = %q, want none: an incomplete generation must never get an identity", identity)
+	}
+}

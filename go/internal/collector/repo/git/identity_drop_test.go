@@ -102,11 +102,17 @@ func assertIdentityDropRecorded(t *testing.T, logs string, counts map[string]int
 // drops nothing. The store side is TestPreparseIdentityDroppedByTheStreamLive.
 func TestStreamDropMarksTheGeneration(t *testing.T) {
 	for _, cell := range []struct {
-		name   string
-		path   string
-		reason telemetry.PreparseIdentityDropReason
-		set    func(*RepositorySnapshot, model.ContentFileMeta)
+		name       string
+		path       string
+		noIdentity bool
+		reason     telemetry.PreparseIdentityDropReason
+		set        func(*RepositorySnapshot, model.ContentFileMeta)
 	}{
+		// Review F7-5: a generation without a pre-parse identity is marked
+		// too, so the store can keep the next equal snapshot from re-opening it.
+		{name: "content file, no identity", path: "app.py", noIdentity: true, reason: telemetry.PreparseDropContentReadFailed, set: func(s *RepositorySnapshot, m model.ContentFileMeta) {
+			s.ContentFileMetas = []model.ContentFileMeta{m}
+		}},
 		{name: "content file", path: "app.py", reason: telemetry.PreparseDropContentReadFailed, set: func(s *RepositorySnapshot, m model.ContentFileMeta) {
 			s.ContentFileMetas = []model.ContentFileMeta{m}
 		}},
@@ -123,6 +129,9 @@ func TestStreamDropMarksTheGeneration(t *testing.T) {
 		t.Run(cell.name, func(t *testing.T) {
 			repoRoot := t.TempDir() // no file exists on disk: every body read fails
 			snapshot := RepositorySnapshot{RepoPath: repoRoot, HeadCommitSHA: "c", PreparseIdentity: "preparse:v1:x"}
+			if cell.noIdentity {
+				snapshot.PreparseIdentity = ""
+			}
 			cell.set(&snapshot, model.ContentFileMeta{RelativePath: cell.path, Digest: "d", Language: "python", CommitSHA: "c"})
 			source, logs, reader := dropRecordingSource(t)
 			collected := buildStreamingGenerationWithContext(source.withStreamDropRecorder(context.Background()),

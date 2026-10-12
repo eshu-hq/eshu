@@ -321,7 +321,7 @@ func (s IngestionStore) commitScopeGeneration(
 			return fmt.Errorf("read fact stream: %w", err)
 		}
 	}
-	if preparseIdentityDropped(generation) {
+	if streamDropped(generation) {
 		markStart := time.Now()
 		if err := clearDroppedPreparseIdentity(ctx, tx, generation); err != nil {
 			return err

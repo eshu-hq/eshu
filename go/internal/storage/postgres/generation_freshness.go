@@ -426,12 +426,13 @@ func (s IngestionStore) ReprojectActiveGeneration(ctx context.Context, request s
 	return reason, nil
 }
 
-// preparseIdentityDropped reports whether the generation's fact stream
-// dropped a file it could not read (review F-7, ruling a9-143.14). Call it
-// only after the stream has drained.
-func preparseIdentityDropped(generation scope.ScopeGeneration) bool {
-	return generation.PreparseIdentity != "" && generation.PreparseIdentityDropped != nil &&
-		generation.PreparseIdentityDropped.Load()
+// streamDropped reports whether the generation's fact stream dropped a file
+// it could not read (review F-7, rulings a9-143.14 and a9-143.23). It does
+// not depend on the identity: an identity-less generation that dropped a file
+// is marked stream_dropped too (review F7-5). Call it only after the stream
+// has drained.
+func streamDropped(generation scope.ScopeGeneration) bool {
+	return generation.PreparseIdentityDropped != nil && generation.PreparseIdentityDropped.Load()
 }
 
 // clearPreparseIdentityQuery removes the pre-parse identity the stored path
@@ -447,7 +448,7 @@ WHERE generation_id = $1`
 // the drain, so the identity is removed in the same transaction, before the
 // commit. It runs a statement only on a drop.
 func clearDroppedPreparseIdentity(ctx context.Context, database db.ExecQueryer, generation scope.ScopeGeneration) error {
-	if !preparseIdentityDropped(generation) {
+	if !streamDropped(generation) {
 		return nil
 	}
 	if _, err := database.ExecContext(ctx, clearPreparseIdentityQuery, generation.GenerationID); err != nil {

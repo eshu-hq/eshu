@@ -300,7 +300,7 @@ func (s IngestionStore) skipUnchangedGeneration(
 	if err := drainFactsAndCheckStream(factStream, factStreamErr); err != nil {
 		return true, fmt.Errorf("read fact stream: %w", err)
 	}
-	if preparseIdentityDropped(generation) {
+	if streamDropped(generation) {
 		generation.PreparseIdentity = "" // review F-7: a dropped file stamps no identity
 	}
 	if action == unchangedActionReprojectActive {

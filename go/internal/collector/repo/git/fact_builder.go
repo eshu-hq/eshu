@@ -127,11 +127,11 @@ func buildStreamingGenerationWithContext(
 	factCountAtomic := new(atomic.Int64)
 	// dropped is set by the stream when it skips a file it could not read
 	// (review F-7). The stream runs after this function returns, so the store
-	// reads it through PreparseIdentityDropped after the drain.
+	// reads it through PreparseIdentityDropped after the drain. It is wired
+	// whether or not the generation has an identity (review F7-5): a drop on an
+	// identity-less generation must still mark it stream_dropped.
 	dropped := new(atomic.Bool)
-	if generation.PreparseIdentity != "" {
-		generation.PreparseIdentityDropped = dropped
-	}
+	generation.PreparseIdentityDropped = dropped
 	factCh := make(chan facts.Envelope, factStreamBuffer)
 	go streamFacts(
 		ctx,
