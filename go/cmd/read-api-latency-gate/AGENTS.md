@@ -184,7 +184,8 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   field alone (see `RouteCapability`'s doc comment for why).
 - **`ExercisedCoverageFloor` (`coverage.go`) is a ratchet.** Raise it only
   after a change (a new `RouteQueryArgs` entry, an auth fix) measurably
-  increases the exercised count; never lower it.
+  increases the exercised count; never lower it. The run checks
+  `CoverageFloor(operations)`, which adds the selected pilot operations to it.
 - **`-runs` defaults to 1 and preserves the single-pass sample selection.**
   `sweepRoute` (`sweep.go`) runs the warmup once, before run 1; run 1 alone
   backs `RouteLatency.P95`/`Samples` when there is no later pass. Do not move

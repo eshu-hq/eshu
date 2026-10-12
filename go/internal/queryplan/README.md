@@ -94,8 +94,8 @@ from the runner; it is not recomputed from the oracle rows, because the two
 producers hash different oracle records. The `entry_ids` on a PostgreSQL
 callsite name a registered entry, and the validator does not compare the
 callsite with the entry's source symbol; the entry's query hash and builder
-binding are the checked link. A case labelled `all_scopes` is checked for grant
-tokens in Cypher only; a SQL case relies on the scope mode pinned in the
+binding are the checked link. A case labelled `all_scopes` is checked for `$ALLOWED_` and `$GRANT_` tokens,
+which only Cypher cases use; a SQL case relies on the scope mode pinned in the
 contract. Only graph queries may carry an alternate proof in place of a plan.
 
 `testdata/handler-hot-cypher.yaml` and `testdata/hot-cypher.yaml` hold the

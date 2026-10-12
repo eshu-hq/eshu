@@ -141,7 +141,9 @@ and its process exit code, not through the runtime telemetry surface.
   registry, secrets/IAM, ...) is left not-exercised on purpose rather than
   given a fabricated argument. `ExercisedCoverageFloor` (`coverage.go`) is a
   ratchet on the exercised count — raise it when coverage improves, never
-  lower it to paper over a regression.
+  lower it to paper over a regression. `CoverageFloor` adds the selected
+  pilot operations to it, so a run that selects them cannot hide dropped
+  routes behind the extra passes.
 - `RouteCapability` (`budget.go`) maps a route to its capability id for the
   catalog-tighter-wins budget check. It is not derivable automatically — the
   capability matrix's declared "tools" name is sometimes the route itself
