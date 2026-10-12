@@ -13,7 +13,9 @@ printf '# original GREEN provenance\ndefault\t13\t18\t14\n\nGET /old\t34\t55683\
 printf '# renderer output\ndefault\t14\t20\t15\n\nGET /b\t42\t19000\t82\tGREEN-derived work guard\nGET /a\t39\t18000\t80\tGREEN-derived work guard\n' >"${work}/rendered"
 args=(--baseline "${work}/baseline" --rendered "${work}/rendered" --route 'GET /b' --route 'GET /a' --provenance '2 GREEN reports for #7881 on the enforced runner class')
 bash "${script}" "${args[@]}" --out "${work}/out" || fail 'valid extension failed'
-cmp -n "$(wc -c <"${work}/baseline")" "${work}/baseline" "${work}/out" || fail 'baseline bytes changed'
+# head -c keeps the prefix compare portable: BSD cmp -n reports EOF when the
+# first file is exactly as long as the limit.
+head -c "$(wc -c <"${work}/baseline" | tr -d ' ')" "${work}/out" | cmp -s "${work}/baseline" - || fail 'baseline bytes changed'
 [[ "$(rg -c '^default\t' "${work}/out")" -eq 1 ]] || fail 'default changed'
 [[ "$(rg -c '^GET /old\t' "${work}/out")" -eq 1 ]] || fail 'old row changed'
 [[ "$(rg -c '^GET /[ab]\t' "${work}/out")" -eq 2 ]] || fail 'new rows missing'
