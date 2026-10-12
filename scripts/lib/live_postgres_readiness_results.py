@@ -8,7 +8,7 @@ import sys
 from live_postgres_readiness_events import verify_results
 from live_tests_registry import load_ledger_text
 
-from live_postgres_readiness_inventory import (
+from live_postgres_readiness_records import (
     EXPECTED, PACKAGES, TOTAL_TESTS, neo4j_tests, package_records,
 )
 

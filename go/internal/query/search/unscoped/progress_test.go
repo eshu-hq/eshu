@@ -11,14 +11,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// stalledCorpus makes every window and the tail too slow for the budget, so
-// the probe itself is cancelled and no window completes: the partial that
-// results has made no progress.
+// stalledCorpus makes every window and the tail too slow for the budget: the
+// 200-row probe costs 1 s, more than the whole 800 ms budget, so the probe
+// itself is cancelled and no window completes. The partial that results has
+// made no progress.
 func stalledCorpus() *fakeCorpus {
-	corpus := newCorpus(20000, 2*ms, func(i int) bool { return i == 15000 })
+	corpus := newCorpus(20000, 5*ms, func(i int) bool { return i == 15000 })
 	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
 	return corpus
 }
+
+// stalledEndedIn is where the stalled walk stops: the probe's timeout is the
+// whole budget, so its cancel leaves less than the tail floor and the tail is
+// skipped.
+const stalledEndedIn = "budget"
 
 // A resume built from a partial that scanned nothing is the identical request:
 // the cursor is the request cursor (empty on a first call) and no match was

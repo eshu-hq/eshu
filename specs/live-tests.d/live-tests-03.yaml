@@ -29,6 +29,11 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof of the terraform_state summary model: a row written by the production writer pass (each model row is its own transaction under the same advisory lock, reads its own database clock after the active-work row commits so the terraform_state as_of is not earlier than the active-work as_of, and carries its own digest) and read back by the production stored-summary reader inside a REPEATABLE READ READ ONLY snapshot equals what the two live Terraform-state statements return at an empty database, a few state scopes, past the per-locator rank cap of 50, and with Git backend warnings plus state scopes whose generation ids carry no serial; a warning written after the pass shows the comparison can differ; TestWriterKilledMidCompanionKeepsThePrimaryRowLive terminates the companion's backend between its statements and its upsert and shows the active-work row advances while the terraform_state row keeps its old as_of and still serves equal to live"
     runner: live-postgres-readiness
+  - file: go/internal/query/search/unscoped/large_document_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7730 disposable PostgreSQL 18 proof that a resume chain of the unscoped file search crosses one planted 16 MB document whose 500-row window costs more than the flat 0.375 x budget window timeout of the earlier walk: the budget is twice the window's measured cost, every call advances its cursor, a key-ordered window (not the tail) carries the walk past the document, and the gathered rows equal the old single statement's; the measured budget (about 96-109 ms locally) is at or below the 100 ms MinBudget that BudgetFromEnv enforces, which Searcher.Budget accepts and every ratio scales with, so the mechanics proof holds; one local PostgreSQL 18 run took about 5-8 s"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go
     tag: ~
     class: postgres_ci
