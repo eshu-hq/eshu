@@ -1,0 +1,15 @@
+name: Fixture red checkout after script
+# Seeded RED for scripts/test-verify-workflow-script-checkout.sh (#8008): the
+# job HAS an actions/checkout step, but it comes AFTER the step that runs the
+# repository script, so the script still runs with no tree. The verifier must
+# fail on this file: the checkout must PRECEDE the script step.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve image reference from triggering workflow_run
+        run: bash scripts/ci/resolve-image-scan-ref.sh
+      - name: Check out repository
+        uses: actions/checkout@v5

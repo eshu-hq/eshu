@@ -1,0 +1,15 @@
+name: Fixture red without checkout
+# Seeded RED for scripts/test-verify-workflow-script-checkout.sh (#8008):
+# mirrors the pre-fix trivy-image job shape (a step running
+# `bash scripts/ci/resolve-image-scan-ref.sh` with no actions/checkout step
+# anywhere in the job). The verifier must fail on this file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+      - name: Resolve image reference from triggering workflow_run
+        run: bash scripts/ci/resolve-image-scan-ref.sh
