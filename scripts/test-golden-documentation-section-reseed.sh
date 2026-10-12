@@ -3,14 +3,14 @@
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 container="eshu-documentation-reseed-${$}"
-image="${ESHU_RESEED_TEST_POSTGRES_IMAGE:-postgres:18}"
+image="${ESHU_RESEED_TEST_POSTGRES_IMAGE:-ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873}"
 cleanup() { docker rm -f "${container}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 docker run --detach --name "${container}" --network none \
   -e POSTGRES_PASSWORD=fixture-password "${image}" >/dev/null
 ready=false
 for _ in $(seq 1 30); do
-  if docker exec "${container}" pg_isready -U postgres >/dev/null 2>&1; then
+  if docker exec "${container}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
     ready=true
     break
   fi
