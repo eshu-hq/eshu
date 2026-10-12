@@ -116,7 +116,7 @@ Service-catalog correlation reads use
 scope, provider, entity, repository, ambiguous candidate repository, service,
 workload, owner, outcome, and drift status stay bounded to
 `reducer_service_catalog_correlation` facts.
-`content_files_language_repo_idx` supports language-filtered repository reads.
+`content_files_language_repo_idx` supports language-filtered repository reads. Since #7728 (migrations 171-173) it carries `indexed_at` as an `INCLUDE` column so the per-language `COUNT(*)`/`MAX(indexed_at)` rollup runs as an index-only scan; a trailing `VACUUM (ANALYZE)` keeps the visibility map current enough for the planner to choose it, with default autovacuum maintaining it afterwards.
 Unfiltered inventory may scan `content_files` sequentially (#7247 ops-qa did); both avoid per-repository coverage fan-out.
 SBOM/attestation attachment reads use
 `fact_records_oci_image_referrer_subject_idx`,

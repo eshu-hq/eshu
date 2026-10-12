@@ -95,6 +95,21 @@ var replayGuardedRedefinitions = map[string]replayGuardedRedefinition{
 		LiveMarker: "(scope_id, service_id)",
 		LiveProof:  "TestServiceMaterializationActiveIndexReplayConvergesLive",
 	},
+	// content_files_language_repo_idx (#7728): migration 004 is shipped and
+	// immutable and creates the name with the old (language, repo_id)
+	// definition under IF NOT EXISTS, which matches on NAME only. Replacing
+	// it under a new name would leave 004 recreating the old definition on
+	// any untracked replay, so 171 drops the name only while its indexdef
+	// lacks indexed_at, and 172 recreates it on
+	// (language, repo_id) INCLUDE (indexed_at); after that, 004, 171, and
+	// 172 are all no-ops on replay.
+	"content_files_language_repo_idx": {
+		DropPath:   "go/internal/storage/postgres/migrations/171_drop_content_files_language_repo_idx.sql",
+		Guard:      "indexdef NOT LIKE '%indexed_at%'",
+		LivePath:   "go/internal/storage/postgres/migrations/172_content_files_language_covering_idx.sql",
+		LiveMarker: "(language, repo_id) INCLUDE (indexed_at)",
+		LiveProof:  "TestContentFilesLanguageCoveringIndexReplayConvergesLive",
+	},
 }
 
 // TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay fails when a

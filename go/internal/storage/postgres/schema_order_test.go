@@ -405,4 +405,15 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 170 (#7126) creates the empty config-artifact read model
 	// tables: no trigger, no seed.
 	"config_artifact_read_model",
+	// Migration 171 (#7728) drops content_files_language_repo_idx so 172 can
+	// rebuild it as a covering index (CONCURRENTLY cannot run in a
+	// transaction, so the drop is a separate migration).
+	"drop_content_files_language_repo_idx",
+	// Migration 172 (#7728) rebuilds the language index as
+	// (language, repo_id) INCLUDE (indexed_at) for index-only
+	// per-language COUNT(*)/MAX(indexed_at) reads.
+	"content_files_language_covering_idx",
+	// Migration 173 (#7728) runs VACUUM (ANALYZE) on content_files so the
+	// covering index pays off immediately instead of waiting on autovacuum.
+	"content_files_language_covering_idx_vacuum",
 }

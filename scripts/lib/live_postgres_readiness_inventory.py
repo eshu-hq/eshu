@@ -247,6 +247,9 @@ PACKAGES = {
             "TestReducerContentionGateContentGenerationTagGoModDirtLegs",
             "TestReducerContentionGateContentWriterBlankGenerationStoresNull",
         ),
+        "go/internal/storage/postgres/content_files_language_covering_index_replay_live_test.go": (
+            "TestContentFilesLanguageCoveringIndexReplayConvergesLive",
+        ),
         "go/internal/storage/postgres/identity_epoch_active_set_live_test.go": (
             "TestIdentityEpochIgnoresSupersededGenerationRowsLive",
             "TestIdentityPageQueryServesOnlyActiveGenerationsLive",
