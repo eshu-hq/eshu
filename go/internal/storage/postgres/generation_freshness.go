@@ -246,7 +246,12 @@ func NewPriorGenerationCheck(database db.ExecQueryer) reducer.PriorGenerationChe
 // replace the active one. Served by scope_generations_scope_latest_lookup_idx.
 // work_live (ruling a9-126) reports whether that generation's projector work
 // row is pending, retrying, claimed, or running: one primary-key probe on the
-// canonical projector work_item_id for the single candidate row.
+// canonical projector work_item_id for the single candidate row. Rebuild work
+// (refinalize_ prefix) is invisible to the probe; that is harmless because a
+// refinalize targets only the active or newest failed generation, never a
+// pending one. A probe on stage, scope_id, and generation_id would not depend
+// on the key format but used fact_work_items_scope_generation_idx and took
+// 1.27-3.58 ms on a 3,040-generation scope, against 0.03-0.54 ms here.
 const unchangedGenerationCandidateQuery = `
 SELECT candidate.generation_id,
        candidate.freshness_hint,

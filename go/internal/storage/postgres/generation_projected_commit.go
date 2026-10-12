@@ -91,7 +91,9 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 //   - latest_full_source_commit_sha / latest_full_work_live (ruling a9-126):
 //     the newest full's commit and whether its projector work row is pending,
 //     retrying, claimed, or running, so the sweep holds a live pending full at
-//     the remote head instead of forcing a snapshot the store would skip.
+//     the remote head instead of forcing a snapshot the store would skip. The
+//     probe uses the canonical projector_ work_item_id, as the candidate read
+//     does; refinalize_ rebuild rows never target a pending generation.
 //   - reconcile_*: that generation's #7978 re-projection request, Ack, and
 //     dead-letter stamps, read only while it is still active, so a request a
 //     newer generation fenced off never holds the sweep off.

@@ -132,8 +132,8 @@ cleanup statements also increment
 The full-snapshot counter answers "did reconciliation run?"; the drift
 retraction counter answers "did it actually delete stale graph state?" A
 re-projection of an already-active full generation (#7978 reconcile, #7209
-heal, liveness re-drive) counts as a reconciliation there; a first projection
-does not. Alert on
+heal of any collector, liveness re-drive, rebuild or refinalize) counts as a
+reconciliation there; a first projection does not. Alert on
 sustained nonzero retractions after the first reconciliation window, and use
 projector logs/spans keyed by `scope_id`, `repo_id`, and `generation_id` for the
 specific source. Those identifiers are intentionally not metric labels.
