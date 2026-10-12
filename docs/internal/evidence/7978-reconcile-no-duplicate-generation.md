@@ -65,9 +65,10 @@ it did retract that drift.
 
 ## Performance Evidence
 
-Performance Evidence: measured at `2829f94620` on base `47ea898275`, the last
-commit that changes Go code on this branch; later commits change only docs. The
-measured path includes the a9-126 `work_live` probe on the candidate read. The
+Performance Evidence: measured at `01a05e8322`, the last commit that changes Go
+code on this branch; later commits change only docs. It was measured on base
+`47ea898275`, before the rebase onto `d632a089f7` (tree-identical for this
+branch's files, patch-id equal). The measured path includes the a9-126 `work_live` probe on the candidate read. The
 backend is a private local PostgreSQL 18.6 cluster (Homebrew) on a shared host.
 The host was CONTENDED: load1 was 31.6-33.2 before and after every run, with
 another session's heavy jobs on it. `TestUnchangedReconcileStoresNothingLive`,
@@ -82,11 +83,11 @@ time, so treat it as an order-of-magnitude result.
 | 6,800 | 1.38-1.94 ms (3 runs) | 545-606 ms (3 runs) | no new row in the six counted tables (generation, fact, search document, search term, content, work); the active generation's projector work row is re-opened in place |
 
 The before path wrote 1 generation row, 6,800 fact rows, and 1 work row in each
-run. An earlier measurement at `ccbef3a3ec`, before the `work_live` probe and
+run. An earlier measurement at `2a1e6c1838` (also before the rebase), before the `work_live` probe and
 on a load of about 28, gave 1.03-1.15 ms against 308-366 ms.
 
 The independent review measured 1.36 ms against 13.0 ms at 200 facts on its
-own PostgreSQL 18.6 instance, and 1.74 ms against 12.2 ms at `c0e7de5b6b`.
+own PostgreSQL 18.6 instance, and 1.74 ms against 12.2 ms at `f94e1cfc94` (before the rebase).
 
 The reducer then rebuilds documents and terms for the before path; that cost
 was not measured here. The collector still parses the repository for a reconcile, because the
