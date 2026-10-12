@@ -86,8 +86,9 @@ Seq Scan (584,920 rows filtered, 20,199 buffers, 241.8 ms warm). Faster
 here (sequential beats 240k random heap fetches), but O(corpus) instead
 of O(repo). With `enable_seqscan = off` the planner finds a
 BitmapAnd (name/source trigram OR, repo slice) at 6.4 ms and 284 buffers
-in the after arm — the optimal plan needs no repo_idx in either arm, so
-the drop removes a costing trap, not a load-bearing path. Small-repo
+in the after arm — an uncommitted knob-divergent probe (no raw output under
+`7759/`, directional only). The optimal plan needs no repo_idx in either
+arm, so the drop removes a costing trap, not a load-bearing path. Small-repo
 probes keep the #7246 bitmap-AND shape on `repo_language_type` with no
 time change (S1 0.85 to 0.88 ms, S2 0.56 to 0.58 ms).
 
@@ -96,7 +97,7 @@ time change (S1 0.85 to 0.88 ms, S2 0.56 to 0.58 ms).
 The s1-wal method from #7749: 105,000-row sample reinserted into a
 btree-only copy (GINs excluded; identical cost in both arms),
 `CHECKPOINT` before each arm, `EXPLAIN (ANALYZE, WAL)`, arms alternated
-twice. Byte-identical across rounds:
+twice. Near-identical across rounds (with-arm exact; without-arm ±1 record, ~7 KB):
 
 | arm | WAL records | WAL bytes | insert time |
 | --- | --- | --- | --- |
@@ -177,7 +178,8 @@ Performance Evidence: warm buffers identical before/after dropping
 `content_entities_repo_idx` for 11 of 12 probe queries; the code-topic
 big-repo probe flips from an index scan (8,512 buffers, 460.7 ms) to a
 seq scan (20,199 buffers, 241.8 ms), and its optimal bitmap-AND plan
-(284 buffers, 6.4 ms) is available without the index. Write path saves
+(284 buffers, 6.4 ms, uncommitted knob-divergent probe, directional only)
+is available without the index. Write path saves
 1.01 WAL records and 74 bytes per row. No migration lands here; the
 replay-guard analysis above blocks item 4 pending an owner decision.
 

@@ -1,5 +1,7 @@
--- 7759 shim: scratch schema mirroring production content_entities index set.
--- Tables from migrations/004_content_store.sql; indexes from 004/035/062/077/104/107/132/164.
+-- 7759 shim tables: tables-only half of the scratch schema.
+-- Pair with indexes.sql for the full setup; schema.sql holds the same
+-- tables plus the full 004/035/062/077/104/107/132/164 index set in one file.
+-- Tables from migrations/004_content_store.sql.
 -- Non-CONCURRENTLY builds: same definitions, faster on a scratch box.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
@@ -36,7 +38,3 @@ CREATE TABLE content_files (
     iac_relevant BOOLEAN NULL,
     PRIMARY KEY (repo_id, relative_path)
 );
-
--- 004 set
-CREATE INDEX content_entities_repo_idx ON content_entities (repo_id);
-CREATE INDEX content_entities_type_idx ON content_entities (entity_type);
