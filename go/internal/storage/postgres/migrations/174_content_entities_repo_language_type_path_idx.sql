@@ -1,0 +1,81 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Stop the language-query ordered page read at LIMIT instead of heap-walking
+-- every other repository's matching rows first (#7735).
+-- Evidence: docs/internal/evidence/7735-content-entities-page-read-index.md.
+--
+-- WHAT GOES WRONG TODAY (scratch clone, PG 18.6, 520,000 content_entities
+-- rows, 2026-10-12). SearchEntitiesByLanguageAndTypeForAccess
+-- (go/internal/query/content_reader_entity_search.go) pages with
+-- WHERE repo_id = $1 AND entity_type = $2 AND (language = $3)
+-- ORDER BY relative_path, start_line, entity_name LIMIT 10. For a repository
+-- with 32,000 php Function rows whose paths sort late in the corpus-wide
+-- (language, entity_type, relative_path, ...) index, the planner serves the
+-- ORDER BY from the migration-107 (language, entity_type, relative_path, ...)
+-- index and applies repo_id as a heap Filter:
+--
+--   Index Scan using the migration-107 index
+--     Index Cond: (language = 'php' AND entity_type = 'Function')
+--     Filter: repo_id = 'repo_big_php'   Rows Removed by Filter: 78933
+--     Buffers: shared hit=80234   Execution Time: 65.649 ms warm
+--
+-- Cost follows the rows that sort before the repository, not the page size.
+-- The #7729 gate index (migration 164) does not help: the gate costs 4
+-- buffers while the page keeps its 80,000-buffer walk, so the page read, not
+-- the gate, dominates this case.
+--
+-- THE INDEX. (repo_id, language, entity_type) are the page's equality
+-- columns and (relative_path, start_line, entity_name) is exactly its ORDER
+-- BY key, so the filter becomes a three-column Index Cond and the Sort node
+-- disappears. Measured on the same clone, same parameters, five warm samples:
+--
+--   Index Scan using content_entities_repo_language_type_path_idx
+--     Index Cond: (repo_id = ... AND language = 'php' AND entity_type = 'Function')
+--     Buffers: shared hit=13   Execution Time: 0.140 ms warm
+--
+-- No Sort, no Filter, rows=10: the scan stops at the page. The 10 returned
+-- rows are byte-identical with and without the index. Five companion shapes
+-- show no regression (small matching repository, corpus-empty and
+-- repo-empty zero-match, the javascript|jsx OR variant, unscoped matching):
+-- every arm keeps its plan at the same sub-millisecond cost, and the small
+-- repository page additionally loses its Incremental Sort.
+--
+-- WHAT IT DOES NOT FIX. The (language = $2 OR language = $3) variant that
+-- normalizedLanguageVariants emits for javascript, typescript and csharp
+-- cannot drive one ordered scan, so those three languages keep the
+-- repo-first plan with an Incremental Sort -- unchanged and still
+-- sub-millisecond here, neither helped nor harmed.
+--
+-- COST. 45 MB, built CONCURRENTLY in 3.8 s on the 520k-row clone (about
+-- 163 MB extrapolated to a 1.88M-row corpus). Write path, from
+-- EXPLAIN (ANALYZE, WAL) over 60,000-row inserts into a btree-only copy of
+-- content_entities, arms alternated over two rounds, CHECKPOINT before each:
+-- 548,099 WAL records and 62,339,813 bytes without, both rounds identical,
+-- against 608,937 records and 72,962,131 bytes with -- about 1.01 extra WAL
+-- records and 177 extra bytes per row (+11.1% records, +17.0% bytes; the
+-- relative figure is smaller on production, where the GIN trigram indexes
+-- add WAL in both arms), and +25% insert time on that copy.
+--
+-- WHY NOT A COVERING INDEX. The SELECT list carries source_cache and
+-- metadata, unbounded text/JSONB blobs; a btree leaf tuple cannot exceed
+-- ~2.7 KiB, so INCLUDE-ing them risks CREATE INDEX failing on a real, valid
+-- row and leaving an INVALID index behind. The key stays six bounded
+-- columns; the 13-buffer page proves the heap reads it keeps are cheap.
+--
+-- COORDINATION. This migration serializes AFTER the #7729 gate index
+-- (migration 164): 164's key is a strict prefix of this one, and the gate
+-- keeps seeking on 164's smaller key while the page seeks here, which is
+-- why both exist rather than one superseding the other. content_entities_repo_idx
+-- becomes a prefix of this key too; it is kept (no DROP in this file) and its
+-- removal stays with its owner review in eshu-hq/eshu#7759, which already
+-- shows it is not idle (71 scans reading 18.7M tuples on the production
+-- reader), so a drop needs plan evidence first.
+--
+-- CONCURRENTLY so bootstrap never blocks the ingester's content writes;
+-- IF NOT EXISTS so every later bootstrap over an install that has it is a
+-- no-op. The lone statement in this file so the migration coordinator can run
+-- it outside a transaction (coordination.IsSoleConcurrentIndexStatement). A
+-- new file per issue #7002: never edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS content_entities_repo_language_type_path_idx
+    ON content_entities (repo_id, language, entity_type, relative_path, start_line, entity_name);
