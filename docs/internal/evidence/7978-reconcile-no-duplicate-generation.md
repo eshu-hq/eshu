@@ -65,25 +65,31 @@ it did retract that drift.
 
 ## Performance Evidence
 
-Performance Evidence: measured at `ccbef3a3ec` on base `47ea898275` (the code
-of the final head; later commits change only docs). The backend is a private
-local PostgreSQL 18.6 cluster (Homebrew) on a shared host with load average
-about 28. `TestUnchangedReconcileStoresNothingLive`, with its fixture set to
-6,800 facts for this run, measures the store commit time through the
-production `IngestionStore` and `ProjectorQueue`. The "before" column is the
-same reconcile with the blank hint that main's collector sends. Each figure is
-a single-process wall time, so treat it as an order-of-magnitude result.
+Performance Evidence: measured at `2829f94620` on base `47ea898275`, the last
+commit that changes Go code on this branch; later commits change only docs. The
+measured path includes the a9-126 `work_live` probe on the candidate read. The
+backend is a private local PostgreSQL 18.6 cluster (Homebrew) on a shared host.
+The host was CONTENDED: load1 was 31.6-33.2 before and after every run, with
+another session's heavy jobs on it. `TestUnchangedReconcileStoresNothingLive`,
+with its fixture set to 6,800 facts for this run only, measures the store
+commit time through the production `IngestionStore` and `ProjectorQueue`. The
+"before" column is the same reconcile with the blank hint that main's
+collector sends, in the same process. Each figure is a single-process wall
+time, so treat it as an order-of-magnitude result.
 
 | facts per generation | fixed reconcile | blank-hint reconcile (before) | rows written by the fixed reconcile |
 | ---: | --- | --- | --- |
-| 6,800 | 1.03-1.15 ms (3 runs) | 308-366 ms (3 runs) | 0 generation, 0 fact, 0 search, 0 content |
+| 6,800 | 1.38-1.94 ms (3 runs) | 545-606 ms (3 runs) | no new row in the six counted tables (generation, fact, search document, search term, content, work); the active generation's projector work row is re-opened in place |
+
+The before path wrote 1 generation row, 6,800 fact rows, and 1 work row in each
+run. An earlier measurement at `ccbef3a3ec`, before the `work_live` probe and
+on a load of about 28, gave 1.03-1.15 ms against 308-366 ms.
 
 The independent review measured 1.36 ms against 13.0 ms at 200 facts on its
-own PostgreSQL 18.6 instance.
+own PostgreSQL 18.6 instance, and 1.74 ms against 12.2 ms at `c0e7de5b6b`.
 
-The before path also writes 1 generation row, every fact row, and 1 work row.
-The reducer then rebuilds documents and terms; that cost was not measured
-here. The collector still parses the repository for a reconcile, because the
+The reducer then rebuilds documents and terms for the before path; that cost
+was not measured here. The collector still parses the repository for a reconcile, because the
 content hint needs parse output. This change does not save the parse.
 
 Plans: generic plans (`plan_cache_mode = force_generic_plan`) with `EXPLAIN
