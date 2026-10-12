@@ -1,0 +1,635 @@
+scripts/lib/live_postgres_readiness_inventory.py
+  s_29175cf8c573b8::t_08a0af69923064 1-453
+specs/live-tests.d/live-tests-04.yaml
+  s_29175cf8c573b8::t_08a0af69923064 1-436
+docs/internal/evidence/7916-first-generation-readiness.md
+  s_29175cf8c573b8::t_a337f306830147 117-125
+.github/static-contract-filters.yml
+  s_29175cf8c573b8::t_47d310d94a0b2a 1-435
+.github/workflows/docker-publish.yml
+  s_29175cf8c573b8::t_2a55c97b4b2493 191-193,209-217,369-372,384-393,425-427,437-445
+.github/workflows/e2e-tests.yml
+  s_29175cf8c573b8::t_63b561cced43f6 45-48,54-62
+.github/workflows/frontend.yml
+  s_29175cf8c573b8::t_f36e4aaf6346a1 172-176,181-189,227-231,236-244,300-304,309-317
+.github/workflows/golden-corpus-gate.yml
+  s_29175cf8c573b8::t_8de0b1ded932a8 183,206-210,213-222,249-251,256-264,310-313,318-326
+.github/workflows/ifa-determinism-gate.comments.md
+  s_29175cf8c573b8::t_633f1a3374d1bb 1-366
+.github/workflows/ifa-determinism-gate.yml
+  s_29175cf8c573b8::t_afc27b08dc4de1 1,6,90-93,346-347,360,364-367,369-372,402,406-408,437,445,467
+.github/workflows/live-backend-tests.yml
+  s_29175cf8c573b8::t_38ffddb473f450 28,34,36,62-65,70-80,101-103,108-116
+.github/workflows/live-postgres-readiness.yml
+  s_29175cf8c573b8::t_00744f59cbf11c 5,37,39,43,45,47,81,83,87,89,91,113-122,126-131,145-150,167-178
+.github/workflows/main-health.yml
+  s_29175cf8c573b8::t_961ad3a63eb1d5 119-124
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_97709ff796fea6 133-135,140-148
+.github/workflows/reducer-contention-gate.yml
+  s_29175cf8c573b8::t_5af2662b3dc475 62-67
+.github/workflows/replay-coverage-gate.yml
+  s_29175cf8c573b8::t_288fd0f4ad4772 42
+.github/workflows/static-contract-gates.yml
+  s_29175cf8c573b8::t_aa03b71097161b 58,80,144-151,172-176,182-190
+.github/workflows/test.comments.md
+  s_29175cf8c573b8::t_b6e5054ecd1585 1-455
+.github/workflows/test.yml
+  s_29175cf8c573b8::t_a2795eaf0ccb08 1,76-78,85-91,381-386
+docs/internal/design/430-nornicdb-graph-search-split.md
+  s_29175cf8c573b8::t_38ce7919be4921 3-5,221
+docs/internal/design/7033-exact-code-topic-retrieval.md
+  s_29175cf8c573b8::t_8e79e3eb94bb03 11,149,165,201,210,218
+docs/internal/design/7324-cross-scope-writer-rearm.md
+  s_29175cf8c573b8::t_38497eacc03076 182
+docs/internal/evidence/4207-canonical-retract-anchor-direction.md
+  s_29175cf8c573b8::t_cfe44678a68140 3-5,182-192,211,259
+docs/internal/evidence/5265-exposure-service-selection.md
+  s_29175cf8c573b8::t_07b815c74dc16f 3-5,19,66,90
+docs/internal/evidence/5299-service-story-identity.md
+  s_29175cf8c573b8::t_a7535c36c08a58 3-5,10,23,80
+docs/internal/evidence/6070-structural-edge-budget.md
+  s_29175cf8c573b8::t_4c08a1046ec1df 3-5,25,38,57-58,60
+docs/internal/evidence/6541-directory-query-s2.md
+  s_29175cf8c573b8::t_04cd56671dee93 10-11
+docs/internal/evidence/6590-oci-registry-truth-bound.md
+  s_29175cf8c573b8::t_536f3c16119950 22,88
+docs/internal/evidence/6590-tier-cardinality.md
+  s_29175cf8c573b8::t_a8cc675e9c27c0 81
+docs/internal/evidence/6649-calls-degree-floor.md
+  s_29175cf8c573b8::t_77d6b92f50221c 15,73
+docs/internal/evidence/6703-directory-file-ownership.md
+  s_29175cf8c573b8::t_ed8e0c11eb844b 63,69,80,117,119
+docs/internal/evidence/6704-directory-query-neo4j-qa-scale.md
+  s_29175cf8c573b8::t_fa33a615f31ae5 1,5,14,32-33,49,52,55,122,205
+docs/internal/evidence/6705-tag-history-refill-neo4j-scale.md
+  s_29175cf8c573b8::t_94c9d6204997e6 108,201
+docs/internal/evidence/6738-admin-replay-identity-fence.md
+  s_29175cf8c573b8::t_0c6548b6105f77 3,49,65
+docs/internal/evidence/6738-fips-identity-epoch.md
+  s_29175cf8c573b8::t_e1ede3a7fd0d21 1,6,19
+docs/internal/evidence/6738-nornicdb-transaction-timeout-retry.md
+  s_29175cf8c573b8::t_501003867d4e7c 5,81,92
+docs/internal/evidence/6738-postgres-bootstrap-migration-ledger.md
+  s_29175cf8c573b8::t_5d4113978037a1 99,101,108
+docs/internal/evidence/6738-projector-active-generation-fence.md
+  s_29175cf8c573b8::t_edb8d6ad224f80 3,9,11,13
+docs/internal/evidence/6738-semantic-grouped-writes.md
+  s_29175cf8c573b8::t_f3b1de05c9ffad 3-5,10,13-14,52
+docs/internal/evidence/6738-source-local-files-timing.md
+  s_29175cf8c573b8::t_8c29259ff66e28 3,19
+docs/internal/evidence/6738-status-readiness-under-drain.md
+  s_29175cf8c573b8::t_e71fc81e4f45ee 1,11,25,32,46
+docs/internal/evidence/6753-fips-postgres-md5.md
+  s_29175cf8c573b8::t_ceed33653dacb7 5,30,47,68,83,89,99
+docs/internal/evidence/6798-file-create-missing-index.md
+  s_29175cf8c573b8::t_a154cca9447cc0 3,15
+docs/internal/evidence/6807-story-target-support-source-only.md
+  s_29175cf8c573b8::t_825691eae6ad9d 21
+docs/internal/evidence/6814-readiness-supersession-anchor.md
+  s_29175cf8c573b8::t_e35bcad96b65e8 16,80
+docs/internal/evidence/6822-bare-label-retract-probe.md
+  s_29175cf8c573b8::t_0ade8a04bc1f5b 3,5,9
+docs/internal/evidence/6851-file-import-cycles.md
+  s_29175cf8c573b8::t_02916f3782864e 3-5,19,21
+docs/internal/evidence/6929-outlier-cohort-index-seek.md
+  s_29175cf8c573b8::t_3560feb031295e 13,16-19,28,41-44,52,55,66,105,115,124,129,132,194,198,201-202,206
+docs/internal/evidence/7004-cic-lock-timeout.md
+  s_29175cf8c573b8::t_cc3489803c8d96 34,76
+docs/internal/evidence/7006-code-quality-context-anchor-fix.md
+  s_29175cf8c573b8::t_379655ee241576 6,10,34,57,111,146,157,293,317,401,438,440
+docs/internal/evidence/7006-live-answer-truth-fallback.md
+  s_29175cf8c573b8::t_e4d9680c59639d 37
+docs/internal/evidence/7007-readiness-dependency-gap-scope.md
+  s_29175cf8c573b8::t_e1f3240bb99d63 3-5,8,16,34,46,52,58-60,63,86,93
+docs/internal/evidence/7009-active-work-grouped-history.md
+  s_29175cf8c573b8::t_28003bfcdeb16a 8,157-158,211,247,250-251
+docs/internal/evidence/7009-bundle-status-selection.md
+  s_29175cf8c573b8::t_3b17006521f8f8 21
+docs/internal/evidence/7009-semantic-status-selection.md
+  s_29175cf8c573b8::t_4b5ee1069a3708 29
+docs/internal/evidence/7009-status-detail-selection.md
+  s_29175cf8c573b8::t_8f2f81d74e145d 23
+docs/internal/evidence/7009-status-snapshot-jit-off.md
+  s_29175cf8c573b8::t_cd393d46bb1d8f 34-35,41-42,123-124,130,141-143,202,205,207,210-211,213,217,219,228
+docs/internal/evidence/7009-status-snapshot-materialization.md
+  s_29175cf8c573b8::t_51633143807fb7 16,43,48,89
+docs/internal/evidence/7009-status-summary-metrics-scrape.md
+  s_29175cf8c573b8::t_0c81a3bd48faed 189
+docs/internal/evidence/7009-status-summary-read-model.md
+  s_29175cf8c573b8::t_02075265d1b93b 142
+docs/internal/evidence/7009-status-summary-reader.md
+  s_29175cf8c573b8::t_5cb288aef0c5f4 56,201
+docs/internal/evidence/7009-status-summary-writer.md
+  s_29175cf8c573b8::t_6126afa9f324dc 31,107,157
+docs/internal/evidence/7009-status-terraform-route-selection.md
+  s_29175cf8c573b8::t_aba3942deac67a 73,77,85
+docs/internal/evidence/7009-status-terraform-state-model.md
+  s_29175cf8c573b8::t_48be6824f11483 16,64,90,95,97,102-103,139,150,166,216-217,269
+docs/internal/evidence/7033-code-topic-partition-tracing.md
+  s_29175cf8c573b8::t_60e7c96f9d9689 5,9,11
+docs/internal/evidence/7033-exact-code-topic-parallel.md
+  s_29175cf8c573b8::t_f109b7710e0d7f 7,9,69,121,164,180,215,217,221,283,288,294,303,393,406,445
+docs/internal/evidence/7033-fleet-attempt-budget.md
+  s_29175cf8c573b8::t_e7d7bf095c5e38 6,48
+docs/internal/evidence/7033-fleet-capacity-fallback.md
+  s_29175cf8c573b8::t_e661d228790052 11,73,90
+docs/internal/evidence/7033-reader-fleet-identity-final-source.md
+  s_29175cf8c573b8::t_b30b2f56ef3f36 45
+docs/internal/evidence/7033-singleton-reader-fleet.md
+  s_29175cf8c573b8::t_174432fe453001 31,55,57,74-75
+docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
+  s_29175cf8c573b8::t_9106e750f86273 41-42,53,86,88,102,160,176,209,245,253,278,292,294,304,309,315,459
+docs/internal/evidence/7062-provenance-gauge-scrape.md
+  s_29175cf8c573b8::t_81a71b29b2fa81 13,44
+docs/internal/evidence/7088-opsqa-migration159-run-20261003.md
+  s_29175cf8c573b8::t_26aadc42c5bfc5 1,125
+docs/internal/evidence/7088-readiness-repo-scope.md
+  s_29175cf8c573b8::t_1553a6917e0b04 3,5,41,59-60,70,77-78,81,133,135,137,144,182,199,206,227-228,230,242,255,315
+docs/internal/evidence/7089-entity-context-uid-anchor.md
+  s_29175cf8c573b8::t_4f428cbe0a8713 6,41,101
+docs/internal/evidence/7095-neo4j-narrow-uid-constraints.md
+  s_29175cf8c573b8::t_42fef069024624 10
+docs/internal/evidence/7108-projector-claim-lock-first.md
+  s_29175cf8c573b8::t_d06124e422d2f9 3
+docs/internal/evidence/7109-reducer-heartbeat-stop-race.md
+  s_29175cf8c573b8::t_0abac5fe4dbf80 17
+docs/internal/evidence/7116-recover-failed-scopes.md
+  s_29175cf8c573b8::t_17c017de4406b5 3-5,12,114,144-145
+docs/internal/evidence/7121-superseded-generation-intent-drain.md
+  s_29175cf8c573b8::t_b7610aaae13d45 13,220
+docs/internal/evidence/7125-secret-lines-side-table.md
+  s_29175cf8c573b8::t_a96f4b6a4315f4 4,19,107,109-110,438,444,472
+docs/internal/evidence/7127-changed-since-ledger-retention.md
+  s_29175cf8c573b8::t_9f74080459c1d9 346
+docs/internal/evidence/7127-changed-since-link-writer-g8.md
+  s_29175cf8c573b8::t_fd2001dba0ae8a 149
+docs/internal/evidence/7127-changed-since-link-writer.md
+  s_29175cf8c573b8::t_b4ed1df5da5706 249,336
+docs/internal/evidence/7127-changed-since-prior-fence.md
+  s_29175cf8c573b8::t_0643e6e5f000d9 51,213
+docs/internal/evidence/7127-changed-since.md
+  s_29175cf8c573b8::t_6d4a10046dc061 31
+docs/internal/evidence/7128-documentation-facts-active-generation.md
+  s_29175cf8c573b8::t_85982d0bd22ffd 51,81,85,115,148,154,156,158,191,300-301,315
+docs/internal/evidence/7129-context-artifact-endpoint-bound.md
+  s_29175cf8c573b8::t_5de6227c55897b 7,20,75,96,100,110,122,125,152
+docs/internal/evidence/7129-cross-repo-dead-code-boundary-hoist.md
+  s_29175cf8c573b8::t_a8cb580d3f6e6a 6,70
+docs/internal/evidence/7129-cross-repo-dead-code-detail-handles.md
+  s_29175cf8c573b8::t_36fc11d072e251 150
+docs/internal/evidence/7133-code-quiescence-scope.md
+  s_29175cf8c573b8::t_8b4d27c58019b8 3,15,18,44,77,84,97-98,101,133,183
+docs/internal/evidence/7154-capped-scope-convergence.md
+  s_29175cf8c573b8::t_825481da9b8230 272
+docs/internal/evidence/7164-documentation-related-active-generation.md
+  s_29175cf8c573b8::t_7657a33696266e 22,38,45
+docs/internal/evidence/7165-emitted-full-successor-drain.md
+  s_29175cf8c573b8::t_19e968f7faceb6 5,86
+docs/internal/evidence/7166-quiescence-gate-stats.md
+  s_29175cf8c573b8::t_34c8423db4533f 60
+docs/internal/evidence/7169-context-hostname-cap.md
+  s_29175cf8c573b8::t_5d5790a9388af0 6,46
+docs/internal/evidence/7212-id-anchor-census.md
+  s_29175cf8c573b8::t_434416c2892d10 24,165,173,179,237,279
+docs/internal/evidence/7212-wide-entity-anchor.md
+  s_29175cf8c573b8::t_91704a4ad99b83 64,73,80,82,154,219,221,223
+docs/internal/evidence/7228-code-drifted-bucket-skip.md
+  s_29175cf8c573b8::t_7f4cbdfa5439fb 9
+docs/internal/evidence/7234-docstring-read-clip.md
+  s_29175cf8c573b8::t_e67cd24113139e 74
+docs/internal/evidence/7237-code-search-filter-page.md
+  s_29175cf8c573b8::t_4fdc5ffdb70caf 8-10,39-40
+docs/internal/evidence/7241-function-name-read-paths.md
+  s_29175cf8c573b8::t_c9dfc47efc763c 77
+docs/internal/evidence/7242-repository-context-coverage.md
+  s_29175cf8c573b8::t_5b7dc227fc5120 5,15,26,45,60,88
+docs/internal/evidence/7242-workload-name-scope-index.md
+  s_29175cf8c573b8::t_45af18d4599da7 5,33
+docs/internal/evidence/7244-incident-context-anchor-lookup.md
+  s_29175cf8c573b8::t_63533794b982d8 3,11
+docs/internal/evidence/7246-change-surface-label-test.md
+  s_29175cf8c573b8::t_63fd51fc54ec4c 12-15,138-146,150,157,163,244
+docs/internal/evidence/7246-code-topic-scoped-one-term.md
+  s_29175cf8c573b8::t_875270d82529e4 18-21,23,80-89,102-104,117,123-124,130,136
+docs/internal/evidence/7246-topic-terms-correction.md
+  s_29175cf8c573b8::t_c8f499339f4d21 20
+docs/internal/evidence/7247-repository-by-language-shared-read.md
+  s_29175cf8c573b8::t_b2a1afece138b7 20,77
+docs/internal/evidence/7247-repository-language-inventory-two-stage.md
+  s_29175cf8c573b8::t_10e79de6d29c3b 5,11,26
+docs/internal/evidence/7248-repository-tree-path.md
+  s_29175cf8c573b8::t_b367cb2e355839 18,25-26
+docs/internal/evidence/7250-capped-workflow-coverage.md
+  s_29175cf8c573b8::t_fab5f0b20c1993 57
+docs/internal/evidence/7251-neo4j-graph-summary-degree.md
+  s_29175cf8c573b8::t_4495bbf943bde1 11,17,32,40
+docs/internal/evidence/7252-dependency-path-self.md
+  s_29175cf8c573b8::t_4a465c13faae8f 11
+docs/internal/evidence/7254-code-fingerprint-band-entity-idx.md
+  s_29175cf8c573b8::t_3715c7bb3ce3fa 17,360
+docs/internal/evidence/7279-retention-per-candidate-key-probe.md
+  s_29175cf8c573b8::t_28bdb666c37760 13,91,128,151,200,207,209,225
+docs/internal/evidence/7282-changed-since-delta-generation.md
+  s_29175cf8c573b8::t_b06b9ad5ad54bc 7,19
+docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md
+  s_29175cf8c573b8::t_5a52250cccb4a4 18,71,312
+docs/internal/evidence/7288-reconcile-sweep-active-baseline.md
+  s_29175cf8c573b8::t_e49928d5bc422c 29,37,147
+docs/internal/evidence/7290-changed-since-poisoned-links-read.md
+  s_29175cf8c573b8::t_cf7bf6c55872f4 108
+docs/internal/evidence/7320-supersede-prior-failure.md
+  s_29175cf8c573b8::t_048fe8b79518c1 22,160,171,222,278,401,406,409,433
+docs/internal/evidence/7325-outlier-fanout-batch.md
+  s_29175cf8c573b8::t_92021b62af59c0 25,104,363
+docs/internal/evidence/7334-generation-retention-selection.md
+  s_29175cf8c573b8::t_87142c46e94836 26-27,45
+docs/internal/evidence/7339-outlier-high-degree-tail.md
+  s_29175cf8c573b8::t_f81fa43590455a 8,22,83,148
+docs/internal/evidence/7346-flag-consumption.md
+  s_29175cf8c573b8::t_5b94991344ab4b 3-5,258-259,293
+docs/internal/evidence/7389-remote-no-regression.md
+  s_29175cf8c573b8::t_bb3e85bbf076cb 3-5,243-248
+docs/internal/evidence/7407-failure-text-bound.md
+  s_29175cf8c573b8::t_198a0099fd0402 32-33,96
+docs/internal/evidence/7419-generation-prune-generation-idx.md
+  s_29175cf8c573b8::t_025f63731e1db1 29,40,58,62,80,83,89,103,105,108,146,188,191,195,205
+docs/internal/evidence/7458-search-document-supersede.md
+  s_29175cf8c573b8::t_9376e64043ac0b 208
+docs/internal/evidence/7471-marked-write-bound.md
+  s_29175cf8c573b8::t_0afb90e053e325 42,45,99
+docs/internal/evidence/7516-opsqa-code-topic-budget.md
+  s_29175cf8c573b8::t_0a1c692cb2604d 1,6
+docs/internal/evidence/7531-code-drifted-plan-regime.md
+  s_29175cf8c573b8::t_b06aa33c53a39e 13
+docs/internal/evidence/7542-materialized-repository-workload-count.md
+  s_29175cf8c573b8::t_c7abe46576d82e 143,153
+docs/internal/evidence/7545-reader-stage-attribution-cost.md
+  s_29175cf8c573b8::t_2d0ea6736fb9cb 178
+docs/internal/evidence/7546-impact-findings-500-signal.md
+  s_29175cf8c573b8::t_4a129de3258c4b 5
+docs/internal/evidence/7547-cross-repo-consumer-coverage.md
+  s_29175cf8c573b8::t_fe16b1699ae634 228,306
+docs/internal/evidence/7547-reachability-epoch-4-bump.md
+  s_29175cf8c573b8::t_0bacfeaad8d169 14,19,70,98,197-198,204,223-224,227,238,278,281,290
+docs/internal/evidence/7552-runtime-environment-scope-first-fence.md
+  s_29175cf8c573b8::t_fc9741d6c6b132 14,25
+docs/internal/evidence/7585-retention-hard-ceiling-no-regression.md
+  s_29175cf8c573b8::t_5345a125301a6a 38
+docs/internal/evidence/7601-anchored-symbol-definition-loader.md
+  s_29175cf8c573b8::t_ef3fa0a166dd25 8-10,114,122,135,163,220,282,331
+docs/internal/evidence/7601-js-ts-package-keys.md
+  s_29175cf8c573b8::t_70deca554996d8 263,269
+docs/internal/evidence/7603-test-only-consumers.md
+  s_29175cf8c573b8::t_bf5d66af6bc34b 3-6,132,136,171,181,211
+docs/internal/evidence/7609-manifest-generation.md
+  s_29175cf8c573b8::t_d56355466dba76 54
+docs/internal/evidence/7623-go-module-anchored-loader.md
+  s_29175cf8c573b8::t_bf04adef2c812d 137
+docs/internal/evidence/7907-marker-retry-pacing-cause.md
+  s_29175cf8c573b8::t_ff6cc7c8465131 1-75
+docs/internal/evidence/generation-liveness-refinalize-sibling.md
+  s_29175cf8c573b8::t_76a5fe621b40b2 12
+docs/internal/evidence/git-sync-fault-isolation.md
+  s_29175cf8c573b8::t_a0d09efac00676 3,15
+docs/internal/evidence/migration-093-restore.md
+  s_29175cf8c573b8::t_23e7227552ac8a 7
+docs/internal/evidence/neo4j-canonical-write-timeout.md
+  s_29175cf8c573b8::t_3628b3e69c1185 5,105,124,130
+docs/internal/evidence/searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md
+  s_29175cf8c573b8::t_34afab9e2b0b65 3-5,25
+docs/internal/evidence/searchbench-evidence/issue-2237-inverted-index-2026-06-13.md
+  s_29175cf8c573b8::t_4b1e2094046337 3-5,15
+docs/internal/evidence/seconds-histogram-buckets.md
+  s_29175cf8c573b8::t_018b08a269f04d 6
+docs/internal/measurements.jsonl
+  s_29175cf8c573b8::t_bc0759991af623 174-175
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_45800257aac4b2 11,42,84,206,210,215-218,220-227,229,238,240-241,247-249,253-266,268,277,280-281,285-289,291-300,302-306,309,316-317,325-327,330,332
+docs/public/reference/telemetry/metrics.md
+  s_29175cf8c573b8::t_7b5986d6bd6f20 196-197
+go/cmd/capability-inventory/surfaces.go
+  s_29175cf8c573b8::t_a275757fd3f395 245
+go/cmd/ci-gates/README.md
+  s_29175cf8c573b8::t_d4d10114a812b1 362-377
+go/cmd/ci-gates/compare.go
+  s_29175cf8c573b8::t_b3ed29135a84c6 1-41
+go/cmd/ci-gates/fragments.go
+  s_29175cf8c573b8::t_1ad345947df7c9 1-34
+go/cmd/ci-gates/ifa_registry_test.go
+  s_29175cf8c573b8::t_bd15bdb1fa5134 291-294
+go/cmd/ci-gates/layers_test.go
+  s_29175cf8c573b8::t_b8a52d99ef834b 12-13,22-30
+go/cmd/ci-gates/main.go
+  s_29175cf8c573b8::t_fe10942bd243e9 53-56
+go/cmd/ci-gates/usage.go
+  s_29175cf8c573b8::t_15e0704caea539 12,21-22
+go/cmd/fact-kind-registry/main.go
+  s_29175cf8c573b8::t_5097b474693678 427
+go/cmd/reducer/container_image_identity_retirement_postgres_live_test.go
+  s_29175cf8c573b8::t_4b30fbed1dd899 16,349,367,394
+go/internal/cigates/load_fragments_test.go
+  s_29175cf8c573b8::t_a4f54e0f3f5b6d 1-85
+go/internal/cigates/pathfilter.go
+  s_29175cf8c573b8::t_89706c53f62e20 372-377
+go/internal/cigates/pathfilter_file.go
+  s_29175cf8c573b8::t_ae2e4aebd397ba 1-81
+go/internal/cigates/pathfilter_file_test.go
+  s_29175cf8c573b8::t_60769c65032506 1-53
+go/internal/cigates/registry.go
+  s_29175cf8c573b8::t_11c0cea1c4360d 216,270,272,275
+go/internal/cigates/registry_fragments.go
+  s_29175cf8c573b8::t_56217a4f288bcd 1-110
+go/internal/cigates/registry_schema.go
+  s_29175cf8c573b8::t_e477420452d5c1 11
+go/internal/cigates/scriptworkflow.go
+  s_29175cf8c573b8::t_eeeb8bc9e3b80b 37
+go/internal/cigates/static_workflow_timeout_test.go
+  s_29175cf8c573b8::t_0c2554b20b469e 132-150,159-160,162-165,167,169-173,175-178
+go/internal/collector/ociregistry/envelope.go
+  s_29175cf8c573b8::t_444f8eb0bc7046 15,65,124,129,164,195,223,240,281
+go/internal/collector/ociregistry/envelope_test.go
+  s_29175cf8c573b8::t_dc15bcaad0a34b 11,38,96,182,242,258,280
+go/internal/collector/ociregistry/ociruntime/config_provenance_test.go
+  s_29175cf8c573b8::t_b6bc91b986de62 17,68,172,259
+go/internal/collector/ociregistry/ociruntime/localtls_test.go
+  s_29175cf8c573b8::t_7f0a5dfb5c7a6d 28,216-217,227
+go/internal/collector/ociregistry/ociruntime/source_test.go
+  s_29175cf8c573b8::t_f84c28a93c89c0 19,91-95,136,139,143
+go/internal/collector/ociregistry/ociruntime/source_truncation_warning_test.go
+  s_29175cf8c573b8::t_323de0fcb807e9 15,104,108
+go/internal/collector/ociregistry/warning.go
+  s_29175cf8c573b8::t_42442f88e5b9ff 11,59,97
+go/internal/collector/ociregistry/warning_test.go
+  s_29175cf8c573b8::t_d11e95a9e48032 11,37
+go/internal/collector/sbom/runtime/source_test.go
+  s_29175cf8c573b8::t_86d3a27d2571b5 159
+go/internal/evidencecontinuity/gatetriggers.go
+  s_29175cf8c573b8::t_9a547646230f4b 335,337
+go/internal/facts/schema_version.go
+  s_29175cf8c573b8::t_150a9533073e53 89
+go/internal/facts/schema_version_test.go
+  s_29175cf8c573b8::t_2157f355a36323 11,113
+go/internal/facts/supply/chain/README.md
+  s_29175cf8c573b8::t_04cabecef5ed85 156-189
+go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go
+  s_29175cf8c573b8::t_eba3e419bfbf10 11,382-383,387-388,434,436
+go/internal/projector/canonical/oci_registry.go
+  s_29175cf8c573b8::t_0d92b386517f5f 14,158,164,170,176,182,188
+go/internal/projector/canonical/oci_registry_bench_test.go
+  s_29175cf8c573b8::t_73464f98db8ed8 12,70,77,88,94,99,105
+go/internal/projector/container/image/identity/intents.go
+  s_29175cf8c573b8::t_964a9eab47e6b5 30-33,77-80
+go/internal/projector/container/image/identity/intents_test.go
+  s_29175cf8c573b8::t_dffb167fcd2da1 11,40,77
+go/internal/projector/decode/quarantine_stage_test.go
+  s_29175cf8c573b8::t_4a41ed0672f8ef 11,33,110-111
+go/internal/projector/failure/doc.go
+  s_29175cf8c573b8::t_4f91893a3377ff 20-22
+go/internal/projector/failure/work_errors.go
+  s_29175cf8c573b8::t_a74c0c3f7bc78b 6-9,41-48
+go/internal/projector/runtime/container_image_identity_projection_test.go
+  s_29175cf8c573b8::t_8a1d5304fc1160 12,290-291,313-314,339-340
+go/internal/projector/runtime/oci_registry_input_invalid_test.go
+  s_29175cf8c573b8::t_f85ea361b653d6 12,46-47,61-62,94-95,139-140
+go/internal/projector/runtime/oci_registry_projection_test.go
+  s_29175cf8c573b8::t_c53a2b2a7b470a 14,92-93,129,171,173,198,200,220,222,261,263
+go/internal/projector/sbom/attestation/attachment_intents.go
+  s_29175cf8c573b8::t_f059982d0b4a88 16,57
+go/internal/projector/sbom/attestation/attachment_intents_test.go
+  s_29175cf8c573b8::t_a7237e3aefe438 72
+go/internal/projector/supply/chain/impact/intents.go
+  s_29175cf8c573b8::t_375991cfe19c98 23-26,66-69,90-93
+go/internal/projector/supply/chain/impact/intents_test.go
+  s_29175cf8c573b8::t_fce45329587385 75-76
+go/internal/projector/write_marker.go
+  s_29175cf8c573b8::t_1e5224ff6ce9f7 11,75-78,95,138,140-145,147,151-211,305-307,313-315,319,324,332,336-340
+go/internal/projector/write_marker_pacing_test.go
+  s_29175cf8c573b8::t_abaf32b85aa325 1-189
+go/internal/reducer/containerimage/container_image_identity.go
+  s_29175cf8c573b8::t_a71ab8c1385e44 359-362
+go/internal/reducer/containerimage/container_image_identity_azure_test.go
+  s_29175cf8c573b8::t_0569c363d28ed0 15,40,71
+go/internal/reducer/containerimage/container_image_identity_gcp_test.go
+  s_29175cf8c573b8::t_422eed9c205b68 14,39,73
+go/internal/reducer/containerimage/container_image_identity_provenance.go
+  s_29175cf8c573b8::t_a766a2bc45e3b3 12,24,160
+go/internal/reducer/containerimage/container_image_identity_registry.go
+  s_29175cf8c573b8::t_00f4626951dc3c 13,45,56,215,221
+go/internal/reducer/containerimage/container_image_identity_retirement.go
+  s_29175cf8c573b8::t_5c5202aceb02b7 14,87,290
+go/internal/reducer/containerimage/container_image_identity_retirement_test.go
+  s_29175cf8c573b8::t_8b2b7e03619cd8 17,236,363,406,420
+go/internal/reducer/containerimage/container_image_identity_retirement_unmapped_config_test.go
+  s_29175cf8c573b8::t_ce882e15755165 13,91
+go/internal/reducer/containerimage/container_image_identity_test.go
+  s_29175cf8c573b8::t_06653d7c711714 21,323,327
+go/internal/reducer/factschema_contract_test.go
+  s_29175cf8c573b8::t_8f5e499640802e 49-55
+go/internal/reducer/kubernetes_correlation_seam_test_helpers_test.go
+  s_29175cf8c573b8::t_867edfbe4fed7e 12,62
+go/internal/reducer/kubernetescorrelation/kubernetes_correlation_edge_rows_test.go
+  s_29175cf8c573b8::t_c7fe64af653922 10,24
+go/internal/reducer/kubernetescorrelation/kubernetes_correlation_helpers_test.go
+  s_29175cf8c573b8::t_ea16fc282f67a4 14,198,213
+go/internal/reducer/kubernetescorrelation/kubernetes_correlation_index.go
+  s_29175cf8c573b8::t_bd26d40f88baa4 13,155,157
+go/internal/reducer/kubernetescorrelation/kubernetes_workload_source_image_join.go
+  s_29175cf8c573b8::t_94bd1f5f8025ed 10,137-139,153,155
+go/internal/reducer/kubernetescorrelation/kubernetes_workload_source_image_join_bench_test.go
+  s_29175cf8c573b8::t_92744c44c4bb02 11,19
+go/internal/reducer/kubernetescorrelation/kubernetes_workload_source_image_join_test.go
+  s_29175cf8c573b8::t_dda9628dcffee3 10,16,172,181,216,225
+go/internal/reducer/provenance_replay_tombstone_live_test.go
+  s_29175cf8c573b8::t_e363c275c2c0e4 16,459
+go/internal/reducer/sbomattest/sbom_attestation_attachment.go
+  s_29175cf8c573b8::t_ee0a9d91ad9d45 351,446
+go/internal/reducer/sbomattest/sbom_attestation_attachment_bench_test.go
+  s_29175cf8c573b8::t_20d43a6fd4a11e 61
+go/internal/reducer/sbomattest/sbom_attestation_attachment_index.go
+  s_29175cf8c573b8::t_1b0759955f73a9 233
+go/internal/reducer/sbomattest/sbom_attestation_attachment_test.go
+  s_29175cf8c573b8::t_6610706fc15613 483
+go/internal/reducer/sbomattest/sbom_attestation_runtime_attachment_test.go
+  s_29175cf8c573b8::t_eadd4e99d8073b 152
+go/internal/reducer/supplychain/core/active_filter.go
+  s_29175cf8c573b8::t_091d74f5548a45 172,176,188
+go/internal/reducer/supplychain/core/active_test.go
+  s_29175cf8c573b8::t_3ed3383718da5b 12,477
+go/internal/reducer/supplychain/core/cross_scope_test_doubles_test.go
+  s_29175cf8c573b8::t_47c2f4fb3e46b3 12,282
+go/internal/reducer/supplychain/core/impact.go
+  s_29175cf8c573b8::t_10bb4eab654221 459-462
+go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go
+  s_29175cf8c573b8::t_7c21603b6f0a55 48-49,52-54,97-123
+go/internal/storage/postgres/projector_queue_delta_baseline.go
+  s_29175cf8c573b8::t_6f4531c4f10ea5 46-54,84,86,91-95
+go/internal/storage/postgres/projector_queue_marker_fence_sql.go
+  s_29175cf8c573b8::t_40e33afaa87a28 6-12,27-30,40-90
+scripts/ci/main-health.sh
+  s_29175cf8c573b8::t_360c214c3c8e6a 94-99,141
+scripts/ci/verify-ifa-fault-diagnostics-complete.sh
+  s_29175cf8c573b8::t_bc12271cb21010 1-6
+scripts/dev/test-prove.sh
+  s_29175cf8c573b8::t_3cd35214bb69e0 116
+scripts/generate-ci-gates-doc.sh
+  s_29175cf8c573b8::t_c83aa1a1edfb17 26,29-30,37-40,74
+scripts/lib/ci-gates-resolved-fixtures.sh
+  s_29175cf8c573b8::t_481461ee7fe434 1-71
+scripts/lib/dockerhub-login-compose.sh
+  s_29175cf8c573b8::t_05f1fdf594ac74 1-185
+scripts/lib/dockerhub-login-images.sh
+  s_29175cf8c573b8::t_e9b19a16ae9d8e 1-396
+scripts/lib/dockerhub-login-lex.awk
+  s_29175cf8c573b8::t_c0954d277838d0 1-447
+scripts/lib/dockerhub-login-refs.awk
+  s_29175cf8c573b8::t_3a339d4c136b3c 1-206
+scripts/lib/dockerhub-login-scripts.sh
+  s_29175cf8c573b8::t_78c520955453fe 1-151
+scripts/lib/dockerhub-login-test-script-refs.sh
+  s_29175cf8c573b8::t_adf9327d5db2a2 1-92
+scripts/lib/dockerhub-login-test-shapes.sh
+  s_29175cf8c573b8::t_bfdb9a715aa18c 1-126
+scripts/lib/live_backend_test_targets.py
+  s_29175cf8c573b8::t_837bf0b0268624 9,13-14,18-21
+scripts/lib/live_postgres_readiness_results.py
+  s_29175cf8c573b8::t_68e50a4770f8ba 9,11-13,56-60
+scripts/lib/live_tests_registry.py
+  s_29175cf8c573b8::t_ba9ac53313c8c3 1-193
+scripts/lib/test-golden-corpus-private-data.sh
+  s_29175cf8c573b8::t_d3ad6cb88f6ad2 1-26
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_29175cf8c573b8::t_a0d0c7994f997c 455
+scripts/lib/test-ifa-fault-injection-shard-cases.sh
+  s_29175cf8c573b8::t_eb204204e5abdb 53
+scripts/lib/test-main-health-ci-gates.yaml.tmpl
+  s_29175cf8c573b8::t_c013d5a563b619 16-18,20,22,24-26,28,30,32-34,36,38,40-42,44,46
+scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh
+  s_29175cf8c573b8::t_c0821bf7da51cb 45-46
+scripts/lib/test-verify-doc-citations-line-cases.sh
+  s_29175cf8c573b8::t_0b580f532c4b70 421-422,431-432,455
+scripts/lib/test-verify-doc-citations-review-cases.sh
+  s_29175cf8c573b8::t_00559e2bfb2074 172
+scripts/lib/verify-live-tests-ledger.py
+  s_29175cf8c573b8::t_6c75108a404fa3 16,21-22,26-29
+scripts/run-live-postgres-readiness-tests.sh
+  s_29175cf8c573b8::t_71cddeaedbd1a8 6
+scripts/test-ci-install-apt-packages.sh
+  s_29175cf8c573b8::t_38533cfb15b2c6 424
+scripts/test-codex-spawn-guard.py
+  s_29175cf8c573b8::t_ebe8987a310be8 132-142
+scripts/test-generate-ci-gates-doc.sh
+  s_29175cf8c573b8::t_4f21231e3994ef 61,255-354
+scripts/test-generate-code-coverage-report.sh
+  s_29175cf8c573b8::t_57c7988ba01ccd 16-18
+scripts/test-live-tests-registry.py
+  s_29175cf8c573b8::t_919ba743beebee 1-130
+scripts/test-precommit-go-toolchain-isolation.sh
+  s_29175cf8c573b8::t_124ef5e04a4887 348-351
+scripts/test-run-console-live-e2e.sh
+  s_29175cf8c573b8::t_967672a4d44d7e 7
+scripts/test-run-live-backend-tests.sh
+  s_29175cf8c573b8::t_8a7b8b2aefff31 55-57,64,171,207
+scripts/test-run-live-postgres-readiness-tests.sh
+  s_29175cf8c573b8::t_706fa4d681b7fb 310-312,316,329-331,335-336,354-355,380-381,394-399,401-402,404-406
+scripts/test-verify-agent-hygiene.sh
+  s_29175cf8c573b8::t_d702a8ae6bb80e 331-337,346-352
+scripts/test-verify-ci-gates-registry.sh
+  s_29175cf8c573b8::t_04a2e85bcbcd5c 21-31
+scripts/test-verify-doc-citations.sh
+  s_29175cf8c573b8::t_5bce4832682885 30-34
+scripts/test-verify-dockerhub-login.sh
+  s_29175cf8c573b8::t_dce7ad6a64a925 1-473
+scripts/test-verify-docs-only-ci-skip.sh
+  s_29175cf8c573b8::t_8ee50ef1b76aeb 44,48-50,53,122,203
+scripts/test-verify-golden-corpus-gate.sh
+  s_29175cf8c573b8::t_3d18a260851ec2 15-16,19-21,412,445,479-480
+scripts/test-verify-ifa-dead-letter-matrix.sh
+  s_29175cf8c573b8::t_e56cea9fb4c006 200,202,209-216
+scripts/test-verify-ifa-determinism.sh
+  s_29175cf8c573b8::t_d77f251f091962 46-51
+scripts/test-verify-live-tests-ledger.sh
+  s_29175cf8c573b8::t_a603fbff60a02d 11-12,23-31,42,87,91,167,290
+scripts/test-verify-payload-usage-manifest.sh
+  s_29175cf8c573b8::t_b77032ddc51e63 129-131
+scripts/test-verify-query-plan-regression.sh
+  s_29175cf8c573b8::t_be7b569464cdef 7-10,78
+scripts/test-verify-remote-validation-artifacts.sh
+  s_29175cf8c573b8::t_3dc8d8725e3bf6 314-317,323,329
+scripts/test-verify-replay-coverage-gate.sh
+  s_29175cf8c573b8::t_f73fbfeadb292a 14-17
+scripts/test-verify-replay-tier.sh
+  s_29175cf8c573b8::t_f78b12b1dc1022 10-13,268
+scripts/verify-dockerhub-login.sh
+  s_29175cf8c573b8::t_c0b553b325c91e 1-407
+scripts/verify-docs-only-ci-skip.sh
+  s_29175cf8c573b8::t_c4ba0be1f09a4d 44-47
+sdk/go/factschema/fact_kinds.go
+  s_29175cf8c573b8::t_7df5519bf13e1e 89-93
+specs/ci-gates.d/gates-01.yaml
+  s_29175cf8c573b8::t_09a7ff2236363a 1-307
+specs/ci-gates.d/gates-02.yaml
+  s_29175cf8c573b8::t_121ccec6d277c1 1-429
+specs/ci-gates.d/gates-03.yaml
+  s_29175cf8c573b8::t_8a4b78005a4d75 1-423
+specs/ci-gates.d/gates-04.yaml
+  s_29175cf8c573b8::t_f0bc8938bc1b88 1-423
+specs/ci-gates.d/gates-05.yaml
+  s_29175cf8c573b8::t_bd8d9fbbfdb77b 1-403
+specs/ci-gates.d/gates-06.yaml
+  s_29175cf8c573b8::t_fd991ef68946e1 1-405
+specs/ci-gates.d/gates-07.yaml
+  s_29175cf8c573b8::t_f468912e4c03c6 1-332
+specs/ci-gates.d/gates-08.yaml
+  s_29175cf8c573b8::t_614fd055786d06 1-418
+specs/ci-gates.d/gates-09.yaml
+  s_29175cf8c573b8::t_88917eb286413f 1-422
+specs/ci-gates.d/gates-10.yaml
+  s_29175cf8c573b8::t_81f0d2db2c8f87 1-196
+specs/ci-gates.d/gates-11.yaml
+  s_29175cf8c573b8::t_a00aee75be4908 1-369
+specs/ci-gates.d/gates-12.yaml
+  s_29175cf8c573b8::t_1cfb7bac10d279 1-297
+specs/ci-gates.d/gates-13.yaml
+  s_29175cf8c573b8::t_8f3014ff3880aa 1-399
+specs/ci-gates.d/gates-14.yaml
+  s_29175cf8c573b8::t_feede914ddf79a 1-466
+specs/ci-gates.d/gates-15.yaml
+  s_29175cf8c573b8::t_5c31d230ce8730 1-406
+specs/ci-gates.d/ifa-determinism.comments.md
+  s_29175cf8c573b8::t_76bf4bcfffbe9b 1-236
+specs/ci-gates.d/ifa-fault-injection.comments.md
+  s_29175cf8c573b8::t_61b8b2ce8a49b0 1-254
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_d2cf45899657b1 31-46
+specs/live-tests.d/live-tests-01.yaml
+  s_29175cf8c573b8::t_5589cefbaabe6c 1-424
+specs/live-tests.d/live-tests-02.yaml
+  s_29175cf8c573b8::t_1f4c5acc2fdfb0 1-423
+specs/live-tests.d/live-tests-03.yaml
+  s_29175cf8c573b8::t_9a323e608b0234 1-423
+specs/live-tests.d/live-tests-05.yaml
+  s_29175cf8c573b8::t_28369848496cf1 1-422
+specs/live-tests.d/live-tests-06.yaml
+  s_29175cf8c573b8::t_913c7432b7b815 1-423
+specs/live-tests.d/live-tests-07.yaml
+  s_29175cf8c573b8::t_87ca6dad086f3d 1-347
+specs/live-tests.v1.yaml
+  s_29175cf8c573b8::t_d072dd66382267 54-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2faff39e6a2b2ad19bb9c26d88c484dfcf125380",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

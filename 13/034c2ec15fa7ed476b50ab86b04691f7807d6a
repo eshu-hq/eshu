@@ -1,0 +1,21 @@
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_419fc9e9e12c6a 152,157
+scripts/ci/test-h1-capture-wiring.py
+  s_29175cf8c573b8::t_19cf02c07a436b 38-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "13034c2ec15fa7ed476b50ab86b04691f7807d6a",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

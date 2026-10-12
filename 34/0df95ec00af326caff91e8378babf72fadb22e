@@ -1,0 +1,21 @@
+scripts/test-verify-dockerhub-login.sh
+  s_29175cf8c573b8::t_48e684f9338d58 243-255
+scripts/lib/dockerhub-login-compose.sh
+  s_29175cf8c573b8::t_dbef3fead25e9f 29,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "340df95ec00af326caff91e8378babf72fadb22e",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+scripts/test-run-live-backend-tests.sh
+  s_29175cf8c573b8::t_0d1ceb5a312112 64-65
+scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh
+  s_29175cf8c573b8::t_0d1ceb5a312112 7-19,33
+scripts/test-verify-ifa-dead-letter-matrix.sh
+  s_29175cf8c573b8::t_0d1ceb5a312112 193,212-215
+go/internal/cigates/pathfilter.go
+  s_29175cf8c573b8::t_0d1ceb5a312112 45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "00f4039f6374e4cc5389e11bb0087a89e62ae392",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

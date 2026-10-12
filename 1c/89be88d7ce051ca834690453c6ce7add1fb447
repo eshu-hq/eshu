@@ -1,0 +1,63 @@
+go/cmd/ci-gates/README.md
+  s_29175cf8c573b8::t_b69f459cbc52d7 362-376
+  s_29175cf8c573b8::t_c79fa72f439286 377
+scripts/lib/dockerhub-login-test-shapes.sh
+  s_29175cf8c573b8::t_4758db73e3a970 106,111
+scripts/lib/test-main-health-ci-gates.yaml.tmpl
+  s_29175cf8c573b8::t_e6264e19a824a6 16-18,20,22,24-26,28,30,32-34,36,38,40-42,44,46
+go/cmd/ci-gates/usage.go
+  s_29175cf8c573b8::t_c327399609400d 21
+  s_29175cf8c573b8::t_4f1015d122dae5 12,22
+go/cmd/ci-gates/main.go
+  s_29175cf8c573b8::t_c327399609400d 53-54
+  s_29175cf8c573b8::t_4f1015d122dae5 55-56
+go/cmd/ci-gates/fragments.go
+  s_29175cf8c573b8::t_c327399609400d 1-34
+go/internal/cigates/registry.go
+  s_29175cf8c573b8::t_c327399609400d 216,275
+go/cmd/ci-gates/ifa_registry_test.go
+  s_29175cf8c573b8::t_b2c66382f33902 291-294
+scripts/ci/main-health.sh
+  s_29175cf8c573b8::t_5b261554ae3b46 98-99
+scripts/test-verify-docs-only-ci-skip.sh
+  s_29175cf8c573b8::t_6c9499c80afd30 53
+scripts/lib/ci-gates-resolved-fixtures.sh
+  s_29175cf8c573b8::t_af7f78f610ffbf 4-8,13,17,26
+  s_29175cf8c573b8::t_6c9499c80afd30 10-12,47
+  s_29175cf8c573b8::t_8b27623837b327 18-19,21-25,27-46,48-54
+go/cmd/ci-gates/compare.go
+  s_29175cf8c573b8::t_4f1015d122dae5 1-41
+go/internal/cigates/registry_fragments.go
+  s_29175cf8c573b8::t_c327399609400d 21-26,75
+go/cmd/ci-gates/layers_test.go
+  s_29175cf8c573b8::t_b2c66382f33902 12-13,22-30
+scripts/generate-ci-gates-doc.sh
+  s_29175cf8c573b8::t_af7f78f610ffbf 26,29-30
+  s_29175cf8c573b8::t_8ebf3fe7d50f9b 37-40,74
+scripts/test-verify-dockerhub-login.sh
+  s_29175cf8c573b8::t_4758db73e3a970 25-31,437,442
+scripts/test-generate-ci-gates-doc.sh
+  s_29175cf8c573b8::t_f24594fea35a22 284-306
+  s_29175cf8c573b8::t_f0d5d1a5a4bb0f 278
+  s_29175cf8c573b8::t_ad94c4847a6d15 307-326
+  s_29175cf8c573b8::t_c1fa47793a3bf8 327-354
+  s_29175cf8c573b8::t_4758db73e3a970 255-277,279-283
+scripts/lib/dockerhub-login-compose.sh
+  s_29175cf8c573b8::t_b8c7bf7d47ba51 29-40,42-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c89be88d7ce051ca834690453c6ce7add1fb447",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

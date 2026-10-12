@@ -1,0 +1,79 @@
+.github/workflows/live-postgres-migrations.yml
+  s_29175cf8c573b8::t_1bc1d749cd3be6 1-105
+.github/workflows/main-health.yml
+  s_29175cf8c573b8::t_7c64395ad6a9c6 41
+.github/workflows/required-gates.yml
+  s_29175cf8c573b8::t_207d3da36f7e38 19
+docs/internal/evidence/7760-generation-tag.md
+  s_29175cf8c573b8::t_e5760d487de8cc 55-59,63-75,122-130,138-144
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_a8d10c71112dbb 11,166,172,298
+go/cmd/bootstrap-data-plane/main_coordination_test.go
+  s_29175cf8c573b8::t_638026f9346ffc 50-74
+go/cmd/bootstrap-index/bootstrap_db_coordination_test.go
+  s_29175cf8c573b8::t_b385b8506e7b80 19,23,26-27,51-52,62-87
+go/internal/storage/postgres/migration_169_interruption_live_test.go
+  s_29175cf8c573b8::t_c5aeadd4af0f66 1-312
+go/internal/storage/postgres/migration_169_phased_live_test.go
+  s_29175cf8c573b8::t_607daca84e2a76 1-318
+go/internal/storage/postgres/schema.go
+  s_29175cf8c573b8::t_24bc6d98c63f55 14,17,133-140,144-151,158-165,267-273,275,278-287,290-311,313-351,354,356,358-385,388-403
+go/internal/storage/postgres/schema_7033_interrupt_rollback_live_test.go
+  s_29175cf8c573b8::t_d5b896f426d3b2 1-360
+go/internal/storage/postgres/schema_bootstrap_files_test.go
+  s_29175cf8c573b8::t_47914c087025fb 26,28-36
+go/internal/storage/postgres/schema_bootstrap_lock.go
+  s_29175cf8c573b8::t_5d92a5caff274e 273-275,346
+go/internal/storage/postgres/schema_content_store.go
+  s_29175cf8c573b8::t_5c5ba24e430266 6-16,135-266
+go/internal/storage/postgres/schema_fixture_connection_guard_integration_test.go
+  s_29175cf8c573b8::t_3791c7758f6589 1-193
+go/internal/storage/postgres/schema_fixture_connection_guard_security_live_test.go
+  s_29175cf8c573b8::t_b0f2d70b6f2955 1-127
+go/internal/storage/postgres/schema_migration_169_phases_test.go
+  s_29175cf8c573b8::t_95c79c9c64c84b 1-109
+scripts/lib/live_postgres_migrations.py
+  s_29175cf8c573b8::t_e006d2c9aceb66 1-129
+scripts/lib/live_postgres_readiness_results.py
+  s_29175cf8c573b8::t_2d64f91069402f 69,79-81
+scripts/lib/verify-live-tests-ledger.py
+  s_29175cf8c573b8::t_81c0dc175c2dcc 22,51-58
+scripts/run-live-postgres-migrations.sh
+  s_29175cf8c573b8::t_746bf019c4f569 1-127
+scripts/test-live-postgres-migrations.py
+  s_29175cf8c573b8::t_87a5ea4eaf5525 1-172
+scripts/test-run-live-postgres-migrations.sh
+  s_29175cf8c573b8::t_421dbe1df11cf1 1-93
+scripts/test-run-live-postgres-readiness-tests.sh
+  s_29175cf8c573b8::t_45b6d96bfaa0a4 316,379-380
+scripts/test-verify-live-tests-ledger.sh
+  s_29175cf8c573b8::t_25df17fa56a696 81-99
+scripts/testdata/live-postgres-migrations-fake-docker.sh
+  s_29175cf8c573b8::t_e7428f55b092bf 1-33
+scripts/testdata/live-postgres-migrations-fake-go.sh
+  s_29175cf8c573b8::t_1d8fb828aeb231 1-30
+specs/ci-gates.d/gates-09.yaml
+  s_29175cf8c573b8::t_0b52eab9dd0af6 101-139
+specs/live-tests.d/live-tests-06.yaml
+  s_29175cf8c573b8::t_cb17021e821975 190-199
+specs/live-tests.d/live-tests-07.yaml
+  s_29175cf8c573b8::t_4c209d93028bf1 142-146,167-171
+specs/live-tests.v1.yaml
+  s_29175cf8c573b8::t_23cad3b92440dd 2,26-28,38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1c2a5af9d810f5b93a3db4931bc7cbc698a35b2",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+scripts/verify-read-api-latency-gate.sh
+  s_29175cf8c573b8::t_16a9ec040494ff 107-113
+scripts/ci/test-h1-validate-hosted-inputs.sh
+  s_29175cf8c573b8::t_1f4ddf9b4a8d7d 27-31,34-68
+  s_29175cf8c573b8::t_059146bb495d13 32-33,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c17d90c0056350c6ec9a36cf554a8c15984f9b8",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

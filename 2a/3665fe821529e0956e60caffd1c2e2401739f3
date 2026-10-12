@@ -1,0 +1,84 @@
+scripts/lib/test-verify-query-methodology-go.sh
+  s_29175cf8c573b8::t_f51e59ec72b358 4-7
+  s_29175cf8c573b8::t_ae55062028b455 9
+scripts/lib/query-methodology-comparison-identity.py
+  s_29175cf8c573b8::t_1f34dc5f53996a 59-66,79,98-99,104-105,113-131,134,139-140
+  s_29175cf8c573b8::t_bce6c328ad5484 1-58,67-78,80-97,100-103,106-112,132-133,135-138,141-164
+go/internal/query/methodology_identity_test.go
+  s_29175cf8c573b8::t_06eb92f48c5db2 24-25,27,29-34,167-170
+  s_29175cf8c573b8::t_5cbeea13e4e157 61-71
+  s_29175cf8c573b8::t_89338e2d181085 9,57,76-79,84,92,95-97,99,101-118,120,122-129,153-163,171-172
+  s_29175cf8c573b8::t_e389e4c5bec54e 37-38,40,42,59,80,94,130,139
+  s_29175cf8c573b8::t_2e16f62a78bac5 39,41,43-53
+  s_29175cf8c573b8::t_e2101e0e8f9fc1 35-36
+scripts/test-verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_d11cb10f7199ef 114,209-210
+  s_29175cf8c573b8::t_f700217edbcc7f 141
+  s_29175cf8c573b8::t_0e58c802683b5c 142
+  s_29175cf8c573b8::t_f32f40602f4e43 327-345
+  s_29175cf8c573b8::t_735608a438a557 113,154-172
+  s_29175cf8c573b8::t_df33380ac507c0 91-93
+scripts/test-query-methodology-comparison-identity.py
+  s_29175cf8c573b8::t_1bf54487f30848 1-27,30-57,62-64,66-72,75-77,79-90,92-95,104-133,180-183,241,243-256
+  s_29175cf8c573b8::t_9550828a92ce39 28-29
+  s_29175cf8c573b8::t_270e230db3d99b 65,74,91,134-136,138-179
+  s_29175cf8c573b8::t_3952fbd44d473e 137
+  s_29175cf8c573b8::t_b81d0f3ebaddff 58-61,73,78,96-103,184-218,220-240,242
+  s_29175cf8c573b8::t_f0c85bacaeed73 219
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_f51e59ec72b358 16
+  s_29175cf8c573b8::t_ed2b060179c99e 75-76
+scripts/lib/verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_3304c72e6d56b0 139-153,206,208-209,215-217,219-234
+  s_29175cf8c573b8::t_f9f1338ae0e710 205
+go/internal/query/methodology_identity_guard_test.go
+  s_29175cf8c573b8::t_cdfeffb88271e1 137-207
+  s_29175cf8c573b8::t_bee5cbb1fefd32 113,134
+  s_29175cf8c573b8::t_a815bd982bbe0e 76-77,79
+  s_29175cf8c573b8::t_6a5bb45d4b1ab7 35,37,56-60,88-92
+  s_29175cf8c573b8::t_b7e2a70ad8dca1 23,32-34,38-40,42-45,47,81-84,86-87,104-106
+  s_29175cf8c573b8::t_112a5b42ede817 29,36,41,46,93-103
+  s_29175cf8c573b8::t_587ff0faa5cc83 1-18,20-22,48-55,61-75,78,80,85,108-112,135-136
+  s_29175cf8c573b8::t_7620fa523e1e22 19,24-28,30-31,107
+  s_29175cf8c573b8::t_8e97d83befb8aa 114-133
+go/internal/query/methodology_postgres_artifact_test.go
+  s_29175cf8c573b8::t_89338e2d181085 32-33
+  s_29175cf8c573b8::t_d1bfd8283cdc5d 26-27
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_1cccb72545e311 1457-1458,1469,1494-1495
+docs/internal/query-engineering.md
+  s_29175cf8c573b8::t_701a629170fd15 175-185
+go/internal/queryplan/pilot_identity_test.go
+  s_29175cf8c573b8::t_136279180864df 1-61
+go/internal/query/methodology_graph_artifact_live_test.go
+  s_29175cf8c573b8::t_89338e2d181085 39-40
+  s_29175cf8c573b8::t_d1bfd8283cdc5d 37-38
+.github/workflows/test.yml
+  s_29175cf8c573b8::t_8766dbc13a2413 138-139,193
+.pre-commit-config.yaml
+  s_29175cf8c573b8::t_058cfd41fc8cc6 217
+go/internal/queryplan/pilot_identity.go
+  s_29175cf8c573b8::t_d6dc3606d548c6 1-96
+go/internal/queryplan/pilot_artifact_test.go
+  s_29175cf8c573b8::t_e751469efac662 22-28,34,70-73
+scripts/verify-query-methodology.sh
+  s_29175cf8c573b8::t_ae55062028b455 10-14,21
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_4517edf8172065 242-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a3665fe821529e0956e60caffd1c2e2401739f3",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

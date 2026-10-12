@@ -1,0 +1,299 @@
+go/internal/queryplan/testdata/source-coverage/first.yaml
+  s_29175cf8c573b8::t_afc948ec1193d4 44,82,88,123,202,207
+.github/static-contract-filters.yml
+  s_29175cf8c573b8::t_ca0b5f70274eef 337
+.github/workflows/live-postgres-readiness.yml
+  s_29175cf8c573b8::t_dd6910c64dd2a6 34,79,119-140,154-155
+.github/workflows/static-contract-gates.yml
+  s_29175cf8c573b8::t_240a6363589c61 167-171,206,209-239,268
+docs/internal/evidence/7126-batched-content-read.md
+  s_29175cf8c573b8::t_1dacf006d9e8e6 1-322
+docs/internal/measurements.jsonl
+  s_29175cf8c573b8::t_f4b699a59aced1 184-185
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_5afe6a2f1e97fd 297,339
+docs/public/reference/http-api/selector-and-read-failures.md
+  s_29175cf8c573b8::t_67880ea8a0bf54 175-210,215-216
+docs/public/reference/telemetry/logs.md
+  s_29175cf8c573b8::t_ed98f18a4fce11 69-77
+docs/public/reference/telemetry/traces.md
+  s_29175cf8c573b8::t_d9f4f06b0ab23a 120-126
+go/cmd/capability-inventory/surfaces.go
+  s_29175cf8c573b8::t_6fb6da4b888503 231
+go/cmd/fact-kind-registry/main.go
+  s_29175cf8c573b8::t_14b4b2bfae0f44 416
+go/internal/cigates/readiness_job_split_test.go
+  s_29175cf8c573b8::t_bbf60bb2d6cb61 1-373
+go/internal/cigates/static_workflow_timeout_test.go
+  s_29175cf8c573b8::t_0c4ffb77218974 137-139,146
+go/internal/collector/awscloud/awsruntime/scan_status.go
+  s_29175cf8c573b8::t_f74eb1bf63541c 17,259
+go/internal/collector/awscloud/awsruntime/source.go
+  s_29175cf8c573b8::t_c4d365eca508e3 22,216
+go/internal/collector/awscloud/awsruntime/source_test.go
+  s_29175cf8c573b8::t_6c24d2dab012c9 18,203
+go/internal/collector/awscloud/dns_envelope.go
+  s_29175cf8c573b8::t_20d72a94237116 11,36,69-70
+go/internal/collector/awscloud/envelope.go
+  s_29175cf8c573b8::t_9f4356a2d644f3 12,151,181-182
+go/internal/collector/awscloud/envelope_test.go
+  s_29175cf8c573b8::t_3718f09220a7d8 14,41,48,56,244-245,247-248,335-336,338-339
+go/internal/collector/awscloud/resource_policy_permission_envelope.go
+  s_29175cf8c573b8::t_6fd112e251088d 11,77,110-111
+go/internal/collector/awscloud/resource_policy_permission_envelope_test.go
+  s_29175cf8c573b8::t_1cb06251ee3d9a 11,41-42,44-45,250
+go/internal/collector/awscloud/security_group_rule_envelope.go
+  s_29175cf8c573b8::t_265e251d802cc1 11,102,139-140
+go/internal/collector/awscloud/security_group_rule_envelope_test.go
+  s_29175cf8c573b8::t_960e8ca3e851f2 11,54-55,57-58
+go/internal/collector/awscloud/services/ec2/scanner_test.go
+  s_29175cf8c573b8::t_de88b487367158 107-108,413,417
+go/internal/collector/awscloud/services/ecr/scanner_test.go
+  s_29175cf8c573b8::t_c747778d8b0603 13,62-63,165
+go/internal/collector/awscloud/services/ecs/image_reference_test.go
+  s_29175cf8c573b8::t_afc7d0f4293ccd 11,59-60,102,139,174,262
+go/internal/collector/awscloud/services/kms/resource_policy_scanner_test.go
+  s_29175cf8c573b8::t_f4917d8eb15f3e 12,62,91,101
+go/internal/collector/awscloud/services/route53/scanner_test.go
+  s_29175cf8c573b8::t_2bd041c1d16243 14,87-88,208,222
+go/internal/collector/awscloud/services/s3/contract_test.go
+  s_29175cf8c573b8::t_b3125353ab5f4d 51
+go/internal/collector/awscloud/services/s3/resource_policy_scanner_test.go
+  s_29175cf8c573b8::t_a7d4510e90cf0b 12,92,102
+go/internal/extensionconformance/emitter_payload_conformance_test.go
+  s_29175cf8c573b8::t_26b5f9bb17a5d3 41,59
+go/internal/facts/cloud/README.md
+  s_29175cf8c573b8::t_877d20885fbb75 51-53,55-61,63-67,276-312
+go/internal/facts/schema_version.go
+  s_29175cf8c573b8::t_edefd9e6801054 79
+go/internal/facts/schema_version_test.go
+  s_29175cf8c573b8::t_9101cb5e34b938 114
+go/internal/ifa/catalog_seed.go
+  s_29175cf8c573b8::t_19ecb1507ccd8c 10,71,75-76,100
+go/internal/mcp/dispatch_service_story_noop_content_store_test.go
+  s_29175cf8c573b8::t_92138b20518f4c 87-90
+go/internal/projector/cloud/aws/iam/perform/materialization_intents.go
+  s_29175cf8c573b8::t_0e619f40dcba24 8,64,72
+go/internal/projector/cloud/aws/iam/perform/materialization_intents_test.go
+  s_29175cf8c573b8::t_ca23209c1e17cf 12,51-52
+go/internal/projector/container/image/identity/intents.go
+  s_29175cf8c573b8::t_e6d7416c887cea 34,82
+go/internal/projector/runtime/scope_generation_intents_fanout_test.go
+  s_29175cf8c573b8::t_b6d81f9cb514f7 293
+go/internal/projector/security/api_contract_test.go
+  s_29175cf8c573b8::t_bde952c8999e54 11,62,70,78,116-117,168
+go/internal/projector/security/group_reachability_intents.go
+  s_29175cf8c573b8::t_9ea5cdd75d4d79 7,90
+go/internal/projector/security/group_reachability_intents_test.go
+  s_29175cf8c573b8::t_970b937ddf09c8 10,22
+go/internal/query/codequery/AGENTS.md
+  s_29175cf8c573b8::t_b06794204c60ba 80-99
+go/internal/query/codequery/README.md
+  s_29175cf8c573b8::t_84cc025a2fa433 11,61-107
+go/internal/query/codequery/call_chain_lookup.go
+  s_29175cf8c573b8::t_ad59933ae0ca17 1-32
+go/internal/query/codequery/callers.go
+  s_29175cf8c573b8::t_e6504285ca7fae 95,103,111,135,148,217
+go/internal/query/codequery/compare_paths.go
+  s_29175cf8c573b8::t_4ca2d643671731 197,233
+go/internal/query/codequery/complexity_queries.go
+  s_29175cf8c573b8::t_11f8fff18256ad 321,345,377
+go/internal/query/codequery/cypher.go
+  s_29175cf8c573b8::t_27e5c0f2835c20 17,100,136-144,435
+go/internal/query/codequery/cypher_statement_rejection_test.go
+  s_29175cf8c573b8::t_7b56913ad85a36 35-39,41-42,53,76-78
+go/internal/query/codequery/deadcode/AGENTS.md
+  s_29175cf8c573b8::t_4c3f3326552bf6 217-224
+go/internal/query/codequery/deadcode/README.md
+  s_29175cf8c573b8::t_e6775395ccaaee 89-94
+go/internal/query/codequery/deadcode/cross_repo.go
+  s_29175cf8c573b8::t_e79172ead71ebc 126,137,143,151
+go/internal/query/codequery/deadcode/doc.go
+  s_29175cf8c573b8::t_49d1abe684ccdf 23,27-31
+go/internal/query/codequery/deadcode/investigation.go
+  s_29175cf8c573b8::t_4b7f7d7800bcb9 93,100
+go/internal/query/codequery/deadcode/results.go
+  s_29175cf8c573b8::t_e89ddee8e067df 19,80,107-118,123-128,132
+go/internal/query/codequery/divergence.go
+  s_29175cf8c573b8::t_c4f6cfaaa98797 150,153
+go/internal/query/codequery/divergence_investigate.go
+  s_29175cf8c573b8::t_ff573902347d36 123,135,143,160
+go/internal/query/codequery/divergence_report.go
+  s_29175cf8c573b8::t_1763006efe108f 126,129
+go/internal/query/codequery/doc.go
+  s_29175cf8c573b8::t_be5304a4e11c1a 35-42
+go/internal/query/codequery/flow.go
+  s_29175cf8c573b8::t_d730eda397a371 120
+go/internal/query/codequery/graph_metrics.go
+  s_29175cf8c573b8::t_04d062406e0bfc 15,103,106-107,110-112,115
+go/internal/query/codequery/handler.go
+  s_29175cf8c573b8::t_0a3cac4abf3b76 166-167,170,182,185,200,203
+go/internal/query/codequery/import_dependencies.go
+  s_29175cf8c573b8::t_d4b1f4646d2a00 15,112-116,120,129
+go/internal/query/codequery/inspection.go
+  s_29175cf8c573b8::t_5d1833d7d6bab6 58
+go/internal/query/codequery/read_failure.go
+  s_29175cf8c573b8::t_56db283e3707d8 1-115
+go/internal/query/codequery/registry_bundles.go
+  s_29175cf8c573b8::t_eec413a2b2d560 13,47-55,132,154
+go/internal/query/codequery/relationship_handlers.go
+  s_29175cf8c573b8::t_91be40179d34dc 14,52-55,94,100,103-106,142,153-156,213,241,252-255
+go/internal/query/codequery/route_handlers.go
+  s_29175cf8c573b8::t_f26369dbc73927 94,134,140
+go/internal/query/codequery/security_secrets.go
+  s_29175cf8c573b8::t_af9eb10f201130 144,147
+go/internal/query/codequery/server_failure_routes_test.go
+  s_29175cf8c573b8::t_b8013c5beb593a 1-218
+go/internal/query/codequery/server_failure_test.go
+  s_29175cf8c573b8::t_07cffe9ba3a60e 1-231
+go/internal/query/codequery/story_handlers.go
+  s_29175cf8c573b8::t_664e50a735d50a 62,78,81,89,125,128
+go/internal/query/codequery/structural_inventory.go
+  s_29175cf8c573b8::t_03930246761f1a 105-106,109
+go/internal/query/codequery/symbol.go
+  s_29175cf8c573b8::t_e7e79ccbeef31a 14,109,112,115-116,119
+go/internal/query/codequery/topic.go
+  s_29175cf8c573b8::t_0b66249ca257a6 121-122,125
+go/internal/query/content_reader_file_contents_live_test.go
+  s_29175cf8c573b8::t_f77ea9439617fa 1-280
+go/internal/query/content_reader_file_contents_test.go
+  s_29175cf8c573b8::t_5e81a792e87234 1-154
+go/internal/query/content_reader_language.go
+  s_29175cf8c573b8::t_e0487aa4fa2000 265-338
+go/internal/query/entity/AGENTS.md
+  s_29175cf8c573b8::t_911fbf00efc658 31-35,50-58
+go/internal/query/entity/README.md
+  s_29175cf8c573b8::t_e48ad2feed0f48 130-131,194-243
+go/internal/query/entity/content_types.go
+  s_29175cf8c573b8::t_a10739a7fe9b48 174,182
+go/internal/query/entity/context_failure_test.go
+  s_29175cf8c573b8::t_64c62da8e35f28 1-139
+go/internal/query/entity/context_handler.go
+  s_29175cf8c573b8::t_caa5f57db42d2b 18,164,205-209,212,253,264
+go/internal/query/entity/doc.go
+  s_29175cf8c573b8::t_139e2740e0cd26 24-32
+go/internal/query/entity/failure.go
+  s_29175cf8c573b8::t_e60e2005915c28 6-17,33-87
+go/internal/query/entity/handler.go
+  s_29175cf8c573b8::t_317e009155a792 19,173-174,199,202-203,206-210,227,252,259,267
+go/internal/query/entity/resolve_failure_test.go
+  s_29175cf8c573b8::t_72ce256411af59 1-142
+go/internal/query/entity/resolve_workload.go
+  s_29175cf8c573b8::t_56af407790ea0c 14,31,34-35,38
+go/internal/query/entity/route_failure_helpers_test.go
+  s_29175cf8c573b8::t_6f3b6cbd9c1fef 1-211
+go/internal/query/entity/service_context_handler.go
+  s_29175cf8c573b8::t_2179cf879a00b9 71,74-75
+go/internal/query/entity/service_investigation.go
+  s_29175cf8c573b8::t_26bc9fe98588f4 84-85,91,114,117-118
+go/internal/query/entity/service_story_seam.go
+  s_29175cf8c573b8::t_8425ab7b979231 72-74,162-163,166,187-190,193
+go/internal/query/entity/service_story_seam_test.go
+  s_29175cf8c573b8::t_857ced1c93ed96 13,121-138
+go/internal/query/entity/workload_handlers.go
+  s_29175cf8c573b8::t_9476b96bce7b14 13,41,54,57-58,61,92,105,108-109,112
+go/internal/query/error_text_ceilings_test.go
+  s_29175cf8c573b8::t_94b63089dad37b 11-13,17-64
+go/internal/query/openapi/paths/code/divergence.go
+  s_29175cf8c573b8::t_298e6e5e8e786d 50,92
+go/internal/query/ports_test.go
+  s_29175cf8c573b8::t_40c7cc28c987f9 111-114
+go/internal/query/querycontract/content_index_readiness.go
+  s_29175cf8c573b8::t_3a707fbefd1281 34-35,40
+go/internal/query/querycontract/content_index_readiness_test.go
+  s_29175cf8c573b8::t_2744fb21d9b34e 1-54
+go/internal/query/querycontract/doc.go
+  s_29175cf8c573b8::t_1d5dd636122b74 48-49
+go/internal/query/querycontract/ports.go
+  s_29175cf8c573b8::t_1644e140940b81 84-95
+go/internal/query/repository/deployment_artifacts_stage.go
+  s_29175cf8c573b8::t_23be9263a418fb 39-41
+go/internal/query/repository/story_deployment_artifacts_stage_test.go
+  s_29175cf8c573b8::t_63d9bf1ac006d4 11,39-41,50-53,84,86,101-102,104-106
+go/internal/query/repositoryartifacts/AGENTS.md
+  s_29175cf8c573b8::t_6792826f5dcdbc 22-32
+go/internal/query/repositoryartifacts/README.md
+  s_29175cf8c573b8::t_ad24b4195e3e24 71-98,106-107
+go/internal/query/repositoryartifacts/repository_artifact_hydration_batch.go
+  s_29175cf8c573b8::t_74c19c4a47de11 1-164
+go/internal/query/repositoryartifacts/repository_config_artifacts_batch_differential_test.go
+  s_29175cf8c573b8::t_9d32c7f51a5323 1-240
+go/internal/query/repositoryartifacts/repository_config_artifacts_batch_test.go
+  s_29175cf8c573b8::t_be50cbbad8d75c 1-499
+go/internal/query/repositoryartifacts/repository_config_artifacts_hydration.go
+  s_29175cf8c573b8::t_6c321e82e34d04 98-116,120,126,154,198
+go/internal/query/repositoryartifacts/repository_config_artifacts_hydration_differential_test.go
+  s_29175cf8c573b8::t_c6d3930d5ccfad 158,177,181,272
+go/internal/query/repositoryartifacts/repository_config_artifacts_hydration_helpers_test.go
+  s_29175cf8c573b8::t_bbbabbf653f1e7 43-45,47-52,91-94,98,110-142
+go/internal/query/repositoryartifacts/repository_config_artifacts_stats.go
+  s_29175cf8c573b8::t_ead1179ff07441 39-53,55-56,67,90-98
+go/internal/query/repositoryartifacts/repository_config_artifacts_stats_test.go
+  s_29175cf8c573b8::t_7b519a18ab535d 1-159
+go/internal/query/testutil/content/port_store_file_contents.go
+  s_29175cf8c573b8::t_a25dc391b9f4d4 1-38
+go/internal/reducer/containerimage/container_image_identity.go
+  s_29175cf8c573b8::t_7d9d804fcf9d73 356
+go/internal/reducer/containerimage/container_image_identity_ecs_test.go
+  s_29175cf8c573b8::t_95a4840251e6f9 13,24,42
+go/internal/reducer/containerimage/container_image_identity_evidence.go
+  s_29175cf8c573b8::t_77600b854aab2c 169
+go/internal/reducer/containerimage/container_image_identity_input_invalid_test.go
+  s_29175cf8c573b8::t_4f88a9d702f9d6 43,197
+go/internal/reducer/factschema_contract_test.go
+  s_29175cf8c573b8::t_790ec3440e8d80 25,29
+go/internal/reducer/iamcan/iam_can_perform_materialization.go
+  s_29175cf8c573b8::t_a5280ea7563ad5 16,193,457
+go/internal/reducer/iamcan/iam_can_perform_resource_policy.go
+  s_29175cf8c573b8::t_bd5dd3e3994f2a 11,67
+go/internal/reducer/iamcan/iam_can_perform_resource_policy_test.go
+  s_29175cf8c573b8::t_16ac11ad584f83 11,48
+go/internal/reducer/internetexposure/ec2_internet_exposure_materialization.go
+  s_29175cf8c573b8::t_36c8be9f692e52 83,268
+go/internal/reducer/internetexposure/ec2_internet_exposure_rows.go
+  s_29175cf8c573b8::t_cd7ff0c42f7247 341
+go/internal/reducer/internetexposure/ec2_internet_exposure_rows_test.go
+  s_29175cf8c573b8::t_932a9f5c1806d7 63
+go/internal/reducer/secgroup/security_group_cidr_materialization.go
+  s_29175cf8c573b8::t_ff290158cb2910 18,156,270
+go/internal/reducer/secgroup/security_group_cidr_materialization_test.go
+  s_29175cf8c573b8::t_09ab150570f302 12,52
+go/internal/reducer/secgroup/security_group_reachability.go
+  s_29175cf8c573b8::t_3c9dd1c39379eb 12,117
+go/internal/reducer/secgroup/security_group_reachability_materialization.go
+  s_29175cf8c573b8::t_2064e0beac7f54 17,192,425
+go/internal/reducer/secgroup/security_group_reachability_test.go
+  s_29175cf8c573b8::t_eb603b2955033e 10,49
+go/internal/reducer/secgroup/security_group_rule_materialization.go
+  s_29175cf8c573b8::t_2fceb0fdee4f3e 15,104
+go/internal/replay/recorder/pseudonymize_test.go
+  s_29175cf8c573b8::t_023919d6bdc58f 20,109-110
+go/internal/storage/postgres/AGENTS.md
+  s_29175cf8c573b8::t_c4c40825ed9de0 890
+scripts/ci/test-tagged-build-budget.py
+  s_29175cf8c573b8::t_f109cce920ca8e 1-148
+scripts/lib/live_postgres_readiness_inventory.py
+  s_29175cf8c573b8::t_8e2a145cddfaf1 327-330
+specs/ci-gates.d/gates-09.yaml
+  s_29175cf8c573b8::t_c1c921b4a10c2a 68,99
+specs/ci-gates.d/gates-15.yaml
+  s_29175cf8c573b8::t_fc53c3059bfa47 176,185
+specs/live-tests.d/live-tests-02.yaml
+  s_29175cf8c573b8::t_7df611faa788ff 6-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a3fbd69b4fbf72913d1bd5d9c2fe7a4977a2d611",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

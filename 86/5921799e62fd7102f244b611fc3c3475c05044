@@ -1,0 +1,25 @@
+go/cmd/read-api-latency-gate/README.md
+  s_29175cf8c573b8::t_1a926d47a1e2e3 115-116,120-121
+scripts/ci/h1-effective-config.py
+  s_29175cf8c573b8::t_304fd01f0a46db 2,11-12,22-27,30-31,37,40-91
+scripts/ci/test-h1-effective-config.py
+  s_29175cf8c573b8::t_089bcef4a23887 18-20,26,37,42-57
+scripts/verify-read-api-latency-gate.sh
+  s_29175cf8c573b8::t_883c03e44eda6d 396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "865921799e62fd7102f244b611fc3c3475c05044",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

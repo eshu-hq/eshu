@@ -1,0 +1,41 @@
+scripts/verify-query-methodology.sh
+  s_29175cf8c573b8::t_a15c56c0b63e86 15,63-72,78-79
+specs/live-tests.v1.yaml
+  s_29175cf8c573b8::t_dc63ff3a03eec5 23,38,56-114
+scripts/lib/test-verify-query-methodology-go.sh
+  s_29175cf8c573b8::t_cfe2f57bfccb9f 22-28
+scripts/test-verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_8a1bca10cfc4f0 1-22,24,26-114
+  s_29175cf8c573b8::t_f9bfa66e3cf32f 23,25
+  s_29175cf8c573b8::t_e6b1c650927bcb 115-249
+scripts/lib/verify-live-tests-ledger.py
+  s_29175cf8c573b8::t_082aa9b9f4d003 41,46-53,61,63
+.github/workflows/test.yml
+  s_29175cf8c573b8::t_762b5a06ba9f67 184
+docs/internal/query-engineering.md
+  s_29175cf8c573b8::t_aba1fcbbc3b1de 175-185
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_e146c917f6b8bf 242-243
+scripts/lib/verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_0234b90938fed7 1-245
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_8b243b8f3cf942 24-29,61-80
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_c05a5eb3753a27 1450-1455,1466,1484-1489
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "55f3c2691fd69737da4edd840936c96eb2d10976",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

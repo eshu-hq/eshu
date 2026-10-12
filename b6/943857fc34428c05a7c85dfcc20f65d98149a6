@@ -1,0 +1,21 @@
+scripts/verify-query-methodology.sh
+  s_29175cf8c573b8::t_15c4b0b481a90d 6-11
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_51905f529cf913 17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b6943857fc34428c05a7c85dfcc20f65d98149a6",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,263 @@
+scripts/lib/verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_990894dc3e28e9 12-13,89,216-223
+.github/static-contract-filters.yml
+  s_29175cf8c573b8::t_6f051351142a4d 1-435
+.github/workflows/golden-corpus-gate.yml
+  s_29175cf8c573b8::t_fdc7acd25d3d83 183
+.github/workflows/ifa-determinism-gate.comments.md
+  s_29175cf8c573b8::t_4b9b426d713e24 1-366
+.github/workflows/ifa-determinism-gate.yml
+  s_29175cf8c573b8::t_f6f9f7cef1a7d3 1,6,90-93,346-347,364-365,371-372,406-408,445,467
+.github/workflows/live-backend-tests.yml
+  s_29175cf8c573b8::t_7e1c7ecf0c83c1 28,34,36
+.github/workflows/live-postgres-readiness.yml
+  s_29175cf8c573b8::t_f29918b2a433d2 5,37,39,43,45,47,81,83,87,89,91
+.github/workflows/main-health.yml
+  s_29175cf8c573b8::t_649de1f9b50642 119-124
+.github/workflows/replay-coverage-gate.yml
+  s_29175cf8c573b8::t_f630aa0b8ceaa9 42
+.github/workflows/static-contract-gates.yml
+  s_29175cf8c573b8::t_249fc68bfa5551 80
+.github/workflows/test.comments.md
+  s_29175cf8c573b8::t_d8146aef417ae4 3-4,6,8-10,21-23,44-46,74-76,94-96,102-104,111-113,119-121,128-130,139-141,148-150,158-160,183-185,199-201,211-213,225-227,234-236,246-248,254-256,275-277,289-291,300-302,337-339,358-360,384-386,395-397,405-407,418-420,444-446,454-456
+.github/workflows/test.yml
+  s_29175cf8c573b8::t_e12c39bd98b236 401-406
+.pre-commit-config.yaml
+  s_29175cf8c573b8::t_b49ffa8b4a90ab 217
+docs/internal/evidence/7907-marker-retry-pacing-cause.md
+  s_29175cf8c573b8::t_afd6014cb17f46 1-75
+docs/internal/evidence/7916-first-generation-readiness.md
+  s_29175cf8c573b8::t_6c5757d0d52f8b 1-246
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_8e18095b15e4db 11,208,212,217-220,222-229,231,240,242-244,250-252,256-269,271,280,283-284,289-293,295-304,306-310,313,320-321,329-331,334,336
+docs/public/reference/telemetry/metrics.md
+  s_29175cf8c573b8::t_a0071cdf5392cb 196-197
+go/cmd/ci-gates/README.md
+  s_29175cf8c573b8::t_7281c62772b3d5 362-377
+go/cmd/ci-gates/compare.go
+  s_29175cf8c573b8::t_b1b00b3b693053 1-41
+go/cmd/ci-gates/fragments.go
+  s_29175cf8c573b8::t_1fd325f53f3964 1-34
+go/cmd/ci-gates/ifa_registry_test.go
+  s_29175cf8c573b8::t_2fad253ed22440 291-294
+go/cmd/ci-gates/layers_test.go
+  s_29175cf8c573b8::t_f4d2275afe4aa0 12-13,22-30
+go/cmd/ci-gates/main.go
+  s_29175cf8c573b8::t_1f9572ae60b39d 53-56
+go/cmd/ci-gates/usage.go
+  s_29175cf8c573b8::t_c9095bb1a0eca1 12,21-22
+go/internal/cigates/load_fragments_test.go
+  s_29175cf8c573b8::t_d96e2f8f1c6597 1-85
+go/internal/cigates/pathfilter.go
+  s_29175cf8c573b8::t_c127306e34a1f3 372-377
+go/internal/cigates/pathfilter_file.go
+  s_29175cf8c573b8::t_d3fa8efcd99001 1-81
+go/internal/cigates/pathfilter_file_test.go
+  s_29175cf8c573b8::t_52b5025da6a4e6 1-53
+go/internal/cigates/registry.go
+  s_29175cf8c573b8::t_b94dcff6c1ff6e 216,270,272,275
+go/internal/cigates/registry_fragments.go
+  s_29175cf8c573b8::t_6709ca6450c05a 1-110
+go/internal/cigates/registry_schema.go
+  s_29175cf8c573b8::t_4443a54a01cbf3 11
+go/internal/evidencecontinuity/gatetriggers.go
+  s_29175cf8c573b8::t_7be85d6de7c4b9 335,337
+go/internal/projector/failure/doc.go
+  s_29175cf8c573b8::t_39a02b168f846a 20-22
+go/internal/projector/failure/work_errors.go
+  s_29175cf8c573b8::t_aa4fce8112f283 6-9,41-48
+go/internal/projector/write_marker.go
+  s_29175cf8c573b8::t_be9dcfd4cad1a6 11,75-78,95,138,140-145,147,151-211,305-307,313-315,319,324,332,336-340
+go/internal/projector/write_marker_pacing_test.go
+  s_29175cf8c573b8::t_a6a355590762e8 1-189
+go/internal/reducer/containerimage/container_image_identity_epoch_gate.go
+  s_29175cf8c573b8::t_7eede05b6f5e4b 24-25,27
+go/internal/reducer/contract/README.md
+  s_29175cf8c573b8::t_ed86eab69d7356 56-58
+go/internal/reducer/contract/doc.go
+  s_29175cf8c573b8::t_b486385b0d6a9c 25-27
+go/internal/reducer/contract/generation_check.go
+  s_29175cf8c573b8::t_b8c1b2b85921a7 15-16,57-58,62-64,76-78,86,92-95
+go/internal/reducer/contract/generation_check_test.go
+  s_29175cf8c573b8::t_fa5ea8f8ba2d19 1-34
+go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go
+  s_29175cf8c573b8::t_d3748bb09f87de 37-38,48,52-54
+go/internal/storage/postgres/container_image_identity_first_generation_live_test.go
+  s_29175cf8c573b8::t_f725cb51a38a83 1-391
+go/internal/storage/postgres/container_image_identity_first_generation_service_live_test.go
+  s_29175cf8c573b8::t_357f224cb7ad28 1-314
+go/internal/storage/postgres/exported-surface-guide.md
+  s_29175cf8c573b8::t_defd9b68070655 350-352
+go/internal/storage/postgres/generation_freshness.go
+  s_29175cf8c573b8::t_b15dbd965517a3 120-126,160-170
+go/internal/storage/postgres/generation_freshness_test.go
+  s_29175cf8c573b8::t_1ea4f761e444e8 40,92,102,108-116,119-134,171,174,179,192-193
+go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go
+  s_29175cf8c573b8::t_70371bfee135aa 48-49,52-54,97-123
+go/internal/storage/postgres/projector_queue_delta_baseline.go
+  s_29175cf8c573b8::t_6608d4325675a0 46-54,84,86,91-95
+go/internal/storage/postgres/projector_queue_marker_fence_sql.go
+  s_29175cf8c573b8::t_df97223440dc44 6-12,27-30,40-90
+go/internal/storage/postgres/reducer_queue_readiness_sql.go
+  s_29175cf8c573b8::t_286e596b0dd514 151-152
+scripts/ci/main-health.sh
+  s_29175cf8c573b8::t_85819a41abae40 94-99,141
+scripts/ci/verify-ifa-fault-diagnostics-complete.sh
+  s_29175cf8c573b8::t_041f09c73f34ed 1-6
+scripts/dev/test-prove.sh
+  s_29175cf8c573b8::t_d4c2ba5e0ddb3e 116
+scripts/generate-ci-gates-doc.sh
+  s_29175cf8c573b8::t_954e82c481ea0e 26,29-30,37-40,74
+scripts/lib/ci-gates-resolved-fixtures.sh
+  s_29175cf8c573b8::t_a671e791091a4a 1-71
+scripts/lib/dockerhub-login-compose.sh
+  s_29175cf8c573b8::t_24cda134b33309 29-40,42-48
+scripts/lib/dockerhub-login-test-shapes.sh
+  s_29175cf8c573b8::t_02c7e911fbec75 106,111
+scripts/lib/live_backend_test_targets.py
+  s_29175cf8c573b8::t_fc13a851236e97 9,13-14,18-21
+scripts/lib/live_postgres_readiness_inventory.py
+  s_29175cf8c573b8::t_0ea272ed8bb492 1-453
+scripts/lib/live_postgres_readiness_results.py
+  s_29175cf8c573b8::t_7c482c8e27c991 9,11-13,56-60
+scripts/lib/live_tests_registry.py
+  s_29175cf8c573b8::t_257ff127312560 1-193
+scripts/lib/test-golden-corpus-private-data.sh
+  s_29175cf8c573b8::t_25ff8d49fb36c9 1-26
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_29175cf8c573b8::t_6e010b47146aa0 455
+scripts/lib/test-ifa-fault-injection-shard-cases.sh
+  s_29175cf8c573b8::t_e66c294d90e970 53
+scripts/lib/test-main-health-ci-gates.yaml.tmpl
+  s_29175cf8c573b8::t_19d5a3f519042b 16-18,20,22,24-26,28,30,32-34,36,38,40-42,44,46
+scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh
+  s_29175cf8c573b8::t_5bb973ab14755f 45-46
+scripts/lib/test-verify-doc-citations-line-cases.sh
+  s_29175cf8c573b8::t_180f3bb14c067e 421-422,431-432,455
+scripts/lib/test-verify-doc-citations-review-cases.sh
+  s_29175cf8c573b8::t_7ab0e34afeef30 172
+scripts/lib/verify-live-tests-ledger.py
+  s_29175cf8c573b8::t_d23fc677f331fb 16,21-22,26-29
+scripts/run-live-postgres-readiness-tests.sh
+  s_29175cf8c573b8::t_1f3c077d9dc24c 6
+scripts/test-ci-install-apt-packages.sh
+  s_29175cf8c573b8::t_c5c7fe7a0c1e64 424
+scripts/test-codex-spawn-guard.py
+  s_29175cf8c573b8::t_e1d3768bb2b7e4 132-142
+scripts/test-generate-ci-gates-doc.sh
+  s_29175cf8c573b8::t_f1562c1dbc1bd9 61,255-354
+scripts/test-generate-code-coverage-report.sh
+  s_29175cf8c573b8::t_6339200ab17e7f 16-18
+scripts/test-live-tests-registry.py
+  s_29175cf8c573b8::t_17e73fdfff7886 1-130
+scripts/test-precommit-go-toolchain-isolation.sh
+  s_29175cf8c573b8::t_32d1c45db99067 348-351
+scripts/test-run-console-live-e2e.sh
+  s_29175cf8c573b8::t_f5ae39c15eafb2 7
+scripts/test-run-live-backend-tests.sh
+  s_29175cf8c573b8::t_749526f52c2f24 55-57,64,171,207
+scripts/test-run-live-postgres-readiness-tests.sh
+  s_29175cf8c573b8::t_0255decd85c05b 310-312,316,329-331,335-336,354-355,380-381,394-399,401-402,404-406
+scripts/test-verify-agent-hygiene.sh
+  s_29175cf8c573b8::t_787fe9e6f83fa2 331-337,346-352
+scripts/test-verify-ci-gates-registry.sh
+  s_29175cf8c573b8::t_955b5a721b5c1f 21-31
+scripts/test-verify-doc-citations.sh
+  s_29175cf8c573b8::t_29213a095247a5 30-34
+scripts/test-verify-dockerhub-login.sh
+  s_29175cf8c573b8::t_682fec3193521d 25-31,243-255,450,455
+scripts/test-verify-docs-only-ci-skip.sh
+  s_29175cf8c573b8::t_7081f8d2217c41 44,48-50,53,122,203
+scripts/test-verify-golden-corpus-gate.sh
+  s_29175cf8c573b8::t_a29fd3f0fd211c 15-16,19-21,412,445,479-480
+scripts/test-verify-ifa-dead-letter-matrix.sh
+  s_29175cf8c573b8::t_eb2f87f18a375f 200,202,209-216
+scripts/test-verify-ifa-determinism.sh
+  s_29175cf8c573b8::t_1b31c70aa69c27 46-51
+scripts/test-verify-live-tests-ledger.sh
+  s_29175cf8c573b8::t_73dc2795102de6 11-12,23-31,42,87,91,167,290
+scripts/test-verify-payload-usage-manifest.sh
+  s_29175cf8c573b8::t_9a1ffb1a622032 129-131
+scripts/test-verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_f2a148c333a233 31-32,107-108,143,221-222,252,293,305,328,338-346,426
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_5102418977ccd8 75-76
+scripts/test-verify-query-plan-regression.sh
+  s_29175cf8c573b8::t_3e0e9ee4f08f36 7-10,78
+scripts/test-verify-remote-validation-artifacts.sh
+  s_29175cf8c573b8::t_a5ad73177d2d06 314-317,323,329
+scripts/test-verify-replay-coverage-gate.sh
+  s_29175cf8c573b8::t_1b59510b2d30a1 14-17
+scripts/test-verify-replay-tier.sh
+  s_29175cf8c573b8::t_088ae5ba30429f 10-13,268
+scripts/verify-docs-only-ci-skip.sh
+  s_29175cf8c573b8::t_ad0de4dabd2f34 44-47
+specs/ci-gates.d/gates-01.yaml
+  s_29175cf8c573b8::t_71b06b6a415a66 1-307
+specs/ci-gates.d/gates-02.yaml
+  s_29175cf8c573b8::t_e1747b81e0809a 1-429
+specs/ci-gates.d/gates-03.yaml
+  s_29175cf8c573b8::t_83fe7e12ed2ecc 1-423
+specs/ci-gates.d/gates-04.yaml
+  s_29175cf8c573b8::t_b1b62dc2faf3c5 1-481
+specs/ci-gates.d/gates-05.yaml
+  s_29175cf8c573b8::t_690a9b6d92c4f5 1-403
+specs/ci-gates.d/gates-06.yaml
+  s_29175cf8c573b8::t_dd01e4f78358c1 1-405
+specs/ci-gates.d/gates-07.yaml
+  s_29175cf8c573b8::t_08dd563925be02 1-332
+specs/ci-gates.d/gates-08.yaml
+  s_29175cf8c573b8::t_809f79e79b52a5 1-449
+specs/ci-gates.d/gates-09.yaml
+  s_29175cf8c573b8::t_cc82aff490b6d5 1-422
+specs/ci-gates.d/gates-10.yaml
+  s_29175cf8c573b8::t_a190fad54e0140 1-196
+specs/ci-gates.d/gates-11.yaml
+  s_29175cf8c573b8::t_c87dd80033dee3 1-369
+specs/ci-gates.d/gates-12.yaml
+  s_29175cf8c573b8::t_b146c9039dfdbb 1-297
+specs/ci-gates.d/gates-13.yaml
+  s_29175cf8c573b8::t_74f411c1f342a8 1-399
+specs/ci-gates.d/gates-14.yaml
+  s_29175cf8c573b8::t_c73a9a282ad261 1-466
+specs/ci-gates.d/gates-15.yaml
+  s_29175cf8c573b8::t_6cfe0eb351d030 1-406
+specs/ci-gates.d/ifa-determinism.comments.md
+  s_29175cf8c573b8::t_16804d26894166 1-236
+specs/ci-gates.d/ifa-fault-injection.comments.md
+  s_29175cf8c573b8::t_994f5fa21973a7 1-254
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_c8928a561c3026 31-46
+specs/live-tests.d/live-tests-01.yaml
+  s_29175cf8c573b8::t_54424963a50160 1-483
+specs/live-tests.d/live-tests-02.yaml
+  s_29175cf8c573b8::t_0d8df42c8b5015 1-423
+specs/live-tests.d/live-tests-03.yaml
+  s_29175cf8c573b8::t_02c7d767f02935 1-423
+specs/live-tests.d/live-tests-04.yaml
+  s_29175cf8c573b8::t_5f1db4faa53505 1-436
+specs/live-tests.d/live-tests-05.yaml
+  s_29175cf8c573b8::t_0c0bab31029592 1-422
+specs/live-tests.d/live-tests-06.yaml
+  s_29175cf8c573b8::t_deee461d1c2c9c 1-423
+specs/live-tests.d/live-tests-07.yaml
+  s_29175cf8c573b8::t_cbbd187ccad33b 1-347
+specs/live-tests.v1.yaml
+  s_29175cf8c573b8::t_40f757e043d8ac 55-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ef2e994e183344691167f3147665378f36fc146",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

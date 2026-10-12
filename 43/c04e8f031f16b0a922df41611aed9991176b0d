@@ -1,0 +1,235 @@
+.agents/skills/cypher-query-rigor/SKILL.md
+  s_29175cf8c573b8::t_ac9ed9faccdd25 8-10
+.agents/skills/eshu-performance-rigor/SKILL.md
+  s_29175cf8c573b8::t_412a6db4e1eb77 12-14
+.agents/skills/eshu-postgres-rigor/SKILL.md
+  s_29175cf8c573b8::t_1a3fb31ab6bdb2 15-17
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_07bcae5040d311 46-49,86-185,201
+.github/workflows/test.comments.md
+  s_29175cf8c573b8::t_491693f26aac79 111-118
+.github/workflows/test.yml
+  s_29175cf8c573b8::t_f98654a0386f53 83,124-131,134-137,141-148
+.pre-commit-config.yaml
+  s_29175cf8c573b8::t_ac94660d43e8b7 213-220
+docs/internal/evidence/7881-query-methodology-pilot.md
+  s_29175cf8c573b8::t_f8b4e16c9f2709 1-141
+docs/internal/query-engineering.md
+  s_29175cf8c573b8::t_c8fb80f99ebc81 1-221
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_3063fe58ac01e0 11,100,120,175,180-181,243-244,285-287
+docs/public/reference/local-testing/read-api-latency-gate.md
+  s_29175cf8c573b8::t_75e29324ed06ec 81-106,157-184,196-197,199,204-207,238,250,319,343-358
+go/cmd/read-api-latency-gate/AGENTS.md
+  s_29175cf8c573b8::t_d2e09d1f4e4a75 80,85-87,188-192,194-197
+go/cmd/read-api-latency-gate/README.md
+  s_29175cf8c573b8::t_44353f87e47dde 42-53,61-64,68
+go/cmd/read-api-latency-gate/budget.go
+  s_29175cf8c573b8::t_99c8972cb1b969 22-25,54,61-64,72-78
+go/cmd/read-api-latency-gate/concurrent.go
+  s_29175cf8c573b8::t_25b57579f2de0a 1-89
+go/cmd/read-api-latency-gate/concurrent_report.go
+  s_29175cf8c573b8::t_f3dbf5752849bc 1-63
+go/cmd/read-api-latency-gate/doc.go
+  s_29175cf8c573b8::t_8070c1af42ea70 12-14,39-40,42
+go/cmd/read-api-latency-gate/latency_report.go
+  s_29175cf8c573b8::t_c23220785b6083 40-48,70-72,79-81,145-147,229-232,243-247,252
+go/cmd/read-api-latency-gate/latency_report_test.go
+  s_29175cf8c573b8::t_d5e9455f414047 18
+go/cmd/read-api-latency-gate/main.go
+  s_29175cf8c573b8::t_b683a5efa36bc2 28,35,39,46-48,52-78,86-112,118-119,152-154,156,160-161,251,256-258,480-495
+go/cmd/read-api-latency-gate/methodology_workflow_test.go
+  s_29175cf8c573b8::t_b8e8a81e7505da 1-214
+go/cmd/read-api-latency-gate/operation_catalog_test.go
+  s_29175cf8c573b8::t_9a81eb43fedd0b 1-75
+go/cmd/read-api-latency-gate/operation_overlap_test.go
+  s_29175cf8c573b8::t_bfe81d2a73929f 1-51
+go/cmd/read-api-latency-gate/operation_response.go
+  s_29175cf8c573b8::t_04da605aa95183 1-122
+go/cmd/read-api-latency-gate/operation_run.go
+  s_29175cf8c573b8::t_2737e396625782 1-94
+go/cmd/read-api-latency-gate/operations.go
+  s_29175cf8c573b8::t_c5b267acb085df 1-41
+go/cmd/read-api-latency-gate/operations_test.go
+  s_29175cf8c573b8::t_c54ac9202db36c 1-255
+go/cmd/read-api-latency-gate/sweep.go
+  s_29175cf8c573b8::t_155982b0e8dfff 7,9,20-30,48-49,52-53,55-56,68-71,104-117,119,124,128,137-142,144,148-150,166,173,178-181,201-203,211,235,254-255,260-262,275-277,280-288,292-308,310-312
+go/cmd/read-api-latency-gate/sweep_test.go
+  s_29175cf8c573b8::t_c1e2a53f573164 318,348,361-363
+go/cmd/read-api-latency-gate/testdata/methodology-scale-timeout-38032713508.json
+  s_29175cf8c573b8::t_3da5e2a621a4c3 1-17
+go/internal/mcp/methodology_live_test.go
+  s_29175cf8c573b8::t_5f7ff5eeb6a50f 1-170
+go/internal/query/methodology_graph_artifact_live_test.go
+  s_29175cf8c573b8::t_bee6fc5279969d 1-234
+go/internal/query/methodology_graph_artifact_rows_test.go
+  s_29175cf8c573b8::t_4dfcb6f93b3365 1-189
+go/internal/query/methodology_graph_artifact_test.go
+  s_29175cf8c573b8::t_bedb3e77e5b9fe 1-176
+go/internal/query/methodology_graph_cases_live_test.go
+  s_29175cf8c573b8::t_9ba95b62675e16 1-87
+go/internal/query/methodology_graph_cycle_cap_live_test.go
+  s_29175cf8c573b8::t_e0f25e1b5893ec 1-74
+go/internal/query/methodology_graph_fixture_live_test.go
+  s_29175cf8c573b8::t_7098ef4b2385dd 1-278
+go/internal/query/methodology_graph_live_test.go
+  s_29175cf8c573b8::t_f54eedea40cdb1 1-418
+go/internal/query/methodology_graph_measure_live_test.go
+  s_29175cf8c573b8::t_8aa276dfa60c2c 1-110
+go/internal/query/methodology_graph_metrics_test.go
+  s_29175cf8c573b8::t_dca00bd9ca6316 1-86
+go/internal/query/methodology_graph_oracle_live_test.go
+  s_29175cf8c573b8::t_5a5d86d2786a92 1-154
+go/internal/query/methodology_graph_profile_live_test.go
+  s_29175cf8c573b8::t_bcb6fd63375204 1-91
+go/internal/query/methodology_identity_guard_test.go
+  s_29175cf8c573b8::t_a3c6eb7b503066 1-207
+go/internal/query/methodology_identity_test.go
+  s_29175cf8c573b8::t_6a03150e897718 1-224
+go/internal/query/methodology_postgres_artifact_test.go
+  s_29175cf8c573b8::t_fa1ab5771b3598 1-202
+go/internal/query/methodology_postgres_capture_test.go
+  s_29175cf8c573b8::t_0f15aa73909402 1-368
+go/internal/query/methodology_postgres_live_test.go
+  s_29175cf8c573b8::t_2f278c14c5fd31 1-48
+go/internal/query/methodology_registry_test.go
+  s_29175cf8c573b8::t_793d24ed106f2b 1-55
+go/internal/query/queryplan_production_binding_test.go
+  s_29175cf8c573b8::t_98da20d9ee1645 92
+go/internal/queryplan/README.md
+  s_29175cf8c573b8::t_a521e83f3ba86b 15-23,42-85,96-97,205-209
+go/internal/queryplan/doc.go
+  s_29175cf8c573b8::t_b766e3a748cdcc 23-32
+go/internal/queryplan/pilot_alternate_test.go
+  s_29175cf8c573b8::t_4476af5ff6a258 1-80
+go/internal/queryplan/pilot_artifact_test.go
+  s_29175cf8c573b8::t_f9b8327bd21578 1-81
+go/internal/queryplan/pilot_budget_test.go
+  s_29175cf8c573b8::t_c1c70edce41da1 1-31
+go/internal/queryplan/pilot_contract.go
+  s_29175cf8c573b8::t_3f80e102fc97ac 1-245
+go/internal/queryplan/pilot_evidence.go
+  s_29175cf8c573b8::t_3937256c0477dc 1-422
+go/internal/queryplan/pilot_evidence_validation.go
+  s_29175cf8c573b8::t_2e08a33727bed7 1-391
+go/internal/queryplan/pilot_identity.go
+  s_29175cf8c573b8::t_506255bdead976 1-97
+go/internal/queryplan/pilot_identity_test.go
+  s_29175cf8c573b8::t_389209b5ff88d8 1-109
+go/internal/queryplan/pilot_parser_test.go
+  s_29175cf8c573b8::t_64d34734daa4f9 1-182
+go/internal/queryplan/pilot_payload_test.go
+  s_29175cf8c573b8::t_0318dcd84877df 1-69
+go/internal/queryplan/pilot_plan_validation_test.go
+  s_29175cf8c573b8::t_5e3cb0888a0dda 1-83
+go/internal/queryplan/pilot_query.go
+  s_29175cf8c573b8::t_0f01beb8683935 1-416
+go/internal/queryplan/pilot_query_lex.go
+  s_29175cf8c573b8::t_f5a8989f2d95a8 1-232
+go/internal/queryplan/pilot_query_sql_alias.go
+  s_29175cf8c573b8::t_e5f6397ea82627 1-111
+go/internal/queryplan/pilot_query_syntax.go
+  s_29175cf8c573b8::t_cae126ad4696ba 1-252
+go/internal/queryplan/pilot_query_syntax_expr.go
+  s_29175cf8c573b8::t_a79e3bb326002a 1-141
+go/internal/queryplan/pilot_registry_test.go
+  s_29175cf8c573b8::t_df9ec8f55ec578 1-202
+go/internal/queryplan/pilot_test.go
+  s_29175cf8c573b8::t_cae35f90410b18 1-193
+go/internal/queryplan/postgres_coverage.go
+  s_29175cf8c573b8::t_6c20ca03b4ddf6 1-261
+go/internal/queryplan/source_coverage_file.go
+  s_29175cf8c573b8::t_dc373a1590c5fd 1-167
+go/internal/queryplan/source_coverage_file_test.go
+  s_29175cf8c573b8::t_82861e4ae82588 1-120
+go/internal/queryplan/testdata/contracts/cloud-resource-identity-page.yaml
+  s_29175cf8c573b8::t_d6fd93736acd7e 1-119
+go/internal/queryplan/testdata/contracts/code-import-cross-module-calls.yaml
+  s_29175cf8c573b8::t_f2bd6e08eb0d5b 1-146
+go/internal/queryplan/testdata/contracts/code-import-cycle-edges.yaml
+  s_29175cf8c573b8::t_f632b220c0b2bc 1-26
+go/internal/queryplan/testdata/contracts/code-import-packages.yaml
+  s_29175cf8c573b8::t_0873da7d282348 1-90
+go/internal/queryplan/testdata/contracts/code-import-rows-repository.yaml
+  s_29175cf8c573b8::t_946ddb9ea26dd9 1-52
+go/internal/queryplan/testdata/contracts/code-import-source-module-files.yaml
+  s_29175cf8c573b8::t_aff27c6318acd3 1-38
+go/internal/queryplan/testdata/contracts/code-import-source-module-rows.yaml
+  s_29175cf8c573b8::t_efa6efbb32444c 1-62
+go/internal/queryplan/testdata/contracts/code-import-target-module-files.yaml
+  s_29175cf8c573b8::t_ebd2ef646acb76 1-38
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_29175cf8c573b8::t_8b4c8ff834b851 6,30-46,97-110,112,127,142,157,172,187,252
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_29175cf8c573b8::t_10cc98658795a9 3-5
+go/internal/queryplan/testdata/source-coverage/first.yaml
+  s_29175cf8c573b8::t_84f421fb08a808 1-377
+go/internal/queryplan/testdata/source-coverage/second.yaml
+  s_29175cf8c573b8::t_734983b4a399b3 1-379
+go/internal/queryplan/validator.go
+  s_29175cf8c573b8::t_f7dd9ac06d101b 10,32-40,60-61,94-121,156-158
+scripts/extend-read-api-work-budgets.sh
+  s_29175cf8c573b8::t_a605be525eee61 1-74
+scripts/lib/query-methodology-comparison-identity.py
+  s_29175cf8c573b8::t_732014b5e80b6c 1-164
+scripts/lib/test-methodology-scale-resource-observer-docker.sh
+  s_29175cf8c573b8::t_782b556abaf3d7 1-17
+scripts/lib/test-methodology-scale-resource-observer-gate.sh
+  s_29175cf8c573b8::t_d3020a89451894 1-11
+scripts/lib/test-methodology-scale-resource-observer-sleep.sh
+  s_29175cf8c573b8::t_9d1e7082b4f6c3 1-2
+scripts/lib/test-verify-query-methodology-docker.sh
+  s_29175cf8c573b8::t_a12e0fbc113752 1-4
+scripts/lib/test-verify-query-methodology-go.sh
+  s_29175cf8c573b8::t_43336ddb5a2d21 1-41
+scripts/lib/verify-live-tests-ledger.py
+  s_29175cf8c573b8::t_5a71d2f73a4858 47,52-59,67,69
+scripts/lib/verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_f6f12ba35cda1d 1-275
+scripts/test-extend-read-api-work-budgets.sh
+  s_29175cf8c573b8::t_bede3f7bef28eb 1-39
+scripts/test-methodology-scale-resource-observer.sh
+  s_29175cf8c573b8::t_2defaddd59ec2e 1-38
+scripts/test-query-methodology-comparison-identity.py
+  s_29175cf8c573b8::t_8675401b034377 1-256
+scripts/test-verify-query-methodology-live-contract.py
+  s_29175cf8c573b8::t_b86111e31031a8 1-478
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_70a9f6635f8fb3 1-116
+scripts/verify-query-methodology.sh
+  s_29175cf8c573b8::t_a18d6c6da9eb4c 1-96
+scripts/verify-query-plan-profile.sh
+  s_29175cf8c573b8::t_09233612c04518 5
+scripts/verify-query-plan-regression.sh
+  s_29175cf8c573b8::t_16018f9494a04b 21-22
+scripts/verify-read-api-latency-gate.sh
+  s_29175cf8c573b8::t_91b8c07cd84f79 57,65-66,70-72,140,150-152,201-202,269,277-278,302-304,319,327-328,342,360-373
+specs/ci-gates.d/gates-04.yaml
+  s_29175cf8c573b8::t_60b85e1fb7a251 272-311,321-337,343-344,349
+specs/ci-gates.d/gates-08.yaml
+  s_29175cf8c573b8::t_389eb95910022e 178-179,203-227,232,238-241,243
+specs/live-tests.d/live-tests-01.yaml
+  s_29175cf8c573b8::t_b046cd39aadd70 2-60
+specs/live-tests.v1.yaml
+  s_29175cf8c573b8::t_c80d5bc8e8ae7c 23,38
+testdata/benchmarks/read-api-route-budgets.txt
+  s_29175cf8c573b8::t_a50fd7a19105be 56,147-148
+testdata/benchmarks/read-api-route-work-budgets.txt
+  s_29175cf8c573b8::t_ff5b6124d54d0b 37-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "43c04e8f031f16b0a922df41611aed9991176b0d",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

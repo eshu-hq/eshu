@@ -1,0 +1,32 @@
+scripts/lib/dockerhub-login-conditions.sh
+  s_29175cf8c573b8::t_e79eacb3e2a7e7 1-7,12-35
+  s_29175cf8c573b8::t_92ebddca43a859 8-11
+scripts/test-verify-dockerhub-login.sh
+  s_29175cf8c573b8::t_422b2ee3efe05c 477-478
+scripts/lib/dockerhub-login-test-conditions.sh
+  s_29175cf8c573b8::t_422b2ee3efe05c 1-20,22-31,34-35
+  s_29175cf8c573b8::t_a706ff756ee5cb 21
+  s_29175cf8c573b8::t_5a8bd146095af2 32-33,36-44
+scripts/verify-dockerhub-login.sh
+  s_29175cf8c573b8::t_695bac20ae4303 82-84
+  s_29175cf8c573b8::t_e79eacb3e2a7e7 199-200,332
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_92ebddca43a859 124-126
+  s_29175cf8c573b8::t_e79eacb3e2a7e7 127,131-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3e6abe9758e10a7670cdd225de59398b1d1ec4a0",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

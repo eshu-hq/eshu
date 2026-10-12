@@ -1,0 +1,25 @@
+scripts/test-verify-query-plan-regression.sh
+  s_29175cf8c573b8::t_abef6df498cab2 44-45,92
+specs/ci-gates.d/gates-04.yaml
+  s_29175cf8c573b8::t_abef6df498cab2 341
+scripts/lib/test-queryplan-profile-image-contract.py
+  s_29175cf8c573b8::t_abef6df498cab2 1-61
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_d6f861b6a0d801 249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b03a4d152ca9c593dfaee86d839c0d10cb77452e",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+go/internal/evidencecontinuity/gatetriggers.go
+  s_29175cf8c573b8::t_9284ca2c31190d 125-126
+go/internal/evidencecontinuity/AGENTS.md
+  s_29175cf8c573b8::t_9284ca2c31190d 44
+go/internal/evidencecontinuity/README.md
+  s_29175cf8c573b8::t_9284ca2c31190d 26,89
+go/internal/evidencecontinuity/gatetriggers_codedeps_test.go
+  s_29175cf8c573b8::t_9284ca2c31190d 26
+go/internal/cigates/README.md
+  s_29175cf8c573b8::t_9284ca2c31190d 27-28
+go/internal/evidencecontinuity/doc.go
+  s_29175cf8c573b8::t_9284ca2c31190d 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8cfda924745f7d7c08c2dbdd27b7963d4951a50",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
