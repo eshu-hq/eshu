@@ -43,6 +43,11 @@ type stubAWSCloudRuntimeDriftFindingWriter struct {
 	write AWSCloudRuntimeDriftWrite
 	err   error
 	calls int
+	// fixedCanonicalWrites overrides the default len(write.Candidates)
+	// CanonicalWrites when non-zero, so a test can decouple the writer's
+	// count from the admitted count and prove the summary logs the
+	// writer's value rather than recomputing it.
+	fixedCanonicalWrites int
 }
 
 func (s *stubAWSCloudRuntimeDriftFindingWriter) WriteAWSCloudRuntimeDriftFindings(
@@ -54,8 +59,12 @@ func (s *stubAWSCloudRuntimeDriftFindingWriter) WriteAWSCloudRuntimeDriftFinding
 	if s.err != nil {
 		return AWSCloudRuntimeDriftWriteResult{}, s.err
 	}
+	writes := len(write.Candidates)
+	if s.fixedCanonicalWrites != 0 {
+		writes = s.fixedCanonicalWrites
+	}
 	return AWSCloudRuntimeDriftWriteResult{
-		CanonicalWrites: len(write.Candidates),
+		CanonicalWrites: writes,
 		EvidenceSummary: "wrote aws runtime drift findings",
 	}, nil
 }
@@ -512,7 +521,7 @@ func TestAWSCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch(t *testing.T) {
 				},
 			},
 		},
-		Writer:             &stubAWSCloudRuntimeDriftFindingWriter{},
+		Writer:             &stubAWSCloudRuntimeDriftFindingWriter{fixedCanonicalWrites: 7},
 		Logger:             logger,
 		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 		Now: func() time.Time {
@@ -553,19 +562,41 @@ func TestAWSCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch(t *testing.T) {
 	if got, want := summary["msg"], "aws cloud runtime drift batch admitted"; got != want {
 		t.Fatalf("INFO msg = %q, want %q", got, want)
 	}
+	// Every numeric summary key with deterministic values: the fixture
+	// admits 1 orphan + 1 unmanaged, the stub reports 7 canonical writes
+	// (deliberately distinct from admitted=2), and the stepped clock makes
+	// duration exactly 5s (slog encodes it as nanoseconds).
 	for _, want := range []struct {
 		key  string
 		want float64
 	}{
 		{"evaluated", 2},
 		{"admitted", 2},
+		{"canonical_writes", 7},
+		{"duration", float64(5 * time.Second)},
+		{"orphaned", 1},
+		{"unmanaged", 1},
+		{"ambiguous", 0},
+		{"unknown", 0},
+		{"image_version_drift", 0},
+		{"value_comparison_inconclusive", 0},
 	} {
 		if got, ok := summary[want.key].(float64); !ok || got != want.want {
 			t.Fatalf("INFO %s = %v, want %v", want.key, summary[want.key], want.want)
 		}
 	}
-	if _, ok := summary["duration"]; !ok {
-		t.Fatalf("INFO summary missing duration attr:\n%s", logs.String())
+	for _, want := range []struct {
+		key  string
+		want string
+	}{
+		{"domain", string(reducercontract.DomainAWSCloudRuntimeDrift)},
+		{"scope_id", "aws:123456789012:us-east-1"},
+		{"generation_id", "generation-aws"},
+		{"drift.pack", rules.AWSCloudRuntimeDriftPackName},
+	} {
+		if got, ok := summary[want.key].(string); !ok || got != want.want {
+			t.Fatalf("INFO %s = %v, want %q", want.key, summary[want.key], want.want)
+		}
 	}
 	for i, entry := range debug {
 		if got, want := entry["msg"], "aws cloud runtime drift finding admitted"; got != want {
