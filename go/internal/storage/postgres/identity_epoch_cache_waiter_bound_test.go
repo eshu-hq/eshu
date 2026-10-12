@@ -333,6 +333,61 @@ func TestIdentityEpochCacheWaiterWaitBudgetIsCumulative(t *testing.T) {
 	}
 }
 
+// TestIdentityEpochCacheWaiterStartTimeReadBeforeTimerArmed is the #7999
+// regression for the waiter's start-time race. waitForFlight used to arm the
+// timer and only then read its start time, so a clock advance between the two
+// was silently dropped from waitedFor and the caller kept budget it had
+// already spent. The timer wrapper below advances the fake clock between the
+// timer request and the start read, deterministically: on the old order the
+// start read sees the post-advance time and waited stays 0, while a start
+// read before the timer arm observes the full 20 s.
+func TestIdentityEpochCacheWaiterStartTimeReadBeforeTimerArmed(t *testing.T) {
+	t.Parallel()
+
+	const heartbeat = 30 * time.Second
+	clock := &fakeWaitClock{current: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	cache, err := NewIdentityEpochCache(testInstruments(), 0, WithHeartbeatInterval(heartbeat))
+	if err != nil {
+		t.Fatalf("NewIdentityEpochCache: %v", err)
+	}
+	cache.now = clock.now
+	// The advance runs inside waitForFlight's timer call, strictly between
+	// the timer request and the start read on the old code order, and
+	// strictly after the start read once the start is read first. Either
+	// way the order is program order in the waiter goroutine, so no
+	// scheduling can hide it.
+	cache.newTimer = func(d time.Duration) (<-chan time.Time, func() bool) {
+		ch, stop := clock.newTimer(d)
+		clock.advance(20 * time.Second)
+		return ch, stop
+	}
+
+	flight := &identityFlight{done: make(chan struct{})}
+	var waited time.Duration
+	finished := make(chan error, 1)
+	go func() { finished <- cache.waitForFlight(context.Background(), flight, &waited) }()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for len(clock.timersRequested()) < 1 {
+		if time.Now().After(deadline) {
+			t.Fatal("the waiter never asked for its wall-clock timer")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(flight.done)
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Fatalf("wait err = %v, want nil", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the wait never returned")
+	}
+	if waited != 20*time.Second {
+		t.Fatalf("waited = %v, want 20s", waited)
+	}
+}
+
 // TestIdentityEpochCacheWaiterCancelIsNotAGiveUp keeps the bound from rewriting
 // a waiter's own cancellation: when a parked WAITER's context ends, it returns
 // its own context error and the gave_up outcomes stay at zero.
