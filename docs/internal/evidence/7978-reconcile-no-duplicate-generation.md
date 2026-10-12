@@ -309,7 +309,9 @@ scopes as the #7978 plans, query text taken from the Go constants:
 The first-run column reflects cache order (the old query ran first); no plan
 used a sequential scan.
 
-After-measurement plan (QA, once stage 2 has the sweep on): collector CPU per
+After-measurement plan (QA, once the ingester image with this change is rolled
+and stage 2 has the sweep on; the ingester is the runtime that syncs
+repositories there, and review F-1 wired it): collector CPU per
 sweep cycle and `eshu_dp_collector_reconcile_parse_skip_decisions_total` by
 outcome, before (sweep with `ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS=0`) and after
 (default 7), over the same 24 h window shape. Expected at steady state: mostly
