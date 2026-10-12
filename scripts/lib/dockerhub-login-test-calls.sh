@@ -166,6 +166,8 @@ wjob "${d}" q-braced-variable-docker-with-the-wrapper-as-its-command 1 \
   'DOCKER_BIN=docker' 'docker compose -f docker-compose.fixture-ghcr.yaml config' \
   '"${DOCKER_BIN}" compose -f docker-compose.fixture-ledger.yaml run --rm db bash scripts/ci/compose.sh'
 # A raw call whose subcommand pulls or builds is judged by its files.
+wjob "${d}" q-raw-array-pull 1 'compose_args=(-p x -f docker-compose.fixture-ledger.yaml)' 'docker compose "${compose_args[@]}" pull'
+wjob "${d}" q-raw-array-run 1 'compose_args=(-p x -f docker-compose.fixture-ledger.yaml)' 'docker compose "${compose_args[@]}" run --rm db true'
 wjob "${d}" q-raw-pull 1 "${raw} pull"
 wjob "${d}" q-raw-create 1 "${raw} create"
 wjob "${d}" q-raw-build 1 "${raw} build"
@@ -188,7 +190,7 @@ expect_queue_jobs_red queue-path-raw-compose-calls-fail "${d}" \
   q-builtin-exec-clears-the-environment-before-the-wrapper q-command-exec-clears-the-environment-before-the-wrapper \
   q-env-null-and-ignore-flags-before-the-wrapper q-env-ignore-and-null-flags-before-the-wrapper \
   q-env-null-and-unset-flags-before-the-wrapper q-setpriv-reset-env-before-the-wrapper \
-  q-backtick-body-env-ignore-before-the-wrapper q-backtick-body-raw-compose
+  q-backtick-body-env-ignore-before-the-wrapper q-backtick-body-raw-compose q-raw-array-pull q-raw-array-run
 
 # A direct call with a non-pulling subcommand reaches no image, whatever file it names:
 # the golden gate keeps its polls and teardown direct (main's gate read them the same).
@@ -197,6 +199,13 @@ d="${QUEUE_DIR}"
 for sub in 'exec -T db true' 'ps -q' 'logs --tail=20' 'down -v' 'config --quiet' 'stop' 'restart db'; do
   wjob "${d}" "g-raw-${sub%% *}" 1 "docker compose -f docker-compose.fixture-ledger.yaml ${sub}"
 done
+# The golden gate's own form: flags held in an array, then a literal subcommand.
+wjob "${d}" g-raw-array-exec 1 'compose_args=(-p x -f docker-compose.fixture-ledger.yaml)' \
+  'docker compose "${compose_args[@]}" exec -T db true'
+wjob "${d}" g-raw-array-down-beside-wrapper-up 1 'compose_args=(-p x -f docker-compose.fixture-ledger.yaml)' \
+  'bash scripts/ci/compose.sh "${compose_args[@]}" -- up -d' 'docker compose "${compose_args[@]}" down -v >/dev/null 2>&1 || true'
+wjob "${d}" g-raw-array-exec-in-a-poll 1 'compose_args=(-p x -f docker-compose.fixture-ledger.yaml)' \
+  'for _ in 1 2 3; do docker compose "${compose_args[@]}" exec -T db pg_isready && break; sleep 1; done'
 wjob "${d}" g-raw-nonpulling-beside-a-wrapper-up 1 "${wrapper_cmd}" \
   'docker compose -f docker-compose.fixture-ledger.yaml exec -T db true'
 expect_green queue-path-direct-nonpulling-calls-pull-nothing "${d}"
