@@ -56,7 +56,7 @@ The executable schemas are `go/internal/queryplan/pilot_contract.go` and
 | `QP-CODE-IMPORT-SOURCE-MODULE-ROWS` | Neo4j | 32 | 32 |
 | `QP-CODE-IMPORT-TARGET-MODULE-FILES` | Neo4j | 16 | 16 |
 
-The initial matrix also reports 19 legacy handler families and 108 excluded
+The initial matrix also reports 19 legacy handler families and 109 excluded
 PostgreSQL candidate files. One PostgreSQL file has pilot execution-site proof;
 its registered adapter and two other reads have explicit exclusions. These
 counts describe the pilot boundary, not validated repository-wide semantics.
