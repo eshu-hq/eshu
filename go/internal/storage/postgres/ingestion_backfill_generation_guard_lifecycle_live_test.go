@@ -303,7 +303,8 @@ func TestStaleFullActivationReadsFreshLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FullReconcileState: %v", err)
 	}
-	if !state.ReconcileRequestedAt.IsZero() || !state.LastProjectedFullAt.Equal(staleFull.IngestedAt.UTC()) {
+	// Postgres stores microseconds; the Go ingest time may carry nanoseconds.
+	if lag := state.LastProjectedFullAt.Sub(staleFull.IngestedAt.UTC()); !state.ReconcileRequestedAt.IsZero() || lag <= -time.Microsecond || lag >= time.Microsecond {
 		t.Fatalf("after the stale full activated: request=%v last=%v, want no request and last=%v",
 			state.ReconcileRequestedAt, state.LastProjectedFullAt, staleFull.IngestedAt.UTC())
 	}

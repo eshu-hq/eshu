@@ -85,7 +85,11 @@ func openReprojectProof(t *testing.T) *reprojectProof {
 			ScopeID: reprojectProofScopeID, SourceSystem: "git", ScopeKind: scope.KindRepository,
 			CollectorKind: scope.CollectorGit, PartitionKey: "proof/7978",
 		},
-		clock: time.Now().UTC().Add(-48 * time.Hour), facts: 200, schema: schemaName,
+		// A sub-microsecond part, as a Linux clock has: Postgres keeps
+		// microseconds, so a test that compares a Go time with a stored one
+		// must allow for it (CI caught one that a macOS clock hid).
+		clock: time.Now().UTC().Add(-48 * time.Hour).Truncate(time.Second).Add(274071506 * time.Nanosecond),
+		facts: 200, schema: schemaName,
 	}
 }
 
