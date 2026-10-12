@@ -168,6 +168,9 @@ PACKAGES = {
             "TestPreparseIdentityStampsAndActiveStateLive",
             "TestCheapReprojectLifecycleLive",
             "TestCheapReprojectRacesLive",
+            "TestPreparseIdentityDroppedByTheStreamLive",
+            "TestStreamDroppedGenerationHealsLive",
+            "TestIdentitylessStreamDropIsMarkedLive",
         ),
         "go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go": (
             "TestUnchangedReconcileStoresNothingLive",
