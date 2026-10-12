@@ -14,6 +14,7 @@ SUMMARY_PACKAGE = "./internal/storage/postgres/status/summary"
 WRITER_PACKAGE = "./internal/reducer/status/summary"
 ADMIN_PACKAGE = "./internal/query/admin"
 REACHABILITY_PACKAGE = "./internal/storage/postgres/code/reachability"
+CONFIG_ARTIFACTS_PACKAGE = "./internal/storage/postgres/config/artifacts"
 
 # Expected files and tests per Go package (relative to the go/ module root).
 # The runner invokes one go test per package, each with its own events file
@@ -443,6 +444,26 @@ PACKAGES = {
     REACHABILITY_PACKAGE: {
         "go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go": (
             "TestLoadCodeReachabilityEdgesReadsConsumerScopeOnly",
+        ),
+    },
+    CONFIG_ARTIFACTS_PACKAGE: {
+        "go/internal/storage/postgres/config/artifacts/dirty_live_test.go": (
+            "TestListDirtyFindsTheWalkersWorkLive",
+            "TestListDirtyAgreesWithClassifyLive",
+        ),
+        "go/internal/storage/postgres/config/artifacts/encoding_live_test.go": (
+            "TestCheckEncodingReadsTheDatabaseEncodingLive",
+        ),
+        "go/internal/storage/postgres/config/artifacts/schema_live_test.go": (
+            "TestRowDigestMatchesGoRecomputationLive",
+            "TestRowKeyRejectsADuplicateRowLive",
+            "TestReadModelCatalogLive",
+            "TestMigrationReRunsLive",
+        ),
+        "go/internal/storage/postgres/config/artifacts/walk_live_test.go": (
+            "TestClaimPageWalksEveryRepositoryAndWrapsLive",
+            "TestClaimPageAtAnExactPageBoundaryLive",
+            "TestClaimPageGivesConcurrentClaimersDisjointPagesLive",
         ),
     },
 }
