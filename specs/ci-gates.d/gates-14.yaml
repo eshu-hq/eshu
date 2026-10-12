@@ -415,6 +415,7 @@ gates:
       - ".github/**"
       - "scripts/verify-workflow-script-checkout.sh"
       - "scripts/test-verify-workflow-script-checkout.sh"
+      - "scripts/lib/workflow-script-checkout-violations.yq"
       - "scripts/fixtures/workflow-script-checkout/**"
     local:
       command: "bash scripts/verify-workflow-script-checkout.sh"
