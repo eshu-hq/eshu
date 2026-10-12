@@ -4,7 +4,7 @@
 
 1. `README.md` — purpose, boundary, and invariants.
 2. `doc.go` — the contract.
-3. `identity.go`, `decision.go`, `envkeys.go`.
+3. `identity.go`, `decision.go`, `keys.go`.
 
 ## Invariants
 
@@ -13,7 +13,7 @@
   the snapshot, add it to `Config`, fold it in `writeConfig`, and add a cell to
   `TestIdentityChangesWithEveryFoldedInput`.
 - When you add an env key under `go/internal/collector/repo` or
-  `go/internal/parser`, classify it in `envkeys.go`; the guard test fails until
+  `go/internal/parser`, classify it in `keys.go`; the guard test fails until
   you do.
 - Keep the package pure (no I/O, clock, or git) so the decision is
   table-testable.
