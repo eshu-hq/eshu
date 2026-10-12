@@ -73,6 +73,10 @@ const (
 	reconcileReasonRetryAfterUnprojected = "retry_after_unprojected"
 	reconcileReasonNeverReconciled       = "never_reconciled"
 	reconcileReasonIntervalElapsed       = "interval_elapsed"
+	// reconcileReasonInFlightExpiredHeld (ruling a9-126): a pending full older
+	// than Interval is at the remote head and its work is live, so the scope
+	// is held, not forced. Counted on the suppression counter.
+	reconcileReasonInFlightExpiredHeld = "in_flight_expired_held"
 	// reconcileReasonGraphDirty (#7389): a generation wrote the graph, never
 	// activated, and no later activated full covers it.
 	reconcileReasonGraphDirty = "graph_dirty"
@@ -244,11 +248,12 @@ func resolveReindexWatermark(
 //
 // A negative age (clock skew) compares as less than every bound and
 // suppresses. No single generation suppresses the sweep for longer than
-// Interval; four forced fulls per Interval while they keep failing. Since
-// #7978 a forced snapshot equal to a pending full is not stored, so once a
-// pending full is older than Interval the scope is forced (and parsed) every
-// cycle without storing anything until that full activates (review r2 N2,
-// held for ruling a9-126).
+// Interval; four forced fulls per Interval while they keep failing. A pending
+// full older than Interval returns in_flight_expired here, but the sync holds
+// the scope (in_flight_expired_held, ruling a9-126) while that full's commit
+// equals the remote head and its projector work is live: no snapshot, no
+// parse, no budget slot (see expiredPendingHoldHead). It is forced when the
+// head moved or the work is gone; worst case one forced full per Interval.
 func (p reconcilePolicy) decide(now time.Time, s scope.FullReconcileState) (bool, string) {
 	if pending, stale := p.reprojectionRequest(now, s); pending {
 		if !stale {
@@ -358,4 +363,37 @@ func (p reconcilePolicy) decideReindex(now, watermark time.Time, s scope.FullRec
 
 func (p reconcilePolicy) enabled() bool {
 	return p.Interval > 0
+}
+
+// expiredPendingHoldHead returns the commit at which a forced decision holds
+// instead of forcing (ruling a9-126); empty when it must force. It applies to
+// in_flight_expired and reconcile_request_stale over a newest full that is
+// pending, not activated, and has live projector work. The sync compares it
+// with the remote head after the fetch: at the same head the scope holds with
+// reason in_flight_expired_held (no snapshot, no parse, no budget slot); when
+// the head moved or the work is gone, the forced full proceeds and is stored.
+// It is pure.
+func expiredPendingHoldHead(reason string, s scope.FullReconcileState) string {
+	if reason != reconcileReasonInFlightExpired && reason != scope.ReconcileReasonRequestStale {
+		return ""
+	}
+	if !s.HasLatestFull || s.LatestFullProjected || s.LatestFullStatus != scope.GenerationStatusPending || !s.LatestFullWorkLive {
+		return ""
+	}
+	return strings.TrimSpace(s.LatestFullSourceCommitSHA)
+}
+
+// logReconcileHeld logs one a9-126 hold: the scope's forced reconcile was held
+// because its newest full is pending at the remote head with live work. A
+// repeat for one scope means the projector or reducer is behind on it.
+func logReconcileHeld(ctx context.Context, logger *slog.Logger, decision reconcileDecision, head string) {
+	if logger == nil {
+		return
+	}
+	logger.InfoContext(ctx, "git_reconcile_held",
+		log.ScopeID(decision.ScopeID),
+		slog.String("reason", reconcileReasonInFlightExpiredHeld),
+		slog.String("forced_reason", decision.Reason),
+		slog.String("pending_commit_sha", head),
+		slog.Time("latest_full_at", decision.State.LatestFullAt))
 }

@@ -39,7 +39,7 @@ func TestUpdateRepositoryRecordsDeltaBaseline(t *testing.T) {
 		{name: "unreachable baseline", baseline: "prunedsha", want: ""},
 	} {
 		updated, delta, _, err := updateRepository(context.Background(), baselineTestConfig(), t.TempDir(), "",
-			discardLogger(), baselineTestEvent(), tc.baseline, nil)
+			discardLogger(), baselineTestEvent(), tc.baseline, nil, "")
 		if err != nil || !updated {
 			t.Fatalf("%s: updateRepository() = %v, %v; want updated", tc.name, updated, err)
 		}

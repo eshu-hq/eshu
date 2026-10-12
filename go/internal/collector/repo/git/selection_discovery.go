@@ -89,6 +89,10 @@ type GitSyncDelta struct {
 	// DeltaByRepoPath even though it carries no paths, and the selection
 	// carries it to SelectedRepository.DefaultBranchChanged.
 	DefaultBranchChanged bool
+	// ReconcileHeld marks a forced reconcile that the sync held after the
+	// fetch, because the remote head equals a pending full with live work
+	// (ruling a9-126). Such a sync produces no snapshot.
+	ReconcileHeld bool
 }
 
 func selectGitHubRepositoryIDs(

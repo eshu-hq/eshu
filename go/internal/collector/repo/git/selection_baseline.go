@@ -33,15 +33,15 @@ func syncExistingRepository(
 	logger *slog.Logger,
 	event gitSyncLogEvent,
 	baseline gitDeltaBaseline,
-	forceReconcile bool,
+	forceReconcile bool, holdIfHead string,
 ) (bool, GitSyncDelta, string, error) {
 	if forceReconcile {
 		// Force a full re-observation regardless of any usable baseline. An empty
-		// baseline drives updateRepository's full-snapshot path; the nil
-		// onFallback suppresses the baseline-fallback counter so the sweep is not
-		// double-counted. The caller records the reconciliation metric only when
-		// the forced sync actually produced a generation.
-		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil)
+		// baseline drives updateRepository's full-snapshot path (held at
+		// holdIfHead, a9-126); the nil onFallback avoids double-counting the
+		// sweep. The caller records the reconciliation metric only when the
+		// forced sync actually produced a generation.
+		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil, holdIfHead)
 	}
 	baselineSHA, err := baseline.resolveScopeBaseline(ctx, config, repoPath)
 	if err != nil {
@@ -51,10 +51,10 @@ func syncExistingRepository(
 		// updateRepository's own emission (nil onFallback) to avoid a double
 		// count. The empty baseline still drives a safe full snapshot.
 		baseline.recordFallback(ctx, deltaFallbackBaselineLookupError)
-		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil)
+		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil, "")
 	}
 	onFallback := func(reason string) { baseline.recordFallback(ctx, reason) }
-	return updateRepository(ctx, config, repoPath, token, logger, event, baselineSHA, onFallback)
+	return updateRepository(ctx, config, repoPath, token, logger, event, baselineSHA, onFallback, "")
 }
 
 // DeltaBaselineResolver resolves the durable incremental-sync baseline for a
@@ -246,7 +246,8 @@ func (b gitDeltaBaseline) recordSuppressedDecision(ctx context.Context, reason s
 // interval, active fleet watermark, and active per-repository watermark for
 // scopeID (each zero when none), and the bounded reason. It runs the same
 // decision the sync loop runs, without a per-cycle budget, so an end-to-end
-// proof can derive a generation's reconcile flag from production.
+// proof can derive a generation's reconcile flag from production. It does not
+// apply the post-fetch a9-126 hold, which needs the remote head.
 func ReconcileSweepDecision(
 	ctx context.Context,
 	resolver DeltaBaselineResolver,

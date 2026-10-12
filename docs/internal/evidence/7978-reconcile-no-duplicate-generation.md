@@ -20,11 +20,11 @@ document, or term row.
 | Snapshot | Store action | `refresh_skip_reason` |
 | --- | --- | --- |
 | Duplicate, not a reconcile, match is `active` | drain the stream, store nothing | `unchanged` |
-| Duplicate of a `pending` generation (ruling a9-120) | drain, store nothing | `pending_same_identity` |
+| Duplicate of a `pending` generation with live projector work (rulings a9-120, a9-126) | drain, store nothing | `pending_same_identity` |
 | Duplicate reconcile, match is `active` | re-open the active generation's projector work | `reconcile_reprojected` |
 | Same, work row already pending or under a live lease | no re-open, no stamp | `reconcile_reprojection_pending` |
 | Same, a newer generation activated before the scope lock | drop the snapshot | `reconcile_superseded` |
-| Different hint, commit, or version; `DefaultBranchChanged`; reason `reconcile_request_stale`; or a `failed` match | store a generation | none |
+| Different hint, commit, or version; `DefaultBranchChanged`; reason `reconcile_request_stale`; a `failed` match; or a `pending` match whose work is missing or terminal (ruling a9-126) | store a generation | none |
 
 The re-open mirrors the #7209 zombie heal: the same canonical `work_item_id`,
 `ON CONFLICT DO UPDATE`, and the in-flight guard. Ruling a9-117 changes two
@@ -103,6 +103,32 @@ memory (quicksort, 25 kB) to take the newest; that is the same plan as the
 `activeGenerationFreshnessQuery` it replaces. The projector claim change adds one
 expression to the SELECT list over the already-joined generation row. Its plan
 was not re-measured.
+
+Wedged pending full (ruling a9-126). Before the hold, a full generation pending
+for longer than `Interval` at the remote head was forced every cycle, parsed,
+and then skipped by the store as `pending_same_identity`; each forced scope
+also took a per-cycle budget slot. `TestWedgedPendingFullHoldsWithoutParsing`
+counts the selected (parsed) repositories over three cycles: 3 with the hold
+removed, 0 with it. `TestWedgedPendingFullDoesNotSpendTheBudget` shows a held
+scope no longer takes the only slot, so a later overdue scope is forced in the
+same cycle.
+
+The hold reads the newest full's commit and whether its projector work row is
+`pending`, `retrying`, `claimed`, or `running` (the claim pool's admissible
+set). Both reads probe the canonical `work_item_id`
+(`'projector_' || scope_id || '_' || generation_id`) on `fact_work_items_pkey`
+for the single row the outer `LIMIT 1` keeps. Generic plans on the same 35,001
+generations, three runs each:
+
+| statement | scope with 3,040 generations | scope with about 40 generations |
+| --- | ---: | ---: |
+| candidate read with `work_live` | 0.028-0.543 ms | 0.021-0.336 ms |
+| full reconcile state with the newest full's commit and liveness | 0.030-0.058 ms | 0.035-0.050 ms |
+
+A first shape that filtered `fact_work_items` by `scope_id`, `generation_id`,
+and `status` used `fact_work_items_scope_generation_idx` and took
+1.27-3.58 ms on the large scope (32 buffers). It was rejected for the
+primary-key probe. The first run of each shape is cold.
 
 ## Differences From The Old Path
 

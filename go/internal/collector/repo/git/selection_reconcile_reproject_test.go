@@ -147,29 +147,49 @@ func TestReconcilePolicyStaleRequestForcesOncePerInterval(t *testing.T) {
 	}
 }
 
-// TestReconcilePolicyWedgedPendingCurrentBehaviour pins today's decision for a
-// wedged pending full (review r2 N2, held for ruling a9-126): once the pending
-// full is older than Interval, the sweep forces the scope every cycle, and the
-// store then skips the snapshot as pending_same_identity. Nothing is stored,
-// but each cycle parses the repository and spends a per-cycle budget slot. A
-// ruling that holds such scopes flips these rows.
-func TestReconcilePolicyWedgedPendingCurrentBehaviour(t *testing.T) {
+// TestExpiredPendingHoldCells pins ruling a9-126 (review r2 N2): a forced
+// in_flight_expired or reconcile_request_stale decision over a pending full
+// whose work is live holds the scope when the remote head equals that full's
+// commit (no snapshot, no parse, no budget slot). It is forced when the head
+// moved or the work is gone, so a lost work row cannot wedge the scope.
+func TestExpiredPendingHoldCells(t *testing.T) {
 	t.Parallel()
 	policy := reconcilePolicy{Interval: 24 * time.Hour}
 	now := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
-	wedged := scope.FullReconcileState{
-		HasProjectedFull: true, LastProjectedFullAt: now.Add(-72 * time.Hour), LastStoredFullAt: now.Add(-72 * time.Hour),
-		HasLatestFull: true, LatestFullAt: now.Add(-30 * time.Hour),
-		LatestFullStatus: scope.GenerationStatusPending,
-	}
-	for _, cycle := range []time.Duration{0, 6 * time.Minute, 12 * time.Minute} {
-		if due, reason := policy.decide(now.Add(cycle), wedged); !due || reason != reconcileReasonInFlightExpired {
-			t.Fatalf("decide() at +%s = (%v, %q), want (true, %q) every cycle", cycle, due, reason, reconcileReasonInFlightExpired)
+	wedged := func(sha string, live bool) scope.FullReconcileState {
+		return scope.FullReconcileState{
+			HasProjectedFull: true, LastProjectedFullAt: now.Add(-72 * time.Hour), LastStoredFullAt: now.Add(-72 * time.Hour),
+			HasLatestFull: true, LatestFullAt: now.Add(-30 * time.Hour),
+			LatestFullStatus: scope.GenerationStatusPending, LatestFullSourceCommitSHA: sha, LatestFullWorkLive: live,
 		}
 	}
-	staleWedged := wedged
-	staleWedged.ReconcileRequestedAt = now.Add(-73 * time.Hour)
-	if due, reason := policy.decide(now, staleWedged); !due || reason != scope.ReconcileReasonRequestStale {
-		t.Fatalf("decide(stale request, wedged pending) = (%v, %q), want (true, %q)", due, reason, scope.ReconcileReasonRequestStale)
+	stale := wedged("sha-x", true)
+	stale.ReconcileRequestedAt = now.Add(-73 * time.Hour)
+	cases := []struct {
+		name     string
+		state    scope.FullReconcileState
+		remote   string
+		wantHeld bool
+	}{
+		{"pending 30h, same head, live work", wedged("sha-x", true), "sha-x", true},
+		{"pending 30h, same head, work gone", wedged("sha-x", false), "sha-x", false},
+		{"pending 30h, head moved", wedged("sha-x", true), "sha-y", false},
+		{"stale request, pending same head, live", stale, "sha-x", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			due, reason := policy.decide(now, tc.state)
+			if !due {
+				t.Fatalf("decide() = (%v, %q), want a forced decision before the head check", due, reason)
+			}
+			head := expiredPendingHoldHead(reason, tc.state)
+			if held := head != "" && head == tc.remote; held != tc.wantHeld {
+				t.Fatalf("held = %v (reason %q, hold head %q, remote %q), want %v", held, reason, head, tc.remote, tc.wantHeld)
+			}
+		})
+	}
+	if head := expiredPendingHoldHead(reconcileReasonIntervalElapsed, wedged("sha-x", true)); head != "" {
+		t.Fatalf("interval_elapsed hold head = %q, want none", head)
 	}
 }

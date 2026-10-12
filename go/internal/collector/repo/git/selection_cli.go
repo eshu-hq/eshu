@@ -87,7 +87,15 @@ func syncGitRepositoriesWithLogger(
 			forceReconcile := reconcile.Due
 			// updated==false with a nil updateErr is the legitimate no-new-changes
 			// no-op, not a failure — only updateErr != nil is metered below.
-			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
+			holdIfHead := ""
+			if forceReconcile {
+				holdIfHead = expiredPendingHoldHead(reconcile.Reason, reconcile.State)
+			}
+			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile, holdIfHead)
+			if delta.ReconcileHeld {
+				baseline.recordReconcileSuppressed(ctx, reconcileReasonInFlightExpiredHeld)
+				logReconcileHeld(ctx, logger, reconcile, holdIfHead)
+			}
 			if updateErr != nil {
 				recordGitRepoSyncFailure(ctx, baseline.Instruments, "fetch") // already logged by updateRepository
 			} else if updated {
@@ -226,6 +234,7 @@ func updateRepository(
 	event gitSyncLogEvent,
 	baselineSHA string,
 	onFallback func(reason string),
+	holdIfHead string,
 ) (updated bool, delta GitSyncDelta, sourceCommitSHA string, _ error) {
 	event = event.withOperation("fetch")
 	branch, err := resolveDefaultBranch(ctx, config, repoPath, token)
@@ -248,6 +257,12 @@ func updateRepository(
 	}
 	remoteRef := "refs/remotes/origin/" + branch
 	event.Branch = branch
+	if holdIfHead != "" && detection == "" && remoteSHA == holdIfHead {
+		// Ruling a9-126: the pending full at this head still has live work,
+		// so a forced snapshot would only be skipped by the store.
+		logGitSyncCompleted(ctx, logger, event, false)
+		return false, GitSyncDelta{ReconcileHeld: true}, "", nil
+	}
 
 	baseline := strings.TrimSpace(baselineSHA)
 	switch {

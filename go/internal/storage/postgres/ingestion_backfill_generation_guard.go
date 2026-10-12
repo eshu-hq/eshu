@@ -316,8 +316,8 @@ func generationNeedsDuplicateCheck(generation scope.ScopeGeneration) bool {
 // and nowhere else.
 //
 //   - No candidate, or a different hint or commit: store.
-//   - Same identity as a pending generation (ruling a9-120): skip; that
-//     generation's own projection is still queued.
+//   - Same identity as a pending generation (ruling a9-120): skip while its
+//     projector work is live; store when it is not (ruling a9-126).
 //   - Same identity as the active generation, ordinary snapshot: skip.
 //   - Same identity as the active generation, reconcile reason
 //     reconcile_request_stale (ruling a9-117 Q3): store; the re-projection was
@@ -339,6 +339,11 @@ func decideUnchangedGeneration(
 		return unchangedActionStore, ""
 	}
 	if candidate.status == scope.GenerationStatusPending {
+		if !candidate.workLive {
+			// Ruling a9-126: no worker can activate it; store the snapshot
+			// so it supersedes the wedged generation at activation.
+			return unchangedActionStore, ""
+		}
 		return unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity
 	}
 	switch strings.TrimSpace(generation.ReconcileReason) {

@@ -37,6 +37,15 @@ type FullReconcileState struct {
 	// LatestFullProjected reports whether that newest full generation was
 	// activated. A superseded generation with no activation never projected.
 	LatestFullProjected bool
+	// LatestFullSourceCommitSHA is that newest full generation's source
+	// commit (ruling a9-126): a pending full at the remote head holds the
+	// sweep while its work is live.
+	LatestFullSourceCommitSHA string
+	// LatestFullWorkLive reports whether that newest full generation has a
+	// projector work row a worker can still run: pending, retrying, claimed,
+	// or running. A missing or terminal row is not live, so the sweep forces
+	// the scope instead of holding it forever (ruling a9-126).
+	LatestFullWorkLive bool
 	// ReconcileRequestedAt is when an unchanged reconcile last re-opened the
 	// newest activated full generation's projector work instead of storing a
 	// duplicate (#7978). It is zero when there is none or when that generation

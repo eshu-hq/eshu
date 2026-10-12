@@ -95,6 +95,16 @@ with a row. This directory is pinned at its file count by the dirgate ledger,
 so the code lives in `selection_reconcile_config.go` and
 `selection_baseline.go`, not a new file.
 
+An expired pending full holds its scope (#7978, ruling a9-126). When `decide`
+forces `in_flight_expired` or `reconcile_request_stale` over a newest full that
+is pending with live projector work, `expiredPendingHoldHead` returns that
+full's commit. `updateRepository` compares it with the remote head after the
+fetch. At the same head the sync returns `GitSyncDelta.ReconcileHeld`: no
+snapshot, no parse, and no per-cycle budget slot, counted as
+`in_flight_expired_held` with an INFO `git_reconcile_held` log. Every entry
+path (scheduled sync, sweep, webhook) goes through this loop, so each has the
+remote head when it holds.
+
 Performance Evidence (#7620, per-repository): the read is one sequential scan
 per cycle per shard, about 1 ms per 10,000 rows on PostgreSQL 18. Ordering
 derives a scope ID per repository only when at least one row is active, using

@@ -201,6 +201,7 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 			generation.FreshnessHint,
 			generation.SourceCommitSHA,
 			string(generation.Status),
+			true,
 		}}), nil
 	case strings.Contains(query, "FROM ingestion_scopes") && strings.Contains(query, "GROUP BY status"):
 		return newProofRows(proofScopeCountRows(database.state.scopeStatuses)), nil

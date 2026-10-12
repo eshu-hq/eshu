@@ -244,17 +244,32 @@ func NewPriorGenerationCheck(database db.ExecQueryer) reducer.PriorGenerationChe
 // still wins over the active one: a snapshot equal to the active generation
 // but not to a newer pending one is stored, because the pending one will
 // replace the active one. Served by scope_generations_scope_latest_lookup_idx.
+// work_live (ruling a9-126) reports whether that generation's projector work
+// row is pending, retrying, claimed, or running: one primary-key probe on the
+// canonical projector work_item_id for the single candidate row.
 const unchangedGenerationCandidateQuery = `
-SELECT generation.generation_id,
-       COALESCE(generation.freshness_hint, ''),
-       COALESCE(generation.source_commit_sha, ''),
-       generation.status
-FROM scope_generations AS generation
-WHERE generation.scope_id = $1
-  AND generation.status IN ('pending', 'active')
-  AND COALESCE(generation.freshness_hint, '') <> ''
-ORDER BY generation.ingested_at DESC, generation.generation_id DESC
-LIMIT 1
+SELECT candidate.generation_id,
+       candidate.freshness_hint,
+       candidate.source_commit_sha,
+       candidate.status,
+       EXISTS (
+           SELECT 1
+           FROM fact_work_items AS work
+           WHERE work.work_item_id = 'projector_' || $1 || '_' || candidate.generation_id
+             AND work.status IN ('pending', 'retrying', 'claimed', 'running')
+       ) AS work_live
+FROM (
+    SELECT generation.generation_id,
+           COALESCE(generation.freshness_hint, '') AS freshness_hint,
+           COALESCE(generation.source_commit_sha, '') AS source_commit_sha,
+           generation.status
+    FROM scope_generations AS generation
+    WHERE generation.scope_id = $1
+      AND generation.status IN ('pending', 'active')
+      AND COALESCE(generation.freshness_hint, '') <> ''
+    ORDER BY generation.ingested_at DESC, generation.generation_id DESC
+    LIMIT 1
+) AS candidate
 `
 
 // unchangedGenerationCandidate is the generation a snapshot is compared with.
@@ -263,6 +278,10 @@ type unchangedGenerationCandidate struct {
 	freshnessHint string
 	sourceCommit  string
 	status        scope.GenerationStatus
+	// workLive reports whether the candidate has a projector work row a
+	// worker can still run (pending, retrying, claimed, running); ruling
+	// a9-126 skips a pending match only then.
+	workLive bool
 }
 
 // matches reports whether generation duplicates the candidate (#7978): the
@@ -290,7 +309,7 @@ func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string)
 	}
 	var candidate unchangedGenerationCandidate
 	var status string
-	if err := rows.Scan(&candidate.generationID, &candidate.freshnessHint, &candidate.sourceCommit, &status); err != nil {
+	if err := rows.Scan(&candidate.generationID, &candidate.freshnessHint, &candidate.sourceCommit, &status, &candidate.workLive); err != nil {
 		return unchangedGenerationCandidate{}, false, err
 	}
 	candidate.freshnessHint = strings.TrimSpace(candidate.freshnessHint)

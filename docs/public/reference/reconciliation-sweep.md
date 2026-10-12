@@ -52,10 +52,11 @@ is the bounded label on the sweep's counters and log:
 | Scope state | Decision | Reason |
 | --- | --- | --- |
 | active full generation has a re-projection request younger than `Interval` and no Ack since | hold | `reconcile_in_flight` |
-| the same request is `Interval` old, or its re-projection was dead-lettered, and no forced full is in flight or backing off | force; the store stores a generation unless one with the same identity is pending | `reconcile_request_stale` |
+| the same request is `Interval` old, or its re-projection was dead-lettered, and no forced full is in flight or backing off | force; the store stores a generation unless one with the same identity is pending with live work (a pending full at the remote head with live work holds as `in_flight_expired_held`) | `reconcile_request_stale` |
 | newest activated full generation (or its last re-projection Ack) is younger than `Interval` | hold | `fresh` |
 | newest full generation is `pending`, younger than `Interval` | hold | `reconcile_in_flight` |
-| newest full generation is `pending`, `Interval` old or older | force | `in_flight_expired` |
+| newest full generation is `pending`, `Interval` old or older, at the remote head, with live projector work (pending, retrying, claimed, or running) | hold, checked after the fetch | `in_flight_expired_held` |
+| newest full generation is `pending`, `Interval` old or older, and the head moved or its work is gone | force | `in_flight_expired` |
 | newest full generation failed, or was superseded before it activated, and is younger than `Interval / 4` | hold | `reconcile_retry_backoff` |
 | the same, `Interval / 4` old or older | force | `retry_after_unprojected` |
 | no full generation ever activated | force | `never_reconciled` |
@@ -100,16 +101,26 @@ The log is WARN for `in_flight_expired`, `retry_after_unprojected`, and
 `reconcile_projected_at`, and `reconcile_dead_lettered_at`): repeats of any
 mean projection is not keeping up with the sweep. Each evaluation the
 sweep holds off increments `eshu_dp_collector_reconciliation_suppressed_total`,
-labeled by `reason` (`reconcile_in_flight`, `reconcile_retry_backoff`). A
-sustained suppression rate with few forced reconciliations points at projector
-lag, not at the sweep.
+labeled by `reason` (`reconcile_in_flight`, `reconcile_retry_backoff`,
+`in_flight_expired_held`). A sustained suppression rate with few forced
+reconciliations points at projector lag, not at the sweep.
+`in_flight_expired_held` (ruling a9-126) means a full generation has been
+pending for longer than `Interval` at the remote head and its projector work is
+still live, so the sweep holds the scope instead of parsing it again: the
+reducer or projector is behind on this scope. Read the projector queue for the
+scope and the INFO log `git_reconcile_held` (`scope_id`, `forced_reason`,
+`pending_commit_sha`, `latest_full_at`). A held scope takes no
+`ESHU_REPO_RECONCILE_MAX_PER_CYCLE` slot. When the head moves or the work row
+is gone (missing or terminal), the sweep forces the scope again.
 
 The store side of each forced snapshot shows on
 `eshu_runtime_refresh_skipped_by_reason_total{reason}`: `reconcile_reprojected`
 (the active generation was re-opened, nothing stored), `reconcile_reprojection_pending`
 (its work was already open or leased), `reconcile_superseded` (a newer
 generation won the scope lock; the snapshot is dropped), and
-`pending_same_identity` (a pending generation already holds that content). A
+`pending_same_identity` (a pending generation with live projector work already
+holds that content; a pending match without live work is not a duplicate, so the
+snapshot is stored and supersedes it). A
 re-projection that is dead-lettered leaves the generation active and its scope
 pointer in place; the next sweep forces `reconcile_request_stale`, which stores
 a generation.

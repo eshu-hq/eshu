@@ -82,7 +82,7 @@ func TestCommitReconcileUnchangedActiveReprojectsWithoutWrites(t *testing.T) {
 	db := &fakeTransactionalDB{
 		tx: tx,
 		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
+			rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
 		}},
 	}
 	store := NewIngestionStore(db)
@@ -144,7 +144,7 @@ func TestCommitReconcileUnchangedActiveAlreadyOpenIsPending(t *testing.T) {
 
 	tx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{true, false}}}}}
 	db := &fakeTransactionalDB{tx: tx, queryResponses: []queueFakeRows{{
-		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
+		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
 	}}}
 	scopeValue, generation := reprojectFixture("graph_dirty", "hint-same", "sha-same")
 	if err := NewIngestionStore(db).CommitScopeGeneration(context.Background(), scopeValue, generation, threeFactStream()); err != nil {
@@ -167,7 +167,7 @@ func TestCommitUnchangedWithoutReconcileSkipsWithoutTransaction(t *testing.T) {
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 
 	db := &fakeTransactionalDB{tx: &fakeTx{}, queryResponses: []queueFakeRows{{
-		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
+		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
 	}}}
 	scopeValue, generation := reprojectFixture("", "hint-same", "sha-same")
 	if err := NewIngestionStore(db).CommitScopeGeneration(context.Background(), scopeValue, generation, threeFactStream()); err != nil {
@@ -190,7 +190,7 @@ func TestCommitReconcileMatchingPendingGenerationSkips(t *testing.T) {
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 
 	db := &fakeTransactionalDB{tx: &fakeTx{}, queryResponses: []queueFakeRows{{
-		rows: [][]any{{"generation-pending", "hint-same", "sha-same", "pending"}},
+		rows: [][]any{{"generation-pending", "hint-same", "sha-same", "pending", true}},
 	}}}
 	scopeValue, generation := reprojectFixture("interval_elapsed", "hint-same", "sha-same")
 	if err := NewIngestionStore(db).CommitScopeGeneration(context.Background(), scopeValue, generation, threeFactStream()); err != nil {
@@ -230,7 +230,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 			db := &fakeTransactionalDB{tx: tx}
 			if tc.wantCandidateQuery {
 				db.queryResponses = []queueFakeRows{{
-					rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
+					rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
 				}}
 			}
 			scopeValue, generation := reprojectFixture(tc.reason, tc.hint, tc.sha)
@@ -269,7 +269,7 @@ func TestCommitReconcileFencedReopenStoresNothing(t *testing.T) {
 
 	reopenTx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{false, false}}}}}
 	db := &fakeTransactionalDB{txs: []*fakeTx{reopenTx}, queryResponses: []queueFakeRows{{
-		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active"}},
+		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
 	}}}
 	scopeValue, generation := reprojectFixture("interval_elapsed", "hint-same", "sha-same")
 	stream := threeFactStream()
@@ -306,6 +306,9 @@ func TestDecideUnchangedGenerationCells(t *testing.T) {
 	active := unchangedGenerationCandidate{generationID: "gen-a", freshnessHint: "hint", sourceCommit: "sha", status: scope.GenerationStatusActive}
 	pending := active
 	pending.status = scope.GenerationStatusPending
+	pending.workLive = true
+	wedged := pending
+	wedged.workLive = false
 	snapshot := func(hint, sha, reason string) scope.ScopeGeneration {
 		return scope.ScopeGeneration{FreshnessHint: hint, SourceCommitSHA: sha, ReconcileReason: reason}
 	}
@@ -333,6 +336,9 @@ func TestDecideUnchangedGenerationCells(t *testing.T) {
 		{"pending match, ordinary sync", snapshot("hint", "sha", ""), pending, true, unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity},
 		{"pending match, in_flight_expired", snapshot("hint", "sha", "in_flight_expired"), pending, true, unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity},
 		{"pending match, stale request", snapshot("hint", "sha", scope.ReconcileReasonRequestStale), pending, true, unchangedActionSkip, telemetry.RefreshSkipReasonPendingSameIdentity},
+		// Ruling a9-126: a pending match whose projector work is gone cannot
+		// activate, so the snapshot is stored and supersedes it.
+		{"pending match, work not live", snapshot("hint", "sha", "in_flight_expired"), wedged, true, unchangedActionStore, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

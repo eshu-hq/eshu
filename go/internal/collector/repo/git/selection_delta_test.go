@@ -59,6 +59,7 @@ esac
 		gitSyncLogEventFor("example/private-service", 1, 1),
 		"oldsha",
 		nil,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("updateRepository() error = %v, want nil", err)

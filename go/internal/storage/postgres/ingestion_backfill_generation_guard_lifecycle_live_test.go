@@ -295,3 +295,32 @@ func TestReconcileReopenWorkRowShapesLive(t *testing.T) {
 		})
 	}
 }
+
+// TestPendingWithoutLiveWorkStoresLive (ruling a9-126): a pending generation
+// whose projector work can no longer run (here dead-lettered while the
+// generation stayed pending) is not a duplicate target: the same snapshot is
+// stored. FullReconcileState reports the newest full's commit and liveness
+// that the sweep holds on.
+func TestPendingWithoutLiveWorkStoresLive(t *testing.T) {
+	p := openReprojectProof(t)
+	ctx := context.Background()
+	p.commit(p.generation("gen-b", "hint-b", "sha-b", ""))
+	p.project()
+	p.commit(p.generation("gen-x", "hint-x", "sha-x", ""))
+	state, err := p.store.FullReconcileState(ctx, p.scope.ScopeID)
+	if err != nil || state.LatestFullSourceCommitSHA != "sha-x" || !state.LatestFullWorkLive {
+		t.Fatalf("state = commit %q live %v (%v), want sha-x and live", state.LatestFullSourceCommitSHA, state.LatestFullWorkLive, err)
+	}
+	if _, err := p.db.ExecContext(ctx, `UPDATE fact_work_items SET status = 'dead_letter'
+WHERE stage = 'projector' AND generation_id = 'gen-x'`); err != nil {
+		t.Fatalf("dead-letter gen-x work: %v", err)
+	}
+	if state, err = p.store.FullReconcileState(ctx, p.scope.ScopeID); err != nil || state.LatestFullWorkLive {
+		t.Fatalf("state live = %v (%v), want not live", state.LatestFullWorkLive, err)
+	}
+	before := p.rowCounts()
+	p.commit(p.generation("gen-x-again", "hint-x", "sha-x", "in_flight_expired"))
+	if after := p.rowCounts(); after["scope_generations"] != before["scope_generations"]+1 || after["fact_records"] != before["fact_records"]+p.facts {
+		t.Fatalf("rows %v -> %v against a pending match without live work, want one stored generation", before, after)
+	}
+}

@@ -90,7 +90,7 @@ func runUpdate(f defaultBranchFixture, baselineSHA string) *updateResult {
 	r := &updateResult{}
 	logger := slog.New(slog.NewJSONHandler(&r.logs, nil))
 	r.updated, r.delta, r.sourceSHA, r.err = updateRepository(context.Background(), baselineTestConfig(), f.checkout, "",
-		logger, baselineTestEvent(), baselineSHA, func(reason string) { r.fallbacks = append(r.fallbacks, reason) })
+		logger, baselineTestEvent(), baselineSHA, func(reason string) { r.fallbacks = append(r.fallbacks, reason) }, "")
 	return r
 }
 
@@ -306,7 +306,7 @@ esac
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	updated, _, _, err := updateRepository(context.Background(), baselineTestConfig(), t.TempDir(), "",
-		discardLogger(), baselineTestEvent(), "oldsha", nil)
+		discardLogger(), baselineTestEvent(), "oldsha", nil, "")
 	if err == nil || updated || !strings.Contains(err.Error(), "Could not resolve host") {
 		t.Fatalf("updateRepository() updated=%v err=%v; want the adopt fetch error", updated, err)
 	}
