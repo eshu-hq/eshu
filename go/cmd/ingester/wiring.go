@@ -191,7 +191,7 @@ func buildIngesterCollectorService(
 	// it. The ingester is the deployed sync runtime, so without this the
 	// skipped parse and the identity stamp never run in a deployment.
 	preparseSource := func() preparse.Config { return git.PreparseConfigFor(snapshotter, config, nil, nil) }
-	nativeSelector := git.NativeRepositorySelector{
+	nativeSelector := &git.NativeRepositorySelector{
 		Config:                     config,
 		Logger:                     logger,
 		BaselineResolver:           committer,

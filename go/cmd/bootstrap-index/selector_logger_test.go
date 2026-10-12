@@ -17,13 +17,13 @@ import (
 // mustBootstrapSelector extracts the native repository selector from
 // bootstrap collector deps, failing the test when the wiring produces an
 // unexpected source or selector type.
-func mustBootstrapSelector(t *testing.T, deps collectorDeps) git.NativeRepositorySelector {
+func mustBootstrapSelector(t *testing.T, deps collectorDeps) *git.NativeRepositorySelector {
 	t.Helper()
 	source, ok := deps.source.(*git.GitSource)
 	if !ok {
 		t.Fatalf("buildBootstrapCollector() source type = %T, want *git.GitSource", deps.source)
 	}
-	selector, ok := source.Selector.(git.NativeRepositorySelector)
+	selector, ok := source.Selector.(*git.NativeRepositorySelector)
 	if !ok {
 		t.Fatalf("buildBootstrapCollector() selector type = %T, want git.NativeRepositorySelector", source.Selector)
 	}

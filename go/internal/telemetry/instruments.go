@@ -421,6 +421,14 @@ type Instruments struct {
 	// reconcile_retry_backoff). Scope identity is never a label; it stays in
 	// the git_reconcile_forced log.
 	ReconciliationSuppressed metric.Int64Counter
+	// ReconciliationDueUnvisited samples, at the end of each git selection
+	// cycle, how many repositories were due for a forced full but took no
+	// per-cycle slot (#7987). Labels: reason (the closed due-reason set:
+	// never_reconciled, interval_elapsed, in_flight_expired,
+	// retry_after_unprojected, graph_dirty, reindex_requested,
+	// repository_reindex_requested, reconcile_request_stale). Every reason is
+	// recorded every cycle, including zero. Scope identity is never a label.
+	ReconciliationDueUnvisited metric.Int64Gauge
 	// ReconcileParseSkipDecisions counts the pre-parse skip decisions of
 	// forced reconciles (#7978 follow-up, ruling a9-143), labeled by the closed
 	// preparse.Outcomes set. Registered in instruments_reconcile_parse_skip.go.
@@ -2772,6 +2780,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReconciliationSuppressed counter: %w", err)
+	}
+
+	inst.ReconciliationDueUnvisited, err = meter.Int64Gauge(
+		"eshu_dp_collector_reconciliation_due_unvisited",
+		metric.WithDescription("Repositories due for a forced reconciliation snapshot that took no per-cycle slot in the last git selection cycle, by bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReconciliationDueUnvisited gauge: %w", err)
 	}
 
 	inst.ReconciliationDriftRetractions, err = meter.Int64Counter(

@@ -95,7 +95,7 @@ func TestBuildIngesterCollectorServiceWiresReindexWatermark(t *testing.T) {
 		}
 	}
 
-	native := build(map[string]string{}).(git.NativeRepositorySelector)
+	native := build(map[string]string{}).(*git.NativeRepositorySelector)
 	requireReader("native selector", native.ReindexWatermark, native.RepositoryReindexWatermark)
 
 	webhookOnly := build(map[string]string{
@@ -106,7 +106,7 @@ func TestBuildIngesterCollectorServiceWiresReindexWatermark(t *testing.T) {
 
 	priority := build(map[string]string{"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true"}).(git.PriorityRepositorySelector)
 	webhookSelector := priority.Selectors[0].(git.WebhookTriggerRepositorySelector)
-	nativeSelector := priority.Selectors[1].(git.NativeRepositorySelector)
+	nativeSelector := priority.Selectors[1].(*git.NativeRepositorySelector)
 	requireReader("priority webhook selector", webhookSelector.ReindexWatermark, webhookSelector.RepositoryReindexWatermark)
 	requireReader("priority native selector", nativeSelector.ReindexWatermark, nativeSelector.RepositoryReindexWatermark)
 }

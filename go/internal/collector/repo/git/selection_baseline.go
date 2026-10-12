@@ -121,6 +121,13 @@ type gitDeltaBaseline struct {
 	Resolver    DeltaBaselineResolver
 	Instruments *telemetry.Instruments
 	Reconcile   reconcilePolicy
+	// ReconcileStartOffset is the index in the post-prioritize walk order where
+	// this cycle's sweep starts visiting repositories (#7987). The sync
+	// normalizes it into the rotating suffix and reports the next cycle's
+	// start on GitSyncSelection.NextReconcileStartOffset, so a selector that
+	// threads it through visits every due repository within
+	// ceil(due/MaxPerCycle) cycles instead of starving the tail.
+	ReconcileStartOffset int
 	// ReindexRequestedAt is the fleet reindex watermark active for this cycle
 	// (#7620), or zero when none is active. See resolveReindexWatermark.
 	ReindexRequestedAt time.Time
@@ -174,8 +181,9 @@ type reconcileDecision struct {
 // reconcileDue decides whether the managed checkout at repoPath should be
 // forced to a full reconciliation snapshot this cycle: reconciliation must be
 // enabled or a reindex watermark active for the scope, a resolver must be
-// present, and the scope must be due (see decideForScope). The caller only
-// asks while the per-cycle budget lasts.
+// present, and the scope must be due (see decideForScope). The caller asks for
+// every repository so the due-unvisited gauge sees the whole cycle (#7987);
+// only forcing is budget-gated.
 func (b gitDeltaBaseline) reconcileDue(ctx context.Context, config RepoSyncConfig, repoPath string, logger *slog.Logger) reconcileDecision {
 	sweepOff := !b.Reconcile.enabled() && b.ReindexRequestedAt.IsZero()
 	if b.Resolver == nil || (sweepOff && len(b.RepositoryReindexRequestedAt) == 0) {

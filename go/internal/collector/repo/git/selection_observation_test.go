@@ -105,7 +105,8 @@ func TestNativeRepositorySelectorObservesOnlyOnShardZeroInGitHubOrgMode(t *testi
 
 	for _, index := range []int{1, 2} {
 		observer := &recordingSelectionObserver{}
-		if _, err := githubOrgObservationSelector(t, 3, index, observer).SelectRepositories(context.Background()); err != nil {
+		selector := githubOrgObservationSelector(t, 3, index, observer)
+		if _, err := selector.SelectRepositories(context.Background()); err != nil {
 			t.Fatalf("shard %d SelectRepositories() error = %v", index, err)
 		}
 		if len(observer.requests) != 0 {
@@ -114,7 +115,8 @@ func TestNativeRepositorySelectorObservesOnlyOnShardZeroInGitHubOrgMode(t *testi
 	}
 
 	unsharded := &recordingSelectionObserver{}
-	if _, err := githubOrgObservationSelector(t, 1, 0, unsharded).SelectRepositories(context.Background()); err != nil {
+	unshardedSelector := githubOrgObservationSelector(t, 1, 0, unsharded)
+	if _, err := unshardedSelector.SelectRepositories(context.Background()); err != nil {
 		t.Fatalf("unsharded SelectRepositories() error = %v", err)
 	}
 	if len(unsharded.requests) != 1 {

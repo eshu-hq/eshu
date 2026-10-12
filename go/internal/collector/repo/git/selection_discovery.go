@@ -71,6 +71,12 @@ type GitSyncSelection struct {
 	// Populated only when ESHU_PINNED_REFS_JSON is configured. Enabler for
 	// epic #5393 / issue #5417.
 	RefWorktreesByRepoPath map[string][]RefWorktreeEntry
+	// NextReconcileStartOffset is the walk offset the next selection cycle
+	// passes as gitDeltaBaseline.ReconcileStartOffset (#7987): the position
+	// after the last suffix entry that took a per-cycle reconcile slot, so
+	// consecutive cycles resume the round-robin instead of restarting at the
+	// head. It stands still when nothing took a slot.
+	NextReconcileStartOffset int
 }
 
 // RefWorktreeEntry describes one pinned-ref git worktree checkout created

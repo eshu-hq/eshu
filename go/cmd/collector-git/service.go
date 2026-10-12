@@ -58,7 +58,7 @@ func buildCollectorService(
 	// committer doubles as the delta-baseline resolver so git delta syncs
 	// baseline on the last projected commit per scope rather than local HEAD
 	// (epic #2340).
-	selector := git.RepositorySelector(git.NativeRepositorySelector{
+	selector := git.RepositorySelector(&git.NativeRepositorySelector{
 		Config:           config,
 		Logger:           logger,
 		BaselineResolver: committer,

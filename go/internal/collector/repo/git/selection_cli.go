@@ -55,7 +55,14 @@ func syncGitRepositoriesWithLogger(
 	fleetCap := config.PinnedRefFleetCap
 	reconciledThisCycle := 0
 	repositoryIDs = prioritizeRepositoryReindex(config, repositoryIDs, baseline.RepositoryReindexRequestedAt)
-	for i, repoID := range repositoryIDs {
+	// The sweep visits repositories in rotating order (#7987): the requested
+	// prefix stays pinned at the head so an explicit reindex still jumps the
+	// queue, and the suffix starts at this cycle's offset so a due tail is
+	// not stuck behind a persistently due head.
+	walkOrder, walkPrefixLen, walkStart, walkSuffixLen := reconcileWalkOrder(config, repositoryIDs, baseline)
+	dueUnvisited := make(map[string]int64)
+	lastSpentSuffixPos := -1
+	for i, repoID := range walkOrder {
 		if err := ctx.Err(); err != nil {
 			return GitSyncSelection{}, err
 		}
@@ -82,11 +89,13 @@ func syncGitRepositoriesWithLogger(
 				}
 			}
 		} else {
-			var reconcile reconcileDecision
-			if reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) {
-				reconcile = baseline.reconcileDue(ctx, config, repoPath, logger)
+			// Every repository is evaluated so the due-unvisited gauge sees
+			// the whole cycle; only forcing is budget-gated.
+			reconcile := baseline.reconcileDue(ctx, config, repoPath, logger)
+			forceReconcile := reconcile.Due && reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle)
+			if reconcile.Due && !forceReconcile && isReconcileDueUnvisitedReason(reconcile.Reason) {
+				dueUnvisited[reconcile.Reason]++
 			}
-			forceReconcile := reconcile.Due
 			// updated==false with a nil updateErr is the legitimate no-new-changes
 			// no-op, not a failure — only updateErr != nil is metered below.
 			holdIfHead := ""
@@ -107,6 +116,11 @@ func syncGitRepositoriesWithLogger(
 				}
 				if ok && forceReconcile && baseline.skipParse(ctx, logger, config, token, repoPath, reconcile, sourceSHA, refs) {
 					reconciledThisCycle++ // ruling a9-143 D2: the re-projection spends a slot
+					// The re-projection served this repository, so the walk
+					// advances past it like any other spent slot (#7987).
+					if suffixPos := i - walkPrefixLen; suffixPos >= 0 {
+						lastSpentSuffixPos = suffixPos
+					}
 				} else if ok {
 					selected = append(selected, repoPath)
 					refsByRepoPath[repoPath] = refs
@@ -124,6 +138,11 @@ func syncGitRepositoriesWithLogger(
 						reconcileReasonByRepoPath[repoPath] = reconcile.Reason
 						reconciledThisCycle++
 						baseline.recordReconciliation(ctx, logger, reconcile)
+						// The walk advances past served suffix positions only;
+						// held and failed repositories keep their turn.
+						if suffixPos := i - walkPrefixLen; suffixPos >= 0 {
+							lastSpentSuffixPos = suffixPos
+						}
 					}
 				}
 			}
@@ -161,6 +180,14 @@ func syncGitRepositoriesWithLogger(
 			reconcileRefWorktrees(ctx, config, repoID, nil, logger)
 		}
 	}
+	// The next cycle resumes after the last served suffix position, so the
+	// walk round-robins instead of restarting at the head. With nothing served
+	// the offset stands still and the same window is retried.
+	nextStart := walkStart
+	if walkSuffixLen > 0 && lastSpentSuffixPos >= 0 {
+		nextStart = (walkStart + lastSpentSuffixPos + 1) % walkSuffixLen
+	}
+	baseline.recordReconcileDueUnvisited(ctx, dueUnvisited)
 	return GitSyncSelection{
 		SelectedRepoPaths:          sortUniqueStrings(selected),
 		DeltaByRepoPath:            deltaByRepoPath,
@@ -170,6 +197,7 @@ func syncGitRepositoriesWithLogger(
 		SourceCommitSHAByRepoPath:  sourceSHAByRepoPath,
 		PreparseIdentityByRepoPath: preparseByRepoPath,
 		RefWorktreesByRepoPath:     refWorktreesByRepoPath,
+		NextReconcileStartOffset:   nextStart,
 	}, nil
 }
 

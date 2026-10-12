@@ -104,7 +104,7 @@ func TestBuildIngesterCollectorServiceUsesNativeSnapshotter(t *testing.T) {
 	if !ok {
 		t.Fatalf("buildIngesterCollectorService() source type = %T, want *collector.GitSource", service.Source)
 	}
-	if _, ok := source.Selector.(git.NativeRepositorySelector); !ok {
+	if _, ok := source.Selector.(*git.NativeRepositorySelector); !ok {
 		t.Fatalf("buildIngesterCollectorService() selector type = %T, want collector.NativeRepositorySelector", source.Selector)
 	}
 	if _, ok := source.Snapshotter.(git.NativeRepositorySnapshotter); !ok {

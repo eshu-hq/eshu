@@ -218,7 +218,7 @@ func TestBuildBootstrapCollectorUsesNativeSnapshotter(t *testing.T) {
 	if !ok {
 		t.Fatalf("buildBootstrapCollector() source type = %T, want *collector.GitSource", deps.source)
 	}
-	if _, ok := source.Selector.(git.NativeRepositorySelector); !ok {
+	if _, ok := source.Selector.(*git.NativeRepositorySelector); !ok {
 		t.Fatalf("buildBootstrapCollector() selector type = %T, want collector.NativeRepositorySelector", source.Selector)
 	}
 	if _, ok := source.Snapshotter.(git.NativeRepositorySnapshotter); !ok {

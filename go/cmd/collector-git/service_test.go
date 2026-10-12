@@ -40,7 +40,7 @@ func TestBuildCollectorServiceUsesIngestionStoreBoundary(t *testing.T) {
 		)
 	}
 	source := service.Source.(*git.GitSource)
-	if _, ok := source.Selector.(git.NativeRepositorySelector); !ok {
+	if _, ok := source.Selector.(*git.NativeRepositorySelector); !ok {
 		t.Fatalf("buildCollectorService() selector type = %T, want collector.NativeRepositorySelector", source.Selector)
 	}
 	if _, ok := source.Snapshotter.(git.NativeRepositorySnapshotter); !ok {
@@ -111,7 +111,7 @@ func TestBuildCollectorServiceDoesNotRequireBridgeRepoRoot(t *testing.T) {
 	if !ok {
 		t.Fatalf("buildCollectorService() source type = %T, want *collector.GitSource", service.Source)
 	}
-	if _, ok := source.Selector.(git.NativeRepositorySelector); !ok {
+	if _, ok := source.Selector.(*git.NativeRepositorySelector); !ok {
 		t.Fatalf("buildCollectorService() selector type = %T, want collector.NativeRepositorySelector", source.Selector)
 	}
 }
@@ -210,7 +210,7 @@ func TestBuildCollectorServiceWiresTelemetryIntoSourceAndService(t *testing.T) {
 	if source.Logger == nil || service.Logger == nil {
 		t.Fatal("collector logger wiring = nil, want non-nil")
 	}
-	selector := source.Selector.(git.NativeRepositorySelector)
+	selector := source.Selector.(*git.NativeRepositorySelector)
 	if selector.Logger == nil {
 		t.Fatal("collector selector logger = nil, want non-nil")
 	}
