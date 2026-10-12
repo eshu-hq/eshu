@@ -217,9 +217,11 @@ function scan(s, fn, depth,   T, S, n, a, b, i, k, o, c, pk, nk) {
 # command handles the words T[a..b] of one command.
 function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args, skip, had, haspath, pathv, isw, lk, sep, flg, pmo) {
   for (i = a; i <= b; i++) if (index(T[i], "$(") > 0 || substr(T[i], 1, 1) == "`") subst_scan(T[i], fn, depth)
-  # leading control words, declaration keywords and flags
+  # leading control words, declaration keywords and flags (exec -c clears the environment)
+  pmo = 0
   while (a <= b) {
     w = T[a]
+    if (w ~ /^-[A-Za-z]*c[A-Za-z]*$/ && a > 1 && T[a - 1] == "exec") pmo = 1
     if (index(CTRL, " " w " ") > 0 || (w ~ /^-[A-Za-z]+$/ && a > 1 && index(CTRL, " " T[a - 1] " ") > 0)) { a++; continue }
     if (substr(w, 1, 2) == "$(" && w !~ /\)/) { a++; continue }
     break
@@ -233,7 +235,7 @@ function command(T, a, b, fn, depth,   i, w, k, nm, v, lw, w0, s, j, argn, args,
     return
   }
   # leading NAME=value words
-  asgc = 0; haspath = 0; pathv = ""; pmo = 0
+  asgc = 0; haspath = 0; pathv = ""
   while (a <= b && T[a] ~ /^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=/) {
     w = T[a]; nm = w; sub(/[\[+=].*$/, "", nm)
     # a prefix that turns GITHUB_ACTIONS or CI image mode off in front of the wrapper
