@@ -89,7 +89,9 @@ The sweep is bounded and scheduled, not a full re-index:
   [reindex request](#reindex-requests) is still honored.
 
 Cost is one full re-observation and projection per scope per interval — the same
-cost as a first sync, paid on a documented cadence. Each forced reconciliation
+cost as a first sync, paid on a documented cadence. For an unchanged repository
+the collector skips the re-observation and keeps only the re-projection (see
+[Skipping the parse](#skipping-the-parse-of-an-unchanged-repository)). Each forced reconciliation
 increments `eshu_dp_collector_reconciliation_full_snapshots_total`, labeled by
 `reason` (`never_reconciled`, `interval_elapsed`, `in_flight_expired`,
 `retry_after_unprojected`, `graph_dirty`, `reindex_requested`,
@@ -142,6 +144,66 @@ reconciliation there; a first projection does not. Alert on
 sustained nonzero retractions after the first reconciliation window, and use
 projector logs/spans keyed by `scope_id`, `repo_id`, and `generation_id` for the
 specific source. Those identifiers are intentionally not metric labels.
+
+## Skipping the parse of an unchanged repository
+
+Before the skip, a forced reconcile of an unchanged repository fetched, checked
+out, discovered, parsed, and built the whole fact stream, and only then did the
+store notice that nothing had changed and re-project the active generation
+(#7978). Measured on one host: about 24 s wall and 43 s CPU for a 2,011-file
+repository, and about 3.7 min wall and 6 min CPU for a 26,301-file one.
+
+The collector now decides before the parse (ruling a9-143). After the fetch it
+computes a **pre-parse identity**: the content version, the remote head, the
+default branch, and every configuration input that changes emitted facts (the
+discovery ignore and preserve globs, `ESHU_EMIT_DATAFLOW`, `SCIP_INDEXER`,
+`SCIP_LANGUAGES` and the stat of each SCIP indexer binary, and the bootstrap
+dependency settings). Every stored generation and every re-open after a parse
+stamps the identity on the generation. The first sweep after a deploy parses
+and stamps; later sweeps compare.
+
+| Condition | Result | `outcome` |
+| --- | --- | --- |
+| reason is not `interval_elapsed` or `graph_dirty` (a reindex, a stale request, a pending or failed full, no projected full) | parse | `reason_ineligible` |
+| `ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS=0` | parse | `disabled` |
+| no active generation, or the active generation is a delta | parse | `no_active_full`, `delta_active` |
+| the remote head is not the active generation's commit | parse | `head_moved` |
+| no stored identity yet, or it differs (content version or configuration moved) | parse | `identity_absent`, `identity_mismatch` |
+| the repository has `.gitmodules` | parse | `submodules_present` |
+| the scope already skipped N-1 times since its last parse | parse | `valve_due` |
+| the checkout has untracked or modified files | parse | `dirty_tree` |
+| the tree check or the store call fails | parse | `read_error` |
+| otherwise | re-project the active generation, no parse | `skipped` |
+
+A skip still re-projects, so drift is retracted as before and the skip spends an
+`ESHU_REPO_RECONCILE_MAX_PER_CYCLE` slot. The store re-open is fenced on the
+active pointer, a full generation, the commit, and the stamped identity, under
+the same scope lock and in-flight guard as the store's own re-open; it stamps
+`reconcile_requested_at`, so an unacknowledged or dead-lettered re-projection
+follows the same `reconcile_in_flight` and `reconcile_request_stale` rules.
+
+`ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS` (default 7) is the valve: an unchanged
+repository parses at least every N intervals, so an input the identity does not
+cover stays stale for at most N intervals; at the daily default that is one
+parse per repository per week. Set a larger N to parse less often, or 0 to
+always parse.
+
+Each decision increments
+`eshu_dp_collector_reconcile_parse_skip_decisions_total{outcome}` and adds a span
+event `git.reconcile.parse_skip_decision` (`eshu.reconcile.parse_skipped`,
+`eshu.reconcile.parse_skip_outcome`). A skip logs INFO
+`git_reconcile_parse_skipped` (`scope_id`, `reason`, `generation_id`,
+`commit_sha`, `preparse_skips`, `config_digest`); an identity mismatch or a store
+error logs WARN `git_reconcile_parse_skip_refused`. The store side still counts
+`reconcile_reprojected` on `eshu_runtime_refresh_skipped_by_reason_total`. A
+sustained `identity_mismatch` rate without a deploy that changed the content
+version or the configuration needs a look at `config_digest`.
+
+Submodules: the managed clone does not check out submodule content, so a
+repository with `.gitmodules` always parses. Windows: the check uses `git status`
+and file stats only, the same calls on every platform; the Windows-specific
+files in this package serve filesystem copy mode, which has no commit and no
+identity.
 
 ## Reindex requests
 
