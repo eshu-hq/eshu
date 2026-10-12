@@ -38,6 +38,11 @@ require_anchor "$verifier" 'verify-query-plan-regression: pass' \
 	'the gate must print its own pass line'
 require_anchor "$profile_verifier" 'neo4j@sha256:[0-9a-f]{64}' \
 	'the profile gate must pin its Neo4j image by digest, not by tag'
+# This consumer has a distinct engine profile from the paired methodology
+# proof. Capture its actual Docker argument and compare with the independent ledger.
+# Neither a digest-shaped string nor a correct-looking comment proves the pin.
+python3 "${repo_root}/scripts/lib/test-queryplan-profile-image-contract.py" \
+	"${repo_root}/specs/ci-images.v1.json" "$profile_verifier"
 require_anchor "$profile_verifier" 'TestQueryplanForbiddenOperatorPolicyIsClosed' \
 	'the profile gate must run the forbidden-operator policy test'
 require_anchor "$profile_verifier" 'trap cleanup EXIT INT TERM' \
@@ -81,8 +86,10 @@ if [ -z "$gate_triggers" ]; then
 	exit 1
 fi
 for required_trigger in \
+	"specs/ci-images.v1.json" \
 	"scripts/verify-query-plan-regression.sh" \
 	"scripts/verify-query-plan-profile.sh" \
+	"scripts/lib/test-queryplan-profile-image-contract.py" \
 	"scripts/test-verify-query-plan-regression.sh"; do
 	if ! printf '%s\n' "$gate_triggers" | rg --fixed-strings "\"${required_trigger}\"" >/dev/null ; then
 		printf 'test-verify-query-plan-regression: %s is not in the query-plan-regression triggers in specs/ci-gates.v1.yaml, so a change to it alone would not re-run this gate in CI\n' \

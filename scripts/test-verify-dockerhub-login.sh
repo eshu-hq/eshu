@@ -129,7 +129,7 @@ expect_red missing-login-step "${d}" 'e2e-tests.yml:test: no Docker Hub docker/l
 
 d="$(new_case login-without-job-env)"
 yq e -i 'del(.jobs.test.env.DOCKERHUB_LOGIN_ENABLED)' "${d}/.github/workflows/e2e-tests.yml"
-expect_red login-without-job-env "${d}" 'job env must define DOCKERHUB_LOGIN_ENABLED'
+expect_red login-without-job-env "${d}" 'effective env must define DOCKERHUB_LOGIN_ENABLED'
 
 d="$(new_case build-push-without-login)"
 printf 'FROM docker.io/library/alpine:3.21\n' >"${d}/Dockerfile"
@@ -474,6 +474,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-test-shapes.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-test-script-refs.sh"
 # shellcheck source=lib/dockerhub-login-test-expressions.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-expressions.sh"
+# shellcheck source=lib/dockerhub-login-test-conditions.sh
+source "${repo_root}/scripts/lib/dockerhub-login-test-conditions.sh"
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "test-verify-dockerhub-login: ${failures} case(s) failed" >&2

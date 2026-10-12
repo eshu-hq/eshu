@@ -79,7 +79,9 @@
 #     secrets (pulled at job init, before any step, so a login cannot cover them);
 #   - for steps, a docker/login-action@v3 step with no registry: (or docker.io),
 #     BEFORE the first reaching step, which includes a setup-buildx or setup-qemu
-#     step (a login placed after one does not cover its pull), gated by `env.DOCKERHUB_LOGIN_ENABLED == 'true'`, with no continue-on-error
+#     step (a login placed after one does not cover its pull), gated by
+#     `env.DOCKERHUB_LOGIN_ENABLED == 'true'` alone or after this job's canonical
+#     queue selector, with no continue-on-error
 #     (a failed login would fall back to anonymous pulls and hide invalid
 #     secrets), using the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN secrets, with the
 #     job (or workflow) env building DOCKERHUB_LOGIN_ENABLED from both secrets.
@@ -194,16 +196,17 @@ done < <([[ "${#ref_inputs[@]}" -eq 0 ]] || LC_ALL=C awk -f "${refs_awk}" "${ref
 source "${repo_root}/scripts/lib/dockerhub-login-images.sh"
 # shellcheck source=lib/dockerhub-login-compose.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-compose.sh"
+# shellcheck source=lib/dockerhub-login-conditions.sh
+source "${repo_root}/scripts/lib/dockerhub-login-conditions.sh"
 
-# check_job <workflow> <job> <workflow env>: evaluates one job.
+# check_job <workflow name> <job> <workflow path>: evaluates one job.
 check_job() {
-  local name="$1" job="$2" wf_env="$3" where="$1:$2" job_env kind sname image cuser cpass reasons=""
-  local seq idx uses cond reg user pass dfile dctx why first_reach="" first_why=""
+  local name="$1" job="$2" wf="$3" where="$1:$2" kind sname image cuser cpass reasons=""
+  local seq idx uses cond reg user pass dfile dctx why first_reach="" first_why="" decoded encoded effective_flag
   clear_tables
   load_envs "${job}"
   local login_idx="" login_if="" login_user="" login_pass="" login_uses="" login_coe=""
   local df dc act af ref cur runf dynamic cfiles d_other d_comp d_unclass d_var d_dock possible env64 coe drv dopts qimg bimg opt aref
-  job_env="$(awk -F'\t' -v j="${job}" '$1=="J" && $2==j {print substr($3,2)}' "${tmp}/jobs.tsv" | head -n 1)"
 
   # Image pulls at job init: every Hub services:/container: image needs credentials.
   while IFS=$'\t' read -r kind _ sname image cuser cpass; do
@@ -223,7 +226,20 @@ check_job() {
           ""|docker.io|index.docker.io|registry-1.docker.io)
             if [[ -z "${login_idx}" ]]; then
               login_idx="${idx}"; login_uses="${uses}"
-              login_if="$(printf '%s' "${cond#x}" | b64d | tr -d '\n')"
+              # A sentinel preserves trailing newlines in command substitution.
+              # Re-encoding catches bytes Bash cannot store (notably NUL) before
+              # comparing the exact condition tokens.
+              if decoded="$(printf '%s' "${cond#x}" | b64d && printf '.')"; then
+                decoded="${decoded%.}"
+                encoded="$(printf '%s' "${decoded}" | base64 | tr -d '\r\n')"
+                if [[ "${encoded}" == "${cond#x}" ]]; then
+                  login_if="${decoded}"
+                else
+                  fail "${where}: login steps[${idx}] condition changed during decoding"
+                fi
+              else
+                fail "${where}: login steps[${idx}] condition could not be decoded"
+              fi
               login_user="${user#x}"; login_pass="${pass#x}"; login_coe="${coe}"
             fi ;;
         esac
@@ -325,12 +341,17 @@ check_job() {
   esac
   [[ "${login_uses}" == docker/login-action@v3 || "${login_uses}" == docker/login-action@v3.* ]] ||
     fail "${where}: steps[${login_idx}] must use docker/login-action@v3, not ${login_uses}"
-  [[ "${login_if}" == "${gate_expr}" ]] ||
+  login_condition_is_safe "${login_if}" "${job}" ||
     fail "${where}: login steps[${login_idx}] must run only when DOCKERHUB_LOGIN_ENABLED is true (if: ${gate_expr})"
   [[ "${login_user}" == "${user_expr}" && "${login_pass}" == "${token_expr}" ]] ||
     fail "${where}: login steps[${login_idx}] must use the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets"
-  [[ "${job_env:-${wf_env}}" == "${enabled_expr}" ]] ||
-    fail "${where}: job env must define DOCKERHUB_LOGIN_ENABLED from both secrets (${enabled_expr})"
+  # The most specific defined env wins, including an explicitly empty value.
+  # Compare inside yq so shell decoding cannot erase bytes such as NUL.
+  if ! effective_flag="$(JOB_ID="${job}" STEP_INDEX="${login_idx}" EXPECTED_EXPR="${enabled_expr}" yq e '[.jobs[strenv(JOB_ID)].steps[env(STEP_INDEX)].env, .jobs[strenv(JOB_ID)].env, .env] | map(select(type == "!!map" and has("DOCKERHUB_LOGIN_ENABLED"))) | .[0].DOCKERHUB_LOGIN_ENABLED == strenv(EXPECTED_EXPR)' "${wf}" 2>"${tmp}/yq.err")"; then
+    fail "${where}: cannot inspect effective DOCKERHUB_LOGIN_ENABLED ($(head -n 1 "${tmp}/yq.err"))"
+  elif [[ "${effective_flag}" != true ]]; then
+    fail "${where}: effective env must define DOCKERHUB_LOGIN_ENABLED from both secrets (${enabled_expr})"
+  fi
 }
 
 : >"${tmp}/scope.tsv"
@@ -343,7 +364,6 @@ for wf in "${root}"/.github/workflows/*.yml; do
   if ! yq e '.jobs | keys | .[]' "${wf}" >"${tmp}/jobs.list" 2>"${tmp}/yq.err"; then
     fail "${name}: cannot parse jobs ($(head -n 1 "${tmp}/yq.err"))"; continue
   fi
-  wf_env="$(yq e '(.env | select(type == "!!map") | .DOCKERHUB_LOGIN_ENABLED) // ""' "${wf}")"
   yq e '.jobs | to_entries | .[] | .key as $j | (
       (["J", $j, "x" + (((.value.env | select(type == "!!map") | .DOCKERHUB_LOGIN_ENABLED) // "") | tostring), "x" + (.value.uses // "")] | join("\t")),
       ((.value.services | select(type == "!!map") | to_entries | .[] | ["S", $j, .key, "x" + (.value.image // ""), "x" + (.value.credentials.username // ""), "x" + (.value.credentials.password // "")] | join("\t")) // ""),
@@ -389,7 +409,7 @@ for wf in "${root}"/.github/workflows/*.yml; do
   done < <({ rg -o -N --no-filename -e '[A-Za-z0-9_./-]+\.(sh|bash)\b' "${tmp}/runs" || true; } | sort -u)
 
   while IFS= read -r job; do
-    check_job "${name}" "${job}" "${wf_env}"
+    check_job "${name}" "${job}" "${wf}"
   done <"${tmp}/jobs.list"
   # Clear the per-workflow step ref variables.
   while IFS= read -r v; do unset "${v}"; done < <(compgen -v SR_ || true)

@@ -84,6 +84,9 @@
   function parameter (not `os.Getenv` directly), update `doc.go` and `README.md`,
   and add it to `docs/public/reference/cli-reference.md`. Why: `wireAPI` takes
   `getenv func(string) string` so tests can inject values without `t.Setenv`.
+  Bootstrap exception: `diagnostic.New` reads `ESHU_STATUS_DIAGNOSTIC_REPORT`
+  through its injected `getenv`. Invoke it after telemetry provider creation
+  and before `wireAPI` to register the diagnostic processor.
 
 ## Failure modes and how to debug
 

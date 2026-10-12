@@ -5,9 +5,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"time"
@@ -25,49 +25,59 @@ func main() {
 	graphUsername := flag.String("graph-username", os.Getenv("NEO4J_USERNAME"), "graph username (empty for no-auth backends)")
 	graphPassword := flag.String("graph-password", os.Getenv("NEO4J_PASSWORD"), "graph password")
 	apiBaseURL := flag.String("api-base-url", envOr("READ_API_LATENCY_GATE_BASE_URL", "http://localhost:18080"), "running eshu-api base URL")
+	mcpBaseURL := flag.String("mcp-base-url", "", "running MCP HTTP transport base URL for pilot tools/call")
 	apiKey := flag.String("api-key", os.Getenv("ESHU_API_KEY"), "eshu-api bearer token")
 	totalScopes := flag.Int("total-scopes", 800, "total ingestion_scopes rows to seed")
 	nodesPerLabel := flag.Int("nodes-per-label", 150000, "synthetic graph nodes to seed per infra label")
 	iacFactCount := flag.Int("iac-fact-count", 150000, "IaC content_entity fact_records rows to seed (issue #6793: currentInventoryCTE jsonb detoast cost)")
 	sharedIntentCount := flag.Int("shared-intent-count", defaultSharedIntentCount, "shared_projection_intents rows to seed, newest 1% pending (issue #6820: the status routes' domain backlog aggregate must read pending intents by index, not scan the table)")
 	iterations := flag.Int("iterations", 20, "requests per route for the p95 sweep")
-	runs := flag.Int("runs", 1, "independent counted sweeps per route; run 1 is the cold pass, runs 2.. are warm passes with no additional warmup (default 1: identical stdout and budget evaluation to a single-pass gate)")
+	runs := flag.Int("runs", 1, "counted sweeps per route after discarded warmups; later passes have no additional warmup (default 1: P95 uses the first counted pass)")
 	budgetsPath := flag.String("budgets", "testdata/benchmarks/read-api-route-budgets.txt", "route latency budget table path")
 	workBudgetsPath := flag.String("work-budgets", "testdata/benchmarks/read-api-route-work-budgets.txt", "route Postgres work budget table path")
 	workReportPath := flag.String("work-report", "", "write the per-route Postgres work measured this run as JSON (input to scripts/refresh-read-api-work-budgets.sh)")
-	latencyReportPath := flag.String("latency-report", "", "write the full per-route latency distribution (cold/warm samples, identity block) as JSON, before budget evaluation")
+	latencyReportPath := flag.String("latency-report", "", "write the full per-route latency distribution (first/later samples, identity block) as JSON, before budget evaluation")
 	eshuCommit := flag.String("eshu-commit", os.Getenv("GATE_ESHU_COMMIT"), "eshu git commit to record in the latency report identity block (best-effort)")
 	apiBinarySHA256 := flag.String("api-binary-sha256", os.Getenv("GATE_API_BINARY_SHA256"), "eshu-api binary sha256 to record in the latency report identity block (best-effort)")
 	backgroundIdle := flag.Duration("background-idle", 5*time.Second, "idle window used to measure background Postgres statements before the sweep")
 	skipSeed := flag.Bool("skip-seed", false, "skip Postgres+graph seeding and sweep an already-seeded database")
 	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (eshu-api starts after this, so its startup backfill sees the seeded content)")
 	requestTimeout := flag.Duration("request-timeout", 30*time.Second, "per-request timeout for the sweep")
+	concurrentWorkers := flag.Int("concurrent-workers", 0, "optional bounded pilot read concurrency after the metered sequential stage (2..16)")
+	concurrentRequests := flag.Int("concurrent-requests", 20, "requests per pilot operation in the optional concurrent stage")
+	concurrentReport := flag.String("concurrent-report", "", "optional JSON report for the concurrent pilot stage")
+	diagnosticReport := flag.String("diagnostic-client-report", "", "optional bounded status client correlation report; requires concurrent pilot and API diagnostic mode")
 	flag.Parse()
 
 	if err := run(runOptions{
-		postgresDSN:       *postgresDSN,
-		graphURI:          *graphURI,
-		graphDatabase:     *graphDatabase,
-		graphUsername:     *graphUsername,
-		graphPassword:     *graphPassword,
-		apiBaseURL:        *apiBaseURL,
-		apiKey:            *apiKey,
-		totalScopes:       *totalScopes,
-		nodesPerLabel:     *nodesPerLabel,
-		iacFactCount:      *iacFactCount,
-		sharedIntents:     *sharedIntentCount,
-		iterations:        *iterations,
-		runs:              *runs,
-		budgetsPath:       *budgetsPath,
-		workBudgetsPath:   *workBudgetsPath,
-		workReportPath:    *workReportPath,
-		latencyReportPath: *latencyReportPath,
-		eshuCommit:        *eshuCommit,
-		apiBinarySHA256:   *apiBinarySHA256,
-		backgroundIdle:    *backgroundIdle,
-		skipSeed:          *skipSeed,
-		seedOnly:          *seedOnly,
-		requestTimeout:    *requestTimeout,
+		postgresDSN:        *postgresDSN,
+		graphURI:           *graphURI,
+		graphDatabase:      *graphDatabase,
+		graphUsername:      *graphUsername,
+		graphPassword:      *graphPassword,
+		apiBaseURL:         *apiBaseURL,
+		mcpBaseURL:         *mcpBaseURL,
+		apiKey:             *apiKey,
+		totalScopes:        *totalScopes,
+		nodesPerLabel:      *nodesPerLabel,
+		iacFactCount:       *iacFactCount,
+		sharedIntents:      *sharedIntentCount,
+		iterations:         *iterations,
+		runs:               *runs,
+		budgetsPath:        *budgetsPath,
+		workBudgetsPath:    *workBudgetsPath,
+		workReportPath:     *workReportPath,
+		latencyReportPath:  *latencyReportPath,
+		eshuCommit:         *eshuCommit,
+		apiBinarySHA256:    *apiBinarySHA256,
+		backgroundIdle:     *backgroundIdle,
+		skipSeed:           *skipSeed,
+		seedOnly:           *seedOnly,
+		requestTimeout:     *requestTimeout,
+		concurrentWorkers:  *concurrentWorkers,
+		concurrentRequests: *concurrentRequests,
+		concurrentReport:   *concurrentReport,
+		diagnosticReport:   *diagnosticReport,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "read-api-latency-gate:", err)
 		os.Exit(1)
@@ -75,42 +85,43 @@ func main() {
 }
 
 type runOptions struct {
-	postgresDSN       string
-	graphURI          string
-	graphDatabase     string
-	graphUsername     string
-	graphPassword     string
-	apiBaseURL        string
-	apiKey            string
-	totalScopes       int
-	nodesPerLabel     int
-	iacFactCount      int
-	sharedIntents     int
-	iterations        int
-	runs              int
-	budgetsPath       string
-	workBudgetsPath   string
-	workReportPath    string
-	latencyReportPath string
-	eshuCommit        string
-	apiBinarySHA256   string
-	backgroundIdle    time.Duration
-	skipSeed          bool
-	seedOnly          bool
-	requestTimeout    time.Duration
+	postgresDSN        string
+	graphURI           string
+	graphDatabase      string
+	graphUsername      string
+	graphPassword      string
+	apiBaseURL         string
+	mcpBaseURL         string
+	apiKey             string
+	totalScopes        int
+	nodesPerLabel      int
+	iacFactCount       int
+	sharedIntents      int
+	iterations         int
+	runs               int
+	budgetsPath        string
+	workBudgetsPath    string
+	workReportPath     string
+	latencyReportPath  string
+	eshuCommit         string
+	apiBinarySHA256    string
+	backgroundIdle     time.Duration
+	skipSeed           bool
+	seedOnly           bool
+	requestTimeout     time.Duration
+	concurrentWorkers  int
+	concurrentRequests int
+	concurrentReport   string
+	diagnosticReport   string
+	diagnostics        *diagnosticClient
+	statementCapture   diagnosticStatementCapture
 }
 
-func run(opts runOptions) error {
+func run(opts runOptions) (runErr error) {
 	ctx := context.Background()
 
-	if err := ValidateLatencyExemptions(LatencyExemptions); err != nil {
-		return fmt.Errorf("latency exemptions: %w", err)
-	}
-	if opts.postgresDSN == "" {
-		return fmt.Errorf("postgres-dsn (or ESHU_POSTGRES_DSN) is required to seed and to meter Postgres work")
-	}
-	if opts.seedOnly && opts.skipSeed {
-		return fmt.Errorf("-seed-only and -skip-seed are mutually exclusive")
+	if err := validateRunOptions(opts); err != nil {
+		return err
 	}
 	if !opts.skipSeed {
 		if err := seed(ctx, opts); err != nil {
@@ -120,6 +131,12 @@ func run(opts runOptions) error {
 	if opts.seedOnly {
 		fmt.Fprintln(os.Stderr, "read-api-latency-gate: seed complete (-seed-only); not sweeping")
 		return nil
+	}
+	if opts.diagnosticReport != "" {
+		opts.diagnostics = newDiagnosticClient(4096)
+		defer func() {
+			runErr = errors.Join(runErr, writeDiagnosticClientReport(opts.diagnosticReport, opts.diagnostics, opts.concurrentRequests))
+		}()
 	}
 
 	readModelInstalled, err := awaitInfraReadModel(ctx, opts.postgresDSN, os.Stderr)
@@ -143,22 +160,25 @@ func run(opts runOptions) error {
 	if err != nil {
 		return fmt.Errorf("load surface inventory: %w", err)
 	}
-	routes := NoArgGetRoutes(inventory)
-	if len(routes) == 0 {
-		return fmt.Errorf("no-arg GET routes: found none in the surface inventory")
+	routes, operations, err := selectedOperations(inventory, opts.mcpBaseURL != "")
+	if err != nil {
+		return err
 	}
-	fmt.Fprintf(os.Stderr, "read-api-latency-gate: sweeping %d no-arg GET routes x %d iterations\n", len(routes), opts.iterations)
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: sweeping %d read operations x %d iterations\n", len(routes), opts.iterations)
 
 	results, err := SweepRoutes(SweepOptions{
-		BaseURL:    opts.apiBaseURL,
-		APIKey:     opts.apiKey,
-		Routes:     routes,
-		QueryArgs:  RouteQueryArgs,
-		Iterations: opts.iterations,
-		Runs:       opts.runs,
-		Timeout:    opts.requestTimeout,
-		Meter:      meter,
-		Context:    ctx,
+		BaseURL:     opts.apiBaseURL,
+		MCPBaseURL:  opts.mcpBaseURL,
+		Operations:  operations,
+		APIKey:      opts.apiKey,
+		Routes:      routes,
+		QueryArgs:   RouteQueryArgs,
+		Iterations:  opts.iterations,
+		Runs:        opts.runs,
+		Timeout:     opts.requestTimeout,
+		Meter:       meter,
+		Context:     ctx,
+		Diagnostics: opts.diagnostics,
 	})
 	if err != nil {
 		return fmt.Errorf("sweep routes: %w", err)
@@ -240,9 +260,13 @@ func run(opts runOptions) error {
 		fmt.Fprintf(os.Stderr, "read-api-latency-gate: %d explicitly-budgeted route(s) were not exercised: %s\n", len(missing), strings.Join(missing, ", "))
 		failures = append(failures, fmt.Sprintf("%d explicitly-budgeted route(s) were not exercised", len(missing)))
 	}
+	failures = append(failures, pilotFailures(results, operations)...)
 
 	if len(failures) > 0 {
 		return fmt.Errorf("%s", strings.Join(failures, "; "))
+	}
+	if err := runConcurrentPilot(opts, operations, budgets); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: all %d exercised routes within budget\n", exercised)
@@ -393,75 +417,25 @@ func countWorkItems(plan SeedPlan) int {
 	return n
 }
 
-func printReport(w io.Writer, results []RouteLatency, budgets RouteBudgets, workBudgets RouteWorkBudgets) {
-	workBreached := make(map[string]bool)
-	for _, b := range EvaluateWorkBudgets(results, workBudgets) {
-		workBreached[b.Route] = true
-	}
-	for _, route := range UnmeteredExercisedRoutes(results) {
-		workBreached[route] = true
-	}
-	namedMissing := make(map[string]bool)
-	for _, route := range RequireNamedRoutesExercised(results, budgets) {
-		namedMissing[route] = true
-	}
-	_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s %8s %10s %8s\n", "route", "p95", "budget", "status", "calls", "blks", "rows")
-	for _, r := range results {
-		if !r.Exercised {
-			status := fmt.Sprintf("NOT_EXERCISED(%d)", r.Status)
-			if namedMissing[r.Route] {
-				// A route the latency table budgets by name must be exercised
-				// (RequireNamedRoutesExercised fails the run otherwise).
-				status += " BREACH"
-			}
-			_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", r.Route, "-", "-", status)
-			continue
-		}
-		budget := budgets.For(r.Route)
-		status := "OK"
-		// A HardFailed route (any 5xx sample) always breaches regardless of
-		// p95 (see EvaluateBudgets) -- this status column must agree with
-		// that verdict, not just compare p95 against budget, or a route the
-		// gate actually fails on prints as a false "OK" here (issue #6797
-		// live-gate incident: component-extensions and iac/resources showed
-		// "OK" in this table while the same run's breach summary correctly
-		// failed the gate on them). The same holds for the work budget: a
-		// route over its Postgres work budget, or one the meter never read,
-		// fails the run through EvaluateWorkBudgets and
-		// UnmeteredExercisedRoutes, so it is marked here too.
-		switch {
-		case r.HardFailed:
-			status = "BREACH"
-		case workBreached[r.Route]:
-			// Checked before the latency-exemption case: a route can be both
-			// exempt from its ceiling and over its work budget, and the work
-			// budget is this gate's actual regression-catching mechanism, so
-			// that must never read as the advisory BREACH-EXEMPT below.
-			status = "BREACH"
-		case r.P95 > budget:
-			// LatencyExemptions makes this ceiling advisory for a tracked
-			// route (see EvaluateBudgets) only when nothing else about the
-			// route has failed; the column still names it, so a reader never
-			// mistakes BREACH-EXEMPT for a pass.
-			if ex, exempt := LatencyExemptions[r.Route]; exempt {
-				status = fmt.Sprintf("BREACH-EXEMPT(%s)", ex.Issue)
-			} else {
-				status = "BREACH"
-			}
-		}
-		calls, blks, rows := "-", "-", "-"
-		if r.Metered {
-			calls = fmt.Sprintf("%.1f", r.Work.Calls)
-			blks = fmt.Sprintf("%.0f", r.Work.Blks)
-			rows = fmt.Sprintf("%.0f", r.Work.Rows)
-		}
-		_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s %8s %10s %8s\n", r.Route, r.P95.Round(time.Millisecond), budget, status, calls, blks, rows)
-	}
-}
-
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
 	return fallback
+}
+
+func validateRunOptions(opts runOptions) error {
+	if err := ValidateLatencyExemptions(LatencyExemptions); err != nil {
+		return fmt.Errorf("latency exemptions: %w", err)
+	}
+	if opts.postgresDSN == "" {
+		return fmt.Errorf("postgres-dsn (or ESHU_POSTGRES_DSN) is required to seed and to meter Postgres work")
+	}
+	if opts.seedOnly && opts.skipSeed {
+		return fmt.Errorf("-seed-only and -skip-seed are mutually exclusive")
+	}
+	if err := validateOperationOptions(opts); err != nil {
+		return err
+	}
+	return nil
 }

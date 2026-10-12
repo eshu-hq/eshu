@@ -45,6 +45,7 @@ var coreScanFiles = []string{
 	"cmd/collector-component-extension/config.go",
 	"cmd/api/config_helpers.go",
 	"cmd/api/main.go",
+	"cmd/api/diagnostic/collector.go",
 	"cmd/api/oidc_login.go",
 	"cmd/ingester/files_group_probe.go",
 }

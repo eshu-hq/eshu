@@ -40,6 +40,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_HOME` | string | — | Root directory for persisted API key and configuration (defaults to ~/.eshu). |
 | `ESHU_QUERY_PROFILE` | enum | `production` | Query execution profile. Allowed: `production`, `local_authoritative`, `local_lightweight`. |
 | `ESHU_SCOPED_TOKENS_FILE` | string | — | Path to an operator-managed scoped-token registry file; API and MCP fail closed if the configured file is malformed or unreadable. Setting it also enables read enforcement (headerless requests to non-public routes are rejected with 401), the same as `ESHU_API_KEY`/`ESHU_AUTH_RESOURCE_URI`. |
+| `ESHU_STATUS_DIAGNOSTIC_REPORT` | string | — | Optional private output path for bounded status GET request diagnostics. Unset disables capture; selected responses carry server-generated IDs. At graceful shutdown a sanitized report marks incomplete or overflowing evidence invalid. Does not change authentication, query or work/latency budgets. |
 | `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` | bool | `false` | When true, serve GET /api/v0/supply-chain/impact/findings from the maintained canonical winners read model (#3389) instead of read-time dedup (bounded O(page)). Honored by both the API and MCP server; enable only after the reducer maintainer has populated the winners table. Output is byte-identical. |
 
 ## auth

@@ -315,7 +315,7 @@ func TestSweepRoutesFailsOnConnectionFailure(t *testing.T) {
 }
 
 // TestSweepRoutesRunsProducesColdAndWarmSamples pins the -runs contract: run 1
-// is the cold pass (RouteLatency.Samples, opts.Iterations entries) and runs
+// is the first counted pass after warmups (RouteLatency.Samples) and runs
 // 2..Runs are warm passes pooled into WarmSamples ((Runs-1)*Iterations
 // entries) with one WarmRunP95s entry per warm run. Warmup requests happen
 // only once, before run 1 — not once per run.
@@ -345,7 +345,7 @@ func TestSweepRoutesRunsProducesColdAndWarmSamples(t *testing.T) {
 	}
 	r := results[0]
 	if len(r.Samples) != iterations {
-		t.Errorf("len(Samples) = %d, want %d (the cold run-1 pass)", len(r.Samples), iterations)
+		t.Errorf("len(Samples) = %d, want %d (the first counted pass)", len(r.Samples), iterations)
 	}
 	if want := (runs - 1) * iterations; len(r.WarmSamples) != want {
 		t.Errorf("len(WarmSamples) = %d, want %d ((Runs-1)*Iterations pooled)", len(r.WarmSamples), want)
@@ -358,10 +358,9 @@ func TestSweepRoutesRunsProducesColdAndWarmSamples(t *testing.T) {
 	}
 }
 
-// TestSweepRoutesRunsDefaultLeavesWarmDataEmpty pins the byte-for-byte
-// compatibility guarantee: Runs unset (zero value) behaves exactly like
-// Runs=1 — a single cold pass, no warm data, P95 computed from that one pass
-// alone, matching every pre-existing caller of SweepRoutes.
+// TestSweepRoutesRunsDefaultLeavesWarmDataEmpty pins the default sample
+// selection: Runs unset (zero value) behaves like Runs=1, with a single
+// counted pass after warmups and no later-pass data.
 func TestSweepRoutesRunsDefaultLeavesWarmDataEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
