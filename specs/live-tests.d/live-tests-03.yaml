@@ -61,8 +61,9 @@ tests:
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
     tag: ~
-    class: scheduled
-    reason: "env-gated by ESHU_POSTGRES_TEST_DSN and not enrollable as-is: its absolute wall-clock ceilings (origin/main medians from an unnamed host, #5856, times 1.10) fail docs/internal/timing-proof-rules.md rule 2 and are not a regression signal; 5 of 5 runs on a loaded laptop failed the direct_list ceiling at 195 to 202 ms against the 177.170 ms constant (194.9 ms ceiling) on unchanged code; steward linuxdynasty; reshape to plan and buffer assertions tracked in #7553"
+    class: postgres_ci
+    reason: "#7553 reshaped proof: the host-bound absolute wall-clock ceilings (#5856) are replaced with runner-local plan and buffer gates (identical whole-tree node-type set plus shared/temp buffer touches within 1 percent across two EXPLAIN (ANALYZE, BUFFERS) runs per path); wall time is reported, never gated; the deterministic direct/materialized differential, 50,000-winner count, aggregate facets, and explain anchor are kept; temp is gated on run-to-run stability because three of five paths spill at stock 4MB work_mem; local run passed in 34.9s of test time on postgres:18.6-alpine on 2026-10-12; steward linuxdynasty"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/suppression_plan_proof_live_test.go
     tag: ~
     class: scheduled

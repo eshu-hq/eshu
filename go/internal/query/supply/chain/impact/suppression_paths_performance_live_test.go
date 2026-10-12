@@ -244,11 +244,11 @@ func (n suppressionPlanTree) appendTypes(into []string) []string {
 
 // assertSuppressionPlanShape gates one path on runner-local EXPLAIN runs:
 // identical node set, shared touches within 1 percent, and temp touches
-// within 1 percent (the #7127 ruling-E shape). Temp is gated on stability,
-// not on zero: the direct_list 100k-row dedup sort spills (temp 2192/3381
-// at stock 4MB work_mem, measured 2026-10-12), so Temp == 0 cannot gate
-// this query. The hit/read split shifts with cache warmth, so the gate
-// uses the total.
+// within 1 percent. Temp is gated on stability, not on zero: three of the
+// five paths spill at stock 4MB work_mem (direct_list temp 2194/3383,
+// aggregate_count 1839/1843, aggregate_priority_facet 1716/1720, measured
+// 2026-10-12 on PostgreSQL 18.6), so Temp == 0 cannot gate this proof.
+// The hit/read split shifts with cache warmth, so the gate uses the total.
 func assertSuppressionPlanShape(t *testing.T, name string, first, second suppressionQueryPlanProof, firstTypes, secondTypes []string) {
 	t.Helper()
 	if !slices.Equal(firstTypes, secondTypes) {
