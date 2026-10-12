@@ -120,6 +120,11 @@ tests:
     class: postgres_ci
     reason: "#7978 disposable PostgreSQL 18 proof of the reconcile re-projection lifecycle (rulings a9-117, a9-120): a live lease is left alone with no request stamp, a dead-lettered re-projection keeps the active generation and its scope pointer, and a pending same-identity snapshot stores nothing while a failed one stores; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_dead_letter_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7978 disposable PostgreSQL 18 proof of the projector dead-letter guard (rulings a9-130, a9-130.1): only an unacknowledged reconcile re-open on the canonical projector row keeps an active generation and its scope pointer; a stamp-free, acknowledged, never-activated, or refinalize dead letter fails the generation and clears the pointer; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go
     tag: ~
     class: postgres_ci

@@ -123,9 +123,12 @@ generation won the scope lock; the snapshot is dropped), and
 `pending_same_identity` (a pending generation with live projector work already
 holds that content; a pending match without live work is not a duplicate, so the
 snapshot is stored and supersedes it). A
-re-projection that is dead-lettered leaves the generation active and its scope
-pointer in place; the next sweep forces `reconcile_request_stale`, which stores
-a generation.
+reconcile re-projection that is dead-lettered before its Ack leaves the
+generation active and its scope pointer in place; the next sweep forces
+`reconcile_request_stale`, which stores a generation. Any other dead letter of
+a generation (a #7209 heal or liveness re-drive, a rebuild re-drive, or a
+first projection) marks it failed and clears the pointer, as before #7978
+(rulings a9-130, a9-130.1).
 
 When the canonical graph writer applies that forced snapshot, successful stale
 cleanup statements also increment

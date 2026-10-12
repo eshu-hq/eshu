@@ -56,9 +56,18 @@ The lifecycle after the re-open:
   nothing: at most one stored generation per interval per scope
   (`TestReconcilePolicyStaleRequestForcesOncePerInterval`,
   `TestStaleReconcileSkipsPendingSameIdentityLive`).
-- `failProjectorWorkQuery` never marks an activated generation `failed` and
-  never clears the scope pointer. It stamps `reconcile_dead_lettered_at`
-  instead.
+- `failProjectorWorkQuery` spares only an unacknowledged #7978 reconcile
+  re-open (rulings a9-130, a9-130.1): the generation is active and activated,
+  the dead-lettered row is the canonical `projector_<scope>_<generation>` row,
+  and `reconcile_requested_at` is later than `reconcile_projected_at`. That
+  generation stays active with its scope pointer and gets
+  `reconcile_dead_lettered_at`. Every other dead letter keeps the pre-#7978
+  contract (generation failed, pointer cleared): a stamp-free re-drive such as
+  the #7209 zombie heal, a re-drive of an acknowledged re-open, a generation
+  that never activated, and a rebuild `refinalize_` row. a9-117 Q4's literal
+  `activated_at IS NULL` predicate was too wide: it broke the #7584 activation
+  and #7471 supersession contracts on CI. `TestProjectorDeadLetterGuardCellsLive`
+  pins cells (a)-(f).
 
 The re-projection retracts drift that carries another generation id. Because
 the re-open resets `attempt_count`, the projector service's `attempt_count > 1`
@@ -113,7 +122,7 @@ holds 3,040 of them. The query text came from the Go constants.
 | full reconcile state (LATERAL, payload stamps) | `scope_generations_scope_latest_lookup_idx` x2 | 0.060-0.093 ms |
 | re-open (in `BEGIN`/`ROLLBACK`) | pkey, `scope_generations_active_scope_idx`, `ingestion_scopes_active_generation_idx` | 0.220-2.109 ms |
 | Ack activate with the projected stamp (in `BEGIN`/`ROLLBACK`) | pkey | 0.053-0.066 ms |
-| dead letter with the activated guard (in `BEGIN`/`ROLLBACK`) | existing plan, no owned row | 0.075-0.106 ms |
+| dead letter with the activated guard (in `BEGIN`/`ROLLBACK`), measured before the a9-130 predicate replaced it; the new `spared_generation` CTE reads the one owned row and was not re-measured | existing plan, no owned row | 0.075-0.106 ms |
 
 No plan used a sequential scan. The candidate read sorts its scope's rows in
 memory (quicksort, 25 kB) to take the newest; that is the same plan as the
