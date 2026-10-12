@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package crossplanestore_test
 
 import (
 	"context"
@@ -13,6 +13,9 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
 
 // crossplaneRedriveProofDSNEnv gates this suite against a real Postgres
@@ -67,7 +70,7 @@ func crossplaneRedriveProofSchema(t *testing.T) (dsn string, schemaName string) 
 	if _, err := setupDB.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
-	if err := ApplyBootstrap(ctx, SQLDB{DB: setupDB}); err != nil {
+	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: setupDB}); err != nil {
 		t.Fatalf("apply bootstrap: %v", err)
 	}
 	return dsn, schemaName
@@ -102,8 +105,8 @@ func TestCrossplaneRedriveStateConcurrentClaimConvergesLive(t *testing.T) {
 	dbA := crossplaneRedriveProofConn(t, dsn, schema)
 	dbB := crossplaneRedriveProofConn(t, dsn, schema)
 
-	stateA := NewCrossplaneRedriveStateStore(SQLDB{DB: dbA})
-	stateB := NewCrossplaneRedriveStateStore(SQLDB{DB: dbB})
+	stateA := crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: dbA})
+	stateB := crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: dbB})
 
 	ctx := context.Background()
 	const xrdScopeID, xrdGenerationID = "scope-xrd-race", "gen-xrd-race-001"
@@ -179,7 +182,7 @@ func TestCrossplaneRedriveStateCrashRecoveryLive(t *testing.T) {
 	db := crossplaneRedriveProofConn(t, dsn, schema)
 
 	fakeNow := time.Date(2026, time.January, 2, 3, 0, 0, 0, time.UTC)
-	state := NewCrossplaneRedriveStateStore(SQLDB{DB: db})
+	state := crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db})
 	state.Now = func() time.Time { return fakeNow }
 
 	ctx := context.Background()

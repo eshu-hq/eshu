@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package crossplanestore
 
 // crossplaneRedriveDerivedGroupExpr derives a K8sResource content_entity
 // row's Kubernetes API group from its entity_metadata.api_version field,

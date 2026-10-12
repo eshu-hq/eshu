@@ -78,9 +78,9 @@ Not claimed today:
   `runCrossplaneRedriveCatchUpLoop` periodically reclaims a sweep left
   incomplete by a transient error or a crashed process, since the live
   post-activation trigger alone cannot recover one. See
-  `go/internal/storage/postgres/crossplane_satisfied_by_redrive_sweep.go` for
-  the implementation and `go/internal/storage/postgres/README.md` for the
-  fencing and trigger design. This does not contradict the blast-radius
+  `go/internal/storage/postgres/crossplane/sweep.go` for
+  the implementation and `go/internal/storage/postgres/crossplane/README.md`
+  for the fencing and trigger design. This does not contradict the blast-radius
   `coverage` fields: `materialized:true`/`complete` report that a writer
   produces the SATISFIED_BY edge type (the writer-existence contract from
   #5330), not that every possible edge instance is currently present — the

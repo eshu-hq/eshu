@@ -160,7 +160,7 @@ crossplane_satisfied_by_redrive_behavior_live_test.go -> crossplane/satisfied_by
 crossplane_satisfied_by_redrive_catchup_live_test.go -> crossplane/satisfied_by_redrive_catchup_live_test.go   # external test package + export_test.go shim: imports root, status
 crossplane_satisfied_by_redrive_ledger_live_test.go -> crossplane/ledger_live_test.go   # external test package: imports facts, root, status
 crossplane_satisfied_by_redrive_live_test.go -> crossplane/satisfied_by_redrive_live_test.go   # external test package: imports root
-crossplane_satisfied_by_redrive_query_plan_live_test.go -> crossplane/query_plan_live_test.go
+crossplane_satisfied_by_redrive_query_plan_live_test.go -> crossplane/query_plan_live_test.go   # external test package + export_test.go shim: shares the proof-schema/seed helpers with the other external tests and EXPLAINs the shipped query const
 ```
 
 </details>

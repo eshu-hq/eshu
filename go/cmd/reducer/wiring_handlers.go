@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	taintstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel/trace"
@@ -198,7 +199,7 @@ func buildReducerCrossplaneHandlers(
 ) reducer.CrossplaneHandlers {
 	return reducer.CrossplaneHandlers{
 		CrossplaneSatisfiedByEdgeWriter:          graphWriters.crossplaneSatisfiedByEdge,
-		CrossplaneRedriveTargetLedger:            postgres.NewCrossplaneRedriveTargetLedgerStore(database),
+		CrossplaneRedriveTargetLedger:            crossplanestore.NewCrossplaneRedriveTargetLedgerStore(database),
 		CrossplaneSatisfiedByEdgeExistenceReader: graphReader,
 	}
 }

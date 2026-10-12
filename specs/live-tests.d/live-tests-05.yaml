@@ -55,23 +55,23 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/crossplane_satisfied_by_redrive_behavior_live_test.go
+  - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/crossplane_satisfied_by_redrive_catchup_live_test.go
+  - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_catchup_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/crossplane_satisfied_by_redrive_ledger_live_test.go
+  - file: go/internal/storage/postgres/crossplane/ledger_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/crossplane_satisfied_by_redrive_live_test.go
+  - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/crossplane_satisfied_by_redrive_query_plan_live_test.go
+  - file: go/internal/storage/postgres/crossplane/query_plan_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence

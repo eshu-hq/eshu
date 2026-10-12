@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package crossplanestore_test
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -19,7 +21,7 @@ import (
 // Every other call passes through to the real replayer so the targets before
 // and after the injected failure are genuinely enqueued/reopened.
 type crossplaneRedriveFailingReplayer struct {
-	real      CrossplaneRedriveIntentReplayer
+	real      crossplanestore.CrossplaneRedriveIntentReplayer
 	failAfter int
 	calls     int
 }
@@ -67,13 +69,13 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 		seedCrossplaneRedriveClaimScope(ctx, t, database, targetScopeID, generationID, group, claimKind, 1, now.Add(time.Duration(i)*time.Second))
 	}
 
-	realReducerQueue := NewReducerQueue(SQLDB{DB: database}, "test-owner", time.Minute)
+	realReducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "test-owner", time.Minute)
 	failingReplayer := &crossplaneRedriveFailingReplayer{real: realReducerQueue, failAfter: 2}
 
 	shortLease := 300 * time.Millisecond
-	failingSweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:            SQLQueryer{DB: database},
-		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: database}),
+	failingSweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:            postgres.SQLQueryer{DB: database},
+		State:         crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: database}),
 		Replayer:      failingReplayer,
 		Owner:         "projector",
 		LeaseDuration: shortLease,
@@ -94,7 +96,7 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	// (target-b); target-c was never attempted. None of the three carry a
 	// ledger entry: enqueuing an intent (this test never runs the actual
 	// reducer handler) must never write the ledger -- only a handler that
-	// actually commits an edge does (see crossplane_satisfied_by_redrive_ledger_live_test.go).
+	// actually commits an edge does (see ledger_live_test.go).
 	assertCrossplaneRedriveTargetPending(ctx, t, database, targets[0], targets[0]+"-gen-001", true)
 	assertCrossplaneRedriveLedgerEntry(ctx, t, database, targets[0], group, claimKind, false)
 	assertCrossplaneRedriveLedgerEntry(ctx, t, database, targets[1], group, claimKind, false)
@@ -105,9 +107,9 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	// runCrossplaneRedriveCatchUpLoop does periodically in production.
 	time.Sleep(shortLease + 200*time.Millisecond)
 
-	catchUpSweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:            SQLQueryer{DB: database},
-		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: database}),
+	catchUpSweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:            postgres.SQLQueryer{DB: database},
+		State:         crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: database}),
 		Replayer:      realReducerQueue,
 		Owner:         "projector",
 		LeaseDuration: time.Minute,
@@ -119,15 +121,14 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	if len(results) != 1 {
 		t.Fatalf("expected SweepBatch to reclaim exactly 1 generation, got %d: %+v", len(results), results)
 	}
-	if results[0].Outcome != crossplaneRedriveOutcomeCompleted {
+	if results[0].Outcome != crossplanestore.CrossplaneRedriveOutcomeCompletedForTest {
 		t.Fatalf("expected the reclaimed sweep to complete, got outcome %q", results[0].Outcome)
 	}
 
 	// All three targets are now enqueued/reopened and the state row is
 	// completed. None carry a ledger entry -- this test never runs the real
 	// reducer handler, so the ledger (correctly) stays empty throughout; see
-	// crossplane_satisfied_by_redrive_ledger_live_test.go for the ledger's
-	// own write-timing proof.
+	// ledger_live_test.go for the ledger's own write-timing proof.
 	assertCrossplaneRedriveStateStatus(ctx, t, database, xrdScopeID, xrdGenerationID, "completed")
 	for _, targetScopeID := range targets {
 		assertCrossplaneRedriveLedgerEntry(ctx, t, database, targetScopeID, group, claimKind, false)
@@ -187,17 +188,17 @@ func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing
 	seedCrossplaneRedriveXRD(ctx, t, database, xrdScopeID, xrdGenerationID, group, claimKind, now)
 	seedCrossplaneRedriveClaimScope(ctx, t, database, targetScopeID, targetGenerationID, group, claimKind, 1, now)
 
-	realReducerQueue := NewReducerQueue(SQLDB{DB: database}, "test-owner", time.Minute)
+	realReducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "test-owner", time.Minute)
 
 	shortLease := 300 * time.Millisecond
 	// failAfter=1: the FIRST QueryContext call issued against s.DB is
 	// loadActiveXRDJoinKeys. EnsureQueued/ClaimExact run against s.State's
 	// own db handle (a separate ExecQueryer object below), so they are
 	// unaffected by this wrapper.
-	failingQueryer := &crossplaneRedriveFailingQueryer{real: SQLQueryer{DB: database}, failAfter: 1}
-	failingSweeper := CrossplaneSatisfiedByRedriveSweeper{
+	failingQueryer := &crossplaneRedriveFailingQueryer{real: postgres.SQLQueryer{DB: database}, failAfter: 1}
+	failingSweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
 		DB:            failingQueryer,
-		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: database}),
+		State:         crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: database}),
 		Replayer:      realReducerQueue,
 		Owner:         "projector",
 		LeaseDuration: shortLease,
@@ -222,9 +223,9 @@ func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing
 	// runCrossplaneRedriveCatchUpLoop does periodically in production.
 	time.Sleep(shortLease + 200*time.Millisecond)
 
-	catchUpSweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:            SQLQueryer{DB: database},
-		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: database}),
+	catchUpSweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:            postgres.SQLQueryer{DB: database},
+		State:         crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: database}),
 		Replayer:      realReducerQueue,
 		Owner:         "projector",
 		LeaseDuration: time.Minute,
@@ -236,7 +237,7 @@ func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing
 	if len(results) != 1 {
 		t.Fatalf("expected SweepBatch to reclaim exactly 1 generation, got %d: %+v", len(results), results)
 	}
-	if results[0].Outcome != crossplaneRedriveOutcomeCompleted {
+	if results[0].Outcome != crossplanestore.CrossplaneRedriveOutcomeCompletedForTest {
 		t.Fatalf("expected the reclaimed sweep to complete, got outcome %q", results[0].Outcome)
 	}
 

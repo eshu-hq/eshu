@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
 
 const (
@@ -25,11 +25,11 @@ const (
 )
 
 // crossplaneRedriveBatchSweeper is the narrow surface the catch-up loop
-// needs. postgres.CrossplaneSatisfiedByRedriveSweeper implements it
+// needs. crossplanestore.CrossplaneSatisfiedByRedriveSweeper implements it
 // structurally; tests substitute a fake to exercise the loop/tick's error
 // handling and ticker/cancellation behavior without a real Postgres.
 type crossplaneRedriveBatchSweeper interface {
-	SweepBatch(ctx context.Context, limit int) ([]postgres.CrossplaneRedriveSweepResult, error)
+	SweepBatch(ctx context.Context, limit int) ([]crossplanestore.CrossplaneRedriveSweepResult, error)
 }
 
 // runCrossplaneRedriveCatchUpLoop periodically reclaims and completes any

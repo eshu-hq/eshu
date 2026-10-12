@@ -421,7 +421,7 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		// that already-established pattern rather than inventing a one-off
 		// typed struct ahead of a content_entity family migration this change
 		// does not own.
-		{Path: "go/internal/storage/postgres/crossplane_satisfied_by_redrive_sweep.go", Accessor: rawPayloadIndexAccessor, Key: "entity_metadata"},
+		{Path: "go/internal/storage/postgres/crossplane/sweep.go", Accessor: rawPayloadIndexAccessor, Key: "entity_metadata"},
 		// The repository-catalog payload parser moved from the Postgres ingestion
 		// path to relationships.RepositoryCatalogEntry so Ifá can derive the same
 		// catalog offline (#4394 T2). The reads are unchanged (still pre-typed

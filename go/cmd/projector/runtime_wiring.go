@@ -26,6 +26,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -43,15 +44,15 @@ const (
 // (runCrossplaneRedriveCatchUpLoop) started from main.go. Both must be wired
 // -- the live hook alone cannot recover a sweep that failed partway through
 // its fan-out or whose process crashed mid-sweep (see
-// postgres.CrossplaneSatisfiedByRedriveSweeper's doc comment).
+// crossplanestore.CrossplaneSatisfiedByRedriveSweeper's doc comment).
 func buildCrossplaneRedriveSweeper(
 	database postgres.SQLDB,
 	reducerQueue postgres.ReducerQueue,
 	instruments *telemetry.Instruments,
-) postgres.CrossplaneSatisfiedByRedriveSweeper {
-	return postgres.CrossplaneSatisfiedByRedriveSweeper{
+) crossplanestore.CrossplaneSatisfiedByRedriveSweeper {
+	return crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
 		DB:          postgres.SQLQueryer(database),
-		State:       postgres.NewCrossplaneRedriveStateStore(database),
+		State:       crossplanestore.NewCrossplaneRedriveStateStore(database),
 		Replayer:    reducerQueue,
 		Owner:       "projector",
 		Instruments: instruments,
@@ -87,7 +88,7 @@ func buildProjectorService(
 	// Closes the Crossplane cross-scope SATISFIED_BY XRD-lag false-negative
 	// window (issue #5476): after Ack activates a generation, re-drive any
 	// OTHER scope's unresolved Claims matching a newly-active XRD. See
-	// postgres.CrossplaneSatisfiedByRedriveSweeper's doc comment. This live
+	// crossplanestore.CrossplaneSatisfiedByRedriveSweeper's doc comment. This live
 	// hook alone cannot recover from a transient error or crash mid-sweep;
 	// runCrossplaneRedriveCatchUpLoop (wired in main.go from the SAME
 	// buildCrossplaneRedriveSweeper helper) is the required recovery path --

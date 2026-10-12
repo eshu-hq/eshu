@@ -30,7 +30,7 @@ confirmation that gates the redrive ledger write.
 (`cypher.CrossplaneSatisfiedByEdgeWriter`,
 `internal/storage/cypher/crossplane_satisfied_by_edge_writer.go`), the
 durable redrive ledger and cross-scope redrive sweep
-(`internal/storage/postgres/crossplane_satisfied_by_redrive_*.go`), or the
+(`internal/storage/postgres/crossplane/*.go`), or the
 projector-side intent trigger that enqueues this domain's intent
 (`internal/projector/crossplane/satisfaction`).
 
