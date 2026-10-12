@@ -135,6 +135,7 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
 	if !indexer.IsAvailable(language) {
 		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultBinaryMissing)
 		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultBinaryMissing)
+		markSnapshotDegraded(ctx, "scip_"+scipSnapshotResultBinaryMissing)
 		return scipSubtreeFilesResult{}, nil
 	}
 
@@ -157,6 +158,7 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
 		_ = os.RemoveAll(outputDir)
 		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultIndexerFailed)
 		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultIndexerFailed)
+		markSnapshotDegraded(ctx, "scip_"+scipSnapshotResultIndexerFailed)
 		return scipSubtreeFilesResult{}, nil
 	}
 	result, parseErr := resultParser.Parse(indexPath, subtree.Root)
@@ -164,6 +166,7 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
 	if parseErr != nil {
 		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultParseFailed)
 		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultParseFailed)
+		markSnapshotDegraded(ctx, "scip_"+scipSnapshotResultParseFailed)
 		return scipSubtreeFilesResult{}, nil
 	}
 	if len(result.Files) == 0 {

@@ -161,7 +161,10 @@ discovery ignore and preserve globs, the [value-flow gate](value-flow-emission.m
 dependency settings). Every stored generation and every re-open after a parse
 stamps the identity on the generation. The first sweep after a deploy parses
 and stamps; later sweeps compare. The ingester and collector-git run the skip on
-both their scheduled and webhook selectors; bootstrap-index only stamps.
+both their scheduled and webhook selectors; bootstrap-index only stamps. A
+snapshot that fell back from SCIP or could not read a file stamps no identity
+(INFO `git_snapshot_preparse_identity_dropped` with the `reason`), so the next
+sweep reads `identity_absent` and parses again.
 
 | Condition | Result | `outcome` |
 | --- | --- | --- |

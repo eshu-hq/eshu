@@ -4,9 +4,11 @@
 package git
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
+	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 )
 
 // snapshotterFieldClassification names every NativeRepositorySnapshotter
@@ -136,5 +139,69 @@ func TestReconcileParseMaxSkipsFromEnv(t *testing.T) {
 		if msg := err.Error(); !strings.Contains(msg, "ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS") || !strings.Contains(msg, strconv.Quote(raw)) {
 			t.Fatalf("raw %q: error %q does not name the variable and the value", raw, msg)
 		}
+	}
+}
+
+// TestDegradedSnapshotStampsNoIdentity (review F-2, ruling a9-143.3): a
+// snapshot that fell back from SCIP or skipped a file it could not read may
+// differ from a later identical run, so its generation carries no pre-parse
+// identity. The next sweep then reads identity_absent and parses
+// (TestDecideCells) instead of re-projecting degraded facts for up to N-1
+// intervals.
+func TestDegradedSnapshotStampsNoIdentity(t *testing.T) {
+	const identity = "preparse:v1:x"
+	for _, cell := range []struct {
+		name       string
+		indexer    *recordingSCIPIndexer
+		parser     fakeSCIPParser
+		unreadable bool
+		want       string
+	}{
+		{name: "healthy", indexer: &recordingSCIPIndexer{available: true}, want: identity},
+		{name: "scip binary missing", indexer: &recordingSCIPIndexer{available: false}},
+		{name: "scip indexer failed", indexer: &recordingSCIPIndexer{available: true, runErr: errors.New("boom")}},
+		{name: "scip parse failed", indexer: &recordingSCIPIndexer{available: true}, parser: fakeSCIPParser{err: errors.New("bad index")}},
+		{name: "file read failed", unreadable: true},
+	} {
+		t.Run(cell.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			writeCollectorTestFile(t, filepath.Join(repoRoot, "app.py"), "def main():\n    return 1\n")
+			snapshotter := NativeRepositorySnapshotter{Engine: defaultCollectorTestEngine(t)}
+			if cell.indexer != nil {
+				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
+				config.Indexer = cell.indexer
+				config.Parser = cell.parser
+				if cell.parser.err == nil {
+					config.Parser = fakeSCIPParser{result: scip.ParseResult{Files: map[string]map[string]any{
+						filepath.Join(repoRoot, "app.py"): {"function_calls_scip": []map[string]any{}},
+					}}}
+				}
+				snapshotter.SCIP = config
+			}
+			if cell.unreadable {
+				// A file the import pre-scan does not read (an unreadable source
+				// file fails the whole snapshot there, which stores nothing), so
+				// the per-file read in the parse is the step that skips it.
+				locked := filepath.Join(repoRoot, "locked.tf")
+				writeCollectorTestFile(t, locked, "variable \"x\" {}\n")
+				if err := os.Chmod(locked, 0); err != nil {
+					t.Fatalf("chmod: %v", err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(locked, 0o644) })
+				if _, err := os.ReadFile(locked); err == nil {
+					t.Skip("this user can read a mode-0 file (root?); the read-failure cell cannot run")
+				}
+			}
+			source := &GitSource{Component: "test", Snapshotter: snapshotter}
+			collected, err := source.snapshotOneRepository(context.Background(),
+				SelectedRepository{RepoPath: repoRoot, PreparseIdentity: identity}, "run", time.Now().UTC(), 0)
+			if err != nil {
+				t.Fatalf("snapshotOneRepository() error = %v", err)
+			}
+			drainFactChannel(collected.Facts)
+			if got := collected.Generation.PreparseIdentity; got != cell.want {
+				t.Fatalf("generation identity = %q, want %q", got, cell.want)
+			}
+		})
 	}
 }

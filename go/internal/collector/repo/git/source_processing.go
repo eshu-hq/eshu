@@ -228,9 +228,19 @@ func (s *GitSource) snapshotOneRepository(
 	}
 
 	start := time.Now()
+	ctx, degradation := withSnapshotDegradation(ctx)
 	snapshot, err := s.Snapshotter.SnapshotRepository(ctx, repository)
 	if err != nil {
 		return collector.CollectedGeneration{}, fmt.Errorf("snapshot repository %q: %w", repository.RepoPath, err)
+	}
+	// A degraded snapshot may differ from a later identical run, so it stamps
+	// no pre-parse identity and the next sweep parses (review F-2).
+	if reason, degraded := degradation.degraded(); degraded && snapshot.PreparseIdentity != "" {
+		snapshot.PreparseIdentity = ""
+		if s.Logger != nil {
+			s.Logger.InfoContext(ctx, "git_snapshot_preparse_identity_dropped",
+				slog.String("repo_path", repository.RepoPath), slog.String("reason", reason))
+		}
 	}
 
 	repoPath := repository.RepoPath
