@@ -349,9 +349,10 @@ function ops(T, a, b, ctx, fn, isw,   i, w, lw, inc, subc, suba, an, cn, lit, k,
 # is_wrapper is 1 when the command T[a..b] runs the CI compose wrapper: its command
 # word is the literal path tail scripts/ci/compose.sh, with no prefix, ./, or one
 # variable and a slash, behind any of bash, sh, exec, timeout, nice, sudo -E, env or a
-# NAME=value word. A path held entirely in a variable, bash -c and any other
-# wrapper (xargs, retry) are not the wrapper: they are raw calls. Words that run
-# before the path decide the call too (headbad): a compose call, or a command that
+# NAME=value word. A path held entirely in a variable is not the wrapper; a literal
+# bash scripts/ci/compose.sh handed to another command (xargs, a runner function) or
+# to a literal bash -c string is settled by the loop below. Words that run before
+# the path decide the call too (headbad): a compose call, or a command that
 # removes GITHUB_ACTIONS or CI image mode from the wrapper's environment.
 function is_wrapper(T, a, b,   i, w, base, j) {
   # the literal wrapper path right after bash or sh anywhere in the command: a runner

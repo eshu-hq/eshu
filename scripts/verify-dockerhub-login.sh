@@ -366,8 +366,8 @@ check_job() {
           cfiles="${cfiles}${closure_files}"$'\n'
           [[ "${closure_kind}" == none ]] || possible=1
         done <<<"${!cur:-}"
-        # A variable invoked as a command next to a docker word anywhere in the
-        # run text or the scripts it reaches may hold docker: fail closed.
+        # A variable invoked as a command (V) is settled by its assignments, else by
+        # the reached scripts and env (var_conflict); an unassigned V passes (a limit).
         var_conflict "${seq}" "${cfiles}" "${env64}" "${job}"
         [[ -z "${VCONF}" ]] && ! compose_wrapper_seen_in "${runf}" "${cfiles}" || possible=1
         [[ "${possible}" -gt 0 ]] || continue
