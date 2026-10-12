@@ -109,16 +109,15 @@ Theory (each has a shim in section 8 of the decision record):
 - The fallback of the protocol companion (section 2) is a design, not a
   measurement. It applies only if the arm 3 rerun fails both shapes.
 
-NOT_CHECKED: S2 on real R1 path widths, a disk-cold read, the production environment, the related repositories the R1 body does not name,
-the cap census (S6), concurrent stories, and the cold route after a pod
-restart. From the S3 ruling: the cause of the 2.0 s heavyweight wait in arm
-5, the real `prune_content_files` duration at 100,000 rows (no figure is
-recorded), that a transition table is bounded by `work_mem` (a recollection of
-the PostgreSQL source), that a GIN pending-list cleanup by an inserting
-backend takes the metapage lock conditionally (a recollection; if wrong,
-`page` is a fifth wait class, which the `wait_event` column shows either
-way), and the QA-environment p95 of
-`eshu_dp_generation_retention_scope_lock_hold_seconds`.
+NOT_CHECKED: S2 on real R1 path widths, a disk-cold read, the production
+environment, concurrent stories, and the cold route after a pod restart. From
+the S3 ruling: the cause of the 2.0 s heavyweight wait in arm 5, the real
+`prune_content_files` duration at 100,000 rows (no figure is recorded), that a
+transition table is bounded by `work_mem` (a recollection of the PostgreSQL
+source), that a GIN pending-list cleanup by an inserting backend takes the
+metapage lock conditionally (a recollection; if wrong, `page` is a fifth wait
+class, which the `wait_event` column shows either way), and the QA-environment
+p95 of `eshu_dp_generation_retention_scope_lock_hold_seconds`.
 
 ## 4. S0 and S2 results (local, 2026-10-10)
 
@@ -347,8 +346,7 @@ Arm 5, attributed:
   B-first maximum is at least the B-last maximum. If it is not, the
   classification is wrong and the run is void. `advisory` and `extend` are
   equal between A and B within the A spread. 0 deadlocks in 20 rounds.
-- Add arm 1 (5 rounds, default sizes) to the same session, as a confirmation
-  of Q1.
+- Add arm 1 (5 rounds, default sizes) to the same session to confirm Q1.
 
 ## 8. Delete paths on `content_files` (S3 ruling, 2026-10-11)
 
@@ -413,9 +411,9 @@ rejected as a unit (a host-dependent body), and bytes too (the list statement
 returns no size). Serialization and a lower worker count are no part of the
 control. The chunk size 10 and the in-flight bound 8 stay.
 
-Estimate (theory: measured per-statement and per-MB rates applied to the
-known hidden set of 3,763 candidates, from the local kit note
-`7126-batch-shim-20261010.md`; nothing here ran on the new code):
+Estimate (theory: measured per-statement and per-MB rates applied to the known
+hidden set of 3,763 candidates, from the local kit note
+`7126-batch-shim-20261010.md`; the E = 12,000 row cites the scratch shim):
 
 | Term | Estimate |
 |---|---|
@@ -424,20 +422,21 @@ known hidden set of 3,763 candidates, from the local kit note
 | Extra HCL bytes | about 10.1 MB (3,763 x 0.54 x 4,952 B) |
 | Parse CPU | about 0.18 CPU-s gated, 0.95 ungated |
 | R1 total | about +0.4 CPU-s (+0.2 to +1.1 across the mix brackets), +5% to +15% on a 2.5-4.5 s stage |
-| Worst case at E = 10,000 | about +1.0 CPU-s gated (+3.0 if every gate misses), on top of the floors. Headroom over R1's known extra: 2.7x |
-
-Census rule: after S6, E must satisfy E >= 1.5 x R1's measured total extra
-over all related repositories, or E is raised and this table redone in the PR.
+| Worst case at E = 10,000 (first proposal) | about +1.0 CPU-s gated (+3.0 if every gate misses), on top of the floors. Headroom over R1's known extra: 2.7x |
+| Worst case at E = 12,000 | about +1.1 CPU-s gated (+3.6 if every gate misses), on top of the floors. It scales the E = 10,000 row by 1.2 at the same read and HCL shares and is not re-measured. The gated figure scales the unrounded 0.95 of that row (0.49 + 0.46 CPU-s, local kit note `7126-cap-fix-ruling-20261011.md`, section 2), so 1.14 rounds to +1.1, not 1.0 x 1.2. Headroom over R1's measured extra: 1.54x. Measured on the census seed with no bite, run `c_rounds9b` of the local kit note `7126-cap-shim-executor-handoff-20261011.md`: +0.487 CPU-s paired median (low edge of the +0.5 to +2.5 bracket), +232 chunk statements (below the +470 to +1,300 bracket; the census bound is 224 plus kustomize). Verdict PASS, read from the ruling (`7126-cap-fix-ruling-20261011.md`, section 3) and not from the shim note, which names only the digest and the superset as PASS: the ruling's theory to prove is that the lift "adds about 0.2-1.1 CPU-s and about 220-600 statements to an R1-shaped request, holds the per-request bound, and keeps the body a superset of today's body", and +0.487 and +232 are inside it. The ruling's pass bar ("within the section 2 bracket scaled to 300 repositories (about +0.5 to +2.5 CPU-s), statements about +470 to +1,300, and no change to A's digest") is missed on statements, on the cheaper side. The ruling sets no on-fail action for shim 1; it sets one only for shim 2. The shim kept one blank check per repository. Chunking at 500 adds at most about 18 blank-check statements on that seed (local kit note `7951-cap-lift-executor-handoff-20261011.md`, section 5) |
+| Census rule (S6, 2026-10-11) | After S6, E must satisfy E >= 1.5 x R1's measured total extra over all related repositories, or E is raised and this table redone in the PR. S6 measured 7,774 hidden candidates over 317 related repositories (local kit note `7126-s6-census-results-20261011.md`): 1.5 x 7,774 = 11,661, so E = 10,000 failed (1.29x) and E is 12,000, provisional until the deployed read. A static check, not the live gate: no golden-corpus fixture has more than 24 config candidates (local kit note `7951-cap-lift-executor-handoff-20261011.md`, check 11) |
 
 Disclosure the response and the stage line carry when a bound bites. Reasons
-(story `limitations`, context `partial_reasons`, service story
-`limitations`) each also set `answer_metadata.truncated`. The budget reason is
-`deployment_artifacts_candidates_budget_reached` (E exhausted, and a related
-repository has candidates in its window that were not hydrated). The window
-reason is `deployment_artifacts_related_file_list_truncated_at_5000` (a
+(story `limitations`, context `partial_reasons`, service story `limitations`)
+each also set `answer_metadata.truncated`, which context lacks. The budget
+reason is `deployment_artifacts_candidates_budget_reached` (E exhausted, and a
+related repository has candidates in its window that were not hydrated). The
+window reason is `deployment_artifacts_related_file_list_truncated_at_5000` (a
 related list returned the sentinel row, so its pool past the window is
-unknown). Counts, exact within the window, summed per request, no repository
-id or path: `candidate_count`, `candidates_hydrated`,
+unknown). The anchor reason, service route only, is
+`deployment_artifacts_anchor_file_list_truncated_at_5000` (its own list
+returned the sentinel row). Counts, exact within the window, summed per
+request, no repository id or path: `candidate_count`, `candidates_hydrated`,
 `candidates_unhydrated`, `repositories_budget_capped`,
 `repositories_list_truncated`, `hydration_budget` and `hydration_floor`. One
 counter, `eshu_dp_config_artifact_candidates_total{outcome}`. The stage lines
@@ -449,29 +448,28 @@ Proof before an executor starts (time box 2 h, prove-the-theory-first):
 
 1. Cap shim on the `proof/7126-cpu-bench` harness with the observed tail
    (about 8,000 hidden candidates over the capped repositories). Arms, nine
-   ABBA rounds, load1 under 9: A cap 50 (shipped), B F = 50 and E = 10,000
+   ABBA rounds, load1 under 9: A cap 50 (shipped), B F = 50 and E = 12,000
    (no bite), C F = 50 and a small E (bite). Pass: B - A within about +0.5 to
    +2.5 CPU-s at 300 repositories, statements about +470 to +1,300, A's
-   digest unchanged, B's rows a superset of A's.
+   digest unchanged, B's rows a superset of A's. Result: PASS under ruling section 3 (reading in the table); digest and superset hold.
 2. Plan shim: `EXPLAIN (ANALYZE, BUFFERS)` of the blank-check and batched
-   statements with arrays of 10, 500, 1,000 and 4,950 paths, custom and
-   forced generic plan. Pass: index scan, no sequential or bitmap heap scan
-   at 4,950.
+   statements with arrays of 10, 500, 1,000 and 4,950 paths, custom and forced
+   generic plan. Pass: index scan, no sequential or bitmap heap scan at 4,950.
+   Result: failed as worded, see the last paragraph of this section.
 3. Heap shim: peak heap of one 3,678-candidate repository against the API pod
-   limit. Pass: growth under 25% of the limit.
+   limit. Pass: growth under 25% of the limit. Result: PASS.
 
-PR-cap-1 accuracy checks (each is a behavior test): 51, 500 and 5,001
-candidates (exactly 5,000 gives no window reason); a budget bite through a
-loader test seam, not an env var; byte-identical bodies for three shuffled
-source orders; a monotonic differential (the new `config_paths` is a superset
-of the capped one, byte-identical when no repository exceeds 50); kustomize
-inversion of `TestNeededContentHydrationReferenceOutsideCapIsNotRead`;
-disclosure fields on all three routes, absent when nothing bites; a seeded
-violation (selection that stops at 50 and drops the reason) turning the tests
-RED; live plan and equality tests at 4,950 paths; an out-of-grant repository
-adds nothing to any count (counts follow the grant filter); the golden-corpus
-gate (`config_paths` is in two cassettes); `-race`, OpenAPI and package-docs
-gates.
+PR-cap-1 accuracy checks (each a behavior test): 51, 500 and 5,001 candidates
+(exactly 5,000 gives no window reason); a budget bite through a loader test
+seam, not an env var; byte-identical bodies for three shuffled source orders;
+a monotonic differential (the new `config_paths` is a superset of the capped
+one, byte-identical when no repository exceeds 50); kustomize inversion of
+`TestNeededContentHydrationReferenceOutsideCapIsNotRead`; disclosure fields on
+all three routes, absent when nothing bites; a seeded violation (selection
+that stops at 50 and drops the reason) turning the tests RED; live plan and
+equality tests at 4,950 paths; an out-of-grant repository adds nothing to any
+count (counts follow the grant filter); the golden-corpus gate (`config_paths`
+is in two cassettes); `-race`, OpenAPI and package-docs gates.
 
 Roll image check (2026-10-11). `794b56a3fb` is the image the cap ruling named
 (the merge of #7949, 04:22 UTC). `1ac63e871a` is the image the QA environment
@@ -491,10 +489,10 @@ Command: `git merge-base --is-ancestor <commit> <image>`. Read 2 pins main
 PR1b and PR2 and excludes PR3a, PR-cap-1 and PR3b-1a. Whether an image of it
 is built is NOT_CHECKED here.
 
-NOT_CHECKED (cap ruling): the class mix, bytes and hidden rows of the 3,763
-hidden candidates, the hidden candidates of the about 160 unnamed related
-repositories of R1, the exact N of R1, the API pod memory limit and heap
-growth at the worst repository, the blank-check plan at 1,000-4,950 element
-arrays, whether any golden-corpus repository exceeds 50 candidates, the CPU of
-a chunk statement (0.82 ms was measured on single-file statements), and
-whether the private PostgreSQL pair of the PR1 and PR2 bench is running.
+Shim results (local kit note `7126-cap-shim-executor-handoff-20261011.md`).
+Shim 2 failed as worded: the custom plan is a bitmap heap scan at 1,171 and
+4,950 paths (the generic plan is an index scan, and the flip size is not
+stable), so the blank check is chunked at 500. Shim 3 passed: 34.7 MiB peak
+growth, 0.42% of the 8 GiB chart limit. NOT_CHECKED: the plan production uses,
+the QA overlay's memory limit, hidden rows beyond the 24 replayed
+repositories, the live golden-corpus gate, and the CPU of a chunk statement.
