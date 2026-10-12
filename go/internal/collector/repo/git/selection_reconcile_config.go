@@ -323,16 +323,24 @@ func (p reconcilePolicy) decideGraphDirty(now time.Time, s scope.FullReconcileSt
 	return true, reconcileReasonGraphDirty
 }
 
+// reindexSatisfied reports whether a stored full generation answers the reindex
+// watermark: the newest activated full was itself ingested at or after it. A
+// re-projection Ack (#7978) never counts, because it re-projects old parse
+// output instead of storing a re-parse (ruling a9-125, review r2 N1).
+func reindexSatisfied(watermark time.Time, s scope.FullReconcileState) bool {
+	return s.HasProjectedFull && !s.LastStoredFullAt.Before(watermark)
+}
+
 // decideReindex is decide for an active reindex watermark (#7620). A scope
-// whose newest activated full was ingested at or after the watermark already
-// reflects the request and stays fresh. Any other scope, including one with no
+// whose newest activated full was ingested (stored, not re-projected) at or
+// after the watermark already reflects the request and stays fresh. Any other scope, including one with no
 // activated full, is forced with reason reindex_requested unless the shared
 // throttle holds it off. With reconciliation disabled (Interval 0) the
 // throttle uses the default interval's bounds, so a disabled sweep still
 // cannot stack fulls on one in flight or retry a failing scope every cycle.
 // It is pure.
 func (p reconcilePolicy) decideReindex(now, watermark time.Time, s scope.FullReconcileState) (bool, string) {
-	if s.HasProjectedFull && !s.LastProjectedFullAt.Before(watermark) {
+	if reindexSatisfied(watermark, s) {
 		return false, reconcileReasonFresh
 	}
 	bounds := p

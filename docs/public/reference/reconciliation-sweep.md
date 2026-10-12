@@ -136,12 +136,13 @@ ingester, stamped by Postgres and never moved backward. The response returns it
 as `requested_at`.
 
 Every git ingester shard reads the watermark once per sync cycle, one
-primary-key read. A scope the sweep leaves `fresh`, with no `graph_dirty`
-writer, is then checked against it:
+primary-key read. A watermark is checked before the sweep and `graph_dirty`
+(ruling a9-125): while it is pending it decides the scope, so the forced full
+carries the reindex reason and stores the re-parse instead of re-projecting.
 
 | Scope state | Decision | Reason |
 | --- | --- | --- |
-| newest activated full generation ingested at or after the watermark | hold | `fresh` |
+| newest activated full generation was itself stored (ingested) at or after the watermark; a re-projection Ack does not count | the sweep and `graph_dirty` decide as usual | `fresh` or a sweep reason |
 | in-flight or recently failed full (the throttle rows above) | hold | `reconcile_in_flight` or `reconcile_retry_backoff` |
 | otherwise, including a scope with no activated full | force | `reindex_requested` |
 
@@ -150,7 +151,9 @@ A forced reindex takes no delta and a slot in
 cycles. An explicit reindex request stores the re-parse as a new generation
 even when the content identity (commit, hint, and content version) is
 unchanged (ruling a9-125); the sweep, `graph_dirty`, webhook, and scheduled
-sync re-project the active generation instead (#7978). The content-version
+sync re-project the active generation instead (#7978). A pending watermark
+beats `interval_elapsed` and `graph_dirty`, and only a stored full ingested at
+or after it satisfies it, so a re-projection never answers a reindex. The content-version
 gate narrows, but cannot close, the window where a parser change does not
 change the hint; an explicit reindex is the remedy. The request is never claimed and has no
 completion status. It is satisfied scope by scope: a forced full is ingested at

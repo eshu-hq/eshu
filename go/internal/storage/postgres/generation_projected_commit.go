@@ -86,6 +86,8 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 //     While that generation is still active, the time its last #7978
 //     re-projection was acknowledged (payload reconcile_projected_at) counts
 //     when it is later.
+//   - last_stored_full_at: that generation's own ingest time, without any
+//     re-projection Ack. Only it can satisfy a reindex watermark (a9-125).
 //   - reconcile_*: that generation's #7978 re-projection request, Ack, and
 //     dead-letter stamps, read only while it is still active, so a request a
 //     newer generation fenced off never holds the sweep off.
@@ -101,6 +103,7 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 const fullReconcileStateQuery = `
 SELECT
     projected_full.last_projected_full_at,
+    projected_full.last_stored_full_at,
     projected_full.reconcile_requested_at,
     projected_full.reconcile_projected_at,
     projected_full.reconcile_dead_lettered_at,
@@ -110,6 +113,7 @@ SELECT
 FROM (SELECT 1) AS one
 LEFT JOIN LATERAL (
     SELECT GREATEST(projected.ingested_at, reconcile.projected_at) AS last_projected_full_at,
+           projected.ingested_at     AS last_stored_full_at,
            reconcile.requested_at    AS reconcile_requested_at,
            reconcile.projected_at    AS reconcile_projected_at,
            reconcile.dead_lettered_at AS reconcile_dead_lettered_at
@@ -162,6 +166,7 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 
 	var (
 		lastProjectedFullAt     sql.NullTime
+		lastStoredFullAt        sql.NullTime
 		reconcileRequestedAt    sql.NullTime
 		reconcileProjectedAt    sql.NullTime
 		reconcileDeadLetteredAt sql.NullTime
@@ -170,7 +175,7 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 		latestFullProjected     bool
 	)
 	if err := rows.Scan(
-		&lastProjectedFullAt, &reconcileRequestedAt, &reconcileProjectedAt, &reconcileDeadLetteredAt,
+		&lastProjectedFullAt, &lastStoredFullAt, &reconcileRequestedAt, &reconcileProjectedAt, &reconcileDeadLetteredAt,
 		&latestFullAt, &latestFullStatus, &latestFullProjected,
 	); err != nil {
 		return scope.FullReconcileState{}, err
@@ -185,6 +190,9 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 	}
 	if lastProjectedFullAt.Valid {
 		state.LastProjectedFullAt = lastProjectedFullAt.Time.UTC()
+	}
+	if lastStoredFullAt.Valid {
+		state.LastStoredFullAt = lastStoredFullAt.Time.UTC()
 	}
 	if reconcileRequestedAt.Valid {
 		state.ReconcileRequestedAt = reconcileRequestedAt.Time.UTC()

@@ -380,64 +380,53 @@ WHERE generation_id = $1`, overlayGenA.id); err != nil {
 	h.assertFiles(ctx, "known gap: active-stamped drift survives the re-projection", []string{"gap.go", "keep.go", "w.go"})
 }
 
-// generationCount returns the scope's scope_generations row count.
-func (h *overlayHarness) generationCount(ctx context.Context) int {
-	h.t.Helper()
-	var n int
-	if err := h.sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM scope_generations WHERE scope_id = $1`,
-		h.scope.ScopeID).Scan(&n); err != nil {
-		h.t.Fatalf("count generations: %v", err)
+// TestReindexAfterReprojectionStoresLive is the review r2 N1 proof for ruling
+// a9-125 through the production decision, store, and projector: a reindex
+// watermark is not satisfied by a re-projection Ack. With the sweep on, an
+// overdue scope first re-projects (interval_elapsed); after that Ack the
+// pending watermark still decides reindex_requested, the store stores the
+// re-parse as a new generation, and the next decision reads fresh (no loop).
+func TestReindexAfterReprojectionStoresLive(t *testing.T) {
+	dsn := overlayProofEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	h := newOverlayHarness(ctx, t, dsn)
+	svc, _ := h.buildService(ctx)
+	h.run(ctx, svc)
+	if err := h.commit(ctx, overlayGenA); err != nil {
+		t.FailNow()
 	}
-	return n
-}
-
-// waitReprojected waits until generationID's projector work row was re-opened
-// by a #7978 reconcile at least reopens times and has succeeded again.
-func (h *overlayHarness) waitReprojected(ctx context.Context, generationID string, reopens int) {
-	h.t.Helper()
-	deadline := time.Now().Add(90 * time.Second)
-	var status string
-	var got int
-	for time.Now().Before(deadline) {
-		_ = h.sqlDB.QueryRowContext(ctx, `SELECT status, COALESCE((payload ->> 'reconcile_reopen_count')::int, 0)
-FROM fact_work_items WHERE stage = 'projector' AND generation_id = $1`, generationID).Scan(&status, &got)
-		if status == "succeeded" && got >= reopens {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
+	h.waitGeneration(ctx, overlayGenA.id, "active")
+	if _, err := h.sqlDB.ExecContext(ctx, `UPDATE scope_generations
+SET ingested_at = ingested_at - interval '48 hours', observed_at = observed_at - interval '48 hours'
+WHERE generation_id = $1`, overlayGenA.id); err != nil {
+		t.Fatalf("age G_A: %v", err)
 	}
-	h.logGenerations(ctx)
-	h.t.Fatalf("generation %s work status=%q reopens=%d, want succeeded after %d re-opens", generationID, status, got, reopens)
-}
-
-// overlayIntentRows counts the rows a projection emits downstream of the
-// canonical graph: reducer work items and shared projection intents.
-type overlayIntentRows struct {
-	reducerWorkItems    int
-	reducerSucceeded    int
-	sharedIntents       int
-	sharedIntentsClosed int
-	contentFiles        int
-}
-
-// intentRows reads the scope's reducer work items and shared projection
-// intents.
-func (h *overlayHarness) intentRows(ctx context.Context) overlayIntentRows {
-	h.t.Helper()
-	var rows overlayIntentRows
-	if err := h.sqlDB.QueryRowContext(ctx, `
-SELECT count(*), count(*) FILTER (WHERE status = 'succeeded')
-FROM fact_work_items WHERE stage = 'reducer' AND scope_id = $1`, h.scope.ScopeID).Scan(&rows.reducerWorkItems, &rows.reducerSucceeded); err != nil {
-		h.t.Fatalf("count reducer work items: %v", err)
+	decide := func(watermark time.Time) (bool, string) { return h.sweepDecision(ctx, watermark) }
+	if err := h.commit(ctx, overlayGen{id: "gen-7978-sweep", commit: overlayCommitA, files: overlayTreeA}); err != nil {
+		t.FailNow()
 	}
-	if err := h.sqlDB.QueryRowContext(ctx, `
-SELECT count(*), count(*) FILTER (WHERE completed_at IS NOT NULL)
-FROM shared_projection_intents WHERE scope_id = $1`, h.scope.ScopeID).Scan(&rows.sharedIntents, &rows.sharedIntentsClosed); err != nil {
-		h.t.Fatalf("count shared projection intents: %v", err)
+	h.waitReprojected(ctx, overlayGenA.id, 1)
+	// The watermark predates the re-projection's Ack.
+	var watermark time.Time
+	if err := h.sqlDB.QueryRowContext(ctx, `SELECT (payload ->> 'reconcile_requested_at')::timestamptz
+FROM scope_generations WHERE generation_id = $1`, overlayGenA.id).Scan(&watermark); err != nil {
+		t.Fatalf("read request time: %v", err)
 	}
-	if err := h.sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM content_files WHERE repo_id = $1`,
-		h.repo.ID).Scan(&rows.contentFiles); err != nil {
-		h.t.Fatalf("count content files: %v", err)
+	if due, reason := decide(watermark); !due || reason != gitReindexReason {
+		t.Fatalf("decision after the re-projection Ack = (%v, %q), want (true, %q)", due, reason, gitReindexReason)
 	}
-	return rows
+	before := h.generationCount(ctx)
+	h.seq = time.Now().UTC()
+	reindex := overlayGen{id: "gen-7978-reindex", commit: overlayCommitA, files: overlayTreeA}
+	if err := h.commitWithReason(ctx, reindex, gitReindexReason); err != nil {
+		t.FailNow()
+	}
+	h.waitGeneration(ctx, reindex.id, "active")
+	if got := h.generationCount(ctx); got != before+1 {
+		t.Fatalf("generations %d -> %d after the reindex, want one stored", before, got)
+	}
+	if due, reason := decide(watermark); due {
+		t.Fatalf("decision after the reindex stored = (%v, %q), want held (no loop)", due, reason)
+	}
 }

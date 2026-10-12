@@ -19,8 +19,14 @@ type FullReconcileState struct {
 	// HasProjectedFull reports whether any full generation was activated.
 	HasProjectedFull bool
 	// LastProjectedFullAt is the ingest time of the newest activated full
-	// generation. It is zero when HasProjectedFull is false.
+	// generation, or the time its last #7978 re-projection was acknowledged
+	// when that is later. It is zero when HasProjectedFull is false.
 	LastProjectedFullAt time.Time
+	// LastStoredFullAt is the ingest time of the newest activated full
+	// generation itself, without any re-projection Ack. A reindex watermark is
+	// satisfied only by it (ruling a9-125, review r2 N1): a re-projection does
+	// not re-parse, so it must never answer a reindex request.
+	LastStoredFullAt time.Time
 	// HasLatestFull reports whether the scope has any full generation.
 	HasLatestFull bool
 	// LatestFullAt is the ingest time of the newest full generation of any

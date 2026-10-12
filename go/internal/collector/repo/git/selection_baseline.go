@@ -184,11 +184,11 @@ func (b gitDeltaBaseline) reconcileDue(ctx context.Context, config RepoSyncConfi
 	return b.decideForScope(ctx, scopeID, logger)
 }
 
-// decideForScope reads the scope's full-generation state and decides. When the
-// sweep obligation is not due and no throttle holds it, it probes for #7389
-// uncovered projection writers: any writer forces a graph_dirty reconcile,
-// subject only to the throttle. A scope still fresh after both is checked
-// against the active reindex watermark (#7620, see decideReindex). With
+// decideForScope reads the scope's full-generation state and decides. A
+// reindex watermark (#7620) that no stored full satisfies is decided first
+// (decideReindex, a9-125). Otherwise, when the sweep obligation is not due and
+// no throttle holds it, it probes for #7389 uncovered projection writers: any
+// writer forces a graph_dirty reconcile, subject only to the throttle. With
 // reconciliation disabled only the watermark is evaluated. A lookup error
 // returns not-due: a transient outage must not trigger a fleet of forced
 // fulls, and the scope is decided again next cycle. An in-flight or
@@ -200,6 +200,21 @@ func (b gitDeltaBaseline) decideForScope(ctx context.Context, scopeID string, lo
 	}
 	now := b.now()
 	decision := reconcileDecision{ScopeID: scopeID, State: state, Reason: reconcileReasonFresh}
+	// A pending reindex watermark is decided first (ruling a9-125, review r2
+	// N1): its forced full must carry the reindex reason so the store stores
+	// the re-parse; under interval_elapsed or graph_dirty it would only
+	// re-project old parse output.
+	watermark, watermarkReason := b.reindexWatermarkFor(scopeID)
+	if !watermark.IsZero() && !reindexSatisfied(watermark, state) {
+		decision.Due, decision.Reason = b.Reconcile.decideReindex(now, watermark, state)
+		if decision.Due {
+			decision.Reason = watermarkReason
+		}
+		decision.ReindexRequestedAt = watermark
+		b.recordSuppressedDecision(ctx, decision.Reason)
+		return decision
+	}
+	decision.ReindexRequestedAt = watermark
 	if b.Reconcile.enabled() {
 		decision.Due, decision.Reason = b.Reconcile.decide(now, state)
 		if !decision.Due && decision.Reason == reconcileReasonFresh {
@@ -214,17 +229,15 @@ func (b gitDeltaBaseline) decideForScope(ctx context.Context, scopeID string, lo
 			}
 		}
 	}
-	if watermark, reason := b.reindexWatermarkFor(scopeID); !decision.Due && decision.Reason == reconcileReasonFresh && !watermark.IsZero() {
-		decision.Due, decision.Reason = b.Reconcile.decideReindex(now, watermark, state)
-		if decision.Due {
-			decision.Reason = reason
-		}
-		decision.ReindexRequestedAt = watermark
-	}
-	if decision.Reason == reconcileReasonInFlight || decision.Reason == reconcileReasonRetryBackoff {
-		b.recordReconcileSuppressed(ctx, decision.Reason)
-	}
+	b.recordSuppressedDecision(ctx, decision.Reason)
 	return decision
+}
+
+// recordSuppressedDecision counts an in-flight or retry-backoff hold.
+func (b gitDeltaBaseline) recordSuppressedDecision(ctx context.Context, reason string) {
+	if reason == reconcileReasonInFlight || reason == reconcileReasonRetryBackoff {
+		b.recordReconcileSuppressed(ctx, reason)
+	}
 }
 
 // ReconcileSweepDecision reports whether the git collector's reconciliation

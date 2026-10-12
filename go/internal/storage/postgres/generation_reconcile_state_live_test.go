@@ -22,6 +22,7 @@ func TestFullReconcileStateLive(t *testing.T) {
 	withProjected := func(state scope.FullReconcileState) scope.FullReconcileState {
 		state.HasProjectedFull = true
 		state.LastProjectedFullAt = projectedAt
+		state.LastStoredFullAt = projectedAt
 		state.HasLatestFull = true
 		return state
 	}

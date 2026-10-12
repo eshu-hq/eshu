@@ -136,6 +136,8 @@ type overlayHarness struct {
 	getenv   func(string) string
 	mu       sync.Mutex
 	gens     map[string]scope.ScopeGeneration
+	// reasonOverride is the one-shot forced reason of commitWithReason.
+	reasonOverride string
 }
 
 func newOverlayHarness(ctx context.Context, t *testing.T, dsn string) *overlayHarness {
@@ -240,7 +242,7 @@ func (h *overlayHarness) commit(ctx context.Context, gen overlayGen) error {
 		GenerationID: gen.id, ScopeID: h.scope.ScopeID, ObservedAt: observed, IngestedAt: observed,
 		Status: scope.GenerationStatusPending, TriggerKind: scope.TriggerKindSnapshot,
 		FreshnessHint: overlayContentHint(gen), SourceCommitSHA: gen.commit, IsDelta: gen.delta,
-		DeltaBaselineCommitSHA: gen.baseline, ReconcileReason: h.reconcileReason(ctx, gen),
+		DeltaBaselineCommitSHA: gen.baseline, ReconcileReason: h.reasonFor(ctx, gen),
 	}
 	h.mu.Lock()
 	h.gens[gen.id] = generation

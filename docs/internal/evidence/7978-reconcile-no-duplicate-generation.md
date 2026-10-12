@@ -122,7 +122,10 @@ re-projects the active generation instead, which differs in three ways:
    follow-up.
 
 An explicit reindex is not a difference: it still stores the re-parse (ruling
-a9-125).
+a9-125). A pending watermark is decided before the sweep and `graph_dirty`, and
+only a stored full (`FullReconcileState.LastStoredFullAt`) satisfies it, never a
+re-projection Ack (review r2 N1; `TestReindexWatermarkPrecedence`,
+`TestReindexAfterReprojectionStoresLive`).
 
 ## Concurrency Evidence
 

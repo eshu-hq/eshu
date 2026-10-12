@@ -66,6 +66,7 @@ func (w *reconcileWorld) FullReconcileState(_ context.Context, _ string) (scope.
 		if generation.activated && (!state.HasProjectedFull || !generation.ingestedAt.Before(state.LastProjectedFullAt)) {
 			state.HasProjectedFull = true
 			state.LastProjectedFullAt = generation.ingestedAt
+			state.LastStoredFullAt = generation.ingestedAt
 		}
 	}
 	return state, nil

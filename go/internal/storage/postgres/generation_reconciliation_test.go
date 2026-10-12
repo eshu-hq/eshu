@@ -29,7 +29,7 @@ func TestFullReconcileStateScansBothProbes(t *testing.T) {
 	projected := time.Date(2026, 9, 25, 9, 0, 0, 0, time.UTC)
 	latest := time.Date(2026, 9, 27, 11, 30, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{
-		projected, nil, nil, nil, latest, "pending", false,
+		projected, projected, nil, nil, nil, latest, "pending", false,
 	}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
@@ -38,7 +38,7 @@ func TestFullReconcileStateScansBothProbes(t *testing.T) {
 		t.Fatalf("FullReconcileState() error = %v", err)
 	}
 	want := scope.FullReconcileState{
-		HasProjectedFull: true, LastProjectedFullAt: projected,
+		HasProjectedFull: true, LastProjectedFullAt: projected, LastStoredFullAt: projected,
 		HasLatestFull: true, LatestFullAt: latest,
 		LatestFullStatus: scope.GenerationStatusPending, LatestFullProjected: false,
 	}
@@ -65,7 +65,7 @@ func TestFullReconcileStateZeroWhenNoFullGeneration(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{
-		nil, nil, nil, nil, nil, nil, false,
+		nil, nil, nil, nil, nil, nil, nil, false,
 	}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
