@@ -113,7 +113,7 @@ func TestOutcomesAreClosed(t *testing.T) {
 		}
 		seen[outcome] = true
 	}
-	if len(seen) != 12 {
-		t.Fatalf("outcome count = %d, want 12", len(seen))
+	if len(seen) != 14 {
+		t.Fatalf("outcome count = %d, want 14", len(seen))
 	}
 }

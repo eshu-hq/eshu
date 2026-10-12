@@ -21,8 +21,10 @@ const (
 // value of eshu_dp_collector_reconcile_parse_skip_decisions_total.
 type Outcome string
 
-// The closed outcome set. OutcomeSkipped is the only outcome that skips the
-// parse; every other outcome parses as before #7978's follow-up.
+// The closed outcome set. Decide returns the first twelve. Run replaces
+// OutcomeSkipped with the store's answer: OutcomeSkipped (a real re-open) and
+// OutcomeReprojectionPending (a re-open already in flight) do not parse; every
+// other outcome parses as before #7978's follow-up.
 const (
 	// OutcomeSkipped: identity equal at the active commit; the parse is skipped
 	// and the active generation is re-projected.
@@ -49,8 +51,18 @@ const (
 	OutcomeDirtyTree Outcome = "dirty_tree"
 	// OutcomeValveDue: the scope skipped MaxSkips-1 times; this interval parses.
 	OutcomeValveDue Outcome = "valve_due"
-	// OutcomeReadError: the tree check failed; parse to stay correct.
+	// OutcomeReadError: the tree check failed, the store call failed, or the
+	// store returned a reason Run does not know; parse to stay correct.
 	OutcomeReadError Outcome = "read_error"
+	// OutcomeReprojectionPending: the store found the active generation's
+	// re-projection already open or leased (reconcile_reprojection_pending), so
+	// nothing new was stamped and the collector does not parse (review F-3).
+	OutcomeReprojectionPending Outcome = "reprojection_pending"
+	// OutcomeReprojectionSuperseded: the store's fence refused the re-open
+	// (reconcile_superseded: another generation is active, the active one is a
+	// delta, or the commit or identity changed), so the collector parses in the
+	// same cycle (review F-3).
+	OutcomeReprojectionSuperseded Outcome = "reprojection_superseded"
 )
 
 // Outcomes returns the closed outcome set in a stable order.
@@ -59,6 +71,7 @@ func Outcomes() []Outcome {
 		OutcomeSkipped, OutcomeReasonIneligible, OutcomeDisabled, OutcomeNoActiveFull,
 		OutcomeDeltaActive, OutcomeHeadMoved, OutcomeIdentityAbsent, OutcomeIdentityMismatch,
 		OutcomeSubmodules, OutcomeDirtyTree, OutcomeValveDue, OutcomeReadError,
+		OutcomeReprojectionPending, OutcomeReprojectionSuperseded,
 	}
 }
 

@@ -28,6 +28,9 @@ type skipParseResolver struct {
 	writers      []scope.UncoveredProjectionWriter
 	reprojected  []scope.ActiveReprojection
 	reprojectErr error
+	// reprojectReason, when set, is the reason the fake store returns instead
+	// of reconcile_reprojected.
+	reprojectReason string
 }
 
 func (r *skipParseResolver) LastProjectedCommitSHA(context.Context, string) (string, error) {
@@ -50,6 +53,9 @@ func (r *skipParseResolver) ReprojectActiveGeneration(_ context.Context, request
 		return "", r.reprojectErr
 	}
 	r.reprojected = append(r.reprojected, request)
+	if r.reprojectReason != "" {
+		return r.reprojectReason, nil
+	}
 	return telemetry.RefreshSkipReasonReconcileReprojected, nil
 }
 
@@ -356,5 +362,38 @@ func TestPreparseIdentityFlowsToTheGeneration(t *testing.T) {
 		if got := collected.Generation.PreparseIdentity; got != want {
 			t.Fatalf("delta=%v generation identity = %q, want %q", delta, got, want)
 		}
+	}
+}
+
+// TestSkipParseMapsTheStoreReason (review F-3, ruling a9-143.3): only a real
+// re-open counts as skipped. A re-open already in flight is its own outcome and
+// still does not parse; a fenced re-open (another generation is active, or
+// the commit or identity changed) and an unknown reason parse in the same
+// cycle, because any doubt parses.
+func TestSkipParseMapsTheStoreReason(t *testing.T) {
+	for _, cell := range []struct {
+		reason  string
+		outcome string
+		parses  bool
+	}{
+		{reason: telemetry.RefreshSkipReasonReconcileReprojectionPending, outcome: "reprojection_pending", parses: false},
+		{reason: telemetry.RefreshSkipReasonReconcileSuperseded, outcome: "reprojection_superseded", parses: true},
+		{reason: "some_future_reason", outcome: "read_error", parses: true},
+	} {
+		t.Run(cell.reason, func(t *testing.T) {
+			w := newSkipParseWorld(t, "", "big")
+			w.resolver.fallback = w.overdue(w.identity(), 0)
+			w.resolver.reprojectReason = cell.reason
+			synced := w.sync(7, nil, "big")
+			if got := len(synced.SelectedRepoPaths) == 1; got != cell.parses {
+				t.Fatalf("selected %d, want parse=%v", len(synced.SelectedRepoPaths), cell.parses)
+			}
+			if cell.parses && !synced.ReconcileByRepoPath[w.repoPath("big")] {
+				t.Fatal("the parse after a refused re-open is not a forced reconcile")
+			}
+			if outcomes := w.outcomes(); outcomes[cell.outcome] != 1 || outcomes["skipped"] != 0 {
+				t.Fatalf("decision outcomes = %v, want %s=1 and no skipped", outcomes, cell.outcome)
+			}
+		})
 	}
 }

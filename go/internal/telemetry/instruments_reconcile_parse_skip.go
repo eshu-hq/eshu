@@ -15,7 +15,9 @@ import (
 // skipped and the active generation re-projected, or the reason it parsed
 // (reason_ineligible, disabled, no_active_full, delta_active, head_moved,
 // identity_absent, identity_mismatch, submodules_present, dirty_tree,
-// valve_due, read_error).
+// valve_due, read_error), or the store's answer to a skip that did not
+// re-open (reprojection_pending: already in flight, no parse;
+// reprojection_superseded: fenced, the collector parses).
 func registerReconcileParseSkipDecisions(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.ReconcileParseSkipDecisions, err = meter.Int64Counter(

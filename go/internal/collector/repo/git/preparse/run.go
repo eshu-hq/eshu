@@ -5,6 +5,7 @@ package preparse
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -55,10 +56,14 @@ type Attempt struct {
 }
 
 // Run decides one forced reconcile and, on a skip, asks reprojector to
-// re-project the active generation. It reports true only when the store call
-// succeeded; a store error is counted as read_error and the caller parses. It
-// records one decision on the counter, a span event on ctx's span, an INFO log
-// for a skip, and a WARN log for an identity mismatch or a store error.
+// re-project the active generation. The store's answer sets the outcome
+// (review F-3): reconcile_reprojected stays skipped, reconcile_reprojection_pending
+// becomes reprojection_pending, and neither parses, so Run reports true;
+// reconcile_superseded becomes reprojection_superseded, and a store error or an
+// unknown reason becomes read_error, so Run reports false and the caller parses.
+// It records one decision on the counter, a span event on ctx's span, an INFO
+// log when the parse is skipped, and a WARN log for an identity mismatch, a
+// fenced re-open, or a store error.
 func Run(ctx context.Context, attempt Attempt, clean func() (bool, error), reprojector Reprojector, recorder Recorder) bool {
 	state := attempt.State
 	input := Input{
@@ -76,15 +81,37 @@ func Run(ctx context.Context, attempt Attempt, clean func() (bool, error), repro
 	outcome := Decide(input, clean)
 	var storeErr error
 	if outcome == OutcomeSkipped {
-		if _, storeErr = reprojector.ReprojectActiveGeneration(ctx, scope.ActiveReprojection{
+		var reason string
+		reason, storeErr = reprojector.ReprojectActiveGeneration(ctx, scope.ActiveReprojection{
 			ScopeID: attempt.ScopeID, GenerationID: state.ActiveGenerationID, CommitSHA: attempt.RemoteCommit,
 			PreparseIdentity: attempt.Identity, Reason: attempt.Reason,
-		}); storeErr != nil {
-			outcome = OutcomeReadError
-		}
+		})
+		outcome, storeErr = storeOutcome(reason, storeErr)
 	}
 	recorder.record(ctx, attempt, input, outcome, storeErr)
-	return outcome == OutcomeSkipped
+	return parseSkipped(outcome)
+}
+
+// storeOutcome maps the store's re-projection answer to the decision outcome.
+// Any doubt parses: an error or a reason this code does not know is read_error.
+func storeOutcome(reason string, err error) (Outcome, error) {
+	if err != nil {
+		return OutcomeReadError, err
+	}
+	switch reason {
+	case telemetry.RefreshSkipReasonReconcileReprojected:
+		return OutcomeSkipped, nil
+	case telemetry.RefreshSkipReasonReconcileReprojectionPending:
+		return OutcomeReprojectionPending, nil
+	case telemetry.RefreshSkipReasonReconcileSuperseded:
+		return OutcomeReprojectionSuperseded, nil
+	}
+	return OutcomeReadError, fmt.Errorf("unknown re-projection reason %q", reason)
+}
+
+// parseSkipped reports whether the outcome leaves the repository unparsed.
+func parseSkipped(outcome Outcome) bool {
+	return outcome == OutcomeSkipped || outcome == OutcomeReprojectionPending
 }
 
 func (r Recorder) record(ctx context.Context, attempt Attempt, input Input, outcome Outcome, storeErr error) {
@@ -94,7 +121,7 @@ func (r Recorder) record(ctx context.Context, attempt Attempt, input Input, outc
 	}
 	trace.SpanFromContext(ctx).AddEvent("git.reconcile.parse_skip_decision", trace.WithAttributes(
 		attribute.String("eshu.reconcile.parse_skip_outcome", string(outcome)),
-		attribute.Bool("eshu.reconcile.parse_skipped", outcome == OutcomeSkipped)))
+		attribute.Bool("eshu.reconcile.parse_skipped", parseSkipped(outcome))))
 	if r.Logger == nil {
 		return
 	}
@@ -104,11 +131,11 @@ func (r Recorder) record(ctx context.Context, attempt Attempt, input Input, outc
 		slog.Int("preparse_skips", input.Active.Skips), slog.String("config_digest", attempt.ConfigDigest),
 	}
 	switch {
-	case outcome == OutcomeSkipped:
+	case parseSkipped(outcome):
 		r.Logger.InfoContext(ctx, "git_reconcile_parse_skipped", attrs...)
 	case storeErr != nil:
 		r.Logger.WarnContext(ctx, "git_reconcile_parse_skip_refused", append(attrs, slog.String("error", storeErr.Error()))...)
-	case outcome == OutcomeIdentityMismatch:
+	case outcome == OutcomeIdentityMismatch, outcome == OutcomeReprojectionSuperseded:
 		r.Logger.WarnContext(ctx, "git_reconcile_parse_skip_refused", attrs...)
 	}
 }

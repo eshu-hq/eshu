@@ -173,7 +173,9 @@ both their scheduled and webhook selectors; bootstrap-index only stamps.
 | the repository has `.gitmodules` | parse | `submodules_present` |
 | the scope already skipped N-1 times since its last parse | parse | `valve_due` |
 | the checkout has untracked or modified files | parse | `dirty_tree` |
-| the tree check or the store call fails | parse | `read_error` |
+| the tree check or the store call fails, or the store answers with an unknown reason | parse | `read_error` |
+| the store fence refuses the re-open (another generation is active, or the commit or identity changed) | parse in the same cycle | `reprojection_superseded` |
+| the re-projection is already open or leased | no parse, nothing stamped | `reprojection_pending` |
 | otherwise | re-project the active generation, no parse | `skipped` |
 
 A skip still re-projects, so drift is retracted as before and the skip spends an
@@ -193,10 +195,11 @@ with an error that names the variable and the value.
 Each decision increments
 `eshu_dp_collector_reconcile_parse_skip_decisions_total{outcome}` and adds a span
 event `git.reconcile.parse_skip_decision` (`eshu.reconcile.parse_skipped`,
-`eshu.reconcile.parse_skip_outcome`). A skip logs INFO
+`eshu.reconcile.parse_skip_outcome`). A skip or a pending re-projection logs INFO
 `git_reconcile_parse_skipped` (`scope_id`, `reason`, `generation_id`,
-`commit_sha`, `preparse_skips`, `config_digest`); an identity mismatch or a store
-error logs WARN `git_reconcile_parse_skip_refused`. The store side still counts
+`commit_sha`, `preparse_skips`, `config_digest`, `outcome`); an identity
+mismatch, a fenced re-open, or a store error logs WARN
+`git_reconcile_parse_skip_refused`. The store side still counts
 `reconcile_reprojected` on `eshu_runtime_refresh_skipped_by_reason_total`. A
 sustained `identity_mismatch` rate without a deploy that changed the content
 version or the configuration needs a look at `config_digest`.
