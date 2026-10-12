@@ -22,6 +22,7 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -256,7 +257,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	}, nil
 }
 
-func scopeActivityFromCounts(scopeCounts []statuspkg.NamedCount, generationCounts []statuspkg.NamedCount) statuspkg.ScopeActivitySnapshot {
+func scopeActivityFromCounts(scopeCounts []shared.NamedCount, generationCounts []shared.NamedCount) statuspkg.ScopeActivitySnapshot {
 	activeScopes := namedCount(scopeCounts, "active")
 	pendingGenerations := namedCount(generationCounts, "pending")
 	if pendingGenerations > activeScopes {
@@ -277,7 +278,7 @@ func scopeUnchangedCount(activeScopes int, changedScopes int) int {
 	return activeScopes - changedScopes
 }
 
-func generationHistoryFromCounts(rows []statuspkg.NamedCount) statuspkg.GenerationHistorySnapshot {
+func generationHistoryFromCounts(rows []shared.NamedCount) statuspkg.GenerationHistorySnapshot {
 	history := statuspkg.GenerationHistorySnapshot{
 		Active:     namedCount(rows, "active"),
 		Pending:    namedCount(rows, "pending"),
@@ -306,7 +307,7 @@ func generationHistoryFromCounts(rows []statuspkg.NamedCount) statuspkg.Generati
 	return history
 }
 
-func namedCount(rows []statuspkg.NamedCount, name string) int {
+func namedCount(rows []shared.NamedCount, name string) int {
 	total := 0
 	for _, row := range rows {
 		if row.Name == name {
@@ -322,21 +323,21 @@ func listNamedCounts(
 	queryer db.Queryer,
 	query string,
 	op string,
-) ([]statuspkg.NamedCount, error) {
+) ([]shared.NamedCount, error) {
 	rows, err := queryer.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	counts := []statuspkg.NamedCount{}
+	counts := []shared.NamedCount{}
 	for rows.Next() {
 		var name string
 		var count int64
 		if scanErr := rows.Scan(&name, &count); scanErr != nil {
 			return nil, fmt.Errorf("%s: %w", op, scanErr)
 		}
-		counts = append(counts, statuspkg.NamedCount{
+		counts = append(counts, shared.NamedCount{
 			Name:  name,
 			Count: int(count),
 		})

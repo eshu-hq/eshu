@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestPrintAdminStatusVersionFlagReturnsBeforePostgresOpen(t *testing.T) {
@@ -46,7 +47,7 @@ func TestRenderStatusOutputsTextFromSharedStatusReport(t *testing.T) {
 				Active:  4,
 				Changed: 2,
 			},
-			GenerationCounts: []statuspkg.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 1},
 				{Name: "completed", Count: 2},
 				{Name: "superseded", Count: 1},
@@ -118,7 +119,7 @@ func TestRenderStatusOutputsJSONFromSharedStatusReport(t *testing.T) {
 				Active:  4,
 				Changed: 1,
 			},
-			GenerationCounts: []statuspkg.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 2},
 				{Name: "pending", Count: 1},
 				{Name: "completed", Count: 3},

@@ -13,6 +13,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func freshnessCausalityRequest(t *testing.T, snapshot statuspkg.RawSnapshot) map[string]any {
@@ -37,7 +38,7 @@ func TestFreshnessCausalityHandlerFresh(t *testing.T) {
 	t.Parallel()
 	payload := freshnessCausalityRequest(t, statuspkg.RawSnapshot{
 		AsOf:              time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
-		GenerationCounts:  []statuspkg.NamedCount{{Name: "active", Count: 4}},
+		GenerationCounts:  []shared.NamedCount{{Name: "active", Count: 4}},
 		GenerationHistory: statuspkg.GenerationHistorySnapshot{Active: 4},
 	})
 	if payload["state"] != "fresh" {
@@ -53,7 +54,7 @@ func TestFreshnessCausalityHandlerNegotiatesEnvelope(t *testing.T) {
 	t.Parallel()
 	handler := &StatusHandler{StatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 		AsOf:              time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
-		GenerationCounts:  []statuspkg.NamedCount{{Name: "active", Count: 4}},
+		GenerationCounts:  []shared.NamedCount{{Name: "active", Count: 4}},
 		GenerationHistory: statuspkg.GenerationHistorySnapshot{Active: 4},
 	}}}
 	mux := http.NewServeMux()
@@ -84,7 +85,7 @@ func TestFreshnessCausalityHandlerStaleAndRetracted(t *testing.T) {
 	t.Parallel()
 	payload := freshnessCausalityRequest(t, statuspkg.RawSnapshot{
 		AsOf:              time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
-		GenerationCounts:  []statuspkg.NamedCount{{Name: "active", Count: 2}, {Name: "superseded", Count: 3}},
+		GenerationCounts:  []shared.NamedCount{{Name: "active", Count: 2}, {Name: "superseded", Count: 3}},
 		GenerationHistory: statuspkg.GenerationHistorySnapshot{Active: 2, Superseded: 3},
 		DomainBacklogs: []statuspkg.DomainBacklog{
 			{Domain: "workload_materialization", DeadLetter: 2, OldestAge: 9 * time.Minute},
@@ -114,7 +115,7 @@ func TestFreshnessCausalityHandlerScopedRedactsTransitionIDs(t *testing.T) {
 	)
 	handler := &StatusHandler{StatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 		AsOf:              time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
-		GenerationCounts:  []statuspkg.NamedCount{{Name: "active", Count: 1}, {Name: "superseded", Count: 1}},
+		GenerationCounts:  []shared.NamedCount{{Name: "active", Count: 1}, {Name: "superseded", Count: 1}},
 		GenerationHistory: statuspkg.GenerationHistorySnapshot{Active: 1, Superseded: 1},
 		GenerationTransitions: []generation.TransitionSnapshot{
 			{ScopeID: secretScope, GenerationID: secretGen, Status: "superseded", SupersededAt: time.Date(2026, 6, 19, 2, 0, 0, 0, time.UTC)},

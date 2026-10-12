@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 const semanticExtractionStatusCapability = "semantic_extraction.status"
@@ -247,7 +248,7 @@ func semanticExtractionAuditToMap(snapshot semantic.ExtractionAuditSnapshot) map
 	return out
 }
 
-func namedCountsToMaps(rows []status.NamedCount) []map[string]any {
+func namedCountsToMaps(rows []shared.NamedCount) []map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, map[string]any{"name": row.Name, "count": row.Count})

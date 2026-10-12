@@ -12,8 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 const workflowCollectorBackpressureQuery = `
@@ -249,7 +249,7 @@ func attachWorkflowCollectorBackpressureFailureClasses(
 		if !ok {
 			continue
 		}
-		rows[index].FailureClassCounts = append(rows[index].FailureClassCounts, statuspkg.NamedCount{
+		rows[index].FailureClassCounts = append(rows[index].FailureClassCounts, shared.NamedCount{
 			Name:  failureClass,
 			Count: int(count),
 		})

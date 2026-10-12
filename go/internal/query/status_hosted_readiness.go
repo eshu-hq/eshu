@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 const (
@@ -316,7 +317,7 @@ func (b *hostedReadinessBuilder) addEmptyStateCheck(raw status.RawSnapshot, repo
 	)
 }
 
-func namedCounts(rows []status.NamedCount) map[string]int {
+func namedCounts(rows []shared.NamedCount) map[string]int {
 	counts := make(map[string]int, len(rows))
 	for _, row := range rows {
 		counts[row.Name] += row.Count

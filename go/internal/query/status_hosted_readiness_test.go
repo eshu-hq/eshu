@@ -15,6 +15,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 type hostedReadinessGraph struct {
@@ -133,7 +134,7 @@ func TestStatusHandlerHostedReadinessReportsHealthyConvergence(t *testing.T) {
 			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector:aws-cloud", CollectorKind: "aws_cloud", Enabled: true, ClaimsEnabled: true},
 			},
-			CompletenessCounts: []statuspkg.NamedCount{{Name: "completed", Count: 1}},
+			CompletenessCounts: []shared.NamedCount{{Name: "completed", Count: 1}},
 		},
 	}, hostedReadinessGraph{repositoryCount: 2})
 

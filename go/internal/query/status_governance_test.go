@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestStatusHandlerGovernanceLocalNoPolicyReturnsEnvelope(t *testing.T) {
@@ -87,8 +88,8 @@ func TestStatusHandlerGovernanceEnforcingReportsSafeAggregates(t *testing.T) {
 						PolicyDenied: 1,
 					},
 					Audit: semantic.ExtractionAuditSnapshot{
-						ActorClassCounts: []statuspkg.NamedCount{{Name: "hosted_worker", Count: 4}},
-						ACLStateCounts:   []statuspkg.NamedCount{{Name: "acl_allowed", Count: 3}},
+						ActorClassCounts: []shared.NamedCount{{Name: "hosted_worker", Count: 4}},
+						ACLStateCounts:   []shared.NamedCount{{Name: "acl_allowed", Count: 3}},
 					},
 					Detail: rawProviderDetail,
 				},
@@ -283,7 +284,7 @@ func TestGovernanceStatusReportsAuditAggregates(t *testing.T) {
 			snapshot: statuspkg.RawSnapshot{
 				SemanticExtraction: semantic.ExtractionStatus{
 					Audit: semantic.ExtractionAuditSnapshot{
-						ActorClassCounts: []statuspkg.NamedCount{
+						ActorClassCounts: []shared.NamedCount{
 							{Name: string(governanceaudit.ActorClassScopedToken), Count: 3},
 							{Name: "hosted_worker", Count: 1},
 						},

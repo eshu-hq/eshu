@@ -13,6 +13,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestAuthMiddlewareWithScopedTokensAllowsGovernanceStatusRoute(t *testing.T) {
@@ -112,7 +113,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsSemanticExtractionStatusRoute(t *te
 					},
 					Queue: semantic.ExtractionQueueSnapshot{
 						Total:             1,
-						SourceClassCounts: []statuspkg.NamedCount{{Name: "documentation", Count: 1}},
+						SourceClassCounts: []shared.NamedCount{{Name: "documentation", Count: 1}},
 					},
 				},
 			},

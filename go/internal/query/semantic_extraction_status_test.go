@@ -13,6 +13,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestStatusHandlerSemanticExtractionNoProviderReturnsEnvelope(t *testing.T) {
@@ -171,7 +172,7 @@ func TestStatusHandlerSemanticExtractionReturnsQueueBudgetAuditReadbacks(t *test
 								Count:                4,
 							},
 						},
-						FailureClassCounts: []statuspkg.NamedCount{{Name: "provider_unavailable", Count: 1}},
+						FailureClassCounts: []shared.NamedCount{{Name: "provider_unavailable", Count: 1}},
 					},
 					Budget: semantic.ExtractionBudgetSnapshot{
 						EstimatedInputTokens: 400,
@@ -179,8 +180,8 @@ func TestStatusHandlerSemanticExtractionReturnsQueueBudgetAuditReadbacks(t *test
 						Exhausted:            1,
 					},
 					Audit: semantic.ExtractionAuditSnapshot{
-						ActorClassCounts: []statuspkg.NamedCount{{Name: "hosted_worker", Count: 4}},
-						ACLStateCounts:   []statuspkg.NamedCount{{Name: "acl_allowed", Count: 4}},
+						ActorClassCounts: []shared.NamedCount{{Name: "hosted_worker", Count: 4}},
+						ACLStateCounts:   []shared.NamedCount{{Name: "acl_allowed", Count: 4}},
 					},
 					Detail: rawProviderResponse,
 				},

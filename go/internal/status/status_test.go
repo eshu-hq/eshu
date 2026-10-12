@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestLoadReportBuildsProjectionFromReader(t *testing.T) {
@@ -25,7 +26,7 @@ func TestLoadReportBuildsProjectionFromReader(t *testing.T) {
 				Active:  2,
 				Changed: 1,
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 2},
 				{Name: "superseded", Count: 1},
 			},
@@ -128,10 +129,10 @@ func TestBuildReportIncludesGenerationHistorySummary(t *testing.T) {
 				Active:  5,
 				Changed: 2,
 			},
-			ScopeCounts: []status.NamedCount{
+			ScopeCounts: []shared.NamedCount{
 				{Name: "active", Count: 5},
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 2},
 				{Name: "pending", Count: 1},
 				{Name: "completed", Count: 4},
@@ -176,10 +177,10 @@ func TestRenderTextIncludesOperatorSummary(t *testing.T) {
 				Active:  2,
 				Changed: 1,
 			},
-			ScopeCounts: []status.NamedCount{
+			ScopeCounts: []shared.NamedCount{
 				{Name: "active", Count: 3},
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 1},
 				{Name: "completed", Count: 2},
 				{Name: "superseded", Count: 1},
@@ -259,10 +260,10 @@ func TestRenderTextDoesNotRepeatTopLevelSummaries(t *testing.T) {
 				Active:  4,
 				Changed: 2,
 			},
-			ScopeCounts: []status.NamedCount{
+			ScopeCounts: []shared.NamedCount{
 				{Name: "active", Count: 2},
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "completed", Count: 3},
 				{Name: "superseded", Count: 1},
 			},
@@ -342,11 +343,11 @@ func TestBuildReportAddsFlowSummaries(t *testing.T) {
 				Active:  2,
 				Changed: 1,
 			},
-			ScopeCounts: []status.NamedCount{
+			ScopeCounts: []shared.NamedCount{
 				{Name: "active", Count: 3},
 				{Name: "pending", Count: 1},
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 1},
 				{Name: "completed", Count: 4},
 				{Name: "superseded", Count: 1},
@@ -406,10 +407,10 @@ func TestRenderJSONIncludesFlowSummaries(t *testing.T) {
 				Active:  3,
 				Changed: 1,
 			},
-			ScopeCounts: []status.NamedCount{
+			ScopeCounts: []shared.NamedCount{
 				{Name: "active", Count: 3},
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 1},
 				{Name: "completed", Count: 2},
 				{Name: "superseded", Count: 1},

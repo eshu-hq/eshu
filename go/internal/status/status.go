@@ -29,12 +29,6 @@ const (
 	healthStalled     = "stalled"
 )
 
-// NamedCount captures one status bucket and its count.
-// See [shared.NamedCount]. This alias keeps the ~170 packages that
-// import internal/status compiling across the #6775 nest; it is removed once
-// the last caller has moved to the leaf.
-type NamedCount = shared.NamedCount
-
 // StageStatusCount captures one stage/status bucket from the work queue.
 type StageStatusCount struct {
 	Stage  string

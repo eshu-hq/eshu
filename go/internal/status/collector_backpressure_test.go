@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestRenderStatusIncludesCollectorBackpressure(t *testing.T) {
@@ -35,7 +36,7 @@ func TestRenderStatusIncludesCollectorBackpressure(t *testing.T) {
 					OldestRetryAge:      90 * time.Second,
 					OldestClaimAge:      2 * time.Minute,
 					NextRetryDelay:      45 * time.Second,
-					FailureClassCounts: []status.NamedCount{
+					FailureClassCounts: []shared.NamedCount{
 						{Name: "provider_rate_limited", Count: 3},
 						{Name: "provider_unavailable", Count: 1},
 					},

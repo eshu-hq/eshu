@@ -14,6 +14,7 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestAuthMiddlewareWithScopedTokensAllowsHostedReadinessRoute(t *testing.T) {
@@ -42,7 +43,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsHostedReadinessRoute(t *testing.T) 
 						LastObservedAt: now,
 						UpdatedAt:      now,
 					}},
-					CompletenessCounts: []statuspkg.NamedCount{{Name: "completed", Count: 1}},
+					CompletenessCounts: []shared.NamedCount{{Name: "completed", Count: 1}},
 				},
 				QueueBlockages: []queue.Blockage{{
 					Stage:       "collector",

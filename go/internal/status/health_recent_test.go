@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // TestBuildReportTreatsRecentCoordinatorFailureAsDegraded proves that when the
@@ -29,13 +30,13 @@ func TestBuildReportTreatsRecentCoordinatorFailureAsDegraded(t *testing.T) {
 				DeadLetter:  0,
 			},
 			Coordinator: &status.CoordinatorSnapshot{
-				RunStatusCounts: []status.NamedCount{
+				RunStatusCounts: []shared.NamedCount{
 					{Name: "failed", Count: 4200},
 				},
-				CompletenessCounts: []status.NamedCount{
+				CompletenessCounts: []shared.NamedCount{
 					{Name: "blocked", Count: 17},
 				},
-				WorkItemStatusCounts: []status.NamedCount{
+				WorkItemStatusCounts: []shared.NamedCount{
 					{Name: "failed_terminal", Count: 9000},
 				},
 				RecentFailures: &status.CoordinatorRecentFailures{
@@ -85,14 +86,14 @@ func TestBuildReportTreatsAgedOnlyCoordinatorFailuresAsHealthy(t *testing.T) {
 			Coordinator: &status.CoordinatorSnapshot{
 				// Thousands of all-time failures (e.g. expired AWS SSO) that
 				// have since aged out of the recent window.
-				RunStatusCounts: []status.NamedCount{
+				RunStatusCounts: []shared.NamedCount{
 					{Name: "failed", Count: 4200},
 					{Name: "complete", Count: 12},
 				},
-				CompletenessCounts: []status.NamedCount{
+				CompletenessCounts: []shared.NamedCount{
 					{Name: "blocked", Count: 17},
 				},
-				WorkItemStatusCounts: []status.NamedCount{
+				WorkItemStatusCounts: []shared.NamedCount{
 					{Name: "failed_terminal", Count: 9000},
 					{Name: "expired", Count: 31},
 				},
@@ -134,7 +135,7 @@ func TestBuildReportFallsBackToCumulativeWhenRecentWindowUnknown(t *testing.T) {
 				Pending:     0,
 			},
 			Coordinator: &status.CoordinatorSnapshot{
-				RunStatusCounts: []status.NamedCount{
+				RunStatusCounts: []shared.NamedCount{
 					{Name: "failed", Count: 1},
 				},
 			},

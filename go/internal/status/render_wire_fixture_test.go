@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
@@ -47,11 +48,11 @@ func maxRawSnapshot() RawSnapshot {
 		TerraformStateSource: ActiveWorkSource{
 			Source: ActiveWorkSourceLiveFallback, Reason: ActiveWorkReasonStale, AsOf: fixtureTime(0),
 		},
-		ScopeCounts: []NamedCount{
+		ScopeCounts: []shared.NamedCount{
 			{Name: "active", Count: 11},
 			{Name: "pending", Count: 4},
 		},
-		GenerationCounts: []NamedCount{
+		GenerationCounts: []shared.NamedCount{
 			{Name: "active", Count: 9},
 			{Name: "pending", Count: 3},
 		},
@@ -205,7 +206,7 @@ func maxRawSnapshot() RawSnapshot {
 			},
 		},
 		AWSFreshness: cloud.AWSFreshnessSnapshot{
-			StatusCounts: []NamedCount{
+			StatusCounts: []shared.NamedCount{
 				{Name: "queued", Count: 6},
 				{Name: "claimed", Count: 3},
 			},
