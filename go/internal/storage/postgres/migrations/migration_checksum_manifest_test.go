@@ -222,7 +222,7 @@ var migrationShippedChecksums = map[string]string{
 	"172_content_files_language_covering_idx.sql":                            "fe9f470d6d118331e6ebb4c03d9b8c7bbe3965434a516b8bab73725b467f6221",
 	"173_content_files_language_covering_idx_vacuum.sql":                     "2a54d879fdcc791fd6d6f395dbeccaaae87186c03186a9eca1c46b6d33207a49",
 	"174_content_entities_repo_language_type_path_idx.sql":                   "955e31f0ac020dd739bd0e1344d59ef349a5069aacb478f231e6de36f257337e",
-	"176_content_files_content_lower.sql":                                    "1906d318c928eae7c7f0df72582b3403b9bd422ff062b1d63d7296f7da3bf3d8",
+	"176_content_files_content_lower.sql":                                    "339ef82a041efb0db7ba973f4115b620b7a67ea9c8eaa490cf4ebb1d177ba06d",
 	"177_content_files_content_lower_trgm_index.sql":                         "7a5d9bad36a884b41592b292504e96972edfacd3620154c3c3f81b8b357e7de4",
 }
 

@@ -29,8 +29,8 @@
 -- index is missing.
 --
 -- Migration proof (local Postgres 18.6 scratch container, 2026-10-12): 3,001
--- rows with one 53 MB value. ADD COLUMN rewrite: about 5 s including the
--- lower() computation. ANALYZE: under 1 s.
+-- rows with one 53 MB value. ADD COLUMN rewrite: 17.1 s including the lower()
+-- computation. ANALYZE: under 1 s.
 ALTER TABLE content_files
     ADD COLUMN IF NOT EXISTS content_lower TEXT GENERATED ALWAYS AS (lower(content)) STORED;
 
