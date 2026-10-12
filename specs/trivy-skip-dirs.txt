@@ -37,6 +37,12 @@ go/internal/collector/vulnerabilityintelligence/testdata
 # Trivy misconfig findings on them are noise, like tests/fixtures.
 go/internal/replay/parserfixture/testdata
 
+# Collector content-version gate fixture (#7978): one synthetic input per
+# registered parser (Dockerfile, CloudFormation, Kubernetes, Terraform, ...)
+# whose parse output is pinned by a digest test. The files exist to be parsed,
+# not deployed, so their misconfiguration findings are noise.
+go/internal/collector/repo/git/testdata/content_version
+
 # Generic test fixtures and example collector-extension artifacts (e.g. the
 # scorecard OCI worker that runs as root by design to read the mounted
 # docker socket) -- not product code, and their misconfigurations are
