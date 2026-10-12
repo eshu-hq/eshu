@@ -9,6 +9,18 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### OpenCode role files pin manifest tier models
+
+- **Tracked OpenCode role files now pin their tier model from `.agents/roles.json` `models.opencode`, reversing the earlier
+  deliberately-unpinned posture** ([#7984](https://github.com/eshu-hq/eshu/issues/7984)). PR
+  [#7973](https://github.com/eshu-hq/eshu/pull/7973) migrated the ten `.opencode/agent/*.md` role files to native V2 shapes
+  (`mode: subagent` with ordered `permissions:` rules) and bound each tier: fast `deepseek/deepseek-flash#low`, workhorse
+  `deepseek/deepseek-v4-pro#high`, deep `deepseek/deepseek-v4-pro#max`, arbiter `minimax/minimax-m3`. The `#variant` suffix
+  carries reasoning effort; MiniMax-M3 exposes no variants, so its pin is the bare reference. A personal model choice goes in
+  the local `agents` map (`OPENCODE_CONFIG_CONTENT`) or `opencode run --model`, not the tracked role file: the config layer beats
+  the frontmatter pin. Cursor keeps `model: inherit`, so its shims run the session model, and pi/future harnesses carry no role
+  bindings at all: the non-pinning harnesses are policy, not drift.
+
 ### Cross-repo dead-code stays unknown when a consumer's snapshot is incomplete
 
 - **`find_cross_repo_dead_code` / `POST /api/v0/code/dead-code/cross-repo` no
