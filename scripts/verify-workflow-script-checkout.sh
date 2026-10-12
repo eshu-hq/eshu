@@ -77,25 +77,11 @@ work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
 # One TSV row per violating step: job, step index, step name.
-cat >"${work}/violations.yq" <<'PROG'
-.jobs | to_entries | .[] |
-select(.value.steps | type == "!!seq") |
-.key as $job |
-(
-  .value.steps | to_entries |
-  map(select(((.value.uses // "") | tostring) | test("^actions/checkout(@|/|$)")) | .key)
-  | .[0]
-) as $co |
-.value.steps | to_entries | .[] |
-(
-  (((.value.run // "") | tostring) | split("\n")
-    | map(sub("^[ \t]*#.*$"; "") | sub("[ \t]+#.*$"; ""))
-    | join("\n"))
-) as $code |
-select($code | test("([ \t\n;|&(){}\"'`=!]|^)(\\./|\\.\\./)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)")) |
-select($co == null or .key < $co) |
-[$job, (.key | tostring), (.value.name // "" | tostring)] | @tsv
-PROG
+violations_yq="${repo_root}/scripts/lib/workflow-script-checkout-violations.yq"
+[ -r "${violations_yq}" ] || {
+	printf '%s: FAIL-CLOSED: yq program not found: %s\n' "${tool}" "${violations_yq}" >&2
+	exit 2
+}
 
 shopt -s nullglob
 workflow_files=("${workflows_dir}"/*.yml "${workflows_dir}"/*.yaml)
@@ -111,7 +97,7 @@ checked=0
 tab="$(printf '\t')"
 for wf in "${workflow_files[@]}"; do
 	checked=$((checked + 1))
-	if ! yq e --from-file "${work}/violations.yq" "${wf}" >"${work}/out.tsv" 2>"${work}/yq.err"; then
+	if ! yq e --from-file "${violations_yq}" "${wf}" >"${work}/out.tsv" 2>"${work}/yq.err"; then
 		printf '%s: FAIL-CLOSED: cannot parse %s:\n' "${tool}" "${wf}" >&2
 		sed 's/^/  /' "${work}/yq.err" >&2
 		failed=$((failed + 1))
