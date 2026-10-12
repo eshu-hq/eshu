@@ -69,10 +69,11 @@ spec:
         # seconds; the known exception is the package-manifest backfill's
         # hour-long transaction (#7663), which blocks a concurrent build
         # exactly like a park holder, so refusing there is correct too.
-        # The image pin follows docker-compose.yaml; the catalog columns used
-        # here need no psql-to-server version match.
+        # The default image pin follows docker-compose.yaml (override via
+        # schemaBootstrap.precheckImage); the catalog columns used here need
+        # no psql-to-server version match.
         - name: xmin-precheck
-          image: "docker.io/library/postgres:18-alpine"
+          image: "{{ .Values.schemaBootstrap.precheckImage.repository }}:{{ .Values.schemaBootstrap.precheckImage.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - sh

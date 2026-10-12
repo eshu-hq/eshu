@@ -60,8 +60,9 @@ The lock statement runs in autocommit, so the session then holds no
 transaction and no snapshot, and the sleep loop only keeps the pipe open
 (`sleep infinity` is GNU-only; the loop is portable). If the
 statement ever fails or is cancelled, `ON_ERROR_STOP=1` exits `psql` instead
-of leaving an idle session that no longer holds the lock. Re-run the command
-and verify if that happens.
+of leaving an idle session that no longer holds the lock. Before you re-run
+the command, kill the leftover `(echo; while sleep 86400)` subshell from the
+failed attempt: it survives the `psql` exit and sleeps up to 24 h per attempt.
 
 Verify the holder from another session:
 
@@ -121,7 +122,7 @@ A refusal looks like this in the init container log:
 
 ```text
 xmin-precheck: refusing to start schema bootstrap: 1 session(s) in database "eshu" hold backend_xmin older than 5 minutes. A CREATE INDEX CONCURRENTLY build would stall in "waiting for old snapshots" until they end; see the park-holder runbook (docs/public/operate/park-holder-runbook.md). Holders, oldest first:
-pid=118 user=eshu app=park-holder state=idle in transaction xact_start=2026-10-08 19:02:11.004+00 query=SELECT pg_sleep(86400);
+pid=118 user=eshu app=park-holder state=active xact_start=2026-10-08 19:02:11.004+00 query=SELECT pg_sleep(86400);
 ```
 
 A pass looks like this:
