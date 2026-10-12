@@ -247,7 +247,9 @@ func TestMultiCloudRuntimeDriftHandlerRedactsAdmittedFindingLogs(t *testing.T) {
 
 	raw := "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.KeyVault/vaults/prod-payments-secret-vault"
 	var logs bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// DEBUG: the per-finding line moved from INFO to DEBUG in #7989, so the
+	// redaction proof must capture DEBUG to keep exercising it.
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	loader := &stubMultiCloudRuntimeDriftEvidenceLoader{rows: []multicloud.Row{{
 		Provider:    cloudinventory.ProviderAzure,
 		RawIdentity: raw,
@@ -465,4 +467,86 @@ func TestMultiCloudRuntimeDriftHandlerConcurrentInvocationsAreStable(t *testing.
 			t.Fatalf("concurrent worker %d key = %q, want stable %q", i, keys[i], keys[0])
 		}
 	}
+}
+
+// TestMultiCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch is the #7989
+// log-volume regression: a batch of N admitted findings must write exactly one
+// INFO line (the batch summary with batch size, admitted count, and duration)
+// and N per-finding lines at DEBUG. The per-finding INFO loop rotated the
+// engine startup evidence out of the retained container log within minutes.
+func TestMultiCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	handler := MultiCloudRuntimeDriftHandler{
+		EvidenceLoader: &stubMultiCloudRuntimeDriftEvidenceLoader{rows: gcpAndAzureDriftRows()},
+		Writer:         &stubMultiCloudRuntimeDriftFindingWriter{},
+		Logger:         logger,
+	}
+
+	if _, err := handler.Handle(context.Background(), multiCloudDriftIntent()); err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	entries := decodeMultiCloudJSONLogLines(t, logs.String())
+	var info, debug []map[string]any
+	for _, entry := range entries {
+		switch entry["level"] {
+		case "INFO":
+			info = append(info, entry)
+		case "DEBUG":
+			debug = append(debug, entry)
+		}
+	}
+	if got, want := len(info), 1; got != want {
+		t.Fatalf("INFO lines = %d, want %d:\n%s", got, want, logs.String())
+	}
+	if got, want := len(debug), 2; got != want {
+		t.Fatalf("DEBUG lines = %d, want %d:\n%s", got, want, logs.String())
+	}
+	summary := info[0]
+	if got, want := summary["msg"], "multi cloud runtime drift batch admitted"; got != want {
+		t.Fatalf("INFO msg = %q, want %q", got, want)
+	}
+	for _, want := range []struct {
+		key  string
+		want float64
+	}{
+		{"evaluated", 2},
+		{"admitted", 2},
+	} {
+		if got, ok := summary[want.key].(float64); !ok || got != want.want {
+			t.Fatalf("INFO %s = %v, want %v", want.key, summary[want.key], want.want)
+		}
+	}
+	if _, ok := summary["duration"]; !ok {
+		t.Fatalf("INFO summary missing duration attr:\n%s", logs.String())
+	}
+	for i, entry := range debug {
+		if got, want := entry["msg"], "multi cloud runtime drift finding admitted"; got != want {
+			t.Fatalf("DEBUG[%d] msg = %q, want %q", i, got, want)
+		}
+		if _, ok := entry["drift.kind"]; !ok {
+			t.Fatalf("DEBUG[%d] missing drift.kind attr:\n%s", i, logs.String())
+		}
+	}
+}
+
+// decodeMultiCloudJSONLogLines parses one JSON object per non-empty line of
+// captured slog output.
+func decodeMultiCloudJSONLogLines(t *testing.T, text string) []map[string]any {
+	t.Helper()
+	var entries []map[string]any
+	for _, line := range strings.Split(text, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries
 }

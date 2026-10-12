@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
@@ -17,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -109,6 +111,10 @@ type MultiCloudRuntimeDriftHandler struct {
 	Writer         MultiCloudRuntimeDriftFindingWriter
 	Instruments    *telemetry.Instruments
 	Logger         *slog.Logger
+	// Now supplies the batch-duration clock for the per-batch INFO summary.
+	// Left nil it falls back to the process clock; tests inject a
+	// deterministic one. It never touches finding identity or write ordering.
+	Now func() time.Time
 }
 
 // Handle executes one multi-cloud runtime drift publication intent.
@@ -126,6 +132,7 @@ func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reduce
 		return reducercontract.Result{}, fmt.Errorf("multi cloud runtime drift writer is required")
 	}
 
+	batchStart := factwrite.Now(h.Now)
 	rows, err := h.EvidenceLoader.LoadMultiCloudRuntimeDriftEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load multi cloud runtime drift evidence: %w", err)
@@ -156,7 +163,7 @@ func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reduce
 	}
 
 	multicloud.RecordEvaluation(ctx, h.Instruments, evaluation)
-	h.logAdmittedFindings(ctx, intent, admitted)
+	h.logAdmittedBatch(ctx, intent, len(candidates), admitted, summary, writeResult.CanonicalWrites, factwrite.Now(h.Now).Sub(batchStart))
 
 	return reducercontract.Result{
 		IntentID: intent.IntentID,
@@ -258,10 +265,20 @@ func summarizeMultiCloudRuntimeDriftCandidates(candidates []model.Candidate) mul
 	return summary
 }
 
-func (h MultiCloudRuntimeDriftHandler) logAdmittedFindings(
+// logAdmittedBatch writes one DEBUG line per admitted finding and a single
+// INFO batch summary. The per-finding line used to be INFO, and at production
+// volume it rotated the engine startup evidence out of the retained container
+// log within minutes (#7989). Admitted-finding volume stays visible without
+// log lines through eshu_dp_correlation_rule_matches_total and the
+// orphan/unmanaged counters RecordEvaluation already emits.
+func (h MultiCloudRuntimeDriftHandler) logAdmittedBatch(
 	ctx context.Context,
 	intent reducercontract.Intent,
+	evaluated int,
 	candidates []model.Candidate,
+	summary multicloud.Summary,
+	canonicalWrites int,
+	duration time.Duration,
 ) {
 	if h.Logger == nil {
 		return
@@ -276,8 +293,24 @@ func (h MultiCloudRuntimeDriftHandler) logAdmittedFindings(
 			slog.String("drift.provider", multicloud.ProviderFromCandidate(candidate)),
 		}
 		attrs = append(attrs, telemetry.SafeResourceLogAttrs(candidate.CorrelationKey)...)
-		h.Logger.LogAttrs(ctx, slog.LevelInfo, "multi cloud runtime drift finding admitted", attrs...)
+		h.Logger.LogAttrs(ctx, slog.LevelDebug, "multi cloud runtime drift finding admitted", attrs...)
 	}
+	h.Logger.LogAttrs(ctx, slog.LevelInfo, "multi cloud runtime drift batch admitted",
+		log.Domain(string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		slog.String("drift.pack", rules.MultiCloudRuntimeDriftPackName),
+		slog.Int("evaluated", evaluated),
+		slog.Int("admitted", len(candidates)),
+		slog.Int("canonical_writes", canonicalWrites),
+		slog.Duration("duration", duration),
+		slog.Int("orphaned", summary.OrphanedResources),
+		slog.Int("unmanaged", summary.UnmanagedResources),
+		slog.Int("ambiguous", summary.AmbiguousResources),
+		slog.Int("unknown", summary.UnknownResources),
+		slog.Int("image_version_drift", summary.ImageVersionDriftResources),
+		slog.Int("value_comparison_inconclusive", summary.ValueComparisonInconclusiveResources),
+	)
 }
 
 func multiCloudRuntimeFindingKind(candidate model.Candidate) string {
