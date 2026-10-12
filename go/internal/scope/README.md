@@ -71,7 +71,11 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `ObservedAt`, `IngestedAt`, `Status`, `TriggerKind`, `FreshnessHint`,
   `SourceCommitSHA`, `IsDelta`, `DeltaBaselineCommitSHA`, `ReconcileReason`
   (the forced reconcile reason; never blanks the hint, #7978), and
-  `DefaultBranchChanged` (#7678, always stored). Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
+  `DefaultBranchChanged` (#7678, always stored), `PreparseIdentity` (the
+  snapshot's pre-parse identity, #7978 follow-up), and `PreparseIdentityDropped`
+  (a runtime-only `*atomic.Bool` the git fact stream sets when it dropped a file
+  it could not read; the store then keeps the identity off and marks the row
+  `stream_dropped`; never persisted). Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
   `TransitionTo`, `MarkActive`, `MarkCompleted`, `MarkSuperseded`, `MarkFailed`.
 - `FullReconcileState` — the reconciliation sweep's view of one scope's full
   (non-delta) generations: the newest activated full generation

@@ -162,9 +162,14 @@ dependency settings). Every stored generation and every re-open after a parse
 stamps the identity on the generation. The first sweep after a deploy parses
 and stamps; later sweeps compare. The ingester and collector-git run the skip on
 both their scheduled and webhook selectors; bootstrap-index only stamps. A
-snapshot that fell back from SCIP or could not read a file stamps no identity
-(INFO `git_snapshot_preparse_identity_dropped` with the `reason`), so the next
-sweep reads `identity_absent` and parses again.
+snapshot that fell back from SCIP or could not read a file stamps no identity,
+so the next sweep reads `identity_absent` and parses again. A generation whose
+fact stream dropped a file it could not read carries no pre-parse identity and
+is marked `stream_dropped`. The next reconcile of that scope parses (no
+identity) and stores a new generation instead of re-opening the marked one, so
+the dropped fact is present again after one sweep. A drop is logged at WARN
+(`git_snapshot_preparse_identity_dropped`) and counted by reason
+(`eshu_dp_collector_preparse_identity_dropped_total{reason}`).
 
 | Condition | Result | `outcome` |
 | --- | --- | --- |

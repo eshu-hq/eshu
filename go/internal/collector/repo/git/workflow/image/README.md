@@ -18,7 +18,10 @@ both sides need lives in `go/internal/collector/repo/git/model`.
 
 ## Exported surface
 
-- `CurrentWorkflowImageFileMetas` — workflow files worth reading this run.
+- `CurrentWorkflowImageFileMetas` — workflow files worth reading this run;
+  `CurrentWorkflowImageFileMetasWithReadFailures` also counts the files whose
+  digest could not be read, so the git snapshot can mark itself degraded
+  (#7978 review F7-1).
 - `EmitWorkflowImageEvidenceFactsForContentFile` — emission through the shared
   writer.
 
