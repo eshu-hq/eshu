@@ -61,6 +61,7 @@ func openLargeDocumentFixture(t *testing.T) (context.Context, *sql.DB) {
 			relative_path text NOT NULL,
 			commit_sha text,
 			content text NOT NULL,
+			content_lower text GENERATED ALWAYS AS (lower(content)) STORED,
 			content_hash text NOT NULL,
 			line_count integer NOT NULL,
 			language text,
@@ -68,6 +69,8 @@ func openLargeDocumentFixture(t *testing.T) (context.Context, *sql.DB) {
 			PRIMARY KEY (repo_id, relative_path)
 		)`,
 		`CREATE FUNCTION eshu_require_content_substring_indexes_ready() RETURNS boolean
+			LANGUAGE sql STABLE AS 'SELECT true'`,
+		`CREATE FUNCTION eshu_require_content_lower_trgm_index_ready() RETURNS boolean
 			LANGUAGE sql STABLE AS 'SELECT true'`,
 		// The large document goes in first, so it is first in heap order: the
 		// trigram tail's bitmap heap scan rechecks it early.
@@ -86,6 +89,7 @@ func openLargeDocumentFixture(t *testing.T) (context.Context, *sql.DB) {
 			       md5(g::text), 1, 'go', 'source'
 			FROM generate_series(1, %d) g`, largeDocLiveToken, largeDocLiveRows),
 		`CREATE INDEX content_files_content_trgm_idx ON content_files USING gin (content gin_trgm_ops)`,
+		`CREATE INDEX content_files_content_lower_trgm_idx ON content_files USING gin (content_lower gin_trgm_ops)`,
 		`VACUUM ANALYZE content_files`,
 	}
 	for _, statement := range statements {
@@ -216,6 +220,128 @@ func TestResumeChainCrossesLargeDocumentLive(t *testing.T) {
 func pastLargeDocument(cursor querycontract.SearchCursor) bool {
 	return cursor.RepoID > largeDocLiveRepo ||
 		(cursor.RepoID == largeDocLiveRepo && cursor.RelativePath >= largeDocLivePath)
+}
+
+// largeDocOracleKeys is the independent ILIKE reference: a plain ordered
+// scan, not derived from the shipped statements, so the differential below
+// proves the shipped LIKE-on-lowercase recheck folds case exactly like ILIKE.
+func largeDocOracleKeys(t *testing.T, ctx context.Context, db *sql.DB, pattern string) []string {
+	t.Helper()
+	rows, err := db.QueryContext(ctx, `SELECT repo_id || '/' || relative_path FROM content_files
+		WHERE content ILIKE '%' || $1 || '%' ORDER BY repo_id, relative_path`, pattern)
+	if err != nil {
+		t.Fatalf("oracle: %v", err)
+	}
+	var out []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			t.Fatalf("oracle scan: %v", err)
+		}
+		out = append(out, key)
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("oracle rows: %v", err)
+	}
+	return out
+}
+
+// TestLargeDocumentLowercaseRecheckMatchesILIKEOracleLive is the #7975
+// criterion-2 differential: the shipped LIKE-on-lowercase statements return
+// exactly the ILIKE reference's rows over a token list that covers case
+// folding (upper, mixed), ILIKE wildcards (%, _), a single character, and a
+// non-ASCII zero-match token. Any case-folding difference between lower() and
+// ILIKE on this backend fails here instead of shipping silently.
+func TestLargeDocumentLowercaseRecheckMatchesILIKEOracleLive(t *testing.T) {
+	ctx, db := openLargeDocumentFixture(t)
+
+	tokens := []string{"zz", "ZZ", "zZ", "ab", "AB", "00", "a", "%", "_", "é"}
+	for _, token := range tokens {
+		want := largeDocOracleKeys(t, ctx, db, token)
+		if token == largeDocLiveToken && len(want) < 20 {
+			t.Fatalf("fixture has %d matches for %q, want at least 20", len(want), token)
+		}
+		searcher := &unscoped.Searcher{
+			Store:  postgres.NewSQLReadStore(db),
+			Budget: 10 * time.Second,
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+		page, err := searcher.Search(ctx, token, len(want)+1, 0, querycontract.SearchCursor{})
+		if err != nil {
+			t.Fatalf("%q: Search() error = %v", token, err)
+		}
+		if page.Partial != nil {
+			t.Fatalf("%q: partial inside a 10 s budget: %+v", token, page.Partial)
+		}
+		var got []string
+		for _, f := range page.Files {
+			got = append(got, f.RepoID+"/"+f.RelativePath)
+		}
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("%q: walk %d rows != ILIKE oracle %d rows", token, len(got), len(want))
+		}
+		if page.DocumentsNotSearched != 0 {
+			t.Fatalf("%q: DocumentsNotSearched = %d, want 0 on an exact answer", token, page.DocumentsNotSearched)
+		}
+	}
+}
+
+// TestLargeDocumentCorrectOrDisclosedLive is the #7975 criterion-4 threshold
+// test. The fixture's 16 MB document is the #7975 class: one value whose
+// recheck exceeds a small budget. With room to read it the answer is correct
+// (exact and equal to the ILIKE oracle); with no room the answer is disclosed
+// (partial with a positive not-searched count), never a silent skip.
+func TestLargeDocumentCorrectOrDisclosedLive(t *testing.T) {
+	ctx, db := openLargeDocumentFixture(t)
+	want := largeDocOracleKeys(t, ctx, db, largeDocLiveToken)
+	if len(want) < 20 {
+		t.Fatalf("fixture has %d matches, want at least 20", len(want))
+	}
+
+	correct := &unscoped.Searcher{
+		Store:  postgres.NewSQLReadStore(db),
+		Budget: 10 * time.Second,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	page, err := correct.Search(ctx, largeDocLiveToken, len(want)+1, 0, querycontract.SearchCursor{})
+	if err != nil {
+		t.Fatalf("room to read: Search() error = %v", err)
+	}
+	if page.Partial != nil {
+		t.Fatalf("room to read: partial inside a 10 s budget: %+v", page.Partial)
+	}
+	var got []string
+	for _, f := range page.Files {
+		got = append(got, f.RepoID+"/"+f.RelativePath)
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("room to read: walk %d rows != ILIKE oracle %d rows", len(got), len(want))
+	}
+
+	// Below room the answer must be disclosed, never silent. Budgets fall until
+	// a run is cut short: how far the walk gets depends on host speed, so the
+	// first partial may sit at any rung. A 1 ms rung cannot pay any window or
+	// the tail on any host, so the loop always terminates with a partial.
+	for _, ms := range []int64{50, 25, 15, 10, 5, 2, 1} {
+		disclosed := &unscoped.Searcher{
+			Store:  postgres.NewSQLReadStore(db),
+			Budget: time.Duration(ms) * time.Millisecond,
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+		short, err := disclosed.Search(ctx, largeDocLiveToken, 100, 0, querycontract.SearchCursor{})
+		if err != nil {
+			t.Fatalf("no room (%d ms): Search() error = %v", ms, err)
+		}
+		if short.Partial == nil {
+			continue
+		}
+		if short.DocumentsNotSearched <= 0 {
+			t.Fatalf("no room (%d ms): DocumentsNotSearched = %d, want the unread rows named", ms, short.DocumentsNotSearched)
+		}
+		return
+	}
+	t.Fatal("no room: exact at every budget down to 1 ms over a 16 MB document")
 }
 
 // lastSpanAttrs returns the attributes of the most recently ended span.

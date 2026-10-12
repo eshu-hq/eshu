@@ -34,9 +34,11 @@ route, `db.sql.table=content_files`) or
 `search.outcome` (`exact`, `partial`, `exhausted`), `search.cursor_present`,
 `search.phase_one_cap_ms` (the continuation cap at the call's budget: 440 on
 the file route and 160 on the entity route at the default budget),
-`search.ended_in`, `search.steps_cancelled`, `search.progressed` and
+`search.ended_in`, `search.steps_cancelled`, `search.progressed`,
 `search.want` (offset + limit + 1, the matches the walk had to find; a high
-value on a partial says the caller asked for a large page).
+value on a partial says the caller asked for a large page) and
+`search.documents_not_searched` (the rows no completed statement read; `-1`
+when the count statement itself was cancelled).
 
 `search.ended_in` names the decision that shaped the walk: `probe`,
 `continuation`, `tail`, or `continuation_after_tail` for the last statement
@@ -53,8 +55,8 @@ One `content_search.unscoped_partial` (file route) or
 `content_search.unscoped_entity_partial` (entity route) line (INFO) per partial
 result, with
 `reason`, `budget_ms`, `elapsed_ms`, `overrun_ms`, `rows_scanned_in_order`,
-`rows_matched`, `tail_ran`, `tail_cancelled`, `progressed`, `steps_cancelled`
-and `ended_in`.
+`rows_matched`, `documents_not_searched`, `tail_ran`, `tail_cancelled`,
+`progressed`, `steps_cancelled` and `ended_in`.
 
 At 3 AM: the `partial` share of `eshu_dp_content_search_unscoped_total` by
 `table` says how often the budget ends searches on each route; `eshu_dp_content_search_no_progress_total`

@@ -61,11 +61,20 @@ func (h *ContentHandler) searchFilesUnscoped(
 	results := h.rerankFileResults(ctx, req, page.Files)
 	truth := h.fileSearchTruth()
 	body := contentSearchResponse(results, req, page.More || page.Partial != nil)
+	// documents_not_searched rides on every answer: the rows no completed
+	// statement read on a partial page, zero on an exact one (#7975). A page
+	// that left any document unsearched is never exact, even without a
+	// partial marker.
+	body["documents_not_searched"] = page.DocumentsNotSearched
 	if page.Partial != nil {
 		body["partial"] = page.Partial
 		truth.Level = querycontract.MinTruthLevel(truth.Level, querycontract.TruthLevelPartial)
 		truth.Truncated = true
 		truth.Reason = page.Partial.Reason
+	}
+	if page.DocumentsNotSearched != 0 {
+		truth.Level = querycontract.MinTruthLevel(truth.Level, querycontract.TruthLevelPartial)
+		truth.Truncated = true
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
 }

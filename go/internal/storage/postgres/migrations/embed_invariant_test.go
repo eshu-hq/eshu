@@ -69,14 +69,16 @@ import (
 // 171_drop_content_files_language_repo_idx.sql,
 // 172_content_files_language_covering_idx.sql, and
 // 173_content_files_language_covering_idx_vacuum.sql; #7735 adds
-// 174_content_entities_repo_language_type_path_idx.sql.
-const goldenBootstrapDefinitionsDigest = "17881008d13cb84b69aa8a82836406c1302ed8bf1f73996dbea7e3dd56413a27"
+// 174_content_entities_repo_language_type_path_idx.sql; #7975 adds
+// 176_content_files_content_lower.sql and
+// 177_content_files_content_lower_trgm_index.sql.
+const goldenBootstrapDefinitionsDigest = "93cbf41b2b3e94210c50b58df9e48826f9fb35916229ac48af6cb1ce7ea4f7b8"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 193
+const goldenBootstrapDefinitionsCount = 195
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

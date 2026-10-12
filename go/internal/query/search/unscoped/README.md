@@ -124,8 +124,8 @@ reading `offset + limit + 1` matches under the same budget.
   completed no window: its cursor is the request cursor and resuming repeats the
   request, so the hint then says to scope with repo_id or ask the operator to raise the server budget.
 - `overrun_ms` is how far a cancelled statement ran past its own timeout.
-  PostgreSQL cannot interrupt the lowercase copy and the TOAST decompression
-  of one value, so a single large candidate adds to the wall time. Above
+  PostgreSQL cannot interrupt one value's scan and TOAST decompression,
+  so a single large candidate adds to the wall time. Above
   100 ms the partial reason is `budget_exceeded_on_large_document`.
 - A pattern with no three-character alphanumeric run (for example `db_`)
   yields no extractable trigram, so the tail is skipped and the whole budget
@@ -134,6 +134,17 @@ reading `offset + limit + 1` matches under the same budget.
   Measured on the QA environment read replica: the skipped tail would plan a
   parallel sequential scan at 3,930 ms warm against the 400 ms tail cap
   (#8002).
+- The recheck tests the stored lowercase copy (`content_lower`) with `LIKE`,
+  folding the pattern once, instead of a per-row `ILIKE` (#7975): ILIKE pays
+  a whole-value lowercase copy per candidate, about 6x the LIKE cost on the
+  53 MB scratch proof. The search refuses to run before that copy's trigram
+  index exists (`eshu_require_content_lower_trgm_index_ready`, migrations
+  176-177). Row equality with ILIKE is pinned by the live differential over
+  upper, mixed, wildcard, single-character, and non-ASCII tokens.
+- `DocumentsNotSearched` rides on every page: the rows strictly after the
+  resume cursor on a partial page (no completed statement read them), zero on
+  a complete one, `-1` when the count statement itself was cancelled. A page
+  with a nonzero count is never exact.
 - `ESHU_CONTENT_SEARCH_BUDGET_MS` (100..10000, default 800) sets the budget.
   An invalid value fails startup. Every internal timeout scales with it.
 
@@ -147,9 +158,9 @@ Span `postgres.query` (`db.operation=search_file_content_any_repo_page`) with
 `search.ended_in` (`probe`, `continuation`, `tail`, `continuation_after_tail`,
 `budget` when the tail was skipped under its floor, or
 `tail_skipped_no_trigram` when the pattern yields no trigram),
-`search.steps_cancelled`, `search.progressed` and `search.want` (offset +
-limit + 1). Every metric carries `table` (`content_files` or
-`content_entities`). Counters
+`search.steps_cancelled`, `search.progressed`, `search.want` (offset +
+limit + 1) and `search.documents_not_searched`. Every metric carries `table`
+(`content_files` or `content_entities`). Counters
 `eshu_dp_content_search_unscoped_total{table,outcome}`,
 `eshu_dp_content_search_tail_cancel_total`,
 `eshu_dp_content_search_step_cancel_total` (cancelled probe and continuation
@@ -157,11 +168,12 @@ windows) and `eshu_dp_content_search_no_progress_total` (partials that did not
 advance the cursor); histograms
 `eshu_dp_content_search_unscoped_duration_seconds{table,outcome}` and
 `eshu_dp_content_search_unscoped_overrun_seconds`. One `content_search.unscoped_partial`
-log line per partial result, with `progressed`, `steps_cancelled` and
-`ended_in`. No pattern text is recorded anywhere.
+log line per partial result, with `progressed`, `steps_cancelled`,
+`documents_not_searched` and `ended_in`. No pattern text is recorded anywhere.
 
 The entity route records the same span attributes plus
-`search.content_kind=entity`, with `db.operation=search_entity_content_any_repo_page`
+`search.content_kind=entity` (except `search.documents_not_searched`, which
+only the file route discloses, #7975), with `db.operation=search_entity_content_any_repo_page`
 and `db.sql.table=content_entities`, and logs
 `content_search.unscoped_entity_partial`. The counters and histograms are
 shared with the file route and split by their `table` label.

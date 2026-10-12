@@ -118,10 +118,16 @@ type SearchPartial struct {
 // the page rows in repo_id, relative_path order. More reports, for a complete
 // answer, that a row exists past the page. Partial is non-nil when the budget
 // ended the search first; the page is then a prefix of the exact answer.
+// DocumentsNotSearched counts the documents no completed statement read: the
+// rows strictly after the resume cursor on a partial page, zero on a complete
+// one (#7975). A cancelled tail may have tested some of them before the
+// server cut it short, but none contributed a row to the answer. -1 means the
+// count statement itself was cancelled and the number is unknown, never zero.
 type FileSearchPage struct {
-	Files   []FileContent
-	More    bool
-	Partial *SearchPartial
+	Files                []FileContent
+	More                 bool
+	Partial              *SearchPartial
+	DocumentsNotSearched int64
 }
 
 // UnscopedFileSearcher is implemented by content stores that answer a file

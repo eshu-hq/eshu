@@ -438,3 +438,99 @@ func TestBudgetFromEnv(t *testing.T) {
 		}
 	}
 }
+
+// #7975: a partial answer names how many documents no completed statement
+// read, so an unread document is never silent. The count is the rows strictly
+// after the resume cursor: every completed window ends at the cursor, and a
+// cancelled or skipped tail advances nothing.
+func TestSearchPartialCarriesDocumentsNotSearched(t *testing.T) {
+	t.Parallel()
+
+	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%50 == 0 })
+	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
+	page, _, _, err := run(t, corpus, 200, 0, querycontract.SearchCursor{})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if page.Partial == nil {
+		t.Fatalf("Partial = nil, want a partial result; page = %+v", page)
+	}
+	want := int64(len(corpus.rows) - page.Partial.RowsScannedInOrder)
+	if page.DocumentsNotSearched != want {
+		t.Fatalf("DocumentsNotSearched = %d, want %d (rows after the resume cursor)", page.DocumentsNotSearched, want)
+	}
+}
+
+// #7975: a complete answer searched every document, so the count is zero and
+// rides on every answer, exact as well as partial.
+func TestSearchExactCarriesZeroDocumentsNotSearched(t *testing.T) {
+	t.Parallel()
+
+	rows := map[int]bool{10: true, 70: true, 140: true}
+	corpus := newCorpus(150, 50*time.Microsecond, func(i int) bool { return rows[i] })
+	page, _, _, err := run(t, corpus, 3, 0, querycontract.SearchCursor{})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if page.Partial != nil {
+		t.Fatalf("Partial = %+v, want a complete answer", page.Partial)
+	}
+	if page.DocumentsNotSearched != 0 {
+		t.Fatalf("DocumentsNotSearched = %d, want 0 on an exact answer", page.DocumentsNotSearched)
+	}
+}
+
+// #7975: a cancelled disclosure reports unknown instead of zero, and it must
+// not rewrite the walk's overrun: the partial reason names the phase that
+// lost the budget, not the post-walk bookkeeping.
+func TestSearchCancelledCountReportsUnknownWithoutTouchingOverrun(t *testing.T) {
+	t.Parallel()
+
+	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return i >= 3000 && i%50 == 0 })
+	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
+	corpus.tailLag = 150 * ms
+	// The count runs under the 150 ms tail floor at the default budget; a
+	// 650 ms count is cancelled 500 ms past it, past the tail's 150 ms.
+	corpus.countCost = 650 * ms
+	page, _, _, err := run(t, corpus, 200, 0, querycontract.SearchCursor{})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if page.Partial == nil {
+		t.Fatalf("Partial = nil, want a partial result; page = %+v", page)
+	}
+	if page.DocumentsNotSearched != -1 {
+		t.Fatalf("DocumentsNotSearched = %d, want -1 for a cancelled count", page.DocumentsNotSearched)
+	}
+	if page.Partial.OverrunMS != 150 {
+		t.Fatalf("OverrunMS = %d, want the tail's 150 ms, not the count's 500 ms", page.Partial.OverrunMS)
+	}
+	if page.Partial.Reason != querycontract.SearchPartialBudgetExceededOnLargeDocument {
+		t.Fatalf("Reason = %q, want the tail's large-document reason", page.Partial.Reason)
+	}
+}
+
+// #7975: the recheck reads the stored lowercase copy, so the search refuses
+// to run before its trigram index exists instead of falling back to a slow
+// unindexed scan.
+func TestSearcherChecksLowerTrgmIndexReadiness(t *testing.T) {
+	t.Parallel()
+
+	corpus := newCorpus(150, 50*time.Microsecond, func(i int) bool { return false })
+	page, fdb, _, err := run(t, corpus, 3, 0, querycontract.SearchCursor{})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if page.Partial != nil {
+		t.Fatalf("Partial = %+v, want a complete answer", page.Partial)
+	}
+	var readiness int
+	for _, label := range fdb.tx.log {
+		if label == "readiness" {
+			readiness++
+		}
+	}
+	if readiness != 2 {
+		t.Fatalf("readiness statements = %d, want the substring-index check and the lowercase-index check", readiness)
+	}
+}

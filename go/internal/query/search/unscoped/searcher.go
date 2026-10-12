@@ -121,9 +121,18 @@ func search[R any, K key](
 		span.RecordError(err)
 		return nil, false, nil, fmt.Errorf("check content substring index readiness: %w", err)
 	}
+	if sh.readinessExtra != "" {
+		if err := w.exec(ctx, sh.readinessExtra); err != nil {
+			span.RecordError(err)
+			return nil, false, nil, fmt.Errorf("check content lowercase index readiness: %w", err)
+		}
+	}
 	if err := w.run(ctx); err != nil {
 		span.RecordError(err)
 		return nil, false, nil, fmt.Errorf("search unscoped %s: %w", sh.subject, err)
+	}
+	if !w.finished && sh.countAfter != "" {
+		w.countNotSearched(ctx)
 	}
 	rows, more, p := w.page(offset, limit)
 	record(ctx, s, span, w, p, !cursor.IsZero())

@@ -43,10 +43,11 @@ func (s *unscopedSearchStore) SearchFilesUnscoped(
 
 type searchEnvelope struct {
 	Data struct {
-		Results   []querycontract.FileContent  `json:"results"`
-		Count     int                          `json:"count"`
-		Truncated bool                         `json:"truncated"`
-		Partial   *querycontract.SearchPartial `json:"partial"`
+		Results              []querycontract.FileContent  `json:"results"`
+		Count                int                          `json:"count"`
+		Truncated            bool                         `json:"truncated"`
+		Partial              *querycontract.SearchPartial `json:"partial"`
+		DocumentsNotSearched int64                        `json:"documents_not_searched"`
 	} `json:"data"`
 	Truth *querycontract.TruthEnvelope `json:"truth"`
 }
@@ -191,5 +192,50 @@ func TestSearchFilesUnscopedReadinessFailureStaysUnavailable(t *testing.T) {
 	rec, _ := postFileSearch(t, h, context.Background(), `{"query":"render"}`)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+// #7975: every unscoped answer carries documents_not_searched: the rows no
+// completed statement read on a partial page, zero on an exact one. A skipped
+// document is never silent, and a page that skipped any is never exact.
+func TestSearchFilesUnscopedSurfacesDocumentsNotSearched(t *testing.T) {
+	t.Parallel()
+
+	partial := &querycontract.SearchPartial{
+		Reason:             querycontract.SearchPartialCandidateBudgetExceeded,
+		RowsScannedInOrder: 7700,
+		RowsMatched:        1,
+		Cursor:             querycontract.SearchCursor{RepoID: "r9", RelativePath: "z.go"},
+		BudgetMS:           800,
+		ElapsedMS:          790,
+		Hint:               querycontract.SearchPartialHint,
+	}
+	store := &unscopedSearchStore{page: querycontract.FileSearchPage{
+		Files:                []querycontract.FileContent{{RepoID: "r1", RelativePath: "a.go"}},
+		Partial:              partial,
+		DocumentsNotSearched: 139369,
+	}}
+	h := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
+
+	rec, env := postFileSearch(t, h, context.Background(), `{"query":"render"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if env.Data.DocumentsNotSearched != 139369 {
+		t.Fatalf("data.documents_not_searched = %d, want 139369", env.Data.DocumentsNotSearched)
+	}
+	if env.Truth.Level != querycontract.TruthLevelPartial {
+		t.Fatalf("truth level = %q, want partial while documents went unsearched", env.Truth.Level)
+	}
+
+	exact := &unscopedSearchStore{page: querycontract.FileSearchPage{
+		Files: []querycontract.FileContent{{RepoID: "r1", RelativePath: "a.go"}},
+	}}
+	rec, env = postFileSearch(t, &ContentHandler{Content: exact, Profile: querycontract.ProfileLocalAuthoritative}, context.Background(), `{"query":"render"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("exact status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if env.Data.DocumentsNotSearched != 0 {
+		t.Fatalf("exact data.documents_not_searched = %d, want 0", env.Data.DocumentsNotSearched)
 	}
 }

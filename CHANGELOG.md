@@ -9,6 +9,21 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Unscoped file search rechecks the stored lowercase copy
+
+- **Unscoped file-content search tests `content_lower` with `LIKE` instead of
+  a per-row `ILIKE`, and every answer carries `documents_not_searched`**
+  ([#7975](https://github.com/eshu-hq/eshu/issues/7975)). The per-row `ILIKE`
+  paid a whole-value lowercase copy per candidate inside an uninterruptible
+  stretch, so one 53 MB document held a common term's tail past the budget;
+  the stored copy rechecks about 6x faster with identical rows (live
+  differential over upper, mixed, wildcard, single-character, and non-ASCII
+  tokens). Migrations 176-177 add the generated column and its trigram index;
+  the search refuses to run before the index exists instead of falling back
+  to an unindexed scan. A partial page names the rows no completed statement
+  read in `documents_not_searched` (zero on an exact page); a page with a
+  nonzero count is never exact.
+
 ### OpenCode role files pin manifest tier models
 
 - **Tracked OpenCode role files now pin their tier model from `.agents/roles.json` `models.opencode`, reversing the earlier

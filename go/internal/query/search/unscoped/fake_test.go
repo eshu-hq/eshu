@@ -48,6 +48,9 @@ type fakeCorpus struct {
 	// tailLag is extra uninterruptible time a cancelled tail runs past its
 	// statement timeout.
 	tailLag time.Duration
+	// countCost, when positive, is the simulated wall of the not-searched
+	// count statement, so a test can cancel the disclosure itself.
+	countCost time.Duration
 	// tailDoc, when set, is one large document the tail meets while its
 	// statement timeout fires: the cancel then lands only when the document's
 	// recheck ends.
@@ -198,6 +201,8 @@ func (tx *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db
 		return tx.runEntityStep(query, args)
 	case "entity_tail":
 		return tx.runEntityTail(query, args)
+	case "count":
+		return tx.runCount(query, args)
 	}
 	return nil, fmt.Errorf("fake: unclassified statement %q", query)
 }
@@ -205,7 +210,7 @@ func (tx *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db
 func classify(query string) string {
 	q := strings.TrimSpace(query)
 	switch {
-	case strings.Contains(q, "eshu_require_content_substring_indexes_ready"):
+	case strings.Contains(q, "eshu_require_content"):
 		return "readiness"
 	case strings.HasPrefix(q, "SAVEPOINT"):
 		return "savepoint"
@@ -226,6 +231,8 @@ func classify(query string) string {
 		return "entity_tail"
 	case strings.Contains(q, "UNION ALL"):
 		return "step"
+	case strings.HasPrefix(q, "SELECT count(*)"):
+		return "count"
 	case strings.Contains(q, "FROM content_files"):
 		return "tail"
 	}
@@ -321,6 +328,21 @@ func (tx *fakeTx) runTail(query string, args []any) (db.Rows, error) {
 	return newFakeRows(out), nil
 }
 
+// runCount simulates the not-searched count statement: $1/$2 cursor. It
+// costs nothing on the fake clock: the production statement touches only the
+// primary key, so it stays a millisecond-scale index-only scan that the
+// policy model's figures exclude, like round trips.
+func (tx *fakeTx) runCount(query string, args []any) (db.Rows, error) {
+	from, err := tx.db.corpus.indexAfter(query, args[0].(string), args[1].(string))
+	if err != nil {
+		return nil, err
+	}
+	if cost := tx.db.corpus.countCost; tx.timeout > 0 && cost > tx.timeout {
+		return tx.cancel(cost - tx.timeout)
+	}
+	return newFakeRows([][]any{{int64(len(tx.db.corpus.rows) - from)}}), nil
+}
+
 // edgeOffsetPattern reads the edge branch of a window statement:
 // OFFSET ($2::bigint - N) LIMIT 1.
 var edgeOffsetPattern = regexp.MustCompile(`OFFSET \(\$2::bigint(?: - (\d+))?\) LIMIT 1`)
@@ -362,6 +384,12 @@ func (r *fakeRows) Scan(dest ...any) error {
 				return err
 			}
 			*ptr = int(n)
+		case *int64:
+			n, err := asInt64(row[i])
+			if err != nil {
+				return err
+			}
+			*ptr = n
 		case *[]byte:
 			if row[i] == nil {
 				*ptr = nil
