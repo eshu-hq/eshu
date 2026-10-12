@@ -5,7 +5,7 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/boundedset"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 )
 
 // This file holds the bounded-evidence row decode helpers
@@ -78,24 +78,24 @@ func slsaMaterialRowsFromPayload(raw any) []SLSAMaterialRow {
 
 // rawComponentEvidenceFromPayload decodes every field of the persisted
 // "component_evidence" array (not only the 6 fields ComponentEvidenceRow
-// exposes on the wire) into reducer.ComponentEvidence, so
+// exposes on the wire) into sbomattest.ComponentEvidence, so
 // boundedComponentEvidenceRows can dedupe/sort/cap a legacy payload using the
 // SAME complete-tuple identity the reducer's write path uses — decoding only
 // the wire-exposed subset would make two distinct persisted rows (that
 // differ only in a field ComponentEvidenceRow drops, e.g. lockfile_path)
 // collapse into a false duplicate.
-func rawComponentEvidenceFromPayload(raw any) []reducer.ComponentEvidence {
+func rawComponentEvidenceFromPayload(raw any) []sbomattest.ComponentEvidence {
 	values, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	out := make([]reducer.ComponentEvidence, 0, len(values))
+	out := make([]sbomattest.ComponentEvidence, 0, len(values))
 	for _, value := range values {
 		row, ok := value.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, reducer.ComponentEvidence{
+		out = append(out, sbomattest.ComponentEvidence{
 			ComponentID:      StringVal(row, "component_id"),
 			Name:             StringVal(row, "name"),
 			Version:          StringVal(row, "version"),
@@ -115,8 +115,8 @@ func rawComponentEvidenceFromPayload(raw any) []reducer.ComponentEvidence {
 // boundedComponentEvidenceRows applies a defensive READ-SIDE bound to the
 // persisted "component_evidence" array: it re-runs the identical
 // dedupe/sort/cap the reducer applies at write time
-// (reducer.ComponentEvidenceLess/ComponentEvidenceTupleEqual via
-// boundedset.DedupeSortCap, capped at reducer.MaxSBOMAttachmentComponentEvidenceRows)
+// (sbomattest.ComponentEvidenceLess/ComponentEvidenceTupleEqual via
+// boundedset.DedupeSortCap, capped at sbomattest.MaxSBOMAttachmentComponentEvidenceRows)
 // against whatever was ACTUALLY persisted, rather than trusting it was
 // already bounded.
 //
@@ -143,9 +143,9 @@ func boundedComponentEvidenceRows(raw any, persistedCount int) ([]ComponentEvide
 
 	capped, distinctCount := boundedset.DedupeSortCap(
 		decoded,
-		reducer.ComponentEvidenceLess,
-		reducer.ComponentEvidenceTupleEqual,
-		reducer.MaxSBOMAttachmentComponentEvidenceRows,
+		sbomattest.ComponentEvidenceLess,
+		sbomattest.ComponentEvidenceTupleEqual,
+		sbomattest.MaxSBOMAttachmentComponentEvidenceRows,
 	)
 
 	trueTotal := persistedCount
