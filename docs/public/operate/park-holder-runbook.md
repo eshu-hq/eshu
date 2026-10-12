@@ -51,13 +51,14 @@ waiter-first handover, described below.
 Start the holder as a pipe whose only statement is the lock call:
 
 ```bash
-(echo "SELECT pg_advisory_lock(5318,7088);"; exec sleep infinity) \
+(echo "SELECT pg_advisory_lock(5318,7088);"; while :; do sleep 86400; done) \
   | psql "host=<writer> dbname=<db> user=<user> application_name=park-holder" \
     -v ON_ERROR_STOP=1
 ```
 
 The lock statement runs in autocommit, so the session then holds no
-transaction and no snapshot, and `sleep infinity` gives it no timer. If the
+transaction and no snapshot, and the sleep loop only keeps the pipe open
+(`sleep infinity` is GNU-only; the loop is portable). If the
 statement ever fails or is cancelled, `ON_ERROR_STOP=1` exits `psql` instead
 of leaving an idle session that no longer holds the lock. Re-run the command
 and verify if that happens.
@@ -74,17 +75,17 @@ WHERE l.locktype = 'advisory' AND l.classid = 5318 AND l.objid = 7088
 You want one row with `state = idle`, `backend_xmin IS NULL`, and `xact_start
 IS NULL`. The schema Job's xmin precheck ignores a holder shaped this way.
 
-To release the park, end the `psql` process (Ctrl-C, or kill the `sleep`). The
-session lock drops with the session, and the next reducer poll takes the
-backfill lock and runs a pass.
+To release the park, end the `psql` process (Ctrl-C) or kill the holder
+subshell. The session lock drops with the session, and the next reducer poll
+takes the backfill lock and runs a pass.
 
 ## Hand over a held lock
 
 Never cancel a statement-shaped holder directly: its `psql` exits and the
 park is lost. Start the replacement as a waiter first, then cancel the old
-one. Postgres hands the lock to the queued waiter on release. A measured
-handover on PG 18 showed the waiter granted with the old session gone and no
-gap across 600 concurrent try-lock attempts.
+one. Postgres hands the lock to the queued waiter on release. A handover
+exercised on PG 18 (see #7791 comments) showed the waiter granted with the
+old session gone and no gap observed across 600 concurrent try-lock attempts.
 
 1. Start the new idle holder from the previous section with a distinct
    `application_name`, for example `park-holder-new`. Its lock statement
@@ -104,8 +105,8 @@ gap across 600 concurrent try-lock attempts.
    waiter is granted.
 4. Re-run the holder query from the previous section. You want one granted row
    for `park-holder-new`, and no session left for the old holder. Check
-   promptly: the reducer polls the lock every second while the backfill is
-   incomplete, so a lost park is picked up fast.
+   promptly: the reducer polls the lock within a poll (1 s once passes run,
+   30 s while contended), so a lost park is picked up fast.
 
 ## When the schema Job refuses to start
 
@@ -113,13 +114,14 @@ The schema bootstrap Job runs an `xmin-precheck` init container before the
 migration container. It lists sessions in the target database that hold a
 `backend_xmin` older than 5 minutes and refuses to start while any exists. The
 check is per-database: an old snapshot in another database of the same cluster
-does not block a concurrent build (measured on PG 18), so it is ignored.
+does not block a concurrent build (observed on PG 18; see #7791 comments),
+so it is ignored.
 
 A refusal looks like this in the init container log:
 
 ```text
 xmin-precheck: refusing to start schema bootstrap: 1 session(s) in database "eshu" hold backend_xmin older than 5 minutes. A CREATE INDEX CONCURRENTLY build would stall in "waiting for old snapshots" until they end; see the park-holder runbook (docs/public/operate/park-holder-runbook.md). Holders, oldest first:
-pid=118 state=idle in transaction xact_start=2026-10-08 19:02:11.004+00 query=SELECT pg_sleep(86400);
+pid=118 user=eshu app=park-holder state=idle in transaction xact_start=2026-10-08 19:02:11.004+00 query=SELECT pg_sleep(86400);
 ```
 
 A pass looks like this:
