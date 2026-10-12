@@ -29,6 +29,20 @@ than there are entries here.
    item's replacement epoch while the original handler remains held, then
    releases it and retains strict reclaim, drain, dead-letter, and digest checks.
    A prior claimed-row count alone cannot prove expiry landed (#7939).
+   After the drain the cell reads the real reducer's log for the held work
+   item and requires at least one fenced-outcome record (`ack_claim_rejected`,
+   `ack_outcome_unknown`, or `lease_lost_during_execution`), at most one
+   `succeeded` record, and at least two ACK outcome records in total; it then
+   reads the queue row and requires status `succeeded` at the replacement
+   claim (attempt_count = held + 1, a new last_attempt_at, lease cleared). A
+   stale ACK accepted after the successor's own ACK would add a second
+   `succeeded` record and fail the cell. When the stale and the successor ACK
+   share one flush batch, the Service logs both as `ack_outcome_unknown` and
+   writes no `succeeded` record for the item (#8007);
+   the log carries no claim epoch, so the check does not attribute a record to
+   the stale claim or the successor. Epoch-level rejection against a live
+   successor is proven by `TestReducerQueueExpiryInterleaveLive` (class
+   scheduled).
 4. fail-graph-write-once-then-succeed      -- the tagged
    (-tags ifafaultinjection) eshu-reducer with ESHU_IFA_FAULT_SCRIPT
    pointed at a queue-retry fault script that fails the CloudResource

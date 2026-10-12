@@ -143,6 +143,11 @@ cell_expirelease() {
 	ifa_fault_release_held_claim "${barrier}" \
 		|| die "expire-lease-mid-handler: could not release the exact held handler"
 	run_drain_gate expirelease
+	ifa_fault_assert_stale_ack_fenced "${barrier}" "${log_dir}/reducer-expirelease.log" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "expire-lease-mid-handler: the real reducer log for the held work item did not show a fenced-outcome record and at least two ACK outcome records with at most one succeeded record (a stale ACK accepted after the successor's ACK looks like a second succeeded record)"
+	ifa_fault_assert_held_item_terminal "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${barrier}" \
+		|| die "expire-lease-mid-handler: the held work item is not a terminal succeeded row at the replacement claim (attempt_count = held + 1, new last_attempt_at, lease cleared)"
+	printf 'expire-lease-mid-handler: held work item has a fenced-outcome record, at most one succeeded record, and a terminal succeeded row at the replacement claim\n'
 	# Retain the strict global counter check in addition to the exact same-item
 	# replacement proof. Neither a claim poll nor a zero-row expiry can pass.
 	reclaimed_after="$(ifa_fault_assert_reclaimed_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${reclaimed_before}")" \

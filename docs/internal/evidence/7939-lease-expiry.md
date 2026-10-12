@@ -23,3 +23,22 @@ transactions; race tests prove unrelated and replacement work can progress.
 Production worker count, lease, heartbeat, SQL fencing, and blocking checks
 remain unchanged. The evidence supports the fault seam and convergence, not
 production throughput or a full local run of all 49 cells.
+
+Stale ACK observation (#7928): after the drain, cell 3 calls
+`ifa_fault_assert_stale_ack_fenced` and `ifa_fault_assert_held_item_terminal`
+in `scripts/lib/ifa_fault_lease_expiry_barrier.sh`. After the drain the cell
+reads the real reducer's log for the held work item and requires at least one
+fenced-outcome record (`ack_claim_rejected`, `ack_outcome_unknown`, or
+`lease_lost_during_execution`), at most one `succeeded` record, and at least
+two ACK outcome records in total; it then reads the queue row and requires
+status `succeeded` at the replacement claim (attempt_count = held + 1, a new
+last_attempt_at, lease cleared). A stale ACK accepted after the successor's
+own ACK would add a second `succeeded` record and fail the cell. When the
+stale and the successor ACK share one flush batch, the Service logs both as
+`ack_outcome_unknown` and writes no `succeeded` record for the item
+(#8007); the log carries no claim epoch, so the check does not
+attribute a record to the stale claim or the successor. Epoch-level rejection
+against a live successor is proven by `TestReducerQueueExpiryInterleaveLive`
+(class scheduled). `TestReducerQueueExpiryInterleaveLive` also requires that
+the stale ACK leaves the successor's full queue row and the
+`cross_scope_completion_events` count unchanged.
