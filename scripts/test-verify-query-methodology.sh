@@ -65,10 +65,9 @@ if scratch_run --static; then printf 'untracked source passed staged proof\n' >&
 rm "$scratch/go/untracked.go"
 git -C "$scratch" commit --quiet -m 'scratch candidate'
 git -C "$scratch" update-ref refs/remotes/origin/main HEAD
-printf '{}\n' > "$work/ambient-event.json"
-if GITHUB_EVENT_NAME=pull_request GITHUB_EVENT_PATH="$work/ambient-event.json" \
- GITHUB_SHA="$(git -C "$repo_root" rev-parse HEAD)" GITHUB_REF=refs/pull/7881/merge \
- scratch_run --live; then
+# scratch_run strips the ambient GitHub event, so this runs in event-less local
+# mode where base resolves to merge-base(S,S) and equals the candidate.
+if scratch_run --live; then
  printf 'equal base and candidate passed live proof\n' >&2
  exit 1
 fi

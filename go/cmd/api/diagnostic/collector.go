@@ -88,7 +88,10 @@ type Collector struct {
 
 var _ sdktrace.SpanProcessor = (*Collector)(nil)
 
-// New registers a bounded processor only when the report path is set.
+// New registers a bounded processor only when the report path is set. It
+// assumes the provider samples the diagnostic traces (the default
+// ParentBased(AlwaysOn)); a ratio sampler would starve OnStart and OnEnd and
+// fail Flush with missing_required_span.
 func New(getenv func(string) string, provider *sdktrace.TracerProvider) (*Collector, error) {
 	path := getenv(statusDiagnosticEnv)
 	if path == "" {
