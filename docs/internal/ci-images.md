@@ -95,8 +95,9 @@ argument of a Compose call, and `run` pulls the image first), a variable or
 array expansion at command position (`$DOCKER compose ...`: what it holds is not
 read), `podman`, `kubectl`, `ssh`, `su`, `runuser`, `nsenter`, `chroot`,
 `systemd-run`, `doas`, `bwrap`, `bubblewrap` or `firejail`, a `sudo` without `-E`
-(its default `env_reset` drops `GITHUB_ACTIONS` and CI image mode), `env -i`,
-`env -`, `exec -c`, `env -u` of `GITHUB_ACTIONS` or `ESHU_CI_IMAGES`, or a
+(its default `env_reset` drops `GITHUB_ACTIONS` and CI image mode), `env -i`
+(also in a flag chain such as `-0i`), `env -`, `exec -c`, `setpriv --reset-env`,
+`env -u` of `GITHUB_ACTIONS` or `ESHU_CI_IMAGES`, or a
 `NAME=value` word that sets `GITHUB_ACTIONS` to anything but `true` or
 `ESHU_CI_IMAGES` to anything but `1`. Each of these runs the wrapper in an
 environment where the run-time guard (which tests `GITHUB_ACTIONS`) never fires.
@@ -162,6 +163,11 @@ The gate reads text. It does not run a script, and main's gate had the same gaps
 - A wrapper path held in a variable is not seen at all: the call is neither W
   nor named as a look-alike, so a script that a variable names is judged only
   by the gate's reader of scripts.
+- A tool that replaces the environment and is not in the list above is not
+  seen: `chpst -e`, `envdir`, `capsh`, `runcon`, and any shell function or alias
+  that wraps one of these or one of the listed tools. The list is the set a real
+  call would reach for; it is not a proof that no other tool clears the
+  environment.
 - A statement before the call that removes the mode (`unset GITHUB_ACTIONS
   ESHU_CI_IMAGES`, `export GITHUB_ACTIONS=false`) is not seen. The wrapper guard
   closes a write of `ESHU_CI_IMAGES` while `GITHUB_ACTIONS` stays `true`; a script

@@ -190,9 +190,26 @@ function subst_scan(w, fn, depth,   p, d, i, c, body, rest) {
   }
 }
 
+# btsub rewrites an unquoted, unescaped `...` pair as $(...), so a backtick body is
+# scanned like a command substitution. An unmatched backtick leaves the line alone.
+function btsub(s,   i, n, c, out, sq, dq, ob) {
+  if (index(s, "`") == 0) return s
+  n = length(s); out = ""; sq = 0; dq = 0; ob = 0
+  for (i = 1; i <= n; i++) {
+    c = substr(s, i, 1)
+    if (c == "\\" && !sq) { out = out c substr(s, i + 1, 1); i++; continue }
+    if (c == "'" && !dq) sq = !sq
+    else if (c == "\"" && !sq) dq = !dq
+    else if (c == "`" && !sq) { out = out (ob ? ")" : "$("); ob = !ob; continue }
+    out = out c
+  }
+  return ob ? s : out
+}
+
 # scan reads one logical line (or the body of a -c string or $(...)) as commands.
 function scan(s, fn, depth,   T, S, n, a, b, i, k, o, c, pk, nk) {
   if (depth > 3) return
+  s = btsub(s)
   n = tokenize(s, T, S)
   a = 1
   for (i = 1; i <= n + 1; i++) {

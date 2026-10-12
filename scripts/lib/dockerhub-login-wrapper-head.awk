@@ -12,8 +12,8 @@
 #   - a command that starts another environment: podman, kubectl, ssh, su, runuser,
 #     nsenter, chroot, systemd-run, doas, bwrap, bubblewrap, firejail;
 #   - sudo without -E (env_reset drops GITHUB_ACTIONS and the mode), and sudo -i/-s;
-#   - env with -i, a bare -, --ignore-environment, or -u/--unset of GITHUB_ACTIONS
-#     or ESHU_CI_IMAGES; exec -c;
+#   - env with -i (also in a flag chain such as -0i), a bare -, --ignore-environment,
+#     or -u/--unset of GITHUB_ACTIONS or ESHU_CI_IMAGES; exec -c; setpriv --reset-env;
 #   - a NAME=value word that sets GITHUB_ACTIONS to anything but true or
 #     ESHU_CI_IMAGES to anything but 1;
 #   - a variable or array expansion at command position ($DOCKER, "${DC[@]}"): what
@@ -35,13 +35,20 @@ function headbad(T, a, e,   k, m, w, base, n, v, keep, nxt) {
     if (base == "env") {
       for (m = k + 1; m <= e; m++) {
         n = unq(T[m])
-        if (n == "-" || n == "--ignore-environment" || n ~ /^-[A-Za-z]*i[A-Za-z]*$/) return 1
+        if (n == "-" || n == "--ignore-environment" || n ~ /^-[A-Za-z0-9]*i[A-Za-z0-9]*$/) return 1
         v = ""
-        if (n == "-u" || n == "--unset") v = unq(T[m + 1])
+        if (n == "--unset") v = unq(T[m + 1])
         else if (n ~ /^--unset=/) { v = n; sub(/^--unset=/, "", v) }
-        else if (n ~ /^-u./) { v = n; sub(/^-u/, "", v) }
+        else if (n ~ /^-[A-Za-z0-9]*u/) {
+          # -u NAME, -uNAME and a short-flag chain ending in u (-0u NAME)
+          v = n; sub(/^-[A-Za-z0-9]*u/, "", v)
+          if (v == "") v = unq(T[m + 1])
+        }
         if (v == "GITHUB_ACTIONS" || v == "ESHU_CI_IMAGES") return 1
       }
+    }
+    if (base == "setpriv") {
+      for (m = k + 1; m <= e; m++) if (unq(T[m]) == "--reset-env") return 1
     }
     if (base == "exec") {
       for (m = k + 1; m <= e; m++) { n = unq(T[m]); if (n ~ /^-[A-Za-z]*c[A-Za-z]*$/) return 1 }
