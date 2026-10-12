@@ -20,7 +20,10 @@ func TestTrackedBootstrapDialForceClosesCanceledPGXCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer listener.Close()
-	queryStarted := make(chan struct{})
+	// Buffered: serveCleanupShim signals with a non-blocking send, so an
+	// unbuffered channel drops the arrival when the send wins the race into
+	// the select below (#7892).
+	queryStarted := make(chan struct{}, 1)
 	serverDone := make(chan struct{})
 	var serverWorkers sync.WaitGroup
 	go func() {
