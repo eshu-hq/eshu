@@ -80,12 +80,31 @@ func FactEnvelope(
 	}
 }
 
+// RepositoryRelativePath returns the slash-separated path of filePath inside
+// the repository rooted at repoPath. Both inputs resolve through symlinks
+// the same way before the relative path is computed, so a checkout reached
+// through a symlinked parent (macOS /var -> /private/var, #7998) yields the
+// same file graph_id as the direct spelling instead of a run of ../
+// segments. Resolution is best effort: a path that no longer exists keeps
+// its absolute spelling rather than failing the fact.
 func RepositoryRelativePath(repoPath string, filePath string) string {
-	relativePath, err := filepath.Rel(repoPath, filePath)
+	relativePath, err := filepath.Rel(canonicalPathForRel(repoPath), canonicalPathForRel(filePath))
 	if err != nil {
 		return filepath.Base(filePath)
 	}
 	return filepath.ToSlash(relativePath)
+}
+
+// canonicalPathForRel absolutizes path and resolves symlinks when the
+// target exists, so both sides of a Rel call share one spelling.
+func canonicalPathForRel(path string) string {
+	if absolute, err := filepath.Abs(path); err == nil {
+		path = absolute
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	return path
 }
 
 func PayloadString(payload map[string]any, keys ...string) string {
