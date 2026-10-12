@@ -257,6 +257,10 @@ PACKAGES = {
         "go/internal/storage/postgres/identity_page_plan_live_test.go": (
             "TestIdentityPageQueryPlanRidesOrderedIndexLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
+            "TestReducerQueueAckBatchFencesSupersededClaimLive",
+            "TestReducerQueueExpiryInterleaveLive",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (

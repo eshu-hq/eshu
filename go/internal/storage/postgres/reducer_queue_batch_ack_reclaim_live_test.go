@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // TestReducerQueueAckBatchFencesSupersededClaimLive is the lease-safety proof
@@ -248,34 +250,41 @@ func snapshotReducerExpirySuccessor(t *testing.T, ctx context.Context, db *sql.D
 	return row, events
 }
 
+// openReducerAckReclaimProofDB opens a disposable PostgreSQL database through
+// postgresproof and bootstraps the Eshu schema on it. It reads
+// ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN (an administrative postgres-database
+// DSN) and ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE=1; without them it
+// skips. The live-postgres-readiness runner provides both against its
+// PostgreSQL 18 service.
 func openReducerAckReclaimProofDB(t *testing.T) *sql.DB {
 	t.Helper()
-	dsn := strings.TrimSpace(os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN"))
-	if dsn == "" {
-		t.Skip("set ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN to a disposable Postgres database")
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-	defer cancel()
-	schema := fmt.Sprintf("eshu_6162_ack_reclaim_%d", time.Now().UnixNano())
-	adminDB := openActiveOCIWarningIndexProofDB(t, dsn)
-	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
-		t.Fatalf("create ACK reclaim schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		if _, err := adminDB.ExecContext(
-			cleanupCtx,
-			"DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE",
-		); err != nil {
-			t.Errorf("drop ACK reclaim schema: %v", err)
-		}
-	})
-	db := openActiveOCIWarningIndexProofDB(t, activeOCIWarningIndexSchemaDSN(t, dsn, schema))
+	ctx, db := postgresproof.OpenDisposableDatabase(t,
+		os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN"),
+		os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE"),
+		90*time.Second)
 	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
 		t.Fatalf("apply ACK reclaim schema: %v", err)
 	}
 	return db
+}
+
+// reducerAckReclaimDisposableDSN returns a DSN for the disposable database db
+// points at, derived from the administrative DSN by swapping in the current
+// database name. The production expiry helper shells out to psql, so it needs
+// the disposable address as text rather than the test's *sql.DB.
+func reducerAckReclaimDisposableDSN(t *testing.T, ctx context.Context, adminDSN string, db *sql.DB) string {
+	t.Helper()
+	var databaseName string
+	if err := db.QueryRowContext(ctx, "SELECT current_database()").Scan(&databaseName); err != nil {
+		t.Fatalf("read disposable database name: %v", err)
+	}
+	parsed, err := url.Parse(adminDSN)
+	if err != nil {
+		t.Fatalf("parse administrative DSN: %v", err)
+	}
+	parsed.Path = "/" + databaseName
+	parsed.RawPath = ""
+	return parsed.String()
 }
 
 // TestReducerQueueExpiryInterleaveLive controls the handler-to-ACK boundary
@@ -329,7 +338,7 @@ func TestReducerQueueExpiryInterleaveLive(t *testing.T) {
 				t.Fatal(err)
 			}
 			helper := filepath.Join(cwd, "../../../../scripts/lib/ifa_fault_reclaim_assert.sh")
-			command := exec.CommandContext(ctx, "bash", "-c", `source "$1"; ifa_det_pg() { psql "$3" -v ON_ERROR_STOP=1 -Atc "$4"; }; ifa_fault_expire_reducer_claims proof 0 "$2" unused`, "proof", helper, os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN"))
+			command := exec.CommandContext(ctx, "bash", "-c", `source "$1"; ifa_det_pg() { psql "$3" -v ON_ERROR_STOP=1 -Atc "$4"; }; ifa_fault_expire_reducer_claims proof 0 "$2" unused`, "proof", helper, reducerAckReclaimDisposableDSN(t, ctx, os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN"), db))
 			command.Env = append(os.Environ(), "PGOPTIONS=-c search_path="+schema)
 			output, err := command.CombinedOutput()
 			if err != nil {
