@@ -195,6 +195,63 @@ rg -q 'PR #100 is already queued' <<<"${OUT}" || ok=1
 rg -q '^PASS merge-queue +queue empty$' <<<"${OUT}" || ok=1
 check "GREEN a queue holding only this PR counts as empty" "${ok}"
 
+# A PR already inside a merge group reads mergeStateStatus UNKNOWN on GitHub
+# (PR #8000, ruling a9-135.2). The checks arm then prints IN-GROUP and judges
+# the rows (pending, fail, unknown) and required-gates-complete instead of
+# requiring CLEAN. queue_self puts this PR in the queue after another entry.
+queue_self() {
+	edit queue.json '.data.repository.mergeQueue.entries.nodes = [{position:1,headCommit:{oid:"x"},pullRequest:{number:100}}]'
+	edit pr.json '.mergeStateStatus = "UNKNOWN"'
+}
+new_case in-group
+queue_self
+edit checks.json '[range(127) | {name:("check-\(.)"),state:"SUCCESS",bucket:"pass"}]'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q '^PASS checks +IN-GROUP: complete; required-gates-complete=success; mergeStateStatus=UNKNOWN \(PR is in a merge group\)$' <<<"${OUT}" || ok=1
+rg -q 'checks +rows=127 pending=0 fail=0 unknown=0$' <<<"${OUT}" || ok=1
+check "GREEN a queued PR with mergeStateStatus UNKNOWN prints IN-GROUP and passes" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+new_case in-group-pending
+queue_self
+edit checks.json '. + [{name:"go-race",state:"IN_PROGRESS",bucket:"pending"}]'
+expect_red "queued PR with a pending check" checks
+ok=0
+rg -q '^FAIL checks +IN-GROUP: pending=1' <<<"${OUT}" || ok=1
+check "RED the queued FAIL row is labeled IN-GROUP" "${ok}"
+new_case in-group-failing
+queue_self
+edit checks.json '. + [{name:"go-core",state:"FAILURE",bucket:"fail"}]'
+expect_red "queued PR with a failing check" checks
+# A queued PR accepts only UNKNOWN or CLEAN (ruling a9-139.2): any other merge
+# state still fails, labeled IN-GROUP and naming the value.
+new_case in-group-clean
+queue_self
+edit pr.json '.mergeStateStatus = "CLEAN"'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+rg -q '^PASS checks +IN-GROUP: complete; required-gates-complete=success; mergeStateStatus=CLEAN ' <<<"${OUT}" || ok=1
+check "GREEN a queued PR with mergeStateStatus CLEAN passes" "${ok}"
+for state in BLOCKED DIRTY BEHIND; do
+	new_case "in-group-${state}"
+	queue_self
+	# shellcheck disable=SC2016 # jq variable, not a shell expansion.
+	edit pr.json '.mergeStateStatus = $m' --arg m "${state}"
+	expect_red "queued PR with mergeStateStatus ${state}" checks
+	ok=0
+	rg -q "^FAIL checks +IN-GROUP: mergeStateStatus=${state}; \$" <<<"${OUT}" || ok=1
+	check "RED the queued ${state} row names the merge state" "${ok}"
+done
+new_case unknown-not-queued
+edit pr.json '.mergeStateStatus = "UNKNOWN"'
+expect_red "mergeStateStatus UNKNOWN on a PR that is not queued" checks
+ok=0
+rg -q '^FAIL checks +mergeStateStatus=UNKNOWN; $' <<<"${OUT}" || ok=1
+check "RED a non-queued UNKNOWN still names mergeStateStatus" "${ok}"
+
 new_case issue-marker
 edit pr.json '.body = "Tightens the gate.\n\nIssue: #7088\n"'
 run
