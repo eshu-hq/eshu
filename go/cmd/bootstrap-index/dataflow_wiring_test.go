@@ -17,7 +17,7 @@ func bootstrapSnapshotterForEnv(t *testing.T, env map[string]string) git.NativeR
 		context.Background(),
 		&fakeBootstrapSQLDB{},
 		func(key string) string { return env[key] },
-		nil, nil, nil,
+		nil, nil, nil, bootstrapArgs{},
 	)
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)

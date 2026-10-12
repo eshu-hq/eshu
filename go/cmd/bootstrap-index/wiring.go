@@ -39,6 +39,7 @@ func buildBootstrapCollector(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
+	cliArgs bootstrapArgs,
 ) (collectorDeps, error) {
 	instrumentedDB := &postgres.InstrumentedDB{
 		Inner:       database,
@@ -50,6 +51,11 @@ func buildBootstrapCollector(
 	config, err := git.LoadRepoSyncConfig("bootstrap-index", getenv)
 	if err != nil {
 		return collectorDeps{}, err
+	}
+	applyBootstrapArgOverrides(&config, cliArgs)
+	if cliArgs.Force && strings.TrimSpace(config.SourceMode) != "filesystem" && logger != nil {
+		logger.Warn("bootstrap --force applies to filesystem source mode only; continuing without a forced re-parse",
+			slog.String("source_mode", config.SourceMode))
 	}
 	discoveryOptions, err := git.LoadDiscoveryOptionsFromEnv(getenv)
 	if err != nil {
@@ -166,6 +172,28 @@ func buildBootstrapProjector(
 		baselineFence:     projectorQueue,
 		writeMarker:       projectorQueue,
 	}, nil
+}
+
+// applyBootstrapArgOverrides applies the eshu-bootstrap-index argv contract to
+// the environment-derived sync config (#7982). A --path value names the
+// filesystem root the bootstrap child indexes, implying filesystem source mode
+// when the environment left another mode. A --force value marks every selected
+// repository for a full re-parse through the repository_reindex_requested
+// reason path instead of the manifest skip.
+func applyBootstrapArgOverrides(config *git.RepoSyncConfig, cliArgs bootstrapArgs) {
+	if config == nil {
+		return
+	}
+	if path := strings.TrimSpace(cliArgs.Path); path != "" {
+		config.FilesystemRoot = path
+		if strings.TrimSpace(config.SourceMode) != "filesystem" {
+			config.SourceMode = "filesystem"
+		}
+		git.NormalizeFilesystemConfigForBootstrap(config)
+	}
+	if cliArgs.Force {
+		config.ForceReindex = true
+	}
 }
 
 // bootstrapProjectorHeartbeatInterval renews leases well before expiry while

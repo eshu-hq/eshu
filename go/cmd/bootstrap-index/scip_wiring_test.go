@@ -17,7 +17,7 @@ func TestBuildBootstrapCollectorWiresDefaultSCIPDisabled(t *testing.T) {
 		context.Background(),
 		&fakeBootstrapSQLDB{},
 		func(string) string { return "" },
-		nil, nil, nil,
+		nil, nil, nil, bootstrapArgs{},
 	)
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
@@ -42,7 +42,7 @@ func TestBuildBootstrapCollectorWiresExplicitSCIPEnable(t *testing.T) {
 			}
 			return ""
 		},
-		nil, nil, nil,
+		nil, nil, nil, bootstrapArgs{},
 	)
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -128,15 +129,28 @@ func (s NativeRepositorySelector) SelectRepositories(
 		if s.Config.RepoShardIndex == 0 && synced.CorpusChanged {
 			reportRepositoryBasenameCollisions(ctx, selection.RepositoryIDs, s.Logger, s.Instruments)
 		}
+		// A forced run re-indexes from scratch through the same reason-recording
+		// path as the other forced fulls (#7982): every selected repository
+		// carries repository_reindex_requested, so the ingestion store's
+		// unchanged-generation check stores a new generation instead of skipping
+		// it (ruling a9-125).
+		reconcileByRepoPath := map[string]bool{}
+		reconcileReasonByRepoPath := map[string]string{}
+		if s.Config.ForceReindex {
+			for _, repoPath := range synced.SelectedRepoPaths {
+				reconcileByRepoPath[repoPath] = true
+				reconcileReasonByRepoPath[repoPath] = scope.ReconcileReasonRepositoryReindexRequested
+			}
+		}
 		repositories := buildSelectedRepositories(
 			s.Config,
 			synced.SelectedRepoPaths,
 			nil,
-			nil,
+			reconcileByRepoPath,
 			synced.SourceCommitSHAByRepoPath,
 			collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, synced.SelectedRepoPaths),
 			nil,
-			nil,
+			reconcileReasonByRepoPath,
 		)
 		attachFilesystemGitTreePaths(s.Config, selection.RepositoryIDs, repositories)
 		return SelectionBatch{ObservedAt: observedAt, Repositories: repositories}, nil
