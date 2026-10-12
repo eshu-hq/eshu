@@ -289,6 +289,123 @@ test_staged_deletion_triggers_build() {
   assert_contains "[fake-uv] mkdocs build SUCCESS" "${out}"
 }
 
+# run_verifier_timeout runs the verifier with a stalled fake-uv build under an
+# explicit timeout bound, so the #7983 timeout diagnostics have something to
+# fire on. Prints nothing itself; the caller asserts on the exit status and
+# the output file.
+run_verifier_timeout() {
+  local repo_dir="$1"
+  local output_file="$2"
+  local timeout_secs="$3"
+  local lock_dir="$4"
+  local fake_bin="${tmp_root}/fake-bin"
+  fake_uv "${fake_bin}"
+  (
+    cd "${repo_dir}"
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+      PATH="${fake_bin}:${PATH}" \
+      ESHU_FAKE_UV_SLEEP=30 \
+      "ESHU_DOCS_BUILD_TIMEOUT_SECONDS=${timeout_secs}" \
+      "ESHU_LIVE_GATE_LOCK_DIR=${lock_dir}" \
+      ESHU_VERIFY_DOCS_BRANCH="" \
+      "${verifier}"
+  ) >"${output_file}" 2>&1
+}
+
+# 14. A build that overruns its timeout fails LOUD: non-zero exit, the bound
+#     in the message, and the live-gate holder named (#7983 AC1/AC2).
+test_build_timeout_names_lock_holder() {
+  local repo_dir="${tmp_root}/timeout-holder"
+  local out="${tmp_root}/timeout-holder.out"
+  git_init "${repo_dir}"
+  printf '# Updated page\n\nContent.\n' >"${repo_dir}/docs/public/index.md"
+  git_in "${repo_dir}" add docs/public/index.md
+  git_in "${repo_dir}" commit -q -m "docs: update"
+  local lock_home="${tmp_root}/timeout-lock-home"
+  mkdir -p "${lock_home}"
+  ln -s "424242:999:/busy/sibling-worktree" "${lock_home}/eshu-live-gate.lock"
+  if run_verifier_timeout "${repo_dir}" "${out}" 2 "${lock_home}"; then
+    echo "test-docs-build: expected verifier to fail when the build overruns its timeout" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "TIMED OUT after 2s" "${out}"
+  assert_contains "424242" "${out}"
+  assert_contains "/busy/sibling-worktree" "${out}"
+  assert_contains "live-gate lock is HELD" "${out}"
+}
+
+# 15. The same timeout with no holder says so, so a stall without contention
+#     is not misread as a mutex wait (#7983: the mutex theory was disproven).
+test_build_timeout_reports_free_lock() {
+  local repo_dir="${tmp_root}/timeout-free"
+  local out="${tmp_root}/timeout-free.out"
+  git_init "${repo_dir}"
+  printf '# Updated page\n\nContent.\n' >"${repo_dir}/docs/public/index.md"
+  git_in "${repo_dir}" add docs/public/index.md
+  git_in "${repo_dir}" commit -q -m "docs: update"
+  local lock_home="${tmp_root}/timeout-free-lock-home"
+  mkdir -p "${lock_home}"
+  if run_verifier_timeout "${repo_dir}" "${out}" 2 "${lock_home}"; then
+    echo "test-docs-build: expected verifier to fail when the build overruns its timeout" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "TIMED OUT after 2s" "${out}"
+  assert_contains "live-gate lock is not held" "${out}"
+}
+
+# 16. A non-numeric or out-of-range timeout bound fails closed before the
+#     build starts, never silently unbounded.
+test_invalid_timeout_config_fails_closed() {
+  local repo_dir="${tmp_root}/timeout-config"
+  local out="${tmp_root}/timeout-config.out"
+  git_init "${repo_dir}"
+  printf '# Updated page\n\nContent.\n' >"${repo_dir}/docs/public/index.md"
+  git_in "${repo_dir}" add docs/public/index.md
+  git_in "${repo_dir}" commit -q -m "docs: update"
+  local lock_home="${tmp_root}/timeout-config-lock-home"
+  mkdir -p "${lock_home}"
+  for bad in "banana" "0"; do
+    if run_verifier_timeout "${repo_dir}" "${out}" "${bad}" "${lock_home}"; then
+      echo "test-docs-build: expected verifier to fail closed on timeout config '${bad}'" >&2
+      cat "${out}" >&2
+      exit 1
+    fi
+    assert_contains "must be an integer from 1 through 3600" "${out}"
+  done
+}
+
+# 17. With no timeout backend on PATH, the hook fails closed instead of
+#     running unbounded. The masked PATH keeps only what the verifier needs
+#     before the backend check: bash (env shebang), git (trigger detection),
+#     and the fake uv (uv presence check).
+test_no_timeout_backend_fails_closed() {
+  local repo_dir="${tmp_root}/timeout-no-backend"
+  local out="${tmp_root}/timeout-no-backend.out"
+  git_init "${repo_dir}"
+  printf '# Updated page\n\nContent.\n' >"${repo_dir}/docs/public/index.md"
+  git_in "${repo_dir}" add docs/public/index.md
+  git_in "${repo_dir}" commit -q -m "docs: update"
+  local mask_bin="${tmp_root}/timeout-no-backend-bin"
+  mkdir -p "${mask_bin}"
+  ln -sf "$(command -v bash)" "${mask_bin}/bash"
+  ln -sf "$(command -v git)" "${mask_bin}/git"
+  fake_uv "${mask_bin}"
+  if (
+    cd "${repo_dir}"
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+      PATH="${mask_bin}" \
+      ESHU_VERIFY_DOCS_BRANCH="" \
+      "${verifier}"
+  ) >"${out}" 2>&1; then
+    echo "test-docs-build: expected verifier to fail closed with no timeout backend" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "no timeout backend" "${out}"
+}
+
 # ─── Run ────────────────────────────────────────────────────────────
 
 test_no_docs_changes_skips
@@ -304,5 +421,9 @@ test_opencode_agent_triggers_build
 test_agents_skills_triggers_build
 test_branch_deletion_triggers_build
 test_staged_deletion_triggers_build
+test_build_timeout_names_lock_holder
+test_build_timeout_reports_free_lock
+test_invalid_timeout_config_fails_closed
+test_no_timeout_backend_fails_closed
 
 echo "test-docs-build: all tests passed"

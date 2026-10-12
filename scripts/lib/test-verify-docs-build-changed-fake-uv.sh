@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Stalled-build simulation for the #7983 timeout cases: sleep before doing
+# anything so the verifier's bound has something to fire on.
+if [[ -n "${ESHU_FAKE_UV_SLEEP:-}" ]]; then
+  echo "[fake-uv] sleeping ${ESHU_FAKE_UV_SLEEP}s (stalled-build simulation)" >&2
+  sleep "${ESHU_FAKE_UV_SLEEP}"
+fi
 # Capture the full command for assertion
 echo "[fake-uv] $*" >&2
 # Verify the docs command contains the expected mkdocs build flags
