@@ -244,8 +244,11 @@ func resolveReindexWatermark(
 //
 // A negative age (clock skew) compares as less than every bound and
 // suppresses. No single generation suppresses the sweep for longer than
-// Interval: the worst case per scope is one forced full per Interval while
-// fulls stay pending, and four per Interval while they keep failing.
+// Interval; four forced fulls per Interval while they keep failing. Since
+// #7978 a forced snapshot equal to a pending full is not stored, so once a
+// pending full is older than Interval the scope is forced (and parsed) every
+// cycle without storing anything until that full activates (review r2 N2,
+// held for ruling a9-126).
 func (p reconcilePolicy) decide(now time.Time, s scope.FullReconcileState) (bool, string) {
 	if pending, stale := p.reprojectionRequest(now, s); pending {
 		if !stale {

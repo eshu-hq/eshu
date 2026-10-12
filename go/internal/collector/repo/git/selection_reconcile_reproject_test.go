@@ -146,3 +146,30 @@ func TestReconcilePolicyStaleRequestForcesOncePerInterval(t *testing.T) {
 		t.Fatalf("decide() after the stale full failed = (%v, %q), want %q", due, reason, reconcileReasonRetryBackoff)
 	}
 }
+
+// TestReconcilePolicyWedgedPendingCurrentBehaviour pins today's decision for a
+// wedged pending full (review r2 N2, held for ruling a9-126): once the pending
+// full is older than Interval, the sweep forces the scope every cycle, and the
+// store then skips the snapshot as pending_same_identity. Nothing is stored,
+// but each cycle parses the repository and spends a per-cycle budget slot. A
+// ruling that holds such scopes flips these rows.
+func TestReconcilePolicyWedgedPendingCurrentBehaviour(t *testing.T) {
+	t.Parallel()
+	policy := reconcilePolicy{Interval: 24 * time.Hour}
+	now := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
+	wedged := scope.FullReconcileState{
+		HasProjectedFull: true, LastProjectedFullAt: now.Add(-72 * time.Hour), LastStoredFullAt: now.Add(-72 * time.Hour),
+		HasLatestFull: true, LatestFullAt: now.Add(-30 * time.Hour),
+		LatestFullStatus: scope.GenerationStatusPending,
+	}
+	for _, cycle := range []time.Duration{0, 6 * time.Minute, 12 * time.Minute} {
+		if due, reason := policy.decide(now.Add(cycle), wedged); !due || reason != reconcileReasonInFlightExpired {
+			t.Fatalf("decide() at +%s = (%v, %q), want (true, %q) every cycle", cycle, due, reason, reconcileReasonInFlightExpired)
+		}
+	}
+	staleWedged := wedged
+	staleWedged.ReconcileRequestedAt = now.Add(-73 * time.Hour)
+	if due, reason := policy.decide(now, staleWedged); !due || reason != scope.ReconcileReasonRequestStale {
+		t.Fatalf("decide(stale request, wedged pending) = (%v, %q), want (true, %q)", due, reason, scope.ReconcileReasonRequestStale)
+	}
+}
