@@ -19,10 +19,25 @@ CONTINUE="${repo_root}/.claude/hooks/goal-continue.sh"
 
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
-mkdir -p "${work}/.claude"
+mkdir -p "${work}/.claude" "${work}/tmp"
+# The Stop hook's nudge counters live in ${TMPDIR:-/tmp}; this suite points
+# them at its own tmp, so a run leaves nothing behind and a stale counter from
+# an earlier PID-reused run cannot change the result. The shared dir is kept
+# only for the seeded-stale-counter case and the end-of-suite leak check.
+real_tmpdir="${TMPDIR:-/tmp}"
+export TMPDIR="${work}/tmp"
 passed=0
 failed=0
 sid="refresh-$$"
+sid_files() { # -> count of this run's sid files in the shared dir
+	local _f _n=0
+	for _f in "${real_tmpdir}"/claude-goal-nudge-"${sid}"-*; do
+		[[ -e "${_f}" ]] || continue
+		_n=$((_n + 1))
+	done
+	printf '%s' "${_n}"
+}
+sid_files_before="$(sid_files)"
 
 ok() { printf 'ok - %s\n' "$1"; passed=$((passed + 1)); }
 no() { printf 'not ok - %s\n' "$1"; failed=$((failed + 1)); }
@@ -195,6 +210,24 @@ else
 	no "END TO END: the Stop hook hands back the goal the producer wrote"
 fi
 
+# Same stale-counter immunity as the Stop mirror: a leftover for this sid in
+# the shared dir must not release the stop. The plant uses its own prompt id
+# so it cannot disturb the budget of any other case.
+seed_plant="${real_tmpdir}/claude-goal-nudge-${sid}-seedstop"
+printf '3 0' >"${seed_plant}"
+seed_stop_out="$(SID="${sid}" CWD="${e2e}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "seedstop",
+                  "stop_hook_active": False, "cwd": os.environ["CWD"],
+                  "hook_event_name": "Stop"}))
+' | bash "${CONTINUE}" 2>/dev/null)"
+rm -f "${seed_plant}"
+if printf '%s' "${seed_stop_out}" | rg -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+	ok "SEEDED: a stale counter for this sid does not release the Stop hook"
+else
+	no "SEEDED: a stale counter for this sid does not release the Stop hook"
+fi
+
 # The Stop hook falls back to ${HOME}/.claude/active-goal. If this hook does not
 # look there too, such a goal is ENFORCED but never REFRESHED -- blocking turns
 # while going stale, the worst of both halves. Uses a fake HOME so the real one
@@ -260,6 +293,15 @@ if [[ "${goal_refresh_oneline_consent_cases_loaded:-0}" == "1" ]]; then
 	ok "the sourced oneline-consent-case file loaded"
 else
 	no "the sourced oneline-consent-case file did NOT load -- the oneline-consent cases did not run"
+fi
+
+# The suite must leave no state outside its own temp dir: no MORE of this
+# run's sid files in the shared dir than PID reuse left there beforehand.
+sid_files_after="$(sid_files)"
+if [[ "${sid_files_after}" -eq "${sid_files_before}" ]]; then
+	ok "the suite left no nudge counters in the shared TMPDIR"
+else
+	no "the suite left no nudge counters in the shared TMPDIR (before ${sid_files_before}, after ${sid_files_after})"
 fi
 
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"
