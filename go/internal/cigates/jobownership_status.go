@@ -168,7 +168,7 @@ func toleratesFailure(job ownershipJob) bool {
 // author restructures or adds an owner row. A step-level if: never counts:
 // skipping one step leaves the job green.
 //
-// Two residual gaps stay fail-open and review-visible, the same class as the
+// Three residual gaps stay fail-open and review-visible, the same class as the
 // trivy wiring check's downstream-mutation gap: a repo script that takes the
 // reference and ignores it still covers, and an `always() || ...` job if:
 // that can never be false still covers. An `if` without a failing body
