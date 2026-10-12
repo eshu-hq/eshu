@@ -34,6 +34,10 @@ cd "$repo_root/go"
 . "$repo_root/scripts/lib/go-test-run-guard.sh"
 python3 "$repo_root/scripts/lib/verify-query-methodology-live-contract.py" --root "$repo_root"
 go_test_run_guard 2 '^(TestMethodologyProductionTreeRejectsBaseOnlyMigration|TestMethodologyCombinedCheckoutUsesIntegratedBase)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
+# These tests need no backend but sit behind build tags, so a plain go test never
+# compiles them. Run them here and count them so a rename cannot drop one.
+go_test_run_guard 9 '^(TestMethodologyEmptyGrantHTTPDoesNotReadGraph|TestMethodologyRequestQueryCountBudget|TestMethodologyGraphStatementOracle|TestMethodologyCycleEdgeOracleKeepsDirectionalCandidates|TestMethodologyGraphOracleEmptyPagesOnPopulatedFixture|TestMethodologyGraphStatementCapturePreservesExtraColumn|TestMethodologyProfileMetricsRequireRawCounters|TestMethodologyPlanOmitsUnavailableOptionalMetrics|TestMethodologyScratchGitIgnoresAmbientTrace)$' -- -tags queryplan_profile_live ./internal/query -count=1 -v
+go_test_run_guard 3 '^(TestMethodologyPostgresWorkUsesInclusiveRootCounters|TestMethodologyPostgresWorkRequiresSixRootCounters|TestMethodologyPostgresStatementRowsIncludeSelectedColumns)$' -- -tags integration ./internal/query -count=1 -v
 go test ./internal/queryplan -count=1
 [[ -s "$ESHU_QUERY_METHODOLOGY_COVERAGE" ]] || { printf 'missing required produced coverage artifact\n' >&2; exit 1; }
 go_test_run_guard 3 '^(TestMethodologyRequiredProductionVariants|TestHandlerQueryplanManifestBindsProductionBuilders|TestLegacyQueryplanManifestBindsProductionQueries)$' -- ./internal/query -count=1
@@ -66,7 +70,11 @@ cleanup() {
  release_live_gate_lock
  exit "$status"
 }
-trap cleanup EXIT INT TERM
+# A signal handler reads $? from the last command, which is often 0. Exit with
+# the conventional signal status so an interrupted proof never reports success.
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 # Both paired revisions run against the approved CI mirrors so they share one
 # declared engine profile. The earlier Docker Hub PostgreSQL digest is a
 # different Debian build and its timing is separate evidence. The references are

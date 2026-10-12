@@ -34,13 +34,15 @@ func TestPilotEvidenceRejectsMeaninglessPlanAndInventedWork(t *testing.T) {
 
 func TestPilotAlternateProofRejectsMeaninglessPlan(t *testing.T) {
 	manifest, artifact := pilotEvidenceFixture()
+	// Only graph queries may carry an alternate proof, so the entry must be one.
+	manifest.Entries[0].QueryKind = queryKindCypher
 	run := &artifact.Entries[0].Cases[0].Candidate
 	run.Plan = nil
 	run.PlanUnavailable = "backend does not expose plan"
 	plan := json.RawMessage(`{"note":1}`)
 	run.AlternateProof = json.RawMessage(fmt.Sprintf(`{"plan":%s,"work":{"query_count":1,"shared_blocks":2},"producer":"independent-probe","artifact_sha256":%q}`, plan, PilotJSONSHA256(plan)))
-	if err := ValidatePilotEvidence(manifest, &artifact); err == nil || !strings.Contains(err.Error(), "plan") {
-		t.Fatalf("accepted meaningless alternate plan: %v", err)
+	if err := ValidatePilotEvidence(manifest, &artifact); err == nil || !strings.Contains(err.Error(), "alternate proof required") {
+		t.Fatalf("want the alternate proof rejected as meaningless, got: %v", err)
 	}
 }
 

@@ -20,6 +20,14 @@ import "fmt"
 // route this gate explicitly budgets.
 const ExercisedCoverageFloor = 65
 
+// CoverageFloor returns the exercised-operation floor for a run: the pinned
+// route floor plus every extra operation the run selects (the seeded pilot
+// operations). Without the addition, extra operations that all pass would hide
+// up to that many routes dropping out of coverage.
+func CoverageFloor(operations map[string]Operation) int {
+	return ExercisedCoverageFloor + len(operations)
+}
+
 // ExercisedCoverage returns how many of results were exercised (see
 // RouteLatency.Exercised) versus the total route count.
 func ExercisedCoverage(results []RouteLatency) (exercised, total int) {

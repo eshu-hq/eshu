@@ -11,7 +11,7 @@ if [[ "$*" == *'-list '* ]]; then
   if [[ "$1" == '-list' ]]; then pattern="$2"; break; fi
   shift
  done
- for test in TestMethodologyProductionSourceTreesMatchBase TestMethodologyProductionTreeRejectsBaseOnlyMigration TestMethodologyCombinedCheckoutUsesIntegratedBase TestMethodologyRequiredProductionVariants TestHandlerQueryplanManifestBindsProductionBuilders TestLegacyQueryplanManifestBindsProductionQueries TestQueryplanProfileFlagsUnboundedVarLength TestPilotArtifactFiles; do
+ for test in TestMethodologyProductionSourceTreesMatchBase TestMethodologyProductionTreeRejectsBaseOnlyMigration TestMethodologyCombinedCheckoutUsesIntegratedBase TestMethodologyRequiredProductionVariants TestHandlerQueryplanManifestBindsProductionBuilders TestLegacyQueryplanManifestBindsProductionQueries TestQueryplanProfileFlagsUnboundedVarLength TestPilotArtifactFiles TestMethodologyEmptyGrantHTTPDoesNotReadGraph TestMethodologyRequestQueryCountBudget TestMethodologyGraphStatementOracle TestMethodologyCycleEdgeOracleKeepsDirectionalCandidates TestMethodologyGraphOracleEmptyPagesOnPopulatedFixture TestMethodologyGraphStatementCapturePreservesExtraColumn TestMethodologyProfileMetricsRequireRawCounters TestMethodologyPlanOmitsUnavailableOptionalMetrics TestMethodologyScratchGitIgnoresAmbientTrace TestMethodologyPostgresWorkUsesInclusiveRootCounters TestMethodologyPostgresWorkRequiresSixRootCounters TestMethodologyPostgresStatementRowsIncludeSelectedColumns; do
   [[ "$test" =~ $pattern ]] || continue
   [[ "${SHIM_OMIT_TREE_GUARD:-}" != "$test" ]] || continue
   printf '%s\n' "$test"
@@ -22,6 +22,7 @@ case "$*" in
  *'test ./internal/queryplan -count=1'*)
   if [[ "${SHIM_OMIT:-}" != coverage ]]; then printf '{"families":[]}\n' > "$ESHU_QUERY_METHODOLOGY_COVERAGE"; fi ;;
  *'-run ^TestQueryMethodologyPostgresLive$'*)
+  if [[ -n "${SHIM_HANG_MARK:-}" ]]; then printf '%s\n' "$PPID" > "$SHIM_HANG_MARK"; sleep 3; fi
   [[ -n "$ESHU_POSTGRES_TEST_DSN" && -n "$ESHU_QUERY_METHODOLOGY_POSTGRES_IMAGE" ]] || exit 11
   [[ "${SHIM_FAIL:-}" != postgres ]] || exit 12
   if [[ "${SHIM_OMIT:-}" != postgres ]]; then printf '{"engine":"postgresql"}\n' > "$ESHU_QUERY_METHODOLOGY_POSTGRES_ARTIFACT"; fi ;;

@@ -169,7 +169,7 @@ needs observed RED/GREEN and coverage before becoming blocking.
 
 `bash scripts/verify-query-methodology.sh --static` is the pre-commit registry
 gate. Its live mode is selected through `query-plan-regression`, which runs
-before push and in the `verify-contracts` PR and merge-group job. Both backend
+in `make pre-pr` and in the `verify-contracts` PR and merge-group job. Both backend
 artifacts must validate as a complete set. `scripts/test-verify-query-methodology.sh`
 plants absent output and failed producers and exercises the real selector with
 query-only, each backend's schema-only, and combined-tree paths.

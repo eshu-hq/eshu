@@ -222,7 +222,8 @@ func run(opts runOptions) (runErr error) {
 	printReport(os.Stdout, results, budgets, workBudgets)
 
 	exercised, total := ExercisedCoverage(results)
-	fmt.Fprintf(os.Stderr, "\nread-api-latency-gate: exercised %d/%d routes (floor %d)\n", exercised, total, ExercisedCoverageFloor)
+	coverageFloor := CoverageFloor(operations)
+	fmt.Fprintf(os.Stderr, "\nread-api-latency-gate: exercised %d/%d routes (floor %d)\n", exercised, total, coverageFloor)
 
 	var failures []string
 
@@ -251,7 +252,7 @@ func run(opts runOptions) (runErr error) {
 
 	failures = append(failures, reportWorkResults(os.Stderr, results, workBudgets)...)
 
-	if coverageErr := CheckCoverageFloor(results, ExercisedCoverageFloor); coverageErr != nil {
+	if coverageErr := CheckCoverageFloor(results, coverageFloor); coverageErr != nil {
 		fmt.Fprintf(os.Stderr, "read-api-latency-gate: %v\n", coverageErr)
 		failures = append(failures, coverageErr.Error())
 	}

@@ -88,6 +88,16 @@ provenance declarations and hashes; it cannot independently attest that the
 producer ran a separate oracle. Live tests must preserve that separate run and
 verify manifest source digests against the current tree.
 
+Three checks rest on registration review, not on proof the validator computes.
+`oracle_artifact_sha256` is checked for shape and a producer name that differs
+from the runner; it is not recomputed from the oracle rows, because the two
+producers hash different oracle records. The `entry_ids` on a PostgreSQL
+callsite name a registered entry, and the validator does not compare the
+callsite with the entry's source symbol; the entry's query hash and builder
+binding are the checked link. A case labelled `all_scopes` is checked for `$ALLOWED_` and `$GRANT_` tokens,
+which only Cypher cases use; a SQL case relies on the scope mode pinned in the
+contract. Only graph queries may carry an alternate proof in place of a plan.
+
 `testdata/handler-hot-cypher.yaml` and `testdata/hot-cypher.yaml` hold the
 handler-owned and legacy cross-service hot shapes. Their required entries must
 be linked back to production execution callsites, and neither manifest stores a

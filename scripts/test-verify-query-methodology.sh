@@ -24,6 +24,14 @@ for omitted in TestMethodologyProductionTreeRejectsBaseOnlyMigration TestMethodo
   exit 1
  fi
 done
+hermetic_tagged=(TestMethodologyEmptyGrantHTTPDoesNotReadGraph TestMethodologyRequestQueryCountBudget TestMethodologyGraphStatementOracle TestMethodologyCycleEdgeOracleKeepsDirectionalCandidates TestMethodologyGraphOracleEmptyPagesOnPopulatedFixture TestMethodologyGraphStatementCapturePreservesExtraColumn TestMethodologyProfileMetricsRequireRawCounters TestMethodologyPlanOmitsUnavailableOptionalMetrics TestMethodologyScratchGitIgnoresAmbientTrace TestMethodologyPostgresWorkUsesInclusiveRootCounters TestMethodologyPostgresWorkRequiresSixRootCounters TestMethodologyPostgresStatementRowsIncludeSelectedColumns)
+for tagged in "${hermetic_tagged[@]}"; do
+ rg -Fq -- "$tagged" "$work/static.log" || { printf 'static proof did not run tagged test %s\n' "$tagged" >&2; exit 1; }
+ if SHIM_OMIT_TREE_GUARD="$tagged" run_shim "missing-$tagged" --static; then
+  printf 'static proof accepted missing tagged test %s\n' "$tagged" >&2
+  exit 1
+ fi
+done
 GIT_DIR="$work/missing-git" GIT_WORK_TREE=. GIT_PREFIX=go/internal/query/ run_shim inherited-git-env --static
 cmp "$work/static-artifacts/coverage.json" "$work/inherited-git-env-artifacts/coverage.json" || { printf 'hook Git environment changed staged coverage\n' >&2; exit 1; }
 # Reproduce the first staged commit on a branch whose HEAD equals origin/main.
@@ -104,6 +112,18 @@ for event in zero skip fail; do
  fi
 done
 if SHIM_OMIT=postgres run_shim missing --live; then printf 'missing artifact passed\n' >&2; exit 1; fi
+# A SIGTERM that reaches only the script must not turn into exit 0 when the
+# child it was waiting on succeeds.
+hang_mark="$work/hang.mark"
+SHIM_HANG_MARK="$hang_mark" run_shim signal --live &
+signal_pid=$!
+for _ in {1..100}; do [[ -e "$hang_mark" ]] && break; sleep 0.1; done
+[[ -e "$hang_mark" ]] || { kill "$signal_pid" 2>/dev/null || true; printf 'signal case never reached the live producer\n' >&2; exit 1; }
+kill -TERM "$(<"$hang_mark")"
+signal_status=0
+wait "$signal_pid" || signal_status=$?
+[[ "$signal_status" -eq 143 ]] || { printf 'terminated live proof exited %s, want 143\n' "$signal_status" >&2; exit 1; }
+rg -Fq 'docker rm -f' "$work/signal.log" || { printf 'terminated live proof skipped container cleanup\n' >&2; exit 1; }
 run_shim stale --live
 if SHIM_OMIT=postgres run_shim stale --live; then printf 'old artifact concealed omitted producer\n' >&2; exit 1; fi
 if SHIM_FAIL=postgres run_shim failing --live; then printf 'failed producer passed\n' >&2; exit 1; fi

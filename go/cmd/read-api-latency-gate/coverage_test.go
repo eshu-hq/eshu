@@ -39,3 +39,21 @@ func TestCheckCoverageFloorFailsBelowFloor(t *testing.T) {
 		t.Errorf("expected an error: exercised count 1 is below the floor 2")
 	}
 }
+
+func TestCoverageFloorAddsSelectedOperations(t *testing.T) {
+	if got := CoverageFloor(nil); got != ExercisedCoverageFloor {
+		t.Errorf("CoverageFloor(nil) = %d, want %d", got, ExercisedCoverageFloor)
+	}
+	operations := map[string]Operation{"pilot-a": {}, "pilot-b": {}, "pilot-c": {}}
+	if got := CoverageFloor(operations); got != ExercisedCoverageFloor+3 {
+		t.Errorf("CoverageFloor(3 operations) = %d, want %d", got, ExercisedCoverageFloor+3)
+	}
+	// Three pilots all exercised and three routes dropped must fail the run floor.
+	results := make([]RouteLatency, 0, ExercisedCoverageFloor)
+	for i := 0; i < ExercisedCoverageFloor; i++ {
+		results = append(results, RouteLatency{Route: "r", Exercised: true})
+	}
+	if err := CheckCoverageFloor(results, CoverageFloor(operations)); err == nil {
+		t.Error("expected failure: only the pinned floor is exercised while three operations were selected")
+	}
+}
