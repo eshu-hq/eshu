@@ -95,7 +95,9 @@ increments `eshu_dp_collector_reconciliation_full_snapshots_total`, labeled by
 `retry_after_unprojected`, `graph_dirty`, `reindex_requested`,
 `repository_reindex_requested`, `reconcile_request_stale`), and logs `git_reconcile_forced` with
 `scope_id`, `reason`, `last_projected_full_at`, `latest_full_at`, and
-`latest_full_status` (plus `reindex_requested_at` for the two reindex reasons).
+`latest_full_status`. Any log of a scope that has a recorded reindex
+watermark also carries `reindex_requested_at`, whatever the reason: it is the
+watermark, not the reason, and watermarks are never cleared.
 The log is WARN for `in_flight_expired`, `retry_after_unprojected`, and
 `reconcile_request_stale` (which also logs `reconcile_requested_at`,
 `reconcile_projected_at`, and `reconcile_dead_lettered_at`): repeats of any
