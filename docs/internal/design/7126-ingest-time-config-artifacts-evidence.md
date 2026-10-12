@@ -40,23 +40,25 @@ and PR1b verdicts are local kit notes, not in the repository.
 ## 2. Source facts behind the design
 
 Paths are under `go/internal/query/repositoryartifacts/` unless a row says
-otherwise. Each source names a symbol, not a line.
+otherwise. PR3a moved the extractors, the hydration plan, the per-repository
+function and the `content_files` statements to `go/internal/content/artifacts/`
+(`CA/` below). Each source names a symbol, not a line.
 
 | Fact | Source |
 |---|---|
 | Related repositories come from one Neo4j UNION over eight relationship types, then a grant filter, before any file is read | `QueryRelatedRepositoryArtifactSources` and `FilterRepositoryArtifactSourcesForAccess` in `repository_config_artifacts_loader.go` |
-| Related repositories are visited one at a time. Each lists its files with `querycontract.RepositorySemanticEntityLimit` (5,000) and no sentinel | `loadRepositoryConfigArtifactsForSources` in the same file |
-| The hydration set is the first 50 candidates in list order that carry no content, read 8 at a time | `HydrateRepositoryCandidateFiles`, `RepositoryArtifactHydrationLimit` and `repositoryArtifactHydrationConcurrency` in `repository_artifact_hydration.go` |
-| Blank content is dropped before the build. Rows are deduplicated on `path|source_repo|relative_path|evidence_kind` and sorted on `path`, `source_repo`, `relative_path` with `sort.Slice` | `loadRepositoryConfigArtifactsForSources` |
-| Each row has four fields. `source_repo` is the name passed in | `appendConfigArtifactRow` in `repository_config_artifacts.go`, `extractKustomizeConfigPathRows`, `extractAnsibleConfigPathRows` |
-| The extractors drop remote references and do not read them | `localKustomizeRefs`, `normalizeComposeLocalConfigPath`, `isLocalishConfigArtifactPath`, `normalizeLocalConfigAssetPathValue` |
+| Related repositories are visited one at a time. Each lists its files with a 5,000-row limit (`ListLimit`, pinned to `querycontract.RepositorySemanticEntityLimit`) and no sentinel | `loadRepositoryConfigArtifactsForSources` in the same file, which calls `LoadConfigPaths` in `CA/repository.go` |
+| The hydration set is the first 50 candidates in list order that carry no content, read 8 at a time | `SelectHydrationIndexes` and `HydrationLimit` in `CA/hydration_select.go`, `ReadChunkSize` and `ReadChunksInFlight` in `CA/hydration_chunked.go`. The anchor's one-file full pass is `HydrateRepositoryCandidateFiles` in `repository_artifact_hydration.go` |
+| Blank content is dropped before the build. Rows are deduplicated on `path|source_repo|relative_path|evidence_kind` and sorted on those four fields in that order (PR3a added `evidence_kind`; before it the sort used the first three with `sort.Slice`) | `hydrateConfigFiles` in `CA/hydration.go`, `MergeConfigPaths` and `CompareConfigPaths` in `CA/build.go` |
+| Each row has four fields. `source_repo` is the name passed in | `appendConfigArtifactRow` in `CA/build.go`, `extractKustomizeConfigPathRows` in `CA/kustomize.go`, `extractAnsibleConfigPathRows` in `CA/ansible.go` |
+| The extractors drop remote references and do not read them | `localKustomizeRefs` in `CA/kustomize.go`, `normalizeComposeLocalConfigPath` in `CA/compose.go`, `isLocalishConfigArtifactPath` and `normalizeLocalConfigAssetPathValue` in `CA/hcl.go` |
 | The anchor repository passes its own file list. Compose and GitHub Actions files are read first, and a file with content is not counted against the 50 cap | `LoadDeploymentArtifactOverview` and `hydrateRepositoryArtifactFiles` in `repository_deployment_artifacts_loader.go`, `HydrateRepositoryCandidateFiles` |
 | Three routes call the loader | `getRepositoryStory` in `go/internal/query/repository/handler.go`, `getRepositoryContext` in `repository/context.go`, `loadServiceDeploymentEvidence` in `go/internal/query/service/deployment_evidence.go` |
 | `content_files` is keyed on `(repo_id, relative_path)` and is latest-wins | `contentStoreBaseSchemaSQL` in `go/internal/storage/postgres/schema_content_store.go`, migration `169_content_files_generation_id.sql` |
 | The content writer already derives a read model after its content statements | `deriveInfraInventory` in `go/internal/storage/postgres/content_writer_upserts.go` |
 | `ingester`, `projector` and `bootstrap-index` construct the content writer | `buildIngesterProjectorRuntime` in `go/cmd/ingester/wiring.go`, `buildProjectorRuntime` in `go/cmd/projector/runtime_wiring.go`, `buildBootstrapProjector` in `go/cmd/bootstrap-index/wiring.go` |
 | The infra read model backfill runs in the API process today | `StartInfraInventoryBackfill` in `go/internal/query/cloud_resource_owner_backfill.go` |
-| Rows from HCL and compose pass through `normalizeRepoScopedPath`. Kustomize and Ansible rows do not | `appendConfigArtifactRow` and its callers in `repository_config_artifacts_hcl.go` and `repository_config_artifacts_compose.go`, against `extractKustomizeConfigPathRows` and `extractAnsibleConfigPathRows` |
+| Rows from HCL and compose pass through `normalizeRepoScopedPath` (the clean step `CleanRelativePath`, then the strip step `StripRepositoryName`, both in `CA/paths.go`). Kustomize and Ansible rows do not. `nameScopedByEvidenceKind` in `CA/name_scope.go` holds the scope of every kind | `appendConfigArtifactRow` and its callers in `CA/hcl.go` and `CA/compose.go`, against `extractKustomizeConfigPathRows` and `extractAnsibleConfigPathRows` |
 | The anchor list is read with limit+1 and sets a truncated flag | `loadRepositorySemanticOverview` in `go/internal/query/repository/semantics.go` |
 | `content_files` batches run one after another inside one Write. Entity batches run concurrently and do not write `content_files` | `upsertContentFileBatches` and `upsertContentEntityBatches` in `go/internal/storage/postgres/content_writer_upserts.go` |
 | Generation retention deletes `content_files` rows, and only the reducer wires retention | `pruneContentFilesForGenerationsQuery` in `go/internal/storage/postgres/generation_retention_sql.go`, `go/cmd/reducer/generation_retention_wiring.go` |

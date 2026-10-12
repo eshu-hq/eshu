@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 )
 
 // The proofs in this file run against a disposable PostgreSQL
@@ -159,7 +161,7 @@ func TestGetFileContentsMatchesSingleReadsLive(t *testing.T) {
 		// The reader cannot send a NULL element: a Go string is never NULL. The
 		// statement itself must still be safe against one, so it is run raw.
 		for literal, wantRows := range map[string]int{`{"plain.yaml",NULL}`: 1, `{NULL}`: 0, `{}`: 0} {
-			rows, err := db.QueryContext(ctx, getFileContentsStatement, fileContentsLiveRepo, literal)
+			rows, err := db.QueryContext(ctx, contentartifacts.GetFilesStatement, fileContentsLiveRepo, literal)
 			if err != nil {
 				t.Fatalf("statement with %s: %v", literal, err)
 			}
@@ -233,7 +235,7 @@ func TestGetFileContentsPlanUsesAnIndexLive(t *testing.T) {
 			if _, err := conn.ExecContext(ctx, setup); err != nil {
 				t.Fatalf("%s: %v", setup, err)
 			}
-			if _, err := conn.ExecContext(ctx, `PREPARE gfc(text, text[]) AS `+getFileContentsStatement); err != nil {
+			if _, err := conn.ExecContext(ctx, `PREPARE gfc(text, text[]) AS `+contentartifacts.GetFilesStatement); err != nil {
 				t.Fatalf("prepare: %v", err)
 			}
 			// EXPLAIN is a utility statement and takes no bind values, so the

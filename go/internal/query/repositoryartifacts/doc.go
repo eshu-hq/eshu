@@ -7,7 +7,10 @@
 // artifacts (Dockerfile), controller artifacts, CloudFormation artifacts,
 // and workflow artifacts (GitHub Actions), plus the shared candidate-file
 // hydration and the config/deployment/workflow artifact loaders. It imports
-// only the standard library, querycontract, and content-parsing libraries,
-// never the query root. The config-artifact load fetches file content only for
-// the files an extractor reads (#7126); see README.md.
+// only the standard library, querycontract, go/internal/content/artifacts and
+// content-parsing libraries, never the query root. The config-artifact
+// extractors and the per-repository function that fetches file content only for
+// the files an extractor reads (#7126) live in go/internal/content/artifacts;
+// this package adapts querycontract.FileContent to it and merges the rows of
+// every repository. See README.md.
 package repositoryartifacts
