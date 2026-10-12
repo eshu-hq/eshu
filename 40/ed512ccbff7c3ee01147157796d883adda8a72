@@ -1,0 +1,18 @@
+go/internal/storage/postgres/migrations/171_content_files_content_lower.sql
+  h_78a442cba0b3e6 32-33
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  h_78a442cba0b3e6 71
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  h_78a442cba0b3e6 221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "40ed512ccbff7c3ee01147157796d883adda8a72",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
