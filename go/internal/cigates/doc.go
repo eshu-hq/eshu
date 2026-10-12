@@ -105,7 +105,7 @@
 // required_status_checks entries count as owners; a dependent whose if:
 // disables the implicit success() (always(), cancelled(), failure(),
 // !cancelled(), or success() combined with || or !) covers only the needs
-// whose result it reads, and not the needs behind them. A blocking CI-only
+// whose result it reads, and not the needs behind them. A blocking
 // owner row must also list only literal triggers that the workflow's
 // pull_request paths: matches (or that no paths-ignore: entry matches), so a
 // selected check is one the workflow starts (ownerrowtriggers.go). There is no

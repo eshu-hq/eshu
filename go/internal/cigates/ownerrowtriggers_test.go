@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
-// ownerRowTriggerErrors returns only the findings of the CI-only owner-row
+// ownerRowTriggerErrors returns only the findings of the owner-row
 // trigger check, so a fixture proves that one rule.
 func ownerRowTriggerErrors(t *testing.T, root string, reg *cigates.Registry) []string {
 	t.Helper()
@@ -38,7 +38,7 @@ const ownerRowPathsWorkflow = "name: Paths\non:\n  pull_request:\n    paths:\n" 
 	"jobs:\n  owned:\n    name: owned-job\n    runs-on: ubuntu-latest\n    steps: []\n"
 
 // TestOwnerRowTriggerMustStartTheWorkflow pins the rule the replay-coverage
-// static-mirror row broke: a CI-only owner row selects its check from its
+// static-mirror row broke: a blocking owner row selects its check from its
 // triggers, so a literal trigger that no pull_request paths: entry matches
 // selects a check that never arrives, and `ci-gates await` waits out its
 // timeout on a PR that touches only that file.
