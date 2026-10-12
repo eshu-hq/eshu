@@ -300,7 +300,10 @@ func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage
 	planMetrics, validPlan := pilotPlanMetrics(run.Plan, queryKind)
 	useAlternate := !validPlan || !structuredPilotJSON(run.Work) || !pilotHasNumber(run.Work)
 	if useAlternate {
-		if strings.TrimSpace(run.PlanUnavailable) == "" || !validPilotAlternateProof(run.AlternateProof, runner) {
+		if queryKind == queryKindSQLReadModel {
+			// PostgreSQL always returns a plan; no producer needs the alternate path.
+			violations = append(violations, key+": PostgreSQL case requires a full plan and work")
+		} else if strings.TrimSpace(run.PlanUnavailable) == "" || !validPilotAlternateProof(run.AlternateProof, runner) {
 			violations = append(violations, key+": full plan and work or alternate proof required")
 		}
 	}

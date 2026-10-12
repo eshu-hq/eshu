@@ -285,7 +285,8 @@ const activeWorkSummaryGrouped = "(SELECT grouped FROM fact_work_summary_mode)"
 // history when the estimated share of activeWorkDetailStatuses rows is below
 // it. T = 0.45 is the #7881 calibration for the measured upper band. The
 // #7009 S5 measurement originally set T = 0.4. Recalibrate before a further
-// change to the statement or workload shape.
+// change to the statement or workload shape. The measurements and their limits
+// are in docs/internal/evidence/7009-active-work-grouped-history.md.
 const activeWorkGroupedThreshold = "0.45"
 
 // activeWorkLiveFractionEstimate is the planner's estimate of the share of
