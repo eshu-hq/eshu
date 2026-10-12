@@ -109,7 +109,8 @@ around the `Materialize` call.
   `sourceFieldContainsCode`, then falls back to a file-body line range, then
   falls back to `item.Source` again for non-code labels. The distinction matters
   for IaC entity types that carry structured YAML rather than source code.
-- `limitEntitySourceCache` truncates `Variable` snippets at 4096 bytes and the
+- `limitEntitySourceCache` truncates `Variable` and `SqlColumn` snippets at
+  4096 bytes and the
   content-only GitHub Actions workflow `File` entity at 32 KiB, and
   writes `source_cache_truncated`, `source_cache_original_bytes`, and
   `source_cache_limit_bytes` into entity metadata so API clients can detect the
