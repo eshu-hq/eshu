@@ -65,8 +65,10 @@ it did retract that drift.
 
 ## Performance Evidence
 
-Performance Evidence: measured at `01a05e8322`, the last commit that changes Go
-code on this branch; later commits change only docs. It was measured on base
+Performance Evidence: measured at the commit titled "docs: name refinalize on the drift counter and the
+liveness probe key (R3-3, R3-4)", the last commit that changes Go code on this
+branch (comments only); later commits change only docs and one script. Commits
+are cited by subject because a rebase gives every commit a new SHA. It was measured on base
 `47ea898275`, before the rebase onto `d632a089f7` (tree-identical for this
 branch's files, patch-id equal). The measured path includes the a9-126 `work_live` probe on the candidate read. The
 backend is a private local PostgreSQL 18.6 cluster (Homebrew) on a shared host.
@@ -83,11 +85,13 @@ time, so treat it as an order-of-magnitude result.
 | 6,800 | 1.38-1.94 ms (3 runs) | 545-606 ms (3 runs) | no new row in the six counted tables (generation, fact, search document, search term, content, work); the active generation's projector work row is re-opened in place |
 
 The before path wrote 1 generation row, 6,800 fact rows, and 1 work row in each
-run. An earlier measurement at `2a1e6c1838` (also before the rebase), before the `work_live` probe and
+run. An earlier measurement at the commit titled "telemetry, collector/git: size the skip
+counters from the reason set and document hint scope", before the `work_live` probe and
 on a load of about 28, gave 1.03-1.15 ms against 308-366 ms.
 
 The independent review measured 1.36 ms against 13.0 ms at 200 facts on its
-own PostgreSQL 18.6 instance, and 1.74 ms against 12.2 ms at `f94e1cfc94` (before the rebase).
+own PostgreSQL 18.6 instance, and 1.74 ms against 12.2 ms at the commit titled "collector/git, storage: hold an
+expired pending full with live work (ruling a9-126)".
 
 The reducer then rebuilds documents and terms for the before path; that cost
 was not measured here. The collector still parses the repository for a reconcile, because the
