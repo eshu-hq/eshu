@@ -206,6 +206,19 @@ func entityBenchWALBytes(ctx context.Context, t *testing.T, db *sql.DB, before, 
 	return n
 }
 
+// prefixBenchEntityIDs namespaces the shared corpus entity IDs per
+// repository. content_entities keys entity_id globally, so two repos writing
+// the same corpus without this would steal each other's rows through
+// ON CONFLICT DO UPDATE and destroy the populated seed.
+func prefixBenchEntityIDs(source []content.EntityRecord, repo string) []content.EntityRecord {
+	out := make([]content.EntityRecord, len(source))
+	for i, e := range source {
+		e.EntityID = repo + "/" + e.EntityID
+		out[i] = e
+	}
+	return out
+}
+
 func entityBenchLoadavg() string {
 	raw, err := os.ReadFile("/proc/loadavg")
 	if err != nil {
@@ -272,7 +285,7 @@ func TestContentEntitiesWriteCostBenchLive(t *testing.T) {
 	mat := func(repo string) content.Materialization {
 		return content.Materialization{
 			RepoID: repo, ScopeID: "scope-" + repo, GenerationID: "gen-bench",
-			SourceSystem: "git", Records: records, Entities: entities,
+			SourceSystem: "git", Records: records, Entities: prefixBenchEntityIDs(entities, repo),
 		}
 	}
 	write := func(ctx context.Context, db *sql.DB, h *entityBenchStageHandler, repo string) time.Duration {
@@ -305,6 +318,7 @@ GROUP BY 1, 2`)
 						var typ, ev string
 						var n int64
 						if err := rows.Scan(&typ, &ev, &n); err != nil {
+							rows.Close()
 							break
 						}
 						smu.Lock()
@@ -408,11 +422,9 @@ GROUP BY 1, 2`)
 			}
 			var nSide int64
 			if !noTriggers {
-				if err := c.db.QueryRowContext(c.ctx, `SELECT count(*) FROM content_file_secret_lines`).Scan(&nSide); err != nil {
-					t.Fatalf("count side table: %v", err)
-				}
+				nSide = countRows(c.ctx, c.db, "content_file_secret_lines")
 				if nSide == 0 {
-					t.Fatalf("parity %s: triggers on but no side rows derived", name)
+					t.Fatalf("parity %s: triggers on but no side rows derived for the measured repo", name)
 				}
 			}
 			wal := float64(entityBenchWALBytes(c.ctx, t, c.db, before.wal, after.wal))

@@ -83,6 +83,29 @@ func hasSubstr(s, sub string) bool {
 	return false
 }
 
+// TestPrefixBenchEntityIDs pins the seed guard: per-repo namespacing keeps
+// the base and measured populations disjoint under the global entity_id key,
+// and the shared corpus is not mutated.
+func TestPrefixBenchEntityIDs(t *testing.T) {
+	_, entities := entityBenchCorpus(2, 3)
+	a := prefixBenchEntityIDs(entities, "repo-a")
+	b := prefixBenchEntityIDs(entities, "repo-b")
+	seen := map[string]bool{}
+	for i := range a {
+		if a[i].EntityID == b[i].EntityID {
+			t.Fatalf("repo collision at %d: %s", i, a[i].EntityID)
+		}
+		seen[a[i].EntityID] = true
+		seen[b[i].EntityID] = true
+		if entities[i].EntityID == a[i].EntityID {
+			t.Fatalf("shared corpus mutated at %d", i)
+		}
+	}
+	if len(seen) != 12 {
+		t.Fatalf("distinct ids = %d, want 12", len(seen))
+	}
+}
+
 // TestEntityBenchMedian pins median selection including the even-count upper
 // middle the bench reports.
 func TestEntityBenchMedian(t *testing.T) {

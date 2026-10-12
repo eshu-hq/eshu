@@ -61,6 +61,11 @@ behavior change.
   bloat at full-corpus size are all untested.
 - Base seed is small; the measured writes land on warm, mostly cached pages
   (entity heap reads ≈ 0).
+- The throwaway shim shared corpus entity IDs across its base and measured
+  repos, so the first measured write absorbed the base entities through the
+  global `entity_id` key; both databases were affected equally, and the
+  committed bench namespaces IDs per repo (`prefixBenchEntityIDs`, unit
+  pinned).
 - Entities carry no fingerprint metadata, so `upsert_fingerprints` cost is
   understated equally on both sides.
 
@@ -99,10 +104,11 @@ changing row counts).
 
 No-Regression Evidence: the bench changes no production statement, index,
 batch size, worker, lease, or concurrency knob; `go test
-./internal/storage/postgres -run 'TestEntityBench' -count=1` pins the corpus,
-median, override, and stage-capture contract, and the live bench was exercised
-end to end against disposable PostgreSQL 16.15 at 100 files / 10,000 entities
-(parity asserts green, medians logged, rolled-back batch plans captured).
+./internal/storage/postgres -run 'TestEntityBench|TestPrefixBench'
+-count=1` pins the corpus, seed-namespacing, median, override, and
+stage-capture contract, and the live bench was exercised end to end against
+disposable PostgreSQL 16.15 at 100 files / 10,000 entities (parity asserts
+green, medians logged, rolled-back batch plans captured).
 
 No-Observability-Change: no new metric, span, log key, route, worker, lease,
 or runtime knob; per-stage timings reuse the existing `logStage` shape the
