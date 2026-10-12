@@ -42,7 +42,7 @@ func checkMethodologyScratchGitDoesNotStartMaintenance(t *testing.T) {
 		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
 			t.Fatal(err)
 		}
-		if event.Event == "start" && len(event.Argv) >= 2 && event.Argv[0] == "git" && event.Argv[1] == "commit" {
+		if event.Event == "start" && len(event.Argv) >= 2 && filepath.Base(event.Argv[0]) == "git" && event.Argv[1] == "commit" {
 			sawCommit = true
 		}
 		if event.Event == "child_start" && len(event.Argv) >= 2 && filepath.Base(event.Argv[0]) == "git" && event.Argv[1] == "maintenance" {
