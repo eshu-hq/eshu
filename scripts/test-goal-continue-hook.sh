@@ -16,11 +16,26 @@ HOOK="${repo_root}/.claude/hooks/goal-continue.sh"
 
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
-mkdir -p "${work}/.claude"
+mkdir -p "${work}/.claude" "${work}/tmp"
+# The hook's nudge counters live in ${TMPDIR:-/tmp}; this suite points them at
+# its own tmp, so a run leaves nothing behind and a stale counter from an
+# earlier PID-reused run cannot change the result. The shared dir is kept only
+# for the seeded-stale-counter case and the end-of-suite leak check.
+real_tmpdir="${TMPDIR:-/tmp}"
+export TMPDIR="${work}/tmp"
 goal="${work}/goal"
 passed=0
 failed=0
 sid="goalhook-$$"
+sid_files() { # -> count of this run's sid files in the shared dir
+	local _f _n=0
+	for _f in "${real_tmpdir}"/claude-goal-nudge-"${sid}"-*; do
+		[[ -e "${_f}" ]] || continue
+		_n=$((_n + 1))
+	done
+	printf '%s' "${_n}"
+}
+sid_files_before="$(sid_files)"
 
 payload() { # prompt_id
 	printf '{"session_id":"%s","prompt_id":"%s","stop_hook_active":false,"cwd":"%s","hook_event_name":"Stop"}' \
@@ -91,6 +106,23 @@ else
 fi
 
 check "a new prompt_id gets a fresh budget" block "$(run "$(payload fresh)")"
+
+# A stale counter for the SAME sid and prompt_id -- what PID reuse leaves in
+# the shared dir -- must not change the budget. The hook reads this suite's
+# own tmp, so the plant below is never consulted. It uses its own prompt id so
+# it cannot disturb the budget of any other case.
+plant="${real_tmpdir}/claude-goal-nudge-${sid}-seedbudget"
+printf '3 0' >"${plant}"
+seed_blocks=0
+for _ in 1 2 3 4 5; do
+	printf '%s' "$(run "$(payload seedbudget)")" | rg '"block"' >/dev/null && seed_blocks=$((seed_blocks + 1))
+done
+rm -f "${plant}"
+if [[ "${seed_blocks}" -eq 3 ]]; then
+	ok "a stale counter for the same sid and prompt_id does not change the budget"
+else
+	no "a stale counter for the same sid and prompt_id does not change the budget (got ${seed_blocks})"
+fi
 
 check "CLAUDE_GOAL_OFF=1 allows the stop" allow \
 	"$(printf '%s' "$(payload p7)" | CLAUDE_GOAL_OFF=1 CLAUDE_GOAL_FILE="${goal}" bash "${HOOK}" 2>/dev/null)"
@@ -244,6 +276,15 @@ if [[ "${goal_hook_budget_cases_loaded:-0}" == "1" ]]; then
 	ok "the sourced budget-case file loaded"
 else
 	no "the sourced budget-case file did NOT load -- the budget suite did not run"
+fi
+
+# The suite must leave no state outside its own temp dir: no MORE of this
+# run's sid files in the shared dir than PID reuse left there beforehand.
+sid_files_after="$(sid_files)"
+if [[ "${sid_files_after}" -eq "${sid_files_before}" ]]; then
+	ok "the suite left no nudge counters in the shared TMPDIR"
+else
+	no "the suite left no nudge counters in the shared TMPDIR (before ${sid_files_before}, after ${sid_files_after})"
 fi
 
 
