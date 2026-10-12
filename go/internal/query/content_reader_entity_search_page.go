@@ -35,16 +35,6 @@ func (cr *ContentReader) searchEntityContentInRepos(
 	return cr.searchEntityContentScoped(ctx, "search_entity_content_in_repos", "repo_id = ANY(string_to_array($1, E'\\x1f')) AND source_cache ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset, false)
 }
 
-// searchEntityContentAnyRepoPage searches cached snippets across all repositories.
-func (cr *ContentReader) searchEntityContentAnyRepoPage(
-	ctx context.Context,
-	pattern string,
-	limit int,
-	offset int,
-) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_any_repo_page", "eshu_require_content_substring_indexes_ready() AND source_cache ILIKE '%' || $1 || '%'", []any{pattern}, limit, offset, false)
-}
-
 // searchEntityContentScoped executes a bounded entity-content query using a
 // fixed WHERE fragment selected by the caller.
 func (cr *ContentReader) searchEntityContentScoped(

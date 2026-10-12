@@ -52,17 +52,25 @@ const (
 	SearchPartialNoProgressHint = "this call scanned no rows inside the budget, so resuming from this cursor repeats the same request and will not progress: add repo_id (repo_ids in the MCP tool) to scope the search, or ask the operator to raise the server setting ESHU_CONTENT_SEARCH_BUDGET_MS"
 )
 
-// SearchCursor names the last key a budgeted search visited, in repo_id then
-// relative_path order. A search resumed from it starts strictly after it.
+// SearchCursor names the last key a budgeted search visited. A file search
+// orders by repo_id then relative_path and leaves the entity parts zero; an
+// entity search orders by repo_id, relative_path, start_line, then entity_id,
+// because several entities share one file. A search resumed from it starts
+// strictly after it.
 type SearchCursor struct {
 	RepoID       string `json:"repo_id"`
 	RelativePath string `json:"relative_path"`
+	// StartLine and EntityID extend the cursor to one entity. They are zero on
+	// a file-search cursor and stay zero on the wire there (omitempty), so the
+	// file-search shape is unchanged.
+	StartLine int    `json:"start_line,omitempty"`
+	EntityID  string `json:"entity_id,omitempty"`
 }
 
 // IsZero reports whether the cursor names no key, which starts a search at the
 // first row.
 func (c SearchCursor) IsZero() bool {
-	return c.RepoID == "" && c.RelativePath == ""
+	return c.RepoID == "" && c.RelativePath == "" && c.StartLine == 0 && c.EntityID == ""
 }
 
 // SearchPartial is the explicit incomplete-answer marker a budgeted search
@@ -117,4 +125,34 @@ type FileSearchPage struct {
 // own look-ahead row. A non-empty cursor starts the search after that key.
 type UnscopedFileSearcher interface {
 	SearchFilesUnscoped(ctx context.Context, pattern string, limit, offset int, cursorRepoID, cursorPath string) (FileSearchPage, error)
+}
+
+// EntitySearchHit is one entity row of a budgeted unscoped entity search.
+// Entity carries the key-ordered row with Metadata nil; MetadataRaw is the
+// undecayed metadata JSONB, which the query layer decodes through its one
+// metadata decode. The split keeps the decode (including its fingerprint-key
+// rule) in one place instead of copying it into the walk.
+type EntitySearchHit struct {
+	Entity      EntityContent
+	MetadataRaw []byte
+}
+
+// EntitySearchPage is one page of an unscoped entity-content search. Entities
+// holds the page rows in repo_id, relative_path, start_line, entity_id order,
+// with metadata decoded. More reports, for a complete answer, that a row
+// exists past the page. Partial is non-nil when the budget ended the search
+// first; the page is then a prefix of the exact answer.
+type EntitySearchPage struct {
+	Entities []EntityContent
+	More     bool
+	Partial  *SearchPartial
+}
+
+// UnscopedEntitySearcher is implemented by content stores that answer an
+// entity search with no repository filter inside a bounded work budget,
+// returning a partial page with a cursor instead of an unbounded scan. limit
+// is the page size; the store reads its own look-ahead row. A non-zero cursor
+// starts the search strictly after that entity key.
+type UnscopedEntitySearcher interface {
+	SearchEntitiesUnscoped(ctx context.Context, pattern string, limit, offset int, cursor SearchCursor) (EntitySearchPage, error)
 }

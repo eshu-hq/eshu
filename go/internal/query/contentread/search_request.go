@@ -19,7 +19,7 @@ type contentSearchRequest struct {
 	Pattern string   `json:"pattern"`
 	Limit   int      `json:"limit"`
 	Offset  int      `json:"offset"`
-	// Cursor resumes an unscoped file search strictly after the named key. It
+	// Cursor resumes an unscoped search strictly after the named key. It
 	// is the cursor a partial result returned (#7730) and is refused on every
 	// other search shape.
 	Cursor *querycontract.SearchCursor `json:"cursor,omitempty"`

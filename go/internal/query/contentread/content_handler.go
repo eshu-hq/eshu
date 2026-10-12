@@ -245,6 +245,10 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if searcher, ok := h.unscopedEntitySearcher(req); ok {
+		h.searchEntitiesUnscoped(w, r, req, searcher)
+		return
+	}
 	if req.Cursor != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, errCursorNeedsUnscopedSearch.Error())
 		return

@@ -5,12 +5,15 @@ package query
 
 import (
 	"bytes"
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 func TestContentHandlerSearchFilesOmitsRemovedMatchesAlias(t *testing.T) {
@@ -63,25 +66,37 @@ func TestContentHandlerSearchFilesOmitsRemovedMatchesAlias(t *testing.T) {
 	}
 }
 
+// anyRepoEntitySearchStore serves the bounded unscoped entity seam from a
+// canned page: an omitted repo scope reaches the walk, not a per-request
+// search loop.
+type anyRepoEntitySearchStore struct {
+	content.FakePortContentStore
+	page                querycontract.EntitySearchPage
+	gotPattern          string
+	gotLimit, gotOffset int
+	gotCursor           querycontract.SearchCursor
+}
+
+func (s *anyRepoEntitySearchStore) SearchEntitiesUnscoped(
+	_ context.Context, pattern string, limit, offset int, cursor querycontract.SearchCursor,
+) (querycontract.EntitySearchPage, error) {
+	s.gotPattern, s.gotLimit, s.gotOffset, s.gotCursor = pattern, limit, offset, cursor
+	return s.page, nil
+}
+
 func TestContentHandlerSearchEntitiesUsesAnyRepoWhenRepoScopeOmitted(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"entity-2", "repo-2", "src/app.ts", "Function", "renderApp",
-					int64(10), int64(20), "typescript", "function renderApp() {}", []byte(`{"kind":"handler"}`),
-				},
-			},
-		},
-	})
-
-	handler := &ContentHandler{Content: NewContentReader(db)}
+	store := &anyRepoEntitySearchStore{page: querycontract.EntitySearchPage{
+		Entities: []querycontract.EntityContent{{
+			EntityID: "entity-2", RepoID: "repo-2", RelativePath: "src/app.ts",
+			EntityType: "Function", EntityName: "renderApp",
+			StartLine: 10, EndLine: 20, Language: "typescript",
+			SourceCache: "function renderApp() {}",
+			Metadata:    map[string]any{"kind": "handler"},
+		}},
+	}}
+	handler := &ContentHandler{Content: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -97,23 +112,10 @@ func TestContentHandlerSearchEntitiesUsesAnyRepoWhenRepoScopeOmitted(t *testing.
 		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
 	}
 
-	if len(recorder.args) != 1 {
-		t.Fatalf("len(recorder.args) = %d, want 1", len(recorder.args))
-	}
-	if got, want := len(recorder.args[0]), 3; got != want {
-		t.Fatalf("len(query args) = %d, want %d", got, want)
-	}
-	if got, want := recorder.args[0][0], "renderApp"; got != want {
-		t.Fatalf("query arg pattern = %#v, want %#v", got, want)
-	}
-	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(11); got != want {
-		t.Fatalf("query arg limit = %d, want %d", got, want)
-	}
-	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(0); got != want {
-		t.Fatalf("query arg offset = %d, want %d", got, want)
-	}
-	if strings.Contains(recorder.queries[0], "repo_id =") {
-		t.Fatalf("query = %q, want any-repo search without repo filter", recorder.queries[0])
+	if store.gotPattern != "renderApp" || store.gotLimit != 10 || store.gotOffset != 0 ||
+		!store.gotCursor.IsZero() {
+		t.Fatalf("seam args = %+v, want the pattern, limit 10, offset 0 and the zero cursor",
+			[]any{store.gotPattern, store.gotLimit, store.gotOffset, store.gotCursor})
 	}
 
 	var resp map[string]any
@@ -122,6 +124,12 @@ func TestContentHandlerSearchEntitiesUsesAnyRepoWhenRepoScopeOmitted(t *testing.
 	}
 	if got, want := int(resp["count"].(float64)), 1; got != want {
 		t.Fatalf("response count = %d, want %d", got, want)
+	}
+	if truncated, _ := resp["truncated"].(bool); truncated {
+		t.Fatalf("response truncated = true, want the complete page; body = %s", w.Body.String())
+	}
+	if _, present := resp["partial"]; present {
+		t.Fatalf("response carries partial, want an exact answer; body = %s", w.Body.String())
 	}
 	results, ok := resp["results"].([]any)
 	if !ok || len(results) != 1 {

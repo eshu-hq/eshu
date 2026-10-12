@@ -85,8 +85,9 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
 Send `partial.cursor` back as the `cursor` request field and
 `offset = max(0, offset - partial.rows_matched)`. The next call reads strictly
 after the cursor, so pages have no gap and no duplicate. A cursor on a request
-that has a repository filter, or on the entity search, is refused with `400`.
-Adding `repo_id` turns a partial into an exact answer.
+that has a repository filter is refused with `400`. Adding `repo_id` turns a
+partial into an exact answer. The entity search takes its own cursor on the
+same rule; see [Unscoped entity search](unscoped-entity-search.md).
 
 `partial.progressed` says whether the call advanced the cursor. When it is
 `false` the call scanned no rows inside its budget (the first window after the

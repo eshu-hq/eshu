@@ -41,13 +41,19 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 	case "search_file_content":
 		body := contentSearchBody(args)
 		// The resume cursor of a partial unscoped search (#7730) goes to the
-		// file search only; the entity search refuses a cursor.
+		// file search; the entity search takes its own cursor below.
 		if cursor, ok := args["cursor"].(map[string]any); ok && len(cursor) > 0 {
 			body["cursor"] = cursor
 		}
 		return routecontract.Request{Method: "POST", Path: "/api/v0/content/files/search", Body: body}, true
 	case "search_entity_content":
-		return routecontract.Request{Method: "POST", Path: "/api/v0/content/entities/search", Body: contentSearchBody(args)}, true
+		body := contentSearchBody(args)
+		// The resume cursor of a partial unscoped entity search (#7730)
+		// resumes after the cursor entity; refused when repo_ids is set.
+		if cursor, ok := args["cursor"].(map[string]any); ok && len(cursor) > 0 {
+			body["cursor"] = cursor
+		}
+		return routecontract.Request{Method: "POST", Path: "/api/v0/content/entities/search", Body: body}, true
 	default:
 		return routecontract.Request{}, false
 	}
