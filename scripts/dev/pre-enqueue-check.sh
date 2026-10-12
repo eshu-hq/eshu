@@ -37,7 +37,9 @@ usage() {
 		'                  PR; an empty queue passes with "queue empty"' \
 		'  checks          gh pr checks: pending == 0 and fail == 0 by state bucket' \
 		'                  (skipping allowed); commit status required-gates-complete' \
-		'                  == success; mergeStateStatus == CLEAN' \
+		'                  == success; mergeStateStatus == CLEAN, except for a PR' \
+		'                  already in the merge queue (GitHub reports UNKNOWN): the' \
+		'                  row is labeled IN-GROUP and judged on the check rows' \
 		'  threads         unresolved review threads == 0' \
 		'  body            at least one issue reference (#N) or closing keyword' \
 		'                  (Closes/Fixes/Resolves #N), labeled for the caller to' \
@@ -180,6 +182,9 @@ else
 fi
 
 # --- arm 3: merge-queue ------------------------------------------------------
+# in_group records whether this PR is already a merge-queue entry; the checks
+# arm reads it (GitHub reports mergeStateStatus UNKNOWN for a queued PR).
+in_group=0
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions.
 queue_query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){mergeQueue(branch:"main"){entries(first:100){pageInfo{hasNextPage} nodes{position headCommit{oid} pullRequest{number}}}}}}'
 queue_json="$("${GH}" api graphql -f query="${queue_query}" -F owner="${owner}" -F name="${name}" 2>/dev/null)"
@@ -193,6 +198,7 @@ else
 	if jq -e --argjson pr "${pr}" '[.data.repository.mergeQueue.entries.nodes // [] | .[]
 		| select(.pullRequest.number == $pr)] | length > 0' >/dev/null <<<"${queue_json}"; then
 		note merge-queue "PR #${pr} is already queued"
+		in_group=1
 	fi
 	if [[ "$(jq 'length' <<<"${others}")" -eq 0 ]]; then
 		pass merge-queue "queue empty"
@@ -247,11 +253,21 @@ rgc="$(jq -r '[.statuses[]? | select(.context == "required-gates-complete") | .s
 [[ -n "${rgc}" ]] || rgc="unreadable"
 [[ "${rgc}" == success ]] || checks_bad+=("required-gates-complete=${rgc}")
 mss="$(jq -r '.mergeStateStatus // "?"' <<<"${pr_json}")"
-[[ "${mss}" == CLEAN ]] || checks_bad+=("mergeStateStatus=${mss}")
-if [[ ${#checks_bad[@]} -eq 0 ]]; then
+# A PR already in a merge group reads mergeStateStatus UNKNOWN (PR #8000,
+# ruling a9-135.2): the row is then labeled IN-GROUP and judged on the check
+# rows and required-gates-complete alone. Any other PR still needs CLEAN.
+group_label=""
+if [[ "${in_group}" -eq 1 ]]; then
+	group_label="IN-GROUP: "
+else
+	[[ "${mss}" == CLEAN ]] || checks_bad+=("mergeStateStatus=${mss}")
+fi
+if [[ ${#checks_bad[@]} -eq 0 && -n "${group_label}" ]]; then
+	pass checks "${group_label}complete; required-gates-complete=success; mergeStateStatus=${mss} (PR is in a merge group)"
+elif [[ ${#checks_bad[@]} -eq 0 ]]; then
 	pass checks "complete; required-gates-complete=success; mergeStateStatus=CLEAN"
 else
-	fail checks "$(printf '%s; ' "${checks_bad[@]}")"
+	fail checks "${group_label}$(printf '%s; ' "${checks_bad[@]}")"
 fi
 
 # --- arm 5: threads ----------------------------------------------------------
