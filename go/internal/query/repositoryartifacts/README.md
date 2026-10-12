@@ -107,7 +107,8 @@ The content-fetch rules, the HCL scan prefilter and their proofs are in
 Performance Evidence (#7951): the floor of 50 candidates per repository, the
 12,000-candidate request budget and the 500-path blank-check chunk were
 measured on a read-only shim of this algorithm (floor 50, E = 12,000, RepoID
-walk, reads of 10 in 8 chunks in flight) over the census seed: 317 related
+walk, reads of 10 paths per chunk, at most 8 chunks in flight) over the
+census seed: 317 related
 repositories, 15,695 candidates, 70 repositories over the old cap with 7,774
 candidates hidden by it. Baseline A is the stop-at-50 body, arm B is the
 floor plus budget; 9 ABBA rounds on a load-checked host, PostgreSQL 18.
@@ -120,25 +121,27 @@ most 0.42% of the 8 GiB API limit. The plan shim found no sequential scan at
 any size: the generic plan is an Index Scan on
 `content_files_repo_path_pattern_idx` from 10 to 4,950 paths, and the custom
 plan flips to a Bitmap Heap Scan through the same index at 1,171 paths on the
-census statistics (between 1,300 and 1,400 on the first seed), which is why the blank check is
-chunked at 500, where both plans are an Index Scan. This code differs from the
-shim in two ways: the blank check is chunked at 500 (the shim sent one per
-repository, so at most +18 statements on the census seed) and the anchor draws
-from the budget first. Not measured: a deployed image (CPU, wall time and
+census statistics (between 1,300 and 1,400 on the first seed), which is why
+the blank check is chunked at 500, where both plans are an Index Scan. This
+code differs from the shim in one way: the blank check is chunked at 500 (the
+shim sent one per repository, so at most +18 statements on the census seed).
+Both walk the anchor first. Not measured: a deployed image (CPU, wall time and
 heap of the built binary, and the plan the production statement cache
 produces), the heap of a kustomization that pulls many large YAML resources,
 and E on real traffic; 12,000 stays provisional until the deployed read.
 
-Observability Evidence (#7951): the deployment_artifacts stage line on the
-story and context routes, and the deployment_evidence stage line on the
-service routes, carry `candidate_count`, `candidates_hydrated`,
-`candidates_unhydrated`, `repositories_budget_capped`,
+Observability Evidence (#7951): the story's `deployment_artifacts` stage line,
+the repository context's `content_infrastructure_overview` stage line and the
+service routes' `deployment_evidence` stage line carry `candidate_count`,
+`candidates_hydrated`, `candidates_unhydrated`, `repositories_budget_capped`,
 `repositories_list_truncated`, `hydration_budget`, `hydration_floor`,
 `blank_check_statements` and, on the service routes, `anchor_list_truncated`.
 `eshu_dp_config_artifact_candidates_total{outcome}` counts hydrated and
 unhydrated candidates and, as list_truncated, the related repositories whose
 file list was cut. A response that is a lower bound names the bound in
-`limitations` or `partial_reasons` and sets `truncated`.
+`limitations` or `partial_reasons`, and sets `truncated` (story) or
+`result_limits.truncated` (service and workload routes); the repository context
+has no `truncated` field.
 The metric and log fields are in
 [Telemetry metrics](../../../../docs/public/reference/telemetry/metrics.md) and
 [Telemetry logs](../../../../docs/public/reference/telemetry/logs.md).
