@@ -6,10 +6,15 @@
 # carries no copy of them.
 set -euo pipefail
 
+command -v rg >/dev/null 2>&1 || {
+  printf 'test-run-live-postgres-readiness-tests: requires rg\n' >&2
+  exit 1
+}
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runner="${repo_root}/scripts/run-live-postgres-readiness-tests.sh"
 seed_dir="$(mktemp -d)"
-trap 'rm -rf "${seed_dir}"' EXIT
+trap 'rm -rf "${seed_dir}" ${probe_bin:-}' EXIT
 
 fail() { printf 'test-run-live-postgres-readiness-tests: %s\n' "$*" >&2; exit 1; }
 
@@ -68,7 +73,7 @@ for var in ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF ESHU_PACKAGE_MANIFEST_REPO_SCOPE_
   ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF \
   ESHU_PROJECTOR_SUPERSESSION_PROOF \
   ESHU_PREFETCH_BATCH_PLAN_PROOF ESHU_REDUCER_FAIRNESS_PROOF \
-  ESHU_RECOVERY_DELTA_ACTIVE_PROOF \
+  ESHU_REDUCER_ACK_RECLAIM_PROOF ESHU_RECOVERY_DELTA_ACTIVE_PROOF \
   ESHU_TEST_CONTENT_INDEX_POSTGRES \
   ESHU_CONTENT_FILES_LANGUAGE_PROOF \
   ESHU_CONTENT_SEARCH_PROOF \
@@ -227,7 +232,7 @@ out="$(run_runner)" && fail "tailed failure passed"
 while read -r var; do
   out="$(env -u "${var}" bash "${runner}" 2>&1)" && fail "unset ${var} passed"
   [[ "${out}" == *"${var}"* ]] || fail "unset ${var} not named: ${out}"
-done < <(grep -v -E '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs")
+done < <(rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs")
 out="$(env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "opt-in 0 passed"
 [[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE"* ]] || fail "opt-in 0 not named: ${out}"
 
@@ -246,7 +251,9 @@ done
 graph_count="$(printf '%s' "${graph_tests}" | wc -w | tr -d '[:space:]')"
 degraded_total="$((total - graph_count))"
 cp "${fake}/envs" "${fake}/envs.full"
-grep -v -E '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs.full" >"${fake}/envs"
+rg_status=0
+rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs.full" >"${fake}/envs" || rg_status=$?
+[[ "${rg_status}" -le 1 ]] || fail "search of ${fake}/envs.full failed with exit ${rg_status}"
 unset ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD ESHU_GRAPH_BACKEND
 write_events
 for name in ${graph_tests}; do
@@ -388,7 +395,12 @@ write_events
 : >"${fake}/calls"
 out="$(run_runner)" || fail "runner did not follow the verifier package list: ${out}"
 [[ "${out}" == *"${dropped_total}/${dropped_total} PASS"* ]] || fail "reduced summary missing: ${out}"
-grep -qxF -- "${last_pkg}" "${fake}/calls" && fail "runner invoked ${last_pkg}, dropped from PACKAGES"
+if rg -qxF -- "${last_pkg}" "${fake}/calls"; then
+  fail "runner invoked ${last_pkg}, dropped from PACKAGES"
+else
+  search_status=$?
+  [[ "${search_status}" -eq 1 ]] || fail "package invocation search failed with exit ${search_status}"
+fi
 [[ "$(wc -l <"${fake}/calls" | tr -d '[:space:]')" -eq "${dropped_packages}" ]] ||
   fail "runner package invocations differ from the verifier list: $(cat "${fake}/calls")"
 runner="${repo_root}/scripts/run-live-postgres-readiness-tests.sh"
@@ -410,5 +422,22 @@ sed "s/\"${last_proof}\"/\"not a test\"/" "${repo_root}/scripts/lib/live_postgre
 cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${seed_dir}/malformed/live_postgres_readiness_inventory.py" && fail "malformed seed changed nothing"
 out="$(python3 "${seed_dir}/malformed/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "malformed test name listed"
 [[ "${out}" == *"malformed test"* ]] || fail "malformed test not named: ${out}"
+
+# The env-excuse loop and the dropped-package assertion above both shell out
+# to the search tool, so a host without rg must fail at the guard naming it
+# instead of passing with those checks silently satisfied. Seed that absence:
+# re-invoke this script with every tool it needs except rg and require the
+# guard to fire before any package runs. The farm keeps the seeded run honest:
+# with the guard removed the nested run would execute the whole suite and
+# pass, proving the fail-open instead of dying on a missing dirname.
+probe_bin="$(mktemp -d)"
+for tool in bash dirname mktemp rm chmod cat sed awk cmp cp ln mkdir wc tr seq python3 env; do
+  target="$(command -v "${tool}")" || fail "probe needs ${tool} on PATH"
+  ln -s "${target}" "${probe_bin}/${tool}"
+done
+[[ ! -e "${probe_bin}/rg" ]] || fail "probe farm must not contain rg"
+probe_out="$(PATH="${probe_bin}" "${BASH}" "${BASH_SOURCE[0]}" 2>&1)" && fail "self-test passed without rg"
+[[ "${probe_out}" == *"requires rg"* ]] || fail "missing rg not named: ${probe_out}"
+rm -rf "${probe_bin}"
 
 printf 'test-run-live-postgres-readiness-tests: PASS\n'
