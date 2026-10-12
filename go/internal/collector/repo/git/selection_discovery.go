@@ -61,6 +61,10 @@ type GitSyncSelection struct {
 	// copied regular-file byte matches its immutable blob. Other selectors leave
 	// it empty. Snapshot code uses it instead of rereading a mutable checkout.
 	SourceCommitSHAByRepoPath map[string]string
+	// PreparseIdentityByRepoPath carries the pre-parse identity of each full,
+	// clean snapshot (#7978 follow-up); the generation stores it so a later
+	// reconcile with an equal identity can skip the parse.
+	PreparseIdentityByRepoPath map[string]string
 	// RefWorktreeByRepoPath maps the main repo path to a list of pinned-ref
 	// worktree metadata. Each entry carries a worktree path and the ref name.
 	// Populated only when ESHU_PINNED_REFS_JSON is configured. Enabler for

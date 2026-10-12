@@ -71,6 +71,11 @@ type SelectedRepository struct {
 	// blob. Other paths leave it empty. Snapshot code uses this
 	// value directly instead of re-reading a mutable source checkout.
 	SourceCommitSHA string `json:"source_commit_sha,omitempty"`
+	// PreparseIdentity is the pre-parse identity of this full, clean
+	// selection (#7978 follow-up, ruling a9-143). The generation stores it so a
+	// later reconcile with an equal identity can skip the parse. Empty for a
+	// delta, a dirty checkout, filesystem mode, or with the feature off.
+	PreparseIdentity string `json:"preparse_identity,omitempty"`
 	// Ref names a non-default git ref (branch or tag) being snapped for this
 	// repository. When set, the scope identity becomes repo_id@ref and emitted
 	// facts carry a ref payload field so multi-ref coverage is distinguishable.
@@ -132,6 +137,9 @@ type RepositorySnapshot struct {
 	// ReconcileReason is the bounded reconcile decision reason when Reconcile
 	// is true; empty otherwise.
 	ReconcileReason string `json:"reconcile_reason,omitempty"`
+	// PreparseIdentity carries SelectedRepository.PreparseIdentity to the
+	// generation.
+	PreparseIdentity string `json:"preparse_identity,omitempty"`
 	// DefaultBranchChanged marks a full snapshot taken because the remote
 	// default branch changed (#7678). Its generation carries the flag, so the
 	// ingestion store always stores it; it does not mark the generation a

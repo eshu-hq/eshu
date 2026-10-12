@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -18,11 +20,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/codeowners"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/docs"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/submodule"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/workflow/image"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -156,6 +160,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		Reconcile:                repository.Reconcile,
 		ReconcileReason:          repository.ReconcileReason,
 		DefaultBranchChanged:     repository.DefaultBranchChanged,
+		PreparseIdentity:         repository.PreparseIdentity,
 	}
 	commitSHA := repository.SourceCommitSHA
 	if commitSHA == "" {
@@ -442,4 +447,51 @@ func (s NativeRepositorySnapshotter) recordSnapshotStageAt(
 		logAttrs = append(logAttrs, attrs...)
 		s.Logger.InfoContext(ctx, "collector snapshot stage completed", logAttrs...)
 	}
+}
+
+// PreparseConfigFor builds the pre-parse configuration from the same values
+// the snapshotter parses with, plus the dependency-mode settings the fact
+// builder uses (#7978 follow-up, ruling a9-143). lookPath and stat resolve the
+// SCIP indexer binaries; both default to the os/exec and os versions when nil.
+// TestPreparseConfigForCoversTheSnapshotter pins that every snapshotter field
+// is either folded here or classified as not changing output.
+func PreparseConfigFor(
+	snapshotter NativeRepositorySnapshotter, sync RepoSyncConfig,
+	lookPath func(string) (string, error), stat func(string) (os.FileInfo, error),
+) preparse.Config {
+	if lookPath == nil {
+		lookPath = exec.LookPath
+	}
+	if stat == nil {
+		stat = os.Stat
+	}
+	config := preparse.Config{
+		EmitDataflow:       snapshotter.EmitDataflow,
+		SCIPEnabled:        snapshotter.SCIP.Enabled,
+		DependencyMode:     sync.DependencyMode,
+		DependencyName:     sync.DependencyName,
+		DependencyLanguage: sync.DependencyLanguage,
+	}
+	for _, rule := range snapshotter.DiscoveryOptions.IgnoredPathGlobs {
+		config.IgnoredPathGlobs = append(config.IgnoredPathGlobs, rule.Pattern+"="+rule.Reason)
+	}
+	config.PreservedPathGlobs = append(config.PreservedPathGlobs, snapshotter.DiscoveryOptions.PreservedPathGlobs...)
+	if !snapshotter.SCIP.Enabled {
+		return config
+	}
+	config.SCIPLanguages = append(config.SCIPLanguages, snapshotter.SCIP.Languages...)
+	for _, language := range snapshotter.SCIP.Languages {
+		binary, ok := scip.BinaryForLanguage(language)
+		if !ok {
+			continue
+		}
+		statResult := preparse.BinaryStat{Language: language, Missing: true}
+		if path, err := lookPath(binary); err == nil {
+			if info, err := stat(path); err == nil {
+				statResult = preparse.BinaryStat{Language: language, Path: path, Size: info.Size(), ModTime: info.ModTime()}
+			}
+		}
+		config.SCIPBinaries = append(config.SCIPBinaries, statResult)
+	}
+	return config
 }

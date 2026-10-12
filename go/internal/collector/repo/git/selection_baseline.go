@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -128,6 +129,12 @@ type gitDeltaBaseline struct {
 	// resolveRepositoryReindexWatermarks.
 	RepositoryReindexRequestedAt map[string]time.Time
 	Now                          func() time.Time
+	// Preparse is the configuration the pre-parse identity folds (ruling
+	// a9-143); nil turns the skipped-parse path and identity stamping off.
+	Preparse *preparse.Config
+	// ParseMaxSkips is the valve: 0 never skips; N parses at least every N
+	// intervals.
+	ParseMaxSkips int
 }
 
 // reindexWatermarkFor returns the reindex watermark that applies to scopeID

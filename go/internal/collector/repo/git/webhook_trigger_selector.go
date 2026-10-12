@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	"go.opentelemetry.io/otel/metric"
@@ -83,6 +84,9 @@ type WebhookTriggerRepositorySelector struct {
 	BaselineResolver DeltaBaselineResolver
 	// Instruments records the delta-baseline fallback rate. Optional.
 	Instruments *telemetry.Instruments
+	// Preparse is the pre-parse configuration source; see
+	// NativeRepositorySelector.Preparse.
+	Preparse func() preparse.Config
 	// ReindexWatermark reads the fleet reindex watermark once per cycle that
 	// claimed triggers (#7620). It reaches only the triggered repositories;
 	// nil disables reindex requests for this selector.
@@ -161,6 +165,8 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 				ReindexRequestedAt:           reindexRequestedAt,
 				RepositoryReindexRequestedAt: repositoryReindexRequestedAt,
 				Now:                          s.Now,
+				Preparse:                     preparseConfig(s.Preparse),
+				ParseMaxSkips:                config.ReconcileParseMaxSkips,
 			})
 		}
 	}
@@ -186,7 +192,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 
 	return SelectionBatch{
 		ObservedAt: observedAt,
-		Repositories: buildSelectedRepositories(
+		Repositories: applyPreparseIdentities(buildSelectedRepositories(
 			s.Config,
 			synced.SelectedRepoPaths,
 			synced.DeltaByRepoPath,
@@ -195,7 +201,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 			synced.RefsByRepoPath,
 			synced.RefWorktreesByRepoPath,
 			synced.ReconcileReasonByRepoPath,
-		),
+		), synced.PreparseIdentityByRepoPath),
 	}, nil
 }
 

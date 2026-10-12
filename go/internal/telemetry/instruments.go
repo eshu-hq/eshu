@@ -420,7 +420,11 @@ type Instruments struct {
 	// project (#7288). Labels: reason (bounded: reconcile_in_flight,
 	// reconcile_retry_backoff). Scope identity is never a label; it stays in
 	// the git_reconcile_forced log.
-	ReconciliationSuppressed       metric.Int64Counter
+	ReconciliationSuppressed metric.Int64Counter
+	// ReconcileParseSkipDecisions counts the pre-parse skip decisions of
+	// forced reconciles (#7978 follow-up, ruling a9-143), labeled by the closed
+	// preparse.Outcomes set. Registered in instruments_reconcile_parse_skip.go.
+	ReconcileParseSkipDecisions    metric.Int64Counter
 	ReconciliationDriftRetractions metric.Int64Counter
 	ReconciliationConvergence      metric.Int64Counter
 	DocumentationEntityMentions    metric.Int64Counter
@@ -5110,6 +5114,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 
+	if err := registerReconcileParseSkipDecisions(meter, inst); err != nil {
+		return nil, err
+	}
 	if err := registerProjectorDeltaBaselineFence(meter, inst); err != nil {
 		return nil, err
 	}

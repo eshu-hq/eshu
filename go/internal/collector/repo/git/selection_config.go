@@ -80,6 +80,10 @@ type RepoSyncConfig struct {
 	// a full reconciliation snapshot so a fleet does not stampede. Non-positive
 	// means no per-cycle cap.
 	ReconcileMaxPerCycle int
+	// ReconcileParseMaxSkips is the skipped-parse valve (#7978 follow-up,
+	// ruling a9-143 D3, ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS): 0 never skips the
+	// parse of a forced reconcile; N parses at least every N intervals.
+	ReconcileParseMaxSkips int
 	// PinnedRefsByRepoID maps repository IDs to per-repo pinned refs. Each
 	// pinned ref produces an isolated non-default-branch snapshot with identity
 	// repo_id@ref. Parsed from ESHU_PINNED_REFS_JSON. Empty means feature off.
@@ -174,6 +178,7 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		RepoShardIndex:         repoShardIndex,
 		ReconcileInterval:      reconcileIntervalFromEnv(getenv),
 		ReconcileMaxPerCycle:   reconcileMaxPerCycleFromEnv(getenv),
+		ReconcileParseMaxSkips: nonNegativeIntFromEnv(getenv, "ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS", defaultReconcileParseMaxSkips),
 		PinnedRefsByRepoID:     pinnedRefsByRepoID,
 		PinnedRefPerRepoCap:    pinnedRefCap,
 		PinnedRefFleetCap:      pinnedRefFleetCap,
@@ -443,3 +448,7 @@ func sortUniqueStrings(values []string) []string {
 	sort.Strings(result)
 	return result
 }
+
+// defaultReconcileParseMaxSkips parses an unchanged repository at least once a
+// week at the default daily interval (ruling a9-143 D3).
+const defaultReconcileParseMaxSkips = 7

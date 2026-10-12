@@ -177,6 +177,14 @@ func (i Indexer) Run(
 	return outputPath, nil
 }
 
+// BinaryForLanguage returns the scip-* indexer binary name the indexer runs
+// for language, and false for a language SCIP does not index. The git
+// collector stats that binary for the pre-parse identity (#7978 follow-up).
+func BinaryForLanguage(language string) (string, bool) {
+	binary, _, ok := binaryForLanguage(language)
+	return binary, ok
+}
+
 func binaryForLanguage(language string) (string, string, bool) {
 	normalized := strings.TrimSpace(strings.ToLower(language))
 	for _, config := range extensionConfigs {

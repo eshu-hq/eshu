@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
@@ -48,6 +49,7 @@ func syncGitRepositoriesWithLogger(
 	reconcileByRepoPath := make(map[string]bool)
 	reconcileReasonByRepoPath := make(map[string]string)
 	sourceSHAByRepoPath := make(map[string]string)
+	preparseByRepoPath := make(map[string]string)
 	refWorktreesByRepoPath := make(map[string][]RefWorktreeEntry)
 	fleetRefCount := 0
 	fleetCap := config.PinnedRefFleetCap
@@ -103,13 +105,20 @@ func syncGitRepositoriesWithLogger(
 				if fatalErr != nil {
 					return GitSyncSelection{}, fatalErr
 				}
-				if ok {
+				if ok && forceReconcile && baseline.skipParse(ctx, logger, config, token, repoPath, reconcile, sourceSHA, refs) {
+					reconciledThisCycle++ // ruling a9-143 D2: the re-projection spends a slot
+				} else if ok {
 					selected = append(selected, repoPath)
 					refsByRepoPath[repoPath] = refs
 					if !delta.IsEmpty() || delta.DefaultBranchChanged {
 						deltaByRepoPath[repoPath] = delta
 					}
 					sourceSHAByRepoPath[repoPath] = sourceSHA
+					if delta.IsEmpty() {
+						if identity := baseline.snapshotIdentity(ctx, config, token, repoPath, sourceSHA, refs); identity != "" {
+							preparseByRepoPath[repoPath] = identity
+						}
+					}
 					if forceReconcile {
 						reconcileByRepoPath[repoPath] = true
 						reconcileReasonByRepoPath[repoPath] = reconcile.Reason
@@ -153,13 +162,14 @@ func syncGitRepositoriesWithLogger(
 		}
 	}
 	return GitSyncSelection{
-		SelectedRepoPaths:         sortUniqueStrings(selected),
-		DeltaByRepoPath:           deltaByRepoPath,
-		RefsByRepoPath:            refsByRepoPath,
-		ReconcileByRepoPath:       reconcileByRepoPath,
-		ReconcileReasonByRepoPath: reconcileReasonByRepoPath,
-		SourceCommitSHAByRepoPath: sourceSHAByRepoPath,
-		RefWorktreesByRepoPath:    refWorktreesByRepoPath,
+		SelectedRepoPaths:          sortUniqueStrings(selected),
+		DeltaByRepoPath:            deltaByRepoPath,
+		RefsByRepoPath:             refsByRepoPath,
+		ReconcileByRepoPath:        reconcileByRepoPath,
+		ReconcileReasonByRepoPath:  reconcileReasonByRepoPath,
+		SourceCommitSHAByRepoPath:  sourceSHAByRepoPath,
+		PreparseIdentityByRepoPath: preparseByRepoPath,
+		RefWorktreesByRepoPath:     refWorktreesByRepoPath,
 	}, nil
 }
 
@@ -443,4 +453,39 @@ func gitRun(
 	args ...string,
 ) (string, error) {
 	return gitRunWithStderrWriter(ctx, repoPath, config, token, nil, args...)
+}
+
+// skipParse runs the pre-parse decision after the fetch (#7978 follow-up,
+// ruling a9-143). It reports true when the store re-projected the active
+// generation, so the caller selects nothing for repoPath. A resolver without
+// preparse.Reprojector, a refusal, or a store error reports false and the
+// repository is parsed as before.
+func (b gitDeltaBaseline) skipParse(
+	ctx context.Context, logger *slog.Logger, config RepoSyncConfig, token, repoPath string,
+	decision reconcileDecision, sourceSHA string, refs []GitRef,
+) bool {
+	reprojector, ok := b.Resolver.(preparse.Reprojector)
+	if b.Preparse == nil || !ok {
+		return false
+	}
+	return preparse.Run(ctx, preparse.Attempt{
+		ScopeID: decision.ScopeID, Reason: decision.Reason, State: decision.State, RemoteCommit: sourceSHA,
+		Identity:      preparse.Identity(GenerationContentVersion(), sourceSHA, repositoryDefaultBranch(refs), *b.Preparse),
+		HasSubmodules: regularFileExists(filepath.Join(repoPath, ".gitmodules")),
+		MaxSkips:      b.ParseMaxSkips, ConfigDigest: preparse.ConfigDigest(*b.Preparse),
+	}, func() (bool, error) { return gitTreeClean(ctx, config, token, repoPath) }, reprojector,
+		preparse.Recorder{Instruments: b.Instruments, Logger: logger})
+}
+
+// snapshotIdentity returns the pre-parse identity a full snapshot of repoPath
+// at sourceSHA will carry, or an empty string when the feature is off or the
+// checkout is not clean (the identity describes the commit's tree only).
+func (b gitDeltaBaseline) snapshotIdentity(ctx context.Context, config RepoSyncConfig, token, repoPath, sourceSHA string, refs []GitRef) string {
+	if b.Preparse == nil {
+		return ""
+	}
+	if clean, err := gitTreeClean(ctx, config, token, repoPath); err != nil || !clean {
+		return ""
+	}
+	return preparse.Identity(GenerationContentVersion(), sourceSHA, repositoryDefaultBranch(refs), *b.Preparse)
 }

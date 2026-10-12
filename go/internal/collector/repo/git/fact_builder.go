@@ -86,6 +86,9 @@ func buildStreamingGenerationWithContext(
 	)
 	generation.ReconcileReason = generationReconcileReason(snapshot)
 	generation.DefaultBranchChanged = snapshot.DefaultBranchChanged
+	if !snapshot.Delta {
+		generation.PreparseIdentity = snapshot.PreparseIdentity
+	}
 	if snapshot.Delta {
 		generation.DeltaBaselineCommitSHA = snapshot.DeltaBaselineCommitSHA
 	}
