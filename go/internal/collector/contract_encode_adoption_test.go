@@ -18,7 +18,7 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 		calls []string
 	}{
 		{
-			path: "grafana/envelope.go",
+			path: "observability/grafana/envelope.go",
 			calls: []string{
 				"EncodeObservabilitySourceInstance",
 				"EncodeObservabilityObservedDashboard",

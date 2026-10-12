@@ -56,6 +56,6 @@ shared collector instruments.
 
 ## Related Docs
 
-- `go/internal/collector/grafana/README.md`
+- `go/internal/collector/observability/grafana/README.md`
 - `docs/public/reference/environment-collectors.md`
 - `docs/public/deployment/service-runtimes-collectors.md`

@@ -23,7 +23,11 @@ or alert payloads, and it makes no graph or coverage truth decisions. Its
 source instances, observed log signals and rules, and coverage warnings.
 It does not fetch log stream entries, raw LogQL, label values, tenant
 IDs, credentials, or provider response bodies, and it makes no graph or
-coverage truth decisions.
+coverage truth decisions. Its `grafana` child owns only metadata-only
+collection of Grafana source metadata: source instances, observed
+dashboards and rules, and coverage warnings. It does not fetch dashboard
+JSON, datasource URLs, query models, contact destinations, credentials,
+or notification routes, and it makes no graph or coverage truth decisions.
 Reducers and query surfaces compare these facts with declared and applied
 evidence.
 
@@ -36,6 +40,9 @@ envelope constructors; see the `prometheus` child for the same HTTP-client
 shape plus the source-instance, observed-target, observed-rule, and
 coverage-warning envelope constructors; see the `loki` child for the
 same HTTP-client shape plus the source-instance, observed-log-signal,
+observed-rule, and coverage-warning envelope constructors; see the
+`grafana` child for the same HTTP-client shape plus the source-instance,
+observed-resource,
 observed-rule, and coverage-warning envelope constructors.
 
 ## Dependencies
@@ -45,7 +52,7 @@ clause. Dependencies belong to leaf packages. The `tempo` child retains its
 existing dependency on the collector root (`FactsFromSlice` and
 claim-source generation output) plus `facts`, `scope`, `telemetry`,
 `workflow`, `collector/sdk`, and the SDK factschema contracts; the
-`prometheus` and `loki` children carry the same coupling shape. A
+`prometheus`, `loki`, and `grafana` children carry the same coupling shape. A
 future extraction of this subtree must address that coupling first.
 
 ## Telemetry
@@ -59,7 +66,10 @@ and counters are documented in
 the existing collector Prometheus/Mimir telemetry row; the `loki`
 child's spans and counters are documented in
 `go/internal/collector/observability/loki/README.md` and covered by
-the existing collector Loki telemetry row. No row changes in this
+the existing collector Loki telemetry row; the `grafana` child's spans
+and counters are documented in
+`go/internal/collector/observability/grafana/README.md` and covered by
+the existing collector Grafana telemetry row. No row changes in this
 nest: span and metric names are untouched.
 
 ## Gotchas / invariants
@@ -73,6 +83,8 @@ nest: span and metric names are untouched.
   independently deployable service.
 - The `loki` leaf is an observability source boundary, not an
   independently deployable service.
+- The `grafana` leaf is an observability source boundary, not an
+  independently deployable service.
 - Observed Tempo tags are fallback, validation, drift, and freshness
   evidence after IaC-first declared/applied sources.
 
@@ -81,5 +93,6 @@ nest: span and metric names are untouched.
 - `go/internal/collector/observability/tempo/README.md`
 - `go/internal/collector/observability/prometheus/README.md`
 - `go/internal/collector/observability/loki/README.md`
+- `go/internal/collector/observability/grafana/README.md`
 - `go/internal/collector/README.md`
 - `docs/public/reference/observability-evidence.md`

@@ -15,7 +15,7 @@ database work.
 The root `internal/coordinator` package keeps scheduling order, the reconcile
 clock, active and claims gates, collector-egress filtering, tenant-grant
 authorization, durable admission, retries, queue and lease behavior, and
-telemetry. `internal/collector/grafana` owns provider calls and fact emission
+telemetry. `internal/collector/observability/grafana` owns provider calls and fact emission
 after a worker claims the planned item.
 
 ## Exported surface

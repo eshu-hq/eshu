@@ -186,7 +186,7 @@ export ESHU_GRAFANA_API_TOKEN="${ESHU_GRAFANA_API_TOKEN:?set Grafana token}"
 export ESHU_GRAFANA_RESOURCE_LIMIT="${ESHU_GRAFANA_RESOURCE_LIMIT:-5}"
 
 cd go
-go test ./internal/collector/grafana \
+go test ./internal/collector/observability/grafana \
   -run TestLiveGrafanaObservedMetadataEvidence -count=1 -v
 ```
 
@@ -252,7 +252,7 @@ To run all four against a prepared environment:
 
 ```bash
 cd go
-go test ./internal/collector/grafana \
+go test ./internal/collector/observability/grafana \
   ./internal/collector/observability/prometheus \
   ./internal/collector/observability/loki \
   ./internal/collector/observability/tempo \
