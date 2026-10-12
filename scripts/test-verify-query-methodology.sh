@@ -51,7 +51,9 @@ git -C "$scratch" switch --quiet -c first-commit
 printf '// staged first change\n' >> "$scratch/go/source.go"
 git -C "$scratch" add go/source.go
 scratch_run() {
- SHIM_LOG="$work/first-commit.log" ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR="$scratch/.proof-artifacts/query-methodology" PATH="$scratch/bin:$PATH" bash "$scratch/scripts/verify-query-methodology.sh" "$1" > "$work/first-commit.out" 2>&1
+ env -u GITHUB_EVENT_NAME -u GITHUB_EVENT_PATH -u GITHUB_SHA -u GITHUB_REF \
+  SHIM_LOG="$work/first-commit.log" ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR="$scratch/.proof-artifacts/query-methodology" PATH="$scratch/bin:$PATH" \
+  bash "$scratch/scripts/verify-query-methodology.sh" "$1" > "$work/first-commit.out" 2>&1
 }
 scratch_run --static || { cat "$work/first-commit.out" >&2; printf 'first staged commit failed static proof\n' >&2; exit 1; }
 [[ ! -e "$scratch/.proof-artifacts/query-methodology/identity.json" ]] || { printf 'first staged commit claimed paired identity\n' >&2; exit 1; }
@@ -63,7 +65,13 @@ if scratch_run --static; then printf 'untracked source passed staged proof\n' >&
 rm "$scratch/go/untracked.go"
 git -C "$scratch" commit --quiet -m 'scratch candidate'
 git -C "$scratch" update-ref refs/remotes/origin/main HEAD
-if scratch_run --live; then printf 'equal base and candidate passed live proof\n' >&2; exit 1; fi
+printf '{}\n' > "$work/ambient-event.json"
+if GITHUB_EVENT_NAME=pull_request GITHUB_EVENT_PATH="$work/ambient-event.json" \
+ GITHUB_SHA="$(git -C "$repo_root" rev-parse HEAD)" GITHUB_REF=refs/pull/7881/merge \
+ scratch_run --live; then
+ printf 'equal base and candidate passed live proof\n' >&2
+ exit 1
+fi
 rg -Fq 'base equals candidate' "$work/first-commit.out" || { cat "$work/first-commit.out" >&2; printf 'live equal-base rejection lacked cause\n' >&2; exit 1; }
 if rg -q '^docker ' "$work/first-commit.log"; then printf 'equal-base live proof reached Docker\n' >&2; exit 1; fi
 if rg -q '^docker ' "$work/static.log"; then printf 'static stage touched Docker\n' >&2; exit 1; fi

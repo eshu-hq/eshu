@@ -356,16 +356,16 @@ The extension helper requires absent, unique, numeric renderer rows and preserve
 every baseline byte. It cannot determine whether an input report came from a
 passing gate; establish that from the gate result and retained run artifacts.
 
-**Non-goal.** This is a latency and work-ceiling gate: a work budget only ever
-fails on more reads, and the seed is verified so a shrunken corpus cannot pass
-silently, but the gate does not assert that a route returns the right rows. A
-GREEN run is not a correctness claim; route result correctness belongs to the
-handler tests and the golden corpus.
+**Response correctness.** The legacy no-arg GET sweep checks latency, work,
+coverage, and HTTP status but does not assert the returned rows. Its response
+truth belongs to the handler tests and the golden corpus. The three #7881
+pilot operations above also validate their response payloads on warmup and
+counted requests, so a GREEN pilot run includes those response checks.
 
 Not covered: NornicDB exposes no work counter, so the graph side of the #6793
-infra aggregate is guarded by its latency ceiling only, and
-`shared_projection_intents` is not seeded, so `domainBacklogQuery` is invisible
-to this gate.
+infra aggregate is guarded by its latency ceiling only. The
+`shared_projection_intents` seed defaults to 2.5M rows and exercises the
+status routes' `domainBacklogQuery` under their Postgres work budgets.
 
 **Producing a RED run.** Build the pre-fix `eshu-api` from the commit you want
 to prove the gate catches (e.g. `cd go && CGO_ENABLED=1 go build -o
