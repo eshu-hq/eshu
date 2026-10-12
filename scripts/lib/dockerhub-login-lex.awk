@@ -246,7 +246,7 @@ function compose_cmd(o, from, m,   j, t) {
   while (j <= m) {
     t = unq(o[j])
     if (index(CFV, " " t " ") > 0) { j += 2; continue }
-    if (t ~ /^-/) { j++; continue }
+    if (t ~ /^-/ || t ~ /^\$\{[A-Za-z_][A-Za-z0-9_]*\[[@*]\]\}$/) { j++; continue }
     break
   }
   if (j <= m && (unq(o[j]) in CNOPULL)) return

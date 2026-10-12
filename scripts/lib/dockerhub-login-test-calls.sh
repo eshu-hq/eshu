@@ -197,17 +197,17 @@ expect_queue_jobs_red queue-path-raw-compose-calls-fail "${d}" \
 wrapper_tree queue-green-raw-nonpulling-calls
 d="${QUEUE_DIR}"
 for sub in 'exec -T db true' 'ps -q' 'logs --tail=20' 'down -v' 'config --quiet' 'stop' 'restart db'; do
-  wjob "${d}" "g-raw-${sub%% *}" 1 "docker compose -f docker-compose.fixture-ledger.yaml ${sub}"
+  wjob "${d}" "g-raw-${sub%% *}" 1 "docker compose -f docker-compose.fixture-other.yaml ${sub}"
 done
 # The golden gate's own form: flags held in an array, then a literal subcommand.
-wjob "${d}" g-raw-array-exec 1 'compose_args=(-p x -f docker-compose.fixture-ledger.yaml)' \
+wjob "${d}" g-raw-array-exec 1 'compose_args=(-p x -f docker-compose.fixture-other.yaml)' \
   'docker compose "${compose_args[@]}" exec -T db true'
-wjob "${d}" g-raw-array-down-beside-wrapper-up 1 'compose_args=(-p x -f docker-compose.fixture-ledger.yaml)' \
-  'bash scripts/ci/compose.sh "${compose_args[@]}" -- up -d' 'docker compose "${compose_args[@]}" down -v >/dev/null 2>&1 || true'
-wjob "${d}" g-raw-array-exec-in-a-poll 1 'compose_args=(-p x -f docker-compose.fixture-ledger.yaml)' \
+wjob "${d}" g-raw-array-down-beside-wrapper-up 1 'compose_args=(-p x -f docker-compose.fixture-other.yaml)' \
+  'bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d' 'docker compose "${compose_args[@]}" down -v >/dev/null 2>&1 || true'
+wjob "${d}" g-raw-array-exec-in-a-poll 1 'compose_args=(-p x -f docker-compose.fixture-other.yaml)' \
   'for _ in 1 2 3; do docker compose "${compose_args[@]}" exec -T db pg_isready && break; sleep 1; done'
 wjob "${d}" g-raw-nonpulling-beside-a-wrapper-up 1 "${wrapper_cmd}" \
-  'docker compose -f docker-compose.fixture-ledger.yaml exec -T db true'
+  'docker compose -f docker-compose.fixture-other.yaml exec -T db true'
 expect_green queue-path-direct-nonpulling-calls-pull-nothing "${d}"
 
 # A tree without the wrapper makes every wrapper call a raw call.

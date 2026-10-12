@@ -168,6 +168,10 @@ The gate reads text. It does not run a script, and main's gate had the same gaps
   that wraps one of these or one of the listed tools. The list is the set a real
   call would reach for; it is not a proof that no other tool clears the
   environment.
+- A direct `docker compose "${flags[@]}" exec ...` is read as non-pulling because
+  the word after the array-held flags is `exec`. An array that itself holds a
+  pulling subcommand (`flags=(-f x up)`) followed by a non-pulling word is not
+  seen.
 - A statement before the call that removes the mode (`unset GITHUB_ACTIONS
   ESHU_CI_IMAGES`, `export GITHUB_ACTIONS=false`) is not seen. The wrapper guard
   closes a write of `ESHU_CI_IMAGES` while `GITHUB_ACTIONS` stays `true`; a script
