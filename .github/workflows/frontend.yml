@@ -133,11 +133,6 @@ jobs:
     name: Console (apps/console)
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    env:
-      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
-      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
-
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -145,15 +140,6 @@ jobs:
       - name: Checkout repository
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         uses: actions/checkout@v5
-
-      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
-      # on hosted runners. Skipped, not failed, when the secrets are absent.
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Node.js
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
@@ -193,11 +179,6 @@ jobs:
     name: SSO auth E2E (browser, fresh stack)
     timeout-minutes: 30
     runs-on: ubuntu-latest
-    env:
-      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
-      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
-
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -205,15 +186,6 @@ jobs:
       - name: Checkout repository
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         uses: actions/checkout@v5
-
-      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
-      # on hosted runners. Skipped, not failed, when the secrets are absent.
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
@@ -258,11 +230,6 @@ jobs:
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     timeout-minutes: 30
     runs-on: ubuntu-latest
-    env:
-      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
-      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
-
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -270,15 +237,6 @@ jobs:
       - name: Checkout repository
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         uses: actions/checkout@v5
-
-      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
-      # on hosted runners. Skipped, not failed, when the secrets are absent.
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
