@@ -62,6 +62,7 @@ wjob "${d}" w-under-xargs 1 'echo x | xargs bash scripts/ci/compose.sh -f docker
 wjob "${d}" w-as-the-argument-of-a-runner-function 1 'run_bounded() { "$@"; }' 'run_bounded bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-in-a-literal-bash-c-string 1 "bash -o pipefail -c 'bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- config'"
 wjob "${d}" w-in-a-command-array 1 'WC=(bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml --)' '"${WC[@]}" up -d'
+wjob "${d}" w-variable-timeout-duration 1 'timeout "${wait_seconds}" bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-env-keeps-the-mode 1 'env GITHUB_ACTIONS=true ESHU_CI_IMAGES=1 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-prefix-keeps-the-mode 1 'ESHU_CI_IMAGES=1 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-pulling-nothing-beside 1 "${wrapper_cmd}" 'docker compose -f docker-compose.fixture-ledger.yaml down -v'
@@ -143,6 +144,22 @@ wjob "${d}" q-docker-compose-binary-with-the-wrapper-as-its-command 1 \
 # sudo resets the environment by default (env_reset): GITHUB_ACTIONS and CI image mode
 # are gone, so the wrapper runs raw unless sudo is told to keep them.
 wjob "${d}" q-sudo-resets-the-environment-before-the-wrapper 1 'sudo -u root bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+# env - and exec -c clear the environment like env -i; doas and bwrap start another
+# one. A variable at command position may hold docker compose: its words are not read.
+wjob "${d}" q-env-bare-dash-before-the-wrapper 1 'env - bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-exec-clears-the-environment-before-the-wrapper 1 'exec -c bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-doas-before-the-wrapper 1 'doas bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-bwrap-clearenv-before-the-wrapper 1 'bwrap --clearenv --bind / / bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-variable-docker-with-the-wrapper-as-its-command 1 \
+  'DOCKER=docker' 'docker compose -f docker-compose.fixture-ghcr.yaml config' \
+  '$DOCKER compose -f docker-compose.fixture-ledger.yaml run --rm db bash scripts/ci/compose.sh'
+wjob "${d}" q-braced-variable-docker-with-the-wrapper-as-its-command 1 \
+  'DOCKER_BIN=docker' 'docker compose -f docker-compose.fixture-ghcr.yaml config' \
+  '"${DOCKER_BIN}" compose -f docker-compose.fixture-ledger.yaml run --rm db bash scripts/ci/compose.sh'
+# A raw call whose subcommand pulls or builds is judged by its files.
+wjob "${d}" q-raw-pull 1 "${raw} pull"
+wjob "${d}" q-raw-create 1 "${raw} create"
+wjob "${d}" q-raw-build 1 "${raw} build"
 wjob "${d}" q-wrapper-without-ci-mode 0 "${wrapper_cmd}"
 expect_queue_jobs_red queue-path-raw-compose-calls-fail "${d}" \
   q-raw-run-text q-raw-in-a-script q-raw-root-build q-raw-compose-run q-raw-docker-compose-binary q-raw-timeout \
@@ -155,7 +172,21 @@ expect_queue_jobs_red queue-path-raw-compose-calls-fail "${d}" \
   q-env-ignore-environment-before-the-wrapper q-env-unset-the-mode-before-the-wrapper \
   q-env-long-unset-before-the-wrapper q-prefix-turns-the-mode-off-before-the-wrapper \
   q-prefix-turns-ci-images-off-before-the-wrapper q-compose-run-with-the-wrapper-as-its-command \
-  q-docker-compose-binary-with-the-wrapper-as-its-command q-sudo-resets-the-environment-before-the-wrapper
+  q-docker-compose-binary-with-the-wrapper-as-its-command q-sudo-resets-the-environment-before-the-wrapper \
+  q-env-bare-dash-before-the-wrapper q-exec-clears-the-environment-before-the-wrapper q-doas-before-the-wrapper \
+  q-bwrap-clearenv-before-the-wrapper q-variable-docker-with-the-wrapper-as-its-command \
+  q-braced-variable-docker-with-the-wrapper-as-its-command q-raw-pull q-raw-create q-raw-build
+
+# A direct call with a non-pulling subcommand reaches no image, whatever file it names:
+# the golden gate keeps its polls and teardown direct (main's gate read them the same).
+wrapper_tree queue-green-raw-nonpulling-calls
+d="${QUEUE_DIR}"
+for sub in 'exec -T db true' 'ps -q' 'logs --tail=20' 'down -v' 'config --quiet' 'stop' 'restart db'; do
+  wjob "${d}" "g-raw-${sub%% *}" 1 "docker compose -f docker-compose.fixture-ledger.yaml ${sub}"
+done
+wjob "${d}" g-raw-nonpulling-beside-a-wrapper-up 1 "${wrapper_cmd}" \
+  'docker compose -f docker-compose.fixture-ledger.yaml exec -T db true'
+expect_green queue-path-direct-nonpulling-calls-pull-nothing "${d}"
 
 # A tree without the wrapper makes every wrapper call a raw call.
 ledger_tree queue-red-wrapper-missing
