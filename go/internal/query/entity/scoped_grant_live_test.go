@@ -65,13 +65,17 @@ const scopedGrantLivePrefix = "scoped-grant-6786:"
 // them, or because there was nothing to filter in the first place. Seeding
 // the ungranted DEFINES edge forces the read to prove it actually excludes
 // an ungranted candidate rather than finding an empty set trivially.
+//
+// The Function nodes carry uid equal to id, as the canonical writer writes
+// them. Since #7212 PR-B the schema-closed Neo4j entity-context anchor does not
+// reach an id-only Function, which no writer produces.
 var scopedGrantLiveSeed = []string{
 	`CREATE (:Repository {id: 'scoped-grant-6786:repo-a', name: 'repo-a'})`,
 	`CREATE (:Repository {id: 'scoped-grant-6786:repo-b', name: 'repo-b'})`,
 	`CREATE (:File {id: 'scoped-grant-6786:file-a', relative_path: 'a.go', language: 'go'})`,
 	`CREATE (:File {id: 'scoped-grant-6786:file-b', relative_path: 'b.go', language: 'go'})`,
-	`CREATE (:Function {id: 'scoped-grant-6786:fn-in', name: 'FnIn', language: 'go'})`,
-	`CREATE (:Function {id: 'scoped-grant-6786:fn-out', name: 'FnOut', language: 'go'})`,
+	`CREATE (:Function {id: 'scoped-grant-6786:fn-in', uid: 'scoped-grant-6786:fn-in', name: 'FnIn', language: 'go'})`,
+	`CREATE (:Function {id: 'scoped-grant-6786:fn-out', uid: 'scoped-grant-6786:fn-out', name: 'FnOut', language: 'go'})`,
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-in', name: 'wl-in', repo_id: 'scoped-grant-6786:repo-a'})`,
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-out', name: 'wl-out', repo_id: 'scoped-grant-6786:repo-b'})`,
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-collision', name: 'wl-collision', repo_id: 'scoped-grant-6786:repo-b'})`,
