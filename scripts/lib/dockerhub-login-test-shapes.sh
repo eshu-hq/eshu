@@ -48,13 +48,14 @@ expect_jobs_red g7-runtime-variable-shapes-need-the-hub-login "${d}" g7-default-
   g7-which-substitution g7-assigned-behind-then-else g7-assigned-behind-do g7-sticky-docker-value \
   g7-command-word-default g7-command-word-which g7-command-word-command-v g7-array-default
 
-# A runtime variable set in a sourced lib, the OCI-runtime idiom in a script, and a
-# variable command next to a docker word are unresolvable: fail closed (V meets D).
+# A runtime variable set in a sourced lib, and the OCI-runtime idiom in a script,
+# hold docker: fail closed. A variable that no script and no env assigns takes its
+# value from outside the repository and passes (see the header of the verifier).
 d="$(new_case g7-script-shapes)"
 printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/fixture-runtime.sh"\n"$RUNTIME" pull alpine:3.21\n' >"${d}/scripts/fixture-sourced-runtime.sh"
 printf '#!/usr/bin/env bash\nRUNTIME=docker\n' >"${d}/scripts/lib/fixture-runtime.sh"
 printf '#!/usr/bin/env bash\nruntime="${ESHU_OCI_RUNTIME:-docker}"\n"$runtime" pull alpine:3.21\n' >"${d}/scripts/fixture-oci-idiom.sh"
-printf '#!/usr/bin/env bash\ndocker ps -q\n"$TOOL" pull alpine:3.21\n' >"${d}/scripts/fixture-unresolved-var.sh"
+printf '#!/usr/bin/env bash\nTOOL="$(pick_runtime)"\ndocker ps -q\n"$TOOL" pull alpine:3.21\n' >"${d}/scripts/fixture-unresolved-var.sh"
 add_job "${d}" verify-agent-hygiene g7-sourced-runtime 'bash scripts/fixture-sourced-runtime.sh'
 add_job "${d}" verify-agent-hygiene g7-oci-runtime-idiom 'bash scripts/fixture-oci-idiom.sh'
 add_job "${d}" verify-agent-hygiene g7-unresolved-variable-command 'bash scripts/fixture-unresolved-var.sh'

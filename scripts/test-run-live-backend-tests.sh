@@ -81,25 +81,45 @@ extract_err="$(PATH="${seed_dir}/fakebin:${PATH}" ESHU_LIVE_RUNNER_SELFTEST=plan
 # (the EXIT trap only knows stacks recorded after a successful start, so
 # the up-failure branch must compose_down before dying; stubbed docker:
 # `up` leaves a marker then fails, `down` clears it — no daemon involved)
-cat >"${seed_dir}/fakebin/docker" <<'EOF'
+# Every Compose call goes through scripts/ci/compose.sh, which reads
+# GITHUB_ACTIONS, ESHU_CI_IMAGES and the five ledger pins. CI sets all of them
+# for the whole job and a laptop sets none, so the seed sets or clears each one
+# itself and runs under both polarities: CI image mode on (the stub renders one
+# covered image, as the wrapper needs) and off (the variables removed).
+cat >"${seed_dir}/fakebin/docker" <<'STUB'
 #!/usr/bin/env bash
+if [[ "$*" == *"config --format json"* ]]; then printf '%s\n' "${FAKE_DOCKER_RENDER}"; exit 0; fi
 for a in "$@"; do
 	if [[ "${a}" == "up" ]]; then touch "${ESHU_LIVE_RUNNER_STUB_MARKER}"; exit 1; fi
 	if [[ "${a}" == "down" ]]; then rm -f "${ESHU_LIVE_RUNNER_STUB_MARKER}"; exit 0; fi
 done
 exit 0
-EOF
+STUB
 chmod +x "${seed_dir}/fakebin/docker"
 # The extraction-crash seed above left a failing python3 stub behind;
 # this seed needs real extraction, so drop it (docker stays stubbed).
 rm -f "${seed_dir}/fakebin/python3"
 export ESHU_LIVE_RUNNER_STUB_MARKER="${seed_dir}/partial-stack"
-up_err="$(env -u ESHU_CI_IMAGES PATH="${seed_dir}/fakebin:${PATH}" bash "${script}" --backend nornicdb 2>&1)" &&
-	fail "failed up did not die"
-[[ "${up_err}" == *"could not start nornicdb stack"* ]] ||
-	fail "failed up misreported: ${up_err}"
-[[ ! -f "${ESHU_LIVE_RUNNER_STUB_MARKER}" ]] ||
-	fail "failed up littered its half-started stack"
+ci_pins=()
+while IFS= read -r pin; do ci_pins+=("${pin}"); done < <(
+	python3 "${repo_root}/scripts/lib/ci_image_pins.py" "${repo_root}/specs/ci-images.v1.json")
+[[ "${#ci_pins[@]}" -eq 5 ]] || fail "expected five CI image pins in the ledger, found ${#ci_pins[@]}"
+for polarity in off on; do
+	rm -f "${ESHU_LIVE_RUNNER_STUB_MARKER}"
+	if [[ "${polarity}" == on ]]; then
+		mode=(GITHUB_ACTIONS=true ESHU_CI_IMAGES=1 "${ci_pins[@]}")
+	else
+		mode=(-u GITHUB_ACTIONS -u ESHU_CI_IMAGES)
+	fi
+	up_err="$(env "${mode[@]}" PATH="${seed_dir}/fakebin:${PATH}" \
+		FAKE_DOCKER_RENDER='{"services":{"db":{"image":"postgres:18-alpine"}}}' \
+		bash "${script}" --backend nornicdb 2>&1)" &&
+		fail "failed up did not die (CI image mode ${polarity})"
+	[[ "${up_err}" == *"could not start nornicdb stack"* ]] ||
+		fail "failed up misreported (CI image mode ${polarity}): ${up_err}"
+	[[ ! -f "${ESHU_LIVE_RUNNER_STUB_MARKER}" ]] ||
+		fail "failed up littered its half-started stack (CI image mode ${polarity})"
+done
 
 # ── Neo4j runs on the Docker host's native platform (#7353) ──────────────
 # (the pinned image is a multi-arch index; forcing linux/amd64 on an arm64
