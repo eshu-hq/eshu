@@ -24,6 +24,7 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const reprojectProofScopeID = "git-repository-scope:proof/7978"
@@ -55,6 +56,11 @@ func openReprojectProof(t *testing.T) *reprojectProof {
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
+	// Pin pg_trgm in public before the first bootstrap: the bootstrap's own
+	// CREATE EXTENSION would land in this proof's schema, and a second proof
+	// opened in the same test (cell (e)) would then skip the install and fail
+	// with "operator class gin_trgm_ops does not exist".
+	postgresproof.InstallTrigramExtension(ctx, t, admin)
 	schemaName := fmt.Sprintf("proof_7978_%d", time.Now().UnixNano())
 	if _, err := admin.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create proof schema: %v", err)
