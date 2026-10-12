@@ -28,8 +28,14 @@ document, or term row.
 
 The re-open mirrors the #7209 zombie heal: the same canonical `work_item_id`,
 `ON CONFLICT DO UPDATE`, and the in-flight guard. Ruling a9-117 changes two
-things. It resets `attempt_count` to 0 when the row had succeeded (a monotonic
-`payload.reconcile_reopen_count` stays for operators). It stamps
+things. It resets `attempt_count` to 0 when the row belongs to a run that
+ended: succeeded, failed, or dead_letter (PR #7997 review; a dead_letter row
+there comes from a #7209 heal or liveness re-drive). An expired lease keeps its
+count. Each re-open still gets at most the projector's max attempts, and a
+re-opened run that dead-letters leads to `reconcile_request_stale` and a
+stored generation, not a second re-open
+(`TestReconcileReopenOfDeadLetterIsBoundedLive`). A monotonic
+`payload.reconcile_reopen_count` stays for operators. It stamps
 `reconcile_reason` and `reconcile_requested_at` in the generation payload only
 when the row was really re-opened. The statement runs after the scope row lock,
 which is the first lock every blocking path takes, and it is fenced on the

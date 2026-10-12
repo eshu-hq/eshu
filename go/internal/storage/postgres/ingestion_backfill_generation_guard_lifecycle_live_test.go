@@ -174,6 +174,66 @@ WHERE stage = 'projector' AND generation_id = 'gen-a'`); err != nil {
 	}
 }
 
+// TestReconcileReopenOfDeadLetterIsBoundedLive (PR #7997 review): a
+// dead_letter row on the active generation that no reconcile request covers
+// (a #7209 heal or liveness re-drive dead-lettered it) is re-opened by the next
+// sweep reconcile with attempt_count 0, so a retryable failure retries. When
+// that run dead-letters again, the dead letter is at or after the re-open's
+// request, so the sweep decides reconcile_request_stale and the store mints a
+// generation; the same row is not re-opened again. At most MaxAttempts tries
+// per such re-open.
+func TestReconcileReopenOfDeadLetterIsBoundedLive(t *testing.T) {
+	p := openReprojectProof(t)
+	ctx := context.Background()
+	p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+	p.project()
+	if _, err := p.db.ExecContext(ctx, `UPDATE fact_work_items SET status = 'dead_letter', attempt_count = 3
+WHERE stage = 'projector' AND generation_id = 'gen-a'`); err != nil {
+		t.Fatalf("dead-letter gen-a work: %v", err)
+	}
+	p.commit(p.generation("gen-r", "hint-a", "sha-a", "interval_elapsed"))
+	queue := NewProjectorQueue(SQLDB{DB: p.db}, "proof-worker", time.Minute)
+	queue.MaxAttempts = 3
+	for attempt := 1; ; attempt++ {
+		if _, err := p.db.ExecContext(ctx, `UPDATE fact_work_items SET visible_at = now(), next_attempt_at = NULL
+WHERE stage = 'projector' AND generation_id = 'gen-a' AND status = 'retrying'`); err != nil {
+			t.Fatalf("make gen-a visible: %v", err)
+		}
+		work, ok, err := queue.Claim(ctx)
+		if err != nil || !ok || work.AttemptCount != attempt {
+			t.Fatalf("claim %d = attempt %d ok=%v err=%v, want attempt %d", attempt, work.AttemptCount, ok, err, attempt)
+		}
+		if err := queue.Fail(ctx, work, proofRetryableError{}); err != nil {
+			t.Fatalf("fail retryable: %v", err)
+		}
+		status, _, _, _ := p.workRowAttempts("gen-a")
+		if attempt < queue.MaxAttempts {
+			if status != "retrying" {
+				t.Fatalf("after attempt %d gen-a work = %s, want retrying", attempt, status)
+			}
+			continue
+		}
+		if status != "dead_letter" {
+			t.Fatalf("after attempt %d gen-a work = %s, want dead_letter (the cap still applies)", attempt, status)
+		}
+		break
+	}
+	state, err := p.store.FullReconcileState(ctx, p.scope.ScopeID)
+	if err != nil || state.ReconcileRequestedAt.IsZero() || state.ReconcileDeadLetteredAt.Before(state.ReconcileRequestedAt) {
+		t.Fatalf("request=%v dead letter=%v (%v), want a dead letter at or after the request (decide: reconcile_request_stale)",
+			state.ReconcileRequestedAt, state.ReconcileDeadLetteredAt, err)
+	}
+	before := p.rowCounts()
+	p.commit(p.generation("gen-stale", "hint-a", "sha-a", scope.ReconcileReasonRequestStale))
+	after := p.rowCounts()
+	if after["scope_generations"] != before["scope_generations"]+1 || after["fact_records"] != before["fact_records"]+p.facts {
+		t.Fatalf("stale reconcile rows %v -> %v, want one stored generation and %d facts", before, after, p.facts)
+	}
+	if _, reopens, _, _ := p.workRowAttempts("gen-a"); reopens != 1 {
+		t.Fatalf("gen-a reopens = %d, want 1 (the dead_letter row is not re-opened again)", reopens)
+	}
+}
+
 // TestStaleReconcileSkipsPendingSameIdentityLive (lead ask reconciling a9-117
 // Q3 with a9-120): the stale reason stores a generation only against an
 // active match. When the generation it would store already exists as a
@@ -258,9 +318,10 @@ func TestStaleFullActivationReadsFreshLive(t *testing.T) {
 }
 
 // TestReconcileReopenWorkRowShapesLive covers the re-open cells review F9
-// listed: a missing work row is inserted pending; an expired lease and a
-// dead_letter row are re-opened with their attempt count carried (only a
-// succeeded row resets to 0).
+// listed: a missing work row is inserted pending; an expired lease keeps its
+// attempt count, because that run never ended; a dead_letter or legacy failed
+// row belongs to a run that ended and resets to 0 like a succeeded row
+// (PR #7997 review: a carried count dead-lettered the first retryable error).
 func TestReconcileReopenWorkRowShapesLive(t *testing.T) {
 	cases := []struct {
 		name         string
@@ -271,7 +332,9 @@ func TestReconcileReopenWorkRowShapesLive(t *testing.T) {
 		{"expired lease", `UPDATE fact_work_items SET status = 'running', lease_owner = 'gone', attempt_count = 2,
 		    claim_until = now() - interval '1 minute' WHERE stage = 'projector' AND generation_id = 'gen-a'`, 2},
 		{"dead letter", `UPDATE fact_work_items SET status = 'dead_letter', attempt_count = 3
-		    WHERE stage = 'projector' AND generation_id = 'gen-a'`, 3},
+		    WHERE stage = 'projector' AND generation_id = 'gen-a'`, 0},
+		{"legacy failed", `UPDATE fact_work_items SET status = 'failed', attempt_count = 3
+		    WHERE stage = 'projector' AND generation_id = 'gen-a'`, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

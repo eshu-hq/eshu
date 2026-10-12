@@ -115,7 +115,7 @@ func TestCommitReconcileUnchangedActiveReprojectsWithoutWrites(t *testing.T) {
 	reopen := reopens[0]
 	for _, want := range []string{
 		"'projector'", "reconcile_requested_at", "reconcile_reason", "status = 'active'",
-		"FROM reopened", "WHEN fact_work_items.status = 'succeeded' THEN 0", "reconcile_reopen_count",
+		"FROM reopened", "WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0", "reconcile_reopen_count",
 	} {
 		if !strings.Contains(reopen.query, want) {
 			t.Fatalf("re-open statement missing %q:\n%s", want, reopen.query)

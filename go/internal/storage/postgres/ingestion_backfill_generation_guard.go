@@ -155,10 +155,17 @@ SELECT scope_id FROM ingestion_scopes WHERE scope_id = $1 FOR NO KEY UPDATE
 // (healProjectorActiveGenerationQuery): same canonical work_item_id, same
 // reopened columns, and the same write-time in-flight guard, so repeated
 // reconciliations converge on one open row. Ruling a9-117 adds two rules:
-//   - attempt_count resets to 0 when the row had succeeded: those attempts
-//     belong to a run that was acknowledged, and a carried count would
-//     dead-letter the first retryable error of a daily re-projection.
-//     payload.reconcile_reopen_count stays monotonic for operators.
+//   - attempt_count resets to 0 when the row belongs to a run that ended
+//     (succeeded, failed, dead_letter): a carried count would dead-letter
+//     the first retryable error of the re-projection. A dead_letter row on
+//     the active generation comes from a #7209 heal or liveness re-drive that
+//     no request covers (PR #7997 review). The reset is bounded: each re-open
+//     still gets at most the projector's max attempts, and the re-open stamps
+//     reconcile_requested_at, so if that run dead-letters the sweep decides
+//     reconcile_request_stale and mints instead of re-opening the row again.
+//     An expired lease keeps its count: that run never ended, so the cap
+//     keeps counting a crash loop. payload.reconcile_reopen_count stays
+//     monotonic for operators.
 //   - reconcile_requested_at is stamped only when the row is really re-opened
 //     (stamped follows reopened), never on a pending or in-flight outcome, so
 //     a re-projection that never runs cannot keep the scope fresh.
@@ -202,7 +209,7 @@ reopened AS (
     ON CONFLICT (work_item_id) DO UPDATE
     SET status = 'pending',
         attempt_count = CASE
-            WHEN fact_work_items.status = 'succeeded' THEN 0
+            WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0
             ELSE fact_work_items.attempt_count
         END,
         lease_owner = NULL,
