@@ -14,6 +14,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 func TestStatusHandlerCollectorsRouteExposesCoordinatorInstances(t *testing.T) {
@@ -25,7 +26,7 @@ func TestStatusHandlerCollectorsRouteExposesCoordinatorInstances(t *testing.T) {
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					CollectorInstances: []collector.InstanceSummary{{
 						InstanceID:     "collector-git-default",
 						CollectorKind:  "git",
 						Mode:           "continuous",
@@ -80,7 +81,7 @@ func TestStatusHandlerCollectorsRouteExposesDirectRuntimeEvidence(t *testing.T) 
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					CollectorInstances: []collector.InstanceSummary{{
 						InstanceID:     "collector-aws-claims",
 						CollectorKind:  "aws",
 						Mode:           "continuous",
@@ -180,7 +181,7 @@ func TestStatusHandlerCollectorsRouteExplainsAWSHealthEvidence(t *testing.T) {
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					CollectorInstances: []collector.InstanceSummary{{
 						InstanceID:     "collector-aws-claims",
 						CollectorKind:  "aws",
 						Mode:           "continuous",
@@ -216,7 +217,7 @@ func TestStatusHandlerCollectorsRouteExplainsAWSHealthEvidence(t *testing.T) {
 						UpdatedAt:           now.Add(-1 * time.Minute),
 					},
 				},
-				CollectorFactEvidence: []statuspkg.CollectorFactEvidence{{
+				CollectorFactEvidence: []collector.FactEvidence{{
 					InstanceID:       "collector-aws-claims",
 					CollectorKind:    "aws",
 					EvidenceSource:   "source_facts",
@@ -296,7 +297,7 @@ func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) 
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					CollectorInstances: []collector.InstanceSummary{{
 						InstanceID:     "collector-documentation",
 						CollectorKind:  "documentation",
 						Mode:           "continuous",
@@ -306,7 +307,7 @@ func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) 
 						UpdatedAt:      now.Add(-14 * time.Minute),
 					}},
 				},
-				CollectorFactEvidence: []statuspkg.CollectorFactEvidence{{
+				CollectorFactEvidence: []collector.FactEvidence{{
 					InstanceID:       "collector-documentation",
 					CollectorKind:    "documentation",
 					EvidenceSource:   "source_facts",
@@ -381,7 +382,7 @@ func TestStatusHandlerCollectorsRouteExposesGitRepositoryEvidence(t *testing.T) 
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					CollectorInstances: []collector.InstanceSummary{{
 						InstanceID:     "collector-git-default",
 						CollectorKind:  "git",
 						Mode:           "continuous",
@@ -392,7 +393,7 @@ func TestStatusHandlerCollectorsRouteExposesGitRepositoryEvidence(t *testing.T) 
 						UpdatedAt:      now.Add(-29 * time.Minute),
 					}},
 				},
-				CollectorFactEvidence: []statuspkg.CollectorFactEvidence{{
+				CollectorFactEvidence: []collector.FactEvidence{{
 					InstanceID:       "collector-git-default",
 					CollectorKind:    "git",
 					EvidenceSource:   "source_facts",

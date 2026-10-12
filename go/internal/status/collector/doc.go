@@ -47,11 +47,11 @@
 // RuntimeStatuses and PromotionProofs are collector-fleet business logic
 // that read coordinator, AWS-scan, vulnerability-source, and fact-evidence
 // data every one of which the root aggregates into Report. Because this
-// package cannot import the root Report type, the root keeps thin,
-// Report-shaped forwarders in status/compat_collector.go: it unpacks the
-// Report fields this package's functions need and calls the collector-native
-// entry point. External callers (internal/query's collector-readiness and
-// evidence-bundle surfaces) keep calling the root-level name unchanged.
+// package cannot import the root Report type, the root projects the Report
+// fields this package's functions need through Report.CollectorEvidence,
+// and callers pass that Evidence to the collector-native entry points:
+// collector.RuntimeStatuses(report.CollectorEvidence()) and
+// collector.PromotionProofs(report.CollectorEvidence(), opts).
 //
 // The *JSON projections in this package (BackpressureJSONRows,
 // RuntimeStatusesJSON, PromotionProofsJSON, VulnerabilitySourcesJSON) are the

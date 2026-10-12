@@ -13,6 +13,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
@@ -32,7 +33,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsCollectorStatusRoute(t *testing.T) 
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					CollectorInstances: []collector.InstanceSummary{{
 						InstanceID:     privateInstanceID,
 						CollectorKind:  "aws",
 						Mode:           "continuous",
@@ -52,7 +53,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsCollectorStatusRoute(t *testing.T) 
 					LastObservedAt:      now,
 					UpdatedAt:           now,
 				}},
-				CollectorFactEvidence: []statuspkg.CollectorFactEvidence{{
+				CollectorFactEvidence: []collector.FactEvidence{{
 					InstanceID:       privateInstanceID,
 					CollectorKind:    "aws",
 					EvidenceSource:   "collector_fact",

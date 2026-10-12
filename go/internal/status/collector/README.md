@@ -67,15 +67,14 @@ views from data the root's status reader already gathered.
 ## Gotchas / invariants
 
 - `RuntimeStatuses`, `PromotionProofs`, and the catalog's
-  `presentCollectorCatalog` helper currently take the root `Report` type
-  directly (they read `Report.Coordinator`, `.AWSCloudScans`,
-  `.VulnerabilitySources`, and `.CollectorFactEvidence`). Since this package
-  cannot import root `Report`, the mover must give these functions a
-  collector-native signature (the raw ingredient slices, not `Report`) and
-  leave a `Report`-shaped forwarder in `status/compat_collector.go` for the
-  root and for `internal/query`'s collector-readiness and evidence-bundle
-  callers, which currently call `status.CollectorRuntimeStatuses(report)` and
-  `status.CollectorPromotionProofs(report, opts)` directly.
+  `PresentCatalog` helper take the collector-native `Evidence` value
+  (coordinator instances, AWS scans, vulnerability sources, and collector
+  fact evidence) instead of the root `Report` type, because this package
+  cannot import root `Report`. Callers project with
+  `report.CollectorEvidence()` and call
+  `collector.RuntimeStatuses(report.CollectorEvidence())` and
+  `collector.PromotionProofs(report.CollectorEvidence(), opts)` directly;
+  the transitional `status/compat_collector.go` forwarders are deleted.
 - Nearly every render/clone/JSON-projection function in this family
   (`renderCollectorBackpressureLines`, `renderCollectorRuntimeStatusLines`,
   `renderCollectorPromotionProofLines`, `renderVulnerabilitySourceLines`,

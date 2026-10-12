@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 func TestRenderStatusIncludesCollectorRuntimeCategories(t *testing.T) {
@@ -21,7 +22,7 @@ func TestRenderStatusIncludesCollectorRuntimeCategories(t *testing.T) {
 		status.RawSnapshot{
 			AsOf: now,
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorInstances: []status.CollectorInstanceSummary{{
+				CollectorInstances: []collector.InstanceSummary{{
 					InstanceID:     "aws-coordinator",
 					CollectorKind:  "aws",
 					Mode:           "continuous",
@@ -79,7 +80,7 @@ func TestCollectorRuntimeStatusesClassifiesCoordinatorModes(t *testing.T) {
 		status.RawSnapshot{
 			AsOf: now,
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorInstances: []status.CollectorInstanceSummary{
+				CollectorInstances: []collector.InstanceSummary{
 					{
 						InstanceID:     "package-registry-direct",
 						CollectorKind:  "package_registry",
@@ -104,17 +105,17 @@ func TestCollectorRuntimeStatusesClassifiesCoordinatorModes(t *testing.T) {
 		status.DefaultOptions(),
 	)
 
-	byID := map[string]status.CollectorRuntimeStatus{}
-	for _, row := range status.CollectorRuntimeStatuses(report) {
+	byID := map[string]collector.RuntimeStatus{}
+	for _, row := range collector.RuntimeStatuses(report.CollectorEvidence()) {
 		byID[row.InstanceID] = row
 	}
-	if got, want := byID["package-registry-direct"].StatusCategory, status.CollectorRuntimeDirectMode; got != want {
+	if got, want := byID["package-registry-direct"].StatusCategory, collector.RuntimeDirectMode; got != want {
 		t.Fatalf("direct status category = %q, want %q", got, want)
 	}
 	if got, want := byID["package-registry-direct"].RuntimeMode, "direct"; got != want {
 		t.Fatalf("direct runtime mode = %q, want %q", got, want)
 	}
-	if got, want := byID["jira-disabled"].StatusCategory, status.CollectorRuntimeDisabled; got != want {
+	if got, want := byID["jira-disabled"].StatusCategory, collector.RuntimeDisabled; got != want {
 		t.Fatalf("disabled status category = %q, want %q", got, want)
 	}
 	if got, want := byID["jira-disabled"].RuntimeMode, "registration_only"; got != want {
@@ -130,7 +131,7 @@ func TestCollectorRuntimeStatusesMergesDirectEvidenceHealthForRegisteredCollecto
 		status.RawSnapshot{
 			AsOf: now,
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorInstances: []status.CollectorInstanceSummary{{
+				CollectorInstances: []collector.InstanceSummary{{
 					InstanceID:     "aws-shared",
 					CollectorKind:  "aws",
 					Mode:           "continuous",
@@ -154,12 +155,12 @@ func TestCollectorRuntimeStatusesMergesDirectEvidenceHealthForRegisteredCollecto
 		status.DefaultOptions(),
 	)
 
-	rows := status.CollectorRuntimeStatuses(report)
+	rows := collector.RuntimeStatuses(report.CollectorEvidence())
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("runtime rows = %d, want %d: %#v", got, want, rows)
 	}
 	row := rows[0]
-	if got, want := row.StatusCategory, status.CollectorRuntimeCoordinatorManaged; got != want {
+	if got, want := row.StatusCategory, collector.RuntimeCoordinatorManaged; got != want {
 		t.Fatalf("status category = %q, want %q", got, want)
 	}
 	if got, want := row.Health, "degraded"; got != want {
@@ -187,7 +188,7 @@ func TestCollectorRuntimeStatusesTreatsCommittedSuccessfulAWSScanAsObserved(t *t
 		status.RawSnapshot{
 			AsOf: now,
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorInstances: []status.CollectorInstanceSummary{{
+				CollectorInstances: []collector.InstanceSummary{{
 					InstanceID:     "collector-aws-claims",
 					CollectorKind:  "aws",
 					Mode:           "continuous",
@@ -211,7 +212,7 @@ func TestCollectorRuntimeStatusesTreatsCommittedSuccessfulAWSScanAsObserved(t *t
 				LastSuccessfulAt:    now.Add(-3 * time.Minute),
 				UpdatedAt:           now.Add(-3 * time.Minute),
 			}},
-			CollectorFactEvidence: []status.CollectorFactEvidence{
+			CollectorFactEvidence: []collector.FactEvidence{
 				{
 					InstanceID:       "collector-aws-claims",
 					CollectorKind:    "aws",
@@ -235,7 +236,7 @@ func TestCollectorRuntimeStatusesTreatsCommittedSuccessfulAWSScanAsObserved(t *t
 		status.DefaultOptions(),
 	)
 
-	rows := status.CollectorRuntimeStatuses(report)
+	rows := collector.RuntimeStatuses(report.CollectorEvidence())
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("runtime rows = %d, want %d: %#v", got, want, rows)
 	}
@@ -243,7 +244,7 @@ func TestCollectorRuntimeStatusesTreatsCommittedSuccessfulAWSScanAsObserved(t *t
 	if got, want := row.Health, "observed"; got != want {
 		t.Fatalf("health = %q, want %q", got, want)
 	}
-	if got, want := row.StatusCategory, status.CollectorRuntimeCoordinatorManaged; got != want {
+	if got, want := row.StatusCategory, collector.RuntimeCoordinatorManaged; got != want {
 		t.Fatalf("status category = %q, want %q", got, want)
 	}
 	for _, want := range []string{"workflow_coordinator", "aws_cloud_scan_status", "source_facts", "reducer_facts"} {
@@ -257,7 +258,7 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 7, 9, 30, 0, 0, time.UTC)
-	instances := []status.CollectorInstanceSummary{
+	instances := []collector.InstanceSummary{
 		{InstanceID: "collector-documentation", CollectorKind: "documentation", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
 		{InstanceID: "collector-git-default", CollectorKind: "git", Mode: "continuous", Enabled: true, ClaimsEnabled: false},
 		{InstanceID: "collector-jira", CollectorKind: "jira", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
@@ -281,7 +282,7 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 			Coordinator: &status.CoordinatorSnapshot{
 				CollectorInstances: instances,
 			},
-			CollectorFactEvidence: []status.CollectorFactEvidence{
+			CollectorFactEvidence: []collector.FactEvidence{
 				{InstanceID: "collector-documentation", CollectorKind: "documentation", EvidenceSource: "source_facts", SourceSystems: []string{"confluence"}, ObservationCount: 5, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
 				{InstanceID: "collector-git-default", CollectorKind: "git", EvidenceSource: "source_facts", SourceSystems: []string{"git"}, ObservationCount: 17, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
 				{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "source_facts", ObservationCount: 7, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
@@ -301,15 +302,15 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 		status.DefaultOptions(),
 	)
 
-	byID := map[string]status.CollectorRuntimeStatus{}
-	for _, row := range status.CollectorRuntimeStatuses(report) {
+	byID := map[string]collector.RuntimeStatus{}
+	for _, row := range collector.RuntimeStatuses(report.CollectorEvidence()) {
 		byID[row.InstanceID] = row
 	}
 	for _, instance := range instances {
 		row := byID[instance.InstanceID]
-		wantCategory := status.CollectorRuntimeCoordinatorManaged
+		wantCategory := collector.RuntimeCoordinatorManaged
 		if !instance.ClaimsEnabled {
-			wantCategory = status.CollectorRuntimeDirectMode
+			wantCategory = collector.RuntimeDirectMode
 		}
 		if got, want := row.StatusCategory, wantCategory; got != want {
 			t.Fatalf("%s status category = %q, want %q", instance.InstanceID, got, want)
@@ -376,7 +377,7 @@ func TestCollectorRuntimeStatusesMapsUnattributedFactsToSingleCoordinatorInstanc
 		status.RawSnapshot{
 			AsOf: now,
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorInstances: []status.CollectorInstanceSummary{{
+				CollectorInstances: []collector.InstanceSummary{{
 					InstanceID:     "collector-aws-claims",
 					CollectorKind:  "aws",
 					Mode:           "continuous",
@@ -396,7 +397,7 @@ func TestCollectorRuntimeStatusesMapsUnattributedFactsToSingleCoordinatorInstanc
 				LastObservedAt:      now.Add(-5 * time.Minute),
 				UpdatedAt:           now.Add(-4 * time.Minute),
 			}},
-			CollectorFactEvidence: []status.CollectorFactEvidence{{
+			CollectorFactEvidence: []collector.FactEvidence{{
 				CollectorKind:    "aws",
 				EvidenceSource:   "source_facts",
 				ObservationCount: 9,
@@ -407,12 +408,12 @@ func TestCollectorRuntimeStatusesMapsUnattributedFactsToSingleCoordinatorInstanc
 		status.DefaultOptions(),
 	)
 
-	byID := map[string]status.CollectorRuntimeStatus{}
-	for _, row := range status.CollectorRuntimeStatuses(report) {
+	byID := map[string]collector.RuntimeStatus{}
+	for _, row := range collector.RuntimeStatuses(report.CollectorEvidence()) {
 		byID[row.InstanceID] = row
 	}
 	coordinator := byID["collector-aws-claims"]
-	if got, want := coordinator.StatusCategory, status.CollectorRuntimeCoordinatorManaged; got != want {
+	if got, want := coordinator.StatusCategory, collector.RuntimeCoordinatorManaged; got != want {
 		t.Fatalf("coordinator status category = %q, want %q", got, want)
 	}
 	if got, want := coordinator.Health, "observed"; got != want {

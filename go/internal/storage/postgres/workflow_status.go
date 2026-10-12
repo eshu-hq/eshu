@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 const (
@@ -189,16 +190,16 @@ func readWorkflowCoordinatorRecentFailures(
 	return recent, nil
 }
 
-func listCoordinatorCollectorInstances(ctx context.Context, queryer db.Queryer) ([]statuspkg.CollectorInstanceSummary, error) {
+func listCoordinatorCollectorInstances(ctx context.Context, queryer db.Queryer) ([]collector.InstanceSummary, error) {
 	rows, err := queryer.QueryContext(ctx, workflowCoordinatorCollectorInstancesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list coordinator collector instances: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	instances := make([]statuspkg.CollectorInstanceSummary, 0)
+	instances := make([]collector.InstanceSummary, 0)
 	for rows.Next() {
-		var instance statuspkg.CollectorInstanceSummary
+		var instance collector.InstanceSummary
 		var deactivatedAt sql.NullTime
 		if err := rows.Scan(
 			&instance.InstanceID,

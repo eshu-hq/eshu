@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
@@ -78,7 +79,7 @@ func statusReportToMapWithAWS(
 		"as_of":                             r.AsOf.Format(time.RFC3339),
 		"health":                            healthToMap(r.Health),
 		"coordinator":                       coordinatorToMap(r.Coordinator),
-		"collector_runtimes":                collectorRuntimeStatusesToSlice(status.CollectorRuntimeStatuses(r)),
+		"collector_runtimes":                collectorRuntimeStatusesToSlice(collector.RuntimeStatuses(r.CollectorEvidence())),
 		"queue":                             queueToMap(r.Queue),
 		"scope_activity":                    scopeActivityToMap(r.ScopeActivity),
 		"generation_history":                generationHistoryToMap(r.GenerationHistory),
@@ -141,7 +142,7 @@ func queueToMap(q status.QueueSnapshot) map[string]any {
 }
 
 func collectorGenerationDeadLettersToMap(
-	s status.CollectorGenerationDeadLetterSnapshot,
+	s collector.GenerationDeadLetterSnapshot,
 ) map[string]any {
 	return map[string]any{
 		"dead_letter":               s.DeadLetter,

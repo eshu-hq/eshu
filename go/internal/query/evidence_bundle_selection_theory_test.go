@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
@@ -34,7 +35,7 @@ func TestEvidenceBundleTerraformOmissionTheory(t *testing.T) {
 		SafeLocatorHash: "safe-hash", BackendKind: "s3", WarningKind: "state_missing",
 		Reason: "state_missing", GenerationID: "generation-42", ObservedAt: fixed,
 	}}
-	base.CollectorFactEvidence = []statuspkg.CollectorFactEvidence{{
+	base.CollectorFactEvidence = []collector.FactEvidence{{
 		InstanceID: "git-1", CollectorKind: "git", EvidenceSource: "file",
 		ObservationCount: 8, LastObservedAt: fixed, UpdatedAt: fixed,
 	}}

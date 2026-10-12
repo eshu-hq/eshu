@@ -11,6 +11,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
@@ -64,7 +65,7 @@ func terraformMetricsSnapshot() statuspkg.RawSnapshot {
 		TerraformStateRecentWarnings: []tfstate.LocatorWarning{
 			{SafeLocatorHash: "hash-a", BackendKind: "s3", WarningKind: "state_missing", ObservedAt: asOf},
 		},
-		CollectorFactEvidence: []statuspkg.CollectorFactEvidence{
+		CollectorFactEvidence: []collector.FactEvidence{
 			{CollectorKind: "git", InstanceID: "git-primary", ObservationCount: 12},
 		},
 		RegistryCollectors: []statuspkg.RegistryCollectorSnapshot{

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // TestAuthMiddlewareWithScopedTokensAllowsCollectorReadinessRoute proves a
@@ -32,7 +33,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsCollectorReadinessRoute(t *testing.
 					snapshot: statuspkg.RawSnapshot{
 						AsOf: now,
 						Coordinator: &statuspkg.CoordinatorSnapshot{
-							CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+							CollectorInstances: []collector.InstanceSummary{{
 								InstanceID:     privateInstanceID,
 								CollectorKind:  "aws",
 								Enabled:        true,

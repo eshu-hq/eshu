@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -200,7 +201,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	var collectorFactEvidence []statuspkg.CollectorFactEvidence
+	var collectorFactEvidence []collector.FactEvidence
 	if selection.IncludeCollectorFactEvidence {
 		q, done = s.read(ctx, statusReadCollectorFactEvidence)
 		collectorFactEvidence, err = readCollectorFactEvidence(ctx, q)

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
@@ -92,7 +93,7 @@ func indexStatusOtherTenantSnapshot(asOf time.Time) statuspkg.RawSnapshot {
 			Blocked:     7,
 		}},
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+			CollectorInstances: []collector.InstanceSummary{{
 				InstanceID:     "collector-" + indexStatusRepoB,
 				CollectorKind:  "git",
 				DisplayName:    indexStatusRepoBScope,

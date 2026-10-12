@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
@@ -98,7 +99,7 @@ func repositoryCountForEvidenceBundle(r *http.Request, neo4j GraphQuery) int {
 // loadStatusReport/status.LoadReport -- into an evidencebundle.LiveSnapshot.
 // It reuses domainBacklogBuckets and queueBlockageCountsByDomain
 // (aws_materialization_status.go) for per-domain blockage, and
-// status.CollectorRuntimeStatuses (the same call listCollectors makes) for
+// collector.RuntimeStatuses (the same call listCollectors makes) for
 // collector readiness, so this mapping never re-derives status truth the
 // existing status routes already compute. It also carries
 // report.DomainBacklogsTruncated through unchanged: status.BuildReport is the
@@ -137,7 +138,7 @@ func liveEvidenceSnapshotFromReport(report status.Report, repoCount int) evidenc
 		})
 	}
 
-	runtimeCollectors := status.CollectorRuntimeStatuses(report)
+	runtimeCollectors := collector.RuntimeStatuses(report.CollectorEvidence())
 	collectors := make([]evidencebundle.LiveCollectorSnapshot, 0, len(runtimeCollectors))
 	for _, collector := range runtimeCollectors {
 		collectors = append(collectors, evidencebundle.LiveCollectorSnapshot{

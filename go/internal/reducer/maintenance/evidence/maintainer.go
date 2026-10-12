@@ -35,7 +35,7 @@ import (
 //
 // Cadence vs freshness: the summary's MAX(observed_at)/MAX(ingested_at) feed the
 // collector promotion stale verdict (status.evidenceIsStale). The default 60s
-// cadence is ~1440x smaller than status.DefaultCollectorPromotionStaleAfter
+// cadence is ~1440x smaller than collector.DefaultPromotionStaleAfter
 // (24h), so a one-cadence materialization lag can never flip a stale verdict.
 
 const (

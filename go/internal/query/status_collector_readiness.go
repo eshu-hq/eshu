@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // collectorReadinessTTL is the duration for which a computed readiness result
@@ -76,7 +77,7 @@ type collectorReadinessEntry struct {
 
 // getCollectorReadiness serves the per-collector-family promotion readiness read
 // model over the full collector fleet. It loads the same status report the rest
-// of the status surface uses and projects status.CollectorPromotionProofs so API
+// of the status surface uses and projects collector.PromotionProofs so API
 // and MCP callers see identical, redacted readiness truth.
 //
 // The response is cached for collectorReadinessTTL (~30 s) because the
@@ -131,9 +132,9 @@ func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Req
 	// rather than of when this handler happens to run. In production the reader
 	// stamps RawSnapshot.AsOf with the request time, so this preserves live
 	// behavior while removing the wall-clock divergence.
-	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{
 		AsOf:       report.AsOf,
-		StaleAfter: status.DefaultCollectorPromotionStaleAfter,
+		StaleAfter: collector.DefaultPromotionStaleAfter,
 	})
 	entries := collectorReadinessEntries(proofs, redactInstance)
 
@@ -167,7 +168,7 @@ func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Req
 // collectorReadinessEntries projects promotion proofs into the readiness wire
 // shape. When redactInstance is set (scoped callers) the per-instance identity is
 // withheld so a scoped token sees family-level readiness only.
-func collectorReadinessEntries(proofs []status.CollectorPromotionProof, redactInstance bool) []collectorReadinessEntry {
+func collectorReadinessEntries(proofs []collector.PromotionProof, redactInstance bool) []collectorReadinessEntry {
 	entries := make([]collectorReadinessEntry, 0, len(proofs))
 	for _, proof := range proofs {
 		entry := collectorReadinessEntry{
@@ -202,26 +203,26 @@ func collectorReadinessEntries(proofs []status.CollectorPromotionProof, redactIn
 // recommendedNextAction maps a promotion proof to the single most useful next
 // step a reviewer or operator should take. It reuses the proof's own safe
 // blocker text so no provider detail is invented.
-func recommendedNextAction(proof status.CollectorPromotionProof) string {
+func recommendedNextAction(proof collector.PromotionProof) string {
 	switch proof.PromotionState {
-	case status.CollectorPromotionImplemented:
+	case collector.PromotionImplemented:
 		return "No action required; lane meets the promotion contract."
-	case status.CollectorPromotionPartial:
-		if proof.ReducerReadback == status.CollectorReadbackPending {
+	case collector.PromotionPartial:
+		if proof.ReducerReadback == collector.ReadbackPending {
 			return "Confirm reducer readback; source facts exist but have not been admitted."
 		}
 		return withBlocker("Complete the promotion contract", proof.Blockers)
-	case status.CollectorPromotionFailed:
+	case collector.PromotionFailed:
 		return withBlocker("Investigate the runtime failure", proof.Blockers)
-	case status.CollectorPromotionStale:
+	case collector.PromotionStale:
 		return "Re-run the collector; the newest evidence is older than the freshness window."
-	case status.CollectorPromotionGated:
+	case collector.PromotionGated:
 		return "Enable claims or remove the runtime profile gate to activate this lane."
-	case status.CollectorPromotionDisabled:
+	case collector.PromotionDisabled:
 		return "Enable the collector instance to resume collection."
-	case status.CollectorPromotionPermissionHidden:
+	case collector.PromotionPermissionHidden:
 		return "Request access; this collector family is hidden by the active permission scope."
-	case status.CollectorPromotionUnsupported:
+	case collector.PromotionUnsupported:
 		return "Configure a collector instance for this family to begin collection."
 	default:
 		return "Review the collector configuration."

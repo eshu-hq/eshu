@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 func TestStatusReportToMapIncludesBuildVersion(t *testing.T) {
@@ -32,7 +33,7 @@ func TestStatusReportToMapIncludesCollectorGenerationDeadLetters(t *testing.T) {
 	report := status.Report{
 		AsOf:   time.Date(2026, 6, 12, 19, 0, 0, 0, time.UTC),
 		Health: status.HealthSummary{State: "degraded"},
-		CollectorGenerationDeadLetters: status.CollectorGenerationDeadLetterSnapshot{
+		CollectorGenerationDeadLetters: collector.GenerationDeadLetterSnapshot{
 			DeadLetter:          2,
 			ReplayRequested:     1,
 			ReplayAttempts:      3,

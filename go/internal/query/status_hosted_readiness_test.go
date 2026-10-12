@@ -14,6 +14,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 type hostedReadinessGraph struct {
@@ -59,7 +60,7 @@ func TestStatusHandlerHostedReadinessReportsPartialRolloutAndStaleQueue(t *testi
 		},
 		ScopeActivity: statuspkg.ScopeActivitySnapshot{Active: 1},
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector:terraform-state", CollectorKind: "terraform_state", Enabled: true, ClaimsEnabled: true},
 			},
 		},
@@ -84,7 +85,7 @@ func TestStatusHandlerHostedReadinessReportsDeadLettersAndGraphUnavailable(t *te
 		},
 		ScopeActivity: statuspkg.ScopeActivitySnapshot{Active: 1},
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector:package-registry", CollectorKind: "package_registry", Enabled: true, ClaimsEnabled: true},
 			},
 		},
@@ -102,7 +103,7 @@ func TestStatusHandlerHostedReadinessReportsCollectorGenerationDeadLetters(t *te
 
 	payload := hostedReadinessPayload(t, statuspkg.RawSnapshot{
 		AsOf: time.Date(2026, 6, 12, 19, 5, 0, 0, time.UTC),
-		CollectorGenerationDeadLetters: statuspkg.CollectorGenerationDeadLetterSnapshot{
+		CollectorGenerationDeadLetters: collector.GenerationDeadLetterSnapshot{
 			DeadLetter:          0,
 			ReplayRequested:     1,
 			ReplayAttempts:      1,
@@ -110,7 +111,7 @@ func TestStatusHandlerHostedReadinessReportsCollectorGenerationDeadLetters(t *te
 		},
 		ScopeActivity: statuspkg.ScopeActivitySnapshot{Active: 1},
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector:git", CollectorKind: "git", Enabled: true},
 			},
 		},
@@ -129,7 +130,7 @@ func TestStatusHandlerHostedReadinessReportsHealthyConvergence(t *testing.T) {
 		AsOf:          time.Date(2026, 6, 9, 12, 15, 0, 0, time.UTC),
 		ScopeActivity: statuspkg.ScopeActivitySnapshot{Active: 2, Unchanged: 2},
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{InstanceID: "collector:aws-cloud", CollectorKind: "aws_cloud", Enabled: true, ClaimsEnabled: true},
 			},
 			CompletenessCounts: []statuspkg.NamedCount{{Name: "completed", Count: 1}},
@@ -158,7 +159,7 @@ func TestStatusHandlerHostedReadinessTextSummary(t *testing.T) {
 				AsOf:          time.Date(2026, 6, 9, 12, 20, 0, 0, time.UTC),
 				ScopeActivity: statuspkg.ScopeActivitySnapshot{Active: 1},
 				Coordinator: &statuspkg.CoordinatorSnapshot{
-					CollectorInstances: []statuspkg.CollectorInstanceSummary{
+					CollectorInstances: []collector.InstanceSummary{
 						{InstanceID: "collector:jira", CollectorKind: "jira", Enabled: true, ClaimsEnabled: true},
 					},
 				},

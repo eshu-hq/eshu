@@ -22,7 +22,7 @@ import (
 func RenderJSON(report Report) ([]byte, error) {
 	// Project the collector evidence once: the three readbacks below all
 	// consume the same slice of the report.
-	evidence := collectorEvidence(report)
+	evidence := report.CollectorEvidence()
 
 	payload := struct {
 		Version                        string                              `json:"version"`
