@@ -63,6 +63,7 @@ wjob "${d}" w-as-the-argument-of-a-runner-function 1 'run_bounded() { "$@"; }' '
 wjob "${d}" w-in-a-literal-bash-c-string 1 "bash -o pipefail -c 'bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- config'"
 wjob "${d}" w-in-a-command-array 1 'WC=(bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml --)' '"${WC[@]}" up -d'
 wjob "${d}" w-variable-timeout-duration 1 'timeout "${wait_seconds}" bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" w-backticks-in-single-quotes-are-data 1 "${wrapper_cmd}" "echo 'run \`docker compose up\` here'"
 wjob "${d}" w-env-keeps-the-mode 1 'env GITHUB_ACTIONS=true ESHU_CI_IMAGES=1 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-prefix-keeps-the-mode 1 'ESHU_CI_IMAGES=1 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" w-pulling-nothing-beside 1 "${wrapper_cmd}" 'docker compose -f docker-compose.fixture-ledger.yaml down -v'
@@ -148,6 +149,14 @@ wjob "${d}" q-sudo-resets-the-environment-before-the-wrapper 1 'sudo -u root bas
 # one. A variable at command position may hold docker compose: its words are not read.
 wjob "${d}" q-env-bare-dash-before-the-wrapper 1 'env - bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" q-exec-clears-the-environment-before-the-wrapper 1 'exec -c bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-builtin-exec-clears-the-environment-before-the-wrapper 1 'builtin exec -c bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-command-exec-clears-the-environment-before-the-wrapper 1 'command exec -c bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-env-null-and-ignore-flags-before-the-wrapper 1 'env -0i bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-env-ignore-and-null-flags-before-the-wrapper 1 'env -i0 bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-env-null-and-unset-flags-before-the-wrapper 1 'env -0u GITHUB_ACTIONS bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-setpriv-reset-env-before-the-wrapper 1 'setpriv --reset-env bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
+wjob "${d}" q-backtick-body-env-ignore-before-the-wrapper 1 '`env -i bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d`'
+wjob "${d}" q-backtick-body-raw-compose 1 'out="`docker compose -f docker-compose.fixture-ledger.yaml up -d`"'
 wjob "${d}" q-doas-before-the-wrapper 1 'doas bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" q-bwrap-clearenv-before-the-wrapper 1 'bwrap --clearenv --bind / / bash scripts/ci/compose.sh -f docker-compose.fixture-ledger.yaml -- up -d'
 wjob "${d}" q-variable-docker-with-the-wrapper-as-its-command 1 \
@@ -175,7 +184,11 @@ expect_queue_jobs_red queue-path-raw-compose-calls-fail "${d}" \
   q-docker-compose-binary-with-the-wrapper-as-its-command q-sudo-resets-the-environment-before-the-wrapper \
   q-env-bare-dash-before-the-wrapper q-exec-clears-the-environment-before-the-wrapper q-doas-before-the-wrapper \
   q-bwrap-clearenv-before-the-wrapper q-variable-docker-with-the-wrapper-as-its-command \
-  q-braced-variable-docker-with-the-wrapper-as-its-command q-raw-pull q-raw-create q-raw-build
+  q-braced-variable-docker-with-the-wrapper-as-its-command q-raw-pull q-raw-create q-raw-build \
+  q-builtin-exec-clears-the-environment-before-the-wrapper q-command-exec-clears-the-environment-before-the-wrapper \
+  q-env-null-and-ignore-flags-before-the-wrapper q-env-ignore-and-null-flags-before-the-wrapper \
+  q-env-null-and-unset-flags-before-the-wrapper q-setpriv-reset-env-before-the-wrapper \
+  q-backtick-body-env-ignore-before-the-wrapper q-backtick-body-raw-compose
 
 # A direct call with a non-pulling subcommand reaches no image, whatever file it names:
 # the golden gate keeps its polls and teardown direct (main's gate read them the same).
