@@ -5,7 +5,8 @@
 // live tests.
 //
 // OpenDisposableDatabase requires an explicit opt-in and a connection to the
-// administrative postgres database. It creates a random database for one test,
+// administrative postgres database. It creates a random database from template0
+// with a public search path for one test,
 // rejects application database DSNs before connecting, and force-drops only
 // the generated database during cleanup.
 //

@@ -13,7 +13,8 @@ owns those steps after it receives the isolated connection.
 
 ## Exported surface
 
-- `OpenDisposableDatabase` creates and drops a random database (database.go).
+- `OpenDisposableDatabase` creates a random database from `template0` and
+  drops it during test cleanup (database.go).
 - `OpenIsolatedSchema` creates and drops a timestamped schema in the
   database its DSN names and runs the caller's schema setup on it; storage
   packages pass their own bootstrap, so this package still owns no Eshu
@@ -31,7 +32,10 @@ The godoc contract is in [doc.go](doc.go).
 
 `OpenDisposableDatabase` uses `pgx` to parse the administrative DSN and opens
 a copied connection configuration whose database name is the generated proof
-database. Every connection it opens to that database runs the infra read
+database and whose search path is `public`. Creating from `template0` excludes
+extensions and relations installed in `template1`. Cleanup is registered
+immediately after successful creation, closes the target pool before dropping
+the database, and reports cleanup errors. Every connection it opens to that database runs the infra read
 model's derive-aware writer `SET`
 (`storage/postgres/infra/inventory.WriterConnectOption`), the same setting
 `runtime.OpenPostgres` applies, so a proof that seeds infra-typed content rows
