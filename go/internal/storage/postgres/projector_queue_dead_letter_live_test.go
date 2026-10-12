@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // deadLetterOutcome is what a dead letter left behind for one generation.
@@ -175,6 +177,43 @@ WHERE work_item_id LIKE 'refinalize\_%' AND generation_id = 'gen-a' AND status =
 		got := p.deadLetterOutcomeFor("gen-a")
 		if got.status != "failed" || got.pointer.Valid || got.deadLettered {
 			t.Fatalf("outcome = %+v, want failed, pointer cleared, no dead-letter stamp (a9-130.1)", got)
+		}
+	})
+	t.Run("g: a non-canonical sibling among the owned rows fails the generation", func(t *testing.T) {
+		// One lease owner holds the canonical re-open row and a refinalize_
+		// row of the same generation at the same attempt (production processes
+		// share the lease owner "projector"). Fail matches both rows, so the
+		// statement dead-letters a rebuild row too: no spare (PR #7997 review).
+		p := openReprojectProof(t)
+		ctx := context.Background()
+		p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+		p.project()
+		p.commit(p.generation("gen-r", "hint-a", "sha-a", "interval_elapsed"))
+		if _, err := NewRecoveryStore(SQLDB{DB: p.db}).RefinalizeScopeProjections(ctx,
+			recovery.RefinalizeFilter{ScopeIDs: []string{p.scope.ScopeID}}, time.Now().UTC()); err != nil {
+			t.Fatalf("refinalize: %v", err)
+		}
+		owned, err := p.db.ExecContext(ctx, `UPDATE fact_work_items
+SET status = 'running', lease_owner = 'dead-letter-proof', attempt_count = 1, claim_until = now() + interval '1 minute'
+WHERE stage = 'projector' AND generation_id = 'gen-a' AND status = 'pending'`)
+		if n, _ := owned.RowsAffected(); err != nil || n != 2 {
+			t.Fatalf("seed two owned rows = %d (%v), want the canonical and the refinalize_ row", n, err)
+		}
+		queue := NewProjectorQueue(SQLDB{DB: p.db}, "dead-letter-proof", time.Minute)
+		work := projector.ScopeGenerationWork{
+			Scope: p.scope, Generation: scope.ScopeGeneration{GenerationID: "gen-a"}, AttemptCount: 1,
+		}
+		// Two rows match, so Fail reports ErrProjectorClaimRejected after the
+		// statement has run; the outcome below is what matters.
+		_ = queue.Fail(ctx, work, errors.New("proof: non-retryable projection failure"))
+		got := p.deadLetterOutcomeFor("gen-a")
+		if got.status != "failed" || got.pointer.Valid || got.deadLettered {
+			t.Fatalf("outcome = %+v, want failed, pointer cleared, no dead-letter stamp", got)
+		}
+		var deadRows int
+		if err := p.db.QueryRowContext(ctx, `SELECT count(*) FROM fact_work_items
+WHERE stage = 'projector' AND generation_id = 'gen-a' AND status = 'dead_letter'`).Scan(&deadRows); err != nil || deadRows != 2 {
+			t.Fatalf("dead_letter rows for gen-a = %d (%v), want both owned rows", deadRows, err)
 		}
 	})
 }

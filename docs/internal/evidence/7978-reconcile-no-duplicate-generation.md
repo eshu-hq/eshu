@@ -58,7 +58,7 @@ The lifecycle after the re-open:
   `TestStaleReconcileSkipsPendingSameIdentityLive`).
 - `failProjectorWorkQuery` spares only an unacknowledged #7978 reconcile
   re-open (rulings a9-130, a9-130.1): the generation is active and activated,
-  the dead-lettered row is the canonical `projector_<scope>_<generation>` row,
+  every owned (dead-lettered) row is the canonical `projector_<scope>_<generation>` row,
   and `reconcile_requested_at` is later than `reconcile_projected_at`. That
   generation stays active with its scope pointer and gets
   `reconcile_dead_lettered_at`. Every other dead letter keeps the pre-#7978

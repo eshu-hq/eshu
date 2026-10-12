@@ -216,15 +216,15 @@ WHERE stage = 'projector'
   AND status IN ('claimed', 'running')
 `
 
-// failProjectorWorkQuery dead-letters one owned projector work row and marks its
-// generation failed, clearing the scope pointer it held (the pre-#7978 contract
-// the #7584 and #7471 tests pin). spared_generation is the one exception
-// (rulings a9-130, a9-130.1): an active, activated generation whose canonical
-// projector_<scope>_<generation> row (positive match: refinalize_ or any other
-// producer is not spared) dead-lettered while payload.reconcile_requested_at is
-// later than reconcile_projected_at, an unacknowledged #7978 re-open. It stays
-// active with its pointer and gets reconcile_dead_lettered_at, so the sweep
-// stores a full. A #7209 heal or a re-drive of an acknowledged re-open is not.
+// failProjectorWorkQuery dead-letters the owned projector work rows and marks
+// their generation failed, clearing the scope pointer it held (the pre-#7978
+// contract the #7584 and #7471 tests pin). spared_generation is the exception
+// (rulings a9-130, a9-130.1): an active, activated generation with every owned
+// row canonical (projector_<scope>_<generation>; a refinalize_ or other row, even
+// as a sibling, is not spared) and reconcile_requested_at later than
+// reconcile_projected_at, an unacknowledged #7978 re-open. It stays active with
+// its pointer and gets reconcile_dead_lettered_at, so the sweep stores a full. A
+// #7209 heal or a re-drive of an acknowledged re-open is not spared.
 const failProjectorWorkQuery = `
 WITH locked_scope AS MATERIALIZED (
     SELECT scope_id
@@ -248,7 +248,7 @@ spared_generation AS (
     FROM owned_work JOIN scope_generations AS generation
       ON generation.generation_id = owned_work.generation_id AND generation.scope_id = owned_work.scope_id
     WHERE generation.status = 'active' AND generation.activated_at IS NOT NULL
-      AND owned_work.work_item_id = 'projector_' || owned_work.scope_id || '_' || owned_work.generation_id
+      AND NOT EXISTS (SELECT 1 FROM owned_work AS sibling WHERE sibling.work_item_id <> 'projector_' || sibling.scope_id || '_' || sibling.generation_id)
       AND (generation.payload ? 'reconcile_requested_at')
       AND (generation.payload ->> 'reconcile_requested_at')::timestamptz
           > COALESCE((generation.payload ->> 'reconcile_projected_at')::timestamptz, '-infinity'::timestamptz)
