@@ -37,7 +37,7 @@ func TestSnapshotFreshnessHintFoldsWorkflowImageFileMetas(t *testing.T) {
 // TestSnapshotFreshnessHintFoldsFunctionSummaries proves the freshness hint
 // changes when FunctionSummaries (carrying the new graph_uid payload) are
 // present, so upgrading to the graph_uid-emitting commit does not leave an
-// unchanged repo with an identical hint that shouldSkipUnchangedGeneration
+// unchanged repo with an identical hint that the ingestion store's unchanged-generation skip
 // would drain and skip. A gate-off snapshot (no summaries) keeps its existing
 // hint byte-for-byte, so no mass re-collection happens when value-flow emission
 // is disabled.

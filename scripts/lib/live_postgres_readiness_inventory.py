@@ -143,6 +143,27 @@ PACKAGES = {
         "go/internal/storage/postgres/prefetch_batch_plan_live_test.go": (
             "TestPrefetchBatchQueriesUsePrimaryKeyLive",
         ),
+        "go/internal/storage/postgres/ingestion_backfill_generation_guard_lifecycle_live_test.go": (
+            "TestReconcileReopenSkipsLiveLeaseWithoutStampLive",
+            "TestReconcileReprojectionDeadLetterKeepsActiveGenerationLive",
+            "TestPendingSameIdentitySkipsAndFailedStoresLive",
+            "TestReconcileReopenResetsAttemptsSoRetryRetriesLive",
+            "TestStaleReconcileSkipsPendingSameIdentityLive",
+            "TestReindexStoresUnchangedIdentityLive",
+            "TestStaleFullActivationReadsFreshLive",
+            "TestReconcileReopenWorkRowShapesLive",
+            "TestPendingWithoutLiveWorkStoresLive",
+            "TestReconcileReopenOfDeadLetterIsBoundedLive",
+        ),
+        "go/internal/storage/postgres/projector_queue_dead_letter_live_test.go": (
+            "TestProjectorDeadLetterGuardCellsLive",
+        ),
+        "go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go": (
+            "TestUnchangedReconcileStoresNothingLive",
+            "TestReconcileIdentityChangesStillStoreLive",
+            "TestReconcileReopenLosesLockRaceToNewerActivationLive",
+            "TestReconcileReprojectionSupersededBeforeClaimIsNoopLive",
+        ),
         "go/internal/storage/postgres/ingestion_flux_evidence_identity_live_test.go": (
             "TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively",
             "TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist",

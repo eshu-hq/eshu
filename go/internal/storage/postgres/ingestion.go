@@ -154,33 +154,9 @@ func (s IngestionStore) commitScopeGeneration(
 	if err := validateGenerationInput(scopeValue, generation); err != nil {
 		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
 	}
-	skip, err := s.shouldSkipUnchangedGeneration(ctx, scopeValue.ScopeID, generation.FreshnessHint)
-	if err != nil {
-		return errors.Join(
-			fmt.Errorf("check active generation freshness: %w", err),
-			drainFactsAndCheckStream(factStream, factStreamErr),
-		)
-	}
-	if skip {
-		if err := drainFactsAndCheckStream(factStream, factStreamErr); err != nil {
-			return fmt.Errorf("read fact stream: %w", err)
-		}
-		telemetry.RecordSkippedRefresh()
-		log.Printf(
-			"%s=true %s=%q %s=%q %s=%q %s=%q %s=%q",
-			telemetry.LogKeyRefreshSkipped,
-			telemetry.LogKeyScopeID,
-			scopeValue.ScopeID,
-			telemetry.LogKeyScopeKind,
-			string(scopeValue.ScopeKind),
-			telemetry.LogKeySourceSystem,
-			scopeValue.SourceSystem,
-			telemetry.LogKeyCollectorKind,
-			string(scopeValue.CollectorKind),
-			telemetry.LogKeyGenerationID,
-			generation.GenerationID,
-		)
-		return nil
+	handled, err := s.skipUnchangedGeneration(ctx, mutation, requireClaimFence, scopeValue, generation, factStream, factStreamErr)
+	if handled || err != nil {
+		return err
 	}
 	if s.beginner == nil {
 		return errors.Join(
@@ -245,7 +221,7 @@ func (s IngestionStore) commitScopeGeneration(
 			if streamErr := drainFactsAndCheckStream(factStream, factStreamErr); streamErr != nil {
 				return fmt.Errorf("read skipped finalized generation stream: %w", streamErr)
 			}
-			telemetry.RecordSkippedRefresh()
+			s.recordSkippedRefresh(ctx, scopeValue, generation, generation.GenerationID, telemetry.RefreshSkipReasonFinalizedGenerationReplay)
 			s.logCommitStage(ctx, scopeValue, generation, "skip_finalized_generation", stageStart)
 			return nil
 		}

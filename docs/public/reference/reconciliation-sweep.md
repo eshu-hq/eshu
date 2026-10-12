@@ -25,10 +25,24 @@ between the last full observation and now is deleted from the graph.
 Each generation records whether it was a delta on `scope_generations.is_delta`.
 The sweep reads `FullReconcileState` for the scope: the ingest time of the
 newest **activated** full generation, and the newest full generation of any
-status. A reconciliation generation carries an **empty** freshness hint so the
-commit-time skip never elides it: it must re-project even when the content hash
-is unchanged, otherwise drift in the graph would survive and the reconciliation
-timer would never advance.
+status. A reconciliation snapshot keeps its content freshness hint and carries
+its reason on the generation (#7978). It never stores a duplicate:
+
+- When the snapshot's hint (v3: content plus collector, parser, and fact-schema
+  version) and commit equal the **active** full generation's, the ingestion
+  store re-opens that generation's projector work instead of storing a new
+  generation. The projector re-projects the same `generation_id`, which
+  retracts every canonical node and edge stamped with another generation id.
+  It records `reconcile_reason` and `reconcile_requested_at` on the generation,
+  and the Ack records `reconcile_projected_at`.
+- When they equal a **pending** generation, the store stores nothing: that
+  generation's own projection is still queued.
+- Otherwise (new content, a new commit, a version change, an active delta, or a
+  default-branch change) the store stores a new generation as before.
+
+A re-projection does not retract graph state stamped with the active generation
+id itself; only a projector defect or a manual graph edit can create such
+state (ruling a9-117 Q1).
 
 The obligation is measured on the last projected full generation, and the
 throttle on the latest full attempt (#7288). With `Interval` =
@@ -37,9 +51,12 @@ is the bounded label on the sweep's counters and log:
 
 | Scope state | Decision | Reason |
 | --- | --- | --- |
-| newest activated full generation is younger than `Interval` | hold | `fresh` |
+| active full generation has a re-projection request younger than `Interval` and no Ack since | hold | `reconcile_in_flight` |
+| the same request is `Interval` old, or its re-projection was dead-lettered, and no forced full is in flight or backing off | force; the store stores a generation unless one with the same identity is pending with live work (a pending full at the remote head with live work holds as `in_flight_expired_held`) | `reconcile_request_stale` |
+| newest activated full generation (or its last re-projection Ack) is younger than `Interval` | hold | `fresh` |
 | newest full generation is `pending`, younger than `Interval` | hold | `reconcile_in_flight` |
-| newest full generation is `pending`, `Interval` old or older | force | `in_flight_expired` |
+| newest full generation is `pending`, `Interval` old or older, at the remote head, with live projector work (pending, retrying, claimed, or running) | hold, checked after the fetch | `in_flight_expired_held` |
+| newest full generation is `pending`, `Interval` old or older, and the head moved or its work is gone | force | `in_flight_expired` |
 | newest full generation failed, or was superseded before it activated, and is younger than `Interval / 4` | hold | `reconcile_retry_backoff` |
 | the same, `Interval / 4` old or older | force | `retry_after_unprojected` |
 | no full generation ever activated | force | `never_reconciled` |
@@ -76,22 +93,52 @@ cost as a first sync, paid on a documented cadence. Each forced reconciliation
 increments `eshu_dp_collector_reconciliation_full_snapshots_total`, labeled by
 `reason` (`never_reconciled`, `interval_elapsed`, `in_flight_expired`,
 `retry_after_unprojected`, `graph_dirty`, `reindex_requested`,
-`repository_reindex_requested`), and logs `git_reconcile_forced` with
+`repository_reindex_requested`, `reconcile_request_stale`), and logs `git_reconcile_forced` with
 `scope_id`, `reason`, `last_projected_full_at`, `latest_full_at`, and
-`latest_full_status` (plus `reindex_requested_at` for the two reindex reasons).
-The log is WARN for `in_flight_expired` and `retry_after_unprojected`: repeats of
-either mean projection is not keeping up with the sweep. Each evaluation the
+`latest_full_status`. Any log of a scope that has a recorded reindex
+watermark also carries `reindex_requested_at`, whatever the reason: it is the
+watermark, not the reason, and watermarks are never cleared.
+The log is WARN for `in_flight_expired`, `retry_after_unprojected`, and
+`reconcile_request_stale` (which also logs `reconcile_requested_at`,
+`reconcile_projected_at`, and `reconcile_dead_lettered_at`): repeats of any
+mean projection is not keeping up with the sweep. Each evaluation the
 sweep holds off increments `eshu_dp_collector_reconciliation_suppressed_total`,
-labeled by `reason` (`reconcile_in_flight`, `reconcile_retry_backoff`). A
-sustained suppression rate with few forced reconciliations points at projector
-lag, not at the sweep.
+labeled by `reason` (`reconcile_in_flight`, `reconcile_retry_backoff`,
+`in_flight_expired_held`). A sustained suppression rate with few forced
+reconciliations points at projector lag, not at the sweep.
+`in_flight_expired_held` (ruling a9-126) means a full generation has been
+pending for longer than `Interval` at the remote head and its projector work is
+still live, so the sweep holds the scope instead of parsing it again: the
+reducer or projector is behind on this scope. Read the projector queue for the
+scope and the INFO log `git_reconcile_held` (`scope_id`, `forced_reason`,
+`pending_commit_sha`, `latest_full_at`). A held scope takes no
+`ESHU_REPO_RECONCILE_MAX_PER_CYCLE` slot. When the head moves or the work row
+is gone (missing or terminal), the sweep forces the scope again.
+
+The store side of each forced snapshot shows on
+`eshu_runtime_refresh_skipped_by_reason_total{reason}`: `reconcile_reprojected`
+(the active generation was re-opened, nothing stored), `reconcile_reprojection_pending`
+(its work was already open or leased), `reconcile_superseded` (a newer
+generation won the scope lock; the snapshot is dropped), and
+`pending_same_identity` (a pending generation with live projector work already
+holds that content; a pending match without live work is not a duplicate, so the
+snapshot is stored and supersedes it). A
+reconcile re-projection that is dead-lettered before its Ack leaves the
+generation active and its scope pointer in place; the next sweep forces
+`reconcile_request_stale`, which stores a generation. Any other dead letter of
+a generation (a #7209 heal or liveness re-drive, a rebuild re-drive, or a
+first projection) marks it failed and clears the pointer, as before #7978
+(rulings a9-130, a9-130.1).
 
 When the canonical graph writer applies that forced snapshot, successful stale
 cleanup statements also increment
 `eshu_dp_reconciliation_drift_retractions_total` with bounded labels:
 `domain="canonical_graph"`, `write_phase`, and `kind="node"` or `kind="edge"`.
 The full-snapshot counter answers "did reconciliation run?"; the drift
-retraction counter answers "did it actually delete stale graph state?" Alert on
+retraction counter answers "did it actually delete stale graph state?" A
+re-projection of an already-active full generation (#7978 reconcile, #7209
+heal of any collector, liveness re-drive, rebuild or refinalize) counts as a
+reconciliation there; a first projection does not. Alert on
 sustained nonzero retractions after the first reconciliation window, and use
 projector logs/spans keyed by `scope_id`, `repo_id`, and `generation_id` for the
 specific source. Those identifiers are intentionally not metric labels.
@@ -106,18 +153,37 @@ ingester, stamped by Postgres and never moved backward. The response returns it
 as `requested_at`.
 
 Every git ingester shard reads the watermark once per sync cycle, one
-primary-key read. A scope the sweep leaves `fresh`, with no `graph_dirty`
-writer, is then checked against it:
+primary-key read. A watermark is checked before the sweep and `graph_dirty`
+(ruling a9-125): while it is pending it decides the scope, so the forced full
+carries the reindex reason and stores the re-parse instead of re-projecting.
 
 | Scope state | Decision | Reason |
 | --- | --- | --- |
-| newest activated full generation ingested at or after the watermark | hold | `fresh` |
+| newest activated full generation was itself stored (ingested) at or after the watermark; a re-projection Ack does not count | the sweep and `graph_dirty` decide as usual | `fresh` or a sweep reason |
 | in-flight or recently failed full (the throttle rows above) | hold | `reconcile_in_flight` or `reconcile_retry_backoff` |
+| newest full is `pending`, `Interval` old or older, at the remote head, with live projector work | hold, checked after the fetch (ruling a9-128) | `in_flight_expired_held` |
 | otherwise, including a scope with no activated full | force | `reindex_requested` |
 
-A forced reindex takes the same path as any reconciliation: an empty freshness
-hint, no delta, and a slot in `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`, so a large
-fleet re-parses over several cycles. The request is never claimed and has no
+The hold covers an explicit reindex too (ruling a9-128). While a full of the
+same commit is pending with live work, the store would skip any snapshot of
+that commit as `pending_same_identity`, so a forced parse there could not
+change anything. The re-parse waits one activation of that pending full: if
+it activates and was ingested before the watermark, the next cycle forces
+`reindex_requested` and the store keeps the re-parse; if it was ingested at or
+after the watermark, it is the re-parse. A moved head, or work that is no
+longer live, forces at once. A held scope logs `git_reconcile_held` with
+`reindex_requested_at`.
+
+A forced reindex takes no delta and a slot in
+`ESHU_REPO_RECONCILE_MAX_PER_CYCLE`, so a large fleet re-parses over several
+cycles. An explicit reindex request stores the re-parse as a new generation
+even when the content identity (commit, hint, and content version) is
+unchanged (ruling a9-125); the sweep, `graph_dirty`, webhook, and scheduled
+sync re-project the active generation instead (#7978). A pending watermark
+beats `interval_elapsed` and `graph_dirty`, and only a stored full ingested at
+or after it satisfies it, so a re-projection never answers a reindex. The content-version
+gate narrows, but cannot close, the window where a parser change does not
+change the hint; an explicit reindex is the remedy. The request is never claimed and has no
 completion status. It is satisfied scope by scope: a forced full is ingested at
 the cycle's start time, which is at or after the watermark, so once it activates
 the scope stays `fresh`. A later request moves the watermark forward and starts

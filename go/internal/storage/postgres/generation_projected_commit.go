@@ -83,6 +83,20 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 //   - last_projected_full_at: the ingest time of the newest full (non-delta)
 //     generation that was activated. A generation superseded while pending has
 //     activated_at NULL and does not count, so it cannot satisfy the sweep.
+//     While that generation is still active, the time its last #7978
+//     re-projection was acknowledged (payload reconcile_projected_at) counts
+//     when it is later.
+//   - last_stored_full_at: that generation's own ingest time, without any
+//     re-projection Ack. Only it can satisfy a reindex watermark (a9-125).
+//   - latest_full_source_commit_sha / latest_full_work_live (ruling a9-126):
+//     the newest full's commit and whether its projector work row is pending,
+//     retrying, claimed, or running, so the sweep holds a live pending full at
+//     the remote head instead of forcing a snapshot the store would skip. The
+//     probe uses the canonical projector_ work_item_id, as the candidate read
+//     does; refinalize_ rebuild rows never target a pending generation.
+//   - reconcile_*: that generation's #7978 re-projection request, Ack, and
+//     dead-letter stamps, read only while it is still active, so a request a
+//     newer generation fenced off never holds the sweep off.
 //   - latest_full_*: the newest full generation of any status, so an in-flight
 //     or recently failed full generation can hold the sweep off. With no full
 //     generation the LEFT JOIN yields NULLs and latest_full_projected is false
@@ -94,25 +108,57 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 // compatibility; it has no scope_generations writer today.
 const fullReconcileStateQuery = `
 SELECT
-    (SELECT projected.ingested_at
-     FROM scope_generations AS projected
-     WHERE projected.scope_id = $1
-       AND projected.is_delta = false
-       AND projected.activated_at IS NOT NULL
-       AND projected.status IN ('active', 'completed', 'superseded')
-     ORDER BY projected.ingested_at DESC, projected.generation_id DESC
-     LIMIT 1)                        AS last_projected_full_at,
+    projected_full.last_projected_full_at,
+    projected_full.last_stored_full_at,
+    projected_full.reconcile_requested_at,
+    projected_full.reconcile_projected_at,
+    projected_full.reconcile_dead_lettered_at,
     latest.ingested_at               AS latest_full_at,
     latest.status                    AS latest_full_status,
-    latest.activated_at IS NOT NULL  AS latest_full_projected
+    latest.activated_at IS NOT NULL  AS latest_full_projected,
+    COALESCE(latest.source_commit_sha, '') AS latest_full_source_commit_sha,
+    COALESCE(latest.work_live, false) AS latest_full_work_live
 FROM (SELECT 1) AS one
 LEFT JOIN LATERAL (
-    SELECT attempt.ingested_at, attempt.status, attempt.activated_at
-    FROM scope_generations AS attempt
-    WHERE attempt.scope_id = $1
-      AND attempt.is_delta = false
-    ORDER BY attempt.ingested_at DESC, attempt.generation_id DESC
+    SELECT GREATEST(projected.ingested_at, reconcile.projected_at) AS last_projected_full_at,
+           projected.ingested_at     AS last_stored_full_at,
+           reconcile.requested_at    AS reconcile_requested_at,
+           reconcile.projected_at    AS reconcile_projected_at,
+           reconcile.dead_lettered_at AS reconcile_dead_lettered_at
+    FROM scope_generations AS projected
+    CROSS JOIN LATERAL (
+        SELECT
+            CASE WHEN projected.status = 'active'
+                 THEN (projected.payload ->> 'reconcile_requested_at')::timestamptz END AS requested_at,
+            CASE WHEN projected.status = 'active'
+                 THEN (projected.payload ->> 'reconcile_projected_at')::timestamptz END AS projected_at,
+            CASE WHEN projected.status = 'active'
+                 THEN (projected.payload ->> 'reconcile_dead_lettered_at')::timestamptz END AS dead_lettered_at
+    ) AS reconcile
+    WHERE projected.scope_id = $1
+      AND projected.is_delta = false
+      AND projected.activated_at IS NOT NULL
+      AND projected.status IN ('active', 'completed', 'superseded')
+    ORDER BY projected.ingested_at DESC, projected.generation_id DESC
     LIMIT 1
+) AS projected_full ON true
+LEFT JOIN LATERAL (
+    SELECT newest.ingested_at, newest.status, newest.activated_at, newest.source_commit_sha,
+           EXISTS (
+               SELECT 1
+               FROM fact_work_items AS work
+               WHERE work.work_item_id = 'projector_' || $1 || '_' || newest.generation_id
+                 AND work.status IN ('pending', 'retrying', 'claimed', 'running')
+           ) AS work_live
+    FROM (
+        SELECT attempt.generation_id, attempt.ingested_at, attempt.status,
+               attempt.activated_at, attempt.source_commit_sha
+        FROM scope_generations AS attempt
+        WHERE attempt.scope_id = $1
+          AND attempt.is_delta = false
+        ORDER BY attempt.ingested_at DESC, attempt.generation_id DESC
+        LIMIT 1
+    ) AS newest
 ) AS latest ON true
 `
 
@@ -137,12 +183,21 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 	}
 
 	var (
-		lastProjectedFullAt sql.NullTime
-		latestFullAt        sql.NullTime
-		latestFullStatus    sql.NullString
-		latestFullProjected bool
+		lastProjectedFullAt     sql.NullTime
+		lastStoredFullAt        sql.NullTime
+		reconcileRequestedAt    sql.NullTime
+		reconcileProjectedAt    sql.NullTime
+		reconcileDeadLetteredAt sql.NullTime
+		latestFullAt            sql.NullTime
+		latestFullStatus        sql.NullString
+		latestFullProjected     bool
+		latestFullCommit        string
+		latestFullWorkLive      bool
 	)
-	if err := rows.Scan(&lastProjectedFullAt, &latestFullAt, &latestFullStatus, &latestFullProjected); err != nil {
+	if err := rows.Scan(
+		&lastProjectedFullAt, &lastStoredFullAt, &reconcileRequestedAt, &reconcileProjectedAt, &reconcileDeadLetteredAt,
+		&latestFullAt, &latestFullStatus, &latestFullProjected, &latestFullCommit, &latestFullWorkLive,
+	); err != nil {
 		return scope.FullReconcileState{}, err
 	}
 	if err := rows.Err(); err != nil {
@@ -156,10 +211,24 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 	if lastProjectedFullAt.Valid {
 		state.LastProjectedFullAt = lastProjectedFullAt.Time.UTC()
 	}
+	if lastStoredFullAt.Valid {
+		state.LastStoredFullAt = lastStoredFullAt.Time.UTC()
+	}
+	if reconcileRequestedAt.Valid {
+		state.ReconcileRequestedAt = reconcileRequestedAt.Time.UTC()
+	}
+	if reconcileProjectedAt.Valid {
+		state.ReconcileProjectedAt = reconcileProjectedAt.Time.UTC()
+	}
+	if reconcileDeadLetteredAt.Valid {
+		state.ReconcileDeadLetteredAt = reconcileDeadLetteredAt.Time.UTC()
+	}
 	if latestFullAt.Valid {
 		state.LatestFullAt = latestFullAt.Time.UTC()
 		state.LatestFullStatus = scope.GenerationStatus(latestFullStatus.String)
 		state.LatestFullProjected = latestFullProjected
+		state.LatestFullSourceCommitSHA = strings.TrimSpace(latestFullCommit)
+		state.LatestFullWorkLive = latestFullWorkLive
 	}
 	return state, nil
 }

@@ -85,7 +85,8 @@ func TestUpsertScopeGenerationWritesDeltaBaseline(t *testing.T) {
 			t.Fatalf("%s: upsertScopeGeneration() = %v", tc.name, err)
 		}
 		args := fake.execs[0].args
-		if got := args[len(args)-1]; got != tc.want {
+		// $11 is delta_baseline_commit_sha; $12 is the #7978 payload.
+		if got := args[10]; got != tc.want {
 			t.Fatalf("%s: baseline arg = %#v, want %#v", tc.name, got, tc.want)
 		}
 	}

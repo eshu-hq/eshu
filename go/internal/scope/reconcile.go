@@ -19,8 +19,14 @@ type FullReconcileState struct {
 	// HasProjectedFull reports whether any full generation was activated.
 	HasProjectedFull bool
 	// LastProjectedFullAt is the ingest time of the newest activated full
-	// generation. It is zero when HasProjectedFull is false.
+	// generation, or the time its last #7978 re-projection was acknowledged
+	// when that is later. It is zero when HasProjectedFull is false.
 	LastProjectedFullAt time.Time
+	// LastStoredFullAt is the ingest time of the newest activated full
+	// generation itself, without any re-projection Ack. A reindex watermark is
+	// satisfied only by it (ruling a9-125, review r2 N1): a re-projection does
+	// not re-parse, so it must never answer a reindex request.
+	LastStoredFullAt time.Time
 	// HasLatestFull reports whether the scope has any full generation.
 	HasLatestFull bool
 	// LatestFullAt is the ingest time of the newest full generation of any
@@ -31,7 +37,50 @@ type FullReconcileState struct {
 	// LatestFullProjected reports whether that newest full generation was
 	// activated. A superseded generation with no activation never projected.
 	LatestFullProjected bool
+	// LatestFullSourceCommitSHA is that newest full generation's source
+	// commit (ruling a9-126): a pending full at the remote head holds the
+	// sweep while its work is live.
+	LatestFullSourceCommitSHA string
+	// LatestFullWorkLive reports whether that newest full generation has a
+	// projector work row a worker can still run: pending, retrying, claimed,
+	// or running. A missing or terminal row is not live, so the sweep forces
+	// the scope instead of holding it forever (ruling a9-126).
+	LatestFullWorkLive bool
+	// ReconcileRequestedAt is when an unchanged reconcile last re-opened the
+	// newest activated full generation's projector work instead of storing a
+	// duplicate (#7978). It is zero when there is none or when that generation
+	// is no longer active.
+	ReconcileRequestedAt time.Time
+	// ReconcileProjectedAt is when that re-projection was last acknowledged.
+	// LastProjectedFullAt already folds it in. Zero when none.
+	ReconcileProjectedAt time.Time
+	// ReconcileDeadLetteredAt is when that re-projection was last
+	// dead-lettered. The dead-letter path leaves an activated generation
+	// active, so the sweep reads this to force a full that the store stores.
+	// Zero when none.
+	ReconcileDeadLetteredAt time.Time
 }
+
+// ReconcileReasonRequestStale is the reconcile reason for a scope whose
+// re-projection request (#7978) went unacknowledged for one interval or was
+// dead-lettered. The ingestion store always stores a generation that carries
+// it, even when its hint and commit equal the active generation's: today's
+// heal, bounded to one per interval per scope (ruling a9-117 Q3).
+const ReconcileReasonRequestStale = "reconcile_request_stale"
+
+// Explicit reindex reasons (#7620). They come only from an operator request:
+// the fleet watermark (POST /api/v0/admin/reindex) or a repository-scoped
+// request. The ingestion store always stores a generation that carries one,
+// even when its identity equals the active generation's (ruling a9-125): an
+// explicit reindex is the remedy for a parser change the content-version gate
+// did not catch.
+const (
+	// ReconcileReasonReindexRequested is the fleet reindex watermark reason.
+	ReconcileReasonReindexRequested = "reindex_requested"
+	// ReconcileReasonRepositoryReindexRequested is the repository-scoped
+	// reindex reason.
+	ReconcileReasonRepositoryReindexRequested = "repository_reindex_requested"
+)
 
 // UncoveredProjectionWriter is a generation that started writing the canonical
 // graph and never activated, and that no later activated full generation has

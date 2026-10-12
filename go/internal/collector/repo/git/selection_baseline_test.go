@@ -281,6 +281,7 @@ func TestUpdateRepositoryBaselinesDeltaOnLastProjectedCommit(t *testing.T) {
 		baselineTestEvent(),
 		"oldsha",
 		nil,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("updateRepository() error = %v", err)
@@ -319,6 +320,7 @@ func TestUpdateRepositoryNoOpWhenBaselineEqualsRemote(t *testing.T) {
 		baselineTestEvent(),
 		"newsha",
 		nil,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("updateRepository() error = %v", err)
@@ -356,6 +358,7 @@ func TestUpdateRepositoryFallsBackToFullSnapshotWhenNoBaseline(t *testing.T) {
 		baselineTestEvent(),
 		"",
 		func(reason string) { fallbacks = append(fallbacks, reason) },
+		"",
 	)
 	if err != nil {
 		t.Fatalf("updateRepository() error = %v", err)
@@ -400,6 +403,7 @@ func TestUpdateRepositoryFallsBackWhenBaselineUnreachable(t *testing.T) {
 		baselineTestEvent(),
 		"prunedsha",
 		func(reason string) { fallbacks = append(fallbacks, reason) },
+		"",
 	)
 	if err != nil {
 		t.Fatalf("updateRepository() error = %v", err)

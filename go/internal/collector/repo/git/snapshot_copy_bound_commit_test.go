@@ -70,6 +70,7 @@ func TestFilesystemManagedCopyDoesNotCarryCommitIfSourceCleansAfterCopy(t *testi
 		synced.SourceCommitSHAByRepoPath,
 		nil,
 		nil,
+		nil,
 	)
 	attachFilesystemGitTreePaths(config, []string{"."}, repositories)
 	engine, err := parser.DefaultEngine()
@@ -145,6 +146,7 @@ func TestFilesystemManagedCopyDoesNotCarryCommitIfTrackedFileRestoredAfterCopy(t
 		nil,
 		nil,
 		synced.SourceCommitSHAByRepoPath,
+		nil,
 		nil,
 		nil,
 	)

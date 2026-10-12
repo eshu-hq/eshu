@@ -99,7 +99,7 @@ func (d *dirtyScopes) LastProjectedCommitSHA(context.Context, string) (string, e
 func (d *dirtyScopes) FullReconcileState(context.Context, string) (scope.FullReconcileState, error) {
 	at := d.now.Add(-time.Hour)
 	return scope.FullReconcileState{
-		HasProjectedFull: true, LastProjectedFullAt: at, HasLatestFull: true, LatestFullAt: at,
+		HasProjectedFull: true, LastProjectedFullAt: at, LastStoredFullAt: at, HasLatestFull: true, LatestFullAt: at,
 		LatestFullStatus: scope.GenerationStatusActive, LatestFullProjected: true,
 	}, nil
 }

@@ -97,6 +97,7 @@ func TestFilesystemManagedCopyRejectsTransientTrackedEshuignore(t *testing.T) {
 
 	repositories := buildSelectedRepositories(
 		config, synced.SelectedRepoPaths, nil, nil, synced.SourceCommitSHAByRepoPath, nil, nil,
+		nil,
 	)
 	attachFilesystemGitTreePaths(config, []string{"."}, repositories)
 	engine, err := parser.DefaultEngine()

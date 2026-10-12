@@ -194,6 +194,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 			synced.SourceCommitSHAByRepoPath,
 			synced.RefsByRepoPath,
 			synced.RefWorktreesByRepoPath,
+			synced.ReconcileReasonByRepoPath,
 		),
 	}, nil
 }

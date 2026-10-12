@@ -150,7 +150,7 @@ func TestReindexWatermarkHoldsWhileForcedFullPending(t *testing.T) {
 // attempt ingested at latestAt.
 func reindexState(projectedAt time.Time, latestStatus scope.GenerationStatus, latestAt time.Time) scope.FullReconcileState {
 	state := scope.FullReconcileState{
-		HasProjectedFull: true, LastProjectedFullAt: projectedAt,
+		HasProjectedFull: true, LastProjectedFullAt: projectedAt, LastStoredFullAt: projectedAt,
 		HasLatestFull: true, LatestFullAt: projectedAt,
 		LatestFullStatus: scope.GenerationStatusActive, LatestFullProjected: true,
 	}
@@ -163,9 +163,9 @@ func reindexState(projectedAt time.Time, latestStatus scope.GenerationStatus, la
 }
 
 // TestReindexWatermarkDecisionTable pins the #7620 decision order in
-// decideForScope: the sweep's non-fresh reasons win, graph_dirty keeps
-// priority over a fresh scope, and only a scope the sweep calls fresh is then
-// checked against the watermark, behind the same throttle. With Interval 0 the
+// decideForScope: a watermark no stored full satisfies is decided first, so it
+// beats an overdue sweep and graph_dirty (ruling a9-125, review r2 N1), behind
+// the shared throttle; a satisfied watermark leaves the sweep's decision. With Interval 0 the
 // sweep and graph_dirty stay off, and the watermark alone is honored with the
 // default 24h throttle bounds.
 func TestReindexWatermarkDecisionTable(t *testing.T) {
@@ -205,12 +205,20 @@ func TestReindexWatermarkDecisionTable(t *testing.T) {
 			reindexState(now.Add(-3*time.Hour), scope.GenerationStatusFailed, now.Add(-time.Hour)), nil, false, reconcileReasonRetryBackoff,
 		},
 		{
-			"overdue sweep reason wins", daily, watermark,
-			reindexState(now.Add(-25*time.Hour), "", time.Time{}), nil, true, reconcileReasonIntervalElapsed,
+			// Ruling a9-125, review r2 N1: a pending watermark beats the
+			// sweep, so the forced full stores the re-parse.
+			"pending watermark beats an overdue sweep", daily, watermark,
+			reindexState(now.Add(-25*time.Hour), "", time.Time{}), nil, true, reconcileReasonReindexRequested,
 		},
 		{
-			"graph_dirty keeps priority", daily, watermark,
+			"pending watermark beats graph_dirty", daily, watermark,
 			reindexState(now.Add(-3*time.Hour), "", time.Time{}),
+			[]scope.UncoveredProjectionWriter{dirtyWriter()},
+			true, reconcileReasonReindexRequested,
+		},
+		{
+			"satisfied watermark leaves graph_dirty", daily, watermark,
+			reindexState(now.Add(-time.Hour), "", time.Time{}),
 			[]scope.UncoveredProjectionWriter{dirtyWriter()},
 			true, reconcileReasonGraphDirty,
 		},

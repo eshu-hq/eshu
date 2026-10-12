@@ -54,13 +54,12 @@ collector computes to summarize the observed state (for example a commit SHA for
 a repository snapshot). The hint is persisted on `scope_generations.freshness_hint`.
 
 When a collector commits a generation, `CommitScopeGeneration`
-(`go/internal/storage/postgres/ingestion.go`) first calls
-`shouldSkipUnchangedGeneration`. That helper looks up the most recent
-`pending` or `active` generation for the scope that has a non-empty
-`freshness_hint` and compares it to the incoming hint:
+(`go/internal/storage/postgres/ingestion.go`) first compares it with the
+scope's newest `pending` or `active` generation that has a freshness hint:
 
 ```sql
-SELECT generation.generation_id, COALESCE(generation.freshness_hint, '')
+SELECT generation.generation_id, COALESCE(generation.freshness_hint, ''),
+       COALESCE(generation.source_commit_sha, ''), generation.status
 FROM scope_generations AS generation
 WHERE generation.scope_id = $1
   AND generation.status IN ('pending', 'active')
@@ -69,15 +68,16 @@ ORDER BY generation.ingested_at DESC, generation.generation_id DESC
 LIMIT 1
 ```
 
-If the trimmed hints match, the commit is skipped: the fact stream is drained,
-no transaction opens, and no projector work is enqueued. The skip increments a
-process-local counter via `telemetry.RecordSkippedRefresh()` and emits a
-structured log line keyed on `refresh_skipped=true` with the scope ID, scope
-kind, source system, collector kind, and generation ID. This is what makes a
-re-observation of an unchanged source cheap.
+The same hint and `source_commit_sha` make a duplicate, never stored (#7978);
+the git hint (v3) folds the collector, parser, and fact-schema version. The
+store drains the fact stream, writes no generation, fact, document, or term
+row, and logs `refresh_skipped=true` with a closed `refresh_skip_reason`. A
+reconciliation that matches the `active` generation re-opens its projector work
+instead and stamps `reconcile_reason` and `reconcile_requested_at` on it (see
+`docs/internal/evidence/7978-reconcile-no-duplicate-generation.md`).
 
-The hint is a fast-path optimization, not the authority. An empty hint, or a
-missing scope ID, never triggers that skip. A retry of an already published or
+The hint is a fast-path optimization, not the authority. An empty hint, a
+missing scope ID, or a default-branch change never triggers that skip. A retry of an already published or
 terminal generation ID is also checked inside the ingestion transaction, after
 the scope lock. It rolls back the scope update and drains the fact stream before
 writing facts or enqueuing projector work. A pending same-ID retry may refresh
@@ -142,8 +142,8 @@ no trustworthy baseline exists or a delta would be wrong:
   `refs/remotes/origin/HEAD` at it, logs the WARN
   `git repository default branch changed` (`previous_branch`, `branch`,
   `detection` of `moved` or `missing_ref`), and takes a full snapshot of the
-  new branch (#7678). That generation carries an empty freshness hint, so a
-  rename that kept the tree still re-projects the new default branch, but it
+  new branch (#7678). That generation carries `DefaultBranchChanged`, so a
+  rename that kept the tree is still stored and re-projected, but it
   is not a reconciliation and adds no drift retractions unless a sweep
   reconciliation lands on the same cycle. The scope keeps its ID, which
   derives from the remote URL.

@@ -236,3 +236,89 @@ func NewPriorGenerationCheck(database db.ExecQueryer) reducer.PriorGenerationChe
 		return exists, nil
 	}
 }
+
+// unchangedGenerationCandidateQuery reads the generation an incoming snapshot
+// is compared with (#7978): the scope's newest pending or active generation
+// that carries a freshness hint, with its commit and status. It is the same
+// row activeGenerationFreshnessQuery selects, so a newer pending generation
+// still wins over the active one: a snapshot equal to the active generation
+// but not to a newer pending one is stored, because the pending one will
+// replace the active one. Served by scope_generations_scope_latest_lookup_idx.
+// work_live (ruling a9-126) reports whether that generation's projector work
+// row is pending, retrying, claimed, or running: one primary-key probe on the
+// canonical projector work_item_id for the single candidate row. Rebuild work
+// (refinalize_ prefix) is invisible to the probe; that is harmless because a
+// refinalize targets only the active or newest failed generation, never a
+// pending one. A probe on stage, scope_id, and generation_id would not depend
+// on the key format but used fact_work_items_scope_generation_idx and took
+// 1.27-3.58 ms on a 3,040-generation scope, against 0.03-0.54 ms here.
+const unchangedGenerationCandidateQuery = `
+SELECT candidate.generation_id,
+       candidate.freshness_hint,
+       candidate.source_commit_sha,
+       candidate.status,
+       EXISTS (
+           SELECT 1
+           FROM fact_work_items AS work
+           WHERE work.work_item_id = 'projector_' || $1 || '_' || candidate.generation_id
+             AND work.status IN ('pending', 'retrying', 'claimed', 'running')
+       ) AS work_live
+FROM (
+    SELECT generation.generation_id,
+           COALESCE(generation.freshness_hint, '') AS freshness_hint,
+           COALESCE(generation.source_commit_sha, '') AS source_commit_sha,
+           generation.status
+    FROM scope_generations AS generation
+    WHERE generation.scope_id = $1
+      AND generation.status IN ('pending', 'active')
+      AND COALESCE(generation.freshness_hint, '') <> ''
+    ORDER BY generation.ingested_at DESC, generation.generation_id DESC
+    LIMIT 1
+) AS candidate
+`
+
+// unchangedGenerationCandidate is the generation a snapshot is compared with.
+type unchangedGenerationCandidate struct {
+	generationID  string
+	freshnessHint string
+	sourceCommit  string
+	status        scope.GenerationStatus
+	// workLive reports whether the candidate has a projector work row a
+	// worker can still run (pending, retrying, claimed, running); ruling
+	// a9-126 skips a pending match only then.
+	workLive bool
+}
+
+// matches reports whether generation duplicates the candidate (#7978): the
+// same non-empty freshness hint, which folds the collector, parser, and
+// fact-schema version, and the same source commit.
+func (c unchangedGenerationCandidate) matches(generation scope.ScopeGeneration) bool {
+	hint := strings.TrimSpace(generation.FreshnessHint)
+	return hint != "" && hint == c.freshnessHint &&
+		strings.TrimSpace(generation.SourceCommitSHA) == c.sourceCommit
+}
+
+// unchangedGeneration returns the generation an incoming snapshot is compared
+// with, or false when the scope has none with a freshness hint.
+func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string) (unchangedGenerationCandidate, bool, error) {
+	if s.database == nil || strings.TrimSpace(scopeID) == "" {
+		return unchangedGenerationCandidate{}, false, nil
+	}
+	rows, err := s.database.QueryContext(ctx, unchangedGenerationCandidateQuery, scopeID)
+	if err != nil {
+		return unchangedGenerationCandidate{}, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return unchangedGenerationCandidate{}, false, rows.Err()
+	}
+	var candidate unchangedGenerationCandidate
+	var status string
+	if err := rows.Scan(&candidate.generationID, &candidate.freshnessHint, &candidate.sourceCommit, &status, &candidate.workLive); err != nil {
+		return unchangedGenerationCandidate{}, false, err
+	}
+	candidate.freshnessHint = strings.TrimSpace(candidate.freshnessHint)
+	candidate.sourceCommit = strings.TrimSpace(candidate.sourceCommit)
+	candidate.status = scope.GenerationStatus(status)
+	return candidate, true, rows.Err()
+}

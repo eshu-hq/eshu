@@ -22,6 +22,7 @@ func TestFullReconcileStateLive(t *testing.T) {
 	withProjected := func(state scope.FullReconcileState) scope.FullReconcileState {
 		state.HasProjectedFull = true
 		state.LastProjectedFullAt = projectedAt
+		state.LastStoredFullAt = projectedAt
 		state.HasLatestFull = true
 		return state
 	}
@@ -79,8 +80,17 @@ func TestFullReconcileStateLive(t *testing.T) {
 			if err != nil {
 				t.Fatalf("FullReconcileState() error = %v", err)
 			}
-			if got != tc.want {
-				t.Fatalf("FullReconcileState() = %+v, want %+v", got, tc.want)
+			want := tc.want
+			// The newest full's commit (ruling a9-126); the fixture seeds no
+			// projector work rows, so its work is never live here.
+			if want.HasLatestFull {
+				want.LatestFullSourceCommitSHA = projected.sha
+				if tc.latest != nil && !tc.latest.isDelta {
+					want.LatestFullSourceCommitSHA = tc.latest.sha
+				}
+			}
+			if got != want {
+				t.Fatalf("FullReconcileState() = %+v, want %+v", got, want)
 			}
 		})
 	}

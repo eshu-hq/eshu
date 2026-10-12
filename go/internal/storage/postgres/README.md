@@ -77,7 +77,7 @@ High-signal invariants for this package:
 - Fact writes batch at 500 rows, deduplicate `fact_id` within a batch, remove
   JSONB-incompatible U+0000 characters and control bytes without changing
   literal source text such as `\u0000`, and skip unchanged pending-or-active
-  generations by `FreshnessHint`.
+  generations by `FreshnessHint` and commit (an unchanged reconcile re-projects).
 - `VulnerabilitySuppressionStore` owns one operator scope and serializes
   concurrent mutations with a row lock. Each changed request clones the latest
   pending, active, or failed full set into a new immutable generation, writes

@@ -37,6 +37,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // overlayFile is one file in a commit's tree.
@@ -136,6 +137,10 @@ type overlayHarness struct {
 	getenv   func(string) string
 	mu       sync.Mutex
 	gens     map[string]scope.ScopeGeneration
+	// reasonOverride is the one-shot forced reason of commitWithReason.
+	reasonOverride string
+	// instruments, when set before buildService, reach the canonical writer.
+	instruments *telemetry.Instruments
 }
 
 func newOverlayHarness(ctx context.Context, t *testing.T, dsn string) *overlayHarness {
@@ -198,7 +203,7 @@ func newOverlayHarness(ctx context.Context, t *testing.T, dsn string) *overlayHa
 // canonical writer it wraps.
 func (h *overlayHarness) buildService(ctx context.Context) (projector.Service, runtime.CanonicalWriter) {
 	h.t.Helper()
-	writer, closer, err := openProjectorCanonicalWriter(ctx, h.pgDB, h.getenv, nil, nil)
+	writer, closer, err := openProjectorCanonicalWriter(ctx, h.pgDB, h.getenv, nil, h.instruments)
 	if err != nil {
 		h.t.Fatalf("open production canonical writer: %v", err)
 	}
@@ -239,8 +244,8 @@ func (h *overlayHarness) commit(ctx context.Context, gen overlayGen) error {
 	generation := scope.ScopeGeneration{
 		GenerationID: gen.id, ScopeID: h.scope.ScopeID, ObservedAt: observed, IngestedAt: observed,
 		Status: scope.GenerationStatusPending, TriggerKind: scope.TriggerKindSnapshot,
-		FreshnessHint: h.freshnessHint(ctx, gen), SourceCommitSHA: gen.commit, IsDelta: gen.delta,
-		DeltaBaselineCommitSHA: gen.baseline,
+		FreshnessHint: overlayContentHint(gen), SourceCommitSHA: gen.commit, IsDelta: gen.delta,
+		DeltaBaselineCommitSHA: gen.baseline, ReconcileReason: h.reasonFor(ctx, gen),
 	}
 	h.mu.Lock()
 	h.gens[gen.id] = generation
@@ -430,19 +435,21 @@ func overlayContentHint(gen overlayGen) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// freshnessHint derives gen's freshness hint the way the git collector does.
-// A full generation asks the production reconcile decision (the sweep plus the
-// #7389 graph_dirty reason, on the production IngestionStore resolver) whether
-// it is a reconciliation snapshot, and the production fact-builder rule then
-// blanks the hint for one. A delta never carries the reconcile flag.
-func (h *overlayHarness) freshnessHint(ctx context.Context, gen overlayGen) string {
-	hint := overlayContentHint(gen)
+// reconcileReason derives gen's reconcile reason the way the git collector
+// does. A full generation asks the production reconcile decision (the sweep
+// plus the #7389 graph_dirty reason, on the production IngestionStore
+// resolver) whether it is a reconciliation snapshot; the generation then keeps
+// its content hint and carries the reason (#7978). A delta never carries it.
+func (h *overlayHarness) reconcileReason(ctx context.Context, gen overlayGen) string {
 	if gen.delta {
-		return hint
+		return ""
 	}
 	due, reason := gitcollector.ReconcileSweepDecision(ctx, h.store, 24*time.Hour, time.Time{}, time.Time{}, time.Now().UTC(), h.scope.ScopeID, nil)
 	h.t.Logf("reconcile decision for full %s: due=%t reason=%s", gen.id, due, reason)
-	return gitcollector.GenerationFreshnessHint(hint, due)
+	if !due {
+		return ""
+	}
+	return reason
 }
 
 // workFailureClass returns the projector work row's failure_class for id.

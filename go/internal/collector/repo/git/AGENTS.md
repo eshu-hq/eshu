@@ -47,9 +47,11 @@ and `validateGenerationInput` rejects a delta without one.
 `decideForScope` probes it only when the sweep is not due and not throttled,
 inside the per-cycle budget, and `decideGraphDirty` shares `throttle` with
 `decide` (never the fresh check). A graph_dirty scope must go through the
-forced-reconcile path so `Reconcile` reaches the fact builder and
-`GenerationFreshnessHint` blanks the hint; a plain full snapshot is dropped as
-unchanged by the ingestion store. The `deltaFallback*` constants are the closed
+forced-reconcile path so the reason reaches `ScopeGeneration.ReconcileReason`;
+the store then re-projects a matching active generation (#7978). Never blank
+the hint: bump `gitGenerationContentVersion` when emitted facts change for
+unchanged input (`TestGenerationContentVersionPinsCollectorOutput` fails until
+you do, then re-pin), or the store drops the new output as a duplicate. The `deltaFallback*` constants are the closed
 `skip_reason` set and the `reconcileReason*` constants the closed reconcile
 `reason` set; add a value there and in the telemetry docs together.
 

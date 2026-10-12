@@ -47,9 +47,9 @@
   NULL (legacy) key may fall back to a lookup, which sees the statement snapshot
   (review F1). No bulk backfill (it stalls writers); see the SQL doc comment.
 - **Freshness de-dupe covers in-flight generations** —
-  `CommitScopeGeneration` compares the incoming `FreshnessHint` with the newest
-  same-scope `pending` or `active` generation, not only `active_generation_id`,
-  so polling cannot recommit a snapshot still in flight. Exclude `failed`
+  `CommitScopeGeneration` compares the incoming `FreshnessHint` and commit with
+  the newest same-scope `pending` or `active` generation; a matching reconcile
+  re-opens the active generation's projector work (#7978). Exclude `failed`
   generations so a later snapshot retries a failed first projection. Separately
   (#6738), the generation upsert rewrites only `pending` rows and never refreshes
   `observed_at`/`ingested_at`; a finalized same-ID retry rolls back and drains.

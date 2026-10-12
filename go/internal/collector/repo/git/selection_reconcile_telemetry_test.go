@@ -51,6 +51,9 @@ func reconcileCounterByReason(t *testing.T, reader *sdkmetric.ManualReader, name
 // TestReconcileSweepTelemetry proves the #7288 operator signals: forced
 // reconciles carry a bounded reason label and a git_reconcile_forced log (WARN
 // when an in-flight full expired), and in-flight holds count as suppressions.
+// An expired pending full at the remote head with live work is held as
+// in_flight_expired_held (ruling a9-126) with a git_reconcile_held log; once
+// its work is gone it is forced as in_flight_expired.
 func TestReconcileSweepTelemetry(t *testing.T) {
 	start := time.Date(2026, 9, 19, 1, 0, 0, 0, time.UTC)
 	world, reposDir := newReconcileWorld(t, start)
@@ -63,28 +66,35 @@ func TestReconcileSweepTelemetry(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	// Cycle 0 forces (interval_elapsed); cycles 1-2 hold (reconcile_in_flight);
-	// a cycle one Interval after the forced full forces again (in_flight_expired).
+	// a cycle one Interval after the forced full holds it, because its work is
+	// live at the same head (in_flight_expired_held); after the work is gone
+	// the next cycle forces (in_flight_expired).
 	for _, now := range []time.Time{start, start.Add(6 * time.Minute), start.Add(12 * time.Minute), start.Add(24 * time.Hour)} {
 		runObservedReconcileCycle(t, world, reposDir, now, "samesha", instruments, logger)
 	}
+	world.generations[world.lastFull()].workLive = false
+	runObservedReconcileCycle(t, world, reposDir, start.Add(24*time.Hour+6*time.Minute), "samesha", instruments, logger)
 
 	forced := reconcileCounterByReason(t, reader, "eshu_dp_collector_reconciliation_full_snapshots_total")
 	if forced[reconcileReasonIntervalElapsed] != 1 || forced[reconcileReasonInFlightExpired] != 1 || len(forced) != 2 {
 		t.Fatalf("forced reconciles by reason = %v, want interval_elapsed=1 in_flight_expired=1", forced)
 	}
 	suppressed := reconcileCounterByReason(t, reader, "eshu_dp_collector_reconciliation_suppressed_total")
-	if suppressed[reconcileReasonInFlight] != 2 || len(suppressed) != 1 {
-		t.Fatalf("suppressed by reason = %v, want reconcile_in_flight=2", suppressed)
+	if suppressed[reconcileReasonInFlight] != 2 || suppressed[reconcileReasonInFlightExpiredHeld] != 1 || len(suppressed) != 2 {
+		t.Fatalf("suppressed by reason = %v, want reconcile_in_flight=2 in_flight_expired_held=1", suppressed)
 	}
 
-	var forcedLogs []map[string]any
+	var forcedLogs, heldLogs []map[string]any
 	for _, line := range bytes.Split(bytes.TrimSpace(logs.Bytes()), []byte("\n")) {
 		var record map[string]any
 		if err := json.Unmarshal(line, &record); err != nil {
 			t.Fatalf("decode log line %q: %v", line, err)
 		}
-		if record["msg"] == "git_reconcile_forced" {
+		switch record["msg"] {
+		case "git_reconcile_forced":
 			forcedLogs = append(forcedLogs, record)
+		case "git_reconcile_held":
+			heldLogs = append(heldLogs, record)
 		}
 	}
 	if len(forcedLogs) != 2 {
@@ -97,5 +107,9 @@ func TestReconcileSweepTelemetry(t *testing.T) {
 	}
 	if second["level"] != "WARN" || second["reason"] != reconcileReasonInFlightExpired || second["latest_full_status"] != "pending" {
 		t.Fatalf("second forced log = %v, want WARN in_flight_expired over a pending full", second)
+	}
+	if len(heldLogs) != 1 || heldLogs[0]["reason"] != reconcileReasonInFlightExpiredHeld ||
+		heldLogs[0]["forced_reason"] != reconcileReasonInFlightExpired || heldLogs[0]["pending_commit_sha"] != "samesha" || heldLogs[0]["scope_id"] == "" {
+		t.Fatalf("git_reconcile_held logs = %v, want one in_flight_expired_held at samesha", heldLogs)
 	}
 }

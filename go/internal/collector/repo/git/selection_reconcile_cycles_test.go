@@ -23,6 +23,9 @@ type reconcileWorldGeneration struct {
 	status     string
 	ingestedAt time.Time
 	activated  bool
+	// workLive mirrors the projector work row being pending, retrying,
+	// claimed, or running (ruling a9-126).
+	workLive bool
 }
 
 // reconcileWorld is a stateful fake of one scope's scope_generations rows. It
@@ -57,6 +60,8 @@ func (w *reconcileWorld) FullReconcileState(_ context.Context, _ string) (scope.
 			state.LatestFullAt = generation.ingestedAt
 			state.LatestFullStatus = scope.GenerationStatus(generation.status)
 			state.LatestFullProjected = generation.activated
+			state.LatestFullSourceCommitSHA = generation.sha
+			state.LatestFullWorkLive = generation.workLive
 		}
 		switch generation.status {
 		case "active", "completed", "superseded":
@@ -66,6 +71,7 @@ func (w *reconcileWorld) FullReconcileState(_ context.Context, _ string) (scope.
 		if generation.activated && (!state.HasProjectedFull || !generation.ingestedAt.Before(state.LastProjectedFullAt)) {
 			state.HasProjectedFull = true
 			state.LastProjectedFullAt = generation.ingestedAt
+			state.LastStoredFullAt = generation.ingestedAt
 		}
 	}
 	return state, nil
@@ -131,7 +137,7 @@ func runObservedReconcileCycle(
 	if len(synced.SelectedRepoPaths) > 0 {
 		_, isDelta := synced.DeltaByRepoPath[repoPath]
 		world.generations = append(world.generations, reconcileWorldGeneration{
-			sha: remoteSHA, isDelta: isDelta && !forced, status: "pending", ingestedAt: now,
+			sha: remoteSHA, isDelta: isDelta && !forced, status: "pending", ingestedAt: now, workLive: true,
 		})
 	}
 	return forced, synced

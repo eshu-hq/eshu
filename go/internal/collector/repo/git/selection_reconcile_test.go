@@ -109,7 +109,7 @@ func TestReconcileDisabledWhenIntervalZero(t *testing.T) {
 // generation was activated at ingestedAt.
 func projectedFullState(ingestedAt time.Time) scope.FullReconcileState {
 	return scope.FullReconcileState{
-		HasProjectedFull: true, LastProjectedFullAt: ingestedAt,
+		HasProjectedFull: true, LastProjectedFullAt: ingestedAt, LastStoredFullAt: ingestedAt,
 		HasLatestFull: true, LatestFullAt: ingestedAt,
 		LatestFullStatus: scope.GenerationStatusActive, LatestFullProjected: true,
 	}

@@ -232,3 +232,8 @@ func AcceptanceStaleCountAttr(count int) slog.Attr {
 // the highest token in supply_chain_impact_write_admission to diagnose a
 // persistently superseded scope.
 const LogKeyFencingToken = "fencing_token"
+
+// LogKeyRefreshSkipReason is the closed reason the ingestion store skipped a
+// refresh without storing a generation (#7978): one of RefreshSkipReasons. It
+// accompanies LogKeyRefreshSkipped on the skip log line.
+const LogKeyRefreshSkipReason = "refresh_skip_reason"

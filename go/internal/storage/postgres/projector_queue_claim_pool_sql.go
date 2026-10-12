@@ -249,7 +249,10 @@ SELECT
     scope.scope_kind,
     COALESCE(scope.parent_scope_id, ''),
     COALESCE(scope.active_generation_id, ''),
-    EXISTS (
+    -- An already-activated generation is never a first generation: its
+    -- re-projection (#7978 reconcile, #7209 zombie heal) must retract what
+    -- the graph holds beyond it, even on a scope with no other generation.
+    generation.activated_at IS NOT NULL OR EXISTS (
         SELECT 1
         FROM scope_generations AS prior_generation
         WHERE prior_generation.scope_id = scope.scope_id

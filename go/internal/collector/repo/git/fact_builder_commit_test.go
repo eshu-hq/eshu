@@ -43,7 +43,11 @@ func TestBuildStreamingGenerationOmitsSourceCommitSHAWhenUnknown(t *testing.T) {
 	drainFactChannel(collected.Facts)
 }
 
-func TestBuildStreamingGenerationReconcileClearsFreshnessHint(t *testing.T) {
+// TestBuildStreamingGenerationReconcileMarksRepositoryFact keeps the
+// reconciliation marker on the repository fact while the generation keeps its
+// content hint (#7978): the store, not a blank hint, decides whether a
+// reconciliation stores a generation or re-projects the active one.
+func TestBuildStreamingGenerationReconcileMarksRepositoryFact(t *testing.T) {
 	t.Parallel()
 
 	repoPath := t.TempDir()
@@ -54,10 +58,8 @@ func TestBuildStreamingGenerationReconcileClearsFreshnessHint(t *testing.T) {
 
 	collected := buildStreamingGeneration(repoPath, repo, "run-reconcile", observedAt, snapshot, false, "")
 
-	// An empty freshness hint guarantees the commit-time skip never elides the
-	// reconciliation generation, so it always re-projects and retracts drift.
-	if collected.Generation.FreshnessHint != "" {
-		t.Fatalf("reconcile generation FreshnessHint = %q, want empty", collected.Generation.FreshnessHint)
+	if collected.Generation.FreshnessHint == "" {
+		t.Fatal("reconcile generation FreshnessHint is empty, want the content hint")
 	}
 	if collected.Generation.IsDelta {
 		t.Fatal("reconcile generation IsDelta = true, want false (full observation)")
