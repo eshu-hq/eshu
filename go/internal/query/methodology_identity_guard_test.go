@@ -25,8 +25,7 @@ func checkMethodologyScratchGitDoesNotStartMaintenance(t *testing.T) {
 	trace := filepath.Join(profileDir, "git-trace.json")
 	t.Setenv("GIT_CONFIG_GLOBAL", profile)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_TRACE2_EVENT", trace)
-	checkMethodologyProductionTreeScenario(t, "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD", "", "", "", false, false, false, "")
+	checkMethodologyProductionTreeScenario(t, "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD", "", "", "", false, false, false, "", trace)
 
 	file, err := os.Open(trace)
 	if err != nil {
@@ -84,12 +83,25 @@ func TestMethodologyProductionTreeRejectsBaseOnlyMigration(t *testing.T) {
 		{name: "unchanged"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			checkMethodologyProductionTreeScenario(t, childMarker, testCase.remove, testCase.add, testCase.modify, testCase.empty, testCase.commitDeleted, testCase.wantFailure, testCase.wantPath)
+			checkMethodologyProductionTreeScenario(t, childMarker, testCase.remove, testCase.add, testCase.modify, testCase.empty, testCase.commitDeleted, testCase.wantFailure, testCase.wantPath, "")
 		})
 	}
 }
 
-func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, add, modify string, empty, commitDeleted, wantFailure bool, wantPath string) {
+func methodologyScratchGitEnv(trace string) []string {
+	env := make([]string, 0, len(os.Environ())+1)
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "GIT_TRACE2_EVENT=") {
+			env = append(env, entry)
+		}
+	}
+	if trace == "" {
+		trace = "0"
+	}
+	return append(env, "GIT_TRACE2_EVENT="+trace)
+}
+
+func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, add, modify string, empty, commitDeleted, wantFailure bool, wantPath, trace string) {
 	t.Helper()
 	root := t.TempDir()
 	packageDir := filepath.Join(root, "go", "internal", "query")
@@ -112,6 +124,7 @@ func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, a
 		t.Helper()
 		command := exec.Command("git", args...)
 		command.Dir = root
+		command.Env = methodologyScratchGitEnv(trace)
 		output, err := command.CombinedOutput()
 		if err != nil {
 			t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, output)
@@ -162,7 +175,7 @@ func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, a
 		for _, inheritedWorkTree := range []string{"", "."} {
 			command := exec.Command(binary, "-test.run=^TestMethodologyProductionTreeRejectsBaseOnlyMigration$", "-test.v")
 			command.Dir = workingDirectory
-			command.Env = append(os.Environ(), childMarker+"="+base, "ESHU_METHODOLOGY_IDENTITY_GUARD_CANDIDATE="+candidate)
+			command.Env = append(methodologyScratchGitEnv(""), childMarker+"="+base, "ESHU_METHODOLOGY_IDENTITY_GUARD_CANDIDATE="+candidate)
 			if inheritedWorkTree != "" {
 				command.Env = append(command.Env, "GIT_WORK_TREE="+inheritedWorkTree)
 			}
@@ -196,6 +209,7 @@ func TestMethodologyCombinedCheckoutUsesIntegratedBase(t *testing.T) {
 		t.Helper()
 		command := exec.Command("git", args...)
 		command.Dir = root
+		command.Env = methodologyScratchGitEnv("")
 		output, err := command.CombinedOutput()
 		if err != nil {
 			t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, output)
@@ -238,7 +252,7 @@ func TestMethodologyCombinedCheckoutUsesIntegratedBase(t *testing.T) {
 		}
 		command := exec.Command(binary, "-test.run=^TestMethodologyProductionTreeRejectsBaseOnlyMigration$", "-test.v")
 		command.Dir = packageDir
-		command.Env = append(os.Environ(), "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD="+target, "ESHU_METHODOLOGY_IDENTITY_GUARD_CANDIDATE="+candidate)
+		command.Env = append(methodologyScratchGitEnv(""), "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD="+target, "ESHU_METHODOLOGY_IDENTITY_GUARD_CANDIDATE="+candidate)
 		output, err := command.CombinedOutput()
 		if wantFailure {
 			if err == nil || !strings.Contains(string(output), "207.sql") {
@@ -254,4 +268,41 @@ func TestMethodologyCombinedCheckoutUsesIntegratedBase(t *testing.T) {
 	runGit("add", ".")
 	runGit("commit", "--quiet", "-m", "candidate migration")
 	check(true)
+}
+
+func TestMethodologyScratchGitIgnoresAmbientTrace(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{
+			name: "production_tree_fixture_and_child_verifier",
+			run: func(t *testing.T) {
+				checkMethodologyProductionTreeScenario(t, "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD", "", "", "", false, false, false, "", "")
+			},
+		},
+		{name: "combined_checkout_fixture_and_child_verifier", run: TestMethodologyCombinedCheckoutUsesIntegratedBase},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			trace := filepath.Join(t.TempDir(), "ambient-trace.json")
+			t.Setenv("GIT_TRACE2_EVENT", trace)
+			testCase.run(t)
+			if events, err := os.ReadFile(trace); err == nil && len(events) != 0 {
+				t.Fatalf("scratch Git leaked %d bytes into ambient trace", len(events))
+			} else if err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			command := exec.Command("git", "--version")
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("ambient trace positive control: %v: %s", err, output)
+			}
+			events, err := os.ReadFile(trace)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(events), `"event":"start"`) {
+				t.Fatalf("ambient trace positive control did not record git start: %s", events)
+			}
+		})
+	}
 }
