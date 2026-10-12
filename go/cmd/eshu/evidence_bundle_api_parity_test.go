@@ -29,7 +29,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // parityStatusReader is a deterministic status.Reader fixture: one stage, one
@@ -111,7 +113,7 @@ func evidenceBundleParityRawSnapshot() status.RawSnapshot {
 			OldestOutstandingAge: 12500 * time.Millisecond,
 		},
 		Coordinator: &status.CoordinatorSnapshot{
-			CollectorInstances: []status.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{
 					InstanceID: "git-1", CollectorKind: "git", Mode: "direct",
 					Enabled: true, ClaimsEnabled: true, DisplayName: "git",
@@ -119,7 +121,7 @@ func evidenceBundleParityRawSnapshot() status.RawSnapshot {
 				},
 			},
 		},
-		SemanticExtraction: status.SemanticExtractionStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
 			State: "unavailable", Reason: "provider_not_configured", ProviderConfigured: false,
 		},
 	}

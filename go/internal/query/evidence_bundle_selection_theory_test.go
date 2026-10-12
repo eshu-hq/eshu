@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
@@ -33,7 +35,7 @@ func TestEvidenceBundleTerraformOmissionTheory(t *testing.T) {
 		SafeLocatorHash: "safe-hash", BackendKind: "s3", WarningKind: "state_missing",
 		Reason: "state_missing", GenerationID: "generation-42", ObservedAt: fixed,
 	}}
-	base.CollectorFactEvidence = []statuspkg.CollectorFactEvidence{{
+	base.CollectorFactEvidence = []collector.FactEvidence{{
 		InstanceID: "git-1", CollectorKind: "git", EvidenceSource: "file",
 		ObservationCount: 8, LastObservedAt: fixed, UpdatedAt: fixed,
 	}}
@@ -41,7 +43,7 @@ func TestEvidenceBundleTerraformOmissionTheory(t *testing.T) {
 		CollectorKind: "package_registry", ConfiguredInstances: 1,
 		RecentCompletedGenerations: 2, LastCompletedAt: fixed,
 	}}
-	base.SemanticExtraction.ProviderProfiles = []statuspkg.SemanticProviderProfileStatus{{
+	base.SemanticExtraction.ProviderProfiles = []semantic.ProviderProfileStatus{{
 		ProfileID: "profile-a", ProviderKind: "local", State: "configured",
 		Reason: "configured",
 	}}
@@ -230,7 +232,7 @@ func checkEvidenceBundleTheorySensitivity(t *testing.T, raw statuspkg.RawSnapsho
 		{
 			name: "semantic profile",
 			edit: func(snapshot *statuspkg.RawSnapshot) {
-				snapshot.SemanticExtraction.ProviderProfiles = append([]statuspkg.SemanticProviderProfileStatus(nil), snapshot.SemanticExtraction.ProviderProfiles...)
+				snapshot.SemanticExtraction.ProviderProfiles = append([]semantic.ProviderProfileStatus(nil), snapshot.SemanticExtraction.ProviderProfiles...)
 				snapshot.SemanticExtraction.ProviderProfiles[0].Reason = "updated"
 			},
 			changed: func(before, after evidencebundle.Bundle) bool {

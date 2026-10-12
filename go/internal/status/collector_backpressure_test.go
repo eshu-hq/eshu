@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestRenderStatusIncludesCollectorBackpressure(t *testing.T) {
@@ -18,7 +20,7 @@ func TestRenderStatusIncludesCollectorBackpressure(t *testing.T) {
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 6, 17, 4, 10, 0, 0, time.UTC),
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorBackpressure: []status.CollectorBackpressureSnapshot{{
+				CollectorBackpressure: []collector.BackpressureSnapshot{{
 					CollectorKind:       "package_registry",
 					CollectorInstanceID: "pkg-registry-primary",
 					SourceSystem:        "package_registry",
@@ -34,7 +36,7 @@ func TestRenderStatusIncludesCollectorBackpressure(t *testing.T) {
 					OldestRetryAge:      90 * time.Second,
 					OldestClaimAge:      2 * time.Minute,
 					NextRetryDelay:      45 * time.Second,
-					FailureClassCounts: []status.NamedCount{
+					FailureClassCounts: []shared.NamedCount{
 						{Name: "provider_rate_limited", Count: 3},
 						{Name: "provider_unavailable", Count: 1},
 					},

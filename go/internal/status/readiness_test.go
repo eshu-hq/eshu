@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 func TestStatusWrappersForwardReadiness(t *testing.T) {
@@ -19,7 +20,7 @@ func TestStatusWrappersForwardReadiness(t *testing.T) {
 	base := &fakeReader{readinessErr: want}
 	for name, reader := range map[string]status.Reader{
 		"retry policies":    status.WithRetryPolicies(base, status.RetryPolicySummary{Stage: "reducer"}),
-		"provider profiles": status.WithSemanticProviderProfiles(base, status.SemanticProviderProfileStatus{ProfileID: "test"}),
+		"provider profiles": status.WithSemanticProviderProfiles(base, semantic.ProviderProfileStatus{ProfileID: "test"}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			checker, ok := reader.(status.ReadinessChecker)
@@ -63,11 +64,11 @@ func TestStatusWrappersForwardStartupError(t *testing.T) {
 	want := errors.New("ESHU_STATUS_SUMMARY_STALE_AFTER=\"soon\": invalid")
 	base := &startupReader{err: want}
 	retry := status.WithRetryPolicies(base, status.RetryPolicySummary{Stage: "reducer"})
-	profiles := status.WithSemanticProviderProfiles(base, status.SemanticProviderProfileStatus{ProfileID: "test"})
+	profiles := status.WithSemanticProviderProfiles(base, semantic.ProviderProfileStatus{ProfileID: "test"})
 	for name, reader := range map[string]status.Reader{
 		"retry policies":    retry,
 		"provider profiles": profiles,
-		"stacked":           status.WithSemanticProviderProfiles(retry, status.SemanticProviderProfileStatus{ProfileID: "test"}),
+		"stacked":           status.WithSemanticProviderProfiles(retry, semantic.ProviderProfileStatus{ProfileID: "test"}),
 	} {
 		if err := status.ReaderStartupError(reader); !errors.Is(err, want) {
 			t.Fatalf("%s: ReaderStartupError() = %v, want %v", name, err, want)

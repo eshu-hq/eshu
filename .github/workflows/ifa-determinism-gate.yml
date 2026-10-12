@@ -78,7 +78,7 @@ on:
       'go/internal/storage/cypher/cloud_resource_node_writer_teeth.go', 'go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go', 'scripts/verify-ifa-determinism.sh',
       'scripts/test-verify-ifa-determinism.sh', 'scripts/verify-ifa-dead-letter-matrix.sh', 'scripts/test-verify-ifa-dead-letter-matrix.sh',
       'scripts/lib/ifa_determinism_common.sh', 'go/internal/storage/cypher/fault/executor/*.go', 'go/internal/replay/faultreplay/**',
-      'go/cmd/reducer/ifa_fault_wiring.go', 'go/cmd/reducer/ifa_fault_wiring_off.go', 'scripts/verify-ifa-fault-injection.sh',
+      'go/cmd/reducer/ifa_lease_expiry*.go', 'scripts/test-ifa-fault-lease-expiry-barrier.sh', 'go/cmd/reducer/ifa_fault_wiring.go', 'go/cmd/reducer/ifa_fault_wiring_off.go', 'scripts/verify-ifa-fault-injection.sh',
       'scripts/ci/install-apt-packages.sh', 'scripts/ci/go-mod-download-retry.sh', 'scripts/test-verify-ifa-fault-injection.sh',
       'go/internal/storage/cypher/edge/writer/sql.go', 'specs/ifa-materialized-edge-coverage.v1.yaml', 'specs/ifa-materialized-edge-coverage-direct.v1.yaml',
       'testdata/cassettes/sqlrelationships/**', 'testdata/cassettes/codecalls/**', 'go/internal/ifa/testdata/sqlrelationships/**',
@@ -355,6 +355,7 @@ jobs:
             /tmp/ifa-fault-injection.*/current-cell
             /tmp/ifa-fault-injection.*/**/*.error
             /tmp/ifa-fault-injection.*/logs/*.log
+            /tmp/ifa-fault-injection.*/logs/expirelease-barrier.*
           if-no-files-found: error
           retention-days: 7
       - name: Tear down Docker services

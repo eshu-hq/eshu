@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 const (
@@ -132,7 +132,7 @@ type profileConfigEnvelope struct {
 // redacted status projection. It does not read provider credential values.
 func LoadStatusesFromEnv(
 	getenv func(string) string,
-) ([]status.SemanticProviderProfileStatus, error) {
+) ([]semantic.ProviderProfileStatus, error) {
 	if getenv == nil {
 		return nil, nil
 	}
@@ -184,25 +184,25 @@ func ParseProfilesJSON(raw string) ([]ProviderProfile, error) {
 }
 
 // ProviderStatuses returns redacted operator status rows for the profile config.
-func ProviderStatuses(profiles []ProviderProfile) []status.SemanticProviderProfileStatus {
+func ProviderStatuses(profiles []ProviderProfile) []semantic.ProviderProfileStatus {
 	if len(profiles) == 0 {
 		return nil
 	}
-	rows := make([]status.SemanticProviderProfileStatus, 0, len(profiles))
+	rows := make([]semantic.ProviderProfileStatus, 0, len(profiles))
 	for _, profile := range profiles {
-		state := status.SemanticProviderProfileConfigured
+		state := semantic.ProviderProfileConfigured
 		reason := "provider_profile_configured"
 		detail := ""
 		switch strings.TrimSpace(profile.Health.State) {
-		case status.SemanticProviderProfileHealthy:
-			state = status.SemanticProviderProfileHealthy
+		case semantic.ProviderProfileHealthy:
+			state = semantic.ProviderProfileHealthy
 			reason = "provider_profile_healthy"
-		case status.SemanticProviderProfileUnhealthy:
-			state = status.SemanticProviderProfileUnhealthy
+		case semantic.ProviderProfileUnhealthy:
+			state = semantic.ProviderProfileUnhealthy
 			reason = "provider_profile_unhealthy"
 			detail = strings.TrimSpace(profile.Health.Detail)
 		}
-		rows = append(rows, status.SemanticProviderProfileStatus{
+		rows = append(rows, semantic.ProviderProfileStatus{
 			ProfileID:              profile.ProfileID,
 			DisplayName:            profile.DisplayName,
 			ProviderKind:           profile.ProviderKind,
@@ -259,7 +259,7 @@ func normalizeProfile(profile ProviderProfile) (ProviderProfile, error) {
 		return ProviderProfile{}, fmt.Errorf("source_classes must include at least one source class")
 	}
 	out.SourceClasses = sourceClasses
-	if out.Health.State != "" && !slices.Contains(status.SemanticProviderProfileSupportedStates(), out.Health.State) {
+	if out.Health.State != "" && !slices.Contains(semantic.ProviderProfileSupportedStates(), out.Health.State) {
 		return ProviderProfile{}, fmt.Errorf("health.state %q is unsupported", out.Health.State)
 	}
 	return out, nil

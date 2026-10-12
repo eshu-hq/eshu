@@ -22,11 +22,13 @@ than there are entries here.
    fresh reducer process and let the fixed 1-minute lease
    (postgres.NewReducerQueue's hardcoded time.Minute,
    go/cmd/reducer/main_helpers.go) expire and get reclaimed.
-3. expire-lease-mid-handler                -- force `claim_until = now()`
-   directly via SQL on a genuinely claimed row (no kill), so the running
-   reducer's OWN claim query (claimReducerWorkQuery's
-   `claim_until <= $1`) reclaims it on the next poll while the original
-   handler goroutine is still in flight.
+3. expire-lease-mid-handler                -- the tagged reducer holds exactly
+   one direct GCP handler after a successful graph write, outside graph permits
+   and transactions. The shell expires that recorded work item's exact claim
+   epoch via SQL (no kill), requires a committed nonzero mutation and the same
+   item's replacement epoch while the original handler remains held, then
+   releases it and retains strict reclaim, drain, dead-letter, and digest checks.
+   A prior claimed-row count alone cannot prove expiry landed (#7939).
 4. fail-graph-write-once-then-succeed      -- the tagged
    (-tags ifafaultinjection) eshu-reducer with ESHU_IFA_FAULT_SCRIPT
    pointed at a queue-retry fault script that fails the CloudResource

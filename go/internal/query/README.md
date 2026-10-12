@@ -977,7 +977,7 @@ tenant/workspace values, provider payloads, local paths, and credentials stay
 out of the payload.
 
 `GET /api/v0/status/collector-readiness` (alias `/api/v0/collector-readiness`)
-projects `status.CollectorPromotionProofs` over the full collector fleet into a
+projects `collector.PromotionProofs` over the full collector fleet into a
 redacted, console-consumable readiness read model: per-family promotion state,
 runtime category, health, claim state, reducer readback status, evidence counts,
 last proof time, blockers, and a recommended next action. The MCP tool

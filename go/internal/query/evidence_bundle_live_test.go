@@ -14,7 +14,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // evidenceBundleFixtureSnapshot is the shared RawSnapshot fixture for the
@@ -56,7 +58,7 @@ func evidenceBundleFixtureSnapshot() statuspkg.RawSnapshot {
 			OldestOutstandingAge: 12500 * time.Millisecond,
 		},
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{
 					InstanceID: "git-1", CollectorKind: "git", Mode: "direct",
 					Enabled: true, ClaimsEnabled: true, DisplayName: "git",
@@ -64,7 +66,7 @@ func evidenceBundleFixtureSnapshot() statuspkg.RawSnapshot {
 				},
 			},
 		},
-		SemanticExtraction: statuspkg.SemanticExtractionStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
 			State: "unavailable", Reason: "provider_not_configured", ProviderConfigured: false,
 		},
 	}

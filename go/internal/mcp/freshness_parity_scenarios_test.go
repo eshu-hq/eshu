@@ -30,7 +30,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
@@ -241,19 +241,19 @@ func TestFreshnessParityReducerWorkFilteredInactive(t *testing.T) {
 func TestFreshnessParityRetiredEvidenceDisappears(t *testing.T) {
 	t.Parallel()
 
-	handler := mountFreshnessHandler(t, nil, fixedChangedSinceReader{summary: status.ChangedSinceSummary{
+	handler := mountFreshnessHandler(t, nil, fixedChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:                   parityScope,
 		ScopeKind:                 "repository",
 		Repository:                parityRepo,
 		SinceGenerationID:         "gen-prior",
 		CurrentActiveGenerationID: "gen-current",
 		SampleLimit:               25,
-		Categories: []status.ChangedSinceCategoryDelta{
+		Categories: []changedsince.CategoryDelta{
 			{
-				Category: status.ChangedSinceCategoryFiles,
-				Counts:   status.ChangedSinceCounts{Added: 1, Updated: 0, Unchanged: 7, Retired: 2, Superseded: 0},
-				Samples: map[status.ChangedSinceClassification][]status.ChangedSinceSample{
-					status.ChangedSinceRetired: {
+				Category: changedsince.CategoryFiles,
+				Counts:   changedsince.Counts{Added: 1, Updated: 0, Unchanged: 7, Retired: 2, Superseded: 0},
+				Samples: map[changedsince.Classification][]changedsince.Sample{
+					changedsince.Retired: {
 						{StableFactKey: "file:removed-a", FactKind: "file"},
 						{StableFactKey: "file:removed-b", FactKind: "file"},
 					},
@@ -303,15 +303,15 @@ func TestFreshnessParityWebhookRefreshReachesCurrent(t *testing.T) {
 			}},
 			Limit: 50,
 		}},
-		fixedChangedSinceReader{summary: status.ChangedSinceSummary{
+		fixedChangedSinceReader{summary: changedsince.Summary{
 			ScopeID:                   parityScope,
 			ScopeKind:                 "repository",
 			Repository:                parityRepo,
 			SinceGenerationID:         "gen-prior",
 			CurrentActiveGenerationID: "gen-webhook",
 			SampleLimit:               25,
-			Categories: []status.ChangedSinceCategoryDelta{
-				{Category: status.ChangedSinceCategoryFiles, Counts: status.ChangedSinceCounts{Added: 3, Updated: 2, Unchanged: 5}},
+			Categories: []changedsince.CategoryDelta{
+				{Category: changedsince.CategoryFiles, Counts: changedsince.Counts{Added: 3, Updated: 2, Unchanged: 5}},
 			},
 		}})
 
@@ -372,14 +372,14 @@ func TestFreshnessParityPendingGenerationBuilding(t *testing.T) {
 func TestFreshnessParityNoActiveGenerationUnavailable(t *testing.T) {
 	t.Parallel()
 
-	handler := mountFreshnessHandler(t, nil, fixedChangedSinceReader{summary: status.ChangedSinceSummary{
+	handler := mountFreshnessHandler(t, nil, fixedChangedSinceReader{summary: changedsince.Summary{
 		ScopeID:     parityScope,
 		ScopeKind:   "repository",
 		Repository:  parityRepo,
 		Unavailable: true,
 		SampleLimit: 25,
-		Categories: []status.ChangedSinceCategoryDelta{
-			{Category: status.ChangedSinceCategoryFiles, Unavailable: true},
+		Categories: []changedsince.CategoryDelta{
+			{Category: changedsince.CategoryFiles, Unavailable: true},
 		},
 	}})
 

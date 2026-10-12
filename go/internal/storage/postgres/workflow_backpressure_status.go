@@ -12,7 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 const workflowCollectorBackpressureQuery = `
@@ -171,17 +172,17 @@ func readWorkflowCollectorBackpressureStatus(
 	ctx context.Context,
 	queryer db.Queryer,
 	asOf time.Time,
-) ([]statuspkg.CollectorBackpressureSnapshot, error) {
+) ([]collector.BackpressureSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, workflowCollectorBackpressureQuery, asOf.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("read workflow collector backpressure: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	backpressure := []statuspkg.CollectorBackpressureSnapshot{}
+	backpressure := []collector.BackpressureSnapshot{}
 	byKey := map[string]int{}
 	for rows.Next() {
-		var row statuspkg.CollectorBackpressureSnapshot
+		var row collector.BackpressureSnapshot
 		var oldestPendingSeconds float64
 		var oldestRetrySeconds float64
 		var oldestClaimSeconds float64
@@ -226,7 +227,7 @@ func attachWorkflowCollectorBackpressureFailureClasses(
 	ctx context.Context,
 	queryer db.Queryer,
 	asOf time.Time,
-	rows []statuspkg.CollectorBackpressureSnapshot,
+	rows []collector.BackpressureSnapshot,
 	byKey map[string]int,
 ) error {
 	classRows, err := queryer.QueryContext(ctx, workflowCollectorBackpressureFailureClassQuery, asOf.UTC())
@@ -248,7 +249,7 @@ func attachWorkflowCollectorBackpressureFailureClasses(
 		if !ok {
 			continue
 		}
-		rows[index].FailureClassCounts = append(rows[index].FailureClassCounts, statuspkg.NamedCount{
+		rows[index].FailureClassCounts = append(rows[index].FailureClassCounts, shared.NamedCount{
 			Name:  failureClass,
 			Count: int(count),
 		})

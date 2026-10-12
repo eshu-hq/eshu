@@ -12,6 +12,8 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestAuthMiddlewareWithScopedTokensAllowsGovernanceStatusRoute(t *testing.T) {
@@ -90,11 +92,11 @@ func TestAuthMiddlewareWithScopedTokensAllowsSemanticExtractionStatusRoute(t *te
 		StatusReader: fakeStatusReader{
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: time.Date(2026, 6, 10, 4, 30, 0, 0, time.UTC),
-				SemanticExtraction: statuspkg.SemanticExtractionStatus{
-					State:              statuspkg.SemanticExtractionAvailable,
+				SemanticExtraction: semantic.ExtractionStatus{
+					State:              semantic.ExtractionAvailable,
 					ProviderConfigured: true,
 					Detail:             rawProviderDetail,
-					ProviderProfiles: []statuspkg.SemanticProviderProfileStatus{
+					ProviderProfiles: []semantic.ProviderProfileStatus{
 						{
 							ProfileID:              "semantic-docs-default",
 							DisplayName:            "Documentation default",
@@ -105,13 +107,13 @@ func TestAuthMiddlewareWithScopedTokensAllowsSemanticExtractionStatusRoute(t *te
 							EndpointProfileID:      "hosted-semantic-default",
 							SourceClasses:          []string{"documentation"},
 							SourcePolicyConfigured: true,
-							State:                  statuspkg.SemanticProviderProfileConfigured,
+							State:                  semantic.ProviderProfileConfigured,
 							Detail:                 rawProviderDetail,
 						},
 					},
-					Queue: statuspkg.SemanticExtractionQueueSnapshot{
+					Queue: semantic.ExtractionQueueSnapshot{
 						Total:             1,
-						SourceClassCounts: []statuspkg.NamedCount{{Name: "documentation", Count: 1}},
+						SourceClassCounts: []shared.NamedCount{{Name: "documentation", Count: 1}},
 					},
 				},
 			},

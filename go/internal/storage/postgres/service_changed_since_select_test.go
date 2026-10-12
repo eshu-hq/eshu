@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // TestSelectServiceChangedSinceLineageCoversEveryBranch drives the pure lineage
@@ -24,13 +24,13 @@ func TestSelectServiceChangedSinceLineageCoversEveryBranch(t *testing.T) {
 	legacy := func(current string) serviceChangedSinceLineage {
 		return serviceChangedSinceLineage{unattributed: true, currentGenerationID: current}
 	}
-	unscoped := statuspkg.ServiceChangedSinceFilter{ServiceID: "svc"}
-	scoped := statuspkg.ServiceChangedSinceFilter{ServiceID: "svc", Scoped: true, AllowedScopeIDs: []string{"scope-a", "scope-b"}}
-	selected := statuspkg.ServiceChangedSinceFilter{ServiceID: "svc", ScopeID: "scope-a"}
+	unscoped := changedsince.ServiceFilter{ServiceID: "svc"}
+	scoped := changedsince.ServiceFilter{ServiceID: "svc", Scoped: true, AllowedScopeIDs: []string{"scope-a", "scope-b"}}
+	selected := changedsince.ServiceFilter{ServiceID: "svc", ScopeID: "scope-a"}
 
 	for _, tc := range []struct {
 		name          string
-		filter        statuspkg.ServiceChangedSinceFilter
+		filter        changedsince.ServiceFilter
 		lineages      []serviceChangedSinceLineage
 		wantScope     string // served lineage's scope id; "" with wantLegacy for legacy
 		wantLegacy    bool

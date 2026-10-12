@@ -13,6 +13,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 func TestGetOperationsScopedCallerWithholdsGlobalAggregatesAndDowngradesTruth(t *testing.T) {
@@ -32,7 +33,7 @@ func TestGetOperationsScopedCallerWithholdsGlobalAggregatesAndDowngradesTruth(t 
 			Outstanding: 1010,
 		}},
 		Coordinator: &statuspkg.CoordinatorSnapshot{
-			CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+			CollectorInstances: []collector.InstanceSummary{{
 				InstanceID:     "other-tenant-collector",
 				CollectorKind:  "other_tenant_collector",
 				Enabled:        true,

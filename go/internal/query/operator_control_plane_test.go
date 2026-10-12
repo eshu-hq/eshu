@@ -12,6 +12,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
@@ -173,7 +174,7 @@ func TestOperatorControlPlaneDegradedCollectorGeneration(t *testing.T) {
 	t.Parallel()
 	payload := operatorControlPlaneRequest(t, statuspkg.RawSnapshot{
 		AsOf: time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
-		CollectorGenerationDeadLetters: statuspkg.CollectorGenerationDeadLetterSnapshot{
+		CollectorGenerationDeadLetters: collector.GenerationDeadLetterSnapshot{
 			DeadLetter: 2, ReplayRequested: 1, OldestDeadLetterAge: 30 * time.Minute,
 		},
 	})

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
@@ -122,7 +122,7 @@ func TestResolveChangedSinceScopePassesGrantToQuery(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{{}}}
 	store := StatusStore{queryer: queryer}
 
-	_, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	_, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		Repository:           "repo-b",
 		SinceGenerationID:    "gen-prior",
 		Scoped:               true,

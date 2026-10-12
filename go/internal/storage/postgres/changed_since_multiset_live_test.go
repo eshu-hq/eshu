@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // TestChangedSinceDuplicatePayloadSetsLive proves counts and samples classify
@@ -37,22 +37,22 @@ func TestChangedSinceDuplicatePayloadSetsLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("changed-since diff: %v", err)
 	}
-	var facts statuspkg.ChangedSinceCategoryDelta
+	var facts changedsince.CategoryDelta
 	for _, category := range categories {
-		if category.Category == statuspkg.ChangedSinceCategoryFacts {
+		if category.Category == changedsince.CategoryFacts {
 			facts = category
 			continue
 		}
-		if category.Counts != (statuspkg.ChangedSinceCounts{}) {
+		if category.Counts != (changedsince.Counts{}) {
 			t.Errorf("unexpected counts in category %s: %+v", category.Category, category.Counts)
 		}
 	}
-	if want := (statuspkg.ChangedSinceCounts{Updated: 3, Unchanged: 1, Retired: 1}); facts.Counts != want {
+	if want := (changedsince.Counts{Updated: 3, Unchanged: 1, Retired: 1}); facts.Counts != want {
 		t.Errorf("facts counts = %+v, want %+v", facts.Counts, want)
 	}
 
 	var gotKeys []string
-	for _, sample := range facts.Samples[statuspkg.ChangedSinceUpdated] {
+	for _, sample := range facts.Samples[changedsince.Updated] {
 		if sample.FactKind != "test" {
 			t.Errorf("sample %q has fact_kind %q, want test", sample.StableFactKey, sample.FactKind)
 		}

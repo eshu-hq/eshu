@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestBuildReportClampsNegativeAges(t *testing.T) {
@@ -29,7 +31,7 @@ func TestBuildReportClampsNegativeAges(t *testing.T) {
 				OldestAge:   -500 * time.Millisecond,
 			}},
 			Coordinator: &status.CoordinatorSnapshot{
-				RunStatusCounts: []status.NamedCount{
+				RunStatusCounts: []shared.NamedCount{
 					{Name: "collection_active", Count: 1},
 				},
 				OldestPendingAge: -1 * time.Second,
@@ -63,7 +65,7 @@ func TestRenderJSONNormalizesCoordinatorSnapshot(t *testing.T) {
 		status.RawSnapshot{
 			AsOf: now,
 			Coordinator: &status.CoordinatorSnapshot{
-				CollectorInstances: []status.CollectorInstanceSummary{{
+				CollectorInstances: []collector.InstanceSummary{{
 					InstanceID:     "collector-git-default",
 					CollectorKind:  "git",
 					Mode:           "continuous",
@@ -73,8 +75,8 @@ func TestRenderJSONNormalizesCoordinatorSnapshot(t *testing.T) {
 					LastObservedAt: now,
 					UpdatedAt:      now,
 				}},
-				RunStatusCounts:      []status.NamedCount{{Name: "collection_pending", Count: 1}},
-				WorkItemStatusCounts: []status.NamedCount{{Name: "claimed", Count: 1}},
+				RunStatusCounts:      []shared.NamedCount{{Name: "collection_pending", Count: 1}},
+				WorkItemStatusCounts: []shared.NamedCount{{Name: "claimed", Count: 1}},
 				ActiveClaims:         1,
 			},
 		},
@@ -145,7 +147,7 @@ func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
 				RecentCompletedGenerations: 4,
 				LastCompletedAt:            now.Add(-2 * time.Minute),
 				RetryableFailures:          1,
-				FailureClassCounts: []status.NamedCount{{
+				FailureClassCounts: []shared.NamedCount{{
 					Name:  "registry_rate_limited",
 					Count: 1,
 				}},

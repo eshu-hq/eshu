@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
@@ -116,17 +117,10 @@ func (cr *ContentReader) GetFileContent(ctx context.Context, repoID, relativePat
 	)
 	defer span.End()
 
-	row := cr.db.QueryRowContext(ctx, `
-		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
-		       content, content_hash, line_count, coalesce(language, ''),
-		       coalesce(artifact_type, '')
-		FROM content_files
-		WHERE repo_id = $1 AND relative_path = $2
-	`, repoID, relativePath)
+	row := cr.db.QueryRowContext(ctx, contentartifacts.GetFileStatement, repoID, relativePath)
 
-	var f FileContent
-	err := row.Scan(&f.RepoID, &f.RelativePath, &f.CommitSHA,
-		&f.Content, &f.ContentHash, &f.LineCount, &f.Language, &f.ArtifactType)
+	var file contentartifacts.File
+	err := row.Scan(contentartifacts.FileScanTargets(&file)...)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -134,6 +128,7 @@ func (cr *ContentReader) GetFileContent(ctx context.Context, repoID, relativePat
 		span.RecordError(err)
 		return nil, fmt.Errorf("get file content: %w", err)
 	}
+	f := fileContentFromStoredFile(file)
 	return &f, nil
 }
 
@@ -387,15 +382,7 @@ func (cr *ContentReader) ListRepoFiles(ctx context.Context, repoID string, limit
 		limit = 500
 	}
 
-	rows, err := cr.db.QueryContext(ctx, `
-		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
-		       '', content_hash, line_count, coalesce(language, ''),
-		       coalesce(artifact_type, '')
-		FROM content_files
-		WHERE repo_id = $1
-		ORDER BY relative_path
-		LIMIT $2
-	`, repoID, limit)
+	rows, err := cr.db.QueryContext(ctx, contentartifacts.ListStatement, repoID, limit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list repo files: %w", err)
@@ -404,13 +391,12 @@ func (cr *ContentReader) ListRepoFiles(ctx context.Context, repoID string, limit
 
 	var results []FileContent
 	for rows.Next() {
-		var f FileContent
-		if err := rows.Scan(&f.RepoID, &f.RelativePath, &f.CommitSHA,
-			&f.Content, &f.ContentHash, &f.LineCount, &f.Language, &f.ArtifactType); err != nil {
+		var file contentartifacts.File
+		if err := rows.Scan(contentartifacts.FileScanTargets(&file)...); err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("scan repo file: %w", err)
 		}
-		results = append(results, f)
+		results = append(results, fileContentFromStoredFile(file))
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)

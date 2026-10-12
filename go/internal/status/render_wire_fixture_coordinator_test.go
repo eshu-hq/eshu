@@ -5,6 +5,7 @@ package status
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // fixtureCoordinatorSnapshot returns a fully populated *CoordinatorSnapshot,
@@ -38,15 +39,15 @@ func fixtureCoordinatorSnapshot() *CoordinatorSnapshot {
 				DeactivatedAt:  fixtureTime(105),
 			},
 		},
-		RunStatusCounts: []NamedCount{
+		RunStatusCounts: []shared.NamedCount{
 			{Name: "collection_active", Count: 5},
 			{Name: "failed", Count: 2},
 		},
-		WorkItemStatusCounts: []NamedCount{
+		WorkItemStatusCounts: []shared.NamedCount{
 			{Name: "pending", Count: 7},
 			{Name: "failed_terminal", Count: 1},
 		},
-		CompletenessCounts: []NamedCount{
+		CompletenessCounts: []shared.NamedCount{
 			{Name: "pending", Count: 3},
 			{Name: "blocked", Count: 1},
 		},
@@ -67,7 +68,7 @@ func fixtureCoordinatorSnapshot() *CoordinatorSnapshot {
 				OldestRetryAge:      fixtureDuration(920),
 				OldestClaimAge:      fixtureDuration(930),
 				NextRetryDelay:      fixtureDuration(940),
-				FailureClassCounts: []NamedCount{
+				FailureClassCounts: []shared.NamedCount{
 					{Name: "transient_backend_error", Count: 3},
 					{Name: "rate_limited", Count: 1},
 				},
@@ -88,7 +89,7 @@ func fixtureCoordinatorSnapshot() *CoordinatorSnapshot {
 				OldestRetryAge:      fixtureDuration(960),
 				OldestClaimAge:      fixtureDuration(970),
 				NextRetryDelay:      fixtureDuration(980),
-				FailureClassCounts: []NamedCount{
+				FailureClassCounts: []shared.NamedCount{
 					{Name: "credential_error", Count: 2},
 					{Name: "timeout", Count: 1},
 				},
@@ -119,7 +120,7 @@ func fixtureRegistryCollectors() []RegistryCollectorSnapshot {
 			LastCompletedAt:            fixtureTime(110),
 			RetryableFailures:          2,
 			TerminalFailures:           1,
-			FailureClassCounts: []NamedCount{
+			FailureClassCounts: []shared.NamedCount{
 				{Name: "rate_limited", Count: 2},
 				{Name: "timeout", Count: 1},
 			},
@@ -136,7 +137,7 @@ func fixtureRegistryCollectors() []RegistryCollectorSnapshot {
 			LastCompletedAt:            fixtureTime(111),
 			RetryableFailures:          1,
 			TerminalFailures:           0,
-			FailureClassCounts: []NamedCount{
+			FailureClassCounts: []shared.NamedCount{
 				{Name: "not_found", Count: 4},
 				{Name: "timeout", Count: 2},
 			},

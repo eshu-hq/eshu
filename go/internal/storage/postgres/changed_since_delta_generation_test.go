@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // TestComputeChangedSinceDeltaRefusesDeltaGenerationWithoutDiff pins the
@@ -37,13 +37,13 @@ func TestComputeChangedSinceDeltaRefusesDeltaGenerationWithoutDiff(t *testing.T)
 				{rows: [][]any{{"scope-r", "repository", "repo-r", "gen-current", observed, tt.currentDelta, false}}},
 				{rows: [][]any{{"gen-prior", observed.Add(-time.Hour), tt.sinceDelta}}},
 			}}
-			summary, err := NewStatusStore(queryer).ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+			summary, err := NewStatusStore(queryer).ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 				ScopeID: "scope-r", SinceGenerationID: "gen-prior", SampleLimit: 25,
 			})
 			if err != nil {
 				t.Fatalf("ComputeChangedSinceDelta() error = %v", err)
 			}
-			if !summary.Unavailable || summary.UnavailableReason != statuspkg.ChangedSinceUnavailableBaselineNotComparable {
+			if !summary.Unavailable || summary.UnavailableReason != changedsince.UnavailableBaselineNotComparable {
 				t.Fatalf("unavailable=%v reason=%q, want baseline_not_comparable", summary.Unavailable, summary.UnavailableReason)
 			}
 			if summary.SinceIsDelta != tt.sinceDelta || summary.CurrentIsDelta != tt.currentDelta {

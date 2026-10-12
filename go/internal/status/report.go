@@ -21,8 +21,8 @@ import (
 // RawSnapshot is the read-only substrate snapshot gathered from Postgres.
 type RawSnapshot struct {
 	AsOf                  time.Time
-	ScopeCounts           []NamedCount
-	GenerationCounts      []NamedCount
+	ScopeCounts           []shared.NamedCount
+	GenerationCounts      []shared.NamedCount
 	ScopeActivity         ScopeActivitySnapshot
 	GenerationHistory     GenerationHistorySnapshot
 	GenerationTransitions []generation.TransitionSnapshot

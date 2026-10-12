@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestBuildReportClassifiesProgressingQueue(t *testing.T) {
@@ -18,10 +19,10 @@ func TestBuildReportClassifiesProgressingQueue(t *testing.T) {
 	report := status.BuildReport(
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 4, 12, 16, 0, 0, 0, time.UTC),
-			ScopeCounts: []status.NamedCount{
+			ScopeCounts: []shared.NamedCount{
 				{Name: "active", Count: 3},
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 1},
 				{Name: "completed", Count: 4},
 			},
@@ -95,7 +96,7 @@ func TestBuildReportTreatsActiveAuthoritativeGenerationAsHealthyWhenQueueDrained
 				Active:  3,
 				Changed: 0,
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 3},
 				{Name: "completed", Count: 5},
 			},
@@ -128,7 +129,7 @@ func TestBuildReportTreatsSharedProjectionBacklogAsProgressing(t *testing.T) {
 				Active:  1,
 				Changed: 0,
 			},
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 1},
 				{Name: "completed", Count: 1},
 			},
@@ -278,11 +279,11 @@ func TestBuildReportTreatsCoordinatorReducerConvergenceAsProgressing(t *testing.
 				DeadLetter:  0,
 			},
 			Coordinator: &status.CoordinatorSnapshot{
-				RunStatusCounts: []status.NamedCount{
+				RunStatusCounts: []shared.NamedCount{
 					{Name: "complete", Count: 3},
 					{Name: "reducer_converging", Count: 1},
 				},
-				CompletenessCounts: []status.NamedCount{
+				CompletenessCounts: []shared.NamedCount{
 					{Name: "pending", Count: 2},
 					{Name: "ready", Count: 4},
 				},
@@ -308,7 +309,7 @@ func TestBuildReportTreatsRecentProducerActivityAsProgressing(t *testing.T) {
 	report := status.BuildReport(
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 5, 21, 15, 29, 21, 0, time.UTC),
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "active", Count: 890},
 				{Name: "pending", Count: 2},
 			},
@@ -321,14 +322,14 @@ func TestBuildReportTreatsRecentProducerActivityAsProgressing(t *testing.T) {
 				OldestOutstandingAge: 12 * time.Minute,
 			},
 			Coordinator: &status.CoordinatorSnapshot{
-				RunStatusCounts: []status.NamedCount{
+				RunStatusCounts: []shared.NamedCount{
 					{Name: "complete", Count: 3},
 					{Name: "reducer_converging", Count: 1},
 				},
-				WorkItemStatusCounts: []status.NamedCount{
+				WorkItemStatusCounts: []shared.NamedCount{
 					{Name: "completed", Count: 22},
 				},
-				CompletenessCounts: []status.NamedCount{
+				CompletenessCounts: []shared.NamedCount{
 					{Name: "pending", Count: 2},
 				},
 			},
@@ -400,10 +401,10 @@ func TestBuildReportTreatsCoordinatorFailureAsDegraded(t *testing.T) {
 				DeadLetter:  0,
 			},
 			Coordinator: &status.CoordinatorSnapshot{
-				RunStatusCounts: []status.NamedCount{
+				RunStatusCounts: []shared.NamedCount{
 					{Name: "failed", Count: 1},
 				},
-				CompletenessCounts: []status.NamedCount{
+				CompletenessCounts: []shared.NamedCount{
 					{Name: "blocked", Count: 3},
 				},
 			},
@@ -460,7 +461,7 @@ func TestBuildReportClassifiesDegradedFailures(t *testing.T) {
 	report := status.BuildReport(
 		status.RawSnapshot{
 			AsOf: time.Date(2026, 4, 12, 16, 0, 0, 0, time.UTC),
-			GenerationCounts: []status.NamedCount{
+			GenerationCounts: []shared.NamedCount{
 				{Name: "failed", Count: 1},
 			},
 			Queue: status.QueueSnapshot{

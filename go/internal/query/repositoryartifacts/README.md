@@ -14,7 +14,7 @@ responses.
 
 This package owns content-derived artifact reads, not handler orchestration
 and not graph reads. It imports only the standard library, `querycontract`,
-and content-parsing libraries. It never imports `repository`,
+`content/artifacts` and content-parsing libraries. It never imports `repository`,
 `repository/readmodel`, or the query root. The `repository` package and a
 handful of staying root stayers consume its exported loaders and
 predicates.
@@ -44,109 +44,39 @@ preserve the candidate marker and add `static_workflow_coverage_unknown` to
 `missing_evidence` only for a capped scan; this does not backfill the typed
 API's other historical missing-evidence entries into uncapped stories.
 
-## Content is fetched only for the consumed set
+## Config artifacts live in `content/artifacts`
 
-The config-artifact load (`LoadSharedRepositoryConfigArtifacts`) fetches file
-content only for files an extractor reads (#7126). The selection is the first
-50 candidates in `relative_path` order, as before; the rest is what is read
-for them:
+The config-artifact extractors (Kustomize, Docker Compose, Terraform and
+Terragrunt HCL with its locals walk, Ansible), the needed-content hydration
+plan, the per-repository function `LoadConfigPaths`, the total row order and the
+shared `content_files` statements moved to `go/internal/content/artifacts`
+(#7126 PR 3a), so a derive in `storage/postgres` can run the same code without
+importing a query package. This package keeps:
 
-1. `configArtifactReadsContent` names the files an extractor reads by itself:
-   kustomization files, Docker Compose artifacts, `terragrunt.hcl`/`.tf`/`.hcl`
-   files, and a conventional Ansible playbook name the path rules leave to the
-   content heuristic. Its single source is the selectors the extractors branch
-   on (`isKustomizationIndexPath`, `IsDockerComposeArtifact`,
-   `classifyHCLConfigFile`, `ansiblePlaybookReadsContent`); a new extractor
-   branch that reads content must add its selector there.
-2. The other selected files keep an empty `Content`. The loader drops a blank
-   file before building, and a path-only row (var files, Ansible inventory,
-   vars, role and task paths) exists only for a non-blank file, so they get one
-   `ContentStore.NonBlankRepoFilePaths` statement per repository. It decides
-   `strings.TrimSpace(content) != ""` where the content lives and returns no
-   bytes.
-3. `planKustomizeResourceReads` runs the kustomize walk's own
-   `collectKustomizeResourceFiles` over the files and names the resource files
-   the kustomizations reference; only those are fetched in a second pass.
+- the loader (`LoadSharedRepositoryConfigArtifacts`,
+  `LoadDeploymentArtifactOverview`): the related-repository graph read, the
+  grant filter, and one merge across repositories (`MergeConfigPaths`);
+- the adapter (`repository_config_artifacts.go`): `BuildRepositoryConfigArtifacts`,
+  `CleanRepositoryRelativePath` and `NormalizeConfigArtifactExpression` under
+  the names the handlers call, the `querycontract.FileContent` conversion, and
+  `contentStoreReader`, which presents a `ContentStore` as the neutral
+  `Reader`. The statement counting wrapper (`countingContentStore`) sits under
+  the adapter, so every read is counted;
+- `HydrateRepositoryCandidateFiles`, the one-file-per-statement full pass the
+  anchor repository's controller, runtime, workflow and compose loaders use.
+  Its hydration set comes from `contentartifacts.SelectHydrationIndexes`, so
+  the cap and the order are the config-artifact load's;
+- `ConfigArtifactReadStats`, which sums the per-repository `ReadStats` of the
+  neutral package with the stage's statement and byte counts.
 
-Both content reads (steps 1 and 3) go through `ContentStore.GetFileContents`,
-one statement per chunk of 10 paths (`chunkedRead`,
-`repository_artifact_hydration_batch.go`), with at most 8 chunk reads of one
-repository in flight (#7126 PR 2). A repository holds at most five chunks per
-read, because the cap is 50 files. Repositories are still visited one after
-another. The statement is `relative_path = ANY($2)`, equality on the repository
-and path key, so it uses the `content_files_repo_path_pattern_idx` index. A
-chunk, not a whole repository, because one statement detoasts its rows on one
-backend: a single statement for a 7.4 MB repository ran 2.4 times slower than
-the eight-way per-file reads it replaces.
-
-Row semantics are those of `GetFileContent`. A path with no stored row keeps
-the list row, which the loader drops as blank. List rows that share a path read
-the row once and each receive it. Rows are assigned by `RelativePath`, never by
-position. A failed chunk fails the repository and leaves the rows unchanged.
-Chunks launch in list order. The launch decision and the recording of a
-failure run under one mutex, and a read frees its slot in the same critical
-section that records its failure, so no chunk is launched once a failure is
-recorded or the context is done. A chunk launched before the failure runs to completion, and its
-statement may begin after the failure was recorded. The error returned is that
-of the lowest-numbered failing chunk whatever the interleaving. The earlier
-per-file reader returned whichever failure arrived first.
-
-`HydrateRepositoryCandidateFiles` (exported, used by the controller, runtime,
-workflow and compose/GitHub Actions loaders for the anchor repository) still
-reads one file per statement. The related repositories, which dominate the
-statement count, go through the config-artifact load above.
-
-The output of `BuildRepositoryConfigArtifacts` is identical to reading every
-candidate. One read-path difference is intended: a read failure on a file no
-extractor reads no longer fails the repository, because that read is not
-issued. Any read the extractors need still fails the repository load.
-
-`LoadDeploymentArtifactOverviewWithStats` returns `ConfigArtifactReadStats`
-(related repository count, files listed, hydrated and skipped, content
-statements, batch statements, chunk size and chunks in flight, hydrated bytes,
-list, hydrate and parse seconds). The repository
-story and context handlers log them on the `deployment_artifacts` stage line.
-
-## HCL scan prefilter (#7126)
-
-`extractHCLConfigAssetRows` runs six regular-expression scans per `.tf` /
-`.hcl` file (dependency `config_path`, `read_terragrunt_config`, include
-`path`, `find_in_parent_folders`, `file(`/`templatefile(` and the module
-`source`) plus the locals walk. Each regular expression scans the whole file
-even when it cannot match, and most hydrated HCL (provider lock files, plain
-resource files) holds none of the required literals. The `prefilter`
-subpackage derives, from each pattern's own syntax tree, the literal fragments
-a match must contain; `hclScanPrefilters` builds one set over the six
-patterns and `planHCLScans` skips each scan whose requirement is absent. The
-locals walk is skipped when the content has no case-sensitive `locals`
-keyword or when no scan that resolves expressions through it can run.
-
-This sits behind the needed-content selector above. `classifyHCLConfigFile`
-decides which files are read at all; `planHCLScans` decides which scans run on
-content that was read. A file the selector does not read keeps an empty
-`Content`, and its rows do not depend on content
-(`TestHCLPrefilterAgreesWithTheNeededContentSelector`). The locals walk lives in
-`repository_config_artifacts_hcl_locals.go`.
-
-The output is unchanged. The extractor still runs the same patterns on the
-same helpers in the same order for every file that passes its gate, and a
-gate answers false only when the pattern provably has no match. The proof is
-the equality differential in
-`repository_config_artifacts_hcl_prefilter_test.go` against a frozen copy of
-the pre-prefilter extractor, the pinned derivation in
-`TestHCLPrefilterDerivationIsPinned`, and the mutation sweep in
-`repository_config_artifacts_hcl_prefilter_mutation_test.go`. The sweep pins
-its few language-equivalent survivors by name with an equivalence argument, and
-fails on an unpinned survivor or a pinned one that now dies.
-`BenchmarkHCLScanShippedVsGated` times the frozen extractor against the gated
-one on six content shapes at 2, 12 and 86 KB. A change to one of the six
-patterns changes its derived gate; update the pinned derivation and re-run the
-sweep in the same change.
+The content-fetch rules, the HCL scan prefilter and their proofs are in
+[content/artifacts](../../content/artifacts/README.md).
 
 ## Dependencies
 
-Standard library, `querycontract`, the `prefilter` leaf subpackage, and
-content-parsing libraries, plus `testutil` in tests. No handler packages, no
+Standard library, `querycontract`, `content/artifacts` (the neutral
+config-artifact package and its `prefilter` subpackage), and content-parsing
+libraries, plus `testutil` in tests. No handler packages, no
 graph drivers.
 
 ## Verification

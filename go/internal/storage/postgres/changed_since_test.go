@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 func scopeRow(scopeID, scopeKind, currentGen string, currentObserved any, hasPending bool, repository ...string) [][]any {
@@ -29,19 +29,19 @@ func TestComputeChangedSinceDeltaRejectsInvalidScopeSelectorsBeforeRead(t *testi
 
 	tests := []struct {
 		name       string
-		filter     statuspkg.ChangedSinceFilter
+		filter     changedsince.Filter
 		wantErrSub string
 	}{
 		{
 			name: "missing selector",
-			filter: statuspkg.ChangedSinceFilter{
+			filter: changedsince.Filter{
 				SinceGenerationID: "gen-prior",
 			},
 			wantErrSub: "scope_id or repository is required",
 		},
 		{
 			name: "conflicting selectors",
-			filter: statuspkg.ChangedSinceFilter{
+			filter: changedsince.Filter{
 				Repository:        "repository:r_b",
 				ScopeID:           "git-repository-scope:old",
 				SinceGenerationID: "gen-prior",
@@ -96,7 +96,7 @@ func TestComputeChangedSinceDeltaUnchangedProducesNoFalseDeltas(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		Repository:        "acme/app",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -139,7 +139,7 @@ func TestComputeChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "git-repository-scope:acme/app",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -148,9 +148,9 @@ func TestComputeChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
 		t.Fatalf("ComputeChangedSinceDelta() error = %v", err)
 	}
 
-	var files statuspkg.ChangedSinceCategoryDelta
+	var files changedsince.CategoryDelta
 	for _, category := range summary.Categories {
-		if category.Category == statuspkg.ChangedSinceCategoryFiles {
+		if category.Category == changedsince.CategoryFiles {
 			files = category
 		}
 	}
@@ -158,10 +158,10 @@ func TestComputeChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
 	if c.Added != 2 || c.Updated != 1 || c.Unchanged != 3 || c.Retired != 1 || c.Superseded != 1 {
 		t.Fatalf("files counts wrong: %+v", c)
 	}
-	if got := files.Samples[statuspkg.ChangedSinceAdded]; len(got) != 2 {
+	if got := files.Samples[changedsince.Added]; len(got) != 2 {
 		t.Fatalf("added samples = %d, want 2", len(got))
 	}
-	if got := files.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "file:gone" {
+	if got := files.Samples[changedsince.Retired]; len(got) != 1 || got[0].StableFactKey != "file:gone" {
 		t.Fatalf("retired samples wrong: %+v", got)
 	}
 	// #7127: the whole diff is one statement, so a request is scope + prior
@@ -169,7 +169,7 @@ func TestComputeChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
 	if got, want := len(queryer.queries), 3; got != want {
 		t.Fatalf("queries = %d, want %d (scope, prior generation, one diff)", got, want)
 	}
-	if got := files.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "file:dropped" {
+	if got := files.Samples[changedsince.Superseded]; len(got) != 1 || got[0].StableFactKey != "file:dropped" {
 		t.Fatalf("superseded samples wrong: %+v", got)
 	}
 }
@@ -190,7 +190,7 @@ func TestComputeChangedSinceDeltaTruncatesSamples(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "git-repository-scope:acme/app",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       2,
@@ -198,16 +198,16 @@ func TestComputeChangedSinceDeltaTruncatesSamples(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ComputeChangedSinceDelta() error = %v", err)
 	}
-	var facts statuspkg.ChangedSinceCategoryDelta
+	var facts changedsince.CategoryDelta
 	for _, category := range summary.Categories {
-		if category.Category == statuspkg.ChangedSinceCategoryFacts {
+		if category.Category == changedsince.CategoryFacts {
 			facts = category
 		}
 	}
-	if len(facts.Samples[statuspkg.ChangedSinceAdded]) != 2 {
-		t.Fatalf("added samples = %d, want 2 (trimmed)", len(facts.Samples[statuspkg.ChangedSinceAdded]))
+	if len(facts.Samples[changedsince.Added]) != 2 {
+		t.Fatalf("added samples = %d, want 2 (trimmed)", len(facts.Samples[changedsince.Added]))
 	}
-	if !facts.Truncated[statuspkg.ChangedSinceAdded] {
+	if !facts.Truncated[changedsince.Added] {
 		t.Fatalf("added truncated = false, want true")
 	}
 }
@@ -218,7 +218,7 @@ func TestComputeChangedSinceDeltaUnknownScopeReturnsEmpty(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{{}}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "does-not-exist",
 		SinceGenerationID: "gen-x",
 		SampleLimit:       25,
@@ -242,7 +242,7 @@ func TestComputeChangedSinceDeltaScopeSelectorReturnsResolvedRepository(t *testi
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "git-repository-scope:opaque",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -266,7 +266,7 @@ func TestComputeChangedSinceDeltaDoesNotLabelNonRepositoryScopeAsRepository(t *t
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "service-scope:checkout",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -290,7 +290,7 @@ func TestComputeChangedSinceDeltaUnknownSinceGenerationReturnsNoPrior(t *testing
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "git-repository-scope:acme/app",
 		SinceGenerationID: "missing-gen",
 		SampleLimit:       25,
@@ -317,7 +317,7 @@ func TestComputeChangedSinceDeltaRetentionExpiredPriorIsUnavailable(t *testing.T
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "git-repository-scope:acme/app",
 		SinceGenerationID: "gen-pruned",
 		SampleLimit:       25,
@@ -328,8 +328,8 @@ func TestComputeChangedSinceDeltaRetentionExpiredPriorIsUnavailable(t *testing.T
 	if !summary.Unavailable {
 		t.Fatalf("Unavailable = false, want true for retention-expired prior")
 	}
-	if summary.UnavailableReason != statuspkg.ChangedSinceUnavailableRetentionExpired {
-		t.Fatalf("UnavailableReason = %q, want %q", summary.UnavailableReason, statuspkg.ChangedSinceUnavailableRetentionExpired)
+	if summary.UnavailableReason != changedsince.UnavailableRetentionExpired {
+		t.Fatalf("UnavailableReason = %q, want %q", summary.UnavailableReason, changedsince.UnavailableRetentionExpired)
 	}
 	if summary.SinceGenerationID != "gen-pruned" {
 		t.Fatalf("SinceGenerationID = %q, want requested pruned generation", summary.SinceGenerationID)
@@ -352,7 +352,7 @@ func TestComputeChangedSinceDeltaNoActiveGenerationIsUnavailable(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "git-repository-scope:acme/app",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -385,7 +385,7 @@ func TestComputeChangedSinceDeltaObservedAtResolution(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:         "git-repository-scope:acme/app",
 		SinceObservedAt: sinceAt,
 		SampleLimit:     25,
@@ -406,7 +406,7 @@ func TestComputeChangedSinceDeltaRequiresQueryer(t *testing.T) {
 	t.Parallel()
 
 	var store StatusStore
-	if _, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{}); err == nil {
+	if _, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{}); err == nil {
 		t.Fatal("expected error for nil queryer")
 	}
 }
@@ -422,7 +422,7 @@ func TestComputeChangedSinceDeltaDiffQueryUsesPayloadHashAndFullOuterJoin(t *tes
 	}}
 	store := NewStatusStore(queryer)
 
-	if _, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	if _, err := store.ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "s",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -453,7 +453,7 @@ func TestComputeChangedSinceDeltaBucketWithoutSampleKeepsCount(t *testing.T) {
 		{rows: priorRow("gen-prior", observed.Add(-time.Hour))},
 		{rows: [][]any{diffBucketOnlyRow("files", "added", 4)}},
 	}}
-	summary, err := NewStatusStore(queryer).ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+	summary, err := NewStatusStore(queryer).ComputeChangedSinceDelta(context.Background(), changedsince.Filter{
 		ScopeID:           "s",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -49,8 +51,8 @@ func TestStatusMetricsHandlerServesRuntimeMetrics(t *testing.T) {
 				OldestOutstandingAge:                  45 * time.Second,
 				OverdueClaims:                         0,
 			},
-			GenerationCounts: []statuspkg.NamedCount{{Name: "completed", Count: 3}},
-			CollectorGenerationDeadLetters: statuspkg.CollectorGenerationDeadLetterSnapshot{
+			GenerationCounts: []shared.NamedCount{{Name: "completed", Count: 3}},
+			CollectorGenerationDeadLetters: collector.GenerationDeadLetterSnapshot{
 				DeadLetter:          2,
 				ReplayRequested:     1,
 				ReplayAttempts:      3,
@@ -193,7 +195,7 @@ func TestStatusMetricsHandlerIncludesCoordinatorSnapshotMetrics(t *testing.T) {
 		snapshot: statuspkg.RawSnapshot{
 			AsOf: time.Date(2026, 4, 20, 16, 0, 0, 0, time.UTC),
 			Coordinator: &statuspkg.CoordinatorSnapshot{
-				CollectorInstances: []statuspkg.CollectorInstanceSummary{
+				CollectorInstances: []collector.InstanceSummary{
 					{
 						InstanceID:    "collector-git-default",
 						CollectorKind: "git",
@@ -221,15 +223,15 @@ func TestStatusMetricsHandlerIncludesCoordinatorSnapshotMetrics(t *testing.T) {
 						ClaimsEnabled: true,
 					},
 				},
-				RunStatusCounts: []statuspkg.NamedCount{
+				RunStatusCounts: []shared.NamedCount{
 					{Name: "collection_pending", Count: 2},
 					{Name: "complete", Count: 1},
 				},
-				WorkItemStatusCounts: []statuspkg.NamedCount{
+				WorkItemStatusCounts: []shared.NamedCount{
 					{Name: "pending", Count: 3},
 					{Name: "claimed", Count: 1},
 				},
-				CompletenessCounts: []statuspkg.NamedCount{
+				CompletenessCounts: []shared.NamedCount{
 					{Name: "collection_active", Count: 1},
 					{Name: "reducer_converging", Count: 2},
 				},

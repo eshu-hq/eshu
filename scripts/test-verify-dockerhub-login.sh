@@ -101,9 +101,9 @@ expect_red direct-docker-job-without-login "${d}" 'verify-agent-hygiene.yml:fixt
 
 d="$(new_case login-after-first-docker)"
 # Move the login to the end without depending on unrelated setup positions.
-yq e -i '.jobs.live-backend.steps as $s | .jobs.live-backend.steps = (($s | map(select(.uses != "docker/login-action@v3"))) + ($s | map(select(.uses == "docker/login-action@v3"))))' "${d}/.github/workflows/live-backend-tests.yml"
-login_index="$(yq e '.jobs.live-backend.steps | length - 1' "${d}/.github/workflows/live-backend-tests.yml")"
-expect_red login-placed-after-first-docker-step "${d}" "live-backend-tests.yml:live-backend: login steps[${login_index}] comes after the first Docker-reaching"
+yq e -i '.jobs.live-backend-shards.steps as $s | .jobs.live-backend-shards.steps = (($s | map(select(.uses != "docker/login-action@v3"))) + ($s | map(select(.uses == "docker/login-action@v3"))))' "${d}/.github/workflows/live-backend-tests.yml"
+login_index="$(yq e '.jobs.live-backend-shards.steps | length - 1' "${d}/.github/workflows/live-backend-tests.yml")"
+expect_red login-placed-after-first-docker-step "${d}" "live-backend-tests.yml:live-backend-shards: login steps[${login_index}] comes after the first Docker-reaching"
 
 d="$(new_case service-without-credentials)"
 yq e -i '.jobs.contention-gate.services.postgres.image = "docker.io/library/postgres:18"' "${d}/.github/workflows/reducer-contention-gate.yml"
@@ -115,8 +115,8 @@ yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .with.registry) = \"ghcr.i
 expect_red login-to-ghcr-only "${d}" 'e2e-tests.yml:test: no Docker Hub docker/login-action@v3 step'
 
 d="$(new_case wrong-secret)"
-yq e -i "(.jobs.live-backend.steps[] | select(${login_ref}) | .with.password) = \"x\"" "${d}/.github/workflows/live-backend-tests.yml"
-login_index="$(yq e '.jobs.live-backend.steps | to_entries | .[] | select(.value.uses == "docker/login-action@v3") | .key' "${d}/.github/workflows/live-backend-tests.yml")"
+yq e -i "(.jobs.live-backend-shards.steps[] | select(${login_ref}) | .with.password) = \"x\"" "${d}/.github/workflows/live-backend-tests.yml"
+login_index="$(yq e '.jobs.live-backend-shards.steps | to_entries | .[] | select(.value.uses == "docker/login-action@v3") | .key' "${d}/.github/workflows/live-backend-tests.yml")"
 expect_red wrong-secret-names "${d}" "login steps[${login_index}] must use the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets"
 
 d="$(new_case ungated-login)"

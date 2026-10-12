@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // StatusHandler provides HTTP endpoints for pipeline status queries.
@@ -91,7 +92,7 @@ func (h *StatusHandler) listCollectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runtimes := status.CollectorRuntimeStatuses(report)
+	runtimes := collector.RuntimeStatuses(report.CollectorEvidence())
 	collectors := collectorRuntimeStatusesToSlice(runtimes)
 	if scopedAuthContext(r.Context()) {
 		collectors = scopedCollectorRuntimeStatusesToSlice(runtimes)

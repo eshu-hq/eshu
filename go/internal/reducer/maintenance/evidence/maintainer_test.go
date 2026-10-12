@@ -264,7 +264,7 @@ func TestCollectorEvidenceMaintainerStaleWindowMargin(t *testing.T) {
 	if cadence <= 0 {
 		t.Fatalf("default cadence = %v, want > 0", cadence)
 	}
-	const collectorPromotionStaleWindow = 24 * time.Hour // status.DefaultCollectorPromotionStaleAfter
+	const collectorPromotionStaleWindow = 24 * time.Hour // collector.DefaultPromotionStaleAfter
 	if cadence*100 >= collectorPromotionStaleWindow {
 		t.Fatalf("cadence %v too close to stale window %v; lag could flip a stale verdict", cadence, collectorPromotionStaleWindow)
 	}

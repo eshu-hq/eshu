@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 const (
@@ -266,14 +267,14 @@ func readRegistryMetadataTargetCounts(
 func readRegistryCollectorFailureClassCounts(
 	ctx context.Context,
 	queryer db.Queryer,
-) (map[string][]statuspkg.NamedCount, error) {
+) (map[string][]shared.NamedCount, error) {
 	rows, err := queryer.QueryContext(ctx, registryCollectorFailureClassQuery)
 	if err != nil {
 		return nil, fmt.Errorf("read registry collector failure classes: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	counts := map[string][]statuspkg.NamedCount{}
+	counts := map[string][]shared.NamedCount{}
 	for rows.Next() {
 		var collectorKind string
 		var failureClass string
@@ -286,7 +287,7 @@ func readRegistryCollectorFailureClassCounts(
 		if collectorKind == "" || failureClass == "" {
 			continue
 		}
-		counts[collectorKind] = append(counts[collectorKind], statuspkg.NamedCount{
+		counts[collectorKind] = append(counts[collectorKind], shared.NamedCount{
 			Name:  failureClass,
 			Count: int(count),
 		})

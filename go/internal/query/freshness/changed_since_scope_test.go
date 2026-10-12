@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // recordingChangedSince captures whether the store was reached at all, which is
@@ -19,15 +19,15 @@ import (
 // after querying has already read another tenant's rows.
 type recordingChangedSince struct {
 	called bool
-	filter status.ChangedSinceFilter
+	filter changedsince.Filter
 }
 
 func (r *recordingChangedSince) ComputeChangedSinceDelta(
-	_ context.Context, filter status.ChangedSinceFilter,
-) (status.ChangedSinceSummary, error) {
+	_ context.Context, filter changedsince.Filter,
+) (changedsince.Summary, error) {
 	r.called = true
 	r.filter = filter
-	return status.ChangedSinceSummary{}, nil
+	return changedsince.Summary{}, nil
 }
 
 // TestChangedSinceBindsGrantIntoFilter proves the grant reaches the store,

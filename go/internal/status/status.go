@@ -29,12 +29,6 @@ const (
 	healthStalled     = "stalled"
 )
 
-// NamedCount captures one status bucket and its count.
-// See [shared.NamedCount]. This alias keeps the ~170 packages that
-// import internal/status compiling across the #6775 nest; it is removed once
-// the last caller has moved to the leaf.
-type NamedCount = shared.NamedCount
-
 // StageStatusCount captures one stage/status bucket from the work queue.
 type StageStatusCount struct {
 	Stage  string
@@ -117,13 +111,13 @@ func LoadReportWithSelection(
 
 // LoadSemanticExtractionStatus reads only the semantic section. It never
 // projects a partial RawSnapshot as a full operator health report.
-func LoadSemanticExtractionStatus(ctx context.Context, reader Reader, asOf time.Time) (SemanticExtractionStatus, error) {
+func LoadSemanticExtractionStatus(ctx context.Context, reader Reader, asOf time.Time) (semantic.ExtractionStatus, error) {
 	if reader == nil {
-		return SemanticExtractionStatus{}, fmt.Errorf("status reader is required")
+		return semantic.ExtractionStatus{}, fmt.Errorf("status reader is required")
 	}
 	raw, err := reader.ReadStatusSnapshotFiltered(ctx, asOf.UTC(), SemanticOnlySnapshotSelection())
 	if err != nil {
-		return SemanticExtractionStatus{}, fmt.Errorf("read status snapshot: %w", err)
+		return semantic.ExtractionStatus{}, fmt.Errorf("read status snapshot: %w", err)
 	}
 	return semantic.NormalizeExtractionStatus(raw.SemanticExtraction), nil
 }
@@ -215,7 +209,7 @@ func deriveScopeActivity(scopeTotals map[string]int, generationTotals map[string
 func RenderText(report Report) string {
 	// Project the collector evidence once: the three readbacks below all
 	// consume the same slice of the report.
-	evidence := collectorEvidence(report)
+	evidence := report.CollectorEvidence()
 
 	lines := []string{
 		fmt.Sprintf("Version: %s", buildinfo.AppVersion()),
@@ -396,4 +390,23 @@ func cloneCounts(values map[string]int) map[string]int {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+// CollectorEvidence projects the report down to the slice the collector
+// readbacks consume. It lives on Report because the leaf must not name it:
+// the root aggregates every family into Report, so a leaf taking one would be
+// an import cycle. Callers pass the result to [collector.RuntimeStatuses] and
+// [collector.PromotionProofs]. A nil Coordinator yields nil Instances, which
+// the readbacks treat the same as a coordinator with no registrations.
+func (r Report) CollectorEvidence() collector.Evidence {
+	evidence := collector.Evidence{
+		AsOf:                 r.AsOf,
+		AWSScans:             r.AWSCloudScans,
+		VulnerabilitySources: r.VulnerabilitySources,
+		FactEvidence:         r.CollectorFactEvidence,
+	}
+	if r.Coordinator != nil {
+		evidence.Instances = r.Coordinator.CollectorInstances
+	}
+	return evidence
 }

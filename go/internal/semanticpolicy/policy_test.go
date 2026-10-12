@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 func TestEvaluateRequiresExplicitPolicyAllowlist(t *testing.T) {
@@ -29,7 +30,7 @@ func TestEvaluateRequiresExplicitPolicyAllowlist(t *testing.T) {
 	if decision.Allowed {
 		t.Fatal("Evaluate() Allowed = true, want false without policy")
 	}
-	if got, want := decision.State, status.SemanticExtractionDisabledByPolicy; got != want {
+	if got, want := decision.State, semantic.ExtractionDisabledByPolicy; got != want {
 		t.Fatalf("Evaluate() State = %q, want %q", got, want)
 	}
 	if got, want := decision.Reason, semanticpolicy.ReasonPolicyDisabled; got != want {
@@ -55,7 +56,7 @@ func TestEvaluateAllowsDocumentationWithConfiguredPolicy(t *testing.T) {
 	if !decision.Allowed {
 		t.Fatalf("Evaluate() Allowed = false, want true: %#v", decision)
 	}
-	if got, want := decision.State, status.SemanticExtractionAvailable; got != want {
+	if got, want := decision.State, semantic.ExtractionAvailable; got != want {
 		t.Fatalf("Evaluate() State = %q, want %q", got, want)
 	}
 	if got, want := decision.PolicyID, "semantic-hosted-policy"; got != want {
@@ -121,7 +122,7 @@ func TestEvaluateDeniesCodeHintsWhenOnlyDocumentationIsAllowlisted(t *testing.T)
 	if decision.Allowed {
 		t.Fatal("Evaluate() Allowed = true, want false for unallowlisted code hints")
 	}
-	if got, want := decision.State, status.SemanticExtractionAvailableButDisabledForScope; got != want {
+	if got, want := decision.State, semantic.ExtractionAvailableButDisabledForScope; got != want {
 		t.Fatalf("Evaluate() State = %q, want %q", got, want)
 	}
 	if got, want := decision.Reason, semanticpolicy.ReasonScopeDisabled; got != want {
@@ -130,11 +131,11 @@ func TestEvaluateDeniesCodeHintsWhenOnlyDocumentationIsAllowlisted(t *testing.T)
 
 	applied := semanticpolicy.ApplyToProviderStatuses(providerStatuses(), docsOnlyPolicyWithEgress())
 	report := status.BuildReport(status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
 			ProviderProfiles: applied,
 		},
 	}, status.DefaultOptions())
-	if got, want := report.SemanticExtraction.State, status.SemanticExtractionAvailable; got != want {
+	if got, want := report.SemanticExtraction.State, semantic.ExtractionAvailable; got != want {
 		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
 	}
 	if !report.SemanticExtraction.DocumentationObservationsEnabled {
@@ -174,17 +175,17 @@ func TestEvaluateReportsDisabledByPolicyWhenAllExtractionDisabled(t *testing.T) 
 	if decision.Allowed {
 		t.Fatal("Evaluate() Allowed = true, want false when policy is disabled")
 	}
-	if got, want := decision.State, status.SemanticExtractionDisabledByPolicy; got != want {
+	if got, want := decision.State, semantic.ExtractionDisabledByPolicy; got != want {
 		t.Fatalf("Evaluate() State = %q, want %q", got, want)
 	}
 
 	applied := semanticpolicy.ApplyToProviderStatuses(providerStatuses(), policy)
 	report := status.BuildReport(status.RawSnapshot{
-		SemanticExtraction: status.SemanticExtractionStatus{
+		SemanticExtraction: semantic.ExtractionStatus{
 			ProviderProfiles: applied,
 		},
 	}, status.DefaultOptions())
-	if got, want := report.SemanticExtraction.State, status.SemanticExtractionDisabledByPolicy; got != want {
+	if got, want := report.SemanticExtraction.State, semantic.ExtractionDisabledByPolicy; got != want {
 		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
 	}
 }
@@ -353,8 +354,8 @@ func TestApplyToProviderStatusesClearsProfilePolicyWithoutExplicitAllowlist(t *t
 	}
 }
 
-func providerStatuses() []status.SemanticProviderProfileStatus {
-	return []status.SemanticProviderProfileStatus{
+func providerStatuses() []semantic.ProviderProfileStatus {
+	return []semantic.ProviderProfileStatus{
 		{
 			ProfileID:              "semantic-docs-default",
 			ProviderKind:           semanticprofile.ProviderDeepSeek,
@@ -363,13 +364,13 @@ func providerStatuses() []status.SemanticProviderProfileStatus {
 			ModelID:                "deepseek-chat",
 			SourceClasses:          []string{semanticprofile.SourceCodeHints, semanticprofile.SourceDocumentation},
 			SourcePolicyConfigured: false,
-			State:                  status.SemanticProviderProfileConfigured,
+			State:                  semantic.ProviderProfileConfigured,
 		},
 	}
 }
 
-func searchProviderStatuses() []status.SemanticProviderProfileStatus {
-	return []status.SemanticProviderProfileStatus{
+func searchProviderStatuses() []semantic.ProviderProfileStatus {
+	return []semantic.ProviderProfileStatus{
 		{
 			ProfileID:              "semantic-search-default",
 			ProviderKind:           semanticprofile.ProviderInternalGateway,
@@ -379,7 +380,7 @@ func searchProviderStatuses() []status.SemanticProviderProfileStatus {
 			EndpointProfileID:      "semantic-search-gateway",
 			SourceClasses:          []string{semanticprofile.SourceSearchDocuments},
 			SourcePolicyConfigured: false,
-			State:                  status.SemanticProviderProfileConfigured,
+			State:                  semantic.ProviderProfileConfigured,
 		},
 	}
 }

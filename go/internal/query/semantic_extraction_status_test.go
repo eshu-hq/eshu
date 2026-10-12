@@ -12,6 +12,8 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestStatusHandlerSemanticExtractionNoProviderReturnsEnvelope(t *testing.T) {
@@ -78,8 +80,8 @@ func TestStatusHandlerSemanticExtractionReturnsRedactedProviderProfiles(t *testi
 		StatusReader: fakeStatusReader{
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: time.Date(2026, time.June, 8, 14, 0, 0, 0, time.UTC),
-				SemanticExtraction: statuspkg.SemanticExtractionStatus{
-					ProviderProfiles: []statuspkg.SemanticProviderProfileStatus{
+				SemanticExtraction: semantic.ExtractionStatus{
+					ProviderProfiles: []semantic.ProviderProfileStatus{
 						{
 							ProfileID:              "semantic-docs-default",
 							DisplayName:            "Documentation default",
@@ -91,7 +93,7 @@ func TestStatusHandlerSemanticExtractionReturnsRedactedProviderProfiles(t *testi
 							EndpointProfileID:      "deepseek-public-api",
 							SourceClasses:          []string{"documentation"},
 							SourcePolicyConfigured: true,
-							State:                  statuspkg.SemanticProviderProfileConfigured,
+							State:                  semantic.ProviderProfileConfigured,
 						},
 					},
 				},
@@ -154,15 +156,15 @@ func TestStatusHandlerSemanticExtractionReturnsQueueBudgetAuditReadbacks(t *test
 		StatusReader: fakeStatusReader{
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: time.Date(2026, time.June, 9, 6, 0, 0, 0, time.UTC),
-				SemanticExtraction: statuspkg.SemanticExtractionStatus{
-					State:              statuspkg.SemanticExtractionAvailable,
+				SemanticExtraction: semantic.ExtractionStatus{
+					State:              semantic.ExtractionAvailable,
 					ProviderConfigured: true,
-					Queue: statuspkg.SemanticExtractionQueueSnapshot{
+					Queue: semantic.ExtractionQueueSnapshot{
 						Total:           4,
 						Pending:         2,
 						Succeeded:       1,
 						BudgetExhausted: 1,
-						ProviderProfileCounts: []statuspkg.SemanticExtractionProviderProfileQueueCount{
+						ProviderProfileCounts: []semantic.ExtractionProviderProfileQueueCount{
 							{
 								ProviderKind:         "deepseek",
 								ProviderProfileID:    "semantic-docs-default",
@@ -170,16 +172,16 @@ func TestStatusHandlerSemanticExtractionReturnsQueueBudgetAuditReadbacks(t *test
 								Count:                4,
 							},
 						},
-						FailureClassCounts: []statuspkg.NamedCount{{Name: "provider_unavailable", Count: 1}},
+						FailureClassCounts: []shared.NamedCount{{Name: "provider_unavailable", Count: 1}},
 					},
-					Budget: statuspkg.SemanticExtractionBudgetSnapshot{
+					Budget: semantic.ExtractionBudgetSnapshot{
 						EstimatedInputTokens: 400,
 						ActualCostMicros:     120,
 						Exhausted:            1,
 					},
-					Audit: statuspkg.SemanticExtractionAuditSnapshot{
-						ActorClassCounts: []statuspkg.NamedCount{{Name: "hosted_worker", Count: 4}},
-						ACLStateCounts:   []statuspkg.NamedCount{{Name: "acl_allowed", Count: 4}},
+					Audit: semantic.ExtractionAuditSnapshot{
+						ActorClassCounts: []shared.NamedCount{{Name: "hosted_worker", Count: 4}},
+						ACLStateCounts:   []shared.NamedCount{{Name: "acl_allowed", Count: 4}},
 					},
 					Detail: rawProviderResponse,
 				},

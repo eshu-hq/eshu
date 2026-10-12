@@ -7,7 +7,7 @@ import (
 	"context"
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // ServiceLineageFixtureRow is one service lineage (one generation chain of
@@ -77,14 +77,14 @@ func TwoTenantServiceLineageRows() []ServiceLineageFixtureRow {
 // A NULL scope_id satisfies neither grant arm nor a non-empty selector.
 type GrantMirroringServiceChangedSince struct {
 	Rows       []ServiceLineageFixtureRow
-	LastFilter status.ServiceChangedSinceFilter
+	LastFilter changedsince.ServiceFilter
 	Called     bool
 }
 
 // ComputeServiceChangedSinceDelta implements freshness.ServiceChangedSinceReader.
 func (g *GrantMirroringServiceChangedSince) ComputeServiceChangedSinceDelta(
-	_ context.Context, filter status.ServiceChangedSinceFilter,
-) (status.ServiceChangedSinceSummary, error) {
+	_ context.Context, filter changedsince.ServiceFilter,
+) (changedsince.ServiceSummary, error) {
 	g.LastFilter = filter
 	g.Called = true
 
@@ -128,7 +128,7 @@ func (g *GrantMirroringServiceChangedSince) ComputeServiceChangedSinceDelta(
 	case legacyEligible:
 		chosen = *legacy
 	default:
-		return status.ServiceChangedSinceSummary{OutsideGrant: filter.Scoped && exists}, nil
+		return changedsince.ServiceSummary{OutsideGrant: filter.Scoped && exists}, nil
 	}
 	switch {
 	case len(candidates) == 1:
@@ -139,12 +139,12 @@ func (g *GrantMirroringServiceChangedSince) ComputeServiceChangedSinceDelta(
 			ids = append(ids, row.ScopeID)
 		}
 		sort.Strings(ids)
-		return status.ServiceChangedSinceSummary{
+		return changedsince.ServiceSummary{
 			ServiceID: filter.ServiceID, SampleLimit: filter.SampleLimit, AmbiguousScopeIDs: ids,
 		}, nil
 	}
 
-	summary := status.ServiceChangedSinceSummary{
+	summary := changedsince.ServiceSummary{
 		ServiceID:                 filter.ServiceID,
 		ScopeID:                   chosen.ScopeID,
 		Unattributed:              chosen.ScopeID == "",
@@ -157,14 +157,14 @@ func (g *GrantMirroringServiceChangedSince) ComputeServiceChangedSinceDelta(
 		return summary, nil
 	}
 	summary.SinceGenerationID = chosen.PriorGenerationID
-	summary.Categories = []status.ChangedSinceCategoryDelta{{
-		Category: status.ChangedSinceCategoryOwnership,
-		Counts:   status.ChangedSinceCounts{Updated: 1},
+	summary.Categories = []changedsince.CategoryDelta{{
+		Category: changedsince.CategoryOwnership,
+		Counts:   changedsince.Counts{Updated: 1},
 	}}
 	return summary, nil
 }
 
-func serviceLineageGrantAdmits(filter status.ServiceChangedSinceFilter, row ServiceLineageFixtureRow) bool {
+func serviceLineageGrantAdmits(filter changedsince.ServiceFilter, row ServiceLineageFixtureRow) bool {
 	if row.ScopeID == "" {
 		return false
 	}

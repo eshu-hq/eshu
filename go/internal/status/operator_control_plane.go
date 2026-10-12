@@ -183,7 +183,7 @@ func controlPlaneCollectorFamilies(report Report) []OperatorCollectorFamily {
 	// A nil catalog enumerates the full collector fleet so every known family
 	// yields a verdict, including absent and unsupported families an operator
 	// must still see in the read model.
-	proofs := collector.PromotionProofs(collectorEvidence(report), collector.PromotionOptions{
+	proofs := collector.PromotionProofs(report.CollectorEvidence(), collector.PromotionOptions{
 		AsOf:       report.AsOf,
 		StaleAfter: collector.DefaultPromotionStaleAfter,
 	})

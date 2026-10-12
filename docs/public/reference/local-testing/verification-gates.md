@@ -391,3 +391,26 @@ should still carry a `required-gates-complete` status
 required-gates.yml --branch main` also lists pull-request and merge-queue
 aggregates, because a `workflow_run` run reports the default-branch tip as its
 own head, so it cannot show the drop on its own.
+
+## Required Gates Pull Request Identity
+
+For a pull-request head, `Required Gates` finds the owning PR in the
+repository's open pull request list (`pulls?state=open`, every page) and keeps
+the one whose `head.sha` is the head. Exactly one match is active. None means
+the PR closed or moved on, and no status is written. More than one is ambiguous
+and publishes `error`. The pending step, `scripts/resolve-required-gates-pr.sh`,
+and the terminal re-check all use this lookup.
+
+It used `commits/<sha>/pulls` before. That endpoint lists only PRs whose head
+branch is in this repository, so a PR from a fork matched nothing, read as
+closed, and never got `required-gates-complete`
+([#7950](https://github.com/eshu-hq/eshu/issues/7950)). The `workflow_run`
+payload does not help either: its `pull_requests` array is empty for a fork
+head.
+
+Fork PRs count toward that match, so a second open PR at the same commit makes
+the head ambiguous, wherever it comes from. Examples are a fork PR opened at an
+in-repo branch head, or an in-repo copy of a fork PR. Both PRs get `error`
+until one closes. Close the extra PR, then re-run a source workflow on the head
+to publish again. The lookup does not also match the head repository: then the
+other PR's own runs would publish a verdict on the commit both PRs share.

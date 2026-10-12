@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
 // serviceScopeRow is one admitted lineage row of
@@ -34,7 +34,7 @@ func TestComputeServiceChangedSinceDeltaUnchangedProducesNoFalseDeltas(t *testin
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-checkout",
 		SinceGenerationID: "service-gen-prior",
 		SampleLimit:       25,
@@ -50,8 +50,8 @@ func TestComputeServiceChangedSinceDeltaUnchangedProducesNoFalseDeltas(t *testin
 	}
 	// Both service families are reported. The fixture has only ownership rows, so
 	// the deployment family is present with zero deltas (never silently dropped).
-	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
-	deployment := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDeployment)
+	owner := serviceCategoryDelta(t, summary, changedsince.CategoryOwnership)
+	deployment := serviceCategoryDelta(t, summary, changedsince.CategoryDeployment)
 	c := owner.Counts
 	if c.Added != 0 || c.Updated != 0 || c.Retired != 0 || c.Superseded != 0 {
 		t.Fatalf("unchanged generation produced false deltas: %+v", c)
@@ -68,9 +68,9 @@ func TestComputeServiceChangedSinceDeltaUnchangedProducesNoFalseDeltas(t *testin
 // test when the family is missing from the summary.
 func serviceCategoryDelta(
 	t *testing.T,
-	summary statuspkg.ServiceChangedSinceSummary,
-	family statuspkg.ChangedSinceCategory,
-) statuspkg.ChangedSinceCategoryDelta {
+	summary changedsince.ServiceSummary,
+	family changedsince.Category,
+) changedsince.CategoryDelta {
 	t.Helper()
 	for _, category := range summary.Categories {
 		if category.Category == family {
@@ -78,7 +78,7 @@ func serviceCategoryDelta(
 		}
 	}
 	t.Fatalf("summary missing %q family: %+v", family, summary.Categories)
-	return statuspkg.ChangedSinceCategoryDelta{}
+	return changedsince.CategoryDelta{}
 }
 
 func TestComputeServiceChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
@@ -105,7 +105,7 @@ func TestComputeServiceChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -118,10 +118,10 @@ func TestComputeServiceChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
 	if c.Added != 2 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
 		t.Fatalf("ownership counts wrong: %+v", c)
 	}
-	if got := owner.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "ownership:svc-a:gone" {
+	if got := owner.Samples[changedsince.Retired]; len(got) != 1 || got[0].StableFactKey != "ownership:svc-a:gone" {
 		t.Fatalf("retired samples wrong: %+v", got)
 	}
-	if got := owner.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "ownership:svc-a:dropped" {
+	if got := owner.Samples[changedsince.Superseded]; len(got) != 1 || got[0].StableFactKey != "ownership:svc-a:dropped" {
 		t.Fatalf("superseded samples wrong: %+v", got)
 	}
 }
@@ -154,7 +154,7 @@ func TestComputeServiceChangedSinceDeltaClassifiesDeploymentFamily(t *testing.T)
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -162,23 +162,23 @@ func TestComputeServiceChangedSinceDeltaClassifiesDeploymentFamily(t *testing.T)
 	if err != nil {
 		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
 	}
-	deployment := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDeployment)
+	deployment := serviceCategoryDelta(t, summary, changedsince.CategoryDeployment)
 	c := deployment.Counts
 	if c.Added != 1 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
 		t.Fatalf("deployment counts wrong: %+v", c)
 	}
-	if got := deployment.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "deployment:svc-a:gone" {
+	if got := deployment.Samples[changedsince.Retired]; len(got) != 1 || got[0].StableFactKey != "deployment:svc-a:gone" {
 		t.Fatalf("deployment retired samples wrong: %+v", got)
 	}
-	if got := deployment.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "deployment:svc-a:drop" {
+	if got := deployment.Samples[changedsince.Superseded]; len(got) != 1 || got[0].StableFactKey != "deployment:svc-a:drop" {
 		t.Fatalf("deployment superseded samples wrong: %+v", got)
 	}
-	if got := deployment.Samples[statuspkg.ChangedSinceRetired]; got[0].FactKind != "deployment" {
+	if got := deployment.Samples[changedsince.Retired]; got[0].FactKind != "deployment" {
 		t.Fatalf("deployment sample fact_kind = %q, want deployment", got[0].FactKind)
 	}
 	// Ownership stayed unchanged: a deployment-only change must not invent
 	// ownership deltas.
-	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
+	owner := serviceCategoryDelta(t, summary, changedsince.CategoryOwnership)
 	if owner.Counts.Added != 0 || owner.Counts.Updated != 0 || owner.Counts.Retired != 0 || owner.Counts.Superseded != 0 {
 		t.Fatalf("ownership family must not churn on a deployment-only change: %+v", owner.Counts)
 	}
@@ -213,7 +213,7 @@ func TestComputeServiceChangedSinceDeltaClassifiesRuntimeFamily(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -221,27 +221,27 @@ func TestComputeServiceChangedSinceDeltaClassifiesRuntimeFamily(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
 	}
-	runtime := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryRuntime)
+	runtime := serviceCategoryDelta(t, summary, changedsince.CategoryRuntime)
 	c := runtime.Counts
 	if c.Added != 1 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
 		t.Fatalf("runtime counts wrong: %+v", c)
 	}
-	if got := runtime.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "runtime:svc-a:kubernetes:qa:wi-gone" {
+	if got := runtime.Samples[changedsince.Retired]; len(got) != 1 || got[0].StableFactKey != "runtime:svc-a:kubernetes:qa:wi-gone" {
 		t.Fatalf("runtime retired samples wrong: %+v", got)
 	}
-	if got := runtime.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "runtime:svc-a:kubernetes:dev:wi-drop" {
+	if got := runtime.Samples[changedsince.Superseded]; len(got) != 1 || got[0].StableFactKey != "runtime:svc-a:kubernetes:dev:wi-drop" {
 		t.Fatalf("runtime superseded samples wrong: %+v", got)
 	}
-	if got := runtime.Samples[statuspkg.ChangedSinceRetired]; got[0].FactKind != "runtime" {
+	if got := runtime.Samples[changedsince.Retired]; got[0].FactKind != "runtime" {
 		t.Fatalf("runtime sample fact_kind = %q, want runtime", got[0].FactKind)
 	}
 	// Ownership stayed unchanged: a runtime-only change must not invent ownership
 	// deltas, and the deployment family reports zero deltas (never silently dropped).
-	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
+	owner := serviceCategoryDelta(t, summary, changedsince.CategoryOwnership)
 	if owner.Counts.Added != 0 || owner.Counts.Updated != 0 || owner.Counts.Retired != 0 || owner.Counts.Superseded != 0 {
 		t.Fatalf("ownership family must not churn on a runtime-only change: %+v", owner.Counts)
 	}
-	deployment := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDeployment)
+	deployment := serviceCategoryDelta(t, summary, changedsince.CategoryDeployment)
 	if deployment.Counts.Total() != 0 {
 		t.Fatalf("deployment family should report zero deltas for a runtime-only change: %+v", deployment.Counts)
 	}
@@ -277,7 +277,7 @@ func TestComputeServiceChangedSinceDeltaClassifiesDependenciesFamily(t *testing.
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -285,32 +285,32 @@ func TestComputeServiceChangedSinceDeltaClassifiesDependenciesFamily(t *testing.
 	if err != nil {
 		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
 	}
-	dependencies := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDependencies)
+	dependencies := serviceCategoryDelta(t, summary, changedsince.CategoryDependencies)
 	c := dependencies.Counts
 	if c.Added != 1 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
 		t.Fatalf("dependencies counts wrong: %+v", c)
 	}
-	if got := dependencies.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "dependencies:svc-a:dep-gone" {
+	if got := dependencies.Samples[changedsince.Retired]; len(got) != 1 || got[0].StableFactKey != "dependencies:svc-a:dep-gone" {
 		t.Fatalf("dependencies retired samples wrong: %+v", got)
 	}
-	if got := dependencies.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "dependencies:svc-a:dep-drop" {
+	if got := dependencies.Samples[changedsince.Superseded]; len(got) != 1 || got[0].StableFactKey != "dependencies:svc-a:dep-drop" {
 		t.Fatalf("dependencies superseded samples wrong: %+v", got)
 	}
-	if got := dependencies.Samples[statuspkg.ChangedSinceRetired]; got[0].FactKind != "dependencies" {
+	if got := dependencies.Samples[changedsince.Retired]; got[0].FactKind != "dependencies" {
 		t.Fatalf("dependencies sample fact_kind = %q, want dependencies", got[0].FactKind)
 	}
 	// Ownership stayed unchanged: a dependencies-only change must not invent
 	// ownership deltas, and the deployment/runtime families report zero deltas
 	// (never silently dropped).
-	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
+	owner := serviceCategoryDelta(t, summary, changedsince.CategoryOwnership)
 	if owner.Counts.Added != 0 || owner.Counts.Updated != 0 || owner.Counts.Retired != 0 || owner.Counts.Superseded != 0 {
 		t.Fatalf("ownership family must not churn on a dependencies-only change: %+v", owner.Counts)
 	}
-	deployment := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDeployment)
+	deployment := serviceCategoryDelta(t, summary, changedsince.CategoryDeployment)
 	if deployment.Counts.Total() != 0 {
 		t.Fatalf("deployment family should report zero deltas for a dependencies-only change: %+v", deployment.Counts)
 	}
-	runtime := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryRuntime)
+	runtime := serviceCategoryDelta(t, summary, changedsince.CategoryRuntime)
 	if runtime.Counts.Total() != 0 {
 		t.Fatalf("runtime family should report zero deltas for a dependencies-only change: %+v", runtime.Counts)
 	}
@@ -346,7 +346,7 @@ func TestComputeServiceChangedSinceDeltaClassifiesDocsFamily(t *testing.T) {
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -354,31 +354,31 @@ func TestComputeServiceChangedSinceDeltaClassifiesDocsFamily(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
 	}
-	docs := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDocs)
+	docs := serviceCategoryDelta(t, summary, changedsince.CategoryDocs)
 	c := docs.Counts
 	if c.Added != 1 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
 		t.Fatalf("docs counts wrong: %+v", c)
 	}
-	if got := docs.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "docs:svc-a:confluence:section:gone:doc:1" {
+	if got := docs.Samples[changedsince.Retired]; len(got) != 1 || got[0].StableFactKey != "docs:svc-a:confluence:section:gone:doc:1" {
 		t.Fatalf("docs retired samples wrong: %+v", got)
 	}
-	if got := docs.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "docs:svc-a:git_markdown:readme.md#drop:doc:2" {
+	if got := docs.Samples[changedsince.Superseded]; len(got) != 1 || got[0].StableFactKey != "docs:svc-a:git_markdown:readme.md#drop:doc:2" {
 		t.Fatalf("docs superseded samples wrong: %+v", got)
 	}
-	if got := docs.Samples[statuspkg.ChangedSinceRetired]; got[0].FactKind != "docs" {
+	if got := docs.Samples[changedsince.Retired]; got[0].FactKind != "docs" {
 		t.Fatalf("docs sample fact_kind = %q, want docs", got[0].FactKind)
 	}
 	// Ownership stayed unchanged: a docs-only change must not invent ownership
 	// deltas, and the deployment/runtime/dependencies families report zero deltas
 	// (never silently dropped).
-	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
+	owner := serviceCategoryDelta(t, summary, changedsince.CategoryOwnership)
 	if owner.Counts.Added != 0 || owner.Counts.Updated != 0 || owner.Counts.Retired != 0 || owner.Counts.Superseded != 0 {
 		t.Fatalf("ownership family must not churn on a docs-only change: %+v", owner.Counts)
 	}
-	for _, family := range []statuspkg.ChangedSinceCategory{
-		statuspkg.ChangedSinceCategoryDeployment,
-		statuspkg.ChangedSinceCategoryRuntime,
-		statuspkg.ChangedSinceCategoryDependencies,
+	for _, family := range []changedsince.Category{
+		changedsince.CategoryDeployment,
+		changedsince.CategoryRuntime,
+		changedsince.CategoryDependencies,
 	} {
 		if delta := serviceCategoryDelta(t, summary, family); delta.Counts.Total() != 0 {
 			t.Fatalf("%s family should report zero deltas for a docs-only change: %+v", family, delta.Counts)
@@ -398,7 +398,7 @@ func TestComputeServiceChangedSinceDeltaUnavailableReportsDocsFamily(t *testing.
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -409,7 +409,7 @@ func TestComputeServiceChangedSinceDeltaUnavailableReportsDocsFamily(t *testing.
 	if !summary.Unavailable {
 		t.Fatal("Unavailable = false, want true for a service with no active generation")
 	}
-	docs := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDocs)
+	docs := serviceCategoryDelta(t, summary, changedsince.CategoryDocs)
 	if !docs.Unavailable {
 		t.Fatalf("docs family must be reported unavailable, not zero-delta: %+v", docs)
 	}
@@ -421,7 +421,7 @@ func TestComputeServiceChangedSinceDeltaUnknownServiceNotFound(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "missing",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -442,7 +442,7 @@ func TestComputeServiceChangedSinceDeltaNoActiveGenerationUnavailable(t *testing
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "gen-prior",
 		SampleLimit:       25,
@@ -453,7 +453,7 @@ func TestComputeServiceChangedSinceDeltaNoActiveGenerationUnavailable(t *testing
 	if !summary.Unavailable {
 		t.Fatal("service with no current active generation must be Unavailable, never zero deltas")
 	}
-	if len(summary.Categories) != len(statuspkg.ServiceChangedSinceCategories) {
+	if len(summary.Categories) != len(changedsince.ServiceCategories) {
 		t.Fatalf("categories = %+v, want one per service family", summary.Categories)
 	}
 	for _, category := range summary.Categories {
@@ -473,7 +473,7 @@ func TestComputeServiceChangedSinceDeltaUnknownPriorGenerationNotFound(t *testin
 	}}
 	store := NewStatusStore(queryer)
 
-	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), changedsince.ServiceFilter{
 		ServiceID:         "svc-a",
 		SinceGenerationID: "missing",
 		SampleLimit:       25,
