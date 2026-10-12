@@ -17,7 +17,10 @@ const (
 	// anchor repository. The S6 census measured 7,774 candidates past the old
 	// cap over the full related set of the slowest repository story on the QA
 	// environment; the ruling requires E >= 1.5 x that extra (11,661), so E is
-	// 12,000. Provisional until the deployed read confirms it.
+	// 12,000. The anchor repository draws from E first, and the 1.5x sizing
+	// covers the related set only, so an anchor with many candidates leaves
+	// less for the related set; the deployed read measures the whole-request
+	// draw. Provisional until the deployed read confirms it.
 	CandidateHydrationBudget = 12000
 
 	// CandidatesBudgetReachedReason names a response whose config-artifact
