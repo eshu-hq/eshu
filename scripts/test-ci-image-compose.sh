@@ -169,26 +169,10 @@ eshu_ci_compose_cleanup
 # The golden gate's order is: lock, preflight, exports, a call behind a variable
 # prefix. Run the gate's own libraries in that order with the real wrapper, in a
 # script of its own so that set -e is real (a || list would switch it off).
+# The script is scripts/lib/test-ci-image-compose-golden-order.sh.
 unset ESHU_CI_COMPOSE_OVERLAY ESHU_CI_COMPOSE_SIGNATURE
 : >"${test_dir}/calls"
-cat >"${test_dir}/golden-order.sh" <<'SH'
-set -euo pipefail
-export GITHUB_ACTIONS=true
-use_compose=1 graph_service=nornicdb
-ESHU_POSTGRES_PORT=15432 ESHU_NEO4J_PASSWORD=change-me ESHU_POSTGRES_PASSWORD=change-me
-compose_args=(-p eshu-golden -f docker-compose.yaml)
-log() { :; }
-die() { printf 'die: %s\n' "$*" >&2; exit 1; }
-release_live_gate_lock() { :; }
-. "${repo_root}/scripts/lib/golden-corpus-ci-compose.sh"
-. "${repo_root}/scripts/lib/golden-corpus-readiness.sh"
-host_tcp_port_open() { return 0; }
-golden_corpus_preflight_ci_overlay
-export ESHU_HOME="${TEST_HOME}" ESHU_API_KEY=golden-key ESHU_EMIT_DATAFLOW=true
-export ESHU_FILESYSTEM_ROOT="${TEST_HOME}/corpus" ESHU_REPO_SOURCE_MODE=filesystem
-start_golden_corpus_backends
-SH
-repo_root="${repo_root}" TEST_HOME="${test_dir}/home" bash "${test_dir}/golden-order.sh" \
+repo_root="${repo_root}" TEST_HOME="${test_dir}/home" bash "${repo_root}/scripts/lib/test-ci-image-compose-golden-order.sh" \
     >"${test_dir}/golden-order.out" 2>&1 || {
     echo "the golden gate order (preflight, exports, prefixed up) must run through the wrapper" >&2
     cat "${test_dir}/golden-order.out" >&2
