@@ -164,6 +164,11 @@ PACKAGES = {
         "go/internal/storage/postgres/projector_queue_dead_letter_live_test.go": (
             "TestProjectorDeadLetterGuardCellsLive",
         ),
+        "go/internal/storage/postgres/generation_freshness_reproject_live_test.go": (
+            "TestPreparseIdentityStampsAndActiveStateLive",
+            "TestCheapReprojectLifecycleLive",
+            "TestCheapReprojectRacesLive",
+        ),
         "go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go": (
             "TestUnchangedReconcileStoresNothingLive",
             "TestReconcileIdentityChangesStillStoreLive",

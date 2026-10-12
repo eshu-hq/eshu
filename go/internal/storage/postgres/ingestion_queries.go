@@ -330,6 +330,9 @@ func scopeGenerationPayload(generation scope.ScopeGeneration) string {
 	if generation.DefaultBranchChanged {
 		payload["default_branch_changed"] = true
 	}
+	if identity := strings.TrimSpace(generation.PreparseIdentity); identity != "" {
+		payload["preparse_identity"] = identity
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return "{}"

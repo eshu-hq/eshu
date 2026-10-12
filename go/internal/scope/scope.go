@@ -303,6 +303,12 @@ type ScopeGeneration struct {
 	// generation, even when its hint and commit equal the active generation's,
 	// so the repository fact's default branch re-projects.
 	DefaultBranchChanged bool
+	// PreparseIdentity is the pre-parse identity of the snapshot this
+	// generation came from (#7978 follow-up, ruling a9-143): the content
+	// version, commit, default branch, and configuration that determine its
+	// facts. The store keeps it on the generation so a later reconcile with an
+	// equal identity can skip the parse. Empty when unknown.
+	PreparseIdentity string
 }
 
 // Validate checks the generation fields and lifecycle status.

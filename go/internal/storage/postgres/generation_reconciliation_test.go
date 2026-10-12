@@ -30,6 +30,7 @@ func TestFullReconcileStateScansBothProbes(t *testing.T) {
 	latest := time.Date(2026, 9, 27, 11, 30, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{
 		projected, projected, nil, nil, nil, latest, "pending", false, "sha-latest", true,
+		"gen-active", false, "sha-active", "preparse:v1:x", int64(3),
 	}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
@@ -42,6 +43,8 @@ func TestFullReconcileStateScansBothProbes(t *testing.T) {
 		HasLatestFull: true, LatestFullAt: latest,
 		LatestFullStatus: scope.GenerationStatusPending, LatestFullProjected: false,
 		LatestFullSourceCommitSHA: "sha-latest", LatestFullWorkLive: true,
+		ActiveGenerationID: "gen-active", ActiveCommitSHA: "sha-active",
+		ActivePreparseIdentity: "preparse:v1:x", ActivePreparseSkips: 3,
 	}
 	if got != want {
 		t.Fatalf("FullReconcileState() = %+v, want %+v", got, want)
@@ -55,6 +58,8 @@ func TestFullReconcileStateScansBothProbes(t *testing.T) {
 		"attempt.is_delta = false",
 		"LEFT JOIN LATERAL",
 		"ORDER BY attempt.ingested_at DESC, attempt.generation_id DESC",
+		"pointed.generation_id = pointer.active_generation_id",
+		"payload ->> 'preparse_identity'",
 	} {
 		if !strings.Contains(q, fragment) {
 			t.Fatalf("fullReconcileStateQuery missing %q:\n%s", fragment, q)
@@ -67,6 +72,7 @@ func TestFullReconcileStateZeroWhenNoFullGeneration(t *testing.T) {
 
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{
 		nil, nil, nil, nil, nil, nil, nil, false, "", false,
+		"", false, "", "", int64(0),
 	}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 

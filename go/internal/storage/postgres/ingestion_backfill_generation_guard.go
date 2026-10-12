@@ -178,7 +178,9 @@ SELECT scope_id FROM ingestion_scopes WHERE scope_id = $1 FOR NO KEY UPDATE
 // supersession after this commit makes the re-projection a no-op.
 //
 // $1 now, $2 scope_id, $3 active generation_id, $4 freshness hint,
-// $5 source commit, $6 reconcile reason. It returns one row: whether the
+// $5 source commit, $6 reconcile reason, $7 the snapshot's pre-parse identity:
+// when non-empty, a real re-open stamps it and resets preparse_skips (the first
+// sweep after deploy and every valve parse, ruling a9-143). It returns one row: whether the
 // target matched (false: fenced) and whether the row was re-opened and stamped.
 const reprojectActiveGenerationQuery = `
 WITH target AS (
@@ -194,7 +196,27 @@ WITH target AS (
       AND COALESCE(generation.freshness_hint, '') = $4
       AND COALESCE(generation.source_commit_sha, '') = $5
 ),
-reopened AS (
+` + reprojectReopenedCTE + `,
+stamped AS (
+    UPDATE scope_generations AS generation
+    SET payload = COALESCE(generation.payload, '{}'::jsonb) || jsonb_build_object(
+            'reconcile_reason', $6::text,
+            'reconcile_requested_at', $1::timestamptz
+        ) || CASE WHEN $7::text <> '' THEN jsonb_build_object('preparse_identity', $7::text, 'preparse_skips', 0)
+                  ELSE '{}'::jsonb END
+    FROM reopened
+    WHERE generation.generation_id = reopened.generation_id
+      AND generation.status = 'active'
+    RETURNING generation.generation_id
+)
+SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
+`
+
+// reprojectReopenedCTE re-opens the target generation's canonical projector
+// row. The store re-open (hint-fenced) and the skipped-parse re-open
+// (identity-fenced, ReprojectActiveGeneration) share it, so both apply the same
+// in-flight guard and attempt reset.
+const reprojectReopenedCTE = `reopened AS (
     INSERT INTO fact_work_items (
         work_item_id, scope_id, generation_id, stage, domain, status,
         attempt_count, lease_owner, claim_until, visible_at, last_attempt_at,
@@ -233,19 +255,7 @@ reopened AS (
         )
     )
     RETURNING generation_id
-),
-stamped AS (
-    UPDATE scope_generations AS generation
-    SET payload = COALESCE(generation.payload, '{}'::jsonb) || jsonb_build_object(
-            'reconcile_reason', $6::text,
-            'reconcile_requested_at', $1::timestamptz
-        )
-    FROM reopened
-    WHERE generation.generation_id = reopened.generation_id
-      AND generation.status = 'active'
-    RETURNING generation.generation_id
 )
-SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
 `
 
 // skipUnchangedGeneration decides, before any write, whether a snapshot
@@ -398,7 +408,7 @@ func (s IngestionStore) reprojectActiveGeneration(
 	}
 	rows, err := tx.QueryContext(ctx, reprojectActiveGenerationQuery,
 		s.now(), scopeValue.ScopeID, candidate.generationID, candidate.freshnessHint,
-		candidate.sourceCommit, strings.TrimSpace(generation.ReconcileReason))
+		candidate.sourceCommit, strings.TrimSpace(generation.ReconcileReason), strings.TrimSpace(generation.PreparseIdentity))
 	if err != nil {
 		return "", fmt.Errorf("re-open active generation projector work: %w", err)
 	}

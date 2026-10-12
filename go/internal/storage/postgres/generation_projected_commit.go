@@ -88,6 +88,9 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 //     when it is later.
 //   - last_stored_full_at: that generation's own ingest time, without any
 //     re-projection Ack. Only it can satisfy a reindex watermark (a9-125).
+//   - active_* (ruling a9-143): the generation ingestion_scopes points at, its
+//     delta flag, commit, stamped pre-parse identity, and skip count, read by
+//     primary key so the skipped-parse decision sees a delta-active scope.
 //   - latest_full_source_commit_sha / latest_full_work_live (ruling a9-126):
 //     the newest full's commit and whether its projector work row is pending,
 //     retrying, claimed, or running, so the sweep holds a live pending full at
@@ -117,7 +120,12 @@ SELECT
     latest.status                    AS latest_full_status,
     latest.activated_at IS NOT NULL  AS latest_full_projected,
     COALESCE(latest.source_commit_sha, '') AS latest_full_source_commit_sha,
-    COALESCE(latest.work_live, false) AS latest_full_work_live
+    COALESCE(latest.work_live, false) AS latest_full_work_live,
+    COALESCE(active.generation_id, '') AS active_generation_id,
+    COALESCE(active.is_delta, false) AS active_is_delta,
+    COALESCE(active.source_commit_sha, '') AS active_commit_sha,
+    COALESCE(active.payload ->> 'preparse_identity', '') AS active_preparse_identity,
+    COALESCE((active.payload ->> 'preparse_skips')::int, 0) AS active_preparse_skips
 FROM (SELECT 1) AS one
 LEFT JOIN LATERAL (
     SELECT GREATEST(projected.ingested_at, reconcile.projected_at) AS last_projected_full_at,
@@ -160,6 +168,15 @@ LEFT JOIN LATERAL (
         LIMIT 1
     ) AS newest
 ) AS latest ON true
+LEFT JOIN LATERAL (
+    SELECT pointed.generation_id, pointed.is_delta, pointed.source_commit_sha, pointed.payload
+    FROM ingestion_scopes AS pointer
+    JOIN scope_generations AS pointed
+      ON pointed.generation_id = pointer.active_generation_id
+     AND pointed.scope_id = pointer.scope_id
+    WHERE pointer.scope_id = $1
+      AND pointed.status = 'active'
+) AS active ON true
 `
 
 // FullReconcileState returns the reconciliation-sweep view of scopeID's full
@@ -193,10 +210,13 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 		latestFullProjected     bool
 		latestFullCommit        string
 		latestFullWorkLive      bool
+		active                  scope.FullReconcileState
 	)
 	if err := rows.Scan(
 		&lastProjectedFullAt, &lastStoredFullAt, &reconcileRequestedAt, &reconcileProjectedAt, &reconcileDeadLetteredAt,
 		&latestFullAt, &latestFullStatus, &latestFullProjected, &latestFullCommit, &latestFullWorkLive,
+		&active.ActiveGenerationID, &active.ActiveIsDelta, &active.ActiveCommitSHA,
+		&active.ActivePreparseIdentity, &active.ActivePreparseSkips,
 	); err != nil {
 		return scope.FullReconcileState{}, err
 	}
@@ -230,6 +250,11 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 		state.LatestFullSourceCommitSHA = strings.TrimSpace(latestFullCommit)
 		state.LatestFullWorkLive = latestFullWorkLive
 	}
+	state.ActiveGenerationID = strings.TrimSpace(active.ActiveGenerationID)
+	state.ActiveIsDelta = active.ActiveIsDelta
+	state.ActiveCommitSHA = strings.TrimSpace(active.ActiveCommitSHA)
+	state.ActivePreparseIdentity = strings.TrimSpace(active.ActivePreparseIdentity)
+	state.ActivePreparseSkips = active.ActivePreparseSkips
 	return state, nil
 }
 
