@@ -107,7 +107,7 @@ was not re-measured.
 ## Differences From The Old Path
 
 The old path stored a new generation for every forced reconcile. The new path
-re-projects the active generation instead, which differs in three ways:
+re-projects the active generation instead, which differs in two ways:
 
 1. Graph state stamped with the active generation id itself is not retracted
    (ruling a9-117 Q1); only a projector defect or a manual graph edit can
@@ -115,11 +115,14 @@ re-projects the active generation instead, which differs in three ways:
 2. Reducer-owned truth is not re-derived: the reducer queue admits none of the
    re-projected generation's intents (`ON CONFLICT DO NOTHING`, #7285), so
    reducer-domain drift is not retracted by a reconcile.
-3. `eshu_dp_reconciliation_drift_retractions_total` does not count the
-   re-projection's retractions: the re-projected generation's repository fact
-   carries no reconciliation marker. Carrying it needs one more projector claim
-   column and its shared scan (13 test fixtures, two other queries), so it is a
-   follow-up.
+Review F5 is closed without a claim change: `canonical.BuildMaterialization`
+marks a reconciliation when the claimed generation is already `active` (a
+re-projection; a first projection arrives `pending`), so
+`eshu_dp_reconciliation_drift_retractions_total` counts the re-projection's
+retractions. `TestBuildMaterializationMarksReprojectionOfActiveGeneration`
+pins the cells; the Neo4j proof reads the counter: 0 after the first
+projection, at least 1 after the re-projection retracts the planted node, and
+0 without the change.
 
 An explicit reindex is not a difference: it still stores the re-parse (ruling
 a9-125). A pending watermark is decided before the sweep and `graph_dirty`, and

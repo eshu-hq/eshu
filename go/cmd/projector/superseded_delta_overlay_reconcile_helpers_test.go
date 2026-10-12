@@ -7,11 +7,52 @@ package main
 
 import (
 	"context"
+	"testing"
 	"time"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	gitcollector "github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// withDriftReader wires telemetry instruments on a manual reader into the
+// harness's canonical writer; call it before buildService.
+func (h *overlayHarness) withDriftReader(t *testing.T) *sdkmetric.ManualReader {
+	t.Helper()
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("proof-7978"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	h.instruments = instruments
+	return reader
+}
+
+// driftRetractions sums eshu_dp_reconciliation_drift_retractions_total.
+func driftRetractions(ctx context.Context, t *testing.T, reader *sdkmetric.ManualReader) int64 {
+	t.Helper()
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &collected); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	var total int64
+	for _, scopeMetrics := range collected.ScopeMetrics {
+		for _, recorded := range scopeMetrics.Metrics {
+			if recorded.Name != "eshu_dp_reconciliation_drift_retractions_total" {
+				continue
+			}
+			if sum, ok := recorded.Data.(metricdata.Sum[int64]); ok {
+				for _, point := range sum.DataPoints {
+					total += point.Value
+				}
+			}
+		}
+	}
+	return total
+}
 
 // sweepDecision runs the production reconcile decision with a fleet reindex
 // watermark and a 24 h interval.

@@ -61,7 +61,12 @@ func BuildMaterialization(
 	repoID := mat.RepoID
 	repoPath := mat.RepoPath
 	mat.DeltaProjection, mat.DeltaFilePaths, mat.DeltaDeletedFilePaths = extractDeltaProjectionScope(inputFacts, repoPath)
-	mat.ReconciliationProjection = extractReconciliationProjection(inputFacts) && !mat.DeltaProjection
+	// A re-projection of an already-active full generation (#7978 reconcile,
+	// #7209 heal, liveness re-drive) is a reconciliation too: the claim hands
+	// it over with status active, while a first projection arrives pending.
+	// Its retractions then count on the drift-retraction metric (review F5).
+	mat.ReconciliationProjection = (extractReconciliationProjection(inputFacts) ||
+		generation.Status == scope.GenerationStatusActive) && !mat.DeltaProjection
 
 	// Extract files.
 	var parsedFiles []parsedFileRef

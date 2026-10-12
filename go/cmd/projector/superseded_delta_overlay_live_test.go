@@ -299,6 +299,7 @@ func TestUnchangedReconcileRetractsPlantedDriftLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	h := newOverlayHarness(ctx, t, dsn)
+	drift := h.withDriftReader(t)
 	svc, _ := h.buildService(ctx)
 	h.run(ctx, svc)
 
@@ -307,6 +308,9 @@ func TestUnchangedReconcileRetractsPlantedDriftLive(t *testing.T) {
 	}
 	h.waitGeneration(ctx, overlayGenA.id, "active")
 	h.assertFiles(ctx, "baseline G_A", []string{"keep.go", "w.go"})
+	if got := driftRetractions(ctx, t, drift); got != 0 {
+		t.Fatalf("drift retractions after the first projection = %d, want 0 (a first projection is not a reconciliation)", got)
+	}
 	h.runCypher(ctx, `MATCH (r:Repository {id: $repo_id})
 CREATE (r)-[:REPO_CONTAINS]->(:File {path: $path, relative_path: 'drift.go', repo_id: $repo_id,
   generation_id: 'gen-7978-stale', evidence_source: 'projector/canonical'})`,
@@ -334,6 +338,10 @@ WHERE generation_id = $1`, overlayGenA.id); err != nil {
 		t.Fatalf("scope_generations rows %d -> %d after an unchanged reconcile, want unchanged", generationsBefore, got)
 	}
 	h.assertFiles(ctx, "after G_A re-projected", []string{"keep.go", "w.go"})
+	// Review F5: the re-projection's retraction of the planted node counts.
+	if got := driftRetractions(ctx, t, drift); got < 1 {
+		t.Fatalf("eshu_dp_reconciliation_drift_retractions_total = %d after the re-projection, want >= 1", got)
+	}
 	// a9-117 d7: a second projection of the same generation re-emits its
 	// reducer and shared intents; they must upsert or no-op, never add rows.
 	if got := h.intentRows(ctx); got != intentsBefore {

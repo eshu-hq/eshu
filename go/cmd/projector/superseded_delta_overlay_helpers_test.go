@@ -37,6 +37,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // overlayFile is one file in a commit's tree.
@@ -138,6 +139,8 @@ type overlayHarness struct {
 	gens     map[string]scope.ScopeGeneration
 	// reasonOverride is the one-shot forced reason of commitWithReason.
 	reasonOverride string
+	// instruments, when set before buildService, reach the canonical writer.
+	instruments *telemetry.Instruments
 }
 
 func newOverlayHarness(ctx context.Context, t *testing.T, dsn string) *overlayHarness {
@@ -200,7 +203,7 @@ func newOverlayHarness(ctx context.Context, t *testing.T, dsn string) *overlayHa
 // canonical writer it wraps.
 func (h *overlayHarness) buildService(ctx context.Context) (projector.Service, runtime.CanonicalWriter) {
 	h.t.Helper()
-	writer, closer, err := openProjectorCanonicalWriter(ctx, h.pgDB, h.getenv, nil, nil)
+	writer, closer, err := openProjectorCanonicalWriter(ctx, h.pgDB, h.getenv, nil, h.instruments)
 	if err != nil {
 		h.t.Fatalf("open production canonical writer: %v", err)
 	}
