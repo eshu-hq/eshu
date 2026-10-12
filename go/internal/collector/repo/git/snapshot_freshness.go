@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // gitGenerationContentVersion names the git collector and parser output
@@ -17,12 +18,14 @@ import (
 // changes what the collector or parser emits for unchanged source yields a new
 // hint and a new generation, while a release that does not change the output
 // keeps every hint and stores nothing. Bump it in the same change that alters
-// emitted facts for unchanged input (a parser fix, a new fact field, a changed
-// stable key). TestGenerationContentVersionPinsCollectorOutput enforces it: it
-// pins a digest of the facts emitted for testdata/content_version to this
-// value and fails when the output moves without a bump (ruling a9-117 d6). Do
-// not derive it from the build version: that would store a duplicate
-// generation of every repository on every release.
+// emitted facts for unchanged input without changing the parser registry
+// bindings or the fact schema (a parser logic fix, a new fact field, a changed
+// stable key): those two already move the version on their own (#7986).
+// TestGenerationContentVersionPinsCollectorOutput enforces it: it pins a
+// digest of the facts emitted for testdata/content_version to this value and
+// fails when the output moves without a bump (ruling a9-117 d6). Do not derive
+// it from the build version: that would store a duplicate generation of every
+// repository on every release.
 const gitGenerationContentVersion = "git-collector.v1"
 
 // GenerationReconcileReasonUnspecified is the reconcile reason a generation
@@ -31,7 +34,7 @@ const gitGenerationContentVersion = "git-collector.v1"
 const GenerationReconcileReasonUnspecified = "unspecified"
 
 // generationContentVersion caches GenerationContentVersion: the fact-schema
-// registry is fixed for the life of the process.
+// registry and the parser registry are fixed for the life of the process.
 var generationContentVersion = sync.OnceValue(func() string {
 	registry := facts.SupportedSchemaVersions()
 	kinds := make([]string, 0, len(registry))
@@ -43,16 +46,23 @@ var generationContentVersion = sync.OnceValue(func() string {
 	for _, kind := range kinds {
 		writeFreshnessHashf(h, "%s=%s\n", kind, registry[kind])
 	}
-	return fmt.Sprintf("%s;schema=%x", gitGenerationContentVersion, h.Sum(nil)[:8])
+	return fmt.Sprintf("%s;parsers=%s;schema=%x",
+		gitGenerationContentVersion, parser.DefaultRegistry().Fingerprint(), h.Sum(nil)[:8])
 })
 
 // GenerationContentVersion returns the version identity a git freshness hint
 // folds in (#7978): the collector and parser output contract
-// (gitGenerationContentVersion) plus a digest of the supported fact-schema
-// registry. Two snapshots of the same content produce the same hint only when
-// this identity is also the same.
+// (gitGenerationContentVersion), a fingerprint of the parser registry, and a
+// digest of the supported fact-schema registry. Two snapshots of the same
+// content produce the same hint only when this identity is also the same.
 //
-// The digest covers the whole registry, not only the fact kinds the git
+// The parser fingerprint (#7986) covers every registered parser key, language,
+// extension, and file name, so a parser-set change mints one new generation
+// per git scope with no hand edit, even when the changed output is visible
+// only on inputs outside testdata/content_version. The digest is deterministic
+// across builds, so an unchanged parser set keeps every hint.
+//
+// The schema digest covers the whole registry, not only the fact kinds the git
 // collector emits, so a schema bump of any kind makes every git scope store one
 // new generation. That errs toward storing: a registry restricted to git kinds
 // would turn a missed kind into a silent duplicate skip of new output. The

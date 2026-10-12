@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 // TestBuildStreamingGenerationReconcileKeepsContentHint proves #7978: a
@@ -87,16 +89,17 @@ func TestSnapshotFreshnessHintFoldsContentVersion(t *testing.T) {
 	}
 }
 
-// TestGenerationContentVersionNamesCollectorAndSchema pins the shape of the
-// version identity: the hand-bumped collector constant plus a digest of the
-// supported fact-schema registry.
-func TestGenerationContentVersionNamesCollectorAndSchema(t *testing.T) {
+// TestGenerationContentVersionNamesCollectorParsersAndSchema pins the shape of
+// the version identity: the hand-bumped collector constant, the parser-set
+// fingerprint (#7986), and a digest of the supported fact-schema registry.
+func TestGenerationContentVersionNamesCollectorParsersAndSchema(t *testing.T) {
 	t.Parallel()
 	version := GenerationContentVersion()
-	if !strings.HasPrefix(version, gitGenerationContentVersion+";schema=") {
-		t.Fatalf("GenerationContentVersion() = %q, want prefix %q", version, gitGenerationContentVersion+";schema=")
+	wantPrefix := gitGenerationContentVersion + ";parsers=" + parser.DefaultRegistry().Fingerprint() + ";schema="
+	if !strings.HasPrefix(version, wantPrefix) {
+		t.Fatalf("GenerationContentVersion() = %q, want prefix %q", version, wantPrefix)
 	}
-	if version == gitGenerationContentVersion+";schema=" {
+	if version == wantPrefix {
 		t.Fatalf("GenerationContentVersion() = %q has an empty schema digest", version)
 	}
 	if again := GenerationContentVersion(); again != version {

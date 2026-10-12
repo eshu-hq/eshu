@@ -328,3 +328,53 @@ func TestNewRegistryRejectsDuplicateDefinitions(t *testing.T) {
 		}
 	})
 }
+
+// TestRegistryFingerprintIsDeterministic guards the #7986 parser fingerprint:
+// the same parser set must hash equal across calls and processes, or
+// GenerationContentVersion would mint a new generation on every release build.
+func TestRegistryFingerprintIsDeterministic(t *testing.T) {
+	t.Parallel()
+
+	first := DefaultRegistry().Fingerprint()
+	if first == "" {
+		t.Fatal("expected a non-empty parser fingerprint")
+	}
+	second := DefaultRegistry().Fingerprint()
+	if first != second {
+		t.Fatalf("parser fingerprint not deterministic: %q then %q", first, second)
+	}
+}
+
+// TestRegistryFingerprintChangesWithParserBindings proves the #7986 closure: a
+// parser-set change (a new extension or exact name on an existing key) hashes
+// differently, so GenerationContentVersion moves without a hand edit even when
+// the change is visible only on inputs outside testdata/content_version.
+func TestRegistryFingerprintChangesWithParserBindings(t *testing.T) {
+	t.Parallel()
+
+	base, err := NewRegistry([]Definition{
+		{ParserKey: "go", Language: "go", Extensions: []string{".go"}},
+	})
+	if err != nil {
+		t.Fatalf("NewRegistry base: %v", err)
+	}
+	extended, err := NewRegistry([]Definition{
+		{ParserKey: "go", Language: "go", Extensions: []string{".go", ".golang"}},
+	})
+	if err != nil {
+		t.Fatalf("NewRegistry extended: %v", err)
+	}
+	if base.Fingerprint() == extended.Fingerprint() {
+		t.Fatal("expected a new extension to change the parser fingerprint")
+	}
+
+	named, err := NewRegistry([]Definition{
+		{ParserKey: "go", Language: "go", Extensions: []string{".go"}, ExactNames: []string{"go.work"}},
+	})
+	if err != nil {
+		t.Fatalf("NewRegistry named: %v", err)
+	}
+	if base.Fingerprint() == named.Fingerprint() {
+		t.Fatal("expected a new exact name to change the parser fingerprint")
+	}
+}
