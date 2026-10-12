@@ -95,8 +95,8 @@ The docs-build hook is bounded by `ESHU_DOCS_BUILD_TIMEOUT_SECONDS`
 (default 600; the full strict build measures about 11 seconds warm on the
 shared host). Past the bound it fails closed: it names the live-gate holder
 (pid and worktree) when one is held, prints host load, and exits non-zero, so
-the push stays blocked but loudly. Raise the bound for one push with
-`ESHU_DOCS_BUILD_TIMEOUT_SECONDS=<seconds> git push`.
+the push stays blocked but loudly. Raise the bound for one push by exporting
+`ESHU_DOCS_BUILD_TIMEOUT_SECONDS` in the environment that runs the push.
 
 Bypassing the hooks (`core.hooksPath=/dev/null` or `--no-verify`) stays the
 intended escape for a wedged push, with one obligation: record the reason on
