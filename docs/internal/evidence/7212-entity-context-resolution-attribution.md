@@ -25,7 +25,9 @@ change, and no deployed measurement is claimed here.
   number of statements sent (`statementsTried`) into that record. The loop stops
   at the first row, so the answering statement is the last one tried: only the
   final, unlabeled `MATCH (e)` statement is `fallback`, any earlier one is
-  `anchor`.
+  `anchor`. (Since #7212 PR-B only the NornicDB loop has that statement; the
+  record keeps a `fallbackLast` flag, so a one-statement Neo4j hit is `anchor`.
+  See `7212-schema-closed-anchor.md`.)
 - A content-store answer sets `content`; a content miss that ends in the 404 sets
   `none`.
 - The recorder writes two span attributes and adds 1 to

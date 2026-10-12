@@ -54,8 +54,8 @@ func TestNeo4jEntityContextAnchorIsTheMeasuredStatement(t *testing.T) {
 
 	access := querycontract.RepositoryAccessFilterFromContext(context.Background())
 	statements := (&Handler{GraphBackend: querycontract.GraphBackendNeo4j}).EntityContextStatements(access)
-	if len(statements) != 2 {
-		t.Fatalf("Neo4j statements = %d, want 2 (anchor, fallback)", len(statements))
+	if len(statements) != 1 {
+		t.Fatalf("Neo4j statements = %d, want 1 (the schema-closed anchor, #7212)", len(statements))
 	}
 	sum := sha256.Sum256([]byte(statements[0]))
 	if got := hex.EncodeToString(sum[:]); got != neo4jWideAnchorStatementSHA256 {
@@ -67,14 +67,11 @@ func TestNeo4jEntityContextAnchorIsTheMeasuredStatement(t *testing.T) {
 	if got, want := neo4jEntityContextAnchor(), goldenWideAnchorClause(t); got != want {
 		t.Errorf("anchor clause differs from testdata/neo4j_wide_anchor.cypher:\n%s\n----\n%s", got, want)
 	}
-	if got, want := statements[1], entityContextCypher(entityContextFallbackAnchor, access); got != want {
-		t.Errorf("fallback statement changed:\n%s\n----\n%s", got, want)
-	}
 }
 
 // TestNeo4jEntityContextScopedShapeKeepsTheWideAnchor: the scoped caller
 // shape is the same widened anchor with the grant filter on the Repository
-// enrichment, then the unchanged fallback. Only $entity_id and the grant
+// enrichment, and nothing after it (#7212). Only $entity_id and the grant
 // lists are bound.
 func TestNeo4jEntityContextScopedShapeKeepsTheWideAnchor(t *testing.T) {
 	t.Parallel()
@@ -88,17 +85,14 @@ func TestNeo4jEntityContextScopedShapeKeepsTheWideAnchor(t *testing.T) {
 		t.Fatal("access filter is not scoped")
 	}
 	statements := (&Handler{GraphBackend: querycontract.GraphBackendNeo4j}).EntityContextStatements(access)
-	if len(statements) != 2 {
-		t.Fatalf("scoped Neo4j statements = %d, want 2", len(statements))
+	if len(statements) != 1 {
+		t.Fatalf("scoped Neo4j statements = %d, want 1", len(statements))
 	}
 	if got, want := statements[0], entityContextStatement(goldenWideAnchorClause(t), access); got != want {
 		t.Errorf("scoped anchor statement:\n%s\n----\nwant\n%s", got, want)
 	}
 	if !strings.Contains(statements[0], "WHERE "+access.GraphCondition("r")) {
 		t.Errorf("scoped anchor lacks the Repository grant filter:\n%s", statements[0])
-	}
-	if got, want := statements[1], entityContextCypher(entityContextFallbackAnchor, access); got != want {
-		t.Errorf("scoped fallback statement changed:\n%s\n----\n%s", got, want)
 	}
 	for _, statement := range statements {
 		for _, param := range wideParam.FindAllStringSubmatch(statement, -1) {
@@ -115,7 +109,7 @@ func TestNeo4jEntityContextScopedShapeKeepsTheWideAnchor(t *testing.T) {
 // expected label sets from the Neo4j schema DDL, never from the anchor's own
 // lists: every label with a uid uniqueness constraint seeks on uid, every
 // other label with an id uniqueness constraint seeks on id. Directory has
-// neither and stays with the unlabeled fallback. The rank list covers each
+// neither and is not in the anchor. The rank list covers each
 // label once: the constrained EntityContextAnchorLabels in loop order, then
 // the rest alphabetically.
 func TestNeo4jEntityContextAnchorLabelSetsAreTheSchemaConstraints(t *testing.T) {
@@ -196,7 +190,8 @@ func TestNeo4jEntityContextAnchorLabelSetsAreTheSchemaConstraints(t *testing.T) 
 // wideAnchorGraph models a graph holding one node, with the given label and
 // id == uid. The fake answers exactly the statements whose seek can reach the
 // node: the CALL () anchor when its label is in either branch, and the
-// unlabeled fallback always. It returns the statements sent, in order.
+// unlabeled fallback always, so a test can see that the fallback was never
+// sent. It returns the statements sent, in order.
 func wideAnchorGraph(entityID, label string) (*[]string, testgraph.FakeGraphReader) {
 	var calls []string
 	reader := testgraph.FakeGraphReader{

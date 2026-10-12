@@ -223,9 +223,6 @@ read_exemptions:
   - callsite: internal/query/secrets/grant_posture.go:GraphIAMGrantPostureStore.groupedGrantCounts
     anchor: "MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal) WHERE rel.scope_id = $scope_id"
     reason: zero GRANTS_ACCESS_TO writes in B-7 captures; the bucket aggregation scans an empty edge set on both backends zero GRANTS_ACCESS_TO writes in B-7 captures; the bucket aggregation scans an empty edge set on both backends
-  - callsite: internal/query/entity/context_handler.go:(*Handler).GetEntityContext
-    anchor: "MATCH (e) WHERE e.id = $entity_id"
-    reason: last-resort entity-context anchor read; the kept content-fallback workflow shape still binds the absent id content-entity:e_1dc76e780ac6, so every anchor-loop pass over it reaches this read and returns 0 rows on Neo4j (CI differential run 36783507969 proved the always-empty verdict when this exemption was dropped). The new graph-anchor probe covers the label-constrained CALL anchor, not this miss-path read. #7232; rekey-by-builder-identity follow-up is #7233.
   - callsite: internal/query/impact/resource_investigation_reads.go:(*Handler).ResourceInvestigationWorkloads
     anchor: "MATCH (instance:WorkloadInstance)-[rel:USES]->(resource:TerraformResource)"
     reason: bound resource node is created but no USES edge to it exists in B-7 captures

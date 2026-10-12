@@ -25,7 +25,8 @@ import (
 // on eshu_dp_entity_context_resolution_total); it is not a graph-backend
 // benchmark, because the fake graph reader answers instantly and no real
 // Cypher runs. The stmts/op metric is the number of graph statements the
-// request sent, so a run shows that the statement count did not move.
+// request sent: 1 on every Neo4j case since #7212 PR-B, and the per-label
+// loop's count on NornicDB.
 //
 // Each case runs twice: "bare" has no instruments and a request without a
 // recording span (the cheapest the handler can run), and "instrumented" has
@@ -57,8 +58,10 @@ func BenchmarkGetEntityContextResolution(b *testing.B) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:     "fallback_neo4j_second_statement",
-			backend:  querycontract.GraphBackendNeo4j,
+			// Since #7212 PR-B only the NornicDB per-label loop ends in the
+			// unlabeled fallback; Neo4j sends the schema-closed anchor alone,
+			// so this case drives the loop to its final statement.
+			name:     "fallback_nornicdb_final_statement",
 			entityID: "cr-1",
 			answer: func(_ int, cypher string) map[string]any {
 				if !strings.Contains(cypher, entityContextUnlabeledAnchor) {

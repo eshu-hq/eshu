@@ -16,8 +16,9 @@ import (
 const MetricDimensionResolvedBy = "resolved_by"
 
 // AttrResolvedBy returns a resolved_by attribute naming how an entity-context
-// request was answered. v must be one of anchor (a non-final anchor
-// statement returned the row), fallback (the final unlabeled statement did),
+// request was answered. v must be one of anchor (an anchor statement, any
+// statement that is not the unlabeled fallback, returned the row), fallback
+// (the unlabeled statement that ends the NornicDB per-label loop did),
 // content (the graph returned no row and the content store answered), or none
 // (nothing answered, 404).
 func AttrResolvedBy(v string) attribute.KeyValue {
@@ -30,7 +31,7 @@ func registerEntityContextResolutionInstruments(meter metric.Meter, inst *Instru
 	var err error
 	if inst.EntityContextResolution, err = meter.Int64Counter(
 		"eshu_dp_entity_context_resolution_total",
-		metric.WithDescription("Entity-context requests that ended without an error, by resolved_by (anchor: a non-final anchor statement returned the row; fallback: the final unlabeled MATCH (e) statement did; content: the graph returned no row and the content store answered; none: nothing answered, 404)"),
+		metric.WithDescription("Entity-context requests that ended without an error, by resolved_by (anchor: an anchor statement, any statement that is not the unlabeled fallback, returned the row; fallback: the unlabeled MATCH (e) statement that ends the NornicDB per-label loop did; content: the graph returned no row and the content store answered; none: nothing answered, 404)"),
 	); err != nil {
 		return fmt.Errorf("register EntityContextResolution counter: %w", err)
 	}

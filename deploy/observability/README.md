@@ -22,6 +22,13 @@ contracts, runtime health semantics, or operator runbooks. Metric names live in
   schema bootstrap, MCP tool errors, and status summary freshness.
 - `hosted-operations-prometheus-rule.yaml` wraps the hosted ops rules for
   Prometheus Operator environments.
+- `graph-orphan-prometheus-rule.yaml` wraps the graph orphan and gauge
+  snapshot staleness alerts for Prometheus Operator environments.
+- `id-anchor-census-prometheus-rule.yaml` wraps the id-anchor census alerts
+  (`EshuGraphIDAnchorUnreachableNodes`, `EshuGraphIDAnchorCensusStale`, #7212)
+  for Prometheus Operator environments; `alerts.yaml` carries the same rules in
+  `eshu.pipeline`, and the census alert rule test in
+  `go/internal/reducer/maintenance/census` keeps the two aligned.
 - `otel-collector-config.yaml` receives OTLP, batches telemetry, exports traces
   to Jaeger, and exposes Prometheus metrics.
 - The freshness/convergence dashboard lives at

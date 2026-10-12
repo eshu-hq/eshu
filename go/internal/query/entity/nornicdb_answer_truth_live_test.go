@@ -46,13 +46,20 @@ import (
 // mangled literal text.
 //
 // Ground truth: function Main lives in a.go in repo B and CALLS three helpers.
+//
+// The Function nodes carry uid equal to id, the shape the canonical writer
+// produces (MERGE (n:Function {uid: $entity_uid}) SET n.id = $entity_uid). An
+// id-only Function is outside the writer contract: the id-anchor census counts
+// it as unreachable, and since #7212 PR-B the schema-closed Neo4j anchor
+// answers not-found for it (it used to resolve only through the removed
+// unlabeled fallback).
 var entityAnswerTruthSeed = []string{
 	`CREATE (:Repository {id: 'answer-truth-entity:repo-b', name: 'answer-truth-repo-b'})`,
 	`CREATE (:File {id: 'answer-truth-entity:file-a', relative_path: 'a.go', language: 'go'})`,
-	`CREATE (:Function {id: 'answer-truth-entity:fn-Main', name: 'Main', language: 'go', start_line: 1, end_line: 9})`,
-	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper1', name: 'Helper1', language: 'go'})`,
-	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper2', name: 'Helper2', language: 'go'})`,
-	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper3', name: 'Helper3', language: 'go'})`,
+	`CREATE (:Function {id: 'answer-truth-entity:fn-Main', uid: 'answer-truth-entity:fn-Main', name: 'Main', language: 'go', start_line: 1, end_line: 9})`,
+	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper1', uid: 'answer-truth-entity:fn-Helper1', name: 'Helper1', language: 'go'})`,
+	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper2', uid: 'answer-truth-entity:fn-Helper2', name: 'Helper2', language: 'go'})`,
+	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper3', uid: 'answer-truth-entity:fn-Helper3', name: 'Helper3', language: 'go'})`,
 	entityAnswerTruthEdge("Repository", "answer-truth-entity:repo-b", "REPO_CONTAINS", "File", "answer-truth-entity:file-a"),
 	entityAnswerTruthEdge("File", "answer-truth-entity:file-a", "CONTAINS", "Function", "answer-truth-entity:fn-Main"),
 	entityAnswerTruthEdge("Function", "answer-truth-entity:fn-Main", "CALLS", "Function", "answer-truth-entity:fn-Helper1"),

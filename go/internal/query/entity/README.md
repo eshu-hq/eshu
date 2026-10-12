@@ -54,26 +54,40 @@ HTTP surface or `testutil` doubles.
 
 Graph dialect: `Handler.GraphBackend` selects the `GetEntityContext` anchor
 (#7380). Only `querycontract.GraphBackendNeo4j` sends the single indexed
-`CALL () { ... UNION ... }` anchor (`context_anchor_neo4j.go`) followed, only on
-a miss, by the unlabeled fallback: at most two distinct statement texts per
-caller shape, because a cold Neo4j plans every distinct text. NornicDB and the
-zero value keep the per-label loop of up to 16 statements, since a label
+`CALL () { ... UNION ... }` anchor (`context_anchor_neo4j.go`), and nothing
+after it: one statement text per caller shape, because a cold Neo4j plans every
+distinct text. NornicDB and the zero value keep the per-label loop of up to 16
+statements, ending in the unlabeled `MATCH (e)` fallback, since a label
 disjunction or many-branch `UNION` is unreliable there (#7006). The Neo4j
 anchor seeks every schema label with a uid or id uniqueness constraint
 (`graph.UIDUniquenessConstrainedLabels`, `graph.IDUniquenessConstrainedLabels`;
-117 uid and 7 id labels at #7212), not only `EntityContextAnchorLabels`, so an
-id on a label outside the loop list no longer pays the whole-graph fallback.
+117 uid and 7 id labels at #7212), not only `EntityContextAnchorLabels`.
+
+The Neo4j anchor is schema-closed (#7212 PR-B): the unlabeled whole-graph
+fallback that used to follow it is gone. It cost 2,267,037 db hits and about
+1.1 s per miss on the QA environment. The id-anchor census
+(`go/internal/graph/anchor`; reducer gauge
+`eshu_dp_graph_id_anchor_unreachable_nodes`; the golden-corpus
+`graph/anchor_census` check) proves that every id-bearing node a writer produces
+is reachable through the anchor. A node outside that shape (a `Directory` with an
+id, an id-only or id != uid node on a uid label) answers 404 on Neo4j, and the
+census counts it. `TestNeo4jEntityContextAnchorAgreesWithTheCensusOnEveryLabel`
+and the live `TestLiveNeo4jSchemaClosedAnchorAgreesWithTheCensus` hold the
+anchor and `anchor.Classify` together on every census label. Evidence:
+`docs/internal/evidence/7212-schema-closed-anchor.md`.
 `neo4jAnchorRankOrder` ranks the loop's constrained labels first, in loop
 order, then the rest alphabetically. An id shared by two old loop labels
 resolves to the one the loop tried first; otherwise the earlier label in this
-order wins. `Directory` has no id or uid index and resolves
-through the fallback. `TestNeo4jEntityContextAnchorIsTheMeasuredStatement` pins
+order wins. `Directory` has no id or uid index and is not in the anchor; the
+canonical writer keys it on `path` and never sets `id`.
+`TestNeo4jEntityContextAnchorIsTheMeasuredStatement` pins
 the statement to the text measured in
 `docs/internal/evidence/7212-wide-entity-anchor.md`.
 
 Resolution attribution (#7212): `GetEntityContext` records how each request was
-answered in `context_resolution.go`. `resolved_by` is `anchor` (a non-final
-statement returned the row), `fallback` (the final unlabeled statement did),
+answered in `context_resolution.go`. `resolved_by` is `anchor` (an anchor
+statement returned the row), `fallback` (the final unlabeled statement of the
+NornicDB loop did; Neo4j has no fallback statement and never records it),
 `content` (the graph returned no row and the content store answered), or `none`
 (404). It lands on the request span as `eshu.entity_context.resolved_by`, with
 `eshu.entity_context.statements_tried`, and on

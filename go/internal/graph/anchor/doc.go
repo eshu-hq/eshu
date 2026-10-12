@@ -8,8 +8,9 @@
 // through a uid-constrained label with uid equal to id, or through an
 // id-constrained label by id alone. A node with an id that sits on no such
 // label is invisible to it. The unlabeled fallback statement used to find such
-// a node with an AllNodesScan; keeping that scan off the miss path depends on
-// no writer producing the node in the first place.
+// a node with an AllNodesScan. Since #7212 PR-B Neo4j no longer sends that
+// statement, so such a node answers not-found there: entity-context answer
+// parity depends on no writer producing the node in the first place.
 //
 // Two parts hold that invariant:
 //

@@ -207,8 +207,10 @@ func TestGetEntityContextResolvedByAnchorOnNornicDBLoopLabel(t *testing.T) {
 }
 
 // TestGetEntityContextResolvedByFallbackOnlyForTheFinalUnlabeledStatement:
-// only a row from the last statement (the unlabeled MATCH (e)) is a fallback,
-// on both dialects.
+// only a row from the last statement (the unlabeled MATCH (e)) is a fallback.
+// Only the NornicDB per-label loop has that statement; Neo4j sends the
+// schema-closed anchor alone (#7212), so it never records fallback
+// (TestNeo4jEntityContextAnchorAgreesWithTheCensusOnEveryLabel).
 func TestGetEntityContextResolvedByFallbackOnlyForTheFinalUnlabeledStatement(t *testing.T) {
 	t.Parallel()
 
@@ -217,7 +219,6 @@ func TestGetEntityContextResolvedByFallbackOnlyForTheFinalUnlabeledStatement(t *
 		backend querycontract.GraphBackend
 		total   int
 	}{
-		{name: "neo4j", backend: querycontract.GraphBackendNeo4j, total: 2},
 		{name: "nornicdb_loop", total: len(EntityContextAnchorLabels) + 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -265,7 +266,7 @@ func TestGetEntityContextResolvedByContentWhenGraphMissesAndContentAnswers(t *te
 	if obs.rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", obs.rec.Code, obs.rec.Body.String())
 	}
-	assertResolved(t, obs, "content", 2)
+	assertResolved(t, obs, "content", 1)
 }
 
 // TestGetEntityContextResolvedByContentWithoutGraphReader: a deployment with
@@ -306,7 +307,7 @@ func TestGetEntityContextResolvedByNoneOnATrueMiss(t *testing.T) {
 	if obs.rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", obs.rec.Code, obs.rec.Body.String())
 	}
-	assertResolved(t, obs, "none", 2)
+	assertResolved(t, obs, "none", 1)
 }
 
 // TestGetEntityContextGraphErrorHasNoResolvedBy: a request that ends in a

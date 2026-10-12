@@ -7,10 +7,12 @@
 // applied: GetEntityContext's per-label reads of uid-constrained labels anchor
 // on `e.uid = $entity_id AND e.id = $entity_id`, which must (1) resolve a
 // canonical id == uid entity on its first read, (2) never resolve a node by
-// uid alone (a File carries a uid but no id), and (3) still resolve an entity
-// that carries an id but no uid through the unlabeled fallback. On Neo4j it
-// also checks the plan: the uid form is a unique index seek, the old id form
-// a label scan. Run it on Neo4j with, for example:
+// uid alone (a File carries a uid but no id), and (3) on NornicDB still resolve
+// an entity that carries an id but no uid through the unlabeled fallback. On
+// Neo4j the anchor is schema-closed (#7212): no writer produces that id-only
+// shape, the id-anchor census counts it as unreachable, and Neo4j answers the
+// not-found shape after one statement. On Neo4j it also checks the plan: the
+// uid form is a unique index seek, the old id form a label scan. Run it on Neo4j with, for example:
 //
 //	docker run -d --name eshu-7089-neo4j -e NEO4J_AUTH=none \
 //	  -p 127.0.0.1:<bolt-port>:7687 neo4j:2026-community
@@ -49,7 +51,8 @@ const (
 
 // uidAnchorSeed mirrors the canonical writers: code entities carry id == uid
 // and Files carry a uid but no id. The id-only Function stands for any node
-// on a uid-constrained label written without a uid (older fixtures).
+// on a uid-constrained label written without a uid (older fixtures); no
+// current writer produces it, and the id-anchor census counts it (#7212).
 var uidAnchorSeed = []string{
 	`CREATE (:Repository {id: '` + uidAnchorRepoID + `', name: 'uid-anchor-repo'})`,
 	`CREATE (:File {uid: '` + uidAnchorFileUID + `', relative_path: 'b.go', language: 'go'})`,
@@ -126,16 +129,16 @@ func TestLiveEntityContextUIDAnchor(t *testing.T) {
 		return rec
 	}
 	// The handler under test takes the production path for the live backend:
-	// on Neo4j the single indexed anchor plus the unlabeled fallback (#7380),
-	// on NornicDB the per-label loop plus the fallback. allReads is what a
-	// full miss sends, and uidAnchorRead is the statement that resolves the
-	// canonical Function on the first read.
+	// on Neo4j the single schema-closed indexed anchor (#7380, #7212), on
+	// NornicDB the per-label loop plus the unlabeled fallback. allReads is
+	// what a full miss sends, and uidAnchorRead is the statement that
+	// resolves the canonical Function on the first read.
 	allReads := len(EntityContextAnchorLabels) + 1
 	uidAnchorRead := func(line string) bool {
 		return line == "MATCH (e:Function) WHERE e.uid = $entity_id AND e.id = $entity_id"
 	}
 	if handler.GraphBackend == querycontract.GraphBackendNeo4j {
-		allReads = 2
+		allReads = 1
 		uidAnchorRead = func(line string) bool {
 			return strings.HasPrefix(line, "MATCH (e:Function|") &&
 				strings.HasSuffix(line, " {uid: $entity_id}) WHERE e.id = $entity_id")
@@ -178,15 +181,26 @@ func TestLiveEntityContextUIDAnchor(t *testing.T) {
 		t.Fatalf("uid-only File: anchor reads = %d, want %d (every anchor read, then the fallback)", len(anchors), allReads)
 	}
 
-	// (3) An id-only Function misses the uid-anchored fast path and resolves
-	// through the unlabeled fallback, as it did before #7089.
+	// (3) An id-only Function misses the uid-anchored fast path. On NornicDB
+	// it resolves through the unlabeled fallback, as it did before #7089. On
+	// Neo4j the census counts it as unreachable and the schema-closed anchor
+	// answers not-found after its one read (#7212).
 	rec = get(uidAnchorIDOnlyID)
 	anchors = reader.reset()
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), uidAnchorIDOnlyID) {
-		t.Fatalf("id-only Function: status = %d, body = %s", rec.Code, rec.Body.String())
-	}
-	if len(anchors) != allReads || anchors[allReads-1] != entityContextUnlabeledAnchor {
-		t.Fatalf("id-only Function: anchor reads = %q, want %d ending with %q", anchors, allReads, entityContextUnlabeledAnchor)
+	if handler.GraphBackend == querycontract.GraphBackendNeo4j {
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("id-only Function on Neo4j: status = %d, want 404; body = %s", rec.Code, rec.Body.String())
+		}
+		if len(anchors) != allReads {
+			t.Fatalf("id-only Function on Neo4j: anchor reads = %q, want %d", anchors, allReads)
+		}
+	} else {
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), uidAnchorIDOnlyID) {
+			t.Fatalf("id-only Function: status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		if len(anchors) != allReads || anchors[allReads-1] != entityContextUnlabeledAnchor {
+			t.Fatalf("id-only Function: anchor reads = %q, want %d ending with %q", anchors, allReads, entityContextUnlabeledAnchor)
+		}
 	}
 
 	if backend == graph.SchemaBackendNeo4j {

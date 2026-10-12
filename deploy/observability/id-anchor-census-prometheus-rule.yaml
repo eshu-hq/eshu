@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: eshu-graph-id-anchor-census-alerts
+  namespace: eshu
+  labels:
+    app: eshu
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: eshu.graph-id-anchor-census
+      interval: 30s
+      rules:
+        - alert: EshuGraphIDAnchorUnreachableNodes
+          expr: max(eshu_dp_graph_id_anchor_unreachable_nodes) > 0 and max(eshu_dp_graph_id_anchor_id_bearing_nodes) > 0
+          for: 2h
+          labels:
+            severity: warning
+            service: eshu-reducer
+            component: pipeline
+          annotations:
+            summary: "Graph nodes carry an id the entity-context anchor cannot reach"
+            description: "The id-anchor census counts {{ $value }} id-bearing graph nodes that the labeled Neo4j entity-context anchor cannot reach. On Neo4j, GET /api/v0/entities/{entity_id}/context and MCP get_entity_context answer 404 for each of those ids until the writer that produced them is fixed (#7212)."
+            runbook: |
+              The census found id-bearing nodes off the anchor contract. Runbook: docs/public/reference/telemetry/id-anchor-census.md ("When it is nonzero").
+              1. Read the reducer log line `id anchor census` (WARN when nonzero): `unreachable_nodes`, `via_uid_nodes`, `via_id_nodes`, `id_bearing_nodes`
+              2. Find the label sets with the read-only `ResidualByLabelsCypher` in `go/internal/graph/anchor` (it prints labels and counts, never ids)
+              3. Find the writer that sets `id` on that label: run the golden-corpus `writer-coverage` phase, or search the Cypher literals for `{id:` and `SET <var>.id` on that label
+              4. Fix the writer (keep `id == uid` on a uid-constrained label, or add the uid or id uniqueness constraint for a new label); the nodes answer 404 on Neo4j until they are rewritten
+              5. Do not add an unlabeled fallback back to the entity-context read; it is the 2.27M-db-hit scan #7212 removed
+
+        - alert: EshuGraphIDAnchorCensusStale
+          expr: '(time() - max(eshu_dp_graph_id_anchor_census_last_success_unixtime) > 10800) or (sum(increase(eshu_dp_graph_id_anchor_census_passes_total{outcome="failed"}[3h])) > 0 unless sum(increase(eshu_dp_graph_id_anchor_census_passes_total{outcome="ok"}[3h])) > 0)'
+          for: 15m
+          labels:
+            severity: warning
+            service: eshu-reducer
+            component: pipeline
+          annotations:
+            summary: "The id-anchor census has not succeeded in over 3 hours"
+            description: "Either the last successful id-anchor census pass is over 3 hours old (a reducer that once succeeded has stopped succeeding), or census passes failed in the last 3 hours with none succeeding (a reducer that has not succeeded since it started, for example after a rollout). eshu_dp_graph_id_anchor_unreachable_nodes is then stale or absent, and EshuGraphIDAnchorUnreachableNodes cannot fire on new data. A reducer that runs no census pass at all (not running, or ESHU_ID_ANCHOR_CENSUS_ENABLED=false) exports neither series and is out of scope for this alert."
+            runbook: |
+              The census pass is failing, or has not succeeded since the reducer started. Runbook: docs/public/reference/telemetry/id-anchor-census.md.
+              1. Check `eshu_dp_graph_id_anchor_census_passes_total` by `outcome` and reducer logs for `id anchor census pass failed` with `failure_class=id_anchor_census_error`
+              2. Compare `eshu_dp_graph_id_anchor_census_duration_seconds` with `ESHU_ID_ANCHOR_CENSUS_TIMEOUT` (default 2m); a timed-out pass keeps the last good value
+              3. The 3h threshold is three default `ESHU_ID_ANCHOR_CENSUS_POLL_INTERVAL` (1h) intervals; scale it if the interval changes
