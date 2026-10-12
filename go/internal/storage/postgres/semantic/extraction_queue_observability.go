@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/semanticqueue"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // ObservabilitySnapshot returns audit-safe semantic extraction queue, budget,
@@ -218,11 +219,11 @@ func applySemanticExtractionBudget(
 		})
 }
 
-func appendNamedCount(rows []statuspkg.NamedCount, name string, count int) []statuspkg.NamedCount {
+func appendNamedCount(rows []shared.NamedCount, name string, count int) []shared.NamedCount {
 	if name == "" || count <= 0 {
 		return rows
 	}
-	return append(rows, statuspkg.NamedCount{Name: name, Count: count})
+	return append(rows, shared.NamedCount{Name: name, Count: count})
 }
 
 // SemanticExtractionObservabilityQuery is the redacted status snapshot

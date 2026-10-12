@@ -17,9 +17,9 @@ import (
 // redefining the platform health contract.
 type CoordinatorSnapshot struct {
 	CollectorInstances    []collector.InstanceSummary      `json:"collector_instances"`
-	RunStatusCounts       []NamedCount                     `json:"run_status_counts"`
-	WorkItemStatusCounts  []NamedCount                     `json:"work_item_status_counts"`
-	CompletenessCounts    []NamedCount                     `json:"completeness_counts"`
+	RunStatusCounts       []shared.NamedCount              `json:"run_status_counts"`
+	WorkItemStatusCounts  []shared.NamedCount              `json:"work_item_status_counts"`
+	CompletenessCounts    []shared.NamedCount              `json:"completeness_counts"`
 	CollectorBackpressure []collector.BackpressureSnapshot `json:"collector_backpressure"`
 	ActiveClaims          int                              `json:"active_claims"`
 	OverdueClaims         int                              `json:"overdue_claims"`

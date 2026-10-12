@@ -5,6 +5,7 @@ package status
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // fixtureSemanticExtractionStatus returns a fully populated
@@ -69,15 +70,15 @@ func fixtureSemanticExtractionStatus() semantic.ExtractionStatus {
 			ProviderUnavailable: 1,
 			Unchanged:           3,
 			Stale:               2,
-			StatusCounts: []NamedCount{
+			StatusCounts: []shared.NamedCount{
 				{Name: "pending", Count: 10},
 				{Name: "succeeded", Count: 20},
 			},
-			SourceClassCounts: []NamedCount{
+			SourceClassCounts: []shared.NamedCount{
 				{Name: "documentation", Count: 30},
 				{Name: "code_hints", Count: 20},
 			},
-			FailureClassCounts: []NamedCount{
+			FailureClassCounts: []shared.NamedCount{
 				{Name: "provider_timeout", Count: 3},
 				{Name: "rate_limited", Count: 1},
 			},
@@ -111,11 +112,11 @@ func fixtureSemanticExtractionStatus() semantic.ExtractionStatus {
 			},
 		},
 		Audit: semantic.ExtractionAuditSnapshot{
-			ActorClassCounts: []NamedCount{
+			ActorClassCounts: []shared.NamedCount{
 				{Name: "collector", Count: 25},
 				{Name: "operator", Count: 5},
 			},
-			ACLStateCounts: []NamedCount{
+			ACLStateCounts: []shared.NamedCount{
 				{Name: "allowed", Count: 27},
 				{Name: "denied", Count: 3},
 			},

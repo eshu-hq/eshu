@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
@@ -118,7 +118,7 @@ func TestSemanticExtractionQueueStoreObservabilitySnapshotAggregatesRedactedRows
 	}
 }
 
-func namedCountValue(rows []statuspkg.NamedCount, name string) int {
+func namedCountValue(rows []shared.NamedCount, name string) int {
 	for _, row := range rows {
 		if row.Name == name {
 			return row.Count

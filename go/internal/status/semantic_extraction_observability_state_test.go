@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestSemanticExtractionObservabilitySurvivesMissingCapabilityState(t *testing.T) {
@@ -26,7 +27,7 @@ func TestSemanticExtractionObservabilitySurvivesMissingCapabilityState(t *testin
 				EstimatedInputTokens: 120,
 			},
 			Audit: semantic.ExtractionAuditSnapshot{
-				ActorClassCounts: []status.NamedCount{{Name: "hosted_worker", Count: 2}},
+				ActorClassCounts: []shared.NamedCount{{Name: "hosted_worker", Count: 2}},
 			},
 		},
 	}, status.DefaultOptions())
@@ -55,7 +56,7 @@ func TestLoadSemanticExtractionStatusPreservesProjectionAndWrappers(t *testing.T
 		SemanticExtraction: semantic.ExtractionStatus{
 			Queue:  semantic.ExtractionQueueSnapshot{Total: 3, Pending: 2},
 			Budget: semantic.ExtractionBudgetSnapshot{EstimatedInputTokens: 42},
-			Audit:  semantic.ExtractionAuditSnapshot{ActorClassCounts: []status.NamedCount{{Name: "worker", Count: 3}}},
+			Audit:  semantic.ExtractionAuditSnapshot{ActorClassCounts: []shared.NamedCount{{Name: "worker", Count: 3}}},
 		},
 	}}
 	profile := semantic.ProviderProfileStatus{ProfileID: "configured", State: semantic.ProviderProfileConfigured}

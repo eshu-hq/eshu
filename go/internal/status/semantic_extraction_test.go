@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func TestSemanticExtractionDefaultsUnavailableWithoutAffectingHealth(t *testing.T) {
@@ -365,10 +366,10 @@ func TestSemanticExtractionQueueBudgetAndAuditDoNotAffectDeterministicHealth(t *
 				Retrying:        1,
 				DeadLetter:      1,
 				BudgetExhausted: 1,
-				SourceClassCounts: []status.NamedCount{
+				SourceClassCounts: []shared.NamedCount{
 					{Name: "documentation", Count: 4},
 				},
-				StatusCounts: []status.NamedCount{
+				StatusCounts: []shared.NamedCount{
 					{Name: "pending", Count: 2},
 					{Name: "dead_letter", Count: 1},
 				},
@@ -379,8 +380,8 @@ func TestSemanticExtractionQueueBudgetAndAuditDoNotAffectDeterministicHealth(t *
 				Exhausted:            1,
 			},
 			Audit: semantic.ExtractionAuditSnapshot{
-				ActorClassCounts: []status.NamedCount{{Name: "hosted_worker", Count: 5}},
-				ACLStateCounts:   []status.NamedCount{{Name: "acl_allowed", Count: 5}},
+				ActorClassCounts: []shared.NamedCount{{Name: "hosted_worker", Count: 5}},
+				ACLStateCounts:   []shared.NamedCount{{Name: "acl_allowed", Count: 5}},
 			},
 		},
 	}, status.DefaultOptions())
@@ -412,7 +413,7 @@ func TestRenderStatusIncludesSemanticExtractionObservability(t *testing.T) {
 				Pending:         1,
 				Succeeded:       1,
 				BudgetExhausted: 1,
-				SourceClassCounts: []status.NamedCount{
+				SourceClassCounts: []shared.NamedCount{
 					{Name: "documentation", Count: 2},
 				},
 			},
@@ -424,7 +425,7 @@ func TestRenderStatusIncludesSemanticExtractionObservability(t *testing.T) {
 				Exhausted:            1,
 			},
 			Audit: semantic.ExtractionAuditSnapshot{
-				ActorClassCounts: []status.NamedCount{{Name: "hosted_worker", Count: 3}},
+				ActorClassCounts: []shared.NamedCount{{Name: "hosted_worker", Count: 3}},
 			},
 		},
 	}, status.DefaultOptions())

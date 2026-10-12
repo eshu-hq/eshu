@@ -23,7 +23,7 @@ type RegistryCollectorSnapshot struct {
 	LastCompletedAt            time.Time
 	RetryableFailures          int
 	TerminalFailures           int
-	FailureClassCounts         []NamedCount
+	FailureClassCounts         []shared.NamedCount
 	MetadataTargetCounts       []RegistryMetadataTargetCount
 }
 

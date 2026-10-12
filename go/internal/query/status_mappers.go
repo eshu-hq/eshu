@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func loadStatusReport(
@@ -312,7 +313,7 @@ func coordinatorToMap(snapshot *status.CoordinatorSnapshot) map[string]any {
 	return result
 }
 
-func namedCountsToSlice(rows []status.NamedCount) []map[string]any {
+func namedCountsToSlice(rows []shared.NamedCount) []map[string]any {
 	result := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, map[string]any{
