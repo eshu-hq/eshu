@@ -2,9 +2,9 @@
 
 ## Read first
 
-1. `README.md` — purpose, boundary, and invariants.
+1. `README.md` — purpose, boundary, telemetry, and invariants.
 2. `doc.go` — the contract.
-3. `identity.go`, `decision.go`, `keys.go`.
+3. `identity.go`, `decision.go`, `keys.go` (pure), then `run.go` (side effects).
 
 ## Invariants
 
@@ -15,9 +15,13 @@
 - When you add an env key under `go/internal/collector/repo` or
   `go/internal/parser`, classify it in `keys.go`; the guard test fails until
   you do.
-- Keep the package pure (no I/O, clock, or git) so the decision is
-  table-testable.
+- Keep `identity.go`, `decision.go`, and `keys.go` pure (no I/O, clock, or
+  git) so the decision stays table-testable. Side effects belong in `run.go`:
+  the store call through `Reprojector`, the counter, the span event, and the
+  logs.
 - Only `interval_elapsed` and `graph_dirty` may skip (ruling a9-143 D1). Do
   not widen the set without an arbiter ruling: reindex and stale-request
   reasons must store a fresh parse.
+- A new outcome is a new label value: add it to `Outcomes`, to the metric
+  reference, to the sweep reference table, and to the telemetry coverage row.
 - Bump `IdentityPrefix` when the identity's inputs or encoding change.
