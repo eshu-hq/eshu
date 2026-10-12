@@ -190,8 +190,9 @@ intents (0 rows before and after), so it does not cover this part.
 
 ## Content Version Gate
 
-`TestGenerationContentVersionPinsCollectorOutput` parses
-`testdata/content_version` (44 files) through the production snapshotter and
+`TestGenerationContentVersionPinsCollectorOutput` parses the 44-file
+`content_version` fixture directory of the git collector package through the
+production snapshotter and
 fact builder. It pins a digest of the 238 normalized facts next to
 `gitGenerationContentVersion` in `testdata/content_version_pin.json`. When the
 output moves while the constant stays the same, the test fails and tells the
