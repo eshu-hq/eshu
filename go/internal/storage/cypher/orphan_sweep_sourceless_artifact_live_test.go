@@ -135,6 +135,15 @@ MERGE (a)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(t)`,
 	assertArtifactExists(t, ctx, runner, artifactEnvAttached, false)
 	assertArtifactExists(t, ctx, runner, artifactBare, false)
 	assertArtifactExists(t, ctx, runner, artifactControl, true)
+	// The sweep removes only the artifact node and its own edges; a future
+	// S5' edit that widens the DETACH blast radius to the seeded target
+	// Repository or Environment must trip this regression (#7747).
+	assertBoltCount(t, ctx, runner,
+		`MATCH (t:Repository {id: $id}) RETURN count(t) AS count`,
+		map[string]any{"id": targetID}, 1, "seeded target repository survives")
+	assertBoltCount(t, ctx, runner,
+		`MATCH (e:Environment {name: $name}) RETURN count(e) AS count`,
+		map[string]any{"name": envName}, 1, "seeded environment survives")
 	// The control's source edge survived the sweep untouched.
 	rows, err := runner.runCypher(ctx,
 		`MATCH (:Repository {id: $source})-[r:HAS_DEPLOYMENT_EVIDENCE]->(:EvidenceArtifact {id: $id}) RETURN count(r) AS n`,
