@@ -13,8 +13,8 @@
 #         fixture: the verifier must exit 0.
 # Further cases: a checkout AFTER the script step still fails (order
 # matters); reusable-call jobs and script-less jobs without a checkout pass;
-# commented-out invocations pass; ../scripts and source forms are recognised;
-# unparseable YAML and bad usage fail closed (exit 2, never 0).
+# commented-out invocations pass; ../scripts, ./scripts, and source forms
+# are recognised; unparseable YAML and bad usage fail closed (exit 2, never 0).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -165,10 +165,11 @@ out_file="${tmp_root}/rel-red.out"
 if run_root "${rel_red}" >"${out_file}" 2>&1; then
 	record_fail "relative ../scripts without checkout fails (exited 0)"
 else
-	if [ "$?" -eq 1 ]; then
+	code=$?
+	if [ "${code}" -eq 1 ]; then
 		record_pass "relative ../scripts without checkout fails"
 	else
-		record_fail "relative ../scripts without checkout fails (exit $?)"
+		record_fail "relative ../scripts without checkout fails (exit ${code})"
 		sed 's/^/  /' "${out_file}"
 	fi
 fi
@@ -204,10 +205,11 @@ out_file="${tmp_root}/broken.out"
 if run_root "${broken}" >"${out_file}" 2>&1; then
 	record_fail "unparseable workflow fails closed (exited 0)"
 else
-	if [ "$?" -eq 2 ]; then
+	code=$?
+	if [ "${code}" -eq 2 ]; then
 		record_pass "unparseable workflow fails closed"
 	else
-		record_fail "unparseable workflow fails closed (exit $?)"
+		record_fail "unparseable workflow fails closed (exit ${code})"
 		sed 's/^/  /' "${out_file}"
 	fi
 fi
@@ -217,10 +219,11 @@ out_file="${tmp_root}/usage.out"
 if bash "${verifier}" --bogus >"${out_file}" 2>&1; then
 	record_fail "unknown argument fails closed (exited 0)"
 else
-	if [ "$?" -eq 2 ]; then
+	code=$?
+	if [ "${code}" -eq 2 ]; then
 		record_pass "unknown argument fails closed"
 	else
-		record_fail "unknown argument fails closed (exit $?)"
+		record_fail "unknown argument fails closed (exit ${code})"
 		sed 's/^/  /' "${out_file}"
 	fi
 fi
@@ -228,6 +231,43 @@ if bash "${verifier}" --help >"${out_file}" 2>&1; then
 	record_pass "--help exits 0"
 else
 	record_fail "--help exits 0 (exit $?)"
+fi
+
+# 10. ./scripts form is recognised: flagged without a checkout, passed with one.
+dot_red="$(scratch dot-red)"
+cp "${fixtures}/red-dot-slash-no-checkout.yml" "${dot_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/dot-red.out"
+if run_root "${dot_red}" >"${out_file}" 2>&1; then
+	record_fail "dot-slash ./scripts without checkout fails (exited 0)"
+else
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "dot-slash ./scripts without checkout fails naming the job"
+	else
+		record_fail "dot-slash ./scripts without checkout fails naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
+fi
+dot_green="$(scratch dot-green)"
+cat >"${dot_green}/.github/workflows/fixture.yml" <<'WORKFLOW'
+name: Fixture dot-slash green
+on:
+  workflow_dispatch:
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Conform
+        run: ./scripts/verify_backend_conformance_live.sh
+WORKFLOW
+out_file="${tmp_root}/dot-green.out"
+if run_root "${dot_green}" >"${out_file}" 2>&1; then
+	record_pass "dot-slash ./scripts with checkout passes"
+else
+	record_fail "dot-slash ./scripts with checkout passes (exit $?)"
+	sed 's/^/  /' "${out_file}"
 fi
 
 printf 'test-verify-workflow-script-checkout: %d passed, %d failed\n' "${pass}" "${fail}"

@@ -12,8 +12,9 @@
 # Rule: in every .github/workflows/*.yml|*.yaml job that has a steps:
 # sequence, the first step whose `uses:` is actions/checkout must come before
 # every step whose `run:` invokes a repository shell script. A script
-# invocation is `scripts/<path>.sh|.bash` or `../scripts/<path>.sh|.bash`
-# (the working-directory: go form) at a command boundary, with or without a
+# invocation is `scripts/<path>.sh|.bash`, `./scripts/<path>.sh|.bash`, or
+# `../scripts/<path>.sh|.bash` (the working-directory: go form) at a command
+# boundary, with or without a
 # `bash`/`sh`/`source`/`. ` prefix. Full-line and trailing ` #` shell
 # comments are stripped before matching, so a commented-out invocation does
 # not count. Step `if:` conditions are NOT evaluated: a conditional checkout
@@ -91,7 +92,7 @@ select(.value.steps | type == "!!seq") |
     | map(sub("^[ \t]*#.*$"; "") | sub("[ \t]+#.*$"; ""))
     | join("\n"))
 ) as $code |
-select($code | test("([ \t\n;|&(){}\"'`=!]|^)(\\.\\./)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)")) |
+select($code | test("([ \t\n;|&(){}\"'`=!]|^)(\\./|\\.\\./)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)")) |
 select($co == null or .key < $co) |
 [$job, (.key | tostring), (.value.name // "" | tostring)] | @tsv
 PROG
