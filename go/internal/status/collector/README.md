@@ -117,3 +117,41 @@ views from data the root's status reader already gathered.
 
 - `docs/internal/naming.md` — the nesting rules this leaf was created under
 - Issue #6775 — the `internal/status` nest that introduced this package
+
+## Evidence
+
+No-Regression Evidence (#6949 batch 7, collector family): this change moves
+the 30 `collector.*` compat entries' Go importers (9 type aliases, 17 consts,
+and 4 funcs, reached as both `status.*` and `statuspkg.*`) off the
+transitional compat spellings onto the destuttered `collector.*` names, and
+deletes the emptied `compat_collector.go`. The two `Report`-taking forwarders
+(`CollectorRuntimeStatuses`, `CollectorPromotionProofs`) cannot move into the
+leaf as-is — the leaf cannot import root `Report` — so the root keeps the
+projection as a new `Report.CollectorEvidence()` method with a real doc
+comment, and the 6 caller files of those two (4 query prod files, 2
+external root tests) now call `collector.RuntimeStatuses(...)` and
+`collector.PromotionProofs(...)` over it; the 4 same-package root callers
+that used the bare names move the same way. No shadowing local needed a
+rename (the one `collector` loop variable sits outside the import's use
+scope). No type shape, wire field, SQL text, or executable statement
+changes: across 45 code files, every hunk requalifies an identifier or edits
+an import path only (zero non-mechanical changed lines outside the compat
+deletion, the new projection method holding the existing field copies, and
+the doc rewords). The status, collector, and query READMEs, the collector
+AGENTS.md, and the leaf doc.go are reworded to the settled names.
+Measurement: packages ok on both sides with identical sets (ledger:6949-collector-batch7-after).
+Sibling before-row `6949-collector-batch7-before`; baseline `19a12e107f`
+vs measurement commit `e4a8070df8` (the two ledger rows and this Evidence
+section are the only later changes), with the ok-package set byte-identical
+after timing strip.
+`go test -list` inventory is identical on both sides (11571 tests).
+Backend/version: go1.26.2 linux/amd64, in-memory; no backend touched. Input
+shape: n/a (no runtime input). Terminal queue/row counts: none — no queue,
+lease, Cypher, or SQL path is touched. Contract gates green on the branch:
+`verify-openapi.sh` (261/261 routes), `verify-contracttest.sh`,
+`verify-package-docs.sh`, and `verify-performance-evidence.sh`. The change
+is safe because it cannot alter runtime behavior: the compiler resolves the
+same types through their new paths, and the compat deletion is
+compile-enforced total — any missed caller would fail the build.
+No-Observability-Change: no metric, span, log line, or status output changes;
+telemetry evidence is the unchanged test outcomes above.
