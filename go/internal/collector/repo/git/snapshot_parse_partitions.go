@@ -366,7 +366,7 @@ func (s NativeRepositorySnapshotter) parseRepositoryFile(
 	body, bodyErr := os.ReadFile(job.path)
 	if bodyErr != nil {
 		s.recordParseFileStatus(ctx, "skipped")
-		markSnapshotDegraded(ctx, "file_read_failed")
+		markSnapshotDegraded(ctx, telemetry.PreparseDropFileReadFailed)
 		return parseResult{index: job.index, skipped: true}
 	}
 

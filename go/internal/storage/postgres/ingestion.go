@@ -321,6 +321,13 @@ func (s IngestionStore) commitScopeGeneration(
 			return fmt.Errorf("read fact stream: %w", err)
 		}
 	}
+	if preparseIdentityDropped(generation) {
+		markStart := time.Now()
+		if err := clearDroppedPreparseIdentity(ctx, tx, generation); err != nil {
+			return err
+		}
+		s.logCommitStage(ctx, scopeValue, generation, "mark_stream_dropped", markStart, slog.Bool("stream_dropped", true))
+	}
 	s.logCommitStage(
 		ctx,
 		scopeValue,

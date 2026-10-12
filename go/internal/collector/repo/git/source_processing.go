@@ -235,12 +235,10 @@ func (s *GitSource) snapshotOneRepository(
 	}
 	// A degraded snapshot may differ from a later identical run, so it stamps
 	// no pre-parse identity and the next sweep parses (review F-2).
-	if reason, degraded := degradation.degraded(); degraded && snapshot.PreparseIdentity != "" {
+	droppedReason, degraded := degradation.degraded()
+	degraded = degraded && snapshot.PreparseIdentity != ""
+	if degraded {
 		snapshot.PreparseIdentity = ""
-		if s.Logger != nil {
-			s.Logger.InfoContext(ctx, "git_snapshot_preparse_identity_dropped",
-				slog.String("repo_path", repository.RepoPath), slog.String("reason", reason))
-		}
 	}
 
 	repoPath := repository.RepoPath
@@ -269,7 +267,7 @@ func (s *GitSource) snapshotOneRepository(
 	}
 
 	generation := buildStreamingGenerationWithContext(
-		ctx,
+		s.withStreamDropRecorder(ctx),
 		repoPath,
 		metadata,
 		sourceRunID,
@@ -278,6 +276,12 @@ func (s *GitSource) snapshotOneRepository(
 		repository.IsDependency,
 		repository.Ref,
 	)
+	if degraded {
+		s.recordIdentityDrop(ctx, identityDrop{
+			Reason: droppedReason, RepositoryID: metadata.ID,
+			ScopeID: generation.Scope.ScopeID, GenerationID: generation.Generation.GenerationID,
+		})
+	}
 	enrichDiscoveryAdvisoryRun(
 		generation.DiscoveryAdvisory,
 		s.componentName(),

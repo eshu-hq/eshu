@@ -424,7 +424,10 @@ type Instruments struct {
 	// ReconcileParseSkipDecisions counts the pre-parse skip decisions of
 	// forced reconciles (#7978 follow-up, ruling a9-143), labeled by the closed
 	// preparse.Outcomes set. Registered in instruments_reconcile_parse_skip.go.
-	ReconcileParseSkipDecisions    metric.Int64Counter
+	ReconcileParseSkipDecisions metric.Int64Counter
+	// PreparseIdentityDropped counts snapshots and fact streams that kept the
+	// pre-parse identity off a generation, by closed reason (review F-2, F-7).
+	PreparseIdentityDropped        metric.Int64Counter
 	ReconciliationDriftRetractions metric.Int64Counter
 	ReconciliationConvergence      metric.Int64Counter
 	DocumentationEntityMentions    metric.Int64Counter

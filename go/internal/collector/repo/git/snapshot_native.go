@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -20,13 +18,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/codeowners"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/docs"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/submodule"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/workflow/image"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
-	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -103,7 +99,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	deltaRelativePaths := sortUniquePathStrings(append(deltaChangedRelativePaths, deltaDeletedRelativePaths...))
 	var workflowImageFileMetas []model.ContentFileMeta
 	if repository.Delta {
-		workflowImageFileMetas = image.CurrentWorkflowImageFileMetas(repoPath, fileSet.Files, fullFileSet.Files)
+		var readFailures int
+		workflowImageFileMetas, readFailures = image.CurrentWorkflowImageFileMetasWithReadFailures(repoPath, fileSet.Files, fullFileSet.Files)
+		markSnapshotDegradedOn(ctx, readFailures, telemetry.PreparseDropWorkflowDigestFailed)
 	}
 	var tfstateCandidates []TerraformStateCandidate
 	fileSet.Files, tfstateCandidates = extractTerraformStateCandidates(repoPath, fileSet.Files)
@@ -184,10 +182,12 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// above survives that same early return. Both candidate sets are
 	// appended together since a repository can carry both a .gitmodules file
 	// and a CODEOWNERS file in the same generation.
+	// A .gitmodules read failure needs no mark: Decide never skips a
+	// repository with submodules, so no identity can freeze its facts.
+	codeownersMetas, codeownersReadFailures := codeowners.CodeownersFileMetasWithReadFailures(repoPath, codeownersCandidateRelativePaths, commitSHA)
+	markSnapshotDegradedOn(ctx, codeownersReadFailures, telemetry.PreparseDropCodeownersReadFailed)
 	snapshot.ContentFileMetas = append(
-		submodule.GitmodulesFileMetasForPaths(repoPath, gitmodulesCandidateRelativePaths, commitSHA),
-		codeowners.CodeownersFileMetasForPaths(repoPath, codeownersCandidateRelativePaths, commitSHA)...,
-	)
+		submodule.GitmodulesFileMetasForPaths(repoPath, gitmodulesCandidateRelativePaths, commitSHA), codeownersMetas...)
 	if len(fileSet.Files) == 0 {
 		snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 			repoPath,
@@ -351,7 +351,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// zero-files early return); append the materialized content metas rather
 	// than overwrite them.
 	snapshot.ContentFileMetas = append(snapshot.ContentFileMetas, materializationRecordsToMetas(materialization.Records)...)
-	snapshot.DocumentationFileMetas = docs.DocumentationFileMetasForPaths(repoPath, discovery.FilePaths(documentationFiles), commitSHA)
+	var docsReadFailures int
+	snapshot.DocumentationFileMetas, docsReadFailures = docs.DocumentationFileMetasWithReadFailures(repoPath, discovery.FilePaths(documentationFiles), commitSHA)
+	markSnapshotDegradedOn(ctx, docsReadFailures, telemetry.PreparseDropDocsReadFailed)
 	snapshot.ContentEntities = materializationEntitiesToSnapshots(materialization.Entities, s.now())
 	snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 		repoPath,
@@ -447,51 +449,4 @@ func (s NativeRepositorySnapshotter) recordSnapshotStageAt(
 		logAttrs = append(logAttrs, attrs...)
 		s.Logger.InfoContext(ctx, "collector snapshot stage completed", logAttrs...)
 	}
-}
-
-// PreparseConfigFor builds the pre-parse configuration from the same values
-// the snapshotter parses with, plus the dependency-mode settings the fact
-// builder uses (#7978 follow-up, ruling a9-143). lookPath and stat resolve the
-// SCIP indexer binaries; both default to the os/exec and os versions when nil.
-// TestPreparseConfigForCoversTheSnapshotter pins that every snapshotter field
-// is either folded here or classified as not changing output.
-func PreparseConfigFor(
-	snapshotter NativeRepositorySnapshotter, sync RepoSyncConfig,
-	lookPath func(string) (string, error), stat func(string) (os.FileInfo, error),
-) preparse.Config {
-	if lookPath == nil {
-		lookPath = exec.LookPath
-	}
-	if stat == nil {
-		stat = os.Stat
-	}
-	config := preparse.Config{
-		EmitDataflow:       snapshotter.EmitDataflow,
-		SCIPEnabled:        snapshotter.SCIP.Enabled,
-		DependencyMode:     sync.DependencyMode,
-		DependencyName:     sync.DependencyName,
-		DependencyLanguage: sync.DependencyLanguage,
-	}
-	for _, rule := range snapshotter.DiscoveryOptions.IgnoredPathGlobs {
-		config.IgnoredPathGlobs = append(config.IgnoredPathGlobs, rule.Pattern+"="+rule.Reason)
-	}
-	config.PreservedPathGlobs = append(config.PreservedPathGlobs, snapshotter.DiscoveryOptions.PreservedPathGlobs...)
-	if !snapshotter.SCIP.Enabled {
-		return config
-	}
-	config.SCIPLanguages = append(config.SCIPLanguages, snapshotter.SCIP.Languages...)
-	for _, language := range snapshotter.SCIP.Languages {
-		binary, ok := scip.BinaryForLanguage(language)
-		if !ok {
-			continue
-		}
-		statResult := preparse.BinaryStat{Language: language, Missing: true}
-		if path, err := lookPath(binary); err == nil {
-			if info, err := stat(path); err == nil {
-				statResult = preparse.BinaryStat{Language: language, Path: path, Size: info.Size(), ModTime: info.ModTime()}
-			}
-		}
-		config.SCIPBinaries = append(config.SCIPBinaries, statResult)
-	}
-	return config
 }

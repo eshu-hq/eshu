@@ -5,8 +5,13 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"sync/atomic"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -197,4 +202,126 @@ func TestCheapReprojectRacesLive(t *testing.T) {
 			t.Fatalf("stale request rows %v -> %v, want one stored generation", before, after)
 		}
 	})
+}
+
+// commitStreamed commits generation with a fact stream fed the way streamFacts
+// feeds one (#7978 review F7-3): a goroutine sends every envelope, then, when
+// drop is true, sets the generation's PreparseIdentityDropped flag, and only
+// then closes the channel. A store that reads the flag before it has drained
+// the stream sees false. hook false leaves the flag nil (another collector).
+func (p *reprojectProof) commitStreamed(generation scope.ScopeGeneration, hook, drop bool) {
+	p.t.Helper()
+	flag := new(atomic.Bool)
+	if hook {
+		generation.PreparseIdentityDropped = flag
+	}
+	stream := make(chan facts.Envelope)
+	go func() {
+		for i := 0; i < p.facts; i++ {
+			stream <- facts.Envelope{
+				FactID:        fmt.Sprintf("%s-fact-%04d", generation.GenerationID, i),
+				ScopeID:       generation.ScopeID,
+				GenerationID:  generation.GenerationID,
+				FactKind:      "file",
+				StableFactKey: fmt.Sprintf("file:proof/7978:f%04d.go", i),
+				ObservedAt:    generation.ObservedAt,
+				Payload:       map[string]any{"relative_path": fmt.Sprintf("f%04d.go", i)},
+			}
+		}
+		if drop {
+			flag.Store(true)
+		}
+		close(stream)
+	}()
+	if err := p.store.CommitScopeGeneration(context.Background(), p.scope, generation, stream); err != nil {
+		p.t.Fatalf("commit %s: %v", generation.GenerationID, err)
+	}
+}
+
+// streamDroppedMark reports whether a generation row carries stream_dropped,
+// and whether the row exists at all.
+func (p *reprojectProof) streamDroppedMark(generation string) (marked, exists bool) {
+	p.t.Helper()
+	err := p.db.QueryRowContext(context.Background(), `
+SELECT COALESCE((payload ->> 'stream_dropped')::boolean, false) FROM scope_generations WHERE generation_id = $1`,
+		generation).Scan(&marked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, false
+	}
+	if err != nil {
+		p.t.Fatalf("read %s stream_dropped: %v", generation, err)
+	}
+	return marked, true
+}
+
+// TestPreparseIdentityDroppedByTheStreamLive (#7978 review F-7, F7-3, rulings
+// a9-143.18 and a9-143.19): the producer sets the drop flag after its last
+// send, so the store must read it after the drain. The stored path then keeps
+// the identity off its own row and marks it stream_dropped; the equal-hint
+// re-open stamps nothing and keeps the skip count. No hook, or a flag that
+// stays false, changes nothing.
+func TestPreparseIdentityDroppedByTheStreamLive(t *testing.T) {
+	t.Run("stored generation", func(t *testing.T) {
+		for _, cell := range []struct {
+			name       string
+			hook, drop bool
+		}{{"drop", true, true}, {"no drop", true, false}, {"no hook", false, false}} {
+			p := openReprojectProof(t)
+			p.commitStreamed(p.identityGeneration("gen-b", "hint-b", "sha-b", "", preparseIdentityB), cell.hook, cell.drop)
+			identity, _ := p.preparseStamp("gen-b")
+			marked, _ := p.streamDroppedMark("gen-b")
+			if cell.drop && (identity != "" || !marked) {
+				t.Fatalf("%s: gen-b identity %q marked %v after a stream drop, want no identity and stream_dropped", cell.name, identity, marked)
+			}
+			if !cell.drop && (identity != preparseIdentityB || marked) {
+				t.Fatalf("%s: gen-b identity %q marked %v, want %q and unmarked", cell.name, identity, marked, preparseIdentityB)
+			}
+		}
+	})
+	t.Run("equal-hint re-open stamps nothing", func(t *testing.T) {
+		p := openReprojectProof(t)
+		p.commit(p.identityGeneration("gen-a", "hint-a", "sha-a", "", preparseIdentityA))
+		p.project()
+		// One skipped parse first, so the skip count is 1: a stamp resets it.
+		if outcome := p.cheapReproject("gen-a", "sha-a", preparseIdentityA); outcome != telemetry.RefreshSkipReasonReconcileReprojected {
+			t.Fatalf("cheap re-open = %q, want reprojected", outcome)
+		}
+		p.project()
+		p.commitStreamed(p.identityGeneration("gen-r1", "hint-a", "sha-a", "interval_elapsed", preparseIdentityA), true, true)
+		if identity, skips := p.preparseStamp("gen-a"); identity != preparseIdentityA || skips != 1 {
+			t.Fatalf("gen-a stamp after a re-open with a stream drop = %q/%d, want %q/1 (no stamp)", identity, skips, preparseIdentityA)
+		}
+	})
+}
+
+// TestStreamDroppedGenerationHealsLive (#7978 review F7-4, ruling a9-143.20):
+// a stored generation whose stream dropped a file is marked, so the next equal
+// snapshot stores a NEW generation that carries the facts and the identity
+// instead of re-opening the marked one; the run after that re-opens the new
+// generation.
+func TestStreamDroppedGenerationHealsLive(t *testing.T) {
+	p := openReprojectProof(t)
+	p.commitStreamed(p.identityGeneration("gen-1", "hint-b", "sha-b", "", preparseIdentityB), true, true)
+	if identity, _ := p.preparseStamp("gen-1"); identity != "" {
+		t.Fatalf("run 1: gen-1 identity = %q, want none after a drop", identity)
+	}
+	if marked, _ := p.streamDroppedMark("gen-1"); !marked {
+		t.Fatal("run 1: gen-1 is not marked stream_dropped")
+	}
+	p.project()
+	p.commitStreamed(p.identityGeneration("gen-2", "hint-b", "sha-b", "interval_elapsed", preparseIdentityB), true, false)
+	if _, exists := p.streamDroppedMark("gen-2"); !exists {
+		t.Fatal("run 2: no new generation gen-2 was stored; the marked gen-1 was re-opened instead")
+	}
+	if identity, _ := p.preparseStamp("gen-2"); identity != preparseIdentityB {
+		t.Fatalf("run 2: gen-2 identity = %q, want %q", identity, preparseIdentityB)
+	}
+	p.project()
+	p.commitStreamed(p.identityGeneration("gen-3", "hint-b", "sha-b", "interval_elapsed", preparseIdentityB), true, false)
+	if _, exists := p.streamDroppedMark("gen-3"); exists {
+		t.Fatal("run 3: gen-3 was stored; want a re-open of gen-2")
+	}
+	if identity, _ := p.preparseStamp("gen-2"); identity != preparseIdentityB {
+		t.Fatalf("run 3: gen-2 identity = %q, want %q after the re-open", identity, preparseIdentityB)
+	}
 }

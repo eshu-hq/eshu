@@ -26,6 +26,19 @@ func CurrentWorkflowImageFileMetas(
 	narrowed []discovery.FileWithSize,
 	full []discovery.FileWithSize,
 ) []model.ContentFileMeta {
+	metas, _ := CurrentWorkflowImageFileMetasWithReadFailures(repoPath, narrowed, full)
+	return metas
+}
+
+// CurrentWorkflowImageFileMetasWithReadFailures is
+// CurrentWorkflowImageFileMetas that also returns how many workflow files it
+// skipped because their digest could not be read (#7978 review F7-1).
+func CurrentWorkflowImageFileMetasWithReadFailures(
+	repoPath string,
+	narrowed []discovery.FileWithSize,
+	full []discovery.FileWithSize,
+) ([]model.ContentFileMeta, int) {
+	readFailures := 0
 	narrowedPaths := make(map[string]struct{}, len(narrowed))
 	for _, file := range narrowed {
 		narrowedPaths[filepath.Clean(file.Path)] = struct{}{}
@@ -41,6 +54,7 @@ func CurrentWorkflowImageFileMetas(
 		}
 		digest, ok := workflowImageDigestForFile(file.Path)
 		if !ok {
+			readFailures++
 			continue
 		}
 		metas = append(metas, model.ContentFileMeta{
@@ -50,7 +64,7 @@ func CurrentWorkflowImageFileMetas(
 			ArtifactType: "github_actions_workflow",
 		})
 	}
-	return metas
+	return metas, readFailures
 }
 
 func workflowImageDigestForFile(filePath string) (string, bool) {

@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/parser/scip"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // snapshotterFieldClassification names every NativeRepositorySnapshotter
@@ -156,12 +157,13 @@ func TestDegradedSnapshotStampsNoIdentity(t *testing.T) {
 		parser     fakeSCIPParser
 		unreadable bool
 		want       string
+		reason     telemetry.PreparseIdentityDropReason
 	}{
 		{name: "healthy", indexer: &recordingSCIPIndexer{available: true}, want: identity},
-		{name: "scip binary missing", indexer: &recordingSCIPIndexer{available: false}},
-		{name: "scip indexer failed", indexer: &recordingSCIPIndexer{available: true, runErr: errors.New("boom")}},
-		{name: "scip parse failed", indexer: &recordingSCIPIndexer{available: true}, parser: fakeSCIPParser{err: errors.New("bad index")}},
-		{name: "file read failed", unreadable: true},
+		{name: "scip binary missing", indexer: &recordingSCIPIndexer{available: false}, reason: telemetry.PreparseDropSCIPBinaryUnavailable},
+		{name: "scip indexer failed", indexer: &recordingSCIPIndexer{available: true, runErr: errors.New("boom")}, reason: telemetry.PreparseDropSCIPIndexerFailed},
+		{name: "scip parse failed", indexer: &recordingSCIPIndexer{available: true}, parser: fakeSCIPParser{err: errors.New("bad index")}, reason: telemetry.PreparseDropSCIPParseFailed},
+		{name: "file read failed", unreadable: true, reason: telemetry.PreparseDropFileReadFailed},
 	} {
 		t.Run(cell.name, func(t *testing.T) {
 			repoRoot := t.TempDir()
@@ -192,7 +194,8 @@ func TestDegradedSnapshotStampsNoIdentity(t *testing.T) {
 					t.Skip("this user can read a mode-0 file (root?); the read-failure cell cannot run")
 				}
 			}
-			source := &GitSource{Component: "test", Snapshotter: snapshotter}
+			source, logs, reader := dropRecordingSource(t)
+			source.Snapshotter = snapshotter
 			collected, err := source.snapshotOneRepository(context.Background(),
 				SelectedRepository{RepoPath: repoRoot, PreparseIdentity: identity}, "run", time.Now().UTC(), 0)
 			if err != nil {
@@ -202,6 +205,7 @@ func TestDegradedSnapshotStampsNoIdentity(t *testing.T) {
 			if got := collected.Generation.PreparseIdentity; got != cell.want {
 				t.Fatalf("generation identity = %q, want %q", got, cell.want)
 			}
+			assertIdentityDropRecorded(t, logs.String(), dropCounts(t, reader), cell.reason, repoRoot)
 		})
 	}
 }

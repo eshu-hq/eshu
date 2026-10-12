@@ -82,7 +82,7 @@ func TestCommitReconcileUnchangedActiveReprojectsWithoutWrites(t *testing.T) {
 	db := &fakeTransactionalDB{
 		tx: tx,
 		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
+			rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", false, true}},
 		}},
 	}
 	store := NewIngestionStore(db)
@@ -144,7 +144,7 @@ func TestCommitReconcileUnchangedActiveAlreadyOpenIsPending(t *testing.T) {
 
 	tx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{true, false}}}}}
 	db := &fakeTransactionalDB{tx: tx, queryResponses: []queueFakeRows{{
-		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
+		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", false, true}},
 	}}}
 	scopeValue, generation := reprojectFixture("graph_dirty", "hint-same", "sha-same")
 	if err := NewIngestionStore(db).CommitScopeGeneration(context.Background(), scopeValue, generation, threeFactStream()); err != nil {
@@ -167,7 +167,7 @@ func TestCommitUnchangedWithoutReconcileSkipsWithoutTransaction(t *testing.T) {
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 
 	db := &fakeTransactionalDB{tx: &fakeTx{}, queryResponses: []queueFakeRows{{
-		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
+		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", false, true}},
 	}}}
 	scopeValue, generation := reprojectFixture("", "hint-same", "sha-same")
 	if err := NewIngestionStore(db).CommitScopeGeneration(context.Background(), scopeValue, generation, threeFactStream()); err != nil {
@@ -190,7 +190,7 @@ func TestCommitReconcileMatchingPendingGenerationSkips(t *testing.T) {
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 
 	db := &fakeTransactionalDB{tx: &fakeTx{}, queryResponses: []queueFakeRows{{
-		rows: [][]any{{"generation-pending", "hint-same", "sha-same", "pending", true}},
+		rows: [][]any{{"generation-pending", "hint-same", "sha-same", "pending", false, true}},
 	}}}
 	scopeValue, generation := reprojectFixture("interval_elapsed", "hint-same", "sha-same")
 	if err := NewIngestionStore(db).CommitScopeGeneration(context.Background(), scopeValue, generation, threeFactStream()); err != nil {
@@ -230,7 +230,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 			db := &fakeTransactionalDB{tx: tx}
 			if tc.wantCandidateQuery {
 				db.queryResponses = []queueFakeRows{{
-					rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
+					rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", false, true}},
 				}}
 			}
 			scopeValue, generation := reprojectFixture(tc.reason, tc.hint, tc.sha)
@@ -269,7 +269,7 @@ func TestCommitReconcileFencedReopenStoresNothing(t *testing.T) {
 
 	reopenTx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{false, false}}}}}
 	db := &fakeTransactionalDB{txs: []*fakeTx{reopenTx}, queryResponses: []queueFakeRows{{
-		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", true}},
+		rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", false, true}},
 	}}}
 	scopeValue, generation := reprojectFixture("interval_elapsed", "hint-same", "sha-same")
 	stream := threeFactStream()
@@ -309,6 +309,10 @@ func TestDecideUnchangedGenerationCells(t *testing.T) {
 	pending.workLive = true
 	wedged := pending
 	wedged.workLive = false
+	markedActive := active
+	markedActive.streamDropped = true
+	markedPending := pending
+	markedPending.streamDropped = true
 	snapshot := func(hint, sha, reason string) scope.ScopeGeneration {
 		return scope.ScopeGeneration{FreshnessHint: hint, SourceCommitSHA: sha, ReconcileReason: reason}
 	}
@@ -339,6 +343,13 @@ func TestDecideUnchangedGenerationCells(t *testing.T) {
 		// Ruling a9-126: a pending match whose projector work is gone cannot
 		// activate, so the snapshot is stored and supersedes it.
 		{"pending match, work not live", snapshot("hint", "sha", "in_flight_expired"), wedged, true, unchangedActionStore, ""},
+		// Ruling a9-143.20: a candidate whose own fact stream dropped a file is
+		// incomplete, so an equal snapshot stores a fresh generation instead of
+		// re-opening or skipping it, active or pending alike.
+		{"marked active match, interval_elapsed", snapshot("hint", "sha", "interval_elapsed"), markedActive, true, unchangedActionStore, storeReasonStreamDroppedCandidate},
+		{"marked active match, ordinary sync", snapshot("hint", "sha", ""), markedActive, true, unchangedActionStore, storeReasonStreamDroppedCandidate},
+		{"marked pending match", snapshot("hint", "sha", ""), markedPending, true, unchangedActionStore, storeReasonStreamDroppedCandidate},
+		{"marked candidate, different hint", snapshot("other", "sha", ""), markedActive, true, unchangedActionStore, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

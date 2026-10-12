@@ -21,7 +21,7 @@ func TestIngestionStoreCommitScopeGenerationSkipsUnchangedActiveGeneration(t *te
 	db := &fakeTransactionalDB{
 		tx: &fakeTx{},
 		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-active", "fingerprint-same", "", "active", true}},
+			rows: [][]any{{"generation-active", "fingerprint-same", "", "active", false, true}},
 		}},
 	}
 	store := NewIngestionStore(db)
@@ -70,7 +70,7 @@ func TestIngestionStoreCommitScopeGenerationSkipsUnchangedPendingGeneration(t *t
 	db := &fakeTransactionalDB{
 		tx: &fakeTx{},
 		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-pending", "fingerprint-same", "", "pending", true}},
+			rows: [][]any{{"generation-pending", "fingerprint-same", "", "pending", false, true}},
 		}},
 	}
 	store := NewIngestionStore(db)
@@ -125,7 +125,7 @@ func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffer
 	db := &fakeTransactionalDB{
 		tx: &fakeTx{},
 		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-active", "fingerprint-old", "", "active", true}},
+			rows: [][]any{{"generation-active", "fingerprint-old", "", "active", false, true}},
 		}},
 	}
 	store := NewIngestionStore(db)

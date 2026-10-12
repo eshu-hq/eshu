@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -290,10 +291,17 @@ func (s IngestionStore) skipUnchangedGeneration(
 	}
 	action, reason := decideUnchangedGeneration(generation, candidate, found)
 	if action == unchangedActionStore {
+		if reason != "" {
+			s.logCommitStage(ctx, scopeValue, generation, "store_over_"+reason, time.Now(),
+				slog.String("candidate_generation_id", candidate.generationID))
+		}
 		return false, nil
 	}
 	if err := drainFactsAndCheckStream(factStream, factStreamErr); err != nil {
 		return true, fmt.Errorf("read fact stream: %w", err)
+	}
+	if preparseIdentityDropped(generation) {
+		generation.PreparseIdentity = "" // review F-7: a dropped file stamps no identity
 	}
 	if action == unchangedActionReprojectActive {
 		reason, err = s.reprojectActiveGeneration(ctx, mutation, requireClaimFence, scopeValue, generation, candidate)
@@ -304,6 +312,13 @@ func (s IngestionStore) skipUnchangedGeneration(
 	s.recordSkippedRefresh(ctx, scopeValue, generation, candidate.generationID, reason)
 	return true, nil
 }
+
+// storeReasonStreamDroppedCandidate is the reason decideUnchangedGeneration
+// gives for storing over a candidate whose fact stream dropped a file
+// (ruling a9-143.20). The store logs it as the commit stage
+// store_over_stream_dropped_candidate; a store is not a skip, so it has no
+// skip-reason metric value.
+const storeReasonStreamDroppedCandidate = "stream_dropped_candidate"
 
 // unchangedGenerationAction is what the store does with an incoming snapshot.
 type unchangedGenerationAction int
@@ -354,6 +369,11 @@ func decideUnchangedGeneration(
 ) (unchangedGenerationAction, string) {
 	if !found || !candidate.matches(generation) {
 		return unchangedActionStore, ""
+	}
+	if candidate.streamDropped {
+		// Ruling a9-143.20: the candidate's own stream dropped a file, so an
+		// equal snapshot stores a fresh generation, active or pending alike.
+		return unchangedActionStore, storeReasonStreamDroppedCandidate
 	}
 	if candidate.status == scope.GenerationStatusPending {
 		if !candidate.workLive {

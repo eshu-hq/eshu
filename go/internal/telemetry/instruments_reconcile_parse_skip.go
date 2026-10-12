@@ -26,5 +26,59 @@ func registerReconcileParseSkipDecisions(meter metric.Meter, inst *Instruments) 
 	); err != nil {
 		return fmt.Errorf("register ReconcileParseSkipDecisions counter: %w", err)
 	}
+	if inst.PreparseIdentityDropped, err = meter.Int64Counter(
+		"eshu_dp_collector_preparse_identity_dropped_total",
+		metric.WithDescription("Git snapshots and fact streams that kept the pre-parse identity off a generation, by reason (#7978)"),
+	); err != nil {
+		return fmt.Errorf("register PreparseIdentityDropped counter: %w", err)
+	}
 	return nil
+}
+
+// PreparseIdentityDropReason is the closed `reason` label of
+// eshu_dp_collector_preparse_identity_dropped_total (#7978 review F-2, F-7):
+// why the git collector kept the pre-parse identity off a generation. Every
+// call site uses one of the constants below; TestPreparseDropReasonsAreClosed
+// reads the call sites and this registry.
+type PreparseIdentityDropReason string
+
+// Snapshot-phase reasons (the snapshot degraded before any fact was emitted)
+// and stream-phase reasons (the fact stream could not read a file between the
+// parse and the emit).
+const (
+	PreparseDropSCIPBinaryUnavailable PreparseIdentityDropReason = "scip_binary_unavailable"
+	PreparseDropSCIPIndexerFailed     PreparseIdentityDropReason = "scip_indexer_failed"
+	PreparseDropSCIPParseFailed       PreparseIdentityDropReason = "scip_parse_failed"
+	PreparseDropFileReadFailed        PreparseIdentityDropReason = "file_read_failed"
+	PreparseDropDocsReadFailed        PreparseIdentityDropReason = "docs_read_failed"
+	PreparseDropCodeownersReadFailed  PreparseIdentityDropReason = "codeowners_read_failed"
+	PreparseDropWorkflowDigestFailed  PreparseIdentityDropReason = "workflow_digest_failed"
+	PreparseDropContentReadFailed     PreparseIdentityDropReason = "content_read_failed"
+	PreparseDropWorkflowReadFailed    PreparseIdentityDropReason = "workflow_read_failed"
+	PreparseDropDocsBodyReadFailed    PreparseIdentityDropReason = "docs_body_read_failed"
+	// PreparseDropOther is the bounded fallback label for a value outside the
+	// set; NormalizePreparseIdentityDropReason maps any unknown value to it.
+	PreparseDropOther PreparseIdentityDropReason = "other"
+)
+
+// PreparseIdentityDropReasons returns the closed reason set in a stable order,
+// without the PreparseDropOther fallback.
+func PreparseIdentityDropReasons() []PreparseIdentityDropReason {
+	return []PreparseIdentityDropReason{
+		PreparseDropSCIPBinaryUnavailable, PreparseDropSCIPIndexerFailed, PreparseDropSCIPParseFailed,
+		PreparseDropFileReadFailed, PreparseDropDocsReadFailed, PreparseDropCodeownersReadFailed,
+		PreparseDropWorkflowDigestFailed, PreparseDropContentReadFailed, PreparseDropWorkflowReadFailed,
+		PreparseDropDocsBodyReadFailed,
+	}
+}
+
+// NormalizePreparseIdentityDropReason returns reason when it is in the closed
+// set and PreparseDropOther otherwise, so the label can never grow unbounded.
+func NormalizePreparseIdentityDropReason(reason PreparseIdentityDropReason) PreparseIdentityDropReason {
+	for _, known := range PreparseIdentityDropReasons() {
+		if reason == known {
+			return reason
+		}
+	}
+	return PreparseDropOther
 }

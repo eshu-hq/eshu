@@ -259,6 +259,7 @@ SELECT candidate.generation_id,
        candidate.freshness_hint,
        candidate.source_commit_sha,
        candidate.status,
+       candidate.stream_dropped,
        EXISTS (
            SELECT 1
            FROM fact_work_items AS work
@@ -269,7 +270,8 @@ FROM (
     SELECT generation.generation_id,
            COALESCE(generation.freshness_hint, '') AS freshness_hint,
            COALESCE(generation.source_commit_sha, '') AS source_commit_sha,
-           generation.status
+           generation.status,
+           COALESCE((generation.payload ->> 'stream_dropped')::boolean, false) AS stream_dropped
     FROM scope_generations AS generation
     WHERE generation.scope_id = $1
       AND generation.status IN ('pending', 'active')
@@ -289,6 +291,10 @@ type unchangedGenerationCandidate struct {
 	// worker can still run (pending, retrying, claimed, running); ruling
 	// a9-126 skips a pending match only then.
 	workLive bool
+	// streamDropped reports that the candidate's own fact stream dropped a
+	// file (#7978 review F7-4, ruling a9-143.20): its facts are incomplete, so
+	// an equal snapshot stores a new generation instead of matching it.
+	streamDropped bool
 }
 
 // matches reports whether generation duplicates the candidate (#7978): the
@@ -316,7 +322,8 @@ func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string)
 	}
 	var candidate unchangedGenerationCandidate
 	var status string
-	if err := rows.Scan(&candidate.generationID, &candidate.freshnessHint, &candidate.sourceCommit, &status, &candidate.workLive); err != nil {
+	if err := rows.Scan(&candidate.generationID, &candidate.freshnessHint, &candidate.sourceCommit, &status,
+		&candidate.streamDropped, &candidate.workLive); err != nil {
 		return unchangedGenerationCandidate{}, false, err
 	}
 	candidate.freshnessHint = strings.TrimSpace(candidate.freshnessHint)
@@ -417,4 +424,34 @@ func (s IngestionStore) ReprojectActiveGeneration(ctx context.Context, request s
 		GenerationID: request.GenerationID, ScopeID: request.ScopeID, ReconcileReason: request.Reason,
 	}, request.GenerationID, reason)
 	return reason, nil
+}
+
+// preparseIdentityDropped reports whether the generation's fact stream
+// dropped a file it could not read (review F-7, ruling a9-143.14). Call it
+// only after the stream has drained.
+func preparseIdentityDropped(generation scope.ScopeGeneration) bool {
+	return generation.PreparseIdentity != "" && generation.PreparseIdentityDropped != nil &&
+		generation.PreparseIdentityDropped.Load()
+}
+
+// clearPreparseIdentityQuery removes the pre-parse identity the stored path
+// wrote with the generation row before it drained the fact stream, and marks
+// the row stream_dropped (ruling a9-143.20), so the next equal snapshot stores
+// a new generation instead of re-opening this incomplete one. Idempotent.
+const clearPreparseIdentityQuery = `UPDATE scope_generations
+SET payload = (payload - 'preparse_identity') || '{"stream_dropped": true}'::jsonb
+WHERE generation_id = $1`
+
+// clearDroppedPreparseIdentity keeps the identity off a stored generation
+// whose fact stream dropped a file (review F-7): the row was written before
+// the drain, so the identity is removed in the same transaction, before the
+// commit. It runs a statement only on a drop.
+func clearDroppedPreparseIdentity(ctx context.Context, database db.ExecQueryer, generation scope.ScopeGeneration) error {
+	if !preparseIdentityDropped(generation) {
+		return nil
+	}
+	if _, err := database.ExecContext(ctx, clearPreparseIdentityQuery, generation.GenerationID); err != nil {
+		return fmt.Errorf("clear dropped pre-parse identity: %w", err)
+	}
+	return nil
 }
