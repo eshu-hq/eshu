@@ -156,7 +156,18 @@ carries the reindex reason and stores the re-parse instead of re-projecting.
 | --- | --- | --- |
 | newest activated full generation was itself stored (ingested) at or after the watermark; a re-projection Ack does not count | the sweep and `graph_dirty` decide as usual | `fresh` or a sweep reason |
 | in-flight or recently failed full (the throttle rows above) | hold | `reconcile_in_flight` or `reconcile_retry_backoff` |
+| newest full is `pending`, `Interval` old or older, at the remote head, with live projector work | hold, checked after the fetch (ruling a9-128) | `in_flight_expired_held` |
 | otherwise, including a scope with no activated full | force | `reindex_requested` |
+
+The hold covers an explicit reindex too (ruling a9-128). While a full of the
+same commit is pending with live work, the store would skip any snapshot of
+that commit as `pending_same_identity`, so a forced parse there could not
+change anything. The re-parse waits one activation of that pending full: if
+it activates and was ingested before the watermark, the next cycle forces
+`reindex_requested` and the store keeps the re-parse; if it was ingested at or
+after the watermark, it is the re-parse. A moved head, or work that is no
+longer live, forces at once. A held scope logs `git_reconcile_held` with
+`reindex_requested_at`.
 
 A forced reindex takes no delta and a slot in
 `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`, so a large fleet re-parses over several

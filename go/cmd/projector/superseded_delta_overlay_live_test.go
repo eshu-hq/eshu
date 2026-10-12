@@ -394,6 +394,10 @@ WHERE generation_id = $1`, overlayGenA.id); err != nil {
 // overdue scope first re-projects (interval_elapsed); after that Ack the
 // pending watermark still decides reindex_requested, the store stores the
 // re-parse as a new generation, and the next decision reads fresh (no loop).
+// Ruling a9-128 adds one wedged cycle: a full pending 30 h at the remote head
+// with live work holds the reindex (in_flight_expired_held); a moved head
+// forces it; once the wedged full is dead-lettered the reindex forces once and
+// the store keeps the re-parse.
 func TestReindexAfterReprojectionStoresLive(t *testing.T) {
 	dsn := overlayProofEnv(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -421,8 +425,16 @@ WHERE generation_id = $1`, overlayGenA.id); err != nil {
 FROM scope_generations WHERE generation_id = $1`, overlayGenA.id).Scan(&watermark); err != nil {
 		t.Fatalf("read request time: %v", err)
 	}
-	if due, reason := decide(watermark); !due || reason != gitReindexReason {
-		t.Fatalf("decision after the re-projection Ack = (%v, %q), want (true, %q)", due, reason, gitReindexReason)
+	h.plantWedgedPendingFull(ctx, t, overlayGenA.id, "gen-7978-wedged")
+	if due, reason := h.sweepDecisionAtHead(ctx, watermark, overlayCommitA); due || reason != "in_flight_expired_held" {
+		t.Fatalf("reindex over a wedged pending full at the head = (%v, %q), want held", due, reason)
+	}
+	if due, reason := h.sweepDecisionAtHead(ctx, watermark, overlayCommitB); !due || reason != gitReindexReason {
+		t.Fatalf("reindex with the head moved = (%v, %q), want (true, %q)", due, reason, gitReindexReason)
+	}
+	h.deadLetterWedged(ctx, t, "gen-7978-wedged")
+	if due, reason := h.sweepDecisionAtHead(ctx, watermark, overlayCommitA); !due || reason != gitReindexReason {
+		t.Fatalf("decision after the re-projection Ack and the dead letter = (%v, %q), want (true, %q)", due, reason, gitReindexReason)
 	}
 	before := h.generationCount(ctx)
 	h.seq = time.Now().UTC()

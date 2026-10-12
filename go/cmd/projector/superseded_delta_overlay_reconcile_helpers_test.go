@@ -60,6 +60,48 @@ func (h *overlayHarness) sweepDecision(ctx context.Context, watermark time.Time)
 	return gitcollector.ReconcileSweepDecision(ctx, h.store, 24*time.Hour, watermark, time.Time{}, time.Now().UTC(), h.scope.ScopeID, nil)
 }
 
+// sweepDecisionAtHead is sweepDecision with the sync loop's post-fetch hold
+// at remoteHead (rulings a9-126, a9-128).
+func (h *overlayHarness) sweepDecisionAtHead(ctx context.Context, watermark time.Time, remoteHead string) (bool, string) {
+	return gitcollector.ReconcileSweepDecisionAtHead(ctx, h.store, 24*time.Hour, watermark, time.Time{}, time.Now().UTC(), h.scope.ScopeID, remoteHead, nil)
+}
+
+// plantWedgedPendingFull copies the active generation and its projector work
+// row into a full generation that is pending 30 h old at the same commit, with
+// live work the running projector cannot claim yet (retrying, visible in a
+// day): the wedged state of ruling a9-126 during a reducer stall.
+func (h *overlayHarness) plantWedgedPendingFull(ctx context.Context, t *testing.T, from, id string) {
+	t.Helper()
+	if _, err := h.sqlDB.ExecContext(ctx, `INSERT INTO scope_generations
+SELECT (jsonb_populate_record(NULL::scope_generations, to_jsonb(g) || jsonb_build_object(
+    'generation_id', $2::text, 'status', 'pending', 'activated_at', NULL, 'superseded_at', NULL,
+    'freshness_hint', 'wedged-hint', 'payload', '{}'::jsonb,
+    'ingested_at', now() - interval '30 hours', 'observed_at', now() - interval '30 hours'))).*
+FROM scope_generations AS g WHERE g.generation_id = $1`, from, id); err != nil {
+		t.Fatalf("plant wedged generation: %v", err)
+	}
+	if _, err := h.sqlDB.ExecContext(ctx, `INSERT INTO fact_work_items
+SELECT (jsonb_populate_record(NULL::fact_work_items, to_jsonb(w) || jsonb_build_object(
+    'work_item_id', 'projector_' || w.scope_id || '_' || $2::text, 'generation_id', $2::text,
+    'status', 'retrying', 'lease_owner', NULL, 'claim_until', NULL,
+    'visible_at', now() + interval '1 day', 'next_attempt_at', now() + interval '1 day'))).*
+FROM fact_work_items AS w WHERE w.stage = 'projector' AND w.generation_id = $1`, from, id); err != nil {
+		t.Fatalf("plant wedged work row: %v", err)
+	}
+}
+
+// deadLetterWedged ends the planted generation the way the projector's dead
+// letter ends a never-activated generation: work dead_letter, generation failed.
+func (h *overlayHarness) deadLetterWedged(ctx context.Context, t *testing.T, id string) {
+	t.Helper()
+	if _, err := h.sqlDB.ExecContext(ctx, `UPDATE fact_work_items SET status = 'dead_letter' WHERE stage = 'projector' AND generation_id = $1`, id); err != nil {
+		t.Fatalf("dead-letter wedged work: %v", err)
+	}
+	if _, err := h.sqlDB.ExecContext(ctx, `UPDATE scope_generations SET status = 'failed' WHERE generation_id = $1`, id); err != nil {
+		t.Fatalf("fail wedged generation: %v", err)
+	}
+}
+
 // gitReindexReason is the fleet reindex reason the collector forces with.
 const gitReindexReason = scope.ReconcileReasonReindexRequested
 

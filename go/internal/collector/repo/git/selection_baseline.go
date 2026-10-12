@@ -240,40 +240,6 @@ func (b gitDeltaBaseline) recordSuppressedDecision(ctx context.Context, reason s
 	}
 }
 
-// ReconcileSweepDecision reports whether the git collector's reconciliation
-// sweep, including the #7389 graph_dirty reason and the #7620 reindex
-// watermarks, would force a full snapshot for scopeID at now with the given
-// interval, active fleet watermark, and active per-repository watermark for
-// scopeID (each zero when none), and the bounded reason. It runs the same
-// decision the sync loop runs, without a per-cycle budget, so an end-to-end
-// proof can derive a generation's reconcile flag from production. It does not
-// apply the post-fetch a9-126 hold, which needs the remote head.
-func ReconcileSweepDecision(
-	ctx context.Context,
-	resolver DeltaBaselineResolver,
-	interval time.Duration,
-	reindexRequestedAt time.Time,
-	repositoryReindexRequestedAt time.Time,
-	now time.Time,
-	scopeID string,
-	logger *slog.Logger,
-) (bool, string) {
-	if resolver == nil || (interval <= 0 && reindexRequestedAt.IsZero() && repositoryReindexRequestedAt.IsZero()) {
-		return false, ""
-	}
-	baseline := gitDeltaBaseline{
-		Resolver:           resolver,
-		Reconcile:          reconcilePolicy{Interval: interval},
-		ReindexRequestedAt: reindexRequestedAt,
-		Now:                func() time.Time { return now },
-	}
-	if !repositoryReindexRequestedAt.IsZero() {
-		baseline.RepositoryReindexRequestedAt = map[string]time.Time{scopeID: repositoryReindexRequestedAt}
-	}
-	decision := baseline.decideForScope(ctx, scopeID, logger)
-	return decision.Due, decision.Reason
-}
-
 // resolveScopeBaseline returns the last projected commit SHA for the managed
 // repository checkout at repoPath, or an empty string when no resolver is
 // configured, the scope identity cannot be derived, or no projected generation
