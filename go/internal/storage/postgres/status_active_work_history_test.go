@@ -23,17 +23,17 @@ func TestActiveWorkSummaryOracleIsThePinnedBaseline(t *testing.T) {
 	}
 }
 
-// activeWorkSummaryQuerySHA256 pins the shipped #7009 gated summary text
-// (S5 variant a2v plus the mode section). Without the mode section it is the
-// S5 shim's s5_a2v_T.sql byte for byte
+// activeWorkSummaryQuerySHA256 pins the shipped gated summary text after the
+// #7881 threshold calibration. Restoring T=0.4 and removing the mode section
+// yields the S5 shim's s5_a2v_T.sql byte for byte
 // (TestActiveWorkSummaryIsTheMeasuredA2vRender). The ops-qa same-snapshot
 // compare packet refuses to run when its text hashes differently (#7009
 // arbiter ruling S4 D3 C1, S5 D5.4). Any edit to the statement must re-pin
 // this with the re-rendered SHA-256 and rerun the oracle differential.
-const activeWorkSummaryQuerySHA256 = "9d833808212a48859e1d5a26a9fd1c378f4bc366e6521876d7938834ccc96cae"
+const activeWorkSummaryQuerySHA256 = "d280ed6f0c2b2ed56e16e442673a52ed108ece6f20f0998edf03dae3cb802dd2"
 
-// TestActiveWorkSummaryQueryIsThePinnedRender keeps activeWorkSummaryQuery
-// equal to the text the shim measured and the compare packet runs.
+// TestActiveWorkSummaryQueryIsThePinnedRender keeps the calibrated production
+// statement equal to the reviewed render.
 func TestActiveWorkSummaryQueryIsThePinnedRender(t *testing.T) {
 	t.Parallel()
 

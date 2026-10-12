@@ -20,8 +20,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// SHA-256 of the #7009 S5 shim renders of the gated a2v variant (harness
-// 7009-c3-shim-src, render_s5.py). The measured statement has no mode
+// SHA-256 of the historical #7009 S5 shim renders of the gated a2v variant
+// (harness 7009-c3-shim-src, render_s5.py). The measured statement has no mode
 // section; activeWorkSummaryMeasuredText removes it before hashing.
 const (
 	shimA2vThresholdSHA256     = "89d33b86f51f8ae44e7d6f980d6e4d84c0d2eca0738dd78bbf4e561294f421bf" // s5_a2v_T.sql, T=0.4
@@ -110,9 +110,8 @@ func sha256Hex(text string) string {
 }
 
 // TestActiveWorkSummaryIsTheMeasuredA2vRender binds the shipped statement to
-// the S5 shim text: without the mode section it is s5_a2v_T.sql byte for
-// byte, its forced renders are s5_a2v_g.sql and s5_a2v_d.sql, and the gate
-// mutations are the shim's mutation files.
+// the S5 shim text after restoring its historical threshold. The forced
+// renders remain byte-identical, and the gate mutations stay pinned.
 func TestActiveWorkSummaryIsTheMeasuredA2vRender(t *testing.T) {
 	t.Parallel()
 
@@ -120,8 +119,12 @@ func TestActiveWorkSummaryIsTheMeasuredA2vRender(t *testing.T) {
 	if err != nil {
 		t.Fatalf("strip mode section: %v", err)
 	}
-	if got := sha256Hex(measured); got != shimA2vThresholdSHA256 {
-		t.Fatalf("measured text sha256 = %s, want s5_a2v_T.sql %s\n%s", got, shimA2vThresholdSHA256, measured)
+	historical, err := replaceOnce(measured, " < "+activeWorkGroupedThreshold+" AS grouped", " < 0.4 AS grouped")
+	if err != nil {
+		t.Fatalf("restore S5 threshold: %v", err)
+	}
+	if got := sha256Hex(historical); got != shimA2vThresholdSHA256 {
+		t.Fatalf("historical text sha256 = %s, want s5_a2v_T.sql %s", got, shimA2vThresholdSHA256)
 	}
 	for threshold, want := range map[string]string{
 		activeWorkForceGrouped: shimA2vForcedGroupedSHA256,
@@ -140,7 +143,11 @@ func TestActiveWorkSummaryIsTheMeasuredA2vRender(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", m.name, err)
 		}
-		if got := sha256Hex(mutated); got != m.shimSHA {
+		historicalMutant, err := replaceOnce(mutated, " < "+activeWorkGroupedThreshold, " < 0.4")
+		if err != nil {
+			t.Fatalf("%s historical threshold: %v", m.name, err)
+		}
+		if got := sha256Hex(historicalMutant); got != m.shimSHA {
 			t.Errorf("%s sha256 = %s, want shim %s", m.name, got, m.shimSHA)
 		}
 	}
@@ -185,8 +192,8 @@ func TestActiveWorkSummaryGateShape(t *testing.T) {
 		strings.Count(query, activeWorkLiveFractionEstimate) != 2 {
 		t.Errorf("gate estimate must be one COALESCE(..., 0) shared by the gate and the mode row:\n%s", activeWorkLiveFractionEstimate)
 	}
-	if activeWorkGroupedThreshold != "0.4" {
-		t.Errorf("threshold = %s; T is re-measured (S5 R2.4), never tuned in place", activeWorkGroupedThreshold)
+	if activeWorkGroupedThreshold != "0.45" {
+		t.Errorf("threshold = %s, want calibrated 0.45", activeWorkGroupedThreshold)
 	}
 }
 

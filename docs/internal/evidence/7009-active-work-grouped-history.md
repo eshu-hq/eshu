@@ -29,15 +29,16 @@ arbiter rulings are out-of-tree harness artifacts in the latency kit
   dead_letter) for the table `'fact_work_items'::regclass` resolves to, never
   `current_schema()`. The sum is COALESCEd to 0, so the gate is never NULL and
   absent statistics take the grouped branch. `grouped` is the estimate below
-  `activeWorkGroupedThreshold` = 0.4 (S5 R2.4; T is re-measured, never tuned in
-  place). The gate is an uncorrelated InitPlan, evaluated once per execution.
-- Grouped branch (estimate < 0.4): the A2 statement.
+  `activeWorkGroupedThreshold` = 0.45 after the bounded #7881 calibration
+  below (original S5 T was 0.4). The gate is an uncorrelated InitPlan,
+  evaluated once per execution.
+- Grouped branch (estimate < 0.45): the A2 statement.
   `active_fact_work_items` reads only the six statuses;
   `fact_work_status_groups` counts every row once by
   `(scope_id, generation_id, stage, status)`; `fact_work_history_counts`
   applies the same scope and generation join to each group of the other
   statuses. `total_count` sums the grouped pass.
-- Detail branch (estimate >= 0.4): the detail input is every row, the grouped
+- Detail branch (estimate >= 0.45): the detail input is every row, the grouped
   pass reads nothing, and `total_count` is one `COUNT(*)` of
   `fact_work_items`, as before #7009.
 - The input is two one-time-filtered arms under `UNION ALL ... OFFSET 0`, so
@@ -50,15 +51,47 @@ arbiter rulings are out-of-tree harness artifacts in the latency kit
   serve is unchanged.
 - No schema, index, lock, lease, claim, or write change. No migration.
 
-Render pins. Without the mode section the Go render is the S5 shim's
-`s5_a2v_T.sql` byte for byte (SHA-256
+Render pins. Restoring the historical T=0.4 and removing the mode section
+from the Go render yields the S5 shim's `s5_a2v_T.sql` byte for byte (SHA-256
 `89d33b86f51f8ae44e7d6f980d6e4d84c0d2eca0738dd78bbf4e561294f421bf`), its
 forced renders are `s5_a2v_g.sql` and `s5_a2v_d.sql`, and the three gate
-mutations are the shim's mutation files
-(`TestActiveWorkSummaryIsTheMeasuredA2vRender`). The full render is pinned at
-`9d833808212a48859e1d5a26a9fd1c378f4bc366e6521876d7938834ccc96cae`
+mutations restore their historical threshold before comparison to the shim
+files (`TestActiveWorkSummaryIsTheMeasuredA2vRender`). The full current render
+is pinned at
+`d280ed6f0c2b2ed56e16e442673a52ed108ece6f20f0998edf03dae3cb802dd2`
 (`TestActiveWorkSummaryQueryIsThePinnedRender`); any edit re-pins it and
 reruns the oracle differential.
+
+## Bounded #7881 threshold calibration
+
+The 2026-10-11 local PostgreSQL calibration changed only T from 0.4 to 0.45.
+The old S5 source and measurements below remain historical evidence for T=0.4.
+The current threshold takes the grouped branch for the newly measured
+0.40-0.45 estimated-live-share band and keeps the detail branch at 0.45 and
+above. A live fixture regression uses analyzed 44% and 46% states, checks the
+selected mode, and compares the shipped result to the pre-change oracle.
+
+Performance Evidence: the private calibration artifact
+`7881-status-read-upper-result.json` records two prospective 254,401-work-row
+fixtures on disposable local PostgreSQL 18, at 800 scopes and 101,121
+generations. Their gate estimates were 0.44403332 (dense repeated history
+groups) and 0.44093335 (sparse groups). Each returned 24 equal business rows
+under old and candidate thresholds. Two alternating 20-call, four-worker
+bursts per arm found dense candidate p95 775.200099/777.658602 ms versus old
+1148.994254/1092.643803 ms; sparse candidate p95
+1013.362183/967.63126 ms versus old 1125.096761/1121.608543 ms. These are
+local SQL observations, not an API/MCP budget result or a hosted speedup.
+The later calibration host window was not qualified for a timing claim.
+Materialization temp traffic remained in both arms; it declined from 7,582
+to 6,559 blocks in the measured plan without a new disk sort or multi-batch
+hash spill. The candidate did not change schema, indexes, query fragments,
+output order, worker count, or latency limits.
+
+No-Observability-Change: the existing `active_work_summary` query duration
+signal and the status span's grouped/detail mode and estimate still identify
+the selected branch and slow read. The threshold adds no signal or runtime
+control. The read-only calibration has no queue terminal-state claim; its
+254,401 input work rows and 24 output business rows were equal in both arms.
 
 ## Proof
 
