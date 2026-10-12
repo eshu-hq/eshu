@@ -80,11 +80,13 @@ func TestEshuSearchIndexStoreSearchesActiveGenerationBM25(t *testing.T) {
 	for _, fragment := range []string{
 		"FROM eshu_search_index_terms",
 		"JOIN eshu_search_index_documents",
-		"JOIN eshu_search_index_stats",
+		"FROM eshu_search_index_stats",
+		"search_stats AS MATERIALIZED",
+		"CROSS JOIN search_stats stats",
 		"q.term_key = t.term_key AND q.term = t.term",
 		"df.term_key = t.term_key AND df.term = t.term",
 		"active_generation_id",
-		"jsonb_array_elements",
+		"d.repo_id = $4",
 		"ORDER BY score DESC, document_id ASC",
 	} {
 		if !strings.Contains(q, fragment) {
@@ -246,6 +248,88 @@ func TestBuildEshuSearchIndexQueryBoundsDocumentLookupsBeforeRanking(t *testing.
 	}
 	if strings.Contains(query, "GROUP BY d.document") {
 		t.Fatal("BM25 query groups full document payload before ranking")
+	}
+}
+
+func TestBuildEshuSearchIndexQueryNarrowsPostingLookupBeforeRanking(t *testing.T) {
+	t.Parallel()
+
+	query, _ := BuildEshuSearchIndexQuery(EshuSearchIndexSearch{
+		ScopeID: "scope-1",
+		RepoID:  "repo-1",
+		Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1"},
+		Limit:   31,
+	}, []string{"common"}, []string{"term-key"})
+	// The per-posting lateral must carry only the scoring columns so the
+	// covering documents index serves it without a heap fetch (#7727).
+	for _, fragment := range []string{
+		"SELECT d.scope_id, d.generation_id, d.document_id, d.repo_id, d.document_length",
+		"search_stats AS MATERIALIZED",
+		"CROSS JOIN search_stats stats",
+		"top_hits AS (",
+		"JOIN eshu_search_index_documents d",
+		"d.document, hits.score",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Errorf("BM25 query missing narrowed posting-lookup step %q", fragment)
+		}
+	}
+	for _, fragment := range []string{
+		"SELECT d.*",
+		"JOIN eshu_search_index_stats stats",
+		"jsonb_array_elements",
+	} {
+		if strings.Contains(query, fragment) {
+			t.Errorf("BM25 query still fetches documents before the page limit via %q", fragment)
+		}
+	}
+}
+
+func TestBuildEshuSearchIndexQueryKeepsFilterColumnsInPostingLookup(t *testing.T) {
+	t.Parallel()
+
+	query, _ := BuildEshuSearchIndexQuery(EshuSearchIndexSearch{
+		ScopeID:     "scope-1",
+		RepoID:      "repo-1",
+		Anchor:      searchretrieval.Anchor{Kind: searchretrieval.ScopeKindService, ID: "svc-1"},
+		SourceKinds: []searchdocs.SourceKind{searchdocs.SourceKindRuntimeSummary},
+		Languages:   []string{"go"},
+		Limit:       31,
+	}, []string{"common"}, []string{"term-key"})
+	for _, fragment := range []string{
+		"d.source_kind",
+		"d.document",
+		"jsonb_array_elements",
+		"jsonb_array_elements_text",
+		"search_stats AS MATERIALIZED",
+		"CROSS JOIN search_stats stats",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Errorf("BM25 filtered query missing posting-lookup step %q", fragment)
+		}
+	}
+	if strings.Contains(query, "SELECT d.*") {
+		t.Error("BM25 filtered query still selects the full document row before ranking")
+	}
+	if strings.Contains(query, "JOIN eshu_search_index_stats stats") {
+		t.Error("BM25 filtered query still joins the stats row per posting")
+	}
+}
+
+func TestBuildEshuSearchIndexQueryKeepsHandlePredicateForForeignRepoAnchor(t *testing.T) {
+	t.Parallel()
+
+	query, _ := BuildEshuSearchIndexQuery(EshuSearchIndexSearch{
+		ScopeID: "scope-1",
+		RepoID:  "repo-1",
+		Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-other"},
+		Limit:   31,
+	}, []string{"common"}, []string{"term-key"})
+	if !strings.Contains(query, "jsonb_array_elements") {
+		t.Error("BM25 query dropped the handle predicate for a repo anchor outside the repo scope")
+	}
+	if !strings.Contains(query, "d.document") {
+		t.Error("BM25 query dropped the document column a foreign repo anchor still filters on")
 	}
 }
 

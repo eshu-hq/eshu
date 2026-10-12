@@ -171,6 +171,33 @@ func TestBootstrapDefinitionsAvoidRedundantSearchTermLookupIndex(t *testing.T) {
 	}
 }
 
+// TestBootstrapDefinitionsCoverBM25PostingLookup pins the covering index that
+// serves the per-posting document lateral without a heap fetch (#7727). The
+// scoring read needs only repo_id and document_length beside the document key,
+// so the index carries exactly those two INCLUDE columns on the documents pkey.
+func TestBootstrapDefinitionsCoverBM25PostingLookup(t *testing.T) {
+	t.Parallel()
+
+	var found bool
+	for _, def := range postgres.BootstrapDefinitions() {
+		if !strings.Contains(def.SQL, "eshu_search_index_documents_bm25_posting_idx") {
+			continue
+		}
+		found = true
+		for _, want := range []string{
+			"ON eshu_search_index_documents (scope_id, generation_id, document_id)",
+			"INCLUDE (repo_id, document_length)",
+		} {
+			if !strings.Contains(def.SQL, want) {
+				t.Errorf("BM25 posting covering index missing %q:\n%s", want, def.SQL)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no bootstrap definition creates eshu_search_index_documents_bm25_posting_idx")
+	}
+}
+
 func mustBootstrapDefinition(t *testing.T, name string) postgres.Definition {
 	t.Helper()
 	for _, def := range postgres.BootstrapDefinitions() {

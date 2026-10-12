@@ -497,3 +497,38 @@ func TestContentEntitiesPageReadIndexCarriesEqualityPlusOrderBy(t *testing.T) {
 			indexName, found, wantColumns)
 	}
 }
+
+// TestEshuSearchIndexDocumentsBM25PostingIndexKeyCoversPostingLookup pins WHY
+// the index works, which the create/drop guard above cannot see. The narrowed
+// lateral probes by full document key and scores from repo_id and
+// document_length; with the pkey columns as the key and exactly those two
+// scoring columns INCLUDEd, the hot path is an Index Only Scan with Heap
+// Fetches 0. Reordering the key, or widening INCLUDE to the payload, keeps
+// the name and the guard above intact while restoring the defect (thousands
+// of heap reads cold on a broad term), so the column list is asserted here.
+func TestEshuSearchIndexDocumentsBM25PostingIndexKeyCoversPostingLookup(t *testing.T) {
+	t.Parallel()
+
+	const (
+		indexName   = "eshu_search_index_documents_bm25_posting_idx"
+		wantColumns = "(scope_id, generation_id, document_id) INCLUDE (repo_id, document_length)"
+	)
+	var found string
+	for _, definition := range BootstrapDefinitions() {
+		if !strings.Contains(definition.SQL, indexName) {
+			continue
+		}
+		for _, line := range strings.Split(stripSQLLineComments(definition.SQL), "\n") {
+			if strings.Contains(line, "ON eshu_search_index_documents") {
+				found = strings.TrimSpace(line)
+			}
+		}
+	}
+	if found == "" {
+		t.Fatalf("no CREATE INDEX statement for %s found in the bootstrap definitions", indexName)
+	}
+	if !strings.Contains(found, wantColumns) {
+		t.Errorf("%s is defined as %q, want the posting key %s (#7727)",
+			indexName, found, wantColumns)
+	}
+}
