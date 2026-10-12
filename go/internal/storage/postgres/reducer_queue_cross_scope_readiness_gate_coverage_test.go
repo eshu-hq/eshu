@@ -118,6 +118,9 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestActiveWorkSummaryOracleCatchesSeededHistoryMutations",
 		"TestActiveWorkSummaryGateMutationsAgainstOracle",
 		"TestActiveWorkSummaryGateResolvesTableByRegclass",
+		// #7881: the live proof for the 0.45 threshold, including the 44%
+		// estimate the old 0.4 gate sent to the detail branch.
+		"TestActiveWorkSummaryCalibratedBoundary",
 		"TestStatusActiveFactWorkItemsCTEUsesGenerationIndex",
 		"TestStatusActiveWorkQueriesPreserveSemantics",
 		"TestActiveFactWorkItemsFormsSelectTheSameRows",
