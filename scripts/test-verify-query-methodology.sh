@@ -122,7 +122,7 @@ for _ in {1..100}; do [[ -e "$hang_mark" ]] && break; sleep 0.1; done
 kill -TERM "$(<"$hang_mark")"
 signal_status=0
 wait "$signal_pid" || signal_status=$?
-[[ "$signal_status" -ne 0 ]] || { printf 'terminated live proof exited 0\n' >&2; exit 1; }
+[[ "$signal_status" -eq 143 ]] || { printf 'terminated live proof exited %s, want 143\n' "$signal_status" >&2; exit 1; }
 rg -Fq 'docker rm -f' "$work/signal.log" || { printf 'terminated live proof skipped container cleanup\n' >&2; exit 1; }
 run_shim stale --live
 if SHIM_OMIT=postgres run_shim stale --live; then printf 'old artifact concealed omitted producer\n' >&2; exit 1; fi
