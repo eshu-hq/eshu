@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 )
 
 // TestDecodeSBOMAttestationAttachmentRowBoundsLegacyUnboundedComponentEvidence
@@ -52,7 +52,7 @@ func TestDecodeSBOMAttestationAttachmentRowBoundsLegacyUnboundedComponentEvidenc
 	if err != nil {
 		t.Fatalf("decodeSBOMAttestationAttachmentRow() error = %v", err)
 	}
-	if got, want := len(row.ComponentEvidence), reducer.MaxSBOMAttachmentComponentEvidenceRows; got != want {
+	if got, want := len(row.ComponentEvidence), sbomattest.MaxSBOMAttachmentComponentEvidenceRows; got != want {
 		t.Fatalf("ComponentEvidence len = %d, want read-side cap %d (legacy oversized payload was served unbounded)", got, want)
 	}
 	if got, want := row.ComponentCount, legacyRawCount; got != want {

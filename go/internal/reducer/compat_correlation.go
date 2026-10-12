@@ -363,24 +363,9 @@ func BuildSBOMAttestationAttachmentDecisions(envelopes []facts.Envelope) []SBOMA
 	return sbomattest.BuildSBOMAttestationAttachmentDecisions(envelopes)
 }
 
-// MaxSBOMAttachmentComponentEvidenceRows forwards to
-// [sbomattest.MaxSBOMAttachmentComponentEvidenceRows].
-const MaxSBOMAttachmentComponentEvidenceRows = sbomattest.MaxSBOMAttachmentComponentEvidenceRows
-
-// ComponentEvidence is the exported field-for-field mirror of the internal
-// sbomAttachmentComponentEvidence tuple. See [sbomattest.ComponentEvidence].
-type ComponentEvidence = sbomattest.ComponentEvidence
-
-// ComponentEvidenceLess forwards to [sbomattest.ComponentEvidenceLess].
-func ComponentEvidenceLess(a, b ComponentEvidence) bool {
-	return sbomattest.ComponentEvidenceLess(a, b)
-}
-
-// ComponentEvidenceTupleEqual forwards to
-// [sbomattest.ComponentEvidenceTupleEqual].
-func ComponentEvidenceTupleEqual(a, b ComponentEvidence) bool {
-	return sbomattest.ComponentEvidenceTupleEqual(a, b)
-}
+// MaxSBOMAttachmentComponentEvidenceRows, ComponentEvidence,
+// ComponentEvidenceLess, and ComponentEvidenceTupleEqual were retired once
+// their last callers moved to [sbomattest] (#6626 batch 2).
 
 // sbomAttestationAttachmentFactKind is not aliased in root any more: the moved
 // sbomattest family names [reducercontract.SBOMAttestationAttachmentFactKind]
