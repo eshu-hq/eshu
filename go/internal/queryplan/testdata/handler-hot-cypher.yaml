@@ -3,6 +3,7 @@ required_ids:
   - QP-ENTITY-RESOLVE-REPOSITORY
   - QP-CODE-SEARCH-REPOSITORY
   - QP-LANGUAGE-DIRECTORY
+  - QP-CODE-IMPORT-CYCLE-EDGES
   - QP-CODE-IMPORT-ROWS-REPOSITORY
   - QP-CODE-IMPORT-PACKAGES
   - QP-CODE-IMPORT-SOURCE-MODULE-FILES
@@ -26,6 +27,23 @@ required_ids:
   - QP-RESOURCE-INVESTIGATION-WORKLOADS
   - QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS
   - QP-RESOURCE-INVESTIGATION-REPO-PATHS
+pilot_required_ids:
+  - QP-CLOUD-RESOURCE-IDENTITY-PAGE
+  - QP-CODE-IMPORT-CROSS-MODULE-CALLS
+  - QP-CODE-IMPORT-CYCLE-EDGES
+  - QP-CODE-IMPORT-PACKAGES
+  - QP-CODE-IMPORT-ROWS-REPOSITORY
+  - QP-CODE-IMPORT-SOURCE-MODULE-FILES
+  - QP-CODE-IMPORT-SOURCE-MODULE-ROWS
+  - QP-CODE-IMPORT-TARGET-MODULE-FILES
+pilot_postgres_files: [cloud_resource_list_store.go]
+postgres_coverage:
+  - file: cloud_resource_list_store.go
+    calls:
+      - {symbol: "(*PostgresCloudResourceListStore).CurrentAuthorizedCloudResourceUIDs", count: 1, methods: [QueryContext], source_sha256: 3459c9efd6e02af0744de8bf4b778f608c4c1b948d625caf83d6fa7774a61733, dynamic: true, pilot_exclusion_reason: "adapter or distinct hydration family outside the identity-page pilot"}
+      - {symbol: "(*PostgresCloudResourceListStore).CurrentAuthorizedCloudResourcesByDigest", count: 1, methods: [QueryContext], source_sha256: 0a259861a4f6c0237cff1d183a14af8b9b762405b23e8ae348f86e244859dccc, dynamic: true, pilot_exclusion_reason: "adapter or distinct hydration family outside the identity-page pilot"}
+      - {symbol: "(*PostgresCloudResourceListStore).ListCloudResourceIdentities", count: 1, methods: [QueryContext], source_sha256: e6899f8ed724c9d00c0f67d4d618703f7d44f56fc999ea3d743020911d90e38f, dynamic: true, entry_ids: [QP-CLOUD-RESOURCE-IDENTITY-PAGE]}
+      - {symbol: "(sqlRowsQueryer).QueryContext", count: 1, methods: [QueryContext], source_sha256: 7791c1cb9833e936d7763208ab0a27f4a0f58e8b17069aa4b2415099485c60c4, dynamic: true, pilot_exclusion_reason: "adapter or distinct hydration family outside the identity-page pilot"}
 entries:
   - id: QP-ENTITY-RESOLVE-REPOSITORY
     domain: entity
@@ -76,7 +94,22 @@ entries:
     requires_order: true
     plan: *indexed_plan
 
+  - id: QP-CODE-IMPORT-CYCLE-EDGES
+    contract_file: contracts/code-import-cycle-edges.yaml
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: FileImportCycleEdgeRowsCypher, source_sha256: 24c032e74289ccdbbf602edeeb035d4401dc56acac176a35ad1b4a5e580f3219}
+    query_fragment: 'ORDER BY repo.id, source_file.relative_path'
+    cypher_sha256: d7c9e82091dd8d35f42604a0fc4a94f0f2550f75aacf1b10f3ccd26048e276ce
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$scan_limit]
+    requires_order: true
+    plan: *indexed_plan
+
   - id: QP-CODE-IMPORT-ROWS-REPOSITORY
+    contract_file: contracts/code-import-rows-repository.yaml
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
@@ -91,6 +124,7 @@ entries:
     plan: *indexed_plan
 
   - id: QP-CODE-IMPORT-PACKAGES
+    contract_file: contracts/code-import-packages.yaml
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
@@ -105,6 +139,7 @@ entries:
     plan: *indexed_plan
 
   - id: QP-CODE-IMPORT-SOURCE-MODULE-FILES
+    contract_file: contracts/code-import-source-module-files.yaml
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
@@ -119,6 +154,7 @@ entries:
     plan: *indexed_plan
 
   - id: QP-CODE-IMPORT-TARGET-MODULE-FILES
+    contract_file: contracts/code-import-target-module-files.yaml
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
@@ -133,6 +169,7 @@ entries:
     plan: *indexed_plan
 
   - id: QP-CODE-IMPORT-SOURCE-MODULE-ROWS
+    contract_file: contracts/code-import-source-module-rows.yaml
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
@@ -147,6 +184,7 @@ entries:
     plan: *indexed_plan
 
   - id: QP-CODE-IMPORT-CROSS-MODULE-CALLS
+    contract_file: contracts/code-import-cross-module-calls.yaml
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
@@ -211,6 +249,7 @@ entries:
     plan: *indexed_plan
 
   - id: QP-CLOUD-RESOURCE-IDENTITY-PAGE
+    contract_file: contracts/cloud-resource-identity-page.yaml
     domain: infra
     backend: postgresql
     query_kind: sql_read_model

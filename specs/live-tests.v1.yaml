@@ -20,7 +20,7 @@ legacy_scheduled_exemptions:
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
-  legacy-scheduled exemption, or retired with
+  dedicated CI, legacy-scheduled exemption, or retired with
   a reason and explicit execution or exemption ownership. The graph
   live-backend CI job runs every ci-class row on its selected backend; the
   PostgreSQL readiness job runs its untagged postgres_ci rows; the
@@ -37,6 +37,7 @@ design: >
   One row per *_live_test.go file. class is ci (graph live-backend CI
   job, selected backends), postgres_ci (the named PostgreSQL runner;
   integration-tagged migration proofs have their own exact-file runner),
+  dedicated_ci (the closed query-methodology isolated runner contract),
   scheduled (an exact-file legacy exemption from this ledger's verified
   runner mapping, tracked by issue 7533; independently owned blocking
   runners may exist, but a reason does not prove execution), or retired (a

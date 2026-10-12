@@ -54,6 +54,7 @@ cd "${repo_root}"
 : "${GATE_NEO4J_PASSWORD:=change-me}"
 : "${GATE_POSTGRES_PASSWORD:=change-me}"
 : "${GATE_API_PORT:=18097}"
+: "${GATE_MCP_PORT:=18098}"
 : "${GATE_API_KEY:=read-api-latency-gate-local-key}"
 : "${GATE_COMPOSE_PROJECT:=eshu-read-api-latency-gate-$$}"
 : "${GATE_TOTAL_SCOPES:=800}"
@@ -61,15 +62,19 @@ cd "${repo_root}"
 : "${GATE_IAC_FACT_COUNT:=150000}"
 : "${GATE_SHARED_INTENT_COUNT:=2500000}"
 : "${GATE_ITERATIONS:=20}"
-# GATE_RUNS defaults to 1: identical sweep behavior (one cold pass per route,
-# no warm data) to before -runs existed. #6965 phase 6's cross-backend
+# GATE_RUNS defaults to 1: one counted pass after discarded warmups, with
+# no later-pass data. #6965 phase 6's cross-backend
 # comparison recipe sets it to 5 or more; see
 # docs/public/reference/local-testing/read-api-latency-gate.md.
 : "${GATE_RUNS:=1}"
+: "${GATE_CONCURRENT_WORKERS:=0}"
+: "${GATE_CONCURRENT_REQUESTS:=20}"
+: "${GATE_CONCURRENT_REPORT:=}"
 : "${GATE_BUDGETS:=testdata/benchmarks/read-api-route-budgets.txt}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
 : "${GATE_WORK_REPORT:=}"
 : "${GATE_LATENCY_REPORT:=}"
+: "${GATE_STATUS_DIAGNOSTIC_DIR:=}"
 
 stack_dir="${GATE_STACK_DIR:-${repo_root}}"
 compose_file="${stack_dir}/docker-compose.yaml"
@@ -125,6 +130,16 @@ bg_pids=()
 # did not create, e.g. a retained --keep stack whose name was exported as
 # GATE_COMPOSE_PROJECT.
 stack_up=0
+api_pid=""
+status_diagnostic_resource_pid=""
+if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+ [[ "${GATE_CONCURRENT_WORKERS}" -ge 2 ]] || die "status diagnostics require concurrent workers"
+ command -v python3 >/dev/null 2>&1 || die "status diagnostics require python3"
+ [[ "$use_compose" -eq 1 ]] || die "status resource diagnostics require this runner's Compose stack"
+ # shellcheck source=scripts/lib/status-diagnostic-runner.sh
+ . "${repo_root}/scripts/lib/status-diagnostic-runner.sh"
+ status_diagnostic_capacity "${GATE_ITERATIONS}" "${GATE_RUNS}" "${GATE_CONCURRENT_REQUESTS}" || die "status diagnostic target requests exceed collector capacity or are invalid"
+fi
 # shellcheck source=scripts/lib/golden-corpus-host-helpers.sh
 . "${repo_root}/scripts/lib/golden-corpus-host-helpers.sh"
 
@@ -133,14 +148,38 @@ stack_up=0
 # "Dump service logs on failure" workflow step reads it) instead of losing
 # it to the same rm -rf that clears everything else.
 api_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-api.log"
+mcp_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-mcp.log"
 
 cleanup() {
 	local status=$?
+ if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+  if [[ -n "${status_diagnostic_resource_pid}" ]]; then
+   if ! status_diagnostic_resource_stop "${GATE_STATUS_DIAGNOSTIC_DIR}" "${status_diagnostic_resource_pid}"; then
+    printf 'verify-read-api-latency-gate: diagnostic resource capture failed\n' >&2
+    [[ "$status" -ne 0 ]] || status=1
+   fi
+  fi
+  if [[ -n "${api_pid}" ]]; then
+   if ! status_diagnostic_stop "${api_pid}" 30; then
+    printf 'verify-read-api-latency-gate: diagnostic API shutdown failed\n' >&2
+    [[ "$status" -ne 0 ]] || status=1
+   fi
+  fi
+  if ! status_diagnostic_validate "${repo_root}" "${GATE_STATUS_DIAGNOSTIC_DIR}" "${GATE_CONCURRENT_REQUESTS}"; then
+   [[ "$status" -ne 0 ]] || status=1
+  fi
+ fi
 	for pid in "${bg_pids[@]:-}"; do
-		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
+		if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" && "${pid}" == "${api_pid}" ]]; then
+   continue
+  fi
+  [[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
 	done
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/api.log" ]]; then
 		cp "${work_dir}/logs/api.log" "${api_log_preserve_path}" 2>/dev/null || true
+	fi
+	if [[ -n "${work_dir}" && -f "${work_dir}/logs/mcp-server.log" ]]; then
+		cp "${work_dir}/logs/mcp-server.log" "${mcp_log_preserve_path}" 2>/dev/null || true
 	fi
 	if [[ "${keep}" -eq 1 ]]; then
 		printf 'verify-read-api-latency-gate: --keep set; leaving %s and the compose stack up\n' "${work_dir}" >&2
@@ -160,6 +199,10 @@ cleanup() {
 trap cleanup EXIT
 
 acquire_live_gate_lock
+if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+ status_diagnostic_prepare "${GATE_STATUS_DIAGNOSTIC_DIR}" || die "status diagnostics require a new report directory"
+ GATE_STATUS_DIAGNOSTIC_DIR="$(cd "${GATE_STATUS_DIAGNOSTIC_DIR}" && pwd)"
+fi
 
 work_dir="$(mktemp -d -t read-api-latency-gate.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -193,6 +236,8 @@ export ESHU_POSTGRES_DSN="postgresql://eshu:${GATE_POSTGRES_PASSWORD}@localhost:
 export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
+export ESHU_MCP_TRANSPORT="http"
+export ESHU_MCP_ADDR="127.0.0.1:${GATE_MCP_PORT}"
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 export ESHU_LISTEN_ADDR="127.0.0.1:0"
 export ESHU_METRICS_ADDR="127.0.0.1:0"
@@ -270,6 +315,7 @@ else
 	build_bin api
 fi
 build_bin read-api-latency-gate
+build_bin mcp-server
 
 # Recorded in the latency report's identity block (-api-binary-sha256 below)
 # so a cross-backend comparison can refuse two legs measured against
@@ -277,10 +323,8 @@ build_bin read-api-latency-gate
 # computed (and only then does its own log line print) when a report was
 # actually asked for: GATE_LATENCY_REPORT is the only consumer, and CI's
 # default invocation never sets it, so computing/logging this unconditionally
-# would add both a new shasum cost and a new stdout line to every default
-# run -- the exact thing docs/public/reference/local-testing/
-# read-api-latency-gate.md's "byte-for-byte identical at default settings"
-# claim depends on NOT happening. Best effort: an empty string when shasum is
+# would add a shasum cost and a stdout line to every default run.
+# Best effort: an empty string when shasum is
 # unavailable, same as the already-conditional lsof provenance print below.
 gate_api_binary_sha256=""
 # Best effort: the commit this worktree's HEAD resolves to, recorded in the
@@ -304,6 +348,9 @@ fi
 if [[ -n "${GATE_LATENCY_REPORT}" ]]; then
 	gate_report_args+=(-latency-report "${GATE_LATENCY_REPORT}")
 fi
+if [[ -n "${GATE_CONCURRENT_REPORT}" ]]; then
+	gate_report_args+=(-concurrent-report "${GATE_CONCURRENT_REPORT}")
+fi
 
 # Two phases, like a real deploy: seed first, THEN start eshu-api. eshu-api's
 # startup backfill of the infra read model derives whatever content_entities
@@ -318,6 +365,7 @@ gate_common_args=(
 	-graph-username "${NEO4J_USERNAME}"
 	-graph-password "${NEO4J_PASSWORD}"
 	-api-base-url "http://localhost:${GATE_API_PORT}"
+	-mcp-base-url "http://127.0.0.1:${GATE_MCP_PORT}"
 	-api-key "${GATE_API_KEY}"
 	-total-scopes "${GATE_TOTAL_SCOPES}"
 	-nodes-per-label "${GATE_NODES_PER_LABEL}"
@@ -325,6 +373,8 @@ gate_common_args=(
 	-shared-intent-count "${GATE_SHARED_INTENT_COUNT}"
 	-iterations "${GATE_ITERATIONS}"
 	-runs "${GATE_RUNS}"
+	-concurrent-workers "${GATE_CONCURRENT_WORKERS}"
+	-concurrent-requests "${GATE_CONCURRENT_REQUESTS}"
 	-eshu-commit "${gate_eshu_commit}"
 	-api-binary-sha256 "${gate_api_binary_sha256}"
 )
@@ -334,11 +384,16 @@ log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-labe
 	|| die "seed failed (see the reason printed above)"
 
 log "start eshu-api"
-start_bg api api_pid "${bin_dir}/eshu-api"
+if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+ start_bg api api_pid env ESHU_STATUS_DIAGNOSTIC_REPORT="${GATE_STATUS_DIAGNOSTIC_DIR}/server.json" "${bin_dir}/eshu-api"
+ gate_report_args+=(-diagnostic-client-report "${GATE_STATUS_DIAGNOSTIC_DIR}/client.json")
+else
+ start_bg api api_pid "${bin_dir}/eshu-api"
+fi
 if command -v lsof >/dev/null 2>&1; then
 	sleep 0.2 # give the process a moment to finish exec() before lsof inspects it
 	log "eshu-api binary provenance (lsof -p ${api_pid})"
-	lsof -p "${api_pid}" 2>/dev/null | grep -E 'txt|TEXT' || echo "lsof reported no txt mapping for pid ${api_pid}"
+	lsof -p "${api_pid}" 2>/dev/null | rg 'txt|TEXT' || echo "lsof reported no txt mapping for pid ${api_pid}"
 fi
 api_ready=false
 for _ in $(seq 1 240); do
@@ -356,9 +411,24 @@ done
 # check that the process we started is still the one alive.
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
 
-# Exact pre-existing text at the default GATE_RUNS=1 (see the
-# "byte-for-byte identical at default settings" doc claim); only mentions
-# runs when there is more than one.
+log "start MCP HTTP transport"
+start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server"
+mcp_ready=false
+for _ in $(seq 1 240); do
+	if curl -fsS "http://127.0.0.1:${GATE_MCP_PORT}/health" >/dev/null 2>&1; then
+		mcp_ready=true
+		break
+	fi
+	sleep 1
+done
+[[ "${mcp_ready}" == "true" ]] || { tail -40 "${log_dir}/mcp-server.log" >&2 || true; die "MCP /health never returned on port ${GATE_MCP_PORT}"; }
+kill -0 "${mcp_pid}" 2>/dev/null || die "MCP server (pid ${mcp_pid}) exited while /health answered"
+
+if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+ status_diagnostic_resource_start "${repo_root}" "${GATE_STATUS_DIAGNOSTIC_DIR}" "${api_pid}" "${GATE_COMPOSE_PROJECT}" || die "cannot identify diagnostic Postgres process"
+fi
+
+# Include the repeat count when more than one counted pass is requested.
 if [[ "${GATE_RUNS}" -eq 1 ]]; then
 	log "sweep (${GATE_ITERATIONS} requests/route)"
 else

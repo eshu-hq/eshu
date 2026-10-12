@@ -15,7 +15,7 @@ import (
 )
 
 // TestBuildLatencyReportIncludesColdAndWarmStats proves BuildLatencyReport
-// carries both the cold pass and the warm distribution (n/p50/p95/min/max/
+// carries both the first counted pass and the later distribution (n/p50/p95/min/max/
 // stddev, plus the per-run p95 spread) through to the JSON-serializable form,
 // for a route swept over multiple runs.
 func TestBuildLatencyReportIncludesColdAndWarmStats(t *testing.T) {

@@ -29,6 +29,9 @@
 // ESHU_API_ADDR (default :8080) wrapped in otelhttp instrumentation. On SIGINT
 // or SIGTERM it gives the HTTP server 30 seconds by default for graceful
 // shutdown before exiting.
+// ESHU_STATUS_DIAGNOSTIC_REPORT optionally enables a bounded, private
+// status-route timing report written after graceful shutdown. It is disabled
+// when unset and never records SQL text or credentials.
 // Beyond auth/session ledgers, the runtime serves reads only; it does not own
 // repo sync, parsing, fact emission, vector builds, or queued projection work.
 //

@@ -178,8 +178,16 @@ gates:
       - "testdata/benchmarks/read-api-route-budgets.txt"
       - "testdata/benchmarks/read-api-route-work-budgets.txt"
       - "scripts/verify-read-api-latency-gate.sh"
+      - "scripts/lib/status-diagnostic-runner.sh"
+      - "scripts/lib/status_diagnostic_artifacts.py"
+      - "scripts/lib/status_diagnostic_resources.py"
+      - "scripts/test-status-diagnostic-artifacts.py"
+      - "scripts/test-status-diagnostic-resources.py"
+      - "scripts/test-status-diagnostic-runner.sh"
       - "scripts/refresh-read-api-work-budgets.sh"
       - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/extend-read-api-work-budgets.sh"
+      - "scripts/test-extend-read-api-work-budgets.sh"
       - "scripts/compare-backend-latency.sh"
       - "scripts/test-compare-backend-latency.sh"
       - "scripts/lib/live-gate-lock.sh"
@@ -208,18 +216,59 @@ gates:
       - docker
       - nornicdb
     ci_only_reason: ""
+  - id: query-methodology-scale-neo4j
+    name: Query Methodology Neo4j Scale Calibration
+    category: exactness
+    layer: performance
+    purpose: "Captures hosted Neo4j scale, concurrency and resource evidence for query methodology calibration."
+    tier: manual
+    blocking: false
+    triggers:
+      - "go/**"
+      - "scripts/verify-read-api-latency-gate.sh"
+      - "scripts/lib/status-diagnostic-runner.sh"
+      - "scripts/lib/status_diagnostic_artifacts.py"
+      - "scripts/lib/status_diagnostic_resources.py"
+      - "scripts/test-status-diagnostic-artifacts.py"
+      - "scripts/test-status-diagnostic-resources.py"
+      - "scripts/test-status-diagnostic-runner.sh"
+      - "testdata/benchmarks/read-api-route-budgets.txt"
+      - "testdata/benchmarks/read-api-route-work-budgets.txt"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
+      - "docker-compose.read-api-latency-gate.yaml"
+      - ".github/workflows/read-api-latency-gate.yml"
+    ci:
+      workflow: read-api-latency-gate.yml
+      job: "methodology scale (neo4j)"
+    requirements:
+      - go
+      - docker
+      - postgres
+    ci_only_reason: "Manually dispatched hosted Neo4j scale/concurrency/resource evidence, not an automatic PR or merge-group check; claim-specific calibration remains required."
+
   - id: read-api-work-budget-mirror
     name: Read API work budget refresh mirror (static)
     category: hygiene
     layer: performance
-    purpose: "Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet."
+    purpose: "Self-tests work-budget rendering and selective extension: formulas, ratchets, and preservation of existing rows."
     tier: pre-pr
     blocking: true
     triggers:
       - "scripts/refresh-read-api-work-budgets.sh"
       - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/extend-read-api-work-budgets.sh"
+      - "scripts/test-extend-read-api-work-budgets.sh"
+      - "scripts/test-methodology-scale-resource-observer.sh"
+      - "scripts/lib/test-methodology-scale-resource-observer-*.sh"
+      - "scripts/lib/status-diagnostic-runner.sh"
+      - "scripts/lib/status_diagnostic_artifacts.py"
+      - "scripts/lib/status_diagnostic_resources.py"
+      - "scripts/test-status-diagnostic-artifacts.py"
+      - "scripts/test-status-diagnostic-resources.py"
+      - "scripts/test-status-diagnostic-runner.sh"
     local:
-      command: "bash scripts/test-refresh-read-api-work-budgets.sh"
+      command: "bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh && python3 scripts/test-status-diagnostic-artifacts.py && python3 scripts/test-status-diagnostic-resources.py && bash scripts/test-status-diagnostic-runner.sh"
       test_command: ""
       pre_push: floor
     ci:

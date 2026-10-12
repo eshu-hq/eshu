@@ -806,12 +806,12 @@ Each domain has a depth/age gauge pair sourced from the queue observer.
 <!-- eshu:metric:section=api-lifecycle -->
 ## API Lifecycle
 
-The API binary exposes lifecycle metrics covering graceful shutdown behavior.
-Each row maps a lifecycle stage to the metric that diagnoses it at 3 AM.
+The API binary exposes lifecycle metrics covering graceful shutdown behavior. Each row maps a lifecycle stage to the metric that diagnoses it at 3 AM.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
 | api shutdown | go/cmd/api/main.go:100 | `eshu_dp_shutdown_duration_seconds` | api lifecycle |
+| opt-in status latency diagnostics | go/cmd/api/diagnostic/collector.go, go/cmd/api/diagnostic/report.go | Existing `eshu_dp_postgres_reader_stage_duration_seconds` and `eshu_dp_status_snapshot_read_duration_seconds` remain active; new `eshu.status_diagnostic_request` and `eshu.status_diagnostic_dispatch` spans delimit selected request and post-auth dispatch. A bounded private report retains selected existing server, checkpoint, reader-stage and snapshot spans with closed attributes and server-generated request IDs. IDs never become metric labels; overflow, missing spans or incomplete flush invalidate evidence. Query-return stages exclude subsequent row scanning; snapshot/request residuals do not identify a specific SQL cause. | api diagnostics |
 | bootstrap identity seeding (epic #4962/#4963) | go/cmd/api/seed_initial_admin.go:1 | `eshu_dp_auth_bootstrap_seed_total`, `eshu_dp_auth_bootstrap_credential_generated_total`, `eshu_dp_auth_secret_seal_total`, `eshu_dp_auth_secret_open_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
 | first-run setup wizard (#4965) | go/internal/query/setup_handler.go:1 | `eshu_dp_auth_setup_wizard_total`, `eshu_dp_auth_secret_open_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
 | sign-in policy guardrail (epic #4962/#4968) | go/internal/query/sign_in_policy_mutations.go:159 | `eshu_dp_auth_sign_in_policy_guardrail_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |

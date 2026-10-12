@@ -16,6 +16,20 @@ func TestDefaultRegistryBuilds(t *testing.T) {
 	}
 }
 
+func TestDefaultRegistryIncludesStatusDiagnosticReport(t *testing.T) {
+	t.Parallel()
+	entry, ok := Default().Lookup("ESHU_STATUS_DIAGNOSTIC_REPORT")
+	if !ok {
+		t.Fatal("status diagnostic output path missing from default registry")
+	}
+	if entry.Type != VarString || entry.Subsystem != "api" || entry.Default != "" {
+		t.Fatalf("diagnostic metadata=(%q,%q,%q), want string,api,disabled", entry.Type, entry.Subsystem, entry.Default)
+	}
+	if findings := Default().Validate(map[string]string{"ESHU_STATUS_DIAGNOSTIC_REPORT": "diagnostic.json"}, true); len(findings) != 0 {
+		t.Fatalf("registered diagnostic configuration rejected: %+v", findings)
+	}
+}
+
 func TestDefaultRegistryIncludesPostgresReaderSettings(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

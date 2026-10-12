@@ -8,11 +8,49 @@ import (
 	"database/sql"
 	"encoding/json"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+// TestActiveWorkSummaryCalibratedBoundary exercises both sides of the revised
+// gate on analyzed PostgreSQL rows, including the band the old gate missed.
+func TestActiveWorkSummaryCalibratedBoundary(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		if os.Getenv("ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF") == "1" {
+			t.Fatal("ESHU_POSTGRES_DSN is required for the calibrated boundary proof")
+		}
+		t.Skip("set ESHU_POSTGRES_DSN to run the calibrated boundary proof")
+	}
+	ctx := context.Background()
+	conn := openStatusSemanticsSchema(ctx, t, dsn)
+	for _, tc := range []struct {
+		name, wantMode string
+		perMille       int
+		minEstimate    float64
+	}{
+		{"upper_grouped_band", activeWorkModeGrouped, 440, 0.4},
+		{"detail_above_boundary", activeWorkModeDetail, 460, 0.45},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetHistoryCase(ctx, t, conn)
+			historyExec(ctx, t, conn, historyLiveShareSQL(t, tc.perMille))
+			mode, estimate := readSummaryMode(ctx, t, conn, activeWorkSummaryQuery, historyEdgeAsOf)
+			if estimate < tc.minEstimate || estimate >= tc.minEstimate+0.05 {
+				t.Fatalf("analyzed estimate = %v, want [%v, %v)", estimate, tc.minEstimate, tc.minEstimate+0.05)
+			}
+			if mode != tc.wantMode {
+				t.Fatalf("mode = %s at estimate %v, want %s", mode, estimate, tc.wantMode)
+			}
+			if diff := diffAgainstOracle(ctx, t, conn, activeWorkSummaryQuery, historyEdgeAsOf); !diff.equal() || diff.oracleRows == 0 {
+				t.Fatalf("shipped query differs from oracle: %+v", diff)
+			}
+		})
+	}
+}
 
 // historyBusyLiveShare is the busy shape's live-row predicate: 20% of rows
 // (n % 10 IN (0, 1)) take one of the six detail statuses.

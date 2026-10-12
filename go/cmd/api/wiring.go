@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	statusdiag "github.com/eshu-hq/eshu/go/cmd/api/diagnostic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel"
@@ -43,6 +44,7 @@ func wireAPI(
 	getenv func(string) string,
 	logger *slog.Logger,
 	prometheusHandler http.Handler,
+	diagnostics ...*statusdiag.Collector,
 ) (http.Handler, func(), *telemetry.Instruments, error) {
 	queryProfile, err := loadQueryProfile(getenv)
 	if err != nil {
@@ -426,6 +428,9 @@ func wireAPI(
 	oidcRateLimiter := newOIDCRateLimiter(getenv, instruments)
 	if oidcRateLimiter != nil {
 		apiHandler = oidcRateLimiter.Middleware(apiHandler)
+	}
+	if len(diagnostics) != 0 && diagnostics[0] != nil {
+		apiHandler = diagnostics[0].PostAuth(apiHandler)
 	}
 
 	mux, err := mountRuntimeSurfaceWithPostgresAccess(apiHandler, "eshu-api", statusReader, prometheusHandler, postgresAccess, driver)

@@ -283,11 +283,10 @@ const activeWorkSummaryGrouped = "(SELECT grouped FROM fact_work_summary_mode)"
 
 // activeWorkGroupedThreshold is the gate threshold T: the summary groups
 // history when the estimated share of activeWorkDetailStatuses rows is below
-// it. T = 0.4 is the #7009 S5 measurement (R2.4: the grouped pass is at or
-// below 1.00x the baseline through 50% live, crossing over between 50% and
-// 60%). T is re-measured with the S5 shim when the statement or the workload
-// shape changes; it is never tuned in place.
-const activeWorkGroupedThreshold = "0.4"
+// it. T = 0.45 is the #7881 calibration for the measured upper band. The
+// #7009 S5 measurement originally set T = 0.4. Recalibrate before a further
+// change to the statement or workload shape.
+const activeWorkGroupedThreshold = "0.45"
 
 // activeWorkLiveFractionEstimate is the planner's estimate of the share of
 // fact_work_items rows in activeWorkDetailStatuses: the summed most-common-

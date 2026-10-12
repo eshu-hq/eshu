@@ -82,6 +82,23 @@ func TestAPIShutdownTimeoutEmptyValueUsesDefault(t *testing.T) {
 	assert.Equal(t, 30*time.Second, d, "empty value should use 30s default")
 }
 
+func TestWaitForDiagnosticShutdownDisabled(t *testing.T) {
+	t.Parallel()
+
+	shutdownDone := make(chan struct{})
+	returned := make(chan struct{})
+	go func() {
+		waitForDiagnosticShutdown(false, shutdownDone)
+		close(returned)
+	}()
+
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("disabled diagnostics must not wait for shutdown")
+	}
+}
+
 func TestNewLoggerOutputsStructuredJSON(t *testing.T) {
 	t.Parallel()
 
