@@ -39,13 +39,15 @@ const (
 	// version than the reader's.
 	ReasonStaleExtractor Reason = "stale_extractor"
 	// ReasonFailed: no derive of this repository has succeeded yet
-	// (row_count is NULL). Classify and the walker's dirty join use it for
-	// the same population.
+	// (row_count or content_version is NULL). Classify and the walker's dirty
+	// join use it for the same population.
 	ReasonFailed Reason = "failed"
-	// ReasonRetry: a derive has succeeded, but a later one failed
-	// (failure_count > 0). The walker's dirty join lists the repository for
-	// another derive. Classify never returns it: the stored rows may still be
-	// exact, so the reader judges them by version alone.
+	// ReasonRetry: a derive has succeeded and its rows match the current
+	// content version, but a later derive failed (failure_count > 0). The
+	// walker's dirty join lists the repository for another derive. Classify
+	// never returns it: the rows are still exact, so the reader trusts them
+	// (or finds them stale only by extractor). When the content also moved,
+	// the dirty join labels the repository stale_version, as Classify does.
 	ReasonRetry Reason = "retry"
 )
 

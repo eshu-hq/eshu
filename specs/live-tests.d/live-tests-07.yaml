@@ -358,7 +358,7 @@ tests:
   - file: go/internal/storage/postgres/config/artifacts/dirty_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact walker's dirty join: never-derived (failed) and retry repositories and old extractor versions first, then missing state, then moved content, skipped repositories last; exact rows and every newer-extractor row (exact, moved, failing) excluded; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact walker's dirty join: never-derived (failed) and retry repositories and old extractor versions first, then missing state, then moved content, skipped repositories last; exact rows and every newer-extractor row (exact, moved, failing) excluded; and over the cross product of the state inputs every listed repository carries Classify's label (retry excepted) and every untrusted repository in the walk universe is listed; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/config/artifacts/encoding_live_test.go
     tag: ~

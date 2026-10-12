@@ -28,6 +28,15 @@ import (
 // choice the record leaves open: a newer replica or the next content Write
 // derives it, and readers serve it live as failed meanwhile.
 //
+// The reason follows Classify's precedence (missing, failed, stale_version,
+// stale_extractor), so a repository the dirty join lists carries the label the
+// reader would count. retry is the one dirty-join label: a failed derive after
+// a success whose rows still match the current content version. The work
+// order is a separate priority and is unchanged: never-derived (failed)
+// repositories, then failed derives after a success, then older extractor
+// versions (even when the content also moved), then missing state rows, then
+// moved content.
+//
 // The join reads two tables that grow with repositories, not with files. With
 // a generic plan it is a hash join over two sequential scans; the measured
 // figures are in the package README.
@@ -37,11 +46,19 @@ FROM (
     SELECT v.repo_id,
            CASE
                WHEN s.repo_id IS NULL THEN 'missing'
-               WHEN s.row_count IS NULL THEN 'failed'
+               WHEN s.row_count IS NULL OR s.content_version IS NULL THEN 'failed'
+               WHEN s.content_version IS DISTINCT FROM v.version THEN 'stale_version'
                WHEN s.failure_count > 0 THEN 'retry'
                WHEN s.extractor_version < $1 THEN 'stale_extractor'
                ELSE 'stale_version'
            END AS reason,
+           CASE
+               WHEN s.repo_id IS NULL THEN 3
+               WHEN s.row_count IS NULL OR s.content_version IS NULL THEN 0
+               WHEN s.failure_count > 0 THEN 1
+               WHEN s.extractor_version < $1 THEN 2
+               ELSE 4
+           END AS priority,
            coalesce(s.failure_count >= $2 AND s.last_failure_extractor_version = $1, false) AS skipped
     FROM config_artifact_content_versions AS v
     LEFT JOIN config_artifact_repo_state AS s ON s.repo_id = v.repo_id
@@ -52,15 +69,7 @@ FROM (
            OR s.extractor_version < $1
            OR s.content_version IS DISTINCT FROM v.version)
 ) AS dirty
-ORDER BY skipped,
-         CASE reason
-             WHEN 'failed' THEN 0
-             WHEN 'retry' THEN 1
-             WHEN 'stale_extractor' THEN 2
-             WHEN 'missing' THEN 3
-             ELSE 4
-         END,
-         repo_id
+ORDER BY skipped, priority, repo_id
 LIMIT $3`
 
 // DirtyRequest selects the walker's work.
@@ -75,10 +84,10 @@ type DirtyRequest struct {
 }
 
 // Dirty is one repository the walker must derive, or reports as skipped.
-// Reason is ReasonFailed (no successful derive yet), ReasonRetry (a failed
-// derive after a success), ReasonStaleExtractor, ReasonMissing (no state
-// row), or ReasonStaleVersion. Skipped repositories are listed for status and
-// not derived.
+// Reason is the label Classify gives (ReasonMissing, ReasonFailed,
+// ReasonStaleVersion, ReasonStaleExtractor), or ReasonRetry for a failed
+// derive after a success whose rows still match the current content version.
+// Skipped repositories are listed for status and not derived.
 type Dirty struct {
 	RepoID  string
 	Reason  Reason
@@ -86,8 +95,9 @@ type Dirty struct {
 }
 
 // ListDirty returns up to req.Limit repositories from the dirty join, work
-// first in the order failed, retry, stale_extractor, missing, stale_version
-// (then repo_id), and skipped repositories last.
+// first in the order never derived, failed after a success, older extractor,
+// missing state, moved content (then repo_id), and skipped repositories last.
+// The order is a priority of its own; the labels follow Classify.
 func ListDirty(ctx context.Context, queryer db.Queryer, req DirtyRequest) ([]Dirty, error) {
 	if req.Limit <= 0 {
 		return nil, fmt.Errorf("list dirty config artifact repositories: limit must be positive, got %d", req.Limit)

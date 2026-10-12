@@ -31,8 +31,10 @@ Scoped instructions for the config-artifact read model (#7126). The root
   `version = version + 1`.
   The repository retirement design (#7766) must use that shared disposition.
 - `failed` means "no successful derive yet" in both `Classify` and
-  `ListDirty`. A failed derive after a success is `retry`, a dirty-join label
-  only. Do not reuse one label for two populations.
+  `ListDirty`. `ListDirty` labels in `Classify`'s precedence; its one own
+  label is `retry` (a failed derive after a success whose rows still match
+  the current content version). Do not reuse one label for two populations;
+  `TestListDirtyAgreesWithClassifyLive` holds the two in step.
 - `Classify` is the reader's trust rule. The PR3c SQL reader must return the
   same reason for every state; test it against `Classify`, not a copy.
 - The walk claim is not a lease. Do not make correctness depend on a single

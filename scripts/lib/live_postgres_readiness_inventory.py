@@ -428,6 +428,7 @@ PACKAGES = {
     CONFIG_ARTIFACTS_PACKAGE: {
         "go/internal/storage/postgres/config/artifacts/dirty_live_test.go": (
             "TestListDirtyFindsTheWalkersWorkLive",
+            "TestListDirtyAgreesWithClassifyLive",
         ),
         "go/internal/storage/postgres/config/artifacts/encoding_live_test.go": (
             "TestCheckEncodingReadsTheDatabaseEncodingLive",

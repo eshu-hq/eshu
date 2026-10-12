@@ -83,8 +83,13 @@ because each derive rewrites a repository's rows.
   the walker, as `retry`.
 - **Reasons.** `Classify` returns `missing`, `failed` (no successful derive
   yet), `stale_version`, or `stale_extractor`. `ListDirty` returns the same
-  labels with the same meaning, plus `retry` (a failed derive after a
-  success), which the reader never uses. The walker leaves every state row
+  labels with Classify's precedence, plus `retry`: a failed derive after a
+  success whose rows still match the current content version, which the
+  reader trusts (or finds stale only by extractor).
+  `TestListDirtyAgreesWithClassifyLive` checks this over the cross product of
+  the state inputs. The walk order is a separate priority: never derived,
+  failed after a success, older extractor (even when the content also
+  moved), missing state, moved content. The walker leaves every state row
   from a newer extractor to the newer replicas. A row with a successful
   derive cannot be replaced by an older derive (protocol section 3, step 3).
   A failure-only row could be (step 3's first, Proposed, clause); leaving it
@@ -130,7 +135,12 @@ local) with 3,000 version rows and 2,990 state rows: the walk page
 (`dirtySQL`, generic plan via `PREPARE`/`EXECUTE` with
 `plan_cache_mode = force_generic_plan`, 21 dirty of 3,000) is a hash join over
 two sequential scans of tables that grow with repositories, not files,
-0.80-0.87 ms over five runs after one discarded run, 59 buffers. The review of
+59 buffers per execution. In round 2 it ran in 0.80-0.87 ms over five runs
+after one discarded run. The round 5 form (labels in Classify's precedence,
+plus a separate priority column) has the same plan and buffers; an
+interleaved A/B of the round 4 and round 5 statements, 15 runs each with the
+first mover alternating, gave medians of 1.217 ms and 1.152 ms on a host at
+load average 22. The review of
 round 1 measured 62-65 ms at 300,000 repositories (parallel hash join), so the
 cost is linear in repositories. Both tables are O(repositories) (815 in the QA
 environment on 2026-10-10).

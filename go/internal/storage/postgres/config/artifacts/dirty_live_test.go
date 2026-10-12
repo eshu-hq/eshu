@@ -4,6 +4,7 @@
 package artifacts_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -27,6 +28,7 @@ func TestListDirtyFindsTheWalkersWorkLive(t *testing.T) {
 		"r-clean": 5, "r-nostate": 1, "r-moved": 6, "r-oldext": 5, "r-newext": 5,
 		"r-failed-exact": 5, "r-failonly": 2, "r-skip": 2, "r-skip-oldext": 2,
 		"r-newext-moved": 6, "r-newext-failed": 5, "r-newext-failonly": 2,
+		"r-oldext-moved": 6, "r-cvnull-counted": 5,
 	})
 	for _, state := range []struct {
 		repo                 string
@@ -48,6 +50,8 @@ func TestListDirtyFindsTheWalkersWorkLive(t *testing.T) {
 		{"r-newext-moved", 5, extractor + 1, 2, 0, nil},
 		{"r-newext-failed", 5, extractor + 1, 2, 1, extractor + 1},
 		{"r-newext-failonly", nil, extractor + 1, nil, 2, extractor + 1},
+		{"r-oldext-moved", 5, extractor - 1, 2, 0, nil},
+		{"r-cvnull-counted", nil, extractor, 2, 0, nil},
 	} {
 		if _, err := db.ExecContext(ctx, `
 INSERT INTO config_artifact_repo_state
@@ -66,10 +70,14 @@ VALUES ($1, $2, $3, $4, $5, $6)`,
 		t.Fatalf("ListDirty() error = %v", err)
 	}
 	want := []artifacts.Dirty{
+		{RepoID: "r-cvnull-counted", Reason: artifacts.ReasonFailed},
 		{RepoID: "r-failonly", Reason: artifacts.ReasonFailed},
 		{RepoID: "r-skip-oldext", Reason: artifacts.ReasonFailed},
 		{RepoID: "r-failed-exact", Reason: artifacts.ReasonRetry},
 		{RepoID: "r-oldext", Reason: artifacts.ReasonStaleExtractor},
+		// Older extractor and moved content: labelled as Classify labels it,
+		// ranked with the older extractors.
+		{RepoID: "r-oldext-moved", Reason: artifacts.ReasonStaleVersion},
 		{RepoID: "r-nostate", Reason: artifacts.ReasonMissing},
 		{RepoID: "r-moved", Reason: artifacts.ReasonStaleVersion},
 		{RepoID: "r-skip", Reason: artifacts.ReasonFailed, Skipped: true},
@@ -93,3 +101,96 @@ VALUES ($1, $2, $3, $4, $5, $6)`,
 		t.Fatal("ListDirty(limit 0) error = nil, want a refusal")
 	}
 }
+
+// TestListDirtyAgreesWithClassifyLive seeds the cross product of the state
+// inputs (version row present or absent; no state row, or content_version
+// NULL, equal or stale; row_count NULL or set; extractor_version older,
+// current or newer; failure_count 0 or 1) and checks the dirty join against
+// Classify. Wherever ListDirty returns a repository, its reason is the one
+// Classify gives, except retry: the dirty join's own label for a failed
+// derive whose rows Classify still trusts or finds stale only by extractor.
+// It also checks the dirty join is wider than the reader: every repository in
+// the walk universe that Classify does not trust is listed, unless its state
+// row comes from a newer extractor, which the walker leaves alone.
+func TestListDirtyAgreesWithClassifyLive(t *testing.T) {
+	ctx, db := openDatabase(t)
+	const (
+		extractor = 3
+		current   = int64(5)
+	)
+	type seeded struct {
+		state   *artifacts.State
+		version *int64
+	}
+	cases := map[string]seeded{}
+	contentVersions := map[string]*int64{"null": nil, "equal": ptr(current), "stale": ptr(current - 1)}
+	rowCounts := map[string]*int{"null": nil, "set": ptr(7)}
+	extractors := map[string]int{"older": extractor - 1, "current": extractor, "newer": extractor + 1}
+	for _, hasVersion := range []bool{true, false} {
+		var version *int64
+		if hasVersion {
+			version = ptr(current)
+		}
+		cases[fmt.Sprintf("v%t-nostate", hasVersion)] = seeded{version: version}
+		for cvName, cv := range contentVersions {
+			for rcName, rc := range rowCounts {
+				for evName, ev := range extractors {
+					for _, failures := range []int{0, 1} {
+						name := fmt.Sprintf("v%t-cv%s-rc%s-ev%s-f%d", hasVersion, cvName, rcName, evName, failures)
+						cases[name] = seeded{version: version, state: &artifacts.State{
+							ContentVersion: cv, RowCount: rc, ExtractorVersion: ev, FailureCount: failures,
+						}}
+					}
+				}
+			}
+		}
+	}
+	for repo, c := range cases {
+		if c.version != nil {
+			seedVersions(ctx, t, db, map[string]int64{repo: *c.version})
+		}
+		if c.state == nil {
+			continue
+		}
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO config_artifact_repo_state
+    (repo_id, content_version, extractor_version, row_count, failure_count, last_failure_extractor_version)
+VALUES ($1, $2, $3, $4, $5, NULL)`,
+			repo, c.state.ContentVersion, c.state.ExtractorVersion, c.state.RowCount, c.state.FailureCount); err != nil {
+			t.Fatalf("seed state %s: %v", repo, err)
+		}
+	}
+
+	dirty, err := artifacts.ListDirty(ctx, postgres.SQLDB{DB: db}, artifacts.DirtyRequest{
+		ExtractorVersion: extractor, SkipAfterFailures: 5, Limit: 1000,
+	})
+	if err != nil {
+		t.Fatalf("ListDirty() error = %v", err)
+	}
+	listed := map[string]artifacts.Reason{}
+	for _, d := range dirty {
+		listed[d.RepoID] = d.Reason
+	}
+	for repo, c := range cases {
+		want := artifacts.Classify(c.state, c.version, extractor)
+		got, ok := listed[repo]
+		newer := c.state != nil && c.state.ExtractorVersion > extractor
+		switch {
+		case !ok:
+			if c.version != nil && !newer && want != artifacts.ReasonTrusted {
+				t.Errorf("%s: not listed, but Classify = %q", repo, want)
+			}
+		case c.version == nil || newer:
+			t.Errorf("%s: listed as %q, but it is outside the walker's work", repo, got)
+		case got == artifacts.ReasonRetry:
+			if c.state == nil || c.state.FailureCount == 0 ||
+				(want != artifacts.ReasonTrusted && want != artifacts.ReasonStaleExtractor) {
+				t.Errorf("%s: listed as retry, Classify = %q", repo, want)
+			}
+		case got != want:
+			t.Errorf("%s: ListDirty reason %q, Classify %q", repo, got, want)
+		}
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
