@@ -148,6 +148,9 @@ only when collector configuration enables it, an allowed language group is
 present, and the matching `scip-*` binary is on `PATH` — so a missing indexer
 degrades enrichment, never file coverage.
 
+The git collector reads the `scip-*` binary name (`BinaryForLanguage`) for the pre-parse
+identity, so adding a SCIP language changes it.
+
 ## Language Feature Parity Ledger
 
 The machine-readable language claim ledger lives at

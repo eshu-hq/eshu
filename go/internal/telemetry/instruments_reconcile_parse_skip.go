@@ -54,7 +54,7 @@ const (
 	PreparseDropCodeownersReadFailed  PreparseIdentityDropReason = "codeowners_read_failed"
 	PreparseDropWorkflowDigestFailed  PreparseIdentityDropReason = "workflow_digest_failed"
 	PreparseDropContentReadFailed     PreparseIdentityDropReason = "content_read_failed"
-	PreparseDropWorkflowReadFailed    PreparseIdentityDropReason = "workflow_read_failed"
+	PreparseDropWorkflowReadFailed    PreparseIdentityDropReason = "workflow_read_failed" // #nosec G101 -- metric label value, not a credential
 	PreparseDropDocsBodyReadFailed    PreparseIdentityDropReason = "docs_body_read_failed"
 	// PreparseDropOther is the bounded fallback label for a value outside the
 	// set; NormalizePreparseIdentityDropReason maps any unknown value to it.
