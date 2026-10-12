@@ -1,0 +1,36 @@
+go/internal/storage/postgres/search/index/store_schema_test.go
+  h_78a442cba0b3e6 174-200
+go/internal/storage/postgres/schema_index_replay_test.go
+  h_78a442cba0b3e6 433-483
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  h_78a442cba0b3e6 221
+go/internal/storage/postgres/search/index/store.go
+  h_78a442cba0b3e6 253-261,263,266-269,272,275,278,280,290,293,304,307-324,350-357,375,382
+go/internal/storage/postgres/schema_order_test.go
+  h_78a442cba0b3e6 408-410
+go/internal/storage/postgres/eshu_search_index_bm25_posting_plan_live_test.go
+  h_78a442cba0b3e6 1-212
+docs/internal/evidence/7727-bm25-posting-lookup-index.md
+  h_78a442cba0b3e6 1-115
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  h_78a442cba0b3e6 68-70,76
+go/internal/storage/postgres/migrations/171_eshu_search_index_documents_bm25_posting_idx.sql
+  h_78a442cba0b3e6 1-44
+go/internal/storage/postgres/search/index/store_test.go
+  h_78a442cba0b3e6 83-85,89,254-335
+specs/live-tests.d/live-tests-05.yaml
+  h_78a442cba0b3e6 98-101
+specs/live-tests.v1.yaml
+  h_78a442cba0b3e6 18-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "843fedcc7b0ec234e6b27abd07f25962afef8532",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
