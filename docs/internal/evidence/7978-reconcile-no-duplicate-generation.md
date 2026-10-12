@@ -281,10 +281,10 @@ method `IngestionStore.ReprojectActiveGeneration`). Decision table, valve, and
 signals: `docs/public/reference/reconciliation-sweep.md` ("Skipping the parse of
 an unchanged repository").
 
-Performance Evidence (theory shim, before the change; one process, macOS arm64,
-Go 1.26.9, three runs each; the parse path is snapshot, parse, fact build,
+Performance Evidence: theory shim, before the change; one process, macOS arm64,
+Go 1.26.9, three runs each. The parse path is snapshot, parse, fact build,
 drain, and post-parse hint; the identity path is `git rev-parse`, `git status
---porcelain`, and a config digest; the fetch is common to both and excluded):
+--porcelain`, and a config digest; the fetch is common to both and excluded.
 
 | repository | tracked files | facts | parse path wall | parse path CPU | identity wall | load1 |
 | --- | ---: | ---: | --- | --- | --- | --- |

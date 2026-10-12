@@ -156,7 +156,7 @@ repository, and about 3.7 min wall and 6 min CPU for a 26,301-file one.
 The collector now decides before the parse (ruling a9-143). After the fetch it
 computes a **pre-parse identity**: the content version, the remote head, the
 default branch, and every configuration input that changes emitted facts (the
-discovery ignore and preserve globs, `ESHU_EMIT_DATAFLOW`, `SCIP_INDEXER`,
+discovery ignore and preserve globs, the [value-flow gate](value-flow-emission.md), `SCIP_INDEXER`,
 `SCIP_LANGUAGES` and the stat of each SCIP indexer binary, and the bootstrap
 dependency settings). Every stored generation and every re-open after a parse
 stamps the identity on the generation. The first sweep after a deploy parses
@@ -186,7 +186,8 @@ follows the same `reconcile_in_flight` and `reconcile_request_stale` rules.
 repository parses at least every N intervals, so an input the identity does not
 cover stays stale for at most N intervals; at the daily default that is one
 parse per repository per week. Set a larger N to parse less often, or 0 to
-always parse.
+always parse. A negative or non-integer value stops the collector at startup
+with an error that names the variable and the value.
 
 Each decision increments
 `eshu_dp_collector_reconcile_parse_skip_decisions_total{outcome}` and adds a span

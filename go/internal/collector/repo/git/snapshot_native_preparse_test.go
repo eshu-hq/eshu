@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"os"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,12 +100,14 @@ func TestPreparseConfigForFoldsEachInput(t *testing.T) {
 	}
 }
 
-// TestReconcileParseMaxSkipsFromEnv (D3): the valve defaults to 7, accepts an
-// explicit 0 (never skip), and falls back to the default on a bad value.
+// TestReconcileParseMaxSkipsFromEnv (D3, ruling a9-143.1): the valve defaults
+// to 7 when unset, accepts an explicit 0 (never skip) and a positive N, and
+// rejects a negative or non-integer value at startup with an error that names
+// the variable and the value; there is no silent fallback.
 func TestReconcileParseMaxSkipsFromEnv(t *testing.T) {
 	t.Parallel()
-	for raw, want := range map[string]int{"": 7, "0": 0, "3": 3, "-1": 7, "x": 7} {
-		config, err := LoadRepoSyncConfig("collector-git", func(key string) string {
+	load := func(raw string) (RepoSyncConfig, error) {
+		return LoadRepoSyncConfig("collector-git", func(key string) string {
 			switch key {
 			case "ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS":
 				return raw
@@ -114,11 +118,23 @@ func TestReconcileParseMaxSkipsFromEnv(t *testing.T) {
 			}
 			return ""
 		})
+	}
+	for raw, want := range map[string]int{"": 7, "  ": 7, "0": 0, "1": 1, "3": 3, " 3 ": 3} {
+		config, err := load(raw)
 		if err != nil {
 			t.Fatalf("raw %q: LoadRepoSyncConfig error = %v", raw, err)
 		}
 		if config.ReconcileParseMaxSkips != want {
 			t.Fatalf("raw %q: ReconcileParseMaxSkips = %d, want %d", raw, config.ReconcileParseMaxSkips, want)
+		}
+	}
+	for _, raw := range []string{"-1", "x", "1.5", "7d"} {
+		_, err := load(raw)
+		if err == nil {
+			t.Fatalf("raw %q: LoadRepoSyncConfig error = nil, want a rejection", raw)
+		}
+		if msg := err.Error(); !strings.Contains(msg, "ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS") || !strings.Contains(msg, strconv.Quote(raw)) {
+			t.Fatalf("raw %q: error %q does not name the variable and the value", raw, msg)
 		}
 	}
 }
