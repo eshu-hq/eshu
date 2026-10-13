@@ -445,3 +445,55 @@ func TestContentEntitiesRepoLanguageTypeIndexKeyLeadsWithRepository(t *testing.T
 			indexName, found, wantColumns)
 	}
 }
+
+// TestContentEntitiesPageReadIndexIsCreatedOnceAndNeverDropped pins the same
+// end state for the index that stops the language-query ordered page read at
+// LIMIT (#7735): one create, no drop, so an install that has it does no index
+// work on bootstrap and content_entities (hot, continuously ingested) is never
+// asked to rebuild it.
+func TestContentEntitiesPageReadIndexIsCreatedOnceAndNeverDropped(t *testing.T) {
+	t.Parallel()
+
+	const pageReadIndex = "content_entities_repo_language_type_path_idx"
+	creates, drops := migrationIndexCreateDropCounts()
+	if creates[pageReadIndex] != 1 || drops[pageReadIndex] != 0 {
+		t.Errorf("%s has %d creates and %d drops, want 1 and 0",
+			pageReadIndex, creates[pageReadIndex], drops[pageReadIndex])
+	}
+}
+
+// TestContentEntitiesPageReadIndexCarriesEqualityPlusOrderBy pins WHY the
+// index works, which the create/drop guard above cannot see. The page read
+// binds repo_id, language and entity_type by equality and orders by
+// relative_path, start_line, entity_name; with the equality columns first and
+// the ORDER BY key after, the page is one btree descent that stops at LIMIT.
+// A truncated key (the 164 gate key without the ordering tail) keeps the name
+// and the guard above intact while restoring the defect (78,933 filtered
+// entries, 80,234 buffers on the scratch clone), so the full column list is
+// asserted here.
+func TestContentEntitiesPageReadIndexCarriesEqualityPlusOrderBy(t *testing.T) {
+	t.Parallel()
+
+	const (
+		indexName   = "content_entities_repo_language_type_path_idx"
+		wantColumns = "(repo_id, language, entity_type, relative_path, start_line, entity_name)"
+	)
+	var found string
+	for _, definition := range BootstrapDefinitions() {
+		if !strings.Contains(definition.SQL, indexName) {
+			continue
+		}
+		for _, line := range strings.Split(stripSQLLineComments(definition.SQL), "\n") {
+			if strings.Contains(line, "ON content_entities") {
+				found = strings.TrimSpace(line)
+			}
+		}
+	}
+	if found == "" {
+		t.Fatalf("no CREATE INDEX statement for %s found in the bootstrap definitions", indexName)
+	}
+	if !strings.Contains(found, wantColumns) {
+		t.Errorf("%s is defined as %q, want equality plus ORDER BY %s (#7735)",
+			indexName, found, wantColumns)
+	}
+}

@@ -416,4 +416,13 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 173 (#7728) runs VACUUM (ANALYZE) on content_files so the
 	// covering index pays off immediately instead of waiting on autovacuum.
 	"content_files_language_covering_idx_vacuum",
+	// Migration 174 (#7735) carries the language-query equality columns AND
+	// the page ORDER BY on content_entities, so a repository whose matching
+	// rows sort late in the corpus-wide (language, entity_type) index is a
+	// btree descent that stops at LIMIT instead of an ordered walk that
+	// heap-filters every earlier repository's rows. Migration 164's
+	// (repo_id, language, entity_type) key is a strict PREFIX of this one
+	// and still serves the existence gate on its smaller key, which is why
+	// both indexes exist rather than one superseding the other.
+	"content_entities_repo_language_type_path_idx",
 }
