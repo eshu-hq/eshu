@@ -238,6 +238,19 @@ even when one edge is a blank or dot import. Dropping or flagging one would hide
 a real cycle. The decision is pinned by
 `TestDefaultEngineParsePathGoImportsCarryNoFlags`.
 
+## Package Cycles
+`file_import_cycles` answers Go at package level (`language=go`, issue #7347):
+the Go compiler forbids package cycles, so a file-level answer would report
+same-package false positives by construction. Each parsed file reports its own
+package import path (`package_import_path`, from the collector's per-directory
+prescan); the projector stamps it onto every `IMPORTS` edge the file emits as
+`source_package`, and the cycle query collapses files into packages with the
+same rule file cycles use. Same-package files report as one node, a
+same-package edge closes nothing, and the file and module slots carry package
+import paths. Edges from a graph written before the mapping existed cannot be
+placed and close nothing; they are counted in
+`coverage.cycle_go_edges_missing_package`.
+
 ## Known Limitations
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked

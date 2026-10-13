@@ -254,6 +254,9 @@ func importDependencyCoverage(req ImportDependencyRequest, truncated bool, enume
 	queryShape := "repo_file_imports"
 	if req.EffectiveQueryType() == "file_import_cycles" {
 		queryShape = "python_file_import_cycle"
+		if req.NormalizedLanguage() == "go" {
+			queryShape = "go_package_import_cycle"
+		}
 	}
 	if req.EffectiveQueryType() == "cross_module_calls" {
 		queryShape = "module_anchored_call_edges"
@@ -269,6 +272,12 @@ func importDependencyCoverage(req ImportDependencyRequest, truncated bool, enume
 		coverage["cycle_max_length"] = req.effectiveMaxCycleLength()
 		coverage["cycle_enumeration_cap"] = importCycleEnumerationCap
 		coverage["cycle_enumeration_truncated"] = enumeration.Truncated
+		// Go-only: edges dropped because the graph predates the
+		// projector's source_package mapping (#7347). Reported only for
+		// Go requests so existing Python response bytes do not change.
+		if req.NormalizedLanguage() == "go" {
+			coverage["cycle_go_edges_missing_package"] = enumeration.GoPackageUnknown
+		}
 		stopReason := enumeration.StopReason
 		if stopReason == "" {
 			stopReason = CycleStopNone

@@ -146,7 +146,7 @@ const Symbols = `
                     "default": "imports_by_file"
                   },
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)."},
-                  "language": {"type": "string", "description": "Optional language filter. file_import_cycles supports python multi-node cycle detection; other languages are rejected."},
+                  "language": {"type": "string", "description": "Optional language filter. file_import_cycles supports python multi-node cycle detection and go package cycle detection; other languages are rejected."},
                   "max_cycle_length": {"type": "integer", "description": "Simple-cycle length bound for file_import_cycles (default 5). Ignored by other query types.", "default": 5, "minimum": 2, "maximum": 8},
                   "source_file": {"type": "string", "description": "Optional repo-relative source file path anchor"},
                   "target_file": {"type": "string", "description": "Optional repo-relative target file path for cross-module call and cycle queries"},

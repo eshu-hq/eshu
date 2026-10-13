@@ -175,6 +175,10 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 			attribute.Int("eshu.import_dependencies.cycle_inferred_edge_count", flags.Inferred),
 			attribute.Int("eshu.import_dependencies.cycle_type_only_excluded", flags.TypeOnlyExcluded),
 			attribute.Int("eshu.import_dependencies.cycle_deferred_excluded", flags.DeferredExcluded),
+			// How many Go edges the graph predates the projector's
+			// file-to-package mapping for (#7347): unplaceable, closing
+			// nothing. Zero for non-Go reads.
+			attribute.Int("eshu.import_dependencies.cycle_go_edges_missing_package", enumeration.GoPackageUnknown),
 		)
 	}
 	return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumeration), nil

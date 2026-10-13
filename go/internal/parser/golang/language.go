@@ -72,6 +72,13 @@ func Parse(
 	}
 	scope := options.NormalizedVariableScope()
 	packageImportPath := strings.TrimSpace(options.GoPackageImportPath)
+	if packageImportPath != "" {
+		// The file's own package import path (#7347). The projector reads
+		// this back out of parsed_file_data to place the file in its Go
+		// package for package-level import cycles. Absent without package
+		// identity, so those payloads stay byte-identical.
+		payload["package_import_path"] = packageImportPath
+	}
 	// Fingerprint state for the #6833 code-divergence report: error graphs
 	// are excluded per the #6834 verdict, and per-file outcomes accumulate
 	// for collector-side telemetry via payload[fingerprint.StatsKey].

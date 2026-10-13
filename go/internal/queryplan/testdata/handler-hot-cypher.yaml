@@ -99,9 +99,9 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: FileImportCycleEdgeRowsCypher, source_sha256: 24c032e74289ccdbbf602edeeb035d4401dc56acac176a35ad1b4a5e580f3219}
+    source: {file: go/internal/query/codemodel/code_import_dependencies_queries.go, symbol: FileImportCycleEdgeRowsCypher, source_sha256: b5dab4d4b42f75a54ca623de366f8d62e6a724b389239d9d168c21467c2f1d41}
     query_fragment: 'ORDER BY repo.id, source_file.relative_path'
-    cypher_sha256: d7c9e82091dd8d35f42604a0fc4a94f0f2550f75aacf1b10f3ccd26048e276ce
+    cypher_sha256: 1011f1ed2332866aa343598d01cde369bebefecdeaeb1e0f6cf87c96e9be39d3
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$scan_limit]

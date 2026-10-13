@@ -78,6 +78,7 @@ func BuildFileImportCycleRows(
 	directedEdges, edgeFlags := partitionImportCycleEdges(deduplicateImportCycleEdges(req, edgeRows))
 	cycles, enumeration := enumerateImportCycles(directedEdges, req.effectiveMaxCycleLength())
 	enumeration.EdgeFlags = edgeFlags
+	enumeration.GoPackageUnknown = countGoEdgesMissingPackage(edgeRows)
 
 	cycleRows := make([]map[string]any, 0, len(cycles))
 	seenCycles := make(map[string]struct{})
@@ -289,19 +290,58 @@ func importCycleEdgeFromRow(
 		lineNumber:   querycontract.IntVal(row, "line_number"),
 		state:        importCycleEdgeStateFromRow(row),
 	}
-	if edge.repoID == "" || edge.sourceFile == "" || edge.sourceModule == "" || edge.targetModule == "" {
+	if edge.language != "python" && edge.language != "go" {
 		return importCycleEdge{}, false
 	}
-	if edge.language != "python" {
+	if edge.language == "go" {
+		// Package-level collapse (#7347): the node IS the package. The
+		// projector-owned source_package becomes both the node key and the
+		// declared module, so the shared exact-equality collapse joins
+		// packages with no change to its rule, and same-package files land
+		// on one node. sourcePath is cleared so same-(package, target)
+		// rows from different files share one dedupe key and fold their
+		// flag states. An edge with no package predates the mapping and is
+		// unplaceable; BuildFileImportCycleRows counts those separately.
+		edge.sourcePath = ""
+		edge.sourceFile = strings.TrimSpace(querycontract.StringVal(row, "source_package"))
+		edge.sourceModule = edge.sourceFile
+	}
+	if edge.repoID == "" || edge.sourceFile == "" || edge.sourceModule == "" || edge.targetModule == "" {
 		return importCycleEdge{}, false
 	}
 	if repoID := strings.TrimSpace(req.RepoID); repoID != "" && edge.repoID != repoID {
 		return importCycleEdge{}, false
 	}
-	if language := req.NormalizedLanguage(); language != "" && edge.language != language {
+	// An unfiltered request stays Python-only, exactly as before the Go
+	// lift (#7347): the lift answers explicit language=go, and changing
+	// what unfiltered clients receive would be a second behavior change.
+	if edge.language != req.EffectiveCycleLanguage() {
 		return importCycleEdge{}, false
 	}
 	return edge, true
+}
+
+// countGoEdgesMissingPackage counts otherwise-valid Go edge rows that carry
+// no source_package (#7347): edges from a graph written before the
+// projector's package mapping. BuildFileImportCycleRows reports the count in
+// coverage so the drop is visible instead of silent.
+func countGoEdgesMissingPackage(rows []map[string]any) int {
+	count := 0
+	for _, row := range rows {
+		if strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "language"))) != "go" {
+			continue
+		}
+		if strings.TrimSpace(querycontract.StringVal(row, "source_package")) != "" {
+			continue
+		}
+		if querycontract.StringVal(row, "repo_id") == "" ||
+			querycontract.StringVal(row, "source_file") == "" ||
+			strings.TrimSpace(querycontract.StringVal(row, "target_module")) == "" {
+			continue
+		}
+		count++
+	}
+	return count
 }
 
 func crossModuleCallRowMatches(req ImportDependencyRequest, row map[string]any) bool {

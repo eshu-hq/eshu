@@ -59,4 +59,9 @@ type CycleEnumeration struct {
 	// EdgeFlags counts the edges the cycle read saw by flag class, including the
 	// type-only and deferred edges left out of the walk.
 	EdgeFlags CycleEdgeFlags
+	// GoPackageUnknown counts Go edges dropped because the graph predates the
+	// projector's source_package mapping (#7347). Such an edge cannot be
+	// placed in any package, so it closes nothing; the count keeps the drop
+	// visible instead of silent. Always zero for non-Go requests.
+	GoPackageUnknown int
 }

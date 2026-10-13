@@ -148,6 +148,12 @@ type ImportRow struct {
 	ImportedName   string
 	Alias          string
 	LineNumber     int
+	// SourcePackage is the importing file's own Go package import path
+	// (issue #7347). The projector derives it from the parsed_file_data the
+	// Go parser wrote, so the file_import_cycles query can collapse Go files
+	// into packages with the shared rule instead of inventing grouping.
+	// Empty for non-Go files and for Go files whose package is unknown.
+	SourcePackage string
 
 	// TypeOnly, Deferred, and Inferred carry the parser's import flags (issue
 	// #7344) onto the edge, folded across every entry for the (file, module)
