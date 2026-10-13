@@ -131,8 +131,8 @@ import (
 // A wrong or absent $6 therefore only costs a fallback-arm evaluation for the
 // affected rows (a performance cost bounded by the partition), never a
 // correctness cost. This is why $6 can be derived for free from scope_id
-// (scopestore.RepoIDFromScopeID: strip the "git-repository-scope:"
-// prefix, or "" for any other scope shape) instead of requiring a discovery
+// (scopestore.RepoIDFromScopeID: strip scope.GitRepositoryScopePrefix,
+// or "" for any other scope shape) instead of requiring a discovery
 // query: loadActiveRepositoryGenerations was considered and rejected, because it
 // filters to fact_kind = 'repository' and drops every GCP cloud-relationship
 // scope entirely, and a live-corpus mode()-in-discovery alternative was measured

@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 const (
@@ -164,7 +165,7 @@ func repoDependencyRepoID(alias string) string {
 }
 
 func repoDependencyScopeID(alias string) string {
-	return "git-repository-scope:" + repoDependencyRepoID(alias)
+	return scope.GitRepositoryScopePrefix + repoDependencyRepoID(alias)
 }
 
 func repoDependencyGenerationID(alias string) string {

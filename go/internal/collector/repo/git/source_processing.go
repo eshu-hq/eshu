@@ -393,7 +393,7 @@ func buildScope(repo repositoryidentity.Metadata, ref string) scope.IngestionSco
 		metadata["local_path"] = repo.LocalPath
 	}
 
-	scopeID := "git-repository-scope:" + repo.ID
+	scopeID := scope.GitRepositoryScopePrefix + repo.ID
 	scopeKind := scope.KindRepository
 	if ref != "" {
 		scopeID = scopeID + "@" + ref

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -403,7 +404,7 @@ func repositoryIDFromRuntimeContextScope(scopeID string) string {
 	if strings.HasPrefix(scopeID, "repository:") {
 		return scopeID
 	}
-	if rest, ok := strings.CutPrefix(scopeID, "git-repository-scope:"); ok {
+	if rest, ok := strings.CutPrefix(scopeID, scope.GitRepositoryScopePrefix); ok {
 		if trimmed := strings.TrimSpace(rest); trimmed != "" {
 			return trimmed
 		}

@@ -61,6 +61,13 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `GenerationStatusSuperseded`, `GenerationStatusCompleted`,
   `GenerationStatusFailed`; methods: `Validate`, `IsTerminal`
 
+**Scope ID vocabulary**
+
+- `GitRepositoryScopePrefix` — the scope id prefix the git collector writes
+  for repository scopes; the single source every builder and reader names
+  (#7879). `recovery.GitRepositoryScopePrefix` and (through it)
+  `querycontract.GitRepositoryScopePrefix` alias it.
+
 **Types**
 
 - `IngestionScope` — source-local scope identity: `ScopeID`, `SourceSystem`,

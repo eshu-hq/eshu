@@ -70,3 +70,31 @@ func TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID(t *testing.T) {
 		t.Fatalf("ref scope source_key = %q, want repo.ID %q", got, repo.ID)
 	}
 }
+
+// TestBuildScopeIDUsesGitRepositoryScopePrefix pins the #7879 single-source
+// contract from both sides: the independently stated literal below must equal
+// scope.GitRepositoryScopePrefix AND the scope id buildScope emits. If the
+// builder drifts from the constant in either direction, this test fails.
+func TestBuildScopeIDUsesGitRepositoryScopePrefix(t *testing.T) {
+	t.Parallel()
+
+	const wantPrefix = "git-repository-scope:"
+	if scope.GitRepositoryScopePrefix != wantPrefix {
+		t.Fatalf("scope.GitRepositoryScopePrefix = %q, want %q", scope.GitRepositoryScopePrefix, wantPrefix)
+	}
+
+	repo := repositoryidentity.Metadata{
+		ID:        "r_example1234",
+		Name:      "example-repo",
+		RepoSlug:  "example-org/example-repo",
+		RemoteURL: "https://github.com/example-org/example-repo.git",
+		LocalPath: "/repos/example-repo",
+	}
+
+	if got := buildScope(repo, ""); got.ScopeID != wantPrefix+repo.ID {
+		t.Fatalf("buildScope default-branch ScopeID = %q, want %q", got.ScopeID, wantPrefix+repo.ID)
+	}
+	if got := buildScope(repo, "refs/heads/main"); got.ScopeID != wantPrefix+repo.ID+"@refs/heads/main" {
+		t.Fatalf("buildScope ref ScopeID = %q, want %q", got.ScopeID, wantPrefix+repo.ID+"@refs/heads/main")
+	}
+}

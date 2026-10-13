@@ -3,11 +3,15 @@
 
 package scopestore
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
 
 // gitRepositoryScopePrefix is the scope_id prefix the git collector writes for
 // repository scopes (go/internal/collector/repo/git/source_processing.go).
-const gitRepositoryScopePrefix = "git-repository-scope:"
+const gitRepositoryScopePrefix = scope.GitRepositoryScopePrefix
 
 // RepoIDFromScopeID derives the own-repo_id performance hint ($6) from a
 // (scope_id, generation_id) partition's scope_id, for the fast arm of the
