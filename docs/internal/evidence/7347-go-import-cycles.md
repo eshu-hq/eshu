@@ -72,7 +72,7 @@ files.
   golden-corpus unit gate plus the static gate script pass (full live run not
   done here: no Docker, and a peer holds the live-gate lock).
 
-## Claim table (measured at HEAD `22ba1ed13`, worktree `7347-go-import-cycles`)
+## Claim table (measured at commit `e9d03fcc2`, worktree `7347-go-import-cycles`; the conflict-free rebase onto `63bf684de` replayed the single feature commit with no conflicts, and build plus the full focused suite re-ran green at the rebased head)
 
 | Claim | Command | Measured | Match |
 | --- | --- | --- | --- |
