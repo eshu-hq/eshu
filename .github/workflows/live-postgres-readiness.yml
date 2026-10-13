@@ -136,6 +136,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install ripgrep for readiness self-test checks
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
       - name: Check runner fail-closed behavior
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/test-run-live-postgres-readiness-tests.sh
