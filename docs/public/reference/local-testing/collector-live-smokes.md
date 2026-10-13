@@ -223,7 +223,7 @@ export ESHU_LOKI_RESOURCE_LIMIT="${ESHU_LOKI_RESOURCE_LIMIT:-5}"
 export ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL="${ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL:-5}"
 
 cd go
-go test ./internal/collector/loki \
+go test ./internal/collector/observability/loki \
   -run TestLiveLokiObservedLogSignalEvidence -count=1 -v
 ```
 
@@ -254,7 +254,7 @@ To run all four against a prepared environment:
 cd go
 go test ./internal/collector/grafana \
   ./internal/collector/observability/prometheus \
-  ./internal/collector/loki \
+  ./internal/collector/observability/loki \
   ./internal/collector/observability/tempo \
   -run 'TestLive.*Observed.*Evidence' -count=1 -v
 ```

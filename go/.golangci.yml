@@ -1052,7 +1052,7 @@ linters:
       - path: 'internal/collector/pagerduty/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/loki/'
+      - path: 'internal/collector/observability/loki/'
         linters:
           - wrapcheck
       - path: 'internal/collector/jira/'

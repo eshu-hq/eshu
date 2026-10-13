@@ -202,15 +202,15 @@ surfaces:
   - category: collector
     name: loki
     readiness: implemented
-    owner: internal/collector/loki
+    owner: internal/collector/observability/loki
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
     collector_contract:
       fact_kinds: *observability_fact_kinds
       projection_surfaces: [observability_coverage_correlation]
       read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
-      proof_gates: [cd go && go test ./cmd/collector-loki ./internal/collector/loki ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/loki/testdata, docs/public/reference/observability-evidence.md]
+      proof_gates: [cd go && go test ./cmd/collector-loki ./internal/collector/observability/loki ./internal/reducer ./internal/query ./internal/mcp -count=1]
+      fixture_refs: [go/internal/collector/observability/loki/testdata, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
   - category: collector
     name: prometheus_mimir

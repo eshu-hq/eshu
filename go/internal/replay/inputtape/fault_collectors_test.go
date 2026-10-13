@@ -45,7 +45,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/grafana"
 	"github.com/eshu-hq/eshu/go/internal/collector/jira"
-	"github.com/eshu-hq/eshu/go/internal/collector/loki"
+	"github.com/eshu-hq/eshu/go/internal/collector/observability/loki"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/tempo"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"

@@ -111,7 +111,7 @@ deletions, a net reduction of 102 lines while preserving provider-owned API
 status handling and Loki YAML decoding.
 
 No-Regression Evidence (#2361): `go test ./internal/collector/sdk
-./internal/collector/observability/prometheus ./internal/collector/loki -count=1` covers
+./internal/collector/observability/prometheus ./internal/collector/observability/loki -count=1` covers
 the SDK custom decoder hook, bounded SDK `HTTPError` return path, retry counts
 on hard provider failures, Prometheus/Mimir API-status failures, Loki YAML rule
 decoding, partial warnings, and terminal versus retryable workflow failure
@@ -314,7 +314,7 @@ intentional owner-boundary files:
 - `go/internal/collector/confluence/retry.go` remains Confluence source-level
   backoff state for retryable provider statuses. SDK helpers still own base URL
   validation, bounded HTTP errors, default clients, and `Retry-After` parsing.
-- `go/internal/collector/loki/http_client.go` remains the Loki endpoint
+- `go/internal/collector/observability/loki/http_client.go` remains the Loki endpoint
   traversal wrapper. Request execution and bounded status failures use
   `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
 - `go/internal/collector/observability/prometheus/http_client.go` remains

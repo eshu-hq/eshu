@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/loki"
+	"github.com/eshu-hq/eshu/go/internal/collector/observability/loki"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/replay/inputtape"
 )

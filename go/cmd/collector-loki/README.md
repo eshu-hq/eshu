@@ -61,6 +61,6 @@ instruments.
 
 ## Related Docs
 
-- `go/internal/collector/loki/README.md`
+- `go/internal/collector/observability/loki/README.md`
 - `docs/public/reference/environment-collectors.md`
 - `docs/public/deployment/service-runtimes-collectors.md`
