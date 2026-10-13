@@ -29,7 +29,10 @@ One call is one read-only snapshot transaction:
    timeout is the room left in the cap.
 4. A **trigram tail** with a timeout of `min(remaining, 0.80 x budget)`
    (up to 640 ms at the default). If less than the floor (150 ms at the
-   default) remains, the tail is skipped.
+   default) remains, the tail is skipped. It is also skipped when the pattern
+   has no three-character alphanumeric run (for example `db_`), because the
+   trigram index has nothing to extract; step 5 then gets the whole remaining
+   budget.
 5. **Continuation** with the rest of the budget.
 
 These figures are not the file search's. An ordered entity window costs about

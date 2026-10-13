@@ -61,13 +61,6 @@ func withEntityLargeValue(corpus *fakeCorpus) *fakeCorpus {
 	return corpus
 }
 
-// withEntityTailLag sets how far a cancelled tail runs past its timeout when
-// it does not meet the large value.
-func withEntityTailLag(corpus *fakeCorpus, lag time.Duration) *fakeCorpus {
-	corpus.tailLag = lag
-	return corpus
-}
-
 // withEntityProbeCost makes the first rows rows cost total in all, so a call
 // reaches the tail with less of a small budget left.
 func withEntityProbeCost(corpus *fakeCorpus, rows int, total time.Duration) *fakeCorpus {

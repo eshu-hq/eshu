@@ -67,11 +67,16 @@ warm and cold, with a 1.25 uniform cost margin; the file figures turn
 at 804 ms. The one disclosed trade (R2.2): `decode` at limit 200 is a partial
 of 149 rows at 790 ms (model) that one resume completes; limits 10, 50 and
 100 stay exact in one call. Proof in this change: `TestEntityPolicyClasses`
-pins 21 classes on a fake clock (scaled key space, synthetic positions), with
+pins 22 classes on a fake clock (scaled key space, synthetic positions), with
 outcome, rows, `tail_ran`, `tail_cancelled`, `ended_in`, an elapsed band, an
-overrun band and the reason; run on the old figures it fails 16 of them,
+overrun band and the reason; run on the old figures it fails 15 of them (the two no-trigram rows pass
+on both, because the skip below does not depend on the figures),
 including `process_entries` partial with 2 rows and `FeaturesTab` partial
-with 4 rows. Seven seeded REDs (each run once and reverted) prove the guard
+with 4 rows. The no-trigram class follows #8002: a pattern with no
+three-character alphanumeric run skips the tail, so the two rows run `db_`
+(exact in the key-order walk, or a `pattern_has_no_trigram` partial under a
+150 ms budget); removing the `patternHasTrigram` branch in `walk.run` turns
+both red. Seven further seeded REDs (each run once and reverted) prove the guard
 rows: triple B turns the R2.2 row exact; a 120 ms tail cap with a 50 ms floor
 moves row (i) into the block; a 40 ms large-document threshold flips row
 (ii-a); a walk that never reports the large-document reason fails row (ii-b);

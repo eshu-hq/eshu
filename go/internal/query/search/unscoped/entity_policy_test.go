@@ -31,7 +31,9 @@ type entityPolicyClass struct {
 	minMS, maxMS  int64  // elapsed band
 	maxOverrunMS  int64  // overrun ceiling; a partial also checks minOverrunMS
 	minOverrunMS  int64
-	largeDoc      bool // partial reason budget_exceeded_on_large_document
+	largeDoc      bool   // partial reason budget_exceeded_on_large_document
+	pattern       string // search pattern; empty means "needle", which has a trigram
+	reason        string // partial reason when it is neither of the two above
 }
 
 // entityPolicyClasses are the S1 classes at page size 10
@@ -135,12 +137,24 @@ func entityPolicyClasses() []entityPolicyClass {
 			name: "zero-match", corpus: at(4 * ms), limit: 10,
 			outcome: "exhausted", rows: 0, tailRan: true, endedIn: "tail", minMS: 155, maxMS: 180,
 		},
-		// No-trigram class with rare matches: a 3.7 s parallel scan cancelled
-		// at the tail cap, 45 ms late (S1c finding 4).
+		// No-trigram class with rare matches. The S1 tail measurement showed a
+		// 3.7 s parallel scan cancelled at the tail cap, 45 ms late. Since #8002 a
+		// pattern with no trigram skips the tail, so the class is pinned on
+		// the pattern "db_": the whole remaining budget walks the key order.
+		// Seeded RED: removing the patternHasTrigram branch in walk.run runs
+		// the tail again and turns both rows red.
 		{
-			name: "no-trigram rare", corpus: func() *fakeCorpus { return withEntityTailLag(entityPolicyCorpus(3700*ms, 80_000), 45*ms) },
-			limit: 10, outcome: "partial", rows: 0, tailRan: true, tailCancelled: true, endedIn: "tail",
-			minMS: 830, maxMS: 860, minOverrunMS: 40, maxOverrunMS: 50,
+			name: "no-trigram rare, match inside the key-order walk (#8002)", pattern: "db_",
+			corpus: at(3700*ms, 80_000), limit: 10,
+			outcome: "exhausted", rows: 1, endedIn: "tail_skipped_no_trigram", minMS: 430, maxMS: 470,
+		},
+		// The same class when the match lies past what a short budget walks:
+		// a partial that names the limit instead of a cancelled tail.
+		{
+			name: "no-trigram rare, match past the budgeted walk (#8002)", pattern: "db_",
+			corpus: at(3700*ms, 80_000), budget: 150 * ms, limit: 10,
+			outcome: "partial", rows: 0, endedIn: "tail_skipped_no_trigram", minMS: 130, maxMS: 150,
+			maxOverrunMS: 10, reason: querycontract.SearchPartialPatternHasNoTrigram,
 		},
 		// Rule 1 guard against skipping the tail after a match. Seeded RED:
 		// "skip the tail when a match was seen" turns it partial.
@@ -176,7 +190,7 @@ func TestEntityPolicyClasses(t *testing.T) {
 			t.Parallel()
 
 			corpus := tc.corpus()
-			got := runEntityPolicy(t, corpus, tc.budget, tc.limit, querycontract.SearchCursor{})
+			got := runEntityPolicyFor(t, corpus, tc.pattern, tc.budget, tc.limit, querycontract.SearchCursor{})
 			page := got.page
 			outcome := "exact"
 			switch {
@@ -213,6 +227,9 @@ func TestEntityPolicyClasses(t *testing.T) {
 			wantReason := querycontract.SearchPartialCandidateBudgetExceeded
 			if tc.largeDoc {
 				wantReason = querycontract.SearchPartialBudgetExceededOnLargeDocument
+			}
+			if tc.reason != "" {
+				wantReason = tc.reason
 			}
 			if p.Reason != wantReason {
 				t.Fatalf("Reason = %q, want %q (overrun %d ms)", p.Reason, wantReason, p.OverrunMS)
@@ -301,6 +318,17 @@ type entityPolicyRun struct {
 // tail phases from the statement log and ended_in from the span.
 func runEntityPolicy(t *testing.T, corpus *fakeCorpus, budget time.Duration, limit int, cursor querycontract.SearchCursor) entityPolicyRun {
 	t.Helper()
+	return runEntityPolicyFor(t, corpus, "", budget, limit, cursor)
+}
+
+// runEntityPolicyFor is runEntityPolicy with a search pattern. An empty
+// pattern is "needle", which carries a trigram; a pattern with no
+// three-character alphanumeric run, such as "db_", takes the #8002 skip.
+func runEntityPolicyFor(t *testing.T, corpus *fakeCorpus, pattern string, budget time.Duration, limit int, cursor querycontract.SearchCursor) entityPolicyRun {
+	t.Helper()
+	if pattern == "" {
+		pattern = "needle"
+	}
 	spans := tracetest.NewSpanRecorder()
 	clock := newFakeClock()
 	fdb := newFakeDB(corpus, clock)
@@ -309,7 +337,7 @@ func runEntityPolicy(t *testing.T, corpus *fakeCorpus, budget time.Duration, lim
 		Tracer: sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("policy"),
 	}
 	start := clock.Now()
-	page, err := searcher.SearchEntities(context.Background(), "needle", limit, 0, cursor)
+	page, err := searcher.SearchEntities(context.Background(), pattern, limit, 0, cursor)
 	if err != nil {
 		t.Fatalf("SearchEntities() error = %v", err)
 	}
