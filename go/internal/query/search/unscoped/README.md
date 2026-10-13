@@ -1,10 +1,46 @@
 # unscoped
 
-Budgeted file-content substring search with no repository filter (#7730).
-It replaces the single `ILIKE ... ORDER BY ... LIMIT ... OFFSET` statement the
-API and MCP `search_file_content` tool ran across all repositories, whose cost
-depended on a planner row estimate and on the total size of the trigram
-candidate set.
+Budgeted file-content and entity-content substring search with no repository
+filter (#7730). It replaces the single `ILIKE ... ORDER BY ... LIMIT ...
+OFFSET` statement the API and MCP `search_file_content` and
+`search_entity_content` tools ran across all repositories, whose cost depended
+on a planner row estimate and on the total size of the trigram candidate set.
+
+## Engine and shapes
+
+The walker is one engine over a table shape (#7009). The engine (`walk.go`,
+the generic `search` in `searcher.go`, `telemetry.go`) owns the phases, the
+savepoints and statement timeouts, the cursor rule, the partial result and the
+operator signals. It never names a table; `Searcher.Search` is the file route
+and walks the file shape, `Searcher.SearchEntities` is the entity route and
+walks the entity shape. A shape (`shape.go`) supplies what differs between
+tables: the four bounded statements (step and tail, each from the start and
+after a key), the key columns the cursor binds, the row scanner, the span's
+`db.sql.table`, `db.operation` and optional `search.content_kind`, its error
+and partial-log texts, and its window sizes and phase figures at the default budget (`figures` in
+`budget.go`). All four statements of every shape take the same leading
+arguments, so the engine binds them without knowing the table.
+
+There are two shapes:
+
+| Shape | File | Key order | Figures |
+|---|---|---|---|
+| `content_files` | `files.go` | `repo_id, relative_path` | the #7730 figures below |
+| `content_entities` | `entities.go` | `repo_id, relative_path, start_line, entity_id` | the same values, copied by #8036, not measured on this table |
+
+A shape needs its own measured figures: the file split does not transfer to
+another table's cost structure. PR-B of #7009 replaces the entity figures with
+figures measured on `content_entities`. The entity cursor binds `start_line`
+saturated to the int32 range of the column.
+
+`TestFileRouteGolden` and `TestEntityRouteGolden` pin each route's observable
+output byte for byte (page rows, partial object, every statement text and
+argument, the span, the metrics, the partial log line) in
+`testdata/file_route.golden.json` and `testdata/entity_route.golden.json`. An
+engine change that is meant to change nothing must leave both unchanged.
+Rewrite one with `go test ./internal/query/search/unscoped -run
+TestFileRouteGolden -args -update-golden` (or `TestEntityRouteGolden`) only
+for an intended contract change of that route.
 
 ## Flow
 
@@ -54,6 +90,9 @@ reading `offset + limit + 1` matches under the same budget.
 
 ## Contract
 
+- `Searcher.SearchEntities` returns `EntityPage` (hits with raw metadata,
+  `More`, `Partial`) with the same partial and resume rules; its cursor carries
+  all four key parts, because several entities share one file.
 - `Searcher.Search` returns `querycontract.FileSearchPage`. `Partial` is set
   when the budget ended the search first; `Files` is then an ordered prefix of
   the exact answer. A client resumes with `Partial.Cursor` and
@@ -86,6 +125,13 @@ advance the cursor); histograms
 `eshu_dp_content_search_unscoped_overrun_seconds`. One `content_search.unscoped_partial`
 log line per partial result, with `progressed`, `steps_cancelled` and
 `ended_in`. No pattern text is recorded anywhere.
+
+The entity route records the same span attributes plus
+`search.content_kind=entity`, with `db.operation=search_entity_content_any_repo_page`
+and `db.sql.table=content_entities`, and logs
+`content_search.unscoped_entity_partial`. The counters and histograms are
+shared with the file route and carry no table label yet; only the span and
+the log line tell the routes apart.
 
 ## Gotchas
 

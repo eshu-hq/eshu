@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package unscoped answers file-content substring searches that carry no
-// repository filter, inside a work budget (#7730).
+// Package unscoped answers file-content and entity-content substring searches
+// that carry no repository filter, inside a work budget (#7730).
 //
 // A substring search over every indexed repository has no cost bound in
 // PostgreSQL: the planner prices the ILIKE predicate from a histogram of at
@@ -11,9 +11,12 @@
 // the byte mass of its candidate set. This package bounds the work instead of
 // trusting the plan. One call is one REPEATABLE READ READ ONLY transaction
 // whose first statement is the substring-index readiness check, followed by
-// these phases against contiguous, non-overlapping key ranges:
+// these phases against contiguous, non-overlapping key ranges (the figures
+// are those of the content_files shape; the content_entities shape carries
+// the same values, copied by #8036 and not yet measured on that table):
 //
-//  1. a probe of 200 rows in repo_id, relative_path order, shaped as an
+//  1. a probe of 200 rows in key order (repo_id, relative_path for files;
+//     repo_id, relative_path, start_line, entity_id for entities), shaped as an
 //     ordered primary-key walk that never uses the trigram index, with the
 //     remaining budget as its statement timeout;
 //  2. continuation steps of 500 rows, capped at 0.55 x the budget, each with
@@ -22,9 +25,17 @@
 //     statement timeout of min(remaining budget, 0.5 x budget);
 //  4. continuation steps with whatever budget remains.
 //
+// The walk is one engine over a table shape. The engine (walk.go) owns the
+// phases, the savepoints, the timeouts, the cursor rule and the partial
+// result, and names no table. A shape supplies the statement text, the key
+// columns its cursor binds, the row scanner, the span identity, and its
+// window sizes and phase figures. There are two shapes: content_files
+// (files.go), which Searcher.Search walks, and content_entities
+// (entities.go), which Searcher.SearchEntities walks.
+//
 // A window shorter than its size proves the key space is exhausted, so the
 // answer is complete. A statement the server cancels advances nothing and is
-// rolled back to its savepoint. When the budget ends first, Search returns the
+// rolled back to its savepoint. When the budget ends first, both routes return the
 // rows found so far as a querycontract.SearchPartial with a resume cursor and
 // the measured elapsed time and overrun; it never returns an error for a
 // spent budget and never returns a short page that looks complete.

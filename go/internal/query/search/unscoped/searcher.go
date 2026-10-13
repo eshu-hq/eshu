@@ -67,6 +67,26 @@ func (s *Searcher) Search(
 	if offset < 0 {
 		return querycontract.FileSearchPage{}, fmt.Errorf("unscoped search: offset %d must not be negative", offset)
 	}
+	rows, more, p, err := search(ctx, s, &fileShape, pattern, limit, offset, cursor)
+	if err != nil {
+		return querycontract.FileSearchPage{}, err
+	}
+	return filePage(rows, more, p), nil
+}
+
+// search runs one budgeted walk over one table shape: it opens the snapshot,
+// runs the readiness check and the phases, records the operator signals, and
+// returns the page rows, whether a match exists past the page, and the
+// partial view when the budget ended the walk first. The caller has
+// validated pattern, limit and offset.
+func search[R any, K key](
+	ctx context.Context,
+	s *Searcher,
+	sh *shape[R, K],
+	pattern string,
+	limit, offset int,
+	cursor K,
+) ([]R, bool, *partial[K], error) {
 	budget := s.Budget
 	if budget <= 0 {
 		budget = DefaultBudget
@@ -76,19 +96,20 @@ func (s *Searcher) Search(
 		now = time.Now
 	}
 
-	ctx, span := s.startSpan(ctx)
+	ctx, span := s.startSpan(ctx, sh.table, sh.operation)
 	defer span.End()
 
 	tx, err := s.Store.BeginReadOnlySnapshot(ctx)
 	if err != nil {
 		span.RecordError(err)
-		return querycontract.FileSearchPage{}, fmt.Errorf("begin unscoped search snapshot: %w", err)
+		return nil, false, nil, fmt.Errorf("begin %s snapshot: %w", sh.name, err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	w := &walk{
+	w := &walk[R, K]{
 		tx:        tx,
-		plan:      newPlan(budget),
+		shape:     sh,
+		plan:      newPlan(budget, sh.figures),
 		now:       now,
 		pattern:   pattern,
 		want:      offset + limit + 1,
@@ -98,13 +119,13 @@ func (s *Searcher) Search(
 	}
 	if err := w.exec(ctx, readinessSQL); err != nil {
 		span.RecordError(err)
-		return querycontract.FileSearchPage{}, fmt.Errorf("check content substring index readiness: %w", err)
+		return nil, false, nil, fmt.Errorf("check content substring index readiness: %w", err)
 	}
 	if err := w.run(ctx); err != nil {
 		span.RecordError(err)
-		return querycontract.FileSearchPage{}, fmt.Errorf("search unscoped file content: %w", err)
+		return nil, false, nil, fmt.Errorf("search unscoped %s: %w", sh.subject, err)
 	}
-	page := w.page(offset, limit)
-	s.record(ctx, span, w, page, !cursor.IsZero())
-	return page, nil
+	rows, more, p := w.page(offset, limit)
+	record(ctx, s, span, w, p, !cursor.IsZero())
+	return rows, more, p, nil
 }

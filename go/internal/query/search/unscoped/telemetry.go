@@ -11,22 +11,18 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// operationName keeps the db.operation label the unscoped file search has
-// always used, so existing dashboards keep matching.
-const operationName = "search_file_content_any_repo_page"
-
-func (s *Searcher) startSpan(ctx context.Context) (context.Context, trace.Span) {
+// startSpan opens the search span with the shape's table and operation.
+func (s *Searcher) startSpan(ctx context.Context, table, operation string) (context.Context, trace.Span) {
 	if s.Tracer == nil {
 		return ctx, trace.SpanFromContext(ctx)
 	}
 	return s.Tracer.Start(ctx, "postgres.query", trace.WithAttributes(
 		attribute.String("db.system", "postgresql"),
-		attribute.String("db.operation", operationName),
-		attribute.String("db.sql.table", "content_files"),
+		attribute.String("db.operation", operation),
+		attribute.String("db.sql.table", table),
 	))
 }
 
@@ -34,11 +30,15 @@ func (s *Searcher) startSpan(ctx context.Context) (context.Context, trace.Span) 
 // the outcome counter, the tail-cancel, step-cancel and no-progress counters,
 // the elapsed and overrun histograms, and one structured log line on every
 // partial. None of them carries the search pattern.
-func (s *Searcher) record(ctx context.Context, span trace.Span, w *walk, page querycontract.FileSearchPage, cursorPresent bool) {
+func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *walk[R, K], p *partial[K], cursorPresent bool) {
 	result := w.outcome()
 	elapsed := w.elapsed()
-	span.SetAttributes(
-		attribute.String("search.scope", "unscoped"),
+	spanAttrs := make([]attribute.KeyValue, 0, 16)
+	spanAttrs = append(spanAttrs, attribute.String("search.scope", "unscoped"))
+	if w.shape.contentKind != "" {
+		spanAttrs = append(spanAttrs, attribute.String("search.content_kind", w.shape.contentKind))
+	}
+	span.SetAttributes(append(spanAttrs,
 		attribute.Int64("search.budget_ms", w.plan.budget.Milliseconds()),
 		attribute.Int64("search.elapsed_ms", elapsed.Milliseconds()),
 		attribute.Int64("search.overrun_ms", w.overrun.Milliseconds()),
@@ -53,7 +53,7 @@ func (s *Searcher) record(ctx context.Context, span trace.Span, w *walk, page qu
 		attribute.String("search.ended_in", string(w.endedIn)),
 		attribute.Int("search.steps_cancelled", w.stepsCancelled),
 		attribute.Bool("search.progressed", w.progressed()),
-	)
+	)...)
 	if inst := s.Instruments; inst != nil {
 		attrs := metric.WithAttributes(telemetry.AttrOutcome(string(result)))
 		inst.ContentSearchUnscoped.Add(ctx, 1, attrs)
@@ -65,28 +65,28 @@ func (s *Searcher) record(ctx context.Context, span trace.Span, w *walk, page qu
 		if w.stepsCancelled > 0 {
 			inst.ContentSearchStepCancel.Add(ctx, int64(w.stepsCancelled))
 		}
-		if page.Partial != nil && !page.Partial.Progressed {
+		if p != nil && !p.progressed {
 			inst.ContentSearchNoProgress.Add(ctx, 1)
 		}
 	}
-	if page.Partial == nil {
+	if p == nil {
 		return
 	}
 	logger := s.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	logger.LogAttrs(ctx, slog.LevelInfo, "unscoped content search returned a partial result",
-		slog.String("event_name", "content_search.unscoped_partial"),
-		slog.String("reason", page.Partial.Reason),
-		slog.Int64("budget_ms", page.Partial.BudgetMS),
-		slog.Int64("elapsed_ms", page.Partial.ElapsedMS),
-		slog.Int64("overrun_ms", page.Partial.OverrunMS),
-		slog.Int("rows_scanned_in_order", page.Partial.RowsScannedInOrder),
-		slog.Int("rows_matched", page.Partial.RowsMatched),
+	logger.LogAttrs(ctx, slog.LevelInfo, w.shape.partialMessage,
+		slog.String("event_name", w.shape.partialEvent),
+		slog.String("reason", p.reason),
+		slog.Int64("budget_ms", p.budgetMS),
+		slog.Int64("elapsed_ms", p.elapsedMS),
+		slog.Int64("overrun_ms", p.overrunMS),
+		slog.Int("rows_scanned_in_order", p.rowsScannedInOrder),
+		slog.Int("rows_matched", p.rowsMatched),
 		slog.Bool("tail_ran", w.tailRan),
 		slog.Bool("tail_cancelled", w.tailCancelled),
-		slog.Bool("progressed", page.Partial.Progressed),
+		slog.Bool("progressed", p.progressed),
 		slog.Int("steps_cancelled", w.stepsCancelled),
 		slog.String("ended_in", string(w.endedIn)),
 	)

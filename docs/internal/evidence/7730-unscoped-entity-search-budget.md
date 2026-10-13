@@ -43,8 +43,10 @@ the partial envelope is explicit (never silent), and the worst case of a
 cold page cache is a bounded partial with a resume cursor, not an
 unbounded wait.
 
-Observability Evidence: new operator signals in
-`go/internal/query/search/unscoped/entity_telemetry.go`. One
+Observability Evidence: new operator signals. Since #7009 the shared
+engine recorder `go/internal/query/search/unscoped/telemetry.go` emits
+them, with the entity span identity and log texts from the entity shape
+in `go/internal/query/search/unscoped/entities.go`. One
 `postgres.query` span with `db.operation` set to
 `search_entity_content_any_repo_page` (distinct from the file search so
 dashboards split them) plus `search.budget_ms`, `search.elapsed_ms`,
