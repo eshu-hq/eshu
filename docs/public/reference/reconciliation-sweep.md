@@ -235,8 +235,9 @@ change mints one new generation per git scope with no hand edit.
 
 The gate does not see a parser logic or dialect change whose bindings are
 unchanged and whose output shift shows only on inputs outside the fixture.
-That still needs a hand bump, and an explicit reindex is the remedy when the
-bump was missed. Fixture growth in the same edit as a parser change reads as
+The hardcoded path-dispatch rules (java metadata, Scala routes,
+`.tfvars.json`) are outside the bindings too. Either case still needs a hand
+bump, and an explicit reindex is the remedy when the bump was missed. Fixture growth in the same edit as a parser change reads as
 an output change: bump only when existing output really changed.
 
 No-Regression Evidence (#7986): the fold runs once per process inside the

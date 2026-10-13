@@ -377,4 +377,14 @@ func TestRegistryFingerprintChangesWithParserBindings(t *testing.T) {
 	if base.Fingerprint() == named.Fingerprint() {
 		t.Fatal("expected a new exact name to change the parser fingerprint")
 	}
+
+	prefixed, err := NewRegistry([]Definition{
+		{ParserKey: "go", Language: "go", Extensions: []string{".go"}, PrefixNames: []string{"go."}},
+	})
+	if err != nil {
+		t.Fatalf("NewRegistry prefixed: %v", err)
+	}
+	if base.Fingerprint() == prefixed.Fingerprint() {
+		t.Fatal("expected a new prefix name to change the parser fingerprint")
+	}
 }

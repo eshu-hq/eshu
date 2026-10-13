@@ -194,6 +194,9 @@ func (r Registry) Definitions() []Definition {
 // file name) moves the digest with no hand edit. It covers the registry
 // bindings only, not parser logic: a behavior change with identical bindings
 // still needs a hand-bumped content version (see the git collector's pin test).
+// The hardcoded path-dispatch rules in LookupByPath (java metadata, Scala
+// routes, .tfvars.json) also live outside the bindings: adding or changing one
+// needs a hand bump too.
 func (r Registry) Fingerprint() string {
 	h := sha256.New()
 	for _, definition := range r.definitions {
