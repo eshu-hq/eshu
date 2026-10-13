@@ -26,5 +26,5 @@
 // IngestionStore in the parent package and delegate here.
 //
 // The package imports the db contracts and the leaf facts, relationships,
-// scope, telemetry, and workflow packages, never the parent postgres package.
+// scope, and telemetry packages, never the parent postgres package.
 package backfill
