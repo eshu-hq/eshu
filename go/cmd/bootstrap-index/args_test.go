@@ -56,3 +56,29 @@ func TestParseBootstrapArgsRejectsUnknownFlag(t *testing.T) {
 		t.Fatal("parseBootstrapArgs(--froce) error = nil, want non-nil")
 	}
 }
+
+func TestParseBootstrapArgsForceExplicitOff(t *testing.T) {
+	t.Parallel()
+
+	args, err := parseBootstrapArgs([]string{"--force=false"})
+	if err != nil {
+		t.Fatalf("parseBootstrapArgs() error = %v, want nil", err)
+	}
+	if args.Force {
+		t.Fatal("parseBootstrapArgs(--force=false).Force = true, want false")
+	}
+}
+
+func TestParseBootstrapArgsHelp(t *testing.T) {
+	t.Parallel()
+
+	for _, flag := range []string{"--help", "-h"} {
+		args, err := parseBootstrapArgs([]string{flag})
+		if err != nil {
+			t.Fatalf("parseBootstrapArgs(%s) error = %v, want nil", flag, err)
+		}
+		if !args.ShowHelp {
+			t.Fatalf("parseBootstrapArgs(%s).ShowHelp = false, want true", flag)
+		}
+	}
+}

@@ -71,8 +71,9 @@ func parseBootstrapArgs(args []string) (bootstrapArgs, error) {
 // bootstrapUsage describes the argv contract the CLI depends on.
 func bootstrapUsage() string {
 	return "Usage: eshu-bootstrap-index [--path <root>] [--force]\n\n" +
-		"  --path <root>  Workspace root to index.\n" +
-		"  --force, -f    Re-index from scratch even when the source looks unchanged.\n"
+		"  --path <root>  Workspace root to index (--path=<root> also accepted).\n" +
+		"  --force, -f    Re-index from scratch even when the source looks unchanged (--force=<bool> also accepted).\n" +
+		"  --help, -h     Print this usage.\n"
 }
 
 // applyBootstrapArgOverrides applies the eshu-bootstrap-index argv contract to
