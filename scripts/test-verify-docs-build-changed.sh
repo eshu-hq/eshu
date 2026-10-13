@@ -309,11 +309,29 @@ run_verifier_timeout() {
     env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
       PATH="${fake_bin}:${PATH}" \
       ESHU_FAKE_UV_SLEEP=30 \
+      "ESHU_FAKE_UV_SLEEP_PIDFILE=${output_file}.sleeper.pid" \
       "ESHU_DOCS_BUILD_TIMEOUT_SECONDS=${timeout_secs}" \
       "ESHU_LIVE_GATE_LOCK_DIR=${lock_dir}" \
       ESHU_VERIFY_DOCS_BRANCH="" \
       "${verifier}"
   ) >"${output_file}" 2>&1
+}
+
+# assert_no_grandchild_left_behind fails when the timed-out build's sleep
+# grandchild is still alive: the watchdog must reap the whole process group,
+# not just the direct child (#7983 review). The kill is synchronous but
+# reaping can lag microseconds, so poll briefly before judging.
+assert_no_grandchild_left_behind() {
+  local output_file="$1"
+  local sleeper_pid
+  sleeper_pid="$(cat "${output_file}.sleeper.pid")"
+  local i
+  for ((i = 0; i < 5; i++)); do
+    kill -0 "${sleeper_pid}" 2>/dev/null || return 0
+    sleep 1
+  done
+  echo "test-docs-build: timed-out build left grandchild ${sleeper_pid} alive" >&2
+  return 1
 }
 
 # 14. A build that overruns its timeout fails LOUD: non-zero exit, the bound
@@ -337,6 +355,7 @@ test_build_timeout_names_lock_holder() {
   assert_contains "424242" "${out}"
   assert_contains "/busy/sibling-worktree" "${out}"
   assert_contains "live-gate lock is HELD" "${out}"
+  assert_no_grandchild_left_behind "${out}"
 }
 
 # 15. The same timeout with no holder says so, so a stall without contention
@@ -357,6 +376,7 @@ test_build_timeout_reports_free_lock() {
   fi
   assert_contains "TIMED OUT after 2s" "${out}"
   assert_contains "live-gate lock is not held" "${out}"
+  assert_no_grandchild_left_behind "${out}"
 }
 
 # 16. A non-numeric or out-of-range timeout bound fails closed before the
@@ -370,7 +390,15 @@ test_invalid_timeout_config_fails_closed() {
   git_in "${repo_dir}" commit -q -m "docs: update"
   local lock_home="${tmp_root}/timeout-config-lock-home"
   mkdir -p "${lock_home}"
-  for bad in "banana" "0"; do
+  for bad in "banana" "0" "99999999999999999999"; do
+    if run_verifier_timeout "${repo_dir}" "${out}" "${bad}" "${lock_home}"; then
+      echo "test-docs-build: expected verifier to fail closed on timeout config '${bad}'" >&2
+      cat "${out}" >&2
+      exit 1
+    fi
+    assert_contains "must be an integer from 1 through 3600" "${out}"
+  done
+  for bad in "03600"; do
     if run_verifier_timeout "${repo_dir}" "${out}" "${bad}" "${lock_home}"; then
       echo "test-docs-build: expected verifier to fail closed on timeout config '${bad}'" >&2
       cat "${out}" >&2
@@ -380,34 +408,116 @@ test_invalid_timeout_config_fails_closed() {
   done
 }
 
-# 17. With no timeout backend on PATH, the hook fails closed instead of
-#     running unbounded. The masked PATH keeps only what the verifier needs
-#     before the backend check: bash (env shebang), git (trigger detection),
-#     and the fake uv (uv presence check).
-test_no_timeout_backend_fails_closed() {
+# 19. A zero-padded bound is valid input and the watchdog still fires: the
+#     budget is forced base-10, because bash reads a leading-0 constant as
+#     octal and `(( waited >= 08 ))` would error every poll so the bound
+#     never fires (#8062 review).
+test_zero_padded_bound_still_fires() {
+  local repo_dir="${tmp_root}/timeout-zeropad"
+  local out="${tmp_root}/timeout-zeropad.out"
+  git_init "${repo_dir}"
+  printf '# Updated page\n\nContent.\n' >"${repo_dir}/docs/public/index.md"
+  git_in "${repo_dir}" add docs/public/index.md
+  git_in "${repo_dir}" commit -q -m "docs: update"
+  local lock_home="${tmp_root}/timeout-zeropad-lock-home"
+  mkdir -p "${lock_home}"
+  ln -s "424242:999:/busy/sibling-worktree" "${lock_home}/eshu-live-gate.lock"
+  if run_verifier_timeout "${repo_dir}" "${out}" "08" "${lock_home}"; then
+    echo "test-docs-build: expected verifier to fail when the build overruns a zero-padded bound" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "TIMED OUT after 8s" "${out}"
+  assert_contains "424242" "${out}"
+  assert_contains "live-gate lock is HELD" "${out}"
+  assert_no_grandchild_left_behind "${out}"
+}
+
+# 17. A build killed from outside the watchdog (the OOM killer under the
+#     same contention) reads as a loud timeout: exit 137 takes the timeout
+#     branch, so the holder and load report still print. The instant death
+#     misreads as "after Ns" — accepted, the remediation is identical.
+test_oom_kill_reads_as_loud_timeout() {
+  local repo_dir="${tmp_root}/timeout-oom"
+  local out="${tmp_root}/timeout-oom.out"
+  git_init "${repo_dir}"
+  printf '# Updated page\n\nContent.\n' >"${repo_dir}/docs/public/index.md"
+  git_in "${repo_dir}" add docs/public/index.md
+  git_in "${repo_dir}" commit -q -m "docs: update"
+  local lock_home="${tmp_root}/timeout-oom-lock-home"
+  mkdir -p "${lock_home}"
+  ln -s "424242:999:/busy/sibling-worktree" "${lock_home}/eshu-live-gate.lock"
+  local fake_bin="${tmp_root}/fake-bin"
+  fake_uv "${fake_bin}"
+  if (
+    cd "${repo_dir}"
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+      PATH="${fake_bin}:${PATH}" \
+      ESHU_FAKE_UV_SIGKILL_SELF=1 \
+      ESHU_DOCS_BUILD_TIMEOUT_SECONDS=600 \
+      "ESHU_LIVE_GATE_LOCK_DIR=${lock_home}" \
+      ESHU_VERIFY_DOCS_BRANCH="" \
+      "${verifier}"
+  ) >"${out}" 2>&1; then
+    echo "test-docs-build: expected verifier to fail when the build is SIGKILLed" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "TIMED OUT after 600s" "${out}"
+  assert_contains "424242" "${out}"
+  assert_contains "live-gate lock is HELD" "${out}"
+}
+
+# 18. The bound needs no timeout backend: with timeout, gtimeout, and perl
+#     all masked from PATH, a stalled build still fails LOUD past the bound.
+#     The mask keeps only what the verifier needs: bash (env shebang),
+#     dirname (repo root), git (trigger detection), sleep (watchdog
+#     quantum), readlink (holder payload), and the fake uv. This pins the
+#     backend-independence the probes prove, so a regression back to a
+#     backend chain fails here instead of passing silently.
+test_timeout_bound_needs_no_backend() {
   local repo_dir="${tmp_root}/timeout-no-backend"
   local out="${tmp_root}/timeout-no-backend.out"
   git_init "${repo_dir}"
   printf '# Updated page\n\nContent.\n' >"${repo_dir}/docs/public/index.md"
   git_in "${repo_dir}" add docs/public/index.md
   git_in "${repo_dir}" commit -q -m "docs: update"
+  local lock_home="${tmp_root}/timeout-no-backend-lock-home"
+  mkdir -p "${lock_home}"
+  ln -s "424242:999:/busy/sibling-worktree" "${lock_home}/eshu-live-gate.lock"
   local mask_bin="${tmp_root}/timeout-no-backend-bin"
   mkdir -p "${mask_bin}"
   ln -sf "$(command -v bash)" "${mask_bin}/bash"
   ln -sf "$(command -v git)" "${mask_bin}/git"
+  ln -sf "$(command -v sleep)" "${mask_bin}/sleep"
+  ln -sf "$(command -v dirname)" "${mask_bin}/dirname"
+  ln -sf "$(command -v readlink)" "${mask_bin}/readlink"
   fake_uv "${mask_bin}"
+  for hidden in timeout gtimeout perl; do
+    if PATH="${mask_bin}" command -v "${hidden}" >/dev/null 2>&1; then
+      echo "test-docs-build: mask leaked backend '${hidden}'" >&2
+      exit 1
+    fi
+  done
   if (
     cd "${repo_dir}"
     env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
       PATH="${mask_bin}" \
+      ESHU_FAKE_UV_SLEEP=30 \
+      "ESHU_FAKE_UV_SLEEP_PIDFILE=${out}.sleeper.pid" \
+      ESHU_DOCS_BUILD_TIMEOUT_SECONDS=2 \
+      "ESHU_LIVE_GATE_LOCK_DIR=${lock_home}" \
       ESHU_VERIFY_DOCS_BRANCH="" \
       "${verifier}"
   ) >"${out}" 2>&1; then
-    echo "test-docs-build: expected verifier to fail closed with no timeout backend" >&2
+    echo "test-docs-build: expected verifier to fail when the build overruns its timeout with no backend" >&2
     cat "${out}" >&2
     exit 1
   fi
-  assert_contains "no timeout backend" "${out}"
+  assert_contains "TIMED OUT after 2s" "${out}"
+  assert_contains "424242" "${out}"
+  assert_contains "live-gate lock is HELD" "${out}"
+  assert_no_grandchild_left_behind "${out}"
 }
 
 # ─── Shared-store depth guard (#8032) ───────────────────────────────
@@ -518,7 +628,9 @@ test_staged_deletion_triggers_build
 test_build_timeout_names_lock_holder
 test_build_timeout_reports_free_lock
 test_invalid_timeout_config_fails_closed
-test_no_timeout_backend_fails_closed
+test_oom_kill_reads_as_loud_timeout
+test_timeout_bound_needs_no_backend
+test_zero_padded_bound_still_fires
 test_full_clone_missing_base_stays_full
 test_full_clone_resolvable_base_skips_fetch
 test_shallow_clone_missing_base_fetches_with_depth
