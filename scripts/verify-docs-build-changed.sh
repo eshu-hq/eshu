@@ -204,26 +204,53 @@ fi
 # by this bound — it only replaces a silent stall with a named one.
 docs_timeout_default=600
 docs_timeout_raw="${ESHU_DOCS_BUILD_TIMEOUT_SECONDS:-${docs_timeout_default}}"
-if [[ ! "${docs_timeout_raw}" =~ ^[0-9]+$ ]] || (( 10#${docs_timeout_raw} < 1 || 10#${docs_timeout_raw} > 3600 )); then
+# Width cap first: past int64 range bash arithmetic wraps mod 2^64, and a
+# wrapped value landing in range would pass validation (#7983 review). Five
+# or more digits exceed 3600 anyway, so `^[0-9]{1,4}$` loses nothing.
+if [[ ! "${docs_timeout_raw}" =~ ^[0-9]{1,4}$ ]] || (( 10#${docs_timeout_raw} < 1 || 10#${docs_timeout_raw} > 3600 )); then
   log "ESHU_DOCS_BUILD_TIMEOUT_SECONDS must be an integer from 1 through 3600 seconds; got: ${docs_timeout_raw}"
   exit 2
 fi
 docs_timeout="${docs_timeout_raw}"
 
-# Timeout backend: coreutils `timeout` on Linux, `gtimeout` on macOS via
-# coreutils, stock perl alarm fallback (same chain as
-# scripts/lib/ifa_fault_injection_diagnostics.sh). No backend means no bound,
-# which is the #7983 failure itself: fail closed, never silently unbounded.
-if command -v timeout >/dev/null 2>&1; then
-  docs_timeout_argv=(timeout -s KILL "${docs_timeout}")
-elif command -v gtimeout >/dev/null 2>&1; then
-  docs_timeout_argv=(gtimeout -s KILL "${docs_timeout}")
-elif command -v perl >/dev/null 2>&1; then
-  docs_timeout_argv=(perl -e 'alarm shift; exec @ARGV or exit 127' "${docs_timeout}")
-else
-  log "no timeout backend ('timeout', 'gtimeout', or 'perl') to bound the docs build; failing closed rather than hanging silently."
-  exit 1
-fi
+# Bounded, process-group-aware execution for the build step. The old backend
+# chain was platform-split: GNU `timeout` kills the child process group, but
+# the perl `alarm shift; exec` fallback signalled only the exec'd `uv`,
+# orphaning its resolver/mkdocs grandchildren past the bound (observed live
+# in RED probe /tmp/redprobe2-7983.sh: the sleep grandchild survived the
+# 2s bound under the perl path, #7983 review). Those orphans kept burning
+# CPU under the contention being diagnosed and could race the documented
+# rerun with concurrent `site/` writes. Monitor mode puts the background job
+# in its own process group with shell builtins alone (no external timing
+# dependency, and the same code path runs on Linux and macOS), so killing
+# the group reaps the whole tree on every platform; a platform that refuses
+# the group kill still gets the leader kill fallback below. Returns 124 on
+# timeout. `set -m` is shell-global, so every return path restores
+# `set +m` explicitly.
+run_bounded_tree() {
+  local budget="$1"
+  shift
+  set -m
+  "$@" &
+  local child=$!
+  local waited=0
+  while kill -0 "${child}" 2>/dev/null; do
+    if (( waited >= budget )); then
+      kill -KILL -- "-${child}" 2>/dev/null || true
+      kill -KILL "${child}" 2>/dev/null || true
+      wait "${child}" 2>/dev/null || true
+      set +m
+      return 124
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  # Guarded so `set -e` callers cannot skip the `set +m` restore below.
+  local status=0
+  wait "${child}" || status=$?
+  set +m
+  return "${status}"
+}
 
 # Best-effort contention report for the timeout message. Never fails: every
 # read is guarded and the function always returns 0, so a broken diagnostic
@@ -261,21 +288,17 @@ describe_push_contention() {
   return 0
 }
 
-# Array form executes without eval so the timeout backend signals the real
-# child. docs_cmd keeps its string form for the failure message below, which
-# pins the exact command.
+# Array form executes without eval so the watchdog supervises the real child
+# process group. docs_cmd keeps its string form for the failure message
+# below, which pins the exact command.
 docs_argv=(uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file "${repo_root}/docs/mkdocs.yml")
 log "running mkdocs build (${#changed_files[@]} trigger files changed; bound ${docs_timeout}s)"
 build_status=0
-"${docs_timeout_argv[@]}" "${docs_argv[@]}" || build_status=$?
-# Timeout statuses, probed on GNU coreutils 9.4 (2026-10-12): plain `timeout`
-# reports 124 on timeout, but `-s KILL` reports 137 (128+SIGKILL); 142 is
-# death by the perl alarm's SIGALRM. A build genuinely exiting with one of
-# these codes reads as a timeout — including a SIGKILL from outside, such as
-# the OOM killer under the same contention this bound diagnoses. That misread
-# is accepted: the remediation is identical (the holder/load report below
-# points at the contention either way), and mkdocs exits 0/1.
-if [[ "${build_status}" -eq 124 || "${build_status}" -eq 137 || "${build_status}" -eq 142 ]]; then
+run_bounded_tree "${docs_timeout}" "${docs_argv[@]}" || build_status=$?
+# 124 is the watchdog's own timeout status. A build that genuinely exits 124
+# reads as a timeout; mkdocs exits 0/1, so that misread is not a live shape
+# today.
+if [[ "${build_status}" -eq 124 ]]; then
   log ""
   log "mkdocs build TIMED OUT after ${docs_timeout}s (this step covers uv dependency resolution plus mkdocs build --strict)."
   log "The push stays blocked, but loudly: an unbounded silent stall is the #7983 failure this bound replaces."

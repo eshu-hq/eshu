@@ -4,7 +4,12 @@ set -euo pipefail
 # anything so the verifier's bound has something to fire on.
 if [[ -n "${ESHU_FAKE_UV_SLEEP:-}" ]]; then
   echo "[fake-uv] sleeping ${ESHU_FAKE_UV_SLEEP}s (stalled-build simulation)" >&2
-  sleep "${ESHU_FAKE_UV_SLEEP}"
+  sleep "${ESHU_FAKE_UV_SLEEP}" &
+  sleeper=$!
+  if [[ -n "${ESHU_FAKE_UV_SLEEP_PIDFILE:-}" ]]; then
+    echo "${sleeper}" > "${ESHU_FAKE_UV_SLEEP_PIDFILE}"
+  fi
+  wait "${sleeper}"
 fi
 # Capture the full command for assertion
 echo "[fake-uv] $*" >&2
