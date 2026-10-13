@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"sort"
 	"testing"
 	"time"
 
@@ -26,13 +27,16 @@ type suppressionQueryPlanProof struct {
 	} `json:"Plan"`
 }
 
-func explainSuppressionQueryPlan(
+// explainSuppressionQueryPlanAndTypes runs one EXPLAIN and returns both
+// the top-level buffer proof and the sorted whole-tree node-type multiset,
+// so each gated run observes a single plan execution (#7553).
+func explainSuppressionQueryPlanAndTypes(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
 	query string,
 	args ...any,
-) suppressionQueryPlanProof {
+) (suppressionQueryPlanProof, []string) {
 	t.Helper()
 	var payload []byte
 	if err := db.QueryRowContext(
@@ -49,7 +53,29 @@ func explainSuppressionQueryPlan(
 	if len(plans) != 1 {
 		t.Fatalf("suppression query plans = %d, want 1", len(plans))
 	}
-	return plans[0]
+	var docs []struct {
+		Plan suppressionPlanTree `json:"Plan"`
+	}
+	if err := json.Unmarshal(payload, &docs); err != nil || len(docs) != 1 {
+		t.Fatalf("decode suppression query plan: plans=%d err=%v", len(docs), err)
+	}
+	types := docs[0].Plan.appendTypes(nil)
+	sort.Strings(types)
+	return plans[0], types
+}
+
+// suppressionPlanTree is one EXPLAIN JSON plan node with its children.
+type suppressionPlanTree struct {
+	NodeType string                `json:"Node Type"`
+	Plans    []suppressionPlanTree `json:"Plans"`
+}
+
+func (n suppressionPlanTree) appendTypes(into []string) []string {
+	into = append(into, n.NodeType)
+	for _, child := range n.Plans {
+		into = child.appendTypes(into)
+	}
+	return into
 }
 
 func suppressionListPlanArgs(

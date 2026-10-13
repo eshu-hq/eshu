@@ -67,7 +67,7 @@ tests:
   - file: go/internal/query/supply/chain/impact/suppression_plan_proof_live_test.go
     tag: ~
     class: scheduled
-    reason: "helper-only file (no Test function) holding the EXPLAIN decoders and query arguments that TestSupplyChainSuppressionPathsPerformanceLive uses; it runs only through that proof, which is not enrolled for the reasons on its own row (absolute wall-clock ceilings, #5856, timing-proof-rules rule 2; reshape tracked in #7553); steward linuxdynasty"
+    reason: "helper-only file (no Test function) holding the EXPLAIN decoders and query arguments that TestSupplyChainSuppressionPathsPerformanceLive uses; it runs only through that proof, which is enrolled as postgres_ci on its own row (#7553); steward linuxdynasty"
   - file: go/internal/query/supply/chain/runtime_context_scope_live_test.go
     tag: ~
     class: scheduled

@@ -6,7 +6,6 @@ package impact
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -199,47 +198,10 @@ supply_chain_impact_winners_materialization`); err != nil {
 		{"explain", ExplainFindingByPublicIDQuery, suppressionExplainPlanArgs(readAt)},
 	}
 	for _, planQuery := range planQueries {
-		first := explainSuppressionQueryPlan(t, ctx, db, planQuery.query, planQuery.args...)
-		second := explainSuppressionQueryPlan(t, ctx, db, planQuery.query, planQuery.args...)
-		firstTypes := explainSuppressionPlanNodeTypes(t, ctx, db, planQuery.query, planQuery.args...)
-		secondTypes := explainSuppressionPlanNodeTypes(t, ctx, db, planQuery.query, planQuery.args...)
+		first, firstTypes := explainSuppressionQueryPlanAndTypes(t, ctx, db, planQuery.query, planQuery.args...)
+		second, secondTypes := explainSuppressionQueryPlanAndTypes(t, ctx, db, planQuery.query, planQuery.args...)
 		assertSuppressionPlanShape(t, planQuery.name, first, second, firstTypes, secondTypes)
 	}
-}
-
-// explainSuppressionPlanNodeTypes returns the sorted whole-tree node-type
-// multiset from one EXPLAIN run. The shared helper keeps only the top plan
-// node, so this file decodes the tree itself (#7553).
-func explainSuppressionPlanNodeTypes(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) []string {
-	t.Helper()
-	var payload []byte
-	err := db.QueryRowContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query, args...).Scan(&payload)
-	if err != nil {
-		t.Fatalf("explain suppression query: %v", err)
-	}
-	var docs []struct {
-		Plan suppressionPlanTree `json:"Plan"`
-	}
-	if err := json.Unmarshal(payload, &docs); err != nil || len(docs) != 1 {
-		t.Fatalf("decode suppression query plan: err=%v", err)
-	}
-	types := docs[0].Plan.appendTypes(nil)
-	sort.Strings(types)
-	return types
-}
-
-// suppressionPlanTree is one EXPLAIN JSON plan node with its children.
-type suppressionPlanTree struct {
-	NodeType string                `json:"Node Type"`
-	Plans    []suppressionPlanTree `json:"Plans"`
-}
-
-func (n suppressionPlanTree) appendTypes(into []string) []string {
-	into = append(into, n.NodeType)
-	for _, child := range n.Plans {
-		into = child.appendTypes(into)
-	}
-	return into
 }
 
 // assertSuppressionPlanShape gates one path on runner-local EXPLAIN runs:
@@ -264,13 +226,19 @@ func assertSuppressionPlanShape(t *testing.T, name string, first, second suppres
 		first.Plan.TempReadBlocks, second.Plan.TempReadBlocks, first.Plan.TempWrittenBlocks, second.Plan.TempWrittenBlocks)
 }
 
+// suppressionBlockNoiseFloor is the block count below which the 1-percent
+// gate does not fire: a path that touches a handful of blocks on one run
+// and none on the other has not drifted. Seeded regressions move thousands
+// of blocks, so the floor costs no signal (#7553).
+const suppressionBlockNoiseFloor = 16
+
 func assertSuppressionBlocksWithinPercent(t *testing.T, name, kind string, first, second int64) {
 	t.Helper()
 	diff := first - second
 	if diff < 0 {
 		diff = -diff
 	}
-	if ceiling := max(first, second); ceiling > 0 && diff*100 > ceiling {
+	if ceiling := max(first, second); ceiling >= suppressionBlockNoiseFloor && diff*100 > ceiling {
 		t.Fatalf("%s %s drifted: %d vs %d, want within 1 percent", name, kind, first, second)
 	}
 }
