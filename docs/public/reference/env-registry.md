@@ -374,6 +374,12 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_PROJECTOR_RETRY_DELAY` | duration | `30s` | Delay between projector work-item retries. |
 | `ESHU_PROJECTOR_WORKERS` | int | — | Concurrent projector workers (default NumCPU capped at 8, min 1). |
 
+## push-hooks
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_DOCS_BUILD_TIMEOUT_SECONDS` | int | `600` | Bound in seconds for the docs-build pre-push hook (scripts/verify-docs-build-changed.sh): past the bound the hook fails closed naming the live-gate holder. Integer 1 through 3600; unset keeps 600 (#7983). |
+
 ## reducer
 
 | Variable | Type | Default | Notes |

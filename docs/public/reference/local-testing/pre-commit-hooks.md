@@ -53,6 +53,9 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 | `go-perf-evidence` | **push** | the hot-path performance-evidence gate (a change under storage/cypher, storage/postgres, collector, reducer, query, runtime, workers, or queues needs a tracked No-Regression / No-Observability marker in an `evidence-*.md` / README / AGENTS file). Diffs the branch against origin/main, so it runs at push time; needs bash ≥ 4. |
 | `go-telemetry-coverage` | **push** | the telemetry-coverage gate (a new metric or pipeline stage must be reflected in `docs/public/observability/telemetry-coverage.md`, and the doc must not drift from `instruments.go`). Diffs the branch against origin/main. |
 | `console-e2e` | **push** | the `Console (apps/console)` per-page e2e gate (`console:e2e:mock`): boots a Vite dev server + headless Chromium and renders all 84 console routes. Catches blank-rendering pages and stale e2e selectors that the unit suite (`console:test`) cannot. Runs only when a file under `apps/console/` changed; installs Chromium idempotently. Bypass with `ESHU_SKIP_CONSOLE_E2E=1` (logged, not silent). |
+| `docs-build-changed` | **push** | the docs build (`mkdocs build --strict` on changed docs/navigation/project-guidance files). Bounded by `ESHU_DOCS_BUILD_TIMEOUT_SECONDS` (default 600); fails closed past the bound (#7983). |
+| `frontend-format-changed` | **push** | the changed-file Prettier check (frontend.yml mirror). |
+| `go-measurement-citations` | **push** | the measurement-ledger citation gate (new `<N>/<M> trials` or `Measurement:` claims must cite `docs/internal/measurements.jsonl`). |
 
 The lint/format/gosec hooks run only on the **changed packages**, so a normal
 commit is fast. `golangci-lint` runs against a config copy with the custom
@@ -75,3 +78,27 @@ the hooks never depend on the plugin's exact-toolchain build.
   content prints as file and line, and a hit in a commit message as
   `commit-message line N`.
 - Implementation: `scripts/dev/precommit-go.sh` and `.pre-commit-config.yaml`.
+
+## Push stalls and bounds
+
+The pre-push hook does not defer to an already-run `make pre-push`: the floor
+diffs the committed HEAD against the base, while the hook evaluates the pushed
+refs, so a green floor never implies a passing push. Keep both; the
+non-bypassable enforcement stays CI.
+
+A push that prints nothing for minutes is a slow hook under host contention,
+not a mutex wait. Pre-commit captures a passing hook's output until the hook
+exits, and the hook path never waits on the live-gate mutex: a push finished
+in 35 seconds with the lock held throughout (#7983 shim, 2026-10-12).
+
+The docs-build hook is bounded by `ESHU_DOCS_BUILD_TIMEOUT_SECONDS`
+(default 600; the full strict build measures about 11 seconds warm on the
+shared host). Past the bound it fails closed: it names the live-gate holder
+(pid and worktree) when one is held, prints host load, and exits non-zero, so
+the push stays blocked but loudly. Raise the bound for one push by exporting
+`ESHU_DOCS_BUILD_TIMEOUT_SECONDS` in the environment that runs the push.
+
+Bypassing the hooks (`core.hooksPath=/dev/null` or `--no-verify`) stays the
+intended escape for a wedged push, with one obligation: record the reason on
+the PR. A disclosed once-off bypass is accepted; an undisclosed one becomes
+invisible precedent.

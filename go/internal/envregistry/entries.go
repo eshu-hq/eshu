@@ -230,4 +230,10 @@ var coreEntries = []Entry{
 	{Name: "ESHU_PRIVATE_IDENTIFIERS_REQUIRED", Type: VarString, Subsystem: "backend-conformance", Description: "Set to 1 to make the cassette private-data gate fail when ESHU_PRIVATE_IDENTIFIERS_FILE is unset, instead of running the identifier check with the canary only (#6965). CI sets this for the cassette-author gate on same-repo PRs (#6979)."},
 	{Name: "ESHU_RECORD_PSEUDONYM_KEY", Type: VarString, Subsystem: "backend-conformance", Description: "Recording key for collector -mode=record pseudonymization (#6965 Phase 3): at least 32 bytes, generated with `openssl rand -hex 32`, one key per cassette corpus so cross-cassette joins survive, kept with the corpus's other secrets and never committed; only its 8-hex fingerprint is written to the cassette and logged."},
 	{Name: "ESHU_CLOUD_RESOURCE_BACKFILL_NORNICDB_SCALE_LIVE", Type: VarString, Subsystem: "backend-conformance", Description: "Set to 1 to run the opt-in CloudResource owner-ledger backfill scale proof (go/internal/query) against the disposable NornicDB named by ESHU_NEO4J_URI; it seeds 150k nodes and skips when unset."},
+
+	// push-hooks: contributor push-hook knobs cited on docs/public pages,
+	// carried here per the package doc so the docs-cli-env-refs ratchet has
+	// code ownership for every public citation. Local tooling only; never set
+	// any of these in production.
+	{Name: "ESHU_DOCS_BUILD_TIMEOUT_SECONDS", Type: VarInt, Default: "600", Subsystem: "push-hooks", Description: "Bound in seconds for the docs-build pre-push hook (scripts/verify-docs-build-changed.sh): past the bound the hook fails closed naming the live-gate holder. Integer 1 through 3600; unset keeps 600 (#7983)."},
 }
