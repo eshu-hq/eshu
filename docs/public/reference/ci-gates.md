@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 139 gates. Local execution runs the primary
+The registry currently defines 140 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (46 gates)
+### Hygiene: Is the change well-formed? (47 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -83,6 +83,7 @@ results are derived from the inputs rather than written by hand. See
 - `docker-image-build` (blocking): Smoke-tests that the Docker image still builds successfully in CI.
 - `docker-publish-shape` (blocking): Statically checks the publish workflow's per-sha concurrency, immutable build tags, promotion wiring, and per-sha scan resolver; it never pushes an image.
 - `dockerhub-login` (blocking): Fails when a merge_group or pull_request job reaches Docker Hub (reads the CI image ledger); other Docker Hub-pulling jobs need a gated login before a pull.
+- `workflow-script-checkout` (blocking): Fails when a workflow job runs a repository shell script with no preceding actions/checkout step in that job.
 - `docker-image-promotion` (advisory): Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish.
 - `helm-package` (blocking): Lints and packages the Helm chart to make sure it builds cleanly before publishing.
 - `root-cause-evidence` (advisory): Checks that any documented root-cause claim also records the observation that established it.
@@ -325,6 +326,7 @@ results are derived from the inputs rather than written by hand. See
 | `docker-image-reproducibility` | Docker image reproducibility | build | ci-heavy | true | — (CI-only: requires two clean hosted Docker Buildx builds) | docker-publish.yml / verify-reproducibility | 6 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `docker-publish-shape` | Docker publish workflow shape | build | pre-pr | true | `bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh` | static-contract-gates.yml / Verify docker-publish shape gate | 23 path(s): docs/internal/ci-service-image-mirrors.md, .github/workflows/docker-publish.yml, .github/workflows/security-scan.yml, … |
 | `dockerhub-login` | Docker Hub login in image-pulling workflows | hygiene | pre-pr | true | `bash scripts/verify-dockerhub-login.sh`<br>then self-test: `bash scripts/test-verify-dockerhub-login.sh` | static-contract-gates.yml / Verify Docker Hub login gate | 11 path(s): .github/**, **/*.*sh, scripts/lib/dockerhub-login-*.awk, … |
+| `workflow-script-checkout` | Workflow jobs check out before running repo scripts | hygiene | pre-pr | true | `bash scripts/verify-workflow-script-checkout.sh`<br>then self-test: `bash scripts/test-verify-workflow-script-checkout.sh` | static-contract-gates.yml / Verify workflow script checkout gate | 5 path(s): .github/**, scripts/verify-workflow-script-checkout.sh, scripts/test-verify-workflow-script-checkout.sh, … |
 | `docker-image-promotion` | Moving image tag promotion | build | ci-heavy | false | — (CI-only: requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs) | docker-publish.yml / promote-moving-tags | 5 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `release-sbom-attach` | Release SBOM attach | release | ci-heavy | false | — (CI-only: attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group) | docker-publish.yml / attach-release-sbom | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
 | `ci-service-mirror-publish` | CI service image mirror publish | release | manual | false | — (CI-only: manual main-only dispatch with packages: write and a GHCR login; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / publish-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |

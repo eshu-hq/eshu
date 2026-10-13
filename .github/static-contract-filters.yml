@@ -449,3 +449,13 @@ dockerhublogin:
   - '**/docker-compose*.y*ml'
   - 'specs/ci-gates.v1.yaml'
   - 'specs/ci-gates.d/**'
+workflowscriptcheckout:
+  - '.github/workflows/static-contract-gates.yml'
+  - 'specs/ci-gates.v1.yaml'
+  - 'specs/ci-gates.d/**'
+  - '.github/static-contract-filters.yml'
+  - '.github/**'
+  - 'scripts/verify-workflow-script-checkout.sh'
+  - 'scripts/test-verify-workflow-script-checkout.sh'
+  - 'scripts/lib/workflow-script-checkout-violations.yq'
+  - 'scripts/fixtures/workflow-script-checkout/**'

@@ -400,6 +400,32 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: workflow-script-checkout
+    name: Workflow jobs check out before running repo scripts
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when a workflow job runs a repository shell script with no preceding actions/checkout step in that job."
+    tier: pre-pr
+    blocking: true
+    # Scope is derived, not listed: every workflow under .github, plus the
+    # verifier with its own self-test and fixtures. A PR that adds a
+    # `bash scripts/...` step to a job changes that workflow file, so
+    # ".github/**" selects this gate for it.
+    triggers:
+      - ".github/**"
+      - "scripts/verify-workflow-script-checkout.sh"
+      - "scripts/test-verify-workflow-script-checkout.sh"
+      - "scripts/lib/workflow-script-checkout-violations.yq"
+      - "scripts/fixtures/workflow-script-checkout/**"
+    local:
+      command: "bash scripts/verify-workflow-script-checkout.sh"
+      test_command: "bash scripts/test-verify-workflow-script-checkout.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify workflow script checkout gate"
+    requirements: []
+    ci_only_reason: ""
+
   - id: docker-image-promotion
     name: Moving image tag promotion
     category: build

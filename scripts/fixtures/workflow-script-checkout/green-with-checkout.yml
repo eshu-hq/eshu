@@ -1,0 +1,16 @@
+name: Fixture green with checkout
+# Seeded GREEN for scripts/test-verify-workflow-script-checkout.sh (#8008):
+# the default-branch checkout precedes the script step, the post-fix shape.
+# The verifier must pass on this file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Resolve image reference from triggering workflow_run
+        run: bash scripts/ci/resolve-image-scan-ref.sh
