@@ -100,6 +100,17 @@ func TestReconcileSweepRotationVisitsEveryDueRepoWithinBound(t *testing.T) {
 	if got := firstGauge[reconcileReasonNeverReconciled]; got != 3 {
 		t.Fatalf("cycle-0 due-unvisited gauge = %v, want never_reconciled=3 (5 due, limit 2)", firstGauge)
 	}
+	if len(firstGauge) != 8 {
+		t.Fatalf("cycle-0 due-unvisited gauge reasons = %v, want all 8 closed reasons recorded including zero", firstGauge)
+	}
+	for _, reason := range reconcileDueUnvisitedReasons {
+		if reason == reconcileReasonNeverReconciled {
+			continue
+		}
+		if got := firstGauge[reason]; got != 0 {
+			t.Fatalf("cycle-0 due-unvisited gauge[%s] = %d, want 0", reason, got)
+		}
+	}
 	if next != 1 {
 		t.Fatalf("offset after 3 cycles = %d, want 1 (0 -> 2 -> 4 -> 1)", next)
 	}
