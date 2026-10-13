@@ -23,7 +23,7 @@ var errFileCursorNamesEntity = errors.New("cursor: a file search resumes from re
 // errEntityCursorNeedsEntityID rejects a cursor without entity_id on the
 // entity route. Several entities share one file, so resuming after the file
 // key alone would skip the rest of that file's entities.
-var errEntityCursorNeedsEntityID = errors.New("cursor: an entity search cursor needs entity_id and start_line; a file search cursor cannot resume an entity search")
+var errEntityCursorNeedsEntityID = errors.New("cursor: an entity search cursor needs entity_id; a file search cursor cannot resume an entity search")
 
 // unscopedFileSearcher returns the bounded unscoped seam when the request
 // carries no repository filter (explicit or injected from a scoped token's
