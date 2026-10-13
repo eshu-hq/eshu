@@ -25,7 +25,7 @@ func checkMethodologyScratchGitDoesNotStartMaintenance(t *testing.T) {
 	trace := filepath.Join(profileDir, "git-trace.json")
 	t.Setenv("GIT_CONFIG_GLOBAL", profile)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	checkMethodologyProductionTreeScenario(t, "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD", "", "", "", false, false, false, false, "", trace)
+	checkMethodologyProductionTreeScenario(t, "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD", "", "", "", false, false, false, false, false, "", trace)
 
 	file, err := os.Open(trace)
 	if err != nil {
@@ -73,11 +73,14 @@ func TestMethodologyProductionTreeRejectsBaseOnlyMigration(t *testing.T) {
 		empty         bool
 		commitDeleted bool
 		commitAdd     bool
+		dirtyAdd      bool
 		wantFailure   bool
 		wantPath      string
 	}{
 		{name: "base only", remove: "002_base_only.sql", wantFailure: true, wantPath: "002_base_only.sql"},
 		{name: "candidate only addition admitted", add: "003_candidate_only.sql", commitAdd: true},
+		{name: "untracked addition still fails", add: "003_candidate_only.sql", wantFailure: true, wantPath: "003_candidate_only.sql"},
+		{name: "committed addition with dirty worktree", add: "003_candidate_only.sql", commitAdd: true, dirtyAdd: true, wantFailure: true, wantPath: "003_candidate_only.sql"},
 		{name: "committed addition with modified base file", add: "003_candidate_only.sql", commitAdd: true, modify: "001_unchanged.sql", wantFailure: true, wantPath: "001_unchanged.sql"},
 		{name: "committed addition with deleted base file", add: "003_candidate_only.sql", commitAdd: true, remove: "002_base_only.sql", wantFailure: true, wantPath: "002_base_only.sql"},
 		{name: "modified", modify: "001_unchanged.sql", wantFailure: true, wantPath: "001_unchanged.sql"},
@@ -86,7 +89,7 @@ func TestMethodologyProductionTreeRejectsBaseOnlyMigration(t *testing.T) {
 		{name: "unchanged"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			checkMethodologyProductionTreeScenario(t, childMarker, testCase.remove, testCase.add, testCase.modify, testCase.empty, testCase.commitDeleted, testCase.commitAdd, testCase.wantFailure, testCase.wantPath, "")
+			checkMethodologyProductionTreeScenario(t, childMarker, testCase.remove, testCase.add, testCase.modify, testCase.empty, testCase.commitDeleted, testCase.commitAdd, testCase.dirtyAdd, testCase.wantFailure, testCase.wantPath, "")
 		})
 	}
 }
@@ -104,7 +107,7 @@ func methodologyScratchGitEnv(trace string) []string {
 	return append(env, "GIT_TRACE2_EVENT="+trace)
 }
 
-func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, add, modify string, empty, commitDeleted, commitAdd, wantFailure bool, wantPath, trace string) {
+func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, add, modify string, empty, commitDeleted, commitAdd, dirtyAdd, wantFailure bool, wantPath, trace string) {
 	t.Helper()
 	root := t.TempDir()
 	packageDir := filepath.Join(root, "go", "internal", "query")
@@ -171,6 +174,14 @@ func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, a
 	if commitAdd {
 		runGit("add", "-A")
 		runGit("commit", "--quiet", "-m", "add candidate migration")
+	}
+	if dirtyAdd {
+		if add == "" {
+			t.Fatal("dirtyAdd requires an added file")
+		}
+		if err := os.WriteFile(filepath.Join(migrationDir, add), []byte("SELECT 99;\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	candidate := runGit("rev-parse", "HEAD")
 
@@ -289,7 +300,7 @@ func TestMethodologyScratchGitIgnoresAmbientTrace(t *testing.T) {
 		{
 			name: "production_tree_fixture_and_child_verifier",
 			run: func(t *testing.T) {
-				checkMethodologyProductionTreeScenario(t, "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD", "", "", "", false, false, false, false, "", "")
+				checkMethodologyProductionTreeScenario(t, "ESHU_METHODOLOGY_IDENTITY_GUARD_CHILD", "", "", "", false, false, false, false, false, "", "")
 			},
 		},
 		{name: "combined_checkout_fixture_and_child_verifier", run: TestMethodologyCombinedCheckoutUsesIntegratedBase},

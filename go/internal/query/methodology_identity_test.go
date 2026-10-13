@@ -151,6 +151,7 @@ func methodologyVerifySameProductionTree(t *testing.T, base, candidate, director
 		t.Fatalf("no production sources match %s/%s", directory, pattern)
 	}
 	common := make([]string, 0, len(selected))
+	added := make([]string, 0)
 	for _, path := range selected {
 		before, baseExists := baseEntries[path]
 		after, candidateExists := candidateEntries[path]
@@ -162,15 +163,41 @@ func methodologyVerifySameProductionTree(t *testing.T, base, candidate, director
 			common = append(common, path)
 		case !baseExists && candidateExists:
 			// A committed additive production source is admitted: additive
-			// schema evolution keeps every base file byte-identical, and the
-			// schema gates that own additive migrations
+			// evolution keeps every base file byte-identical. For migrations
+			// the schema gates that own additive files
 			// (migration-immutability, the checksum manifest, and the live
-			// migration proof) verify the addition itself. See #8072.
+			// migration proof) verify the addition itself; for graph schema
+			// files the same property holds (no base file changes, addition
+			// reviewed as a new file), with a dedicated pin tracked in
+			// #8073. See #8072.
+			added = append(added, path)
 		default:
 			t.Fatalf("production source %s inventory differs: base=%t candidate=%t", path, baseExists, candidateExists)
 		}
 	}
 	methodologyVerifySameProduction(t, base, candidate, common)
+	methodologyVerifyAddedProductionClean(t, root, candidate, added)
+}
+
+// methodologyVerifyAddedProductionClean binds an admitted additive path to
+// the exact committed candidate blob: the paired runner measures the working
+// tree, so a committed addition dirtied after commit must fail rather than
+// pass on the committed inventory alone.
+func methodologyVerifyAddedProductionClean(t *testing.T, root, candidate string, added []string) {
+	t.Helper()
+	for _, path := range added {
+		working, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil {
+			t.Fatalf("production source %s working tree unreadable: %v", path, err)
+		}
+		committed, err := exec.Command("git", "-C", root, "show", candidate+":"+path).Output()
+		if err != nil {
+			t.Fatalf("read candidate production entry %s: %v", path, err)
+		}
+		if !bytes.Equal(working, committed) {
+			t.Fatalf("production source %s working tree differs from committed candidate", path)
+		}
+	}
 }
 
 func TestMethodologyProductionSourceTreesMatchBase(t *testing.T) {
