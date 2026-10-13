@@ -40,3 +40,15 @@ most that deadline.
 `git repository sync failed` log line the git package writes with
 `failure_class=deadline_exceeded`, `deadline_operation`, and
 `deadline_seconds`.
+
+## Bounded retry (#8091)
+
+`RunRetrying` runs one network command under its deadline and retries a
+connectivity failure from the closed class table (`Classify`): a deadline kill,
+name resolution, connect, connection reset, HTTP/2 framing, or TLS handshake.
+Authentication, HTTP 4xx, pack or object errors, repository not found, rate
+limits, and text the table does not name are never retried. Each attempt gets
+its own deadline and a jittered backoff of about 3 s. `FromEnv` also reads
+`ESHU_GIT_RETRY_ATTEMPTS` (default 2; 1 turns the retry off) and
+`ESHU_GIT_RETRY_SWEEP_BUDGET` (default 20), the cap on retries one sweep may
+start, drawn from an atomic counter that `WithSweep` creates.
