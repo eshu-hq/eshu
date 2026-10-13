@@ -14,7 +14,7 @@ import (
 )
 
 // codeCallSymbolFactRow builds one fake fact_records row in the column order
-// scanFactEnvelope reads.
+// backfill.ScanFactEnvelope reads.
 func codeCallSymbolFactRow(factID, scopeID string, observedAt time.Time) []any {
 	return []any{
 		factID,

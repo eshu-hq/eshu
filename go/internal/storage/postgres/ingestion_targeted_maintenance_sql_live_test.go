@@ -9,11 +9,13 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // TestBoundedRepositoryGenerationReadsMatchShippedRead pins the derived
 // repo-bounded and partition-bounded reads (#7584) to the shipped corpus-wide
-// activeRepositoryGenerationsQuery: for every subset, their rows equal the
+// backfill.ActiveRepositoryGenerationsQuery: for every subset, their rows equal the
 // shipped rows filtered in Go. The corpus includes the shapes where a
 // hand-written bound would diverge: two scopes deriving the same repo_id
 // (DISTINCT ON keeps one), two repositories in one partition, a scope whose
@@ -71,7 +73,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 	generation("gcp:cloud", "c-1", "active", 0)
 
 	adapter := SQLDB{DB: database}
-	shipped, err := loadActiveRepositoryGenerations(ctx, adapter)
+	shipped, err := backfill.LoadActiveRepositoryGenerations(ctx, adapter)
 	if err != nil {
 		t.Fatalf("shipped read: %v", err)
 	}
@@ -86,7 +88,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 		if err != nil {
 			t.Fatalf("bounded read %v: %v", repoIDs, err)
 		}
-		want := map[string]repositoryGenerationIdentity{}
+		want := map[string]backfill.RepositoryGenerationIdentity{}
 		for _, repoID := range repoIDs {
 			if identity, ok := shipped[repoID]; ok {
 				want[repoID] = identity
@@ -97,7 +99,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 		}
 	}
 
-	for _, partitions := range [][]scopeGenerationPartition{
+	for _, partitions := range [][]backfill.ScopeGenerationPartition{
 		partitionsOf("git:a", "a-1"),
 		partitionsOf("git:b", "b-1"),
 		partitionsOf("git:mono", "mono-1"),
@@ -108,10 +110,10 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 		if err != nil {
 			t.Fatalf("partition-bounded read %v: %v", partitions, err)
 		}
-		want := map[string]repositoryGenerationIdentity{}
+		want := map[string]backfill.RepositoryGenerationIdentity{}
 		set := partitionSetOf(partitions)
 		for repoID, identity := range shipped {
-			if _, ok := set[scopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}]; ok {
+			if _, ok := set[backfill.ScopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}]; ok {
 				want[repoID] = identity
 			}
 		}

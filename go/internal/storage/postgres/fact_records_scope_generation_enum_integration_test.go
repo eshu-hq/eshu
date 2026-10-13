@@ -166,7 +166,7 @@ func seedScopeGenerationEnumFixture(t *testing.T, ctx context.Context, database 
 	}
 
 	// scope-c has NO active pointer and its only (hence newest) generation is
-	// terminal (failed) with a fact. latestGenerationCTE falls back to that newest
+	// terminal (failed) with a fact. backfill.LatestGenerationCTE falls back to that newest
 	// generation, so the terminal-status filter must drop scope-c entirely —
 	// otherwise CommitScopeGeneration would abort on the terminal status.
 	if _, err := database.ExecContext(ctx,

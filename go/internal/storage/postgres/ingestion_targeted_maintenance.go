@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -33,7 +34,7 @@ import (
 // order and committed_at tracks observation recency. If a future path ever
 // writes memos for non-active generations, this ordering argument must be
 // revisited.
-const targetedCatalogBaselineQuery = latestGenerationCTE + `,
+const targetedCatalogBaselineQuery = backfill.LatestGenerationCTE + `,
 owed_latest_memo AS (
     SELECT DISTINCT ON (memo.scope_id)
         memo.scope_id,
@@ -115,7 +116,7 @@ type TargetedMaintenanceResult struct {
 //     proves currency when it carries the current fingerprint (#7638). The
 //     epoch whole pass completes refused obligations.
 //   - affected set: resolveTargetedMaintenanceClosure, which adds inbound and
-//     cross-scope sources found by loadAnchorScopedRelationshipFacts.
+//     cross-scope sources found by backfill.LoadAnchorScopedRelationshipFacts.
 //   - fact load, writes and publication: the whole pass's memo-gated loader,
 //     batch writer (with a repo-bounded under-lock read derived from the
 //     shipped query) and unchanged fan-in, all with instruments off so the
@@ -149,7 +150,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	start := time.Now()
 	ctx, span, endSpan := startTargetedMaintenanceSpan(ctx, tracer)
 	defer endSpan()
-	outcomes := make(map[scopeGenerationPartition]TargetedMaintenanceOutcomeKind, len(requested))
+	outcomes := make(map[backfill.ScopeGenerationPartition]TargetedMaintenanceOutcomeKind, len(requested))
 	defer func() {
 		result.Outcomes = orderedOutcomes(requested, outcomes)
 		recordTargetedMaintenance(ctx, span, instruments, start, requested, result, err)
@@ -157,9 +158,9 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 
 	// Classify before any corpus read, so a superseded or inapplicable owed
 	// partition is reported as such even when the catalog guard would refuse.
-	active := make(map[scopeGenerationPartition]struct{}, len(requested))
+	active := make(map[backfill.ScopeGenerationPartition]struct{}, len(requested))
 	for _, partition := range requested {
-		generationID, err := loadActiveGenerationForScope(ctx, s.database, partition.ScopeID)
+		generationID, err := backfill.LoadActiveGenerationForScope(ctx, s.database, partition.ScopeID)
 		if err != nil {
 			return result, fmt.Errorf("read active generation for owed scope %q: %w", partition.ScopeID, err)
 		}
@@ -183,12 +184,12 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 		}
 	}
 
-	catalog, _, err := loadRepositoryCatalog(ctx, s.database)
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, s.database)
 	if err != nil {
 		return result, fmt.Errorf("load repository catalog for partition-scoped maintenance: %w", err)
 	}
-	params, hasAnchors := buildDeferredScopedFactQueryParams(catalog)
-	catalogFingerprint := deferredCatalogFingerprint(params)
+	params, hasAnchors := backfill.BuildDeferredScopedFactQueryParams(catalog)
+	catalogFingerprint := backfill.DeferredCatalogFingerprint(params)
 	switch refusal := s.targetedCatalogRefusal(ctx, catalogFingerprint, owedScopeIDs(requested)); {
 	case refusal == nil:
 	case errors.Is(refusal, ErrTargetedMaintenanceCatalogChanged), errors.Is(refusal, ErrTargetedMaintenanceNoMemoBaseline):
@@ -224,16 +225,16 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 
 	var snapshot map[string]string
 	var discovered []relationships.EvidenceFact
-	skipped := map[scopeGenerationPartition]struct{}{}
+	skipped := map[backfill.ScopeGenerationPartition]struct{}{}
 	if hasAnchors {
 		snapshot, result.SnapshotConflicts = buildTargetedMaintenanceSnapshot(closure.load, affected)
-		loaded, loadSkipped, err := s.loadDeferredScopedFactsAcrossPartitions(
+		loaded, loadSkipped, err := s.backfillStore().LoadDeferredScopedFactsAcrossPartitions(
 			ctx, s.database, params, sortedPartitions(closure.load), nil)
 		if err != nil {
 			return result, fmt.Errorf("load partition-scoped deferred facts: %w", err)
 		}
 		if len(loaded) > 0 {
-			loaded, err = s.appendArgoCDGeneratorConfigFacts(ctx, s.database, catalog, loaded)
+			loaded, err = s.backfillStore().AppendArgoCDGeneratorConfigFacts(ctx, s.database, catalog, loaded)
 			if err != nil {
 				return result, err
 			}
@@ -255,7 +256,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 		result.EvidenceFacts++
 	}
 
-	var insertedRows map[scopeGenerationPartition]int64
+	var insertedRows map[backfill.ScopeGenerationPartition]int64
 	if result.Published, insertedRows, err = s.writeTargetedMaintenanceEvidence(
 		ctx, closure, evidenceBySourceRepo, snapshot, catalogFingerprint,
 	); err != nil {
@@ -265,7 +266,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	// a skipped partition that received new evidence this pass must reopen
 	// (issue #7636). A nil skipped (gate failure) stays nil, preserving the
 	// reopen-all fallback and the SkipSetUnavailable flag set above.
-	skipped = excludePartitionsWithNewEvidence(skipped, insertedRows)
+	skipped = backfill.ExcludePartitionsWithNewEvidence(skipped, insertedRows)
 	if result.Reopened, err = s.reopenTargetedMaintenanceWorkItems(ctx, tracer, affectedList, skipped); err != nil {
 		return result, err
 	}
@@ -333,7 +334,7 @@ func recordTargetedMaintenance(
 	span trace.Span,
 	instruments *telemetry.Instruments,
 	start time.Time,
-	requested []scopeGenerationPartition,
+	requested []backfill.ScopeGenerationPartition,
 	result TargetedMaintenanceResult,
 	err error,
 ) {
@@ -398,7 +399,7 @@ func recordTargetedMaintenance(
 
 // owedScopeIDs returns the distinct scope_ids of normalized owed partitions,
 // in first-seen order. The catalog guard's $2.
-func owedScopeIDs(requested []scopeGenerationPartition) []string {
+func owedScopeIDs(requested []backfill.ScopeGenerationPartition) []string {
 	seen := make(map[string]struct{}, len(requested))
 	scopeIDs := make([]string, 0, len(requested))
 	for _, partition := range requested {
@@ -412,10 +413,10 @@ func owedScopeIDs(requested []scopeGenerationPartition) []string {
 }
 
 // normalizeOwedPartitions trims, drops blank, de-duplicates and sorts owed.
-func normalizeOwedPartitions(owed []OwedPartition) []scopeGenerationPartition {
-	set := make(map[scopeGenerationPartition]struct{}, len(owed))
+func normalizeOwedPartitions(owed []OwedPartition) []backfill.ScopeGenerationPartition {
+	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(owed))
 	for _, partition := range owed {
-		key := scopeGenerationPartition{
+		key := backfill.ScopeGenerationPartition{
 			ScopeID:      strings.TrimSpace(partition.ScopeID),
 			GenerationID: strings.TrimSpace(partition.GenerationID),
 		}
@@ -431,8 +432,8 @@ func normalizeOwedPartitions(owed []OwedPartition) []scopeGenerationPartition {
 // order; a partition the pass never classified (an operational error stopped
 // it first) reports retry.
 func orderedOutcomes(
-	requested []scopeGenerationPartition,
-	kinds map[scopeGenerationPartition]TargetedMaintenanceOutcomeKind,
+	requested []backfill.ScopeGenerationPartition,
+	kinds map[backfill.ScopeGenerationPartition]TargetedMaintenanceOutcomeKind,
 ) []TargetedMaintenanceOutcome {
 	outcomes := make([]TargetedMaintenanceOutcome, 0, len(requested))
 	for _, partition := range requested {
@@ -449,16 +450,16 @@ func orderedOutcomes(
 }
 
 // partitionsOfRepos returns the distinct partitions of identities.
-func partitionsOfRepos(identities map[string]repositoryGenerationIdentity) map[scopeGenerationPartition]struct{} {
-	partitions := make(map[scopeGenerationPartition]struct{}, len(identities))
+func partitionsOfRepos(identities map[string]backfill.RepositoryGenerationIdentity) map[backfill.ScopeGenerationPartition]struct{} {
+	partitions := make(map[backfill.ScopeGenerationPartition]struct{}, len(identities))
 	for _, identity := range identities {
-		partitions[scopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}] = struct{}{}
+		partitions[backfill.ScopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}] = struct{}{}
 	}
 	return partitions
 }
 
 // owedPartitionsOf converts internal partitions to the exported shape.
-func owedPartitionsOf(partitions []scopeGenerationPartition) []OwedPartition {
+func owedPartitionsOf(partitions []backfill.ScopeGenerationPartition) []OwedPartition {
 	out := make([]OwedPartition, 0, len(partitions))
 	for _, partition := range partitions {
 		out = append(out, OwedPartition(partition))

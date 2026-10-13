@@ -6,16 +6,15 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // generationFreshnessSQL reads, in one statement (one snapshot), the scope's
@@ -281,149 +280,33 @@ FROM (
 ) AS candidate
 `
 
-// unchangedGenerationCandidate is the generation a snapshot is compared with.
-type unchangedGenerationCandidate struct {
-	generationID  string
-	freshnessHint string
-	sourceCommit  string
-	status        scope.GenerationStatus
-	// workLive reports whether the candidate has a projector work row a
-	// worker can still run (pending, retrying, claimed, running); ruling
-	// a9-126 skips a pending match only then.
-	workLive bool
-	// streamDropped reports that the candidate's own fact stream dropped a
-	// file (#7978 review F7-4, ruling a9-143.20): its facts are incomplete, so
-	// an equal snapshot stores a new generation instead of matching it.
-	streamDropped bool
-}
-
-// matches reports whether generation duplicates the candidate (#7978): the
-// same non-empty freshness hint, which folds the collector, parser, and
-// fact-schema version, and the same source commit.
-func (c unchangedGenerationCandidate) matches(generation scope.ScopeGeneration) bool {
-	hint := strings.TrimSpace(generation.FreshnessHint)
-	return hint != "" && hint == c.freshnessHint &&
-		strings.TrimSpace(generation.SourceCommitSHA) == c.sourceCommit
-}
-
 // unchangedGeneration returns the generation an incoming snapshot is compared
-// with, or false when the scope has none with a freshness hint.
-func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string) (unchangedGenerationCandidate, bool, error) {
+// with, or false when the scope has none with a freshness hint. The candidate
+// type lives in backfill (backfill.UnchangedGenerationCandidate) because the
+// duplicate decision (backfill.DecideUnchangedGeneration) consumes it; the
+// freshness read itself stays root-owned.
+func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string) (backfill.UnchangedGenerationCandidate, bool, error) {
 	if s.database == nil || strings.TrimSpace(scopeID) == "" {
-		return unchangedGenerationCandidate{}, false, nil
+		return backfill.UnchangedGenerationCandidate{}, false, nil
 	}
 	rows, err := s.database.QueryContext(ctx, unchangedGenerationCandidateQuery, scopeID)
 	if err != nil {
-		return unchangedGenerationCandidate{}, false, err
+		return backfill.UnchangedGenerationCandidate{}, false, err
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
-		return unchangedGenerationCandidate{}, false, rows.Err()
+		return backfill.UnchangedGenerationCandidate{}, false, rows.Err()
 	}
-	var candidate unchangedGenerationCandidate
+	var candidate backfill.UnchangedGenerationCandidate
 	var status string
-	if err := rows.Scan(&candidate.generationID, &candidate.freshnessHint, &candidate.sourceCommit, &status,
-		&candidate.streamDropped, &candidate.workLive); err != nil {
-		return unchangedGenerationCandidate{}, false, err
+	if err := rows.Scan(&candidate.GenerationID, &candidate.FreshnessHint, &candidate.SourceCommit, &status,
+		&candidate.StreamDropped, &candidate.WorkLive); err != nil {
+		return backfill.UnchangedGenerationCandidate{}, false, err
 	}
-	candidate.freshnessHint = strings.TrimSpace(candidate.freshnessHint)
-	candidate.sourceCommit = strings.TrimSpace(candidate.sourceCommit)
-	candidate.status = scope.GenerationStatus(status)
+	candidate.FreshnessHint = strings.TrimSpace(candidate.FreshnessHint)
+	candidate.SourceCommit = strings.TrimSpace(candidate.SourceCommit)
+	candidate.Status = scope.GenerationStatus(status)
 	return candidate, true, rows.Err()
-}
-
-// reprojectByIdentityQuery is the skipped-parse re-open (#7978 follow-up,
-// ruling a9-143): the collector found the active generation's pre-parse
-// identity equal at the same commit and asks for a re-projection without a
-// snapshot. The target is fenced on the scope's active pointer, a full
-// (is_delta false) active generation, its commit, and its stamped identity, so
-// a newer activation, a delta, or a changed identity is a no-op. The re-open
-// itself is the store re-open's (reprojectReopenedCTE): the same in-flight
-// guard and attempt reset. A real re-open stamps the request like the store
-// re-open and increments preparse_skips, the valve count.
-//
-// $1 now, $2 scope_id, $3 generation_id, $4 commit, $5 identity, $6 reason.
-const reprojectByIdentityQuery = `
-WITH target AS (
-    SELECT generation.generation_id
-    FROM scope_generations AS generation
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = generation.scope_id
-     AND scope.active_generation_id = generation.generation_id
-    WHERE generation.scope_id = $2
-      AND generation.generation_id = $3
-      AND generation.status = 'active'
-      AND generation.activated_at IS NOT NULL
-      AND generation.is_delta = false
-      AND COALESCE(generation.source_commit_sha, '') = $4
-      AND $5::text <> ''
-      AND COALESCE(generation.payload ->> 'preparse_identity', '') = $5
-),
-` + reprojectReopenedCTE + `,
-stamped AS (
-    UPDATE scope_generations AS generation
-    SET payload = COALESCE(generation.payload, '{}'::jsonb) || jsonb_build_object(
-            'reconcile_reason', $6::text,
-            'reconcile_requested_at', $1::timestamptz,
-            'preparse_skips', COALESCE((generation.payload ->> 'preparse_skips')::int, 0) + 1
-        )
-    FROM reopened
-    WHERE generation.generation_id = reopened.generation_id
-      AND generation.status = 'active'
-    RETURNING generation.generation_id
-)
-SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
-`
-
-// ReprojectActiveGeneration re-projects the scope's active generation without
-// a snapshot, for a forced reconcile whose pre-parse identity equals the
-// stored one (ruling a9-143). It takes the scope row lock first, as the store
-// re-open does, and returns the refresh-skip reason it recorded:
-// reconcile_reprojected (re-opened and stamped), reconcile_reprojection_pending
-// (the row is already open or leased; nothing stamped), or
-// reconcile_superseded (fenced: another generation is active, the generation is
-// a delta, or the commit or identity differs). An error leaves nothing changed;
-// the collector then parses as before.
-func (s IngestionStore) ReprojectActiveGeneration(ctx context.Context, request scope.ActiveReprojection) (string, error) {
-	if s.beginner == nil {
-		return "", errors.New("transaction beginner is required")
-	}
-	tx, err := s.beginner.Begin(ctx)
-	if err != nil {
-		return "", fmt.Errorf("begin skipped-parse re-projection: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, lockReprojectScopeQuery, request.ScopeID); err != nil {
-		return "", fmt.Errorf("lock scope for skipped-parse re-projection: %w", err)
-	}
-	rows, err := tx.QueryContext(ctx, reprojectByIdentityQuery, s.now(), request.ScopeID, request.GenerationID,
-		strings.TrimSpace(request.CommitSHA), strings.TrimSpace(request.PreparseIdentity), strings.TrimSpace(request.Reason))
-	if err != nil {
-		return "", fmt.Errorf("re-open active generation without a parse: %w", err)
-	}
-	var matched, reopened bool
-	if rows.Next() {
-		err = rows.Scan(&matched, &reopened)
-	}
-	if err = errors.Join(err, rows.Err(), rows.Close()); err != nil {
-		return "", fmt.Errorf("read skipped-parse re-open result: %w", err)
-	}
-	reason := telemetry.RefreshSkipReasonReconcileSuperseded
-	switch {
-	case matched && reopened:
-		reason = telemetry.RefreshSkipReasonReconcileReprojected
-	case matched:
-		reason = telemetry.RefreshSkipReasonReconcileReprojectionPending
-	}
-	if matched {
-		if err := tx.Commit(); err != nil {
-			return "", fmt.Errorf("commit skipped-parse re-projection: %w", err)
-		}
-	}
-	s.recordSkippedRefresh(ctx, scope.IngestionScope{ScopeID: request.ScopeID}, scope.ScopeGeneration{
-		GenerationID: request.GenerationID, ScopeID: request.ScopeID, ReconcileReason: request.Reason,
-	}, request.GenerationID, reason)
-	return reason, nil
 }
 
 // streamDropped reports whether the generation's fact stream dropped a file

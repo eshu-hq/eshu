@@ -53,7 +53,7 @@ facts on the streaming path.
 
 The only place this evidence ever appeared was the deferred
 `BackfillAllRelationshipEvidence` pass
-(`go/internal/storage/postgres/ingestion_backfill.go`), which reloads facts
+(`go/internal/storage/postgres/backfill/engine.go`), which reloads facts
 from Postgres via `loadDeferredAnchorScopedRelationshipFacts` — a real SQL
 query whose JSONB decode always yields `[]any`, so the pre-#5445 `.([]any)`
 read worked correctly there. Every pre-existing hand-built test for these

@@ -5,14 +5,28 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
+
+// catalogRepoIDs projects a catalog down to its repository-id set.
+func catalogRepoIDs(catalog []relationships.CatalogEntry) map[string]struct{} {
+	repoIDs := make(map[string]struct{}, len(catalog))
+	for _, entry := range catalog {
+		if strings.TrimSpace(entry.RepoID) == "" {
+			continue
+		}
+		repoIDs[entry.RepoID] = struct{}{}
+	}
+	return repoIDs
+}
 
 // repositoryCatalogCache holds the global repository identity catalog so the
 // ingestion commit hot path does not reload every repository fact on every
@@ -89,7 +103,7 @@ func (c *repositoryCatalogCache) get(
 	queryer db.Queryer,
 ) (catalogSnapshot, error) {
 	if c == nil {
-		entries, _, err := loadRepositoryCatalog(ctx, queryer)
+		entries, _, err := backfill.LoadRepositoryCatalog(ctx, queryer)
 		if err != nil {
 			return catalogSnapshot{}, err
 		}
@@ -104,7 +118,7 @@ func (c *repositoryCatalogCache) get(
 		return catalogSnapshot{Entries: c.entries, RepoIDs: c.snapshotRepoIDsLocked(), CacheHit: true}, nil
 	}
 
-	entries, observedAt, err := loadRepositoryCatalog(ctx, queryer)
+	entries, observedAt, err := backfill.LoadRepositoryCatalog(ctx, queryer)
 	if err != nil {
 		return catalogSnapshot{}, err
 	}

@@ -6,6 +6,8 @@ package postgres
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // TestTargetedMaintenanceQueriesDeriveFromShippedQueries pins that every query
@@ -26,7 +28,7 @@ func TestTargetedMaintenanceQueriesDeriveFromShippedQueries(t *testing.T) {
 	}{
 		{
 			name:     "active repository generations bounded by repo",
-			shipped:  activeRepositoryGenerationsQuery,
+			shipped:  backfill.ActiveRepositoryGenerationsQuery,
 			derived:  activeRepositoryGenerationsForReposQuery,
 			marker:   activeRepositoryGenerationsRepoMarker,
 			conjunct: "  AND repo_id = ANY($1)\n",
@@ -75,8 +77,8 @@ func TestTargetedMaintenanceQueriesDeriveFromShippedQueries(t *testing.T) {
 
 	// The partition read wraps the whole shipped query so the DISTINCT ON
 	// repository pick is the shipped pick; it must embed it verbatim.
-	if !strings.Contains(activeRepositoryGenerationsForPartitionsQuery, activeRepositoryGenerationsQuery) {
-		t.Fatal("partition-bounded repository read does not embed activeRepositoryGenerationsQuery verbatim")
+	if !strings.Contains(activeRepositoryGenerationsForPartitionsQuery, backfill.ActiveRepositoryGenerationsQuery) {
+		t.Fatal("partition-bounded repository read does not embed backfill.ActiveRepositoryGenerationsQuery verbatim")
 	}
 }
 
@@ -111,7 +113,7 @@ func TestTargetedMaintenanceMarkersOpenAnAndOnlyWhereClause(t *testing.T) {
 	t.Parallel()
 
 	for name, tc := range map[string]struct{ shipped, marker string }{
-		"active repository generations": {activeRepositoryGenerationsQuery, activeRepositoryGenerationsRepoMarker},
+		"active repository generations": {backfill.ActiveRepositoryGenerationsQuery, activeRepositoryGenerationsRepoMarker},
 		"deployment_mapping reopen":     {listSucceededDeploymentMappingWorkItemsQuery, correlationReopenStageMarker},
 		"code_import_repo_edge reopen":  {listSucceededCodeImportRepoEdgeWorkItemsQuery, correlationReopenStageMarker},
 		"correlation reopen":            {listSucceededReducerWorkItemsByDomainQuery, correlationReopenStageMarker},

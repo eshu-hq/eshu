@@ -67,7 +67,7 @@ call sites **outside `internal/parser`** route through
 | 5 | `cmd/bootstrap-index/bootstrap_pipeline.go` | `projectionWorkerCount` |
 | 6 | `cmd/bootstrap-index/nornicdb_entity_phase_concurrency.go` | `nornicDBDefaultEntityPhaseConcurrency` |
 | 7 | `internal/storage/postgres/content_writer_batch.go` | `contentWriterDefaultBatchConcurrency` |
-| 8 | `internal/storage/postgres/ingestion_backfill_pool.go` | `deferredBackfillWorkerCount` |
+| 8 | `internal/storage/postgres/backfill/pool.go` | `deferredBackfillWorkerCount` |
 | 9 | `internal/reducer/shared_projection_config.go` | `defaultSharedProjectionWorkers` |
 | 10 | `internal/reducer/code_reachability_projection_runner.go` | `(*CodeReachabilityProjectionRunner).concurrency` |
 | 11 | `internal/reducer/code/value/fixpoint_cache.go` | inline semaphore size (value-flow fixpoint cache worker pool) |

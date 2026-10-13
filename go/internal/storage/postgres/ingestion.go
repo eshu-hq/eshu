@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
@@ -50,15 +51,16 @@ type IngestionStore struct {
 	// doc comment). Callers that leave it false get the post-commit backfill.
 	SkipRelationshipBackfill bool
 	// maintenanceBatchSize overrides the deferred-maintenance per-batch
-	// repository count. Zero uses deferredMaintenanceRepoBatchSize. It exists so
-	// tests can force multiple independent batch transactions deterministically.
+	// repository count. Zero uses backfill.DeferredMaintenanceRepoBatchSize.
+	// It exists so tests can force multiple independent batch transactions
+	// deterministically.
 	maintenanceBatchSize int
 	// maintenanceWorkers overrides the number of deferred-maintenance batch
 	// transactions processed concurrently. Zero or one keeps the pass serial
 	// (one in-flight batch transaction), the path for deployments pinned to
 	// ESHU_POSTGRES_MAX_OPEN_CONNS=1 via ESHU_DEFERRED_BACKFILL_CONCURRENCY=1.
-	// NewIngestionStore seeds it from deferredBackfillWorkerCount; tests set it
-	// directly.
+	// NewIngestionStore seeds it from backfill.DeferredBackfillWorkerCount;
+	// tests set it directly.
 	maintenanceWorkers int
 	catalogCache       *repositoryCatalogCache
 	// idleMaintenanceLogGate rate-limits the deferred-maintenance barrier's
@@ -79,7 +81,7 @@ func NewIngestionStore(database db.ExecQueryer) IngestionStore {
 	store := IngestionStore{
 		database:               database,
 		catalogCache:           newRepositoryCatalogCache(),
-		maintenanceWorkers:     deferredBackfillWorkerCount(),
+		maintenanceWorkers:     backfill.DeferredBackfillWorkerCount(),
 		idleMaintenanceLogGate: &deferredMaintenanceIdleLogGate{},
 	}
 	if beginner, ok := database.(db.Beginner); ok {
@@ -151,7 +153,7 @@ func (s IngestionStore) commitScopeGeneration(
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 ) error {
-	if err := validateGenerationInput(scopeValue, generation); err != nil {
+	if err := backfill.ValidateGenerationInput(scopeValue, generation); err != nil {
 		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
 	}
 	handled, err := s.skipUnchangedGeneration(ctx, mutation, requireClaimFence, scopeValue, generation, factStream, factStreamErr)
@@ -221,7 +223,7 @@ func (s IngestionStore) commitScopeGeneration(
 			if streamErr := drainFactsAndCheckStream(factStream, factStreamErr); streamErr != nil {
 				return fmt.Errorf("read skipped finalized generation stream: %w", streamErr)
 			}
-			s.recordSkippedRefresh(ctx, scopeValue, generation, generation.GenerationID, telemetry.RefreshSkipReasonFinalizedGenerationReplay)
+			s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, generation.GenerationID, telemetry.RefreshSkipReasonFinalizedGenerationReplay)
 			s.logCommitStage(ctx, scopeValue, generation, "skip_finalized_generation", stageStart)
 			return nil
 		}
@@ -278,7 +280,7 @@ func (s IngestionStore) commitScopeGeneration(
 				if envelope.FactKind != "repository" {
 					continue
 				}
-				entry, ok := repositoryCatalogEntryFromMap(envelope.Payload)
+				entry, ok := backfill.RepositoryCatalogEntryFromMap(envelope.Payload)
 				if ok {
 					previousObservedAt, seen := currentGenerationRepoObservedAt[entry.RepoID]
 					if !seen || !envelope.ObservedAt.Before(previousObservedAt) {

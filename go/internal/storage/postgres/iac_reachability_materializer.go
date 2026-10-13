@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/iac"
 
@@ -50,7 +51,7 @@ func (s IngestionStore) MaterializeIaCReachability(
 		defer span.End()
 	}
 
-	activeGenerations, err := loadActiveRepositoryGenerations(ctx, s.database)
+	activeGenerations, err := backfill.LoadActiveRepositoryGenerations(ctx, s.database)
 	if err != nil {
 		return fmt.Errorf("load active repository generations for IaC reachability: %w", err)
 	}
@@ -77,7 +78,7 @@ func (s IngestionStore) MaterializeIaCReachability(
 func loadActiveIaCContentFiles(
 	ctx context.Context,
 	queryer db.Queryer,
-	activeGenerations map[string]repositoryGenerationIdentity,
+	activeGenerations map[string]backfill.RepositoryGenerationIdentity,
 ) (map[string][]iacreachability.File, error) {
 	if queryer == nil || len(activeGenerations) == 0 {
 		return nil, nil
@@ -115,7 +116,7 @@ func loadActiveIaCContentFiles(
 
 func iacReachabilityRowsForActiveGenerations(
 	rows []iacreachability.Row,
-	activeGenerations map[string]repositoryGenerationIdentity,
+	activeGenerations map[string]backfill.RepositoryGenerationIdentity,
 	now time.Time,
 ) []iacstore.IaCReachabilityRow {
 	result := make([]iacstore.IaCReachabilityRow, 0, len(rows))

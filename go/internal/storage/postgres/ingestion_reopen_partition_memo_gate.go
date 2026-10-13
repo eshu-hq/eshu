@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -20,7 +21,7 @@ import (
 // partition is what the reopen memo gate keys on, not the work item id.
 type reopenWorkItemRef struct {
 	WorkItemID string
-	Partition  scopeGenerationPartition
+	Partition  backfill.ScopeGenerationPartition
 }
 
 // reopenPartitionMemoGateResult splits a reopen pass's succeeded work items
@@ -38,7 +39,7 @@ type reopenPartitionMemoGateResult struct {
 //
 // skippedThisPass, when non-nil, is the EXACT set of (scope_id, generation_id)
 // partitions BackfillAllRelationshipEvidence's Track-1 read-side memo gate
-// (applyDeferredPartitionMemoGate) itself skipped at the START of THIS SAME
+// (backfill.ApplyDeferredPartitionMemoGate) itself skipped at the START of THIS SAME
 // pass (see loadDeferredAnchorScopedRelationshipFacts's doc comment). When the
 // caller supplies it — RunDeferredRelationshipMaintenance is the only such
 // caller, via reopenMaintenanceWorkItemsInTransaction — the gate keys
@@ -84,7 +85,7 @@ type reopenPartitionMemoGateResult struct {
 // partition is a member of skippedThisPass, the deferred backfill did NOT
 // re-run DiscoverEvidence for it THIS pass (see
 // loadDeferredScopedFactsAcrossPartitions), AND no evidence row was actually
-// inserted under it this pass (see excludePartitionsWithNewEvidence), so no
+// inserted under it this pass (see backfill.ExcludePartitionsWithNewEvidence), so no
 // NEW backward evidence committed for that partition since the reducer
 // already resolved it. The second conjunct matters because discovery is
 // cross-partition: evidence derived from a loaded partition's facts can still
@@ -103,7 +104,7 @@ type reopenPartitionMemoGateResult struct {
 // exactly rather than risking an unintended skip on unrecognized shape.
 //
 // The ArgoCD carve-out needs no special-casing in the skip-set path, by the
-// same invariant applyDeferredPartitionMemoGate documents:
+// same invariant backfill.ApplyDeferredPartitionMemoGate documents:
 // writeDeferredBackfillPartitionMemos never writes a memo row for an
 // ArgoCD-bearing partition, so an ArgoCD-bearing partition never lands in
 // skippedThisPass — it is always a miss and therefore always reopens.
@@ -111,7 +112,7 @@ func applyReopenPartitionMemoGate(
 	ctx context.Context,
 	domain string,
 	items []reopenWorkItemRef,
-	skippedThisPass map[scopeGenerationPartition]struct{},
+	skippedThisPass map[backfill.ScopeGenerationPartition]struct{},
 	instruments *telemetry.Instruments,
 ) reopenPartitionMemoGateResult {
 	if len(items) == 0 {
@@ -139,7 +140,7 @@ func applyReopenPartitionMemoGateFromSkipSet(
 	ctx context.Context,
 	domain string,
 	items []reopenWorkItemRef,
-	skippedThisPass map[scopeGenerationPartition]struct{},
+	skippedThisPass map[backfill.ScopeGenerationPartition]struct{},
 	instruments *telemetry.Instruments,
 ) reopenPartitionMemoGateResult {
 	result := reopenPartitionMemoGateResult{
@@ -160,44 +161,6 @@ func applyReopenPartitionMemoGateFromSkipSet(
 
 	logReopenPartitionMemoGateResult(ctx, domain, len(items), result, instruments)
 	return result
-}
-
-// excludePartitionsWithNewEvidence revises a same-pass memo-hit skip-set with
-// the ground truth of what the pass's backfill actually wrote (issue #7636).
-// skipped holds the partitions the fact loader skipped at pass start; a
-// memo-hit partition can still receive NEW evidence during the pass when
-// cross-partition discovery writes under its generation (for example a GCP
-// cloud scope with no repository fact of its own). insertedRows maps each
-// partition to the rows the pass's backfill actually INSERTED — ON CONFLICT
-// DO NOTHING skips do not count — so a re-upsert of already-committed
-// evidence never invalidates a skip. Every skipped partition with a positive
-// count is excluded; the result is the set whose backward evidence the pass
-// provably did NOT change.
-//
-// A nil skipped (gate failure upstream) stays nil: the reopen-all fallback is
-// preserved, not converted into an empty skip-set. The input map is not
-// mutated. Indexing a nil insertedRows is safe and excludes nothing.
-func excludePartitionsWithNewEvidence(
-	skipped map[scopeGenerationPartition]struct{},
-	insertedRows map[scopeGenerationPartition]int64,
-) map[scopeGenerationPartition]struct{} {
-	if skipped == nil {
-		return nil
-	}
-	revised := make(map[scopeGenerationPartition]struct{}, len(skipped))
-	unskipped := 0
-	for partition := range skipped {
-		if insertedRows[partition] > 0 {
-			unskipped++
-			continue
-		}
-		revised[partition] = struct{}{}
-	}
-	log.Printf(
-		"deferred_backfill_skip_set_revised skipped_before=%d unskipped_new_evidence=%d skipped_after=%d",
-		len(skipped), unskipped, len(revised),
-	)
-	return revised
 }
 
 func logReopenPartitionMemoGateResult(

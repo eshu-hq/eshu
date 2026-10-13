@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -164,12 +165,12 @@ func (o TargetedMaintenanceOutcome) Err() error {
 // guards skip its repositories, exactly as the whole pass skips a scope
 // missing from its snapshot) and returned in conflicts, sorted.
 func buildTargetedMaintenanceSnapshot(
-	load map[scopeGenerationPartition]struct{},
-	affected map[scopeGenerationPartition]struct{},
+	load map[backfill.ScopeGenerationPartition]struct{},
+	affected map[backfill.ScopeGenerationPartition]struct{},
 ) (map[string]string, []string) {
 	snapshot := make(map[string]string, len(load)+len(affected))
 	conflicted := make(map[string]struct{})
-	for _, set := range []map[scopeGenerationPartition]struct{}{load, affected} {
+	for _, set := range []map[backfill.ScopeGenerationPartition]struct{}{load, affected} {
 		for partition := range set {
 			if generation, seen := snapshot[partition.ScopeID]; seen && generation != partition.GenerationID {
 				conflicted[partition.ScopeID] = struct{}{}

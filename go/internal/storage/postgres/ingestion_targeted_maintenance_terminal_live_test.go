@@ -16,11 +16,12 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // This file keeps in the root package the one activation obligation proof
-// that asserts the shipped active-repository read (activeRepositoryGenerationsQuery,
+// that asserts the shipped active-repository read (backfill.ActiveRepositoryGenerationsQuery,
 // unexported here): a repo_id collision loser is retired inapplicable. The
 // other activation live proofs live in the activation package's external
 // tests; the fixtures below are copies of theirs.
@@ -78,7 +79,7 @@ func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 // shippedReadMapsGeneration reports whether the shipped active-repository read
 // maps any repository to the exact scope generation.
 func shippedReadMapsGeneration(ctx context.Context, database *sql.DB, scopeID, generationID string) (bool, error) {
-	rows, err := database.QueryContext(ctx, activeRepositoryGenerationsQuery)
+	rows, err := database.QueryContext(ctx, backfill.ActiveRepositoryGenerationsQuery)
 	if err != nil {
 		return false, err
 	}

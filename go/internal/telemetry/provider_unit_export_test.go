@@ -18,7 +18,7 @@ import (
 // metric.WithUnit("{fact}") in instruments.go.
 //
 // Existing coverage for this histogram (see
-// internal/storage/postgres/ingestion_backfill_task_telemetry_test.go) reads
+// internal/storage/postgres/backfill/task_telemetry_test.go) reads
 // the metric back through an sdkmetric.NewManualReader, which observes the
 // pre-export OTel SDK name and cannot see anything the Prometheus exporter's
 // naming translator does to it. This test instead goes through the real

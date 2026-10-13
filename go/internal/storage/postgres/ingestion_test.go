@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -447,7 +448,7 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 		// rows.
 		return &queueFakeRows{}, nil
 	}
-	if strings.HasPrefix(query, activeScopeGenerationQuery) {
+	if strings.HasPrefix(query, backfill.ActiveScopeGenerationQuery) {
 		// The deferred backfill fan-in's under-lock generation re-read: default
 		// to "this scope has no generation", the same empty answer the
 		// corpus-wide latest_generations default above gives, so a fixture that

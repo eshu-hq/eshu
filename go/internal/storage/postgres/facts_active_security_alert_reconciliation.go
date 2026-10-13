@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 const listActiveSecurityAlertReconciliationFactsQuery = `
@@ -112,7 +113,7 @@ func (s FactStore) listActiveSecurityAlertReconciliationFactsPage(
 	loaded := make([]facts.Envelope, 0,
 		len(filter.RepositoryIDs)+len(filter.PackageIDs)+len(filter.CVEIDs)+len(filter.GHSAIDs))
 	for rows.Next() {
-		envelope, scanErr := scanFactEnvelope(rows)
+		envelope, scanErr := backfill.ScanFactEnvelope(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list active security alert reconciliation facts: %w", scanErr)
 		}

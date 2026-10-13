@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -205,7 +206,7 @@ VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'run
 		p.workItems(targetedGCPScope, "gcp-1")
 		p.run("no_anchor_empty_catalog", targetedDiffCase{
 			owed:     owedPartitions(targetedGCPScope, "gcp-1"),
-			compared: map[scopeGenerationPartition]struct{}{},
+			compared: map[backfill.ScopeGenerationPartition]struct{}{},
 			outcomes: map[string]TargetedMaintenanceOutcomeKind{targetedGCPScope + "/gcp-1": TargetedMaintenanceInapplicable},
 		})
 	})

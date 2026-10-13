@@ -11,20 +11,14 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
 
-const listRepositoryCatalogQuery = `
-SELECT payload, observed_at
-FROM fact_records
-WHERE fact_kind = 'repository'
-ORDER BY observed_at DESC, fact_id DESC
-`
-
-const listLatestRelationshipFactRecordsQuery = latestGenerationCTE + `
+const listLatestRelationshipFactRecordsQuery = backfill.LatestGenerationCTE + `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -135,54 +129,9 @@ ORDER BY generation.ingested_at DESC, generation.generation_id DESC
 LIMIT 1
 `
 
-const activeRepositoryGenerationsQuery = latestGenerationCTE + `
-SELECT DISTINCT ON (repo_id)
-    repo_id,
-    fact.scope_id,
-    fact.generation_id
-FROM (
-    SELECT
-        COALESCE(
-            fact.payload->>'repo_id',
-            fact.payload->>'graph_id',
-            fact.payload->>'name',
-            ''
-        ) AS repo_id,
-        fact.scope_id,
-        fact.generation_id,
-        fact.observed_at,
-        fact.fact_id
-    FROM fact_records AS fact
-    JOIN latest_generations AS latest
-      ON latest.scope_id = fact.scope_id
-     AND latest.generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'repository'
-) AS fact
-WHERE repo_id <> ''
-ORDER BY repo_id, observed_at DESC, fact_id DESC
-`
-
-// activeScopeGenerationPartitionsQuery lists every (scope_id, generation_id) the
-// shared latestGenerationCTE resolves as the latest generation for its scope. The
-// deferred relationship backfill's per-scope fact load (issue #3710) partitions on
-// this set rather than on activeRepositoryGenerationsQuery: the latter filters
-// fact_kind = 'repository', so it covers only git scopes and silently omits cloud
-// scopes (for example gcp:project:...:relationship:global) that carry
-// gcp_cloud_relationship facts but no repository fact. Partitioning on those
-// repository rows would drop the gcp_cloud_relationship arm of the deferred query
-// entirely. This query instead covers EVERY scope with a latest generation — the
-// exact set the deferred query already joins to through latest_generations — so no
-// content/file/gcp_cloud_relationship fact's scope is missing from the partition
-// map. Keying on the (scope_id, generation_id) PAIR also avoids the repo_id
-// collapse: activeRepositoryGenerationsQuery keys DISTINCT ON (repo_id) over a
-// COALESCE(repo_id, graph_id, name) value, so two distinct scopes whose COALESCE
-// collides would share one map entry and one scope's facts would never load.
-const activeScopeGenerationPartitionsQuery = latestGenerationCTE + `
-SELECT scope_id, generation_id
-FROM latest_generations
-WHERE generation_id IS NOT NULL
-ORDER BY scope_id, generation_id
-`
+// Backfill-owned generation queries live in the backfill package:
+// backfill.ActiveRepositoryGenerationsQuery and
+// backfill.ActiveScopeGenerationPartitionsQuery (issue #7794).
 
 // listSucceededDeploymentMappingWorkItemsQuery selects succeeded
 // deployment_mapping reducer work items, including their (scope_id,
@@ -190,7 +139,7 @@ ORDER BY scope_id, generation_id
 // partition-memo gate (applyReopenPartitionMemoGate) uses these to skip
 // reopening a work item whose partition already committed backward evidence
 // under the CURRENT catalog fingerprint, mirroring
-// applyDeferredPartitionMemoGate's read-side logic for the deferred
+// backfill.ApplyDeferredPartitionMemoGate's read-side logic for the deferred
 // backfill's own fact load.
 //
 // The listing carries the same per-scope replay floor and failed-generation

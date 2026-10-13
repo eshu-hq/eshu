@@ -9,6 +9,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel/trace"
@@ -50,7 +51,7 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 	ctx context.Context,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
-	skippedPartitions map[scopeGenerationPartition]struct{},
+	skippedPartitions map[backfill.ScopeGenerationPartition]struct{},
 ) error {
 	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")

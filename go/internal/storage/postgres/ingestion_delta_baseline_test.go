@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 func deltaBaselineInputScope() scope.IngestionScope {
@@ -47,15 +48,15 @@ func TestValidateGenerationInputRequiresDeltaBaseline(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := validateGenerationInput(deltaBaselineInputScope(), deltaBaselineInputGeneration(tc.isDelta, tc.baseline))
+			err := backfill.ValidateGenerationInput(deltaBaselineInputScope(), deltaBaselineInputGeneration(tc.isDelta, tc.baseline))
 			if tc.wantErr == "" {
 				if err != nil {
-					t.Fatalf("validateGenerationInput() = %v, want nil", err)
+					t.Fatalf("backfill.ValidateGenerationInput() = %v, want nil", err)
 				}
 				return
 			}
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("validateGenerationInput() = %v, want error naming %q", err, tc.wantErr)
+				t.Fatalf("backfill.ValidateGenerationInput() = %v, want error naming %q", err, tc.wantErr)
 			}
 		})
 	}

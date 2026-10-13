@@ -6,7 +6,15 @@ package postgres
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
+
+// relationshipFamilyCandidateIndexName is the expected live name of the
+// relationship-family candidate index. It duplicates the proof helper's name
+// deliberately: this test pins the migration output, and the literal keeps the
+// assertion independent of the proof harness it verifies.
+const relationshipFamilyCandidateIndexName = "fact_records_relationship_family_scope_generation_idx_v2"
 
 func TestRelationshipFamilyCandidateIndexMigration(t *testing.T) {
 	t.Parallel()
@@ -25,10 +33,10 @@ func TestRelationshipFamilyCandidateIndexMigration(t *testing.T) {
 		t.Fatalf("relationship-family migration path = %q", migration.Path)
 	}
 	normalize := func(value string) string { return strings.Join(strings.Fields(value), " ") }
-	wantPredicate := normalize(strings.ReplaceAll(deferredRelationshipFamilyCandidatePredicateSQL, "fact.", ""))
+	wantPredicate := normalize(strings.ReplaceAll(backfill.DeferredRelationshipFamilyCandidatePredicateSQL, "fact.", ""))
 	got := normalize(migration.SQL)
 	for _, want := range []string{
-		"CREATE INDEX CONCURRENTLY IF NOT EXISTS " + relationshipFamilyProofIndexName,
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS " + relationshipFamilyCandidateIndexName,
 		"ON fact_records (scope_id, generation_id, observed_at, fact_id)",
 		"WHERE fact_kind IN ('content', 'file', 'gcp_cloud_relationship') AND " + wantPredicate,
 	} {
@@ -60,11 +68,11 @@ func TestRelationshipFamilyCandidateIndexRenameDropsLegacy(t *testing.T) {
 
 	// The active index must be the renamed v2 name, never the legacy name, and
 	// the legacy name must not linger in the create migration.
-	if relationshipFamilyProofIndexName == legacyIndexName {
-		t.Fatalf("relationshipFamilyProofIndexName is still the legacy name %q; the C2 rename must bump it", legacyIndexName)
+	if relationshipFamilyCandidateIndexName == legacyIndexName {
+		t.Fatalf("relationshipFamilyCandidateIndexName is still the legacy name %q; the C2 rename must bump it", legacyIndexName)
 	}
-	if !strings.HasSuffix(relationshipFamilyProofIndexName, "_v2") {
-		t.Fatalf("relationshipFamilyProofIndexName = %q, want the renamed _v2 index", relationshipFamilyProofIndexName)
+	if !strings.HasSuffix(relationshipFamilyCandidateIndexName, "_v2") {
+		t.Fatalf("relationshipFamilyCandidateIndexName = %q, want the renamed _v2 index", relationshipFamilyCandidateIndexName)
 	}
 
 	var drop Definition

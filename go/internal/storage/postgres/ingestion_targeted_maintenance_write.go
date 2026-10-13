@@ -12,30 +12,31 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // targetedMaintenanceSkipSet is the same-pass memo-hit set over every
 // partition the pass loads or reopens. Loaded partitions take the decision the
 // fact loader already made; affected partitions that were not loaded are
-// looked up through the same applyDeferredPartitionMemoGate before any memo
+// looked up through the same backfill.ApplyDeferredPartitionMemoGate before any memo
 // row of this pass is written. A gate failure in either place yields nil,
 // which reopens every relationship-domain candidate, and is logged with the
 // same event the whole pass uses.
 func (s IngestionStore) targetedMaintenanceSkipSet(
 	ctx context.Context,
 	fingerprint string,
-	loadSkipped map[scopeGenerationPartition]struct{},
-	load map[scopeGenerationPartition]struct{},
-	affected map[scopeGenerationPartition]struct{},
-) map[scopeGenerationPartition]struct{} {
+	loadSkipped map[backfill.ScopeGenerationPartition]struct{},
+	load map[backfill.ScopeGenerationPartition]struct{},
+	affected map[backfill.ScopeGenerationPartition]struct{},
+) map[backfill.ScopeGenerationPartition]struct{} {
 	if loadSkipped == nil {
 		return nil
 	}
-	skipped := make(map[scopeGenerationPartition]struct{}, len(loadSkipped))
+	skipped := make(map[backfill.ScopeGenerationPartition]struct{}, len(loadSkipped))
 	for partition := range loadSkipped {
 		skipped[partition] = struct{}{}
 	}
-	unloaded := make(map[scopeGenerationPartition]struct{})
+	unloaded := make(map[backfill.ScopeGenerationPartition]struct{})
 	for partition := range affected {
 		if _, ok := load[partition]; !ok {
 			unloaded[partition] = struct{}{}
@@ -44,8 +45,8 @@ func (s IngestionStore) targetedMaintenanceSkipSet(
 	if len(unloaded) == 0 {
 		return skipped
 	}
-	gate, err := applyDeferredPartitionMemoGate(
-		ctx, newDeferredBackfillPartitionMemoStore(s.database), sortedPartitions(unloaded), fingerprint, nil)
+	gate, err := backfill.ApplyDeferredPartitionMemoGate(
+		ctx, backfill.NewDeferredBackfillPartitionMemoStore(s.database), sortedPartitions(unloaded), fingerprint, nil)
 	if err != nil {
 		log.Printf("deferred_backfill_partition_memo_gate_failed error=%q partitions=%d falling_back=true path=targeted",
 			err, len(unloaded))
@@ -70,7 +71,7 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshot map[string]string,
 	catalogFingerprint string,
-) (int, map[scopeGenerationPartition]int64, error) {
+) (int, map[backfill.ScopeGenerationPartition]int64, error) {
 	repoIDs := make([]string, 0, len(closure.affectedRepos))
 	for repoID := range closure.affectedRepos {
 		repoIDs = append(repoIDs, repoID)
@@ -81,7 +82,7 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 	sort.Strings(repoIDs)
 	batchSize := s.maintenanceBatchSize
 	if batchSize <= 0 {
-		batchSize = deferredMaintenanceRepoBatchSize
+		batchSize = backfill.DeferredMaintenanceRepoBatchSize
 	}
 	bounds := make([][2]int, 0, (len(repoIDs)+batchSize-1)/batchSize)
 	for start := 0; start < len(repoIDs); start += batchSize {
@@ -90,7 +91,7 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 	workers := max(s.maintenanceWorkers, 1)
 	workers = min(workers, len(bounds))
 
-	contributions, insertedRows, err := s.runDeferredBackfillBatchesWith(
+	contributions, insertedRows, err := s.backfillStore().RunDeferredBackfillBatchesWith(
 		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshot, nil,
 		loadActiveRepositoryGenerationsForRepos,
 	)
@@ -100,7 +101,7 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 	if err := ctx.Err(); err != nil {
 		return 0, nil, fmt.Errorf("partition-scoped maintenance canceled before readiness publication: %w", err)
 	}
-	published, err := s.publishDeferredBackfillPartitions(ctx, contributions, snapshot, catalogFingerprint, workers, nil)
+	published, err := s.backfillStore().PublishDeferredBackfillPartitions(ctx, contributions, snapshot, catalogFingerprint, workers, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -120,8 +121,8 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 func (s IngestionStore) reopenTargetedMaintenanceWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,
-	affected []scopeGenerationPartition,
-	skipped map[scopeGenerationPartition]struct{},
+	affected []backfill.ScopeGenerationPartition,
+	skipped map[backfill.ScopeGenerationPartition]struct{},
 ) (map[string]int, error) {
 	reopened := make(map[string]int)
 	if len(affected) == 0 {

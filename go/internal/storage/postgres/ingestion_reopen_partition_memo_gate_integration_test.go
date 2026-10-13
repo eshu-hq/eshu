@@ -270,7 +270,7 @@ func TestReopenDeploymentMappingWorkItemsAlwaysReopensArgoCDBearingPartition(t *
 	base := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
 
 	// repo-control: holds the ArgoCD ApplicationSet (never memoized, per
-	// listArgoCDBearingPartitionsQuery / writeDeferredBackfillPartitionMemos).
+	// ListArgoCDBearingPartitionsQuery / writeDeferredBackfillPartitionMemos).
 	seedArgoCDControlFixture(t, ctx, db, base)
 
 	adapter := SQLDB{DB: db}

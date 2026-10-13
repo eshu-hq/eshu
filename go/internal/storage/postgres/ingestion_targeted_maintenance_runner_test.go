@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // targetedDiffCase states one fixture's owed partitions and, independently of
@@ -21,12 +22,12 @@ type targetedDiffCase struct {
 	// nil means every owed partition is published.
 	outcomes map[string]TargetedMaintenanceOutcomeKind
 	// compared is the expected affected set; the arms must agree on it exactly.
-	compared map[scopeGenerationPartition]struct{}
+	compared map[backfill.ScopeGenerationPartition]struct{}
 	// newEvidence is "source->target" per evidence row the targeted arm newly
 	// writes, sorted.
 	newEvidence []string
 	// published are the partitions whose phase row the targeted arm writes.
-	published map[scopeGenerationPartition]struct{}
+	published map[backfill.ScopeGenerationPartition]struct{}
 	// reopened are the work_item_ids the targeted arm reopens, sorted.
 	reopened []string
 	// wholeOutside, when non-nil, is the exact sorted set of rows outside the
@@ -127,7 +128,7 @@ func (p *targetedDiffPair) run(name string, c targetedDiffCase) targetedDiffOutc
 	if got := p.newEvidenceEdges(p.targeted, changedRows(outcome.before, outcome.targeted, "evidence")); !sameStringMultiset(got, c.newEvidence) {
 		p.t.Fatalf("%s: targeted new evidence = %v, want %v", name, got, c.newEvidence)
 	}
-	gotPublished := map[scopeGenerationPartition]struct{}{}
+	gotPublished := map[backfill.ScopeGenerationPartition]struct{}{}
 	for key, row := range outcome.targeted {
 		if row.table != "phase" {
 			continue
@@ -201,17 +202,17 @@ func owedPartitions(pairs ...string) []OwedPartition {
 }
 
 // owedSet converts exported owed partitions into an internal partition set.
-func owedSet(owed []OwedPartition) map[scopeGenerationPartition]struct{} {
-	set := make(map[scopeGenerationPartition]struct{}, len(owed))
+func owedSet(owed []OwedPartition) map[backfill.ScopeGenerationPartition]struct{} {
+	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(owed))
 	for _, partition := range owed {
-		set[scopeGenerationPartition(partition)] = struct{}{}
+		set[backfill.ScopeGenerationPartition(partition)] = struct{}{}
 	}
 	return set
 }
 
 // partitionSetOf converts a partition slice into a set.
-func partitionSetOf(partitions []scopeGenerationPartition) map[scopeGenerationPartition]struct{} {
-	set := make(map[scopeGenerationPartition]struct{}, len(partitions))
+func partitionSetOf(partitions []backfill.ScopeGenerationPartition) map[backfill.ScopeGenerationPartition]struct{} {
+	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(partitions))
 	for _, partition := range partitions {
 		set[partition] = struct{}{}
 	}
@@ -219,9 +220,9 @@ func partitionSetOf(partitions []scopeGenerationPartition) map[scopeGenerationPa
 }
 
 // nonNilSet returns set, or an empty set when nil.
-func nonNilSet(set map[scopeGenerationPartition]struct{}) map[scopeGenerationPartition]struct{} {
+func nonNilSet(set map[backfill.ScopeGenerationPartition]struct{}) map[backfill.ScopeGenerationPartition]struct{} {
 	if set == nil {
-		return map[scopeGenerationPartition]struct{}{}
+		return map[backfill.ScopeGenerationPartition]struct{}{}
 	}
 	return set
 }

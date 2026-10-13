@@ -6,25 +6,27 @@ package postgres
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // latestGenerationCTEQueries is the set of production queries that select the
-// latest active generation per scope through the shared latestGenerationCTE. The
+// latest active generation per scope through the shared backfill.LatestGenerationCTE. The
 // #3704 long-pole fix rewrote that CTE from a per-scope correlated subquery
 // (ORDER BY ... LIMIT 1 evaluated once per GROUP BY row, which the planner
 // grossly under-estimates) into a single DISTINCT ON pass. Every query that
 // embeds the CTE must use the rewritten shape so none retains the misestimated
 // correlated subplan.
 var latestGenerationCTEQueries = map[string]string{
-	"listLatestRelationshipFactRecordsQuery":              listLatestRelationshipFactRecordsQuery,
-	"activeRepositoryGenerationsQuery":                    activeRepositoryGenerationsQuery,
-	"activeScopeGenerationPartitionsQuery":                activeScopeGenerationPartitionsQuery,
-	"listOnboardedRepoScopedRelationshipFactRecordsQuery": listOnboardedRepoScopedRelationshipFactRecordsQuery,
-	"listDeferredScopedRelationshipFactRecordsQuery":      listDeferredScopedRelationshipFactRecordsQuery,
-	"resolveRepoActiveGenerationsQuery":                   resolveRepoActiveGenerationsQuery,
-	"listArgoCDGeneratorConfigFactRecordsQuery":           listArgoCDGeneratorConfigFactRecordsQuery,
-	"listScopeGenerationWorkQuery":                        listScopeGenerationWorkQuery,
-	"repositoryFreshnessResolveQuery":                     repositoryFreshnessResolveQuery,
+	"listLatestRelationshipFactRecordsQuery":                       listLatestRelationshipFactRecordsQuery,
+	"backfill.ActiveRepositoryGenerationsQuery":                    backfill.ActiveRepositoryGenerationsQuery,
+	"backfill.ActiveScopeGenerationPartitionsQuery":                backfill.ActiveScopeGenerationPartitionsQuery,
+	"backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery": backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery,
+	"backfill.ListDeferredScopedRelationshipFactRecordsQuery":      backfill.ListDeferredScopedRelationshipFactRecordsQuery,
+	"resolveRepoActiveGenerationsQuery":                            resolveRepoActiveGenerationsQuery,
+	"backfill.ListArgoCDGeneratorConfigFactRecordsQuery":           backfill.ListArgoCDGeneratorConfigFactRecordsQuery,
+	"listScopeGenerationWorkQuery":                                 listScopeGenerationWorkQuery,
+	"repositoryFreshnessResolveQuery":                              repositoryFreshnessResolveQuery,
 }
 
 // TestLatestGenerationCTEHasNoCorrelatedSubquery is the #3704 regression gate.

@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
@@ -89,6 +90,10 @@ func runLockedBackfillWindow(ctx context.Context, adapter SQLDB, repoKey, newRep
 	}
 
 	relationshipStore := NewRelationshipStore(tx)
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, tx)
+	if err != nil {
+		return fmt.Errorf("reload repository catalog for locked backfill window: %w", err)
+	}
 	knownRepoIDs := map[string]struct{}{"repo-already-known": {}}
 	// The "new" repository id must match the catalog fact
 	// seedAnchorMatchingCorpus inserted (repo_id = newRepoAlias), which is what
@@ -97,8 +102,8 @@ func runLockedBackfillWindow(ctx context.Context, adapter SQLDB, repoKey, newRep
 	// matching production where a scope's PartitionKey and a fact's repo_id
 	// are independent identifiers.
 	currentGenerationRepoIDs := map[string]struct{}{newRepoAlias: {}}
-	if err := backfillRelationshipEvidenceForNewRepositories(
-		ctx, tx, relationshipStore, "gen-locked-backfill-window", knownRepoIDs, currentGenerationRepoIDs,
+	if err := backfill.BackfillRelationshipEvidenceForNewRepositories(
+		ctx, tx, relationshipStore, "gen-locked-backfill-window", catalog, knownRepoIDs, currentGenerationRepoIDs,
 	); err != nil {
 		return fmt.Errorf("backfill inside locked window: %w", err)
 	}
@@ -148,7 +153,7 @@ func runLockedCommitWindowWithoutBackfill(ctx context.Context, adapter SQLDB, re
 // onboarding repository's catalog aliases, so without it the anchor-scoped
 // query has nothing to search for and short-circuits before touching the
 // content corpus at all. This gives the anchor-scoped backfill query
-// (listOnboardedRepoScopedRelationshipFactRecordsQuery) and DiscoverEvidence a
+// (backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery) and DiscoverEvidence a
 // realistic amount of matching work when a generation onboarding
 // newRepoAlias triggers the new-repo backfill.
 //

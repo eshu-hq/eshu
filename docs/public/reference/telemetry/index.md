@@ -1070,7 +1070,7 @@ queue evicts FIFO, so a pass with more than 128 query tasks keeps only the last
 cold pass exceeds that bound several times over. (A steady-state pass can stay
 well under 128 tasks: the #3624 partition memo gate
 (`applyDeferredPartitionMemoGate`,
-`go/internal/storage/postgres/ingestion_backfill_scoped_load.go:248`) skips
+`go/internal/storage/postgres/backfill/scoped_load.go`) skips
 most partitions on later passes, so eviction is a cold-pass concern, not a
 guarantee on every pass.) The
 dropped events are the earliest to COMPLETE rather than the lowest task index,

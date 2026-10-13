@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -69,6 +70,19 @@ func newTargetedDiffPair(t *testing.T) *targetedDiffPair {
 	t.Cleanup(cancel)
 	pair.ctx = ctx
 	return pair
+}
+
+// firstLine trims a SQL constant to its first non-blank line so the error names
+// the query without pasting the whole statement. It mirrors the backfill
+// package's helper of the same name: the two copies are deliberate, since
+// neither test package can import the other's unexported helpers.
+func firstLine(query string) string {
+	for _, line := range strings.Split(query, "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			return trimmed
+		}
+	}
+	return "(empty query)"
 }
 
 // exec applies one statement to both arms.
@@ -179,7 +193,7 @@ func targetedDiffStore(database *sql.DB, now time.Time) IngestionStore {
 type targetedDiffRow struct {
 	table     string
 	key       string
-	partition scopeGenerationPartition
+	partition backfill.ScopeGenerationPartition
 	value     string
 	xmin      int64
 }
@@ -251,7 +265,7 @@ type targetedDiffReport struct {
 // diffStates compares before, whole and targeted over compared partitions.
 func diffStates(
 	before, whole, targeted targetedDiffState,
-	compared map[scopeGenerationPartition]struct{},
+	compared map[backfill.ScopeGenerationPartition]struct{},
 ) targetedDiffReport {
 	var report targetedDiffReport
 	inScope := func(row targetedDiffRow) bool {
@@ -338,20 +352,20 @@ func assertPhaseCommittedAfterEvidence(t *testing.T, arm string, before, after t
 }
 
 // partitionSet builds a partition set from scope/generation pairs.
-func partitionSet(pairs ...string) map[scopeGenerationPartition]struct{} {
-	set := make(map[scopeGenerationPartition]struct{}, len(pairs)/2)
+func partitionSet(pairs ...string) map[backfill.ScopeGenerationPartition]struct{} {
+	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(pairs)/2)
 	for i := 0; i+1 < len(pairs); i += 2 {
-		set[scopeGenerationPartition{ScopeID: pairs[i], GenerationID: pairs[i+1]}] = struct{}{}
+		set[backfill.ScopeGenerationPartition{ScopeID: pairs[i], GenerationID: pairs[i+1]}] = struct{}{}
 	}
 	return set
 }
 
 // partitionsOf builds a partition slice from scope/generation pairs, in the
 // given order.
-func partitionsOf(pairs ...string) []scopeGenerationPartition {
-	partitions := make([]scopeGenerationPartition, 0, len(pairs)/2)
+func partitionsOf(pairs ...string) []backfill.ScopeGenerationPartition {
+	partitions := make([]backfill.ScopeGenerationPartition, 0, len(pairs)/2)
 	for i := 0; i+1 < len(pairs); i += 2 {
-		partitions = append(partitions, scopeGenerationPartition{ScopeID: pairs[i], GenerationID: pairs[i+1]})
+		partitions = append(partitions, backfill.ScopeGenerationPartition{ScopeID: pairs[i], GenerationID: pairs[i+1]})
 	}
 	return partitions
 }

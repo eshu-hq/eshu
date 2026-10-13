@@ -18,8 +18,8 @@ import (
 
 // deferredPartitionProofSchemaSQL is the minimal scope/generation/fact table set
 // the deferred backfill's per-scope fact load selects over. It mirrors the
-// production columns the latestGenerationCTE and
-// listDeferredScopedRelationshipFactRecordsQuery reference, plus the
+// production columns the backfill.LatestGenerationCTE and
+// backfill.ListDeferredScopedRelationshipFactRecordsQuery reference, plus the
 // fact_records_scope_generation_idx the per-scope partition load is bound by, so
 // the partition-source proof exercises the same access path the data plane would.
 const deferredPartitionProofSchemaSQL = `
@@ -120,7 +120,7 @@ func TestDeferredBackfillPartitionSourceCoversAllScopes(t *testing.T) {
 	store := NewIngestionStore(adapter)
 	store.maintenanceWorkers = 4
 
-	loaded, _, _, err := store.loadDeferredAnchorScopedRelationshipFacts(
+	loaded, _, _, err := store.backfillStore().LoadDeferredAnchorScopedRelationshipFacts(
 		ctx, adapter, catalog, nil,
 	)
 	if err != nil {

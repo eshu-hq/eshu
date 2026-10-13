@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -31,30 +32,30 @@ import (
 // query that loses its marker makes deriveQueryAtMarker panic at package init.
 
 // activeRepositoryGenerationsRepoMarker is the line of
-// activeRepositoryGenerationsQuery after which the repo-bounded read adds its
+// backfill.ActiveRepositoryGenerationsQuery after which the repo-bounded read adds its
 // conjunct. It filters the outer SELECT DISTINCT ON (repo_id) on repo_id
 // itself, so it removes whole repo_id groups and never changes which row the
 // DISTINCT ON keeps for a repository that survives.
 const activeRepositoryGenerationsRepoMarker = "WHERE repo_id <> ''\n"
 
-// activeRepositoryGenerationsForReposQuery is activeRepositoryGenerationsQuery
+// activeRepositoryGenerationsForReposQuery is backfill.ActiveRepositoryGenerationsQuery
 // restricted to the repositories in $1. The partition-scoped batch writer reads
 // it under the batch's advisory locks instead of re-reading every active
 // repository generation in the corpus.
 var activeRepositoryGenerationsForReposQuery = deriveQueryAtMarker(
-	activeRepositoryGenerationsQuery,
+	backfill.ActiveRepositoryGenerationsQuery,
 	activeRepositoryGenerationsRepoMarker,
 	"  AND repo_id = ANY($1)\n",
 )
 
 // activeRepositoryGenerationsForPartitionsQuery returns the rows of
-// activeRepositoryGenerationsQuery whose chosen (scope_id, generation_id) is
+// backfill.ActiveRepositoryGenerationsQuery whose chosen (scope_id, generation_id) is
 // one of the ($1, $2) pairs. It wraps the shipped query rather than inserting a
 // scope predicate before DISTINCT ON: when two scopes derive the same repo_id,
 // the shipped query keeps one of them, and a pre-DISTINCT scope filter could
 // keep the other one instead.
 var activeRepositoryGenerationsForPartitionsQuery = "SELECT repo_id, scope_id, generation_id\nFROM (\n" +
-	activeRepositoryGenerationsQuery +
+	backfill.ActiveRepositoryGenerationsQuery +
 	") AS active_repository_generation\n" +
 	"WHERE (scope_id, generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]))\n"
 
@@ -109,27 +110,6 @@ func deriveQueryAtMarker(shipped, marker, conjunct string) string {
 	return shipped[:index] + conjunct + shipped[index:]
 }
 
-// repositoryGenerationLoader reads the active (scope_id, generation_id) of
-// repositories for one deferred-maintenance batch under the batch's locks. The
-// whole pass passes loadAllActiveRepositoryGenerations, which ignores repoIDs
-// and keeps the shipped corpus-wide read; the partition-scoped pass passes
-// loadActiveRepositoryGenerationsForRepos, whose rows for repoIDs are the same.
-type repositoryGenerationLoader func(
-	ctx context.Context,
-	queryer db.Queryer,
-	repoIDs []string,
-) (map[string]repositoryGenerationIdentity, error)
-
-// loadAllActiveRepositoryGenerations is the whole pass's batch loader: the
-// shipped loadActiveRepositoryGenerations, which reads every repository.
-func loadAllActiveRepositoryGenerations(
-	ctx context.Context,
-	queryer db.Queryer,
-	_ []string,
-) (map[string]repositoryGenerationIdentity, error) {
-	return loadActiveRepositoryGenerations(ctx, queryer)
-}
-
 // loadActiveRepositoryGenerationsForRepos returns the active generation of each
 // repository in repoIDs, read through activeRepositoryGenerationsForReposQuery.
 // An empty repoIDs returns an empty map without a query.
@@ -137,9 +117,9 @@ func loadActiveRepositoryGenerationsForRepos(
 	ctx context.Context,
 	queryer db.Queryer,
 	repoIDs []string,
-) (map[string]repositoryGenerationIdentity, error) {
+) (map[string]backfill.RepositoryGenerationIdentity, error) {
 	if queryer == nil || len(repoIDs) == 0 {
-		return map[string]repositoryGenerationIdentity{}, nil
+		return map[string]backfill.RepositoryGenerationIdentity{}, nil
 	}
 	rows, err := queryer.QueryContext(ctx, activeRepositoryGenerationsForReposQuery, array.StringArray(repoIDs))
 	return scanRepositoryGenerationRows(rows, err)
@@ -151,10 +131,10 @@ func loadActiveRepositoryGenerationsForRepos(
 func loadActiveRepositoryGenerationsForPartitions(
 	ctx context.Context,
 	queryer db.Queryer,
-	partitions []scopeGenerationPartition,
-) (map[string]repositoryGenerationIdentity, error) {
+	partitions []backfill.ScopeGenerationPartition,
+) (map[string]backfill.RepositoryGenerationIdentity, error) {
 	if queryer == nil || len(partitions) == 0 {
-		return map[string]repositoryGenerationIdentity{}, nil
+		return map[string]backfill.RepositoryGenerationIdentity{}, nil
 	}
 	scopeIDs, generationIDs := partitionColumns(partitions)
 	rows, err := queryer.QueryContext(ctx, activeRepositoryGenerationsForPartitionsQuery,
@@ -163,16 +143,16 @@ func loadActiveRepositoryGenerationsForPartitions(
 }
 
 // scanRepositoryGenerationRows scans (repo_id, scope_id, generation_id) rows
-// the same way loadActiveRepositoryGenerations does.
-func scanRepositoryGenerationRows(rows db.Rows, err error) (map[string]repositoryGenerationIdentity, error) {
+// the same way backfill.LoadActiveRepositoryGenerations does.
+func scanRepositoryGenerationRows(rows db.Rows, err error) (map[string]backfill.RepositoryGenerationIdentity, error) {
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
 
-	result := make(map[string]repositoryGenerationIdentity)
+	result := make(map[string]backfill.RepositoryGenerationIdentity)
 	for rows.Next() {
-		var identity repositoryGenerationIdentity
+		var identity backfill.RepositoryGenerationIdentity
 		if err := rows.Scan(&identity.RepoID, &identity.ScopeID, &identity.GenerationID); err != nil {
 			return nil, err
 		}
@@ -194,7 +174,7 @@ func listSucceededRelationshipWorkItemsForPartitions(
 	queryer db.Queryer,
 	query string,
 	domain string,
-	partitions []scopeGenerationPartition,
+	partitions []backfill.ScopeGenerationPartition,
 ) ([]reopenWorkItemRef, error) {
 	if len(partitions) == 0 {
 		return nil, nil
@@ -229,7 +209,7 @@ func listSucceededReducerWorkItemIDsForDomainAndPartitions(
 	ctx context.Context,
 	queryer db.Queryer,
 	domain string,
-	partitions []scopeGenerationPartition,
+	partitions []backfill.ScopeGenerationPartition,
 ) ([]string, error) {
 	if len(partitions) == 0 {
 		return nil, nil
@@ -261,7 +241,7 @@ func listSucceededReducerWorkItemIDsForDomainAndPartitions(
 
 // partitionColumns splits partitions into parallel scope and generation arrays
 // for the unnest($1::text[], $2::text[]) predicates above.
-func partitionColumns(partitions []scopeGenerationPartition) ([]string, []string) {
+func partitionColumns(partitions []backfill.ScopeGenerationPartition) ([]string, []string) {
 	scopeIDs := make([]string, 0, len(partitions))
 	generationIDs := make([]string, 0, len(partitions))
 	for _, partition := range partitions {
@@ -273,8 +253,8 @@ func partitionColumns(partitions []scopeGenerationPartition) ([]string, []string
 
 // sortedPartitions returns the members of set ordered by (scope_id,
 // generation_id), the order every deferred-maintenance fan-out uses.
-func sortedPartitions(set map[scopeGenerationPartition]struct{}) []scopeGenerationPartition {
-	partitions := make([]scopeGenerationPartition, 0, len(set))
+func sortedPartitions(set map[backfill.ScopeGenerationPartition]struct{}) []backfill.ScopeGenerationPartition {
+	partitions := make([]backfill.ScopeGenerationPartition, 0, len(set))
 	for partition := range set {
 		partitions = append(partitions, partition)
 	}

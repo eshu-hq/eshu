@@ -10,13 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // fifoExecQueryer is a minimal ExecQueryer that answers QueryContext calls
 // from a strict FIFO queue with no query-text special-casing. It exists
 // because the shared fakeExecQueryer (work_queue_lifecycle_test.go)
-// unconditionally intercepts lookupDeferredBackfillPartitionMemosQuery and
+// unconditionally intercepts LookupDeferredBackfillPartitionMemosQuery and
 // always answers "no memo rows" independent of staged responses. Mirrors the
 // dedicated-fake convention noopExecQueryer already uses in
 // deferred_backfill_partition_memo_test.go for the same reason.
@@ -50,8 +51,8 @@ func TestApplyReopenPartitionMemoGateNilSkipSetReopensEverything(t *testing.T) {
 	t.Parallel()
 
 	items := []reopenWorkItemRef{
-		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
-		{WorkItemID: "work-2", Partition: scopeGenerationPartition{ScopeID: "scope-b", GenerationID: "gen-b"}},
+		{WorkItemID: "work-1", Partition: backfill.ScopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
+		{WorkItemID: "work-2", Partition: backfill.ScopeGenerationPartition{ScopeID: "scope-b", GenerationID: "gen-b"}},
 	}
 
 	result := applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", items, nil, nil)
@@ -75,9 +76,9 @@ func TestApplyReopenPartitionMemoGateSkipSetSkipsMemberPartition(t *testing.T) {
 	t.Parallel()
 
 	items := []reopenWorkItemRef{
-		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
+		{WorkItemID: "work-1", Partition: backfill.ScopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
-	skipSet := map[scopeGenerationPartition]struct{}{
+	skipSet := map[backfill.ScopeGenerationPartition]struct{}{
 		{ScopeID: "scope-a", GenerationID: "gen-a"}: {},
 	}
 
@@ -98,11 +99,11 @@ func TestApplyReopenPartitionMemoGateSkipSetReopensNonMemberPartition(t *testing
 	t.Parallel()
 
 	items := []reopenWorkItemRef{
-		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
+		{WorkItemID: "work-1", Partition: backfill.ScopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
 	// Empty-but-non-nil skip-set: every candidate was a memo MISS this pass
 	// (the exact RED scenario for the #4770/#4816 same-pass fix).
-	skipSet := map[scopeGenerationPartition]struct{}{}
+	skipSet := map[backfill.ScopeGenerationPartition]struct{}{}
 
 	result := applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", items, skipSet, nil)
 
@@ -121,10 +122,10 @@ func TestApplyReopenPartitionMemoGateMixedPartitionsSplitsCorrectly(t *testing.T
 	t.Parallel()
 
 	items := []reopenWorkItemRef{
-		{WorkItemID: "work-hit", Partition: scopeGenerationPartition{ScopeID: "scope-hit", GenerationID: "gen-hit"}},
-		{WorkItemID: "work-miss", Partition: scopeGenerationPartition{ScopeID: "scope-miss", GenerationID: "gen-miss"}},
+		{WorkItemID: "work-hit", Partition: backfill.ScopeGenerationPartition{ScopeID: "scope-hit", GenerationID: "gen-hit"}},
+		{WorkItemID: "work-miss", Partition: backfill.ScopeGenerationPartition{ScopeID: "scope-miss", GenerationID: "gen-miss"}},
 	}
-	skipSet := map[scopeGenerationPartition]struct{}{
+	skipSet := map[backfill.ScopeGenerationPartition]struct{}{
 		{ScopeID: "scope-hit", GenerationID: "gen-hit"}: {},
 	}
 
@@ -147,9 +148,9 @@ func TestApplyReopenPartitionMemoGateBlankPartitionAlwaysReopens(t *testing.T) {
 	t.Parallel()
 
 	items := []reopenWorkItemRef{
-		{WorkItemID: "work-blank", Partition: scopeGenerationPartition{ScopeID: "", GenerationID: ""}},
+		{WorkItemID: "work-blank", Partition: backfill.ScopeGenerationPartition{ScopeID: "", GenerationID: ""}},
 	}
-	skipSet := map[scopeGenerationPartition]struct{}{
+	skipSet := map[backfill.ScopeGenerationPartition]struct{}{
 		{ScopeID: "", GenerationID: ""}: {},
 	}
 
@@ -174,7 +175,7 @@ func TestApplyReopenPartitionMemoGateEmptyItemsIsNoop(t *testing.T) {
 		t.Fatalf("applyReopenPartitionMemoGate(nil items, nil skip-set) = %+v, want empty result", result)
 	}
 
-	result = applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", nil, map[scopeGenerationPartition]struct{}{}, nil)
+	result = applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", nil, map[backfill.ScopeGenerationPartition]struct{}{}, nil)
 	if len(result.ToReopen) != 0 || len(result.Skipped) != 0 {
 		t.Fatalf("applyReopenPartitionMemoGate(nil items, empty skip-set) = %+v, want empty result", result)
 	}
@@ -241,7 +242,7 @@ func TestListSucceededDeploymentMappingWorkItemsScansPartitionColumns(t *testing
 		t.Fatalf("listSucceededDeploymentMappingWorkItems() error = %v, want nil", err)
 	}
 	want := []reopenWorkItemRef{
-		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
+		{WorkItemID: "work-1", Partition: backfill.ScopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
 	if len(items) != 1 || items[0] != want[0] {
 		t.Fatalf("listSucceededDeploymentMappingWorkItems() = %+v, want %+v", items, want)
@@ -263,7 +264,7 @@ func TestListSucceededCodeImportRepoEdgeWorkItemsScansPartitionColumns(t *testin
 		t.Fatalf("listSucceededCodeImportRepoEdgeWorkItems() error = %v, want nil", err)
 	}
 	want := []reopenWorkItemRef{
-		{WorkItemID: "work-2", Partition: scopeGenerationPartition{ScopeID: "scope-b", GenerationID: "gen-b"}},
+		{WorkItemID: "work-2", Partition: backfill.ScopeGenerationPartition{ScopeID: "scope-b", GenerationID: "gen-b"}},
 	}
 	if len(items) != 1 || items[0] != want[0] {
 		t.Fatalf("listSucceededCodeImportRepoEdgeWorkItems() = %+v, want %+v", items, want)
@@ -277,39 +278,39 @@ func TestListSucceededCodeImportRepoEdgeWorkItemsScansPartitionColumns(t *testin
 func TestExcludePartitionsWithNewEvidence(t *testing.T) {
 	t.Parallel()
 
-	quiet := scopeGenerationPartition{ScopeID: "git:quiet", GenerationID: "quiet-1"}
-	noisy := scopeGenerationPartition{ScopeID: "git:noisy", GenerationID: "noisy-1"}
-	reUpserted := scopeGenerationPartition{ScopeID: "git:re", GenerationID: "re-1"}
+	quiet := backfill.ScopeGenerationPartition{ScopeID: "git:quiet", GenerationID: "quiet-1"}
+	noisy := backfill.ScopeGenerationPartition{ScopeID: "git:noisy", GenerationID: "noisy-1"}
+	reUpserted := backfill.ScopeGenerationPartition{ScopeID: "git:re", GenerationID: "re-1"}
 
 	// Nil in, nil out: a gate failure upstream keeps the reopen-all
 	// fallback instead of becoming an empty skip-set.
-	if got := excludePartitionsWithNewEvidence(nil, map[scopeGenerationPartition]int64{noisy: 5}); got != nil {
-		t.Fatalf("excludePartitionsWithNewEvidence(nil, ...) = %v, want nil", got)
+	if got := backfill.ExcludePartitionsWithNewEvidence(nil, map[backfill.ScopeGenerationPartition]int64{noisy: 5}); got != nil {
+		t.Fatalf("backfill.ExcludePartitionsWithNewEvidence(nil, ...) = %v, want nil", got)
 	}
 
-	skipped := map[scopeGenerationPartition]struct{}{quiet: {}, noisy: {}, reUpserted: {}}
-	inserted := map[scopeGenerationPartition]int64{noisy: 3, reUpserted: 0}
-	got := excludePartitionsWithNewEvidence(skipped, inserted)
+	skipped := map[backfill.ScopeGenerationPartition]struct{}{quiet: {}, noisy: {}, reUpserted: {}}
+	inserted := map[backfill.ScopeGenerationPartition]int64{noisy: 3, reUpserted: 0}
+	got := backfill.ExcludePartitionsWithNewEvidence(skipped, inserted)
 	if len(got) != 2 {
-		t.Fatalf("excludePartitionsWithNewEvidence() kept %d partitions, want 2 (quiet + re-upserted)", len(got))
+		t.Fatalf("backfill.ExcludePartitionsWithNewEvidence() kept %d partitions, want 2 (quiet + re-upserted)", len(got))
 	}
 	if _, ok := got[quiet]; !ok {
-		t.Fatal("excludePartitionsWithNewEvidence() dropped the quiet partition, want it kept")
+		t.Fatal("backfill.ExcludePartitionsWithNewEvidence() dropped the quiet partition, want it kept")
 	}
 	if _, ok := got[reUpserted]; !ok {
-		t.Fatal("excludePartitionsWithNewEvidence() dropped the zero-insert partition: identical re-upserts must not invalidate a skip")
+		t.Fatal("backfill.ExcludePartitionsWithNewEvidence() dropped the zero-insert partition: identical re-upserts must not invalidate a skip")
 	}
 	if _, ok := got[noisy]; ok {
-		t.Fatal("excludePartitionsWithNewEvidence() kept the partition with 3 inserted rows, want it excluded")
+		t.Fatal("backfill.ExcludePartitionsWithNewEvidence() kept the partition with 3 inserted rows, want it excluded")
 	}
 	if len(skipped) != 3 {
-		t.Fatalf("excludePartitionsWithNewEvidence() mutated its input: %d entries left, want 3", len(skipped))
+		t.Fatalf("backfill.ExcludePartitionsWithNewEvidence() mutated its input: %d entries left, want 3", len(skipped))
 	}
 
 	// Empty-but-non-nil stays empty-but-non-nil: every candidate then falls
 	// through to ToReopen by set membership (see the gate's doc comment).
-	empty := excludePartitionsWithNewEvidence(map[scopeGenerationPartition]struct{}{}, inserted)
+	empty := backfill.ExcludePartitionsWithNewEvidence(map[backfill.ScopeGenerationPartition]struct{}{}, inserted)
 	if empty == nil || len(empty) != 0 {
-		t.Fatalf("excludePartitionsWithNewEvidence(empty, ...) = %v, want empty non-nil", empty)
+		t.Fatalf("backfill.ExcludePartitionsWithNewEvidence(empty, ...) = %v, want empty non-nil", empty)
 	}
 }

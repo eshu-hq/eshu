@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -144,7 +145,7 @@ type fakeExecQueryer struct {
 	transactionRollbackErr           error
 
 	// deferredFactsByScope, when non-nil, routes the per-scope deferred backfill
-	// fact query (listDeferredScopedRelationshipFactRecordsQuery, issue #3710) to a
+	// fact query (backfill.ListDeferredScopedRelationshipFactRecordsQuery, issue #3710) to a
 	// scope-keyed response instead of the FIFO queryResponses queue. The key is the
 	// query's $3 scope_id argument. This keeps deferred-backfill fixtures
 	// deterministic now that the load fans out one query per (scope, generation)
@@ -153,7 +154,7 @@ type fakeExecQueryer struct {
 	deferredFactsByScope map[string][][]any
 
 	// stagedActiveGenerations accumulates the (repo_id, scope_id,
-	// generation_id) rows this fake served for activeRepositoryGenerationsQuery,
+	// generation_id) rows this fake served for backfill.ActiveRepositoryGenerationsQuery,
 	// so the deferred backfill's per-partition fan-in can re-read a scope's
 	// active generation and get the same answer the batches did.
 	stagedActiveGenerations [][]any
@@ -215,7 +216,7 @@ func (f *fakeExecQueryer) QueryContext(
 	// Route the per-scope deferred backfill fact query to a scope-keyed response
 	// when configured, independent of FIFO order (issue #3710). args[2] is the $3
 	// scope_id parameter.
-	if f.deferredFactsByScope != nil && query == listDeferredScopedRelationshipFactRecordsQuery {
+	if f.deferredFactsByScope != nil && query == backfill.ListDeferredScopedRelationshipFactRecordsQuery {
 		scopeID, _ := scopeIDFromDeferredFactArgs(args)
 		return &queueFakeRows{rows: f.deferredFactsByScope[scopeID]}, nil
 	}
@@ -227,7 +228,7 @@ func (f *fakeExecQueryer) QueryContext(
 	// legacy full-load path this fake exercises is unaffected. A test that wants
 	// to exercise a memo HIT constructs its own queryer instead of this shared
 	// fake.
-	if query == lookupDeferredBackfillPartitionMemosQuery {
+	if query == backfill.LookupDeferredBackfillPartitionMemosQuery {
 		return &queueFakeRows{}, nil
 	}
 
@@ -236,13 +237,13 @@ func (f *fakeExecQueryer) QueryContext(
 	// FIFO order: none of the shared fixture's facts carry an ArgoCD marker, so
 	// every memo candidate is correctly non-ArgoCD-bearing and gets a memo row.
 	// A test exercising the ArgoCD carve-out constructs its own queryer instead.
-	if query == listArgoCDBearingPartitionsQuery {
+	if query == backfill.ListArgoCDBearingPartitionsQuery {
 		return &queueFakeRows{}, nil
 	}
 
-	// The fan-in's under-lock generation re-read (loadActiveGenerationForScope)
+	// The fan-in's under-lock generation re-read (backfill.LoadActiveGenerationForScope)
 	// is answered from the SAME rows the fixture already staged for the
-	// corpus-wide activeRepositoryGenerationsQuery below, rather than from the
+	// corpus-wide backfill.ActiveRepositoryGenerationsQuery below, rather than from the
 	// FIFO queue. That is the honest answer for a fake: the fan-in's question is
 	// "is this scope still on the generation the batch committed against", and
 	// the fixture's staged active-generation rows are that corpus's answer. It
@@ -256,7 +257,7 @@ func (f *fakeExecQueryer) QueryContext(
 		return &queueFakeRows{rows: f.contentFilePathRows}, nil
 	}
 
-	if strings.HasPrefix(query, activeScopeGenerationQuery) {
+	if strings.HasPrefix(query, backfill.ActiveScopeGenerationQuery) {
 		return &queueFakeRows{rows: f.stagedActiveGenerationRow(args)}, nil
 	}
 
@@ -283,7 +284,7 @@ func (f *fakeExecQueryer) QueryContext(
 	if rows.err != nil {
 		return nil, rows.err
 	}
-	if query == activeRepositoryGenerationsQuery {
+	if query == backfill.ActiveRepositoryGenerationsQuery {
 		// Remember the corpus's active generations so the fan-in's per-scope
 		// re-read above can answer consistently with what the batches saw.
 		f.stagedActiveGenerations = append(f.stagedActiveGenerations, rows.rows...)
@@ -293,8 +294,8 @@ func (f *fakeExecQueryer) QueryContext(
 }
 
 // stagedActiveGenerationRow projects the (repo_id, scope_id, generation_id)
-// rows a fixture staged for activeRepositoryGenerationsQuery down to the single
-// generation column loadActiveGenerationForScope scans, for the scope bound as
+// rows a fixture staged for backfill.ActiveRepositoryGenerationsQuery down to the single
+// generation column backfill.LoadActiveGenerationForScope scans, for the scope bound as
 // $1. An unknown scope yields no rows, matching Postgres for a scope with no
 // generation. The caller holds f.mu.
 func (f *fakeExecQueryer) stagedActiveGenerationRow(args []any) [][]any {
@@ -317,7 +318,7 @@ func (f *fakeExecQueryer) stagedActiveGenerationRow(args []any) [][]any {
 }
 
 // scopeIDFromDeferredFactArgs extracts the $3 scope_id argument from a
-// listDeferredScopedRelationshipFactRecordsQuery call so the fake can route the
+// backfill.ListDeferredScopedRelationshipFactRecordsQuery call so the fake can route the
 // per-scope deferred fact load to a scope-keyed response (issue #3710). The query
 // parameter order is $1 LIKE terms, $2 repo_id values, $3 scope_id, $4
 // generation_id.

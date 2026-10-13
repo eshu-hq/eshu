@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
@@ -179,8 +180,8 @@ func TestRelationshipReopenMatchesCorrelationReplayFloor(t *testing.T) {
 }
 
 // reopenRefPartitionSet keys reopenWorkItemRef rows by partition.
-func reopenRefPartitionSet(items []reopenWorkItemRef) map[scopeGenerationPartition]struct{} {
-	set := make(map[scopeGenerationPartition]struct{}, len(items))
+func reopenRefPartitionSet(items []reopenWorkItemRef) map[backfill.ScopeGenerationPartition]struct{} {
+	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(items))
 	for _, item := range items {
 		set[item.Partition] = struct{}{}
 	}
@@ -190,11 +191,11 @@ func reopenRefPartitionSet(items []reopenWorkItemRef) map[scopeGenerationPartiti
 // workItemIDPartitionSet resolves work item IDs back to their partitions.
 func workItemIDPartitionSet(
 	t *testing.T, ctx context.Context, db *sql.DB, workItemIDs []string,
-) map[scopeGenerationPartition]struct{} {
+) map[backfill.ScopeGenerationPartition]struct{} {
 	t.Helper()
-	set := make(map[scopeGenerationPartition]struct{}, len(workItemIDs))
+	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(workItemIDs))
 	for _, workItemID := range workItemIDs {
-		var partition scopeGenerationPartition
+		var partition backfill.ScopeGenerationPartition
 		if err := db.QueryRowContext(ctx,
 			"SELECT scope_id, generation_id FROM fact_work_items WHERE work_item_id = $1",
 			workItemID).Scan(&partition.ScopeID, &partition.GenerationID); err != nil {
@@ -206,7 +207,7 @@ func workItemIDPartitionSet(
 }
 
 // partitionSetsEqual reports whether two partition sets hold the same members.
-func partitionSetsEqual(a, b map[scopeGenerationPartition]struct{}) bool {
+func partitionSetsEqual(a, b map[backfill.ScopeGenerationPartition]struct{}) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -219,6 +220,6 @@ func partitionSetsEqual(a, b map[scopeGenerationPartition]struct{}) bool {
 }
 
 // sortedPartitionKeys renders a partition set deterministically for errors.
-func sortedPartitionKeys(set map[scopeGenerationPartition]struct{}) []scopeGenerationPartition {
+func sortedPartitionKeys(set map[backfill.ScopeGenerationPartition]struct{}) []backfill.ScopeGenerationPartition {
 	return sortedPartitions(set)
 }

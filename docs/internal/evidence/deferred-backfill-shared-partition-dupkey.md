@@ -2,7 +2,7 @@
 
 ## Bug
 
-`writeDeferredBackfillBatch` (`go/internal/storage/postgres/ingestion_backfill.go`)
+`writeDeferredBackfillBatch` (`go/internal/storage/postgres/backfill/engine.go`)
 looped per source repository and appended one `reducer.GraphProjectionPhaseState`
 and one `scopeGenerationPartition` memo candidate per repo. Both sinks' conflict
 targets — `graph_projection_phase_state`'s six-column primary key and
@@ -46,7 +46,7 @@ the multi-repo-per-batch shape, from a loud abort to a silent per-batch publish.
 Readiness and the partition memo are `(scope, generation)` facts, not per-repo
 facts, and they are also not per-BATCH facts. Publication moved out of the batch
 into a fan-in step, `publishDeferredBackfillPartitions`
-(`go/internal/storage/postgres/ingestion_backfill_pool.go`):
+(`go/internal/storage/postgres/backfill/pool.go`):
 
 - `writeDeferredBackfillBatch` persists evidence only, and returns the
   `(scope, generation)` partitions it contributed to, mapped to the repositories
@@ -113,7 +113,7 @@ non-conflicting port, so they never touch the live gate's fixed ports.
 ### Failing test first
 
 `TestDeferredBackfillWithholdsPublicationWhenSiblingBatchFails`
-(`go/internal/storage/postgres/ingestion_backfill_fanin_publication_test.go`)
+(`go/internal/storage/postgres/fanin_publication_test.go`)
 seeds two repositories under one `(scope, generation)`, forces one repository
 per batch, and injects a failure on the SECOND `Begin`, so the first batch
 commits and its sibling never opens. It then asserts the partition has no memo

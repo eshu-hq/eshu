@@ -13,6 +13,8 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // latestGenerationCTEProofSchemaSQL is the minimal scope/generation table set the
@@ -61,7 +63,7 @@ const legacyCorrelatedLatestGenerationCTE = `WITH latest_generations AS (
 // TestLatestGenerationCTETruthEquivalenceAndPlan is the #3704 real-Postgres proof.
 // It seeds the three precedence cases the COALESCE must honor and asserts:
 //
-//  1. The DISTINCT ON rewrite (latestGenerationCTE) selects the byte-identical
+//  1. The DISTINCT ON rewrite (backfill.LatestGenerationCTE) selects the byte-identical
 //     (scope_id, generation_id) set as the legacy correlated-subquery form for
 //     every case, so the rewrite changes no graph truth.
 //  2. EXPLAIN of the rewrite contains no correlated SubPlan node (the planner
@@ -106,7 +108,7 @@ WHERE generation_id IS NOT NULL
 ORDER BY scope_id`
 
 	legacy := queryLatestGenerationPairs(t, ctx, db, legacyCorrelatedLatestGenerationCTE+selectTail)
-	rewrite := queryLatestGenerationPairs(t, ctx, db, latestGenerationCTE+selectTail)
+	rewrite := queryLatestGenerationPairs(t, ctx, db, backfill.LatestGenerationCTE+selectTail)
 
 	if len(legacy) == 0 {
 		t.Fatal("legacy CTE returned no rows; fixture is not exercising the selection")
@@ -133,7 +135,7 @@ ORDER BY scope_id`
 	// Plan assertion: the rewrite must not produce a correlated SubPlan; the
 	// legacy form must (it is the planner-misestimated node). A SubPlan in the
 	// rewrite would mean the per-scope correlated evaluation crept back in.
-	rewritePlan := explainText(t, ctx, db, latestGenerationCTE+selectTail)
+	rewritePlan := explainText(t, ctx, db, backfill.LatestGenerationCTE+selectTail)
 	if strings.Contains(rewritePlan, "SubPlan") {
 		t.Fatalf("DISTINCT ON rewrite plan unexpectedly contains a SubPlan:\n%s", rewritePlan)
 	}
