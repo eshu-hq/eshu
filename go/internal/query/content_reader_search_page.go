@@ -115,7 +115,67 @@ func (cr *ContentReader) SearchEntities(ctx context.Context, repoID string, repo
 	if repoID != "" {
 		return cr.searchEntityContentPage(ctx, repoID, pattern, limit, offset)
 	}
-	return cr.searchEntityContentAnyRepoPage(ctx, pattern, limit, offset)
+	page, err := cr.SearchEntitiesUnscoped(ctx, pattern, limit, offset, querycontract.SearchCursor{})
+	if err != nil {
+		return nil, err
+	}
+	if page.Partial != nil {
+		return nil, fmt.Errorf("%w: reason %s after %d ms", ErrUnscopedEntitySearchPartial, page.Partial.Reason, page.Partial.ElapsedMS)
+	}
+	return page.Entities, nil
+}
+
+// ErrUnscopedEntitySearchPartial reports that an unscoped entity search ended
+// at its work budget. The paged seam SearchEntities cannot carry the partial
+// envelope, so it fails loudly instead of returning rows that look complete;
+// callers that can present a partial page use SearchEntitiesUnscoped.
+var ErrUnscopedEntitySearchPartial = errors.New("unscoped entity search ended at its work budget")
+
+// The handler looks querycontract.UnscopedEntitySearcher up by type assertion;
+// a reader that stopped satisfying it would route every unscoped search to the
+// paged seam, which cannot carry the partial envelope. This line fails the
+// build instead.
+var _ querycontract.UnscopedEntitySearcher = (*ContentReader)(nil)
+
+// SearchEntitiesUnscoped answers an entity-content search with no repository
+// filter inside a work budget (#7730): a key-ordered probe and continuation,
+// then a bounded trigram tail, then an explicit partial page with a resume
+// cursor when the budget runs out. Exported, with decomposed primitive
+// parameters, for the same #6060 interface-export reason as SearchFiles.
+// limit is the page size; the walk reads its own look-ahead row. cursor, when
+// non-zero, starts the walk strictly after that entity key.
+func (cr *ContentReader) SearchEntitiesUnscoped(
+	ctx context.Context,
+	pattern string,
+	limit, offset int,
+	cursor querycontract.SearchCursor,
+) (querycontract.EntitySearchPage, error) {
+	searcher := &unscoped.Searcher{
+		Store:       cr.db,
+		Budget:      cr.unscoped.budget,
+		Tracer:      cr.tracer,
+		Instruments: cr.instruments,
+		Logger:      cr.unscoped.logger,
+	}
+	raw, err := searcher.SearchEntities(ctx, pattern, limit, offset, cursor)
+	if err != nil {
+		return querycontract.EntitySearchPage{}, contentSubstringIndexReadError(err)
+	}
+	entities := make([]EntityContent, 0, len(raw.Hits))
+	for _, hit := range raw.Hits {
+		entity := hit.Entity
+		metadata, err := decodeEntityMetadata(hit.MetadataRaw)
+		if err != nil {
+			return querycontract.EntitySearchPage{}, fmt.Errorf("decode unscoped entity metadata: %w", err)
+		}
+		entity.Metadata = metadata
+		entities = append(entities, entity)
+	}
+	return querycontract.EntitySearchPage{
+		Entities: entities,
+		More:     raw.More,
+		Partial:  raw.Partial,
+	}, nil
 }
 
 // searchFileContentPage searches one repository with deterministic pagination.

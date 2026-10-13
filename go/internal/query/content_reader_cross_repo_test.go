@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -133,19 +134,20 @@ func TestContentReaderSearchEntityContentAnyRepoRequiresSubstringIndexesReady(t 
 func TestContentReaderSearchEntityContentAnyRepoPageRequiresSubstringIndexesReady(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
-		columns: []string{
-			"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-			"start_line", "end_line", "language", "source_cache", "metadata",
-		},
-	}})
-	reader := NewContentReader(db)
-
-	if _, err := reader.searchEntityContentAnyRepoPage(context.Background(), "render", 10, 0); err != nil {
-		t.Fatalf("searchEntityContentAnyRepoPage() error = %v, want nil", err)
+	// The paged any-repo entity path is the bounded walk now: a readiness
+	// failure on its first statement maps to the 503-class sentinel instead
+	// of rows.
+	tx := &entityUnscopedSnapshotTx{
+		readyErr: &pgconn.PgError{Code: "55000", Message: "content substring indexes are not ready"},
 	}
-	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
-		t.Fatalf("query = %q, want durable substring-index readiness gate", recorder.queries[0])
+	reader := NewContentReaderWithReadStore(&entityUnscopedSnapshotStore{tx: tx})
+
+	_, err := reader.SearchEntities(context.Background(), "", nil, "render", 10, 0)
+	if !errors.Is(err, ErrContentSubstringIndexesNotReady) {
+		t.Fatalf("SearchEntities() error = %v, want the readiness sentinel", err)
+	}
+	if !strings.Contains(tx.log[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("first statement = %q, want durable substring-index readiness gate", tx.log[0])
 	}
 }
 

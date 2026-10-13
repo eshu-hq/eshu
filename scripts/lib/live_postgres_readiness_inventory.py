@@ -362,6 +362,11 @@ PACKAGES = {
         "go/internal/query/code_topic_fleet_endpoint_live_test.go": (
             "TestCodeTopicFleetCapacityEndpointPostgresLive",
         ),
+        "go/internal/query/content_reader_entity_search_unscoped_live_test.go": (
+            "TestSearchEntitiesUnscopedMatchesOldStatementLive",
+            "TestEntityUnscopedSearchPlanShapesLive",
+            "TestSearchEntitiesUnscopedEdgeRowsAreExactLive",
+        ),
         "go/internal/query/content_reader_file_contents_live_test.go": (
             "TestGetFileContentsMatchesSingleReadsLive",
             "TestGetFileContentsPlanUsesAnIndexLive",

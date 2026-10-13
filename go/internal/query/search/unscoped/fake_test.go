@@ -39,6 +39,9 @@ type fakeRow struct {
 // fakeCorpus is an ordered table plus the simulated cost of the trigram tail.
 type fakeCorpus struct {
 	rows []fakeRow
+	// entities is the ordered content_entities table; nil when the test
+	// exercises the file search only.
+	entities []fakeEntityRow
 	// tailCost is the simulated wall of the trigram tail from row index from
 	// (the first row strictly after the cursor).
 	tailCost func(from int) time.Duration
@@ -191,6 +194,10 @@ func (tx *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db
 		return tx.runStep(query, args)
 	case "tail":
 		return tx.runTail(query, args)
+	case "entity_step":
+		return tx.runEntityStep(query, args)
+	case "entity_tail":
+		return tx.runEntityTail(query, args)
 	}
 	return nil, fmt.Errorf("fake: unclassified statement %q", query)
 }
@@ -212,6 +219,11 @@ func classify(query string) string {
 		return "index_off"
 	case strings.HasPrefix(q, "RESET enable_indexscan"):
 		return "index_reset"
+	case strings.Contains(q, "FROM content_entities"):
+		if strings.Contains(q, "UNION ALL") {
+			return "entity_step"
+		}
+		return "entity_tail"
 	case strings.Contains(q, "UNION ALL"):
 		return "step"
 	case strings.Contains(q, "FROM content_files"):
@@ -345,12 +357,36 @@ func (r *fakeRows) Scan(dest ...any) error {
 		case *string:
 			*ptr = row[i].(string)
 		case *int:
-			*ptr = int(row[i].(int64))
+			n, err := asInt64(row[i])
+			if err != nil {
+				return err
+			}
+			*ptr = int(n)
+		case *[]byte:
+			if row[i] == nil {
+				*ptr = nil
+			} else {
+				*ptr = row[i].([]byte)
+			}
 		default:
 			return fmt.Errorf("fake: unsupported scan destination %T", d)
 		}
 	}
 	return nil
+}
+
+// asInt64 accepts every integer width the searchers bind, so the fake pins
+// values, not widths.
+func asInt64(v any) (int64, error) {
+	switch n := v.(type) {
+	case int64:
+		return n, nil
+	case int32:
+		return int64(n), nil
+	case int:
+		return int64(n), nil
+	}
+	return 0, fmt.Errorf("fake: not an integer bind %T", v)
 }
 
 // labels returns the statement labels the transaction saw, without the
