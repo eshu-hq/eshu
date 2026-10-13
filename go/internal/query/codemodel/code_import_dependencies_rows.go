@@ -79,6 +79,7 @@ func BuildFileImportCycleRows(
 	cycles, enumeration := enumerateImportCycles(directedEdges, req.effectiveMaxCycleLength())
 	enumeration.EdgeFlags = edgeFlags
 	enumeration.GoPackageUnknown = countGoEdgesMissingPackage(edgeRows)
+	enumeration.TSPackageUnknown = countTSPackageUnknown(edgeRows)
 
 	cycleRows := make([]map[string]any, 0, len(cycles))
 	seenCycles := make(map[string]struct{})
@@ -290,11 +291,11 @@ func importCycleEdgeFromRow(
 		lineNumber:   querycontract.IntVal(row, "line_number"),
 		state:        importCycleEdgeStateFromRow(row),
 	}
-	if edge.language != "python" && edge.language != "go" {
+	if edge.language != "python" && edge.language != "go" && !isTSCycleLanguage(edge.language) {
 		return importCycleEdge{}, false
 	}
-	if edge.language == "go" {
-		// Package-level collapse (#7347): the node IS the package. The
+	if edge.language == "go" || isTSCycleLanguage(edge.language) {
+		// Package-level collapse (#7347/#7348): the node IS the package. The
 		// projector-owned source_package becomes both the node key and the
 		// declared module, so the shared exact-equality collapse joins
 		// packages with no change to its rule, and same-package files land
@@ -312,8 +313,9 @@ func importCycleEdgeFromRow(
 	if repoID := strings.TrimSpace(req.RepoID); repoID != "" && edge.repoID != repoID {
 		return importCycleEdge{}, false
 	}
-	// An unfiltered request stays Python-only, exactly as before the Go
-	// lift (#7347): the lift answers explicit language=go, and changing
+	// An unfiltered request stays Python-only, exactly as before the
+	// package lifts (#7347/#7348): the lifts answer explicit language
+	// filters, and changing
 	// what unfiltered clients receive would be a second behavior change.
 	if edge.language != req.EffectiveCycleLanguage() {
 		return importCycleEdge{}, false
@@ -329,6 +331,29 @@ func countGoEdgesMissingPackage(rows []map[string]any) int {
 	count := 0
 	for _, row := range rows {
 		if strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "language"))) != "go" {
+			continue
+		}
+		if strings.TrimSpace(querycontract.StringVal(row, "source_package")) != "" {
+			continue
+		}
+		if querycontract.StringVal(row, "repo_id") == "" ||
+			querycontract.StringVal(row, "source_file") == "" ||
+			strings.TrimSpace(querycontract.StringVal(row, "target_module")) == "" {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+// countTSPackageUnknown counts otherwise-valid TS/JS edge rows that carry
+// no source_package (#7348): edges from a graph written before the
+// projector's package mapping. BuildFileImportCycleRows reports the count in
+// coverage so the drop is visible instead of silent.
+func countTSPackageUnknown(rows []map[string]any) int {
+	count := 0
+	for _, row := range rows {
+		if !isTSCycleLanguage(strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "language")))) {
 			continue
 		}
 		if strings.TrimSpace(querycontract.StringVal(row, "source_package")) != "" {

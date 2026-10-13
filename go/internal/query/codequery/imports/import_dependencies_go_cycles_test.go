@@ -297,9 +297,16 @@ func TestImportDependencyRequestAcceptsGoFileImportCycles(t *testing.T) {
 	}).Validate(); err != nil {
 		t.Fatalf("go file_import_cycles Validate() error = %v, want nil", err)
 	}
+	for _, language := range []string{"typescript", "tsx", "javascript"} {
+		if err := (codemodel.ImportDependencyRequest{
+			QueryType: "file_import_cycles", RepoID: "repo-1", Language: language,
+		}).Validate(); err != nil {
+			t.Fatalf("%s file_import_cycles Validate() error = %v, want nil", language, err)
+		}
+	}
 	if err := (codemodel.ImportDependencyRequest{
-		QueryType: "file_import_cycles", RepoID: "repo-1", Language: "typescript",
+		QueryType: "file_import_cycles", RepoID: "repo-1", Language: "rust",
 	}).Validate(); err == nil {
-		t.Fatal("typescript file_import_cycles Validate() error = nil, want rejection")
+		t.Fatal("rust file_import_cycles Validate() error = nil, want rejection")
 	}
 }

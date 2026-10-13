@@ -60,13 +60,19 @@ if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/missing-owner.yaml" "${
 	fail "validator accepted a missing legacy owner and tracking issue"
 fi
 
-awk '/^  count: [0-9]+$/ && !changed { print "  count: " ($2 + 1); changed = 1; next } { print }' \
+# The planted wrong count derives from the committed one, so the seed keeps
+# failing after a legitimate re-pin (a hardcoded 571->572 seed rots the day
+# the inventory grows, as #7347 proved: the committed count moved to 572 and
+# the hardcoded seed became a no-op the validator rightly accepted).
+awk '/^  count: [0-9][0-9]*$/ { print "  count: " ($2 + 1); next } { print }' \
 	"${ledger}" >"${legacy_probe}/wrong-count.yaml"
 if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-count.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator accepted a wrong legacy exemption count"
 fi
 
-awk '/^  sha256: [0-9a-f]{64}$/ && !changed { print "  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; changed = 1; next } { print }' \
+# Same derivation for the digest: the flattened ledger carries exactly one
+# two-space sha256 line, so replacing it always plants a wrong digest.
+awk '/^  sha256: [0-9a-f][0-9a-f]*$/ && !changed { print "  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; changed = 1; next } { print }' \
 	"${ledger}" >"${legacy_probe}/wrong-digest.yaml"
 if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-digest.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator accepted a wrong legacy exemption digest"

@@ -162,9 +162,9 @@ LIMIT $scan_limit`)
 // It projects the edge's type_only, deferred, and inferred flags raw, with no
 // coalesce: a null means the edge predates the flags (#7345), and the reader
 // treats that as its own unknown state, never as false. It also projects the
-// projector-owned source_package raw (#7347): a null means the edge predates
-// the Go package mapping, and a Go reader treats that as package-unknown and
-// excludes the edge, never as an empty package.
+// projector-owned source_package raw (#7347/#7348): a null means the edge
+// predates the package mapping, and a package-lift reader treats that as
+// package-unknown and excludes the edge, never as an empty package.
 // Bounded simple-cycle enumeration (#6851) happens in Go over this single
 // fetch: the Cypher reciprocal join costs 1522ms/5.5M DbHits where the
 // same fetch profiles at 40ms/27k DbHits. Directional anchors narrow the
