@@ -33,8 +33,13 @@ const (
 	outcomePartial outcome = "partial"
 )
 
-// phase names the part of the walk that issued its last statement. It is
-// reported as search.ended_in and on the partial log line.
+// phase names where the walk ended for the operator. It is reported as
+// search.ended_in and on the partial log line. Each issued statement sets
+// it, and so does each decision to skip the tail: budget when the floor
+// ruled the tail out, tail_skipped_no_trigram when the pattern did. A
+// post-skip continuation keeps the skip's name instead of overwriting it,
+// so the signal names the decision that shaped the walk, not merely the
+// last statement issued.
 type phase string
 
 const (
@@ -119,9 +124,10 @@ func (w *walk[R, K]) run(ctx context.Context) error {
 		// scan far past its cap, so it would always end cancelled. Skip it
 		// and give the whole remaining budget to the key-ordered walk,
 		// which is exact on its own; the partial states this limit (#8002).
+		// The phase name stays on ended_in through the steps below, so the
+		// signal names the skip rather than the last issued step.
 		w.noTrigram = true
-		w.endedIn = phaseTailSkippedNoTrigram
-		return w.continuation(ctx, w.remaining(), phaseContinuationAfterTail)
+		return w.continuation(ctx, w.remaining(), phaseTailSkippedNoTrigram)
 	}
 	timeout := min(w.remaining(), w.plan.tailCap)
 	if timeout < w.plan.tailFloor {
