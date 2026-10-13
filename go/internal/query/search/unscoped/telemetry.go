@@ -26,10 +26,12 @@ func (s *Searcher) startSpan(ctx context.Context, table, operation string) (cont
 	))
 }
 
-// record emits the operator signals for one finished search: span attributes,
-// the outcome counter, the tail-cancel, step-cancel and no-progress counters,
+// record emits the operator signals for one finished search: span attributes
+// (search.want is offset + limit + 1, the matches the walk had to find), the
+// outcome counter, the tail-cancel, step-cancel and no-progress counters,
 // the elapsed and overrun histograms, and one structured log line on every
-// partial. None of them carries the search pattern.
+// partial. Every metric carries the shape's table label. None of them carries
+// the search pattern.
 func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *walk[R, K], p *partial[K], cursorPresent bool) {
 	result := w.outcome()
 	elapsed := w.elapsed()
@@ -53,20 +55,24 @@ func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *
 		attribute.String("search.ended_in", string(w.endedIn)),
 		attribute.Int("search.steps_cancelled", w.stepsCancelled),
 		attribute.Bool("search.progressed", w.progressed()),
+		attribute.Int("search.want", w.want),
 	)...)
 	if inst := s.Instruments; inst != nil {
-		attrs := metric.WithAttributes(telemetry.AttrOutcome(string(result)))
-		inst.ContentSearchUnscoped.Add(ctx, 1, attrs)
-		inst.ContentSearchUnscopedDuration.Record(ctx, elapsed.Seconds(), attrs)
-		inst.ContentSearchUnscopedOverrun.Record(ctx, w.overrun.Seconds())
+		// Every instrument carries the shape's table so an operator can split
+		// the file and entity routes; outcome is added where it applies.
+		table := metric.WithAttributes(telemetry.AttrTable(w.shape.table))
+		byOutcome := metric.WithAttributes(telemetry.AttrTable(w.shape.table), telemetry.AttrOutcome(string(result)))
+		inst.ContentSearchUnscoped.Add(ctx, 1, byOutcome)
+		inst.ContentSearchUnscopedDuration.Record(ctx, elapsed.Seconds(), byOutcome)
+		inst.ContentSearchUnscopedOverrun.Record(ctx, w.overrun.Seconds(), table)
 		if w.tailCancelled {
-			inst.ContentSearchTailCancel.Add(ctx, 1)
+			inst.ContentSearchTailCancel.Add(ctx, 1, table)
 		}
 		if w.stepsCancelled > 0 {
-			inst.ContentSearchStepCancel.Add(ctx, int64(w.stepsCancelled))
+			inst.ContentSearchStepCancel.Add(ctx, int64(w.stepsCancelled), table)
 		}
 		if p != nil && !p.progressed {
-			inst.ContentSearchNoProgress.Add(ctx, 1)
+			inst.ContentSearchNoProgress.Add(ctx, 1, table)
 		}
 	}
 	if p == nil {

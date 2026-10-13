@@ -105,7 +105,7 @@ resume loop (for example a fixed number of resumes) rather than looping until
 
 ## Operator signals
 
-See [Unscoped File Search Signals](../telemetry/unscoped-file-search.md): the
+See [Unscoped Content Search Signals](../telemetry/unscoped-file-search.md): the
 `eshu_dp_content_search_unscoped_total{outcome}` counter, the tail-cancel
 counter, the elapsed and overrun histograms, the `search.*` span attributes,
 and one log line per partial. The search pattern is never recorded.

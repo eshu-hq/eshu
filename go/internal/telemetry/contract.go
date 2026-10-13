@@ -906,4 +906,11 @@ const (
 	// graph property whose value was too large. The value set is closed: the
 	// properties the Go-owned graph schema indexes (#7058).
 	MetricDimensionProperty = "property"
+
+	// MetricDimensionTable labels the six unscoped content-search instruments
+	// (eshu_dp_content_search_unscoped_total and its duration, overrun,
+	// tail-cancel, step-cancel and no-progress siblings) with the table the
+	// budgeted walk searched. The value set is closed: content_files for the
+	// file route and content_entities for the entity route (#7009).
+	MetricDimensionTable = "table"
 )

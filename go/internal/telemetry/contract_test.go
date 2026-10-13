@@ -95,6 +95,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"selector_kind",
 		"model_key",
 		"resolved_by",
+		"table",
 		"source_file_kind",
 		"bootstrap_phase",
 		"stage",

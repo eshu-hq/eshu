@@ -146,14 +146,15 @@ Span `postgres.query` (`db.operation=search_file_content_any_repo_page`) with
 `search.ended_in` (`probe`, `continuation`, `tail`, `continuation_after_tail`,
 `budget` when the tail was skipped under its floor, or
 `tail_skipped_no_trigram` when the pattern yields no trigram),
-`search.steps_cancelled`
-and `search.progressed`. Counters
-`eshu_dp_content_search_unscoped_total{outcome}`,
+`search.steps_cancelled`, `search.progressed` and `search.want` (offset +
+limit + 1). Every metric carries `table` (`content_files` or
+`content_entities`). Counters
+`eshu_dp_content_search_unscoped_total{table,outcome}`,
 `eshu_dp_content_search_tail_cancel_total`,
 `eshu_dp_content_search_step_cancel_total` (cancelled probe and continuation
 windows) and `eshu_dp_content_search_no_progress_total` (partials that did not
 advance the cursor); histograms
-`eshu_dp_content_search_unscoped_duration_seconds{outcome}` and
+`eshu_dp_content_search_unscoped_duration_seconds{table,outcome}` and
 `eshu_dp_content_search_unscoped_overrun_seconds`. One `content_search.unscoped_partial`
 log line per partial result, with `progressed`, `steps_cancelled` and
 `ended_in`. No pattern text is recorded anywhere.
@@ -162,8 +163,7 @@ The entity route records the same span attributes plus
 `search.content_kind=entity`, with `db.operation=search_entity_content_any_repo_page`
 and `db.sql.table=content_entities`, and logs
 `content_search.unscoped_entity_partial`. The counters and histograms are
-shared with the file route and carry no table label yet; only the span and
-the log line tell the routes apart.
+shared with the file route and split by their `table` label.
 
 ## Gotchas
 
