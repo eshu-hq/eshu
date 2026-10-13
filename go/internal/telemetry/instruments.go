@@ -2235,34 +2235,35 @@ type Instruments struct {
 	// published the side table as ready, and that read pays the full content scan.
 	HardcodedSecretReads metric.Int64Counter
 
-	// ContentSearchUnscoped counts unscoped file-content searches by outcome
-	// (exact, exhausted, partial). A rising partial share means the work
-	// budget is cutting real searches short (#7730).
+	// ContentSearchUnscoped counts unscoped file- and entity-content searches
+	// by table (content_files, content_entities) and outcome (exact,
+	// exhausted, partial). A rising partial share on one table means the work
+	// budget is cutting that route's searches short (#7730, #7009).
 	ContentSearchUnscoped metric.Int64Counter
 
 	// ContentSearchTailCancel counts trigram tails the server cancelled at
-	// their statement timeout inside an unscoped file search.
+	// their statement timeout inside an unscoped content search, by table.
 	ContentSearchTailCancel metric.Int64Counter
 
 	// ContentSearchStepCancel counts key-ordered windows (the probe and the
 	// continuation steps) the server cancelled at their statement timeout
-	// inside an unscoped file search. A cancelled window advances nothing, so
-	// a rising rate means large documents are stopping walks.
+	// inside an unscoped content search, by table. A cancelled window advances
+	// nothing, so a rising rate means large documents are stopping walks.
 	ContentSearchStepCancel metric.Int64Counter
 
-	// ContentSearchNoProgress counts unscoped file searches that returned a
-	// partial result without advancing the cursor: resuming them repeats the
-	// identical request, so each one is a dead end for the caller.
+	// ContentSearchNoProgress counts unscoped content searches, by table, that
+	// returned a partial result without advancing the cursor: resuming them
+	// repeats the identical request, so each one is a dead end for the caller.
 	ContentSearchNoProgress metric.Int64Counter
 
 	// ContentSearchUnscopedDuration records the SQL wall time of one unscoped
-	// file search, in seconds, labeled by outcome.
+	// content search, in seconds, labeled by table and outcome.
 	ContentSearchUnscopedDuration metric.Float64Histogram
 
 	// ContentSearchUnscopedOverrun records, in seconds, how far a cancelled
-	// statement ran past its own timeout in one unscoped file search. One
-	// candidate's recheck cannot be interrupted, so the distribution shows how
-	// large that effect is on the deployed corpus.
+	// statement ran past its own timeout in one unscoped content search,
+	// labeled by table. One candidate's recheck cannot be interrupted, so the
+	// distribution shows how large that effect is on the deployed corpus.
 	ContentSearchUnscopedOverrun metric.Float64Histogram
 
 	// WorkflowClaimRunDuration records the wall time of one claimed-service
@@ -6095,7 +6096,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ContentSearchUnscoped, err = meter.Int64Counter(
 		"eshu_dp_content_search_unscoped_total",
-		metric.WithDescription("Unscoped file-content searches by outcome (exact, exhausted, partial). partial means the work budget ended the search before the page was proven complete."),
+		metric.WithDescription("Unscoped file- and entity-content searches by table (content_files, content_entities) and outcome (exact, exhausted, partial). partial means the work budget ended the search before the page was proven complete."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ContentSearchUnscoped counter: %w", err)
@@ -6103,7 +6104,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ContentSearchTailCancel, err = meter.Int64Counter(
 		"eshu_dp_content_search_tail_cancel_total",
-		metric.WithDescription("Trigram tails the server cancelled at their statement timeout inside an unscoped file-content search."),
+		metric.WithDescription("Trigram tails the server cancelled at their statement timeout inside an unscoped content search, by table."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ContentSearchTailCancel counter: %w", err)
@@ -6111,7 +6112,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ContentSearchStepCancel, err = meter.Int64Counter(
 		"eshu_dp_content_search_step_cancel_total",
-		metric.WithDescription("Key-ordered windows (probe and continuation steps) the server cancelled at their statement timeout inside an unscoped file-content search. A cancelled window advances nothing."),
+		metric.WithDescription("Key-ordered windows (probe and continuation steps) the server cancelled at their statement timeout inside an unscoped content search, by table. A cancelled window advances nothing."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ContentSearchStepCancel counter: %w", err)
@@ -6119,7 +6120,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ContentSearchNoProgress, err = meter.Int64Counter(
 		"eshu_dp_content_search_no_progress_total",
-		metric.WithDescription("Unscoped file-content searches that returned a partial result without advancing the cursor; resuming such a call repeats the identical request."),
+		metric.WithDescription("Unscoped content searches, by table, that returned a partial result without advancing the cursor; resuming such a call repeats the identical request."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ContentSearchNoProgress counter: %w", err)
@@ -6128,7 +6129,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	contentSearchBuckets := []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 	inst.ContentSearchUnscopedDuration, err = meter.Float64Histogram(
 		"eshu_dp_content_search_unscoped_duration_seconds",
-		metric.WithDescription("SQL wall time of one unscoped file-content search, by outcome."),
+		metric.WithDescription("SQL wall time of one unscoped content search, by table and outcome."),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(contentSearchBuckets...),
 	)
@@ -6138,7 +6139,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ContentSearchUnscopedOverrun, err = meter.Float64Histogram(
 		"eshu_dp_content_search_unscoped_overrun_seconds",
-		metric.WithDescription("How far a cancelled statement ran past its own timeout in one unscoped file-content search; 0 when none overran."),
+		metric.WithDescription("How far a cancelled statement ran past its own timeout in one unscoped content search, by table; 0 when none overran."),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 	)
@@ -6983,6 +6984,12 @@ func AttrWritePhase(v string) attribute.KeyValue {
 // AttrOutcome returns an outcome attribute for metric recording.
 func AttrOutcome(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOutcome, v)
+}
+
+// AttrTable returns a table attribute naming the content table an unscoped
+// search walked (content_files or content_entities).
+func AttrTable(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionTable, v)
 }
 
 // AttrRead returns a read attribute naming the status snapshot reader.

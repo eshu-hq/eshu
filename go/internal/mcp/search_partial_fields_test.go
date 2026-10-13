@@ -53,3 +53,33 @@ func TestSearchPartialFieldListMatchesTheWireContract(t *testing.T) {
 		}
 	}
 }
+
+// budgetPagePrecedence is the phrase the entity texts use to order the two
+// continuation fields when the MCP byte cap trims a partial page (#7009
+// ruling, 2.4); TestBudgetPageAndPartialOnOnePageFollowTheStatedPrecedence
+// proves the order it names.
+const budgetPagePrecedence = "page with next_offset first, keeping the same cursor; follow partial.cursor only from a reply without budget_page"
+
+// The entity search texts list every data.partial field and state the
+// byte-cap precedence, as the file texts list the fields (#7009).
+func TestEntitySearchTextsListThePartialFieldsAndThePrecedence(t *testing.T) {
+	t.Parallel()
+	fields := searchPartialFieldList(t)
+
+	start := strings.Index(search.Content, `"/api/v0/content/entities/search"`)
+	if start < 0 {
+		t.Fatal("OpenAPI search paths have no /api/v0/content/entities/search")
+	}
+	texts := map[string]string{
+		"MCP search_entity_content description":        requireToolDefinition(t, "search_entity_content").Description,
+		"OpenAPI /content/entities/search description": search.Content[start:],
+	}
+	for place, text := range texts {
+		if !strings.Contains(text, fields) {
+			t.Errorf("%s does not contain the data.partial field list %s", place, fields)
+		}
+		if !strings.Contains(text, budgetPagePrecedence) {
+			t.Errorf("%s does not state the byte-cap precedence %q", place, budgetPagePrecedence)
+		}
+	}
+}

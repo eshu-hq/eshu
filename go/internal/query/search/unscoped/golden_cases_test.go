@@ -139,8 +139,10 @@ func entityGoldenCases() []goldenCase {
 			name: "partial at a 400 ms budget", corpus: func() *fakeCorpus { return sparseEntityPartialCorpus(2 * ms) },
 			budget: 400 * ms, limit: 30,
 		},
+		// The entity tail cap (640 ms) binds only when more than 640 ms are
+		// left after the probe, so this probe costs 100 ms.
 		{name: "tail timeout binds at the tail cap", corpus: func() *fakeCorpus {
-			return slowEntityProbeCorpus(200*ms, 100*ms)
+			return slowEntityProbeCorpus(100*ms, 100*ms)
 		}, limit: 5},
 		{name: "tail runs with exactly the tail floor left", corpus: func() *fakeCorpus {
 			return slowEntityProbeCorpus(650*ms, 100*ms)
@@ -184,10 +186,11 @@ func slowProbeCorpus(probeCost, tailCost time.Duration) *fakeCorpus {
 	return corpus
 }
 
-// slowEntityProbeCorpus is slowProbeCorpus over content_entities.
+// slowEntityProbeCorpus is slowProbeCorpus over content_entities, with the
+// entity shape's 1,000-row probe.
 func slowEntityProbeCorpus(probeCost, tailCost time.Duration) *fakeCorpus {
 	corpus := newEntityCorpus(20000, 50*time.Microsecond, func(i int) bool { return i == 15000 })
-	const probeRows = 200
+	const probeRows = 1000
 	each := probeCost / probeRows
 	for i := 0; i < probeRows; i++ {
 		corpus.entities[i].cost = each

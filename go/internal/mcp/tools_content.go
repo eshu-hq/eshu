@@ -162,7 +162,7 @@ func contentTools() []ToolDefinition {
 					},
 					"cursor": map[string]any{
 						"type":        "object",
-						"description": "Resume a search with no repo_ids after this key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set.",
+						"description": "Resume a search with no repo_ids after this key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set, and refused when it carries start_line or entity_id (a search_entity_content cursor).",
 						"properties": map[string]any{
 							"repo_id":       map[string]any{"type": "string"},
 							"relative_path": map[string]any{"type": "string"},
@@ -174,7 +174,7 @@ func contentTools() []ToolDefinition {
 		},
 		{
 			Name:        "search_entity_content",
-			Description: "Search cached entity source snippets across repositories (default 10 rows). Each row's source_cache is clipped to 4,096 bytes and a clipped row carries source_cache_clipped; the response reports source_cache_clip_bytes and source_cache_clipped_rows. A docstring is clipped to 512 bytes the same way (docstring_clipped, docstring_total_bytes, docstring_clip_bytes, docstring_clipped_rows). Use get_entity_content with the row's entity_id for the full body and docstring. A call with no repo_ids runs inside a work budget (800 ms by default): when the budget ends before the page is proven complete, the reply is still a success with truncated=true, truth.level=partial, and a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, progressed, hint). The rows returned are an ordered prefix of the exact answer. To continue, pass partial.cursor as cursor and offset = max(0, offset - rows_matched), but only while partial.progressed is true: progressed=false means the call scanned nothing inside the budget and resuming repeats the same request, so scope with repo_ids, ask the operator to raise the server budget, or stop, and bound any resume loop. To get an exact answer, add repo_ids to scope the search. A reply is capped at 262,144 bytes (256 KiB). Rows carry up to several KiB each, so a limit near 200 can exceed the cap: the reply is then a page of whole rows with truncated=true, budget_page, and next_offset; pass next_offset as offset to read the remainder.",
+			Description: "Search cached entity source snippets across repositories (default 10 rows). Each row's source_cache is clipped to 4,096 bytes and a clipped row carries source_cache_clipped; the response reports source_cache_clip_bytes and source_cache_clipped_rows. A docstring is clipped to 512 bytes the same way (docstring_clipped, docstring_total_bytes, docstring_clip_bytes, docstring_clipped_rows). Use get_entity_content with the row's entity_id for the full body and docstring. A call with no repo_ids runs inside a work budget (800 ms by default): when the budget ends before the page is proven complete, the reply is still a success with truncated=true, truth.level=partial, and a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, progressed, hint). The rows returned are an ordered prefix of the exact answer. To continue, pass partial.cursor as cursor and offset = max(0, offset - rows_matched), but only while partial.progressed is true: progressed=false means the call scanned nothing inside the budget and resuming repeats the same request, so scope with repo_ids, ask the operator to raise the server budget, or stop, and bound any resume loop. To get an exact answer, add repo_ids to scope the search. A reply is capped at 262,144 bytes (256 KiB). Rows carry up to several KiB each, so a limit near 200 can exceed the cap: the reply is then a page of whole rows with truncated=true, budget_page, and next_offset; pass next_offset as offset to read the remainder. A reply can carry both partial and next_offset when the cap trimmed a partial page. Then page with next_offset first, keeping the same cursor; follow partial.cursor only from a reply without budget_page, because partial.rows_matched also counts the rows the cap trimmed and resuming from partial.cursor would skip them. A budget_page without next_offset has reached the 10,000 offset cap: repeat the call with a limit no larger than budget_page.rows_returned.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -203,7 +203,7 @@ func contentTools() []ToolDefinition {
 					},
 					"cursor": map[string]any{
 						"type":        "object",
-						"description": "Resume a search with no repo_ids after this key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set.",
+						"description": "Resume a search with no repo_ids after this entity key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set, and refused when it has no entity_id (a search_file_content cursor).",
 						"properties": map[string]any{
 							"repo_id":       map[string]any{"type": "string"},
 							"relative_path": map[string]any{"type": "string"},

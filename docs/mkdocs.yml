@@ -320,7 +320,7 @@ nav:
       - Overview: reference/telemetry/index.md
       - Runtime Signals: reference/telemetry/runtime-signals.md
       - Secret-Line Finalizer Signals: reference/telemetry/secret-lines.md
-      - Unscoped File Search Signals: reference/telemetry/unscoped-file-search.md
+      - Unscoped Content Search Signals: reference/telemetry/unscoped-file-search.md
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md

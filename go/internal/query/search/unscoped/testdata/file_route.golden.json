@@ -56,24 +56,30 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "false",
-        "search.tail_ran": "false"
+        "search.tail_ran": "false",
+        "search.want": "8"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "exact"
+            "outcome": "exact",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.00355"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "exact"
+            "outcome": "exact",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -187,24 +193,30 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "false",
-        "search.tail_ran": "true"
+        "search.tail_ran": "true",
+        "search.want": "51"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "exhausted"
+            "outcome": "exhausted",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.585"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "exhausted"
+            "outcome": "exhausted",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -245,24 +257,30 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "false",
-        "search.tail_ran": "false"
+        "search.tail_ran": "false",
+        "search.want": "11"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "exhausted"
+            "outcome": "exhausted",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.0075"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "exhausted"
+            "outcome": "exhausted",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -417,28 +435,37 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "true",
-        "search.tail_ran": "true"
+        "search.tail_ran": "true",
+        "search.want": "201"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_tail_cancel_total",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "1"
         },
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.92"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0.12"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -611,28 +638,37 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "true",
-        "search.tail_ran": "true"
+        "search.tail_ran": "true",
+        "search.want": "205"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_tail_cancel_total",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "1"
         },
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.803"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0.003"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -701,32 +737,44 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "1",
         "search.tail_cancelled": "false",
-        "search.tail_ran": "false"
+        "search.tail_ran": "false",
+        "search.want": "51"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_no_progress_total",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "1"
         },
         {
           "name": "eshu_dp_content_search_step_cancel_total",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "1"
         },
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.805"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0.005"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -839,28 +887,37 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "true",
-        "search.tail_ran": "true"
+        "search.tail_ran": "true",
+        "search.want": "31"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_tail_cancel_total",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "1"
         },
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.402"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0.002"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -923,24 +980,30 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "false",
-        "search.tail_ran": "true"
+        "search.tail_ran": "true",
+        "search.want": "6"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "exhausted"
+            "outcome": "exhausted",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.3"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "exhausted"
+            "outcome": "exhausted",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -986,24 +1049,30 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "false",
-        "search.tail_ran": "true"
+        "search.tail_ran": "true",
+        "search.want": "6"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "exhausted"
+            "outcome": "exhausted",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.75"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "exhausted"
+            "outcome": "exhausted",
+            "table": "content_files"
           },
           "value": "1"
         }
@@ -1054,24 +1123,30 @@
         "search.scope": "unscoped",
         "search.steps_cancelled": "0",
         "search.tail_cancelled": "false",
-        "search.tail_ran": "false"
+        "search.tail_ran": "false",
+        "search.want": "6"
       },
       "metrics": [
         {
           "name": "eshu_dp_content_search_unscoped_duration_seconds",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "count=1 sum=0.651"
         },
         {
           "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "attrs": {
+            "table": "content_files"
+          },
           "value": "count=1 sum=0"
         },
         {
           "name": "eshu_dp_content_search_unscoped_total",
           "attrs": {
-            "outcome": "partial"
+            "outcome": "partial",
+            "table": "content_files"
           },
           "value": "1"
         }

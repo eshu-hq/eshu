@@ -158,7 +158,7 @@ const Content = `
                   "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000},
                   "cursor": {
                     "type": "object",
-                    "description": "Resumes a search with no repository filter strictly after this key. Use the cursor of a previous partial result. Refused (400) on any search that has a repository filter.",
+                    "description": "Resumes a search with no repository filter strictly after this key. Use the cursor of a previous partial result. Refused (400) on any search that has a repository filter, and refused (400) when it carries start_line or entity_id: that is an entity search cursor, and the file search resumes from repo_id and relative_path only.",
                     "properties": {
                       "repo_id": {"type": "string"},
                       "relative_path": {"type": "string"}
@@ -220,7 +220,7 @@ const Content = `
       "post": {
         "tags": ["content"],
         "summary": "Search entity content",
-        "description": "Searches entity source code by pattern. Pages order by repository ID, relative path, start line, and entity ID; truncated reports whether another matching row follows.",
+        "description": "Searches entity source code by pattern. Pages order by repository ID, relative path, start line, and entity ID; truncated reports whether another matching row follows. A search with no repository filter runs inside a work budget (ESHU_CONTENT_SEARCH_BUDGET_MS, default 800 ms, shared with the file search): when the budget ends before the page is proven complete the answer is still HTTP 200, with truncated true, a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, progressed, hint) and truth level partial. The returned rows are an ordered prefix of the exact answer; resume with the cursor request field (all four keys of partial.cursor) and offset max(0, offset - rows_matched) while progressed is true, or add repo_id to scope the search. A partial with progressed false scanned nothing inside the budget: resuming repeats the same request, so scope with repo_id, ask the operator to raise the server budget, or stop, and bound any resume loop. Through the MCP tool search_entity_content a reply over 262,144 bytes is cut to whole rows with budget_page and next_offset, and one reply can carry both partial and next_offset. Then page with next_offset first, keeping the same cursor; follow partial.cursor only from a reply without budget_page: partial.rows_matched also counts the rows the cap trimmed, so resuming from partial.cursor would skip them. A budget_page without next_offset has reached the 10,000 offset cap: repeat the call with a limit no larger than budget_page.rows_returned.",
         "operationId": "searchEntities",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -246,7 +246,17 @@ const Content = `
                     "description": "Alias for query used by MCP content-search tools."
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200},
-                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000},
+                  "cursor": {
+                    "type": "object",
+                    "description": "Resumes a search with no repository filter strictly after this entity key. Use the cursor of a previous partial result. Refused (400) on any search that has a repository filter, and refused (400) when it has no entity_id: a file search cursor names no entity, and several entities share one file.",
+                    "properties": {
+                      "repo_id": {"type": "string"},
+                      "relative_path": {"type": "string"},
+                      "start_line": {"type": "integer"},
+                      "entity_id": {"type": "string"}
+                    }
+                  }
                 }
               }
             }

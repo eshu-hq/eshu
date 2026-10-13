@@ -154,9 +154,12 @@ func TestSearchEntitiesScopedRequestsDoNotUseUnscopedSeam(t *testing.T) {
 	store := &unscopedEntitySearchStore{}
 	h := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	rec, _ := postEntitySearch(t, h, context.Background(),
-		`{"query":"render","repo_id":"repository:r_ok","cursor":{"repo_id":"r9","relative_path":"z.go"}}`)
+		`{"query":"render","repo_id":"repository:r_ok","cursor":{"repo_id":"r9","relative_path":"z.go","start_line":3,"entity_id":"entity-9"}}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("scoped request with cursor: status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), errCursorNeedsUnscopedSearch.Error()) {
+		t.Fatalf("body = %s, want the scoped-search refusal", rec.Body.String())
 	}
 	if store.calls != 0 {
 		t.Fatalf("unscoped seam called %d times for a scoped request", store.calls)

@@ -31,7 +31,9 @@ import (
 // whose source is hex words, with a few planted tokens. It has the shape that
 // matters to the walk (a walk-order btree, a trigram GIN index, a dense
 // token, a medium token, a selective literal, a zero-match token and a token
-// with no extractable trigram) and none of any real corpus.
+// with no extractable trigram) and none of any real corpus. The edge token is
+// not seeded: the edge-row proof plants it on the window edges of the figures
+// the shipped walk reports (plantEntityEdgeRows).
 
 const (
 	liveEntityFixtureRows = 12000
@@ -41,8 +43,10 @@ const (
 	liveEntityNoTrigram   = "zz"
 	// liveEntityEdgeToken sits on the rows a window statement ends on and on
 	// the row after each, so a duplicated or skipped boundary row changes the
-	// answer. Window edges fall on row 200 + 500k when the walk starts at the
-	// first row (200-row probe, then 500-row steps).
+	// answer. Window edges fall on walk-order row probeRows + stepRows*k when
+	// the walk starts at the first row. The figures are read back from the
+	// shipped walk by observeEntityWindowFigures, so a change to the entity
+	// shape's figures moves the planted rows with it.
 	liveEntityEdgeToken = "edgemark"
 )
 
@@ -85,10 +89,9 @@ func openUnscopedEntityLiveFixture(t *testing.T) (context.Context, *sql.DB) {
 			         || CASE WHEN g %% 4 = 0 THEN ' %[2]s' ELSE '' END
 			         || CASE WHEN g %% 50 = 7 THEN ' %[3]s' ELSE '' END
 			         || CASE WHEN g IN (9001, 11000, 11777) THEN ' %[4]s' ELSE '' END
-			         || CASE WHEN g IN (3, 10001, 11999) OR g %% 500 IN (200, 201) THEN ' %[5]s' ELSE '' END
-			         || CASE WHEN g %% 500 IN (200, 201) THEN ' %[6]s' ELSE '' END,
+			         || CASE WHEN g IN (3, 10001, 11999) OR g %% 500 IN (200, 201) THEN ' %[5]s' ELSE '' END,
 			       '{}'
-			FROM generate_series(1, %[1]d) g`, liveEntityFixtureRows, liveEntityDenseToken, liveEntityMediumToken, liveEntityRareToken, liveEntityNoTrigram, liveEntityEdgeToken),
+			FROM generate_series(1, %[1]d) g`, liveEntityFixtureRows, liveEntityDenseToken, liveEntityMediumToken, liveEntityRareToken, liveEntityNoTrigram),
 		`CREATE INDEX content_entities_repo_path_start_idx
 			ON content_entities (repo_id, relative_path, start_line, entity_id)`,
 		`CREATE INDEX content_entities_source_trgm_idx
@@ -208,19 +211,24 @@ func TestSearchEntitiesUnscopedMatchesOldStatementLive(t *testing.T) {
 // TestEntityUnscopedSearchPlanShapesLive pins the plan contract the cost bound
 // rests on: the key-ordered window walks the walk-order index and never
 // touches the trigram index, and the tail run with index scans disabled is
-// the trigram bitmap with no walk-order scan and no sequential scan.
+// the trigram bitmap with no walk-order scan and no sequential scan. The
+// window statements are planned at the probe and step sizes the shipped walk
+// reports (observeEntityWindowFigures), because the planner's choice for a
+// LIMIT depends on its size.
 func TestEntityUnscopedSearchPlanShapesLive(t *testing.T) {
 	ctx, db := openUnscopedEntityLiveFixture(t)
 	statements := unscoped.EntityStatements()
+	figures := observeEntityWindowFigures(t, ctx, db)
+	t.Logf("planning the key-ordered windows at probe=%d step=%d rows", figures.probeRows, figures.stepRows)
 
 	for name, c := range map[string]struct {
 		statement string
 		args      []any
 	}{
-		"first window": {statements.StepFirst, []any{liveEntityRareToken, int64(200), int64(11)}},
+		"first window": {statements.StepFirst, []any{liveEntityRareToken, int64(figures.probeRows), int64(11)}},
 		"next window": {
 			statements.StepAfter,
-			[]any{liveEntityRareToken, int64(500), int64(11), "repo-029", "src/file-002000.go", int32(10), "entity-006001"},
+			[]any{liveEntityRareToken, int64(figures.stepRows), int64(11), "repo-029", "src/file-002000.go", int32(10), "entity-006001"},
 		},
 	} {
 		plan := explainShipped(t, ctx, db, false, c.statement, c.args...)
@@ -274,6 +282,11 @@ type entityLiveWalk struct {
 	steps  int64
 	tail   bool
 	cancel bool
+	// probeRows is the probe window the walk completed and continuationRows
+	// the rows its continuation steps covered, both as the walk's own span
+	// reports them.
+	probeRows        int64
+	continuationRows int64
 }
 
 // searchEntityLive runs an entity search at the given budget and records its
@@ -305,21 +318,106 @@ func searchEntityLive(t *testing.T, ctx context.Context, db *sql.DB, budget time
 		steps:  attrs["search.continuation_steps"].AsInt64(),
 		tail:   attrs["search.tail_ran"].AsBool(),
 		cancel: attrs["search.tail_cancelled"].AsBool(),
+
+		probeRows:        attrs["search.probe_rows_visited"].AsInt64(),
+		continuationRows: attrs["search.continuation_rows"].AsInt64(),
 	}
 }
 
+// entityWindowFigures are the window sizes the shipped entity walk used for
+// one search.
+type entityWindowFigures struct {
+	probeRows, stepRows int
+}
+
+// observeEntityWindowFigures reads the entity shape's probe and step window
+// sizes back from the walk itself. A zero-match search over a table larger than
+// the probe visits every window, so the span's probe_rows_visited is the probe
+// size and continuation_rows over continuation_steps is the step size. The
+// figures belong to the unexported shape; reading them from the walk's own
+// telemetry adds no exported surface and cannot drift from what production
+// runs.
+func observeEntityWindowFigures(t *testing.T, ctx context.Context, db *sql.DB) entityWindowFigures {
+	t.Helper()
+	walk := searchEntityLive(t, ctx, db, unscoped.MaxBudget, "absent-token-xyz-figures", 10)
+	if walk.page.Partial != nil || walk.probeRows <= 0 || walk.steps <= 0 || walk.continuationRows%walk.steps != 0 {
+		t.Fatalf("cannot read the entity window figures from a zero-match walk: probe=%d steps=%d continuation_rows=%d partial=%+v",
+			walk.probeRows, walk.steps, walk.continuationRows, walk.page.Partial)
+	}
+	return entityWindowFigures{probeRows: int(walk.probeRows), stepRows: int(walk.continuationRows / walk.steps)}
+}
+
+// entityEdgeOrdinals returns the 1-based walk-order rows to plant the edge
+// token on: the last row of every full window (probeRows + stepRows*k) and the
+// row after it. totalRows bounds the table; an edge whose next row does not
+// exist is not an edge.
+func entityEdgeOrdinals(f entityWindowFigures, totalRows int) []int {
+	var ordinals []int
+	for edge := f.probeRows; edge+1 <= totalRows; edge += f.stepRows {
+		ordinals = append(ordinals, edge, edge+1)
+	}
+	return ordinals
+}
+
+// plantEntityEdgeRows appends the edge token to the rows on and after every
+// window edge of the shipped figures and returns the planted walk-order rows.
+// The probe and at least two continuation steps must each end on a planted
+// edge, so the fixture is too small for the figures if fewer than six rows
+// would be planted; that fails the test instead of passing on a fixture the
+// windows never reach.
+func plantEntityEdgeRows(t *testing.T, ctx context.Context, db *sql.DB, f entityWindowFigures) []int {
+	t.Helper()
+	var total int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM content_entities`).Scan(&total); err != nil {
+		t.Fatalf("count content_entities: %v", err)
+	}
+	ordinals := entityEdgeOrdinals(f, total)
+	if len(ordinals) < 6 {
+		t.Fatalf("fixture has %d rows, too few for probe=%d step=%d: want at least three window edges, planted rows %v",
+			total, f.probeRows, f.stepRows, ordinals)
+	}
+	list := make([]string, 0, len(ordinals))
+	for _, o := range ordinals {
+		list = append(list, fmt.Sprintf("%d", o))
+	}
+	result, err := db.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE content_entities SET source_cache = source_cache || ' %s'
+		WHERE entity_id IN (
+			SELECT entity_id FROM (
+				SELECT entity_id, row_number() OVER (ORDER BY repo_id, relative_path, start_line, entity_id) AS n
+				FROM content_entities) ordered
+			WHERE n IN (%s))`, liveEntityEdgeToken, strings.Join(list, ", ")))
+	if err != nil {
+		t.Fatalf("plant edge token: %v", err)
+	}
+	if planted, err := result.RowsAffected(); err != nil || int(planted) != len(ordinals) {
+		t.Fatalf("planted %d rows (err %v), want %d", planted, err, len(ordinals))
+	}
+	if _, err := db.ExecContext(ctx, `VACUUM ANALYZE content_entities`); err != nil {
+		t.Fatalf("analyze after planting: %v", err)
+	}
+	return ordinals
+}
+
 // TestSearchEntitiesUnscopedEdgeRowsAreExactLive is the SQL-level exactness
-// proof for the four-part keyset and the window edge: the edge token is
-// planted on every row a window ends on and on the row after it, the budget is
-// chosen so the probe, at least two continuation steps and then the trigram
-// tail all run, and the answer must equal the old statement's rows exactly. An
-// inclusive keyset operator duplicates a boundary row; an edge offset past the
-// window skips one; either changes the list.
+// proof for the four-part keyset and the window edge. The edge token is
+// planted on the last row of the probe window and of every continuation window
+// of the figures the shipped walk reports, and on the row after each. The
+// budget is chosen so the probe, at least two continuation steps and then the
+// trigram tail all run, and the answer must equal the old statement's rows
+// exactly. An inclusive keyset operator duplicates a boundary row; an edge
+// offset past the window skips one; either changes the list. Both mutations
+// fail this test on the shipped figures and on any other figures, because the
+// plant positions follow the walk.
 func TestSearchEntitiesUnscopedEdgeRowsAreExactLive(t *testing.T) {
 	ctx, db := openUnscopedEntityLiveFixture(t)
+	figures := observeEntityWindowFigures(t, ctx, db)
+	planted := plantEntityEdgeRows(t, ctx, db, figures)
+	t.Logf("entity window figures probe=%d step=%d; edge token planted on walk-order rows %v", figures.probeRows, figures.stepRows, planted)
+
 	want := entityOracleKeys(t, ctx, db, liveEntityEdgeToken, 1000, 0)
-	if len(want) < 40 {
-		t.Fatalf("fixture has %d edge matches, want a boundary-rich set", len(want))
+	if len(want) != len(planted) {
+		t.Fatalf("old statement returned %d edge rows, planted %d", len(want), len(planted))
 	}
 	searchEntityLiveUntil(t, ctx, db, liveEntityEdgeToken, 200,
 		func(walk entityLiveWalk) {
@@ -346,24 +444,28 @@ func TestSearchEntitiesUnscopedEdgeRowsAreExactLive(t *testing.T) {
 
 // searchEntityLiveUntil runs the entity search at a series of budgets until
 // accept holds for the phases that ran. Which phases run depends on host
-// speed. Rows and the look-ahead flag must be exact at every budget; only the
-// choice of the budget that exercises the wanted phases is adaptive, and
-// failing to find one is a failure, never a skip.
+// speed: the probe and two 5,000-row steps must fit the continuation room
+// (0.2 x budget) and the next step must not, so the viable budget band is
+// narrow in absolute terms and moves with the host. The budgets therefore
+// climb geometrically from the smallest accepted budget to the largest, so
+// some budget lands in the band on a fast or a loaded host. Rows and the
+// look-ahead flag must be exact at every budget; only the choice of the
+// budget that exercises the wanted phases is adaptive, and failing to find
+// one is a failure, never a skip.
 func searchEntityLiveUntil(
 	t *testing.T, ctx context.Context, db *sql.DB, token string, limit int,
 	check func(walk entityLiveWalk),
 	accept func(walk entityLiveWalk) bool,
 ) entityLiveWalk {
 	t.Helper()
-	budgets := []time.Duration{200, 300, 400, 800, 1600, 150, 100}
 	var tried []string
-	for _, ms := range budgets {
-		walk := searchEntityLive(t, ctx, db, ms*time.Millisecond, token, limit)
+	for budget := unscoped.MinBudget; budget <= unscoped.MaxBudget; budget = budget * 6 / 5 {
+		walk := searchEntityLive(t, ctx, db, budget, token, limit)
 		check(walk)
 		if accept(walk) {
 			return walk
 		}
-		tried = append(tried, fmt.Sprintf("%dms(steps=%d tail=%v cancelled=%v)", ms, walk.steps, walk.tail, walk.cancel))
+		tried = append(tried, fmt.Sprintf("%dms(steps=%d tail=%v cancelled=%v)", budget.Milliseconds(), walk.steps, walk.tail, walk.cancel))
 	}
 	t.Fatalf("no budget exercised the wanted phases; tried %s", strings.Join(tried, " "))
 	return entityLiveWalk{}
