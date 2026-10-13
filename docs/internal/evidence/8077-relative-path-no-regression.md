@@ -5,7 +5,7 @@ runs once per collected file fact. The #8077 fix only restructures the
 symlink-resolution helper `canonicalPathForRel`; it changes no query, no
 concurrency, no batching, and no telemetry.
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 - Baseline: one `filepath.Abs` + one `filepath.EvalSymlinks` per call. On a
   missing file the EvalSymlinks errors and the old code returned the
@@ -24,7 +24,7 @@ concurrency, no batching, and no telemetry.
   Linux (this host). The new symlink-fixture unit test fails on old code
   (`../link/sub/missing.go`) and passes on new code.
 
-## No-Observability-Change
+## No-Observability-Change:
 
 No metric, span, log line, or status output touched. The function returns a
 string; callers and their telemetry are unchanged.
