@@ -45,6 +45,8 @@ func TestMethodologyRewriteDeclarationGate(t *testing.T) {
 		{name: "no declaration with diff", modify: []string{"file_a.go"}, wantFailure: true, wantPath: "file_a.go"},
 		{name: "unknown declared path", declare: []string{"elsewhere/unknown.go"}, wantFailure: true, wantPath: "unknown.go"},
 		{name: "working tree divergence", modify: []string{"file_a.go"}, declare: []string{"file_a.go"}, dirty: "file_a.go", wantFailure: true, wantPath: "file_a.go"},
+		{name: "declaration inert when untouched", modify: []string{"file_b.go"}, declare: []string{"file_a.go"}, wantFailure: true, wantPath: "file_b.go"},
+		{name: "fully stale declaration passes", declare: []string{"file_a.go"}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			checkMethodologyRewriteDeclarationScenario(t, childMarker, pinned, testCase.modify, testCase.declare, testCase.dirty, testCase.wantFailure, testCase.wantPath)

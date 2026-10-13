@@ -68,14 +68,16 @@ func methodologyVerifySameProduction(t *testing.T, base, candidate string, paths
 // rewrite: the paired Base/Candidate sides execute the same test binary, so
 // identical sources are what make a Base-vs-Candidate comparison honest. A
 // rewrite PR therefore declares the pinned reader files it intentionally
-// changes (issue + reason + exact paths), and the pin requires the
-// base-vs-candidate diff over the pinned set to equal the declared set
-// exactly. An undeclared differing file, a declared-but-identical file, and
-// a declared path outside the pinned set all fail closed, exactly as an
-// undeclared rewrite does today. Declared files additionally bind the working
-// tree to the candidate blob, because the measured binary executes
-// working-tree code. A PR with no rewrite leaves the zero declaration in
-// place and the pin behaves byte-for-byte as before.
+// changes (issue + reason + exact paths). The declaration activates only
+// when the diff touches declared scope; while active the pin requires the
+// diff to equal the declared set exactly, and declared files additionally
+// bind the working tree to the candidate blob, because the measured binary
+// executes working-tree code. An undeclared differing file, a
+// declared-but-identical file in an active run, and a declared path outside
+// the pinned set all fail closed. Past the rewrite's merge the declared
+// files agree again, the declaration goes inert, and the pin behaves
+// byte-for-byte as before it existed. A PR with no rewrite leaves the zero
+// declaration in place.
 type methodologyRewriteDeclaration struct {
 	Issue  int
 	Reason string
@@ -166,12 +168,6 @@ func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidat
 		}
 		differing[path] = blobID{base: methodologyTreeBlobSHA(baseEntry), candidate: methodologyTreeBlobSHA(candidateEntry)}
 	}
-	if len(differing) == 0 {
-		for _, declared := range decl.Paths {
-			t.Fatalf("rewrite declaration (issue #%d) names unchanged production source %s; narrow the declaration to the files this change rewrites", decl.Issue, declared)
-		}
-		return
-	}
 	pinned := make(map[string]bool, len(paths))
 	for _, path := range paths {
 		pinned[path] = true
@@ -182,6 +178,32 @@ func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidat
 			t.Fatalf("rewrite declaration (issue #%d) names %s which is not a pinned production source", decl.Issue, path)
 		}
 		declared[path] = true
+	}
+	// The declaration activates only when the diff touches declared scope.
+	// Past its merge the declared files agree again, the declaration goes
+	// inert, and agreeing runs pass exactly as before it existed. A future
+	// rewrite that touches declared scope without updating the declaration
+	// still fails below, so inert never means excused.
+	active := false
+	for path := range differing {
+		if declared[path] {
+			active = true
+			break
+		}
+	}
+	if !active {
+		names := make([]string, 0, len(differing))
+		for path := range differing {
+			names = append(names, path)
+		}
+		sort.Strings(names)
+		for _, path := range names {
+			t.Fatalf("production source %s committed mode or blob differs from base", path)
+		}
+		if len(decl.Paths) != 0 {
+			t.Logf("rewrite declaration issue #%d not triggered: no declared file differs", decl.Issue)
+		}
+		return
 	}
 	for path := range differing {
 		if !declared[path] {
