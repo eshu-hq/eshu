@@ -64,9 +64,9 @@ with one `git repository sync failed` line (`attempts=2`) and one
 `repo_sync_failures` increment. A healthy command pays one attempt and no sleep.
 The cost is bounded: attempts (default 2, at most 5) times the deadline per
 command, and at most `ESHU_GIT_RETRY_SWEEP_BUDGET` (default 20) retries per
-sweep, drawn from an atomic counter, so a provider outage multiplies the sweep
-by at most the budget. The race tests run 64 goroutines on one budget of 7 and
-assert exactly 7 retries start.
+sweep, drawn from an atomic counter, so the budget caps the retries a sweep may
+start. The race tests run 64 goroutines on one budget of 7 and assert exactly 7
+retries start.
 
 Observability Evidence (#8091): `eshu_dp_git_command_attempts_total`,
 `eshu_dp_git_command_retries_total`,

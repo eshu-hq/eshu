@@ -129,6 +129,11 @@ func TestFirstErrorLine(t *testing.T) {
 			"Fetching origin\nremote: Repository not found.",
 			"remote: Repository not found.",
 		},
+		{
+			"a meaningful remote line after a progress line, no fatal or error line",
+			"remote: Enumerating objects: 3, done.\nremote: Permission to org/repo.git denied to someone.",
+			"remote: Permission to org/repo.git denied to someone.",
+		},
 		{"progress only falls back to the first line", "remote: Enumerating objects: 4, done.", "remote: Enumerating objects: 4, done."},
 		{"empty stderr falls back to the error", "", "exit status 128"},
 	}

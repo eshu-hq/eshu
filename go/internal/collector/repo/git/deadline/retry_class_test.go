@@ -51,6 +51,7 @@ func TestClassifyClosedTable(t *testing.T) {
 		{"real: chunked cut at 70 percent of the pack", nil, "remote: Enumerating objects: 4, done.\nremote: Compressing objects: 100% (4/4), done.\nerror: RPC failed; curl 18 transfer closed with outstanding read data remaining\nerror: 15894 bytes of body are still expected\nfetch-pack: unexpected disconnect while reading sideband packet\nfatal: early EOF\nfatal: unpack-objects failed", ClassConnectionReset, true},
 		{"recv failure then early EOF and index-pack failed", nil, "error: RPC failed; curl 56 Recv failure: Connection reset by peer\nfatal: the remote end hung up unexpectedly\nfatal: early EOF\nfatal: index-pack failed", ClassConnectionReset, true},
 		{"curl 28 low-speed abort", nil, "error: RPC failed; curl 28 Operation too slow. Less than 1 bytes/sec transferred the last 60 seconds\nfatal: the remote end hung up unexpectedly", ClassLowSpeedAbort, true},
+		{"curl 28 operation timed out is a connect timeout", nil, "error: RPC failed; curl 28 Operation timed out after 300001 milliseconds with 0 bytes received\nfatal: the remote end hung up unexpectedly", ClassConnect, true},
 		{"curl 92 http2 stream not closed cleanly", nil, "error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly: CANCEL (err 8)\nfatal: expected flush after ref listing", ClassHTTP2Framing, true},
 
 		// Not retryable.

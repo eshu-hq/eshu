@@ -82,7 +82,7 @@ var transportRules = []classRule{
 	{ClassTLSHandshake, []string{"ssl_connect", "ssl_error_syscall", "tls connect error"}},
 	{ClassHTTP2Framing, []string{"error in the http2 framing layer", "http/2 stream"}},
 	{ClassLowSpeedAbort, []string{"operation too slow"}},
-	{ClassConnect, []string{"failed to connect", "connection timed out", "ssh: connect to host"}},
+	{ClassConnect, []string{"failed to connect", "connection timed out", "operation timed out", "ssh: connect to host"}},
 	{ClassConnectionReset, []string{
 		"connection reset", "recv failure", "empty reply from server",
 		"transfer closed with", "kex_exchange_identification",
