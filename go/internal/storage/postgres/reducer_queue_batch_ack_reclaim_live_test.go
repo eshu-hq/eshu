@@ -253,13 +253,13 @@ func snapshotReducerExpirySuccessor(t *testing.T, ctx context.Context, db *sql.D
 // openReducerAckReclaimProofDB opens a disposable PostgreSQL database through
 // postgresproof and bootstraps the Eshu schema on it. It reads
 // ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN (an administrative postgres-database
-// DSN) and ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE=1; without them it
-// skips. The live-postgres-readiness runner provides both against its
-// PostgreSQL 18 service.
+// DSN) and ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE=1; an empty DSN skips,
+// while a set-but-unusable DSN fails closed. The live-postgres-readiness
+// runner provides both against its PostgreSQL 18 service.
 func openReducerAckReclaimProofDB(t *testing.T) *sql.DB {
 	t.Helper()
 	ctx, db := postgresproof.OpenDisposableDatabase(t,
-		os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN"),
+		strings.TrimSpace(os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN")),
 		os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE"),
 		90*time.Second)
 	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
