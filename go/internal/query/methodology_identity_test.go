@@ -150,17 +150,27 @@ func methodologyVerifySameProductionTree(t *testing.T, base, candidate, director
 	if len(selected) == 0 {
 		t.Fatalf("no production sources match %s/%s", directory, pattern)
 	}
+	common := make([]string, 0, len(selected))
 	for _, path := range selected {
 		before, baseExists := baseEntries[path]
 		after, candidateExists := candidateEntries[path]
-		if !baseExists || !candidateExists {
+		switch {
+		case baseExists && candidateExists:
+			if before != after {
+				t.Fatalf("production source %s committed mode or blob differs from base", path)
+			}
+			common = append(common, path)
+		case !baseExists && candidateExists:
+			// A committed additive production source is admitted: additive
+			// schema evolution keeps every base file byte-identical, and the
+			// schema gates that own additive migrations
+			// (migration-immutability, the checksum manifest, and the live
+			// migration proof) verify the addition itself. See #8072.
+		default:
 			t.Fatalf("production source %s inventory differs: base=%t candidate=%t", path, baseExists, candidateExists)
 		}
-		if before != after {
-			t.Fatalf("production source %s committed mode or blob differs from base", path)
-		}
 	}
-	methodologyVerifySameProduction(t, base, candidate, selected)
+	methodologyVerifySameProduction(t, base, candidate, common)
 }
 
 func TestMethodologyProductionSourceTreesMatchBase(t *testing.T) {
