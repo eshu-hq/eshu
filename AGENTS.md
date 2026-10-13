@@ -115,6 +115,12 @@ to the title or body after you capture a receipt voids the receipt.
 
 ## Mandatory Prove-The-Theory-First
 
+Before open-ended diagnosis, measurement, access repair, or test infrastructure,
+agents MUST follow [Investigation Budget](docs/internal/agent-investigation-budget.md).
+State the decision, threshold, and wall-clock deadline before work starts.
+A failed attempt MUST NOT restart the clock. The budget limits an approach,
+not a required correctness gate or the authorized goal.
+
 Before you build a change that rests on a performance or behavior theory and
 could slow or degrade a process, agents MUST first prove the theory with the
 cheapest possible shim. Use a throwaway SQL script with `EXPLAIN ANALYZE`, a
