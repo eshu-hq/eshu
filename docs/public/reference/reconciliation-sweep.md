@@ -92,39 +92,11 @@ The sweep is bounded and scheduled, not a full re-index:
 
 The sweep visits repositories in rotating order, so a persistently due head
 cannot starve the tail when more repositories are due than the per-cycle cap
-allows. Repositories with an active per-repository reindex request stay pinned
-at the head of the walk; every other repository is visited round-robin starting
-at the cycle's offset, and the next cycle resumes after the last repository
-that took a slot. The order is reproducible for a given repository list and
-offset. Every due repository reaches a slot within `ceil(due / limit)` cycles.
-
-`eshu_dp_collector_reconciliation_due_unvisited`, labeled by the bounded
-`reason` set in the decision table, samples at the end of each cycle how many
-due repositories took no slot. Every reason is recorded every cycle, including
-zero, so a sustained nonzero value names the starving backlog.
-
-### Rotation evidence (#7987)
-
-No-Regression Evidence: baseline origin/main `9784ab0ee1`, branch head with
-rotation. `TestRepositoryReindexTargetedScopeIsNotStarved` (30 repositories,
-limit 10, fake git plus stub resolver, Go 1.26.2) runs the full selection
-walk three times: 0.253 s on baseline, 0.257 s with rotation on the same
-loaded host; the delta is noise. Per-cycle `FullReconcileState` reads go from
-"until the L-th slot fills" to one per repository: indexed primary-key point
-lookups, the same class as the per-repository `LastProjectedCommitSHA` read
-every cycle already performs, and dwarfed by the per-repository git
-subprocess spawns. Terminal counts are unchanged: 10 forced per cycle in
-both trees, and the bound test forces 5 of 5 due repositories within 3
-cycles at limit 2. The change is safe because forcing, budget, hold, and
-reindex-prefix semantics are untouched; only the visit start moves and
-evaluation covers the whole cycle.
-
-Observability Evidence: the new gauge is asserted in-test
-(`never_reconciled=3` after a 5-due, limit-2 cycle, zeros recorded for the
-other seven reasons). The suppression counter now counts every evaluated
-scope rather than only pre-budget ones, so its volume scales with fleet
-size; the counter semantics ("each held evaluation increments") are
-unchanged.
+allows. Requested reindexes stay pinned first; the rest rotate from the cycle
+offset and resume after the last served repository, reproducibly per list and
+offset, within `ceil(due / limit)` cycles. The gauge
+`eshu_dp_collector_reconciliation_due_unvisited` samples the due-but-unvisited
+remainder per bounded `reason`, zeros included.
 
 Cost is one full re-observation and projection per scope per interval — the same
 cost as a first sync, paid on a documented cadence. For an unchanged repository
