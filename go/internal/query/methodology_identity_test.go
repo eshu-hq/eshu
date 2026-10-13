@@ -88,14 +88,13 @@ type methodologyRewriteDeclaration struct {
 // repository carries. A rewrite PR edits these paths; any other PR leaves
 // the zero value alone.
 var methodologyCommittedRewriteDeclaration = methodologyRewriteDeclaration{
-	Issue:  7347,
-	Reason: "Go package lift of file_import_cycles changes these readers by design; the paired Base/Candidate sides in this run both measure candidate code for the declared scope.",
+	Issue:  7348,
+	Reason: "TS/JS package lift of file_import_cycles changes these readers by design; the paired Base/Candidate sides in this run both measure candidate code for the declared scope.",
 	Paths: []string{
 		"go/internal/query/codemodel/code_import_dependencies_queries.go",
 		"go/internal/query/codemodel/code_import_dependencies_rows.go",
 		"go/internal/query/codemodel/code_import_dependencies_response.go",
 		"go/internal/query/codemodel/code_import_dependencies_enumeration.go",
-		"go/internal/query/codequery/imports/rows.go",
 	},
 }
 
