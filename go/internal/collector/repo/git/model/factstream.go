@@ -85,8 +85,9 @@ func FactEnvelope(
 // the same way before the relative path is computed, so a checkout reached
 // through a symlinked parent (macOS /var -> /private/var, #7998) yields the
 // same file graph_id as the direct spelling instead of a run of ../
-// segments. Resolution is best effort: a path that no longer exists keeps
-// its absolute spelling rather than failing the fact.
+// segments. Resolution is best effort: a path that no longer exists
+// resolves through its longest existing parent rather than failing the
+// fact.
 func RepositoryRelativePath(repoPath string, filePath string) string {
 	relativePath, err := filepath.Rel(canonicalPathForRel(repoPath), canonicalPathForRel(filePath))
 	if err != nil {
@@ -95,14 +96,30 @@ func RepositoryRelativePath(repoPath string, filePath string) string {
 	return filepath.ToSlash(relativePath)
 }
 
-// canonicalPathForRel absolutizes path and resolves symlinks when the
-// target exists, so both sides of a Rel call share one spelling.
+// canonicalPathForRel absolutizes path and resolves symlinks so both
+// sides of a Rel call share one spelling. When path does not exist (a file
+// that disappeared between discovery and fact building, #8077), resolving
+// the full path fails while the repository root still resolves; the longest
+// existing parent is resolved instead and the remainder re-appended, so a
+// deleted file under a symlinked checkout directory keeps the resolved
+// spelling instead of producing ../ segments.
 func canonicalPathForRel(path string) string {
 	if absolute, err := filepath.Abs(path); err == nil {
 		path = absolute
 	}
 	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		path = resolved
+		return resolved
+	}
+	for parent := filepath.Dir(path); parent != path; parent = filepath.Dir(parent) {
+		resolved, err := filepath.EvalSymlinks(parent)
+		if err != nil {
+			continue
+		}
+		remainder, err := filepath.Rel(parent, path)
+		if err != nil {
+			return path
+		}
+		return filepath.Join(resolved, remainder)
 	}
 	return path
 }
