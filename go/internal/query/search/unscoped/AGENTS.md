@@ -18,6 +18,14 @@ Read `doc.go` and `README.md` first.
   shim of 2026-10-11 (`7730-continuation-shim-20261011.md`, QA environment
   read of 2026-10-11) and `TestPolicyClasses` pins its classes. Changing a
   figure needs a new measurement, not a guess.
+- The engine (`walk.go`, the generic `search` in `searcher.go`,
+  `telemetry.go`) never names a table. Table-specific statement text, key
+  binding, row scanning, span identity, error subject and figures belong in a
+  shape (`files.go` for `content_files`). A new table is a new shape file,
+  not an engine edit; its figures need their own measurement.
+- `TestFileRouteGolden` must stay byte-identical for any change that is not an
+  intended file-route contract change. Never regenerate it to make a refactor
+  pass.
 - The root `query` directory is dirgate-pinned: new non-test code for this
   feature belongs here, not in `go/internal/query/*.go`.
 

@@ -59,7 +59,7 @@ func (w *entityWalk) remaining() time.Duration { return w.plan.budget - w.elapse
 func (w *entityWalk) run(ctx context.Context) error {
 	probeStart := w.now()
 	w.endedIn = phaseProbe
-	if err := w.window(ctx, probeRows, w.remaining()); err != nil {
+	if err := w.window(ctx, w.plan.probeRows, w.remaining()); err != nil {
 		return err
 	}
 	if w.finished {
@@ -67,7 +67,7 @@ func (w *entityWalk) run(ctx context.Context) error {
 	}
 	// The first continuation step is predicted from the probe's measured cost,
 	// scaled to the step size, because no step has run yet.
-	w.expected = w.now().Sub(probeStart) * stepRows / probeRows
+	w.expected = w.now().Sub(probeStart) * time.Duration(w.plan.stepRows) / time.Duration(w.plan.probeRows)
 	if err := w.continuation(ctx, w.plan.phaseOneCap, phaseContinuation); err != nil || w.finished {
 		return err
 	}
@@ -97,7 +97,7 @@ func (w *entityWalk) continuation(ctx context.Context, allowance time.Duration, 
 		}
 		before := w.now()
 		w.endedIn = name
-		cancelled, err := w.step(ctx, stepRows, room)
+		cancelled, err := w.step(ctx, w.plan.stepRows, room)
 		if err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func (w *entityWalk) continuation(ctx context.Context, allowance time.Duration, 
 		}
 		w.expected = spent
 		w.steps++
-		w.stepRowsVisited += stepRows
+		w.stepRowsVisited += w.plan.stepRows
 	}
 	return nil
 }

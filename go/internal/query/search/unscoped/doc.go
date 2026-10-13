@@ -11,7 +11,8 @@
 // the byte mass of its candidate set. This package bounds the work instead of
 // trusting the plan. One call is one REPEATABLE READ READ ONLY transaction
 // whose first statement is the substring-index readiness check, followed by
-// these phases against contiguous, non-overlapping key ranges:
+// these phases against contiguous, non-overlapping key ranges (the figures
+// are those of the content_files shape):
 //
 //  1. a probe of 200 rows in repo_id, relative_path order, shaped as an
 //     ordered primary-key walk that never uses the trigram index, with the
@@ -21,6 +22,13 @@
 //  3. a trigram tail inside a savepoint with index scans disabled and a
 //     statement timeout of min(remaining budget, 0.5 x budget);
 //  4. continuation steps with whatever budget remains.
+//
+// The walk is one engine over a table shape. The engine (walk.go) owns the
+// phases, the savepoints, the timeouts, the cursor rule and the partial
+// result, and names no table. A shape supplies the statement text, the key
+// columns its cursor binds, the row scanner, the span identity, and its
+// window sizes and phase figures. content_files (files.go) is the only shape;
+// Searcher.Search walks it.
 //
 // A window shorter than its size proves the key space is exhausted, so the
 // answer is complete. A statement the server cancels advances nothing and is

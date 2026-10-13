@@ -71,7 +71,7 @@ func (s *Searcher) SearchEntities(
 
 	w := &entityWalk{
 		tx:        tx,
-		plan:      newPlan(budget),
+		plan:      newPlan(budget, fileShape.figures),
 		now:       now,
 		pattern:   pattern,
 		want:      offset + limit + 1,

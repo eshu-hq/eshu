@@ -6,6 +6,31 @@ API and MCP `search_file_content` tool ran across all repositories, whose cost
 depended on a planner row estimate and on the total size of the trigram
 candidate set.
 
+## Engine and shapes
+
+The walker is one engine over a table shape (#7009). The engine (`walk.go`,
+the generic `search` in `searcher.go`, `telemetry.go`) owns the phases, the
+savepoints and statement timeouts, the cursor rule, the partial result and the
+operator signals. It never names a table; `Searcher.Search` is the file route
+and walks the file shape. A shape (`shape.go`) supplies what differs between
+tables: the four bounded statements (step and tail, each from the start and
+after a key), the key columns the cursor binds, the row scanner, the span's
+`db.sql.table` and `db.operation`, the subject in its error text, and its
+window sizes and phase figures at the default budget (`figures` in
+`budget.go`). All four statements of every shape take the same leading
+arguments, so the engine binds them without knowing the table.
+
+`content_files` (`files.go`) is the only shape. Its figures are the #7730
+ones below. A second shape carries its own measured figures: the file split
+does not transfer to another table's cost structure.
+
+`TestFileRouteGolden` pins the file route's observable output byte for byte
+(page rows, partial object, every statement text and argument, the span, the
+metrics, the partial log line) in `testdata/file_route.golden.json`. An engine
+change that is meant to change nothing must leave it unchanged. Rewrite it
+with `go test ./internal/query/search/unscoped -run TestFileRouteGolden
+-args -update-golden` only for an intended contract change.
+
 ## Flow
 
 ```mermaid
