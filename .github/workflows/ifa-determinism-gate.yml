@@ -174,7 +174,6 @@ jobs:
     timeout-minutes: 30
     env:
       DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}
-      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -182,12 +181,6 @@ jobs:
       - name: Check out code
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
         uses: actions/checkout@v5
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'determinism-matrix')) }}
@@ -229,7 +222,6 @@ jobs:
     timeout-minutes: 30
     env:
       DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}
-      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -237,15 +229,6 @@ jobs:
       - name: Check out code
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
         uses: actions/checkout@v5
-
-      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
-      # on hosted runners. Skipped, not failed, when the secrets are absent.
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dead-letter-matrix')) }}
@@ -286,7 +269,6 @@ jobs:
     timeout-minutes: 35
     env:
       FAULT_COMPOSE_PROJECT: eshu-ifa-fault-injection-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
-      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -298,12 +280,6 @@ jobs:
       - name: Check out code
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         uses: actions/checkout@v5
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection')) }}
         uses: actions/setup-go@v6

@@ -117,7 +117,7 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 			return service + " must use the current public GHCR mirror without Docker Hub credentials"
 		}
 	}
-	if problem := checkReadinessDockerHubLogin(live); problem != "" {
+	if problem := checkReadinessNoDockerHubLogin(live); problem != "" {
 		return problem
 	}
 	if problem := checkReadinessCleanup(live); problem != "" {
@@ -171,36 +171,19 @@ func checkReadinessCleanup(job readinessJob) string {
 	return ""
 }
 
-func checkReadinessDockerHubLogin(job readinessJob) string {
-	const enabled = "${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}"
-	if job.Env["DOCKERHUB_LOGIN_ENABLED"] != enabled {
-		return "Docker Hub login must require both secrets in the live job"
+func checkReadinessNoDockerHubLogin(job readinessJob) string {
+	if _, ok := job.Env["DOCKERHUB_LOGIN_ENABLED"]; ok {
+		return "live job must not carry a Docker Hub login flag: its services use public GHCR mirrors"
 	}
-	login, checkout, standby := -1, -1, -1
-	for i, step := range job.Steps {
-		if step.Uses == "actions/checkout@v5" {
-			checkout = i
+	for _, step := range job.Steps {
+		if !strings.HasPrefix(step.Uses, "docker/login-action@") {
+			continue
 		}
-		if strings.Contains(step.Run, "live-postgres-standby-fixture.sh start") {
-			standby = i
+		if registry, ok := step.With["registry"]; ok && registry != "" &&
+			!strings.Contains(registry, "docker.io") {
+			continue
 		}
-		if strings.HasPrefix(step.Uses, "docker/login-action@") {
-			if login != -1 {
-				return "Docker Hub login must run exactly once"
-			}
-			login = i
-			if step.Name != "Log in to Docker Hub" ||
-				step.Uses != "docker/login-action@v3" ||
-				step.If != "env.DOCKERHUB_LOGIN_ENABLED == 'true'" ||
-				step.ContinueOnError != "" || step.Run != "" ||
-				step.With["username"] != "${{ secrets.DOCKERHUB_USERNAME }}" ||
-				step.With["password"] != "${{ secrets.DOCKERHUB_TOKEN }}" {
-				return "Docker Hub login must be gated, fail closed, and use both secrets"
-			}
-		}
-	}
-	if checkout < 0 || standby < 0 || login <= checkout || login >= standby {
-		return "Docker Hub login must follow checkout and precede the standby pull"
+		return "live job must not log in to Docker Hub: its services use public GHCR mirrors"
 	}
 	return ""
 }
@@ -314,13 +297,8 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		{"waive hermetic proof step", "        run: bash scripts/test-run-live-postgres-readiness-tests.sh", "        continue-on-error: true\n        run: bash scripts/test-run-live-postgres-readiness-tests.sh"},
 		{"skip live proof step", "        run: bash scripts/run-live-postgres-readiness-tests.sh", "        if: false\n        run: bash scripts/run-live-postgres-readiness-tests.sh"},
 		{"waive live proof step", "        run: bash scripts/run-live-postgres-readiness-tests.sh", "        continue-on-error: true\n        run: bash scripts/run-live-postgres-readiness-tests.sh"},
-		{"missing login flag", "      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}\n", ""},
-		{"username-only login flag", "secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''", "secrets.DOCKERHUB_USERNAME != ''"},
-		{"token-only login flag", "secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''", "secrets.DOCKERHUB_TOKEN != ''"},
-		{"missing login", "uses: docker/login-action@v3", "uses: actions/cache@v4"},
-		{"renamed login", "name: Log in to Docker Hub\n", "name: Unrelated login\n"},
-		{"skip login", "if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "if: false"},
-		{"waive login failure", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'", "        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n        continue-on-error: true"},
+		{"added login flag", "    timeout-minutes: 60\n    services:", "    timeout-minutes: 60\n    env:\n      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}\n    services:"},
+		{"added login step", "        with:\n          persist-credentials: false\n\n      - name: Set up Go", "        with:\n          persist-credentials: false\n      - name: Log in to Docker Hub\n        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n        uses: docker/login-action@v3\n        with:\n          username: ${{ secrets.DOCKERHUB_USERNAME }}\n          password: ${{ secrets.DOCKERHUB_TOKEN }}\n      - name: Set up Go"},
 		{"short hermetic timeout", "timeout-minutes: 30", "timeout-minutes: 20"},
 		{"changed live timeout", "timeout-minutes: 60", "timeout-minutes: 61"},
 		{"missing standby cleanup", "run: bash scripts/ci/live-postgres-standby-fixture.sh stop", "run: true # bash scripts/ci/live-postgres-standby-fixture.sh stop"},
@@ -353,21 +331,55 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			}
 		})
 	}
-	t.Run("late login", func(t *testing.T) {
+	t.Run("added login", func(t *testing.T) {
 		const loginStep = "      - name: Log in to Docker Hub\n" +
 			"        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n" +
 			"        uses: docker/login-action@v3\n" +
 			"        with:\n" +
 			"          username: ${{ secrets.DOCKERHUB_USERNAME }}\n" +
-			"          password: ${{ secrets.DOCKERHUB_TOKEN }}\n\n"
-		const standbyStep = "        run: bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}'\n"
-		if !strings.Contains(string(workflow), loginStep) || !strings.Contains(string(workflow), standbyStep) {
+			"          password: ${{ secrets.DOCKERHUB_TOKEN }}\n"
+		const checkoutStep = "        uses: actions/checkout@v5\n" +
+			"        with:\n" +
+			"          persist-credentials: false\n" +
+			"\n" +
+			"      - name: Set up Go\n"
+		if !strings.Contains(string(workflow), checkoutStep) {
 			t.Fatal("mutation anchor missing")
 		}
-		changed := strings.Replace(string(workflow), loginStep, "", 1)
-		changed = strings.Replace(changed, standbyStep, standbyStep+"\n"+loginStep, 1)
+		if strings.Contains(string(workflow), loginStep) {
+			t.Fatal("Docker Hub login still present")
+		}
+		changed := strings.Replace(string(workflow), checkoutStep, "        uses: actions/checkout@v5\n"+
+			"        with:\n"+
+			"          persist-credentials: false\n"+
+			loginStep+
+			"      - name: Set up Go\n", 1)
 		if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
-			t.Fatal("late Docker Hub login passed")
+			t.Fatal("added Docker Hub login passed")
+		}
+	})
+	t.Run("added ghcr login passes", func(t *testing.T) {
+		const ghcrLoginStep = "      - name: Log in to GHCR\n" +
+			"        uses: docker/login-action@v3\n" +
+			"        with:\n" +
+			"          registry: ghcr.io\n" +
+			"          username: ${{ github.actor }}\n" +
+			"          password: ${{ secrets.GITHUB_TOKEN }}\n"
+		const checkoutStep = "        uses: actions/checkout@v5\n" +
+			"        with:\n" +
+			"          persist-credentials: false\n" +
+			"\n" +
+			"      - name: Set up Go\n"
+		if !strings.Contains(string(workflow), checkoutStep) {
+			t.Fatal("mutation anchor missing")
+		}
+		changed := strings.Replace(string(workflow), checkoutStep, "        uses: actions/checkout@v5\n"+
+			"        with:\n"+
+			"          persist-credentials: false\n"+
+			ghcrLoginStep+
+			"      - name: Set up Go\n", 1)
+		if problem := checkReadinessSplit([]byte(changed), *gate); problem != "" {
+			t.Fatalf("added GHCR login failed: %s", problem)
 		}
 	})
 }

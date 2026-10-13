@@ -61,8 +61,14 @@ its builder startup does not add an implicit Docker Hub pull.
 
 `scripts/verify-dockerhub-login.sh` fails a job that reaches Docker Hub when its
 workflow runs on `merge_group`, `pull_request`, or `pull_request_target`, follows
-such a workflow through `workflow_run`, or is a reusable callee of one. A login
-step is not a finding of this rule.
+such a workflow through `workflow_run`, or is a reusable callee of one. A GHCR
+login step is not a finding of this rule. A queue-path job carries no Docker
+Hub login step: all its images resolve to the ledger, and the extra login
+would only spend pulls from the shared runner identity against the limit.
+
+`TestQueueWorkflowsCarryNoDockerHubLogin` enforces the no-login rule on all
+ten queue-path workflows; the readiness shape stays pinned in
+`readiness_job_split_test.go`.
 
 The gate reads `specs/ci-images.v1.json` and the required image ids in
 `scripts/lib/ci_image_compose.py` from the tree under test at run time. It holds
@@ -204,6 +210,10 @@ no heredoc. A conditional literal in a workflow env settles only in the form
 `cond && 'a' || cond && 'b' || 'c'`, and every literal must settle.
 
 ## Refresh and proof
+
+Mirror refresh owner: `linuxdynasty`. The refresh runs by hand through the
+`ci-mirrors-publish` mode of Publish Image and Helm Chart
+(`.github/workflows/docker-publish.yml`). Tracking issue #7886.
 
 1. Read the upstream recipe, license notices, corresponding source records,
    and every platform manifest. Reject foreign or nondistributable layers.

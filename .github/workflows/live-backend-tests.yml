@@ -86,10 +86,6 @@ jobs:
     name: static-mirror (ledger and runner probes)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
-      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -97,17 +93,6 @@ jobs:
       - name: Check out code
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         uses: actions/checkout@v5
-
-      # #7886: the runner probe below runs scripts/run-live-backend-tests.sh in
-      # its selftest plan mode, which pulls nothing, but the static gate follows
-      # that call into the runner's compose use and cannot see the mode.
-      # Skipped, not failed, when the secrets are absent.
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
@@ -144,9 +129,6 @@ jobs:
       # fixed host ports, so the cross-run mutex is bypassed.
       ESHU_SKIP_LIVE_GATE_LOCK: 1
       ESHU_LIVE_COMPOSE_PROJECT: eshu-live-backend-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
-      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
-      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
-      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -154,15 +136,6 @@ jobs:
       - name: Check out code
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         uses: actions/checkout@v5
-
-      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
-      # on hosted runners. Skipped, not failed, when the secrets are absent.
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
