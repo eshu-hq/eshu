@@ -133,10 +133,13 @@ func (s NativeRepositorySelector) SelectRepositories(
 		// path as the other forced fulls (#7982): every selected repository
 		// carries repository_reindex_requested, so the ingestion store's
 		// unchanged-generation check stores a new generation instead of skipping
-		// it (ruling a9-125).
-		reconcileByRepoPath := map[string]bool{}
-		reconcileReasonByRepoPath := map[string]string{}
+		// it (ruling a9-125). The maps stay nil unless forcing, so an unforced
+		// run keeps the exact pre-#7982 allocation and lookup shape.
+		var reconcileByRepoPath map[string]bool
+		var reconcileReasonByRepoPath map[string]string
 		if s.Config.ForceReindex {
+			reconcileByRepoPath = make(map[string]bool, len(synced.SelectedRepoPaths))
+			reconcileReasonByRepoPath = make(map[string]string, len(synced.SelectedRepoPaths))
 			for _, repoPath := range synced.SelectedRepoPaths {
 				reconcileByRepoPath[repoPath] = true
 				reconcileReasonByRepoPath[repoPath] = scope.ReconcileReasonRepositoryReindexRequested
