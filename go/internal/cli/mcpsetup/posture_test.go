@@ -13,9 +13,17 @@ import (
 
 // probeTestClient returns an *http.Client with the given timeout, matching
 // the dedicated short-timeout client probeAuthPosture must use (never the
-// 30s APIClient default).
+// 30s APIClient default). Each client gets a private clone of the default
+// transport: the subtests below run in parallel in one process, and every
+// httptest.Server.Close calls CloseIdleConnections on the shared
+// http.DefaultTransport, which once broke a sibling probe's request
+// mid-flight under -race (issue #8070). A private transport keeps each
+// probe's lifecycle hermetic without changing probe behavior.
 func probeTestClient(timeout time.Duration) *http.Client {
-	return &http.Client{Timeout: timeout}
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: http.DefaultTransport.(*http.Transport).Clone(),
+	}
 }
 
 func TestProbeAuthPosture(t *testing.T) {
