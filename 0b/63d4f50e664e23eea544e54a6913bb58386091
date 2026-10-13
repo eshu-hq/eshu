@@ -1,0 +1,14 @@
+scripts/lib/live_postgres_readiness_inventory.py
+  h_78a442cba0b3e6 357-361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b63d4f50e664e23eea544e54a6913bb58386091",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
