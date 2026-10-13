@@ -1,0 +1,14 @@
+docs/internal/evidence/7728-content-files-language-covering-index.md
+  h_78a442cba0b3e6 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "09830b317f0f654d92f5319164f5947434d594c8",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
