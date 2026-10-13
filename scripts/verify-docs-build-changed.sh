@@ -205,13 +205,17 @@ fi
 docs_timeout_default=600
 docs_timeout_raw="${ESHU_DOCS_BUILD_TIMEOUT_SECONDS:-${docs_timeout_default}}"
 # Width cap first: past int64 range bash arithmetic wraps mod 2^64, and a
-# wrapped value landing in range would pass validation (#7983 review). Five
-# or more digits exceed 3600 anyway, so `^[0-9]{1,4}$` loses nothing.
+# wrapped value landing in range would pass validation (#7983 review). The
+# cap is syntactic — 1 to 4 digits — so a zero-padded longer form such as
+# 03600 is rejected even though its value is in range; canonical bounds use
+# 1-4 digits, and five significant digits always exceed 3600.
 if [[ ! "${docs_timeout_raw}" =~ ^[0-9]{1,4}$ ]] || (( 10#${docs_timeout_raw} < 1 || 10#${docs_timeout_raw} > 3600 )); then
   log "ESHU_DOCS_BUILD_TIMEOUT_SECONDS must be an integer from 1 through 3600 seconds; got: ${docs_timeout_raw}"
   exit 2
 fi
-docs_timeout="${docs_timeout_raw}"
+# Canonical base-10: an accepted zero-padded bound (08, 0009) must not reach
+# arithmetic with its leading zero, where bash would read it as octal.
+docs_timeout="$((10#${docs_timeout_raw}))"
 
 # Bounded, process-group-aware execution for the build step. The old backend
 # chain was platform-split: GNU `timeout` kills the child process group, but
@@ -233,6 +237,11 @@ docs_timeout="${docs_timeout_raw}"
 run_bounded_tree() {
   local budget="$1"
   shift
+  # Base-10 at the site of arithmetic: a caller passing a zero-padded budget
+  # would otherwise make `(( waited >= budget ))` an octal error every poll
+  # (08, 09), so the bound never fires. Validation confines callers to
+  # 1..3600, so this conversion cannot fail.
+  budget="$((10#${budget}))"
   set -m
   "$@" &
   local child=$!

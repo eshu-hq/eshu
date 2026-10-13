@@ -398,6 +398,39 @@ test_invalid_timeout_config_fails_closed() {
     fi
     assert_contains "must be an integer from 1 through 3600" "${out}"
   done
+  for bad in "03600"; do
+    if run_verifier_timeout "${repo_dir}" "${out}" "${bad}" "${lock_home}"; then
+      echo "test-docs-build: expected verifier to fail closed on timeout config '${bad}'" >&2
+      cat "${out}" >&2
+      exit 1
+    fi
+    assert_contains "must be an integer from 1 through 3600" "${out}"
+  done
+}
+
+# 19. A zero-padded bound is valid input and the watchdog still fires: the
+#     budget is forced base-10, because bash reads a leading-0 constant as
+#     octal and `(( waited >= 08 ))` would error every poll so the bound
+#     never fires (#8062 review).
+test_zero_padded_bound_still_fires() {
+  local repo_dir="${tmp_root}/timeout-zeropad"
+  local out="${tmp_root}/timeout-zeropad.out"
+  git_init "${repo_dir}"
+  printf '# Updated page\n\nContent.\n' >"${repo_dir}/docs/public/index.md"
+  git_in "${repo_dir}" add docs/public/index.md
+  git_in "${repo_dir}" commit -q -m "docs: update"
+  local lock_home="${tmp_root}/timeout-zeropad-lock-home"
+  mkdir -p "${lock_home}"
+  ln -s "424242:999:/busy/sibling-worktree" "${lock_home}/eshu-live-gate.lock"
+  if run_verifier_timeout "${repo_dir}" "${out}" "08" "${lock_home}"; then
+    echo "test-docs-build: expected verifier to fail when the build overruns a zero-padded bound" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "TIMED OUT after 8s" "${out}"
+  assert_contains "424242" "${out}"
+  assert_contains "live-gate lock is HELD" "${out}"
+  assert_no_grandchild_left_behind "${out}"
 }
 
 # 17. A build killed from outside the watchdog (the OOM killer under the
@@ -597,6 +630,7 @@ test_build_timeout_reports_free_lock
 test_invalid_timeout_config_fails_closed
 test_oom_kill_reads_as_loud_timeout
 test_timeout_bound_needs_no_backend
+test_zero_padded_bound_still_fires
 test_full_clone_missing_base_stays_full
 test_full_clone_resolvable_base_skips_fetch
 test_shallow_clone_missing_base_fetches_with_depth
