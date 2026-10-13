@@ -118,9 +118,13 @@ adds nothing to `SelectedRepoPaths`, so no generation is built for that
 repository this cycle. The shallow.lock retry fetch carries its own deadline. A
 pinned-ref fetch that hits its deadline (two fetches per pinned ref, branch
 then tag) is counted in `eshu_dp_git_command_deadline_exceeded_total{operation="fetch"}`
-and logged in the `failed to fetch pinned ref; skipping` warning, not as
-`git repository sync failed` and not in `eshu_dp_git_repo_sync_failures_total`;
-the repository's other refs and the cycle continue. A clone that outlives its
+and logged in the `failed to fetch pinned ref; skipping` warning, which then
+carries `failure_class=deadline_exceeded`, `deadline_operation`,
+`deadline_seconds`, `operation` and `elapsed_seconds` (any other pinned-ref
+failure keeps `repo_id`, `ref` and `error` only). It is not a
+`git repository sync failed` line and is not in
+`eshu_dp_git_repo_sync_failures_total`; the repository's other refs and the
+cycle continue. A clone that outlives its
 deadline fails every cycle, so size `ESHU_GIT_CLONE_TIMEOUT_SECONDS` for the largest repository you index.
 See `deadline/README.md`.
 

@@ -82,13 +82,17 @@ immediately before the subcommand while `GIT_CONFIG_COUNT`,
 `GIT_CONFIG_KEY_0` and `GIT_CONFIG_VALUE_0` still hold the single GitHub-scoped
 credential header, and that a local `rev-parse` carries no low-speed options.
 Pinned refs: `TestRealGitStalledPinnedRefFetchesAreBounded` stalls
-`gitFetchPinnedRef`, which always runs a branch fetch and a tag fetch in
-sequence, against the same listener; both are killed at their 2 s deadline
+`createRefWorktrees`, whose `gitFetchPinnedRef` always runs a branch fetch and a
+tag fetch in sequence, against the same listener; both are killed at their 2 s deadline
 (4.17 s in total), the counter holds exactly `{fetch:2}`, the helper is gone
 and no `.lock` file is left. `TestPinnedRefFetchesCarryLowSpeed` records both
 fetches carrying the low-speed options before `fetch`. A pinned-ref kill is
-logged only in the `failed to fetch pinned ref; skipping` warning, not as
-`git repository sync failed`. Mutations, each restored: removing the deadline fails the real-git stall cells,
+logged in the `failed to fetch pinned ref; skipping` warning, which carries
+`failure_class=deadline_exceeded`, `deadline_operation`, `deadline_seconds`,
+`operation` and `elapsed_seconds` (the cell reads the log record), not as
+`git repository sync failed`; a pinned-ref failure that is not a deadline keeps
+the warning's old keys (`TestPinnedRefFetchFailureWarningKeepsItsShape`).
+Mutations, each restored: removing the deadline fails the real-git stall cells,
 the loop cell, `TestOperationSetIsClosed` and `TestRunBoundsAnEscapedDescendant`;
 killing only the direct child fails the stall cells and the loop cell (the
 surviving helper holds the pipes past the 5 s guard); labelling any error a
@@ -106,8 +110,8 @@ added cost on a healthy command is one `context.WithTimeout` timer and a
 throughput run was made. Two tests in the same package,
 `TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots`
 and `TestBuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot`,
-fail on `origin/main` as well on a macOS temp path under `/var`; they are
-unrelated.
+fail on `origin/main` as well when `TMPDIR` is the macOS `/var` symlink and
+pass when it is the resolved `/private/var` path; they are unrelated.
 
 Observability Evidence: new counter `eshu_dp_git_command_deadline_exceeded_total`
 with the closed `operation` set `clone`, `fetch`, `ls_remote`, `resolve` (a
