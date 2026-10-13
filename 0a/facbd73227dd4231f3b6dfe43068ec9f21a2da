@@ -1,0 +1,46 @@
+.github/workflows/live-postgres-readiness.yml
+  h_78a442cba0b3e6 246-247
+go/internal/storage/postgres/content_files_language_covering_index_replay_live_test.go
+  h_78a442cba0b3e6 1-307
+go/internal/storage/postgres/content_files_language_repo_covering_test.go
+  h_78a442cba0b3e6 1-30
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  h_78a442cba0b3e6 119
+go/internal/storage/postgres/migrations/171_drop_content_files_language_repo_idx.sql
+  h_78a442cba0b3e6 1-49
+go/internal/storage/postgres/migrations/172_content_files_language_covering_idx.sql
+  h_78a442cba0b3e6 1-44
+go/internal/storage/postgres/migrations/173_content_files_language_covering_idx_vacuum.sql
+  h_78a442cba0b3e6 1-18
+go/internal/storage/postgres/migrations/content_files_language_covering_idx_test.go
+  h_78a442cba0b3e6 1-85
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  h_78a442cba0b3e6 68-72,78
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  h_78a442cba0b3e6 221-223
+go/internal/storage/postgres/schema_content_store.go
+  h_78a442cba0b3e6 125
+go/internal/storage/postgres/schema_index_replay_test.go
+  h_78a442cba0b3e6 98-112
+go/internal/storage/postgres/schema_order_test.go
+  h_78a442cba0b3e6 408-418
+scripts/lib/live_postgres_readiness_inventory.py
+  h_78a442cba0b3e6 239-241
+scripts/run-live-postgres-readiness-tests.sh
+  h_78a442cba0b3e6 32,63
+scripts/test-run-live-postgres-readiness-tests.sh
+  h_78a442cba0b3e6 73
+specs/live-tests.d/live-tests-05.yaml
+  h_78a442cba0b3e6 374-378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0afacbd73227dd4231f3b6dfe43068ec9f21a2da",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
