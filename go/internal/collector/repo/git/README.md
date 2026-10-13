@@ -58,6 +58,35 @@ reducer's candidate filter and retract matcher compare ids only (#7384); a
 legacy name-keyed work item matches nothing and heals on the next full
 generation, which re-emits id keys.
 
+## Symlinked checkout roots
+
+File fact ids (`<repository ID>:<relative path>`) never depend on how the
+checkout directory was spelled. `model.RepositoryRelativePath` absolutizes
+the repository root and the file path and resolves symlinks on both before
+`filepath.Rel` (#7998): a checkout reached through a symlinked parent (macOS
+`/var` to `/private/var`) emits the same `graph_id` values as the direct
+path instead of a run of `../` segments.
+`TestFileGraphIDStableThroughSymlinkedCheckoutRoot` snapshots one repository
+through both spellings and requires identical file `graph_id` values.
+
+No-Regression Evidence (#7998): the helper runs once per emitted file fact
+plus a few documentation and commit-index facts per sync. A throwaway
+`go test -bench` (not committed) on linux/amd64 (AMD EPYC 9R14), Go 1.26.9,
+`-count=5`, over a real temp checkout measured:
+
+| Build | ns/op (median) | B/op | allocs/op |
+| --- | --- | --- | --- |
+| Rel only | 106 | 0 | 0 |
+| Dual resolve | 9317 | 1256 | 18 |
+
+About 9.3 µs per file, so a 10,000-file sync pays about 0.1 s next to
+per-file parse work, and output is byte-identical on plain paths: the
+content-version pin digest did not move. No query, queue, graph-write, or
+worker path changes.
+
+No-Observability-Change: the change alters only the relative-path string
+inside emitted facts. No metric, span, log key, or status field changes.
+
 ## Directory size
 
 This directory is over the 40-file cap and carries a row in
