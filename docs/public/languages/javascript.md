@@ -150,7 +150,11 @@ module slots carry npm package names. A cycle closed only through an
 `import type` edge is not reported: type-only imports never run at load time.
 Edges from a graph written before the mapping existed cannot be placed and
 close nothing; they are counted in
-`coverage.cycle_ts_edges_missing_package`.
+`coverage.cycle_ts_edges_missing_package`. Each language tag reads only its
+own edges: `language=typescript` sees TypeScript files but not TSX or
+JavaScript files in the same npm package. A mixed-tag package needs one
+request per tag; a single-tag read over a mixed package is partial and never
+proves the package acyclic.
 
 ## Known Limitations
 
