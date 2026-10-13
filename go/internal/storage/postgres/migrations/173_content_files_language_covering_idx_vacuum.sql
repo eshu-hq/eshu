@@ -15,4 +15,7 @@
 -- and the runner executes a multi-statement file in one implicit
 -- transaction. VACUUM takes no write-blocking lock; reads and content
 -- writes proceed.
+-- NOTE: unlike 171/172 this statement is not converge-once on the untracked
+-- apply path (ApplyDefinitions replays every file without receipts); tracked
+-- installs run it once via the migration ledger. Keep it a sole statement.
 VACUUM (ANALYZE) content_files;

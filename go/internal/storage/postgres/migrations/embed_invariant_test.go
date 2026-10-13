@@ -69,7 +69,7 @@ import (
 // 171_drop_content_files_language_repo_idx.sql,
 // 172_content_files_language_covering_idx.sql, and
 // 173_content_files_language_covering_idx_vacuum.sql.
-const goldenBootstrapDefinitionsDigest = "9cfa99f33f674f1ac5b32aaabadb5c9d2fa206ca8166500be8ab0840c630c75a"
+const goldenBootstrapDefinitionsDigest = "59c3db6cd05ccf34ea53aa812aab9746633862355a55b500e64e3778a722e5d2"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
