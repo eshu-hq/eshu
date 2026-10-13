@@ -256,9 +256,7 @@ even when the content identity (commit, hint, and content version) is
 unchanged (ruling a9-125); the sweep, `graph_dirty`, webhook, and scheduled
 sync re-project the active generation instead (#7978). A pending watermark
 beats `interval_elapsed` and `graph_dirty`, and only a stored full ingested at
-or after it satisfies it, so a re-projection never answers a reindex. The content-version
-gate narrows, but cannot close, the window where a parser change does not
-change the hint; an explicit reindex is the remedy. The request is never claimed and has no
+or after it satisfies it, so a re-projection never answers a reindex. The request is never claimed and has no
 completion status. It is satisfied scope by scope: a forced full is ingested at
 the cycle's start time, which is at or after the watermark, so once it activates
 the scope stays `fresh`. A later request moves the watermark forward and starts
@@ -300,6 +298,36 @@ Watch progress with
 and the `git_reconcile_forced` log. When that counter stops rising while the
 suppression counter is flat, no scope the sync visits is still due. A scope the
 sync never visits is not covered (#7625).
+
+### Content-version gate coverage
+
+The content-version gate is three checks. The pin test fails when the facts
+emitted for the git collector's content-version fixture move without a bump
+to `gitGenerationContentVersion`. The coverage guard fails when a registered
+parser has no fixture file. The parser-set fingerprint folds every parser key,
+language, extension, and file name into the content version, so a registration
+change mints one new generation per git scope with no hand edit.
+
+The gate does not see a parser logic or dialect change whose bindings are
+unchanged and whose output shift shows only on inputs outside the fixture.
+The hardcoded path-dispatch rules (java metadata, Scala routes,
+`.tfvars.json`) are outside the bindings too. Either case still needs a hand
+bump, and an explicit reindex is the remedy when the bump was missed. Fixture growth in the same edit as a parser change reads as
+an output change: bump only when existing output really changed.
+
+No-Regression Evidence (#7986): the fold runs once per process inside the
+existing content-version cache, adding one SHA-256 over about 35 small
+registry definitions to that one-time computation; per-snapshot hint cost is
+unchanged. After measurement on this change: the parser package suite passes
+in about 1s, the collector gate, hint, and generation subset passes in about
+0.3s, and the pinned fact digest is unchanged, so an unchanged parser set
+keeps every hint. The only fleet-wide effect is the intended one new
+generation per git scope when the parser set itself changes.
+
+No-Observability-Change (#7986): no new metric, span, log key, or status
+field. A fingerprint move shows on the existing generation store counters and
+the sweep logs, which already distinguish stored generations from
+re-projections.
 
 ### Per-repository reindex requests
 

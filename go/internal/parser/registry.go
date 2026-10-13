@@ -5,6 +5,8 @@
 package parser
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -181,6 +183,33 @@ func (r Registry) LookupByParserKey(parserKey string) (Definition, bool) {
 // Definitions returns the registered definitions in deterministic parser-key order.
 func (r Registry) Definitions() []Definition {
 	return cloneDefinitions(r.definitions)
+}
+
+// Fingerprint returns the parser-set identity for this registry (#7986): a
+// SHA-256 over every definition's key, language, extensions, and exact and
+// prefix names. Definitions stay sorted by parser key and each binding list is
+// normalized and sorted at construction, so the digest is deterministic across
+// calls, processes, and release builds: an unchanged parser set keeps every
+// freshness hint, while a registration change (a new parser, extension, or
+// file name) moves the digest with no hand edit. It covers the registry
+// bindings only, not parser logic: a behavior change with identical bindings
+// still needs a hand-bumped content version (see the git collector's pin test).
+// The hardcoded path-dispatch rules in LookupByPath (java metadata, Scala
+// routes, .tfvars.json) also live outside the bindings: adding or changing one
+// needs a hand bump too.
+func (r Registry) Fingerprint() string {
+	h := sha256.New()
+	for _, definition := range r.definitions {
+		// A hash never returns a write error; the blank assignment keeps
+		// errcheck quiet without changing behavior.
+		_, _ = fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00%s\n",
+			definition.ParserKey,
+			definition.Language,
+			strings.Join(definition.Extensions, ","),
+			strings.Join(definition.ExactNames, ","),
+			strings.Join(definition.PrefixNames, ","))
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // ParserKeys returns the registered parser keys in deterministic order.

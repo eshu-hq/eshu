@@ -119,6 +119,11 @@ The README cross-references this section from its tree-sitter support table.
   6. Update `internal/content/shape` if the new language emits entity keys that
      `shape.Materialize` must handle.
   7. Document the new language in the `README.md` language table.
+  8. Add one file for the new key under
+     `go/internal/collector/repo/git/testdata/content_version` (the per-key
+     coverage guard fails without it). The registry fingerprint moves
+     `GenerationContentVersion` on its own, so no content-version hand bump is
+     needed for the binding change itself (#7986).
 
 - **Add a new entity key to an existing adapter** →
   1. Add the key to the adapter's output `map[string]any`.

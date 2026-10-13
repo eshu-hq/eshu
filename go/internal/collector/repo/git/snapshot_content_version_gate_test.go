@@ -148,6 +148,26 @@ func TestContentVersionFixtureCoversEveryParser(t *testing.T) {
 	}
 }
 
+// TestGenerationContentVersionFoldsParserFingerprint is the #7986 closure: the
+// freshness hint folds a parser-set fingerprint, so a parser registration
+// change (a new key, extension, or file name) mints a new generation without a
+// hand edit to gitGenerationContentVersion, even when the changed output is
+// visible only on inputs outside testdata/content_version. The fingerprint is
+// deterministic across builds, so an unchanged parser set keeps every hint.
+func TestGenerationContentVersionFoldsParserFingerprint(t *testing.T) {
+	t.Parallel()
+
+	version := GenerationContentVersion()
+	want := "parsers=" + parser.DefaultRegistry().Fingerprint()
+	if !strings.Contains(version, want) {
+		t.Fatalf("GenerationContentVersion %q does not fold the parser fingerprint %q: "+
+			"a parser-set change would keep old facts as unchanged", version, want)
+	}
+	if again := GenerationContentVersion(); again != version {
+		t.Fatalf("GenerationContentVersion not stable: %q then %q", version, again)
+	}
+}
+
 // contentVersionFixtureDigest copies testdata/content_version to a temp root,
 // snapshots it with the production parser engine, builds its fact stream, and
 // returns a digest of the facts with the temp root, content-entity ids, and
