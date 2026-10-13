@@ -225,7 +225,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 	}
 
 	cloudruntime.RecordEvaluation(ctx, h.Instruments, evaluation)
-	h.logAdmittedFindings(ctx, intent, admitted)
+	h.logAdmittedBatch(ctx, intent, len(candidates), admitted, summary, writeResult.CanonicalWrites, factwrite.Now(h.Now).Sub(evidenceAsOf))
 
 	return reducercontract.Result{
 		IntentID: intent.IntentID,
@@ -296,10 +296,20 @@ func summarizeAWSCloudRuntimeDriftCandidates(candidates []model.Candidate) cloud
 	return summary
 }
 
-func (h AWSCloudRuntimeDriftHandler) logAdmittedFindings(
+// logAdmittedBatch writes one DEBUG line per admitted finding and a single
+// INFO batch summary. The per-finding line used to be INFO, and at production
+// volume it rotated the engine startup evidence out of the retained container
+// log within minutes (#7989). Admitted-finding volume stays visible without
+// log lines through eshu_dp_correlation_rule_matches_total and the
+// orphan/unmanaged counters RecordEvaluation already emits.
+func (h AWSCloudRuntimeDriftHandler) logAdmittedBatch(
 	ctx context.Context,
 	intent reducercontract.Intent,
+	evaluated int,
 	candidates []model.Candidate,
+	summary cloudruntime.Summary,
+	canonicalWrites int,
+	duration time.Duration,
 ) {
 	if h.Logger == nil {
 		return
@@ -313,8 +323,24 @@ func (h AWSCloudRuntimeDriftHandler) logAdmittedFindings(
 			slog.String("drift.kind", awsCloudRuntimeFindingKind(candidate)),
 		}
 		attrs = append(attrs, telemetry.SafeResourceLogAttrs(candidate.CorrelationKey)...)
-		h.Logger.LogAttrs(ctx, slog.LevelInfo, "aws cloud runtime drift finding admitted", attrs...)
+		h.Logger.LogAttrs(ctx, slog.LevelDebug, "aws cloud runtime drift finding admitted", attrs...)
 	}
+	h.Logger.LogAttrs(ctx, slog.LevelInfo, "aws cloud runtime drift batch admitted",
+		log.Domain(string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		slog.String("drift.pack", rules.AWSCloudRuntimeDriftPackName),
+		slog.Int("evaluated", evaluated),
+		slog.Int("admitted", len(candidates)),
+		slog.Int("canonical_writes", canonicalWrites),
+		slog.Duration("duration", duration),
+		slog.Int("orphaned", summary.OrphanedResources),
+		slog.Int("unmanaged", summary.UnmanagedResources),
+		slog.Int("ambiguous", summary.AmbiguousResources),
+		slog.Int("unknown", summary.UnknownResources),
+		slog.Int("image_version_drift", summary.ImageVersionDriftResources),
+		slog.Int("value_comparison_inconclusive", summary.ValueComparisonInconclusiveResources),
+	)
 }
 
 func awsCloudRuntimeFindingKind(candidate model.Candidate) string {

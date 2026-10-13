@@ -43,6 +43,11 @@ type stubAWSCloudRuntimeDriftFindingWriter struct {
 	write AWSCloudRuntimeDriftWrite
 	err   error
 	calls int
+	// fixedCanonicalWrites overrides the default len(write.Candidates)
+	// CanonicalWrites when non-zero, so a test can decouple the writer's
+	// count from the admitted count and prove the summary logs the
+	// writer's value rather than recomputing it.
+	fixedCanonicalWrites int
 }
 
 func (s *stubAWSCloudRuntimeDriftFindingWriter) WriteAWSCloudRuntimeDriftFindings(
@@ -54,8 +59,12 @@ func (s *stubAWSCloudRuntimeDriftFindingWriter) WriteAWSCloudRuntimeDriftFinding
 	if s.err != nil {
 		return AWSCloudRuntimeDriftWriteResult{}, s.err
 	}
+	writes := len(write.Candidates)
+	if s.fixedCanonicalWrites != 0 {
+		writes = s.fixedCanonicalWrites
+	}
 	return AWSCloudRuntimeDriftWriteResult{
-		CanonicalWrites: len(write.Candidates),
+		CanonicalWrites: writes,
 		EvidenceSummary: "wrote aws runtime drift findings",
 	}, nil
 }
@@ -226,7 +235,9 @@ func TestAWSCloudRuntimeDriftHandlerRedactsAdmittedFindingResourceLogs(t *testin
 
 	rawARN := "arn:aws:lambda:us-east-1:123456789012:function:prod-payments-secret-sync"
 	var logs bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// DEBUG: the per-finding line moved from INFO to DEBUG in #7989, so the
+	// redaction proof must capture DEBUG to keep exercising it.
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	loader := &stubAWSCloudRuntimeDriftEvidenceLoader{
 		rows: []cloudruntime.AddressedRow{{
 			ARN:          rawARN,
@@ -465,6 +476,154 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 	if got := stringSliceFromAny(payload["missing_evidence"]); !slices.Equal(got, []string{"terraform_config_resource"}) {
 		t.Fatalf("missing_evidence = %#v, want terraform_config_resource", got)
 	}
+}
+
+// TestAWSCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch is the #7989
+// log-volume regression: a batch of N admitted findings must write exactly one
+// INFO line (the batch summary with batch size, admitted count, and duration)
+// and N per-finding lines at DEBUG. The per-finding INFO loop rotated the
+// engine startup evidence out of the retained container log within minutes.
+func TestAWSCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	start := time.Date(2026, time.October, 12, 0, 0, 0, 0, time.UTC)
+	var nowCalls int
+	handler := AWSCloudRuntimeDriftHandler{
+		EvidenceLoader: &stubAWSCloudRuntimeDriftEvidenceLoader{
+			rows: []cloudruntime.AddressedRow{
+				{
+					ARN:          "arn:aws:lambda:us-east-1:123456789012:function:orphan",
+					ResourceType: "aws_lambda_function",
+					Cloud: &cloudruntime.ResourceRow{
+						ARN:          "arn:aws:lambda:us-east-1:123456789012:function:orphan",
+						ResourceID:   "orphan",
+						ResourceType: "aws_lambda_function",
+						ScopeID:      "aws:123456789012:us-east-1",
+					},
+				},
+				{
+					ARN:          "arn:aws:lambda:us-east-1:123456789012:function:unmanaged",
+					ResourceType: "aws_lambda_function",
+					Cloud: &cloudruntime.ResourceRow{
+						ARN:          "arn:aws:lambda:us-east-1:123456789012:function:unmanaged",
+						ResourceID:   "unmanaged",
+						ResourceType: "aws_lambda_function",
+						ScopeID:      "aws:123456789012:us-east-1",
+					},
+					State: &cloudruntime.ResourceRow{
+						ARN:          "arn:aws:lambda:us-east-1:123456789012:function:unmanaged",
+						Address:      "aws_lambda_function.unmanaged",
+						ResourceType: "aws_lambda_function",
+						ScopeID:      "state_snapshot:s3:abc123",
+					},
+				},
+			},
+		},
+		Writer:             &stubAWSCloudRuntimeDriftFindingWriter{fixedCanonicalWrites: 7},
+		Logger:             logger,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
+		Now: func() time.Time {
+			nowCalls++
+			return start.Add(time.Duration(nowCalls-1) * 5 * time.Second)
+		},
+	}
+
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:        "intent-aws-drift",
+		ScopeID:         "aws:123456789012:us-east-1",
+		GenerationID:    "generation-aws",
+		SourceSystem:    "aws",
+		Domain:          reducercontract.DomainAWSCloudRuntimeDrift,
+		Cause:           "aws runtime facts observed",
+		RelatedScopeIDs: []string{"aws:123456789012:us-east-1"},
+	}); err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	entries := decodeJSONLogLines(t, logs.String())
+	var info, debug []map[string]any
+	for _, entry := range entries {
+		switch entry["level"] {
+		case "INFO":
+			info = append(info, entry)
+		case "DEBUG":
+			debug = append(debug, entry)
+		}
+	}
+	if got, want := len(info), 1; got != want {
+		t.Fatalf("INFO lines = %d, want %d:\n%s", got, want, logs.String())
+	}
+	if got, want := len(debug), 2; got != want {
+		t.Fatalf("DEBUG lines = %d, want %d:\n%s", got, want, logs.String())
+	}
+	summary := info[0]
+	if got, want := summary["msg"], "aws cloud runtime drift batch admitted"; got != want {
+		t.Fatalf("INFO msg = %q, want %q", got, want)
+	}
+	// Every numeric summary key with deterministic values: the fixture
+	// admits 1 orphan + 1 unmanaged, the stub reports 7 canonical writes
+	// (deliberately distinct from admitted=2), and the stepped clock makes
+	// duration exactly 5s (slog encodes it as nanoseconds).
+	for _, want := range []struct {
+		key  string
+		want float64
+	}{
+		{"evaluated", 2},
+		{"admitted", 2},
+		{"canonical_writes", 7},
+		{"duration", float64(5 * time.Second)},
+		{"orphaned", 1},
+		{"unmanaged", 1},
+		{"ambiguous", 0},
+		{"unknown", 0},
+		{"image_version_drift", 0},
+		{"value_comparison_inconclusive", 0},
+	} {
+		if got, ok := summary[want.key].(float64); !ok || got != want.want {
+			t.Fatalf("INFO %s = %v, want %v", want.key, summary[want.key], want.want)
+		}
+	}
+	for _, want := range []struct {
+		key  string
+		want string
+	}{
+		{"domain", string(reducercontract.DomainAWSCloudRuntimeDrift)},
+		{"scope_id", "aws:123456789012:us-east-1"},
+		{"generation_id", "generation-aws"},
+		{"drift.pack", rules.AWSCloudRuntimeDriftPackName},
+	} {
+		if got, ok := summary[want.key].(string); !ok || got != want.want {
+			t.Fatalf("INFO %s = %v, want %q", want.key, summary[want.key], want.want)
+		}
+	}
+	for i, entry := range debug {
+		if got, want := entry["msg"], "aws cloud runtime drift finding admitted"; got != want {
+			t.Fatalf("DEBUG[%d] msg = %q, want %q", i, got, want)
+		}
+		if _, ok := entry["drift.kind"]; !ok {
+			t.Fatalf("DEBUG[%d] missing drift.kind attr:\n%s", i, logs.String())
+		}
+	}
+}
+
+// decodeJSONLogLines parses one JSON object per non-empty line of captured
+// slog output.
+func decodeJSONLogLines(t *testing.T, text string) []map[string]any {
+	t.Helper()
+	var entries []map[string]any
+	for _, line := range strings.Split(text, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries
 }
 
 func stringSliceFromAny(value any) []string {

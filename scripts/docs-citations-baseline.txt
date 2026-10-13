@@ -284,8 +284,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/collector/scann
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/service.go:393
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/service.go:438
 LINE docs/public/observability/telemetry-coverage.md go/internal/collector/tfstateruntime/metrics.go:14
-LINE docs/public/observability/telemetry-coverage.md go/internal/correlation/drift/cloudruntime/telemetry.go:88
-LINE docs/public/observability/telemetry-coverage.md go/internal/correlation/drift/multicloud/telemetry.go:67
 LINE docs/public/observability/telemetry-coverage.md go/internal/doctruth/observability.go:15
 LINE docs/public/observability/telemetry-coverage.md go/internal/graphowner/lock_only_gate.go:162
 LINE docs/public/observability/telemetry-coverage.md go/internal/projector/service_logging.go:41

@@ -105,6 +105,10 @@ Postgres operation, runtime setting, metric instrument, metric label, span, or
 log field. The counter and failure classes above are the same before and
 after the move.
 
+No-Regression Evidence (#7989): the per-finding `aws cloud runtime drift finding admitted` line moves from INFO to DEBUG with identical fields, and each batch emits one INFO `aws cloud runtime drift batch admitted` summary. Baseline (production capture in the issue): 8,299 INFO finding lines in about 16 minutes, which rotated the engine startup lines out of the retained log. After: 1 INFO line per batch plus N DEBUG lines, asserted with exact keys by `TestAWSCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch` with canonical writes decoupled from admitted count; DEBUG stays suppressed under the production `LevelInfo` logger setting (`go/internal/telemetry/logging.go`). No compute, write, or counter path changes: the DEBUG attribute work is the same construction that already ran at INFO, `RecordEvaluation` still emits the per-admitted-finding counters, and finding facts are untouched. `go test ./internal/reducer/awscloud/ ./internal/reducer/multicloudruntimedrift/ -count=1` passes on this branch.
+
+Observability Evidence (#7989): the batch summary carries domain, scope, generation, pack, evaluated, admitted, canonical_writes, duration, and per-kind counts (orphaned, unmanaged, ambiguous, unknown, image_version_drift, value_comparison_inconclusive); per-finding detail keeps the same redacted fields at DEBUG and stays durable in the finding facts. Admitted volume remains visible without log lines through `eshu_dp_correlation_rule_matches_total` and the orphan/unmanaged counters. Coverage row added in `docs/public/observability/telemetry-coverage.md`.
+
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a
