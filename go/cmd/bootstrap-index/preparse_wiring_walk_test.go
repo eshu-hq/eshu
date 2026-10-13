@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // preparseWiringGaps walks a selector config the way the sync sees it and names
@@ -18,11 +19,14 @@ import (
 // The walk descends into every struct field, slice or array element, map value
 // and key, interface, and pointer, exported or not, so a selector container
 // under any field name is reached (#8038). A pointer or map reached twice is
-// visited once, so a cycle in the config graph ends the walk. Funcs, channels,
+// visited once, as is a slice with the same data pointer, length, and type, so
+// a cycle in the config graph ends the walk. A nil selector yields no gaps. A
+// nil Preparse of any nillable kind is a gap. Funcs, channels,
 // and slices of plain scalars carry no selector and are skipped.
 func preparseWiringGaps(selector any) (gaps []string, found int) {
 	type visit struct {
 		ptr uintptr
+		len int
 		typ reflect.Type
 	}
 	seen := map[visit]bool{}
@@ -37,7 +41,7 @@ func preparseWiringGaps(selector any) (gaps []string, found int) {
 			if v.IsNil() {
 				return
 			}
-			key := visit{v.Pointer(), v.Type()}
+			key := visit{ptr: v.Pointer(), typ: v.Type()}
 			if seen[key] {
 				return
 			}
@@ -47,7 +51,7 @@ func preparseWiringGaps(selector any) (gaps []string, found int) {
 			if v.IsNil() || scalarKind(v.Type().Elem().Kind()) && scalarKind(v.Type().Key().Kind()) {
 				return
 			}
-			key := visit{v.Pointer(), v.Type()}
+			key := visit{ptr: v.Pointer(), typ: v.Type()}
 			if seen[key] {
 				return
 			}
@@ -60,6 +64,18 @@ func preparseWiringGaps(selector any) (gaps []string, found int) {
 			if scalarKind(v.Type().Elem().Kind()) {
 				return
 			}
+			if v.Kind() == reflect.Slice {
+				if v.IsNil() {
+					return
+				}
+				// A slice that reaches itself through an interface element has
+				// no pointer identity, so key it by data pointer and length.
+				key := visit{ptr: v.Pointer(), len: v.Len(), typ: v.Type()}
+				if seen[key] {
+					return
+				}
+				seen[key] = true
+			}
 			for i := 0; i < v.Len(); i++ {
 				walk(v.Index(i), fmt.Sprintf("%s[%d]", path, i))
 			}
@@ -67,7 +83,7 @@ func preparseWiringGaps(selector any) (gaps []string, found int) {
 			name := fmt.Sprintf("%s (%s)", path, v.Type().Name())
 			if field := v.FieldByName("Preparse"); field.IsValid() {
 				found++
-				if field.Kind() == reflect.Func && field.IsNil() {
+				if nillableKind(field.Kind()) && field.IsNil() {
 					gaps = append(gaps, name+".Preparse is nil")
 				}
 			} else if v.FieldByName("BaselineResolver").IsValid() {
@@ -78,8 +94,20 @@ func preparseWiringGaps(selector any) (gaps []string, found int) {
 			}
 		}
 	}
+	if selector == nil {
+		return nil, 0
+	}
 	walk(reflect.ValueOf(selector), reflect.TypeOf(selector).String())
 	return gaps, found
+}
+
+// nillableKind reports whether a value of the kind can be nil, so IsNil is safe.
+func nillableKind(k reflect.Kind) bool {
+	switch k {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.UnsafePointer:
+		return true
+	}
+	return false
 }
 
 // scalarKind reports whether a kind holds no nested selector: a container of
@@ -176,6 +204,64 @@ func TestPreparseWalkTerminatesOnCycles(t *testing.T) {
 	gaps, found := preparseWiringGaps(cycle)
 	if found != 1 || len(gaps) > 0 {
 		t.Errorf("cycle: found %d gaps %v, want found 1 and no gaps", found, gaps)
+	}
+}
+
+// seedNilKindPreparse carries a Preparse field of a nillable kind that is not a
+// func, left nil.
+type seedNilKindPreparse struct {
+	BaselineResolver any
+	Preparse         *int
+}
+
+// TestPreparseWalkToleratesNilSelector proves an untyped nil selector yields no
+// gaps and no panic, as the pre-#8038 helper did.
+func TestPreparseWalkToleratesNilSelector(t *testing.T) {
+	t.Parallel()
+	gaps, found := preparseWiringGaps(nil)
+	if found != 0 || len(gaps) > 0 {
+		t.Errorf("nil selector: found %d gaps %v, want found 0 and no gaps", found, gaps)
+	}
+}
+
+// TestPreparseWalkFlagsNilPreparseOfAnyNillableKind proves a nil Preparse is a
+// gap whatever its nillable kind, not only a nil func.
+func TestPreparseWalkFlagsNilPreparseOfAnyNillableKind(t *testing.T) {
+	t.Parallel()
+	gaps, found := preparseWiringGaps(seedNilKindPreparse{})
+	if found != 1 || !strings.Contains(strings.Join(gaps, "\n"), "Preparse is nil") {
+		t.Errorf("nil *int Preparse: found %d gaps %v, want found 1 and a nil-Preparse gap", found, gaps)
+	}
+	gaps, found = preparseWiringGaps(seedNilKindPreparse{Preparse: new(int)})
+	if found != 1 || len(gaps) > 0 {
+		t.Errorf("set *int Preparse: found %d gaps %v, want found 1 and no gaps", found, gaps)
+	}
+}
+
+// TestPreparseWalkTerminatesOnSliceCycles proves a slice that holds itself does
+// not hang the walk. The walk runs under a deadline so a regression fails the
+// test instead of hanging the suite.
+func TestPreparseWalkTerminatesOnSliceCycles(t *testing.T) {
+	t.Parallel()
+	loop := make([]any, 2)
+	loop[0] = seedWired{Preparse: func() {}}
+	loop[1] = loop
+	type result struct {
+		gaps  []string
+		found int
+	}
+	done := make(chan result, 1)
+	go func() {
+		gaps, found := preparseWiringGaps(loop)
+		done <- result{gaps, found}
+	}()
+	select {
+	case r := <-done:
+		if r.found != 1 || len(r.gaps) > 0 {
+			t.Errorf("slice cycle: found %d gaps %v, want found 1 and no gaps", r.found, r.gaps)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("slice cycle: walk did not terminate within 5s")
 	}
 }
 
