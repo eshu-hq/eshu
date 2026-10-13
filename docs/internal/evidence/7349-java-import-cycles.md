@@ -106,27 +106,35 @@ file rows; 250,000-step budget; up to 7-node cycles):
 
 ## Benchmark Evidence
 
-No-Regression Evidence: the shared walk, collapse, and budget are
-byte-unchanged; the committed walk-scale gate pins the default-5 margin
-(14.1x) and the length-7 behavior (zero budget stops) at flagship scale on
-this host. The collapsed Java fetch returns fewer rows than the file fetch
+Benchmark Evidence: the committed walk-scale gate measures the default-5
+walk at flagship scale on this host (worst 17,694 steps over 30 placements,
+14.1x under the 250,000-step budget; length 7 sees zero budget stops over
+25 placements), and the fetch-layer count gate measures 34,563 file rows
+collapsing to 3,903 package pairs. No-Regression Evidence: the shared walk,
+collapse, and budget are byte-unchanged, so Python reads keep their proven
+behavior; the collapsed Java fetch returns fewer rows than the file fetch
 on every input (distinct pairs vs file rows), so fetch-adjacent work only
 shrinks; the statement adds one aggregation over the same repository
-anchor, grant predicates, ordering, and `$scan_limit`. Wall-time profiling
-of the statement (`PROFILE`, DB hits, latency) is env-gated for CI: no
-Docker on this host. The new Cypher uses only core scalar functions
-(`count`, `min`, `substring`, `size`, `split`, `last`, `right`,
-`CONTAINS`, `CASE`); `last`/`split`/`right` have no precedent in the
-repo's graph queries, so the CI NornicDB legs are the dialect proof. If a
-blocking NornicDB leg rejects the statement, the documented fallback is a
-projector-resolved `target_package` edge property with a trim fallback,
-which removes all string functions from the fetch.
+anchor, grant predicates, ordering, and `$scan_limit`. Baseline: walk and
+fetch code at the branch base `30962c9bc`; after: this change; backend: no
+live backend on this host (in-process enumeration plus row folding);
+terminal counts: 3,903 pairs, worst 17,694 steps, zero budget stops.
+Wall-time profiling of the statement (`PROFILE`, DB hits, latency) is
+env-gated for CI: no Docker on this host. The new Cypher uses only core
+scalar functions (`count`, `min`, `substring`, `size`, `split`, `last`,
+`right`, `CONTAINS`, `CASE`); `last`/`split`/`right` have no precedent in
+the repo's graph queries, so the CI NornicDB legs are the dialect proof.
+If a blocking NornicDB leg rejects the statement, the documented fallback
+is a projector-resolved `target_package` edge property with a trim
+fallback, which removes all string functions from the fetch.
 
 ## Observability Evidence
 
-No new runtime stage, worker, queue, lease, or batching change: the lift
-reuses the existing fetch path, and the collapsed statement runs under the
-existing bounded-read instrumentation. One new span attribute,
+Observability Evidence: no new runtime stage, worker, queue, lease, or
+batching change — the lift reuses the existing fetch path, and the
+collapsed statement runs under the existing bounded-read telemetry (the
+`cycle_steps_examined` and edge-flag span attributes plus the handler
+telemetry asserted by the span test). One new span attribute,
 `eshu.import_dependencies.cycle_java_edges_missing_package`, pinned by the
 span test; one new coverage key,
 `coverage.cycle_java_edges_missing_package`, asserted by unit and fixture
