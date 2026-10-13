@@ -1,0 +1,14 @@
+go/internal/storage/postgres/migrations/content_files_language_covering_idx_test.go
+  h_78a442cba0b3e6 81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "35cc2a22184741fb92ff7074001f0c19ed4f3e1b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
