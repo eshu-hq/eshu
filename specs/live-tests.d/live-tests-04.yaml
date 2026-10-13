@@ -430,6 +430,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live benchmark gated by env Skip (ESHU_SECRET_LINES_BENCH); slow by nature (perf), runs in the scheduled live lane, not blocking
+  - file: go/internal/storage/postgres/content_entities_7365_writebench_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live benchmark gated by env Skip (ESHU_CONTENT_ENTITIES_BENCH); slow by nature (perf), runs in the scheduled live lane, not blocking
   - file: go/internal/storage/postgres/content_search_index_finalize_live_test.go
     tag: ~
     class: scheduled
