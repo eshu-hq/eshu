@@ -1,0 +1,20 @@
+docs/public/reference/telemetry/unscoped-file-search.md
+  h_78a442cba0b3e6 29-36
+go/internal/query/search/unscoped/telemetry_test.go
+  h_78a442cba0b3e6 252-285
+go/internal/query/search/unscoped/trigram_internal_test.go
+  h_78a442cba0b3e6 26-28
+go/internal/query/search/unscoped/walk.go
+  h_78a442cba0b3e6 36-42,127-128,130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d46a145edeab40fd22fda758119a7f26075e836",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
