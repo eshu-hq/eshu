@@ -150,7 +150,7 @@ fixture agreement test; the route observability list in
   `internal/query` (queryplan pins + methodology), `internal/queryplan`.
 - Query-plan pins re-measured at HEAD (variant family, safe family,
   handler/hot manifests, source coverage, cycle-edges contract): green.
-- `bash scripts/verify-live-tests-ledger.sh`: ok (726 rows classified).
+- `bash scripts/verify-live-tests-ledger.sh`: ok (727 rows classified).
 - `gofumpt` on changed Go files: clean. License headers on new `.go` files:
   present.
 - NOT_CHECKED: `make pre-push` / `make pre-pr` (coordinator owns them), live
