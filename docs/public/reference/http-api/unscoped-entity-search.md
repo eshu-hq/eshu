@@ -101,6 +101,17 @@ search with `repo_id`, ask the operator to raise the server setting
 resume loop (for example a fixed number of resumes) rather than looping until
 `partial` disappears; the `hint` then names the next step.
 
+## MCP byte cap and partial on one page
+
+The MCP tool caps a reply at 262,144 bytes. Entity rows carry up to several KiB
+each, so a partial page can also be cut to whole rows by that cap; the reply
+then carries `budget_page` and `next_offset` beside `partial`. When both are
+present, page with next_offset first, keeping the same cursor; follow
+partial.cursor only from a reply without next_offset. `partial.rows_matched`
+counts the rows the cap trimmed, so resuming from `partial.cursor` with
+`offset - rows_matched` from a trimmed page would skip them. The HTTP route has
+no byte cap.
+
 ## Operator signals
 
 The entity search shares the unscoped search counters, elapsed and overrun
