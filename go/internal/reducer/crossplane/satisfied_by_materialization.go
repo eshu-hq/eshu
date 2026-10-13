@@ -79,7 +79,7 @@ type crossplaneXRDFactLoader interface {
 
 // CrossplaneRedriveTargetLedgerWriter records a target Claim scope as
 // confirmed satisfied for one XRD (group, claim_kind) identity (issue
-// #5476). postgres.CrossplaneRedriveTargetLedgerStore.RecordRedriven
+// #5476). crossplanestore.CrossplaneRedriveTargetLedgerStore.RecordRedriven
 // implements this with the identical signature. Implementations MUST be
 // idempotent (ON CONFLICT DO NOTHING or equivalent): the handler calls this
 // on every successful materialization that resolves at least one edge for

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package crossplanestore_test
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
 
 // TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive is the
@@ -47,10 +49,10 @@ func TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive(t *te
 
 	seedCrossplaneRedriveClaimScope(ctx, t, db, targetScopeID, targetGenID, group, claimKind, 1, now)
 
-	reducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
-	sweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:       SQLQueryer{DB: db},
-		State:    NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+	reducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "test-owner", time.Minute)
+	sweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:       postgres.SQLQueryer{DB: db},
+		State:    crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db}),
 		Replayer: reducerQueue,
 		Owner:    "projector",
 	}
@@ -121,8 +123,8 @@ func TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive(t *
 	// reducer would after the intent is claimed) and successfully commits an
 	// edge -- the handler itself records the ledger entry after the edge
 	// write succeeds.
-	factStore := NewFactStore(SQLDB{DB: db})
-	ledger := NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db})
+	factStore := postgres.NewFactStore(postgres.SQLDB{DB: db})
+	ledger := crossplanestore.NewCrossplaneRedriveTargetLedgerStore(postgres.SQLDB{DB: db})
 	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
 		FactLoader:          factStore,
 		EdgeWriter:          &crossplaneRedriveSpyEdgeWriter{},
@@ -147,10 +149,10 @@ func TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive(t *
 
 	// A later XRD generation with the SAME identity must now skip the
 	// already-satisfied target.
-	reducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
-	sweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:       SQLQueryer{DB: db},
-		State:    NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+	reducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "test-owner", time.Minute)
+	sweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:       postgres.SQLQueryer{DB: db},
+		State:    crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db}),
 		Replayer: reducerQueue,
 		Owner:    "projector",
 	}
@@ -203,8 +205,8 @@ func TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive(t *testing
 	// existence check confirms NOTHING -- simulating the MERGE having
 	// silently no-oped because the XRD node was not actually present in the
 	// graph at write time.
-	factStore := NewFactStore(SQLDB{DB: db})
-	ledger := NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db})
+	factStore := postgres.NewFactStore(postgres.SQLDB{DB: db})
+	ledger := crossplanestore.NewCrossplaneRedriveTargetLedgerStore(postgres.SQLDB{DB: db})
 	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
 		FactLoader:          factStore,
 		EdgeWriter:          &crossplaneRedriveSpyEdgeWriter{},
@@ -231,10 +233,10 @@ func TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive(t *testing
 
 	// A later XRD generation with the SAME identity must RE-enqueue the
 	// target, not skip it as already-satisfied.
-	reducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
-	sweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:       SQLQueryer{DB: db},
-		State:    NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+	reducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "test-owner", time.Minute)
+	sweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:       postgres.SQLQueryer{DB: db},
+		State:    crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db}),
 		Replayer: reducerQueue,
 		Owner:    "projector",
 	}

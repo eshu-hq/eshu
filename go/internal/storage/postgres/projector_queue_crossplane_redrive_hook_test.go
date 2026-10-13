@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -53,9 +54,9 @@ func (f crossplaneRedriveHookOrderFake) Rollback() error {
 	return nil
 }
 
-func (f crossplaneRedriveHookOrderFake) Sweep(context.Context, string, string) (CrossplaneRedriveSweepResult, error) {
+func (f crossplaneRedriveHookOrderFake) Sweep(context.Context, string, string) (crossplanestore.CrossplaneRedriveSweepResult, error) {
 	*f.log = append(*f.log, "hook-sweep")
-	return CrossplaneRedriveSweepResult{}, f.sweepErr
+	return crossplanestore.CrossplaneRedriveSweepResult{}, f.sweepErr
 }
 
 // TestProjectorQueueAckInvokesCrossplaneRedriveHookAfterCommit proves the

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package crossplanestore_test
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
 
 // crossplaneRedriveSpyEdgeWriter records every SATISFIED_BY row the
@@ -97,7 +99,7 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	// below, which draw from this same single-connection pool.
 	seedCrossplaneRedriveClaimScope(ctx, t, db, claimScopeID, claimGenerationID, group, claimKind, 1, now)
 
-	factStore := NewFactStore(SQLDB{DB: db})
+	factStore := postgres.NewFactStore(postgres.SQLDB{DB: db})
 	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
 		FactLoader: factStore,
 		EdgeWriter: &crossplaneRedriveSpyEdgeWriter{},
@@ -128,10 +130,10 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	// Step 3: the cross-scope redrive sweep runs for the newly-active XRD
 	// generation, exactly as ProjectorQueue.Ack's post-commit hook would
 	// trigger it.
-	reducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
-	sweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:       SQLQueryer{DB: db},
-		State:    NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+	reducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "test-owner", time.Minute)
+	sweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:       postgres.SQLQueryer{DB: db},
+		State:    crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db}),
 		Replayer: reducerQueue,
 		Owner:    "test-owner",
 	}
@@ -142,8 +144,8 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	if !result.Attempted {
 		t.Fatalf("expected the sweep to attempt real work, got %+v", result)
 	}
-	if result.Outcome != crossplaneRedriveOutcomeCompleted {
-		t.Fatalf("expected sweep outcome %q, got %q", crossplaneRedriveOutcomeCompleted, result.Outcome)
+	if result.Outcome != crossplanestore.CrossplaneRedriveOutcomeCompletedForTest {
+		t.Fatalf("expected sweep outcome %q, got %q", crossplanestore.CrossplaneRedriveOutcomeCompletedForTest, result.Outcome)
 	}
 	if result.TargetsEnqueued != 1 {
 		t.Fatalf("expected exactly 1 target scope re-driven, got %d", result.TargetsEnqueued)

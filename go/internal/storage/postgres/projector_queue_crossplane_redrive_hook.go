@@ -10,14 +10,15 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // CrossplaneRedriveSweeper is the narrow surface ProjectorQueue.Ack calls to
 // re-drive cross-scope Claim SATISFIED_BY correlations (issue #5476).
-// CrossplaneSatisfiedByRedriveSweeper implements it.
+// crossplanestore.CrossplaneSatisfiedByRedriveSweeper implements it.
 type CrossplaneRedriveSweeper interface {
-	Sweep(ctx context.Context, xrdScopeID, xrdGenerationID string) (CrossplaneRedriveSweepResult, error)
+	Sweep(ctx context.Context, xrdScopeID, xrdGenerationID string) (crossplanestore.CrossplaneRedriveSweepResult, error)
 }
 
 // runCrossplaneRedriveHook calls the wired CrossplaneRedriveSweeper AFTER

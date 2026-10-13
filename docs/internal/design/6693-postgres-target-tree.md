@@ -358,7 +358,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 20. [x] `freshness/incident/` (3 files; removes the three `incident_freshness_*` dirgate markers)
 21. [x] `lock/` (3 files; after `scope/`)
 22. [x] `scope/completion/` (4 files; removes the `scope_quiescence.go` dirgate marker; the 3 harness/queue-bound tests defer to `container/image/` and `queue/reducer/`)
-23. [ ] `crossplane/` (5 files)
+23. [x] `crossplane/` (5 files)
 24. [ ] `search/document/` (6 files)
 25. [ ] `container/image/` (7 files)
 26. [ ] `facts/schema/` (7 files; after `container/image/`)

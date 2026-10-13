@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package crossplanestore_test
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
 
 // TestCrossplaneRedriveTargetDiscoveryQueryPlanLive is the committed
@@ -80,7 +82,7 @@ func TestCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
 				t.Fatalf("disable bitmapscan: %v", err)
 			}
 		}
-		rows, err := tx.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+listCrossplaneRedriveTargetScopesQuery,
+		rows, err := tx.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+crossplanestore.ListCrossplaneRedriveTargetScopesQueryForTest,
 			matchGroup, matchKind, xrdScopeID, "", 500)
 		if err != nil {
 			t.Fatalf("%s: explain query: %v", label, err)
@@ -218,7 +220,7 @@ func collectCrossplaneRedriveTargetScopes(
 	after := ""
 	const pageSize = 500
 	for {
-		rows, err := tx.QueryContext(ctx, listCrossplaneRedriveTargetScopesQuery, group, kind, xrdScopeID, after, pageSize)
+		rows, err := tx.QueryContext(ctx, crossplanestore.ListCrossplaneRedriveTargetScopesQueryForTest, group, kind, xrdScopeID, after, pageSize)
 		if err != nil {
 			t.Fatalf("query target scopes: %v", err)
 		}

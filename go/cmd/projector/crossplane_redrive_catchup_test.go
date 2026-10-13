@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
 
 // fakeCrossplaneRedriveBatchSweeper implements crossplaneRedriveBatchSweeper
@@ -20,18 +20,18 @@ import (
 // proven as a fast unit test (issue #5476 P2-a).
 type fakeCrossplaneRedriveBatchSweeper struct {
 	calls   int
-	results []postgres.CrossplaneRedriveSweepResult
+	results []crossplanestore.CrossplaneRedriveSweepResult
 	err     error
 }
 
-func (f *fakeCrossplaneRedriveBatchSweeper) SweepBatch(context.Context, int) ([]postgres.CrossplaneRedriveSweepResult, error) {
+func (f *fakeCrossplaneRedriveBatchSweeper) SweepBatch(context.Context, int) ([]crossplanestore.CrossplaneRedriveSweepResult, error) {
 	f.calls++
 	return f.results, f.err
 }
 
 func TestRunCrossplaneRedriveCatchUpTickCallsSweepBatch(t *testing.T) {
 	fake := &fakeCrossplaneRedriveBatchSweeper{
-		results: []postgres.CrossplaneRedriveSweepResult{{Attempted: true, TargetsEnqueued: 2}},
+		results: []crossplanestore.CrossplaneRedriveSweepResult{{Attempted: true, TargetsEnqueued: 2}},
 	}
 	runCrossplaneRedriveCatchUpTick(context.Background(), fake, slog.Default())
 	if fake.calls != 1 {
