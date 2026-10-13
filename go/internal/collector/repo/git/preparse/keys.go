@@ -16,6 +16,7 @@ var FoldedEnvKeys = map[string]string{
 	"ESHU_BOOTSTRAP_IS_DEPENDENCY":        "Config.DependencyMode",
 	"ESHU_BOOTSTRAP_PACKAGE_NAME":         "Config.DependencyName",
 	"ESHU_BOOTSTRAP_PACKAGE_LANGUAGE":     "Config.DependencyLanguage",
+	"ESHU_GITLAB_HOST":                    "Config.GitlabHost",
 }
 
 // NonOutputEnvKeys are the env keys read in the same trees that do not change

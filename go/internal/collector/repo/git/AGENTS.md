@@ -91,6 +91,11 @@ cycle, so a log there would be noise.
 `TestGitCommandEnvTokenAuthUnmanagedPathSendsNoHeader` pins the skip. Keep the
 header host and `repoRemoteURL` in lockstep:
 `TestGitCommandEnvTokenHeaderMatchesCloneURLHost` covers that contract.
+Both read the GitLab host from the config (`ESHU_GITLAB_HOST`, default
+`gitlab.com`): `TestRepoRemoteURLUsesCustomGitlabHost`,
+`TestGitCommandEnvScopesTokenHeaderToCustomGitlabHost`, and
+`TestRepositoryIdentityStableOnDefaultGitlabHost` cover the custom host and
+the default-host identity stability (#7764).
 
 ## Directory size
 

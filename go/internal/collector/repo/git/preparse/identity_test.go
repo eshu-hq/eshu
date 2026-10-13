@@ -22,6 +22,7 @@ func baseConfig() Config {
 		DependencyMode:     false,
 		DependencyName:     "",
 		DependencyLanguage: "",
+		GitlabHost:         "gitlab.com",
 	}
 }
 
@@ -56,6 +57,7 @@ func TestIdentityChangesWithEveryFoldedInput(t *testing.T) {
 		"dependency mode":         func(c *Config) { c.DependencyMode = true },
 		"dependency package name": func(c *Config) { c.DependencyName = "pkg" },
 		"dependency language":     func(c *Config) { c.DependencyLanguage = "go" },
+		"gitlab host":             func(c *Config) { c.GitlabHost = "gitlab.acme.example" },
 	}
 	for name, change := range mutate {
 		config := baseConfig()

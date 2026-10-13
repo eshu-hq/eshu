@@ -59,6 +59,11 @@ type Config struct {
 	DependencyName string
 	// DependencyLanguage is ESHU_BOOTSTRAP_PACKAGE_LANGUAGE.
 	DependencyLanguage string
+	// GitlabHost is the effective ESHU_GITLAB_HOST provider host: it changes
+	// the stamped remote_url, so a host change must force a re-parse rather
+	// than reuse a snapshot taken under another host. The builder always
+	// passes the effective host, never the unresolved empty value.
+	GitlabHost string
 }
 
 // ConfigDigest returns a stable digest of the configuration alone, so a log
@@ -110,6 +115,7 @@ func writeConfig(h hash.Hash, c Config) {
 	write(h, "dependency_mode", fmt.Sprint(c.DependencyMode))
 	write(h, "dependency_name", strings.TrimSpace(c.DependencyName))
 	write(h, "dependency_language", strings.TrimSpace(c.DependencyLanguage))
+	write(h, "gitlab_host", strings.ToLower(strings.TrimSpace(c.GitlabHost)))
 }
 
 func write(h hash.Hash, key, value string) {

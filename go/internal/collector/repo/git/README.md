@@ -245,9 +245,11 @@ see `membership/README.md`.
 host of the repository the command runs against. It derives that host from the
 checkout path (`<ReposDir>/<repoID>`) the same way `repoRemoteURL` builds the
 clone URL, so the header and the remote always name the same host (#7763):
-github.com with username `x-access-token`, gitlab.com with `oauth2`, or
-bitbucket.org with `x-token-auth`. A path with no provider prefix resolves to
-github.com, as `repoRemoteURL` does. A path that is not a managed checkout gets
+github.com with username `x-access-token`, the GitLab host with `oauth2`, or
+bitbucket.org with `x-token-auth`. The GitLab host is `gitlab.com` unless
+`ESHU_GITLAB_HOST` sets a self-managed host (#7764); `repoProviderHost` is the
+single host source for both, so the header follows the configured host. A path
+with no provider prefix resolves to github.com, as `repoRemoteURL` does. A path that is not a managed checkout gets
 no credential header: `tokenAuthProvider` applies the same `repoCheckoutName`
 rule the clone path uses, so a path outside `ReposDir` (no repository ID) and
 the reserved `.eshu-ref-worktrees` namespace (never cloned; only local commands
@@ -286,6 +288,38 @@ query, queue, graph-write, or worker path changes.
 No-Observability-Change: the change alters only the environment handed to the
 git child process. No metric, span, log key, or status field changes, and the
 token still appears only in that child environment, never in logs.
+
+No-Regression Evidence (#7764): the configurable host adds one argument and
+one call indirection to `repoRemoteURL`, one empty-check for gitlab IDs, and
+one hostname normalization per process start. A throwaway `go test -bench`
+(not committed) of `repoRemoteURL` with `-benchtime 300000x -count 3`, Go
+1.26.2 linux/amd64, same shared host back to back, measured:
+
+| Build | Case | ns/op (median) | B/op | allocs/op |
+| --- | --- | --- | --- | --- |
+| Baseline `22ba1ed133` | github https | 225 | 104 | 4 |
+| After (this branch) | github https | 235 | 104 | 4 |
+| Baseline `22ba1ed133` | gitlab https | 350 | 200 | 6 |
+| After (this branch) | gitlab https | 362 | 200 | 6 |
+| Baseline `22ba1ed133` | gitlab ssh | 359 | 200 | 6 |
+| After (this branch) | gitlab ssh | 365 | 200 | 6 |
+| Baseline `22ba1ed133` | bitbucket https | 355 | 224 | 6 |
+| After (this branch) | bitbucket https | 373 | 224 | 6 |
+
+Allocations are identical and the deltas (+6 to +18 ns, 2-5%) sit inside
+shared-host run-to-run noise. The bench ran on this branch before this note
+was committed, and no production file changed after, so the numbers describe
+the merged head. The function runs once per repository per git command, so
+~0.36 µs next to a millisecond-scale process spawn and a network-bound clone
+or fetch. No query, queue, graph-write, or worker path changes. A host
+change also alters the pre-parse identity (`Config.GitlabHost`, folded by
+`PreparseConfigFor`), so scopes re-parse instead of reusing a snapshot
+stamped under another host.
+
+No-Observability-Change (#7764): no metric, span, log key, or status field
+is added or renamed. The configured host already surfaces in the clone URLs
+and git error text the collector logs, and an invalid `ESHU_GITLAB_HOST`
+fails startup with an error naming the variable.
 
 ## Two-phase content
 

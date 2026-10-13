@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -313,9 +314,9 @@ func repoRemoteURL(config RepoSyncConfig, repoID string) string {
 		slug = config.GithubOrg + "/" + slug
 	}
 	if strings.ToLower(strings.TrimSpace(config.GitAuthMethod)) == "ssh" {
-		return "git@" + repoProviderHost(provider) + ":" + slug + ".git"
+		return "git@" + repoProviderHost(config, provider) + ":" + slug + ".git"
 	}
-	return "https://" + repoProviderHost(provider) + "/" + slug + ".git"
+	return "https://" + repoProviderHost(config, provider) + "/" + slug + ".git"
 }
 
 func repoProviderAndSlug(repoID string) (string, string) {
@@ -332,10 +333,52 @@ func repoProviderAndSlug(repoID string) (string, string) {
 	}
 }
 
-func repoProviderHost(provider string) string {
+// defaultGitlabHost is the gitlab provider host when ESHU_GITLAB_HOST is unset (#7764).
+const defaultGitlabHost = "gitlab.com"
+
+// gitlabHostLabelPattern matches one hostname label; underscores allowed, never edge hyphens.
+var gitlabHostLabelPattern = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?$`)
+
+// normalizeGitlabHost resolves ESHU_GITLAB_HOST, failing closed on anything but a bare hostname.
+func normalizeGitlabHost(raw string) (string, error) {
+	host := strings.ToLower(strings.TrimSpace(raw))
+	if host == "" {
+		return defaultGitlabHost, nil
+	}
+	host = strings.TrimSuffix(host, ".")
+	invalid := func(reason string) (string, error) {
+		return "", fmt.Errorf("invalid ESHU_GITLAB_HOST %q: %s", raw, reason)
+	}
+	if strings.ContainsAny(host, "/:@ \t\n\r") {
+		return invalid("set a bare hostname such as gitlab.example.com")
+	}
+	if len(host) > 253 {
+		return invalid("hostname exceeds 253 characters")
+	}
+	for _, label := range strings.Split(host, ".") {
+		if !gitlabHostLabelPattern.MatchString(label) {
+			return invalid("hostname labels hold 1-63 letters, digits, hyphens, or underscores and must not start or end with a hyphen")
+		}
+	}
+	return host, nil
+}
+
+// effectiveGitlabHost returns the gitlab host, defaulting for pre-knob configs.
+func effectiveGitlabHost(config RepoSyncConfig) string {
+	if strings.TrimSpace(config.GitlabHost) == "" {
+		return defaultGitlabHost
+	}
+	return config.GitlabHost
+}
+
+// repoProviderHost returns the remote host for provider: the configured
+// ESHU_GITLAB_HOST host for gitlab, the fixed hosts for the other providers.
+// It is the single host source for clone URLs (repoRemoteURL) and the token
+// auth header scope (gitCommandEnv), so the two stay in lockstep (#7764).
+func repoProviderHost(config RepoSyncConfig, provider string) string {
 	switch provider {
 	case "gitlab":
-		return "gitlab.com"
+		return effectiveGitlabHost(config)
 	case "bitbucket":
 		return "bitbucket.org"
 	default:
