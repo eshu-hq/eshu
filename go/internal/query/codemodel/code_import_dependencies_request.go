@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-
 // ImportDependencyRequest is the decoded import-dependency investigation
 // request. It split here from root code_import_dependencies.go (#6060 lane
 // A L1): all seven builders take one, and Go requires a type's methods to
