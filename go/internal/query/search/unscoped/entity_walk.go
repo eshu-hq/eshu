@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -218,6 +219,24 @@ func (w *entityWalk) settleFailure(ctx context.Context, err error, queryStart ti
 	return true, nil
 }
 
+// saturateCursorStartLine clamps a cursor start line to the int32 range of
+// the start_line column. A bare int32 conversion wraps out-of-range values:
+// math.MaxInt64 becomes -1, which sorts before every row and resumes the
+// walk from the wrong position, returning rows the caller already has.
+// Saturation keeps the key-order comparison on the correct side of the key
+// space: above MaxInt32 sorts past every storable row, below MinInt32 sorts
+// before the first one.
+func saturateCursorStartLine(v int) int32 {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if v < math.MinInt32 {
+		return math.MinInt32
+	}
+	// #nosec G115 -- v is clamped to the int32 range above before narrowing.
+	return int32(v)
+}
+
 func (w *entityWalk) stepStatement(size int) (string, []any) {
 	asked := int64(w.want - len(w.matches))
 	if w.cursor.IsZero() {
@@ -225,7 +244,7 @@ func (w *entityWalk) stepStatement(size int) (string, []any) {
 	}
 	return entityStepAfterSQL, []any{
 		execMode, w.pattern, int64(size), asked,
-		w.cursor.RepoID, w.cursor.RelativePath, int32(w.cursor.StartLine), w.cursor.EntityID,
+		w.cursor.RepoID, w.cursor.RelativePath, saturateCursorStartLine(w.cursor.StartLine), w.cursor.EntityID,
 	}
 }
 
@@ -236,7 +255,7 @@ func (w *entityWalk) tailStatement() (string, []any) {
 	}
 	return entityTailAfterSQL, []any{
 		execMode, w.pattern, asked,
-		w.cursor.RepoID, w.cursor.RelativePath, int32(w.cursor.StartLine), w.cursor.EntityID,
+		w.cursor.RepoID, w.cursor.RelativePath, saturateCursorStartLine(w.cursor.StartLine), w.cursor.EntityID,
 	}
 }
 

@@ -5,6 +5,7 @@ package unscoped_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -254,5 +255,32 @@ func TestEntitySearchResumeStartsStrictlyAfterCursorEntity(t *testing.T) {
 	want := []string{corpus.entities[5].id, corpus.entities[6].id, corpus.entities[7].id, corpus.entities[8].id}
 	if !equalKeys(got, want) {
 		t.Fatalf("entities = %v, want %v", got, want)
+	}
+}
+
+// A wire cursor can carry a start_line far outside the int32 range the
+// start_line column uses. The walk must saturate it into range: a wrapping
+// conversion would resume from the wrong position and return rows the caller
+// already has.
+func TestEntitySearchSaturatesHugeCursorStartLine(t *testing.T) {
+	t.Parallel()
+
+	corpus := newEntityCorpus(9, 50*time.Microsecond, func(int) bool { return true })
+	last := corpus.entities[len(corpus.entities)-1]
+	cursor := querycontract.SearchCursor{
+		RepoID:       last.repo,
+		RelativePath: last.path,
+		StartLine:    math.MaxInt64,
+		EntityID:     "zzz-no-such-entity",
+	}
+	page, _, _, err := runEntities(t, corpus, 10, 0, cursor)
+	if err != nil {
+		t.Fatalf("SearchEntities() error = %v", err)
+	}
+	if len(page.Hits) != 0 {
+		t.Fatalf("entities = %v, want none: the cursor sorts past the last row", entityKeys(page.Hits))
+	}
+	if page.More {
+		t.Fatalf("More = true, want false: nothing follows the saturated cursor")
 	}
 }
