@@ -208,5 +208,7 @@ per-restart blocking rebuild plus drop on local databases; option (b)
 is disproportionate platform work for 82 MB and about 5% WAL.
 
 Close-out: keep the index. Revisit only if the bootstrap gains a retire
-path or production evidence demands it. Raw battery inputs and outputs
-are committed under `docs/internal/evidence/7759/`. Refs #7759.
+path or production evidence demands it. Raw plan-battery inputs and outputs
+are committed under `docs/internal/evidence/7759/`; the WAL arms are
+note-tabulated only (inputs `wal-setup.sql` and `wal-one.sh` committed,
+arm outputs not retained). Refs #7759.
