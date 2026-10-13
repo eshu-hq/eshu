@@ -38,6 +38,14 @@ func Parse(
 	payload["annotations"] = []map[string]any{}
 	payload["enums"] = []map[string]any{}
 	root := tree.RootNode()
+	if packageName := javaFilePackageName(root, source); packageName != "" {
+		// The file's own declared package (#7349). The projector reads
+		// this back out of parsed_file_data to place the file in its Java
+		// package for package-level import cycles. Absent without a
+		// package declaration, so default-package payloads stay
+		// byte-identical.
+		payload["package_name"] = packageName
+	}
 	// Fingerprint state for the #6833 code-divergence report: error graphs
 	// are excluded per the #6834 verdict, and per-file outcomes accumulate
 	// for collector-side telemetry via payload[fingerprint.StatsKey].
@@ -237,52 +245,6 @@ func javaDeclarators(
 		})
 	})
 	return items
-}
-
-func javaImportName(node *tree_sitter.Node, source []byte) string {
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		return nodeText(&child, source)
-	}
-	return ""
-}
-
-func appendJavaImport(payload map[string]any, node *tree_sitter.Node, source []byte) {
-	name := strings.TrimSpace(javaImportName(node, source))
-	if name == "" {
-		return
-	}
-
-	raw := strings.TrimSpace(nodeText(node, source))
-	importPath := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "import"), ";"))
-	importType := "import"
-	if strings.HasPrefix(importPath, "static ") {
-		importType = "static"
-		importPath = strings.TrimSpace(strings.TrimPrefix(importPath, "static "))
-	}
-
-	appendBucket(payload, "imports", map[string]any{
-		"name":             name,
-		"source":           importPath,
-		"alias":            javaImportAlias(importPath),
-		"full_import_name": raw,
-		"import_type":      importType,
-		"line_number":      nodeLine(node),
-		"lang":             "java",
-	})
-}
-
-func javaImportAlias(name string) string {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
-		return ""
-	}
-	if idx := strings.LastIndex(trimmed, "."); idx >= 0 {
-		return strings.TrimSpace(trimmed[idx+1:])
-	}
-	return trimmed
 }
 
 func appendJavaCall(

@@ -100,6 +100,77 @@ func firstNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.
 	return found
 }
 
+// javaFilePackageName reads the file's own declared package for package-level
+// import cycles (#7349): the single file-scoped package_declaration. A file
+// with no declaration lives in the default package and reports "", never a
+// guess: an invented package would collapse the wrong files together.
+func javaFilePackageName(root *tree_sitter.Node, source []byte) string {
+	packageName := ""
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if packageName != "" || node.Kind() != "package_declaration" {
+			return
+		}
+		walkDirectNamed(node, func(child *tree_sitter.Node) {
+			if packageName == "" {
+				packageName = strings.TrimSpace(nodeText(child, source))
+			}
+		})
+		if packageName == "" {
+			raw := strings.TrimSpace(nodeText(node, source))
+			raw = strings.TrimPrefix(raw, "package")
+			raw = strings.TrimSuffix(raw, ";")
+			packageName = strings.TrimSpace(raw)
+		}
+	})
+	return packageName
+}
+
+func javaImportName(node *tree_sitter.Node, source []byte) string {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		return nodeText(&child, source)
+	}
+	return ""
+}
+
+func appendJavaImport(payload map[string]any, node *tree_sitter.Node, source []byte) {
+	name := strings.TrimSpace(javaImportName(node, source))
+	if name == "" {
+		return
+	}
+
+	raw := strings.TrimSpace(nodeText(node, source))
+	importPath := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "import"), ";"))
+	importType := "import"
+	if strings.HasPrefix(importPath, "static ") {
+		importType = "static"
+		importPath = strings.TrimSpace(strings.TrimPrefix(importPath, "static "))
+	}
+
+	appendBucket(payload, "imports", map[string]any{
+		"name":             name,
+		"source":           importPath,
+		"alias":            javaImportAlias(importPath),
+		"full_import_name": raw,
+		"import_type":      importType,
+		"line_number":      nodeLine(node),
+		"lang":             "java",
+	})
+}
+
+func javaImportAlias(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(trimmed, "."); idx >= 0 {
+		return strings.TrimSpace(trimmed[idx+1:])
+	}
+	return trimmed
+}
+
 func appendUniqueString(values []string, value string) []string {
 	for _, existing := range values {
 		if existing == value {

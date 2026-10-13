@@ -81,8 +81,9 @@ type importAccumulator struct {
 	moduleLanguage string
 
 	// sourcePackage is the importing file's own package: the Go package
-	// import path (#7347, goSourcePackage) or the owning npm package name
-	// (#7348, jsSourcePackage), derived once per file. Like moduleLanguage
+	// import path (#7347, goSourcePackage), the owning npm package name
+	// (#7348, jsSourcePackage), or the owning Java package (#7349,
+	// javaSourcePackage), derived once per file. Like moduleLanguage
 	// it never varies within one accumulator. Empty for other languages
 	// and for files whose package is unknown.
 	sourcePackage string
@@ -173,6 +174,9 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 		sourcePackage := goSourcePackage(file)
 		if sourcePackage == "" {
 			sourcePackage = jsSourcePackage(file)
+		}
+		if sourcePackage == "" {
+			sourcePackage = javaSourcePackage(file)
 		}
 
 		for _, entry := range entries {
@@ -404,6 +408,26 @@ func unanimousFunctionPackage(bucket any) string {
 		}
 	}
 	return unanimous
+}
+
+// javaSourcePackage places one file in its Java package for package-level
+// import cycles (#7349). Only Java files are placed: every other language
+// keeps an empty package and its lift owns its own mapping later.
+//
+// The file-level package_name the Java parser writes wins: it is the
+// package_declaration of exactly this file. Java function items carry no
+// package, so there is no bucket fallback: anything else -- no key, a
+// non-string value, a file in the default package -- is unknown, never a
+// guess: an invented package would collapse the wrong files together.
+func javaSourcePackage(file parsedFileRef) string {
+	if strings.ToLower(strings.TrimSpace(file.Language)) != "java" {
+		return ""
+	}
+	if file.ParsedFileData == nil {
+		return ""
+	}
+	pkg, _ := file.ParsedFileData["package_name"].(string)
+	return strings.TrimSpace(pkg)
 }
 
 // normalizedImport is one parser entry reduced to the edge properties it can

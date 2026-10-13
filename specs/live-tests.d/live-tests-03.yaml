@@ -287,6 +287,10 @@ tests:
     tag: ~
     class: scheduled
     reason: "deterministic #7348 graph-truth proof for the TS/JS package lift of file_import_cycles; seeds TS IMPORTS edges with the projector's source_package property plus one legacy edge with none and reads them through the production imports.CycleRows and response shaper with language=typescript; a never-written source_package must exclude the edge as package-unknown (counted, never collapsed), same-package files must report one collapsed cycle, and the diamond arm must close nothing; env-gated by ESHU_REPLAY_TIER_LIVE; unmeasured cost — promote to blocking with timing evidence"
+  - file: go/internal/replay/offlinetier/java_package_cycles_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "deterministic #7349 graph-truth proof for the Java package lift of file_import_cycles; seeds Java IMPORTS edges at class level with the projector's source_package property plus one legacy edge with none and reads them through the production collapsed Java fetch, imports.CycleRows, and response shaper with language=java; the collapsed fetch must derive target packages, pre-filter the legacy edge, and report one collapsed cycle with the on-demand, static-member, and diamond legs closing nothing; env-gated by ESHU_REPLAY_TIER_LIVE; unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/replay/offlinetier/delta_tier_edge_retract_live_test.go
     tag: ~
     class: scheduled

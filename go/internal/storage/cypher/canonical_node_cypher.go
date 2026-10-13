@@ -380,11 +380,12 @@ const CanonicalNodeModuleUpsertCypher = canonicalNodeModuleUpsertCypher
 // An edge written before this change has no flag property at all, which a reader
 // must treat as "flags unknown", not as false.
 //
-// source_package (issues #7347/#7348) is the importing file's own package,
-// the Go package import path or the owning npm package name, derived by
-// the projector. It is SET unconditionally and always as an explicit
-// string for the same stale-overwrite reason; an edge written before it
-// existed has no such property, which a package-cycle reader must treat as
+// source_package (issues #7347/#7348/#7349) is the importing file's own
+// package: the Go package import path, the owning npm package name, or
+// the owning Java package, derived by the projector. It is SET
+// unconditionally and always as an explicit string for the same
+// stale-overwrite reason; an edge written before it existed has no
+// such property, which a package-cycle reader must treat as
 // "package unknown" and exclude, never as an empty package.
 const canonicalNodeImportEdgeCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})

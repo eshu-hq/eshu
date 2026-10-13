@@ -12,8 +12,8 @@ import (
 )
 
 // TestCanonicalNodeWriterCarriesImportSourcePackage pins the writer half
-// of the package lifts (#7347/#7348). Every IMPORTS row carries the
-// importing file's own package (Go import path or npm name) as
+// of the package lifts (#7347/#7348/#7349). Every IMPORTS row carries the
+// importing file's own package (Go import path, npm name, or Java package) as
 // source_package, empty string included: the edge is MERGEd on its
 // endpoints, so a re-projected edge matches the existing one, and only an
 // unconditional SET of an explicit value can overwrite a stale package
@@ -33,12 +33,14 @@ func TestCanonicalNodeWriterCarriesImportSourcePackage(t *testing.T) {
 			ModuleLanguage: "typescript", LineNumber: 3, SourcePackage: "@cycles/a",
 		},
 		{FilePath: "/repos/my-repo/src/plain.ts", ModuleName: "react", ModuleLanguage: "typescript", LineNumber: 5},
+		{FilePath: "/repos/my-repo/src/com/acme/App.java", ModuleName: "com.acme.other.Helper", ModuleLanguage: "java", LineNumber: 6, SourcePackage: "com.acme"},
 	}
 	mat.Modules = []canonical.ModuleRow{
 		{Name: "example.com/repo/pkg/b", Language: "go"},
 		{Name: "b", Language: "python"},
 		{Name: "@cycles/b", Language: "typescript"},
 		{Name: "react", Language: "typescript"},
+		{Name: "com.acme.other.Helper", Language: "java"},
 	}
 
 	exec := &mockExecutor{}
@@ -56,8 +58,8 @@ func TestCanonicalNodeWriterCarriesImportSourcePackage(t *testing.T) {
 			rows = append(rows, batch...)
 		}
 	}
-	if len(rows) != 4 {
-		t.Fatalf("emitted %d IMPORTS rows, want 4", len(rows))
+	if len(rows) != 5 {
+		t.Fatalf("emitted %d IMPORTS rows, want 5", len(rows))
 	}
 	if !strings.Contains(cypher, "r.source_package = row.source_package") {
 		t.Errorf("IMPORTS statement missing unconditional source_package SET:\n%s", cypher)
@@ -68,6 +70,7 @@ func TestCanonicalNodeWriterCarriesImportSourcePackage(t *testing.T) {
 		"b":                      "",
 		"@cycles/b":              "@cycles/a",
 		"react":                  "",
+		"com.acme.other.Helper":  "com.acme",
 	}
 	for _, row := range rows {
 		module, _ := row["module_name"].(string)

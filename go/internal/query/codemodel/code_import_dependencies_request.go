@@ -76,8 +76,8 @@ func (r ImportDependencyRequest) Validate() error {
 	}
 	if r.EffectiveQueryType() == "file_import_cycles" {
 		language := r.NormalizedLanguage()
-		if language != "" && language != "python" && language != "go" && !isTSCycleLanguage(language) {
-			return fmt.Errorf("file_import_cycles currently supports python module-name, go package, and typescript/tsx/javascript package cycle detection")
+		if language != "" && language != "python" && language != "go" && !isTSCycleLanguage(language) && !IsJavaCycleLanguage(language) {
+			return fmt.Errorf("file_import_cycles currently supports python module-name, go package, typescript/tsx/javascript package, and java package cycle detection")
 		}
 		if r.MaxCycleLength != 0 && (r.MaxCycleLength < importCycleMinMaxLength || r.MaxCycleLength > importCycleMaxMaxLength) {
 			return fmt.Errorf(
@@ -122,7 +122,7 @@ func isTSCycleLanguage(language string) bool {
 // EffectiveCycleLanguage resolves the language one file_import_cycles read
 // runs in: the caller's filter when set, python otherwise. An unfiltered
 // request stays Python-only, exactly as before the package lifts
-// (#7347/#7348). The
+// (#7347/#7348/#7349). The
 // edge fetch and the row decoder share this, so the graph never returns a
 // language the decoder would drop. Exported because the codequery reader
 // binds the $cycle_language parameter from it.

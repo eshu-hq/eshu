@@ -149,9 +149,10 @@ type ImportRow struct {
 	Alias          string
 	LineNumber     int
 	// SourcePackage is the importing file's own package: the Go package
-	// import path (issue #7347) or the owning npm package name (issue
-	// #7348). The projector derives it from the parsed_file_data the Go
-	// and JavaScript parsers wrote, so the file_import_cycles query can
+	// import path (issue #7347), the owning npm package name (issue
+	// #7348), or the owning Java package (issue #7349). The projector
+	// derives it from the parsed_file_data the Go, JavaScript, and Java
+	// parsers wrote, so the file_import_cycles query can
 	// collapse package-lifted files into packages with the shared rule
 	// instead of inventing grouping. Empty for other languages and for
 	// files whose package is unknown.

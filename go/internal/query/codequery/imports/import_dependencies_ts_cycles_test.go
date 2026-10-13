@@ -336,8 +336,13 @@ func TestImportDependencyRequestAcceptsTSFileImportCycles(t *testing.T) {
 	}
 	if err := (codemodel.ImportDependencyRequest{
 		QueryType: "file_import_cycles", RepoID: "repo-1", Language: "java",
+	}).Validate(); err != nil {
+		t.Fatalf("java file_import_cycles Validate() error = %v, want nil", err)
+	}
+	if err := (codemodel.ImportDependencyRequest{
+		QueryType: "file_import_cycles", RepoID: "repo-1", Language: "rust",
 	}).Validate(); err == nil {
-		t.Fatal("java file_import_cycles Validate() error = nil, want rejection")
+		t.Fatal("rust file_import_cycles Validate() error = nil, want rejection")
 	}
 	// An unfiltered request stays Python-only: the lift answers explicit
 	// language filters, and changing what unfiltered clients receive would

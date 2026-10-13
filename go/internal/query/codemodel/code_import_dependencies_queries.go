@@ -162,8 +162,8 @@ LIMIT $scan_limit`)
 // It projects the edge's type_only, deferred, and inferred flags raw, with no
 // coalesce: a null means the edge predates the flags (#7345), and the reader
 // treats that as its own unknown state, never as false. It also projects the
-// projector-owned source_package raw (#7347/#7348): a null means the edge
-// predates the package mapping, and a package-lift reader treats that as
+// projector-owned source_package raw (#7347/#7348/#7349): a null means the
+// edge predates the package mapping, and a package-lift reader treats that as
 // package-unknown and excludes the edge, never as an empty package.
 // Bounded simple-cycle enumeration (#6851) happens in Go over this single
 // fetch: the Cypher reciprocal join costs 1522ms/5.5M DbHits where the
@@ -173,6 +173,8 @@ LIMIT $scan_limit`)
 // The RETURN gains one column over the #7346 shape; the anchor, the language
 // predicate, the ordering, and the scan bound are unchanged, so the plan shape
 // the QP-CODE-IMPORT-CYCLES entry pins is unaffected apart from its hashes.
+// Java package reads use JavaPackageCycleEdgeRowsCypher instead, which
+// collapses to package pairs in the statement.
 func FileImportCycleEdgeRowsCypher(req ImportDependencyRequest) string {
 	var cypher strings.Builder
 	cypher.WriteString("MATCH ")

@@ -144,6 +144,26 @@ and a static import is a compile-time dependency like any other. `import_type`
 keeps the `static` spelling so a consumer can tell the forms apart. The decision
 is pinned by `TestDefaultEngineParsePathJavaImportsCarryNoFlags`.
 
+## Package Cycles
+
+`file_import_cycles` answers Java at package level (`language=java`, issue
+#7349): an import names a fully qualified class while a cycle node is a
+package, so files collapse into packages. Each parsed file reports its declared
+package (`package_name`, absent for default-package files); the projector stamps
+it onto every `IMPORTS` edge the file emits as `source_package`, the statement
+collapses edges to distinct package pairs (which keeps the flagship
+repository's 34,563 file rows under the scan bound), and the cycle query
+collapses packages with the same rule file cycles use. Same-package files
+report as one node, a same-package edge closes nothing, and the file and module
+slots carry package names. A single-type import loses its class name, an
+on-demand import loses its `.*` suffix, and a static member import trims to the
+enclosing class, which names no repository package: a cycle closed only through
+a static member import is missed, conservatively. Edges from a graph written
+before the mapping existed are pre-filtered by the statement and close nothing;
+file-level rows that still arrive unplaced are counted in
+`coverage.cycle_java_edges_missing_package`. The package identity is pinned by
+`TestJavaPackageCyclesParserFlags`.
+
 ## Known Limitations
 
 - Generic type bounds and wildcards are not captured as structured data beyond

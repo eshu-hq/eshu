@@ -69,4 +69,11 @@ type CycleEnumeration struct {
 	// placed in any package, so it closes nothing; the count keeps the drop
 	// visible instead of silent. Always zero for non-TS/JS requests.
 	TSPackageUnknown int
+	// JavaPackageUnknown counts Java edges dropped because the graph predates
+	// the projector's source_package mapping (#7349). Such an edge cannot be
+	// placed in any package, so it closes nothing; the count keeps the drop
+	// visible instead of silent. Always zero for non-Java requests. The
+	// collapsed Java fetch pre-filters unplaced edges, so production Java
+	// reads report zero here.
+	JavaPackageUnknown int
 }

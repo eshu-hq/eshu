@@ -75,6 +75,15 @@ the staying code family still uses.
   excluded and counted in `CycleEnumeration.GoPackageUnknown` (Go) or
   `CycleEnumeration.TSPackageUnknown` (TS/JS). An unfiltered request stays
   Python-only.
+- `code_import_dependencies_java_cycles.go` — the Java package lift (#7349):
+  unfiltered requests stay Python-only and `language=java` reads collapse
+  files into packages. The projector-owned `source_package` becomes both the
+  collapse node key and the declared module while the target package derives
+  from the imported class name, so the shared exact-equality rule runs
+  unchanged and same-package files land on one node. The Java fetch collapses
+  to distinct package pairs in the statement (the flagship 34,563 file rows
+  stay under the scan bound); edges that predate the mapping are excluded and
+  counted in `CycleEnumeration.JavaPackageUnknown`.
 - `code_relationship_story_{evidence_state,provenance}.go`,
   `code_relationships_{graph_response,resolution}.go` — story contract,
   evidence classification, graph shaping, name resolution.

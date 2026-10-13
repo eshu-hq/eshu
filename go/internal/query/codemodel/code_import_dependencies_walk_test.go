@@ -414,3 +414,88 @@ func TestClusteredImportGraphWalkStaysWithinTheBudgetOrSaysWhy(t *testing.T) {
 		}
 	}
 }
+
+// layeredPackageGraph models a layered Java monorepo at package level for
+// #7349: packages sit in layers, imports flow down-layer, and a small share
+// of up-edges creates small local cycles. The walk is language-agnostic, so
+// the edges reuse the file-edge shape with package names; only the collapsed
+// topology matters. It is a model: no real corpus edge list is walked.
+func layeredPackageGraph(seed int64, pkgs, layers, perPackage, upPercent int) []importCycleEdge {
+	rng := rand.New(rand.NewSource(seed))
+	seen := map[[2]int]bool{}
+	var edges []importCycleEdge
+	add := func(from, to int) {
+		if from == to || seen[[2]int{from, to}] {
+			return
+		}
+		seen[[2]int{from, to}] = true
+		edges = append(edges, walkEdge(fmt.Sprintf("com.acme.p%04d", from), fmt.Sprintf("com.acme.p%04d", to)))
+	}
+	layerOf := func(p int) int { return p * layers / pkgs }
+	for from := 0; from < pkgs; from++ {
+		for i := 0; i < perPackage; i++ {
+			if rng.Intn(100) < upPercent {
+				if to := rng.Intn(pkgs); layerOf(to) >= layerOf(from) {
+					add(from, to)
+				}
+				continue
+			}
+			if layerOf(from) == 0 {
+				continue
+			}
+			for tries := 0; tries < 8; tries++ {
+				if to := rng.Intn(pkgs); layerOf(to) < layerOf(from) {
+					add(from, to)
+					break
+				}
+			}
+		}
+		edges = append(edges, walkEdge(fmt.Sprintf("com.acme.p%04d", from), "external_module"))
+	}
+	return edges
+}
+
+// TestImportCycleStepBudgetCoversJavaPackageScale is the #7349 34k-edge
+// tuning gate at the walk layer. The flagship Java repository reports 3,387
+// files and 34,563 IMPORTS edges; after package collapse that shape is a few
+// thousand package pairs (see the fetch-layer count gate). At the default
+// cycle length the walk must complete with at least ten times the budget to
+// spare; at length 7 it must stay within the budget and may stop at the
+// cycle cap, never silently and never at the step budget on layered shapes.
+func TestImportCycleStepBudgetCoversJavaPackageScale(t *testing.T) {
+	t.Parallel()
+
+	worst := 0
+	for seed := int64(1); seed <= 30; seed++ {
+		cycles, enumeration := enumerateImportCycles(layeredPackageGraph(seed, 424, 6, 10, 3), importCycleDefaultMaxLength)
+		worst = max(worst, enumeration.StepsExamined)
+		if enumeration.Truncated {
+			t.Fatalf("seed %d: default-length layered walk truncated (%+v); it must complete", seed, enumeration)
+		}
+		if len(cycles) == 0 {
+			t.Fatalf("seed %d: layered walk found no cycle, want a cycle-bearing model", seed)
+		}
+	}
+	t.Logf("java package scale at default length, worst of 30 placements: %d steps; budget %d", worst, importCycleEnumerationStepBudget)
+	if worst*10 > importCycleEnumerationStepBudget {
+		t.Fatalf("the java-scale walk needed %d steps; the budget %d is not at least 10x that", worst, importCycleEnumerationStepBudget)
+	}
+
+	budgetStops := 0
+	for seed := int64(1); seed <= 25; seed++ {
+		_, enumeration := enumerateImportCycles(layeredPackageGraph(seed, 424, 6, 10, 3), 7)
+		if enumeration.StepsExamined > importCycleEnumerationStepBudget {
+			t.Fatalf("seed %d examined %d steps, over the budget %d", seed, enumeration.StepsExamined, importCycleEnumerationStepBudget)
+		}
+		if enumeration.StopReason == CycleStopStepBudget {
+			budgetStops++
+		}
+		if enumeration.Truncated && enumeration.StopReason == CycleStopNone {
+			t.Fatalf("seed %d truncated without a stop reason: %+v", seed, enumeration)
+		}
+	}
+	t.Logf("java package scale at length 7: %d of 25 layered walks hit the step budget", budgetStops)
+	if budgetStops != 0 {
+		t.Fatalf("%d layered walks hit the step budget; deep walks must stop at the cycle cap, not the budget", budgetStops)
+	}
+}

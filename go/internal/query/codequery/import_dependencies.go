@@ -183,6 +183,10 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 			// file-to-package mapping for (#7348): unplaceable, closing
 			// nothing. Zero for non-TS/JS reads.
 			attribute.Int("eshu.import_dependencies.cycle_ts_edges_missing_package", enumeration.TSPackageUnknown),
+			// How many Java edges the graph predates the projector's
+			// file-to-package mapping for (#7349): unplaceable, closing
+			// nothing. Zero for non-Java reads.
+			attribute.Int("eshu.import_dependencies.cycle_java_edges_missing_package", enumeration.JavaPackageUnknown),
 		)
 	}
 	return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumeration), nil
