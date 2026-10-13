@@ -1,0 +1,26 @@
+go/internal/storage/postgres/schema_index_replay_test.go
+  h_78a442cba0b3e6 448-499
+go/internal/storage/postgres/migrations/174_content_entities_repo_language_type_path_idx.sql
+  h_78a442cba0b3e6 1-81
+docs/internal/evidence/7735-content-entities-page-read-index.md
+  h_78a442cba0b3e6 1-150
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  h_78a442cba0b3e6 71-73,79
+go/internal/storage/postgres/schema_order_test.go
+  h_78a442cba0b3e6 419-427
+go/internal/storage/postgres/content_entities_repo_language_type_path_index_schema_test.go
+  h_78a442cba0b3e6 1-80
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  h_78a442cba0b3e6 224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd70d7587793974a0cda439011bb3a245a1a746b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
