@@ -1,0 +1,404 @@
+SET
+=== Q1 gate+page big/JS/Function ===
+                                                                                           QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=3.22..19.97 rows=10 width=60) (actual time=0.292..0.293 rows=10 loops=1)
+   Buffers: shared hit=10 read=28
+   InitPlan 1 (returns $0)
+     ->  Index Only Scan using content_entities_repo_language_type_idx on content_entities content_entities_1  (cost=0.42..1049.15 rows=40210 width=0) (actual time=0.036..0.036 rows=1 loops=1)
+           Index Cond: ((repo_id = 'repository:big'::text) AND (language = 'javascript'::text) AND (entity_type = 'Function'::text))
+           Heap Fetches: 0
+           Buffers: shared hit=1 read=3
+   ->  Incremental Sort  (cost=2.77..67346.45 rows=40210 width=60) (actual time=0.291..0.292 rows=10 loops=1)
+         Sort Key: content_entities.relative_path, content_entities.start_line, content_entities.entity_name
+         Presorted Key: content_entities.relative_path, content_entities.start_line
+         Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 27kB  Peak Memory: 27kB
+         Buffers: shared hit=10 read=28
+         ->  Result  (cost=0.55..65901.35 rows=40210 width=60) (actual time=0.080..0.225 rows=21 loops=1)
+               One-Time Filter: $0
+               Buffers: shared hit=1 read=28
+               ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65901.35 rows=40210 width=60) (actual time=0.042..0.186 rows=21 loops=1)
+                     Index Cond: (repo_id = 'repository:big'::text)
+                     Filter: ((entity_type = 'Function'::text) AND (language = 'javascript'::text))
+                     Buffers: shared read=25
+ Planning:
+   Buffers: shared hit=351 read=1
+ Planning Time: 0.945 ms
+ Execution Time: 0.356 ms
+(23 rows)
+
+                                                                                           QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=3.22..19.97 rows=10 width=60) (actual time=0.075..0.077 rows=10 loops=1)
+   Buffers: shared hit=29
+   InitPlan 1 (returns $0)
+     ->  Index Only Scan using content_entities_repo_language_type_idx on content_entities content_entities_1  (cost=0.42..1049.15 rows=40210 width=0) (actual time=0.020..0.020 rows=1 loops=1)
+           Index Cond: ((repo_id = 'repository:big'::text) AND (language = 'javascript'::text) AND (entity_type = 'Function'::text))
+           Heap Fetches: 0
+           Buffers: shared hit=4
+   ->  Incremental Sort  (cost=2.77..67346.45 rows=40210 width=60) (actual time=0.075..0.075 rows=10 loops=1)
+         Sort Key: content_entities.relative_path, content_entities.start_line, content_entities.entity_name
+         Presorted Key: content_entities.relative_path, content_entities.start_line
+         Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 27kB  Peak Memory: 27kB
+         Buffers: shared hit=29
+         ->  Result  (cost=0.55..65901.35 rows=40210 width=60) (actual time=0.034..0.058 rows=21 loops=1)
+               One-Time Filter: $0
+               Buffers: shared hit=29
+               ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65901.35 rows=40210 width=60) (actual time=0.013..0.036 rows=21 loops=1)
+                     Index Cond: (repo_id = 'repository:big'::text)
+                     Filter: ((entity_type = 'Function'::text) AND (language = 'javascript'::text))
+                     Buffers: shared hit=25
+ Planning Time: 0.172 ms
+ Execution Time: 0.098 ms
+(21 rows)
+
+=== Q1b gate repo-empty (medb/kotlin) ===
+                                                                                         QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.88..354.52 rows=10 width=60) (actual time=0.031..0.032 rows=0 loops=1)
+   Buffers: shared hit=1 read=2
+   InitPlan 1 (returns $0)
+     ->  Index Only Scan using content_entities_repo_language_type_idx on content_entities content_entities_1  (cost=0.42..17.66 rows=588 width=0) (actual time=0.030..0.030 rows=0 loops=1)
+           Index Cond: ((repo_id = 'repository:medb'::text) AND (language = 'kotlin'::text) AND (entity_type = 'Function'::text))
+           Heap Fetches: 0
+           Buffers: shared hit=1 read=2
+   ->  Result  (cost=0.42..20794.67 rows=588 width=60) (actual time=0.031..0.031 rows=0 loops=1)
+         One-Time Filter: $0
+         Buffers: shared hit=1 read=2
+         ->  Index Scan using content_entities_language_type_path_idx on content_entities  (cost=0.42..20794.67 rows=588 width=60) (never executed)
+               Index Cond: ((language = 'kotlin'::text) AND (entity_type = 'Function'::text))
+               Filter: (repo_id = 'repository:medb'::text)
+ Planning Time: 0.113 ms
+ Execution Time: 0.040 ms
+(15 rows)
+
+=== Q1c gate corpus-empty (hcl/TerraformResource) ===
+                                                                                        QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=98.54..98.57 rows=10 width=60) (actual time=0.027..0.027 rows=0 loops=1)
+   Buffers: shared hit=2 read=1
+   InitPlan 1 (returns $0)
+     ->  Index Only Scan using content_entities_repo_language_type_idx on content_entities content_entities_1  (cost=0.42..5.30 rows=39 width=0) (actual time=0.022..0.022 rows=0 loops=1)
+           Index Cond: ((repo_id = 'repository:big'::text) AND (language = 'hcl'::text) AND (entity_type = 'TerraformResource'::text))
+           Heap Fetches: 0
+           Buffers: shared hit=2 read=1
+   ->  Sort  (cost=97.99..98.09 rows=39 width=60) (actual time=0.026..0.026 rows=0 loops=1)
+         Sort Key: content_entities.relative_path, content_entities.start_line, content_entities.entity_name
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=2 read=1
+         ->  Result  (cost=0.42..97.15 rows=39 width=60) (actual time=0.023..0.023 rows=0 loops=1)
+               One-Time Filter: $0
+               Buffers: shared hit=2 read=1
+               ->  Index Scan using content_entities_repo_language_type_idx on content_entities  (cost=0.42..97.15 rows=39 width=60) (never executed)
+                     Index Cond: ((repo_id = 'repository:big'::text) AND (language = 'hcl'::text) AND (entity_type = 'TerraformResource'::text))
+ Planning Time: 0.133 ms
+ Execution Time: 0.038 ms
+(18 rows)
+
+=== Q2 list-repo-entities big ===
+                                                                                  QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.55..31.10 rows=500 width=44) (actual time=0.014..0.120 rows=500 loops=1)
+   Buffers: shared hit=5 read=5
+   ->  Index Only Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..14698.89 rows=240591 width=44) (actual time=0.013..0.092 rows=500 loops=1)
+         Index Cond: (repo_id = 'repository:big'::text)
+         Heap Fetches: 0
+         Buffers: shared hit=5 read=5
+ Planning Time: 0.052 ms
+ Execution Time: 0.141 ms
+(8 rows)
+
+                                                                                  QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.55..31.10 rows=500 width=44) (actual time=0.007..0.076 rows=500 loops=1)
+   Buffers: shared hit=10
+   ->  Index Only Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..14698.89 rows=240591 width=44) (actual time=0.007..0.048 rows=500 loops=1)
+         Index Cond: (repo_id = 'repository:big'::text)
+         Heap Fetches: 0
+         Buffers: shared hit=10
+ Planning Time: 0.048 ms
+ Execution Time: 0.097 ms
+(8 rows)
+
+=== Q3 by-type big/Class ===
+                                                                                QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.55..1706.83 rows=500 width=44) (actual time=31.332..31.661 rows=500 loops=1)
+   Buffers: shared hit=12537 read=1915
+   ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65299.88 rows=19135 width=44) (actual time=31.331..31.630 rows=500 loops=1)
+         Index Cond: (repo_id = 'repository:big'::text)
+         Filter: (entity_type = 'Class'::text)
+         Rows Removed by Filter: 13800
+         Buffers: shared hit=12537 read=1915
+ Planning Time: 0.060 ms
+ Execution Time: 31.689 ms
+(9 rows)
+
+                                                                               QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.55..1706.83 rows=500 width=44) (actual time=8.659..8.958 rows=500 loops=1)
+   Buffers: shared hit=14452
+   ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65299.88 rows=19135 width=44) (actual time=8.658..8.907 rows=500 loops=1)
+         Index Cond: (repo_id = 'repository:big'::text)
+         Filter: (entity_type = 'Class'::text)
+         Rows Removed by Filter: 13800
+         Buffers: shared hit=14452
+ Planning Time: 0.150 ms
+ Execution Time: 8.991 ms
+(9 rows)
+
+=== Q4 by-types k8smono ===
+                                                                                    QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=6631.21..6632.46 rows=500 width=44) (actual time=17.857..17.902 rows=500 loops=1)
+   Buffers: shared hit=2204 read=2198
+   ->  Sort  (cost=6631.21..6636.81 rows=2241 width=44) (actual time=17.856..17.872 rows=500 loops=1)
+         Sort Key: relative_path, start_line, entity_id
+         Sort Method: top-N heapsort  Memory: 103kB
+         Buffers: shared hit=2204 read=2198
+         ->  Index Scan using content_entities_repo_language_type_idx on content_entities  (cost=0.42..6519.54 rows=2241 width=44) (actual time=0.050..15.352 rows=18000 loops=1)
+               Index Cond: ((repo_id = 'repository:k8smono'::text) AND (entity_type = ANY ('{K8sResource,ArgoCDApplication}'::text[])))
+               Buffers: shared hit=2204 read=2198
+ Planning Time: 0.151 ms
+ Execution Time: 17.940 ms
+(11 rows)
+
+                                                                                   QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=6631.21..6632.46 rows=500 width=44) (actual time=11.746..11.791 rows=500 loops=1)
+   Buffers: shared hit=4399
+   ->  Sort  (cost=6631.21..6636.81 rows=2241 width=44) (actual time=11.745..11.762 rows=500 loops=1)
+         Sort Key: relative_path, start_line, entity_id
+         Sort Method: top-N heapsort  Memory: 103kB
+         Buffers: shared hit=4399
+         ->  Index Scan using content_entities_repo_language_type_idx on content_entities  (cost=0.42..6519.54 rows=2241 width=44) (actual time=0.023..9.409 rows=18000 loops=1)
+               Index Cond: ((repo_id = 'repository:k8smono'::text) AND (entity_type = ANY ('{K8sResource,ArgoCDApplication}'::text[])))
+               Buffers: shared hit=4399
+ Planning Time: 0.152 ms
+ Execution Time: 11.834 ms
+(11 rows)
+
+=== Q5 k8s-candidates k8smono ===
+                                                                                 QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.41..37.07 rows=500 width=60) (actual time=0.045..0.170 rows=500 loops=1)
+   Buffers: shared hit=1 read=10
+   ->  Index Only Scan using content_entities_k8s_select_partial_idx on content_entities  (cost=0.41..79.22 rows=1075 width=60) (actual time=0.045..0.142 rows=500 loops=1)
+         Index Cond: (repo_id = 'repository:k8smono'::text)
+         Heap Fetches: 0
+         Buffers: shared hit=1 read=10
+ Planning Time: 0.145 ms
+ Execution Time: 0.197 ms
+(8 rows)
+
+                                                                                 QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.41..37.07 rows=500 width=60) (actual time=0.006..0.097 rows=500 loops=1)
+   Buffers: shared hit=11
+   ->  Index Only Scan using content_entities_k8s_select_partial_idx on content_entities  (cost=0.41..79.22 rows=1075 width=60) (actual time=0.006..0.069 rows=500 loops=1)
+         Index Cond: (repo_id = 'repository:k8smono'::text)
+         Heap Fetches: 0
+         Buffers: shared hit=11
+ Planning Time: 0.077 ms
+ Execution Time: 0.120 ms
+(8 rows)
+
+=== Q6a name-rare big/zxqvlogin ===
+                                                                      QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=338.80..338.86 rows=24 width=44) (actual time=0.494..0.498 rows=40 loops=1)
+   Buffers: shared hit=95 read=16
+   ->  Sort  (cost=338.80..338.86 rows=24 width=44) (actual time=0.494..0.495 rows=40 loops=1)
+         Sort Key: relative_path, start_line, entity_id
+         Sort Method: quicksort  Memory: 27kB
+         Buffers: shared hit=95 read=16
+         ->  Bitmap Heap Scan on content_entities  (cost=114.70..338.25 rows=24 width=44) (actual time=0.050..0.473 rows=40 loops=1)
+               Recheck Cond: (entity_name ~~* '%zxqvlogin%'::text)
+               Filter: (repo_id = 'repository:big'::text)
+               Rows Removed by Filter: 56
+               Heap Blocks: exact=96
+               Buffers: shared hit=95 read=16
+               ->  Bitmap Index Scan on content_entities_name_trgm_idx  (cost=0.00..114.69 rows=58 width=0) (actual time=0.036..0.037 rows=96 loops=1)
+                     Index Cond: (entity_name ~~* '%zxqvlogin%'::text)
+                     Buffers: shared hit=15
+ Planning:
+   Buffers: shared hit=12 read=4 dirtied=1
+ Planning Time: 0.702 ms
+ Execution Time: 0.565 ms
+(19 rows)
+
+                                                                      QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=338.80..338.86 rows=24 width=44) (actual time=0.216..0.220 rows=40 loops=1)
+   Buffers: shared hit=111
+   ->  Sort  (cost=338.80..338.86 rows=24 width=44) (actual time=0.216..0.217 rows=40 loops=1)
+         Sort Key: relative_path, start_line, entity_id
+         Sort Method: quicksort  Memory: 27kB
+         Buffers: shared hit=111
+         ->  Bitmap Heap Scan on content_entities  (cost=114.70..338.25 rows=24 width=44) (actual time=0.046..0.195 rows=40 loops=1)
+               Recheck Cond: (entity_name ~~* '%zxqvlogin%'::text)
+               Filter: (repo_id = 'repository:big'::text)
+               Rows Removed by Filter: 56
+               Heap Blocks: exact=96
+               Buffers: shared hit=111
+               ->  Bitmap Index Scan on content_entities_name_trgm_idx  (cost=0.00..114.69 rows=58 width=0) (actual time=0.031..0.031 rows=96 loops=1)
+                     Index Cond: (entity_name ~~* '%zxqvlogin%'::text)
+                     Buffers: shared hit=15
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.166 ms
+ Execution Time: 0.241 ms
+(19 rows)
+
+=== Q6b name-common big/handler ===
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.55..46.88 rows=50 width=44) (actual time=0.042..0.111 rows=50 loops=1)
+   Buffers: shared hit=74
+   ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65299.88 rows=70476 width=44) (actual time=0.041..0.107 rows=50 loops=1)
+         Index Cond: (repo_id = 'repository:big'::text)
+         Filter: (entity_name ~~* '%handler%'::text)
+         Rows Removed by Filter: 20
+         Buffers: shared hit=74
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.114 ms
+ Execution Time: 0.120 ms
+(11 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.55..46.88 rows=50 width=44) (actual time=0.018..0.048 rows=50 loops=1)
+   Buffers: shared hit=74
+   ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65299.88 rows=70476 width=44) (actual time=0.018..0.044 rows=50 loops=1)
+         Index Cond: (repo_id = 'repository:big'::text)
+         Filter: (entity_name ~~* '%handler%'::text)
+         Rows Removed by Filter: 20
+         Buffers: shared hit=74
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.081 ms
+ Execution Time: 0.055 ms
+(11 rows)
+
+=== Q7 codetopic-scoped-one-term big/zxqvlogin ===
+                                                                                QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=2896.78..2896.79 rows=1 width=8) (actual time=511.256..511.259 rows=1 loops=1)
+   Buffers: shared hit=1793 read=6719 written=5723
+   CTE terms
+     ->  Result  (cost=0.00..0.01 rows=1 width=32) (actual time=0.001..0.001 rows=1 loops=1)
+   ->  Nested Loop  (cost=0.42..2896.27 rows=200 width=0) (actual time=0.032..511.164 rows=80 loops=1)
+         Buffers: shared hit=1793 read=6719 written=5723
+         ->  CTE Scan on terms  (cost=0.00..0.02 rows=1 width=32) (actual time=0.002..0.005 rows=1 loops=1)
+         ->  Limit  (cost=0.42..2892.25 rows=200 width=96) (actual time=0.029..511.098 rows=80 loops=1)
+               Buffers: shared hit=1793 read=6719 written=5723
+               ->  Index Scan using content_entities_repo_idx on content_entities e  (cost=0.42..34702.31 rows=2400 width=96) (actual time=0.028..511.037 rows=80 loops=1)
+                     Index Cond: (repo_id = 'repository:big'::text)
+                     Filter: ((entity_name ~~* (('%'::text || terms.term) || '%'::text)) OR (source_cache ~~* (('%'::text || terms.term) || '%'::text)))
+                     Rows Removed by Filter: 239920
+                     Buffers: shared hit=1793 read=6719 written=5723
+ Planning:
+   Buffers: shared hit=7 read=1
+ Planning Time: 0.167 ms
+ Execution Time: 511.280 ms
+(18 rows)
+
+                                                                                QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=2896.78..2896.79 rows=1 width=8) (actual time=460.691..460.693 rows=1 loops=1)
+   Buffers: shared hit=8512
+   CTE terms
+     ->  Result  (cost=0.00..0.01 rows=1 width=32) (actual time=0.000..0.001 rows=1 loops=1)
+   ->  Nested Loop  (cost=0.42..2896.27 rows=200 width=0) (actual time=0.019..460.601 rows=80 loops=1)
+         Buffers: shared hit=8512
+         ->  CTE Scan on terms  (cost=0.00..0.02 rows=1 width=32) (actual time=0.001..0.003 rows=1 loops=1)
+         ->  Limit  (cost=0.42..2892.25 rows=200 width=96) (actual time=0.017..460.546 rows=80 loops=1)
+               Buffers: shared hit=8512
+               ->  Index Scan using content_entities_repo_idx on content_entities e  (cost=0.42..34702.31 rows=2400 width=96) (actual time=0.017..460.495 rows=80 loops=1)
+                     Index Cond: (repo_id = 'repository:big'::text)
+                     Filter: ((entity_name ~~* (('%'::text || terms.term) || '%'::text)) OR (source_cache ~~* (('%'::text || terms.term) || '%'::text)))
+                     Rows Removed by Filter: 239920
+                     Buffers: shared hit=8512
+ Planning:
+   Buffers: shared hit=2
+ Planning Time: 0.216 ms
+ Execution Time: 460.718 ms
+(18 rows)
+
+=== Q8 reap-leg big ===
+                                                                                QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Index Only Scan using content_entities_repo_entity_idx on content_entities ce  (cost=0.42..11490.77 rows=240591 width=23) (actual time=0.035..43.562 rows=240000 loops=1)
+   Index Cond: (repo_id = 'repository:big'::text)
+   Heap Fetches: 0
+   Buffers: shared hit=1 read=1717 written=1517
+ Planning Time: 0.108 ms
+ Execution Time: 56.993 ms
+(6 rows)
+
+=== Q9 jsx-component big/TopNav ===
+                                                                                  QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=28.46..1399.61 rows=50 width=60) (actual time=27.577..27.613 rows=50 loops=1)
+   Buffers: shared hit=35013 read=215 written=215
+   ->  Incremental Sort  (cost=28.46..66008.08 rows=2406 width=60) (actual time=27.576..27.608 rows=50 loops=1)
+         Sort Key: relative_path, start_line, entity_name
+         Presorted Key: relative_path, start_line
+         Full-sort Groups: 2  Sort Method: quicksort  Average Memory: 30kB  Peak Memory: 30kB
+         Buffers: shared hit=35013 read=215 written=215
+         ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65901.35 rows=2406 width=60) (actual time=27.513..27.555 rows=61 loops=1)
+               Index Cond: (repo_id = 'repository:big'::text)
+               Filter: (COALESCE((metadata -> 'jsx_component_usage'::text), '[]'::jsonb) ? 'TopNav'::text)
+               Rows Removed by Filter: 34800
+               Buffers: shared hit=35013 read=215 written=215
+ Planning Time: 0.138 ms
+ Execution Time: 27.631 ms
+(14 rows)
+
+                                                                                  QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=28.46..1399.61 rows=50 width=60) (actual time=15.805..15.836 rows=50 loops=1)
+   Buffers: shared hit=35228
+   ->  Incremental Sort  (cost=28.46..66008.08 rows=2406 width=60) (actual time=15.804..15.831 rows=50 loops=1)
+         Sort Key: relative_path, start_line, entity_name
+         Presorted Key: relative_path, start_line
+         Full-sort Groups: 2  Sort Method: quicksort  Average Memory: 30kB  Peak Memory: 30kB
+         Buffers: shared hit=35228
+         ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65901.35 rows=2406 width=60) (actual time=15.741..15.777 rows=61 loops=1)
+               Index Cond: (repo_id = 'repository:big'::text)
+               Filter: (COALESCE((metadata -> 'jsx_component_usage'::text), '[]'::jsonb) ? 'TopNav'::text)
+               Rows Removed by Filter: 34800
+               Buffers: shared hit=35228
+ Planning Time: 0.139 ms
+ Execution Time: 15.855 ms
+(14 rows)
+
+=== Q10 deadcode-scoped big/Function/javascript ===
+                                                                                  QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=5.68..24.61 rows=50 width=72) (actual time=0.098..0.102 rows=50 loops=1)
+   Buffers: shared hit=65
+   ->  Incremental Sort  (cost=5.68..71532.14 rows=188896 width=72) (actual time=0.097..0.099 rows=50 loops=1)
+         Sort Key: relative_path, entity_name, entity_id
+         Presorted Key: relative_path
+         Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 32kB  Peak Memory: 32kB
+         Buffers: shared hit=65
+         ->  Index Scan using content_entities_repo_path_start_idx on content_entities  (cost=0.55..65299.88 rows=188896 width=72) (actual time=0.012..0.058 rows=61 loops=1)
+               Index Cond: (repo_id = 'repository:big'::text)
+               Filter: (entity_type = 'Function'::text)
+               Buffers: shared hit=65
+ Planning Time: 0.162 ms
+ Execution Time: 0.114 ms
+(13 rows)
+
+=== Q11 by-ids-leg big ===
+                                                                        QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Index Only Scan using content_entities_repo_entity_idx on content_entities  (cost=0.42..13.31 rows=1 width=23) (actual time=0.012..0.045 rows=3 loops=1)
+   Index Cond: ((repo_id = 'repository:big'::text) AND (entity_id = ANY ('{repository:big:e1,repository:big:e2,repository:big:e999}'::text[])))
+   Heap Fetches: 0
+   Buffers: shared hit=8 read=2 written=2
+ Planning Time: 0.049 ms
+ Execution Time: 0.050 ms
+(6 rows)
