@@ -141,3 +141,24 @@ through the existing scoped-route denial audit event, emitted by
 `recordScopedRouteAuthorizationDeniedWithReason`, carrying the existing reason
 code `scoped_route_all_scope_grant_required` that the cookie-session path
 already produced; the bearer path now produces it too.
+
+No-Regression Evidence: #7983 adds one static `Entry` to `coreEntries` for
+`ESHU_DOCS_BUILD_TIMEOUT_SECONDS` (a `VarInt` defaulting to `600`) and the
+one generated row it produces in `docs/public/reference/env-registry.md`.
+Both readers of the registry are build-time or CLI-time, not request-time:
+`RenderMarkdown` behind `scripts/generate-env-registry-doc.sh`, and
+`cmd/docs-cli-env-refs` behind `scripts/verify-docs-cli-env-refs.sh`, whose
+ratchet accepts a public page citing an `ESHU_*` name only when the registry
+declares it. The sole runtime reader of the variable is
+`scripts/verify-docs-build-changed.sh` at push time, which never runs on a
+service request, graph, reducer, or queue path. No goroutine, channel,
+worker, lease, queue, or Cypher path changes, and terminal graph and queue
+row counts are unchanged. Verified by
+`go test ./internal/envregistry -count=1`,
+`scripts/verify-docs-cli-env-refs.sh`, and
+`bash scripts/test-verify-docs-build-changed.sh`.
+
+No-Observability-Change: #7983 adds no metric, span, log field, status
+payload field, or telemetry label to any running service. The hook's new
+timeout diagnostics print to push-hook stderr, visible only when the hook
+fails; service telemetry is untouched.
