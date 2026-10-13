@@ -137,7 +137,9 @@ func TestEntityRouteErrorTexts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clock := newFakeClock()
-			tc.store.inner = newFakeDB(newEntityCorpus(1000, ms, func(i int) bool { return i == 3 }), clock)
+			// A row costs 0.1 ms so the 1,000-row entity probe completes and
+			// scans its match.
+			tc.store.inner = newFakeDB(newEntityCorpus(1000, ms/10, func(i int) bool { return i == 3 }), clock)
 			searcher := &unscoped.Searcher{Store: tc.store, Now: clock.Now, Logger: quietLogger}
 			_, err := searcher.SearchEntities(context.Background(), "needle", 10, 0, querycontract.SearchCursor{})
 			if err == nil || err.Error() != tc.want {

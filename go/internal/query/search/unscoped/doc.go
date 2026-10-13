@@ -11,23 +11,27 @@
 // the byte mass of its candidate set. This package bounds the work instead of
 // trusting the plan. One call is one REPEATABLE READ READ ONLY transaction
 // whose first statement is the substring-index readiness check, followed by
-// these phases against contiguous, non-overlapping key ranges (the figures
-// are those of the content_files shape; the content_entities shape carries
-// the same values, copied by #8036 and not yet measured on that table):
+// these phases against contiguous, non-overlapping key ranges. Each shape
+// has its own figures, stated at the default budget as content_files /
+// content_entities:
 //
-//  1. a probe of 200 rows in key order (repo_id, relative_path for files;
-//     repo_id, relative_path, start_line, entity_id for entities), shaped as an
-//     ordered primary-key walk that never uses the trigram index, with the
-//     remaining budget as its statement timeout;
-//  2. continuation steps of 500 rows, capped at 0.55 x the budget, each with
-//     the room left in that cap as its statement timeout;
+//  1. a probe of 200 / 1,000 rows in key order (repo_id, relative_path for
+//     files; repo_id, relative_path, start_line, entity_id for entities),
+//     shaped as an ordered primary-key walk that never uses the trigram index,
+//     with the remaining budget as its statement timeout;
+//  2. continuation steps of 500 / 5,000 rows, capped at 0.55 / 0.20 x the
+//     budget, each with the room left in that cap as its statement timeout;
 //  3. a trigram tail inside a savepoint with index scans disabled and a
-//     statement timeout of min(remaining budget, 0.5 x budget) — skipped
+//     statement timeout of min(remaining budget, 0.50 / 0.80 x budget),
+//     skipped when less than the tail floor (150 ms) is left, and skipped
 //     when the pattern has no three-character alphanumeric run, because
 //     pg_trgm then extracts no trigram and the tail could only run as an
 //     unbounded sequential scan; the partial reason states that limit
 //     (pattern_has_no_trigram, #8002);
 //  4. continuation steps with whatever budget remains.
+//
+// The file figures come from the #7730 measurements; the entity figures are
+// triple A of the #7009 S1 shim on content_entities.
 //
 // The walk is one engine over a table shape. The engine (walk.go) owns the
 // phases, the savepoints, the timeouts, the cursor rule and the partial

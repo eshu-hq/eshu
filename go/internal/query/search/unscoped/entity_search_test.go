@@ -95,10 +95,11 @@ func TestEntitySearchExactFirstPageCarriesFullPayload(t *testing.T) {
 func TestEntitySearchBudgetStopReturnsReasonCodedPartial(t *testing.T) {
 	t.Parallel()
 
-	// Matches start past the probe and every row costs 2 ms: the probe alone
-	// costs 400 ms, continuation cannot afford a step, and the tail (3 s) is
-	// cancelled, so the walk ends partial with the probe's cursor.
-	corpus := newEntityCorpus(3000, 2*time.Millisecond, func(i int) bool { return i >= 1500 && i%11 == 0 })
+	// Matches start past the 1,000-row probe and every row costs 0.4 ms: the
+	// probe alone costs 400 ms, continuation cannot afford a 5,000-row step,
+	// and the tail (3 s) is cancelled, so the walk ends partial with the
+	// probe's cursor.
+	corpus := newEntityCorpus(3000, 400*time.Microsecond, func(i int) bool { return i >= 1500 && i%11 == 0 })
 	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
 	page, fdb, _, err := runEntities(t, corpus, 50, 0, querycontract.SearchCursor{})
 	if err != nil {
@@ -171,7 +172,7 @@ func TestEntitySearchNoProgressPartialUrgesScoping(t *testing.T) {
 	corpus := newEntityCorpus(3000, 2*time.Millisecond, func(i int) bool { return i >= 1500 })
 	clock := newFakeClock()
 	fdb := newFakeDB(corpus, clock)
-	// Starve the probe: 200 rows at 2 ms cost 400 ms, over a 100 ms budget.
+	// Starve the probe: 1,000 rows at 2 ms cost 2 s, over a 100 ms budget.
 	page, _, _, err := runEntitiesOn(t, fdb, clock, 100*time.Millisecond, 50, 0, querycontract.SearchCursor{})
 	if err != nil {
 		t.Fatalf("SearchEntities() error = %v", err)

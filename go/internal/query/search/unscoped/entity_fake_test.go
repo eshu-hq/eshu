@@ -190,6 +190,11 @@ func (tx *fakeTx) runEntityTail(query string, args []any) (db.Rows, error) {
 	}
 	cost := tx.db.corpus.tailCost(from)
 	if tx.timeout > 0 && cost > tx.timeout {
+		// A large value after the cursor whose recheck is in progress when
+		// the timeout fires holds the cancel until the recheck ends.
+		if doc := tx.db.corpus.tailDoc; doc != nil && from <= doc.row && tx.timeout >= doc.start && tx.timeout < doc.end {
+			return tx.cancel(doc.end - tx.timeout)
+		}
 		return tx.cancel(tx.db.corpus.tailLag)
 	}
 	tx.db.clock.advance(cost)

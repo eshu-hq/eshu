@@ -26,12 +26,33 @@ There are two shapes:
 | Shape | File | Key order | Figures |
 |---|---|---|---|
 | `content_files` | `files.go` | `repo_id, relative_path` | the #7730 figures below |
-| `content_entities` | `entities.go` | `repo_id, relative_path, start_line, entity_id` | the same values, copied by #8036, not measured on this table |
+| `content_entities` | `entities.go` | `repo_id, relative_path, start_line, entity_id` | the #7009 S1 figures below |
 
 A shape needs its own measured figures: the file split does not transfer to
-another table's cost structure. PR-B of #7009 replaces the entity figures with
-figures measured on `content_entities`. The entity cursor binds `start_line`
+another table's cost structure. The entity cursor binds `start_line`
 saturated to the int32 range of the column.
+
+Figures at the default 800 ms budget (each phase limit scales with the budget):
+
+| Figure | `content_files` | `content_entities` |
+|---|---|---|
+| probe rows | 200 | 1,000 |
+| step rows | 500 | 5,000 |
+| phase one cap | 0.55 x budget (440 ms) | 0.20 x budget (160 ms) |
+| tail cap | 0.50 x budget (400 ms) | 0.80 x budget (640 ms) |
+| tail floor | 150 ms | 150 ms |
+
+The entity figures are triple A of the #7009 S1 shim on `content_entities` in
+the QA environment (`7009-entity-shim-s1-results-20261012.md`, sections 4-7;
+arbiter ruling round 2, R2.1). An ordered entity window costs bytes, not rows
+(0.3 ms plus 0.34 us per row plus 10.2 ns per byte), so 160 ms walks about
+35,000 rows; the rare bitmap tails cost 400-462 ms warm, so the tail gets
+640 ms. Under the file figures `process_entries` and `FeaturesTab`, exact
+today, end partial. The one disclosed trade: a decode-like common pattern at
+limit 200 ends partial with about 149 rows and one resume completes it.
+`TestEntityPolicyClasses` pins every S1 class, including the 13.1 MB value:
+a tail cancel that fires 30-170 ms into the tail waits for its recheck. At the
+default budget the entity tail timeout is about 638 ms, outside that window.
 
 `TestFileRouteGolden` and `TestEntityRouteGolden` pin each route's observable
 output byte for byte (page rows, partial object, every statement text and
@@ -43,6 +64,8 @@ TestFileRouteGolden -args -update-golden` (or `TestEntityRouteGolden`) only
 for an intended contract change of that route.
 
 ## Flow
+
+The chart shows the file figures; the entity figures are in the table above.
 
 ```mermaid
 flowchart TD
