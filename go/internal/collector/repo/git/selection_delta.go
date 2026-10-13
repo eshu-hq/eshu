@@ -4,9 +4,12 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -285,4 +288,54 @@ func sortUniquePathStrings(values []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+func cloneRepository(
+	ctx context.Context,
+	config RepoSyncConfig,
+	repoID string,
+	repoPath string,
+	token string,
+	logger *slog.Logger,
+	event gitSyncLogEvent,
+) (bool, error) {
+	event = event.withOperation("clone")
+	logGitSyncStarted(ctx, logger, event)
+	remoteURL := repoRemoteURL(config, repoID)
+	if remoteURL == "" {
+		err := fmt.Errorf("build remote URL for %q", repoID)
+		logGitSyncFailed(ctx, logger, event, err)
+		return false, err
+	}
+	if err := os.MkdirAll(filepath.Dir(repoPath), 0o750); err != nil { // #nosec G301 -- internal git checkout parent directory
+		logGitSyncFailed(ctx, logger, event, err)
+		return false, err
+	}
+	var stderr bytes.Buffer
+	progress := newGitProgressWriter(ctx, logger, event, &stderr)
+	if err := deadline.Run(ctx, config.GitDeadlines, deadline.Clone, func(deadlineCtx context.Context) *exec.Cmd {
+		command := newGitCommand(
+			deadlineCtx,
+			append(config.GitDeadlines.LowSpeedArgs(),
+				"clone",
+				"--progress",
+				fmt.Sprintf("--depth=%d", config.CloneDepth),
+				"--single-branch",
+				remoteURL,
+				repoPath,
+			)...,
+		)
+		command.Env = gitCommandEnv(config, token, repoPath)
+		command.Stderr = progress
+		return command
+	}); err != nil {
+		progress.Flush()
+		_ = os.RemoveAll(repoPath)
+		wrapped := fmt.Errorf("clone %q: %w: %s", repoID, err, sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())))
+		logGitSyncFailed(ctx, logger, event, wrapped)
+		return false, wrapped
+	}
+	progress.Flush()
+	logGitSyncCompleted(ctx, logger, event, true)
+	return true, nil
 }
