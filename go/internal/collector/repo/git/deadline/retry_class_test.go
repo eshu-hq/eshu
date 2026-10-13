@@ -43,7 +43,21 @@ func TestClassifyClosedTable(t *testing.T) {
 		{"ssh connect timed out", nil, "ssh: connect to host github.com port 22: Connection timed out\nfatal: Could not read from remote repository.", ClassConnect, true},
 		{"ssh banner exchange", nil, "kex_exchange_identification: Connection closed by remote host\nfatal: Could not read from remote repository.", ClassConnectionReset, true},
 
+		// Real stderr of a connection cut mid-transfer, captured from git against
+		// git http-backend (#8091 review F1): the transport line comes first and
+		// git's pack follow-on lines come after it, so the class is the transport's.
+		{"real: content-length cut in the pack header", nil, "error: RPC failed; curl 18 transfer closed with 820247 bytes remaining to read\nerror: 29 bytes of body are still expected\nfetch-pack: unexpected disconnect while reading sideband packet\nfatal: protocol error: bad pack header", ClassConnectionReset, true},
+		{"real: content-length cut at 70 percent of the pack", nil, "remote: Enumerating objects: 4, done.\nremote: Counting objects: 100% (4/4), done.\nremote: Compressing objects: 100% (4/4), done.\nerror: RPC failed; curl 18 transfer closed with 246080 bytes remaining to read\nerror: 15892 bytes of body are still expected\nfetch-pack: unexpected disconnect while reading sideband packet\nfatal: early EOF\nfatal: unpack-objects failed", ClassConnectionReset, true},
+		{"real: chunked cut at 70 percent of the pack", nil, "remote: Enumerating objects: 4, done.\nremote: Compressing objects: 100% (4/4), done.\nerror: RPC failed; curl 18 transfer closed with outstanding read data remaining\nerror: 15894 bytes of body are still expected\nfetch-pack: unexpected disconnect while reading sideband packet\nfatal: early EOF\nfatal: unpack-objects failed", ClassConnectionReset, true},
+		{"recv failure then early EOF and index-pack failed", nil, "error: RPC failed; curl 56 Recv failure: Connection reset by peer\nfatal: the remote end hung up unexpectedly\nfatal: early EOF\nfatal: index-pack failed", ClassConnectionReset, true},
+		{"curl 28 low-speed abort", nil, "error: RPC failed; curl 28 Operation too slow. Less than 1 bytes/sec transferred the last 60 seconds\nfatal: the remote end hung up unexpectedly", ClassLowSpeedAbort, true},
+		{"curl 92 http2 stream not closed cleanly", nil, "error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly: CANCEL (err 8)\nfatal: expected flush after ref listing", ClassHTTP2Framing, true},
+
 		// Not retryable.
+		{"pack follow-on lines without a transport line", nil, "fatal: early EOF\nfatal: unpack-objects failed", ClassPackObject, false},
+		{"bad pack header without a transport line", nil, "fatal: protocol error: bad pack header", ClassPackObject, false},
+		{"a true integrity error beside a transport line is not retried", nil, "error: RPC failed; curl 56 Recv failure: Connection reset by peer\nfatal: bad object 0123456789abcdef0123456789abcdef01234567", ClassPackObject, false},
+		{"early EOF alone is not named", nil, "fatal: early EOF", ClassOther, false},
 		{"hung up alone", nil, "fatal: the remote end hung up unexpectedly", ClassOther, false},
 		{"http 403", nil, "fatal: unable to access 'https://github.com/o/r.git/': The requested URL returned error: 403", ClassAuth, false},
 		{"http 401", nil, "remote: Invalid username or password.\nfatal: Authentication failed for 'https://github.com/o/r.git/'", ClassAuth, false},

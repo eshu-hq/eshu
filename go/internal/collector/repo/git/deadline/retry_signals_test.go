@@ -4,6 +4,7 @@
 package deadline
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -95,5 +96,47 @@ func TestRunRetryingSignalsOfANonRetryableFailure(t *testing.T) {
 	warns := h.recordsWithMessage(t, "git command attempt failed")
 	if len(warns) != 1 || warns[0]["failure_class"] != "auth_failed" || warns[0]["will_retry"] != false {
 		t.Fatalf("WARN lines = %v, want one auth_failed line with will_retry=false", warns)
+	}
+}
+
+// TestFirstErrorLine proves the logged "first line of the underlying error" is
+// the error, not the --progress noise that comes before it in a failed fetch or
+// clone (#8091 review F2): fatal: and error: lines outrank ssh:, which outranks
+// a meaningful remote: line, and remote: progress lines are skipped.
+func TestFirstErrorLine(t *testing.T) {
+	rows := []struct {
+		name   string
+		stderr string
+		want   string
+	}{
+		{
+			"fetch shape: progress first",
+			"remote: Enumerating objects: 4, done.\nremote: Counting objects: 100% (4/4), done.\nremote: Compressing objects: 100% (4/4), done.\nerror: RPC failed; curl 18 transfer closed with outstanding read data remaining\nfatal: early EOF",
+			"error: RPC failed; curl 18 transfer closed with outstanding read data remaining",
+		},
+		{
+			"clone shape: cloning line and progress first",
+			"Cloning into '/data/repos/org/repo'...\nremote: Enumerating objects: 9, done.\nfatal: unable to access 'https://github.com/org/repo.git/': Could not resolve host: github.com",
+			"fatal: unable to access 'https://github.com/org/repo.git/': Could not resolve host: github.com",
+		},
+		{
+			"fatal outranks ssh and remote lines",
+			"remote: Total 4 (delta 0), reused 0 (delta 0)\nssh: connect to host github.com port 22: Connection timed out\nfatal: Could not read from remote repository.",
+			"fatal: Could not read from remote repository.",
+		},
+		{
+			"a meaningful remote line beats a bare first line",
+			"Fetching origin\nremote: Repository not found.",
+			"remote: Repository not found.",
+		},
+		{"progress only falls back to the first line", "remote: Enumerating objects: 4, done.", "remote: Enumerating objects: 4, done."},
+		{"empty stderr falls back to the error", "", "exit status 128"},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			if got := firstErrorLine(row.stderr, errors.New("exit status 128")); got != row.want {
+				t.Fatalf("firstErrorLine() = %q, want %q", got, row.want)
+			}
+		})
 	}
 }

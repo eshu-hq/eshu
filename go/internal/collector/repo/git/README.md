@@ -106,14 +106,20 @@ checkout can legitimately take long and cannot wait on DNS. `fetch` and
 itself; they are argv options and never touch the credential header in
 `GIT_CONFIG_KEY_0`.
 
-On expiry git and its remote-https helper die together, the error names the
-deadline and the elapsed time, and a clone, default-branch fetch, or ref-listing
-failure takes the existing isolated path:
-`git repository sync failed` (with `failure_class=deadline_exceeded`,
-`deadline_operation`, `deadline_seconds`, `elapsed_seconds`,
-`repository_index`), `eshu_dp_git_repo_sync_failures_total`, and a retry next
-cycle. `eshu_dp_git_command_deadline_exceeded_total{operation}` counts the
-kills. A shutdown cancel is the context error, not a deadline. A killed command
+On expiry git and its remote-https helper die together and the error names
+the deadline and the elapsed time. A deadline kill is one attempt of the
+bounded retry (#8091): the command runs again, up to
+`ESHU_GIT_RETRY_ATTEMPTS` times and within `ESHU_GIT_RETRY_SWEEP_BUDGET`
+retries per sweep, with a `git command attempt failed` WARN per failed attempt.
+Only after the last attempt does a clone, default-branch fetch, or ref-listing
+failure take the existing isolated path: one
+`git repository sync failed` line per repository failure (with
+`failure_class=deadline_exceeded`, `deadline_operation`, `deadline_seconds`,
+`elapsed_seconds`, `attempts`, `repository_index`), one
+`eshu_dp_git_repo_sync_failures_total` increment, and a retry next cycle.
+`eshu_dp_git_command_deadline_exceeded_total{operation}` counts one per killed
+attempt, so a repository that recovered on its retry counts a kill and has no
+sync-failed line. See `deadline/README.md`. A shutdown cancel is the context error, not a deadline. A killed command
 adds nothing to `SelectedRepoPaths`, so no generation is built for that
 repository this cycle. The shallow.lock retry fetch carries its own deadline. A
 pinned-ref fetch that hits its deadline (two fetches per pinned ref, branch

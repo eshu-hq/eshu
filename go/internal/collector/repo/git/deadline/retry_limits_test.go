@@ -4,8 +4,10 @@
 package deadline
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestJitterStaysWithinABand proves the backoff jitter keeps the wait within a
@@ -61,5 +63,37 @@ func TestRetryLimitsFromEnv(t *testing.T) {
 		return ""
 	}); err == nil {
 		t.Error("FromEnv(attempts=6) error = nil, want a refusal: attempts times the deadline must stay bounded")
+	}
+}
+
+// TestRunRetryingAppliesJitterToTheBackoff proves the loop spreads its wait: a
+// command with no Jitter override sleeps within 75% to 125% of the base, and
+// the waits are not all one value.
+func TestRunRetryingAppliesJitterToTheBackoff(t *testing.T) {
+	var waits []time.Duration
+	limits := fastLimits
+	limits.RetryBackoff = 4 * time.Second
+	for i := 0; i < 30; i++ {
+		run := &scripted{outcome: []string{dnsStderr, "ok"}}
+		command := Command{
+			Operation: Fetch, Host: "github.com", Scope: "github/o/r",
+			Build:  run.build,
+			Stderr: func() string { return run.stderr.String() },
+			Sleep:  func(_ context.Context, d time.Duration) error { waits = append(waits, d); return nil },
+		}
+		if err := RunRetrying(context.Background(), limits, command); err != nil {
+			t.Fatalf("RunRetrying() error = %v", err)
+		}
+	}
+	lo, hi := limits.RetryBackoff*3/4, limits.RetryBackoff*5/4
+	distinct := map[time.Duration]bool{}
+	for _, d := range waits {
+		if d < lo || d > hi {
+			t.Fatalf("backoff %s outside [%s, %s]", d, lo, hi)
+		}
+		distinct[d] = true
+	}
+	if len(waits) != 30 || len(distinct) < 2 {
+		t.Fatalf("waits = %d, distinct = %d; want 30 waits that are not one value", len(waits), len(distinct))
 	}
 }

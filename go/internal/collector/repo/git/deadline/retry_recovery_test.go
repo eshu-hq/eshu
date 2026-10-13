@@ -177,3 +177,28 @@ func TestRunRetryingShutdownDuringBackoffStops(t *testing.T) {
 		t.Fatalf("%s = %v after a shutdown, want none", retriesMetric, got)
 	}
 }
+
+// TestRunRetryingShutdownDuringAnAttemptIsNotAFailure proves a parent cancel
+// that kills a running attempt is a shutdown: no attempt is counted, no WARN
+// is written, and nothing is retried.
+func TestRunRetryingShutdownDuringAnAttemptIsNotAFailure(t *testing.T) {
+	h := newRetryHarness(t, fastLimits)
+	ctx, cancel := context.WithCancel(h.ctx)
+	time.AfterFunc(150*time.Millisecond, cancel)
+	var calls int
+	command := h.command(&scripted{outcome: []string{"ok"}}, Fetch)
+	command.Build = func(c context.Context) *exec.Cmd {
+		calls++
+		return exec.CommandContext(c, "sleep", "5")
+	}
+
+	if err := RunRetrying(ctx, fastLimits, command); err == nil || calls != 1 {
+		t.Fatalf("RunRetrying() = %v after %d attempts, want the cancel error after 1", err, calls)
+	}
+	if got := h.series(t, attemptsMetric); len(got) != 0 {
+		t.Fatalf("%s = %v after a shutdown, want none", attemptsMetric, got)
+	}
+	if got := h.recordsWithMessage(t, "git command attempt failed"); len(got) != 0 {
+		t.Fatalf("WARN lines after a shutdown = %v, want none", got)
+	}
+}

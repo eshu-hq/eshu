@@ -241,3 +241,85 @@ func counterByLabel(t *testing.T, reader *metric.ManualReader, name, label strin
 	}
 	return out
 }
+
+// writeAttemptGit installs a fake git that counts its invocations in a state
+// file and runs the first shell branch on invocation 1 and the second on every
+// later one. The branches are shell text run for the git subcommand under test.
+func writeAttemptGit(t *testing.T, subcommand, firstAttempt, laterAttempts string) {
+	t.Helper()
+	binDir, stateDir := t.TempDir(), t.TempDir()
+	script := `#!/bin/sh
+case "$*" in
+	*"` + subcommand + `"*)
+		n=$(cat "` + stateDir + `/n" 2>/dev/null || echo 0)
+		n=$((n+1))
+		echo "$n" > "` + stateDir + `/n"
+		if [ "$n" = 1 ]; then
+` + firstAttempt + `
+		else
+` + laterAttempts + `
+		fi
+		;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake git: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+const resolverStderrShell = `echo "fatal: unable to access 'https://github.com/org/repo-a.git/': Could not resolve host: github.com" >&2; exit 128`
+
+// TestRetriedCommandStartsEachAttemptWithEmptyBuffers proves the runner's
+// shared output buffers are reset per attempt. An ls-remote killed after it
+// wrote a ref line must not leave that line in front of the retry's output, and
+// a retry that fails silently must be classified on its own empty stderr, not
+// on the first attempt's resolver text.
+func TestRetriedCommandStartsEachAttemptWithEmptyBuffers(t *testing.T) {
+	limits := retryTestLimits(0)
+	limits.Resolve = 400 * time.Millisecond
+	repoPath := t.TempDir()
+	reposDir := filepath.Dir(repoPath)
+	config := syncIsolationTestConfig(reposDir)
+	config.GitDeadlines = limits
+	ref := "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\trefs/heads/main"
+
+	t.Run("stdout of a killed attempt is dropped", func(t *testing.T) {
+		writeAttemptGit(t, "ls-remote",
+			`printf "`+ref+`\n"; sleep 30 & wait`,
+			`printf "`+ref+`\n"; exit 0`)
+		out, err := gitRunRemote(context.Background(), deadline.LsRemote, repoPath, config, "", "ls-remote", "origin")
+		if err != nil {
+			t.Fatalf("gitRunRemote() error = %v, want recovery on attempt 2", err)
+		}
+		if want := strings.ReplaceAll(ref, `\t`, "\t"); out != want {
+			t.Fatalf("ls-remote output = %q, want one copy of %q: attempt 1's stdout leaked into attempt 2", out, want)
+		}
+	})
+
+	t.Run("stderr of the first attempt does not classify the second", func(t *testing.T) {
+		writeAttemptGit(t, "fetch", resolverStderrShell, `exit 1`)
+		_, err := gitRunRemote(context.Background(), deadline.Fetch, repoPath, config, "", "fetch", "origin")
+		var failure *deadline.Failure
+		if !errors.As(err, &failure) || failure.Attempts != 2 || failure.Class != deadline.ClassOther {
+			t.Fatalf("error = %v (%+v), want a git_sync_failure Failure after 2 attempts: attempt 2 wrote nothing", err, failure)
+		}
+	})
+}
+
+// TestRetriedCloneStartsEachAttemptWithAnEmptyStderr is the clone half of the
+// same rule: cloneRepository keeps one stderr buffer across attempts, and the
+// final failure must be classified on the last attempt's text only.
+func TestRetriedCloneStartsEachAttemptWithAnEmptyStderr(t *testing.T) {
+	reposDir := t.TempDir()
+	repoPath := filepath.Join(reposDir, "github", "org", "repo-a")
+	writeAttemptGit(t, "clone", resolverStderrShell, `exit 1`)
+	config := syncIsolationTestConfig(reposDir)
+	config.GitDeadlines = retryTestLimits(0)
+
+	_, err := cloneRepository(context.Background(), config, "github/org/repo-a", repoPath, "", nil, gitSyncLogEvent{})
+	var failure *deadline.Failure
+	if !errors.As(err, &failure) || failure.Attempts != 2 || failure.Class != deadline.ClassOther {
+		t.Fatalf("error = %v (%+v), want a git_sync_failure Failure after 2 attempts: attempt 2 wrote nothing", err, failure)
+	}
+}

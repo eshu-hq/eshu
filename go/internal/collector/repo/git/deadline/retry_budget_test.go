@@ -103,6 +103,31 @@ func TestSweepBudgetHoldsUnderConcurrentOperations(t *testing.T) {
 	}
 }
 
+// TestRunRetryingRefundsTheBudgetWhenCleanupFails proves a retry that was
+// drawn but never started (BeforeRetry failed) gives its budget back: with a
+// budget of one, a failed cleanup must not strand the next command without a
+// retry.
+func TestRunRetryingRefundsTheBudgetWhenCleanupFails(t *testing.T) {
+	limits := fastLimits
+	limits.RetrySweepBudget = 1
+	h := newRetryHarness(t, limits)
+
+	broken := &scripted{outcome: []string{dnsStderr, "ok"}}
+	command := h.command(broken, Clone)
+	command.BeforeRetry = func() error { return errors.New("cannot remove partial clone") }
+	if err := RunRetrying(h.ctx, limits, command); err == nil || broken.callCount() != 1 {
+		t.Fatalf("failed cleanup: err = %v, attempts = %d, want the original failure after 1 attempt", err, broken.callCount())
+	}
+
+	next := &scripted{outcome: []string{dnsStderr, "ok"}}
+	if err := RunRetrying(h.ctx, limits, h.command(next, Fetch)); err != nil || next.callCount() != 2 {
+		t.Fatalf("next command: err = %v, attempts = %d; want its retry, the refunded budget", err, next.callCount())
+	}
+	if got := h.series(t, exhaustedMetric); len(got) != 0 {
+		t.Fatalf("%s = %v, want none: the budget was refunded", exhaustedMetric, got)
+	}
+}
+
 // TestSweepTakeNeverExceedsTheBudget races many goroutines for the last retry
 // of a budget, round after round: exactly one wins each round, never two. A
 // check-then-decrement counter overdraws here; the compare-and-swap loop does

@@ -166,25 +166,34 @@ func exitStatus(err error) string {
 	return ""
 }
 
-// firstErrorLine is the first line of the underlying error: the first stderr
-// line git or ssh prefixes as an error, else the first non-empty line, else
-// the error text. It is cut at maxErrorLine bytes. stderr arrives redacted.
+// firstErrorLine is the first line of the underlying error. Fetch and clone
+// run with --progress, so remote progress lines come first in a failed run:
+// the pick is the first fatal: or error: line, else the first ssh: line, else
+// the first remote: line that is not progress, else the first non-empty line,
+// else the error text. It is cut at maxErrorLine bytes. stderr arrives
+// redacted.
 func firstErrorLine(stderr string, err error) string {
-	var first string
-	for _, line := range strings.FieldsFunc(stderr, func(r rune) bool { return r == '\n' || r == '\r' }) {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+	lines := strings.FieldsFunc(stderr, func(r rune) bool { return r == '\n' || r == '\r' })
+	for i, line := range lines {
+		lines[i] = strings.TrimSpace(line)
+	}
+	pick := func(match func(lower string) bool) string {
+		for _, line := range lines {
+			if line != "" && match(strings.ToLower(line)) {
+				return line
+			}
 		}
-		lower := strings.ToLower(line)
-		if strings.HasPrefix(lower, "fatal:") || strings.HasPrefix(lower, "error:") ||
-			strings.HasPrefix(lower, "ssh:") || strings.HasPrefix(lower, "remote:") {
-			first = line
-			break
-		}
-		if first == "" {
-			first = line
-		}
+		return ""
+	}
+	first := pick(func(l string) bool { return strings.HasPrefix(l, "fatal:") || strings.HasPrefix(l, "error:") })
+	if first == "" {
+		first = pick(func(l string) bool { return strings.HasPrefix(l, "ssh:") })
+	}
+	if first == "" {
+		first = pick(func(l string) bool { return strings.HasPrefix(l, "remote:") && !remoteProgress(l) })
+	}
+	if first == "" {
+		first = pick(func(string) bool { return true })
 	}
 	if first == "" && err != nil {
 		first = err.Error()
@@ -193,4 +202,18 @@ func firstErrorLine(stderr string, err error) string {
 		first = first[:maxErrorLine]
 	}
 	return first
+}
+
+// remoteProgress reports a remote: line git prints for --progress, never an
+// error.
+func remoteProgress(lower string) bool {
+	for _, prefix := range []string{
+		"remote: enumerating objects", "remote: counting objects",
+		"remote: compressing objects", "remote: total ", "remote: resolving deltas",
+	} {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	return false
 }
