@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 )
 
 // bootstrapArgs is the eshu-bootstrap-index argv contract the CLI relies on.
@@ -71,4 +73,26 @@ func bootstrapUsage() string {
 	return "Usage: eshu-bootstrap-index [--path <root>] [--force]\n\n" +
 		"  --path <root>  Workspace root to index.\n" +
 		"  --force, -f    Re-index from scratch even when the source looks unchanged.\n"
+}
+
+// applyBootstrapArgOverrides applies the eshu-bootstrap-index argv contract to
+// the environment-derived sync config (#7982). A --path value names the
+// filesystem root the bootstrap child indexes, implying filesystem source mode
+// when the environment left another mode. A --force value marks every selected
+// repository for a full re-parse through the repository_reindex_requested
+// reason path instead of the manifest skip.
+func applyBootstrapArgOverrides(config *git.RepoSyncConfig, cliArgs bootstrapArgs) {
+	if config == nil {
+		return
+	}
+	if path := strings.TrimSpace(cliArgs.Path); path != "" {
+		config.FilesystemRoot = path
+		if strings.TrimSpace(config.SourceMode) != "filesystem" {
+			config.SourceMode = "filesystem"
+		}
+		git.NormalizeFilesystemConfigForBootstrap(config)
+	}
+	if cliArgs.Force {
+		config.ForceReindex = true
+	}
 }
