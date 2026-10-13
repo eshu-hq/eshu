@@ -1,0 +1,25 @@
+AGENTS.md
+  s_b0d7e3abc26c5a::t_11404b8c344988 118,120-123
+  s_b0d7e3abc26c5a::t_4b7f0064ada445 119
+docs/internal/agent-investigation-budget.md
+  s_b0d7e3abc26c5a::t_11404b8c344988 1-10,14-21,23-32,36-37,41-43
+  s_b0d7e3abc26c5a::t_b26c3882aefa3c 13,33,35,38-40
+  s_b0d7e3abc26c5a::t_48536b4b76f52a 22
+  s_b0d7e3abc26c5a::t_4b7f0064ada445 11-12,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8686d9cf4084127643cf56e63ab73a972b957bb",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
