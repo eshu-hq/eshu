@@ -203,15 +203,17 @@ func cloneRepository(
 	}
 	var stderr bytes.Buffer
 	progress := newGitProgressWriter(ctx, logger, event, &stderr)
-	if err := deadline.Run(ctx, config.GitDeadlines, "clone", func(deadlineCtx context.Context) *exec.Cmd {
+	if err := deadline.Run(ctx, config.GitDeadlines, deadline.Clone, func(deadlineCtx context.Context) *exec.Cmd {
 		command := newGitCommand(
 			deadlineCtx,
-			"clone",
-			"--progress",
-			fmt.Sprintf("--depth=%d", config.CloneDepth),
-			"--single-branch",
-			remoteURL,
-			repoPath,
+			append(config.GitDeadlines.LowSpeedArgs(),
+				"clone",
+				"--progress",
+				fmt.Sprintf("--depth=%d", config.CloneDepth),
+				"--single-branch",
+				remoteURL,
+				repoPath,
+			)...,
 		)
 		command.Env = gitCommandEnv(config, token, repoPath)
 		command.Stderr = progress
@@ -389,14 +391,15 @@ func gitFetchBranch(
 	if err != nil {
 		return err
 	}
-	args := []string{"fetch", "--progress", "origin", fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch)}
+	args := append(config.GitDeadlines.LowSpeedArgs(), "fetch", "--progress", "origin",
+		fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch))
 	if probeRef != "" {
 		args = append(args, "+HEAD:"+probeRef)
 	}
 	args = append(args, fmt.Sprintf("--depth=%d", config.CloneDepth))
 	fetch := func() error {
 		_, err := gitRunWithStderrWriter(ctx, repoPath, config, token,
-			newGitProgressWriter(ctx, logger, event, nil), args...)
+			newGitProgressWriter(ctx, logger, event, nil), deadline.Fetch, args...)
 		return err
 	}
 	if err = fetch(); err == nil || !recoverStaleGitShallowLock(repoPath, err) {
@@ -452,16 +455,6 @@ func gitRevParse(
 		return "", err
 	}
 	return strings.TrimSpace(output), nil
-}
-
-func gitRun(
-	ctx context.Context,
-	repoPath string,
-	config RepoSyncConfig,
-	token string,
-	args ...string,
-) (string, error) {
-	return gitRunWithStderrWriter(ctx, repoPath, config, token, nil, args...)
 }
 
 // skipParse runs the pre-parse decision after the fetch (#7978 follow-up,

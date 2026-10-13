@@ -24,15 +24,16 @@ var FoldedEnvKeys = map[string]string{
 // Scheduling and concurrency knobs, credentials, and repository selection only
 // decide when, how fast, or which repositories are snapshotted.
 var NonOutputEnvKeys = map[string]string{
-	"SCIP_WORKERS":                   "SCIP indexing concurrency",
-	"ESHU_PARSE_WORKERS":             "parse concurrency; output is partition-order independent",
-	"ESHU_SNAPSHOT_WORKERS":          "snapshot concurrency",
-	"ESHU_LARGE_REPO_FILE_THRESHOLD": "large-repository scheduling class",
-	"ESHU_LARGE_REPO_MAX_CONCURRENT": "large-repository concurrency cap",
-	"ESHU_STREAM_BUFFER":             "fact stream channel size",
-	"ESHU_CLONE_DEPTH":               "clone history depth; per-file commit facts carry the head commit",
-	"ESHU_GIT_FETCH_TIMEOUT_SECONDS": "per-command git deadline; a killed command fails the cycle and emits no snapshot",
-	"ESHU_GIT_CLONE_TIMEOUT_SECONDS": "clone deadline; a killed clone fails the cycle and emits no snapshot",
+	"SCIP_WORKERS":                     "SCIP indexing concurrency",
+	"ESHU_PARSE_WORKERS":               "parse concurrency; output is partition-order independent",
+	"ESHU_SNAPSHOT_WORKERS":            "snapshot concurrency",
+	"ESHU_LARGE_REPO_FILE_THRESHOLD":   "large-repository scheduling class",
+	"ESHU_LARGE_REPO_MAX_CONCURRENT":   "large-repository concurrency cap",
+	"ESHU_STREAM_BUFFER":               "fact stream channel size",
+	"ESHU_CLONE_DEPTH":                 "clone history depth; per-file commit facts carry the head commit",
+	"ESHU_GIT_RESOLVE_TIMEOUT_SECONDS": "per-command git deadline; a killed command fails the cycle and emits no snapshot",
+	"ESHU_GIT_FETCH_TIMEOUT_SECONDS":   "per-command git deadline; a killed command fails the cycle and emits no snapshot",
+	"ESHU_GIT_CLONE_TIMEOUT_SECONDS":   "clone deadline; a killed clone fails the cycle and emits no snapshot",
 
 	"ESHU_GIT_AUTH_METHOD":            "credential",
 	"ESHU_GIT_TOKEN":                  "credential",

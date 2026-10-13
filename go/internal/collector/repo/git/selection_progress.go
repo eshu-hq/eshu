@@ -159,18 +159,16 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 	if logger == nil {
 		return
 	}
-	attrs := append(
-		event.eventAttrs(time.Now()),
-		slog.String("error", sanitizeGitProgressMessage(err.Error())),
-		telemetry.FailureClassAttr("git_sync_failure"),
-	)
+	attrs := append(event.eventAttrs(time.Now()), slog.String("error", sanitizeGitProgressMessage(err.Error())))
 	var deadlineErr *deadline.Error
 	if errors.As(err, &deadlineErr) {
 		attrs = append(attrs,
-			slog.Bool("deadline_exceeded", true),
-			slog.String("git_command", deadlineErr.Command),
+			telemetry.FailureClassAttr("deadline_exceeded"),
+			slog.String("deadline_operation", deadlineErr.Operation),
 			slog.Float64("deadline_seconds", deadlineErr.Limit.Seconds()),
 		)
+	} else {
+		attrs = append(attrs, telemetry.FailureClassAttr("git_sync_failure"))
 	}
 	logger.ErrorContext(ctx, "git repository sync failed", attrs...)
 }
@@ -288,12 +286,18 @@ func gitProgressLineIsTerminal(message string) bool {
 // operations can log progress while still returning the sanitized error text
 // on failure. Colocated with the rest of this file's progress/stderr
 // plumbing rather than in selection_cli.go's clone/fetch control flow.
+//
+// A non-empty operation (one of the deadline package's closed set) runs the
+// command under that operation's deadline (#8052); an empty operation is a
+// purely local command and runs unbounded, because a local checkout or status
+// can legitimately take long and cannot wait on the network.
 func gitRunWithStderrWriter(
 	ctx context.Context,
 	repoPath string,
 	config RepoSyncConfig,
 	token string,
 	stderrWriter io.Writer,
+	operation string,
 	args ...string,
 ) (string, error) {
 	commandArgs := make([]string, 0, len(args)+2)
@@ -301,12 +305,8 @@ func gitRunWithStderrWriter(
 	commandArgs = append(commandArgs, args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	subcommand := ""
-	if len(args) > 0 {
-		subcommand = args[0]
-	}
-	if err := deadline.Run(ctx, config.GitDeadlines, subcommand, func(deadlineCtx context.Context) *exec.Cmd {
-		command := newGitCommand(deadlineCtx, commandArgs...)
+	build := func(commandCtx context.Context) *exec.Cmd {
+		command := newGitCommand(commandCtx, commandArgs...)
 		command.Env = gitCommandEnv(config, token, repoPath)
 		command.Stdout = &stdout
 		if stderrWriter != nil {
@@ -315,7 +315,14 @@ func gitRunWithStderrWriter(
 			command.Stderr = &stderr
 		}
 		return command
-	}); err != nil {
+	}
+	var runErr error
+	if operation == "" {
+		runErr = build(ctx).Run()
+	} else {
+		runErr = deadline.Run(ctx, config.GitDeadlines, operation, build)
+	}
+	if err := runErr; err != nil {
 		flushProgressWriter(stderrWriter)
 		return "", fmt.Errorf(
 			"git %s: %w: %s",
@@ -326,6 +333,29 @@ func gitRunWithStderrWriter(
 	}
 	flushProgressWriter(stderrWriter)
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+func gitRun(
+	ctx context.Context,
+	repoPath string,
+	config RepoSyncConfig,
+	token string,
+	args ...string,
+) (string, error) {
+	return gitRunWithStderrWriter(ctx, repoPath, config, token, nil, "", args...)
+}
+
+// gitRunRemote runs a network-capable git command under the deadline of its
+// operation (a deadline.Fetch, deadline.LsRemote, or deadline.Resolve value).
+func gitRunRemote(
+	ctx context.Context,
+	operation string,
+	repoPath string,
+	config RepoSyncConfig,
+	token string,
+	args ...string,
+) (string, error) {
+	return gitRunWithStderrWriter(ctx, repoPath, config, token, nil, operation, args...)
 }
 
 func flushProgressWriter(writer io.Writer) {

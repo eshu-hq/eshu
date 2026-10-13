@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 )
 
 // How a sync detected that the remote default branch changed (#7678); the
@@ -123,7 +125,7 @@ func adoptDefaultBranch(
 // remoteDefaultBranch asks the remote which branch its HEAD names. It returns
 // an empty name when HEAD names no branch.
 func remoteDefaultBranch(ctx context.Context, config RepoSyncConfig, repoPath string, token string) (string, error) {
-	output, err := gitRun(ctx, repoPath, config, token, "ls-remote", "--symref", "origin", "HEAD")
+	output, err := gitRunRemote(ctx, deadline.Resolve, repoPath, config, token, "ls-remote", "--symref", "origin", "HEAD")
 	if err != nil {
 		return "", err
 	}

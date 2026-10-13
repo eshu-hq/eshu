@@ -40,7 +40,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.GenerationRetentionFailures, "GenerationRetentionFailures counter should be registered")
 	assert.NotNil(t, inst.GenerationRetentionSkipped, "GenerationRetentionSkipped counter should be registered")
 	assert.NotNil(t, inst.GitRepoSyncFailures, "GitRepoSyncFailures counter should be registered")
-	assert.NotNil(t, inst.GitFetchDeadlineExceeded, "GitFetchDeadlineExceeded counter should be registered")
+	assert.NotNil(t, inst.GitCommandDeadlineExceeded, "GitCommandDeadlineExceeded counter should be registered")
 	assert.NotNil(t, inst.GraphOversizedIndexKeysSkipped, "GraphOversizedIndexKeysSkipped counter should be registered")
 	assert.NotNil(t, inst.GraphIndexKeyGuardUnanalyzed, "GraphIndexKeyGuardUnanalyzed counter should be registered")
 	assert.NotNil(t, inst.DeltaBaselineFallbacks, "DeltaBaselineFallbacks counter should be registered")

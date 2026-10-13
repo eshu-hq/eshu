@@ -409,12 +409,12 @@ type Instruments struct {
 	// in the paired git_sync_failure log line.
 	GitRepoSyncFailures    metric.Int64Counter
 	DeltaBaselineFallbacks metric.Int64Counter
-	// GitFetchDeadlineExceeded counts git commands the sync loop killed
+	// GitCommandDeadlineExceeded counts git commands the sync loop killed
 	// because they ran past their per-command deadline (#8052). Labels:
-	// operation (bounded: clone, fetch, ls_remote, other). One increment per
+	// operation (bounded: clone, fetch, ls_remote, resolve). One increment per
 	// killed command; a shutdown cancel is never counted. Repository identity
 	// stays in the paired git repository sync failed log line.
-	GitFetchDeadlineExceeded metric.Int64Counter
+	GitCommandDeadlineExceeded metric.Int64Counter
 	// ReconciliationFullSnapshots counts git scopes the periodic sweep forced
 	// to a full reconciliation snapshot. Labels: reason (bounded:
 	// never_reconciled, interval_elapsed, in_flight_expired,
@@ -2764,12 +2764,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register GitRepoSyncFailures counter: %w", err)
 	}
 
-	inst.GitFetchDeadlineExceeded, err = meter.Int64Counter(
-		"eshu_dp_git_fetch_deadline_exceeded_total",
-		metric.WithDescription("Total git commands the sync loop killed at their per-command deadline, by bounded operation (clone, fetch, ls_remote, other)"),
+	inst.GitCommandDeadlineExceeded, err = meter.Int64Counter(
+		"eshu_dp_git_command_deadline_exceeded_total",
+		metric.WithDescription("Total git commands the sync loop killed at their per-command deadline, by bounded operation (clone, fetch, ls_remote, resolve)"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register GitFetchDeadlineExceeded counter: %w", err)
+		return nil, fmt.Errorf("register GitCommandDeadlineExceeded counter: %w", err)
 	}
 
 	inst.DeltaBaselineFallbacks, err = meter.Int64Counter(

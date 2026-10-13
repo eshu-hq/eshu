@@ -16,11 +16,7 @@ import (
 	"testing"
 	"time"
 
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -168,37 +164,9 @@ func assertStallShimGone(t *testing.T, pidDir string) {
 	}
 }
 
-// counterByOperation sums an int64 counter by its operation label.
-func counterByOperation(t *testing.T, reader *sdkmetric.ManualReader, name string) map[string]int64 {
-	t.Helper()
-	var rm metricdata.ResourceMetrics
-	if err := reader.Collect(context.Background(), &rm); err != nil {
-		t.Fatalf("Collect() error = %v", err)
-	}
-	out := map[string]int64{}
-	for _, scope := range rm.ScopeMetrics {
-		for _, m := range scope.Metrics {
-			if m.Name != name {
-				continue
-			}
-			sum, ok := m.Data.(metricdata.Sum[int64])
-			if !ok {
-				t.Fatalf("%s data = %T, want Sum[int64]", name, m.Data)
-			}
-			for _, dp := range sum.DataPoints {
-				op, _ := dp.Attributes.Value(telemetry.MetricDimensionOperation)
-				out[op.AsString()] += dp.Value
-			}
-		}
-	}
-	return out
-}
-
-const deadlineCounterName = "eshu_dp_git_fetch_deadline_exceeded_total"
-
 func stallTestConfig(reposDir string) RepoSyncConfig {
 	config := syncIsolationTestConfig(reposDir)
-	config.GitDeadlines = deadline.Limits{Fetch: testGitDeadline, Clone: testGitDeadline}
+	config.GitDeadlines = deadline.Limits{Resolve: testGitDeadline, Fetch: testGitDeadline, Clone: testGitDeadline}
 	return config
 }
 
@@ -213,7 +181,7 @@ func TestGitCommandDeadlineKillsStalledFetch(t *testing.T) {
 
 	start := time.Now()
 	err := within(t, stallReturnBound, "gitRunWithStderrWriter(fetch)", func() error {
-		_, runErr := gitRunWithStderrWriter(ctx, repoPath, config, "", nil, "fetch", "origin")
+		_, runErr := gitRunWithStderrWriter(ctx, repoPath, config, "", nil, deadline.Fetch, "fetch", "origin")
 		return runErr
 	})
 	elapsed := time.Since(start)

@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 )
 
 // createRefWorktrees fetches pinned refs (branches or tags) and creates
@@ -207,9 +209,9 @@ func gitFetchPinnedRef(
 	branchRemoteRef := "refs/remotes/origin/" + ref
 	_, branchErr := gitRunWithStderrWriter(
 		ctx, repoPath, config, token,
-		newGitProgressWriter(ctx, logger, event, nil),
-		"fetch", "--progress", "origin", branchRefspec,
-		fmt.Sprintf("--depth=%d", config.CloneDepth),
+		newGitProgressWriter(ctx, logger, event, nil), deadline.Fetch,
+		append(config.GitDeadlines.LowSpeedArgs(), "fetch", "--progress", "origin", branchRefspec,
+			fmt.Sprintf("--depth=%d", config.CloneDepth))...,
 	)
 
 	// Try tag fetch.
@@ -217,9 +219,9 @@ func gitFetchPinnedRef(
 	tagRemoteRef := "refs/tags/" + ref
 	_, tagErr := gitRunWithStderrWriter(
 		ctx, repoPath, config, token,
-		newGitProgressWriter(ctx, logger, event, nil),
-		"fetch", "--progress", "origin", tagRefspec,
-		fmt.Sprintf("--depth=%d", config.CloneDepth),
+		newGitProgressWriter(ctx, logger, event, nil), deadline.Fetch,
+		append(config.GitDeadlines.LowSpeedArgs(), "fetch", "--progress", "origin", tagRefspec,
+			fmt.Sprintf("--depth=%d", config.CloneDepth))...,
 	)
 
 	switch {
