@@ -184,6 +184,7 @@
         "podAnnotations": { "type": "object" },
         "precheckImage": {
           "type": "object",
+          "required": [ "repository", "tag" ],
           "properties": {
             "repository": { "type": "string", "minLength": 1 },
             "tag": { "type": "string", "minLength": 1 }

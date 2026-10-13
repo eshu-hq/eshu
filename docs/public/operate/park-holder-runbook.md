@@ -101,9 +101,11 @@ old session gone and no gap observed across 600 concurrent try-lock attempts.
    ```
 
    You want one row for `park-holder-new` with `wait_event_type = Lock`.
-3. Cancel the old holder's statement: `SELECT
-   pg_cancel_backend(<old-pid>);`. Its `psql` exits, its session ends, and the
-   waiter is granted.
+3. Cancel the old holder's statement as the role that owns the old
+   session, or as a superuser or a role granted `pg_signal_backend`:
+   `SELECT pg_cancel_backend(<old-pid>);`. Otherwise the cancel fails with
+   `must be a superuser or have privileges of pg_signal_backend`. On
+   success its `psql` exits, its session ends, and the waiter is granted.
 4. Re-run the holder query from the previous section. You want one granted row
    for `park-holder-new`, and no session left for the old holder. Check
    promptly: the reducer polls the lock within a poll (1 s once passes run,
@@ -139,9 +141,11 @@ What to do depends on which session the refusal names:
 | The reducer backfill mid-pass (#7663) | Its hour-long transaction blocks a concurrent build exactly like a park holder, so the refusal is correct. Wait for the pass to commit, or scale the reducer to 0, run the Job, and scale back. Cancelling the pass without scaling down only buys 30 s: the next poll retries. |
 | An unknown application session | Find its owner from `usename` and `application_name` before touching it. |
 
-Then re-run the Job. The precheck fails closed: if the database is
-unreachable, the Job fails with the connection error instead of starting the
-migrations blind.
+Then re-run the Job. A refusal fails the init container, and with the
+chart's `backoffLimit: 1` the Job fails after two fast attempts rather than
+waiting out the holder, so re-run it once the holder is gone. The precheck
+fails closed: if the database is unreachable, the Job fails with the
+connection error instead of starting the migrations blind.
 
 ## Diagnose a stalled concurrent build
 

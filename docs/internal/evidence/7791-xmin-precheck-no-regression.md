@@ -16,8 +16,10 @@ the target database, bounded by `PGCONNECT_TIMEOUT=10` and
 match. Baseline: the Job started migrations blind. After: the rendered script
 was exercised with a stub `psql` at the PR head — missing DSN exits 2, no
 holders exits 0, two holders exits 1 with count 2 and both rows listed, DB
-down exits 2. Every error path fails closed, so the worst case is a Job that
-waits, never a blind concurrent build. The default image pin is the same
+down exits 2. Every error path fails closed: a refusal fails the init
+container, and with the chart's `backoffLimit: 1` the Job fails after two
+fast attempts instead of waiting out the holder, so the operator re-runs it
+once the holder is gone — never a blind concurrent build. The default image pin is the same
 `postgres:18-alpine` the Compose stack already runs.
 
 Observability Evidence:
