@@ -57,6 +57,53 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        # Refuse to start while another session in this database holds a
+        # backend_xmin older than 5 minutes (#7791). A CREATE INDEX
+        # CONCURRENTLY build behind such a holder stalls in "waiting for old
+        # snapshots" until the holder ends or this Job's deadline fires, and at
+        # the deadline the index stays INVALID. The wait is per-database
+        # (observed on PG 18, see #7791: an old snapshot in another database
+        # does not block the build), so holders elsewhere in the cluster are ignored.
+        # Five minutes because steady-state Eshu transactions finish in
+        # seconds; the known exception is the package-manifest backfill's
+        # hour-long transaction (#7663), which blocks a concurrent build
+        # exactly like a park holder, so refusing there is correct too.
+        # The default image pin follows docker-compose.yaml (override via
+        # schemaBootstrap.precheckImage); the catalog columns used here need
+        # no psql-to-server version match.
+        - name: xmin-precheck
+          image: "{{ .Values.schemaBootstrap.precheckImage.repository }}:{{ .Values.schemaBootstrap.precheckImage.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              : "${ESHU_POSTGRES_DSN:?xmin-precheck: ESHU_POSTGRES_DSN is not set}"
+              holders="$(psql "$ESHU_POSTGRES_DSN" -v ON_ERROR_STOP=1 -tA -c "SELECT 'pid=' || pid || ' user=' || usename || ' app=' || COALESCE(application_name, '') || ' state=' || state || ' xact_start=' || xact_start || ' query=' || left(regexp_replace(COALESCE(query, ''), '\s+', ' ', 'g'), 160) FROM pg_stat_activity WHERE datname = current_database() AND backend_xmin IS NOT NULL AND xact_start IS NOT NULL AND xact_start < now() - interval '5 minutes' AND pid <> pg_backend_pid() ORDER BY xact_start;")"
+              if [ -z "$holders" ]; then
+                echo "xmin-precheck: no backend_xmin holder older than 5 minutes; starting schema bootstrap"
+                exit 0
+              fi
+              db="$(psql "$ESHU_POSTGRES_DSN" -v ON_ERROR_STOP=1 -tA -c 'SELECT current_database()')"
+              n="$(printf '%s\n' "$holders" | wc -l | tr -d ' ')"
+              printf '%s\n' "xmin-precheck: refusing to start schema bootstrap: $n session(s) in database \"$db\" hold backend_xmin older than 5 minutes. A CREATE INDEX CONCURRENTLY build would stall in \"waiting for old snapshots\" until they end; see the park-holder runbook (docs/public/operate/park-holder-runbook.md). Holders, oldest first:"
+              printf '%s\n' "$holders"
+              exit 1
+          securityContext:
+            {{- toYaml .Values.initContainerSecurityContext | nindent 12 }}
+          env:
+            - name: HOME
+              value: /tmp
+            - name: PGCONNECT_TIMEOUT
+              value: "10"
+            - name: PGOPTIONS
+              value: "-c statement_timeout=30000"
+            {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
       containers:
         - name: schema-bootstrap
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

@@ -58,6 +58,11 @@ schemaBootstrap:
   serviceAccountName: ""
   annotations: {}
   podAnnotations: {}
+  # xmin-precheck init container image. The default pin follows
+  # docker-compose.yaml; override both fields for a private mirror.
+  precheckImage:
+    repository: docker.io/library/postgres
+    tag: "18-alpine"
   resources:
     requests:
       cpu: 100m

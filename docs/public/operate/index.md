@@ -26,6 +26,7 @@ queued work.
 | Tune slow indexing, stale answers, graph timeouts, or memory pressure | [Tuning Playbook](tuning-playbook.md) |
 | Tune Postgres pools, queues, hot tables, or search-index write pressure | [Postgres Tuning](../reference/postgres-tuning.md) |
 | Work through common symptoms | [Troubleshooting](troubleshooting.md) |
+| Hold or hand over the backfill park, or clear the schema Job xmin refusal | [Park-Holder Runbook](park-holder-runbook.md) |
 | Move from remote Compose proof to hosted Kubernetes operations | [Hosted Operations Runbook](hosted-operations-runbook.md) |
 | Check hosted governance posture before onboarding a team | [Hosted Governance Posture](hosted-governance.md) |
 | Prepare identity, token, session, role, grant, audit, and revocation proof | [User Management Runbook](user-management-runbook.md) |
