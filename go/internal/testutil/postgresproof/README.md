@@ -42,7 +42,7 @@ No-Regression Evidence: moving proof creation from `template1` to `template0`
 with a pinned `public` search path changes only test databases, never a
 production query or queue path. The isolation live test fails on a
 template-sourced database with extensions=1 public_relations=1 and passes
-pristine in 0.24s; the queue fence fixture passes in 5.53s and 10.10s; the
+pristine in 0.24s; the queue fence fixture passes in 5.30s and 10.27s; the
 readiness hermetic suite passes at 231 proofs. Backend: local PostgreSQL
 16.15, with the CI PostgreSQL 18 wall time recorded before merge.
 
