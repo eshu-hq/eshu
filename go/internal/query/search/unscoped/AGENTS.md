@@ -20,7 +20,8 @@ Read `doc.go` and `README.md` first.
   figure needs a new measurement, not a guess.
 - The `content_entities` shape (`entities.go`) has its own figures: probe
   1,000, step 5,000, phase one 0.20, tail cap 0.80, floor 150 ms (triple A of
-  the #7009 S1 shim, `7009-entity-shim-s1-results-20261012.md` sections 4-7).
+  the #7009 S1 shim; the figures are in
+  `docs/internal/evidence/7009-unscoped-entity-search-figures.md`).
   `TestEntityPolicyClasses` pins its classes. Never copy one shape's figures
   to another: a table's per-row cost and match density set them.
 - The engine (`walk.go`, the generic `search` in `searcher.go`,

@@ -43,8 +43,9 @@ Figures at the default 800 ms budget (each phase limit scales with the budget):
 | tail floor | 150 ms | 150 ms |
 
 The entity figures are triple A of the #7009 S1 shim on `content_entities` in
-the QA environment (`7009-entity-shim-s1-results-20261012.md`, sections 4-7;
-arbiter ruling round 2, R2.1). An ordered entity window costs bytes, not rows
+the QA environment (figures in
+`docs/internal/evidence/7009-unscoped-entity-search-figures.md`; arbiter
+ruling round 2, R2.1). An ordered entity window costs bytes, not rows
 (0.3 ms plus 0.34 us per row plus 10.2 ns per byte), so 160 ms walks about
 35,000 rows; the rare bitmap tails cost 400-462 ms warm, so the tail gets
 640 ms. Under the file figures `process_entries` and `FeaturesTab`, exact

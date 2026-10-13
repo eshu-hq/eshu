@@ -98,16 +98,17 @@ var entityShape = shape[querycontract.EntitySearchHit, querycontract.SearchCurso
 	partialMessage: "unscoped entity search returned a partial result",
 	partialEvent:   "content_search.unscoped_entity_partial",
 	// These are triple A of the #7009 S1 shim, measured on content_entities
-	// in the QA environment (7009-entity-shim-s1-results-20261012.md,
-	// sections 4-7; arbiter ruling round 2, R2.1). Section 4: an ordered
+	// in the QA environment (docs/internal/evidence/7009-unscoped-entity-search-figures.md
+	// repeats the figures it names; the full S1 run is not committed; arbiter
+	// ruling round 2, R2.1). Ordered window cost: an ordered
 	// window costs 0.3 ms plus 0.34 us per row plus 10.2 ns per byte, so a
 	// 1,000-row probe is about 5 ms and a 5,000-row step 18-43 ms, and
 	// 160 ms (0.20 x budget) walks about 35,000 rows; smaller windows lose
-	// decode at limit 200 to per-window round trips. Section 5: the rare
+	// decode at limit 200 to per-window round trips. Tail cost: the rare
 	// bitmap tails cost 400-462 ms warm (517-578 ms cold), so the tail cap is
 	// 0.80 x budget (640 ms); the 13.1 MB value's recheck blocks a tail
 	// cancel that fires 30-170 ms into the tail, and with these figures the
-	// default tail timeout never lands there. Section 6: these figures keep
+	// default tail timeout never lands there. Model: these figures keep
 	// every class that is exact today exact at limit 10, warm and cold, with
 	// a 1.25 cost margin; the file figures turn process_entries and
 	// FeaturesTab partial. The one disclosed trade (R2.2): a decode-like

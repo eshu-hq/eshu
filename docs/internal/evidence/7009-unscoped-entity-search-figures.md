@@ -11,7 +11,9 @@ by the #7009 S1 shim in the QA environment (triple A: probe 1,000, step 5,000,
 phase one 0.20 x budget, tail cap 0.80 x budget, floor 150 ms, at the 800 ms
 default), labels the six unscoped-search instruments by table, refuses a
 cursor sent to the other route, and states the MCP byte-cap precedence.
-Figures marked "S1" come from `7009-entity-shim-s1-results-20261012.md`;
+Figures marked "S1" come from the #7009 S1 shim run of 2026-10-12 on the QA
+read replica; the S1 figures that the code names and this note does not
+repeat come from the same run, which is not committed;
 figures marked "fake clock" come from the committed unit tests, which run a
 synthetic, scaled key space and are not deployed walls.
 
@@ -56,10 +58,10 @@ about 220 ms put the tail cancel inside the block (extra wait up to about
 ## Performance and observability summary
 
 Performance Evidence (#7009): the entity figures are triple A of the S1 shim
-on `content_entities` in the QA environment. S1 section 4: an ordered window
+on `content_entities` in the QA environment. S1, ordered window cost: an ordered window
 costs 0.3 ms plus 0.34 us per row plus 10.2 ns per byte, so 160 ms walks about
-35,000 rows. S1 section 5: rare bitmap tails cost 400 to 462 ms warm. S1
-section 6, model at limit 10: every class that is exact today stays exact,
+35,000 rows. S1, tail cost: rare bitmap tails cost 400 to 462 ms warm. S1
+model at limit 10: every class that is exact today stays exact,
 warm and cold, with a 1.25 uniform cost margin; the file figures turn
 `process_entries` (exact in 462 ms today) and `FeaturesTab` (400 ms) partial
 at 804 ms. The one disclosed trade (R2.2): `decode` at limit 200 is a partial
@@ -98,8 +100,8 @@ moves with host speed. Fixture walls of
 interleaved rounds, not a production figure): selective 169 to 203 ms and zero
 match 167 to 198 ms with the new figures against 228 to 246 ms and 206 to
 278 ms with the old figures; dense, wildcard, medium and upper-case classes
-stay at 2 to 15 ms. A rare class pays phase one before its tail, as S1
-section 6 states. A scratch fake-store benchmark (not committed, not a
+stay at 2 to 15 ms. A rare class pays phase one before its tail, as the S1
+model states. A scratch fake-store benchmark (not committed, not a
 production figure) put the CPU cost of one modelled call at about 0.02 ms for
 `decode` at limit 10 under both figures, and 1.1 to 1.2 ms against 17 to
 71 ms for the limit-200 and `FeaturesTab` classes, because 5,000-row steps
@@ -150,4 +152,4 @@ counter by table for dead-end chains. No signal carries the search pattern.
 - A deployed read of these figures (ruling round 2, R2.5, and the collision
   ruling RA-1 to RA-5): that is the acceptance read after the roll.
 - Cold costs, p95 under load, concurrency of partial chains, the HTTP wall.
-- Any S1 figure beyond what the S1 note reports; no statement was rerun.
+- Any S1 figure beyond the ones this note names; no statement was rerun.

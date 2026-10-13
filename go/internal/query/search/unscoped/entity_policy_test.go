@@ -34,7 +34,7 @@ type entityPolicyClass struct {
 	largeDoc      bool // partial reason budget_exceeded_on_large_document
 }
 
-// entityPolicyClasses are the S1 classes (S1 sections 5-6) at page size 10
+// entityPolicyClasses are the S1 classes at page size 10
 // unless a row says otherwise. Seeded REDs are recorded in the #7009 PR-B
 // evidence note; the comment on each guard row names its mutation.
 func entityPolicyClasses() []entityPolicyClass {
@@ -86,8 +86,9 @@ func entityPolicyClasses() []entityPolicyClass {
 		},
 		// R2.3 row (i) and the from_event-like class: at the default budget
 		// the tail timeout (638 ms) is outside the 13.1 MB block, so the
-		// cancel lag stays small. Seeded RED: a 0.10 x budget tail cap puts
-		// the timeout (80 ms) inside the block.
+		// cancel lag stays small. Seeded RED: a 120 ms tail cap with a 50 ms
+		// floor puts the timeout inside the block. An 80 ms cap also fails the
+		// row, but by skipping the tail, which is under the 150 ms floor.
 		{
 			name: "from_event-like, 13.1 MB value, default budget (R2.3 i)", corpus: large(1236*ms, fromEventPositions...), limit: 10,
 			outcome: "partial", rows: 0, tailRan: true, tailCancelled: true, endedIn: "tail",
@@ -254,7 +255,7 @@ func TestEntityPolicyDecodeAtLimit200ResumesOnceToExact(t *testing.T) {
 // Rule 5 for the from_event-like class: each call of the resume chain is a
 // progressed partial at or under 1.0 s until the page is exact. In this
 // scaled key space the 11th match is reached on the second call (the QA
-// model names 17 calls over 2.69 M rows, S1 section 6).
+// model names 17 calls over the full table in S1).
 func TestEntityPolicyFromEventChainEndsExact(t *testing.T) {
 	t.Parallel()
 

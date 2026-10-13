@@ -9,7 +9,7 @@ import (
 )
 
 // The entity policy corpus is a key space shaped like the content_entities
-// measurements of the #7009 S1 shim (7009-entity-shim-s1-results-20261012.md),
+// measurements of the #7009 S1 shim (docs/internal/evidence/7009-unscoped-entity-search-figures.md),
 // scaled down so the fake stays small. Positions and costs are synthetic; no
 // row of a real corpus is in it.
 const (
@@ -17,13 +17,13 @@ const (
 	// phase of one default call covers 36,000 rows, so every position past
 	// that is reached only by the trigram tail or by a resumed call.
 	entityPolicyRows = 100_000
-	// entityRowCost is the walk cost of one row. S1 section 4 fits 0.3 ms
+	// entityRowCost is the walk cost of one row. The S1 ordered-window fit is 0.3 ms
 	// per statement plus 0.34 us per row plus 10.2 ns per byte; 160 ms then
 	// buys about 35,000-41,500 rows. 4.5 us per row gives 36,000 rows in the
-	// 0.20 x budget phase one, the figure S1 section 6 models.
+	// 0.20 x budget phase one, the figure the S1 model uses.
 	entityRowCost = 4500 * time.Nanosecond
 	// entityLargeValueRow is the 0-based key position of the synthetic
-	// 13.1 MB value. S1 section 3 puts the five values over 1 MB at the end
+	// 13.1 MB value. S1 found the five values over 1 MB at the end
 	// of the key order, where only the tail meets them.
 	entityLargeValueRow = 99_000
 )
@@ -43,7 +43,7 @@ func entityPolicyCorpus(tailCost time.Duration, positions ...int) *fakeCorpus {
 	corpus := &fakeCorpus{
 		entities: append([]fakeEntityRow(nil), entityTemplate...),
 		tailCost: func(int) time.Duration { return tailCost },
-		// S1e models a cancelled tail as its timeout plus 3 ms.
+		// The S1 model has a cancelled tail end at its timeout plus 3 ms.
 		tailLag: 3 * ms,
 	}
 	for _, p := range positions {
@@ -53,7 +53,7 @@ func entityPolicyCorpus(tailCost time.Duration, positions ...int) *fakeCorpus {
 }
 
 // withEntityLargeValue puts the 13.1 MB value into the tail's candidates.
-// S1c finding 3: a tail cancel whose timeout fires between about 30 and
+// S1 tail finding: a tail cancel whose timeout fires between about 30 and
 // 170 ms of tail time waits for that value's recheck and lands at about
 // 170 ms; outside that window the lag stays small.
 func withEntityLargeValue(corpus *fakeCorpus) *fakeCorpus {
@@ -103,7 +103,7 @@ func spaced(first, step, count int) []int {
 	return out
 }
 
-// decodePositions are the S1d anchors of the common dense class `decode`
+// decodePositions are the S1 match-position anchors of the common dense class `decode`
 // (1st 41, 11th 1,091, 51st 17,434, 101st 32,046, 151st 36,140, 201st
 // 50,401), with later matches so a page past the 201st has a look-ahead.
 // Matches up to the 149th lie inside the 36,000 rows of one default ordered
@@ -115,7 +115,7 @@ func decodePositions() []int {
 	)
 }
 
-// Position lists of the other measured classes (S1d). Positions past the
+// Position lists of the other measured classes (S1). Positions past the
 // ordered phase stand in for the measured ones, which lie past this key
 // space; only their order relative to the ordered phase matters.
 var (
