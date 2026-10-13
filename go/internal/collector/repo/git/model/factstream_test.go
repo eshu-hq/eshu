@@ -6,6 +6,7 @@ package model
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -69,10 +70,11 @@ func TestRepositoryRelativePathNonexistentFileUnderSymlinkedRoot(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			if got := RepositoryRelativePath(test.repoPath, test.filePath); got != test.want {
+			got := RepositoryRelativePath(test.repoPath, test.filePath)
+			if got != test.want {
 				t.Fatalf("RepositoryRelativePath = %q, want %q", got, test.want)
 			}
-			if got := RepositoryRelativePath(test.repoPath, test.filePath); strings.Contains(got, "..") {
+			if slices.Contains(strings.Split(got, "/"), "..") {
 				t.Fatalf("RepositoryRelativePath = %q, want no ../ segment", got)
 			}
 		})
