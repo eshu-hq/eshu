@@ -61,6 +61,16 @@ func TestOpenDisposableDatabaseLiveIsPristineFromTemplate0(t *testing.T) {
 	if err := plantDB.PingContext(plantCtx); err != nil {
 		t.Fatalf("ping template1 for the isolation plant: %v", err)
 	}
+	// A shared dev cluster may already carry pg_trgm in template1. The
+	// plant must not drop a pre-existing extension on the way out, so
+	// record its presence before planting; the canary table name stays
+	// test-unique and its drop unconditional.
+	var pgTrgmPreexisting bool
+	if err := plantDB.QueryRowContext(plantCtx,
+		"SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')").Scan(&pgTrgmPreexisting); err != nil {
+		_ = plantDB.Close()
+		t.Fatalf("read template1 pg_trgm presence: %v", err)
+	}
 	if _, err := plantDB.ExecContext(plantCtx, "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"); err != nil {
 		_ = plantDB.Close()
 		if strings.Contains(err.Error(), "permission denied") {
@@ -91,8 +101,10 @@ func TestOpenDisposableDatabaseLiveIsPristineFromTemplate0(t *testing.T) {
 		if _, err := restoreDB.ExecContext(cleanupCtx, "DROP TABLE IF EXISTS public.eshu_proof_template_canary"); err != nil {
 			t.Errorf("remove template1 canary table: %v", err)
 		}
-		if _, err := restoreDB.ExecContext(cleanupCtx, "DROP EXTENSION IF EXISTS pg_trgm"); err != nil {
-			t.Errorf("remove template1 pg_trgm plant: %v", err)
+		if !pgTrgmPreexisting {
+			if _, err := restoreDB.ExecContext(cleanupCtx, "DROP EXTENSION IF EXISTS pg_trgm"); err != nil {
+				t.Errorf("remove template1 pg_trgm plant: %v", err)
+			}
 		}
 	})
 	// Registered before the helper call so it runs after the helper's own
