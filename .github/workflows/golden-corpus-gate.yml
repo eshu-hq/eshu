@@ -165,6 +165,7 @@ on:
       # does, so they must trigger it too (the live-gate mutex included).
       - 'scripts/lib/golden-corpus-*.sh'
       - 'scripts/lib/test-golden-corpus-*.sh'
+      - 'scripts/lib/ci-gates-resolved-fixtures.sh'
       - 'scripts/lib/live-gate-lock.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - 'scripts/ci/go-mod-download-retry.sh'

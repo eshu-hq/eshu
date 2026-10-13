@@ -146,7 +146,7 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     merged with the Ifa "static mirror" job red). Derived from the registry
 //     and the workflow files: there is no exception list. See
 //     checkJobOwnership (jobownership.go) for the name-resolution rules.
-//     The same check requires every literal trigger of a blocking CI-only owner
+//     The same check requires every literal trigger of a blocking owner
 //     row to match the workflow's pull_request paths:, or to match no paths-ignore:
 //     entry (checkOwnerRowTriggers).
 func DriftCheck(repoRoot string, reg *Registry) []error {

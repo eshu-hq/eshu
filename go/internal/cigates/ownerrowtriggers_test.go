@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
-// ownerRowTriggerErrors returns only the findings of the CI-only owner-row
+// ownerRowTriggerErrors returns only the findings of the owner-row
 // trigger check, so a fixture proves that one rule.
 func ownerRowTriggerErrors(t *testing.T, root string, reg *cigates.Registry) []string {
 	t.Helper()
@@ -38,7 +38,7 @@ const ownerRowPathsWorkflow = "name: Paths\non:\n  pull_request:\n    paths:\n" 
 	"jobs:\n  owned:\n    name: owned-job\n    runs-on: ubuntu-latest\n    steps: []\n"
 
 // TestOwnerRowTriggerMustStartTheWorkflow pins the rule the replay-coverage
-// static-mirror row broke: a CI-only owner row selects its check from its
+// static-mirror row broke: a blocking owner row selects its check from its
 // triggers, so a literal trigger that no pull_request paths: entry matches
 // selects a check that never arrives, and `ci-gates await` waits out its
 // timeout on a PR that touches only that file.
@@ -82,14 +82,25 @@ func TestOwnerRowTriggerMustStartTheWorkflow(t *testing.T) {
 			t.Errorf("a workflow that starts on every PR cannot miss a trigger, got: %v", errs)
 		}
 	})
-	t.Run("a row with a local command is out of scope", func(t *testing.T) {
+	t.Run("a row with a local command and an uncovered trigger is flagged", func(t *testing.T) {
 		t.Parallel()
 		root := buildDriftRepo(t, minimalPreCommit("a"), nil)
 		writeWorkflow(t, root, "paths.yml", ownerRowPathsWorkflow)
 		g := ownershipGate("a", "paths.yml", "owned-job")
 		g.Triggers = []string{"elsewhere/file.sh"}
+		errs := ownerRowTriggerErrors(t, root, minimalReg([]cigates.Gate{g}, nil, nil))
+		if len(errs) != 1 || !strings.Contains(errs[0], `"a"`) || !strings.Contains(errs[0], "elsewhere/file.sh") {
+			t.Errorf("a local row selects its check from its triggers too, want one finding naming the gate and elsewhere/file.sh, got: %v", errs)
+		}
+	})
+	t.Run("a row with a local command and covered triggers is clean", func(t *testing.T) {
+		t.Parallel()
+		root := buildDriftRepo(t, minimalPreCommit("a"), nil)
+		writeWorkflow(t, root, "paths.yml", ownerRowPathsWorkflow)
+		g := ownershipGate("a", "paths.yml", "owned-job")
+		g.Triggers = []string{"scripts/run.sh", "covered/deep/file.go"}
 		if errs := ownerRowTriggerErrors(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
-			t.Errorf("only CI-only owner rows are checked, got: %v", errs)
+			t.Errorf("a local row whose triggers the workflow starts on is fine, got: %v", errs)
 		}
 	})
 	t.Run("glob triggers are not judged", func(t *testing.T) {
@@ -132,6 +143,27 @@ func TestOwnerRowTriggerMustNotBeIgnoredByThePullRequestFilter(t *testing.T) {
 		g := ciOnlyGate("a", "ignore.yml", "owned-job", "scripts/run.sh", "notes/deep/file.md")
 		if errs := ownerRowTriggerErrors(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
 			t.Errorf("a trigger outside every ignore entry starts the workflow, got: %v", errs)
+		}
+	})
+	t.Run("a local row with a trigger matching an ignore entry is flagged", func(t *testing.T) {
+		t.Parallel()
+		root := buildDriftRepo(t, minimalPreCommit("a"), nil)
+		writeWorkflow(t, root, "ignore.yml", ownerRowIgnoreWorkflow)
+		g := ownershipGate("a", "ignore.yml", "owned-job")
+		g.Triggers = []string{"docs/guide.md"}
+		errs := ownerRowTriggerErrors(t, root, minimalReg([]cigates.Gate{g}, nil, nil))
+		if len(errs) != 1 || !strings.Contains(errs[0], `"a"`) || !strings.Contains(errs[0], "docs/guide.md") {
+			t.Errorf("a local row selects its check from its triggers too, want one finding naming the gate and docs/guide.md, got: %v", errs)
+		}
+	})
+	t.Run("a local row with triggers outside ignore entries is clean", func(t *testing.T) {
+		t.Parallel()
+		root := buildDriftRepo(t, minimalPreCommit("a"), nil)
+		writeWorkflow(t, root, "ignore.yml", ownerRowIgnoreWorkflow)
+		g := ownershipGate("a", "ignore.yml", "owned-job")
+		g.Triggers = []string{"scripts/run.sh"}
+		if errs := ownerRowTriggerErrors(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
+			t.Errorf("a local row whose triggers the workflow starts on is fine, got: %v", errs)
 		}
 	})
 	t.Run("glob triggers are not judged against paths-ignore", func(t *testing.T) {

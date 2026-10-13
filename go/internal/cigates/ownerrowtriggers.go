@@ -13,12 +13,12 @@ import (
 )
 
 // checkOwnerRowTriggers is the trigger half of drift check 13. A blocking
-// CI-only gate (Local nil) exists to own a CI job, and `ci-gates await` selects
-// it from its triggers. A literal trigger the workflow's pull_request filter
-// does not start on selects a check that never arrives for a PR that touches
-// only that file: await then reports the check MISSING and waits out its
-// timeout. The replay-coverage static mirror carried such a trigger
-// (scripts/lib/go-test-run-guard.sh).
+// gate owns a CI job (alone or shared), and `ci-gates await` selects it from
+// its triggers whether or not it has a local command. A literal trigger the
+// workflow's pull_request filter does not start on selects a check that never
+// arrives for a PR that touches only that file: await then reports the check
+// MISSING and waits out its timeout. The replay-coverage static mirror
+// carried such a trigger (scripts/lib/go-test-run-guard.sh).
 //
 // Both filter forms are read. With `pull_request.paths:` the workflow starts
 // when a changed file matches an entry, so a trigger no entry matches is
@@ -27,11 +27,9 @@ import (
 // flagged, naming that entry. GitHub rejects both on one event, so a workflow
 // that declares both never starts and is flagged as a whole (fail closed).
 //
-// Scope, on purpose: only CI-only rows, because they have no local command that
-// runs the file anyway, and only literal triggers, because a glob needs a path
+// Scope, on purpose: only literal triggers, because a glob needs a path
 // universe to judge. A workflow with neither filter starts on every PR and is
-// skipped. Rows that run locally and share a job with another row are not
-// judged here.
+// skipped.
 //
 // Matching follows GitHub: entries are applied in order, a `!` entry removes
 // what the earlier entries added.
@@ -39,7 +37,7 @@ func checkOwnerRowTriggers(repoRoot string, reg *Registry) []error {
 	cache := make(map[string]pullRequestFilter)
 	var errs []error
 	for _, g := range reg.Gates {
-		if !g.Blocking || g.Local != nil || g.CI.Workflow == "" {
+		if !g.Blocking || g.CI.Workflow == "" {
 			continue
 		}
 		filter, ok := cache[g.CI.Workflow]

@@ -43,6 +43,8 @@ on:
       - 'scripts/test-live-backend-workflow.py'
       - 'scripts/lib/live_backend_test_targets.py'
       - 'scripts/lib/live_tests_registry.py'
+      - 'scripts/lib/live_postgres_readiness_inventory.py'
+      - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/verify-live-tests-ledger.py'
       - 'scripts/test-live-tests-registry.py'
       - 'scripts/lib/live-gate-lock.sh'

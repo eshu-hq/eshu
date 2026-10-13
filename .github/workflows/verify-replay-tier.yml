@@ -36,6 +36,7 @@ on:
       - 'testdata/cassettes/replaydelta/**'
       - 'scripts/verify-replay-tier.sh'
       - 'scripts/test-verify-replay-tier.sh'
+      - 'scripts/lib/ci-gates-resolved-fixtures.sh'
       - 'scripts/dev/pre-pr.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - 'scripts/ci/go-mod-download-retry.sh'
