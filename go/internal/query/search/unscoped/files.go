@@ -85,11 +85,16 @@ LIMIT $2::bigint`
 
 // fileShape is the content_files table shape: two-column key
 // (repo_id, relative_path), querycontract.FileContent rows, and the figures of
-// the #7730 measurements. It is the only shape the engine walks today.
+// the #7730 measurements.
 var fileShape = shape[querycontract.FileContent, querycontract.SearchCursor]{
 	table:     "content_files",
 	operation: fileOperation,
 	subject:   "file content",
+	name:      "unscoped search",
+	// The file span carries no search.content_kind attribute.
+	contentKind:    "",
+	partialMessage: "unscoped content search returned a partial result",
+	partialEvent:   "content_search.unscoped_partial",
 	figures: figures{
 		// probeRows and stepRows are the window sizes of the #7730 V4c
 		// measurements.

@@ -18,14 +18,20 @@ Read `doc.go` and `README.md` first.
   shim of 2026-10-11 (`7730-continuation-shim-20261011.md`, QA environment
   read of 2026-10-11) and `TestPolicyClasses` pins its classes. Changing a
   figure needs a new measurement, not a guess.
+- The `content_entities` shape (`entities.go`) carries the same five values.
+  #8036 copied them from the file shape; they were not measured on
+  `content_entities`. PR-B of #7009 replaces them with measured figures (S1).
+  Do not cite them as entity measurements.
 - The engine (`walk.go`, the generic `search` in `searcher.go`,
   `telemetry.go`) never names a table. Table-specific statement text, key
   binding, row scanning, span identity, error subject and figures belong in a
-  shape (`files.go` for `content_files`). A new table is a new shape file,
-  not an engine edit; its figures need their own measurement.
-- `TestFileRouteGolden` must stay byte-identical for any change that is not an
-  intended file-route contract change. Never regenerate it to make a refactor
-  pass.
+  shape (`files.go` for `content_files`, `entities.go` for
+  `content_entities`), together with the span `search.content_kind`, the
+  error and partial-log texts. A new table is a new shape file, not an engine
+  edit; its figures need their own measurement.
+- `TestFileRouteGolden` and `TestEntityRouteGolden` must stay byte-identical
+  for any change that is not an intended contract change of that route. Never
+  regenerate them to make a refactor pass.
 - The root `query` directory is dirgate-pinned: new non-test code for this
   feature belongs here, not in `go/internal/query/*.go`.
 
@@ -40,5 +46,6 @@ go vet ./internal/query/...
 ```
 
 The live plan and differential proofs are in `go/internal/query`
-(`content_reader_search_unscoped_live_test.go`) and need a disposable
-PostgreSQL with `pg_trgm`.
+(`content_reader_search_unscoped_live_test.go` for files,
+`content_reader_entity_search_unscoped_live_test.go` for entities) and need a
+disposable PostgreSQL with `pg_trgm`.

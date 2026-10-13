@@ -33,8 +33,12 @@ func (s *Searcher) startSpan(ctx context.Context, table, operation string) (cont
 func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *walk[R, K], p *partial[K], cursorPresent bool) {
 	result := w.outcome()
 	elapsed := w.elapsed()
-	span.SetAttributes(
-		attribute.String("search.scope", "unscoped"),
+	spanAttrs := make([]attribute.KeyValue, 0, 16)
+	spanAttrs = append(spanAttrs, attribute.String("search.scope", "unscoped"))
+	if w.shape.contentKind != "" {
+		spanAttrs = append(spanAttrs, attribute.String("search.content_kind", w.shape.contentKind))
+	}
+	span.SetAttributes(append(spanAttrs,
 		attribute.Int64("search.budget_ms", w.plan.budget.Milliseconds()),
 		attribute.Int64("search.elapsed_ms", elapsed.Milliseconds()),
 		attribute.Int64("search.overrun_ms", w.overrun.Milliseconds()),
@@ -49,7 +53,7 @@ func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *
 		attribute.String("search.ended_in", string(w.endedIn)),
 		attribute.Int("search.steps_cancelled", w.stepsCancelled),
 		attribute.Bool("search.progressed", w.progressed()),
-	)
+	)...)
 	if inst := s.Instruments; inst != nil {
 		attrs := metric.WithAttributes(telemetry.AttrOutcome(string(result)))
 		inst.ContentSearchUnscoped.Add(ctx, 1, attrs)
@@ -72,8 +76,8 @@ func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *
 	if logger == nil {
 		logger = slog.Default()
 	}
-	logger.LogAttrs(ctx, slog.LevelInfo, "unscoped content search returned a partial result",
-		slog.String("event_name", "content_search.unscoped_partial"),
+	logger.LogAttrs(ctx, slog.LevelInfo, w.shape.partialMessage,
+		slog.String("event_name", w.shape.partialEvent),
 		slog.String("reason", p.reason),
 		slog.Int64("budget_ms", p.budgetMS),
 		slog.Int64("elapsed_ms", p.elapsedMS),

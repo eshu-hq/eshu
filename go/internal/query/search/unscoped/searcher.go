@@ -102,7 +102,7 @@ func search[R any, K key](
 	tx, err := s.Store.BeginReadOnlySnapshot(ctx)
 	if err != nil {
 		span.RecordError(err)
-		return nil, false, nil, fmt.Errorf("begin unscoped search snapshot: %w", err)
+		return nil, false, nil, fmt.Errorf("begin %s snapshot: %w", sh.name, err)
 	}
 	defer func() { _ = tx.Rollback() }()
 

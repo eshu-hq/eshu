@@ -318,7 +318,7 @@ func (w *walk[R, K]) collect(ctx context.Context, query string, args []any) ([]R
 		kind, row, err := w.shape.scan(rows)
 		if err != nil {
 			_ = rows.Close()
-			return nil, nil, fmt.Errorf("scan unscoped search row: %w", err)
+			return nil, nil, fmt.Errorf("scan %s row: %w", w.shape.name, err)
 		}
 		if kind == kindEdge {
 			last := w.shape.edgeKey(row)

@@ -16,6 +16,7 @@ func TestShapeFiguresArePositive(t *testing.T) {
 		f    figures
 	}{
 		{"content_files", fileShape.figures},
+		{"content_entities", entityShape.figures},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

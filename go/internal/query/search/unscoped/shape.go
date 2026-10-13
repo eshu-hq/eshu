@@ -14,9 +14,9 @@ type key interface {
 	IsZero() bool
 }
 
-// shape is one table the engine walks: its span identity, its window sizes
-// and phase figures, its four bounded statements, how its cursor binds, and
-// how a result row is scanned. The engine (walk.go) owns every budget,
+// shape is one table the engine walks: its span identity, its error and log
+// texts, its window sizes and phase figures, its four bounded statements, how
+// its cursor binds, and how a result row is scanned. The engine (walk.go) owns every budget,
 // savepoint, timeout and cursor invariant and never names a table; a shape
 // owns only what differs between tables. R is the row type, K the key type.
 //
@@ -34,6 +34,15 @@ type shape[R any, K key] struct {
 	// subject names what the walk searches in its error text
 	// ("search unscoped <subject>: ...").
 	subject string
+	// name names the search in the snapshot and row-scan error texts
+	// ("begin <name> snapshot: ...", "scan <name> row: ...").
+	name string
+	// contentKind is the search.content_kind span attribute; empty means the
+	// span carries no such attribute.
+	contentKind string
+	// partialMessage and partialEvent are the message and the event_name of
+	// the structured log line a partial result emits.
+	partialMessage, partialEvent string
 	// figures are the window sizes and phase limits at DefaultBudget. Every
 	// field must be positive: the engine divides by probeRows when predicting
 	// the first continuation step. TestShapeFiguresArePositive pins that for

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -50,44 +49,9 @@ func (s *Searcher) SearchEntities(
 	if offset < 0 {
 		return EntityPage{}, fmt.Errorf("unscoped entity search: offset %d must not be negative", offset)
 	}
-	budget := s.Budget
-	if budget <= 0 {
-		budget = DefaultBudget
-	}
-	now := s.Now
-	if now == nil {
-		now = time.Now
-	}
-
-	ctx, span := s.startEntitySpan(ctx)
-	defer span.End()
-
-	tx, err := s.Store.BeginReadOnlySnapshot(ctx)
+	hits, more, p, err := search(ctx, s, &entityShape, pattern, limit, offset, cursor)
 	if err != nil {
-		span.RecordError(err)
-		return EntityPage{}, fmt.Errorf("begin unscoped entity search snapshot: %w", err)
+		return EntityPage{}, err
 	}
-	defer func() { _ = tx.Rollback() }()
-
-	w := &entityWalk{
-		tx:        tx,
-		plan:      newPlan(budget, fileShape.figures),
-		now:       now,
-		pattern:   pattern,
-		want:      offset + limit + 1,
-		cursor:    cursor,
-		requested: cursor,
-		start:     now(),
-	}
-	if err := w.exec(ctx, readinessSQL); err != nil {
-		span.RecordError(err)
-		return EntityPage{}, fmt.Errorf("check content substring index readiness: %w", err)
-	}
-	if err := w.run(ctx); err != nil {
-		span.RecordError(err)
-		return EntityPage{}, fmt.Errorf("search unscoped entity content: %w", err)
-	}
-	page := w.page(offset, limit)
-	s.recordEntities(ctx, span, w, page, !cursor.IsZero())
-	return page, nil
+	return entityPage(hits, more, p), nil
 }
