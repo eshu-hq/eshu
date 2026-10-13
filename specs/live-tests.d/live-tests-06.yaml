@@ -125,6 +125,11 @@ tests:
     class: postgres_ci
     reason: "#7978 disposable PostgreSQL 18 proof of the projector dead-letter guard (rulings a9-130, a9-130.1): only an unacknowledged reconcile re-open on the canonical projector row keeps an active generation and its scope pointer; a stamp-free, acknowledged, never-activated, or refinalize dead letter fails the generation and clears the pointer; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_freshness_reproject_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7978 follow-up disposable PostgreSQL 18 proof of the skipped-parse re-open (ruling a9-143): pre-parse identity stamps on stored generations and on the parse-path re-open, the active-pointer reconcile state, the identity-fenced re-open with its in-flight guard and valve count, and its races (newer activation, delta-active, dead letter); enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_backfill_generation_guard_reproject_live_test.go
     tag: ~
     class: postgres_ci

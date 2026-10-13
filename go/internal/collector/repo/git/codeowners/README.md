@@ -23,7 +23,8 @@ both sides need lives in `go/internal/collector/repo/git/model`.
 - `ResolvedCodeownersCandidateRelativePaths` — the single winning file per
   repository.
 - `ExtractCodeownersCandidateFiles`, `CodeownersFileMetasForPaths` — candidate
-  resolution to content records.
+  resolution to content records; `CodeownersFileMetasWithReadFailures` also
+  counts the candidates whose digest could not be read (#7978 review F7-1).
 - `EmitCodeownersFactsForCandidates` — emission through the shared writer.
 
 ## Notes

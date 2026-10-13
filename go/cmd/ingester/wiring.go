@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -175,6 +176,21 @@ func buildIngesterCollectorService(
 	// per-repository watermarks a repository-scoped request records.
 	reindexWatermark := reindexWatermarkReader{store: maintenancestore.NewStatusRequestStore(database)}
 	repositoryReindex := maintenancestore.NewRepositoryReindexStore(database)
+	snapshotter := git.NativeRepositorySnapshotter{
+		SCIP:             git.LoadSnapshotSCIPConfig(getenv),
+		ParseWorkers:     config.ParseWorkers,
+		DiscoveryOptions: discoveryOptions,
+		EmitDataflow:     git.LoadEmitDataflowGate(getenv),
+		Tracer:           tracer,
+		Instruments:      instruments,
+		Logger:           logger,
+	}
+	// One configuration source for the pre-parse identity both selectors
+	// compare and stamp (#7978 follow-up, ruling a9-143.3): built from the
+	// snapshotter the GitSource parses with, so the identity cannot drift from
+	// it. The ingester is the deployed sync runtime, so without this the
+	// skipped parse and the identity stamp never run in a deployment.
+	preparseSource := func() preparse.Config { return git.PreparseConfigFor(snapshotter, config, nil, nil) }
 	nativeSelector := git.NativeRepositorySelector{
 		Config:                     config,
 		Logger:                     logger,
@@ -182,6 +198,7 @@ func buildIngesterCollectorService(
 		Instruments:                instruments,
 		ReindexWatermark:           reindexWatermark,
 		RepositoryReindexWatermark: repositoryReindex,
+		Preparse:                   preparseSource,
 		// Only the native selector sees a full githubOrg listing, so only it
 		// records repository selection observations (#7625).
 		SelectionObserver: membership.Observer{
@@ -208,6 +225,7 @@ func buildIngesterCollectorService(
 			Instruments:                instruments,
 			ReindexWatermark:           reindexWatermark,
 			RepositoryReindexWatermark: repositoryReindex,
+			Preparse:                   preparseSource,
 		}
 		if scheduledSyncConfig.Enabled {
 			selector = git.PriorityRepositorySelector{Selectors: []git.RepositorySelector{
@@ -221,17 +239,9 @@ func buildIngesterCollectorService(
 
 	return collector.Service{
 		Source: &git.GitSource{
-			Component: "ingester",
-			Selector:  selector,
-			Snapshotter: git.NativeRepositorySnapshotter{
-				SCIP:             git.LoadSnapshotSCIPConfig(getenv),
-				ParseWorkers:     config.ParseWorkers,
-				DiscoveryOptions: discoveryOptions,
-				EmitDataflow:     git.LoadEmitDataflowGate(getenv),
-				Tracer:           tracer,
-				Instruments:      instruments,
-				Logger:           logger,
-			},
+			Component:              "ingester",
+			Selector:               selector,
+			Snapshotter:            snapshotter,
 			SnapshotWorkers:        config.SnapshotWorkers,
 			LargeRepoThreshold:     config.LargeRepoThreshold,
 			LargeRepoMaxConcurrent: config.LargeRepoMaxConcurrent,

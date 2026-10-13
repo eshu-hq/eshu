@@ -6,6 +6,7 @@ package scope
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -303,6 +304,19 @@ type ScopeGeneration struct {
 	// generation, even when its hint and commit equal the active generation's,
 	// so the repository fact's default branch re-projects.
 	DefaultBranchChanged bool
+	// PreparseIdentity is the pre-parse identity of the snapshot this
+	// generation came from (#7978 follow-up, ruling a9-143): the content
+	// version, commit, default branch, and configuration that determine its
+	// facts. The store keeps it on the generation so a later reconcile with an
+	// equal identity can skip the parse. Empty when unknown.
+	PreparseIdentity string
+	// PreparseIdentityDropped, when set, is true after the fact stream has
+	// drained if the stream dropped a file it could not read (review F-7,
+	// ruling a9-143.14). The facts of such a generation may differ from a later
+	// identical run, so the store keeps PreparseIdentity off it: it clears the
+	// stored identity before the commit and stamps none on a re-open. A pointer
+	// keeps ScopeGeneration comparable; it is never persisted.
+	PreparseIdentityDropped *atomic.Bool `json:"-"`
 }
 
 // Validate checks the generation fields and lifecycle status.

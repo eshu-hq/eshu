@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	membershipstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/membership"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
@@ -40,6 +41,20 @@ func buildCollectorService(
 	committer.Logger = logger
 	committer.Instruments = instruments
 
+	snapshotter := git.NativeRepositorySnapshotter{
+		SCIP:             git.LoadSnapshotSCIPConfig(getenv),
+		ParseWorkers:     config.ParseWorkers,
+		DiscoveryOptions: discoveryOptions,
+		EmitDataflow:     git.LoadEmitDataflowGate(getenv),
+		Tracer:           tracer,
+		Instruments:      instruments,
+		Logger:           logger,
+	}
+	// One configuration source for the pre-parse identity the selectors
+	// compare and stamp (#7978 follow-up): built from this snapshotter, so the
+	// identity cannot drift from what the snapshotter parses with.
+	preparseSource := func() preparse.Config { return git.PreparseConfigFor(snapshotter, config, nil, nil) }
+
 	// committer doubles as the delta-baseline resolver so git delta syncs
 	// baseline on the last projected commit per scope rather than local HEAD
 	// (epic #2340).
@@ -48,6 +63,7 @@ func buildCollectorService(
 		Logger:           logger,
 		BaselineResolver: committer,
 		Instruments:      instruments,
+		Preparse:         preparseSource,
 		// Only the native selector sees a full githubOrg listing, so only it
 		// records repository selection observations (#7625).
 		SelectionObserver: membership.Observer{
@@ -69,6 +85,7 @@ func buildCollectorService(
 				Logger:           logger,
 				BaselineResolver: committer,
 				Instruments:      instruments,
+				Preparse:         preparseSource,
 			},
 			selector,
 		}}
@@ -76,17 +93,9 @@ func buildCollectorService(
 
 	return collector.Service{
 		Source: &git.GitSource{
-			Component: "collector-git",
-			Selector:  selector,
-			Snapshotter: git.NativeRepositorySnapshotter{
-				SCIP:             git.LoadSnapshotSCIPConfig(getenv),
-				ParseWorkers:     config.ParseWorkers,
-				DiscoveryOptions: discoveryOptions,
-				EmitDataflow:     git.LoadEmitDataflowGate(getenv),
-				Tracer:           tracer,
-				Instruments:      instruments,
-				Logger:           logger,
-			},
+			Component:              "collector-git",
+			Selector:               selector,
+			Snapshotter:            snapshotter,
 			SnapshotWorkers:        config.SnapshotWorkers,
 			LargeRepoThreshold:     config.LargeRepoThreshold,
 			LargeRepoMaxConcurrent: config.LargeRepoMaxConcurrent,

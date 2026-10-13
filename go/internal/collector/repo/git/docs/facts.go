@@ -175,26 +175,36 @@ func GitDocumentationEnvelopesForContentFile(
 }
 
 func ReadDocumentationBody(repoPath string, relativePath string, body []byte) ([]byte, bool) {
+	raw, ok, _ := ReadDocumentationBodyWithError(repoPath, relativePath, body)
+	return raw, ok
+}
+
+// ReadDocumentationBodyWithError is ReadDocumentationBody that also returns
+// the open or read error when the body could not be read. ok false with a nil
+// error means the path is not a supported documentation format, which is
+// deterministic; ok false with an error is a read failure, which a later run
+// may not repeat (#7978 review F7-1).
+func ReadDocumentationBodyWithError(repoPath string, relativePath string, body []byte) ([]byte, bool, error) {
 	if body != nil {
-		return body, true
+		return body, true, nil
 	}
 	sourceURI, format, ok := GitDocumentationSourceURIAndFormat(relativePath)
 	if !ok {
-		return nil, false
+		return nil, false, nil
 	}
 	if format.Format == "xls" {
-		return nil, true
+		return nil, true, nil
 	}
 	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI))) // #nosec G304 -- reads indexed repo documentation file at a path derived from the scan target, not user-supplied input
 	if err != nil {
-		return nil, false
+		return nil, false, err
 	}
 	defer func() { _ = file.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(file, int64(documentationReadLimitBytes(format)+1)))
 	if err != nil {
-		return nil, false
+		return nil, false, err
 	}
-	return raw, true
+	return raw, true, nil
 }
 
 func documentationReadLimitBytes(format GitDocumentationFormat) int {

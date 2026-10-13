@@ -95,6 +95,15 @@ with a row. This directory is pinned at its file count by the dirgate ledger,
 so the code lives in `selection_reconcile_config.go` and
 `selection_baseline.go`, not a new file.
 
+An unchanged forced reconcile can skip the parse (#7978 follow-up, ruling
+a9-143). After the fetch, `skipParse` (`selection_cli.go`) compares the
+pre-parse identity (`preparse.Identity`, built from `PreparseConfigFor`) with the
+active generation's; on a match it calls the resolver's
+`ReprojectActiveGeneration` and selects nothing. Every full, clean selection
+carries its identity on `SelectedRepository.PreparseIdentity` to the generation.
+The cmd wiring passes one `Preparse` source to the selectors, built from the
+snapshotter it also wires. See `preparse/README.md`.
+
 An expired pending full holds its scope (#7978, ruling a9-126). When `decide`
 forces `in_flight_expired` or `reconcile_request_stale` over a newest full that
 is pending with live projector work, `expiredPendingHoldHead` returns that

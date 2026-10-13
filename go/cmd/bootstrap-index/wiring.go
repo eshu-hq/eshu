@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
@@ -55,18 +56,24 @@ func buildBootstrapCollector(
 		return collectorDeps{}, err
 	}
 
+	snapshotter := git.NativeRepositorySnapshotter{
+		SCIP:             git.LoadSnapshotSCIPConfig(getenv),
+		ParseWorkers:     config.ParseWorkers,
+		DiscoveryOptions: discoveryOptions,
+		EmitDataflow:     git.LoadEmitDataflowGate(getenv),
+		Tracer:           tracer,
+		Instruments:      instruments,
+		Logger:           logger,
+	}
 	source := &git.GitSource{
 		Component: "bootstrap-index",
-		Selector:  git.NativeRepositorySelector{Config: config, Logger: logger},
-		Snapshotter: git.NativeRepositorySnapshotter{
-			SCIP:             git.LoadSnapshotSCIPConfig(getenv),
-			ParseWorkers:     config.ParseWorkers,
-			DiscoveryOptions: discoveryOptions,
-			EmitDataflow:     git.LoadEmitDataflowGate(getenv),
-			Tracer:           tracer,
-			Instruments:      instruments,
-			Logger:           logger,
+		// Preparse stamps each stored generation's pre-parse identity, so the
+		// ingester's first sweep can skip the parse (#7978 follow-up).
+		Selector: git.NativeRepositorySelector{
+			Config: config, Logger: logger,
+			Preparse: func() preparse.Config { return git.PreparseConfigFor(snapshotter, config, nil, nil) },
 		},
+		Snapshotter:            snapshotter,
 		SnapshotWorkers:        config.SnapshotWorkers,
 		LargeRepoThreshold:     config.LargeRepoThreshold,
 		LargeRepoMaxConcurrent: config.LargeRepoMaxConcurrent,

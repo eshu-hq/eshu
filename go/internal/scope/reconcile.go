@@ -59,6 +59,40 @@ type FullReconcileState struct {
 	// active, so the sweep reads this to force a full that the store stores.
 	// Zero when none.
 	ReconcileDeadLetteredAt time.Time
+	// ActiveGenerationID is the scope's active generation
+	// (ingestion_scopes.active_generation_id); empty when there is none. The
+	// skipped-parse path re-projects exactly this generation (ruling a9-143).
+	ActiveGenerationID string
+	// ActiveIsDelta reports that the active generation is a delta; a full
+	// snapshot never equals it, so the parse is not skipped.
+	ActiveIsDelta bool
+	// ActiveCommitSHA is the active generation's source commit.
+	ActiveCommitSHA string
+	// ActivePreparseIdentity is the pre-parse identity stamped on the active
+	// generation; empty until a parse stamps one.
+	ActivePreparseIdentity string
+	// ActivePreparseSkips counts the skipped-parse re-projections of the active
+	// generation since its content was last parsed (the valve, ruling a9-143
+	// D3).
+	ActivePreparseSkips int
+}
+
+// ActiveReprojection asks the store to re-project the scope's active
+// generation without a snapshot (ruling a9-143): the collector found its
+// pre-parse identity equal at the same commit. The store fences on all three
+// of GenerationID, CommitSHA, and PreparseIdentity.
+type ActiveReprojection struct {
+	// ScopeID is the scope.
+	ScopeID string
+	// GenerationID is the active generation the collector read.
+	GenerationID string
+	// CommitSHA is the fetched remote head, equal to the active commit.
+	CommitSHA string
+	// PreparseIdentity is the identity the collector computed.
+	PreparseIdentity string
+	// Reason is the bounded reconcile reason (interval_elapsed or
+	// graph_dirty), stamped as reconcile_reason.
+	Reason string
 }
 
 // ReconcileReasonRequestStale is the reconcile reason for a scope whose

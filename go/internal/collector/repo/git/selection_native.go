@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -42,6 +43,11 @@ type NativeRepositorySelector struct {
 	// disables observation; only shard 0 in githubOrg or explicit mode calls
 	// it.
 	SelectionObserver RepositorySelectionObserver
+	// Preparse returns the configuration the pre-parse identity folds (#7978
+	// follow-up, ruling a9-143); the cmd wiring builds it with PreparseConfigFor
+	// from the snapshotter it also wires. Nil turns the skipped-parse path and
+	// identity stamping off.
+	Preparse func() preparse.Config
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -147,6 +153,8 @@ func (s NativeRepositorySelector) SelectRepositories(
 					ReindexRequestedAt:           reindexRequestedAt,
 					RepositoryReindexRequestedAt: repositoryReindexRequestedAt,
 					Now:                          s.Now,
+					Preparse:                     preparseConfig(s.Preparse),
+					ParseMaxSkips:                config.ReconcileParseMaxSkips,
 				})
 			}
 		}
@@ -156,7 +164,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		}
 		return SelectionBatch{
 			ObservedAt: observedAt,
-			Repositories: buildSelectedRepositories(
+			Repositories: applyPreparseIdentities(buildSelectedRepositories(
 				s.Config,
 				synced.SelectedRepoPaths,
 				synced.DeltaByRepoPath,
@@ -165,7 +173,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 				synced.RefsByRepoPath,
 				synced.RefWorktreesByRepoPath,
 				synced.ReconcileReasonByRepoPath,
-			),
+			), synced.PreparseIdentityByRepoPath),
 		}, nil
 	default:
 		return SelectionBatch{}, fmt.Errorf("unsupported ESHU_REPO_SOURCE_MODE=%q", s.Config.SourceMode)
@@ -393,4 +401,41 @@ func (s NativeRepositorySelector) now() time.Time {
 		return s.Now().UTC()
 	}
 	return time.Now().UTC()
+}
+
+// applyPreparseIdentities sets each default-branch selection's pre-parse
+// identity from the sync (#7978 follow-up). The sync keys the map by the
+// checkout path it built; a selection carries the absolute path, so both are
+// tried. Pinned-ref selections have their own paths and stay empty.
+func applyPreparseIdentities(repositories []SelectedRepository, byRepoPath map[string]string) []SelectedRepository {
+	if len(byRepoPath) == 0 {
+		return repositories
+	}
+	absolute := make(map[string]string, len(byRepoPath))
+	for repoPath, identity := range byRepoPath {
+		if abs, err := filepath.Abs(repoPath); err == nil {
+			absolute[abs] = identity
+		}
+	}
+	for i := range repositories {
+		if repositories[i].Ref != "" {
+			continue
+		}
+		if identity, ok := byRepoPath[repositories[i].RepoPath]; ok {
+			repositories[i].PreparseIdentity = identity
+		} else if identity, ok := absolute[repositories[i].RepoPath]; ok {
+			repositories[i].PreparseIdentity = identity
+		}
+	}
+	return repositories
+}
+
+// preparseConfig resolves a selector's Preparse source for one cycle; nil
+// means the feature is off.
+func preparseConfig(source func() preparse.Config) *preparse.Config {
+	if source == nil {
+		return nil
+	}
+	config := source()
+	return &config
 }

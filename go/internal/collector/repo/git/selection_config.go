@@ -80,6 +80,10 @@ type RepoSyncConfig struct {
 	// a full reconciliation snapshot so a fleet does not stampede. Non-positive
 	// means no per-cycle cap.
 	ReconcileMaxPerCycle int
+	// ReconcileParseMaxSkips is the skipped-parse valve (#7978 follow-up,
+	// ruling a9-143 D3, ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS): 0 never skips the
+	// parse of a forced reconcile; N parses at least every N intervals.
+	ReconcileParseMaxSkips int
 	// PinnedRefsByRepoID maps repository IDs to per-repo pinned refs. Each
 	// pinned ref produces an isolated non-default-branch snapshot with identity
 	// repo_id@ref. Parsed from ESHU_PINNED_REFS_JSON. Empty means feature off.
@@ -111,6 +115,10 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		sourceMode = "githubOrg"
 	}
 	repositoryRules, err := parseRepositoryRulesJSON(getenv("ESHU_REPOSITORY_RULES_JSON"))
+	if err != nil {
+		return RepoSyncConfig{}, err
+	}
+	reconcileParseMaxSkips, err := reconcileParseMaxSkipsFromEnv(getenv)
 	if err != nil {
 		return RepoSyncConfig{}, err
 	}
@@ -174,6 +182,7 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		RepoShardIndex:         repoShardIndex,
 		ReconcileInterval:      reconcileIntervalFromEnv(getenv),
 		ReconcileMaxPerCycle:   reconcileMaxPerCycleFromEnv(getenv),
+		ReconcileParseMaxSkips: reconcileParseMaxSkips,
 		PinnedRefsByRepoID:     pinnedRefsByRepoID,
 		PinnedRefPerRepoCap:    pinnedRefCap,
 		PinnedRefFleetCap:      pinnedRefFleetCap,
@@ -442,4 +451,27 @@ func sortUniqueStrings(values []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// defaultReconcileParseMaxSkips parses an unchanged repository at least once a
+// week at the default daily interval (ruling a9-143 D3).
+const defaultReconcileParseMaxSkips = 7
+
+// reconcileParseMaxSkipsFromEnv reads ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS
+// (ruling a9-143.1): unset or blank is the default, 0 never skips, and a
+// positive N allows N-1 skips after each parse. A negative or non-integer
+// value is a startup error that names the variable and the value, never a
+// silent fallback, because a typo would otherwise change how stale an
+// unfolded input may get.
+func reconcileParseMaxSkipsFromEnv(getenv func(string) string) (int, error) {
+	raw := getenv("ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS")
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return defaultReconcileParseMaxSkips, nil
+	}
+	value, err := strconv.Atoi(trimmed)
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS=%q: a set value must be a non-negative integer (0 never skips the parse)", trimmed)
+	}
+	return value, nil
 }

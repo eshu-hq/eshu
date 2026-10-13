@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/scip"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFiles(
@@ -135,6 +136,7 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
 	if !indexer.IsAvailable(language) {
 		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultBinaryMissing)
 		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultBinaryMissing)
+		markSnapshotDegraded(ctx, telemetry.PreparseDropSCIPBinaryUnavailable)
 		return scipSubtreeFilesResult{}, nil
 	}
 
@@ -157,6 +159,7 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
 		_ = os.RemoveAll(outputDir)
 		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultIndexerFailed)
 		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultIndexerFailed)
+		markSnapshotDegraded(ctx, telemetry.PreparseDropSCIPIndexerFailed)
 		return scipSubtreeFilesResult{}, nil
 	}
 	result, parseErr := resultParser.Parse(indexPath, subtree.Root)
@@ -164,6 +167,7 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
 	if parseErr != nil {
 		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultParseFailed)
 		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultParseFailed)
+		markSnapshotDegraded(ctx, telemetry.PreparseDropSCIPParseFailed)
 		return scipSubtreeFilesResult{}, nil
 	}
 	if len(result.Files) == 0 {

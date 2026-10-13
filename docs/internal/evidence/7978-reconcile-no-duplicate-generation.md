@@ -271,3 +271,60 @@ The skip log line `ingestion refresh skipped` carries `refresh_skipped`,
 A stored reconcile generation records `reconcile_reason` in
 `scope_generations.payload`, and a stored default-branch generation records
 `default_branch_changed`.
+
+## Follow-up: skipping the parse of an unchanged repository
+
+Ruling a9-143 (D1-D5). The collector compares a pre-parse identity after the
+fetch and, when it equals the active generation's, re-projects that generation
+without a snapshot (package `go/internal/collector/repo/git/preparse`, store
+method `IngestionStore.ReprojectActiveGeneration`). Decision table, valve, and
+signals: `docs/public/reference/reconciliation-sweep.md` ("Skipping the parse of
+an unchanged repository").
+
+Performance Evidence: theory shim, before the change; one process, macOS arm64,
+Go 1.26.9, three runs each. The parse path is snapshot, parse, fact build,
+drain, and post-parse hint; the identity path is `git rev-parse`, `git status
+--porcelain`, and a config digest; the fetch is common to both and excluded.
+
+| repository | tracked files | facts | parse path wall | parse path CPU | identity wall | load1 |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| content-version fixture | 44 | 238 | 48-68 ms | 40-55 ms | 29-34 ms | 16 |
+| `go/internal/storage/postgres` as a repository | 2,011 | 71,440 | 23.7-24.7 s | 43.0-43.8 s | 51-65 ms | 16 |
+| a clone of this repository | 26,301 | 634,203 | 3 min 41.2 s - 3 min 47.7 s | 6 min 2.6 s - 6 min 9.4 s | 237-260 ms | 8.3 -> 7.7 |
+
+No QA repository was reachable for the shim; the QA size distribution is the
+BEFORE figure of the after-measurement (ruling a9-143 D5).
+
+New reads and writes, generic plans (`plan_cache_mode = force_generic_plan`,
+`EXPLAIN (ANALYZE, BUFFERS)`), on the same 35,001 seeded generations across 801
+scopes as the #7978 plans, query text taken from the Go constants:
+
+| statement | plan | warm execution | first run |
+| --- | --- | ---: | ---: |
+| `fullReconcileStateQuery` before (main) | two `scope_generations` lookups | 0.022-0.031 ms | 0.395-0.397 ms |
+| `fullReconcileStateQuery` with the active-pointer LATERAL | adds `ingestion_scopes_pkey` and the generation primary key | 0.027-0.039 ms | 0.121-0.156 ms |
+| `reprojectByIdentityQuery`, identity matches (in `BEGIN`/`ROLLBACK`) | primary keys, no sequential scan | 0.100-0.124 ms | 0.376-1.522 ms |
+| `reprojectByIdentityQuery`, fenced (identity differs) | target empty | 0.014-0.025 ms | 0.024-0.025 ms |
+
+The first-run column reflects cache order (the old query ran first); no plan
+used a sequential scan.
+
+After-measurement plan (QA, once the ingester image with this change is rolled
+and stage 2 has the sweep on; the ingester is the runtime that syncs
+repositories there, and review F-1 wired it): collector CPU per
+sweep cycle and `eshu_dp_collector_reconcile_parse_skip_decisions_total` by
+outcome, before (sweep with `ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS=0`) and after
+(default 7), over the same 24 h window shape. Expected at steady state: mostly
+`skipped`, one `valve_due` per scope per week, and `identity_absent` only on the
+first day after deploy.
+
+Observability Evidence: the decision counter, INFO `git_reconcile_parse_skipped`,
+WARN `git_reconcile_parse_skip_refused`, and the span event
+`git.reconcile.parse_skip_decision` are new; existing signals keep their meaning
+(`reconcile_reprojected` is still counted by the store for a skipped-parse
+re-open, and `eshu_dp_collector_reconciliation_full_snapshots_total` counts
+only forced snapshots, so a skipped parse does not increment it).
+
+Pre-existing gap recorded for #7986 (ruling a9-143 D4): repository metadata
+(name, slug, remote URL) is in neither the post-parse hint nor the identity, so
+a rename with equal content stores nothing; parity is kept here.

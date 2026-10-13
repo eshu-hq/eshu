@@ -135,11 +135,21 @@ func ResolvedCodeownersCandidateRelativePaths(
 // two-phase content stream (streamFacts) re-reads the body once at emit time,
 // same as every other content file.
 func CodeownersFileMetasForPaths(repoPath string, relativePaths []string, commitSHA string) []model.ContentFileMeta {
+	metas, _ := CodeownersFileMetasWithReadFailures(repoPath, relativePaths, commitSHA)
+	return metas
+}
+
+// CodeownersFileMetasWithReadFailures is CodeownersFileMetasForPaths that also
+// returns how many candidates it skipped because their digest could not be
+// read (#7978 review F7-1).
+func CodeownersFileMetasWithReadFailures(repoPath string, relativePaths []string, commitSHA string) ([]model.ContentFileMeta, int) {
 	metas := make([]model.ContentFileMeta, 0, len(relativePaths))
+	readFailures := 0
 	for _, relativePath := range relativePaths {
 		absolutePath := filepath.Join(repoPath, filepath.FromSlash(relativePath))
 		digest, ok := model.DocumentationDigestForFile(absolutePath)
 		if !ok {
+			readFailures++
 			continue
 		}
 		metas = append(metas, model.ContentFileMeta{
@@ -150,7 +160,7 @@ func CodeownersFileMetasForPaths(repoPath string, relativePaths []string, commit
 			CommitSHA:    commitSHA,
 		})
 	}
-	return metas
+	return metas, readFailures
 }
 
 // emitCodeownersFactsForCandidates resolves the single CODEOWNERS file GitHub

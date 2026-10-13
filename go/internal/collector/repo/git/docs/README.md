@@ -22,11 +22,15 @@ both sides need lives in `go/internal/collector/repo/git/model`.
   routing from a relative path.
 - `IsGitDocumentationPath`, `IsNotebookDocumentationPath` — path predicates the
   snapshot partitioner uses.
-- `DocumentationFileMetasForPaths` — metadata-only records for phase A.
+- `DocumentationFileMetasForPaths` — metadata-only records for phase A;
+  `DocumentationFileMetasWithReadFailures` also counts the files whose digest
+  could not be read (#7978 review F7-1).
 - `EmitGitDocumentationFactsForContentFile`,
   `GitDocumentationEnvelopesForContentFile` — fact emission for phase B.
 - `ReadDocumentationBody`, `DocumentationMetaRelativePaths`,
   `CleanDiagramLinkTarget` — helpers git still calls by name.
+  `ReadDocumentationBodyWithError` tells a read failure (an error) from an
+  unsupported format (no error), so the fact stream marks only real drops.
 
 ## Notes
 

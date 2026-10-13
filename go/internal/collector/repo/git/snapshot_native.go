@@ -99,7 +99,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	deltaRelativePaths := sortUniquePathStrings(append(deltaChangedRelativePaths, deltaDeletedRelativePaths...))
 	var workflowImageFileMetas []model.ContentFileMeta
 	if repository.Delta {
-		workflowImageFileMetas = image.CurrentWorkflowImageFileMetas(repoPath, fileSet.Files, fullFileSet.Files)
+		var readFailures int
+		workflowImageFileMetas, readFailures = image.CurrentWorkflowImageFileMetasWithReadFailures(repoPath, fileSet.Files, fullFileSet.Files)
+		markSnapshotDegradedOn(ctx, readFailures, telemetry.PreparseDropWorkflowDigestFailed)
 	}
 	var tfstateCandidates []TerraformStateCandidate
 	fileSet.Files, tfstateCandidates = extractTerraformStateCandidates(repoPath, fileSet.Files)
@@ -156,6 +158,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		Reconcile:                repository.Reconcile,
 		ReconcileReason:          repository.ReconcileReason,
 		DefaultBranchChanged:     repository.DefaultBranchChanged,
+		PreparseIdentity:         repository.PreparseIdentity,
 	}
 	commitSHA := repository.SourceCommitSHA
 	if commitSHA == "" {
@@ -179,10 +182,12 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// above survives that same early return. Both candidate sets are
 	// appended together since a repository can carry both a .gitmodules file
 	// and a CODEOWNERS file in the same generation.
+	// A .gitmodules read failure needs no mark: Decide never skips a
+	// repository with submodules, so no identity can freeze its facts.
+	codeownersMetas, codeownersReadFailures := codeowners.CodeownersFileMetasWithReadFailures(repoPath, codeownersCandidateRelativePaths, commitSHA)
+	markSnapshotDegradedOn(ctx, codeownersReadFailures, telemetry.PreparseDropCodeownersReadFailed)
 	snapshot.ContentFileMetas = append(
-		submodule.GitmodulesFileMetasForPaths(repoPath, gitmodulesCandidateRelativePaths, commitSHA),
-		codeowners.CodeownersFileMetasForPaths(repoPath, codeownersCandidateRelativePaths, commitSHA)...,
-	)
+		submodule.GitmodulesFileMetasForPaths(repoPath, gitmodulesCandidateRelativePaths, commitSHA), codeownersMetas...)
 	if len(fileSet.Files) == 0 {
 		snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 			repoPath,
@@ -346,7 +351,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// zero-files early return); append the materialized content metas rather
 	// than overwrite them.
 	snapshot.ContentFileMetas = append(snapshot.ContentFileMetas, materializationRecordsToMetas(materialization.Records)...)
-	snapshot.DocumentationFileMetas = docs.DocumentationFileMetasForPaths(repoPath, discovery.FilePaths(documentationFiles), commitSHA)
+	var docsReadFailures int
+	snapshot.DocumentationFileMetas, docsReadFailures = docs.DocumentationFileMetasWithReadFailures(repoPath, discovery.FilePaths(documentationFiles), commitSHA)
+	markSnapshotDegradedOn(ctx, docsReadFailures, telemetry.PreparseDropDocsReadFailed)
 	snapshot.ContentEntities = materializationEntitiesToSnapshots(materialization.Entities, s.now())
 	snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 		repoPath,
