@@ -1,0 +1,1339 @@
+{
+  "statement_set": {
+    "StepFirst": "\n(SELECT 'hit' AS kind, entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''), metadata\n FROM (SELECT entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, language, source_cache, metadata\n       FROM content_entities\n       ORDER BY repo_id, relative_path, start_line, entity_id\n       LIMIT $2::bigint) head\n WHERE source_cache ILIKE '%' || $1 || '%'\n ORDER BY repo_id, relative_path, start_line, entity_id\n LIMIT $3::bigint)\nUNION ALL\n(SELECT 'edge', entity_id, repo_id, relative_path, '', '', start_line, 0, '', '', NULL\n FROM content_entities\n ORDER BY repo_id, relative_path, start_line, entity_id\n OFFSET ($2::bigint - 1) LIMIT 1)",
+    "StepAfter": "\n(SELECT 'hit' AS kind, entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''), metadata\n FROM (SELECT entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, language, source_cache, metadata\n       FROM content_entities\n       WHERE (repo_id, relative_path, start_line, entity_id) \u003e ($4::text, $5::text, $6::integer, $7::text)\n       ORDER BY repo_id, relative_path, start_line, entity_id\n       LIMIT $2::bigint) head\n WHERE source_cache ILIKE '%' || $1 || '%'\n ORDER BY repo_id, relative_path, start_line, entity_id\n LIMIT $3::bigint)\nUNION ALL\n(SELECT 'edge', entity_id, repo_id, relative_path, '', '', start_line, 0, '', '', NULL\n FROM content_entities\n WHERE (repo_id, relative_path, start_line, entity_id) \u003e ($4::text, $5::text, $6::integer, $7::text)\n ORDER BY repo_id, relative_path, start_line, entity_id\n OFFSET ($2::bigint - 1) LIMIT 1)",
+    "TailFirst": "\nSELECT 'hit' AS kind, entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''), metadata\nFROM content_entities\nWHERE source_cache ILIKE '%' || $1 || '%'\nORDER BY repo_id, relative_path, start_line, entity_id\nLIMIT $2::bigint",
+    "TailAfter": "\nSELECT 'hit' AS kind, entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''), metadata\nFROM content_entities\nWHERE (repo_id, relative_path, start_line, entity_id) \u003e ($3::text, $4::text, $5::integer, $6::text)\n  AND source_cache ILIKE '%' || $1 || '%'\nORDER BY repo_id, relative_path, start_line, entity_id\nLIMIT $2::bigint",
+    "DisableIndexScan": "SET LOCAL enable_indexscan = off"
+  },
+  "sql": {
+    "s01": "SELECT eshu_require_content_substring_indexes_ready()",
+    "s02": "SELECT set_config('statement_timeout', $1, true)",
+    "s03": "SAVEPOINT unscoped_search",
+    "s04": "\n(SELECT 'hit' AS kind, entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''), metadata\n FROM (SELECT entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, language, source_cache, metadata\n       FROM content_entities\n       ORDER BY repo_id, relative_path, start_line, entity_id\n       LIMIT $2::bigint) head\n WHERE source_cache ILIKE '%' || $1 || '%'\n ORDER BY repo_id, relative_path, start_line, entity_id\n LIMIT $3::bigint)\nUNION ALL\n(SELECT 'edge', entity_id, repo_id, relative_path, '', '', start_line, 0, '', '', NULL\n FROM content_entities\n ORDER BY repo_id, relative_path, start_line, entity_id\n OFFSET ($2::bigint - 1) LIMIT 1)",
+    "s05": "RELEASE SAVEPOINT unscoped_search",
+    "s06": "\n(SELECT 'hit' AS kind, entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''), metadata\n FROM (SELECT entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, language, source_cache, metadata\n       FROM content_entities\n       WHERE (repo_id, relative_path, start_line, entity_id) \u003e ($4::text, $5::text, $6::integer, $7::text)\n       ORDER BY repo_id, relative_path, start_line, entity_id\n       LIMIT $2::bigint) head\n WHERE source_cache ILIKE '%' || $1 || '%'\n ORDER BY repo_id, relative_path, start_line, entity_id\n LIMIT $3::bigint)\nUNION ALL\n(SELECT 'edge', entity_id, repo_id, relative_path, '', '', start_line, 0, '', '', NULL\n FROM content_entities\n WHERE (repo_id, relative_path, start_line, entity_id) \u003e ($4::text, $5::text, $6::integer, $7::text)\n ORDER BY repo_id, relative_path, start_line, entity_id\n OFFSET ($2::bigint - 1) LIMIT 1)",
+    "s07": "SET LOCAL enable_indexscan = off",
+    "s08": "\nSELECT 'hit' AS kind, entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''), metadata\nFROM content_entities\nWHERE (repo_id, relative_path, start_line, entity_id) \u003e ($3::text, $4::text, $5::integer, $6::text)\n  AND source_cache ILIKE '%' || $1 || '%'\nORDER BY repo_id, relative_path, start_line, entity_id\nLIMIT $2::bigint",
+    "s09": "RESET enable_indexscan",
+    "s10": "ROLLBACK TO SAVEPOINT unscoped_search"
+  },
+  "cases": [
+    {
+      "name": "exact in the probe",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-000020\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00006.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000020\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name000020() {}\"},\"metadata_raw\":\"{\\\"seq\\\":20}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-000030\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00010.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000030\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name000030() {}\"},\"metadata_raw\":\"{\\\"seq\\\":30}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-000040\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00013.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000040\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name000040() {}\"},\"metadata_raw\":\"{\\\"seq\\\":40}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-000050\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00016.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000050\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name000050() {}\"},\"metadata_raw\":\"{\\\"seq\\\":50}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-000060\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00020.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000060\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name000060() {}\"},\"metadata_raw\":\"{\\\"seq\\\":60}\"}"
+      ],
+      "more": true,
+      "partial": null,
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:8",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "3",
+        "search.ended_in": "probe",
+        "search.outcome": "exact",
+        "search.overrun_ms": "0",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "200",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "false"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "exact"
+          },
+          "value": "count=1 sum=0.00355"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "exact"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": []
+    },
+    {
+      "name": "exhausted by the tail",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-015000\",\"repo_id\":\"repo-050\",\"relative_path\":\"file-05000.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-015000\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name015000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":15000}\"}"
+      ],
+      "more": false,
+      "partial": null,
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:51",
+        "s05 | ",
+        "s02 | execMode=exec | string:440ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-000 | string:file-00066.go | int32:20 | string:entity-000199",
+        "s05 | ",
+        "s02 | execMode=exec | string:415ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-002 | string:file-00233.go | int32:10 | string:entity-000699",
+        "s05 | ",
+        "s02 | execMode=exec | string:390ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-003 | string:file-00399.go | int32:30 | string:entity-001199",
+        "s05 | ",
+        "s02 | execMode=exec | string:365ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-005 | string:file-00566.go | int32:20 | string:entity-001699",
+        "s05 | ",
+        "s02 | execMode=exec | string:340ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-007 | string:file-00733.go | int32:10 | string:entity-002199",
+        "s05 | ",
+        "s02 | execMode=exec | string:315ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-008 | string:file-00899.go | int32:30 | string:entity-002699",
+        "s05 | ",
+        "s02 | execMode=exec | string:290ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-010 | string:file-01066.go | int32:20 | string:entity-003199",
+        "s05 | ",
+        "s02 | execMode=exec | string:265ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-012 | string:file-01233.go | int32:10 | string:entity-003699",
+        "s05 | ",
+        "s02 | execMode=exec | string:240ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-013 | string:file-01399.go | int32:30 | string:entity-004199",
+        "s05 | ",
+        "s02 | execMode=exec | string:215ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-015 | string:file-01566.go | int32:20 | string:entity-004699",
+        "s05 | ",
+        "s02 | execMode=exec | string:190ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-017 | string:file-01733.go | int32:10 | string:entity-005199",
+        "s05 | ",
+        "s02 | execMode=exec | string:165ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-018 | string:file-01899.go | int32:30 | string:entity-005699",
+        "s05 | ",
+        "s02 | execMode=exec | string:140ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-020 | string:file-02066.go | int32:20 | string:entity-006199",
+        "s05 | ",
+        "s02 | execMode=exec | string:115ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-022 | string:file-02233.go | int32:10 | string:entity-006699",
+        "s05 | ",
+        "s02 | execMode=exec | string:90ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-023 | string:file-02399.go | int32:30 | string:entity-007199",
+        "s05 | ",
+        "s02 | execMode=exec | string:65ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-025 | string:file-02566.go | int32:20 | string:entity-007699",
+        "s05 | ",
+        "s02 | execMode=exec | string:40ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:51 | string:repo-027 | string:file-02733.go | int32:10 | string:entity-008199",
+        "s05 | ",
+        "s02 | execMode=exec | string:365ms",
+        "s03 | ",
+        "s07 | ",
+        "s08 | execMode=exec | string:needle | int64:51 | string:repo-028 | string:file-02899.go | int32:30 | string:entity-008699",
+        "s05 | ",
+        "s09 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "8500",
+        "search.continuation_steps": "17",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "585",
+        "search.ended_in": "tail",
+        "search.outcome": "exhausted",
+        "search.overrun_ms": "0",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "200",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "true"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "count=1 sum=0.585"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": []
+    },
+    {
+      "name": "exhausted inside the probe window",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-000007\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00002.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000007\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name000007() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-000140\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00046.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000140\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name000140() {}\"},\"metadata_raw\":\"{\\\"seq\\\":140}\"}"
+      ],
+      "more": false,
+      "partial": null,
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:11",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "7",
+        "search.ended_in": "probe",
+        "search.outcome": "exhausted",
+        "search.overrun_ms": "0",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "0",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "false"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "count=1 sum=0.0075"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": []
+    },
+    {
+      "name": "partial on a large document",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-003000\",\"repo_id\":\"repo-010\",\"relative_path\":\"file-01000.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003000\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name003000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-003200\",\"repo_id\":\"repo-010\",\"relative_path\":\"file-01066.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003200\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name003200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-003400\",\"repo_id\":\"repo-011\",\"relative_path\":\"file-01133.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003400\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name003400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-003600\",\"repo_id\":\"repo-012\",\"relative_path\":\"file-01200.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003600\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name003600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-003800\",\"repo_id\":\"repo-012\",\"relative_path\":\"file-01266.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003800\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name003800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004000\",\"repo_id\":\"repo-013\",\"relative_path\":\"file-01333.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004000\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name004000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004200\",\"repo_id\":\"repo-014\",\"relative_path\":\"file-01400.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004200\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name004200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004400\",\"repo_id\":\"repo-014\",\"relative_path\":\"file-01466.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004400\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name004400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004600\",\"repo_id\":\"repo-015\",\"relative_path\":\"file-01533.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004600\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name004600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004800\",\"repo_id\":\"repo-016\",\"relative_path\":\"file-01600.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004800\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name004800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005000\",\"repo_id\":\"repo-016\",\"relative_path\":\"file-01666.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005000\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name005000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005200\",\"repo_id\":\"repo-017\",\"relative_path\":\"file-01733.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005200\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name005200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005400\",\"repo_id\":\"repo-018\",\"relative_path\":\"file-01800.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005400\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name005400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005600\",\"repo_id\":\"repo-018\",\"relative_path\":\"file-01866.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005600\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name005600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005800\",\"repo_id\":\"repo-019\",\"relative_path\":\"file-01933.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005800\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name005800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006000\",\"repo_id\":\"repo-020\",\"relative_path\":\"file-02000.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006000\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name006000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006200\",\"repo_id\":\"repo-020\",\"relative_path\":\"file-02066.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006200\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name006200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006400\",\"repo_id\":\"repo-021\",\"relative_path\":\"file-02133.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006400\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name006400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006600\",\"repo_id\":\"repo-022\",\"relative_path\":\"file-02200.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006600\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name006600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006800\",\"repo_id\":\"repo-022\",\"relative_path\":\"file-02266.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006800\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name006800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007000\",\"repo_id\":\"repo-023\",\"relative_path\":\"file-02333.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007000\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name007000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007200\",\"repo_id\":\"repo-024\",\"relative_path\":\"file-02400.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007200\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name007200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007400\",\"repo_id\":\"repo-024\",\"relative_path\":\"file-02466.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007400\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name007400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007600\",\"repo_id\":\"repo-025\",\"relative_path\":\"file-02533.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007600\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name007600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007800\",\"repo_id\":\"repo-026\",\"relative_path\":\"file-02600.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007800\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name007800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008000\",\"repo_id\":\"repo-026\",\"relative_path\":\"file-02666.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008000\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name008000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008200\",\"repo_id\":\"repo-027\",\"relative_path\":\"file-02733.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008200\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name008200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008400\",\"repo_id\":\"repo-028\",\"relative_path\":\"file-02800.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008400\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name008400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008600\",\"repo_id\":\"repo-028\",\"relative_path\":\"file-02866.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008600\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name008600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8600}\"}"
+      ],
+      "more": false,
+      "partial": {
+        "reason": "budget_exceeded_on_large_document",
+        "rows_scanned_in_order": 8700,
+        "rows_matched": 29,
+        "cursor": {
+          "repo_id": "repo-028",
+          "relative_path": "file-02899.go",
+          "start_line": 30,
+          "entity_id": "entity-008699"
+        },
+        "budget_ms": 800,
+        "elapsed_ms": 920,
+        "overrun_ms": 120,
+        "progressed": true,
+        "hint": "add repo_id (repo_ids in the MCP tool) to scope the search"
+      },
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:201",
+        "s05 | ",
+        "s02 | execMode=exec | string:440ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:201 | string:repo-000 | string:file-00066.go | int32:20 | string:entity-000199",
+        "s05 | ",
+        "s02 | execMode=exec | string:415ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:201 | string:repo-002 | string:file-00233.go | int32:10 | string:entity-000699",
+        "s05 | ",
+        "s02 | execMode=exec | string:390ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:201 | string:repo-003 | string:file-00399.go | int32:30 | string:entity-001199",
+        "s05 | ",
+        "s02 | execMode=exec | string:365ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:201 | string:repo-005 | string:file-00566.go | int32:20 | string:entity-001699",
+        "s05 | ",
+        "s02 | execMode=exec | string:340ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:201 | string:repo-007 | string:file-00733.go | int32:10 | string:entity-002199",
+        "s05 | ",
+        "s02 | execMode=exec | string:315ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:201 | string:repo-008 | string:file-00899.go | int32:30 | string:entity-002699",
+        "s05 | ",
+        "s02 | execMode=exec | string:290ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:200 | string:repo-010 | string:file-01066.go | int32:20 | string:entity-003199",
+        "s05 | ",
+        "s02 | execMode=exec | string:265ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:197 | string:repo-012 | string:file-01233.go | int32:10 | string:entity-003699",
+        "s05 | ",
+        "s02 | execMode=exec | string:240ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:195 | string:repo-013 | string:file-01399.go | int32:30 | string:entity-004199",
+        "s05 | ",
+        "s02 | execMode=exec | string:215ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:192 | string:repo-015 | string:file-01566.go | int32:20 | string:entity-004699",
+        "s05 | ",
+        "s02 | execMode=exec | string:190ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:190 | string:repo-017 | string:file-01733.go | int32:10 | string:entity-005199",
+        "s05 | ",
+        "s02 | execMode=exec | string:165ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:187 | string:repo-018 | string:file-01899.go | int32:30 | string:entity-005699",
+        "s05 | ",
+        "s02 | execMode=exec | string:140ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:185 | string:repo-020 | string:file-02066.go | int32:20 | string:entity-006199",
+        "s05 | ",
+        "s02 | execMode=exec | string:115ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:182 | string:repo-022 | string:file-02233.go | int32:10 | string:entity-006699",
+        "s05 | ",
+        "s02 | execMode=exec | string:90ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:180 | string:repo-023 | string:file-02399.go | int32:30 | string:entity-007199",
+        "s05 | ",
+        "s02 | execMode=exec | string:65ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:177 | string:repo-025 | string:file-02566.go | int32:20 | string:entity-007699",
+        "s05 | ",
+        "s02 | execMode=exec | string:40ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:175 | string:repo-027 | string:file-02733.go | int32:10 | string:entity-008199",
+        "s05 | ",
+        "s02 | execMode=exec | string:365ms",
+        "s03 | ",
+        "s07 | ",
+        "s08 | execMode=exec | string:needle | int64:172 | string:repo-028 | string:file-02899.go | int32:30 | string:entity-008699",
+        "s10 | ",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "8500",
+        "search.continuation_steps": "17",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "920",
+        "search.ended_in": "tail",
+        "search.outcome": "partial",
+        "search.overrun_ms": "120",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "200",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "true",
+        "search.tail_ran": "true"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_tail_cancel_total",
+          "value": "1"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "count=1 sum=0.92"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0.12"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": [
+        {
+          "budget_ms": 800,
+          "elapsed_ms": 920,
+          "ended_in": "tail",
+          "event_name": "content_search.unscoped_entity_partial",
+          "level": "INFO",
+          "msg": "unscoped entity search returned a partial result",
+          "overrun_ms": 120,
+          "progressed": true,
+          "reason": "budget_exceeded_on_large_document",
+          "rows_matched": 29,
+          "rows_scanned_in_order": 8700,
+          "steps_cancelled": 0,
+          "tail_cancelled": true,
+          "tail_ran": true
+        }
+      ]
+    },
+    {
+      "name": "partial resumed from a cursor",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-004200\",\"repo_id\":\"repo-014\",\"relative_path\":\"file-01400.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004200\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name004200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004400\",\"repo_id\":\"repo-014\",\"relative_path\":\"file-01466.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004400\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name004400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004600\",\"repo_id\":\"repo-015\",\"relative_path\":\"file-01533.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004600\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name004600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004800\",\"repo_id\":\"repo-016\",\"relative_path\":\"file-01600.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004800\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name004800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005000\",\"repo_id\":\"repo-016\",\"relative_path\":\"file-01666.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005000\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name005000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005200\",\"repo_id\":\"repo-017\",\"relative_path\":\"file-01733.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005200\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name005200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005400\",\"repo_id\":\"repo-018\",\"relative_path\":\"file-01800.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005400\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name005400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005600\",\"repo_id\":\"repo-018\",\"relative_path\":\"file-01866.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005600\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name005600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-005800\",\"repo_id\":\"repo-019\",\"relative_path\":\"file-01933.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-005800\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name005800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006000\",\"repo_id\":\"repo-020\",\"relative_path\":\"file-02000.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006000\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name006000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006200\",\"repo_id\":\"repo-020\",\"relative_path\":\"file-02066.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006200\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name006200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006400\",\"repo_id\":\"repo-021\",\"relative_path\":\"file-02133.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006400\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name006400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006600\",\"repo_id\":\"repo-022\",\"relative_path\":\"file-02200.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006600\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name006600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-006800\",\"repo_id\":\"repo-022\",\"relative_path\":\"file-02266.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-006800\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name006800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007000\",\"repo_id\":\"repo-023\",\"relative_path\":\"file-02333.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007000\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name007000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007200\",\"repo_id\":\"repo-024\",\"relative_path\":\"file-02400.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007200\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name007200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007400\",\"repo_id\":\"repo-024\",\"relative_path\":\"file-02466.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007400\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name007400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007600\",\"repo_id\":\"repo-025\",\"relative_path\":\"file-02533.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007600\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name007600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-007800\",\"repo_id\":\"repo-026\",\"relative_path\":\"file-02600.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-007800\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name007800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008000\",\"repo_id\":\"repo-026\",\"relative_path\":\"file-02666.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008000\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name008000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008200\",\"repo_id\":\"repo-027\",\"relative_path\":\"file-02733.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008200\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name008200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008400\",\"repo_id\":\"repo-028\",\"relative_path\":\"file-02800.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008400\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name008400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008600\",\"repo_id\":\"repo-028\",\"relative_path\":\"file-02866.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008600\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name008600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-008800\",\"repo_id\":\"repo-029\",\"relative_path\":\"file-02933.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-008800\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name008800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-009000\",\"repo_id\":\"repo-030\",\"relative_path\":\"file-03000.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-009000\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name009000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":9000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-009200\",\"repo_id\":\"repo-030\",\"relative_path\":\"file-03066.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-009200\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name009200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":9200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-009400\",\"repo_id\":\"repo-031\",\"relative_path\":\"file-03133.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-009400\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name009400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":9400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-009600\",\"repo_id\":\"repo-032\",\"relative_path\":\"file-03200.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-009600\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name009600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":9600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-009800\",\"repo_id\":\"repo-032\",\"relative_path\":\"file-03266.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-009800\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name009800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":9800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-010000\",\"repo_id\":\"repo-033\",\"relative_path\":\"file-03333.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-010000\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name010000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":10000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-010200\",\"repo_id\":\"repo-034\",\"relative_path\":\"file-03400.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-010200\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name010200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":10200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-010400\",\"repo_id\":\"repo-034\",\"relative_path\":\"file-03466.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-010400\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name010400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":10400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-010600\",\"repo_id\":\"repo-035\",\"relative_path\":\"file-03533.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-010600\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name010600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":10600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-010800\",\"repo_id\":\"repo-036\",\"relative_path\":\"file-03600.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-010800\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name010800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":10800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-011000\",\"repo_id\":\"repo-036\",\"relative_path\":\"file-03666.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-011000\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name011000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":11000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-011200\",\"repo_id\":\"repo-037\",\"relative_path\":\"file-03733.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-011200\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name011200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":11200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-011400\",\"repo_id\":\"repo-038\",\"relative_path\":\"file-03800.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-011400\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name011400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":11400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-011600\",\"repo_id\":\"repo-038\",\"relative_path\":\"file-03866.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-011600\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name011600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":11600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-011800\",\"repo_id\":\"repo-039\",\"relative_path\":\"file-03933.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-011800\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name011800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":11800}\"}"
+      ],
+      "more": false,
+      "partial": {
+        "reason": "candidate_budget_exceeded",
+        "rows_scanned_in_order": 8700,
+        "rows_matched": 43,
+        "cursor": {
+          "repo_id": "repo-039",
+          "relative_path": "file-03999.go",
+          "start_line": 30,
+          "entity_id": "entity-011999"
+        },
+        "budget_ms": 800,
+        "elapsed_ms": 803,
+        "overrun_ms": 3,
+        "progressed": true,
+        "hint": "add repo_id (repo_ids in the MCP tool) to scope the search"
+      },
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:200 | int64:205 | string:repo-010 | string:file-01099.go | int32:30 | string:entity-003299",
+        "s05 | ",
+        "s02 | execMode=exec | string:440ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:204 | string:repo-011 | string:file-01166.go | int32:20 | string:entity-003499",
+        "s05 | ",
+        "s02 | execMode=exec | string:415ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:202 | string:repo-013 | string:file-01333.go | int32:10 | string:entity-003999",
+        "s05 | ",
+        "s02 | execMode=exec | string:390ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:199 | string:repo-014 | string:file-01499.go | int32:30 | string:entity-004499",
+        "s05 | ",
+        "s02 | execMode=exec | string:365ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:197 | string:repo-016 | string:file-01666.go | int32:20 | string:entity-004999",
+        "s05 | ",
+        "s02 | execMode=exec | string:340ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:194 | string:repo-018 | string:file-01833.go | int32:10 | string:entity-005499",
+        "s05 | ",
+        "s02 | execMode=exec | string:315ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:192 | string:repo-019 | string:file-01999.go | int32:30 | string:entity-005999",
+        "s05 | ",
+        "s02 | execMode=exec | string:290ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:189 | string:repo-021 | string:file-02166.go | int32:20 | string:entity-006499",
+        "s05 | ",
+        "s02 | execMode=exec | string:265ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:187 | string:repo-023 | string:file-02333.go | int32:10 | string:entity-006999",
+        "s05 | ",
+        "s02 | execMode=exec | string:240ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:184 | string:repo-024 | string:file-02499.go | int32:30 | string:entity-007499",
+        "s05 | ",
+        "s02 | execMode=exec | string:215ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:182 | string:repo-026 | string:file-02666.go | int32:20 | string:entity-007999",
+        "s05 | ",
+        "s02 | execMode=exec | string:190ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:179 | string:repo-028 | string:file-02833.go | int32:10 | string:entity-008499",
+        "s05 | ",
+        "s02 | execMode=exec | string:165ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:177 | string:repo-029 | string:file-02999.go | int32:30 | string:entity-008999",
+        "s05 | ",
+        "s02 | execMode=exec | string:140ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:174 | string:repo-031 | string:file-03166.go | int32:20 | string:entity-009499",
+        "s05 | ",
+        "s02 | execMode=exec | string:115ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:172 | string:repo-033 | string:file-03333.go | int32:10 | string:entity-009999",
+        "s05 | ",
+        "s02 | execMode=exec | string:90ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:169 | string:repo-034 | string:file-03499.go | int32:30 | string:entity-010499",
+        "s05 | ",
+        "s02 | execMode=exec | string:65ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:167 | string:repo-036 | string:file-03666.go | int32:20 | string:entity-010999",
+        "s05 | ",
+        "s02 | execMode=exec | string:40ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:164 | string:repo-038 | string:file-03833.go | int32:10 | string:entity-011499",
+        "s05 | ",
+        "s02 | execMode=exec | string:365ms",
+        "s03 | ",
+        "s07 | ",
+        "s08 | execMode=exec | string:needle | int64:162 | string:repo-039 | string:file-03999.go | int32:30 | string:entity-011999",
+        "s10 | ",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "8500",
+        "search.continuation_steps": "17",
+        "search.cursor_present": "true",
+        "search.elapsed_ms": "803",
+        "search.ended_in": "tail",
+        "search.outcome": "partial",
+        "search.overrun_ms": "3",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "200",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "true",
+        "search.tail_ran": "true"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_tail_cancel_total",
+          "value": "1"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "count=1 sum=0.803"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0.003"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": [
+        {
+          "budget_ms": 800,
+          "elapsed_ms": 803,
+          "ended_in": "tail",
+          "event_name": "content_search.unscoped_entity_partial",
+          "level": "INFO",
+          "msg": "unscoped entity search returned a partial result",
+          "overrun_ms": 3,
+          "progressed": true,
+          "reason": "candidate_budget_exceeded",
+          "rows_matched": 43,
+          "rows_scanned_in_order": 8700,
+          "steps_cancelled": 0,
+          "tail_cancelled": true,
+          "tail_ran": true
+        }
+      ]
+    },
+    {
+      "name": "partial without progress",
+      "entities": [],
+      "more": false,
+      "partial": {
+        "reason": "candidate_budget_exceeded",
+        "rows_scanned_in_order": 0,
+        "rows_matched": 0,
+        "cursor": {
+          "repo_id": "",
+          "relative_path": ""
+        },
+        "budget_ms": 800,
+        "elapsed_ms": 805,
+        "overrun_ms": 5,
+        "progressed": false,
+        "hint": "this call scanned no rows inside the budget, so resuming from this cursor repeats the same request and will not progress: add repo_id (repo_ids in the MCP tool) to scope the search, or ask the operator to raise the server setting ESHU_CONTENT_SEARCH_BUDGET_MS"
+      },
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:51",
+        "s10 | ",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "805",
+        "search.ended_in": "budget",
+        "search.outcome": "partial",
+        "search.overrun_ms": "5",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "0",
+        "search.progressed": "false",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "1",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "false"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_no_progress_total",
+          "value": "1"
+        },
+        {
+          "name": "eshu_dp_content_search_step_cancel_total",
+          "value": "1"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "count=1 sum=0.805"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0.005"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": [
+        {
+          "budget_ms": 800,
+          "elapsed_ms": 805,
+          "ended_in": "budget",
+          "event_name": "content_search.unscoped_entity_partial",
+          "level": "INFO",
+          "msg": "unscoped entity search returned a partial result",
+          "overrun_ms": 5,
+          "progressed": false,
+          "reason": "candidate_budget_exceeded",
+          "rows_matched": 0,
+          "rows_scanned_in_order": 0,
+          "steps_cancelled": 1,
+          "tail_cancelled": false,
+          "tail_ran": false
+        }
+      ]
+    },
+    {
+      "name": "partial at a 400 ms budget",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-003000\",\"repo_id\":\"repo-010\",\"relative_path\":\"file-01000.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003000\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name003000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3000}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-003200\",\"repo_id\":\"repo-010\",\"relative_path\":\"file-01066.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003200\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name003200() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3200}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-003400\",\"repo_id\":\"repo-011\",\"relative_path\":\"file-01133.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003400\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name003400() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3400}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-003600\",\"repo_id\":\"repo-012\",\"relative_path\":\"file-01200.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003600\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name003600() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3600}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-003800\",\"repo_id\":\"repo-012\",\"relative_path\":\"file-01266.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-003800\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name003800() {}\"},\"metadata_raw\":\"{\\\"seq\\\":3800}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-004000\",\"repo_id\":\"repo-013\",\"relative_path\":\"file-01333.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-004000\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name004000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":4000}\"}"
+      ],
+      "more": false,
+      "partial": {
+        "reason": "candidate_budget_exceeded",
+        "rows_scanned_in_order": 4200,
+        "rows_matched": 6,
+        "cursor": {
+          "repo_id": "repo-013",
+          "relative_path": "file-01399.go",
+          "start_line": 30,
+          "entity_id": "entity-004199"
+        },
+        "budget_ms": 400,
+        "elapsed_ms": 402,
+        "overrun_ms": 2,
+        "progressed": true,
+        "hint": "add repo_id (repo_ids in the MCP tool) to scope the search"
+      },
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:400ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:31",
+        "s05 | ",
+        "s02 | execMode=exec | string:220ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:31 | string:repo-000 | string:file-00066.go | int32:20 | string:entity-000199",
+        "s05 | ",
+        "s02 | execMode=exec | string:195ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:31 | string:repo-002 | string:file-00233.go | int32:10 | string:entity-000699",
+        "s05 | ",
+        "s02 | execMode=exec | string:170ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:31 | string:repo-003 | string:file-00399.go | int32:30 | string:entity-001199",
+        "s05 | ",
+        "s02 | execMode=exec | string:145ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:31 | string:repo-005 | string:file-00566.go | int32:20 | string:entity-001699",
+        "s05 | ",
+        "s02 | execMode=exec | string:120ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:31 | string:repo-007 | string:file-00733.go | int32:10 | string:entity-002199",
+        "s05 | ",
+        "s02 | execMode=exec | string:95ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:31 | string:repo-008 | string:file-00899.go | int32:30 | string:entity-002699",
+        "s05 | ",
+        "s02 | execMode=exec | string:70ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:30 | string:repo-010 | string:file-01066.go | int32:20 | string:entity-003199",
+        "s05 | ",
+        "s02 | execMode=exec | string:45ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:500 | int64:27 | string:repo-012 | string:file-01233.go | int32:10 | string:entity-003699",
+        "s05 | ",
+        "s02 | execMode=exec | string:190ms",
+        "s03 | ",
+        "s07 | ",
+        "s08 | execMode=exec | string:needle | int64:25 | string:repo-013 | string:file-01399.go | int32:30 | string:entity-004199",
+        "s10 | ",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "400",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "4000",
+        "search.continuation_steps": "8",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "402",
+        "search.ended_in": "tail",
+        "search.outcome": "partial",
+        "search.overrun_ms": "2",
+        "search.phase_one_cap_ms": "220",
+        "search.probe_rows_visited": "200",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "true",
+        "search.tail_ran": "true"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_tail_cancel_total",
+          "value": "1"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "count=1 sum=0.402"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0.002"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": [
+        {
+          "budget_ms": 400,
+          "elapsed_ms": 402,
+          "ended_in": "tail",
+          "event_name": "content_search.unscoped_entity_partial",
+          "level": "INFO",
+          "msg": "unscoped entity search returned a partial result",
+          "overrun_ms": 2,
+          "progressed": true,
+          "reason": "candidate_budget_exceeded",
+          "rows_matched": 6,
+          "rows_scanned_in_order": 4200,
+          "steps_cancelled": 0,
+          "tail_cancelled": true,
+          "tail_ran": true
+        }
+      ]
+    },
+    {
+      "name": "tail timeout binds at the tail cap",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-015000\",\"repo_id\":\"repo-050\",\"relative_path\":\"file-05000.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-015000\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name015000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":15000}\"}"
+      ],
+      "more": false,
+      "partial": null,
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:6",
+        "s05 | ",
+        "s02 | execMode=exec | string:400ms",
+        "s03 | ",
+        "s07 | ",
+        "s08 | execMode=exec | string:needle | int64:6 | string:repo-000 | string:file-00066.go | int32:20 | string:entity-000199",
+        "s05 | ",
+        "s09 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "300",
+        "search.ended_in": "tail",
+        "search.outcome": "exhausted",
+        "search.overrun_ms": "0",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "200",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "true"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "count=1 sum=0.3"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": []
+    },
+    {
+      "name": "tail runs with exactly the tail floor left",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-015000\",\"repo_id\":\"repo-050\",\"relative_path\":\"file-05000.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-015000\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name015000() {}\"},\"metadata_raw\":\"{\\\"seq\\\":15000}\"}"
+      ],
+      "more": false,
+      "partial": null,
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:6",
+        "s05 | ",
+        "s02 | execMode=exec | string:150ms",
+        "s03 | ",
+        "s07 | ",
+        "s08 | execMode=exec | string:needle | int64:6 | string:repo-000 | string:file-00066.go | int32:20 | string:entity-000199",
+        "s05 | ",
+        "s09 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "750",
+        "search.ended_in": "tail",
+        "search.outcome": "exhausted",
+        "search.overrun_ms": "0",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "200",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "true"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "count=1 sum=0.75"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": []
+    },
+    {
+      "name": "tail skipped one millisecond under the tail floor",
+      "entities": [],
+      "more": false,
+      "partial": {
+        "reason": "candidate_budget_exceeded",
+        "rows_scanned_in_order": 200,
+        "rows_matched": 0,
+        "cursor": {
+          "repo_id": "repo-000",
+          "relative_path": "file-00066.go",
+          "start_line": 20,
+          "entity_id": "entity-000199"
+        },
+        "budget_ms": 800,
+        "elapsed_ms": 651,
+        "overrun_ms": 0,
+        "progressed": true,
+        "hint": "add repo_id (repo_ids in the MCP tool) to scope the search"
+      },
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s04 | execMode=exec | string:needle | int64:200 | int64:6",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "false",
+        "search.elapsed_ms": "651",
+        "search.ended_in": "budget",
+        "search.outcome": "partial",
+        "search.overrun_ms": "0",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "200",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "false"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "count=1 sum=0.651"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": [
+        {
+          "budget_ms": 800,
+          "elapsed_ms": 651,
+          "ended_in": "budget",
+          "event_name": "content_search.unscoped_entity_partial",
+          "level": "INFO",
+          "msg": "unscoped entity search returned a partial result",
+          "overrun_ms": 0,
+          "progressed": true,
+          "reason": "candidate_budget_exceeded",
+          "rows_matched": 0,
+          "rows_scanned_in_order": 200,
+          "steps_cancelled": 0,
+          "tail_cancelled": false,
+          "tail_ran": false
+        }
+      ]
+    },
+    {
+      "name": "resume between two entities of one file",
+      "entities": [
+        "{\"entity\":{\"entity_id\":\"entity-000005\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00001.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000005\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name000005() {}\"},\"metadata_raw\":\"{\\\"seq\\\":5}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-000006\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00002.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000006\",\"start_line\":10,\"end_line\":18,\"language\":\"go\",\"source_cache\":\"func name000006() {}\"},\"metadata_raw\":\"{\\\"seq\\\":6}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-000007\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00002.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000007\",\"start_line\":20,\"end_line\":28,\"language\":\"go\",\"source_cache\":\"func name000007() {}\"},\"metadata_raw\":\"{\\\"seq\\\":7}\"}",
+        "{\"entity\":{\"entity_id\":\"entity-000008\",\"repo_id\":\"repo-000\",\"relative_path\":\"file-00002.go\",\"entity_type\":\"Function\",\"entity_name\":\"name-000008\",\"start_line\":30,\"end_line\":38,\"language\":\"go\",\"source_cache\":\"func name000008() {}\"},\"metadata_raw\":\"{\\\"seq\\\":8}\"}"
+      ],
+      "more": false,
+      "partial": null,
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:200 | int64:11 | string:repo-000 | string:file-00001.go | int32:20 | string:entity-000004",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "true",
+        "search.elapsed_ms": "0",
+        "search.ended_in": "probe",
+        "search.outcome": "exhausted",
+        "search.overrun_ms": "0",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "0",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "false"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "count=1 sum=0.0002"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": []
+    },
+    {
+      "name": "cursor start_line saturates at the int32 range",
+      "entities": [],
+      "more": false,
+      "partial": null,
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:200 | int64:11 | string:repo-000 | string:file-00002.go | int32:2147483647 | string:zzz-no-such-entity",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "true",
+        "search.elapsed_ms": "0",
+        "search.ended_in": "probe",
+        "search.outcome": "exhausted",
+        "search.overrun_ms": "0",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "0",
+        "search.progressed": "true",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "0",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "false"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "exhausted"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": []
+    },
+    {
+      "name": "cursor with a zero start_line round trips",
+      "entities": [],
+      "more": false,
+      "partial": {
+        "reason": "candidate_budget_exceeded",
+        "rows_scanned_in_order": 0,
+        "rows_matched": 0,
+        "cursor": {
+          "repo_id": "repo-000",
+          "relative_path": "file-00000.go",
+          "entity_id": "entity-000000"
+        },
+        "budget_ms": 800,
+        "elapsed_ms": 805,
+        "overrun_ms": 5,
+        "progressed": false,
+        "hint": "this call scanned no rows inside the budget, so resuming from this cursor repeats the same request and will not progress: add repo_id (repo_ids in the MCP tool) to scope the search, or ask the operator to raise the server setting ESHU_CONTENT_SEARCH_BUDGET_MS"
+      },
+      "statements": [
+        "s01 | ",
+        "s02 | execMode=exec | string:800ms",
+        "s03 | ",
+        "s06 | execMode=exec | string:needle | int64:200 | int64:51 | string:repo-000 | string:file-00000.go | int32:0 | string:entity-000000",
+        "s10 | ",
+        "s05 | "
+      ],
+      "span_name": "postgres.query",
+      "span_attrs": {
+        "db.operation": "search_entity_content_any_repo_page",
+        "db.sql.table": "content_entities",
+        "db.system": "postgresql",
+        "search.budget_ms": "800",
+        "search.content_kind": "entity",
+        "search.continuation_rows": "0",
+        "search.continuation_steps": "0",
+        "search.cursor_present": "true",
+        "search.elapsed_ms": "805",
+        "search.ended_in": "budget",
+        "search.outcome": "partial",
+        "search.overrun_ms": "5",
+        "search.phase_one_cap_ms": "440",
+        "search.probe_rows_visited": "0",
+        "search.progressed": "false",
+        "search.scope": "unscoped",
+        "search.steps_cancelled": "1",
+        "search.tail_cancelled": "false",
+        "search.tail_ran": "false"
+      },
+      "metrics": [
+        {
+          "name": "eshu_dp_content_search_no_progress_total",
+          "value": "1"
+        },
+        {
+          "name": "eshu_dp_content_search_step_cancel_total",
+          "value": "1"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_duration_seconds",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "count=1 sum=0.805"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_overrun_seconds",
+          "value": "count=1 sum=0.005"
+        },
+        {
+          "name": "eshu_dp_content_search_unscoped_total",
+          "attrs": {
+            "outcome": "partial"
+          },
+          "value": "1"
+        }
+      ],
+      "logs": [
+        {
+          "budget_ms": 800,
+          "elapsed_ms": 805,
+          "ended_in": "budget",
+          "event_name": "content_search.unscoped_entity_partial",
+          "level": "INFO",
+          "msg": "unscoped entity search returned a partial result",
+          "overrun_ms": 5,
+          "progressed": false,
+          "reason": "candidate_budget_exceeded",
+          "rows_matched": 0,
+          "rows_scanned_in_order": 0,
+          "steps_cancelled": 1,
+          "tail_cancelled": false,
+          "tail_ran": false
+        }
+      ]
+    }
+  ]
+}
