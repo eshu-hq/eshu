@@ -50,6 +50,12 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if !bytes.Contains(workflow, []byte("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN:")) {
 		t.Fatalf("%s must pass the reducer ack reclaim proof DSN (#6162)", workflowPath)
 	}
+	// #8009: the ack-reclaim proof opens a disposable database, which needs
+	// the opt-in beside the DSN; without it the selected proof fails closed
+	// instead of running.
+	if !bytes.Contains(workflow, []byte("ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE: \"1\"")) {
+		t.Fatalf("%s must set ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE=1 so the ack-reclaim proof runs instead of failing closed in CI", workflowPath)
+	}
 	if !bytes.Contains(workflow, []byte("ESHU_SUPERSEDED_GENERATION_PROOF_DSN:")) {
 		t.Fatalf("%s must pass the superseded-generation proof DSN (#7121)", workflowPath)
 	}
