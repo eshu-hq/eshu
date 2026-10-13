@@ -69,7 +69,7 @@ func TestBuildBootstrapCollectorWiresForceToSelector(t *testing.T) {
 	if !ok {
 		t.Fatalf("source type = %T, want *git.GitSource", deps.source)
 	}
-	selector, ok := source.Selector.(git.NativeRepositorySelector)
+	selector, ok := source.Selector.(*git.NativeRepositorySelector)
 	if !ok {
 		t.Fatalf("selector type = %T, want git.NativeRepositorySelector", source.Selector)
 	}
