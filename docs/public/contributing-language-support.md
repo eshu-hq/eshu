@@ -160,6 +160,9 @@ parser-family extension.
    distribution looks healthy.
 9. Run the focused Go tests, `scripts/verify-parser-relationship-kit.sh`, the
    docs build, and `git diff --check`.
+10. When the contribution adds a parser, extension, or file binding, add one
+    file for the parser key to the git collector's content-version fixture; the
+    registry fingerprint moves `GenerationContentVersion` on its own (#7986).
 
 ### Import/symbol names: derived from parse for tree-sitter languages
 
@@ -206,12 +209,9 @@ ones in this package still use the discarded form and have not been hardened
 yet, so do not read the guarantee as package-wide.
 
 A field that is present but of an unexpected type is reported, not skipped:
-the older discarded-assertion form let a wrongly-typed value read as the zero
-value, so a negative assertion passed and a lookup for the empty string matched
-a broken row. When adding a helper here, distinguish absent from
-present-but-malformed, and split the predicate out of the assertion so the
-malformed branch is reachable by a test — `t.Fatalf` cannot be driven from one
-otherwise.
+the older form let a wrongly-typed value read as the zero value, so a
+negative assertion passed. When adding a helper, distinguish absent from
+present-but-malformed so the malformed branch stays reachable by a test.
 
 The public language page should cite the main test names or fixture proof a
 reviewer can rerun. Avoid broad "covered by tests" claims that do not point to

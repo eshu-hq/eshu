@@ -227,8 +227,8 @@ sync never visits is not covered (#7625).
 ### Content-version gate coverage
 
 The content-version gate is three checks. The pin test fails when the facts
-emitted for `testdata/content_version` move without a bump to
-`gitGenerationContentVersion`. The coverage guard fails when a registered
+emitted for the git collector's content-version fixture move without a bump
+to `gitGenerationContentVersion`. The coverage guard fails when a registered
 parser has no fixture file. The parser-set fingerprint folds every parser key,
 language, extension, and file name into the content version, so a registration
 change mints one new generation per git scope with no hand edit.
