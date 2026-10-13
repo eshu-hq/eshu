@@ -6,9 +6,10 @@ gave each git command no deadline of its own. On the QA environment on
 gave up (`Resolving timed out after 300040 milliseconds`), and the whole fleet
 sync waited with it. Issue #8052 counted 12 stalls of 300 s, 60 minutes of
 paused sync in 10 h 24 min (18:31:41Z on 2026-10-12 to 04:55:49Z on
-2026-10-13); a later count of the same stream by the change owner reported 14
-stalls, 70 minutes in 10 h 54 min (its window ends are not recorded here); the
-table below covers a third, shorter window with its own counts. The change
+2026-10-13); a later count of the same stream by the change owner, over the longer window
+18:31:41Z on 2026-10-12 to 05:25:55Z on 2026-10-13 (10 h 54 min), reported 14
+resolver stalls, 70 minutes of paused sync; the table below covers a third,
+shorter window (about 19:45Z to 04:48Z) with its own counts. The change
 runs every network-capable git command under a deadline derived from the loop
 context and kills the whole process group when it
 expires: `ESHU_GIT_RESOLVE_TIMEOUT_SECONDS` (default 60) for `ls-remote` ref
