@@ -115,9 +115,7 @@ func createRefWorktrees(
 			if logger != nil {
 				logger.WarnContext(
 					ctx, "failed to fetch pinned ref; skipping",
-					slog.String("repo_id", repoID),
-					slog.String("ref", ref),
-					slog.String("error", fetchErr.Error()),
+					pinnedRefFetchWarnAttrs(repoID, ref, fetchErr)...,
 				)
 			}
 			continue

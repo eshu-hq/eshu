@@ -160,17 +160,50 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 		return
 	}
 	attrs := append(event.eventAttrs(time.Now()), slog.String("error", sanitizeGitProgressMessage(err.Error())))
-	var deadlineErr *deadline.Error
-	if errors.As(err, &deadlineErr) {
-		attrs = append(attrs,
-			telemetry.FailureClassAttr("deadline_exceeded"),
-			slog.String("deadline_operation", deadlineErr.Operation),
-			slog.Float64("deadline_seconds", deadlineErr.Limit.Seconds()),
-		)
+	if deadlineErr := asDeadlineError(err); deadlineErr != nil {
+		attrs = append(attrs, deadlineFailureAttrs(deadlineErr)...)
 	} else {
 		attrs = append(attrs, telemetry.FailureClassAttr("git_sync_failure"))
 	}
 	logger.ErrorContext(ctx, "git repository sync failed", attrs...)
+}
+
+// asDeadlineError returns the deadline kill inside err, or nil when err is any
+// other failure. It is the one classification every deadline log line uses.
+func asDeadlineError(err error) *deadline.Error {
+	var deadlineErr *deadline.Error
+	if errors.As(err, &deadlineErr) {
+		return deadlineErr
+	}
+	return nil
+}
+
+// deadlineFailureAttrs are the log attributes a deadline kill adds to a failure
+// line: the failure class, the closed operation label, and the deadline.
+func deadlineFailureAttrs(deadlineErr *deadline.Error) []any {
+	return []any{
+		telemetry.FailureClassAttr("deadline_exceeded"),
+		slog.String("deadline_operation", deadlineErr.Operation),
+		slog.Float64("deadline_seconds", deadlineErr.Limit.Seconds()),
+	}
+}
+
+// pinnedRefFetchWarnAttrs are the attributes of the "failed to fetch pinned
+// ref; skipping" warning. A failure that is not a deadline kill keeps exactly
+// repo_id, ref and error. A deadline kill adds the deadline fields the main
+// sync failure line carries, plus the operation and the killed command's
+// elapsed time, so an operator can find it by failure_class.
+func pinnedRefFetchWarnAttrs(repoID, ref string, err error) []any {
+	attrs := []any{
+		slog.String("repo_id", repoID),
+		slog.String("ref", ref),
+		slog.String("error", err.Error()),
+	}
+	if deadlineErr := asDeadlineError(err); deadlineErr != nil {
+		attrs = append(attrs, deadlineFailureAttrs(deadlineErr)...)
+		attrs = append(attrs, log.Operation(deadlineErr.Operation), log.ElapsedSeconds(deadlineErr.Elapsed.Seconds()))
+	}
+	return attrs
 }
 
 // resolveRepoRefsIsolated calls remoteGitRefs for one repository and isolates
