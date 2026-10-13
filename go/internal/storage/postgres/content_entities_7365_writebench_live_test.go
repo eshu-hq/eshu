@@ -32,6 +32,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"slices"
 	"sort"
@@ -77,6 +78,9 @@ func (h *entityBenchStageHandler) WithAttrs([]slog.Attr) slog.Handler { return h
 func (h *entityBenchStageHandler) WithGroup(string) slog.Handler      { return h }
 
 func entityBenchMedian(values []float64) float64 {
+	if len(values) == 0 {
+		return math.NaN()
+	}
 	sorted := slices.Clone(values)
 	sort.Float64s(sorted)
 	return sorted[len(sorted)/2]
@@ -310,6 +314,7 @@ func TestContentEntitiesWriteCostBenchLive(t *testing.T) {
 					rows, err := db.QueryContext(ctx, `
 SELECT coalesce(wait_event_type,'CPU'), coalesce(wait_event,'CPU'), count(*)
 FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()
+AND state <> 'idle'
 GROUP BY 1, 2`)
 					if err != nil {
 						continue
@@ -353,6 +358,9 @@ GROUP BY 1, 2`)
 		}
 		if _, err := db.ExecContext(ctx, `DELETE FROM content_files WHERE repo_id='bench-measured'`); err != nil {
 			t.Fatalf("clean files: %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `VACUUM (ANALYZE) content_entities, content_files`); err != nil {
+			t.Fatalf("vacuum: %v", err)
 		}
 		if _, err := db.ExecContext(ctx, `CHECKPOINT`); err != nil {
 			t.Fatalf("checkpoint: %v", err)

@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"log/slog"
+	"math"
 	"testing"
 )
 
@@ -114,6 +115,15 @@ func TestEntityBenchMedian(t *testing.T) {
 	}
 	if got := entityBenchMedian([]float64{4, 1, 3, 2}); got != 3 {
 		t.Fatalf("even median = %v, want 3", got)
+	}
+}
+
+// TestEntityBenchMedianEmpty pins the missing-stage guard: an empty sample
+// reports NaN instead of panicking, so a renamed or skipped writer stage
+// surfaces as an obvious anomaly in the report.
+func TestEntityBenchMedianEmpty(t *testing.T) {
+	if got := entityBenchMedian(nil); !math.IsNaN(got) {
+		t.Fatalf("empty median = %v, want NaN", got)
 	}
 }
 
