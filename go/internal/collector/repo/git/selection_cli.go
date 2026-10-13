@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
@@ -38,6 +39,7 @@ func syncGitRepositoriesWithLogger(
 	if err := os.MkdirAll(config.ReposDir, 0o750); err != nil { // #nosec G301 -- internal git repos workspace directory
 		return GitSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
 	}
+	ctx = deadline.WithMetrics(ctx, baseline.Instruments)
 	token, err := resolveGitToken(ctx, config)
 	if err != nil && config.SourceMode == "githubOrg" {
 		return GitSyncSelection{}, err
@@ -199,20 +201,22 @@ func cloneRepository(
 		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
-	command := newGitCommand(
-		ctx,
-		"clone",
-		"--progress",
-		fmt.Sprintf("--depth=%d", config.CloneDepth),
-		"--single-branch",
-		remoteURL,
-		repoPath,
-	)
-	command.Env = gitCommandEnv(config, token, repoPath)
 	var stderr bytes.Buffer
 	progress := newGitProgressWriter(ctx, logger, event, &stderr)
-	command.Stderr = progress
-	if err := command.Run(); err != nil {
+	if err := deadline.Run(ctx, config.GitDeadlines, "clone", func(deadlineCtx context.Context) *exec.Cmd {
+		command := newGitCommand(
+			deadlineCtx,
+			"clone",
+			"--progress",
+			fmt.Sprintf("--depth=%d", config.CloneDepth),
+			"--single-branch",
+			remoteURL,
+			repoPath,
+		)
+		command.Env = gitCommandEnv(config, token, repoPath)
+		command.Stderr = progress
+		return command
+	}); err != nil {
 		progress.Flush()
 		_ = os.RemoveAll(repoPath)
 		wrapped := fmt.Errorf("clone %q: %w: %s", repoID, err, sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())))

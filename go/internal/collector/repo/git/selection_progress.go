@@ -6,10 +6,12 @@ package git
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -161,6 +164,14 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 		slog.String("error", sanitizeGitProgressMessage(err.Error())),
 		telemetry.FailureClassAttr("git_sync_failure"),
 	)
+	var deadlineErr *deadline.Error
+	if errors.As(err, &deadlineErr) {
+		attrs = append(attrs,
+			slog.Bool("deadline_exceeded", true),
+			slog.String("git_command", deadlineErr.Command),
+			slog.Float64("deadline_seconds", deadlineErr.Limit.Seconds()),
+		)
+	}
 	logger.ErrorContext(ctx, "git repository sync failed", attrs...)
 }
 
@@ -288,17 +299,23 @@ func gitRunWithStderrWriter(
 	commandArgs := make([]string, 0, len(args)+2)
 	commandArgs = append(commandArgs, "-C", repoPath)
 	commandArgs = append(commandArgs, args...)
-	command := newGitCommand(ctx, commandArgs...)
-	command.Env = gitCommandEnv(config, token, repoPath)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	command.Stdout = &stdout
-	if stderrWriter != nil {
-		command.Stderr = io.MultiWriter(&stderr, stderrWriter)
-	} else {
-		command.Stderr = &stderr
+	subcommand := ""
+	if len(args) > 0 {
+		subcommand = args[0]
 	}
-	if err := command.Run(); err != nil {
+	if err := deadline.Run(ctx, config.GitDeadlines, subcommand, func(deadlineCtx context.Context) *exec.Cmd {
+		command := newGitCommand(deadlineCtx, commandArgs...)
+		command.Env = gitCommandEnv(config, token, repoPath)
+		command.Stdout = &stdout
+		if stderrWriter != nil {
+			command.Stderr = io.MultiWriter(&stderr, stderrWriter)
+		} else {
+			command.Stderr = &stderr
+		}
+		return command
+	}); err != nil {
 		flushProgressWriter(stderrWriter)
 		return "", fmt.Errorf(
 			"git %s: %w: %s",

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 )
 
@@ -105,6 +106,8 @@ type RepoSyncConfig struct {
 	// Parsed from ESHU_REPO_SELECTION_LIVENESS_WINDOW; default 48h, minimum
 	// 1h.
 	SelectionLivenessWindow time.Duration
+	// GitDeadlines bounds each git command the sync runs (#8052); zero = defaults.
+	GitDeadlines deadline.Limits
 	// ForceReindex forces a full re-parse even when the corpus manifest is
 	// unchanged (#7982). It is set only from the eshu-bootstrap-index --force
 	// argv override, never from the environment, so scheduled fleet syncs keep
@@ -144,21 +147,17 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	if err != nil {
 		return RepoSyncConfig{}, err
 	}
+	gitDeadlines, err := deadline.FromEnv(getenv)
+	if err != nil {
+		return RepoSyncConfig{}, err
+	}
 
-	reposDir := strings.TrimSpace(getenv("ESHU_REPOS_DIR"))
-	if reposDir == "" {
-		reposDir = "/data/repos"
-	}
-	gitAuthMethod := strings.TrimSpace(getenv("ESHU_GIT_AUTH_METHOD"))
-	if gitAuthMethod == "" {
-		gitAuthMethod = "githubApp"
-	}
+	reposDir := firstNonEmpty(getenv("ESHU_REPOS_DIR"), "/data/repos")
+	gitAuthMethod := firstNonEmpty(getenv("ESHU_GIT_AUTH_METHOD"), "githubApp")
 	gitlabHost, err := normalizeGitlabHost(getenv("ESHU_GITLAB_HOST"))
 	if err != nil {
 		return RepoSyncConfig{}, err
 	}
-	cloneDepth := intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1)
-	repoLimit := intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000)
 	repoShardCount, repoShardIndex, err := loadRepoShardConfig(getenv)
 	if err != nil {
 		return RepoSyncConfig{}, err
@@ -173,8 +172,8 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		Repositories:           extractExactRepositoryIDs(sourceMode, repositoryRules),
 		FilesystemRoot:         strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
 		FilesystemDirect:       boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
-		CloneDepth:             cloneDepth,
-		RepoLimit:              repoLimit,
+		CloneDepth:             intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1),
+		RepoLimit:              intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000),
 		Component:              component,
 		RepositoryRules:        repositoryRules,
 		IncludeArchivedRepos:   boolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
@@ -202,6 +201,7 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		PinnedRefFleetCap:      pinnedRefFleetCap,
 
 		SelectionLivenessWindow: selectionLivenessWindow,
+		GitDeadlines:            gitDeadlines,
 	}
 	normalizeFilesystemConfig(&config)
 	return config, nil
