@@ -176,9 +176,14 @@ func checkReadinessNoDockerHubLogin(job readinessJob) string {
 		return "live job must not carry a Docker Hub login flag: its services use public GHCR mirrors"
 	}
 	for _, step := range job.Steps {
-		if strings.HasPrefix(step.Uses, "docker/login-action@") {
-			return "live job must not log in to Docker Hub: its services use public GHCR mirrors"
+		if !strings.HasPrefix(step.Uses, "docker/login-action@") {
+			continue
 		}
+		if registry, ok := step.With["registry"]; ok && registry != "" &&
+			!strings.Contains(registry, "docker.io") {
+			continue
+		}
+		return "live job must not log in to Docker Hub: its services use public GHCR mirrors"
 	}
 	return ""
 }
@@ -351,6 +356,30 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			"      - name: Set up Go\n", 1)
 		if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
 			t.Fatal("added Docker Hub login passed")
+		}
+	})
+	t.Run("added ghcr login passes", func(t *testing.T) {
+		const ghcrLoginStep = "      - name: Log in to GHCR\n" +
+			"        uses: docker/login-action@v3\n" +
+			"        with:\n" +
+			"          registry: ghcr.io\n" +
+			"          username: ${{ github.actor }}\n" +
+			"          password: ${{ secrets.GITHUB_TOKEN }}\n"
+		const checkoutStep = "        uses: actions/checkout@v5\n" +
+			"        with:\n" +
+			"          persist-credentials: false\n" +
+			"\n" +
+			"      - name: Set up Go\n"
+		if !strings.Contains(string(workflow), checkoutStep) {
+			t.Fatal("mutation anchor missing")
+		}
+		changed := strings.Replace(string(workflow), checkoutStep, "        uses: actions/checkout@v5\n"+
+			"        with:\n"+
+			"          persist-credentials: false\n"+
+			ghcrLoginStep+
+			"      - name: Set up Go\n", 1)
+		if problem := checkReadinessSplit([]byte(changed), *gate); problem != "" {
+			t.Fatalf("added GHCR login failed: %s", problem)
 		}
 	})
 }

@@ -66,6 +66,10 @@ login step is not a finding of this rule. A queue-path job carries no Docker
 Hub login step: all its images resolve to the ledger, and the extra login
 would only spend pulls from the shared runner identity against the limit.
 
+`TestQueueWorkflowsCarryNoDockerHubLogin` enforces the no-login rule on all
+ten queue-path workflows; the readiness shape stays pinned in
+`readiness_job_split_test.go`.
+
 The gate reads `specs/ci-images.v1.json` and the required image ids in
 `scripts/lib/ci_image_compose.py` from the tree under test at run time. It holds
 no copy of a digest or an image name. A step is in CI image mode when
