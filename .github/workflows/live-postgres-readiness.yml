@@ -231,6 +231,8 @@ jobs:
           ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE: '1'
           ESHU_GENERATION_RETENTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
+          ESHU_CONTENT_FILES_LANGUAGE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_CONTENT_FILES_LANGUAGE_PROOF_DISPOSABLE: '1'
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE: '1'
           ESHU_DEFERRED_PARTITION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable

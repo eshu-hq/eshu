@@ -1,0 +1,44 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- 172_content_files_language_covering_idx.sql
+--
+-- #7728: rebuilds content_files_language_repo_idx on
+-- (language, repo_id) INCLUDE (indexed_at) for the repository-by-language
+-- listing, which aggregates COUNT(*) and MAX(indexed_at) per
+-- (repository, language) out of content_files (ReadRepositoriesByLanguage in
+-- go/internal/query/content_reader_language_inventory.go). The old definition
+-- carried only (language, repo_id), so every matched file row needed a heap
+-- fetch for indexed_at: about one heap block per file row on a
+-- production-shaped heap (22k matching files over 20.8k heap blocks; 1.32 s
+-- first call against 51 ms warm), and only 26% of heap pages are all-visible.
+--
+-- Fix-trial decision, measured on a production-shaped scratch copy
+-- (Postgres 18, 27k javascript rows at ~1 live row per heap block,
+-- visibility map fully clear, track_io_timing=on):
+--   (a) per-(repository, language) rollup maintained by the content writer:
+--       462-row rollup read in 0.7 ms with exact count/max equality for every
+--       language and for grant-filtered scoped requests -- but it adds a new
+--       table, write amplification on the hot content-writer path, and a
+--       staleness bound tied to sync cadence.
+--   (b) INCLUDE (indexed_at) on the language index plus vacuum: the covering
+--       definition alone still reads 27,000 heap blocks for 27,000 rows (the
+--       planner stays on a Bitmap Heap Scan at 0% all-visible), while the
+--       covering definition plus VACUUM flips the read to an Index Only Scan
+--       with Heap Fetches 0 over 766 buffers in 4.7 ms.
+-- (b) is the smallest fix meeting the budget, and it changes no query text,
+-- so read semantics are identical by construction. Step 3 (173) is the vacuum
+-- half: without it the covering definition alone does not remove heap visits.
+--
+-- The name is the one migration 004 creates; migration 171 drops 004's
+-- definition first behind its indexed_at guard, and IF NOT EXISTS makes this
+-- a no-op on every replay once the covering definition exists (see 171 for
+-- why the name is reused).
+--
+-- Sole statement on purpose, built without blocking writers: the runner
+-- executes a multi-statement file in one implicit transaction, which the
+-- concurrent build form cannot run inside (the 134/137 shape). A failed
+-- build leaves an INVALID index that the schema apply path drops by name
+-- before re-executing.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS content_files_language_repo_idx
+    ON content_files (language, repo_id) INCLUDE (indexed_at);
