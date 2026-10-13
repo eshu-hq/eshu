@@ -78,7 +78,22 @@ turns the early-match-selective class partial; a 480 ms tail cap cancels the
 half-early-rare tail. The disposable PostgreSQL live tests pass on the new
 figures: the five file live tests, the three entity live tests (row equality
 with the old statement, plan shapes, edge rows) and
-`TestResumeChainCrossesLargeDocumentLive`. Fixture walls of
+`TestResumeChainCrossesLargeDocumentLive`. The edge-row test
+(`TestSearchEntitiesUnscopedEdgeRowsAreExactLive`) reads the probe and step
+sizes from the span attributes of a zero-match walk, plants its edge token on
+the last row of the probe window and of every step window and on the row after
+each (rows 1,000, 1,001, 6,000, 6,001, 11,000 and 11,001 of the 12,000-row
+fixture), and requires the probe, at least two steps and a completed tail to
+return the old statement's six rows. The plant positions follow the figures, so
+a later figure change moves them. An earlier fixture planted the token at the
+200-row probe and 500-row step edges, which are not window edges under these
+figures: an edge OFFSET past the window and an inclusive keyset each passed it.
+With the token on the new edges both mutants fail it (walk rows 5 against 6,
+and 7 against 6) and the clean tree passes; with the figures changed to 700 and
+3,000 rows both mutants still fail. The budget sweep of this test is now a
+1.2x geometric climb from 100 ms to 10 s, because with 5,000-row steps only a
+narrow budget band runs the probe, two steps and then the tail, and the band
+moves with host speed. Fixture walls of
 `TestSearchEntitiesUnscopedMatchesOldStatementLive` (small seeded table, three
 interleaved rounds, not a production figure): selective 169 to 203 ms and zero
 match 167 to 198 ms with the new figures against 228 to 246 ms and 206 to
