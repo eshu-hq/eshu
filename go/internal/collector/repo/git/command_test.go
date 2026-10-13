@@ -127,9 +127,12 @@ func runGitViaConstructor(t *testing.T, ctx context.Context, dir string, args ..
 // orphan regression: real `git fetch` operations over HTTP fork the
 // remote-https helper, and the helper's teardown intermittently outlives the
 // parent's exit so it reparents here as an unreaped zombie (the ops-qa pids
-// exhaustion, issue #6873). Phase 1 churns fetches with no reaper running and
-// requires zombies to accumulate, proving the test exercises the real leak;
-// phase 2 drains them with the production reaper and requires zero left.
+// exhaustion, issue #6873). Phase 1 churns fetches with no reaper running
+// until a zombie is adopted; the teardown race is host-dependent, so when no
+// zombie appears the test skips instead of failing (#7865) — the
+// deterministic orphan regression in go/internal/runtime still covers the
+// reaper itself. Phase 2 drains the adopted zombies with the production
+// reaper and requires zero left.
 func TestFetchChurnZombiesDrainedByReaper(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("orphan adoption needs Linux subreaper semantics")
@@ -187,7 +190,7 @@ func TestFetchChurnZombiesDrainedByReaper(t *testing.T) {
 	}
 	t.Logf("fetch churn adopted %d zombie(s)", accumulated)
 	if accumulated == 0 {
-		t.Fatalf("no zombies adopted over %d fetches; test does not exercise the leak", maxFetches)
+		t.Skipf("no zombies adopted over %d fetches; host does not exhibit the leak (#7865)", maxFetches)
 	}
 
 	// Phase 2: the production reaper drains everything it observed.
