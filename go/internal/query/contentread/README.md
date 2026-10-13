@@ -143,7 +143,7 @@ embedder: re-rank must never POST source snippets externally, block on a
 provider timeout, or bypass the semantic-policy path. `applied=false`
 MUST keep the lexical order and the `content_index` truth basis.
 
-### Unscoped file search (#7730)
+### Unscoped file and entity search (#7730, #7009)
 
 `searchFiles` sends a request with no repository filter (explicit, or injected
 from a scoped token's grant) to `querycontract.UnscopedFileSearcher` when the
@@ -152,8 +152,13 @@ budget (`ESHU_CONTENT_SEARCH_BUDGET_MS`, see `internal/query/search/unscoped`).
 A page the budget cut short is HTTP 200 with `truncated=true`, `data.partial`
 (reason, `rows_scanned_in_order`, `rows_matched`, `cursor`, `budget_ms`,
 `elapsed_ms`, `overrun_ms`, `progressed`, `hint`) and `truth.level=partial`; the `cursor`
-request field resumes it. A cursor on a scoped search or the entity search is a
-400. Every other search shape still goes through `PagedContentSearcher`.
+request field resumes it. `searchEntities` does the same through
+`querycontract.UnscopedEntitySearcher`, with a four-key cursor (`repo_id`,
+`relative_path`, `start_line`, `entity_id`). A cursor is a 400 on a scoped
+search, on the file route when it carries `start_line` or `entity_id`, and on
+the entity route when it is non-zero and has no `entity_id`
+(`search_request.go`). Every other search shape still goes through
+`PagedContentSearcher`.
 
 ## Related docs
 

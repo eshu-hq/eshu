@@ -52,11 +52,15 @@ Read `doc.go` and `README.md` first.
   then `tracing.WriteServerFailure` with a constant from `failure.go`. Never
   write a store error's `err.Error()` as a 500 body (#7626).
 
-- A file search with no repository filter goes through
-  `querycontract.UnscopedFileSearcher` (`unscoped_search.go`), never the
-  paged seam, so a budget-cut search can answer HTTP 200 with `data.partial`,
-  `truncated=true`, and `truth.level=partial` (#7730). A cursor on any other
-  search shape is a 400. Do not add a path that returns a short unscoped page
+- A file or entity search with no repository filter goes through
+  `querycontract.UnscopedFileSearcher` or `UnscopedEntitySearcher`
+  (`unscoped_search.go`), never the paged seam, so a budget-cut search can
+  answer HTTP 200 with `data.partial`, `truncated=true`, and
+  `truth.level=partial` (#7730). A cursor on a scoped search is a 400, and so
+  is a cursor sent to the other route: an entity cursor (`start_line` or
+  `entity_id`) on the file route, or a non-zero cursor without `entity_id` on
+  the entity route (#7009). Never let one route silently honor part of the
+  other route's cursor. Do not add a path that returns a short unscoped page
   without the partial marker; the walk lives in `internal/query/search/unscoped`.
 
 ## Test doubles that cannot be shared with root
