@@ -221,12 +221,15 @@ docs_timeout="${docs_timeout_raw}"
 # 2s bound under the perl path, #7983 review). Those orphans kept burning
 # CPU under the contention being diagnosed and could race the documented
 # rerun with concurrent `site/` writes. Monitor mode puts the background job
-# in its own process group with shell builtins alone (no external timing
-# dependency, and the same code path runs on Linux and macOS), so killing
-# the group reaps the whole tree on every platform; a platform that refuses
-# the group kill still gets the leader kill fallback below. Returns 124 on
-# timeout. `set -m` is shell-global, so every return path restores
-# `set +m` explicitly.
+# in its own process group using shell builtins for process control; the
+# only external timing dependency is the one-second poll quantum from
+# sleep(1), and the same code path runs on Linux and macOS. Killing the
+# group reaps the supervised tree — every process still in the background
+# job's process group. A grandchild that escapes the group (setsid,
+# daemonize) is out of scope: uv's resolvers and mkdocs stay in the group.
+# A platform that refuses the group kill still gets the leader kill fallback
+# below. Returns 124 on timeout. `set -m` is shell-global, so every return
+# path restores `set +m` explicitly.
 run_bounded_tree() {
   local budget="$1"
   shift
@@ -295,10 +298,13 @@ docs_argv=(uv run --with mkdocs --with mkdocs-material --with pymdown-extensions
 log "running mkdocs build (${#changed_files[@]} trigger files changed; bound ${docs_timeout}s)"
 build_status=0
 run_bounded_tree "${docs_timeout}" "${docs_argv[@]}" || build_status=$?
-# 124 is the watchdog's own timeout status. A build that genuinely exits 124
-# reads as a timeout; mkdocs exits 0/1, so that misread is not a live shape
-# today.
-if [[ "${build_status}" -eq 124 ]]; then
+# 124 is the watchdog's own timeout status; 137 is SIGKILL from outside the
+# watchdog — the OOM killer under the same contention this bound diagnoses
+# (the mapping #8040 established for `timeout -s KILL`). A build genuinely
+# exiting with either code reads as a timeout; the remediation is identical
+# (the holder/load report below points at the contention either way), and
+# mkdocs exits 0/1, so neither misread is a live shape today.
+if [[ "${build_status}" -eq 124 || "${build_status}" -eq 137 ]]; then
   log ""
   log "mkdocs build TIMED OUT after ${docs_timeout}s (this step covers uv dependency resolution plus mkdocs build --strict)."
   log "The push stays blocked, but loudly: an unbounded silent stall is the #7983 failure this bound replaces."
