@@ -486,4 +486,10 @@ expect_fail "${last_line_repo}"
 # into its own file to keep this one under the repo's 500-line cap.
 "${repo_root}/scripts/test-verify-performance-evidence-missing-base.sh"
 
+# Regression (eshu-hq/eshu#8048): resolving a base over the network -- the
+# GITHUB_BASE_REF branch fetch and the explicit-base SHA fetch -- must not
+# change the depth of a complete checkout. Split into its own file to keep
+# this one under the repo's 500-line cap.
+"${repo_root}/scripts/test-verify-performance-evidence-shared-shallow.sh"
+
 printf 'verify-performance-evidence tests passed\n'

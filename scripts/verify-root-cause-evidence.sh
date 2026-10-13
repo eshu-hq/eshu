@@ -39,8 +39,19 @@ fi
 # which under-covers every multi-commit branch (eshu-hq/eshu#5542).
 base="${ESHU_ROOT_CAUSE_EVIDENCE_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin \
-    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  # When the ref already resolves locally there is nothing to fetch at all,
+  # and on a complete checkout the fetch is never depth-limited: every
+  # worktree shares one .git/shallow, so a --depth fetch here shallows all of
+  # them and fails unrelated lanes' methodology identity check (#8048).
+  if ! git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
+    if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
+      git -C "$repo_root" fetch --no-tags origin \
+        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+    else
+      git -C "$repo_root" fetch --no-tags --depth=1 origin \
+        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+    fi
+  fi
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi

@@ -228,6 +228,7 @@ gates:
       - "scripts/test-verify-performance-evidence-large-marker.sh"
       - "scripts/test-verify-performance-evidence-merge-base.sh"
       - "scripts/test-verify-performance-evidence-missing-base.sh"
+      - "scripts/test-verify-performance-evidence-shared-shallow.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh perf-evidence"
       pre_push: floor
