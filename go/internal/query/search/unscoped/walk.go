@@ -33,8 +33,13 @@ const (
 	outcomePartial outcome = "partial"
 )
 
-// phase names the part of the walk that issued its last statement. It is
-// reported as search.ended_in and on the partial log line.
+// phase names where the walk ended for the operator. It is reported as
+// search.ended_in and on the partial log line. Each issued statement sets
+// it, and so does each decision to skip the tail: budget when the floor
+// ruled the tail out, tail_skipped_no_trigram when the pattern did. A
+// post-skip continuation keeps the skip's name instead of overwriting it,
+// so the signal names the decision that shaped the walk, not merely the
+// last statement issued.
 type phase string
 
 const (
@@ -50,6 +55,10 @@ const (
 	// phaseBudget means the walk stopped because less than the tail floor was
 	// left after the capped continuation, so the tail was skipped.
 	phaseBudget phase = "budget"
+	// phaseTailSkippedNoTrigram means the pattern yields no extractable
+	// trigram, so the walk skipped the tail and spent the remaining budget
+	// in key order (#8002).
+	phaseTailSkippedNoTrigram phase = "tail_skipped_no_trigram"
 )
 
 // walk is the state of one budgeted search over one table shape: the engine.
@@ -86,6 +95,7 @@ type walk[R any, K key] struct {
 	stepRowsVisited  int
 	tailRan          bool
 	tailCancelled    bool
+	noTrigram        bool // pattern yields no trigram; tail skipped by design
 	endedIn          phase
 }
 
@@ -108,6 +118,17 @@ func (w *walk[R, K]) run(ctx context.Context) error {
 	w.expected = w.now().Sub(probeStart) * time.Duration(w.plan.stepRows) / time.Duration(w.plan.probeRows)
 	if err := w.continuation(ctx, w.plan.phaseOneCap, phaseContinuation); err != nil || w.finished {
 		return err
+	}
+	if !patternHasTrigram(w.pattern) {
+		// No extractable trigram: the tail could only plan a sequential
+		// scan far past its cap, so it would always end cancelled. Skip it
+		// and give the whole remaining budget to the key-ordered walk,
+		// which is exact on its own; the partial states this limit (#8002).
+		// The phase name stays on ended_in through the steps below, so the
+		// signal names the skip rather than the last issued step.
+		w.noTrigram = true
+		w.endedIn = phaseTailSkippedNoTrigram
+		return w.continuation(ctx, w.remaining(), phaseTailSkippedNoTrigram)
 	}
 	timeout := min(w.remaining(), w.plan.tailCap)
 	if timeout < w.plan.tailFloor {
@@ -371,6 +392,9 @@ func (w *walk[R, K]) progressed() bool {
 
 func (w *walk[R, K]) partial() *partial[K] {
 	reason := querycontract.SearchPartialCandidateBudgetExceeded
+	if w.noTrigram {
+		reason = querycontract.SearchPartialPatternHasNoTrigram
+	}
 	if w.overrun.Milliseconds() > querycontract.SearchLargeDocumentOverrunMS {
 		reason = querycontract.SearchPartialBudgetExceededOnLargeDocument
 	}

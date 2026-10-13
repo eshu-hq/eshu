@@ -26,11 +26,14 @@ searches short.
 `search.phase_one_cap_ms` (the continuation cap, 440 at the default budget),
 `search.ended_in`, `search.steps_cancelled` and `search.progressed`.
 
-`search.ended_in` is the phase of the last statement the walk issued: `probe`,
-`continuation`, `tail`, `continuation_after_tail`, or `budget` when less than
-the tail floor was left after the capped continuation and the tail was
-skipped. `search.progressed` is false only for a partial that advanced
-nothing.
+`search.ended_in` names the decision that shaped the walk: `probe`,
+`continuation`, `tail`, or `continuation_after_tail` for the last statement
+issued; `budget` when less than the tail floor was left after the capped
+continuation and the tail was skipped; `tail_skipped_no_trigram` when the
+pattern has no three-character alphanumeric run and the tail was skipped for
+that reason (the post-skip continuation keeps the skip's name, and the
+partial reason is `pattern_has_no_trigram`). `search.progressed` is false
+only for a partial that advanced nothing.
 
 ## Log
 

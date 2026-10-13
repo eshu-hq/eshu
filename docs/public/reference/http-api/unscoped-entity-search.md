@@ -73,7 +73,10 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
 - `truth.level` is `partial`: weaker than `derived`, stronger than `fallback`.
 - `reason` is `budget_exceeded_on_large_document` when `overrun_ms` is above
   100: one candidate's recheck cannot be interrupted, so a cancelled statement
-  can run past its timeout. Otherwise it is `candidate_budget_exceeded`.
+  can run past its timeout. It is `pattern_has_no_trigram` when the pattern
+  has no three-character alphanumeric run (for example `db_`): the trigram
+  tail cannot run as a bounded bitmap scan, so the search skips it and spends
+  the whole budget in key order. Otherwise it is `candidate_budget_exceeded`.
 - The call can exceed `budget_ms` by `overrun_ms`; the server reports it
   instead of promising a hard wall bound.
 - The cursor names one entity (`repo_id`, `relative_path`, `start_line`,

@@ -249,6 +249,40 @@ func TestSearchCountsCancelledStepsAndNoProgress(t *testing.T) {
 	}
 }
 
+// A no-trigram search that issues post-skip continuation steps still names
+// the skip on search.ended_in: the skip's phase name survives the steps, so
+// the signal names the decision that shaped the walk, not the last step.
+func TestSearchNoTrigramSkipSurvivesContinuationSteps(t *testing.T) {
+	t.Parallel()
+
+	corpus := newCorpus(20000, 500*time.Microsecond, func(i int) bool { return i%40 == 7 })
+	corpus.tailCost = func(int) time.Duration { return 3 * time.Second }
+	s := newSignals(t, corpus)
+	page, err := s.searcher.Search(context.Background(), "db_", 200, 0, querycontract.SearchCursor{})
+	if err != nil || page.Partial == nil {
+		t.Fatalf("Search() = (%+v, %v), want a partial page", page, err)
+	}
+	attrs := spanAttrs(t, s.spans)
+	if got := attrs["search.continuation_steps"].AsInt64(); got < 1 {
+		t.Fatalf("search.continuation_steps = %d, want at least 1 post-skip step", got)
+	}
+	if got := attrs["search.ended_in"].AsString(); got != "tail_skipped_no_trigram" {
+		t.Errorf("search.ended_in = %q, want tail_skipped_no_trigram after post-skip steps", got)
+	}
+	if attrs["search.tail_ran"].AsBool() {
+		t.Error("search.tail_ran = true, want false: the tail was skipped")
+	}
+	if page.Partial.Reason != querycontract.SearchPartialPatternHasNoTrigram {
+		t.Errorf("Reason = %q, want %q", page.Partial.Reason, querycontract.SearchPartialPatternHasNoTrigram)
+	}
+	line := s.logs.String()
+	for _, want := range []string{`"reason":"pattern_has_no_trigram"`, `"ended_in":"tail_skipped_no_trigram"`, `"tail_ran":false`} {
+		if !strings.Contains(line, want) {
+			t.Errorf("partial log %s missing %s", line, want)
+		}
+	}
+}
+
 // An exact search logs nothing at partial level and counts as exact.
 func TestSearchExactEmitsNoPartialLog(t *testing.T) {
 	t.Parallel()

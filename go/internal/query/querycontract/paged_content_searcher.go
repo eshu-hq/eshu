@@ -41,6 +41,13 @@ const (
 	// candidate's recheck cannot be interrupted, so a large document is the
 	// likely cause.
 	SearchPartialBudgetExceededOnLargeDocument = "budget_exceeded_on_large_document"
+	// SearchPartialPatternHasNoTrigram means the pattern contains no
+	// three-character alphanumeric run, so pg_trgm can extract no trigram
+	// and the search's trigram tail cannot run as a bounded bitmap scan.
+	// The walk skipped the tail and spent the whole budget in key order;
+	// the answer is bounded by that stated limit, not by a cancelled
+	// sequential scan (#8002).
+	SearchPartialPatternHasNoTrigram = "pattern_has_no_trigram"
 	// SearchLargeDocumentOverrunMS is the measured overrun above which a
 	// partial result names a large document as the cause.
 	SearchLargeDocumentOverrunMS = 100
@@ -77,8 +84,9 @@ func (c SearchCursor) IsZero() bool {
 // returns instead of an error when its work budget runs out. It travels in the
 // response body next to truncated=true; it never replaces the rows found.
 type SearchPartial struct {
-	// Reason is SearchPartialCandidateBudgetExceeded or
-	// SearchPartialBudgetExceededOnLargeDocument.
+	// Reason is SearchPartialCandidateBudgetExceeded,
+	// SearchPartialBudgetExceededOnLargeDocument, or
+	// SearchPartialPatternHasNoTrigram.
 	Reason string `json:"reason"`
 	// RowsScannedInOrder counts the rows this call visited in key order, up to
 	// and including Cursor; a resumed call counts from its request cursor.

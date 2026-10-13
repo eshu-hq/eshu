@@ -103,6 +103,13 @@ reading `offset + limit + 1` matches under the same budget.
   PostgreSQL cannot interrupt the lowercase copy and the TOAST decompression
   of one value, so a single large candidate adds to the wall time. Above
   100 ms the partial reason is `budget_exceeded_on_large_document`.
+- A pattern with no three-character alphanumeric run (for example `db_`)
+  yields no extractable trigram, so the tail is skipped and the whole budget
+  goes to the key-ordered walk; the partial reason is then
+  `pattern_has_no_trigram` (unless the large-document reason above applies).
+  Measured on the QA environment read replica: the skipped tail would plan a
+  parallel sequential scan at 3,930 ms warm against the 400 ms tail cap
+  (#8002).
 - `ESHU_CONTENT_SEARCH_BUDGET_MS` (100..10000, default 800) sets the budget.
   An invalid value fails startup. Every internal timeout scales with it.
 
@@ -114,7 +121,9 @@ Span `postgres.query` (`db.operation=search_file_content_any_repo_page`) with
 `search.continuation_rows`, `search.tail_ran`, `search.tail_cancelled`,
 `search.outcome`, `search.cursor_present`, `search.phase_one_cap_ms`,
 `search.ended_in` (`probe`, `continuation`, `tail`, `continuation_after_tail`,
-or `budget` when the tail was skipped under its floor), `search.steps_cancelled`
+`budget` when the tail was skipped under its floor, or
+`tail_skipped_no_trigram` when the pattern yields no trigram),
+`search.steps_cancelled`
 and `search.progressed`. Counters
 `eshu_dp_content_search_unscoped_total{outcome}`,
 `eshu_dp_content_search_tail_cancel_total`,
