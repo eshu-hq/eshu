@@ -16,7 +16,7 @@ legacy_scheduled_exemptions:
   steward: linuxdynasty
   tracking_issue: 7533
   count: 572
-  sha256: 256acfcccea6dafaff10382355aa25ac969e8a90f66af259b915f68703f25e7c
+  sha256: 8de21e1253298e32b438a6fd7a0deb33bb94f6e8989c12cda7731f6fc167bccc
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
