@@ -288,6 +288,10 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 				"alias":           imp.Alias,
 				"line_number":     imp.LineNumber,
 				"generation_id":   mat.GenerationID,
+				// The importing file's own Go package import path (#7347).
+				// Always present as an explicit string so the SET overwrites
+				// a stale package after the file moved packages.
+				"source_package": imp.SourcePackage,
 				// The parser's import flags, folded per edge. Always present as
 				// explicit booleans so the SET overwrites a stale true.
 				"type_only": imp.TypeOnly,

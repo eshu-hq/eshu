@@ -102,7 +102,7 @@ func CycleRows(
 	req codemodel.ImportDependencyRequest,
 ) ([]map[string]any, codemodel.CycleEnumeration, error) {
 	params := Params(req)
-	params["cycle_language"] = "python"
+	params["cycle_language"] = req.EffectiveCycleLanguage()
 	params["scan_limit"] = querycontract.ImportDependencyInternalScanLimit + 1
 	rows, err := graph.Run(ctx, codemodel.FileImportCycleEdgeRowsCypher(req), params)
 	if err != nil {

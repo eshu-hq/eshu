@@ -54,8 +54,10 @@ the staying code family still uses.
   contract it implements.
 - `code_graph_search_query.go` — bounded entity-search builder.
 - `code_hybrid_rerank.go` — in-process hybrid re-ranker.
-- `code_import_dependencies_{queries,response,rows}.go` — the seven
-  investigation builders plus envelope and row shaping.
+- `code_import_dependencies_{queries,request,response,rows}.go` — the seven
+  investigation builders, the request family, plus envelope and row shaping.
+  The request type moved to `request.go` when `queries.go` hit the 500-line
+  cap (#7347); same package, no symbol renamed.
 - `code_import_dependencies_{cycles,cycle_rows,components,enumeration,flags}.go`
   — the bounded cycle walk (#6851), its row shaping and ordering, the
   strongly-connected-component prefilter that leaves an acyclic graph nothing to
@@ -64,7 +66,12 @@ the staying code family still uses.
   deferred, or unknown (a null flag, never read as runtime); type-only and
   deferred edges are dropped before the walk and each cycle is labelled
   runtime, ambiguous, or flags_unknown. `truncated` means the answer is partial;
-  `has_more` and `next_offset` carry paging.
+  `has_more` and `next_offset` carry paging. The Go lift (#7347) answers
+  `language=go` at package level: the projector-owned `source_package` becomes
+  both the collapse node key and the declared module, so the shared
+  exact-equality rule runs unchanged and same-package files land on one node;
+  edges that predate the mapping are excluded and counted in
+  `CycleEnumeration.GoPackageUnknown`. An unfiltered request stays Python-only.
 - `code_relationship_story_{evidence_state,provenance}.go`,
   `code_relationships_{graph_response,resolution}.go` — story contract,
   evidence classification, graph shaping, name resolution.

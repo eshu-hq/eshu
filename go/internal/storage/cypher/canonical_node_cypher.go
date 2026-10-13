@@ -379,13 +379,20 @@ const CanonicalNodeModuleUpsertCypher = canonicalNodeModuleUpsertCypher
 // pre-batch-snapshot behavior described on canonicalNodeModuleUpsertCypher.
 // An edge written before this change has no flag property at all, which a reader
 // must treat as "flags unknown", not as false.
+//
+// source_package (issue #7347) is the importing file's own Go package import
+// path, derived by the projector. It is SET unconditionally and always as an
+// explicit string for the same stale-overwrite reason; an edge written before
+// it existed has no such property, which a Go cycle reader must treat as
+// "package unknown" and exclude, never as an empty package.
 const canonicalNodeImportEdgeCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
 MATCH (m:Module {name: row.module_name, lang: row.module_language})
 MERGE (f)-[r:IMPORTS]->(m)
 SET r.imported_name = row.imported_name, r.alias = row.alias, r.line_number = row.line_number,
     r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id,
-    r.type_only = row.type_only, r.deferred = row.deferred, r.inferred = row.inferred`
+    r.type_only = row.type_only, r.deferred = row.deferred, r.inferred = row.inferred,
+    r.source_package = row.source_package`
 
 // canonicalNodeHasParameterEdgeCypher upserts Parameter nodes and the
 // HAS_PARAMETER relationship from Function to Parameter. The SET assignments

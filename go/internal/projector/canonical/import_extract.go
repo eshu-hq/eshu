@@ -80,6 +80,12 @@ type importAccumulator struct {
 	// accumulator comes from the same file, so it never varies within one.
 	moduleLanguage string
 
+	// sourcePackage is the importing file's own Go package import path
+	// (#7347), derived once per file by goSourcePackage. Like
+	// moduleLanguage it never varies within one accumulator. Empty for
+	// non-Go files and for Go files whose package is unknown.
+	sourcePackage string
+
 	// importedName and alias hold the agreed value across every folded entry;
 	// nameConflict / aliasConflict record that the entries disagreed, in which
 	// case the edge carries no value rather than an arbitrary one.
@@ -163,6 +169,7 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 
 		filePath := file.Path
 		fileLanguage := file.Language
+		sourcePackage := goSourcePackage(file)
 
 		for _, entry := range entries {
 			normalized, ok := normalizeImportEntry(entry)
@@ -177,6 +184,7 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 					filePath:       filePath,
 					moduleName:     moduleName,
 					moduleLanguage: fileLanguage,
+					sourcePackage:  sourcePackage,
 					importedName:   importedName,
 					alias:          alias,
 					lineNumber:     lineNumber,
@@ -253,6 +261,7 @@ func importRowsFrom(folded map[importIdentity]*importAccumulator) []ImportRow {
 			FilePath:       acc.filePath,
 			ModuleName:     acc.moduleName,
 			ModuleLanguage: acc.moduleLanguage,
+			SourcePackage:  acc.sourcePackage,
 			ImportedName:   acc.importedName,
 			Alias:          acc.alias,
 			LineNumber:     acc.lineNumber,
@@ -307,6 +316,67 @@ func normalizeImportEntry(entry codegraphv1.Import) (normalizedImport, bool) {
 		deferred:     entry.Deferred,
 		inferred:     entry.Inferred,
 	}, true
+}
+
+// goSourcePackage places one file in its Go package for package-level import
+// cycles (#7347). Only Go files are placed: every other language keeps an
+// empty package and its lift owns its own mapping later (#7348, #7349).
+//
+// The file-level package_import_path the Go parser writes wins: it is the
+// collector prescan's per-directory import path for exactly this file. Facts
+// collected before the parser wrote that key carry the package only on their
+// function items, so a unanimous functions-bucket value still places the
+// file and a re-projection needs no re-collection. Anything else -- no key,
+// disagreeing functions, a non-string value -- is unknown, never a guess:
+// an invented package would collapse the wrong files together.
+func goSourcePackage(file parsedFileRef) string {
+	if strings.ToLower(strings.TrimSpace(file.Language)) != "go" {
+		return ""
+	}
+	if file.ParsedFileData == nil {
+		return ""
+	}
+	if pkg, _ := file.ParsedFileData["package_import_path"].(string); strings.TrimSpace(pkg) != "" {
+		return strings.TrimSpace(pkg)
+	}
+	return unanimousFunctionPackage(file.ParsedFileData["functions"])
+}
+
+// unanimousFunctionPackage reads the single package import path every
+// function item agrees on, or "" when they do not. The bucket arrives as
+// []map[string]any from the parser and as []any after a fact round-trip,
+// so both shapes read.
+func unanimousFunctionPackage(bucket any) string {
+	var items []map[string]any
+	switch functions := bucket.(type) {
+	case []map[string]any:
+		items = functions
+	case []any:
+		for _, entry := range functions {
+			item, ok := entry.(map[string]any)
+			if !ok {
+				return ""
+			}
+			items = append(items, item)
+		}
+	default:
+		return ""
+	}
+	unanimous := ""
+	for _, item := range items {
+		pkg, ok := item["package_import_path"].(string)
+		if !ok || strings.TrimSpace(pkg) == "" {
+			return ""
+		}
+		if unanimous == "" {
+			unanimous = strings.TrimSpace(pkg)
+			continue
+		}
+		if strings.TrimSpace(pkg) != unanimous {
+			return ""
+		}
+	}
+	return unanimous
 }
 
 // normalizedImport is one parser entry reduced to the edge properties it can

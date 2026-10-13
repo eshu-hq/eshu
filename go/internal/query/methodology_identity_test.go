@@ -56,7 +56,89 @@ func methodologyRepositoryRoot(t *testing.T) string {
 
 func methodologyVerifySameProduction(t *testing.T, base, candidate string, paths []string) {
 	t.Helper()
+	// The empty declaration keeps every existing caller (the production-tree
+	// guard and the postgres artifact writer) on the byte-identical strict
+	// pin. Only the graph artifact writer passes the committed rewrite
+	// declaration, so a rewrite in one backend never relaxes another.
+	methodologyVerifySameProductionWithDeclaration(t, base, candidate, paths, methodologyRewriteDeclaration{})
+}
+
+// methodologyRewriteDeclaration is the author-side recalibration procedure
+// for a query rewrite PR. The unchanged-query pin below cannot measure a
+// rewrite: the paired Base/Candidate sides execute the same test binary, so
+// identical sources are what make a Base-vs-Candidate comparison honest. A
+// rewrite PR therefore declares the pinned reader files it intentionally
+// changes (issue + reason + exact paths). The declaration activates only
+// when the diff touches declared scope; while active the pin requires the
+// diff to equal the declared set exactly, and declared files additionally
+// bind the working tree to the candidate blob, because the measured binary
+// executes working-tree code. An undeclared differing file, a
+// declared-but-identical file in an active run, and a declared path outside
+// the pinned set all fail closed. Past the rewrite's merge the declared
+// files agree again, the declaration goes inert, and the pin behaves
+// byte-for-byte as before it existed. A PR with no rewrite leaves the zero
+// declaration in place.
+type methodologyRewriteDeclaration struct {
+	Issue  int
+	Reason string
+	Paths  []string
+}
+
+// methodologyCommittedRewriteDeclaration is the single declaration the
+// repository carries. A rewrite PR edits these paths; any other PR leaves
+// the zero value alone.
+var methodologyCommittedRewriteDeclaration = methodologyRewriteDeclaration{
+	Issue:  7347,
+	Reason: "Go package lift of file_import_cycles changes these readers by design; the paired Base/Candidate sides in this run both measure candidate code for the declared scope.",
+	Paths: []string{
+		"go/internal/query/codemodel/code_import_dependencies_queries.go",
+		"go/internal/query/codemodel/code_import_dependencies_rows.go",
+		"go/internal/query/codemodel/code_import_dependencies_response.go",
+		"go/internal/query/codemodel/code_import_dependencies_enumeration.go",
+		"go/internal/query/codequery/imports/rows.go",
+	},
+}
+
+func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidate string, paths []string, decl methodologyRewriteDeclaration) {
+	t.Helper()
 	root := methodologyRepositoryRoot(t)
+	if len(decl.Paths) == 0 {
+		// No declared rewrite: the historical strict pin, message for
+		// message. Any differing file fails at first sight.
+		for _, path := range paths {
+			baseEntry, err := exec.Command("git", "ls-tree", "--full-tree", base, "--", path).Output()
+			if err != nil {
+				t.Fatalf("read base production entry %s: %v", path, err)
+			}
+			candidateEntry, err := exec.Command("git", "ls-tree", "--full-tree", candidate, "--", path).Output()
+			if err != nil {
+				t.Fatalf("read candidate production entry %s: %v", path, err)
+			}
+			if len(baseEntry) == 0 || !bytes.Equal(baseEntry, candidateEntry) {
+				t.Fatalf("production source %s committed mode or blob differs from base", path)
+			}
+			baseline, err := exec.Command("git", "show", base+":"+path).Output()
+			if err != nil {
+				t.Fatalf("read base production source %s: %v", path, err)
+			}
+			committed, err := exec.Command("git", "show", candidate+":"+path).Output()
+			if err != nil {
+				t.Fatalf("read candidate production source %s: %v", path, err)
+			}
+			working, err := os.ReadFile(filepath.Join(root, path))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(baseline, committed) || !bytes.Equal(committed, working) {
+				t.Fatalf("production source %s differs from base: this unchanged-query paired runner cannot measure a rewrite; run separate base/candidate binaries", path)
+			}
+		}
+		return
+	}
+	type blobID struct {
+		base, candidate string
+	}
+	differing := make(map[string]blobID)
 	for _, path := range paths {
 		baseEntry, err := exec.Command("git", "ls-tree", "--full-tree", base, "--", path).Output()
 		if err != nil {
@@ -66,13 +148,86 @@ func methodologyVerifySameProduction(t *testing.T, base, candidate string, paths
 		if err != nil {
 			t.Fatalf("read candidate production entry %s: %v", path, err)
 		}
-		if len(baseEntry) == 0 || !bytes.Equal(baseEntry, candidateEntry) {
+		if len(baseEntry) != 0 && bytes.Equal(baseEntry, candidateEntry) {
+			baseline, err := exec.Command("git", "show", base+":"+path).Output()
+			if err != nil {
+				t.Fatalf("read base production source %s: %v", path, err)
+			}
+			committed, err := exec.Command("git", "show", candidate+":"+path).Output()
+			if err != nil {
+				t.Fatalf("read candidate production source %s: %v", path, err)
+			}
+			working, err := os.ReadFile(filepath.Join(root, path))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(baseline, committed) || !bytes.Equal(committed, working) {
+				t.Fatalf("production source %s differs from base: this unchanged-query paired runner cannot measure a rewrite; run separate base/candidate binaries", path)
+			}
+			continue
+		}
+		differing[path] = blobID{base: methodologyTreeBlobSHA(baseEntry), candidate: methodologyTreeBlobSHA(candidateEntry)}
+	}
+	pinned := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		pinned[path] = true
+	}
+	declared := make(map[string]bool)
+	for _, path := range decl.Paths {
+		if !pinned[path] {
+			t.Fatalf("rewrite declaration (issue #%d) names %s which is not a pinned production source", decl.Issue, path)
+		}
+		declared[path] = true
+	}
+	// The declaration activates only when the diff touches declared scope.
+	// Past its merge the declared files agree again, the declaration goes
+	// inert, and agreeing runs pass exactly as before it existed. A future
+	// rewrite that touches declared scope without updating the declaration
+	// still fails below, so inert never means excused.
+	active := false
+	for path := range differing {
+		if declared[path] {
+			active = true
+			break
+		}
+	}
+	if !active {
+		names := make([]string, 0, len(differing))
+		for path := range differing {
+			names = append(names, path)
+		}
+		sort.Strings(names)
+		for _, path := range names {
 			t.Fatalf("production source %s committed mode or blob differs from base", path)
 		}
-		baseline, err := exec.Command("git", "show", base+":"+path).Output()
-		if err != nil {
-			t.Fatalf("read base production source %s: %v", path, err)
+		if len(decl.Paths) != 0 {
+			t.Logf("rewrite declaration issue #%d not triggered: no declared file differs", decl.Issue)
 		}
+		return
+	}
+	for path := range differing {
+		if !declared[path] {
+			t.Fatalf("production source %s differs from base and is not covered by the issue #%d rewrite declaration; declare the rewrite or revert the file", path, decl.Issue)
+		}
+	}
+	for path := range declared {
+		if _, ok := differing[path]; !ok {
+			t.Fatalf("rewrite declaration (issue #%d) names unchanged production source %s; narrow the declaration to the files this change rewrites", decl.Issue, path)
+		}
+	}
+	names := make([]string, 0, len(differing))
+	for path := range differing {
+		names = append(names, path)
+	}
+	sort.Strings(names)
+	for _, path := range names {
+		ids := differing[path]
+		t.Logf("rewrite declaration issue #%d: %s base=%s candidate=%s: %s", decl.Issue, decl.Reason, ids.base, ids.candidate, path)
+	}
+	// Bind the working tree exactly as the strict pin does: the measured
+	// test binary executes working-tree code, so an uncommitted edit to a
+	// declared reader would measure unpinned code behind a passing pin.
+	for _, path := range names {
 		committed, err := exec.Command("git", "show", candidate+":"+path).Output()
 		if err != nil {
 			t.Fatalf("read candidate production source %s: %v", path, err)
@@ -81,10 +236,20 @@ func methodologyVerifySameProduction(t *testing.T, base, candidate string, paths
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(baseline, committed) || !bytes.Equal(committed, working) {
-			t.Fatalf("production source %s differs from base: this unchanged-query paired runner cannot measure a rewrite; run separate base/candidate binaries", path)
+		if !bytes.Equal(working, committed) {
+			t.Fatalf("production source %s working tree differs from candidate %s: commit the file before measuring; the pin cannot bind uncommitted code", path, candidate)
 		}
 	}
+}
+
+// methodologyTreeBlobSHA parses the blob SHA out of one `git ls-tree`
+// output line, or reports absent for a missing entry.
+func methodologyTreeBlobSHA(entry []byte) string {
+	fields := bytes.Fields(entry)
+	if len(fields) < 3 {
+		return "absent"
+	}
+	return string(fields[2])
 }
 
 // methodologyVerifySameProductionTree binds every matching source at both

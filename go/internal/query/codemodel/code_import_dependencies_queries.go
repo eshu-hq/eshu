@@ -4,7 +4,6 @@
 package codemodel
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -162,11 +161,18 @@ LIMIT $scan_limit`)
 // FileImportCycleEdgeRowsCypher returns a bounded, ordered import-edge list.
 // It projects the edge's type_only, deferred, and inferred flags raw, with no
 // coalesce: a null means the edge predates the flags (#7345), and the reader
-// treats that as its own unknown state, never as false.
+// treats that as its own unknown state, never as false. It also projects the
+// projector-owned source_package raw (#7347): a null means the edge predates
+// the Go package mapping, and a Go reader treats that as package-unknown and
+// excludes the edge, never as an empty package.
 // Bounded simple-cycle enumeration (#6851) happens in Go over this single
 // fetch: the Cypher reciprocal join costs 1522ms/5.5M DbHits where the
 // same fetch profiles at 40ms/27k DbHits. Directional anchors narrow the
 // enumerated cycles in Go after the scan, so the statement carries none.
+//
+// The RETURN gains one column over the #7346 shape; the anchor, the language
+// predicate, the ordering, and the scan bound are unchanged, so the plan shape
+// the QP-CODE-IMPORT-CYCLES entry pins is unaffected apart from its hashes.
 func FileImportCycleEdgeRowsCypher(req ImportDependencyRequest) string {
 	var cypher strings.Builder
 	cypher.WriteString("MATCH ")
@@ -190,7 +196,8 @@ func FileImportCycleEdgeRowsCypher(req ImportDependencyRequest) string {
        rel.line_number as line_number,
        rel.type_only as type_only,
        rel.deferred as deferred,
-       rel.inferred as inferred
+       rel.inferred as inferred,
+       rel.source_package as source_package
 ORDER BY repo.id, source_file.relative_path, target_module.name,
          coalesce(rel.line_number, 0), source_file.path
 LIMIT $scan_limit`)
@@ -337,149 +344,4 @@ func writeModuleNode(cypher *strings.Builder, variable, parameter, module string
 		cypher.WriteString("}")
 	}
 	cypher.WriteString(")")
-}
-
-// ImportDependencyRequest is the decoded import-dependency investigation
-// request. It split here from root code_import_dependencies.go (#6060 lane
-// A L1): all seven builders take one, and Go requires a type's methods to
-// live with its declaration, so the request's methods move with it. The
-// *CodeHandler route methods stay in root; root's family_code_shim.go
-// aliases this type back so the staying handler, executors, and tests keep
-// their names. Validate, EffectiveQueryType, NormalizedLanguage, and
-// QueryLimit are exported because staying root callers use them;
-// hasScopeFilter and normalizedLimit serve only this package.
-//
-// Access carries the caller's repository grant, set by the handler from
-// the request's AuthContext and never decoded from the body: the json:"-"
-// tag preserves the unexported field's old decode behavior now that the
-// field must be exported for staying root constructors to set it.
-type ImportDependencyRequest struct {
-	QueryType    string `json:"query_type"`
-	RepoID       string `json:"repo_id"`
-	Language     string `json:"language"`
-	SourceFile   string `json:"source_file"`
-	TargetFile   string `json:"target_file"`
-	SourceModule string `json:"source_module"`
-	TargetModule string `json:"target_module"`
-	Limit        int    `json:"limit"`
-	Offset       int    `json:"offset"`
-	// MaxCycleLength bounds file_import_cycles simple-cycle enumeration.
-	// Zero means the default; it is ignored by every other query type.
-	MaxCycleLength int `json:"max_cycle_length"`
-
-	Access repositoryAccessFilter `json:"-"`
-}
-
-const (
-	importDependencyDefaultLimit = 25
-	importDependencyMaxLimit     = 200
-	importDependencyMaxOffset    = 10000
-)
-
-// Validate rejects an unbounded or malformed investigation request before
-// any graph read runs.
-func (r ImportDependencyRequest) Validate() error {
-	if _, ok := importDependencyQueryTypes()[r.EffectiveQueryType()]; !ok {
-		return fmt.Errorf("query_type must be one of: %s", strings.Join(importDependencyQueryTypeNames(), ", "))
-	}
-	if r.Limit > importDependencyMaxLimit {
-		return fmt.Errorf("limit must be <= 200")
-	}
-	if r.Limit < 0 {
-		return fmt.Errorf("limit must be >= 0")
-	}
-	if r.Offset < 0 {
-		return fmt.Errorf("offset must be >= 0")
-	}
-	if r.Offset > importDependencyMaxOffset {
-		return fmt.Errorf("offset must be <= 10000")
-	}
-	if !r.hasScopeFilter() {
-		return fmt.Errorf("one of repo_id, source_file, target_file, source_module, or target_module is required")
-	}
-	if strings.TrimSpace(r.TargetFile) != "" && r.EffectiveQueryType() != "file_import_cycles" && r.EffectiveQueryType() != "cross_module_calls" {
-		return fmt.Errorf("target_file is supported only for file_import_cycles and cross_module_calls")
-	}
-	if r.EffectiveQueryType() == "file_import_cycles" {
-		language := r.NormalizedLanguage()
-		if language != "" && language != "python" {
-			return fmt.Errorf("file_import_cycles currently supports python module-name cycle detection")
-		}
-		if r.MaxCycleLength != 0 && (r.MaxCycleLength < importCycleMinMaxLength || r.MaxCycleLength > importCycleMaxMaxLength) {
-			return fmt.Errorf(
-				"max_cycle_length must be between %d and %d",
-				importCycleMinMaxLength,
-				importCycleMaxMaxLength,
-			)
-		}
-	}
-	return nil
-}
-
-// EffectiveQueryType normalizes the requested investigation family,
-// defaulting to the per-file import listing. It cannot be named QueryType:
-// the request struct already has a QueryType field carrying the raw decoded
-// value.
-func (r ImportDependencyRequest) EffectiveQueryType() string {
-	queryType := strings.ToLower(strings.TrimSpace(r.QueryType))
-	if queryType == "" {
-		return "imports_by_file"
-	}
-	return queryType
-}
-
-// NormalizedLanguage lowercases the requested language filter.
-func (r ImportDependencyRequest) NormalizedLanguage() string {
-	return strings.ToLower(strings.TrimSpace(r.Language))
-}
-
-// effectiveMaxCycleLength resolves the file_import_cycles simple-cycle
-// length bound: the caller's max_cycle_length when set and valid, the
-// default otherwise. Validation rejects out-of-range values before any
-// graph read runs, so this resolves rather than clamps.
-func (r ImportDependencyRequest) effectiveMaxCycleLength() int {
-	if r.MaxCycleLength <= 0 {
-		return importCycleDefaultMaxLength
-	}
-	return r.MaxCycleLength
-}
-
-func (r ImportDependencyRequest) normalizedLimit() int {
-	switch {
-	case r.Limit <= 0:
-		return importDependencyDefaultLimit
-	case r.Limit > importDependencyMaxLimit:
-		return importDependencyMaxLimit
-	default:
-		return r.Limit
-	}
-}
-
-// QueryLimit bounds one investigation page with a limit+1 truncation probe.
-func (r ImportDependencyRequest) QueryLimit() int {
-	return r.normalizedLimit() + 1
-}
-
-func (r ImportDependencyRequest) hasScopeFilter() bool {
-	for _, value := range []string{r.RepoID, r.SourceFile, r.TargetFile, r.SourceModule, r.TargetModule} {
-		if strings.TrimSpace(value) != "" {
-			return true
-		}
-	}
-	return false
-}
-
-func importDependencyQueryTypes() map[string]struct{} {
-	return map[string]struct{}{
-		"imports_by_file":     {},
-		"importers":           {},
-		"module_dependencies": {},
-		"package_imports":     {},
-		"file_import_cycles":  {},
-		"cross_module_calls":  {},
-	}
-}
-
-func importDependencyQueryTypeNames() []string {
-	return []string{"imports_by_file", "importers", "module_dependencies", "package_imports", "file_import_cycles", "cross_module_calls"}
 }
