@@ -200,6 +200,10 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := req.fileCursorError(); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
 	if err != nil {
 		writeContentSelectorError(w, r, err, "code_search.content_search")
@@ -236,6 +240,10 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := req.validate(); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := req.entityCursorError(); err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}

@@ -43,6 +43,25 @@ func (req contentSearchRequest) validate() error {
 	return nil
 }
 
+// fileCursorError refuses a cursor that names an entity on the file route.
+// A zero cursor names no key and starts at the first row, so it is accepted.
+func (req contentSearchRequest) fileCursorError() error {
+	if c := req.cursor(); c.StartLine != 0 || c.EntityID != "" {
+		return errFileCursorNamesEntity
+	}
+	return nil
+}
+
+// entityCursorError refuses a non-zero cursor without entity_id on the entity
+// route. A zero cursor names no key and starts at the first row, so it is
+// accepted.
+func (req contentSearchRequest) entityCursorError() error {
+	if c := req.cursor(); !c.IsZero() && c.EntityID == "" {
+		return errEntityCursorNeedsEntityID
+	}
+	return nil
+}
+
 // cursor returns the resume key, or the zero cursor when the request has none.
 func (req contentSearchRequest) cursor() querycontract.SearchCursor {
 	if req.Cursor == nil {

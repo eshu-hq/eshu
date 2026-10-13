@@ -15,6 +15,16 @@ import (
 // bounded walk does not serve, so a client never believes a cursor was honored.
 var errCursorNeedsUnscopedSearch = errors.New("cursor is only supported by a search with no repository filter")
 
+// errFileCursorNamesEntity rejects a cursor that names an entity (start_line
+// or entity_id) on the file route. The file walk binds only repo_id and
+// relative_path, so honoring it would silently resume from the whole file.
+var errFileCursorNamesEntity = errors.New("cursor: a file search resumes from repo_id and relative_path only; start_line and entity_id belong to an entity search cursor")
+
+// errEntityCursorNeedsEntityID rejects a cursor without entity_id on the
+// entity route. Several entities share one file, so resuming after the file
+// key alone would skip the rest of that file's entities.
+var errEntityCursorNeedsEntityID = errors.New("cursor: an entity search cursor needs entity_id and start_line; a file search cursor cannot resume an entity search")
+
 // unscopedFileSearcher returns the bounded unscoped seam when the request
 // carries no repository filter (explicit or injected from a scoped token's
 // grant) and the store implements it.

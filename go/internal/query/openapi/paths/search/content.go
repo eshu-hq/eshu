@@ -158,7 +158,7 @@ const Content = `
                   "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000},
                   "cursor": {
                     "type": "object",
-                    "description": "Resumes a search with no repository filter strictly after this key. Use the cursor of a previous partial result. Refused (400) on any search that has a repository filter.",
+                    "description": "Resumes a search with no repository filter strictly after this key. Use the cursor of a previous partial result. Refused (400) on any search that has a repository filter, and refused (400) when it carries start_line or entity_id: that is an entity search cursor, and the file search resumes from repo_id and relative_path only.",
                     "properties": {
                       "repo_id": {"type": "string"},
                       "relative_path": {"type": "string"}
@@ -246,7 +246,17 @@ const Content = `
                     "description": "Alias for query used by MCP content-search tools."
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200},
-                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000},
+                  "cursor": {
+                    "type": "object",
+                    "description": "Resumes a search with no repository filter strictly after this entity key. Use the cursor of a previous partial result. Refused (400) on any search that has a repository filter, and refused (400) when it has no entity_id: a file search cursor names no entity, and several entities share one file.",
+                    "properties": {
+                      "repo_id": {"type": "string"},
+                      "relative_path": {"type": "string"},
+                      "start_line": {"type": "integer"},
+                      "entity_id": {"type": "string"}
+                    }
+                  }
                 }
               }
             }

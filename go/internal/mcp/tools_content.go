@@ -162,7 +162,7 @@ func contentTools() []ToolDefinition {
 					},
 					"cursor": map[string]any{
 						"type":        "object",
-						"description": "Resume a search with no repo_ids after this key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set.",
+						"description": "Resume a search with no repo_ids after this key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set, and refused when it carries start_line or entity_id (a search_entity_content cursor).",
 						"properties": map[string]any{
 							"repo_id":       map[string]any{"type": "string"},
 							"relative_path": map[string]any{"type": "string"},
@@ -203,7 +203,7 @@ func contentTools() []ToolDefinition {
 					},
 					"cursor": map[string]any{
 						"type":        "object",
-						"description": "Resume a search with no repo_ids after this key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set.",
+						"description": "Resume a search with no repo_ids after this entity key: pass partial.cursor from a previous partial reply. Refused when repo_ids is set, and refused when it has no entity_id (a search_file_content cursor).",
 						"properties": map[string]any{
 							"repo_id":       map[string]any{"type": "string"},
 							"relative_path": map[string]any{"type": "string"},

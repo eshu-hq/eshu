@@ -88,8 +88,11 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
 Send `partial.cursor` back as the `cursor` request field and
 `offset = max(0, offset - partial.rows_matched)`. The next call reads strictly
 after the cursor, so pages have no gap and no duplicate. A cursor on a request
-that has a repository filter is refused with `400`. Adding `repo_id` turns a
-partial into an exact answer. The entity search takes its own cursor on the
+that has a repository filter is refused with `400`. A cursor that carries
+`start_line` or `entity_id` is an entity search cursor and is refused with
+`400`: the file search resumes from `repo_id` and `relative_path` only, so it
+would silently resume from the whole file. Adding `repo_id` turns a partial
+into an exact answer. The entity search takes its own four-key cursor on the
 same rule; see [Unscoped entity search](unscoped-entity-search.md).
 
 `partial.progressed` says whether the call advanced the cursor. When it is
@@ -106,6 +109,6 @@ resume loop (for example a fixed number of resumes) rather than looping until
 ## Operator signals
 
 See [Unscoped Content Search Signals](../telemetry/unscoped-file-search.md): the
-`eshu_dp_content_search_unscoped_total{outcome}` counter, the tail-cancel
+`eshu_dp_content_search_unscoped_total{table,outcome}` counter, the tail-cancel
 counter, the elapsed and overrun histograms, the `search.*` span attributes,
 and one log line per partial. The search pattern is never recorded.
