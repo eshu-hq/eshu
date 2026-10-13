@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -146,11 +147,11 @@ func (q failingPartitionQueryer) QueryContext(_ context.Context, _ string, _ ...
 func TestBackfillDeferredSpanRecordsPartitionLoadFailure(t *testing.T) {
 	t.Parallel()
 
-	params, ok := buildDeferredScopedFactQueryParams([]relationships.CatalogEntry{
+	params, ok := backfill.BuildDeferredScopedFactQueryParams([]relationships.CatalogEntry{
 		{RepoID: "repo-infra", Aliases: []string{"repo-infra", "infra-repo"}},
 	})
 	if !ok {
-		t.Fatal("buildDeferredScopedFactQueryParams returned ok=false; test fixture has no usable anchor")
+		t.Fatal("backfill.BuildDeferredScopedFactQueryParams returned ok=false; test fixture has no usable anchor")
 	}
 
 	store := IngestionStore{maintenanceWorkers: 1}
@@ -158,8 +159,8 @@ func TestBackfillDeferredSpanRecordsPartitionLoadFailure(t *testing.T) {
 	recorder, tracer := recordingTracer()
 	ctx, span := tracer.Start(context.Background(), backfillDeferredSpanName)
 
-	partitions := []scopeGenerationPartition{{ScopeID: "scope-x", GenerationID: "gen-x"}}
-	_, _, err := store.loadDeferredScopedFactsAcrossPartitions(
+	partitions := []backfill.ScopeGenerationPartition{{ScopeID: "scope-x", GenerationID: "gen-x"}}
+	_, _, err := store.backfillStore().LoadDeferredScopedFactsAcrossPartitions(
 		ctx, failingPartitionQueryer{err: errBoomPartition}, params, partitions, nil,
 	)
 	span.End()

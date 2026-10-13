@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -441,7 +442,7 @@ func scanCICDRunHistoryRows(rows db.Rows, operation string) ([]facts.Envelope, e
 	defer func() { _ = rows.Close() }()
 	loaded := make([]facts.Envelope, 0)
 	for rows.Next() {
-		envelope, err := scanFactEnvelope(rows)
+		envelope, err := backfill.ScanFactEnvelope(rows)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", operation, err)
 		}

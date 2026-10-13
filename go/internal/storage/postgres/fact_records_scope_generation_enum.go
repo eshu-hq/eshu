@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // listScopeGenerationWorkQuery enumerates the ACTIVE generation of every scope
@@ -23,7 +24,7 @@ import (
 // rejects any generation whose status IsTerminal (superseded/completed/failed)
 // with "must not be terminal before projection", so `ifa drive -from-facts`
 // would abort at commit time on any multi-generation source. The query therefore
-// drives off the shared latestGenerationCTE (the same
+// drives off the shared backfill.LatestGenerationCTE (the same
 // COALESCE(active_generation_id, newest) selection every relationship-fact loader
 // uses) and keeps only scopes whose latest generation is non-terminal and has
 // facts. The explicit `status NOT IN (terminal)` filter is belt-and-suspenders:
@@ -42,7 +43,7 @@ import (
 // concurrentreplay.FactSliceSource.Next feeds the whole Scope and Generation
 // into collector.FactsFromSlice, so an IDs-only enumeration would re-drain a
 // graph stripped of scope/generation metadata.
-const listScopeGenerationWorkQuery = latestGenerationCTE + `
+const listScopeGenerationWorkQuery = backfill.LatestGenerationCTE + `
 SELECT
     scope.scope_id,
     scope.source_system,

@@ -6,6 +6,8 @@ package postgres
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // TestTargetedMaintenanceMatchesWholePass is the #7584 write-side
@@ -128,7 +130,7 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 				workKeys(correlationIDs("dep-1")),
 			)...),
 		})
-		if _, loaded := owedSet(outcome.result.Loaded)[scopeGenerationPartition{ScopeID: targetedGCPScope, GenerationID: "gcp-1"}]; !loaded {
+		if _, loaded := owedSet(outcome.result.Loaded)[backfill.ScopeGenerationPartition{ScopeID: targetedGCPScope, GenerationID: "gcp-1"}]; !loaded {
 			t.Fatalf("closure did not load the GCP cloud scope holding the inbound relation: %v", outcome.result.Loaded)
 		}
 	})

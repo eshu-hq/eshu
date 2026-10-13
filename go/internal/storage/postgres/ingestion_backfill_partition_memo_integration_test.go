@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -247,24 +248,24 @@ func TestDeferredBackfillPartitionMemoBootstrapUnchangedFullLoad(t *testing.T) {
 		t.Fatal("test precondition violated: memo table must start empty")
 	}
 
-	partitions, err := loadActiveScopeGenerationPartitions(ctx, adapter)
+	partitions, err := backfill.LoadActiveScopeGenerationPartitions(ctx, adapter)
 	if err != nil {
-		t.Fatalf("loadActiveScopeGenerationPartitions: %v", err)
+		t.Fatalf("backfill.LoadActiveScopeGenerationPartitions: %v", err)
 	}
-	catalog, _, err := loadRepositoryCatalog(ctx, adapter)
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, adapter)
 	if err != nil {
 		t.Fatalf("loadRepositoryCatalog: %v", err)
 	}
-	params, ok := buildDeferredScopedFactQueryParams(catalog)
+	params, ok := backfill.BuildDeferredScopedFactQueryParams(catalog)
 	if !ok {
-		t.Fatal("buildDeferredScopedFactQueryParams returned ok=false for a non-empty catalog")
+		t.Fatal("backfill.BuildDeferredScopedFactQueryParams returned ok=false for a non-empty catalog")
 	}
-	fingerprint := deferredCatalogFingerprint(params)
+	fingerprint := backfill.DeferredCatalogFingerprint(params)
 
-	memoStore := newDeferredBackfillPartitionMemoStore(adapter)
-	gateResult, err := applyDeferredPartitionMemoGate(ctx, memoStore, partitions, fingerprint, nil)
+	memoStore := backfill.NewDeferredBackfillPartitionMemoStore(adapter)
+	gateResult, err := backfill.ApplyDeferredPartitionMemoGate(ctx, memoStore, partitions, fingerprint, nil)
 	if err != nil {
-		t.Fatalf("applyDeferredPartitionMemoGate: %v", err)
+		t.Fatalf("ApplyDeferredPartitionMemoGate: %v", err)
 	}
 	if len(gateResult.Skipped) != 0 {
 		t.Fatalf("bootstrap pass (empty memo) skipped %d partitions, want 0", len(gateResult.Skipped))

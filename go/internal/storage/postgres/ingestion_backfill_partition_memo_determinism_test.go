@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
@@ -120,24 +121,24 @@ func TestDeferredBackfillPartitionMemoCatalogChangeInvalidatesAll(t *testing.T) 
 	}
 	seedMemoProofScopesAndFacts(t, ctx, db, newFixture, nil, base)
 
-	partitions, err := loadActiveScopeGenerationPartitions(ctx, adapter)
+	partitions, err := backfill.LoadActiveScopeGenerationPartitions(ctx, adapter)
 	if err != nil {
-		t.Fatalf("loadActiveScopeGenerationPartitions: %v", err)
+		t.Fatalf("backfill.LoadActiveScopeGenerationPartitions: %v", err)
 	}
-	catalog, _, err := loadRepositoryCatalog(ctx, adapter)
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, adapter)
 	if err != nil {
 		t.Fatalf("loadRepositoryCatalog: %v", err)
 	}
-	params, ok := buildDeferredScopedFactQueryParams(catalog)
+	params, ok := backfill.BuildDeferredScopedFactQueryParams(catalog)
 	if !ok {
-		t.Fatal("buildDeferredScopedFactQueryParams returned ok=false for a non-empty catalog")
+		t.Fatal("backfill.BuildDeferredScopedFactQueryParams returned ok=false for a non-empty catalog")
 	}
-	currentFingerprint := deferredCatalogFingerprint(params)
+	currentFingerprint := backfill.DeferredCatalogFingerprint(params)
 
-	memoStore := newDeferredBackfillPartitionMemoStore(adapter)
-	gateResult, err := applyDeferredPartitionMemoGate(ctx, memoStore, partitions, currentFingerprint, nil)
+	memoStore := backfill.NewDeferredBackfillPartitionMemoStore(adapter)
+	gateResult, err := backfill.ApplyDeferredPartitionMemoGate(ctx, memoStore, partitions, currentFingerprint, nil)
 	if err != nil {
-		t.Fatalf("applyDeferredPartitionMemoGate: %v", err)
+		t.Fatalf("ApplyDeferredPartitionMemoGate: %v", err)
 	}
 	if len(gateResult.Skipped) != 0 {
 		t.Fatalf("expected ZERO partitions skipped after a catalog change, got %d skipped: %v",
@@ -207,24 +208,24 @@ VALUES ($1, $2, $3, 'content', $1, 'git', $1, $4, $4, $5::jsonb)`,
 		t.Fatalf("seed content fact under advanced generation: %v", err)
 	}
 
-	partitions, err := loadActiveScopeGenerationPartitions(ctx, adapter)
+	partitions, err := backfill.LoadActiveScopeGenerationPartitions(ctx, adapter)
 	if err != nil {
-		t.Fatalf("loadActiveScopeGenerationPartitions: %v", err)
+		t.Fatalf("backfill.LoadActiveScopeGenerationPartitions: %v", err)
 	}
-	catalog, _, err := loadRepositoryCatalog(ctx, adapter)
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, adapter)
 	if err != nil {
 		t.Fatalf("loadRepositoryCatalog: %v", err)
 	}
-	params, ok := buildDeferredScopedFactQueryParams(catalog)
+	params, ok := backfill.BuildDeferredScopedFactQueryParams(catalog)
 	if !ok {
-		t.Fatal("buildDeferredScopedFactQueryParams returned ok=false for a non-empty catalog")
+		t.Fatal("backfill.BuildDeferredScopedFactQueryParams returned ok=false for a non-empty catalog")
 	}
-	currentFingerprint := deferredCatalogFingerprint(params)
+	currentFingerprint := backfill.DeferredCatalogFingerprint(params)
 
-	memoStore := newDeferredBackfillPartitionMemoStore(adapter)
-	gateResult, err := applyDeferredPartitionMemoGate(ctx, memoStore, partitions, currentFingerprint, nil)
+	memoStore := backfill.NewDeferredBackfillPartitionMemoStore(adapter)
+	gateResult, err := backfill.ApplyDeferredPartitionMemoGate(ctx, memoStore, partitions, currentFingerprint, nil)
 	if err != nil {
-		t.Fatalf("applyDeferredPartitionMemoGate: %v", err)
+		t.Fatalf("ApplyDeferredPartitionMemoGate: %v", err)
 	}
 
 	skippedScopes := make(map[string]bool)

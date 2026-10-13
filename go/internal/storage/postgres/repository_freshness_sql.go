@@ -3,15 +3,19 @@
 
 package postgres
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+)
+
 // repositoryFreshnessResolveQuery resolves a canonical repository id to the
 // (scope_id, generation_id) pair backing GET
 // /api/v0/repositories/{id}/freshness (#5143). It reuses
-// activeRepositoryGenerationsQuery's exact join shape
-// (ingestion_queries.go) -- the shared latestGenerationCTE resolves each
+// backfill.ActiveRepositoryGenerationsQuery's exact join shape
+// (ingestion_queries.go) -- the shared backfill.LatestGenerationCTE resolves each
 // scope's currently active (or, absent one, newest) generation, and the same
 // COALESCE(repo_id, graph_id, name) derivation reads the repository fact's
 // payload -- but bounds it to a single repository via a WHERE predicate
-// instead of activeRepositoryGenerationsQuery's DISTINCT ON over every repo.
+// instead of backfill.ActiveRepositoryGenerationsQuery's DISTINCT ON over every repo.
 //
 // The repo_id filter runs as a Filter over the existing partial index
 // fact_records_active_repository_idx (fact_kind = 'repository' AND
@@ -22,10 +26,10 @@ package postgres
 //
 // Keying downstream reads on the returned (scope_id, generation_id) pair,
 // never repo_id alone, avoids the documented COALESCE-collapse caveat
-// (ingestion_queries.go's activeRepositoryGenerationsQuery doc comment):
+// (ingestion_queries.go's backfill.ActiveRepositoryGenerationsQuery doc comment):
 // two distinct scopes whose COALESCE(repo_id, graph_id, name) collapses to
 // the same value would otherwise share one row.
-const repositoryFreshnessResolveQuery = latestGenerationCTE + `
+const repositoryFreshnessResolveQuery = backfill.LatestGenerationCTE + `
 SELECT resolved.scope_id, resolved.generation_id
 FROM (
     SELECT

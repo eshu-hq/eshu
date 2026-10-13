@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -18,7 +19,7 @@ import (
 // parsed file's payload, so a substring marker over lower(payload::text) — as the
 // broad argoCDOverSelectAnchors set does for the query's $1 over-select arm —
 // matches every file fact and would force EVERY partition to reload, defeating the
-// memo. This test drives loadArgoCDBearingPartitions directly and proves the
+// memo. This test drives backfill.LoadArgoCDBearingPartitions directly and proves the
 // precise signal (non-empty parsed array / argoproj.io / artifact_type=argocd)
 // does NOT flag a plain file that merely carries the empty keys, while it DOES
 // flag a genuine ArgoCD ApplicationSet.
@@ -67,12 +68,12 @@ VALUES ($1, $2, $3, 'file', $1, 'git', $1, $4, $4, $5::jsonb)`,
 			`"content":"apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\n"}`)
 
 	adapter := SQLDB{DB: db}
-	plain := scopeGenerationPartition{ScopeID: "git:scope-plain", GenerationID: "gen-plain"}
-	argo := scopeGenerationPartition{ScopeID: "git:scope-argo", GenerationID: "gen-argo"}
+	plain := backfill.ScopeGenerationPartition{ScopeID: "git:scope-plain", GenerationID: "gen-plain"}
+	argo := backfill.ScopeGenerationPartition{ScopeID: "git:scope-argo", GenerationID: "gen-argo"}
 
-	bearing, err := loadArgoCDBearingPartitions(ctx, adapter, []scopeGenerationPartition{plain, argo})
+	bearing, err := backfill.LoadArgoCDBearingPartitions(ctx, adapter, []backfill.ScopeGenerationPartition{plain, argo})
 	if err != nil {
-		t.Fatalf("loadArgoCDBearingPartitions: %v", err)
+		t.Fatalf("backfill.LoadArgoCDBearingPartitions: %v", err)
 	}
 
 	if _, flagged := bearing[plain]; flagged {

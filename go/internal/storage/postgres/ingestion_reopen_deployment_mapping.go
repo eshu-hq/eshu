@@ -9,6 +9,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel/trace"
@@ -54,7 +55,7 @@ func (s IngestionStore) RunDeferredRelationshipMaintenance(
 	// step below, in memory, rather than letting the reopen gate re-derive it
 	// from a memo table the backfill above has already written fresh rows
 	// into (issue #4770 P1). See backfillAllRelationshipEvidence's doc comment.
-	skippedPartitions, err := s.backfillAllRelationshipEvidence(ctx, tracer, instruments)
+	skippedPartitions, err := s.backfillStore().RunAllRelationshipEvidence(ctx, tracer, instruments)
 	if err != nil {
 		return err
 	}
@@ -97,7 +98,7 @@ func (s IngestionStore) reopenMaintenanceWorkItemsInTransaction(
 	ctx context.Context,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
-	skippedPartitions map[scopeGenerationPartition]struct{},
+	skippedPartitions map[backfill.ScopeGenerationPartition]struct{},
 ) error {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
@@ -177,7 +178,7 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 	ctx context.Context,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
-	skippedPartitions map[scopeGenerationPartition]struct{},
+	skippedPartitions map[backfill.ScopeGenerationPartition]struct{},
 ) error {
 	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")

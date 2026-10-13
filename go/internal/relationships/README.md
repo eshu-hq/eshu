@@ -504,7 +504,7 @@ data only, following the existing citation-field pattern above.
 deriving a repository `CatalogEntry` (RepoID, matching aliases, and a
 normalized `RemoteURL`) from a decoded repository fact payload. The logic
 moved here verbatim from the Postgres ingestion path
-(`go/internal/storage/postgres/ingestion_catalog_parse.go`), which now
+(`go/internal/storage/postgres/backfill/catalog.go`), which now
 delegates to it, so Ifá's offline derived catalog (#4394) computes a
 generation's committed repository identity identically to the streaming commit
 path. The raw-payload-usage exemption for these pre-typed reads moved with the

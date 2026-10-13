@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // TestTargetedMaintenanceInterleavingsMatchWholePass extends the #7584
@@ -59,7 +61,7 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 			hooks: func(_ string, database *sql.DB) *hookBeginner {
 				fired := false
 				return &hookBeginner{onQuery: func(query string, args []any) error {
-					if fired || query != activeScopeGenerationQuery || len(args) == 0 || args[0] != "git:tgt" {
+					if fired || query != backfill.ActiveScopeGenerationQuery || len(args) == 0 || args[0] != "git:tgt" {
 						return nil
 					}
 					fired = true
@@ -80,7 +82,7 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 		// The obligation for the superseded tgt-2 must do nothing at all.
 		outcome := p.run("successor_activation_superseded_owed", targetedDiffCase{
 			owed:     owedPartitions("git:tgt", "tgt-2"),
-			compared: map[scopeGenerationPartition]struct{}{},
+			compared: map[backfill.ScopeGenerationPartition]struct{}{},
 			outcomes: map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceNotActive},
 		})
 		if _, ok := outcome.whole[phaseKey("git:tgt", "tgt-3")]; !ok {

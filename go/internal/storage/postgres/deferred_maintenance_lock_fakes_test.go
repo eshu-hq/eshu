@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
@@ -207,7 +208,7 @@ func (tx *lockAwareMaintenanceTx) ExecContext(_ context.Context, query string, a
 
 func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
-	case strings.HasPrefix(query, activeScopeGenerationQuery):
+	case strings.HasPrefix(query, backfill.ActiveScopeGenerationQuery):
 		// The fan-in publication transaction's under-lock re-read of ONE scope's
 		// active generation. Answering it from the same batchActiveGens the batch
 		// reload uses keeps the partition live, so the fan-in publishes and its
@@ -236,7 +237,7 @@ func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, 
 }
 
 // activeGenerationRowFor projects batchActiveGens down to the single generation
-// column loadActiveGenerationForScope scans, for the scope bound as $1. An
+// column backfill.LoadActiveGenerationForScope scans, for the scope bound as $1. An
 // unknown scope yields no rows, matching Postgres for a scope with no
 // generation.
 func (database *lockAwareMaintenanceDB) activeGenerationRowFor(args []any) [][]any {

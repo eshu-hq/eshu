@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -392,7 +393,7 @@ func loadPackageManifestConsumptionKeyFacts(ctx context.Context, queryer db.Quer
 	defer func() { _ = rows.Close() }()
 	loaded := make([]facts.Envelope, 0, packageManifestConsumptionKeyBackfillBatchSize)
 	for rows.Next() {
-		envelope, err := scanFactEnvelope(rows)
+		envelope, err := backfill.ScanFactEnvelope(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan package manifest consumption key fact: %w", err)
 		}

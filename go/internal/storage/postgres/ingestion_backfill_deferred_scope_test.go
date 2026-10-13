@@ -11,7 +11,33 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
+
+// contentFactRow builds the 16-column fact_records projection row the staged
+// fixtures need. It mirrors the backfill package's helper of the same name:
+// the two copies are deliberate, since neither test package can import the
+// other's unexported helpers.
+func contentFactRow(factID, scopeID, generationID, factKind string, payload string) []any {
+	return []any{
+		factID,                // fact_id
+		scopeID,               // scope_id
+		generationID,          // generation_id
+		factKind,              // fact_kind
+		"stable-" + factID,    // stable_fact_key
+		"v1",                  // schema_version
+		"git",                 // collector_kind
+		int64(1),              // fencing_token
+		"high",                // source_confidence
+		"git",                 // source_system
+		"src-" + factID,       // source_fact_key
+		"",                    // source_uri
+		"",                    // source_record_id
+		time.Unix(0, 0).UTC(), // observed_at
+		false,                 // is_tombstone
+		[]byte(payload),       // payload
+	}
+}
 
 // TestBackfillDeferredPassExcludesSelfRepoIDMatch is the issue #3659 regression
 // gate: when a fact's payload carries its own repo_id (e.g.
@@ -93,11 +119,11 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 	usedDeferredQuery := false
 	usedPerCommitQuery := false
 	for _, q := range inner.queries {
-		if q.query == listDeferredScopedRelationshipFactRecordsQuery {
+		if q.query == backfill.ListDeferredScopedRelationshipFactRecordsQuery {
 			usedDeferredQuery = true
 			assertDeferredSelfExclusionArgs(t, q.args)
 		}
-		if q.query == listOnboardedRepoScopedRelationshipFactRecordsQuery {
+		if q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery {
 			usedPerCommitQuery = true
 		}
 	}
@@ -113,7 +139,7 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 // with seven arguments (issue #3624 payload-hoist rewrite): $1 non-repo_id LIKE
 // terms, $2 raw lowercase repo_id values for exact self-exclusion, $3 scope_id
 // partition, $4 generation_id partition, $5 the nullable $6-excluded regex
-// alternation (buildDeferredRepoIDRegex), and $6 the scope_id-derived own-repo_id
+// alternation (backfill.BuildDeferredRepoIDRegex), and $6 the scope_id-derived own-repo_id
 // performance hint (scopestore.RepoIDFromScopeID), and $7 repo_id
 // reference token keys for the side-table fast path. The query uses the
 // raw repo_id values for exact self-exclusion before literal substring matching,
@@ -174,32 +200,32 @@ func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 
 // TestBackfillDeferredFactLoadPartitionsOnScopeGenerationNotRepository is the
 // non-DB CI-regression guard for the issue #3710 P0 fix: the deferred backfill's
-// fact-LOAD phase MUST source its partitions from activeScopeGenerationPartitionsQuery
-// (loadActiveScopeGenerationPartitions), NOT from activeRepositoryGenerationsQuery
-// (loadActiveRepositoryGenerations).
+// fact-LOAD phase MUST source its partitions from backfill.ActiveScopeGenerationPartitionsQuery
+// (backfill.LoadActiveScopeGenerationPartitions), NOT from backfill.ActiveRepositoryGenerationsQuery
+// (backfill.LoadActiveRepositoryGenerations).
 //
 // Why this guard exists. The P0 fix is otherwise only proven by
 // ingestion_backfill_partition_integration_test.go, which is gated on
 // ESHU_DEFERRED_PARTITION_PROOF_DSN and SKIPS in normal CI. The non-DB fakes
 // return canned rows in FIFO order without asserting WHICH query string fetched
-// them, so a future revert of loadActiveScopeGenerationPartitions back to
-// loadActiveRepositoryGenerations would silently pass CI and re-drop every
+// them, so a future revert of backfill.LoadActiveScopeGenerationPartitions back to
+// backfill.LoadActiveRepositoryGenerations would silently pass CI and re-drop every
 // gcp_cloud_relationship fact (those facts live in cloud scopes that carry no
 // repository fact, so the repository-generation source never partitions them).
 //
-// The query strings are distinct const identities (both share latestGenerationCTE
+// The query strings are distinct const identities (both share backfill.LatestGenerationCTE
 // but differ in their SELECT), so this records and compares the exact SQL the run
 // issued. It asserts:
 //
-//	(a) activeScopeGenerationPartitionsQuery IS issued before the first per-scope
+//	(a) backfill.ActiveScopeGenerationPartitionsQuery IS issued before the first per-scope
 //	    fact query (the fact-load partition source), and
-//	(b) activeRepositoryGenerationsQuery is NOT issued during the fact-load phase
+//	(b) backfill.ActiveRepositoryGenerationsQuery is NOT issued during the fact-load phase
 //	    (everything before the first per-scope fact query). The write phase still
-//	    legitimately issues activeRepositoryGenerationsQuery AFTER the fact load, so
+//	    legitimately issues backfill.ActiveRepositoryGenerationsQuery AFTER the fact load, so
 //	    the assertion is bounded to the pre-fact-load prefix by order, not by a
 //	    blanket "never issued" check.
 //
-// Swap loadActiveScopeGenerationPartitions -> loadActiveRepositoryGenerations in
+// Swap backfill.LoadActiveScopeGenerationPartitions -> backfill.LoadActiveRepositoryGenerations in
 // loadDeferredAnchorScopedRelationshipFacts and this test fails on (a): the
 // scope-generation query is never issued, and the repository-generation query
 // appears in the fact-load prefix instead.
@@ -253,10 +279,10 @@ func TestBackfillDeferredFactLoadPartitionsOnScopeGenerationNotRepository(t *tes
 
 	// Locate the first per-scope deferred fact query; everything before it is the
 	// fact-load partition-source phase. The write phase (which legitimately issues
-	// activeRepositoryGenerationsQuery) only runs after this index.
+	// backfill.ActiveRepositoryGenerationsQuery) only runs after this index.
 	firstDeferredFactIdx := -1
 	for i, q := range inner.queries {
-		if q.query == listDeferredScopedRelationshipFactRecordsQuery {
+		if q.query == backfill.ListDeferredScopedRelationshipFactRecordsQuery {
 			firstDeferredFactIdx = i
 			break
 		}
@@ -267,18 +293,18 @@ func TestBackfillDeferredFactLoadPartitionsOnScopeGenerationNotRepository(t *tes
 
 	sawScopeGenerationSource := false
 	for _, q := range inner.queries[:firstDeferredFactIdx] {
-		if q.query == activeScopeGenerationPartitionsQuery {
+		if q.query == backfill.ActiveScopeGenerationPartitionsQuery {
 			sawScopeGenerationSource = true
 		}
-		if q.query == activeRepositoryGenerationsQuery {
-			t.Fatal("deferred backfill fact-load partitioned on activeRepositoryGenerationsQuery; " +
-				"it MUST partition on activeScopeGenerationPartitionsQuery so gcp cloud-scope facts and " +
+		if q.query == backfill.ActiveRepositoryGenerationsQuery {
+			t.Fatal("deferred backfill fact-load partitioned on backfill.ActiveRepositoryGenerationsQuery; " +
+				"it MUST partition on backfill.ActiveScopeGenerationPartitionsQuery so gcp cloud-scope facts and " +
 				"collapsing scopes are not dropped (issue #3710 P0)")
 		}
 	}
 	if !sawScopeGenerationSource {
-		t.Fatal("deferred backfill fact-load did not issue activeScopeGenerationPartitionsQuery as its " +
-			"partition source; a revert to loadActiveRepositoryGenerations would silently re-drop gcp facts")
+		t.Fatal("deferred backfill fact-load did not issue backfill.ActiveScopeGenerationPartitionsQuery as its " +
+			"partition source; a revert to backfill.LoadActiveRepositoryGenerations would silently re-drop gcp facts")
 	}
 }
 
@@ -351,11 +377,11 @@ func TestBackfillAllRelationshipEvidenceUsesScopedFactQuery(t *testing.T) {
 	usedPerCommitQuery := false
 	usedFullCorpusQuery := false
 	for _, q := range inner.queries {
-		if q.query == listDeferredScopedRelationshipFactRecordsQuery {
+		if q.query == backfill.ListDeferredScopedRelationshipFactRecordsQuery {
 			usedDeferredQuery = true
 			assertDeferredSelfExclusionArgs(t, q.args)
 		}
-		if q.query == listOnboardedRepoScopedRelationshipFactRecordsQuery {
+		if q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery {
 			usedPerCommitQuery = true
 		}
 		if q.query == listLatestRelationshipFactRecordsQuery {
@@ -408,9 +434,9 @@ func TestBackfillAllRelationshipEvidenceShortCircuitsWithoutAnchors(t *testing.T
 	}
 
 	for _, q := range inner.queries {
-		if q.query == listOnboardedRepoScopedRelationshipFactRecordsQuery ||
+		if q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery ||
 			q.query == listLatestRelationshipFactRecordsQuery ||
-			q.query == listDeferredScopedRelationshipFactRecordsQuery {
+			q.query == backfill.ListDeferredScopedRelationshipFactRecordsQuery {
 			t.Fatalf("deferred backfill issued a fact query with no usable anchors: %s", q.query)
 		}
 	}

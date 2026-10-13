@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -25,25 +26,25 @@ const targetedMaintenanceMaxClosureRounds = 8
 type targetedMaintenanceClosure struct {
 	// owed are the requested partitions whose generation is still the scope's
 	// active one, plus every promoted partition.
-	owed map[scopeGenerationPartition]struct{}
+	owed map[backfill.ScopeGenerationPartition]struct{}
 	// promoted are dependent partitions that had no committed
 	// backward_evidence phase and were therefore processed as owed.
-	promoted []scopeGenerationPartition
+	promoted []backfill.ScopeGenerationPartition
 	// load are the (scope_id, generation_id) partitions whose facts the pass
 	// loads through the memo-gated deferred loader: the owed partitions and
 	// every partition holding a fact whose evidence touches an owed repository.
-	load map[scopeGenerationPartition]struct{}
+	load map[backfill.ScopeGenerationPartition]struct{}
 	// affectedRepos are the repositories whose evidence the pass writes and
 	// whose partitions it publishes and reopens: the owed repositories and the
 	// source repositories of evidence that touches them.
-	affectedRepos map[string]repositoryGenerationIdentity
+	affectedRepos map[string]backfill.RepositoryGenerationIdentity
 }
 
 // affectedPartitions returns the distinct active partitions of affectedRepos.
-func (c targetedMaintenanceClosure) affectedPartitions() map[scopeGenerationPartition]struct{} {
-	partitions := make(map[scopeGenerationPartition]struct{}, len(c.affectedRepos))
+func (c targetedMaintenanceClosure) affectedPartitions() map[backfill.ScopeGenerationPartition]struct{} {
+	partitions := make(map[backfill.ScopeGenerationPartition]struct{}, len(c.affectedRepos))
 	for _, identity := range c.affectedRepos {
-		partitions[scopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}] = struct{}{}
+		partitions[backfill.ScopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}] = struct{}{}
 	}
 	return partitions
 }
@@ -61,7 +62,7 @@ func (c targetedMaintenanceClosure) affectedPartitions() map[scopeGenerationPart
 // its content, a cloud scope with no repository fact whose GCP relationship
 // resolves to some source repository, or an ArgoCD ApplicationSet whose git
 // generator reads an owed repository as its external config repo. The
-// target-catalog inbound loader (loadAnchorScopedRelationshipFacts) is a proven
+// target-catalog inbound loader (backfill.LoadAnchorScopedRelationshipFacts) is a proven
 // superset of the facts that can match R (the #7584 read-side parity proof), so
 // grouping its facts by partition and discovering each group's evidence finds
 // every such source.
@@ -74,11 +75,11 @@ func (c targetedMaintenanceClosure) affectedPartitions() map[scopeGenerationPart
 func (s IngestionStore) resolveTargetedMaintenanceClosure(
 	ctx context.Context,
 	catalog []relationships.CatalogEntry,
-	params deferredScopedFactQueryParams,
+	params backfill.DeferredScopedFactQueryParams,
 	hasAnchors bool,
-	active map[scopeGenerationPartition]struct{},
+	active map[backfill.ScopeGenerationPartition]struct{},
 ) (targetedMaintenanceClosure, error) {
-	closure := targetedMaintenanceClosure{owed: make(map[scopeGenerationPartition]struct{}, len(active))}
+	closure := targetedMaintenanceClosure{owed: make(map[backfill.ScopeGenerationPartition]struct{}, len(active))}
 	for partition := range active {
 		closure.owed[partition] = struct{}{}
 	}
@@ -92,7 +93,7 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 		if err != nil {
 			return closure, fmt.Errorf("load owed repository generations: %w", err)
 		}
-		load := make(map[scopeGenerationPartition]struct{}, len(closure.owed))
+		load := make(map[backfill.ScopeGenerationPartition]struct{}, len(closure.owed))
 		sourceRepoIDs := make(map[string]struct{}, len(owedRepos))
 		for partition := range closure.owed {
 			load[partition] = struct{}{}
@@ -105,13 +106,13 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 		// it is affected, including a source repository that a cloud-scope fact
 		// in an owed partition resolves to.
 		if hasAnchors && len(closure.owed) > 0 {
-			ownFacts, _, err := s.loadDeferredScopedFactsAcrossPartitions(
+			ownFacts, _, err := s.backfillStore().LoadDeferredScopedFactsAcrossPartitions(
 				ctx, s.database, params, sortedPartitions(closure.owed), nil)
 			if err != nil {
 				return closure, fmt.Errorf("load owed partition facts for closure: %w", err)
 			}
 			if len(ownFacts) > 0 {
-				ownFacts, err = s.appendArgoCDGeneratorConfigFacts(ctx, s.database, catalog, ownFacts)
+				ownFacts, err = s.backfillStore().AppendArgoCDGeneratorConfigFacts(ctx, s.database, catalog, ownFacts)
 				if err != nil {
 					return closure, err
 				}
@@ -144,7 +145,7 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 
 		promotedThisRound := 0
 		for _, identity := range affected {
-			partition := scopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}
+			partition := backfill.ScopeGenerationPartition{ScopeID: identity.ScopeID, GenerationID: identity.GenerationID}
 			if _, owed := closure.owed[partition]; owed {
 				continue
 			}
@@ -164,7 +165,7 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 		}
 		closure.load = load
 		closure.affectedRepos = affected
-		promoted := make(map[scopeGenerationPartition]struct{}, len(closure.promoted))
+		promoted := make(map[backfill.ScopeGenerationPartition]struct{}, len(closure.promoted))
 		for _, partition := range closure.promoted {
 			promoted[partition] = struct{}{}
 		}
@@ -192,23 +193,23 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 func (s IngestionStore) addInboundTargetedMaintenanceSources(
 	ctx context.Context,
 	catalog []relationships.CatalogEntry,
-	owedRepos map[string]repositoryGenerationIdentity,
-	load map[scopeGenerationPartition]struct{},
+	owedRepos map[string]backfill.RepositoryGenerationIdentity,
+	load map[backfill.ScopeGenerationPartition]struct{},
 	sourceRepoIDs map[string]struct{},
 ) error {
 	owedRepoIDs := make(map[string]struct{}, len(owedRepos))
 	for repoID := range owedRepos {
 		owedRepoIDs[repoID] = struct{}{}
 	}
-	inbound, err := loadAnchorScopedRelationshipFacts(
-		ctx, s.database, repositoryScopedCatalog(catalog, owedRepoIDs), catalog)
+	inbound, err := backfill.LoadAnchorScopedRelationshipFacts(
+		ctx, s.database, backfill.RepositoryScopedCatalog(catalog, owedRepoIDs), catalog)
 	if err != nil {
 		return fmt.Errorf("load inbound facts for owed repositories: %w", err)
 	}
 
-	groups := make(map[scopeGenerationPartition][]facts.Envelope)
+	groups := make(map[backfill.ScopeGenerationPartition][]facts.Envelope)
 	for _, envelope := range inbound {
-		partition := scopeGenerationPartition{ScopeID: envelope.ScopeID, GenerationID: envelope.GenerationID}
+		partition := backfill.ScopeGenerationPartition{ScopeID: envelope.ScopeID, GenerationID: envelope.GenerationID}
 		groups[partition] = append(groups[partition], envelope)
 	}
 	for _, partition := range sortedPartitionsOf(groups) {
@@ -219,13 +220,13 @@ func (s IngestionStore) addInboundTargetedMaintenanceSources(
 			for _, ref := range refs {
 				configRepoIDs = append(configRepoIDs, ref.ConfigRepoID)
 			}
-			configFacts, err = loadArgoCDGeneratorConfigFacts(ctx, s.database, configRepoIDs)
+			configFacts, err = backfill.LoadArgoCDGeneratorConfigFacts(ctx, s.database, configRepoIDs)
 			if err != nil {
 				return fmt.Errorf("load argocd config facts for closure group %q: %w", partition.ScopeID, err)
 			}
 		}
 		groupEvidence := relationships.DedupeEvidenceFacts(
-			relationships.DiscoverEvidence(mergeRelationshipFacts(group, configFacts), catalog))
+			relationships.DiscoverEvidence(backfill.MergeRelationshipFacts(group, configFacts), catalog))
 		touched := false
 		for _, evidence := range groupEvidence {
 			if evidence.SourceRepoID == "" || evidence.TargetRepoID == "" {
@@ -252,7 +253,7 @@ func (s IngestionStore) addInboundTargetedMaintenanceSources(
 func backwardEvidencePhaseCommitted(
 	ctx context.Context,
 	database db.ExecQueryer,
-	partition scopeGenerationPartition,
+	partition backfill.ScopeGenerationPartition,
 ) (bool, error) {
 	ready, found, err := NewGraphProjectionPhaseStateStore(database).Lookup(ctx, reducer.GraphProjectionPhaseKey{
 		ScopeID:          partition.ScopeID,
@@ -269,8 +270,8 @@ func backwardEvidencePhaseCommitted(
 
 // sortedPartitionsOf returns the keys of groups in (scope_id, generation_id)
 // order.
-func sortedPartitionsOf(groups map[scopeGenerationPartition][]facts.Envelope) []scopeGenerationPartition {
-	set := make(map[scopeGenerationPartition]struct{}, len(groups))
+func sortedPartitionsOf(groups map[backfill.ScopeGenerationPartition][]facts.Envelope) []backfill.ScopeGenerationPartition {
+	set := make(map[backfill.ScopeGenerationPartition]struct{}, len(groups))
 	for partition := range groups {
 		set[partition] = struct{}{}
 	}

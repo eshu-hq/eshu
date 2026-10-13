@@ -14,8 +14,11 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 // TestTheoryExactPartitionEvidenceClosure compares a bounded candidate read
@@ -77,43 +80,43 @@ WHERE generation.scope_id = scope.scope_id`); err != nil {
 	}
 
 	adapter := SQLDB{DB: database}
-	store := NewIngestionStore(adapter)
-	store.maintenanceWorkers = 1
-	catalog, _, err := loadRepositoryCatalog(ctx, adapter)
+	engine := NewIngestionStore(adapter).backfillStore()
+	engine.Workers = 1
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, adapter)
 	if err != nil {
 		t.Fatalf("load actual repository catalog: %v", err)
 	}
-	fullFacts, _, _, err := store.loadDeferredAnchorScopedRelationshipFacts(
+	fullFacts, _, _, err := engine.LoadDeferredAnchorScopedRelationshipFacts(
 		ctx, adapter, catalog, nil)
 	if err != nil {
 		t.Fatalf("load actual full maintenance facts: %v", err)
 	}
 
 	targetRepoID := "repo-gcp-target"
-	targetCatalog := repositoryScopedCatalog(catalog,
+	targetCatalog := backfill.RepositoryScopedCatalog(catalog,
 		map[string]struct{}{targetRepoID: {}})
-	inboundFacts, err := loadAnchorScopedRelationshipFacts(
+	inboundFacts, err := backfill.LoadAnchorScopedRelationshipFacts(
 		ctx, adapter, targetCatalog, catalog)
 	if err != nil {
 		t.Fatalf("load inbound target-anchored facts: %v", err)
 	}
-	params, ok := buildDeferredScopedFactQueryParams(catalog)
+	params, ok := backfill.BuildDeferredScopedFactQueryParams(catalog)
 	if !ok {
 		t.Fatal("fixture has no full-catalog anchors")
 	}
-	exactPartition := scopeGenerationPartition{
+	exactPartition := backfill.ScopeGenerationPartition{
 		ScopeID: "git:theory-gcp-target", GenerationID: "gen-theory-gcp-target",
 	}
-	ownFacts, _, err := store.loadDeferredScopedFactsAcrossPartitions(
-		ctx, adapter, params, []scopeGenerationPartition{exactPartition}, nil)
+	ownFacts, _, err := engine.LoadDeferredScopedFactsAcrossPartitions(
+		ctx, adapter, params, []backfill.ScopeGenerationPartition{exactPartition}, nil)
 	if err != nil {
 		t.Fatalf("load exact target partition: %v", err)
 	}
 	if len(ownFacts) == 0 {
 		t.Fatal("exact target partition loaded no outgoing source facts")
 	}
-	candidateFacts := mergeRelationshipFacts(ownFacts, inboundFacts)
-	candidateFacts, err = store.appendArgoCDGeneratorConfigFacts(
+	candidateFacts := backfill.MergeRelationshipFacts(ownFacts, inboundFacts)
+	candidateFacts, err = engine.AppendArgoCDGeneratorConfigFacts(
 		ctx, adapter, catalog, candidateFacts)
 	if err != nil {
 		t.Fatalf("load external ArgoCD config closure: %v", err)

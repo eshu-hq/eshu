@@ -1,0 +1,458 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package backfill
+
+import (
+	"context"
+	"database/sql"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
+)
+
+// ListDeferredScopedRelationshipFactRecordsQuery is the self-exclusion variant
+// of ListOnboardedRepoScopedRelationshipFactRecordsQuery used exclusively by the
+// corpus-wide deferred backfill (issue #3659). It accepts seven parameters:
+//
+//	$1 array.StringArray — LIKE terms derived from non-repo_id aliases (name,
+//	   slug tokens) and the unconditional ArgoCD over-select markers. This arm is
+//	   intentionally guarded by DeferredRelationshipFamilyCandidatePredicateSQL:
+//	   a content/file fact must first look like a relationship extractor family
+//	   before the broad alias substring scan can select it. That preserves
+//	   evidence-producing Terraform/Helm/ArgoCD/Docker/GitHub Actions/Ansible/
+//	   Salt/GCP rows while preventing generic content partitions from being
+//	   loaded only because they contain noisy short aliases such as "s3" or
+//	   "robots".
+//
+//	$2 array.StringArray — raw lowercase repo_id values. The primary repo_id arm
+//	   loads a fact only when its precomputed reference keys contain a catalog
+//	   repo_id value that is not the row's own repo_id. Facts without precomputed
+//	   reference keys retain the payload fallback. The values stay raw so both
+//	   self-exclusion comparisons remain whole string matches.
+//
+//	$3 string — the scope_id partition this run is bounded to (issue #3710).
+//
+//	$4 string — the generation_id partition this run is bounded to (issue #3710).
+//
+//	$5 sql.NullString (nullable text) — a POSIX ARE (Postgres `~` operator) alternation of
+//	   every $2 repo_id value EXCEPT the partition's $6 performance-hint own
+//	   repo_id, each value escaped so every ARE metacharacter is a literal
+//	   (BuildDeferredRepoIDRegex). NULL when no such alternation is buildable
+//	   (empty catalog, or excluding $6 leaves nothing) — the query treats NULL
+//	   as "the fast arm never fires for this partition", never as a match.
+//
+//	$6 string — a lowercase performance-hint "this partition's own repo_id",
+//	   derived from scope_id with zero extra queries
+//	   (scopestore.RepoIDFromScopeID): git-repository-scope:<repo_id>
+//	   scopes resolve to <repo_id>; every other scope shape (GCP cloud-relationship
+//	   scopes included) resolves to "". $6 is NOT a correctness input — see the
+//	   "$5/$6 performance-hint" section below.
+//
+//	$7 array.StringArray — boundary-aware token keys corresponding 1:1 with $2.
+//	   The precomputed relationship_reference_candidate_keys table stores each
+//	   accepted content/file/GCP fact's payload as the same delimiter-wrapped token
+//	   stream. Joining $7 against that stream replaces the steady-state
+//	   facts × catalog payload predicate while preserving whole-token
+//	   self-exclusion semantics.
+//
+// Why EXISTS, not blind replace(): replace() corrupts overlap cases where the
+// own repo_id is a prefix of another repo's repo_id (for example app vs
+// app-config). EXISTS compares whole repo_id values, so the overlapping target
+// still matches. The fallback boundary test is a plain LIKE substring rather
+// than a boundary regex: LIKE widens the SQL to a provable superset and the
+// in-memory catalogMatcher re-applies boundary-safe token matching, so a
+// repo_id that is a substring of another (app vs app-config) is over-selected
+// at SQL but still resolved to the correct whole-value match by the matcher.
+//
+// Why not a value-exclusion list (payload->>'repo_id' != ALL($2)): every ACTIVE
+// repo's own repo_id is in the catalog, so that predicate would exclude EVERY
+// active repo's fact from the repo_id arm — including legitimate cross-repo
+// references — also breaking truth-equivalence. The EXISTS test excludes only
+// the row's exact self-value while keeping all OTHER repos' repo_id matches.
+//
+// Correctness invariant (truth-equivalence): a fact in repo A that references
+// repo B's repo_id (A ≠ B, including B that contains A as a substring) has B's
+// value present and B <> A, so EXISTS is true and the fact is loaded. A fact
+// whose only repo_id match is its own (A) has no OTHER catalog repo_id present,
+// so EXISTS is false and it is dropped — and the in-memory catalogMatcher would
+// have skipped that self-match anyway (entry.RepoID == sourceRepoID), so no
+// evidence the full-corpus load would have produced is dropped.
+//
+// The per-commit scoped query (ListOnboardedRepoScopedRelationshipFactRecordsQuery)
+// uses a single-parameter LIKE ANY and does not need self-exclusion because its
+// anchorCatalog is the onboarding delta (new repos only): a new repo's own
+// facts are not in the corpus yet, so its repo_id cannot self-match.
+//
+// Payload hoist (issue #3624). The inner CTE computes lower(fact.payload::text)
+// ONCE per row as payload_lower, and the row's repo_id lowercased and coalesced
+// to the empty string when absent, ONCE per row as own_repo_id. Before
+// this change, lower(fact.payload::text) was evaluated once for the $1 LIKE ANY
+// test and AGAIN, once per unnest($2) catalog row, inside the EXISTS
+// self-exclusion arm — an O(facts × catalog × payload_size)
+// re-lowering of the same payload text for every candidate repo_id. Hoisting it
+// into the CTE's SELECT list makes every arm below reference the already-computed
+// column; lower(payload::text) is never recomputed. Proven on the live eshufull
+// corpus: a 1,990-fact scope went from 149,525ms (pre-hoist) to 914ms with the
+// hoist plus the $5/$6 fast arm below (163x), and a 24,802-fact scope completed in
+// 13,864ms; both runs' fact_id sets are byte-identical to the pre-hoist shape
+// (0/0 set-diff in both directions; see the differential proof test).
+//
+// $5/$6 performance-hint fast arm — correctness independent of $6. The repo_id
+// predicate below is:
+//
+//	(own_repo_id = $6 AND payload_lower ~ $5)                                    -- fast arm
+//	OR (own_repo_id <> $6 AND EXISTS(unnest($2) ... same fallback as before))     -- fallback arm
+//
+// own_repo_id stays a PER-ROW computed column (a single scope_id can carry rows
+// whose payload->>'repo_id' differs from any single value derived from the
+// scope_id, notably GCP cloud-relationship scopes, which have no repository
+// fact and no single derivable repo_id at all). $6 is a hint about what "most"
+// rows in this partition's own repo_id probably is, not an assertion that it IS:
+//
+//   - When $6 correctly predicts a row's own_repo_id, the fast arm fires and $5
+//     (built by excluding exactly $6 from the $2 catalog) evaluates a single
+//     regex match instead of a per-catalog-entry correlated EXISTS loop — the
+//     source of the O(facts × catalog) cost this issue fixes.
+//   - When $6 is wrong for a row (own_repo_id <> $6 — including every GCP
+//     cloud-relationship row, since $6 is always "" for non-git-repository-scope
+//     partitions and a GCP row's own repo_id is essentially never ""), the fast
+//     arm's guard is false. A row with precomputed reference keys uses the
+//     reference-key arm; a row without them falls through to the byte-identical
+//     pre-hoist EXISTS fallback. The row is never dropped or wrongly matched
+//     merely because $6 was wrong.
+//
+// A wrong or absent $6 therefore only costs a fallback-arm evaluation for the
+// affected rows (a performance cost bounded by the partition), never a
+// correctness cost. This is why $6 can be derived for free from scope_id
+// (scopestore.RepoIDFromScopeID: strip scope.GitRepositoryScopePrefix,
+// or "" for any other scope shape) instead of requiring a discovery
+// query: loadActiveRepositoryGenerations was considered and rejected, because it
+// filters to fact_kind = 'repository' and drops every GCP cloud-relationship
+// scope entirely, and a live-corpus mode()-in-discovery alternative was measured
+// and also rejected (forces a heap scan plus an external-sort spill vs. the
+// existing 225ms index-only discovery path). Proven on the live eshufull corpus
+// (314,879 rows, all git-repository-scope): the scope_id-derived $6 equals the
+// row's own_repo_id for 314,799 rows (99.975%); the remaining 80 rows are
+// handled correctly by the fallback arm.
+//
+// $5 regex build (BuildDeferredRepoIDRegex). $5 is built once per partition in
+// Go from the shared $2 repoIDValues, excluding $6, with every POSIX ARE
+// metacharacter (`\ . + * ? ( ) | [ ] { } ^ $`) escaped via regexp.QuoteMeta —
+// verified directly against Postgres 18 to escape the identical character set
+// Postgres's `~` operator requires escaped, unlike LIKE's `\ % _`. $5 is passed
+// as NULL, not an empty-alternation "(?:)", when excluding $6 leaves zero
+// values: "(?:)" is a zero-width match present in EVERY string under Postgres
+// ARE (verified: `SELECT 'x' ~ '(?:)'` is true), so building it would silently
+// turn "own_repo_id = $6 AND payload_lower ~ $5" into "own_repo_id = $6 AND
+// true" — an over-selection bug, not merely a missed optimization. The query
+// guards $5 IS NOT NULL before the `~` test so a NULL $5 makes the fast arm
+// never fire for that partition, falling through to the fallback for every row
+// (verified: a NULL-guarded `~` test with $5 = NULL returns false, never an
+// error and never a spurious match).
+//
+// Performance shape (issue #3710, retained). The query is bound to one
+// (scope_id, generation_id) partition via $3/$4 and selects from fact_records
+// inside a `WITH matched_facts AS MATERIALIZED (...)` CTE. Two plan properties
+// drove this shape (measured locally on a 7.3M-row fact_records under
+// PostgreSQL 18; see the package README #3710 Performance Evidence for the
+// EXPLAIN ANALYZE numbers):
+//
+//  1. Per-scope partition. The original query scanned every latest-generation
+//     content/file/gcp fact once and evaluated the per-row self-exclusion arm
+//     against the whole catalog: an O(facts × catalog) correlated scan over the
+//     full corpus. The scope_generation predicate ($3/$4) bounds each run to one
+//     scope's facts via fact_records_scope_generation_idx, turning the monolithic
+//     scan into many small ones the caller fans out across the
+//     deferred-maintenance worker pool. The planner bounds each per-scope query by
+//     fact_records_scope_generation_idx and applies $1/$2/$5/$6 as filters on
+//     that already-bounded set; no payload index is used.
+//
+//  2. MATERIALIZED candidate set. MATERIALIZED forces Postgres to build the
+//     per-scope-bounded candidate set once (including the payload_lower and
+//     own_repo_id hoist), then join that small result to the latest-generation
+//     set, rather than re-deriving it on the inner side of a Nested Loop. The $1
+//     LIKE ANY constant-pattern arm and the $5/$6 fast arm are then cheap
+//     filters on the bounded candidate set. The $2 reference-key arm and its
+//     no-reference-key compatibility fallback are also partition-bounded.
+//
+// Relationship-family partial index and reference narrowing (#5122). The source
+// CTE applies DeferredRelationshipFamilyCandidatePredicateSQL directly to the
+// base fact_records relation, exactly matching migration 059's partial-index
+// predicate. PostgreSQL can therefore fetch the small extractor-family surface
+// before detoasting generic content payloads. candidate_reference_keys then
+// joins reference rows to those fact_ids before comparing catalog keys, avoiding
+// the prior catalog-size × whole-partition reference-key cross-product. Both
+// transformations are output-preserving: the same exact family predicate
+// already guarded every payload-matching arm, and the reference CTE changes
+// join order without changing its fact_id, scope, generation, or self-exclusion
+// predicates.
+const ListDeferredScopedRelationshipFactRecordsQuery = LatestGenerationCTE + `,
+source_facts AS MATERIALIZED (
+    SELECT
+        fact.fact_id,
+        fact.scope_id,
+        fact.generation_id,
+        fact.fact_kind,
+        fact.stable_fact_key,
+        fact.schema_version,
+        fact.collector_kind,
+        fact.fencing_token,
+        fact.source_confidence,
+        fact.source_system,
+        fact.source_fact_key,
+        COALESCE(fact.source_uri, '') AS source_uri,
+        COALESCE(fact.source_record_id, '') AS source_record_id,
+        fact.observed_at,
+        fact.is_tombstone,
+        fact.payload,
+        lower(COALESCE(fact.payload->>'repo_id', '')) AS own_repo_id
+    FROM fact_records AS fact
+    WHERE fact.scope_id = $3
+      AND fact.generation_id = $4
+      AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
+      AND ` + DeferredRelationshipFamilyCandidatePredicateSQL + `
+),
+relationship_family_payload_facts AS MATERIALIZED (
+    SELECT
+        fact.fact_id,
+        fact.own_repo_id,
+        lower(fact.payload::text) AS payload_lower
+    FROM source_facts AS fact
+    ` + DeferredRelationshipFamilyPayloadFactsFilterSQL + `
+),
+candidate_reference_keys AS MATERIALIZED (
+    SELECT ref.fact_id, ref.source_repo_id, ref.reference_key
+    FROM relationship_family_payload_facts AS fact
+    JOIN relationship_reference_candidate_keys AS ref
+      ON ref.fact_id = fact.fact_id
+     AND ref.scope_id = $3
+     AND ref.generation_id = $4
+),
+matched_fact_ids AS MATERIALIZED (
+        SELECT fact.fact_id
+        FROM relationship_family_payload_facts AS fact
+        WHERE fact.payload_lower LIKE ANY($1)
+        UNION
+        SELECT ref.fact_id
+        FROM candidate_reference_keys AS ref
+        JOIN unnest($2::text[], $7::text[]) AS catalog_repo_id(value, reference_key)
+          ON catalog_repo_id.value <> ref.source_repo_id
+         AND position('|' || catalog_repo_id.reference_key || '|' in ref.reference_key) > 0
+        UNION
+        SELECT fact.fact_id
+        FROM relationship_family_payload_facts AS fact
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM relationship_reference_candidate_keys AS ref
+            WHERE ref.fact_id = fact.fact_id
+              AND ref.scope_id = $3
+              AND ref.generation_id = $4
+          )
+          AND (
+            (fact.own_repo_id = $6 AND $5::text IS NOT NULL AND fact.payload_lower ~ $5)
+            OR (
+              fact.own_repo_id <> $6
+              AND EXISTS (
+                SELECT 1
+                FROM unnest($2::text[]) AS catalog_repo_id(value)
+                WHERE catalog_repo_id.value <> fact.own_repo_id
+                  AND fact.payload_lower LIKE
+                    '%' ||
+                    replace(replace(replace(catalog_repo_id.value, '\', '\\'), '%', '\%'), '_', '\_') ||
+                    '%' ESCAPE '\'
+              )
+            )
+          )
+)
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    fact.source_uri,
+    fact.source_record_id,
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM source_facts AS fact
+JOIN matched_fact_ids AS matched
+  ON matched.fact_id = fact.fact_id
+JOIN latest_generations AS latest
+  ON latest.scope_id = fact.scope_id
+ AND latest.generation_id = fact.generation_id
+WHERE latest.generation_id IS NOT NULL
+ORDER BY fact.observed_at ASC, fact.fact_id ASC
+`
+
+// DeferredScopedFactQueryParams holds the catalog-derived SQL parameters shared by
+// every per-scope deferred fact-load query: the $1 non-repo_id LIKE terms and the
+// $2 raw repo_id self-exclusion values. They are computed once from the full
+// catalog and reused across partitions, so the per-scope fan-out does not rebuild
+// them per query. The fields are exported for the root pre-hoist differential
+// proof, which binds the identical params to the frozen pre-hoist query shape.
+type DeferredScopedFactQueryParams struct {
+	NonRepoIDLike      array.StringArray
+	RepoIDValues       array.StringArray
+	RepoIDReferenceKey array.StringArray
+	// remoteURLs is NOT bound to any query. It is a fingerprint-only input
+	// (issue #5483 C2): the strict cross-repo Flux resolver
+	// (relationships.discoverStructuredFluxEvidence) matches a manifest's
+	// spec.url against each catalog repository's normalized RemoteURL by exact
+	// equality, so a repository's remote_url change is a catalog-shape change
+	// that can flip a Flux DEPLOYS_FROM edge — yet it moves neither
+	// nonRepoIDLike (name/slug aliases) nor repoIDValues. Including the sorted
+	// normalized RemoteURLs in DeferredCatalogFingerprint makes a remote_url
+	// change invalidate the partition memo, exactly as a rename already does,
+	// so the deferred backfill re-discovers the manifest's evidence instead of
+	// memo-skipping it.
+	remoteURLs array.StringArray
+}
+
+// BuildDeferredScopedFactQueryParams derives the shared $1/$2 parameters from the
+// catalog. It returns ok=false when neither arm has anything to match, signalling
+// the caller to skip the fact load entirely: with no anchor and no repo_id value
+// no content/file/gcp fact can resolve a catalog target.
+func BuildDeferredScopedFactQueryParams(
+	catalog []relationships.CatalogEntry,
+) (DeferredScopedFactQueryParams, bool) {
+	nonRepoIDTerms := backfillNonRepoIDAnchorTerms(catalog)
+	repoIDValues := relationships.CatalogRepoIDValues(catalog)
+	if len(nonRepoIDTerms) == 0 && len(repoIDValues) == 0 {
+		return DeferredScopedFactQueryParams{}, false
+	}
+
+	remoteURLs := catalogRemoteURLValues(catalog)
+
+	nonRepoIDLike := buildPayloadAnchorLikeTerms(nonRepoIDTerms)
+	repoIDRaw := make([]string, 0, len(repoIDValues))
+	repoIDReferenceKeys := make([]string, 0, len(repoIDValues))
+	for _, value := range repoIDValues {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value != "" {
+			repoIDRaw = append(repoIDRaw, value)
+			repoIDReferenceKeys = append(repoIDReferenceKeys, relationships.CatalogReferenceKey(value))
+		}
+	}
+
+	// Zero-length arrays are valid: LIKE ANY({}) is false, so an empty arm simply
+	// never contributes a match.
+	if nonRepoIDLike == nil {
+		nonRepoIDLike = []string{}
+	}
+	if repoIDRaw == nil {
+		repoIDRaw = []string{}
+	}
+	if repoIDReferenceKeys == nil {
+		repoIDReferenceKeys = []string{}
+	}
+
+	return DeferredScopedFactQueryParams{
+		NonRepoIDLike:      array.StringArray(nonRepoIDLike),
+		RepoIDValues:       array.StringArray(repoIDRaw),
+		RepoIDReferenceKey: array.StringArray(repoIDReferenceKeys),
+		remoteURLs:         array.StringArray(remoteURLs),
+	}, true
+}
+
+// catalogRemoteURLValues returns the non-empty normalized RemoteURLs of the
+// catalog entries, lowercased. It feeds only the partition-memo fingerprint
+// (issue #5483 C2), never a query bind: the deferred fact-load query matches on
+// alias LIKE terms and repo_id values, but the strict Flux cross-repo resolver
+// depends on RemoteURL equality, so the fingerprint must observe RemoteURL
+// changes too.
+func catalogRemoteURLValues(catalog []relationships.CatalogEntry) []string {
+	values := make([]string, 0, len(catalog))
+	for _, entry := range catalog {
+		remoteURL := strings.ToLower(strings.TrimSpace(entry.RemoteURL))
+		if remoteURL != "" {
+			values = append(values, remoteURL)
+		}
+	}
+	return values
+}
+
+// loadDeferredScopedRelationshipFactsForPartition runs the self-exclusion query
+// variant (ListDeferredScopedRelationshipFactRecordsQuery) bounded to one
+// (scope_id, generation_id) partition (issue #3710). The catalog-derived $1/$2
+// parameters are shared across partitions; $3/$4 bind the partition. $6 is the
+// scope_id-derived own-repo_id performance hint (scopestore.RepoIDFromScopeID)
+// and $5 is the regex built by excluding $6 from params.RepoIDValues
+// (BuildDeferredRepoIDRegex); $5 is passed as a NULL sql.NullString when no
+// usable alternation exists, which safely disables the fast arm for this
+// partition (see the query's doc comment for why an absent/wrong $6 only costs
+// performance, never correctness). The DB excludes facts that only match
+// because their own repo_id appears as an anchor, while still loading facts
+// whose precomputed reference keys contain another catalog repo_id. Facts with
+// no precomputed keys retain the original payload fallback.
+func loadDeferredScopedRelationshipFactsForPartition(
+	ctx context.Context,
+	queryer db.Queryer,
+	params DeferredScopedFactQueryParams,
+	scopeID string,
+	generationID string,
+) ([]facts.Envelope, error) {
+	ownRepoID := scopestore.RepoIDFromScopeID(scopeID)
+	regex, ok := BuildDeferredRepoIDRegex([]string(params.RepoIDValues), ownRepoID)
+	repoIDReferenceKeys := DeferredRepoIDReferenceKeys(params.RepoIDValues, params.RepoIDReferenceKey)
+	var regexParam sql.NullString
+	if ok {
+		regexParam = sql.NullString{String: regex, Valid: true}
+	}
+
+	rows, err := queryer.QueryContext(
+		ctx,
+		ListDeferredScopedRelationshipFactRecordsQuery,
+		params.NonRepoIDLike,
+		params.RepoIDValues,
+		scopeID,
+		generationID,
+		regexParam,
+		ownRepoID,
+		repoIDReferenceKeys,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var loaded []facts.Envelope
+	for rows.Next() {
+		envelope, scanErr := ScanFactEnvelope(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		loaded = append(loaded, envelope)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return loaded, nil
+}
+
+// DeferredRepoIDReferenceKeys resolves the $7 reference-key array for the
+// hoisted deferred fact query. Exported for the root pre-hoist differential
+// proof, which binds the identical args to the shipped hoisted query shape.
+func DeferredRepoIDReferenceKeys(repoIDValues, repoIDReferenceKeys array.StringArray) array.StringArray {
+	if len(repoIDReferenceKeys) == len(repoIDValues) {
+		return repoIDReferenceKeys
+	}
+	keys := make([]string, 0, len(repoIDValues))
+	for _, value := range repoIDValues {
+		keys = append(keys, relationships.CatalogReferenceKey(value))
+	}
+	return array.StringArray(keys)
+}

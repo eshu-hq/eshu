@@ -57,7 +57,7 @@ INSERT INTO fact_work_items (
 	if err != nil {
 		t.Fatalf("check freshness guard: %v", err)
 	}
-	if found && candidate.matches(scope.ScopeGeneration{FreshnessHint: "old-hint"}) {
+	if found && candidate.Matches(scope.ScopeGeneration{FreshnessHint: "old-hint"}) {
 		t.Fatal("older published generation unexpectedly skipped with newer pending hint")
 	}
 

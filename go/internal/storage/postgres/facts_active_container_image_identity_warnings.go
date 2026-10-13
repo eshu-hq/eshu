@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 const listActiveContainerImageIdentityWarningsQuery = `
@@ -107,7 +108,7 @@ func (s *FactStore) listActiveContainerImageIdentityWarningsPage(
 
 	loaded := make([]facts.Envelope, 0, listFactsByKindPageSize)
 	for rows.Next() {
-		envelope, scanErr := scanFactEnvelope(rows)
+		envelope, scanErr := backfill.ScanFactEnvelope(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list active container image identity warnings: %w", scanErr)
 		}

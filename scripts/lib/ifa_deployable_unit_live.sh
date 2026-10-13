@@ -254,7 +254,7 @@ ifa_deployable_unit_live_assert_empty_before_maintenance() {
 #
 # The "gated" branch below also names one otherwise-silent cause: the
 # deferred-backfill fan-in (publishDeferredBackfillPartition,
-# go/internal/storage/postgres/ingestion_backfill_pool.go -- NOT
+# go/internal/storage/postgres/backfill/pool.go -- NOT
 # writeDeferredBackfillBatch, ingestion_backfill.go, which as of #6136
 # deliberately publishes nothing partition-wide) can decline to publish a
 # partition and still exit zero, logging

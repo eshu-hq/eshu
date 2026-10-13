@@ -7,12 +7,13 @@ import (
 	"context"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-const resolveRepoActiveGenerationsQuery = latestGenerationCTE + `
+const resolveRepoActiveGenerationsQuery = backfill.LatestGenerationCTE + `
 SELECT DISTINCT ON (repo_id)
     repo_id,
     fact.scope_id,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 const listActivePackageOwnershipFactsQuery = `
@@ -115,7 +116,7 @@ func (s FactStore) listActivePackageOwnershipFactsPage(
 
 	loaded := make([]facts.Envelope, 0, listFactsByKindPageSize)
 	for rows.Next() {
-		envelope, scanErr := scanFactEnvelope(rows)
+		envelope, scanErr := backfill.ScanFactEnvelope(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list active package ownership facts: %w", scanErr)
 		}

@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -255,7 +256,7 @@ func (s *FactStore) listActiveContainerImageIdentityFactsPage(
 
 	loaded := make([]facts.Envelope, 0, listFactsByKindPageSize)
 	for rows.Next() {
-		envelope, scanErr := scanFactEnvelope(rows)
+		envelope, scanErr := backfill.ScanFactEnvelope(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list active container image identity facts: %w", scanErr)
 		}

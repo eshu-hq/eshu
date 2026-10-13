@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
 const listActiveJVMReachabilityFactsQuery = `
@@ -194,7 +195,7 @@ func (s FactStore) listActiveJVMReachabilityFactsPage(
 
 	loaded := make([]facts.Envelope, 0, listFactsByKindPageSize)
 	for rows.Next() {
-		envelope, scanErr := scanFactEnvelope(rows)
+		envelope, scanErr := backfill.ScanFactEnvelope(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("list active JVM reachability facts: %w", scanErr)
 		}
