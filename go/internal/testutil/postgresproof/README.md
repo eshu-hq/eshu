@@ -37,6 +37,17 @@ extensions and relations installed in `template1`. Cleanup is registered
 immediately after successful creation, closes the target pool before dropping
 the database, and reports cleanup errors. Every connection it opens to that database runs the infra read
 model's derive-aware writer `SET`
+
+No-Regression Evidence: moving proof creation from `template1` to `template0`
+with a pinned `public` search path changes only test databases, never a
+production query or queue path. The isolation live test fails on a
+template-sourced database with extensions=1 public_relations=1 and passes
+pristine in 0.24s; the queue fence fixture passes in 5.53s and 10.10s; the
+readiness hermetic suite passes at 231 proofs. Backend: local PostgreSQL
+16.15, with the CI PostgreSQL 18 wall time recorded before merge.
+
+No-Observability-Change: no metric, span, log key, or status surface is
+touched; the helper reports only test errors and cleanup errors.
 (`storage/postgres/infra/inventory.WriterConnectOption`), the same setting
 `runtime.OpenPostgres` applies, so a proof that seeds infra-typed content rows
 cannot leave rolling-upgrade fence marks behind. That is the package's only
