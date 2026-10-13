@@ -58,7 +58,7 @@ func TestSearchPartialFieldListMatchesTheWireContract(t *testing.T) {
 // continuation fields when the MCP byte cap trims a partial page (#7009
 // ruling, 2.4); TestBudgetPageAndPartialOnOnePageFollowTheStatedPrecedence
 // proves the order it names.
-const budgetPagePrecedence = "page with next_offset first, keeping the same cursor; follow partial.cursor only from a reply without next_offset"
+const budgetPagePrecedence = "page with next_offset first, keeping the same cursor; follow partial.cursor only from a reply without budget_page"
 
 // The entity search texts list every data.partial field and state the
 // byte-cap precedence, as the file texts list the fields (#7009).

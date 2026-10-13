@@ -126,10 +126,13 @@ The MCP tool caps a reply at 262,144 bytes. Entity rows carry up to several KiB
 each, so a partial page can also be cut to whole rows by that cap; the reply
 then carries `budget_page` and `next_offset` beside `partial`. When both are
 present, page with next_offset first, keeping the same cursor; follow
-partial.cursor only from a reply without next_offset. `partial.rows_matched`
+partial.cursor only from a reply without budget_page. `partial.rows_matched`
 counts the rows the cap trimmed, so resuming from `partial.cursor` with
-`offset - rows_matched` from a trimmed page would skip them. The HTTP route has
-no byte cap.
+`offset - rows_matched` from a trimmed page would skip them. The tool leaves
+`next_offset` out when it would pass the 10,000 offset cap: a reply with
+`budget_page` and no `next_offset` is such a trimmed page, so do not follow
+`partial.cursor` from it; repeat the call with a `limit` no larger than
+`budget_page.rows_returned`. The HTTP route has no byte cap.
 
 ## Operator signals
 

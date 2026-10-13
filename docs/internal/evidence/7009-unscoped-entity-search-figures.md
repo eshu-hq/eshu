@@ -116,7 +116,9 @@ Observability Evidence: the six unscoped-search instruments
 `..._unscoped_overrun_seconds`, `..._tail_cancel_total`,
 `..._step_cancel_total`, `..._no_progress_total`) now carry
 `table` = `content_files` or `content_entities` from the walk's shape, through
-the new closed dimension `MetricDimensionTable`. The span adds `search.want`
+the new dimension key `MetricDimensionTable` (two values on these six
+instruments; the generation-retention counter reuses the key with its own
+bounded table names). The span adds `search.want`
 (offset + limit + 1). `TestUnscopedSignalsCarryTheTableLabel` sees the label
 on every data point of all six instruments on both routes; both goldens
 change only by the label and the attribute. At 3 AM an operator reads
@@ -133,9 +135,14 @@ counter by table for dead-end chains. No signal carries the search pattern.
 - When the MCP byte cap trims a partial entity page, one reply carries
   `partial` and `next_offset`. The tool text, the OpenAPI description and the
   docs page say: page with `next_offset` first, keeping the same cursor;
-  follow `partial.cursor` only from a reply without `next_offset`. A dispatch
-  test reads every row once in that order; the reversed order lost 42 of 100
-  rows when run as a seeded RED.
+  follow `partial.cursor` only from a reply without `budget_page`. The rule
+  keys on `budget_page` because the dispatcher leaves `next_offset` out past
+  the 10,000 offset cap while the page is still trimmed. A dispatch test reads
+  every row once in that order; the reversed order lost 42 of 100 rows when
+  run as a seeded RED. A second dispatch test, at offset 9,999, shows a
+  trimmed partial page with `budget_page` and no `next_offset`, and that a
+  repeat with `limit` no larger than `budget_page.rows_returned` returns an
+  untrimmed page.
 - The OpenAPI entity search gains its request `cursor` and response `partial`.
 
 ## NOT_CHECKED

@@ -211,19 +211,24 @@ func TestSearchEntitiesUnscopedMatchesOldStatementLive(t *testing.T) {
 // TestEntityUnscopedSearchPlanShapesLive pins the plan contract the cost bound
 // rests on: the key-ordered window walks the walk-order index and never
 // touches the trigram index, and the tail run with index scans disabled is
-// the trigram bitmap with no walk-order scan and no sequential scan.
+// the trigram bitmap with no walk-order scan and no sequential scan. The
+// window statements are planned at the probe and step sizes the shipped walk
+// reports (observeEntityWindowFigures), because the planner's choice for a
+// LIMIT depends on its size.
 func TestEntityUnscopedSearchPlanShapesLive(t *testing.T) {
 	ctx, db := openUnscopedEntityLiveFixture(t)
 	statements := unscoped.EntityStatements()
+	figures := observeEntityWindowFigures(t, ctx, db)
+	t.Logf("planning the key-ordered windows at probe=%d step=%d rows", figures.probeRows, figures.stepRows)
 
 	for name, c := range map[string]struct {
 		statement string
 		args      []any
 	}{
-		"first window": {statements.StepFirst, []any{liveEntityRareToken, int64(200), int64(11)}},
+		"first window": {statements.StepFirst, []any{liveEntityRareToken, int64(figures.probeRows), int64(11)}},
 		"next window": {
 			statements.StepAfter,
-			[]any{liveEntityRareToken, int64(500), int64(11), "repo-029", "src/file-002000.go", int32(10), "entity-006001"},
+			[]any{liveEntityRareToken, int64(figures.stepRows), int64(11), "repo-029", "src/file-002000.go", int32(10), "entity-006001"},
 		},
 	} {
 		plan := explainShipped(t, ctx, db, false, c.statement, c.args...)

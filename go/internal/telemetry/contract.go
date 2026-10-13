@@ -910,7 +910,11 @@ const (
 	// MetricDimensionTable labels the six unscoped content-search instruments
 	// (eshu_dp_content_search_unscoped_total and its duration, overrun,
 	// tail-cancel, step-cancel and no-progress siblings) with the table the
-	// budgeted walk searched. The value set is closed: content_files for the
-	// file route and content_entities for the entity route (#7009).
+	// budgeted walk searched. For those six instruments the value set is
+	// closed: content_files for the file route and content_entities for the
+	// entity route (#7009). The key is shared: the generation-retention
+	// rows-pruned counter (eshu_dp_generation_retention_rows_pruned_total)
+	// also carries "table", with its own bounded retention table names, so a
+	// consumer must not read the two-value set off the key alone.
 	MetricDimensionTable = "table"
 )

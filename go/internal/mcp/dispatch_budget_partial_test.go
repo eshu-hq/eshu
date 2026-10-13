@@ -155,3 +155,68 @@ func TestBudgetPageAndPartialOnOnePageFollowTheStatedPrecedence(t *testing.T) {
 		gathered = append(gathered, current.ids...)
 	}
 }
+
+// fixedPartialStore answers every unscoped entity search with the first limit
+// rows and a partial whose rows_matched counts more rows than the page holds,
+// whatever the offset: the shape of a partial page read near the offset cap.
+type fixedPartialStore struct {
+	content.FakePortContentStore
+	rows []querycontract.EntityContent
+}
+
+func (s *fixedPartialStore) SearchEntitiesUnscoped(
+	_ context.Context, _ string, limit, _ int, _ querycontract.SearchCursor,
+) (querycontract.EntitySearchPage, error) {
+	page := s.rows[:min(limit, len(s.rows))]
+	last := s.rows[len(s.rows)-1]
+	return querycontract.EntitySearchPage{Entities: page, Partial: &querycontract.SearchPartial{
+		Reason:      querycontract.SearchPartialCandidateBudgetExceeded,
+		RowsMatched: len(s.rows),
+		Cursor: querycontract.SearchCursor{
+			RepoID: last.RepoID, RelativePath: last.RelativePath, StartLine: last.StartLine, EntityID: last.EntityID,
+		},
+		BudgetMS: 800, ElapsedMS: 790, Progressed: true, Hint: querycontract.SearchPartialHint,
+	}}, nil
+}
+
+// The dispatcher leaves next_offset out when it would pass the 10,000 offset
+// cap, yet the page is still cut by the byte cap. The tool text therefore keys
+// the partial.cursor rule on budget_page, not on next_offset: a reply at the
+// cap carries partial and budget_page with no next_offset, and partial.cursor
+// from it would skip the trimmed rows because rows_matched counts them. The
+// text's advice for that reply is a repeat with a limit no larger than
+// budget_page.rows_returned; that page is whole, so it carries no budget_page
+// and partial.cursor is safe from it (#7009 review F3).
+func TestBudgetPageAtTheOffsetCapCarriesNoNextOffsetAndTheRuleKeysOnBudgetPage(t *testing.T) {
+	t.Parallel()
+
+	store := &fixedPartialStore{rows: newBudgetPageEntities(100)}
+	mux := http.NewServeMux()
+	(&contentread.ContentHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: store}).Mount(mux)
+	const budget = 100_000
+	offset := contentread.ContentSearchMaxOffset - 1
+	call := func(limit int) entityPage {
+		args := map[string]any{"query": "decode", "limit": limit, "offset": offset}
+		return readEntityPage(t, dispatchBudgetPage(t, mux, "search_entity_content", args, budget))
+	}
+
+	trimmed := call(50)
+	if trimmed.partial == nil || !trimmed.budgetPage {
+		t.Fatalf("page at the offset cap partial=%v budget_page=%v, want both", trimmed.partial != nil, trimmed.budgetPage)
+	}
+	if trimmed.nextOffset != nil {
+		t.Fatalf("next_offset = %d at offset %d with %d rows, want none past the %d cap",
+			*trimmed.nextOffset, offset, len(trimmed.ids), contentread.ContentSearchMaxOffset)
+	}
+	if len(trimmed.ids) >= 50 || trimmed.partial.RowsMatched <= len(trimmed.ids) {
+		t.Fatalf("rows=%d rows_matched=%d, want a cap-trimmed page with rows_matched past it", len(trimmed.ids), trimmed.partial.RowsMatched)
+	}
+
+	repeat := call(len(trimmed.ids))
+	if repeat.budgetPage {
+		t.Fatalf("repeat with limit %d (budget_page.rows_returned) is still a budget page", len(trimmed.ids))
+	}
+	if len(repeat.ids) != len(trimmed.ids) {
+		t.Fatalf("repeat returned %d rows, want %d", len(repeat.ids), len(trimmed.ids))
+	}
+}
