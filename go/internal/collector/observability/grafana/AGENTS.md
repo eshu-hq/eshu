@@ -1,8 +1,8 @@
-# AGENTS.md - internal/collector/grafana guidance
+# AGENTS.md - internal/collector/observability/grafana guidance
 
 ## Read first
 
-1. `go/internal/collector/grafana/README.md`
+1. `go/internal/collector/observability/grafana/README.md`
 2. `docs/public/reference/observability-evidence.md`
 3. `docs/public/guides/collector-authoring.md`
 4. `go/internal/facts/observability.go`

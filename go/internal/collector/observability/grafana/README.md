@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/grafana` collects bounded live Grafana metadata for
+`internal/collector/observability/grafana` collects bounded live Grafana metadata for
 observability evidence. It gives Eshu no-IaC fallback, drift candidates, and
 freshness validation without treating provider state as declared GitOps truth.
 

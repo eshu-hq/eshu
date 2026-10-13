@@ -1058,7 +1058,7 @@ linters:
       - path: 'internal/collector/jira/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/grafana/'
+      - path: 'internal/collector/observability/grafana/'
         linters:
           - wrapcheck
       - path: 'internal/collector/extensionhost/'

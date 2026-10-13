@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/grafana"
+	"github.com/eshu-hq/eshu/go/internal/collector/observability/grafana"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
