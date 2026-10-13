@@ -409,6 +409,11 @@ func (c *IdentityEpochCache) waitForFlight(
 	flight *identityFlight,
 	waitedFor *time.Duration,
 ) error {
+	// Read the start before arming the timer (#7999): the elapsed wait must
+	// cover the whole park, and a start read after the arm drops any clock
+	// advance between the two from waitedFor, handing the caller budget it
+	// already spent.
+	started := c.clockNow()
 	var expired <-chan time.Time
 	stop := func() bool { return true }
 	if c.heartbeatInterval > 0 {
@@ -423,7 +428,6 @@ func (c *IdentityEpochCache) waitForFlight(
 			expired, stop = timer.C, timer.Stop
 		}
 	}
-	started := c.clockNow()
 	defer func() {
 		stop()
 		*waitedFor += c.clockNow().Sub(started)
