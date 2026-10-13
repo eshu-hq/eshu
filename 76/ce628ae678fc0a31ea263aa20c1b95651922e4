@@ -1,0 +1,70 @@
+docs/public/reference/env-registry.md
+  h_78a442cba0b3e6 37
+docs/public/reference/http-api.md
+  h_78a442cba0b3e6 46
+docs/public/reference/http-api/unscoped-entity-search.md
+  h_78a442cba0b3e6 1-107
+docs/public/reference/http-api/unscoped-file-search.md
+  h_78a442cba0b3e6 88-90
+docs/public/reference/mcp-tool-contract-matrix.md
+  h_78a442cba0b3e6 160
+go/internal/envregistry/entries.go
+  h_78a442cba0b3e6 70
+go/internal/mcp/content/routes.go
+  h_78a442cba0b3e6 44,50-56
+go/internal/mcp/content/routes_cursor_test.go
+  h_78a442cba0b3e6 22-25,36-39,46-49
+go/internal/mcp/tools_content.go
+  h_78a442cba0b3e6 177,204-213
+go/internal/query/content_handler_search_unscoped_test.go
+  h_78a442cba0b3e6 8,14-16,69-86,90-99,115-118,128-133
+go/internal/query/content_reader_cross_repo_test.go
+  h_78a442cba0b3e6 10,137-143,145-147,149-150
+go/internal/query/content_reader_entity_search_unscoped_live_test.go
+  h_78a442cba0b3e6 1-370
+go/internal/query/content_reader_entity_search_unscoped_oracle_test.go
+  h_78a442cba0b3e6 1-34
+go/internal/query/content_reader_entity_search_unscoped_test.go
+  h_78a442cba0b3e6 1-181
+go/internal/query/content_reader_search_page.go
+  h_78a442cba0b3e6 118-178
+go/internal/query/contentread/content_handler.go
+  h_78a442cba0b3e6 248-251
+go/internal/query/contentread/content_handler_unscoped_entity_search_test.go
+  h_78a442cba0b3e6 1-194
+go/internal/query/contentread/search_request.go
+  h_78a442cba0b3e6 22
+go/internal/query/contentread/unscoped_search.go
+  h_78a442cba0b3e6 16,67-132
+go/internal/query/querycontract/paged_content_searcher.go
+  h_78a442cba0b3e6 55-59,63-67,73,129-158
+go/internal/query/search/unscoped/entity_fake_test.go
+  h_78a442cba0b3e6 1-210
+go/internal/query/search/unscoped/entity_search_test.go
+  h_78a442cba0b3e6 1-258
+go/internal/query/search/unscoped/entity_searcher.go
+  h_78a442cba0b3e6 1-93
+go/internal/query/search/unscoped/entity_statements.go
+  h_78a442cba0b3e6 1-99
+go/internal/query/search/unscoped/entity_statements_test.go
+  h_78a442cba0b3e6 1-73
+go/internal/query/search/unscoped/entity_telemetry.go
+  h_78a442cba0b3e6 1-94
+go/internal/query/search/unscoped/entity_walk.go
+  h_78a442cba0b3e6 1-369
+go/internal/query/search/unscoped/fake_test.go
+  h_78a442cba0b3e6 42-44,197-200,222-226,360-370,378-391
+specs/live-tests.d/live-tests-02.yaml
+  h_78a442cba0b3e6 6-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76ce628ae678fc0a31ea263aa20c1b95651922e4",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

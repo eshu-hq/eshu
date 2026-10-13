@@ -1,0 +1,16 @@
+go/internal/query/search/unscoped/entity_search_test.go
+  h_78a442cba0b3e6 8,260-286
+go/internal/query/search/unscoped/entity_walk.go
+  h_78a442cba0b3e6 10,222-239,247,258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f13ef284565a07404e9e273c483b5b9f18335661",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
