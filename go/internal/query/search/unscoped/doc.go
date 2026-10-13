@@ -22,7 +22,11 @@
 //  2. continuation steps of 500 rows, capped at 0.55 x the budget, each with
 //     the room left in that cap as its statement timeout;
 //  3. a trigram tail inside a savepoint with index scans disabled and a
-//     statement timeout of min(remaining budget, 0.5 x budget);
+//     statement timeout of min(remaining budget, 0.5 x budget) — skipped
+//     when the pattern has no three-character alphanumeric run, because
+//     pg_trgm then extracts no trigram and the tail could only run as an
+//     unbounded sequential scan; the partial reason states that limit
+//     (pattern_has_no_trigram, #8002);
 //  4. continuation steps with whatever budget remains.
 //
 // The walk is one engine over a table shape. The engine (walk.go) owns the

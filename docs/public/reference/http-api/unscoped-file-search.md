@@ -72,7 +72,10 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
 - `reason` is `budget_exceeded_on_large_document` when `overrun_ms` is above
   100: one candidate's recheck (the whole-value lowercase copy and the
   decompression) cannot be interrupted, so a cancelled statement can run past
-  its timeout. Otherwise it is `candidate_budget_exceeded`. A token whose
+  its timeout. It is `pattern_has_no_trigram` when the pattern has no
+  three-character alphanumeric run (for example `db_`): the trigram tail
+  cannot run as a bounded bitmap scan, so the search skips it and spends the
+  whole budget in key order. Otherwise it is `candidate_budget_exceeded`. A token whose
   trigram candidates include one very large document (about 55 MB on the
   measured corpus, about 0.7 s to recheck) is answered partial and over the
   budget by that recheck; issue
