@@ -36,6 +36,14 @@ const (
 	SpanQueryCICDRunCorrelationAggregate = contract.SpanQueryCICDRunCorrelationAggregate
 )
 
+// Git command retry metric dimensions and bounded scope value (from
+// contract/git_command_retry.go).
+const (
+	MetricDimensionHost  = contract.MetricDimensionHost
+	MetricDimensionScope = contract.MetricDimensionScope
+	GitRetryScopeSweep   = contract.GitRetryScopeSweep
+)
+
 // Claimed-service run outcome and span (from contract/collector_run.go).
 const (
 	CollectorRunOutcomeSuccess       = contract.CollectorRunOutcomeSuccess

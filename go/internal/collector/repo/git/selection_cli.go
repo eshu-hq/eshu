@@ -5,6 +5,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -38,7 +39,7 @@ func syncGitRepositoriesWithLogger(
 	if err := os.MkdirAll(config.ReposDir, 0o750); err != nil { // #nosec G301 -- internal git repos workspace directory
 		return GitSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
 	}
-	ctx = deadline.WithMetrics(ctx, baseline.Instruments)
+	ctx = deadline.WithSweep(deadline.WithMetrics(ctx, baseline.Instruments), config.GitDeadlines, logger)
 	token, err := resolveGitToken(ctx, config)
 	if err != nil && config.SourceMode == "githubOrg" {
 		return GitSyncSelection{}, err
@@ -381,15 +382,47 @@ func recoverStaleGitShallowLock(repoPath string, fetchErr error) bool {
 	if !strings.Contains(msg, "shallow.lock") || !strings.Contains(msg, "File exists") {
 		return false
 	}
+	removed, err := removeGitShallowLock(repoPath, func(modTime time.Time) bool {
+		return time.Since(modTime) >= staleGitLockMinAge
+	})
+	return removed && err == nil
+}
+
+// gitLockClockSlack is how far before an attempt's start a lock's mtime may
+// fall and still count as that attempt's: filesystems with coarse timestamps
+// round a lock created just after the start down.
+const gitLockClockSlack = 2 * time.Second
+
+// removeKilledAttemptShallowLock is the owner-dead path of the lock recovery
+// (#8091). The retry loop calls it between a failed fetch attempt and its
+// retry: the attempt's process group is gone (a deadline kill is SIGKILL, so
+// git cannot clean up its own lock), and a shallow.lock created since the
+// attempt started is its leftover, so waiting out the stale age would only turn
+// the retry into the same "File exists" failure. A lock older than the attempt
+// is left alone: it belongs to some other process and keeps the stale-age rule.
+func removeKilledAttemptShallowLock(repoPath string, attemptStarted time.Time) error {
+	_, err := removeGitShallowLock(repoPath, func(modTime time.Time) bool {
+		return !modTime.Before(attemptStarted.Add(-gitLockClockSlack))
+	})
+	return err
+}
+
+// removeGitShallowLock is the one place the shallow lock is removed. It
+// removes <repo>/.git/shallow.lock when the lock exists and ownedByDeadProcess
+// accepts its modification time. A missing lock is not an error.
+func removeGitShallowLock(repoPath string, ownedByDeadProcess func(modTime time.Time) bool) (bool, error) {
 	lockPath := filepath.Join(repoPath, ".git", "shallow.lock")
 	info, err := os.Stat(lockPath)
 	if err != nil {
-		return false
+		return false, nil //nolint:nilerr // no readable lock: nothing to remove
 	}
-	if time.Since(info.ModTime()) < staleGitLockMinAge {
-		return false
+	if !ownedByDeadProcess(info.ModTime()) {
+		return false, nil
 	}
-	return os.Remove(lockPath) == nil
+	if err := os.Remove(lockPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("remove %s: %w", lockPath, err)
+	}
+	return true, nil
 }
 
 func gitRevParse(

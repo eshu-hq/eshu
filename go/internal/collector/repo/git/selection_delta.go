@@ -290,6 +290,12 @@ func sortUniquePathStrings(values []string) []string {
 	return result
 }
 
+// cloneRepository clones repoID into repoPath under the clone deadline and the
+// bounded retry (#8091). A killed or failed clone leaves a partial directory,
+// and git refuses to clone into a non-empty one, so the retry removes it first
+// (Command.BeforeRetry); the final failure removes it too, best effort, as it
+// always did. The clone is not idempotent in place, which is why the retry
+// removes the directory instead of resuming into it.
 func cloneRepository(
 	ctx context.Context,
 	config RepoSyncConfig,
@@ -313,21 +319,30 @@ func cloneRepository(
 	}
 	var stderr bytes.Buffer
 	progress := newGitProgressWriter(ctx, logger, event, &stderr)
-	if err := deadline.Run(ctx, config.GitDeadlines, deadline.Clone, func(deadlineCtx context.Context) *exec.Cmd {
-		command := newGitCommand(
-			deadlineCtx,
-			append(config.GitDeadlines.LowSpeedArgs(),
-				"clone",
-				"--progress",
-				fmt.Sprintf("--depth=%d", config.CloneDepth),
-				"--single-branch",
-				remoteURL,
-				repoPath,
-			)...,
-		)
-		command.Env = gitCommandEnv(config, token, repoPath)
-		command.Stderr = progress
-		return command
+	if err := deadline.RunRetrying(ctx, config.GitDeadlines, deadline.Command{
+		Operation: deadline.Clone,
+		Host:      gitRetryHost(config, repoPath),
+		Scope:     normalizeRepositoryID(repoID),
+		Build: func(deadlineCtx context.Context) *exec.Cmd {
+			progress.Flush()
+			stderr.Reset()
+			command := newGitCommand(
+				deadlineCtx,
+				append(config.GitDeadlines.LowSpeedArgs(),
+					"clone",
+					"--progress",
+					fmt.Sprintf("--depth=%d", config.CloneDepth),
+					"--single-branch",
+					remoteURL,
+					repoPath,
+				)...,
+			)
+			command.Env = gitCommandEnv(config, token, repoPath)
+			command.Stderr = progress
+			return command
+		},
+		Stderr:      func() string { return sanitizeGitStderrLines(stderr.String()) },
+		BeforeRetry: func() error { return os.RemoveAll(repoPath) },
 	}); err != nil {
 		progress.Flush()
 		_ = os.RemoveAll(repoPath)

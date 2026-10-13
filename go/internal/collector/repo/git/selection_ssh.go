@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -118,4 +119,29 @@ func tokenAuthUsername(provider string) string {
 func httpBasicExtraHeader(username string, token string) string {
 	encoded := base64.StdEncoding.EncodeToString([]byte(username + ":" + token))
 	return "AUTHORIZATION: basic " + encoded
+}
+
+// gitRetryHost returns the provider host a network git command at repoPath
+// talks to, for the bounded host label of the retry metrics (#8091). It uses
+// the same checkout-path-to-provider rule and the same host source
+// (repoProviderHost) as the clone URL and the token header, so a managed
+// checkout reports github.com, bitbucket.org, or the configured GitLab host,
+// and any path outside the managed layout reports "unknown". It never reads
+// the remote URL, so no path or credential can reach a label.
+func gitRetryHost(config RepoSyncConfig, repoPath string) string {
+	provider, ok := tokenAuthProvider(config, repoPath)
+	if !ok {
+		return "unknown"
+	}
+	return repoProviderHost(config, provider)
+}
+
+// gitRetryScope returns the repository identity for the retry log line and
+// span event: the managed checkout's repository ID, or the path's base name
+// for a checkout outside ReposDir. It is never a metric label.
+func gitRetryScope(config RepoSyncConfig, repoPath string) string {
+	if repoID := repoIDFromManagedPath(config.ReposDir, repoPath); repoID != "" {
+		return repoID
+	}
+	return filepath.Base(repoPath)
 }
