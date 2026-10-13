@@ -1,0 +1,18 @@
+go/internal/storage/postgres/migrations/173_content_files_language_covering_idx_vacuum.sql
+  h_78a442cba0b3e6 18-20
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  h_78a442cba0b3e6 72
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  h_78a442cba0b3e6 223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "92b08459b00163c13e2f43d672f820a522df3588",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
