@@ -224,6 +224,18 @@ when a large result omits the structured copy. It accepts canonical envelopes
 and plain JSON resources; a malformed resource fails the required shape instead
 of treating the human text summary as a successful payload.
 
+The documentation packet and freshness shapes use a one-claim public Markdown
+fixture. `eshu docs verify --persist` commits the verifier's finding and packet
+to a documentation scope; a normal projector/reducer drain activates that
+generation before MCP reads it. Runtime snapshot substitution binds the MCP
+arguments and expected version to the producer's emitted IDs. The packet shape
+asserts the source byte window, content hash, verifier provenance, exact claim,
+and semantic response truth. A separately seeded section row exercises
+`list_documentation_facts` only; it is read-model coverage, not producer proof.
+The changed-since shape preserves the response truth envelope and uses an exact
+seven-category nested array bound, including category, counts, and unavailable
+fields on each item.
+
 `query_shapes.cli` makes the CLI a first-class read surface for C-9. CLI rows
 declare the `eshu` argv, required response fields, truth class, and optional
 `parity_with` peers such as `http:GET /api/v0/repositories` or

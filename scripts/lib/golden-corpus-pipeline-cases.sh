@@ -6,6 +6,10 @@
 
 # Drives every pipeline stage end to end.
 require "bootstrap stage" "eshu-bootstrap-index"
+require_invocation "documentation producer proof invocation" "golden_documentation_run_proof"
+require_matches "documentation reseed regression must run and fail closed" \
+	"${repo_root}/scripts/lib/golden-corpus-documentation-fixture.sh" \
+	'^\tbash "\$\{repo_root\}/scripts/test-golden-documentation-section-reseed\.sh" \|\| die "documentation section reseed regression failed"$'
 require "filesystem managed-copy mode" 'export ESHU_REPO_SOURCE_MODE="filesystem"'
 require "filesystem managed-copy direct-mode pin" 'export ESHU_FILESYSTEM_DIRECT="false"'
 require_in_region "live corpus gate installs ripgrep before B-7" "${workflow}" \
@@ -159,6 +163,7 @@ require_in "explicit metrics instance id" "${metrics_source_lib}" \
 require_in "credential-free metrics tenant" "${metrics_source_lib}" 'tenant_id: "golden-corpus"'
 bash "${repo_root}/scripts/lib/test-golden-corpus-cassette-replay.sh" || fail "cassette replay helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-service-changed-since.sh" || fail "service changed-since helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-documentation-order.sh" || fail "documentation drain ordering tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-metrics-source.sh" || fail "metrics source helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-relationship-evidence.sh" || fail "relationship evidence helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-aggregate-counts.sh" || fail "aggregate count helper tests failed"

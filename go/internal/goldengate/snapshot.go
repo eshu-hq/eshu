@@ -257,11 +257,8 @@ type QueryShape struct {
 	// client's maybeUnwrapTruthEnvelope (mcp.go:130-135) strips the envelope
 	// from the tool result before assertion when Envelope is false. Set it to
 	// true to assert the wrapped shape via RequiredJSONValues/RequiredJSONPaths
-	// dotted into "data.*"; leave it false (and list the unwrapped field names
-	// directly in RequiredResponseFields, naming the result array in
-	// ResultsField) when the shape needs MinimumResults-based array counting,
-	// since EvaluateQueryShape only counts a top-level field named by
-	// ResultsField.
+	// dotted into "data.*". ResultsField still counts only a top-level array;
+	// RequiredJSONArrayBounds covers exact counts under data.*.
 	Envelope bool `json:"envelope,omitempty"`
 	// RequestBody is the JSON body for an HTTP query shape. Empty means the gate
 	// sends no body, which is the historical GET-only behaviour.
@@ -274,6 +271,10 @@ type QueryShape struct {
 	// values. Array traversal uses the same [] suffix as RequiredJSONPaths and
 	// passes when any resolved value equals the expected value.
 	RequiredJSONValues map[string]any `json:"required_json_values,omitempty"`
+	// RequiredJSONArrayBounds counts an array at an explicit JSON path in an
+	// enveloped response. It preserves the top-level ResultsField contract while
+	// allowing exact result bounds under data.*.
+	RequiredJSONArrayBounds map[string]QueryArrayBound `json:"required_json_array_bounds,omitempty"`
 	// RequiredJSONObjectMatches pins related fields to the same object. Each
 	// path resolves one or more objects, and every expected partial object must
 	// match a single resolved object. This prevents independent wildcard value
@@ -305,6 +306,14 @@ type QueryShape struct {
 	// ParityWith names peer query shapes this shape must agree with, using
 	// "http:<shape-key>", "mcp:<tool-name>", or "cli:<command-key>" refs.
 	ParityWith []string `json:"parity_with,omitempty"`
+}
+
+// QueryArrayBound pins the size and item fields of one array selected by a
+// RequiredJSONArrayBounds path. A zero bound leaves that side unbounded.
+type QueryArrayBound struct {
+	MinimumResults           int      `json:"minimum_results,omitempty"`
+	MaximumResults           int      `json:"maximum_results,omitempty"`
+	ResultItemRequiredFields []string `json:"result_item_required_fields,omitempty"`
 }
 
 // AbsentWhenPresent is a mutual-exclusion assertion between a disclosed-absent

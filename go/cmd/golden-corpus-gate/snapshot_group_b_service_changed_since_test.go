@@ -81,14 +81,16 @@ func TestGoldenSnapshotServiceChangedSinceIsNonVacuous(t *testing.T) {
 		t.Fatalf("LoadSnapshot() error = %v", err)
 	}
 	shape := snapshot.QueryShapes.MCP["get_service_changed_since"]
-	if got, want := shape.MinimumResults, 7; got != want {
-		t.Errorf("MinimumResults = %d, want %d", got, want)
+	if !shape.Envelope {
+		t.Error("changed-since shape must preserve the semantic truth envelope")
 	}
-	if got, want := shape.MaximumResults, 7; got != want {
-		t.Errorf("MaximumResults = %d, want %d", got, want)
+	if got := shape.RequiredJSONValues["truth.basis"]; got != "semantic_facts" {
+		t.Errorf("truth basis = %#v, want semantic_facts", got)
 	}
-	if got, want := shape.ResultsField, "categories"; got != want {
-		t.Errorf("ResultsField = %q, want %q", got, want)
+	bound, ok := shape.RequiredJSONArrayBounds["data.categories"]
+	if !ok || bound.MinimumResults != 7 || bound.MaximumResults != 7 ||
+		!reflect.DeepEqual(bound.ResultItemRequiredFields, []string{"category", "counts", "unavailable"}) {
+		t.Errorf("nested category bound = %+v (present=%t), want seven typed categories", bound, ok)
 	}
 	wantArguments := map[string]any{
 		"service_id":          "component:default/deployable-config",
@@ -99,11 +101,11 @@ func TestGoldenSnapshotServiceChangedSinceIsNonVacuous(t *testing.T) {
 		t.Errorf("Arguments = %#v, want %#v", shape.Arguments, wantArguments)
 	}
 	for path, want := range map[string]any{
-		"service_id":                   "component:default/deployable-config",
-		"since_generation_id":          goldenServiceChangedSincePriorSentinel,
-		"current_active_generation_id": goldenServiceChangedSinceCurrentSentinel,
-		"sample_limit":                 float64(10),
-		"unavailable":                  false,
+		"data.service_id":                   "component:default/deployable-config",
+		"data.since_generation_id":          goldenServiceChangedSincePriorSentinel,
+		"data.current_active_generation_id": goldenServiceChangedSinceCurrentSentinel,
+		"data.sample_limit":                 float64(10),
+		"data.unavailable":                  false,
 	} {
 		if got := shape.RequiredJSONValues[path]; !reflect.DeepEqual(got, want) {
 			t.Errorf("RequiredJSONValues[%q] = %#v, want %#v", path, got, want)
@@ -138,7 +140,10 @@ func TestGoldenSnapshotServiceChangedSinceIsNonVacuous(t *testing.T) {
 			"unavailable": false,
 		},
 	}
-	if got := shape.RequiredJSONObjectMatches["categories[]"]; !reflect.DeepEqual(got, wantMatches) {
-		t.Errorf("RequiredJSONObjectMatches[categories[]] = %#v, want %#v", got, wantMatches)
+	for _, category := range []string{"runtime", "dependencies", "docs", "incidents", "vulnerabilities"} {
+		wantMatches = append(wantMatches, map[string]any{"category": category})
+	}
+	if got := shape.RequiredJSONObjectMatches["data.categories[]"]; !reflect.DeepEqual(got, wantMatches) {
+		t.Errorf("RequiredJSONObjectMatches[data.categories[]] = %#v, want %#v", got, wantMatches)
 	}
 }

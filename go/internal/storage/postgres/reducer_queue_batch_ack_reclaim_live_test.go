@@ -232,6 +232,22 @@ INSERT INTO fact_work_items (
 	}
 }
 
+// snapshotReducerExpirySuccessor returns the full expiry-target queue row as
+// JSON text and the cross_scope_completion_events row count, so a fenced stale
+// ACK can be proven to change neither.
+func snapshotReducerExpirySuccessor(t *testing.T, ctx context.Context, db *sql.DB) (string, int) {
+	t.Helper()
+	var row string
+	if err := db.QueryRowContext(ctx, "SELECT to_jsonb(work)::text FROM fact_work_items work WHERE work_item_id = 'expiry-target'").Scan(&row); err != nil {
+		t.Fatalf("snapshot successor row: %v", err)
+	}
+	var events int
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM cross_scope_completion_events").Scan(&events); err != nil {
+		t.Fatalf("snapshot cross_scope_completion_events: %v", err)
+	}
+	return row, events
+}
+
 func openReducerAckReclaimProofDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN"))
@@ -350,9 +366,19 @@ func TestReducerQueueExpiryInterleaveLive(t *testing.T) {
 			if err := queue.Heartbeat(ctx, stale); !errors.Is(err, reducer.ErrExecutionClaimRejected) {
 				t.Fatalf("stale heartbeat=%v", err)
 			}
+			// No heartbeat goroutine runs here, so the live successor's whole
+			// row, claim_until included, must survive the stale ACK unchanged.
+			successorBefore, eventsBefore := snapshotReducerExpirySuccessor(t, ctx, db)
 			close(release)
 			if err := <-acked; !errors.Is(err, reducer.ErrExecutionClaimRejected) {
 				t.Fatalf("stale ACK=%v", err)
+			}
+			successorAfter, eventsAfter := snapshotReducerExpirySuccessor(t, ctx, db)
+			if successorAfter != successorBefore {
+				t.Fatalf("stale ACK changed the live successor row:\nbefore=%s\nafter=%s", successorBefore, successorAfter)
+			}
+			if eventsAfter != eventsBefore {
+				t.Fatalf("stale ACK changed cross_scope_completion_events: before=%d after=%d", eventsBefore, eventsAfter)
 			}
 			if err := queue.AckBatch(ctx, []reducer.Intent{fresh}, nil); err != nil {
 				t.Fatalf("fresh ACK: %v", err)

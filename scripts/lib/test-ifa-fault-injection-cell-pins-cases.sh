@@ -11,6 +11,61 @@
 # from the parent, and every require_* helper here is defined in
 # test-ifa-fault-injection-assertions.sh, so this module MUST be sourced after
 # that one.
+# ifa_fault_cell_call_order_ok FILE FUNC NEEDLE... succeeds when, in the body of
+# FUNC, the first code line (comments skipped) containing each needle appears in
+# the order given. A needle that is missing fails the check.
+ifa_fault_cell_call_order_ok() {
+	local file="$1" func="$2" line stripped in_func=0 n=0 i prev=0
+	shift 2
+	local -a needles=("$@") found=()
+	for i in "${!needles[@]}"; do found[i]=0; done
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		n=$((n + 1))
+		if (( ! in_func )); then
+			[[ "${line}" == "${func}() {" ]] && in_func=1
+			continue
+		fi
+		[[ "${line}" == "}" ]] && break
+		stripped="${line#"${line%%[![:space:]]*}"}"
+		[[ "${stripped}" == "#"* ]] && continue
+		for i in "${!needles[@]}"; do
+			if (( found[i] == 0 )) && [[ "${line}" == *"${needles[i]}"* ]]; then
+				found[i]=${n}
+			fi
+		done
+	done <"${file}"
+	for i in "${!needles[@]}"; do
+		(( found[i] > prev )) || return 1
+		prev=${found[i]}
+	done
+}
+
+# ifa_fault_seed_moved_cell_call FILE CALL BEFORE prints FILE with the
+# multi-line call that starts with CALL moved to just above the first line that
+# contains BEFORE. With BEFORE empty the call is removed. A call spans its first
+# line plus the continuation lines that end the previous line with a backslash.
+# It is the seeded violation for the order pin.
+ifa_fault_seed_moved_cell_call() {
+	awk -v call="$2" -v before="$3" '
+		{ l[NR] = $0 }
+		END {
+			for (i = 1; i <= NR; i++) {
+				if (!c && index(l[i], "\t" call " ") == 1) c = i
+			}
+			if (!c) exit 1
+			e = c
+			while (l[e] ~ /\\$/) e++
+			for (i = 1; i <= NR; i++) if (!t && before != "" && i > e && index(l[i], before)) t = i
+			for (i = 1; i <= c; i++) if (!t && before != "" && index(l[i], before)) t = i
+			if (before != "" && !t) exit 1
+			for (i = 1; i <= NR; i++) {
+				if (i == t) for (j = c; j <= e; j++) print l[j]
+				if (i >= c && i <= e) continue
+				print l[i]
+			}
+		}' "$1"
+}
+
 run_ifa_fault_injection_cell_pins_cases() {
 	# Cell 10 (duplicate-delivery, #5544) -- numbered as the gate header numbers
 	# it, not by #5544's own 'cell 6' wording, which collides with #5555's cells.
@@ -85,6 +140,30 @@ run_ifa_fault_injection_cell_pins_cases() {
 	require_cells "identity-bound release" "ifa_fault_release_held_claim"
 	require_cells "expire-lease proves the expiry caused a re-claim" "ifa_fault_assert_reclaimed_above"
 	require_cells "expire-lease captures the pre-expiry re-claim baseline" 'reclaimed_before="$(ifa_fault_count_reclaimed'
+	require_cells "stale ACK fenced in the real reducer after the drain" "ifa_fault_assert_stale_ack_fenced"
+	# Presence is not placement: the log observation only means anything after
+	# the drain gate (a fenced ACK changes no queue row, so the log is settled by
+	# then), and the terminal-row read follows it, both before the reclaim-count
+	# assertion. Prove the order check on the real cell, then on seeded copies
+	# that move or drop each call (RED/GREEN pair).
+	require_cells "terminal row of the held item read after the drain" "ifa_fault_assert_held_item_terminal"
+	local order_args=(cell_expirelease "run_drain_gate expirelease" "ifa_fault_assert_stale_ack_fenced" "ifa_fault_assert_held_item_terminal" 'reclaimed_after="$(ifa_fault_assert_reclaimed_above')
+	ifa_fault_cell_call_order_ok "${cells_lib}" "${order_args[@]}" \
+		|| fail "cell_expirelease must call ifa_fault_assert_stale_ack_fenced then ifa_fault_assert_held_item_terminal after run_drain_gate and before the reclaim-count assertion"
+	local seeded_dir seeded_call seeded_before seeded_label
+	seeded_dir="$(mktemp -d)" || fail "could not create a scratch dir for the seeded cell-order violation"
+	for seeded_call in ifa_fault_assert_stale_ack_fenced ifa_fault_assert_held_item_terminal; do
+		for seeded_before in "run_drain_gate expirelease" "assert_no_dead_letters expirelease" ""; do
+			seeded_label="${seeded_call} moved before '${seeded_before:-<removed>}'"
+			ifa_fault_seed_moved_cell_call "${cells_lib}" "${seeded_call}" "${seeded_before}" >"${seeded_dir}/cells.sh" \
+				|| { rm -rf "${seeded_dir}"; fail "could not seed: ${seeded_label}"; }
+			if ifa_fault_cell_call_order_ok "${seeded_dir}/cells.sh" "${order_args[@]}"; then
+				rm -rf "${seeded_dir}"
+				fail "the cell-order pin accepted: ${seeded_label}"
+			fi
+		done
+	done
+	rm -rf "${seeded_dir}"
 
 	# Cell 4 (fail-graph-write-once-then-succeed): queue-retry lane, CloudResource
 	# MERGE anchor, ESHU_IFA_FAULT_SCRIPT wiring, and a durable non-vacuity retry
