@@ -11,13 +11,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
-// TestCanonicalNodeWriterCarriesImportSourcePackage pins the #7347 writer
-// contract. Every IMPORTS row carries the importing file's Go package import
-// path as source_package, empty string included: the edge is MERGEd on its
+// TestCanonicalNodeWriterCarriesImportSourcePackage pins the writer half
+// of the package lifts (#7347/#7348). Every IMPORTS row carries the
+// importing file's own package (Go import path or npm name) as
+// source_package, empty string included: the edge is MERGEd on its
 // endpoints, so a re-projected edge matches the existing one, and only an
-// unconditional SET of an explicit value can overwrite a stale package after
-// the file moved packages. A write that skipped empty values would keep the
-// old package on the edge forever.
+// unconditional SET of an explicit value can overwrite a stale package
+// after the file moved packages. A write that skipped empty values would
+// keep the old package on the edge forever, and a legacy edge (no
+// property) reads back as package-unknown, never as an empty package
+// that would collapse every legacy edge onto one node.
 func TestCanonicalNodeWriterCarriesImportSourcePackage(t *testing.T) {
 	t.Parallel()
 
@@ -25,10 +28,17 @@ func TestCanonicalNodeWriterCarriesImportSourcePackage(t *testing.T) {
 	mat.Imports = []canonical.ImportRow{
 		{FilePath: "/repos/my-repo/pkg/a/a.go", ModuleName: "example.com/repo/pkg/b", ModuleLanguage: "go", LineNumber: 1, SourcePackage: "example.com/repo/pkg/a"},
 		{FilePath: "/repos/my-repo/src/a.py", ModuleName: "b", ModuleLanguage: "python", LineNumber: 2},
+		{
+			FilePath: "/repos/my-repo/packages/a/index.ts", ModuleName: "@cycles/b",
+			ModuleLanguage: "typescript", LineNumber: 3, SourcePackage: "@cycles/a",
+		},
+		{FilePath: "/repos/my-repo/src/plain.ts", ModuleName: "react", ModuleLanguage: "typescript", LineNumber: 5},
 	}
 	mat.Modules = []canonical.ModuleRow{
 		{Name: "example.com/repo/pkg/b", Language: "go"},
 		{Name: "b", Language: "python"},
+		{Name: "@cycles/b", Language: "typescript"},
+		{Name: "react", Language: "typescript"},
 	}
 
 	exec := &mockExecutor{}
@@ -46,8 +56,8 @@ func TestCanonicalNodeWriterCarriesImportSourcePackage(t *testing.T) {
 			rows = append(rows, batch...)
 		}
 	}
-	if len(rows) != 2 {
-		t.Fatalf("emitted %d IMPORTS rows, want 2", len(rows))
+	if len(rows) != 4 {
+		t.Fatalf("emitted %d IMPORTS rows, want 4", len(rows))
 	}
 	if !strings.Contains(cypher, "r.source_package = row.source_package") {
 		t.Errorf("IMPORTS statement missing unconditional source_package SET:\n%s", cypher)
@@ -56,6 +66,8 @@ func TestCanonicalNodeWriterCarriesImportSourcePackage(t *testing.T) {
 	want := map[string]string{
 		"example.com/repo/pkg/b": "example.com/repo/pkg/a",
 		"b":                      "",
+		"@cycles/b":              "@cycles/a",
+		"react":                  "",
 	}
 	for _, row := range rows {
 		module, _ := row["module_name"].(string)

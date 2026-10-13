@@ -92,6 +92,7 @@ func TestImportDependencyInvestigationSpanCarriesTheCycleWalkSignals(t *testing.
 		"eshu.import_dependencies.cycle_edges_considered":         2,
 		"eshu.import_dependencies.cycle_inferred_edge_count":      0,
 		"eshu.import_dependencies.cycle_go_edges_missing_package": 0,
+		"eshu.import_dependencies.cycle_ts_edges_missing_package": 0,
 	} {
 		got, ok := attrs[attrKey]
 		if !ok {

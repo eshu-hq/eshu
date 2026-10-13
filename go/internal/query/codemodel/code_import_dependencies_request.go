@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+
 // ImportDependencyRequest is the decoded import-dependency investigation
 // request. It split here from root code_import_dependencies.go (#6060 lane
 // A L1): all seven builders take one, and Go requires a type's methods to
@@ -19,8 +20,9 @@ import (
 // hasScopeFilter and normalizedLimit serve only this package.
 //
 // It moved here from code_import_dependencies_queries.go when that file hit
-// the 500-line cap (#7347): builders stay there, the request family lives
-// here. Same package, no behavior change, no symbol renamed or exported.
+// the 500-line cap (#7347/#7348): builders stay there, the request family
+// lives here. Same package, no behavior change, no symbol renamed or
+// exported.
 //
 // Access carries the caller's repository grant, set by the handler from
 // the request's AuthContext and never decoded from the body: the json:"-"
@@ -75,8 +77,8 @@ func (r ImportDependencyRequest) Validate() error {
 	}
 	if r.EffectiveQueryType() == "file_import_cycles" {
 		language := r.NormalizedLanguage()
-		if language != "" && language != "python" && language != "go" {
-			return fmt.Errorf("file_import_cycles currently supports python module-name and go package cycle detection")
+		if language != "" && language != "python" && language != "go" && !isTSCycleLanguage(language) {
+			return fmt.Errorf("file_import_cycles currently supports python module-name, go package, and typescript/tsx/javascript package cycle detection")
 		}
 		if r.MaxCycleLength != 0 && (r.MaxCycleLength < importCycleMinMaxLength || r.MaxCycleLength > importCycleMaxMaxLength) {
 			return fmt.Errorf(
@@ -106,9 +108,22 @@ func (r ImportDependencyRequest) NormalizedLanguage() string {
 	return strings.ToLower(strings.TrimSpace(r.Language))
 }
 
+// isTSCycleLanguage reports whether a normalized language is one the
+// TypeScript/JavaScript package lift answers (#7348): typescript, tsx, and
+// javascript files collapse into their owning npm packages.
+func isTSCycleLanguage(language string) bool {
+	switch language {
+	case "typescript", "tsx", "javascript":
+		return true
+	default:
+		return false
+	}
+}
+
 // EffectiveCycleLanguage resolves the language one file_import_cycles read
 // runs in: the caller's filter when set, python otherwise. An unfiltered
-// request stays Python-only, exactly as before the Go lift (#7347). The
+// request stays Python-only, exactly as before the package lifts
+// (#7347/#7348). The
 // edge fetch and the row decoder share this, so the graph never returns a
 // language the decoder would drop. Exported because the codequery reader
 // binds the $cycle_language parameter from it.

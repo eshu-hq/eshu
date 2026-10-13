@@ -256,6 +256,8 @@ func importDependencyCoverage(req ImportDependencyRequest, truncated bool, enume
 		queryShape = "python_file_import_cycle"
 		if req.NormalizedLanguage() == "go" {
 			queryShape = "go_package_import_cycle"
+		} else if isTSCycleLanguage(req.NormalizedLanguage()) {
+			queryShape = "ts_package_import_cycle"
 		}
 	}
 	if req.EffectiveQueryType() == "cross_module_calls" {
@@ -277,6 +279,12 @@ func importDependencyCoverage(req ImportDependencyRequest, truncated bool, enume
 		// Go requests so existing Python response bytes do not change.
 		if req.NormalizedLanguage() == "go" {
 			coverage["cycle_go_edges_missing_package"] = enumeration.GoPackageUnknown
+		}
+		// TS/JS-only: edges dropped because the graph predates the
+		// projector's source_package mapping (#7348). Reported only for
+		// TS/JS requests so existing Python response bytes do not change.
+		if isTSCycleLanguage(req.NormalizedLanguage()) {
+			coverage["cycle_ts_edges_missing_package"] = enumeration.TSPackageUnknown
 		}
 		stopReason := enumeration.StopReason
 		if stopReason == "" {

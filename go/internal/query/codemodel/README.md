@@ -67,11 +67,14 @@ the staying code family still uses.
   deferred edges are dropped before the walk and each cycle is labelled
   runtime, ambiguous, or flags_unknown. `truncated` means the answer is partial;
   `has_more` and `next_offset` carry paging. The Go lift (#7347) answers
-  `language=go` at package level: the projector-owned `source_package` becomes
-  both the collapse node key and the declared module, so the shared
-  exact-equality rule runs unchanged and same-package files land on one node;
-  edges that predate the mapping are excluded and counted in
-  `CycleEnumeration.GoPackageUnknown`. An unfiltered request stays Python-only.
+  `language=go` at package level and the TS/JS lift (#7348) answers
+  `language=typescript`, `tsx`, and `javascript` at npm-package level: the
+  projector-owned `source_package` becomes both the collapse node key and
+  the declared module, so the shared exact-equality rule runs unchanged and
+  same-package files land on one node; edges that predate the mapping are
+  excluded and counted in `CycleEnumeration.GoPackageUnknown` (Go) or
+  `CycleEnumeration.TSPackageUnknown` (TS/JS). An unfiltered request stays
+  Python-only.
 - `code_relationship_story_{evidence_state,provenance}.go`,
   `code_relationships_{graph_response,resolution}.go` — story contract,
   evidence classification, graph shaping, name resolution.

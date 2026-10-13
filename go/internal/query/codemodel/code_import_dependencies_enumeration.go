@@ -64,4 +64,9 @@ type CycleEnumeration struct {
 	// placed in any package, so it closes nothing; the count keeps the drop
 	// visible instead of silent. Always zero for non-Go requests.
 	GoPackageUnknown int
+	// TSPackageUnknown counts TS/JS edges dropped because the graph predates
+	// the projector's source_package mapping (#7348). Such an edge cannot be
+	// placed in any package, so it closes nothing; the count keeps the drop
+	// visible instead of silent. Always zero for non-TS/JS requests.
+	TSPackageUnknown int
 }

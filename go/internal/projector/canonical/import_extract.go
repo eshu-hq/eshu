@@ -80,10 +80,11 @@ type importAccumulator struct {
 	// accumulator comes from the same file, so it never varies within one.
 	moduleLanguage string
 
-	// sourcePackage is the importing file's own Go package import path
-	// (#7347), derived once per file by goSourcePackage. Like
-	// moduleLanguage it never varies within one accumulator. Empty for
-	// non-Go files and for Go files whose package is unknown.
+	// sourcePackage is the importing file's own package: the Go package
+	// import path (#7347, goSourcePackage) or the owning npm package name
+	// (#7348, jsSourcePackage), derived once per file. Like moduleLanguage
+	// it never varies within one accumulator. Empty for other languages
+	// and for files whose package is unknown.
 	sourcePackage string
 
 	// importedName and alias hold the agreed value across every folded entry;
@@ -170,6 +171,9 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 		filePath := file.Path
 		fileLanguage := file.Language
 		sourcePackage := goSourcePackage(file)
+		if sourcePackage == "" {
+			sourcePackage = jsSourcePackage(file)
+		}
 
 		for _, entry := range entries {
 			normalized, ok := normalizeImportEntry(entry)
@@ -320,7 +324,7 @@ func normalizeImportEntry(entry codegraphv1.Import) (normalizedImport, bool) {
 
 // goSourcePackage places one file in its Go package for package-level import
 // cycles (#7347). Only Go files are placed: every other language keeps an
-// empty package and its lift owns its own mapping later (#7348, #7349).
+// empty package and its lift owns its own mapping (#7348, later #7349).
 //
 // The file-level package_import_path the Go parser writes wins: it is the
 // collector prescan's per-directory import path for exactly this file. Facts
@@ -340,6 +344,29 @@ func goSourcePackage(file parsedFileRef) string {
 		return strings.TrimSpace(pkg)
 	}
 	return unanimousFunctionPackage(file.ParsedFileData["functions"])
+}
+
+// jsSourcePackage places one file in its npm package for package-level
+// import cycles (#7348). Only JavaScript-family files are placed: every
+// other language keeps an empty package and its lift owns its own mapping
+// later.
+//
+// The file-level node_package_name the JavaScript parser writes wins: it is
+// the nearest package.json name owning exactly this file, so no manifest is
+// read twice. Anything else -- no key, a non-string value, a file outside
+// every manifest -- is unknown, never a guess: an invented package would
+// collapse the wrong files together.
+func jsSourcePackage(file parsedFileRef) string {
+	switch strings.ToLower(strings.TrimSpace(file.Language)) {
+	case "javascript", "typescript", "tsx":
+	default:
+		return ""
+	}
+	if file.ParsedFileData == nil {
+		return ""
+	}
+	pkg, _ := file.ParsedFileData["node_package_name"].(string)
+	return strings.TrimSpace(pkg)
 }
 
 // unanimousFunctionPackage reads the single package import path every

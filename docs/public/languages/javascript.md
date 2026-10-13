@@ -136,6 +136,22 @@ Not claimed today:
 - Framework behavior that only exists in generated files, runtime config, or
   plugin conventions is not supported unless a parser test names that pattern.
 
+## Package Cycles
+`file_import_cycles` answers TypeScript, TSX, and JavaScript at npm-package
+level (`language=typescript`, `tsx`, or `javascript`, issue #7348): a
+file-level answer over bare specifiers would join unrelated files that happen
+to import the same package name, so files collapse into packages. Each parsed file reports its owning package
+(`node_package_name`, the nearest `package.json` name); the projector stamps
+it onto every `IMPORTS` edge the file emits as `source_package`, and the cycle
+query collapses files into packages with the same rule file cycles use.
+Same-package files report as one node, a same-package edge closes nothing,
+relative specifiers match no package and close nothing, and the file and
+module slots carry npm package names. A cycle closed only through an
+`import type` edge is not reported: type-only imports never run at load time.
+Edges from a graph written before the mapping existed cannot be placed and
+close nothing; they are counted in
+`coverage.cycle_ts_edges_missing_package`.
+
 ## Known Limitations
 
 - Runtime-dependent computed expressions, dynamic `require()` targets,
