@@ -6,11 +6,14 @@ package git
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // reconcileGaugeByReason reads an Int64 gauge's datapoints by their reason
@@ -144,6 +147,116 @@ func TestReconcileSweepFixedOrderStarvesLateRepositories(t *testing.T) {
 	}
 	if len(visited) != 2 {
 		t.Fatalf("fixed order visited %d repositories in 3 cycles, want exactly the first 2 (late repositories starve)", len(visited))
+	}
+}
+
+// TestReconcileDueUnvisitedReasonsCoverEveryDueReason links the
+// due-unvisited gauge's closed set to its producers (#7987 review): it drives
+// decide, decideGraphDirty, decideReindex, and the repository-watermark path
+// of decideForScope to every Due=true reason and requires the gauge set to
+// contain exactly those reasons. A ninth due reason fails here instead of
+// silently missing the gauge.
+func TestReconcileDueUnvisitedReasonsCoverEveryDueReason(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 12, 1, 0, 0, 0, time.UTC)
+	policy := reconcilePolicy{Interval: 24 * time.Hour}
+	due := map[string]bool{}
+	note := func(dueFlag bool, reason string) {
+		if dueFlag {
+			due[reason] = true
+		}
+	}
+
+	note(policy.decide(now, scope.FullReconcileState{}))
+	note(policy.decide(now, scope.FullReconcileState{
+		HasProjectedFull: true, LastProjectedFullAt: now.Add(-48 * time.Hour),
+	}))
+	note(policy.decide(now, scope.FullReconcileState{
+		HasLatestFull: true, LatestFullStatus: scope.GenerationStatusPending,
+		LatestFullAt: now.Add(-48 * time.Hour),
+	}))
+	note(policy.decide(now, scope.FullReconcileState{
+		HasLatestFull: true, LatestFullStatus: scope.GenerationStatusFailed,
+		LatestFullAt: now.Add(-7 * time.Hour),
+	}))
+	note(policy.decide(now, scope.FullReconcileState{
+		HasProjectedFull: true, LastProjectedFullAt: now.Add(-time.Hour),
+		ReconcileRequestedAt: now.Add(-30 * time.Minute), ReconcileProjectedAt: now.Add(-time.Hour),
+		ReconcileDeadLetteredAt: now.Add(-10 * time.Minute),
+	}))
+	note(policy.decideGraphDirty(now, scope.FullReconcileState{}))
+	note(policy.decideReindex(now, now.Add(-time.Hour), scope.FullReconcileState{}))
+	repository := gitDeltaBaseline{
+		Resolver:                     &stubBaselineResolver{},
+		Reconcile:                    policy,
+		RepositoryReindexRequestedAt: map[string]time.Time{"scope-1": now.Add(-time.Hour)},
+		Now:                          func() time.Time { return now },
+	}
+	repositoryDecision := repository.decideForScope(context.Background(), "scope-1", discardLogger())
+	note(repositoryDecision.Due, repositoryDecision.Reason)
+
+	for reason := range due {
+		if !isReconcileDueUnvisitedReason(reason) {
+			t.Fatalf("decide family produced due reason %q missing from the due-unvisited gauge set", reason)
+		}
+	}
+	if len(due) != len(reconcileDueUnvisitedReasons) {
+		t.Fatalf("decide family produced %d due reasons %v, want exactly the %d closed gauge reasons",
+			len(due), due, len(reconcileDueUnvisitedReasons))
+	}
+	for _, reason := range reconcileDueUnvisitedReasons {
+		if !due[reason] {
+			t.Fatalf("gauge reason %q was not produced by any decide-family case; extend the battery or drop the reason", reason)
+		}
+	}
+}
+
+// TestReconcileSweepRotationKeepsRequestedRepositoryFirst proves the pinned
+// prefix survives rotation end to end (#7987 review): the last repository in
+// input order carries a per-repository watermark on cycle 0, so it is forced
+// first with the repository reason, while the rotating suffix still visits
+// every due repository within ceil(due/limit) cycles.
+func TestReconcileSweepRotationKeepsRequestedRepositoryFirst(t *testing.T) {
+	reposDir, repos := rotationWorld(t)
+	config := reconcileTestConfig(reposDir)
+	config.ReconcileMaxPerCycle = 2
+	now := time.Date(2026, 10, 12, 1, 0, 0, 0, time.UTC)
+	last := repos[len(repos)-1]
+	lastPath := filepath.Join(reposDir, filepath.FromSlash(last))
+	requested := managedScopeID(t, reposDir, last)
+
+	visited := map[string]bool{}
+	next := 0
+	for cycle := range 3 {
+		baseline := gitDeltaBaseline{
+			Resolver:             &stubBaselineResolver{},
+			Reconcile:            reconcilePolicyFromConfig(config),
+			ReconcileStartOffset: next,
+			Now:                  func() time.Time { return now.Add(time.Duration(cycle) * 6 * time.Minute) },
+		}
+		if cycle == 0 {
+			baseline.RepositoryReindexRequestedAt = map[string]time.Time{requested: now.Add(-time.Hour)}
+		}
+		synced, err := syncGitRepositoriesWithLogger(context.Background(), config, repos, discardLogger(), baseline)
+		if err != nil {
+			t.Fatalf("cycle %d: syncGitRepositoriesWithLogger() error = %v", cycle, err)
+		}
+		for path := range synced.ReconcileByRepoPath {
+			visited[path] = true
+		}
+		if cycle == 0 {
+			if !synced.ReconcileByRepoPath[lastPath] {
+				t.Fatalf("cycle 0 forced %v, want the watermarked last repository %s forced first", synced.ReconcileByRepoPath, last)
+			}
+			if got := synced.ReconcileReasonByRepoPath[lastPath]; got != reconcileReasonRepositoryReindexRequested {
+				t.Fatalf("cycle-0 reason for %s = %q, want %q", last, got, reconcileReasonRepositoryReindexRequested)
+			}
+		}
+		next = synced.NextReconcileStartOffset
+	}
+	if len(visited) != len(repos) {
+		t.Fatalf("visited %d of %d due repositories in 3 cycles with a pinned prefix, want every one", len(visited), len(repos))
 	}
 }
 
