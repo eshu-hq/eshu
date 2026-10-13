@@ -25,6 +25,7 @@ git/                     selection + snapshot + source (the tangled core)
   tfstate/               Terraform backend-expression warnings
   workflow/image/        CI workflow container image evidence
   membership/            githubOrg repository selection observations (#7625)
+  deadline/              per-command git deadlines for the sync loop (#8052)
 ```
 
 Imports run one way: `git -> leaf -> model`. No leaf imports `git`.
@@ -86,6 +87,46 @@ worker path changes.
 
 No-Observability-Change: the change alters only the relative-path string
 inside emitted facts. No metric, span, log key, or status field changes.
+
+## Per-command git deadlines
+
+The sync loop runs one repository at a time, so one git command stuck on name
+resolution used to pause the whole fleet sync until libcurl gave up after about
+300 s (#8052). Every git command that can wait on the network now goes through
+`deadline.Run` under a deadline derived from the loop context: `ls-remote` ref
+listing (`ls_remote`) and the default-branch lookup (`resolve`) get
+`ESHU_GIT_RESOLVE_TIMEOUT_SECONDS` (default 60), `fetch` gets
+`ESHU_GIT_FETCH_TIMEOUT_SECONDS` (default 90), and the initial `clone` gets
+`ESHU_GIT_CLONE_TIMEOUT_SECONDS` (default 600). Purely local commands
+(`checkout`, `rev-parse`, `symbolic-ref`, `cat-file`, `diff`, `status`,
+`worktree`, `reset`) run through `gitRun` with no deadline, because a large
+checkout can legitimately take long and cannot wait on DNS. `fetch` and
+`clone` also carry `-c http.lowSpeedLimit=1 -c http.lowSpeedTime=60`
+(`Limits.LowSpeedArgs`), so a transfer stuck at 0 bytes per second aborts by
+itself; they are argv options and never touch the credential header in
+`GIT_CONFIG_KEY_0`.
+
+On expiry git and its remote-https helper die together, the error names the
+deadline and the elapsed time, and a clone, default-branch fetch, or ref-listing
+failure takes the existing isolated path:
+`git repository sync failed` (with `failure_class=deadline_exceeded`,
+`deadline_operation`, `deadline_seconds`, `elapsed_seconds`,
+`repository_index`), `eshu_dp_git_repo_sync_failures_total`, and a retry next
+cycle. `eshu_dp_git_command_deadline_exceeded_total{operation}` counts the
+kills. A shutdown cancel is the context error, not a deadline. A killed command
+adds nothing to `SelectedRepoPaths`, so no generation is built for that
+repository this cycle. The shallow.lock retry fetch carries its own deadline. A
+pinned-ref fetch that hits its deadline (two fetches per pinned ref, branch
+then tag) is counted in `eshu_dp_git_command_deadline_exceeded_total{operation="fetch"}`
+and logged in the `failed to fetch pinned ref; skipping` warning, which then
+carries `failure_class=deadline_exceeded`, `deadline_operation`,
+`deadline_seconds`, `operation` and `elapsed_seconds` (any other pinned-ref
+failure keeps `repo_id`, `ref` and `error` only). It is not a
+`git repository sync failed` line and is not in
+`eshu_dp_git_repo_sync_failures_total`; the repository's other refs and the
+cycle continue. A clone that outlives its
+deadline fails every cycle, so size `ESHU_GIT_CLONE_TIMEOUT_SECONDS` for the largest repository you index.
+See `deadline/README.md`.
 
 ## Directory size
 

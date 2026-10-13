@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 )
 
 // GitRef captures one source-observed Git reference head for a repository.
@@ -144,8 +146,9 @@ func remoteGitRefs(
 	repoPath string,
 	token string,
 ) ([]GitRef, error) {
-	output, err := gitRun(
+	output, err := gitRunRemote(
 		ctx,
+		deadline.LsRemote,
 		repoPath,
 		config,
 		token,

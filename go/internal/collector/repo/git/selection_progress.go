@@ -6,10 +6,12 @@ package git
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -156,12 +159,51 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 	if logger == nil {
 		return
 	}
-	attrs := append(
-		event.eventAttrs(time.Now()),
-		slog.String("error", sanitizeGitProgressMessage(err.Error())),
-		telemetry.FailureClassAttr("git_sync_failure"),
-	)
+	attrs := append(event.eventAttrs(time.Now()), slog.String("error", sanitizeGitProgressMessage(err.Error())))
+	if deadlineErr := asDeadlineError(err); deadlineErr != nil {
+		attrs = append(attrs, deadlineFailureAttrs(deadlineErr)...)
+	} else {
+		attrs = append(attrs, telemetry.FailureClassAttr("git_sync_failure"))
+	}
 	logger.ErrorContext(ctx, "git repository sync failed", attrs...)
+}
+
+// asDeadlineError returns the deadline kill inside err, or nil when err is any
+// other failure. It is the one classification every deadline log line uses.
+func asDeadlineError(err error) *deadline.Error {
+	var deadlineErr *deadline.Error
+	if errors.As(err, &deadlineErr) {
+		return deadlineErr
+	}
+	return nil
+}
+
+// deadlineFailureAttrs are the log attributes a deadline kill adds to a failure
+// line: the failure class, the closed operation label, and the deadline.
+func deadlineFailureAttrs(deadlineErr *deadline.Error) []any {
+	return []any{
+		telemetry.FailureClassAttr("deadline_exceeded"),
+		slog.String("deadline_operation", deadlineErr.Operation),
+		slog.Float64("deadline_seconds", deadlineErr.Limit.Seconds()),
+	}
+}
+
+// pinnedRefFetchWarnAttrs are the attributes of the "failed to fetch pinned
+// ref; skipping" warning. A failure that is not a deadline kill keeps exactly
+// repo_id, ref and error. A deadline kill adds the deadline fields the main
+// sync failure line carries, plus the operation and the killed command's
+// elapsed time, so an operator can find it by failure_class.
+func pinnedRefFetchWarnAttrs(repoID, ref string, err error) []any {
+	attrs := []any{
+		slog.String("repo_id", repoID),
+		slog.String("ref", ref),
+		slog.String("error", err.Error()),
+	}
+	if deadlineErr := asDeadlineError(err); deadlineErr != nil {
+		attrs = append(attrs, deadlineFailureAttrs(deadlineErr)...)
+		attrs = append(attrs, log.Operation(deadlineErr.Operation), log.ElapsedSeconds(deadlineErr.Elapsed.Seconds()))
+	}
+	return attrs
 }
 
 // resolveRepoRefsIsolated calls remoteGitRefs for one repository and isolates
@@ -277,28 +319,43 @@ func gitProgressLineIsTerminal(message string) bool {
 // operations can log progress while still returning the sanitized error text
 // on failure. Colocated with the rest of this file's progress/stderr
 // plumbing rather than in selection_cli.go's clone/fetch control flow.
+//
+// A non-empty operation (one of the deadline package's closed set) runs the
+// command under that operation's deadline (#8052); an empty operation is a
+// purely local command and runs unbounded, because a local checkout or status
+// can legitimately take long and cannot wait on the network.
 func gitRunWithStderrWriter(
 	ctx context.Context,
 	repoPath string,
 	config RepoSyncConfig,
 	token string,
 	stderrWriter io.Writer,
+	operation string,
 	args ...string,
 ) (string, error) {
 	commandArgs := make([]string, 0, len(args)+2)
 	commandArgs = append(commandArgs, "-C", repoPath)
 	commandArgs = append(commandArgs, args...)
-	command := newGitCommand(ctx, commandArgs...)
-	command.Env = gitCommandEnv(config, token, repoPath)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	command.Stdout = &stdout
-	if stderrWriter != nil {
-		command.Stderr = io.MultiWriter(&stderr, stderrWriter)
-	} else {
-		command.Stderr = &stderr
+	build := func(commandCtx context.Context) *exec.Cmd {
+		command := newGitCommand(commandCtx, commandArgs...)
+		command.Env = gitCommandEnv(config, token, repoPath)
+		command.Stdout = &stdout
+		if stderrWriter != nil {
+			command.Stderr = io.MultiWriter(&stderr, stderrWriter)
+		} else {
+			command.Stderr = &stderr
+		}
+		return command
 	}
-	if err := command.Run(); err != nil {
+	var runErr error
+	if operation == "" {
+		runErr = build(ctx).Run()
+	} else {
+		runErr = deadline.Run(ctx, config.GitDeadlines, operation, build)
+	}
+	if err := runErr; err != nil {
 		flushProgressWriter(stderrWriter)
 		return "", fmt.Errorf(
 			"git %s: %w: %s",
@@ -309,6 +366,29 @@ func gitRunWithStderrWriter(
 	}
 	flushProgressWriter(stderrWriter)
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+func gitRun(
+	ctx context.Context,
+	repoPath string,
+	config RepoSyncConfig,
+	token string,
+	args ...string,
+) (string, error) {
+	return gitRunWithStderrWriter(ctx, repoPath, config, token, nil, "", args...)
+}
+
+// gitRunRemote runs a network-capable git command under the deadline of its
+// operation (a deadline.Fetch, deadline.LsRemote, or deadline.Resolve value).
+func gitRunRemote(
+	ctx context.Context,
+	operation string,
+	repoPath string,
+	config RepoSyncConfig,
+	token string,
+	args ...string,
+) (string, error) {
+	return gitRunWithStderrWriter(ctx, repoPath, config, token, nil, operation, args...)
 }
 
 func flushProgressWriter(writer io.Writer) {
