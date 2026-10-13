@@ -477,7 +477,7 @@ test_full_clone_resolvable_base_skips_fetch() {
   GITHUB_BASE_REF=main run_verifier "${clone}" "${out}"
   assert_equals "false" "$(git_in "${clone}" rev-parse --is-shallow-repository)" \
     "full clone must stay full when the base resolves"
-  if [[ -e "$(git_in "${clone}" rev-parse --git-path FETCH_HEAD)" ]]; then
+  if [[ -e "$(git_in "${clone}" rev-parse --absolute-git-dir)/FETCH_HEAD" ]]; then
     echo "test-docs-build: a resolvable base ref must not trigger a fetch" >&2
     exit 1
   fi
