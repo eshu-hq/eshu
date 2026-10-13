@@ -49,10 +49,19 @@ type NativeRepositorySelector struct {
 	// from the snapshotter it also wires. Nil turns the skipped-parse path and
 	// identity stamping off.
 	Preparse func() preparse.Config
+	// reconcileWalkOffset is the #7987 round-robin start this cycle passes to
+	// the git sync and resumes from its NextReconcileStartOffset. The
+	// collector drives one selector sequentially, one cycle at a time, so a
+	// plain counter is safe without a lock.
+	reconcileWalkOffset int
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
-func (s NativeRepositorySelector) SelectRepositories(
+//
+// It takes a pointer receiver because consecutive cycles resume the #7987
+// reconcile round-robin from the previous cycle's NextReconcileStartOffset;
+// callers hold one selector for the process and drive it sequentially.
+func (s *NativeRepositorySelector) SelectRepositories(
 	ctx context.Context,
 ) (SelectionBatch, error) {
 	if strings.TrimSpace(s.Config.SourceMode) == "" {
@@ -167,6 +176,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 					Resolver:                     s.BaselineResolver,
 					Instruments:                  s.Instruments,
 					Reconcile:                    reconcilePolicyFromConfig(config),
+					ReconcileStartOffset:         s.reconcileWalkOffset,
 					ReindexRequestedAt:           reindexRequestedAt,
 					RepositoryReindexRequestedAt: repositoryReindexRequestedAt,
 					Now:                          s.Now,
@@ -179,6 +189,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		if err != nil {
 			return SelectionBatch{}, err
 		}
+		s.reconcileWalkOffset = synced.NextReconcileStartOffset
 		return SelectionBatch{
 			ObservedAt: observedAt,
 			Repositories: applyPreparseIdentities(buildSelectedRepositories(

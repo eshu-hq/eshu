@@ -31,7 +31,7 @@ func TestBuildIngesterCollectorServiceWiresLoggerIntoRepositorySelector(t *testi
 	}
 
 	source := service.Source.(*git.GitSource)
-	selector := source.Selector.(git.NativeRepositorySelector)
+	selector := source.Selector.(*git.NativeRepositorySelector)
 	if selector.Logger == nil {
 		t.Fatal("repository selector logger = nil, want non-nil")
 	}

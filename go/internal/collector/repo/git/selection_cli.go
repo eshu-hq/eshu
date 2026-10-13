@@ -55,7 +55,8 @@ func syncGitRepositoriesWithLogger(
 	fleetCap := config.PinnedRefFleetCap
 	reconciledThisCycle := 0
 	repositoryIDs = prioritizeRepositoryReindex(config, repositoryIDs, baseline.RepositoryReindexRequestedAt)
-	for i, repoID := range repositoryIDs {
+	walkOrder, walkTracker := trackReconcileWalk(config, repositoryIDs, baseline)
+	for i, repoID := range walkOrder {
 		if err := ctx.Err(); err != nil {
 			return GitSyncSelection{}, err
 		}
@@ -82,11 +83,11 @@ func syncGitRepositoriesWithLogger(
 				}
 			}
 		} else {
-			var reconcile reconcileDecision
-			if reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) {
-				reconcile = baseline.reconcileDue(ctx, config, repoPath, logger)
-			}
-			forceReconcile := reconcile.Due
+			// Every repository is evaluated so the due-unvisited gauge sees
+			// the whole cycle; only forcing is budget-gated.
+			reconcile := baseline.reconcileDue(ctx, config, repoPath, logger)
+			forceReconcile := reconcile.Due && reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle)
+			walkTracker.noteEvaluated(reconcile.Due, reconcile.Reason, forceReconcile)
 			// updated==false with a nil updateErr is the legitimate no-new-changes
 			// no-op, not a failure — only updateErr != nil is metered below.
 			holdIfHead := ""
@@ -107,6 +108,7 @@ func syncGitRepositoriesWithLogger(
 				}
 				if ok && forceReconcile && baseline.skipParse(ctx, logger, config, token, repoPath, reconcile, sourceSHA, refs) {
 					reconciledThisCycle++ // ruling a9-143 D2: the re-projection spends a slot
+					walkTracker.noteSpent(i)
 				} else if ok {
 					selected = append(selected, repoPath)
 					refsByRepoPath[repoPath] = refs
@@ -124,6 +126,7 @@ func syncGitRepositoriesWithLogger(
 						reconcileReasonByRepoPath[repoPath] = reconcile.Reason
 						reconciledThisCycle++
 						baseline.recordReconciliation(ctx, logger, reconcile)
+						walkTracker.noteSpent(i)
 					}
 				}
 			}
@@ -161,6 +164,7 @@ func syncGitRepositoriesWithLogger(
 			reconcileRefWorktrees(ctx, config, repoID, nil, logger)
 		}
 	}
+	nextStart := walkTracker.finish(ctx, baseline)
 	return GitSyncSelection{
 		SelectedRepoPaths:          sortUniqueStrings(selected),
 		DeltaByRepoPath:            deltaByRepoPath,
@@ -170,6 +174,7 @@ func syncGitRepositoriesWithLogger(
 		SourceCommitSHAByRepoPath:  sourceSHAByRepoPath,
 		PreparseIdentityByRepoPath: preparseByRepoPath,
 		RefWorktreesByRepoPath:     refWorktreesByRepoPath,
+		NextReconcileStartOffset:   nextStart,
 	}, nil
 }
 

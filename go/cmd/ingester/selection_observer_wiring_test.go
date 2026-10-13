@@ -44,7 +44,7 @@ func TestBuildIngesterCollectorServiceWiresSelectionObserver(t *testing.T) {
 		}
 	}
 
-	requireObserver("native selector", build(map[string]string{}).(git.NativeRepositorySelector).SelectionObserver)
+	requireObserver("native selector", build(map[string]string{}).(*git.NativeRepositorySelector).SelectionObserver)
 	priority := build(map[string]string{"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true"}).(git.PriorityRepositorySelector)
-	requireObserver("priority native selector", priority.Selectors[1].(git.NativeRepositorySelector).SelectionObserver)
+	requireObserver("priority native selector", priority.Selectors[1].(*git.NativeRepositorySelector).SelectionObserver)
 }

@@ -135,7 +135,8 @@ func TestNativeRepositorySelectorObservesExplicitOnlyOnShardZero(t *testing.T) {
 
 	for _, index := range []int{1, 2} {
 		observer := &recordingSelectionObserver{}
-		if _, err := explicitObservationSelector(t, 3, index, observer).SelectRepositories(context.Background()); err != nil {
+		selector := explicitObservationSelector(t, 3, index, observer)
+		if _, err := selector.SelectRepositories(context.Background()); err != nil {
 			t.Fatalf("shard %d SelectRepositories() error = %v", index, err)
 		}
 		if len(observer.requests) != 0 {

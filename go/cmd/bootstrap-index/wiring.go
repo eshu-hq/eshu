@@ -75,7 +75,7 @@ func buildBootstrapCollector(
 		Component: "bootstrap-index",
 		// Preparse stamps each stored generation's pre-parse identity, so the
 		// ingester's first sweep can skip the parse (#7978 follow-up).
-		Selector: git.NativeRepositorySelector{
+		Selector: &git.NativeRepositorySelector{
 			Config: config, Logger: logger,
 			Preparse: func() preparse.Config { return git.PreparseConfigFor(snapshotter, config, nil, nil) },
 		},

@@ -30,7 +30,7 @@ func TestBuildCollectorServiceWiresSelectionObserver(t *testing.T) {
 	}
 	requireObserver := func(name string, selector git.RepositorySelector) {
 		t.Helper()
-		native, ok := selector.(git.NativeRepositorySelector)
+		native, ok := selector.(*git.NativeRepositorySelector)
 		if !ok {
 			t.Fatalf("%s = %T, want git.NativeRepositorySelector", name, selector)
 		}
