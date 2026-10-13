@@ -119,11 +119,12 @@ passes (a different model lineage catches what a single family rationalizes
 away).
 
 The manifest currently maps these tiers to Claude Haiku/Sonnet/Opus,
-Codex Luna at high effort and Sol at medium or high effort, Muse Spark
-at low/high/xhigh effort, and OpenCode DeepSeek Flash at the low variant with
+Codex Luna at high effort and Sol at medium or high effort, `muse-spark-1.3`
+at low/high effort with `muse-wonder-full-1.0` at xhigh for the deep tier,
+and OpenCode DeepSeek Flash at the low variant with
 DeepSeek V4 Pro at the high or max variant. The arbiter tier is Claude Fable and Codex Astra, both
-at high effort rather than xhigh to limit token cost on those models, Muse
-Spark at xhigh, and OpenCode MiniMax-M3, a family distinct from both OpenCode
+at high effort rather than xhigh to limit token cost on those models,
+`muse-wonder-full-1.0` at xhigh, and OpenCode MiniMax-M3, a family distinct from both OpenCode
 build tiers; MiniMax-M3 exposes no effort variants, so its pin is the bare
 model reference. The OpenCode `#variant` suffix is how that harness carries
 reasoning effort, the peer of the `effort` field the other harnesses use.
@@ -132,8 +133,7 @@ precedence over a spawn model override. If custom-role selection is absent,
 the coordinator passes the manifest model and effort explicitly or uses
 `codex-exec`. The main session model is independent. The coordinator selects
 the tier when it dispatches; a leaf agent does not downgrade its own model.
-Muse currently uses one model across the tiers, so its savings come from
-reasoning effort and bounded scopes rather than selecting a cheaper model.
+Muse spends `muse-wonder-full-1.0` only on its deep and arbiter tiers (xhigh).
 
 ### Goal and skill prompts
 

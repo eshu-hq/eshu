@@ -22,7 +22,7 @@ architecture tour.
 Settle uncertainty from source, docs, or a bounded experiment. If those cannot
 settle it (unclear ownership, design intent, acceptance criteria, or
 authorization), escalate to an arbiter model with the raw observations. The
-role is `arbiter-eshu`: Fable on Claude, Astra on Codex, Muse Spark on Muse. Act
+role is `arbiter-eshu`: Fable on Claude, Astra on Codex, `muse-wonder-full-1.0` on Muse. Act
 on its verdict. Record the decision in the goal file or PR. Do not stop to ask
 the owner.
 
