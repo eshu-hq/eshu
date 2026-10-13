@@ -52,7 +52,7 @@ today, end partial. The one disclosed trade: a decode-like common pattern at
 limit 200 ends partial with about 149 rows and one resume completes it.
 `TestEntityPolicyClasses` pins every S1 class, including the 13.1 MB value:
 a tail cancel that fires 30-170 ms into the tail waits for its recheck. At the
-default budget the entity tail timeout is about 638 ms, outside that window.
+default budget the entity tail timeout is about 640 ms, outside that window.
 
 `TestFileRouteGolden` and `TestEntityRouteGolden` pin each route's observable
 output byte for byte (page rows, partial object, every statement text and

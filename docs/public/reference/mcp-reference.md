@@ -200,7 +200,13 @@ only that page's rows, and each such row carries `page_position`, its place in
 the offset order; a budget page keeps the rows with the smallest
 `page_position`, so `next_offset` always resumes at the first row it dropped
 and a walk by `next_offset` reads every row exactly once. `search_entity_content`
-leaves `next_offset` out when it would pass its 10,000 offset cap. Every other
+leaves `next_offset` out when it would pass its 10,000 offset cap. A
+`search_entity_content` call with no `repo_ids` can end partial and be cut by
+the cap at once: the reply then carries `partial` and `next_offset` together.
+Page with `next_offset` first, keeping the same `cursor`, and follow
+`partial.cursor` only from a reply without `next_offset`;
+`partial.rows_matched` counts the trimmed rows, so the other order skips them
+([Unscoped entity search](http-api/unscoped-entity-search.md)). Every other
 tool, and a request whose first row alone exceeds the budget, returns the
 `mcp_response_over_budget` error envelope with narrowing guidance. Programmatic
 clients should read `structuredContent` when present, then fall back to the
