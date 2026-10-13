@@ -4,12 +4,21 @@
 package main
 
 import (
-	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+)
+
+// Pinned Preparse-bearing selector counts for the ingester (#8038). Each
+// counts the selector structs with a Preparse field that preparseWiringGaps
+// reaches in the built selector tree: the native scheduled selector, the
+// webhook trigger selector, or both. A selector the walk misses, or a new one
+// added without updating the pin, fails the guard.
+const (
+	ingesterScheduledOnlyPreparseSelectors       = 1
+	ingesterScheduledAndWebhookPreparseSelectors = 2
+	ingesterWebhookOnlyPreparseSelectors         = 1
 )
 
 // TestIngesterSelectorsCarryPreparse (ruling a9-143.3, review F-1): the
@@ -18,60 +27,24 @@ import (
 // configuration, or the skipped parse and the identity stamp never run.
 func TestIngesterSelectorsCarryPreparse(t *testing.T) {
 	t.Parallel()
-	for name, env := range map[string]map[string]string{
-		"scheduled only":        {},
-		"scheduled and webhook": {"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true"},
-		"webhook only":          {"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true", "ESHU_REPO_SCHEDULED_SYNC_ENABLED": "false"},
+	for name, tc := range map[string]struct {
+		env       map[string]string
+		wantFound int
+	}{
+		"scheduled only":        {env: map[string]string{}, wantFound: ingesterScheduledOnlyPreparseSelectors},
+		"scheduled and webhook": {env: map[string]string{"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true"}, wantFound: ingesterScheduledAndWebhookPreparseSelectors},
+		"webhook only":          {env: map[string]string{"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true", "ESHU_REPO_SCHEDULED_SYNC_ENABLED": "false"}, wantFound: ingesterWebhookOnlyPreparseSelectors},
 	} {
+		env := tc.env
 		service, err := buildIngesterCollectorService(postgres.SQLDB{}, mapGetenv(env),
 			func() (string, error) { return t.TempDir(), nil },
 			func() []string { return []string{"PATH=/usr/bin"} }, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("%s: buildIngesterCollectorService() error = %v", name, err)
 		}
-		gaps, found := preparseWiringGaps(service.Source.(*git.GitSource).Selector)
-		if found == 0 || len(gaps) > 0 {
-			t.Errorf("%s: preparse wiring gaps %v (checked %d selectors)", name, gaps, found)
+		problems := checkPreparseWiring(service.Source.(*git.GitSource).Selector, tc.wantFound)
+		if len(problems) > 0 {
+			t.Errorf("%s: preparse wiring problems %v", name, problems)
 		}
 	}
-}
-
-// preparseWiringGaps walks a selector tree the way the sync sees it and names
-// every selector that can force a reconcile (it has a BaselineResolver field)
-// but has no Preparse field, and every Preparse field left nil (#7978
-// follow-up, ruling a9-143.3). found counts the Preparse fields it checked, so
-// a test can refuse a vacuous pass.
-func preparseWiringGaps(selector any) (gaps []string, found int) {
-	var walk func(v reflect.Value, path string)
-	walk = func(v reflect.Value, path string) {
-		for v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer {
-			if v.IsNil() {
-				return
-			}
-			v = v.Elem()
-		}
-		if v.Kind() != reflect.Struct {
-			return
-		}
-		name := path + v.Type().Name()
-		if children := v.FieldByName("Selectors"); children.IsValid() && children.Kind() == reflect.Slice {
-			for i := 0; i < children.Len(); i++ {
-				walk(children.Index(i), fmt.Sprintf("%s[%d].", name, i))
-			}
-			return
-		}
-		field := v.FieldByName("Preparse")
-		if !field.IsValid() {
-			if v.FieldByName("BaselineResolver").IsValid() {
-				gaps = append(gaps, name+" can force a reconcile but has no Preparse field")
-			}
-			return
-		}
-		found++
-		if field.IsNil() {
-			gaps = append(gaps, name+".Preparse is nil")
-		}
-	}
-	walk(reflect.ValueOf(selector), "")
-	return gaps, found
 }
