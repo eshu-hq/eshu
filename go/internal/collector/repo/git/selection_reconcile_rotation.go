@@ -73,6 +73,61 @@ func isReconcileDueUnvisitedReason(reason string) bool {
 	return false
 }
 
+// reconcileWalkTracker carries the #7987 round-robin state for one selection
+// cycle: the rotated walk order plus the offset bookkeeping. The sync walks
+// the order, notes each spent slot and each unvisited due repository, then
+// finishes the tracker to record the gauge and learn the next cycle's start.
+type reconcileWalkTracker struct {
+	prefixLen int
+	start     int
+	suffixLen int
+	unvisited map[string]int64
+	lastSpent int
+}
+
+// trackReconcileWalk returns this cycle's visit order with its tracker: the
+// requested prefix stays pinned at the head while the suffix starts at the
+// baseline's offset, reproducibly for a given list and offset.
+func trackReconcileWalk(config RepoSyncConfig, ordered []string, baseline gitDeltaBaseline) ([]string, *reconcileWalkTracker) {
+	walk, prefixLen, normStart, suffixLen := reconcileWalkOrder(config, ordered, baseline)
+	return walk, &reconcileWalkTracker{
+		prefixLen: prefixLen,
+		start:     normStart,
+		suffixLen: suffixLen,
+		unvisited: make(map[string]int64),
+		lastSpent: -1,
+	}
+}
+
+// noteEvaluated counts a due repository that took no slot toward the
+// due-unvisited gauge.
+func (t *reconcileWalkTracker) noteEvaluated(due bool, reason string, forced bool) {
+	if due && !forced && isReconcileDueUnvisitedReason(reason) {
+		t.unvisited[reason]++
+	}
+}
+
+// noteSpent records a spent per-cycle slot at walk index i, so the next
+// cycle resumes past served repositories. Held and failed repositories spend
+// nothing and keep their turn.
+func (t *reconcileWalkTracker) noteSpent(walkIdx int) {
+	if suffixPos := walkIdx - t.prefixLen; suffixPos >= 0 {
+		t.lastSpent = suffixPos
+	}
+}
+
+// finish records the due-unvisited gauge and returns the next cycle's start:
+// after the last served suffix position, or the same start when nothing took
+// a slot so the same window is retried.
+func (t *reconcileWalkTracker) finish(ctx context.Context, baseline gitDeltaBaseline) int {
+	nextStart := t.start
+	if t.suffixLen > 0 && t.lastSpent >= 0 {
+		nextStart = (t.start + t.lastSpent + 1) % t.suffixLen
+	}
+	baseline.recordReconcileDueUnvisited(ctx, t.unvisited)
+	return nextStart
+}
+
 // recordReconcileDueUnvisited samples, at the end of each selection cycle, how
 // many repositories were due for a forced full but took no per-cycle slot, by
 // bounded reason (#7987). Every reason in the closed set is recorded every
