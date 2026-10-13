@@ -127,6 +127,7 @@ func (w *walk[R, K]) run(ctx context.Context) error {
 		// The phase name stays on ended_in through the steps below, so the
 		// signal names the skip rather than the last issued step.
 		w.noTrigram = true
+		w.endedIn = phaseTailSkippedNoTrigram
 		return w.continuation(ctx, w.remaining(), phaseTailSkippedNoTrigram)
 	}
 	timeout := min(w.remaining(), w.plan.tailCap)

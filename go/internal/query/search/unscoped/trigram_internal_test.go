@@ -23,9 +23,11 @@ func TestPatternHasTrigram(t *testing.T) {
 		{"%", false},
 		{"x%yz", false},
 		{"ab-cd", false},
-		{"a\\bc", false}, // single backslash: ILIKE reads \b as literal b, so
-		// pg_trgm sees the word abc, but the check breaks on the escape
-		// (conservative; see trigram.go)
+		{"a\\bc", false}, // single backslash: ILIKE reads \b as literal b
+		// and the planner still extracts trigrams (replica EXPLAIN plans a
+		// Bitmap Index Scan for this exact pattern), but the check breaks
+		// on the escape — the pinned conservative divergence: a usable
+		// tail is skipped, never a useless one run (see trigram.go)
 		{"a1_", false},
 		{"abc", true},
 		{"decode", true},
