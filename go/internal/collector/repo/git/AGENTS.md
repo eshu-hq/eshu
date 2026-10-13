@@ -76,6 +76,15 @@ full generation, which re-emits id keys. A new follow-up envelope takes
 `repoID` and calls the helper; add its domain to `followupKeyPrefixes` in
 `followup_key_test.go` so the count assertion covers it.
 
+## Every git spawn that can wait on the network is deadline-bound
+
+Run git through `gitRun` or `gitRunWithStderrWriter`, or through `deadline.Run`
+with the command built from the context it hands you (`cloneRepository` does
+this). Building a command from the loop context directly gives it no deadline,
+and a stalled fetch pauses the whole fleet sync for 300 s (#8052). Do not add a
+way to switch the deadline off, and do not mark a deadline kill as a shutdown:
+`deadline.Run` already tells the two apart by checking the parent context.
+
 ## Git auth follows the checkout path
 
 Pass the managed checkout path (`<ReposDir>/<repoID>`) to `gitCommandEnv` and

@@ -14,7 +14,8 @@
 // that drives them (source*). They form a measured three-way production
 // import cycle, so they cannot be split further without a dependency-inversion
 // refactor that has not been done. The leaf emitters that CAN stand alone —
-// docs, observability, codeowners, submodule, catalog, tfstate and image —
+// docs, observability, codeowners, submodule, catalog, tfstate, image and
+// deadline —
 // are nested subpackages, with everything they share below them in model.
 //
 // Snapshot input shape is this package's contract. Git-backed selection captures
