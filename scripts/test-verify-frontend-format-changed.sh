@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
+# test-verify-frontend-format-changed.sh — hermetic self-test for the
+# frontend-format-changed verifier, using throwaway mktemp repos.
+#
+# Run with:
+#   bash scripts/test-verify-frontend-format-changed.sh
+#
+# ESHU_TEST_VERIFIER overrides the verifier under test (default: the verifier
+# in this checkout). Use it to run the cells against an older copy of the
+# script and confirm they fail there.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-verifier="${repo_root}/scripts/verify-frontend-format-changed.sh"
+verifier="${ESHU_TEST_VERIFIER:-${repo_root}/scripts/verify-frontend-format-changed.sh}"
 
 if [[ ! -x "${verifier}" ]]; then
   echo "test-frontend-format: missing executable verifier at ${verifier}" >&2
@@ -206,6 +215,96 @@ test_staged_formatted_js_ts_passes() {
   assert_contains "format: checking prettier on 1 staged files" "${out}"
 }
 
+# ─── Shared-store depth guard (#8032) ───────────────────────────────
+# A gate script must never turn a full clone shallow: every worktree of the
+# clone shares one .git/shallow, so a depth fetch from any worktree breaks
+# history-dependent gates in all the others. These cells use a local bare repo
+# as origin (file:// so --depth is honoured); nothing touches a real remote.
+
+# make_depth_fixture NAME [clone flags...]: bare origin with 60 commits on
+# main, a clone of it on branch feature, local main deleted, and
+# refs/remotes/origin/main left in place.
+make_depth_fixture() {
+  local name="$1"
+  shift
+  local origin="${tmp_root}/${name}-origin.git"
+  local seed="${tmp_root}/${name}-seed"
+  local clone="${tmp_root}/${name}-clone"
+  local i
+  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+    git init -q --bare -b main "${origin}"
+  mkdir -p "${seed}"
+  git_in "${seed}" init -q -b main
+  git_in "${seed}" config user.email "test@example.invalid"
+  git_in "${seed}" config user.name "Eshu Test"
+  git_in "${seed}" config core.hooksPath /dev/null
+  printf 'seed\n' >"${seed}/seed.txt"
+  git_in "${seed}" add seed.txt
+  git_in "${seed}" commit -q -m "seed"
+  for i in $(seq 1 59); do
+    git_in "${seed}" commit -q --allow-empty -m "c${i}"
+  done
+  git_in "${seed}" push -q "file://${origin}" main
+  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+    git clone -q "$@" "file://${origin}" "${clone}"
+  git_in "${clone}" config user.email "test@example.invalid"
+  git_in "${clone}" config user.name "Eshu Test"
+  git_in "${clone}" config core.hooksPath /dev/null
+  git_in "${clone}" switch -q -c feature
+  git_in "${clone}" branch -q -D main
+  printf '%s\n' "${clone}"
+}
+
+assert_equals() {
+  local want="$1"
+  local got="$2"
+  local what="$3"
+  if [[ "${want}" != "${got}" ]]; then
+    echo "test-frontend-format: ${what}: want '${want}', got '${got}'" >&2
+    exit 1
+  fi
+}
+
+# Full clone, base ref unresolvable: the gate may fetch, but must not shallow.
+test_full_clone_missing_base_stays_full() {
+  local clone out
+  clone="$(make_depth_fixture full-missing)"
+  out="${tmp_root}/full-missing.out"
+  git_in "${clone}" update-ref -d refs/remotes/origin/main
+  GITHUB_BASE_REF=main run_verifier "${clone}" "${out}"
+  assert_equals "false" "$(git_in "${clone}" rev-parse --is-shallow-repository)" \
+    "full clone must stay full after a base fetch"
+  assert_equals "60" "$(git_in "${clone}" rev-list --count refs/remotes/origin/main)" \
+    "base fetch must bring the full base history"
+}
+
+# Full clone, base ref already resolves: no fetch at all.
+test_full_clone_resolvable_base_skips_fetch() {
+  local clone out
+  clone="$(make_depth_fixture full-resolved)"
+  out="${tmp_root}/full-resolved.out"
+  GITHUB_BASE_REF=main run_verifier "${clone}" "${out}"
+  assert_equals "false" "$(git_in "${clone}" rev-parse --is-shallow-repository)" \
+    "full clone must stay full when the base resolves"
+  if [[ -e "$(git_in "${clone}" rev-parse --absolute-git-dir)/FETCH_HEAD" ]]; then
+    echo "test-frontend-format: a resolvable base ref must not trigger a fetch" >&2
+    exit 1
+  fi
+}
+
+# Shallow clone (the CI fetch-depth case): the depth-50 fetch still happens.
+test_shallow_clone_missing_base_fetches_with_depth() {
+  local clone out
+  clone="$(make_depth_fixture shallow-missing --depth=1)"
+  out="${tmp_root}/shallow-missing.out"
+  git_in "${clone}" update-ref -d refs/remotes/origin/main
+  GITHUB_BASE_REF=main run_verifier "${clone}" "${out}"
+  assert_equals "true" "$(git_in "${clone}" rev-parse --is-shallow-repository)" \
+    "shallow clone stays shallow"
+  assert_equals "50" "$(git_in "${clone}" rev-list --count refs/remotes/origin/main)" \
+    "shallow clone must keep the depth-50 base fetch"
+}
+
 test_no_changed_js_ts_files_skips
 test_changed_unformatted_js_ts_fails
 test_changed_formatted_js_ts_passes
@@ -214,5 +313,8 @@ test_main_push_checks_previous_commit_when_origin_main_is_head
 test_staged_no_frontend_js_ts_files_skips
 test_staged_unformatted_js_ts_fails
 test_staged_formatted_js_ts_passes
+test_full_clone_missing_base_stays_full
+test_full_clone_resolvable_base_skips_fetch
+test_shallow_clone_missing_base_fetches_with_depth
 
 echo "test-frontend-format: all tests passed"

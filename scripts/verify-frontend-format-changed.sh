@@ -35,7 +35,17 @@ commit_exists() {
 maybe_fetch_base_ref() {
   local base_name="$1"
   [[ -z "${base_name}" ]] && return 0
-  git fetch --no-tags --depth=50 origin "${base_name}" >/dev/null 2>&1 || true
+  # Never change the depth of a complete clone: every worktree shares one
+  # .git/shallow, so a --depth fetch from here shallows all of them (#8032).
+  if commit_exists "origin/${base_name}" || commit_exists "${base_name}"; then
+    return 0
+  fi
+  if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == "false" ]]; then
+    git fetch --no-tags origin "${base_name}" >/dev/null 2>&1 || true
+  else
+    # Shallow checkout (CI fetch-depth): keep the bounded depth fetch.
+    git fetch --no-tags --depth=50 origin "${base_name}" >/dev/null 2>&1 || true
+  fi
 }
 
 base_ref_from_env() {
