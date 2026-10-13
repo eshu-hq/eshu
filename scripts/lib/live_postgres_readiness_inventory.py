@@ -45,6 +45,9 @@ PACKAGES = {
             "TestSupplyChainImpactReadinessScanTierQueryPlanLive",
             "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",
         ),
+        "go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go": (
+            "TestSupplyChainSuppressionPathsPerformanceLive",
+        ),
     },
     STORAGE_PACKAGE: {
         "go/internal/storage/postgres/projector_marked_write_age_live_test.go": (

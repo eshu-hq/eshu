@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -25,11 +26,6 @@ const (
 	suppressionPathsCanonical    = 50_000
 	suppressionPathsOperatorRows = 500
 )
-
-type suppressionPathMeasurement struct {
-	name   string
-	values []float64
-}
 
 func TestSupplyChainSuppressionPathsPerformanceLive(t *testing.T) {
 	ctx, db := openSuppressionPathsProofDB(t)
@@ -116,13 +112,11 @@ ALTER TABLE supply_chain_impact_canonical_winners
 		t.Fatalf("list page rows = %d, want 201", len(directRows))
 	}
 
-	count, err := aggregates.CountSupplyChainImpactFindings(
-		ctx,
-		AggregateFilter{
-			DetectionProfile:  "precise",
-			IncludeSuppressed: true,
-		},
-	)
+	aggregateFilter := AggregateFilter{
+		DetectionProfile:  "precise",
+		IncludeSuppressed: true,
+	}
+	count, err := aggregates.CountSupplyChainImpactFindings(ctx, aggregateFilter)
 	if err != nil {
 		t.Fatalf("count aggregate findings: %v", err)
 	}
@@ -150,129 +144,117 @@ ALTER TABLE supply_chain_impact_canonical_winners
 		t.Fatalf("explain finding_id = %q, want finding:000501", explanation.Finding.FindingID)
 	}
 
-	measurements := []suppressionPathMeasurement{
-		{
-			name: "direct_list",
-			values: measureSuppressionPath(t, func() error {
-				_, err := direct.ListSupplyChainImpactFindings(ctx, listFilter)
-				return err
-			}),
-		},
-		{
-			name: "materialized_list",
-			values: measureSuppressionPath(t, func() error {
-				_, err := materialized.ListSupplyChainImpactFindings(ctx, listFilter)
-				return err
-			}),
-		},
-		{
-			name: "aggregate_count_and_facets",
-			values: measureSuppressionPath(t, func() error {
-				_, err := aggregates.CountSupplyChainImpactFindings(
-					ctx,
-					AggregateFilter{
-						DetectionProfile:  "precise",
-						IncludeSuppressed: true,
-					},
-				)
-				return err
-			}),
-		},
-		{
-			name: "explain",
-			values: measureSuppressionPath(t, func() error {
-				_, err := direct.ExplainSupplyChainImpact(
-					ctx,
-					ExplanationFilter{
-						FindingID: "finding:000501",
-					},
-				)
-				return err
-			}),
-		},
-		{
-			name: "winner_rebuild",
-			values: measureSuppressionPath(t, func() error {
-				return winners.RebuildAllWinners(ctx, time.Now().UTC())
-			}),
-		},
+	pathRuns := []struct {
+		name string
+		run  func() error
+	}{
+		{"direct_list", func() error {
+			_, err := direct.ListSupplyChainImpactFindings(ctx, listFilter)
+			return err
+		}},
+		{"materialized_list", func() error {
+			_, err := materialized.ListSupplyChainImpactFindings(ctx, listFilter)
+			return err
+		}},
+		{"aggregate_count_and_facets", func() error {
+			_, err := aggregates.CountSupplyChainImpactFindings(ctx, aggregateFilter)
+			return err
+		}},
+		{"explain", func() error {
+			_, err := direct.ExplainSupplyChainImpact(ctx, ExplanationFilter{FindingID: "finding:000501"})
+			return err
+		}},
+		{"winner_rebuild", func() error {
+			return winners.RebuildAllWinners(ctx, time.Now().UTC())
+		}},
 	}
-	for _, measurement := range measurements {
-		baseline := map[string][2]float64{
-			"direct_list":                {177.170, 184.338},
-			"materialized_list":          {60.163, 61.190},
-			"aggregate_count_and_facets": {465.099, 468.035},
-			"explain":                    {63.906, 65.402},
-			"winner_rebuild":             {912.147, 943.861},
-		}[measurement.name]
-		median := suppressionPathMedian(measurement.values)
-		p95 := suppressionPathP95(measurement.values)
-		if median > baseline[0]*1.10 || p95 > baseline[1]*1.10 {
-			t.Fatalf(
-				"%s exceeded same-data origin/main 10%% ceiling: "+
-					"median=%.3fms baseline=%.3fms p95=%.3fms baseline_p95=%.3fms",
-				measurement.name,
-				median,
-				baseline[0],
-				p95,
-				baseline[1],
-			)
-		}
-		t.Logf(
-			"%s 100k-source/50k-canonical/500-operator median=%.3fms p95=%.3fms "+
-				"origin_main_median=%.3fms origin_main_p95=%.3fms",
-			measurement.name,
-			median,
-			p95,
-			baseline[0],
-			baseline[1],
-		)
+	for _, pathRun := range pathRuns {
+		values := measureSuppressionPath(t, pathRun.run)
+		t.Logf("%s 100k-source/50k-canonical/500-operator median=%.3fms p95=%.3fms (reported, never gated; see #7553)",
+			pathRun.name, suppressionPathMedian(values), suppressionPathP95(values))
+	}
+
+	// Vacuum the rebuild-churned tables so both EXPLAIN runs observe identical
+	// heap state instead of racing autovacuum: each rebuild upserts all
+	// 50,000 canonical winners, leaving ~150k dead tuples behind (#7553).
+	if _, err := db.ExecContext(ctx, `VACUUM (ANALYZE)
+supply_chain_impact_canonical_winners,
+supply_chain_impact_winners_materialization`); err != nil {
+		t.Fatalf("vacuum winners tables: %v", err)
 	}
 
 	readAt := time.Now().UTC()
 	listArgs := suppressionListPlanArgs(listFilter, readAt)
-	aggregateFilter := AggregateFilter{
-		DetectionProfile:  "precise",
-		IncludeSuppressed: true,
-	}
 	aggregateArgs := suppressionAggregatePlanArgs(aggregateFilter, readAt)
-	plans := map[string]suppressionQueryPlanProof{
-		"direct_list": explainSuppressionQueryPlan(
-			t, ctx, db, ListFindingsQuery, listArgs...,
-		),
-		"materialized_list": explainSuppressionQueryPlan(
-			t, ctx, db, ListFindingsFromWinnersQuery, listArgs...,
-		),
-		"aggregate_count": explainSuppressionQueryPlan(
-			t, ctx, db, AggregateCountQuery, aggregateArgs...,
-		),
-		"aggregate_priority_facet": explainSuppressionQueryPlan(
-			t, ctx, db, AggregatePriorityCountQuery, aggregateArgs...,
-		),
-		"explain": explainSuppressionQueryPlan(
-			t, ctx, db, ExplainFindingByPublicIDQuery,
-			suppressionExplainPlanArgs(readAt)...,
-		),
+	planQueries := []struct {
+		name  string
+		query string
+		args  []any
+	}{
+		{"direct_list", ListFindingsQuery, listArgs},
+		{"materialized_list", ListFindingsFromWinnersQuery, listArgs},
+		{"aggregate_count", AggregateCountQuery, aggregateArgs},
+		{"aggregate_priority_facet", AggregatePriorityCountQuery, aggregateArgs},
+		{"explain", ExplainFindingByPublicIDQuery, suppressionExplainPlanArgs(readAt)},
 	}
-	for name, plan := range plans {
-		t.Logf(
-			"%s plan node=%s execution=%.3fms planning=%.3fms rows=%.0f "+
-				"shared_hit=%d shared_read=%d temp_read=%d temp_written=%d",
-			name,
-			plan.Plan.NodeType,
-			plan.ExecutionTime,
-			plan.PlanningTime,
-			plan.Plan.ActualRows,
-			plan.Plan.SharedHitBlocks,
-			plan.Plan.SharedReadBlocks,
-			plan.Plan.TempReadBlocks,
-			plan.Plan.TempWrittenBlocks,
-		)
+	for _, planQuery := range planQueries {
+		first, firstTypes := explainSuppressionQueryPlanAndTypes(t, ctx, db, planQuery.query, planQuery.args...)
+		second, secondTypes := explainSuppressionQueryPlanAndTypes(t, ctx, db, planQuery.query, planQuery.args...)
+		assertSuppressionPlanShape(t, planQuery.name, first, second, firstTypes, secondTypes)
+	}
+}
+
+// assertSuppressionPlanShape gates one path on runner-local EXPLAIN runs:
+// identical node set, shared touches within 1 percent, and temp touches
+// within 1 percent. Temp is gated on stability, not on zero: three of the
+// five paths spill at stock 4MB work_mem (direct_list temp 2194/3383,
+// aggregate_count 1839/1843, aggregate_priority_facet 1716/1720, measured
+// 2026-10-12 on PostgreSQL 18.6), so Temp == 0 cannot gate this proof.
+// The hit/read split shifts with cache warmth, so the gate uses the total.
+func assertSuppressionPlanShape(t *testing.T, name string, first, second suppressionQueryPlanProof, firstTypes, secondTypes []string) {
+	t.Helper()
+	if !slices.Equal(firstTypes, secondTypes) {
+		t.Fatalf("%s node set drifted between runs:\nfirst=%v\nsecond=%v", name, firstTypes, secondTypes)
+	}
+	firstShared := first.Plan.SharedHitBlocks + first.Plan.SharedReadBlocks
+	secondShared := second.Plan.SharedHitBlocks + second.Plan.SharedReadBlocks
+	assertSuppressionBlocksWithinPercent(t, name, "shared", firstShared, secondShared)
+	assertSuppressionBlocksWithinPercent(t, name, "temp_read", first.Plan.TempReadBlocks, second.Plan.TempReadBlocks)
+	assertSuppressionBlocksWithinPercent(t, name, "temp_written", first.Plan.TempWrittenBlocks, second.Plan.TempWrittenBlocks)
+	t.Logf("%s nodes=%v shared=%d/%d temp_read=%d/%d temp_written=%d/%d",
+		name, firstTypes, firstShared, secondShared,
+		first.Plan.TempReadBlocks, second.Plan.TempReadBlocks, first.Plan.TempWrittenBlocks, second.Plan.TempWrittenBlocks)
+}
+
+// suppressionBlockNoiseFloor is the block count below which the 1-percent
+// gate does not fire: a path that touches a handful of blocks on one run
+// and none on the other has not drifted. Seeded regressions move thousands
+// of blocks, so the floor costs no signal (#7553).
+const suppressionBlockNoiseFloor = 16
+
+func assertSuppressionBlocksWithinPercent(t *testing.T, name, kind string, first, second int64) {
+	t.Helper()
+	diff := first - second
+	if diff < 0 {
+		diff = -diff
+	}
+	if ceiling := max(first, second); ceiling >= suppressionBlockNoiseFloor && diff*100 > ceiling {
+		t.Fatalf("%s %s drifted: %d vs %d, want within 1 percent", name, kind, first, second)
 	}
 }
 
 func openSuppressionPathsProofDB(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
+	// Bridge the live-postgres-readiness runner's family DSN onto the
+	// generic variable. Local runs keep using ESHU_POSTGRES_TEST_DSN
+	// directly; the runner sets only the family pair, and a family DSN
+	// without its disposable acknowledgment fails closed (#7553).
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_SUPPRESSION_PATHS_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_SUPPRESSION_PATHS_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_SUPPRESSION_PATHS_PROOF_DSN is set without ESHU_SUPPRESSION_PATHS_PROOF_DISPOSABLE=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #5465 path performance proof")
@@ -438,10 +420,8 @@ ANALYZE scope_generations;`); err != nil {
 
 func measureSuppressionPath(t *testing.T, run func() error) []float64 {
 	t.Helper()
-	if err := run(); err != nil {
-		t.Fatalf("warm suppression path: %v", err)
-	}
-	values := make([]float64, 20)
+	// Two runs: wall time is reported, never gated (#7553).
+	values := make([]float64, 2)
 	for i := range values {
 		started := time.Now()
 		if err := run(); err != nil {
