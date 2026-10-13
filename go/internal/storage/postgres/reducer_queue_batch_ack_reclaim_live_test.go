@@ -278,7 +278,9 @@ func reducerAckReclaimDisposableDSN(t *testing.T, ctx context.Context, adminDSN 
 	if err := db.QueryRowContext(ctx, "SELECT current_database()").Scan(&databaseName); err != nil {
 		t.Fatalf("read disposable database name: %v", err)
 	}
-	parsed, err := url.Parse(adminDSN)
+	// A hand-exported DSN may carry a trailing space or newline; trim at
+	// this consumer too, matching the OpenDisposableDatabase call site.
+	parsed, err := url.Parse(strings.TrimSpace(adminDSN))
 	if err != nil {
 		t.Fatalf("parse administrative DSN: %v", err)
 	}

@@ -71,24 +71,10 @@ func TestOpenDisposableDatabaseLiveIsPristineFromTemplate0(t *testing.T) {
 		_ = plantDB.Close()
 		t.Fatalf("read template1 pg_trgm presence: %v", err)
 	}
-	if _, err := plantDB.ExecContext(plantCtx, "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"); err != nil {
-		_ = plantDB.Close()
-		if strings.Contains(err.Error(), "permission denied") {
-			t.Skipf("template1 plant needs extension-install privilege: %v", err)
-		}
-		t.Fatalf("plant pg_trgm in template1: %v", err)
-	}
-	if _, err := plantDB.ExecContext(plantCtx, "CREATE TABLE IF NOT EXISTS public.eshu_proof_template_canary (id integer)"); err != nil {
-		_ = plantDB.Close()
-		t.Fatalf("plant canary table in template1: %v", err)
-	}
-	// Close before creating the proof database: any open connection to the
-	// source template makes CREATE DATABASE fail with SQLSTATE 55006, which
-	// would mask the inheritance assertion below. The restore cleanup opens
-	// its own connection.
-	if err := plantDB.Close(); err != nil {
-		t.Fatalf("close template1 after the isolation plant: %v", err)
-	}
+	// Register the restore before any plant step: a Fatalf in the plant,
+	// the canary create, or the close below must still remove what the
+	// test installed. Every restore op is a no-op when its plant never
+	// ran (IF EXISTS; conditional extension drop).
 	t.Cleanup(func() {
 		restoreDB, err := sql.Open("pgx", disposableProofTemplate1DSN(t, adminDSN))
 		if err != nil {
@@ -107,6 +93,24 @@ func TestOpenDisposableDatabaseLiveIsPristineFromTemplate0(t *testing.T) {
 			}
 		}
 	})
+	if _, err := plantDB.ExecContext(plantCtx, "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"); err != nil {
+		_ = plantDB.Close()
+		if strings.Contains(err.Error(), "permission denied") {
+			t.Skipf("template1 plant needs extension-install privilege: %v", err)
+		}
+		t.Fatalf("plant pg_trgm in template1: %v", err)
+	}
+	if _, err := plantDB.ExecContext(plantCtx, "CREATE TABLE IF NOT EXISTS public.eshu_proof_template_canary (id integer)"); err != nil {
+		_ = plantDB.Close()
+		t.Fatalf("plant canary table in template1: %v", err)
+	}
+	// Close before creating the proof database: any open connection to the
+	// source template makes CREATE DATABASE fail with SQLSTATE 55006, which
+	// would mask the inheritance assertion below. The restore cleanup opens
+	// its own connection.
+	if err := plantDB.Close(); err != nil {
+		t.Fatalf("close template1 after the isolation plant: %v", err)
+	}
 	// Registered before the helper call so it runs after the helper's own
 	// drop. The name is read back from the connection, so the check names the
 	// exact database this test created and cannot trip on a concurrent
