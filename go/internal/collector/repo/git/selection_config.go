@@ -105,6 +105,12 @@ type RepoSyncConfig struct {
 	// Parsed from ESHU_REPO_SELECTION_LIVENESS_WINDOW; default 48h, minimum
 	// 1h.
 	SelectionLivenessWindow time.Duration
+	// ForceReindex forces a full re-parse even when the corpus manifest is
+	// unchanged (#7982). It is set only from the eshu-bootstrap-index --force
+	// argv override, never from the environment, so scheduled fleet syncs keep
+	// their manifest skip while an operator-forced run re-indexes from scratch
+	// through the repository_reindex_requested reason path.
+	ForceReindex bool
 }
 
 // LoadRepoSyncConfig parses the repo-sync environment contract for Go runtimes.
@@ -199,6 +205,13 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	}
 	normalizeFilesystemConfig(&config)
 	return config, nil
+}
+
+// NormalizeFilesystemConfigForBootstrap re-applies the filesystem root
+// normalization after an argv override sets FilesystemRoot outside
+// LoadRepoSyncConfig (#7982). It keeps one normalization owner in this package.
+func NormalizeFilesystemConfigForBootstrap(config *RepoSyncConfig) {
+	normalizeFilesystemConfig(config)
 }
 
 func normalizeFilesystemConfig(config *RepoSyncConfig) {

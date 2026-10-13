@@ -50,7 +50,7 @@ func syncFilesystemRepositories(
 	}
 	manifestPath := filepath.Join(config.ReposDir, ".eshu-fixture-manifest")
 	previousManifest, err := os.ReadFile(manifestPath) // #nosec G304 -- reads internal fixture-manifest file at a path derived from config.ReposDir, not user-supplied input
-	if err == nil && strings.TrimSpace(string(previousManifest)) == currentManifest {
+	if err == nil && strings.TrimSpace(string(previousManifest)) == currentManifest && !config.ForceReindex {
 		return FilesystemSyncSelection{}, nil
 	}
 	if err != nil && !os.IsNotExist(err) {

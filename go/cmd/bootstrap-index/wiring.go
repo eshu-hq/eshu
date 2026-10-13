@@ -39,6 +39,7 @@ func buildBootstrapCollector(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
+	cliArgs bootstrapArgs,
 ) (collectorDeps, error) {
 	instrumentedDB := &postgres.InstrumentedDB{
 		Inner:       database,
@@ -50,6 +51,11 @@ func buildBootstrapCollector(
 	config, err := git.LoadRepoSyncConfig("bootstrap-index", getenv)
 	if err != nil {
 		return collectorDeps{}, err
+	}
+	applyBootstrapArgOverrides(&config, cliArgs)
+	if cliArgs.Force && strings.TrimSpace(config.SourceMode) != "filesystem" && logger != nil {
+		logger.Warn("bootstrap --force applies to filesystem source mode only; continuing without a forced re-parse",
+			slog.String("source_mode", config.SourceMode))
 	}
 	discoveryOptions, err := git.LoadDiscoveryOptionsFromEnv(getenv)
 	if err != nil {

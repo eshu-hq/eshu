@@ -21,7 +21,7 @@ const bootstrapIndexPreparseSelectors = 1
 // a bootstrap can skip the parse; its selector must carry the configuration.
 func TestBootstrapIndexSelectorCarriesPreparse(t *testing.T) {
 	t.Parallel()
-	deps, err := buildBootstrapCollector(context.Background(), &fakeBootstrapSQLDB{}, func(string) string { return "" }, nil, nil, nil)
+	deps, err := buildBootstrapCollector(context.Background(), &fakeBootstrapSQLDB{}, func(string) string { return "" }, nil, nil, nil, bootstrapArgs{})
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v", err)
 	}

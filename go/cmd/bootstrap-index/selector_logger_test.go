@@ -42,7 +42,7 @@ func TestBuildBootstrapCollectorPassesLoggerToSelector(t *testing.T) {
 		context.Background(),
 		&fakeBootstrapSQLDB{},
 		func(string) string { return "" },
-		nil, nil, logger,
+		nil, nil, logger, bootstrapArgs{},
 	)
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
@@ -75,7 +75,7 @@ func TestBuildBootstrapCollectorSelectorEmitsSelectionProgress(t *testing.T) {
 			}
 			return ""
 		},
-		nil, nil, logger,
+		nil, nil, logger, bootstrapArgs{},
 	)
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)

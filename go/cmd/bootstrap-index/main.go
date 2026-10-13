@@ -110,6 +110,21 @@ func main() {
 		return
 	}
 
+	cliArgs, err := parseBootstrapArgs(os.Args[1:])
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprint(os.Stderr, bootstrapUsage())
+		os.Exit(1)
+	}
+	if cliArgs.ShowHelp {
+		_, _ = fmt.Fprint(os.Stdout, bootstrapUsage())
+		return
+	}
+
+	collectorFn := func(ctx context.Context, database bootstrapDB, getenv func(string) string, tracer trace.Tracer, instruments *telemetry.Instruments, logger *slog.Logger) (collectorDeps, error) {
+		return buildBootstrapCollector(ctx, database, getenv, tracer, instruments, logger, cliArgs)
+	}
+
 	if err := run(
 		context.Background(),
 		os.Getenv,
@@ -125,7 +140,7 @@ func main() {
 		productionSecretLines(),
 		ensureBootstrapGraphSchema,
 		openBootstrapGraph,
-		buildBootstrapCollector,
+		collectorFn,
 		buildBootstrapProjector,
 	); err != nil {
 		slog.Error("bootstrap-index failed", "error", err)
