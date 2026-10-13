@@ -78,8 +78,8 @@ func TestContentFilesLanguageCoveringIndexMigrationsSwapIndexAndVacuum(t *testin
 	for i, name := range order {
 		pos[name] = i
 	}
-	if !(pos["drop_content_files_language_repo_idx"] < pos["content_files_language_covering_idx"] &&
-		pos["content_files_language_covering_idx"] < pos["content_files_language_covering_idx_vacuum"]) {
+	if pos["drop_content_files_language_repo_idx"] >= pos["content_files_language_covering_idx"] ||
+		pos["content_files_language_covering_idx"] >= pos["content_files_language_covering_idx_vacuum"] {
 		t.Fatal("migrations must apply in drop, rebuild, vacuum order")
 	}
 }
