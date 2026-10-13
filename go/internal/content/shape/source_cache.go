@@ -19,6 +19,12 @@ var entitySourceCacheByteLimits = map[string]int{
 	// Variable declarations often include large generated assignments. Full-file
 	// content remains indexed for exact search; entity source_cache is a snippet.
 	"Variable": 4096,
+	// SqlColumn snippets come from the owning file line range, so one column
+	// of a wide generated SQL file can hold megabytes of source_cache (#8001:
+	// five SqlColumn entities held 1.5 to 13.1 MB each, stalling the entity
+	// search trigram recheck). Full-file content remains indexed for exact
+	// search; entity source_cache is a snippet.
+	"SqlColumn": 4096,
 }
 
 // entitySourceCache returns the best source snippet for one entity using parser

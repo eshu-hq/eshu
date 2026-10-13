@@ -52,6 +52,52 @@ func TestMaterializeLimitsOversizedVariableSourceCache(t *testing.T) {
 	}
 }
 
+func TestMaterializeLimitsOversizedSqlColumnSourceCache(t *testing.T) {
+	t.Parallel()
+
+	limit, ok := entitySourceCacheByteLimits["SqlColumn"]
+	if !ok {
+		t.Fatalf("entitySourceCacheByteLimits has no SqlColumn entry (issue #8001)")
+	}
+
+	oversizedBody := strings.Repeat("  big_col TEXT DEFAULT 'padding to widen the row',\n", 400)
+	got, err := Materialize(Input{
+		RepoID: "repository:r_sqlcolumn",
+		Files: []File{{
+			Path:     "schema.sql",
+			Body:     oversizedBody,
+			Language: "sql",
+			EntityBuckets: map[string][]Entity{
+				"sql_columns": {{
+					Name:       "public.events.big_col",
+					LineNumber: 1,
+					EndLine:    400,
+				}},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Materialize() error = %v, want nil", err)
+	}
+	if len(got.Entities) != 1 {
+		t.Fatalf("len(Materialize().Entities) = %d, want 1", len(got.Entities))
+	}
+
+	entity := got.Entities[0]
+	if len(entity.SourceCache) > limit {
+		t.Fatalf("SourceCache length = %d, want <= %d", len(entity.SourceCache), limit)
+	}
+	if entity.Metadata[sourceCacheTruncatedMetadataKey] != true {
+		t.Fatalf("Metadata[%s] = %#v, want true", sourceCacheTruncatedMetadataKey, entity.Metadata[sourceCacheTruncatedMetadataKey])
+	}
+	if got, want := entity.Metadata[sourceCacheOriginalBytesMetadataKey], len(oversizedBody); got != want {
+		t.Fatalf("Metadata[%s] = %#v, want %#v", sourceCacheOriginalBytesMetadataKey, got, want)
+	}
+	if got, want := entity.Metadata[sourceCacheLimitBytesMetadataKey], limit; got != want {
+		t.Fatalf("Metadata[%s] = %#v, want %#v", sourceCacheLimitBytesMetadataKey, got, want)
+	}
+}
+
 func TestLimitEntitySourceCacheKeepsUTF8Valid(t *testing.T) {
 	t.Parallel()
 
