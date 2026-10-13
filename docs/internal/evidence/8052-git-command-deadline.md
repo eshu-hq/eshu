@@ -4,9 +4,13 @@ Issue #8052: the git collector's sync loop runs one repository at a time and
 gave each git command no deadline of its own. On the QA environment on
 2026-10-12 and 13, a fetch that waited on name resolution ran until libcurl
 gave up (`Resolving timed out after 300040 milliseconds`), and the whole fleet
-sync waited with it: 14 stalls of 300 s, 70 minutes of paused sync in 10 h
-54 min. The change runs every network-capable git command under a deadline
-derived from the loop context and kills the whole process group when it
+sync waited with it. Issue #8052 counted 12 stalls of 300 s, 60 minutes of
+paused sync in 10 h 24 min (18:31:41Z on 2026-10-12 to 04:55:49Z on
+2026-10-13); a later count of the same stream by the change owner reported 14
+stalls, 70 minutes in 10 h 54 min (its window ends are not recorded here); the
+table below covers a third, shorter window with its own counts. The change
+runs every network-capable git command under a deadline derived from the loop
+context and kills the whole process group when it
 expires: `ESHU_GIT_RESOLVE_TIMEOUT_SECONDS` (default 60) for `ls-remote` ref
 listing and the default-branch lookup, `ESHU_GIT_FETCH_TIMEOUT_SECONDS`
 (default 90) for fetch, `ESHU_GIT_CLONE_TIMEOUT_SECONDS` (default 600) for the
@@ -77,13 +81,23 @@ that fetch and clone carry `-c http.lowSpeedLimit=1 -c http.lowSpeedTime=60`
 immediately before the subcommand while `GIT_CONFIG_COUNT`,
 `GIT_CONFIG_KEY_0` and `GIT_CONFIG_VALUE_0` still hold the single GitHub-scoped
 credential header, and that a local `rev-parse` carries no low-speed options.
-Mutations, each restored: removing the deadline fails the real-git stall cells,
+Pinned refs: `TestRealGitStalledPinnedRefFetchesAreBounded` stalls
+`gitFetchPinnedRef`, which always runs a branch fetch and a tag fetch in
+sequence, against the same listener; both are killed at their 2 s deadline
+(4.17 s in total), the counter holds exactly `{fetch:2}`, the helper is gone
+and no `.lock` file is left. `TestPinnedRefFetchesCarryLowSpeed` records both
+fetches carrying the low-speed options before `fetch`. A pinned-ref kill is
+logged only in the `failed to fetch pinned ref; skipping` warning, not as
+`git repository sync failed`. Mutations, each restored: removing the deadline fails the real-git stall cells,
 the loop cell, `TestOperationSetIsClosed` and `TestRunBoundsAnEscapedDescendant`;
 killing only the direct child fails the stall cells and the loop cell (the
 surviving helper holds the pipes past the 5 s guard); labelling any error a
 deadline fails the drip, low-speed and parent-cancel cells; dropping the
 low-speed options fails the argv cell and the low-speed cell; dropping
-`WaitDelay` fails `TestRunBoundsAnEscapedDescendant`. A killed command adds
+`WaitDelay` fails `TestRunBoundsAnEscapedDescendant`; removing the deadline
+from the two pinned fetches fails `TestRealGitStalledPinnedRefFetchesAreBounded`
+(run in a private detached worktree, 12:13Z), and removing the low-speed options
+from them fails `TestPinnedRefFetchesCarryLowSpeed`. A killed command adds
 nothing to `SelectedRepoPaths`, and both selection callers build the batch only
 from that list, so no generation is built for the repository that cycle; the
 Postgres baseline is untouched and the next poll retries it. Not measured: the

@@ -20,8 +20,9 @@ most that deadline.
   `ESHU_GIT_FETCH_TIMEOUT_SECONDS` and `ESHU_GIT_CLONE_TIMEOUT_SECONDS`. A
   value that is not a whole number of seconds from 1 to 86400 is a startup
   error naming the variable and the value.
-- `Run`: runs a command under its deadline in its process group. On expiry it
-  returns `*Error` (command, limit, elapsed). A parent-context cancel returns
+- `Run`: runs a command under its deadline. The caller builds the command with
+  `runtime.NewProcessGroupCommand` (Run does not create the process group), so
+  the kill reaches git and its helper together. On expiry it returns `*Error` (command, limit, elapsed). A parent-context cancel returns
   the plain process error and counts nothing. `WaitDelay` bounds how long Run
   waits on the output pipes after the kill; a command that exited zero keeps
   its success.

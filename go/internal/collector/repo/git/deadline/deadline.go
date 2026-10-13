@@ -222,9 +222,10 @@ func record(ctx context.Context, deadlineErr *Error) {
 }
 
 // Run runs one git command under the deadline of its operation. build must
-// construct the command from the context it is handed; the command runs in its
-// own process group, so the deadline kills git and its remote-https helper
-// together (see runtime.NewProcessGroupCommand). A kill by the deadline returns
+// construct the command from the context it is handed, and must build it with
+// runtime.NewProcessGroupCommand: Run does not create the process group, that
+// constructor does, and only a command in its own group lets the deadline kill
+// git and its remote-https helper together. A kill by the deadline returns
 // an *Error. A kill by the parent context returns the plain process error, so
 // a shutdown is never reported or counted as a deadline. An operation outside
 // the closed set is refused before anything runs.

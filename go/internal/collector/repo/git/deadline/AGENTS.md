@@ -12,6 +12,9 @@
 - This package is a leaf. `git` imports it; it must never import `git`.
 - Build every command from the context `Run` hands to `build`. A command built
   from the parent context gets no deadline.
+- Build it with `runtime.NewProcessGroupCommand` (the git package does this
+  through `newGitCommand`). `Run` does not create the process group; a command
+  without one leaves git-remote-http alive after the kill.
 - `Run` sets `cmd.WaitDelay` itself, not the process-group constructor.
   `runtime.NewProcessGroupCommand` leaves it unset because Go applies it after
   a zero exit too and callers would treat `exec.ErrWaitDelay` as a failure;
