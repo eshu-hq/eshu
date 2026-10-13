@@ -5,6 +5,10 @@
 #
 # Run with:
 #   bash scripts/test-verify-docs-build-changed.sh
+#
+# ESHU_TEST_VERIFIER overrides the verifier under test (default: the verifier
+# in this checkout). Use it to run the cells against an older copy of the
+# script and confirm they fail there.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

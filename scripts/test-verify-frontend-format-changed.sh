@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# test-verify-frontend-format-changed.sh — hermetic self-test for the
+# frontend-format-changed verifier, using throwaway mktemp repos.
+#
+# Run with:
+#   bash scripts/test-verify-frontend-format-changed.sh
+#
+# ESHU_TEST_VERIFIER overrides the verifier under test (default: the verifier
+# in this checkout). Use it to run the cells against an older copy of the
+# script and confirm they fail there.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
