@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/loki guidance
+# AGENTS.md - internal/collector/observability/loki guidance
 
 ## Read first
 

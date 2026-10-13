@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/loki` collects bounded live Grafana Loki metadata for
+`internal/collector/observability/loki` collects bounded live Grafana Loki metadata for
 observability evidence. It gives Eshu no-IaC fallback, drift candidates, and
 freshness validation without treating provider state as declared GitOps truth.
 
@@ -93,7 +93,7 @@ Observability Evidence: operators can diagnose live Loki reads through
 emitted by fact kind, high-cardinality rejection counts, stale counts,
 rate-limit counts, retry counts, and metadata redaction counts.
 
-No-Regression Evidence (#2361): `go test ./internal/collector/loki -count=1`
+No-Regression Evidence (#2361): `go test ./internal/collector/observability/loki -count=1`
 covers SDK-backed base URL validation, bounded HTTP retries, SDK `HTTPError`
 wrapping for hard provider failures, partial coverage warnings,
 `status:error` API failures, YAML ruler decoding, tenant redaction, source

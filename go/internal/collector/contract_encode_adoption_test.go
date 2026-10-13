@@ -27,7 +27,7 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "loki/envelope.go",
+			path: "observability/loki/envelope.go",
 			calls: []string{
 				"EncodeObservabilitySourceInstance",
 				"EncodeObservabilityObservedLogSignal",

@@ -1718,7 +1718,7 @@
       "category": "collector",
       "name": "loki",
       "readiness": "implemented",
-      "owner": "internal/collector/loki",
+      "owner": "internal/collector/observability/loki",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
@@ -1752,11 +1752,11 @@
           "list_observability_coverage"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-loki ./internal/collector/loki ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-loki ./internal/collector/observability/loki ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/observability-evidence.md",
-          "go/internal/collector/loki/testdata"
+          "go/internal/collector/observability/loki/testdata"
         ],
         "truth_profile": "provider_gated"
       }
