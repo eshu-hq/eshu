@@ -34,6 +34,7 @@ func TestMethodologyRewriteDeclarationGate(t *testing.T) {
 		name        string
 		modify      []string
 		declare     []string
+		dirty       string
 		wantFailure bool
 		wantPath    string
 	}{
@@ -43,9 +44,10 @@ func TestMethodologyRewriteDeclarationGate(t *testing.T) {
 		{name: "stale declaration", modify: []string{"file_a.go"}, declare: []string{"file_a.go", "file_b.go"}, wantFailure: true, wantPath: "file_b.go"},
 		{name: "no declaration with diff", modify: []string{"file_a.go"}, wantFailure: true, wantPath: "file_a.go"},
 		{name: "unknown declared path", declare: []string{"elsewhere/unknown.go"}, wantFailure: true, wantPath: "unknown.go"},
+		{name: "working tree divergence", modify: []string{"file_a.go"}, declare: []string{"file_a.go"}, dirty: "file_a.go", wantFailure: true, wantPath: "file_a.go"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			checkMethodologyRewriteDeclarationScenario(t, childMarker, pinned, testCase.modify, testCase.declare, testCase.wantFailure, testCase.wantPath)
+			checkMethodologyRewriteDeclarationScenario(t, childMarker, pinned, testCase.modify, testCase.declare, testCase.dirty, testCase.wantFailure, testCase.wantPath)
 		})
 	}
 }
@@ -73,7 +75,7 @@ func runMethodologyRewriteDeclarationChild(t *testing.T, spec string) {
 	methodologyVerifySameProductionWithDeclaration(t, parts[0], parts[1], split(parts[2]), decl)
 }
 
-func checkMethodologyRewriteDeclarationScenario(t *testing.T, childMarker string, pinned, modify, declare []string, wantFailure bool, wantPath string) {
+func checkMethodologyRewriteDeclarationScenario(t *testing.T, childMarker string, pinned, modify, declare []string, dirty string, wantFailure bool, wantPath string) {
 	t.Helper()
 	root := t.TempDir()
 	packageDir := filepath.Join(root, "go", "internal", "query", "codemodel")
@@ -112,6 +114,11 @@ func checkMethodologyRewriteDeclarationScenario(t *testing.T, childMarker string
 	runGit("add", "go/internal/query/codemodel")
 	runGit("commit", "--quiet", "--allow-empty", "-m", "candidate readers")
 	candidate := runGit("rev-parse", "HEAD")
+	if dirty != "" {
+		if err := os.WriteFile(filepath.Join(packageDir, dirty), []byte("package codemodel\n// uncommitted edit\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	declared := make([]string, 0, len(declare))
 	for _, name := range declare {

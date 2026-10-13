@@ -72,8 +72,10 @@ func methodologyVerifySameProduction(t *testing.T, base, candidate string, paths
 // base-vs-candidate diff over the pinned set to equal the declared set
 // exactly. An undeclared differing file, a declared-but-identical file, and
 // a declared path outside the pinned set all fail closed, exactly as an
-// undeclared rewrite does today. A PR with no rewrite leaves the zero
-// declaration in place and the pin behaves byte-for-byte as before.
+// undeclared rewrite does today. Declared files additionally bind the working
+// tree to the candidate blob, because the measured binary executes
+// working-tree code. A PR with no rewrite leaves the zero declaration in
+// place and the pin behaves byte-for-byte as before.
 type methodologyRewriteDeclaration struct {
 	Issue  int
 	Reason string
@@ -199,6 +201,22 @@ func methodologyVerifySameProductionWithDeclaration(t *testing.T, base, candidat
 	for _, path := range names {
 		ids := differing[path]
 		t.Logf("rewrite declaration issue #%d: %s base=%s candidate=%s: %s", decl.Issue, decl.Reason, ids.base, ids.candidate, path)
+	}
+	// Bind the working tree exactly as the strict pin does: the measured
+	// test binary executes working-tree code, so an uncommitted edit to a
+	// declared reader would measure unpinned code behind a passing pin.
+	for _, path := range names {
+		committed, err := exec.Command("git", "show", candidate+":"+path).Output()
+		if err != nil {
+			t.Fatalf("read candidate production source %s: %v", path, err)
+		}
+		working, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(working, committed) {
+			t.Fatalf("production source %s working tree differs from candidate %s: commit the file before measuring; the pin cannot bind uncommitted code", path, candidate)
+		}
 	}
 }
 
