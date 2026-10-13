@@ -16,11 +16,12 @@ import (
 )
 
 // writeRecordingGit installs a fake git that writes its argv (one per line) to
-// argvFile and its environment to envFile, then succeeds with no output.
+// argvFile (an "@@END@@" line ends each invocation) and its environment to envFile,
+// then succeeds with no output.
 func writeRecordingGit(t *testing.T, argvFile, envFile string) {
 	t.Helper()
 	binDir := t.TempDir()
-	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + argvFile + "'\nenv > '" + envFile + "'\n"
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '" + argvFile + "'\nprintf '@@END@@\\n' >> '" + argvFile + "'\nenv > '" + envFile + "'\n"
 	if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -122,4 +123,38 @@ func TestLocalGitCommandsCarryNoLowSpeed(t *testing.T) {
 	if strings.Contains(string(raw), "lowSpeed") {
 		t.Fatalf("local rev-parse argv carries low-speed options: %q", raw)
 	}
+}
+
+// TestPinnedRefFetchesCarryLowSpeed: gitFetchPinnedRef runs a branch fetch and
+// a tag fetch; both must carry the low-speed options before the subcommand and
+// leave the credential header alone.
+func TestPinnedRefFetchesCarryLowSpeed(t *testing.T) {
+	const token = "tkn"
+	argvFile := filepath.Join(t.TempDir(), "argv")
+	envFile := filepath.Join(t.TempDir(), "env")
+	writeRecordingGit(t, argvFile, envFile)
+	t.Setenv("GIT_CONFIG_COUNT", "")
+	reposDir := t.TempDir()
+	config := syncIsolationTestConfig(reposDir)
+	config.GitAuthMethod = "token"
+	repoPath := makeManagedRepo(t, reposDir, "github/org/repo-a")
+	if _, _, err := gitFetchPinnedRef(context.Background(), config, repoPath, "release", token, nil, gitSyncLogEvent{}); err != nil {
+		t.Fatalf("gitFetchPinnedRef: %v", err)
+	}
+	raw, err := os.ReadFile(argvFile)
+	if err != nil {
+		t.Fatalf("fake git did not run: %v", err)
+	}
+	calls := strings.Split(strings.TrimSuffix(strings.TrimSpace(string(raw)), "@@END@@"), "@@END@@")
+	if len(calls) != 2 {
+		t.Fatalf("fake git ran %d times, want 2 (branch fetch and tag fetch): %q", len(calls), raw)
+	}
+	for i, wantRefspec := range []string{"+refs/heads/release:refs/remotes/origin/release", "+refs/tags/release:refs/tags/release"} {
+		argv := strings.Fields(strings.TrimSpace(calls[i]))
+		assertLowSpeedBefore(t, argv, "fetch")
+		if !slices.Contains(argv, wantRefspec) {
+			t.Fatalf("fetch %d argv = %v, want refspec %q", i+1, argv, wantRefspec)
+		}
+	}
+	assertAuthHeaderEnvUntouched(t, envFile, token)
 }
