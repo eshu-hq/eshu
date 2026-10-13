@@ -19,7 +19,7 @@
 ## Invariants this package enforces
 
 - **No parent import** — the engine imports `db`, `facts`,
-  `relationships`, `scope`, `telemetry`, `workflow`, never the parent
+  `relationships`, `scope`, `telemetry`, never the parent
   postgres package. Root-owned behavior arrives through `Store`
   constructors.
 - **Partition-keyed publication** — one readiness row and one memo row per
