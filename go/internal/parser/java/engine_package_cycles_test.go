@@ -84,10 +84,6 @@ public class App {
 // file whose declaration carries an annotation must still report the declared
 // package, never the annotation text, so the projector never stamps a
 // non-package as source_package.
-// TestJavaPackageCyclesDefaultPackageCarriesNoPackageName pins the
-// absence half of the #7349 package identity: a file outside every package
-// declaration carries no package_name key, keeping that payload
-// byte-identical, so the projector never invents a package for it.
 func TestJavaPackageCyclesAnnotatedPackageDeclarationReportsPackage(t *testing.T) {
 	t.Parallel()
 
@@ -112,6 +108,10 @@ public class PlaceHolder {
 	}
 }
 
+// TestJavaPackageCyclesDefaultPackageCarriesNoPackageName pins the
+// absence half of the #7349 package identity: a file outside every package
+// declaration carries no package_name key, keeping that payload
+// byte-identical, so the projector never invents a package for it.
 func TestJavaPackageCyclesDefaultPackageCarriesNoPackageName(t *testing.T) {
 	t.Parallel()
 

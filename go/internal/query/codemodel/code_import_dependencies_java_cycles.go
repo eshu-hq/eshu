@@ -59,9 +59,12 @@ func javaTargetPackage(module string) string {
 // semantics: the earliest positive line wins, each flag is null when any
 // folded edge predates the flags and the AND of the folded edges otherwise,
 // and rows no package can place are dropped and counted, never guessed onto
-// a node. The production fetch and this fold must agree; their shared truth
-// table is TestJavaTargetPackageDerivation, and the env-gated live test
-// proves the fetch end to end.
+// a node. The count applies only to file-level rows fed directly to the
+// decoder (unit and fixture paths): the production fetch pre-filters
+// unplaced edges in the statement, so production reads report zero by
+// construction. The production fetch and this fold must agree on every
+// placed row; their shared truth table is TestJavaTargetPackageDerivation,
+// and the env-gated live test proves the fetch end to end.
 func collapseJavaPackageCycleRows(rows []map[string]any) ([]map[string]any, int) {
 	type pairKey struct {
 		repoID string

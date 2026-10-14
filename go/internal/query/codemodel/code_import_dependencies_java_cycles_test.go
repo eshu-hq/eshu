@@ -42,7 +42,9 @@ func TestJavaTargetPackageDerivation(t *testing.T) {
 // fold: file-level rows collapse to one row per (repository, source package,
 // target package) with the earliest positive line and null-if-any-null flag
 // folding, matching the production collapsed fetch. Rows no package can
-// place are dropped and counted, never guessed onto a node.
+// place are dropped and counted here, never guessed onto a node; the
+// production fetch pre-filters such rows, so production reads report zero
+// by construction.
 func TestCollapseJavaPackageCycleRowsFoldsFileEdges(t *testing.T) {
 	t.Parallel()
 
