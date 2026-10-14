@@ -3,7 +3,8 @@
 Status: proposed. Companion to
 [the design page](7765-gitlab-group-discovery.md), which holds the decision and
 the contracts. This page holds the prove-first plan, the test plan and the PR
-breakdown. Source check: origin/main 7be568e44, 2026-10-09.
+breakdown. Source check: origin/main 66fe58264, 2026-10-13. The measurements below
+were taken on 2026-10-09, and PR 1 re-measures before it merges.
 
 ## Prove the theory first (before PR 1 code)
 
@@ -194,6 +195,22 @@ evidence note, `docs/internal/evidence/7765-gitlab-group-prefix-read.md`. The
 store README gets the "Performance Evidence (#7765)" section in PR 1. Until
 then, the figures on this page are the only record.
 
+## Failure classes
+
+Any listing error fails the cycle with no partial result. The class rides on
+`failure_class`:
+
+| Class | Cause |
+| --- | --- |
+| `auth_failed` | 401 |
+| `forbidden` | 403, usually the token lacks `read_api` |
+| `group_not_found` | 404 |
+| `config_invalid` | An exact rule outside the resolved group prefix |
+| `rate_limited` | 429 after retries |
+| `upstream_error` | Other 5xx after retries |
+| `transport_error` | Network failure |
+| `decode_error` | Response body did not decode |
+
 ## Test plan (red first)
 
 **Leaf `gitlab` (httptest fixture, new tests).**
@@ -259,7 +276,11 @@ then, the figures on this page are the only record.
 
 **Git package.**
 - `TestGitLabGroupSelectionRequestMapsScopeIdentity`: scope IDs and slugs equal
-  `gitScopeIdentityForRepositoryID`, and the host is `gitlab.com`.
+  `gitScopeIdentityForRepositoryID`, and the host is `gitlab.com` by default.
+- `TestGitLabGroupHostLockstep`: with `ESHU_GITLAB_HOST=gitlab.corp.example`,
+  `apiBase`, the selector `Host`, `repoRemoteURL` and the token-header host all
+  read `gitlab.corp.example`, and the scope IDs hash it. With the variable unset
+  every one of them reads `gitlab.com`.
 - `observeSelection` observes `gitlabGroup` on shard 0 only.
 - Config rejections: missing group, `githubApp`, `ssh`, `GITHUB_TOKEN`-only, and
   a path-form group with an exact rule outside its prefix, including one that
@@ -329,7 +350,12 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
      httptest suite.
    - Gates: package-docs, go-dir-gate (new directory under the cap),
      gosec-changed, telemetry-coverage, perf-evidence.
-4. **Wiring and config.** Merge only after #7821.
+4. **Wiring and config.** Starts with a mechanical extraction to free line
+   budget (design page, "Line cap"); #7949 and #8034 have already merged.
+   - Extraction, no behavior change: `reportRepositoryBasenameCollisions` and its
+     const move from `selection_discovery.go:411-499` to a leaf, with its caller
+     `selection_native.go:139` and its test `selection_duplicate_test.go`. A second
+     extraction frees about 7 lines in `selection_config.go`; its candidate is not chosen.
    - Files: `selection_github.go`, `selection_discovery.go`,
      `selection_native.go`, `selection_cli.go`, `selection_config.go`, the env
      registry plus the regenerated `env-registry.md`, and
@@ -337,8 +363,8 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
      liveness window's modes), `webhook_trigger_selector.go` (the
      `provider_not_selected` guard), and the mode mentions in
      `go/cmd/ingester/doc.go:35` and `go/cmd/collector-git/doc.go:18`.
-   - Gates: env-registry-doc, docs-cli-env-refs, telemetry-coverage,
-     perf-evidence, docs-build-changed.
+   - Gates: go-file-cap, go-dir-gate, env-registry-doc, docs-cli-env-refs,
+     telemetry-coverage, perf-evidence, docs-build-changed.
 5. **Helm and docs.**
    - Files: `values.yaml`, `values.schema.json`, `statefulset.yaml`,
      `_validation_core.tpl`, the helm-runtime-values and compose docs.
@@ -353,7 +379,8 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
 - Add `ESHU_REPO_SOURCE_MODE` as a VarEnum
   (`githubOrg|explicit|filesystem|gitlabGroup`, default `githubOrg`), so a typo
   fails `eshu config validate`.
-- `selection_config.go` is not in `coreScanFiles` (`coverage_test.go:19-50`), so
+- `ESHU_GITLAB_HOST` is already registered (#8034, `entries.go:119`) and is reused unchanged.
+- `selection_config.go` is not in `coreScanFiles` (`coverage_test.go:19-51`), so
   this is declarative. It is still needed because `docs-cli-env-refs` treats an
   unregistered variable in docs as new debt.
 - Regenerate `docs/public/reference/env-registry.md`.
@@ -362,6 +389,9 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
 - `values.yaml:1182-1189`: add `repoSync.source.gitlabGroup: ""`.
 - `values.schema.json:1331-1334`: add `gitlabGroup` to the mode enum.
 - `statefulset.yaml:85-100`: render `ESHU_GITLAB_GROUP`.
+- The chart does not expose `ESHU_GITLAB_HOST` (#8034 changed no chart file). Add
+  `repoSync.source.gitlabHost: ""` to the values and schema, rendered only when
+  set, so a self-managed group needs no `extraEnv`.
 - `_validation_core.tpl:67-69`: keep the ssh rule's wording ("ssh requires
   explicit or filesystem"). Add two fails:
   - `mode=gitlabGroup` requires `auth.method=token`, so `githubApp` and `ssh`
@@ -406,6 +436,6 @@ needs a token and an override file, like `githubOrg`.
   ID, whatever its kind (`storage/postgres/membership/live_read.go:22-29`), so
   it needs no change.
 - **Docs, in the same PR.** `docs/public/reference/telemetry/metrics-ingestion-collectors.md:34`
-  (465 lines, so split it if the new row crosses 500), `metrics.md:183`, the
+  (473 lines, so split it if the new row crosses 500), `metrics.md:183`, the
   discovery row in `docs/public/observability/telemetry-coverage.md:622` (the
   `telemetry-coverage` gate), and both membership READMEs.

@@ -1,10 +1,10 @@
 # GitLab Group Discovery Source Mode (#7765)
 
 Status: proposed. Implements the #7765 obligations of the #7765/#7766 arbiter
-ruling (Option C) within its non-goals. Source check: origin/main 7be568e44,
-2026-10-09. Depends on PR #7821 (token auth host scope, open, head f727f0080)
-and consumes the GitLab host through one function that #7764 will make
-configurable.
+ruling (Option C) within its non-goals. Source check: origin/main 66fe58264,
+2026-10-13. Builds on #7949 (token auth host scope) and #8034
+(`ESHU_GITLAB_HOST`), both merged, and reads the GitLab host through
+`repoProviderHost(config, "gitlab")`.
 
 This page holds the decision and the contracts. The prove-first plan, test plan
 and PR breakdown are in
@@ -45,7 +45,7 @@ origin/main, and this design follows the code on each:
    The design mirrors the code.
 4. **Host through `KnownScopeHost`.** `membership` is a leaf and must not import
    `git` (`membership/AGENTS.md`), so `KnownScopeHost("gitlab_group")` cannot call
-   `repoProviderHost`. The git package passes `repoProviderHost("gitlab")` in
+   `repoProviderHost`. The git package passes `repoProviderHost(config, "gitlab")` in
    `Selector.Host`, hashed with `omitempty` so `github_org` and `explicit` IDs
    stay byte-identical.
 
@@ -77,11 +77,12 @@ a new guarded migration is required. `githubOrg` does no fork filtering
 - **Repository identity.**
   - `repoProviderAndSlug` maps `gitlab/<a>/<b>/...` (3 or more segments) to
     provider `gitlab` (`selection_discovery.go:325-337`).
-  - `repoProviderHost("gitlab")` is hardcoded to `gitlab.com` (`:323-332`).
-  - `repoRemoteURL` builds `https://<host>/<slug>.git` (`:292-307`).
+  - `repoProviderHost(config, "gitlab")` returns the `ESHU_GITLAB_HOST` host (default `gitlab.com`,
+    #8034), the one host for the remote and the token header (`:381-390`).
+  - `repoRemoteURL` builds `https://<host>/<slug>.git` (`:308-323`).
   - The scope ID is `git-repository-scope:` plus
     `CanonicalRepositoryID(NormalizeRemoteURL(remote))`
-    (`source_processing.go:366-398`, `repositoryidentity/identity.go:248-259`).
+    (`source_processing.go:380-412`, `repositoryidentity/identity.go:248-259`).
   - `NormalizeRemoteURL` lowercases both host and path
     (`repositoryidentity/identity.go:84-91`). So `repo_slug` is the lowercased
     `path_with_namespace` (`:225-236`).
@@ -112,9 +113,10 @@ a new guarded migration is required. `githubOrg` does no fork filtering
 | `ESHU_GITLAB_GROUP` (new) | Required. The group's full path (`acme/platform`) or numeric ID. Every cycle resolves it with `GET /groups/:id?with_projects=false` to `full_path`, which becomes the partition and selector owner (lowercased). A 404 fails the cycle (`group_not_found`). |
 | `ESHU_INCLUDE_ARCHIVED_REPOS` | Reused (`selection_config.go:179`). |
 | `ESHU_REPOSITORY_RULES_JSON` | Reused. Exact and regex rules both allowed, like `githubOrg`. |
-| `ESHU_REPO_LIMIT` | Reused (default 4000, `selection_config.go:140`). |
+| `ESHU_REPO_LIMIT` | Reused (default 4000, `selection_config.go:176`). |
+| `ESHU_GITLAB_HOST` | Reused (#8034, `selection_config.go:157`). The host for the API, the clone remote and the token header, default `gitlab.com`. A bare hostname: a port or path fails config load. |
 | `ESHU_GIT_AUTH_METHOD` | Must be `token`. Config load rejects `githubApp` (it mints a GitHub token, `selection_github.go:220-221`), `ssh` and `none`. |
-| `ESHU_GIT_TOKEN` | Required. **`GITHUB_TOKEN` is not accepted as a fallback in this mode** (`selection_config.go:180` reads both). That fallback would send a GitHub credential to gitlab.com. |
+| `ESHU_GIT_TOKEN` | Required. **`GITHUB_TOKEN` is not accepted as a fallback in this mode** (`selection_config.go:180` reads both). That fallback would send a GitHub credential to the GitLab host. |
 
 An exact rule must start with `gitlab/<group full path>/`, compared
 case-sensitively like every exact rule, so the right path in the wrong case fails
@@ -148,9 +150,9 @@ compose note are listed on
 
 **Location.** A new leaf package, `go/internal/collector/repo/git/gitlab`
 (`git -> leaf`, never the reverse). The git directory sits in the dirgate ratchet
-at exactly 65 files (`scripts/lib/dirgate-grandfather.tsv:79`), so a new file
-there fails `go-dir-gate`. Its nearby files are close to the 500-line cap: 420
-in `selection_github.go`, 441 in `selection_discovery.go`, 445 in
+at exactly 66 files (`scripts/lib/dirgate-grandfather.tsv:79`), so a new file
+there fails `go-dir-gate`. Its nearby files are close to the 500-line cap: 422
+in `selection_github.go`, 499 in `selection_discovery.go`, 498 in
 `selection_config.go`. The leaf needs `doc.go`, `README.md` and `AGENTS.md`.
 
 **Surface.**
@@ -161,8 +163,8 @@ in `selection_github.go`, 441 in `selection_discovery.go`, 445 in
 - `CheckExactRules(fullPath string, exactRuleIDs []string) error`, the
   post-resolve prefix check from "Configuration" (`config_invalid`)
 
-`apiBase` is `"https://" + repoProviderHost("gitlab") + "/api/v4"`, built in the
-git package. That keeps one host function, which #7764 replaces.
+`apiBase` is `"https://" + repoProviderHost(config, "gitlab") + "/api/v4"`, built in the git package, so the
+API, the clone remote and the token header read one host. #8034 takes a bare hostname only: no port or relative URL root.
 
 **Request.**
 `GET {apiBase}/groups/{url.PathEscape(fullPath)}/projects?include_subgroups=true&with_shared=false&order_by=id&sort=asc&per_page=100&page=N`
@@ -215,15 +217,15 @@ docs page, so they never enter the listing even if `with_shared` were ignored.
   HTTPS) ([token scopes](https://docs.gitlab.com/security/tokens/access_token_scopes/)).
 - Recommend a group access token: its `read_repository` covers "all
   repositories in the group".
-- Clone auth is PR #7821 (head f727f0080): the HTTP Basic extraheader is scoped
-  to the clone host. For `gitlab/...` checkout paths that is gitlab.com with
-  username `oauth2` (`tokenAuthProvider` and `tokenAuthUsername` in that PR's
-  `selection_ssh.go`). Token auth fails closed, with no header, only for a path
-  outside `ReposDir` or inside `.eshu-ref-worktrees`. A managed path with no
-  provider prefix still resolves to github, which the webhook guard covers. GitLab accepts any non-empty username
+- Clone auth is #7949 (merged): the HTTP Basic extraheader is scoped to the clone
+  host, `repoProviderHost(config, provider)` (`selection_ssh.go:68`). For
+  `gitlab/...` checkout paths that is the `ESHU_GITLAB_HOST` host with username
+  `oauth2` (`tokenAuthProvider` `:90`, `tokenAuthUsername` `:106`). Token auth
+  fails closed, with no header, only for a path outside `ReposDir` or a name
+  under the reserved `.eshu-` prefix, which covers `.eshu-ref-worktrees`. A
+  managed path with no provider prefix still resolves to github, which the
+  webhook guard covers. GitLab accepts any non-empty username
   ([personal access tokens](https://docs.gitlab.com/user/profile/personal_access_tokens/)).
-- **Without #7821, private projects clone anonymously and fail.** The wiring
-  PR must merge after #7821.
 
 **Rate limits and backoff.**
 - gitlab.com allows "Group projects requests (`/api/v4/groups/:id/projects`)"
@@ -241,28 +243,20 @@ docs page, so they never enter the listing even if `with_shared` were ignored.
 - Per-request timeout is 15s, as for GitHub (`selection_github.go:228`).
 
 **Error classes.** Any error fails the cycle with no partial listing, as GitHub
-does (`selection_github.go:294-296`). The class rides on `failure_class`.
-
-| Class | Cause |
-| --- | --- |
-| `auth_failed` | 401 |
-| `forbidden` | 403, usually the token lacks `read_api` |
-| `group_not_found` | 404 |
-| `config_invalid` | An exact rule outside the resolved group prefix |
-| `rate_limited` | 429 after retries |
-| `upstream_error` | Other 5xx after retries |
-| `transport_error` | Network failure |
-| `decode_error` | Response body did not decode |
+does (`selection_github.go:294-296`). The class rides on `failure_class`: one of
+`auth_failed`, `forbidden`, `group_not_found`, `config_invalid`, `rate_limited`,
+`upstream_error`, `transport_error` or `decode_error`. The causes are tabulated on
+[the proof and rollout page](7765-gitlab-group-discovery-proof-and-rollout.md#failure-classes).
 
 ## Repository IDs and scope identity
 
 - The config and rule ID is `normalizeRepositoryID("gitlab/" + path_with_namespace)`.
   The case GitLab returns is kept, because the rules are case-sensitive.
-- The checkout path is `<ReposDir>/gitlab/<path>`, so #7821's host derivation
-  and `repoRemoteURL` agree.
+- The checkout path is `<ReposDir>/gitlab/<path>`, so the token header host and
+  `repoRemoteURL` agree (both read `repoProviderHost`).
 - **The scope ID is not that string.** It is
   `git-repository-scope:repository:r_<8hex>` over
-  `https://gitlab.com/<lowercased path>`.
+  `https://<ESHU_GITLAB_HOST>/<lowercased path>`.
 
 Consequences, stated as contract:
 
@@ -279,9 +273,10 @@ Consequences, stated as contract:
    - Either way, the old prefix's scopes are judged by nobody. Once the old rows
      outlive the liveness window they read selection `unknown`, not
      `not_selected`. This is a documented limit.
-4. **A #7764 host change** (gitlab.com to a self-managed host) changes every
-   GitLab scope ID and the selector ID (the host is hashed, see "Membership integration").
-   Re-scoping is an open question for #7764, not something #7765 fixes.
+4. **An `ESHU_GITLAB_HOST` change** (#8034) changes every GitLab scope ID (the
+   remote URL host is hashed) and the selector ID (the host is hashed, see
+   "Membership integration"). Neither #8034 nor #7765 re-scopes: the old host's
+   scopes are judged by nobody, as in item 3.
 
 ## Membership integration
 
@@ -301,7 +296,7 @@ Consequences, stated as contract:
 **Host.**
 - `membership` is a leaf and must not import `git` (`membership/AGENTS.md`), so
   it cannot call `repoProviderHost` itself.
-- The git package passes `repoProviderHost("gitlab")` into the selector.
+- The git package passes `repoProviderHost(config, "gitlab")` into the selector.
 - Add an unexported `(Selector) knownHost()`. It returns `s.Host` for
   `gitlab_group` and `KnownScopeHost(s.Kind)` otherwise.
 - `KnownScopeHost` keeps its signature and its `github_org`/`explicit` results.
@@ -386,12 +381,12 @@ like any other project, matching GitHub's lack of fork filtering.
   then `ListGroupProjects`, maps the projects to `[]GitHubRepositoryRecord{RepoID,
   GitHubID: project.ID, Archived}`, and reuses `selectGitHubRepositoryIDs`
   unchanged. Setting `ListingComplete` and the resolved full path is about 25
-  lines in `selection_discovery.go`, which ends near 466 lines.
-- `RepositorySelection` gains `GroupFullPath string`.
+  lines in `selection_github.go` (422 lines), where `discoverSelection` lives.
+- `RepositorySelection` (`selection_discovery.go:36`) gains `GroupFullPath string`.
 - `githubOrgSelectionRequest` is generalized to `listingSelectionRequest(config,
   discovered, observedAt, selector)`.
   - `githubOrg` passes `NewGitHubOrgSelector(...)`.
-  - `gitlabGroup` passes `NewGitLabGroupSelector(..., repoProviderHost("gitlab"),
+  - `gitlabGroup` passes `NewGitLabGroupSelector(..., repoProviderHost(config, "gitlab"),
     discovered.GroupFullPath, ...)`.
   - The existing `selection_observation_test.go` stays green unchanged.
 - `observeSelection` (`selection_github.go:47-54`) gains `case "gitlabGroup"`.
@@ -415,9 +410,9 @@ like any other project, matching GitHub's lack of fork filtering.
     returns a bare `org/repo` for a GitHub trigger (`:310-312`) and
     `bitbucket/org/repo` for a Bitbucket one, with no source-mode check. In
     `gitlabGroup` mode that ID is cloned from another host with the GitLab token
-    in `config.GitToken`. PR #7821 (head f727f0080) does not stop it: its
-    fail-closed rule (`tokenAuthProvider` returns `ok=false`) covers only paths
-    outside `ReposDir` and the `.eshu-ref-worktrees` namespace. A webhook-derived
+    in `config.GitToken`. #7949 does not stop it: its fail-closed rule
+    (`tokenAuthProvider` returns `ok=false`, `selection_ssh.go:90`) covers only
+    paths outside `ReposDir` and the reserved `.eshu-` prefix. A webhook-derived
     path under `ReposDir` is a managed checkout, a bare `org/repo` resolves to
     provider `github`, and the header is scoped to github.com.
   - So in `gitlabGroup` mode the webhook selector drops every trigger whose
@@ -442,9 +437,11 @@ lines cover the GitLab listing. The full contract and the docs to update are in
   "archived or pending-deletion projects" (Groups API), so they appear in an
   unfiltered listing. If deletion scheduling renames the path, a new scope
   would be cloned. Mitigation is an open question below.
-- **Line cap.** `selection_discovery.go` lands near 466 lines. If it crosses
-  500, the fallback is moving `reportRepositoryBasenameCollisions` (`:357-441`)
-  into a leaf. Moving it to a new file in `git/` is not allowed.
+- **Line cap.** The cap rejects at 501 lines, and #8034 filled `selection_discovery.go` (499)
+  and `selection_config.go` (498). PR 4 adds a `RepositorySelection` field and the config
+  wiring, so it first extracts code to a leaf and pays for its own lines. `reportRepositoryBasenameCollisions`
+  with its const (`selection_discovery.go:411-499`) uses only stdlib and telemetry and frees about 89
+  lines. `selection_config.go` needs about 7 and has no verified candidate. New files in `git/` are not allowed.
 - **Shard multiplication.** N shards × pages per cycle count against the
   600/min group-projects limit.
 
@@ -477,8 +474,8 @@ lines cover the GitLab listing. The full contract and the docs to update are in
 **Open questions.**
 - Handling of pending-deletion projects (`marked_for_deletion_on` or similar;
   field NOT_CHECKED). The proposal is to treat them as not listed.
-- Self-managed API base paths beyond the host (#7764).
-- Re-scoping on a host change (#7764).
+- Self-managed API base paths beyond the host: #8034 takes a bare hostname only, so a port or relative URL root is unsupported.
+- Re-scoping on an `ESHU_GITLAB_HOST` change (see "Repository IDs and scope identity").
 
 **NOT_CHECKED.**
 - Whether `simple=true` returns `archived` (not used), and whether GitLab's
@@ -495,5 +492,6 @@ lines cover the GitLab listing. The full contract and the docs to update are in
 - The auto-generated name of the `selector_kind` CHECK constraint (verify with
   `\d` before writing the migration), and the next free migration number (169
   is taken on main by #7760; check open PRs too).
-- Whether PR #7821 changes before merge. The design reads branch
-  `fix/7763-token-auth-host-scope` at `f727f0080`.
+- Whether the token-auth and host code (#7949, #8034) changes before PR 4 merges. The design reads main at `66fe58264`.
+- Self-managed GitLab behavior: rate limits and `Retry-After` are admin-set; the design reads gitlab.com's documented limits.
+- A leaf-safe extraction for `selection_config.go` (see "Line cap").
