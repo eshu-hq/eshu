@@ -15,7 +15,7 @@ This package owns HTTP-call retry, classification, the rate-limit hint rules,
 the retryable error type, and the `eshu_dp_github_api_*` signals. It does not
 build repository selections, own the selector, or wait between cycles:
 `NativeRepositorySelector` in the parent `git` package holds a `Failures`, and
-`collector.Service.Run` (phase 2 of #8084) waits `RetryAfter`.
+`collector.Service.Run` waits `RetryAfter` after reading `RetryableError.CycleSkip`.
 
 ## Flow
 
@@ -37,7 +37,10 @@ flowchart LR
 - `Do`, `Call`, `Config`, `DefaultConfig`, `Settings`, `BaseURL`, `Jitter`,
   `SleepContext`: the retried call.
 - `RetryableError`, `NewRetryableError`: the typed failure. It implements
-  `collector.RetryableError` and unwraps to its cause.
+  `collector.RetryableError` and `collector.CycleSkipper`, and unwraps to its
+  cause.
+- `RecordConsecutiveFailures`: sets the
+  `eshu_dp_collector_discovery_consecutive_failures` gauge the selector owns.
 - `Failures`: consecutive-cycle counter and between-cycle backoff.
 - `IsTransient`, `TransportClass`, `RateLimitHint`: classification helpers.
 - `WithObserver`: puts the instruments and logger on the context.
@@ -61,8 +64,9 @@ raising a cap.
 
 `eshu_dp_github_api_attempts_total` (`operation`, `failure_class`,
 `outcome`), `eshu_dp_github_api_retries_total` (`operation`,
-`failure_class`), the `github.api_retry` span event, and the
-`GitHub API call retrying` WARN log. Cancellation is never retried and never
+`failure_class`), the `github.api_retry` span event, the
+`GitHub API call retrying` WARN log, and the
+`eshu_dp_collector_discovery_consecutive_failures` gauge. Cancellation is never retried and never
 typed retryable.
 
 ## Gotchas

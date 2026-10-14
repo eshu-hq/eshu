@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
@@ -152,5 +153,29 @@ func TestRateLimitHint(t *testing.T) {
 				t.Fatalf("= (%v, %v, %v), want (%v, %v, %v)", wait, known, signalled, tc.wait, tc.known, tc.signalled)
 			}
 		})
+	}
+}
+
+// TestRetryableErrorDescribesACycleSkip pins the contract the collector loop
+// reads: the bounded class, the in-call attempts, the consecutive count, and
+// the wait, under collector kind git.
+func TestRetryableErrorDescribesACycleSkip(t *testing.T) {
+	t.Parallel()
+
+	f := &rest.Failures{Jitter: identity}
+	var typed *rest.RetryableError
+	if !errors.As(f.Account(retryable(0)), &typed) {
+		t.Fatal("not a *RetryableError")
+	}
+	var skipper collector.CycleSkipper
+	if !errors.As(typed, &skipper) || !collector.IsRetryable(typed) {
+		t.Fatal("*RetryableError is not a retryable collector.CycleSkipper")
+	}
+	want := collector.CycleSkip{
+		CollectorKind: "git", FailureClass: "server_error",
+		Attempts: 4, Consecutive: 1, RetryAfter: 5 * time.Second,
+	}
+	if got := skipper.CycleSkip(); got != want {
+		t.Fatalf("CycleSkip() = %+v, want %+v", got, want)
 	}
 }

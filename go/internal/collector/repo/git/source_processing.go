@@ -60,10 +60,13 @@ func (s *GitSource) discoverRepositories(ctx context.Context) (SelectionBatch, e
 			)
 		}
 
+		s.logDiscoveryFailure(ctx, err)
 		return batch, err
 	}
 
-	return s.Selector.SelectRepositories(ctx)
+	batch, err := s.Selector.SelectRepositories(ctx)
+	s.logDiscoveryFailure(ctx, err)
+	return batch, err
 }
 
 // resolveRepositories converts selected repositories to absolute paths,

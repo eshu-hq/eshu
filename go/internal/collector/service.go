@@ -177,9 +177,14 @@ type Service struct {
 	// never commit and need the escape's one startup pass because no commit
 	// will ever trigger the drain hook (a collector-off ingester, #7665).
 	AfterEmptyBatchDrained bool
-	Tracer                 trace.Tracer           // optional — nil means no tracing
-	Instruments            *telemetry.Instruments // optional — nil means no metrics
-	Logger                 *slog.Logger           // optional — nil means no structured logging
+	// Wait overrides how Run waits out a poll interval or a skipped-cycle
+	// RetryAfter. Nil means a context-aware timer. A test injects its clock
+	// here so the suite never sleeps; a cancelled context must return an
+	// error, which Run treats as shutdown.
+	Wait        func(context.Context, time.Duration) error
+	Tracer      trace.Tracer           // optional — nil means no tracing
+	Instruments *telemetry.Instruments // optional — nil means no metrics
+	Logger      *slog.Logger           // optional — nil means no structured logging
 }
 
 // Run polls the source and commits each collected generation atomically.
@@ -228,6 +233,18 @@ func (s Service) Run(ctx context.Context) error {
 				s.endCollectorObserve(observation, nil)
 				return nil
 			}
+			if skip, skippable := cycleSkipOf(err); skippable {
+				// A failed discovery is not a drained batch: it must not run
+				// AfterBatchDrained or spend the empty-batch escape latch. The
+				// source's owner already counted the failure and capped it, so
+				// the loop only waits and polls again (#8084).
+				s.endCollectorObserve(observation, err)
+				s.recordSkippedCycle(ctx, skip, err)
+				if waitErr := s.wait(ctx, skip.delay(s.PollInterval)); waitErr != nil {
+					return nil
+				}
+				continue
+			}
 			s.endCollectorObserve(observation, err)
 			return fmt.Errorf("collect scope generation: %w", err)
 		}
@@ -246,7 +263,7 @@ func (s Service) Run(ctx context.Context) error {
 				}
 				committedSinceDrain = false
 			}
-			if err := waitForNextPoll(ctx, s.PollInterval); err != nil {
+			if err := s.wait(ctx, s.PollInterval); err != nil {
 				return nil
 			}
 			continue
@@ -273,7 +290,7 @@ func (s Service) Run(ctx context.Context) error {
 			// nothing to replay; silently continuing would drop the commit error.
 			if retryable && s.DeadLetters != nil && storeErr == nil {
 				s.logRetryableCommit(observation.Context, collected, commitErr)
-				if err := waitForNextPoll(ctx, s.PollInterval); err != nil {
+				if err := s.wait(ctx, s.PollInterval); err != nil {
 					return nil
 				}
 				continue

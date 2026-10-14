@@ -94,3 +94,14 @@ func recordRetry(ctx context.Context, operation, class string, attempt, status i
 		)
 	}
 }
+
+// RecordConsecutiveFailures sets the consecutive-failure gauge the selector
+// owns: the count after a retryable failure, or 0 after a good selection.
+func RecordConsecutiveFailures(ctx context.Context, instruments *telemetry.Instruments, count int) {
+	if instruments == nil || instruments.CollectorDiscoveryConsecutiveFailures == nil {
+		return
+	}
+	instruments.CollectorDiscoveryConsecutiveFailures.Record(ctx, int64(count), metric.WithAttributes(
+		telemetry.AttrCollectorKind(collectorKind),
+	))
+}

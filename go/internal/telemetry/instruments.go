@@ -438,6 +438,15 @@ type Instruments struct {
 	// GitHubAPIRetries counts retries the discovery call loop started (#8084).
 	// Labels: operation, failure_class (the class that caused the retry).
 	GitHubAPIRetries metric.Int64Counter
+	// CollectorDiscoverySkippedCycles counts discovery cycles the collector
+	// loop skipped after a retryable source failure instead of exiting (#8084).
+	// Labels: collector_kind, failure_class (the bounded class of the failure).
+	CollectorDiscoverySkippedCycles metric.Int64Counter
+	// CollectorDiscoveryConsecutiveFailures is the number of discovery cycles
+	// in a row that ended in a retryable failure, as the selector counts them
+	// (#8084). It returns to 0 when a selection cycle succeeds and is never
+	// reset by a webhook batch. Label: collector_kind.
+	CollectorDiscoveryConsecutiveFailures metric.Int64Gauge
 	// GitCommandAttemptDuration is the wall time of each attempt in seconds
 	// (#8091). Labels: operation, outcome (success, retried, failed).
 	GitCommandAttemptDuration metric.Float64Histogram
@@ -2821,6 +2830,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GitHubAPIAttempts counter: %w", err)
+	}
+
+	inst.CollectorDiscoverySkippedCycles, err = meter.Int64Counter(
+		"eshu_dp_collector_discovery_skipped_cycles_total",
+		metric.WithDescription("Total collector discovery cycles skipped after a retryable source failure instead of exiting the process, by collector_kind and bounded failure_class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CollectorDiscoverySkippedCycles counter: %w", err)
+	}
+
+	inst.CollectorDiscoveryConsecutiveFailures, err = meter.Int64Gauge(
+		"eshu_dp_collector_discovery_consecutive_failures",
+		metric.WithDescription("Consecutive collector discovery cycles that ended in a retryable failure, by collector_kind; 0 after a successful selection"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CollectorDiscoveryConsecutiveFailures gauge: %w", err)
 	}
 
 	inst.GitHubAPIRetries, err = meter.Int64Counter(

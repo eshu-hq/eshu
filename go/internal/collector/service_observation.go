@@ -5,13 +5,17 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // StartObserveFunc starts a collector observe span around source work that has
@@ -94,4 +98,58 @@ func (s Service) endCollectorObserve(observation CollectorObservation, err error
 		observation.Span.SetStatus(codes.Error, err.Error())
 	}
 	observation.Span.End()
+}
+
+// cycleSkipOf reports whether err is a retryable source failure that opted
+// into the cycle-skip path (CycleSkipper), and returns its description. A
+// retryable error without that opt-in stays fatal.
+func cycleSkipOf(err error) (CycleSkip, bool) {
+	if !IsRetryable(err) {
+		return CycleSkip{}, false
+	}
+	var skipper CycleSkipper
+	if !errors.As(err, &skipper) {
+		return CycleSkip{}, false
+	}
+	return skipper.CycleSkip(), true
+}
+
+// delay returns how long to wait before the next discovery cycle: RetryAfter,
+// or fallback when the source named none.
+func (c CycleSkip) delay(fallback time.Duration) time.Duration {
+	if c.RetryAfter > 0 {
+		return c.RetryAfter
+	}
+	return fallback
+}
+
+// wait waits out d through Service.Wait, or a context-aware timer when nil.
+func (s Service) wait(ctx context.Context, d time.Duration) error {
+	if s.Wait != nil {
+		return s.Wait(ctx, d)
+	}
+	return waitForNextPoll(ctx, d)
+}
+
+// recordSkippedCycle counts one skipped discovery cycle and writes the WARN
+// line an operator uses to tell a skipped cycle from a teardown.
+func (s Service) recordSkippedCycle(ctx context.Context, skip CycleSkip, cause error) {
+	if s.Instruments != nil && s.Instruments.CollectorDiscoverySkippedCycles != nil {
+		s.Instruments.CollectorDiscoverySkippedCycles.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrCollectorKind(skip.CollectorKind),
+			telemetry.AttrFailureClass(skip.FailureClass),
+		))
+	}
+	if s.Logger == nil {
+		return
+	}
+	s.Logger.WarnContext(ctx, "collector discovery retryable; skipping cycle",
+		log.CollectorKind(skip.CollectorKind),
+		telemetry.FailureClassAttr(skip.FailureClass),
+		slog.Int("attempt", skip.Attempts),
+		slog.Int("consecutive_failures", skip.Consecutive),
+		slog.Float64("retry_after_seconds", skip.delay(s.PollInterval).Seconds()),
+		slog.Bool("retryable", true),
+		log.Err(cause),
+	)
 }

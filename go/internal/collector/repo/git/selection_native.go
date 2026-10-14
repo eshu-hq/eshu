@@ -72,9 +72,12 @@ func (s *NativeRepositorySelector) SelectRepositories(
 	ctx = rest.WithObserver(ctx, s.Instruments, s.Logger)
 	batch, err := s.selectRepositories(ctx)
 	if err != nil {
-		return batch, s.discoveryFailures.Account(err)
+		err = s.discoveryFailures.Account(err)
+		rest.RecordConsecutiveFailures(ctx, s.Instruments, s.discoveryFailures.Count())
+		return batch, err
 	}
 	s.discoveryFailures.Reset()
+	rest.RecordConsecutiveFailures(ctx, s.Instruments, 0)
 	return batch, nil
 }
 

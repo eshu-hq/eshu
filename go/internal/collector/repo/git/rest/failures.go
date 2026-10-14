@@ -8,8 +8,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
+
+// collectorKind is the collector_kind label of the git collector's discovery
+// signals.
+const collectorKind = "git"
 
 // RetryableError reports that a repository discovery cycle failed for a reason
 // the provider is expected to clear on its own: a GitHub 5xx, a transient
@@ -67,6 +72,18 @@ func (e *RetryableError) Unwrap() error { return e.cause }
 
 // Retryable reports true: the provider is expected to clear this fault.
 func (e *RetryableError) Retryable() bool { return true }
+
+// CycleSkip makes the error a collector.CycleSkipper: it tells the collector
+// loop to skip the cycle and wait RetryAfter instead of exiting.
+func (e *RetryableError) CycleSkip() collector.CycleSkip {
+	return collector.CycleSkip{
+		CollectorKind: collectorKind,
+		FailureClass:  e.Class,
+		Attempts:      e.Attempts,
+		Consecutive:   e.Consecutive,
+		RetryAfter:    e.RetryAfter,
+	}
+}
 
 const (
 	// retryBackoffBase is the between-cycle wait after the first retryable

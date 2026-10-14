@@ -6,8 +6,13 @@ package git
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // Next returns the next collected repository generation from the current
@@ -40,4 +45,30 @@ func (s *GitSource) Next(ctx context.Context) (collector.CollectedGeneration, bo
 	case <-ctx.Done():
 		return collector.CollectedGeneration{}, false, ctx.Err()
 	}
+}
+
+// logDiscoveryFailure marks the active scope.assign span as failed and logs a
+// failed selection cycle (#8084): WARN when it is retryable (the collector
+// loop skips the cycle), ERROR otherwise. A shutdown cancel is not a failure.
+func (s *GitSource) logDiscoveryFailure(ctx context.Context, err error) {
+	if err == nil || ctx.Err() != nil {
+		return
+	}
+	span := trace.SpanFromContext(ctx)
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+	if s.Logger == nil {
+		return
+	}
+	retryable := collector.IsRetryable(err)
+	logFn := s.Logger.ErrorContext
+	if retryable {
+		logFn = s.Logger.WarnContext
+	}
+	logFn(
+		ctx, "collector discovery failed",
+		log.CollectorKind("git"),
+		slog.Bool("retryable", retryable),
+		log.Err(err),
+	)
 }

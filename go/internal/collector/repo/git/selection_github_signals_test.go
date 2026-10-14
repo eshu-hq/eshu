@@ -140,3 +140,58 @@ func TestGitHubAPIFinalFailureIsCountedFailed(t *testing.T) {
 		}
 	}
 }
+
+// TestDiscoveryConsecutiveFailuresGaugeFollowsTheSelector pins the gauge of
+// #8084: it rises with each retryable cycle, returns to 0 on the first good
+// selection, and a webhook batch (which never reaches the selector) cannot
+// move it.
+func TestDiscoveryConsecutiveFailuresGaugeFollowsTheSelector(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(
+		sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("consecutive-gauge-test"),
+	)
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	selector, _ := discoveryRetrySelector(t, []error{
+		retryableListingFailure(), retryableListingFailure(), retryableListingFailure(), nil,
+	})
+	selector.Instruments = instruments
+
+	read := func() int64 {
+		var rm metricdata.ResourceMetrics
+		if err := reader.Collect(context.Background(), &rm); err != nil {
+			t.Fatalf("Collect() error = %v", err)
+		}
+		for _, scopeMetrics := range rm.ScopeMetrics {
+			for _, m := range scopeMetrics.Metrics {
+				if m.Name != "eshu_dp_collector_discovery_consecutive_failures" {
+					continue
+				}
+				for _, dp := range m.Data.(metricdata.Gauge[int64]).DataPoints {
+					if collectorHasAttrs(dp.Attributes.ToSlice(), map[string]string{"collector_kind": "git"}) {
+						return dp.Value
+					}
+				}
+			}
+		}
+		t.Fatal("gauge eshu_dp_collector_discovery_consecutive_failures not recorded")
+		return -1
+	}
+	for want := int64(1); want <= 3; want++ {
+		if _, err := selector.SelectRepositories(context.Background()); err == nil {
+			t.Fatal("SelectRepositories() error = nil, want a retryable failure")
+		}
+		if got := read(); got != want {
+			t.Fatalf("gauge = %d, want %d", got, want)
+		}
+	}
+	if _, err := selector.SelectRepositories(context.Background()); err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want success", err)
+	}
+	if got := read(); got != 0 {
+		t.Fatalf("gauge after a good selection = %d, want 0", got)
+	}
+}

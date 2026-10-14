@@ -24,6 +24,7 @@ Scoped to `go/internal/collector/repo/git/rest`. Follow the root
 - Cancellation must stay out of `*RetryableError`.
 - Label sets on `eshu_dp_github_api_*` are closed: `operation` is `list` or
   `mint`; `outcome` is `success`, `retried`, or `failed`.
-- Import no git collector type and no `collector` package from non-test code.
-  The parent package imports this one.
+- Import no git collector type. `collector` is imported only for
+  `collector.CycleSkip` and the `CycleSkipper` contract, which
+  `*RetryableError` implements. The parent package imports this one.
 - Keep files under 500 lines.
