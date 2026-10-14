@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=scripts/lib/gate-diff-base.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib/gate-diff-base.sh"
+
 repo_root="${ESHU_COLLECTOR_AUTHORING_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
   repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null \
@@ -21,15 +24,11 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   # When the ref already resolves locally there is nothing to fetch at all,
   # and on a complete checkout the fetch is never depth-limited: every
   # worktree shares one .git/shallow, so a --depth fetch here shallows all of
-  # them and fails unrelated lanes' methodology identity check (#8048).
+  # them and fails unrelated lanes' methodology identity check (#8048). The
+  # fetch itself stays behind the shared eshu_gate_fetch_base helper (#8078).
   if ! git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
-    if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
-      git -C "$repo_root" fetch --no-tags origin \
-        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
-    else
-      git -C "$repo_root" fetch --no-tags --depth=1 origin \
-        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
-    fi
+    eshu_gate_fetch_base "$repo_root" \
+      "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" || true
   fi
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"

@@ -20,6 +20,23 @@
 # no-base-available case prints an operator-facing skip line that a command
 # substitution would swallow into the variable.
 
+# eshu_gate_fetch_base fetches a base ref into repo_root without changing a
+# complete clone's depth (#8078). Every worktree shares one .git/shallow, so
+# a --depth fetch from a lane shallows all of them and fails
+# query-methodology-static everywhere until someone repairs it; a full fetch
+# never shallows. In an already-shallow checkout (CI fetch-depth) it keeps
+# the bounded --depth=1 fetch. Arguments after repo_root pass through to git
+# fetch. It reports git fetch's status, so callers keep their || true shape.
+eshu_gate_fetch_base() {
+  local repo_root="$1"
+  shift
+  if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
+    git -C "$repo_root" fetch --no-tags origin "$@" >/dev/null 2>&1
+  else
+    git -C "$repo_root" fetch --no-tags --depth=1 origin "$@" >/dev/null 2>&1
+  fi
+}
+
 # eshu_gate_resolve_diff_base picks the commit a gate diffs HEAD against and
 # stores it in eshu_gate_diff_base (empty when no base is available at all).
 #
@@ -51,8 +68,8 @@ eshu_gate_resolve_diff_base() {
   local merge_base
 
   if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-    git -C "$repo_root" fetch --no-tags --depth=1 origin \
-      "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+    eshu_gate_fetch_base "$repo_root" \
+      "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" || true
     if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
       base="origin/$GITHUB_BASE_REF"
     fi

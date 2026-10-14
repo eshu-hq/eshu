@@ -53,7 +53,11 @@ setup_repo() {
   mkdir -p "${dir}/scripts"
 
   # Copy verifier to the test repo
+  mkdir -p "${dir}/scripts/lib"
   cp "$verifier" "${dir}/scripts/verify-route-coverage.sh"
+  # The verifier sources its base-fetch helper relative to its own location
+  # (#8078), so the fixture needs that sibling file too.
+  cp "${repo_root}/scripts/lib/gate-diff-base.sh" "${dir}/scripts/lib/gate-diff-base.sh"
   chmod +x "${dir}/scripts/verify-route-coverage.sh"
 
   # Baseline commit so "HEAD" resolves. Identity and default branch are passed
