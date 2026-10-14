@@ -374,3 +374,16 @@ func TestSelectGitHubRepositoryIDsExposesListingAndRuleExclusions(t *testing.T) 
 		t.Fatalf("RuleExcludedRepositoryIDs without rules = %v, want empty", noRules.RuleExcludedRepositoryIDs)
 	}
 }
+
+// TestDefaultGitHubListingRetryBudget pins the production retry budget the
+// PR proof quotes (4 attempts, 1s/2s/4s waits): the wrapper tests pass with
+// any budget, so without this pin the headline numbers could drift silently.
+func TestDefaultGitHubListingRetryBudget(t *testing.T) {
+	t.Parallel()
+	if got := defaultGitHubListingRetry.maxAttempts; got != 4 {
+		t.Fatalf("defaultGitHubListingRetry.maxAttempts = %d, want 4", got)
+	}
+	if got := defaultGitHubListingRetry.baseBackoff; got != time.Second {
+		t.Fatalf("defaultGitHubListingRetry.baseBackoff = %v, want 1s", got)
+	}
+}
