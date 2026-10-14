@@ -239,3 +239,24 @@ func TestSearchFilesUnscopedSurfacesDocumentsNotSearched(t *testing.T) {
 		t.Fatalf("exact data.documents_not_searched = %d, want 0", env.Data.DocumentsNotSearched)
 	}
 }
+
+// #7975: a nonzero count without a partial marker still demotes the truth
+// and carries a reason, so no implementation can emit a reasonless partial.
+func TestSearchFilesUnscopedUnmarkedSkippedRowsCarryAReason(t *testing.T) {
+	t.Parallel()
+
+	store := &unscopedSearchStore{page: querycontract.FileSearchPage{
+		Files:                []querycontract.FileContent{{RepoID: "r1", RelativePath: "a.go"}},
+		DocumentsNotSearched: 7,
+	}}
+	h := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
+
+	rec, env := postFileSearch(t, h, context.Background(), `{"query":"render"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if env.Truth.Level != querycontract.TruthLevelPartial || !env.Truth.Truncated ||
+		env.Truth.Reason != querycontract.SearchPartialCandidateBudgetExceeded {
+		t.Fatalf("truth = %+v, want partial/truncated with candidate_budget_exceeded reason", env.Truth)
+	}
+}

@@ -75,6 +75,9 @@ func (h *ContentHandler) searchFilesUnscoped(
 	if page.DocumentsNotSearched != 0 {
 		truth.Level = querycontract.MinTruthLevel(truth.Level, querycontract.TruthLevelPartial)
 		truth.Truncated = true
+		if page.Partial == nil {
+			truth.Reason = querycontract.SearchPartialCandidateBudgetExceeded
+		}
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
 }
