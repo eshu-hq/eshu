@@ -325,16 +325,17 @@ func TestLoadWebhookTriggerHandoffConfig(t *testing.T) {
 }
 
 type stubWebhookTriggerStore struct {
-	claimed       []webhook.StoredTrigger
-	handedOff     []string
-	failed        []string
-	failedCalls   []webhookTriggerFailureCall
-	reapCalls     int
-	reapErr       error
-	requeued      []webhook.StoredTrigger
-	exhausted     []webhook.StoredTrigger
-	staleCount    int64
-	staleCountErr error
+	claimed         []webhook.StoredTrigger
+	handedOff       []string
+	failed          []string
+	failedCalls     []webhookTriggerFailureCall
+	reapCalls       int
+	reapErr         error
+	requeued        []webhook.StoredTrigger
+	exhausted       []webhook.StoredTrigger
+	ignoredDecision []webhook.StoredTrigger
+	staleCount      int64
+	staleCountErr   error
 }
 
 func remoteURLsFromSelectedRepositories(repositories []SelectedRepository) []string {
@@ -386,13 +387,14 @@ func (s *stubWebhookTriggerStore) ReapExpiredTriggerClaims(
 	_ int,
 	_ int,
 	_ time.Time,
-) ([]webhook.StoredTrigger, []webhook.StoredTrigger, error) {
+) ([]webhook.StoredTrigger, []webhook.StoredTrigger, []webhook.StoredTrigger, error) {
 	s.reapCalls++
 	if s.reapErr != nil {
-		return nil, nil, s.reapErr
+		return nil, nil, nil, s.reapErr
 	}
 	return append([]webhook.StoredTrigger(nil), s.requeued...),
-		append([]webhook.StoredTrigger(nil), s.exhausted...), nil
+		append([]webhook.StoredTrigger(nil), s.exhausted...),
+		append([]webhook.StoredTrigger(nil), s.ignoredDecision...), nil
 }
 
 func (s *stubWebhookTriggerStore) CountStaleClaims(

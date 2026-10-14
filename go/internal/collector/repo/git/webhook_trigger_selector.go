@@ -38,6 +38,11 @@ const (
 	webhookTriggerFailureNoRepositoryID      = "no_repository_id"
 	webhookTriggerFailureSyncGit             = "sync_git_failed"
 	webhookTriggerFailureUnsupportedProvider = "unsupported_provider"
+	// webhookTriggerFailureIgnoredDecision marks a claimed trigger whose
+	// decision is not accepted: a tag or non-default-branch event that
+	// can never complete the git handoff, terminated in the claiming
+	// tick instead of cycling through the claim lease (#7795).
+	webhookTriggerFailureIgnoredDecision = "ignored_decision"
 )
 
 const (
@@ -47,6 +52,10 @@ const (
 	// webhookTriggerClaimReapOutcomeExhausted labels reaped claims past
 	// the attempt cap that failed with claim_lease_exhausted (#7661).
 	webhookTriggerClaimReapOutcomeExhausted = "exhausted"
+	// webhookTriggerClaimReapOutcomeIgnoredDecision labels reaped claims
+	// whose decision is not accepted that failed with ignored_decision
+	// instead of requeueing (#7795).
+	webhookTriggerClaimReapOutcomeIgnoredDecision = "ignored_decision"
 )
 
 // WebhookTriggerStore is the durable trigger surface needed by the Git
@@ -55,7 +64,7 @@ type WebhookTriggerStore interface {
 	ClaimQueuedTriggers(context.Context, string, time.Time, int) ([]webhook.StoredTrigger, error)
 	MarkTriggersHandedOff(context.Context, []webhook.StoredTrigger, time.Time) error
 	MarkTriggersFailed(context.Context, []webhook.StoredTrigger, time.Time, string, string) error
-	ReapExpiredTriggerClaims(context.Context, time.Time, int, int, time.Time) ([]webhook.StoredTrigger, []webhook.StoredTrigger, error)
+	ReapExpiredTriggerClaims(context.Context, time.Time, int, int, time.Time) ([]webhook.StoredTrigger, []webhook.StoredTrigger, []webhook.StoredTrigger, error)
 	CountStaleClaims(context.Context, time.Time) (int64, error)
 }
 
@@ -118,15 +127,16 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	// worker's own crash) to queued before claiming, so a tick never loses
 	// work its claim loop never reached (#7661).
 	leaseCutoff := observedAt.Add(-s.claimLeaseWindow())
-	requeued, exhausted, err := s.Store.ReapExpiredTriggerClaims(ctx, leaseCutoff, s.maxClaimAttempts(), limit, observedAt)
+	requeued, exhausted, ignoredDecision, err := s.Store.ReapExpiredTriggerClaims(ctx, leaseCutoff, s.maxClaimAttempts(), limit, observedAt)
 	if err != nil {
 		return SelectionBatch{}, fmt.Errorf("reap expired webhook trigger claims: %w", err)
 	}
-	if n := len(requeued) + len(exhausted); n > 0 {
+	if n := len(requeued) + len(exhausted) + len(ignoredDecision); n > 0 {
 		s.logger().Info("reaped expired webhook trigger claims",
-			"requeued", len(requeued), "exhausted", len(exhausted))
+			"requeued", len(requeued), "exhausted", len(exhausted), "ignored_decision", len(ignoredDecision))
 	}
-	s.recordClaimReapOutcome(ctx, leaseCutoff, len(requeued), len(exhausted))
+	s.recordClaimReapOutcome(ctx, leaseCutoff, len(requeued), len(exhausted), len(ignoredDecision))
+	s.recordIgnoredDecisionTerminals(ctx, len(ignoredDecision))
 
 	triggers, err := s.Store.ClaimQueuedTriggers(ctx, owner, observedAt, limit)
 	if err != nil {
@@ -134,6 +144,18 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	}
 	if len(triggers) == 0 {
 		return SelectionBatch{ObservedAt: observedAt}, nil
+	}
+
+	// Terminal-first: a claimed trigger whose decision is not accepted
+	// can never complete the git handoff, so it fails with the
+	// ignored_decision class in this tick instead of staying claimed
+	// until the lease reap cycles it to the attempt cap (#7795).
+	triggers, ignoredTriggers := acceptedWebhookRefreshTriggers(triggers)
+	if len(ignoredTriggers) > 0 {
+		if err := s.Store.MarkTriggersFailed(ctx, ignoredTriggers, observedAt, webhookTriggerFailureIgnoredDecision, "webhook trigger decision is not accepted for the git collector handoff"); err != nil {
+			return SelectionBatch{}, fmt.Errorf("mark ignored webhook triggers failed: %w", err)
+		}
+		s.recordIgnoredDecisionTerminals(ctx, len(ignoredTriggers))
 	}
 
 	syncableTriggers, unsupportedTriggers := supportedWebhookRefreshTriggers(triggers)
@@ -241,9 +263,11 @@ func (s WebhookTriggerRepositorySelector) logger() *slog.Logger {
 
 // recordClaimReapOutcome emits the lease-recovery signals for one tick: the
 // reaped-row counter by outcome and the residual stuck-claim gauge (#7661).
-// It is a no-op without instruments, and a gauge-query failure only logs:
-// metric collection must never fail selection.
-func (s WebhookTriggerRepositorySelector) recordClaimReapOutcome(ctx context.Context, leaseCutoff time.Time, requeued, exhausted int) {
+// The ignored_decision outcome separates the #7795 non-accepted terminal
+// from the accepted-row exhausted path. It is a no-op without
+// instruments, and a gauge-query failure only logs: metric collection
+// must never fail selection.
+func (s WebhookTriggerRepositorySelector) recordClaimReapOutcome(ctx context.Context, leaseCutoff time.Time, requeued, exhausted, ignoredDecision int) {
 	if s.Instruments == nil {
 		return
 	}
@@ -255,6 +279,10 @@ func (s WebhookTriggerRepositorySelector) recordClaimReapOutcome(ctx context.Con
 		s.Instruments.WebhookTriggerClaimReaps.Add(ctx, int64(exhausted),
 			metric.WithAttributes(telemetry.AttrOutcome(webhookTriggerClaimReapOutcomeExhausted)))
 	}
+	if ignoredDecision > 0 {
+		s.Instruments.WebhookTriggerClaimReaps.Add(ctx, int64(ignoredDecision),
+			metric.WithAttributes(telemetry.AttrOutcome(webhookTriggerClaimReapOutcomeIgnoredDecision)))
+	}
 	stuck, err := s.Store.CountStaleClaims(ctx, leaseCutoff)
 	if err != nil {
 		s.logger().Warn("count stale webhook trigger claims for gauge",
@@ -262,6 +290,35 @@ func (s WebhookTriggerRepositorySelector) recordClaimReapOutcome(ctx context.Con
 		return
 	}
 	s.Instruments.WebhookTriggerStaleClaims.Record(ctx, stuck)
+}
+
+// recordIgnoredDecisionTerminals counts triggers terminated for a
+// non-accepted decision in this tick, whether the claiming tick marked
+// them or the lease reap recovered them (#7795). It is a no-op without
+// instruments: metric collection must never fail selection.
+func (s WebhookTriggerRepositorySelector) recordIgnoredDecisionTerminals(ctx context.Context, n int) {
+	if s.Instruments == nil || n <= 0 {
+		return
+	}
+	s.Instruments.WebhookTriggerIgnoredDecisions.Add(ctx, int64(n))
+}
+
+// acceptedWebhookRefreshTriggers splits claimed triggers into the rows
+// eligible for the git handoff and the rows whose decision is not
+// accepted, preserving claim order. The second group terminates in the
+// claiming tick with the ignored_decision class instead of dropping
+// silently and cycling through the claim lease (#7795).
+func acceptedWebhookRefreshTriggers(triggers []webhook.StoredTrigger) ([]webhook.StoredTrigger, []webhook.StoredTrigger) {
+	accepted := make([]webhook.StoredTrigger, 0, len(triggers))
+	ignored := make([]webhook.StoredTrigger, 0)
+	for _, trigger := range triggers {
+		if trigger.Decision != webhook.DecisionAccepted {
+			ignored = append(ignored, trigger)
+			continue
+		}
+		accepted = append(accepted, trigger)
+	}
+	return accepted, ignored
 }
 
 func supportedWebhookRefreshTriggers(triggers []webhook.StoredTrigger) ([]webhook.StoredTrigger, []webhook.StoredTrigger) {

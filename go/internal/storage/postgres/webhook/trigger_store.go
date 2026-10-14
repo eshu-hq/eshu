@@ -202,42 +202,48 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 }
 
 // ReapExpiredTriggerClaims recovers claimed rows whose claimed_at predates
-// staleBefore: rows below maxAttempts go back to queued, rows at or past
-// the cap go to failed with the claim_lease_exhausted reason (#7661). Two
+// staleBefore: accepted rows below maxAttempts go back to queued, accepted
+// rows at or past the cap go to failed with the claim_lease_exhausted
+// reason (#7661), and rows whose decision is not accepted go to failed
+// with the ignored_decision reason regardless of token (#7795). Two
 // reclaimers racing split the stale set via SKIP LOCKED; callers pass a
-// positive per-statement limit, so one sweep touches at most 2×limit rows
-// across the requeue and exhaust statements.
+// positive per-statement limit, so one sweep touches at most 3×limit rows
+// across the requeue, exhaust, and ignored-decision statements.
 func (s *WebhookTriggerStore) ReapExpiredTriggerClaims(
 	ctx context.Context,
 	staleBefore time.Time,
 	maxAttempts int,
 	limit int,
 	asOf time.Time,
-) (requeued []webhook.StoredTrigger, exhausted []webhook.StoredTrigger, err error) {
+) (requeued []webhook.StoredTrigger, exhausted []webhook.StoredTrigger, ignoredDecision []webhook.StoredTrigger, err error) {
 	if s.database == nil {
-		return nil, nil, errors.New("webhook trigger store database is required")
+		return nil, nil, nil, errors.New("webhook trigger store database is required")
 	}
 	if staleBefore.IsZero() {
-		return nil, nil, errors.New("webhook trigger reap cutoff is required")
+		return nil, nil, nil, errors.New("webhook trigger reap cutoff is required")
 	}
 	if maxAttempts <= 0 {
-		return nil, nil, errors.New("webhook trigger max attempts must be positive")
+		return nil, nil, nil, errors.New("webhook trigger max attempts must be positive")
 	}
 	if limit <= 0 {
-		return nil, nil, errors.New("webhook trigger reap limit must be positive")
+		return nil, nil, nil, errors.New("webhook trigger reap limit must be positive")
 	}
 	if asOf.IsZero() {
-		return nil, nil, errors.New("webhook trigger reap timestamp is required")
+		return nil, nil, nil, errors.New("webhook trigger reap timestamp is required")
 	}
 	requeued, err = scanWebhookTriggers(s.database.QueryContext(ctx, reapStaleWebhookTriggerClaimsQuery, staleBefore.UTC(), maxAttempts, limit, asOf.UTC()))
 	if err != nil {
-		return nil, nil, fmt.Errorf("reap stale webhook trigger claims: %w", err)
+		return nil, nil, nil, fmt.Errorf("reap stale webhook trigger claims: %w", err)
 	}
 	exhausted, err = scanWebhookTriggers(s.database.QueryContext(ctx, exhaustStaleWebhookTriggerClaimsQuery, staleBefore.UTC(), maxAttempts, limit, asOf.UTC()))
 	if err != nil {
-		return nil, nil, fmt.Errorf("exhaust stale webhook trigger claims: %w", err)
+		return nil, nil, nil, fmt.Errorf("exhaust stale webhook trigger claims: %w", err)
 	}
-	return requeued, exhausted, nil
+	ignoredDecision, err = scanWebhookTriggers(s.database.QueryContext(ctx, failIgnoredDecisionWebhookTriggerClaimsQuery, staleBefore.UTC(), limit, asOf.UTC()))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("fail ignored-decision webhook trigger claims: %w", err)
+	}
+	return requeued, exhausted, ignoredDecision, nil
 }
 
 // CountStaleClaims counts the rows stuck in claimed past staleBefore: the

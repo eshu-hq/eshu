@@ -466,8 +466,9 @@ labels.
 | `eshu_dp_webhook_store_operations_total` | `provider`, `outcome`, `status` | Trigger-store upsert attempts. |
 | `eshu_dp_webhook_request_duration_seconds` | `provider`, `outcome`, `reason` | End-to-end provider route duration. |
 | `eshu_dp_webhook_store_duration_seconds` | `provider`, `outcome`, `status` | Durable trigger-store duration. |
-| `eshu_dp_webhook_trigger_claim_reaps_total` | `outcome` (`requeued`, `exhausted`) | Stale trigger claims recovered per tick (#7661). |
+| `eshu_dp_webhook_trigger_claim_reaps_total` | `outcome` (`requeued`, `exhausted`, `ignored_decision`) | Stale trigger claims recovered per tick (#7661); `ignored_decision` fails non-accepted claims with `ignored_decision` instead of requeueing them (#7795). |
 | `eshu_dp_webhook_trigger_stale_claims` | — | Rows stuck in claimed past the lease window after the reap sweep (#7661). |
+| `eshu_dp_webhook_trigger_ignored_decisions_total` | — | Triggers terminated for a non-accepted decision, in the claiming tick or the reap (#7795). |
 
 Repository names, delivery IDs, branch names, and commit SHAs do not belong in
 labels.

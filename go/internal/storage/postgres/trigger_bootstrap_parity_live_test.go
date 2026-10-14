@@ -88,12 +88,12 @@ func TestWebhookTriggerStoreRunsOnBootstrapSchemaLive(t *testing.T) {
 	if _, err := store.ClaimQueuedTriggers(ctx, "ingester", base.Add(time.Minute), 10); err != nil {
 		t.Fatalf("ClaimQueuedTriggers() for the stale claim: %v", err)
 	}
-	requeued, exhausted, err := store.ReapExpiredTriggerClaims(ctx, base.Add(time.Hour), 5, 10, base.Add(time.Hour))
+	requeued, exhausted, ignored, err := store.ReapExpiredTriggerClaims(ctx, base.Add(time.Hour), 5, 10, base.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("ReapExpiredTriggerClaims() on the bootstrap schema: %v", err)
 	}
-	if len(requeued) != 1 || requeued[0].TriggerID != stale.TriggerID || len(exhausted) != 0 {
-		t.Fatalf("reap requeued %+v exhausted %+v, want only trigger %s requeued", requeued, exhausted, stale.TriggerID)
+	if len(requeued) != 1 || requeued[0].TriggerID != stale.TriggerID || len(exhausted) != 0 || len(ignored) != 0 {
+		t.Fatalf("reap requeued %+v exhausted %+v ignored %+v, want only trigger %s requeued", requeued, exhausted, ignored, stale.TriggerID)
 	}
 
 	if err := store.EnsureSchema(ctx); err != nil {

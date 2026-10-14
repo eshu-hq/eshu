@@ -20,7 +20,9 @@ own what happens after handoff.
 - `WebhookTriggerStore` with `NewWebhookTriggerStore(database db.ExecQueryer)`.
 - `EnsureSchema`, `StoreTrigger`, `ClaimQueuedTriggers`,
   `MarkTriggersHandedOff`, `MarkTriggersFailed`.
-- `ReapExpiredTriggerClaims`, `CountStaleClaims` (#7661 lease recovery).
+- `ReapExpiredTriggerClaims`, `CountStaleClaims` (#7661 lease recovery;
+  the reap also fails stale claims whose decision is not accepted with the
+  `ignored_decision` class instead of requeueing them, #7795).
 - `WebhookTriggerSchemaSQL()` returns the DDL.
 
 See `doc.go` for the godoc contract.
@@ -40,6 +42,9 @@ the instrumented handle and the callers own observability.
 - Storing a trigger never marks graph or repository truth fresh.
 - Claim order is `(status, received_at ASC, trigger_id ASC)`; the claim holds
   `FOR UPDATE SKIP LOCKED` so concurrent claimants never double-deliver.
+- The refresh-key upsert keeps status tracking the latest decision across
+  the queued/ignored pair in both directions; `claimed`, `handed_off`,
+  and `failed` rows stay sticky (#7795).
 - A nil database fails fast with an explicit error, never a nil panic.
 - The bootstrap migrations (`017_webhook_refresh_triggers.sql` plus
   `168_webhook_refresh_triggers_claim_fencing.sql`) must produce the same

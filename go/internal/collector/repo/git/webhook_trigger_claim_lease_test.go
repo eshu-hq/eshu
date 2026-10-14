@@ -92,9 +92,10 @@ func TestWebhookTriggerRepositorySelectorRecordsClaimReapMetrics(t *testing.T) {
 
 	now := time.Date(2026, time.May, 12, 15, 0, 0, 0, time.UTC)
 	store := &stubWebhookTriggerStore{
-		requeued:   []webhook.StoredTrigger{{TriggerID: "r1"}, {TriggerID: "r2"}},
-		exhausted:  []webhook.StoredTrigger{{TriggerID: "e1"}},
-		staleCount: 4,
+		requeued:        []webhook.StoredTrigger{{TriggerID: "r1"}, {TriggerID: "r2"}},
+		exhausted:       []webhook.StoredTrigger{{TriggerID: "e1"}},
+		ignoredDecision: []webhook.StoredTrigger{{TriggerID: "i1"}},
+		staleCount:      4,
 	}
 	reader := sdkmetric.NewManualReader()
 	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
@@ -121,8 +122,9 @@ func TestWebhookTriggerRepositorySelectorRecordsClaimReapMetrics(t *testing.T) {
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
-	wantCounts := map[string]int64{"requeued": 2, "exhausted": 1}
+	wantCounts := map[string]int64{"requeued": 2, "exhausted": 1, "ignored_decision": 1}
 	var gaugeSeen bool
+	var ignoredDecisionsSeen bool
 	for _, scope := range rm.ScopeMetrics {
 		for _, m := range scope.Metrics {
 			switch m.Name {
@@ -154,6 +156,19 @@ func TestWebhookTriggerRepositorySelectorRecordsClaimReapMetrics(t *testing.T) {
 					t.Fatalf("stale claims = %d, want 4", got)
 				}
 				gaugeSeen = true
+			case "eshu_dp_webhook_trigger_ignored_decisions_total":
+				sum, ok := m.Data.(metricdata.Sum[int64])
+				if !ok {
+					t.Fatalf("ignored decisions data = %T, want Sum[int64]", m.Data)
+				}
+				var total int64
+				for _, point := range sum.DataPoints {
+					total += point.Value
+				}
+				if total != 1 {
+					t.Fatalf("ignored decisions total = %d, want 1", total)
+				}
+				ignoredDecisionsSeen = true
 			}
 		}
 	}
@@ -162,5 +177,8 @@ func TestWebhookTriggerRepositorySelectorRecordsClaimReapMetrics(t *testing.T) {
 	}
 	if !gaugeSeen {
 		t.Fatal("stale claims gauge not recorded")
+	}
+	if !ignoredDecisionsSeen {
+		t.Fatal("ignored decisions counter not recorded")
 	}
 }

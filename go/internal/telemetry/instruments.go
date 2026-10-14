@@ -1566,9 +1566,17 @@ type Instruments struct {
 	WebhookStoreOperations metric.Int64Counter
 	// WebhookTriggerClaimReaps counts stale webhook trigger claims the git
 	// collector recovered per tick, labeled by outcome: requeued (below
-	// the attempt cap, back to queued) or exhausted (at the cap, failed
-	// with claim_lease_exhausted) (#7661).
+	// the attempt cap, back to queued), exhausted (at the cap, failed
+	// with claim_lease_exhausted) (#7661), or ignored_decision (decision
+	// not accepted, failed with ignored_decision instead of requeueing)
+	// (#7795).
 	WebhookTriggerClaimReaps metric.Int64Counter
+	// WebhookTriggerIgnoredDecisions counts webhook triggers the git
+	// collector terminated because their decision was not accepted,
+	// whether the claiming tick marked them or the lease reap recovered
+	// them (#7795). It separates the ignored-decision terminal from the
+	// accepted-row claim_lease_exhausted path.
+	WebhookTriggerIgnoredDecisions metric.Int64Counter
 	// WebhookTriggerStaleClaims is the residual rows stuck in claimed past
 	// the lease window after the tick's reap sweep: a nonzero value means
 	// stale claims arrived faster than one reap limit per tick (#7661).
@@ -4627,10 +4635,18 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.WebhookTriggerClaimReaps, err = meter.Int64Counter(
 		"eshu_dp_webhook_trigger_claim_reaps_total",
-		metric.WithDescription("Total stale webhook trigger claims recovered by outcome (requeued or exhausted)"),
+		metric.WithDescription("Total stale webhook trigger claims recovered by outcome (requeued, exhausted, or ignored_decision)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WebhookTriggerClaimReaps counter: %w", err)
+	}
+
+	inst.WebhookTriggerIgnoredDecisions, err = meter.Int64Counter(
+		"eshu_dp_webhook_trigger_ignored_decisions_total",
+		metric.WithDescription("Total webhook triggers terminated for a non-accepted decision"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookTriggerIgnoredDecisions counter: %w", err)
 	}
 
 	inst.WebhookTriggerStaleClaims, err = meter.Int64Gauge(

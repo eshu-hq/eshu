@@ -121,7 +121,7 @@ func TestWebhookTriggerStoreReapExpiredClaimsIntegration(t *testing.T) {
 	_ = stale
 	_ = staleClaim
 
-	requeued, exhausted, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, 100, now)
+	requeued, exhausted, ignored, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, 100, now)
 	if err != nil {
 		t.Fatalf("ReapExpiredTriggerClaims() error = %v", err)
 	}
@@ -130,6 +130,9 @@ func TestWebhookTriggerStoreReapExpiredClaimsIntegration(t *testing.T) {
 	}
 	if len(exhausted) != 0 {
 		t.Fatalf("exhausted = %v, want none", triggerIDs(exhausted))
+	}
+	if len(ignored) != 0 {
+		t.Fatalf("ignored = %v, want none for accepted rows", triggerIDs(ignored))
 	}
 	assertWebhookTriggerStatus(t, db, stale.TriggerID, "queued")
 	assertWebhookTriggerStatus(t, db, fresh.TriggerID, "claimed")
@@ -190,7 +193,7 @@ func TestWebhookTriggerStoreReapConcurrentSafety(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			requeued, _, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, rows, now)
+			requeued, _, _, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, rows, now)
 			results[i] = requeued
 			errs[i] = err
 		}(i)
@@ -236,7 +239,7 @@ func TestWebhookTriggerStoreStaleHolderCannotCompleteReapedClaim(t *testing.T) {
 
 	seeded := seedWebhookLeaseTrigger(t, ctx, store, "fence", now.Add(-time.Hour))
 	first := claimWebhookLeaseTrigger(t, ctx, store, "owner-a", now.Add(-time.Hour))
-	if _, _, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, 100, now); err != nil {
+	if _, _, _, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, 100, now); err != nil {
 		t.Fatalf("ReapExpiredTriggerClaims() error = %v", err)
 	}
 	second := claimWebhookLeaseTrigger(t, ctx, store, "owner-b", now)
@@ -274,18 +277,18 @@ func TestWebhookTriggerStoreExhaustedClaimsFailWithReason(t *testing.T) {
 		if claimed.ClaimFencingToken != int64(attempt) {
 			t.Fatalf("attempt %d token = %d, want %d", attempt, claimed.ClaimFencingToken, attempt)
 		}
-		requeued, exhausted, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, maxAttempts, 100, now)
+		requeued, exhausted, ignored, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, maxAttempts, 100, now)
 		if err != nil {
 			t.Fatalf("attempt %d ReapExpiredTriggerClaims() error = %v", attempt, err)
 		}
 		if attempt < maxAttempts {
-			if len(requeued) != 1 || len(exhausted) != 0 {
-				t.Fatalf("attempt %d requeued/exhausted = %d/%d, want 1/0", attempt, len(requeued), len(exhausted))
+			if len(requeued) != 1 || len(exhausted) != 0 || len(ignored) != 0 {
+				t.Fatalf("attempt %d requeued/exhausted/ignored = %d/%d/%d, want 1/0/0", attempt, len(requeued), len(exhausted), len(ignored))
 			}
 			continue
 		}
-		if len(requeued) != 0 || len(exhausted) != 1 {
-			t.Fatalf("attempt %d requeued/exhausted = %d/%d, want 0/1", attempt, len(requeued), len(exhausted))
+		if len(requeued) != 0 || len(exhausted) != 1 || len(ignored) != 0 {
+			t.Fatalf("attempt %d requeued/exhausted/ignored = %d/%d/%d, want 0/1/0", attempt, len(requeued), len(exhausted), len(ignored))
 		}
 	}
 	assertWebhookTriggerStatus(t, db, seeded.TriggerID, "failed")
@@ -300,12 +303,12 @@ func TestWebhookTriggerStoreExhaustedClaimsFailWithReason(t *testing.T) {
 		t.Fatal("failure_message is empty, want a poison-row reason")
 	}
 	// A further reap is stable: the failed row is never requeued.
-	requeued, exhausted, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, maxAttempts, 100, now)
+	requeued, exhausted, ignored, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, maxAttempts, 100, now)
 	if err != nil {
 		t.Fatalf("final ReapExpiredTriggerClaims() error = %v", err)
 	}
-	if len(requeued) != 0 || len(exhausted) != 0 {
-		t.Fatalf("final requeued/exhausted = %d/%d, want 0/0", len(requeued), len(exhausted))
+	if len(requeued) != 0 || len(exhausted) != 0 || len(ignored) != 0 {
+		t.Fatalf("final requeued/exhausted/ignored = %d/%d/%d, want 0/0/0", len(requeued), len(exhausted), len(ignored))
 	}
 }
 
@@ -333,7 +336,7 @@ func TestWebhookTriggerStoreReapRequeuesTokenZeroDeployRow(t *testing.T) {
 		t.Fatalf("seed token-0 stuck row: %v", err)
 	}
 
-	requeued, exhausted, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, 100, now)
+	requeued, exhausted, ignored, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, 100, now)
 	if err != nil {
 		t.Fatalf("ReapExpiredTriggerClaims() error = %v", err)
 	}
@@ -342,6 +345,9 @@ func TestWebhookTriggerStoreReapRequeuesTokenZeroDeployRow(t *testing.T) {
 	}
 	if len(exhausted) != 0 {
 		t.Fatalf("exhausted = %v, want none", triggerIDs(exhausted))
+	}
+	if len(ignored) != 0 {
+		t.Fatalf("ignored = %v, want none for an accepted row", triggerIDs(ignored))
 	}
 	assertWebhookTriggerStatus(t, db, "deploy-stuck", "queued")
 }
