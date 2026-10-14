@@ -90,11 +90,21 @@ def resolve(root: Path, environment: dict[str, str]) -> dict[str, str | int]:
         if environment.get("GITHUB_SHA") != candidate:
             raise ValueError("checkout HEAD differs from GitHub event GITHUB_SHA")
         if event == "pull_request":
-            target = commit(root, event_value(payload, "pull_request", "base", "sha"), "PR base")
+            payload_base = commit(root, event_value(payload, "pull_request", "base", "sha"), "PR base")
             feature = commit(root, event_value(payload, "pull_request", "head", "sha"), "PR head")
-            parents = git(root, "rev-list", "--parents", "-n", "1", candidate).split()
-            if len(parents) != 3 or set(parents[1:]) != {target, feature}:
-                raise ValueError("checkout HEAD is not the event PR combined merge commit")
+            actual = git(root, "rev-list", "--parents", "-n", "1", candidate).split()[1:]
+            if len(actual) == 2 and set(actual) == {payload_base, feature}:
+                target = payload_base
+            elif len(actual) == 2 and feature in actual:
+                other = actual[0] if actual[1] == feature else actual[1]
+                target = commit(root, other, "merge-commit base")
+            else:
+                seen = " ".join(actual) if actual else "none"
+                raise ValueError(
+                    f"checkout HEAD {candidate} with parents {seen} is not the event PR merge "
+                    f"of base {payload_base} and head {feature}; "
+                    "re-running this event cannot clear it, only a new event can"
+                )
             base = target
             topology = "event_combined"
         elif event == "merge_group":
