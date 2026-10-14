@@ -164,6 +164,24 @@ intact at 10 of 10 with the parent package retaining 127 tests and none
 matching SCIP. No benchmark is quoted because no hot-path statement
 changed; a timing comparison here would measure host noise, not the diff.
 
+Performance Evidence (#8038 item 2): `skipParse` reports its clean-tree
+observation and `snapshotIdentity` reuses it (`selection_cli.go`), so a
+parse after the clean-tree check runs `git status --porcelain` once per
+cycle instead of twice. Baseline origin/main 13bd606525:
+`TestSkipParseParseAfterCleanCheckRunsStatusOnce` counts 2 runs on both
+the dirty_tree and reprojection_superseded paths before the fix and 1
+after, with identical stamped identities. Input shape: one managed
+checkout behind the fake git. Wall-time anchor: one status run costs
+0.02 s warm (5 runs, git 2.43.0) on a synthetic 26,000-file tree, so an
+affected cycle saves one such run against a minutes-long parse. Terminal
+counts unchanged: same selected paths, same skip decisions, and
+`go test ./internal/collector/...` green.
+
+No-Observability-Change (#8038 item 2): no metric instrument, label,
+span, log key, or status field is added, removed, or renamed. The same
+`eshu_dp_collector_reconcile_parse_skip_decisions_total` outcomes are
+recorded on the same paths.
+
 No-Observability-Change: no metric instrument, metric label, span, status
 field, log key, queue table, worker, lease, or runtime knob is added,
 removed, or renamed. The SCIP snapshot path keeps emitting
