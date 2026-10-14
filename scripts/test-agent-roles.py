@@ -177,8 +177,9 @@ def main():
         pinned.write_text(original)
         muse_pinned = root / ".agents" / "agents" / "develop-eshu-deep.md"
         original = muse_pinned.read_text()
+        deep_model = manifest["models"]["muse"]["deep"]["model"]
         muse_pinned.write_text(original.replace(
-            "model: muse-wonder-full-1.0", "model: bogus-model"))
+            "model: " + deep_model, "model: bogus-model"))
         stale = run(root, "check")
         assert stale.returncode != 0 and "develop-eshu-deep.md" in stale.stderr
         muse_pinned.write_text(original)
