@@ -3314,6 +3314,47 @@ existing call site in `internal/reducer/service_batch.go`'s claimer goroutine,
 so a future claim-cost regression on this query remains visible on both
 existing series without any wiring change.
 
+## Reducer batch claim idle-domain ordering (#8024)
+
+In the #7805 production incident, six ready `deployable_unit_correlation` rows
+waited 1.5h while every freed single-slot claim went to older same-source
+`container_image_identity` rows. The `locked` CTE ordered by (domain priority,
+source inflight, source fair rank, domain fair rank, `updated_at`): with one
+source and rank ties everywhere, the older backlog won the `updated_at`
+tie-break on every single-slot round. The #7805 fix did not change claim
+ordering.
+
+The fix adds a `reducer_domain_inflight` CTE (claimed/running rows with a live
+lease, grouped by domain — the same scan shape as the existing
+`reducer_source_inflight` CTE) and a `reducer_domain_inflight_count ASC` key in
+the `locked` ORDER BY after the fairness ranks and before the `updated_at`
+tie-break. A ready row of a domain with no inflight work now takes a slot
+ahead of an older same-source backlog that is already being worked. The key
+ties at 0 = 0 when neither competing domain holds leases, so the #3385
+cross-domain interleave is unchanged.
+
+Correctness: `TestClaimBatchDoesNotStarveIdleDomainBehindSameSourceBacklog`
+seeds the incident shape (older same-source `container_image_identity`
+backlog with inflight leases plus newer ready `deployable_unit_correlation`
+rows) and fails on the old ordering (first freed slot goes to the backlog);
+with the fix the idle domain's head row claims in round 1 and all six ready
+rows claim within 12 single-slot rounds. `TestClaimBatchIdleDomainPriorityHoldsUnderConcurrentClaimers`
+runs four concurrent single-connection claimers and asserts disjoint takes (no
+lease theft or duplicate work) with the idle domain still winning slots.
+`TestClaimReducerWorkBatchQueryOrdersIdleDomainsBeforeBusyBacklog` pins the
+ordering key hermetically.
+
+No-Regression Evidence: `TestReducerContentionGateClaimBatchLatencyBoundedOnSeededBacklog`
+over 5000 pending rows measured 53.3ms before and 54.6ms after on disposable
+Postgres 18-alpine (8s budget) — the extra GROUP BY over the small
+claimed/running set adds no measurable claim cost. The #3385 fairness pair,
+the rank-once differential, and the lock-recheck lease-theft guard stay green.
+
+Observability Evidence: no new metric. The batch claim path keeps its
+existing `eshu_dp_queue_claim_duration_seconds` (`queue=reducer,mode=batch`)
+and `eshu_dp_reducer_batch_claim_size` series, so any future claim-cost change
+on this query stays visible without wiring changes.
+
 ## Live operations activity read (#5137)
 
 `status_operations.go` adds `LiveActivityStore.ReadLiveActivity`, the bounded

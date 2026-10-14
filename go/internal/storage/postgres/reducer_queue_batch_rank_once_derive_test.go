@@ -24,7 +24,7 @@ const readOnlyCandidateTail = `
 SELECT work_item_id
 FROM candidate
 WHERE ($3::text IS NULL OR TRUE) AND ($4::timestamptz IS NULL OR TRUE)
-ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC
+ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC
 LIMIT $8
 `
 
