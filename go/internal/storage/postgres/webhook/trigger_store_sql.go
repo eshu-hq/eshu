@@ -346,3 +346,55 @@ WHERE trigger.trigger_id = fenced.trigger_id
   AND trigger.claim_fencing_token = fenced.fencing_token
   AND trigger.status = 'claimed'
 `
+
+// markIgnoredDecisionWebhookTriggersFailedQueryFormat is the same-tick
+// ignored-decision terminal's guarded variant of
+// markWebhookTriggersFailedQueryFormat (#7795). The claim snapshot a tick
+// splits is stale the moment it is read: an accepted redelivery for the
+// same refresh_key landing between ClaimQueuedTriggers and this UPDATE
+// flips the decision back to accepted under the live claim (the upsert
+// overwrites the decision without bumping the fencing token), and failing
+// that row with ignored_decision would permanently lose an accepted
+// refresh — failed is sticky. The AND decision <> 'accepted' predicate
+// re-checks the decision at UPDATE time so concurrently flipped rows are
+// skipped and stay claimed for the handoff; the fencing predicate is
+// unchanged, and RETURNING reports only the rows actually terminated so
+// the operator counter counts terminations, not attempts.
+const markIgnoredDecisionWebhookTriggersFailedQueryFormat = `
+UPDATE webhook_refresh_triggers AS trigger
+SET status = 'failed',
+    failure_class = $%d,
+    failure_message = $%d,
+    failed_at = $%d,
+    updated_at = $%d
+FROM (VALUES %s) AS fenced(trigger_id, fencing_token)
+WHERE trigger.trigger_id = fenced.trigger_id
+  AND trigger.claim_fencing_token = fenced.fencing_token
+  AND trigger.status = 'claimed'
+  AND trigger.decision <> 'accepted'
+RETURNING
+    trigger.trigger_id,
+    trigger.delivery_key,
+    trigger.refresh_key,
+    trigger.provider,
+    trigger.event_kind,
+    trigger.decision,
+    trigger.reason,
+    trigger.delivery_id,
+    trigger.repository_external_id,
+    trigger.repository_full_name,
+    trigger.default_branch,
+    trigger.ref,
+    trigger.before_sha,
+    trigger.target_sha,
+    trigger.action,
+    trigger.sender,
+    trigger.pull_request_number,
+    trigger.pull_request_url,
+    trigger.pull_request_title,
+    trigger.status,
+    trigger.duplicate_count,
+    trigger.received_at,
+    trigger.updated_at,
+    trigger.claim_fencing_token
+`

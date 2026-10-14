@@ -201,6 +201,59 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 	return nil
 }
 
+// MarkIgnoredDecisionTriggersFailed terminates claimed triggers whose
+// decision is still not accepted at UPDATE time and returns the rows it
+// actually failed. It carries the same (trigger_id, fencing token,
+// claimed) fence as MarkTriggersFailed plus AND decision <> 'accepted':
+// an accepted redelivery that flips the decision between the claim
+// snapshot and this statement is skipped and stays claimed for the
+// handoff instead of losing an accepted refresh to sticky failed (#7795).
+// Callers must keep skipped rows on the handoff path and count only the
+// returned rows.
+func (s *WebhookTriggerStore) MarkIgnoredDecisionTriggersFailed(
+	ctx context.Context,
+	triggers []webhook.StoredTrigger,
+	failedAt time.Time,
+	failureClass string,
+	failureMessage string,
+) ([]webhook.StoredTrigger, error) {
+	if s.database == nil {
+		return nil, errors.New("webhook trigger store database is required")
+	}
+	if len(triggers) == 0 {
+		return nil, errors.New("webhook triggers are required")
+	}
+	if failedAt.IsZero() {
+		return nil, errors.New("webhook trigger failed_at is required")
+	}
+	failureClass = strings.TrimSpace(failureClass)
+	if failureClass == "" {
+		return nil, errors.New("webhook trigger failure class is required")
+	}
+	args := webhookFencedTriggerArgs(triggers, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
+	rows, err := s.database.QueryContext(
+		ctx,
+		buildMarkIgnoredDecisionWebhookTriggersFailedQuery(len(triggers)),
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("mark ignored-decision webhook triggers failed: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	failed := make([]webhook.StoredTrigger, 0, len(triggers))
+	for rows.Next() {
+		trigger, err := scanStoredWebhookTrigger(rows)
+		if err != nil {
+			return nil, fmt.Errorf("mark ignored-decision webhook triggers failed: %w", err)
+		}
+		failed = append(failed, trigger)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("mark ignored-decision webhook triggers failed: %w", err)
+	}
+	return failed, nil
+}
+
 // ReapExpiredTriggerClaims recovers claimed rows whose claimed_at predates
 // staleBefore: accepted rows below maxAttempts go back to queued, accepted
 // rows at or past the cap go to failed with the claim_lease_exhausted
@@ -400,6 +453,20 @@ func buildMarkWebhookTriggersFailedQuery(rowCount int) string {
 	timestampParam := rowCount*2 + 3
 	return fmt.Sprintf(
 		markWebhookTriggersFailedQueryFormat,
+		failureClassParam,
+		failureMessageParam,
+		timestampParam,
+		timestampParam,
+		webhookFencedTriggerPlaceholders(rowCount),
+	)
+}
+
+func buildMarkIgnoredDecisionWebhookTriggersFailedQuery(rowCount int) string {
+	failureClassParam := rowCount*2 + 1
+	failureMessageParam := rowCount*2 + 2
+	timestampParam := rowCount*2 + 3
+	return fmt.Sprintf(
+		markIgnoredDecisionWebhookTriggersFailedQueryFormat,
 		failureClassParam,
 		failureMessageParam,
 		timestampParam,

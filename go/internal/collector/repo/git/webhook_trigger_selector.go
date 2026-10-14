@@ -64,6 +64,11 @@ type WebhookTriggerStore interface {
 	ClaimQueuedTriggers(context.Context, string, time.Time, int) ([]webhook.StoredTrigger, error)
 	MarkTriggersHandedOff(context.Context, []webhook.StoredTrigger, time.Time) error
 	MarkTriggersFailed(context.Context, []webhook.StoredTrigger, time.Time, string, string) error
+	// MarkIgnoredDecisionTriggersFailed terminates claimed triggers whose
+	// decision is still not accepted at UPDATE time and returns only the
+	// rows actually failed; rows flipped back to accepted under the live
+	// claim are skipped and stay on the handoff path (#7795).
+	MarkIgnoredDecisionTriggersFailed(context.Context, []webhook.StoredTrigger, time.Time, string, string) ([]webhook.StoredTrigger, error)
 	ReapExpiredTriggerClaims(context.Context, time.Time, int, int, time.Time) ([]webhook.StoredTrigger, []webhook.StoredTrigger, []webhook.StoredTrigger, error)
 	CountStaleClaims(context.Context, time.Time) (int64, error)
 }
@@ -149,13 +154,22 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	// Terminal-first: a claimed trigger whose decision is not accepted
 	// can never complete the git handoff, so it fails with the
 	// ignored_decision class in this tick instead of staying claimed
-	// until the lease reap cycles it to the attempt cap (#7795).
-	triggers, ignoredTriggers := acceptedWebhookRefreshTriggers(triggers)
+	// until the lease reap cycles it to the attempt cap (#7795). The
+	// fail is decision-guarded at UPDATE time: an accepted redelivery
+	// for the same refresh key landing between the claim and this
+	// statement flips the row back to accepted under the live claim,
+	// and the guarded statement skips it instead of losing an accepted
+	// refresh to sticky failed. Skipped rows rejoin the handoff path
+	// below, and the counter records only the rows actually failed.
+	claimedBatch := triggers
+	triggers, ignoredTriggers := acceptedWebhookRefreshTriggers(claimedBatch)
 	if len(ignoredTriggers) > 0 {
-		if err := s.Store.MarkTriggersFailed(ctx, ignoredTriggers, observedAt, webhookTriggerFailureIgnoredDecision, "webhook trigger decision is not accepted for the git collector handoff"); err != nil {
+		failed, err := s.Store.MarkIgnoredDecisionTriggersFailed(ctx, ignoredTriggers, observedAt, webhookTriggerFailureIgnoredDecision, "webhook trigger decision is not accepted for the git collector handoff")
+		if err != nil {
 			return SelectionBatch{}, fmt.Errorf("mark ignored webhook triggers failed: %w", err)
 		}
-		s.recordIgnoredDecisionTerminals(ctx, len(ignoredTriggers))
+		s.recordIgnoredDecisionTerminals(ctx, len(failed))
+		triggers = rehomeFlippedWebhookRefreshTriggers(claimedBatch, failed)
 	}
 
 	syncableTriggers, unsupportedTriggers := supportedWebhookRefreshTriggers(triggers)
@@ -292,9 +306,11 @@ func (s WebhookTriggerRepositorySelector) recordClaimReapOutcome(ctx context.Con
 	s.Instruments.WebhookTriggerStaleClaims.Record(ctx, stuck)
 }
 
-// recordIgnoredDecisionTerminals counts triggers terminated for a
-// non-accepted decision in this tick, whether the claiming tick marked
-// them or the lease reap recovered them (#7795). It is a no-op without
+// recordIgnoredDecisionTerminals counts triggers actually terminated for
+// a non-accepted decision in this tick, whether the claiming tick marked
+// them or the lease reap recovered them (#7795). A same-tick row skipped
+// by the decision-guarded fail flipped back to accepted and stays on the
+// handoff path, so it is never counted here. It is a no-op without
 // instruments: metric collection must never fail selection.
 func (s WebhookTriggerRepositorySelector) recordIgnoredDecisionTerminals(ctx context.Context, n int) {
 	if s.Instruments == nil || n <= 0 {
@@ -319,6 +335,34 @@ func acceptedWebhookRefreshTriggers(triggers []webhook.StoredTrigger) ([]webhook
 		accepted = append(accepted, trigger)
 	}
 	return accepted, ignored
+}
+
+// rehomeFlippedWebhookRefreshTriggers rebuilds the handoff set from the
+// claim batch minus the rows the decision-guarded fail actually
+// terminated, preserving claim order. A non-accepted row the guard
+// skipped flipped back to accepted under the live claim (the only
+// concurrent mutation that can skip the guard on a fresh claim: the reap
+// only touches stale claims and the fencing token is known only to this
+// holder), so its in-memory decision is refreshed to accepted for the
+// downstream accepted-only filters (#7795). The refresh-key upsert never
+// touches the fencing token or the repository identity, so the snapshot's
+// id, token, and repo still route the handoff.
+func rehomeFlippedWebhookRefreshTriggers(claimed, failed []webhook.StoredTrigger) []webhook.StoredTrigger {
+	failedIDs := make(map[string]struct{}, len(failed))
+	for _, trigger := range failed {
+		failedIDs[trigger.TriggerID] = struct{}{}
+	}
+	kept := make([]webhook.StoredTrigger, 0, len(claimed)-len(failed))
+	for _, trigger := range claimed {
+		if _, ok := failedIDs[trigger.TriggerID]; ok {
+			continue
+		}
+		if trigger.Decision != webhook.DecisionAccepted {
+			trigger.Decision = webhook.DecisionAccepted
+		}
+		kept = append(kept, trigger)
+	}
+	return kept
 }
 
 func supportedWebhookRefreshTriggers(triggers []webhook.StoredTrigger) ([]webhook.StoredTrigger, []webhook.StoredTrigger) {

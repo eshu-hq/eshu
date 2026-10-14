@@ -1572,9 +1572,11 @@ type Instruments struct {
 	// (#7795).
 	WebhookTriggerClaimReaps metric.Int64Counter
 	// WebhookTriggerIgnoredDecisions counts webhook triggers the git
-	// collector terminated because their decision was not accepted,
-	// whether the claiming tick marked them or the lease reap recovered
-	// them (#7795). It separates the ignored-decision terminal from the
+	// collector actually terminated because their decision was not
+	// accepted, whether the claiming tick marked them or the lease reap
+	// recovered them (#7795). A same-tick row flipped back to accepted
+	// under the live claim stays on the handoff path and is never
+	// counted. It separates the ignored-decision terminal from the
 	// accepted-row claim_lease_exhausted path.
 	WebhookTriggerIgnoredDecisions metric.Int64Counter
 	// WebhookTriggerStaleClaims is the residual rows stuck in claimed past
@@ -4643,7 +4645,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.WebhookTriggerIgnoredDecisions, err = meter.Int64Counter(
 		"eshu_dp_webhook_trigger_ignored_decisions_total",
-		metric.WithDescription("Total webhook triggers terminated for a non-accepted decision"),
+		metric.WithDescription("Total webhook triggers actually terminated for a non-accepted decision"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WebhookTriggerIgnoredDecisions counter: %w", err)

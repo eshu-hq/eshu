@@ -336,6 +336,10 @@ type stubWebhookTriggerStore struct {
 	ignoredDecision []webhook.StoredTrigger
 	staleCount      int64
 	staleCountErr   error
+	// ignoredDecisionSkipped stands in for the decision-guarded UPDATE
+	// skipping rows concurrently flipped back to accepted: IDs listed
+	// here are returned as not-failed and stay on the handoff path.
+	ignoredDecisionSkipped map[string]bool
 }
 
 func remoteURLsFromSelectedRepositories(repositories []SelectedRepository) []string {
@@ -379,6 +383,27 @@ func (s *stubWebhookTriggerStore) MarkTriggersFailed(
 		failureClass: failureClass,
 	})
 	return nil
+}
+
+func (s *stubWebhookTriggerStore) MarkIgnoredDecisionTriggersFailed(
+	_ context.Context,
+	triggers []webhook.StoredTrigger,
+	_ time.Time,
+	failureClass string,
+	_ string,
+) ([]webhook.StoredTrigger, error) {
+	failed := make([]webhook.StoredTrigger, 0, len(triggers))
+	for _, trigger := range triggers {
+		if s.ignoredDecisionSkipped[trigger.TriggerID] {
+			continue
+		}
+		failed = append(failed, trigger)
+	}
+	s.failedCalls = append(s.failedCalls, webhookTriggerFailureCall{
+		triggerIDs:   triggerIDsFromWebhookTriggers(failed),
+		failureClass: failureClass,
+	})
+	return failed, nil
 }
 
 func (s *stubWebhookTriggerStore) ReapExpiredTriggerClaims(

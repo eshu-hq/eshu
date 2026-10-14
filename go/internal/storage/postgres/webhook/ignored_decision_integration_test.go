@@ -107,3 +107,123 @@ func TestWebhookTriggerStoreReapFailsIgnoredDecisionClaims(t *testing.T) {
 		t.Fatalf("final requeued/exhausted/ignored = %d/%d/%d, want 0/0/0", len(requeued), len(exhausted), len(ignored))
 	}
 }
+
+// storeAcceptedRedelivery stores an accepted trigger carrying the same
+// refresh key as suffix's seed (same provider, repository, branch, and
+// target SHA) under a fresh delivery id, mirroring an accepted redelivery
+// that flips a claimed+ignored row back to accepted under the live claim.
+func storeAcceptedRedelivery(t *testing.T, ctx context.Context, store *webhookstore.WebhookTriggerStore, suffix string, receivedAt time.Time) webhook.StoredTrigger {
+	t.Helper()
+	stored, err := store.StoreTrigger(ctx, webhook.Trigger{
+		Provider:             webhook.ProviderGitHub,
+		EventKind:            webhook.EventKindPush,
+		Decision:             webhook.DecisionAccepted,
+		DeliveryID:           "delivery-accepted-" + suffix,
+		RepositoryExternalID: "repo-" + suffix,
+		RepositoryFullName:   "org/repo-" + suffix,
+		DefaultBranch:        "main",
+		Ref:                  "refs/heads/main",
+		TargetSHA:            "sha-" + suffix,
+		Sender:               "octocat",
+	}, receivedAt)
+	if err != nil {
+		t.Fatalf("StoreTrigger() accepted redelivery error = %v, want nil", err)
+	}
+	return stored
+}
+
+// ignoredSnapshotWithDecision rewrites a claim snapshot's decision the way
+// the selector's claim snapshot looks after an ignored redelivery landed
+// under the claim: the fencing token still matches, the decision reads
+// ignored.
+func ignoredSnapshotWithDecision(claimed webhook.StoredTrigger) webhook.StoredTrigger {
+	claimed.Decision = webhook.DecisionIgnored
+	claimed.Reason = webhook.ReasonTagRef
+	return claimed
+}
+
+// TestWebhookTriggerStoreIgnoredDecisionFailIsDecisionGuarded is the #7795
+// P1 statement-level regression: the same-tick ignored-decision fail must
+// carry AND decision <> 'accepted' at UPDATE time and RETURN only the rows
+// it actually terminated. A row flipped back to accepted by a redelivery
+// between the claim snapshot and the fail stays claimed for the handoff,
+// and a row presented with a stale fencing token stays untouched.
+func TestWebhookTriggerStoreIgnoredDecisionFailIsDecisionGuarded(t *testing.T) {
+	store, db := webhookLeaseProofStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.October, 14, 12, 0, 0, 0, time.UTC)
+
+	seedWebhookLeaseTrigger(t, ctx, store, "guard-stays", now.Add(-time.Hour))
+	staysClaim := claimWebhookLeaseTrigger(t, ctx, store, "owner-a", now.Add(-time.Hour))
+	storeIgnoredRedelivery(t, ctx, store, "guard-stays", now.Add(-30*time.Minute))
+
+	seedWebhookLeaseTrigger(t, ctx, store, "guard-flip", now.Add(-time.Hour))
+	flipClaim := claimWebhookLeaseTrigger(t, ctx, store, "owner-a", now.Add(-time.Hour))
+	storeIgnoredRedelivery(t, ctx, store, "guard-flip", now.Add(-30*time.Minute))
+	// The accepted redelivery lands between the claim snapshot and the
+	// same-tick fail: the decision flips under the live claim without
+	// bumping the fencing token.
+	flipped := storeAcceptedRedelivery(t, ctx, store, "guard-flip", now.Add(-15*time.Minute))
+	if flipped.Decision != webhook.DecisionAccepted {
+		t.Fatalf("flipped decision = %q, want accepted", flipped.Decision)
+	}
+	if flipped.ClaimFencingToken != flipClaim.ClaimFencingToken {
+		t.Fatalf("flipped fencing token = %d, want the live claim token %d", flipped.ClaimFencingToken, flipClaim.ClaimFencingToken)
+	}
+
+	seedWebhookLeaseTrigger(t, ctx, store, "guard-fence", now.Add(-time.Hour))
+	fenceClaim := claimWebhookLeaseTrigger(t, ctx, store, "owner-a", now.Add(-time.Hour))
+	storeIgnoredRedelivery(t, ctx, store, "guard-fence", now.Add(-30*time.Minute))
+	staleFence := ignoredSnapshotWithDecision(fenceClaim)
+	staleFence.ClaimFencingToken += 100
+
+	failed, err := store.MarkIgnoredDecisionTriggersFailed(ctx,
+		[]webhook.StoredTrigger{
+			ignoredSnapshotWithDecision(staysClaim),
+			ignoredSnapshotWithDecision(flipClaim),
+			staleFence,
+		},
+		now, "ignored_decision",
+		"webhook trigger decision is not accepted for the git collector handoff")
+	if err != nil {
+		t.Fatalf("MarkIgnoredDecisionTriggersFailed() error = %v, want nil", err)
+	}
+	if len(failed) != 1 || failed[0].TriggerID != staysClaim.TriggerID {
+		t.Fatalf("failed = %v, want only the still-ignored trigger", triggerIDs(failed))
+	}
+
+	assertWebhookTriggerStatus(t, db, staysClaim.TriggerID, "failed")
+	var failureClass string
+	if err := db.QueryRowContext(ctx, "SELECT failure_class FROM webhook_refresh_triggers WHERE trigger_id = $1", staysClaim.TriggerID).Scan(&failureClass); err != nil {
+		t.Fatalf("read stays failure_class: %v", err)
+	}
+	if failureClass != "ignored_decision" {
+		t.Fatalf("stays failure_class = %q, want ignored_decision", failureClass)
+	}
+
+	// The flipped row stays claimed with the accepted decision: the
+	// guarded UPDATE skipped it, so the handoff path still owns it.
+	assertWebhookTriggerStatus(t, db, flipClaim.TriggerID, "claimed")
+	var flipDecision string
+	if err := db.QueryRowContext(ctx, "SELECT decision FROM webhook_refresh_triggers WHERE trigger_id = $1", flipClaim.TriggerID).Scan(&flipDecision); err != nil {
+		t.Fatalf("read flip decision: %v", err)
+	}
+	if flipDecision != string(webhook.DecisionAccepted) {
+		t.Fatalf("flip decision = %q, want accepted", flipDecision)
+	}
+	if err := store.MarkTriggersHandedOff(ctx, []webhook.StoredTrigger{flipClaim}, now); err != nil {
+		t.Fatalf("MarkTriggersHandedOff(flip) error = %v, want nil: the flipped row must stay on the handoff path", err)
+	}
+	assertWebhookTriggerStatus(t, db, flipClaim.TriggerID, "handed_off")
+
+	// The stale-fence row is untouched: the guard kept the
+	// (trigger_id, fencing token, claimed) fence.
+	assertWebhookTriggerStatus(t, db, fenceClaim.TriggerID, "claimed")
+	var fenceDecision string
+	if err := db.QueryRowContext(ctx, "SELECT decision FROM webhook_refresh_triggers WHERE trigger_id = $1", fenceClaim.TriggerID).Scan(&fenceDecision); err != nil {
+		t.Fatalf("read fence decision: %v", err)
+	}
+	if fenceDecision != string(webhook.DecisionIgnored) {
+		t.Fatalf("fence decision = %q, want ignored (row untouched)", fenceDecision)
+	}
+}
