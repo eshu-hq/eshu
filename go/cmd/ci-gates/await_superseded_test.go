@@ -292,3 +292,68 @@ func TestAwaitStaleFailureWhileNewestRunIsInFlightKeepsWaiting(t *testing.T) {
 		t.Fatalf("exit %d; waiting publishes nothing so the next aggregate reads the newest check runs", code)
 	}
 }
+
+// TestAwaitSupersededFailureWithNewestCancelledReportsCancelled is the fourth
+// #8053 acceptance criterion end to end: the rollup still carries the
+// superseded event's FAILURE, the newest event's run concluded cancelled, and
+// the newest run produced no differential check run at all. Cancelling the
+// newest run cancels the verdict too, so the aggregate must report
+// infrastructure state (exit 13), never a gate failure and never a pass.
+func TestAwaitSupersededFailureWithNewestCancelledReportsCancelled(t *testing.T) {
+	t.Parallel()
+
+	runner := &endpointRunner{routes: map[string]string{
+		"pr checks":     supersededRollupJSON(),
+		"actions/runs?": supersededRunsJSON("cancelled"),
+		"commits/" + headSHAFixture + "/check-runs": `[{"check_runs":[
+			{"name":"differential capture (pair 0, nornicdb)","status":"completed","conclusion":"cancelled","check_suite":{"id":` + itoa(supersededSuiteID) + `}},
+			{"name":"differential nornicdb vs neo4j","status":"completed","conclusion":"failure","check_suite":{"id":` + itoa(supersededSuiteID) + `}},
+			{"name":"differential capture (pair 0, nornicdb)","status":"completed","conclusion":"cancelled","check_suite":{"id":` + itoa(newestSuiteID) + `}}
+		]}]`,
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 8045, headSHAFixture, supersededGate(), 10*time.Millisecond, io_Discard{})
+	if !errors.Is(err, errGateCancelled) {
+		t.Fatalf("err = %v; the newest run was cancelled before producing the job, which is infrastructure state, not a gate result", err)
+	}
+	code := classifyAwaitOutcome(err).exitCode()
+	if state, _, published := publishedRequiredStatus(t, code); !published || state != "error" {
+		t.Fatalf("a cancelled newest run published state=%q published=%v; want error, which blocks the merge without claiming a gate failed", state, published)
+	}
+}
+
+// TestAwaitSupersededFailureWithNewestConcludedWithoutJobFailsClosed is the
+// fifth #8053 acceptance criterion end to end: the rollup still carries the
+// superseded event's FAILURE, the newest event's run concluded, but it never
+// produced the differential job. That is a real disagreement between the
+// registry and the workflow, so the aggregate must fail closed on the original
+// row (exit 10) and name the missing verdict, never drop it as superseded.
+func TestAwaitSupersededFailureWithNewestConcludedWithoutJobFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	runner := &endpointRunner{routes: map[string]string{
+		"pr checks":     supersededRollupJSON(),
+		"actions/runs?": supersededRunsJSON("success"),
+		"commits/" + headSHAFixture + "/check-runs": `[{"check_runs":[
+			{"name":"differential capture (pair 0, nornicdb)","status":"completed","conclusion":"cancelled","check_suite":{"id":` + itoa(supersededSuiteID) + `}},
+			{"name":"differential nornicdb vs neo4j","status":"completed","conclusion":"failure","check_suite":{"id":` + itoa(supersededSuiteID) + `}},
+			{"name":"differential capture (pair 0, nornicdb)","status":"completed","conclusion":"success","check_suite":{"id":` + itoa(newestSuiteID) + `}}
+		]}]`,
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 8045, headSHAFixture, supersededGate(), 10*time.Millisecond, io_Discard{})
+	if !errors.Is(err, errGateFailed) {
+		t.Fatalf("err = %v; the newest run concluded without the job, which fails closed on the original row", err)
+	}
+	if want := "MISSING (newest run concluded without it)"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("failure message %q does not carry %q; the operator must see that the newest run never produced the job", err.Error(), want)
+	}
+	code := classifyAwaitOutcome(err).exitCode()
+	if state, _, published := publishedRequiredStatus(t, code); !published || state != "failure" {
+		t.Fatalf("a newest run that concluded without the job published state=%q published=%v; want failure", state, published)
+	}
+}
