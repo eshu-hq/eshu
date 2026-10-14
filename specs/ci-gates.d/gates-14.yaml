@@ -347,6 +347,7 @@ gates:
       - "scripts/test-promote-moving-tags.sh"
       - "scripts/fixtures/promote-moving-tags-stub-curl.sh"
       - "scripts/test-resolve-image-scan-ref.sh"
+      - "scripts/fixtures/resolve-image-scan-ref-stub-curl.sh"
       - "scripts/test-verify-docker-publish-pr-platforms.sh"
       - "scripts/test-verify-docker-publish-moving-tags.sh"
       - "scripts/dev/publish-ci-image-mirrors.sh"
