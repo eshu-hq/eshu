@@ -114,8 +114,9 @@ signals are `eshu_dp_webhook_trigger_claim_reaps_total{outcome="exhausted"}`,
 the `reaped expired webhook trigger claims` log, and the stale-claims gauge.
 Base marked every claimed trigger `sync_git_failed` on the first blip, so this
 is strictly better but not lossless. In priority mode the scheduled native
-sync picks the repository up anyway; in webhook-only mode the change waits for
-the next push to it.
+sync picks the repository up on its next successful listing, if the native
+selection includes it; in webhook-only mode the change waits for the next push
+to it.
 
 Results in tests, not deployed measurements:
 
