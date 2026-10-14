@@ -136,6 +136,7 @@
             "interfaces": [],
             "is_dependency": false,
             "lang": "java",
+            "package_name": "com.example.orders",
             "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/java/OrderService.java",
             "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/java",
             "variables": [
