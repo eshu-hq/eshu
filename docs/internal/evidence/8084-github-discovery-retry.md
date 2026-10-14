@@ -83,8 +83,9 @@ at a time; the loop adds a wait, not a goroutine or a lock. Worker counts,
 batch sizes, and leases are untouched.
 
 Observability Evidence (loop): `eshu_dp_collector_discovery_skipped_cycles_total`
-(`collector_kind`, `failure_class`), `eshu_dp_collector_discovery_consecutive_failures`
-(`collector_kind`), the WARN line `collector discovery retryable; skipping
+(`collector_kind`, `operation`, `failure_class`),
+`eshu_dp_collector_discovery_consecutive_failures` (`collector_kind`,
+`operation`), the WARN line `collector discovery retryable; skipping
 cycle` (`attempt`, `failure_class`, `consecutive_failures`,
 `retry_after_seconds`, `retryable`), the `collector discovery failed` log, and
 the error status on the `scope.assign` span. `TestServiceRunSkipSignalsReachTheOperator`,

@@ -96,6 +96,9 @@ func TestFailuresCapIsFatalAndNotRetryable(t *testing.T) {
 			t.Fatalf("cap error %q does not name %q", err, fragment)
 		}
 	}
+	if got := strings.Count(err.Error(), "status 504"); got != 1 {
+		t.Fatalf("cap error %q holds the cause %d times, want once", err, got)
+	}
 }
 
 // TestRetryBudgetConstantsArePinned pins the fixed budget no operator knob may
@@ -278,6 +281,11 @@ func TestStripRemovesTheSkipAndKeepsTheCause(t *testing.T) {
 	}
 	if !errors.Is(stripped, cause) || stripped.Error() != "GitHub mint failed (class=server_error attempts=4): status 502" {
 		t.Fatalf("Strip() = %v, want fields plus the cause exactly once", stripped)
+	}
+	// Behind the caller's own wrap the cause is still printed once: the
+	// webhook selector adds "sync webhook-triggered repositories: %w".
+	if got := strings.Count(fmt.Errorf("sync webhook-triggered repositories: %w", stripped).Error(), cause.Error()); got != 1 {
+		t.Fatalf("Strip() behind a caller wrap holds the cause %d times, want once", got)
 	}
 	plain := errors.New("plain")
 	if got := rest.Strip(plain); got != plain {

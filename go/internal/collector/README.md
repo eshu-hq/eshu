@@ -61,7 +61,8 @@ and the generation bookkeeping each run depends on — lives in `LIFECYCLE.md`.
   provider is expected to clear (#8084). `Service.Run` then skips the cycle:
   it ends the observation with the error, logs the WARN line
   `collector discovery retryable; skipping cycle`, counts
-  `eshu_dp_collector_discovery_skipped_cycles_total`, waits `RetryAfter` (the
+  `eshu_dp_collector_discovery_skipped_cycles_total` (`collector_kind`,
+  `operation`, `failure_class`), waits `RetryAfter` (the
   poll interval when zero), and polls again. It does not run
   `AfterBatchDrained` and does not spend the `AfterEmptyBatchDrained` escape
   latch, because a failed listing is not a drained batch. The source owns the

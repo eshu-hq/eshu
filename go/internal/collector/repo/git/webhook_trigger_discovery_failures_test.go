@@ -296,6 +296,9 @@ func TestWebhookSelectorWithoutACounterFailsClosed(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Fatalf("SelectRepositories() error = %v, want the cause kept", err)
 	}
+	if got := strings.Count(err.Error(), cause.Error()); got != 1 {
+		t.Fatalf("SelectRepositories() error = %q holds the cause %d times, want once", err, got)
+	}
 	if got := store.failedCall("sync_git_failed"); len(got) != 1 {
 		t.Fatalf("sync_git_failed marks = %v, want the claimed trigger marked as on base", got)
 	}

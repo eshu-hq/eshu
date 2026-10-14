@@ -192,9 +192,11 @@ func (f *Failures) Clear(ctx context.Context, instruments *telemetry.Instruments
 }
 
 // Strip returns err unchanged unless it carries a *RetryableError, in which
-// case it returns a plain error that keeps the message and wraps only the
-// cause, so the result is never a collector.CycleSkipper. An owner without a
-// failure counter uses it to keep a retryable failure fatal.
+// case it returns a plain error that names the operation, class and attempts
+// and wraps only the cause, so the result is never a collector.CycleSkipper.
+// The message is built from the fields, not from err.Error(), because that
+// text already embeds the cause. An owner without a failure counter uses it to
+// keep a retryable failure fatal.
 func Strip(err error) error {
 	var typed *RetryableError
 	if !errors.As(err, &typed) {

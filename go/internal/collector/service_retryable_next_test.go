@@ -302,16 +302,18 @@ func TestServiceRunSkipSignalsReachTheOperator(t *testing.T) {
 			}
 			for _, dp := range m.Data.(metricdata.Sum[int64]).DataPoints {
 				attrs := dp.Attributes.ToSlice()
-				var kind, class string
+				var kind, class, operation string
 				for _, a := range attrs {
 					switch string(a.Key) {
 					case "collector_kind":
 						kind = a.Value.AsString()
 					case "failure_class":
 						class = a.Value.AsString()
+					case "operation":
+						operation = a.Value.AsString()
 					}
 				}
-				if kind == "git" && class == "server_error" {
+				if kind == "git" && class == "server_error" && operation == "mint" {
 					got += dp.Value
 				}
 			}

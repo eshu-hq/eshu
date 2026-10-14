@@ -2834,7 +2834,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.CollectorDiscoverySkippedCycles, err = meter.Int64Counter(
 		"eshu_dp_collector_discovery_skipped_cycles_total",
-		metric.WithDescription("Total collector discovery cycles skipped after a retryable source failure instead of exiting the process, by collector_kind and bounded failure_class"),
+		metric.WithDescription("Total collector discovery cycles skipped after a retryable source failure instead of exiting the process, by collector_kind, operation and bounded failure_class"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CollectorDiscoverySkippedCycles counter: %w", err)
@@ -2842,7 +2842,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.CollectorDiscoveryConsecutiveFailures, err = meter.Int64Gauge(
 		"eshu_dp_collector_discovery_consecutive_failures",
-		metric.WithDescription("Consecutive collector discovery cycles that ended in a retryable failure, by collector_kind; 0 after a successful selection"),
+		metric.WithDescription("Consecutive collector discovery cycles that ended in a retryable failure, by collector_kind and operation; 0 after a successful selection"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CollectorDiscoveryConsecutiveFailures gauge: %w", err)
