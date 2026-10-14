@@ -23,7 +23,8 @@ const requiredDisposableOptIn = "1"
 
 // OpenDisposableDatabase creates a unique database through an explicitly
 // approved connection to PostgreSQL's administrative postgres database. The
-// generated database is force-dropped during test cleanup.
+// generated database uses pristine template0 and a public search path, and is
+// force-dropped during test cleanup.
 func OpenDisposableDatabase(
 	t testing.TB,
 	adminDSN string,
@@ -51,27 +52,51 @@ func OpenDisposableDatabase(
 	}
 
 	databaseName := disposableDatabaseName(t)
-	if _, err := adminDB.ExecContext(ctx, "CREATE DATABASE "+quoteIdentifier(databaseName)); err != nil {
+	// Create from template0 so extensions and relations installed in
+	// template1 (for example a pg_trgm left in public) cannot leak into the
+	// proof database and shadow the bootstrap's own installs.
+	if _, err := adminDB.ExecContext(ctx, "CREATE DATABASE "+quoteIdentifier(databaseName)+" TEMPLATE template0"); err != nil {
 		_ = adminDB.Close()
 		t.Fatalf("create disposable PostgreSQL database: %v", err)
 	}
 	targetConfig := config.Copy()
 	targetConfig.Database = databaseName
+	// Pin the search path to public so unqualified operator classes such as
+	// gin_trgm_ops resolve to this database's own installs even when the
+	// caller's session carries a schema-first search_path.
+	targetConfig.RuntimeParams = cloneRuntimeParams(config.RuntimeParams)
+	targetConfig.RuntimeParams["search_path"] = "public"
 	// Connect the way the service runtimes do (runtime.OpenPostgres): every
 	// connection carries the derive-aware writer setting, so a proof that
 	// seeds infra-typed content rows leaves no rolling-upgrade fence marks.
-	targetDB := stdlib.OpenDB(*targetConfig, inventory.WriterConnectOption())
-	if err := targetDB.PingContext(ctx); err != nil {
-		_ = targetDB.Close()
-		dropDisposableDatabase(t, adminDB, databaseName)
-		t.Fatalf("ping disposable PostgreSQL database: %v", err)
-	}
+	//
+	// Register the drop before opening the target: every later exit, including
+	// a failed open or ping, runs this cleanup, so neither the target handle
+	// nor the database leaks on a failure path.
+	var targetDB *sql.DB
 	t.Cleanup(func() {
-		_ = targetDB.Close()
+		if targetDB != nil {
+			_ = targetDB.Close()
+		}
 		dropDisposableDatabase(t, adminDB, databaseName)
 		_ = adminDB.Close()
 	})
+	targetDB = stdlib.OpenDB(*targetConfig, inventory.WriterConnectOption())
+	if err := targetDB.PingContext(ctx); err != nil {
+		t.Fatalf("ping disposable PostgreSQL database: %v", err)
+	}
 	return ctx, targetDB
+}
+
+// cloneRuntimeParams copies a pgx runtime-parameter map so the disposable
+// target can pin its own search_path without rewriting the shared
+// administrative config's session defaults.
+func cloneRuntimeParams(params map[string]string) map[string]string {
+	out := make(map[string]string, len(params)+1)
+	for key, value := range params {
+		out[key] = value
+	}
+	return out
 }
 
 func missingAdminDSNSkipMessage() string {

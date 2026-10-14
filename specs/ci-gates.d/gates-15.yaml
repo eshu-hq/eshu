@@ -212,6 +212,7 @@ gates:
     tier: pre-push
     blocking: true
     triggers:
+      - "go/cmd/reducer/**"
       - "go/internal/storage/**"
       - "go/internal/reducer/**"
       - "go/internal/collector/**"

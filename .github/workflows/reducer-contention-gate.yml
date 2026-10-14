@@ -107,7 +107,8 @@ jobs:
           ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF: "1"
           ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
           ESHU_GENERATION_LIVENESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
-          ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE: "1"
           ESHU_SUPERSEDED_GENERATION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
           ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
           ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF: "1"
