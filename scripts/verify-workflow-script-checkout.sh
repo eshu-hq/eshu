@@ -12,19 +12,26 @@
 # Rule: in every .github/workflows/*.yml|*.yaml job that has a steps:
 # sequence, the first step whose `uses:` is actions/checkout must come before
 # every step whose `run:` invokes a repository shell script. A script
-# invocation is `scripts/<path>.sh|.bash`, `./scripts/<path>.sh|.bash`, or
-# `../scripts/<path>.sh|.bash` (the working-directory: go form) at a command
-# boundary, with or without a
-# `bash`/`sh`/`source`/`. ` prefix. Full-line and trailing ` #` shell
-# comments are stripped before matching, so a commented-out invocation does
-# not count. Step `if:` conditions are NOT evaluated: a conditional checkout
-# still counts as preceding (queue-selection.yml relies on this; a static
-# gate cannot evaluate expressions).
+# invocation is `scripts/<path>.sh|.bash` as the command itself, with an
+# optional `./`/`../` prefix (the working-directory: go form), an optional
+# `$GITHUB_WORKSPACE`/`${GITHUB_WORKSPACE}`/`${{ github.workspace }}`
+# prefix, or `VAR=value` prefixes; or the same path as the argument of a
+# leading `bash`/`sh`/`source`/`. ` command in the same command segment. A
+# scripts/ path that is only an argument to another command (for example
+# `echo "scripts/x/a.sh"`) does not count: the script is not executed
+# there. Full-line and trailing ` #` shell comments are stripped before
+# matching, so a commented-out invocation does not count. Step `if:`
+# conditions are NOT evaluated: a conditional checkout still counts as
+# preceding (queue-selection.yml relies on this; a static gate cannot
+# evaluate expressions).
 #
 # Out of scope: reusable-call jobs (no steps: of their own), local composite
 # actions (none exist; .github/actions/ is absent), and non-shell repo
-# scripts. A checkout that the runner skips at runtime is still a finding for
-# a human, not for this gate.
+# scripts. `make`/`go`/repo-relative `cd` steps stay out of scope by
+# decision (#8057): tying a target, package, or directory to the repository
+# tree needs Makefile, package, and path knowledge this static gate does
+# not have. A checkout that the runner skips at runtime is still a finding
+# for a human, not for this gate.
 #
 # Usage:
 #   scripts/verify-workflow-script-checkout.sh [--help]

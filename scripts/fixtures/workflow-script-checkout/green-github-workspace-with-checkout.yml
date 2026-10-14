@@ -1,0 +1,17 @@
+name: Fixture green GITHUB_WORKSPACE with checkout
+# Seeded GREEN for scripts/test-verify-workflow-script-checkout.sh (#8057):
+# the same $GITHUB_WORKSPACE script call as
+# red-github-workspace-no-checkout.yml, but the default-branch checkout
+# precedes it. The verifier must pass on this file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Resolve image reference from triggering workflow_run
+        run: bash $GITHUB_WORKSPACE/scripts/ci/resolve-image-scan-ref.sh
