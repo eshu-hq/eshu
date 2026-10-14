@@ -93,6 +93,9 @@ func TestImportDependencyInvestigationSpanCarriesTheCycleWalkSignals(t *testing.
 		"eshu.import_dependencies.cycle_inferred_edge_count":      0,
 		"eshu.import_dependencies.cycle_go_edges_missing_package": 0,
 		"eshu.import_dependencies.cycle_ts_edges_missing_package": 0,
+		// Java-unplaced edges are always zero on a Python read; the
+		// attribute must still be present so the trace shape is stable.
+		"eshu.import_dependencies.cycle_java_edges_missing_package": 0,
 	} {
 		got, ok := attrs[attrKey]
 		if !ok {

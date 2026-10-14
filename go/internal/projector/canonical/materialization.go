@@ -6,6 +6,10 @@
 // replace SourceLocalRecord as the projector's Neo4j write output.
 package canonical
 
+import (
+	"strings"
+)
+
 // CanonicalMaterialization holds all canonical node and edge writes for one
 // repository projection. Built from the same facts that produce content store
 // writes. Written to Neo4j in strict phase order by CanonicalNodeWriter.
@@ -149,9 +153,10 @@ type ImportRow struct {
 	Alias          string
 	LineNumber     int
 	// SourcePackage is the importing file's own package: the Go package
-	// import path (issue #7347) or the owning npm package name (issue
-	// #7348). The projector derives it from the parsed_file_data the Go
-	// and JavaScript parsers wrote, so the file_import_cycles query can
+	// import path (issue #7347), the owning npm package name (issue
+	// #7348), or the owning Java package (issue #7349). The projector
+	// derives it from the parsed_file_data the Go, JavaScript, and Java
+	// parsers wrote, so the file_import_cycles query can
 	// collapse package-lifted files into packages with the shared rule
 	// instead of inventing grouping. Empty for other languages and for
 	// files whose package is unknown.
@@ -415,4 +420,26 @@ func EntityTypeLabelMap() map[string]string {
 		cloned[k] = v
 	}
 	return cloned
+}
+
+// javaSourcePackage places one file in its Java package for package-level
+// import cycles (#7349); it fills ImportRow.SourcePackage above. Only Java
+// files are placed: every other language keeps an empty package; each lift
+// owns its own mapping (Go: #7347, TS/JS: #7348). It lives here rather than
+// import_extract.go to keep that file under the 500-line cap.
+//
+// The file-level package_name the Java parser writes wins: it is the
+// package_declaration of exactly this file. Java function items carry no
+// package, so there is no bucket fallback: anything else -- no key, a
+// non-string value, a file in the default package -- is unknown, never a
+// guess: an invented package would collapse the wrong files together.
+func javaSourcePackage(file parsedFileRef) string {
+	if strings.ToLower(strings.TrimSpace(file.Language)) != "java" {
+		return ""
+	}
+	if file.ParsedFileData == nil {
+		return ""
+	}
+	pkg, _ := file.ParsedFileData["package_name"].(string)
+	return strings.TrimSpace(pkg)
 }

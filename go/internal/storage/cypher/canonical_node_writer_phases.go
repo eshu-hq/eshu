@@ -288,8 +288,9 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 				"alias":           imp.Alias,
 				"line_number":     imp.LineNumber,
 				"generation_id":   mat.GenerationID,
-				// The importing file's own package: Go import path (#7347)
-				// or owning npm package name (#7348).
+				// The importing file's own package: Go import path (#7347),
+				// owning npm package name (#7348), or owning Java package
+				// (#7349).
 				// Always present as an explicit string so the SET overwrites
 				// a stale package after the file moved packages.
 				"source_package": imp.SourcePackage,

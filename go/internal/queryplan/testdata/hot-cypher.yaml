@@ -452,7 +452,7 @@ entries:
       file: go/internal/query/codemodel/code_import_dependencies_queries.go
       symbol: FileImportCycleEdgeRowsCypher
       source_sha256: b5dab4d4b42f75a54ca623de366f8d62e6a724b389239d9d168c21467c2f1d41
-      line_hint: 164
+      line_hint: 178
     required_anchors:
       - label: Repository
         property: id

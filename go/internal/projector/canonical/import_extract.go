@@ -81,8 +81,9 @@ type importAccumulator struct {
 	moduleLanguage string
 
 	// sourcePackage is the importing file's own package: the Go package
-	// import path (#7347, goSourcePackage) or the owning npm package name
-	// (#7348, jsSourcePackage), derived once per file. Like moduleLanguage
+	// import path (#7347, goSourcePackage), the owning npm package name
+	// (#7348, jsSourcePackage), or the owning Java package (#7349,
+	// javaSourcePackage), derived once per file. Like moduleLanguage
 	// it never varies within one accumulator. Empty for other languages
 	// and for files whose package is unknown.
 	sourcePackage string
@@ -173,6 +174,9 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 		sourcePackage := goSourcePackage(file)
 		if sourcePackage == "" {
 			sourcePackage = jsSourcePackage(file)
+		}
+		if sourcePackage == "" {
+			sourcePackage = javaSourcePackage(file)
 		}
 
 		for _, entry := range entries {

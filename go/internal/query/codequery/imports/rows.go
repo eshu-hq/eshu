@@ -104,7 +104,14 @@ func CycleRows(
 	params := Params(req)
 	params["cycle_language"] = req.EffectiveCycleLanguage()
 	params["scan_limit"] = querycontract.ImportDependencyInternalScanLimit + 1
-	rows, err := graph.Run(ctx, codemodel.FileImportCycleEdgeRowsCypher(req), params)
+	// Java package reads collapse to package pairs in the statement (#7349):
+	// the flagship Java repository carries more file-level rows than the
+	// scan bound allows. Every other language keeps the file-level fetch.
+	cypher := codemodel.FileImportCycleEdgeRowsCypher(req)
+	if codemodel.IsJavaCycleLanguage(req.EffectiveCycleLanguage()) {
+		cypher = codemodel.JavaPackageCycleEdgeRowsCypher(req)
+	}
+	rows, err := graph.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, codemodel.CycleEnumeration{}, fmt.Errorf("query file import cycle edges: %w", err)
 	}

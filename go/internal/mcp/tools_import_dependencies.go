@@ -22,7 +22,7 @@ func importDependencyTool() ToolDefinition {
 				},
 				"language": map[string]any{
 					"type":        "string",
-					"description": "Optional language filter. file_import_cycles supports python multi-node cycle detection, go package cycle detection, and typescript/tsx/javascript package cycle detection; other languages are rejected.",
+					"description": "Optional language filter. file_import_cycles supports python multi-node cycle detection, go package cycle detection, typescript/tsx/javascript package cycle detection, and java package cycle detection; other languages are rejected.",
 				},
 				"max_cycle_length": map[string]any{
 					"type":        "integer",

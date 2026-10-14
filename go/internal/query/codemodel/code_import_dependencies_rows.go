@@ -80,6 +80,7 @@ func BuildFileImportCycleRows(
 	enumeration.EdgeFlags = edgeFlags
 	enumeration.GoPackageUnknown = countGoEdgesMissingPackage(edgeRows)
 	enumeration.TSPackageUnknown = countTSPackageUnknown(edgeRows)
+	enumeration.JavaPackageUnknown = countJavaEdgesMissingPackage(edgeRows)
 
 	cycleRows := make([]map[string]any, 0, len(cycles))
 	seenCycles := make(map[string]struct{})
@@ -291,7 +292,7 @@ func importCycleEdgeFromRow(
 		lineNumber:   querycontract.IntVal(row, "line_number"),
 		state:        importCycleEdgeStateFromRow(row),
 	}
-	if edge.language != "python" && edge.language != "go" && !isTSCycleLanguage(edge.language) {
+	if edge.language != "python" && edge.language != "go" && !isTSCycleLanguage(edge.language) && !IsJavaCycleLanguage(edge.language) {
 		return importCycleEdge{}, false
 	}
 	if edge.language == "go" || isTSCycleLanguage(edge.language) {
@@ -307,6 +308,27 @@ func importCycleEdgeFromRow(
 		edge.sourceFile = strings.TrimSpace(querycontract.StringVal(row, "source_package"))
 		edge.sourceModule = edge.sourceFile
 	}
+	if IsJavaCycleLanguage(edge.language) {
+		// Package-level collapse (#7349): the node IS the Java package.
+		// The projector-owned source_package becomes both the node key and
+		// the declared module, and the target package is the imported
+		// package, so the shared exact-equality collapse joins packages
+		// with no change to its rule, and same-package files land on one
+		// node. sourcePath is cleared so rows from different files share
+		// one dedupe key and fold their flag states. The collapsed fetch
+		// projects target_package directly; a file-level row derives it
+		// from its target module with the same rule, so where the collapse
+		// happens never changes the answer. An edge with no package
+		// predates the mapping and is unplaceable;
+		// BuildFileImportCycleRows counts those separately.
+		edge.sourcePath = ""
+		edge.sourceFile = strings.TrimSpace(querycontract.StringVal(row, "source_package"))
+		edge.sourceModule = edge.sourceFile
+		edge.targetModule = strings.TrimSpace(querycontract.StringVal(row, "target_package"))
+		if edge.targetModule == "" {
+			edge.targetModule = javaTargetPackage(querycontract.StringVal(row, "target_module"))
+		}
+	}
 	if edge.repoID == "" || edge.sourceFile == "" || edge.sourceModule == "" || edge.targetModule == "" {
 		return importCycleEdge{}, false
 	}
@@ -314,7 +336,7 @@ func importCycleEdgeFromRow(
 		return importCycleEdge{}, false
 	}
 	// An unfiltered request stays Python-only, exactly as before the
-	// package lifts (#7347/#7348): the lifts answer explicit language
+	// package lifts (#7347/#7348/#7349): the lifts answer explicit language
 	// filters, and changing
 	// what unfiltered clients receive would be a second behavior change.
 	if edge.language != req.EffectiveCycleLanguage() {
