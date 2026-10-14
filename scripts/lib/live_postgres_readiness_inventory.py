@@ -20,6 +20,7 @@ ADMIN_PACKAGE = "./internal/query/admin"
 REACHABILITY_PACKAGE = "./internal/storage/postgres/code/reachability"
 CONFIG_ARTIFACTS_PACKAGE = "./internal/storage/postgres/config/artifacts"
 UNSCOPED_SEARCH_PACKAGE = "./internal/query/search/unscoped"
+WEBHOOK_PACKAGE = "./internal/storage/postgres/webhook"
 
 # Expected files and tests per Go package (relative to the go/ module root).
 # The runner invokes one go test per package, each with its own events file
@@ -260,6 +261,13 @@ PACKAGES = {
         "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
+        ),
+    },
+    WEBHOOK_PACKAGE: {
+        "go/internal/storage/postgres/webhook/ignored_decision_live_test.go": (
+            "TestWebhookTriggerStoreUpsertDemotesQueuedToIgnored",
+            "TestWebhookTriggerStoreReapFailsIgnoredDecisionClaims",
+            "TestWebhookTriggerStoreIgnoredDecisionFailIsDecisionGuarded",
         ),
     },
     ACTIVATION_PACKAGE: {
