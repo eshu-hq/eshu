@@ -228,3 +228,31 @@ ORDER BY repo_id, source_package, target_package
 LIMIT $scan_limit`)
 	return cypher.String()
 }
+
+// countJavaEdgesMissingPackage counts otherwise-valid Java edge rows that
+// carry no source_package (#7349): edges from a graph written before the
+// projector's package mapping. BuildFileImportCycleRows reports the count in
+// coverage so the drop is visible instead of silent.
+func countJavaEdgesMissingPackage(rows []map[string]any) int {
+	count := 0
+	for _, row := range rows {
+		if !IsJavaCycleLanguage(strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "language")))) {
+			continue
+		}
+		if strings.TrimSpace(querycontract.StringVal(row, "source_package")) != "" {
+			continue
+		}
+		// A collapsed row names its target package; a file-level row names
+		// its target module. Either makes the row otherwise-valid: it is
+		// the missing source package alone that leaves it unplaceable.
+		target := strings.TrimSpace(querycontract.StringVal(row, "target_package"))
+		if target == "" {
+			target = strings.TrimSpace(querycontract.StringVal(row, "target_module"))
+		}
+		if querycontract.StringVal(row, "repo_id") == "" || target == "" {
+			continue
+		}
+		count++
+	}
+	return count
+}
