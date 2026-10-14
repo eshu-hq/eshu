@@ -84,7 +84,7 @@ gates:
   stops: the walk finds 1,000 cycles slowly on cycle-dense graphs; the
   250,000-step budget is never the binding constraint. Retuning the budget
   cannot manufacture completion where more than 1,000 cycles exist.
-- Default depth 5 completes with a 14.2x margin at flagship scale
+- Default depth 5 completes with a 14.1x margin at flagship scale
   (committed gate `TestImportCycleStepBudgetCoversJavaPackageScale`: worst
   17,694 steps over 30 placements; length 7 sees zero budget stops over 25
   placements). No walk change is needed for the default path; deep

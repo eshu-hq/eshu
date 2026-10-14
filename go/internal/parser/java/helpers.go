@@ -117,8 +117,10 @@ func javaFilePackageName(root *tree_sitter.Node, source []byte) string {
 			// An annotated declaration (package-info.java) carries the
 			// annotation as a direct named child ahead of the package name;
 			// stamping its text would invent a non-package, so annotations
-			// never win the name.
-			if kind := child.Kind(); kind == "annotation" || kind == "marker_annotation" {
+			// never win the name. Comments are named extras in the pinned
+			// tree-sitter-java grammar and can surface the same way
+			// (package /*c*/ com.acme;), so they never win either.
+			if kind := child.Kind(); kind == "annotation" || kind == "marker_annotation" || kind == "line_comment" || kind == "block_comment" {
 				return
 			}
 			if text := strings.TrimSpace(nodeText(child, source)); !strings.HasPrefix(text, "@") {
@@ -126,13 +128,42 @@ func javaFilePackageName(root *tree_sitter.Node, source []byte) string {
 			}
 		})
 		if packageName == "" {
-			raw := strings.TrimSpace(nodeText(node, source))
-			raw = strings.TrimPrefix(raw, "package")
-			raw = strings.TrimSuffix(raw, ";")
-			packageName = strings.TrimSpace(raw)
+			// No direct child won the name: prefer the grammar's name node,
+			// which never spans a comment, before falling back to raw
+			// declaration text with comments stripped.
+			if nameNode := firstNamedDescendant(node, "scoped_identifier", "identifier"); nameNode != nil {
+				if text := strings.TrimSpace(nodeText(nameNode, source)); text != "" {
+					packageName = text
+					return
+				}
+			}
+			packageName = strings.TrimSpace(stripJavaComments(strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(nodeText(node, source)), "package")), ";")))
 		}
 	})
 	return packageName
+}
+
+// stripJavaComments removes block (/* ... */) and line (// ...) comments
+// from a raw package declaration remainder so the raw-text fallback in
+// javaFilePackageName cannot stamp comment text as a package name.
+func stripJavaComments(s string) string {
+	for {
+		start := strings.Index(s, "/*")
+		if start < 0 {
+			break
+		}
+		rest := s[start+2:]
+		end := strings.Index(rest, "*/")
+		if end < 0 {
+			s = s[:start]
+			break
+		}
+		s = s[:start] + " " + rest[end+2:]
+	}
+	if idx := strings.Index(s, "//"); idx >= 0 {
+		s = s[:idx]
+	}
+	return s
 }
 
 func javaImportName(node *tree_sitter.Node, source []byte) string {

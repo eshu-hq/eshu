@@ -108,6 +108,34 @@ public class PlaceHolder {
 	}
 }
 
+// TestJavaPackageCyclesCommentInsideDeclarationReportsPackage pins the
+// comment half of the #7349 package identity (review P2): a comment inside
+// the package declaration is a named extra in tree-sitter-java, never the
+// package name, so the parser must still report the declared package and
+// the projector never stamps comment text as source_package.
+func TestJavaPackageCyclesCommentInsideDeclarationReportsPackage(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "main", "java", "com", "acme", "App.java")
+	writeJavaTestFile(t, filePath, `package /*c*/ com.acme;
+
+public class App {
+}
+`)
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	if pkg, _ := got["package_name"].(string); pkg != "com.acme" {
+		t.Errorf("package_name = %#v, want the declared package %q", got["package_name"], "com.acme")
+	}
+}
+
 // TestJavaPackageCyclesDefaultPackageCarriesNoPackageName pins the
 // absence half of the #7349 package identity: a file outside every package
 // declaration carries no package_name key, keeping that payload
