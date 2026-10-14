@@ -333,6 +333,20 @@ func TestBuildEshuSearchIndexQueryKeepsHandlePredicateForForeignRepoAnchor(t *te
 	}
 }
 
+func TestBuildEshuSearchIndexQueryKeepsHandlePredicateForUntrimmedRepoAnchor(t *testing.T) {
+	t.Parallel()
+
+	query, _ := BuildEshuSearchIndexQuery(EshuSearchIndexSearch{
+		ScopeID: "scope-1",
+		RepoID:  "repo-1",
+		Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1 "},
+		Limit:   31,
+	}, []string{"common"}, []string{"term-key"})
+	if !strings.Contains(query, "jsonb_array_elements") {
+		t.Error("BM25 query dropped the handle predicate for a repo anchor whose raw ID differs from the repo scope")
+	}
+}
+
 func searchIndexDocumentFixture(id string, repoID string, title string) searchdocs.Document {
 	return searchdocs.Document{
 		ID:          id,

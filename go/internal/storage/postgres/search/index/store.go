@@ -253,11 +253,14 @@ func BuildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, ter
 	// simplifiedRepoAnchor holds when the anchor is the repo scope itself: the
 	// repo predicate already implies the handle clause's direct-repo branch,
 	// so emitting that clause would only force a document fetch per posting
-	// without changing membership (#7727). Every other anchor shape keeps its
-	// handle predicate byte-for-byte.
+	// without changing membership (#7727). The comparison uses the bound
+	// values, not trimmed ones: the omitted clause binds the raw anchor ID
+	// while the repo predicate binds the raw repo ID, so the simplification
+	// is exact only when the two raw values are equal. Every other anchor
+	// shape keeps its handle predicate byte-for-byte.
 	simplifiedRepoAnchor := search.Anchor.Kind == searchretrieval.ScopeKindRepo &&
-		strings.TrimSpace(search.Anchor.ID) != "" &&
-		strings.TrimSpace(search.Anchor.ID) == strings.TrimSpace(search.RepoID)
+		search.Anchor.ID != "" &&
+		search.Anchor.ID == search.RepoID
 
 	conditions := []string{"d.repo_id = $4"}
 	var handlePredicateEmitted bool
