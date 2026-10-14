@@ -6,8 +6,10 @@ package git
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -283,6 +285,80 @@ func TestSkipParseParsesWhenARuleRefuses(t *testing.T) {
 			}
 			if outcomes := w.outcomes(); outcomes[cell.outcome] != 1 {
 				t.Fatalf("decision outcomes = %v, want %s=1", outcomes, cell.outcome)
+			}
+		})
+	}
+}
+
+// TestSkipParseParseAfterCleanCheckRunsStatusOnce (#8038 item 2): when the
+// skip attempt reaches the clean-tree check but the repository still parses —
+// a dirty tree, or a clean check followed by a superseded re-projection — the
+// identity stamp reuses that observation instead of running git status a
+// second time in the same cycle.
+func TestSkipParseParseAfterCleanCheckRunsStatusOnce(t *testing.T) {
+	cells := []struct {
+		name string
+		// statusOut is what the fake git prints for status --porcelain:
+		// empty for a clean tree, residue for a dirty one.
+		statusOut string
+		// reprojectReason, when set, is the reason the fake store returns
+		// instead of reconcile_reprojected.
+		reprojectReason string
+		outcome         string
+		wantStamped     bool
+	}{
+		{
+			name: "superseded after a clean check", statusOut: "",
+			reprojectReason: telemetry.RefreshSkipReasonReconcileSuperseded,
+			outcome:         "reprojection_superseded", wantStamped: true,
+		},
+		{
+			name: "dirty tree", statusOut: "?? leftover.txt\n",
+			reprojectReason: "", outcome: "dirty_tree", wantStamped: false,
+		},
+	}
+	for _, cell := range cells {
+		t.Run(cell.name, func(t *testing.T) {
+			counter := filepath.Join(t.TempDir(), "status-count")
+			printOut := ""
+			if cell.statusOut != "" {
+				printOut = fmt.Sprintf("printf %q", cell.statusOut)
+			}
+			w := newSkipParseWorld(t, fmt.Sprintf(`
+	*"status --porcelain"*)
+		printf 'x\n' >>'%s'
+		%s
+		;;`, counter, printOut), "big")
+			identity := w.identity()
+			if cell.reprojectReason != "" {
+				w.resolver.reprojectReason = cell.reprojectReason
+			}
+			w.resolver.fallback = w.overdue(identity, 0)
+			// The bootstrap sync inside identityOf runs status once; only
+			// the measured sync below may append from here on.
+			if err := os.WriteFile(counter, nil, 0o600); err != nil {
+				t.Fatalf("truncate status counter: %v", err)
+			}
+			synced := w.sync(7, nil, "big")
+			if len(synced.SelectedRepoPaths) != 1 {
+				t.Fatalf("selected %d, want a parse", len(synced.SelectedRepoPaths))
+			}
+			if outcomes := w.outcomes(); outcomes[cell.outcome] != 1 {
+				t.Fatalf("decision outcomes = %v, want %s=1", outcomes, cell.outcome)
+			}
+			raw, err := os.ReadFile(counter)
+			if err != nil {
+				t.Fatalf("read status counter: %v", err)
+			}
+			if runs := strings.Count(string(raw), "\n"); runs != 1 {
+				t.Fatalf("git status ran %d times on the parse-after-clean-check path, want 1", runs)
+			}
+			stamped, ok := synced.PreparseIdentityByRepoPath[w.repoPath("big")]
+			if cell.wantStamped && (!ok || stamped != identity) {
+				t.Fatalf("stamped identity = %q, want %q", stamped, identity)
+			}
+			if !cell.wantStamped && ok {
+				t.Fatalf("stamped identity = %q on a dirty tree, want none", stamped)
 			}
 		})
 	}

@@ -108,7 +108,13 @@ func syncGitRepositoriesWithLogger(
 				if fatalErr != nil {
 					return GitSyncSelection{}, fatalErr
 				}
-				if ok && forceReconcile && baseline.skipParse(ctx, logger, config, token, repoPath, reconcile, sourceSHA, refs) {
+				// knownClean reuses the skip attempt's clean-tree observation
+				// for the identity stamp below (#8038 item 2).
+				skipped, knownClean := false, (*bool)(nil)
+				if ok && forceReconcile {
+					skipped, knownClean = baseline.skipParse(ctx, logger, config, token, repoPath, reconcile, sourceSHA, refs)
+				}
+				if skipped {
 					reconciledThisCycle++ // ruling a9-143 D2: the re-projection spends a slot
 					walkTracker.noteSpent(i)
 				} else if ok {
@@ -119,7 +125,7 @@ func syncGitRepositoriesWithLogger(
 					}
 					sourceSHAByRepoPath[repoPath] = sourceSHA
 					if delta.IsEmpty() {
-						if identity := baseline.snapshotIdentity(ctx, config, token, repoPath, sourceSHA, refs); identity != "" {
+						if identity := baseline.snapshotIdentity(ctx, config, token, repoPath, sourceSHA, refs, knownClean); identity != "" {
 							preparseByRepoPath[repoPath] = identity
 						}
 					}
@@ -443,32 +449,50 @@ func gitRevParse(
 // ruling a9-143). It reports true when the store re-projected the active
 // generation, so the caller selects nothing for repoPath. A resolver without
 // preparse.Reprojector, a refusal, or a store error reports false and the
-// repository is parsed as before.
+// repository is parsed as before. It also reports the attempt's clean-tree
+// observation for the identity stamp: nil when the decision never reached
+// the check or the check errored (#8038 item 2).
 func (b gitDeltaBaseline) skipParse(
 	ctx context.Context, logger *slog.Logger, config RepoSyncConfig, token, repoPath string,
 	decision reconcileDecision, sourceSHA string, refs []GitRef,
-) bool {
+) (bool, *bool) {
 	reprojector, ok := b.Resolver.(preparse.Reprojector)
 	if b.Preparse == nil || !ok {
-		return false
+		return false, nil
 	}
-	return preparse.Run(ctx, preparse.Attempt{
+	var observed *bool
+	clean := func() (bool, error) {
+		isClean, err := gitTreeClean(ctx, config, token, repoPath)
+		if err == nil {
+			observed = &isClean
+		}
+		return isClean, err
+	}
+	skipped := preparse.Run(ctx, preparse.Attempt{
 		ScopeID: decision.ScopeID, Reason: decision.Reason, State: decision.State, RemoteCommit: sourceSHA,
 		Identity:      preparse.Identity(GenerationContentVersion(), sourceSHA, repositoryDefaultBranch(refs), *b.Preparse),
 		HasSubmodules: regularFileExists(filepath.Join(repoPath, ".gitmodules")),
 		MaxSkips:      b.ParseMaxSkips, ConfigDigest: preparse.ConfigDigest(*b.Preparse),
-	}, func() (bool, error) { return gitTreeClean(ctx, config, token, repoPath) }, reprojector,
+	}, clean, reprojector,
 		preparse.Recorder{Instruments: b.Instruments, Logger: logger})
+	return skipped, observed
 }
 
 // snapshotIdentity returns the pre-parse identity a full snapshot of repoPath
 // at sourceSHA will carry, or an empty string when the feature is off or the
 // checkout is not clean (the identity describes the commit's tree only).
-func (b gitDeltaBaseline) snapshotIdentity(ctx context.Context, config RepoSyncConfig, token, repoPath, sourceSHA string, refs []GitRef) string {
+// knownClean reuses the skip attempt's observation for the same cycle
+// instead of running git status again; nil checks the tree itself. Nothing
+// touches the checkout between the attempt and the stamp.
+func (b gitDeltaBaseline) snapshotIdentity(ctx context.Context, config RepoSyncConfig, token, repoPath, sourceSHA string, refs []GitRef, knownClean *bool) string {
 	if b.Preparse == nil {
 		return ""
 	}
-	if clean, err := gitTreeClean(ctx, config, token, repoPath); err != nil || !clean {
+	if knownClean != nil {
+		if !*knownClean {
+			return ""
+		}
+	} else if clean, err := gitTreeClean(ctx, config, token, repoPath); err != nil || !clean {
 		return ""
 	}
 	return preparse.Identity(GenerationContentVersion(), sourceSHA, repositoryDefaultBranch(refs), *b.Preparse)
