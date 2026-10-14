@@ -311,6 +311,11 @@ tests:
     class: postgres_ci
     reason: "#7584 disposable PostgreSQL 18 read-side parity proof that the target-catalog inbound load plus the exact owed partition load equals the full deferred loader for evidence touching the owed repository; enrolled in the live-postgres-readiness runner; local run passed in 0.30s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/repository_catalog_projection_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8082 disposable PostgreSQL 18 differential proof that the repository-catalog loader's SQL key projection returns the same entries and observed_at freshness keys as the pre-#8082 whole-payload statement and Go decode over a numeric repo_id, an absent name, a JSON-null slug, a whitespace-only remote_url, two generations and a same-timestamp tie of one repository, and array, string and null payloads, and that the loader ships no row over 4 KiB although two 1 MiB payloads are seeded; reuses the ESHU_TARGETED_MAINTENANCE_PROOF_DSN disposable server; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/tfstate_drift_evidence_prior_config_ordering_live_test.go
     tag: ~
     class: scheduled

@@ -15,7 +15,7 @@ log line. The set is closed: nine blocks, no others.
 
 | Block | Span name | Attributes |
 | --- | --- | --- |
-| Repository catalog read, row iteration, and JSON decode | `relationship.backfill.catalog_load` | `rows` (fact rows scanned), `entries` (catalog entries kept), `decode_seconds` |
+| Repository catalog read, row iteration, and JSON decode | `relationship.backfill.catalog_load` | `rows` (repository fact rows read; payloads that are not JSON objects are filtered in SQL), `entries` (catalog entries kept), `decode_seconds` |
 | Anchor-scoped query parameter build | `relationship.backfill.params_build` | `anchor_terms` |
 | Active scope-generation partition list | `relationship.backfill.partition_list` | `partitions` |
 | Partition memo lookup and skip decision | `relationship.backfill.memo_gate` | `candidate_partitions`, `skipped`, `loaded` |
@@ -121,6 +121,9 @@ existing `deferred_backfill_completed` line, the existing
 2. A long `catalog_load` with `rows` far above `entries` means the catalog
    query reads many superseded repository facts. A long `catalog_load` with
    `decode_seconds` close to its duration means JSON decode, not the database.
+   Since #8082 the query ships only the six catalog keys of each fact, so the
+   decode covers that small object and a long duration with small
+   `decode_seconds` points at the query.
 3. A long `memo_gate` points at the memo lookup. A long `fact_load` with
    `loaded` near `candidate_partitions` means the memo is not skipping
    partitions.

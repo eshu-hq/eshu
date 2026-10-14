@@ -77,6 +77,31 @@ See `doc.go` for the full contract.
   sample per block per whole pass (#8082); the partition-scoped pass passes
   nil instruments and records none
 
+## Catalog read projection (#8082)
+
+`LoadRepositoryCatalog` asks Postgres for one object per repository fact that
+holds only the keys `relationships.RepositoryCatalogPayloadKeys()` declares
+(`jsonb_to_record` into typed `jsonb` columns, one detoast per row, guarded by
+`jsonb_typeof(payload) = 'object'`), then decodes that object in Go. The
+statement text is rendered from the key list, so it cannot name a key
+`RepositoryCatalogEntry` does not read. Newest-row-wins ordering
+(`observed_at DESC, fact_id DESC`) and the `observedAt` freshness map are
+unchanged.
+
+Performance Evidence: on a 28,000-row synthetic set (about 4,925 MB of
+payloads, 4 percent over 1 MB, largest about 5 MB),
+`BenchmarkLoadRepositoryCatalogDecode` decodes the whole payloads in 23.6 to
+28.6 s per pass over three runs (21.7 GB allocated, 576 M allocations) and the
+projected objects in 0.044 to 0.046 s per pass (4.97 MB, 1.1 M allocations). Server-side
+projection cost on a read replica was 3.6 s with 6.8 MB shipped, against 4.4 GB
+shipped before.
+
+No-Observability-Change: the loader adds no metric, span, or log. The
+existing `eshu_dp_deferred_backfill_duration_seconds` histogram and the
+`relationship.backfill_deferred` span keep timing the pass that contains this
+read, and the `catalog_load` block (#8138) times the whole catalog loader
+call.
+
 ## Gotchas / invariants
 
 - Batches publish nothing partition-wide. Readiness and memo rows come

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
@@ -153,16 +154,29 @@ func newBlockPassStore(t *testing.T) (Store, *blockPassDB) {
 	return store, database
 }
 
-// blockSpanInt reads a required int attribute from a recorded block span.
-func blockSpanInt(t *testing.T, span sdktrace.ReadOnlySpan, key string) int64 {
+// blockSpanAttr returns the value of a required attribute of a recorded block
+// span, failing the test when the span does not carry it.
+func blockSpanAttr(t *testing.T, span sdktrace.ReadOnlySpan, key string) attribute.Value {
 	t.Helper()
 	for _, attr := range span.Attributes() {
 		if string(attr.Key) == key {
-			return attr.Value.AsInt64()
+			return attr.Value
 		}
 	}
 	t.Fatalf("span %q missing attribute %q", span.Name(), key)
-	return 0
+	return attribute.Value{}
+}
+
+// blockSpanInt reads a required int attribute from a recorded block span.
+func blockSpanInt(t *testing.T, span sdktrace.ReadOnlySpan, key string) int64 {
+	t.Helper()
+	return blockSpanAttr(t, span, key).AsInt64()
+}
+
+// blockSpanFloat reads a required float attribute from a recorded block span.
+func blockSpanFloat(t *testing.T, span sdktrace.ReadOnlySpan, key string) float64 {
+	t.Helper()
+	return blockSpanAttr(t, span, key).AsFloat64()
 }
 
 // blockLogFields returns the key=value fields of the single block log line for
@@ -264,6 +278,19 @@ func TestRunAllRelationshipEvidenceEmitsBlockSpans(t *testing.T) {
 			}
 		}
 	}
+
+	// decode_seconds is the time spent decoding the catalog payloads. The
+	// fixture decodes three rows, so a loader that stops feeding the stat
+	// leaves it at zero, and one that reports more than the span lasted
+	// cannot be measuring the decode inside the loader call.
+	catalog := findEndedSpan(t, ended, blockSpanPrefix+"catalog_load")
+	decode := blockSpanFloat(t, catalog, "decode_seconds")
+	if decode <= 0 {
+		t.Errorf("catalog_load decode_seconds = %v, want > 0 after decoding %d rows", decode, 3)
+	}
+	if spanSeconds := catalog.EndTime().Sub(catalog.StartTime()).Seconds(); decode > spanSeconds {
+		t.Errorf("catalog_load decode_seconds = %v, want <= span duration %v", decode, spanSeconds)
+	}
 }
 
 // TestRunAllRelationshipEvidenceLogsOneLinePerBlock pins the operator log: one
@@ -322,6 +349,9 @@ func TestRunAllRelationshipEvidenceLogsOneLinePerBlock(t *testing.T) {
 	}
 	if got := blockLogFields(t, output, "fanin"); !duration.MatchString(got["argocd_probe_seconds"]) {
 		t.Errorf("fanin argocd_probe_seconds = %q, want %%.2f seconds", got["argocd_probe_seconds"])
+	}
+	if got := blockLogFields(t, output, "catalog_load"); !duration.MatchString(got["decode_seconds"]) {
+		t.Errorf("catalog_load decode_seconds = %q, want %%.2f seconds", got["decode_seconds"])
 	}
 	if got := strings.Count(output, blockLogMarker); got != len(wantFields) {
 		t.Errorf("%q lines = %d, want %d (one per block)", blockLogMarker, got, len(wantFields))
