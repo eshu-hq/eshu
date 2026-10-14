@@ -152,7 +152,8 @@ counts sum to the rows that `eshu_dp_generation_retention_rows_pruned_total`
 adds for that table, in the absence of concurrent writes between the count and
 the deletes. `scope_generations` has no event count (every other pruned
 table, including `shared_projection_unroutable_intents` since #7784, is
-counted). The `infra_resource_entities` delete also removes mirror rows
+counted). A chunk-drained generation reports the final remainder in its
+event row; prior chunks appear in the counters only. The `infra_resource_entities` delete also removes mirror rows
 that were already orphaned before the batch, so the counter can exceed the event
 sum for that table.
 

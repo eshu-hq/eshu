@@ -99,12 +99,12 @@ func TestGenerationRetentionWitnessRetainsNewestCopyPerIdentity(t *testing.T) {
 		},
 	}
 
-	kept, dropped := dropNewestSameIdentityPerBatch(candidates)
-	if len(dropped) != 1 || dropped[0].generationID != "gen-new" {
-		t.Fatalf("dropped = %v, want only gen-new (the newest copy of its identity group)", generationIDsOf(dropped))
+	prunable, retained := dropNewestSameIdentityPerBatch(candidates)
+	if len(retained) != 1 || retained[0].generationID != "gen-new" {
+		t.Fatalf("retained = %v, want only gen-new (the newest copy of its identity group)", generationIDsOf(retained))
 	}
-	if len(kept) != len(candidates)-1 {
-		t.Fatalf("kept = %d, want %d", len(kept), len(candidates)-1)
+	if len(prunable) != len(candidates)-1 {
+		t.Fatalf("prunable = %d, want %d", len(prunable), len(candidates)-1)
 	}
 
 	// A generation_id tie-break decides newest when superseded_at ties.
@@ -118,8 +118,8 @@ func TestGenerationRetentionWitnessRetainsNewestCopyPerIdentity(t *testing.T) {
 			supersededAt: now, observedAt: now, sourceCommitSHA: "sha-t",
 		},
 	}
-	if _, dropped := dropNewestSameIdentityPerBatch(tied); len(dropped) != 1 || dropped[0].generationID != "gen-b" {
-		t.Fatalf("tied dropped = %v, want only gen-b (generation_id tie-break)", generationIDsOf(dropped))
+	if _, retained := dropNewestSameIdentityPerBatch(tied); len(retained) != 1 || retained[0].generationID != "gen-b" {
+		t.Fatalf("tied retained = %v, want only gen-b (generation_id tie-break)", generationIDsOf(retained))
 	}
 }
 

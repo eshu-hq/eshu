@@ -47,14 +47,14 @@ func (c generationRetentionCandidate) sameIdentityGroup() (string, bool) {
 }
 
 // dropNewestSameIdentityPerBatch enforces the #7981 witness rule on a
-// covered prune batch: per identity group it retains the newest copy (max
-// superseded_at, generation_id tie-break, the SQL witness's order) and
-// returns the rest to prune. Singletons, empty SHAs and uncovered members
-// pass through; callers count the retained ones under
-// sameSHANewestSkippedReason.
+// covered prune batch: per identity group it returns the prunable rest
+// first and the retained newest copy second (max superseded_at,
+// generation_id tie-break, the SQL witness's order). Singletons, empty
+// SHAs and uncovered members pass through on the prunable side; callers
+// count the retained ones under sameSHANewestSkippedReason.
 func dropNewestSameIdentityPerBatch(
 	candidates []generationRetentionCandidate,
-) (kept, dropped []generationRetentionCandidate) {
+) (prunable, retained []generationRetentionCandidate) {
 	newestByGroup := make(map[string]int, len(candidates))
 	groupSize := make(map[string]int, len(candidates))
 	for i, candidate := range candidates {
@@ -67,20 +67,20 @@ func dropNewestSameIdentityPerBatch(
 			newestByGroup[group] = i
 		}
 	}
-	droppedIndex := make(map[int]bool, len(newestByGroup))
+	retainedIndex := make(map[int]bool, len(newestByGroup))
 	for group, i := range newestByGroup {
 		if groupSize[group] > 1 {
-			droppedIndex[i] = true
+			retainedIndex[i] = true
 		}
 	}
 	for i, candidate := range candidates {
-		if droppedIndex[i] {
-			dropped = append(dropped, candidate)
+		if retainedIndex[i] {
+			retained = append(retained, candidate)
 		} else {
-			kept = append(kept, candidate)
+			prunable = append(prunable, candidate)
 		}
 	}
-	return kept, dropped
+	return prunable, retained
 }
 
 // newerSameIdentityCopy reports whether b is a newer copy than a within one

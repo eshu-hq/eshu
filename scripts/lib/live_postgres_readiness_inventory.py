@@ -134,7 +134,7 @@ PACKAGES = {
             "TestGenerationRetentionStoreLargeFixtureLive",
         ),
         "go/internal/storage/postgres/generation_retention_relock_live_test.go": (
-            "TestGenerationRetentionPrescreenSkipsOverFactGenerationsLive",
+            "TestGenerationRetentionPrescreenChunksOverFactGenerationsLive",
             "TestGenerationRetentionPrescreenProbesFactIndexLive",
             "TestGenerationRetentionTargetedLockPlanShapeLive",
             "TestGenerationRetentionTargetedLockEvalPlanQualDropsRacedMembersLive",
@@ -144,6 +144,17 @@ PACKAGES = {
         ),
         "go/internal/storage/postgres/generation_retention_uncovered_writer_live_test.go": (
             "TestGenerationRetentionKeepsUncoveredWritersLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_samesha_live_test.go": (
+            "TestGenerationRetentionSameSHALockstepLive",
+            "TestGenerationRetentionSameSHAPrunesOldestKeepsNewestLive",
+            "TestGenerationRetentionCoveredNeverActivatedPrunesPastCeilingLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_chunk_live_test.go": (
+            "TestGenerationRetentionChunkedDrainLive",
+            "TestGenerationRetentionChunkStatementsRollBackLive",
+            "TestGenerationRetentionChunkLockMissDropsSilentlyLive",
+            "TestGenerationRetentionChunkConcurrentInsertWaitsLive",
         ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
