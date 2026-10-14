@@ -35,7 +35,7 @@ the codebase.
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
 | **Shared brain** | `AGENTS.md`, `.agents/skills/`, `.agents/roles.json` | One rule and method canon, plus one role/model manifest. |
-| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`, `.cursor/agents/*.md`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
+| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`, `.cursor/agents/*.md`, `.agents/agents/*.md` for Muse) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
 Claude Code, Codex, and opencode all read `AGENTS.md` natively; per-directory
@@ -235,12 +235,12 @@ select the named role for this guard to apply.
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |
 | opencode | `.opencode/agent/*.md` | `models.opencode` tier → `model:` frontmatter; the `#variant` suffix carries effort | V2 `permissions:` rules deny `edit` and `shell` for every read role; every role also denies `subagent` (leaf) |
 | Codex | `.codex/agents/*.toml`; `scripts/agent-roles.py codex-exec ROLE TASK` when custom-role selection is unavailable | `model` and `model_reasoning_effort` in the role file or launcher arguments | `sandbox_mode = "read-only"` in the role file; `--sandbox read-only` in the launcher |
-| Muse Code | `scripts/agent-roles.py muse-exec ROLE TASK` | `--model` and `--reasoning-effort` from the manifest | `--permission-profile :read-only` for read roles |
+| Muse Code | `.agents/agents/*.md`; `scripts/agent-roles.py muse-exec ROLE TASK` when a headless session is wanted | `model:`/`effort:` in the role file document the manifest tier but stay inert for spawned children — the coordinator passes both on every `subagent_spawn`/`workflow` call; `--model` and `--reasoning-effort` in the launcher arguments | prose read-only rules in the role body; `--permission-profile :read-only` for read roles in the launcher |
 | Cursor | `.cursor/agents/*.md` | `model: inherit`: the session's model (Auto when the session is on Auto). Cursor also loads the `.claude/` and `.codex/` shims and would run their pinned models; the same-named `.cursor/` shim wins, so `-deep` and arbiter roles run the session's model too | `readonly: true` for every read role (no file edits, no state-changing shell commands) |
 
-Muse's launcher runs one role as a headless session, rather than registering a
-native subagent. Its read-only profile may prevent a diagnostic or performance
-role from running a proof that writes local artifacts. OpenCode's read roles
+Muse discovers project role definitions only under `.agents/agents/` (frontmatter `name:` required and authoritative);
+its launcher runs one role as a headless session instead of a spawned child. Its read-only profile may prevent a diagnostic or
+performance role from running a proof that writes local artifacts. OpenCode's read roles
 cannot run shell commands, and Cursor's `readonly: true` roles cannot run
 state-changing ones. In each case, the coordinator should run blocked
 proof separately and pass the result back. When a Muse goal and skill prompt
@@ -277,10 +277,10 @@ New or changed hook definitions must be trusted with `/hooks` before they run.
 The reviewer uses the same skill in all five:
 [`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),
 [`.opencode/agent/review-eshu.md`](../../.opencode/agent/review-eshu.md),
-[`.cursor/agents/review-eshu.md`](../../.cursor/agents/review-eshu.md), and
-[`.codex/agents/review-eshu.toml`](../../.codex/agents/review-eshu.toml) —
-tracked bindings running the same `eshu-code-review` skill. Muse loads that
-skill through workspace discovery when the launcher passes `--trust-workspace`.
+[`.cursor/agents/review-eshu.md`](../../.cursor/agents/review-eshu.md),
+[`.codex/agents/review-eshu.toml`](../../.codex/agents/review-eshu.toml), and
+[`.agents/agents/review-eshu.md`](../../.agents/agents/review-eshu.md) — tracked bindings running the same `eshu-code-review` skill;
+Muse loads that skill through workspace discovery when the launcher passes `--trust-workspace`.
 
 Codex discovers a role file from each config layer's `<config_folder>/agents/`
 directory. The repo's own layer is the `.codex/` folder at the checkout root
