@@ -118,6 +118,28 @@ Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event
 table's safe hashes and structured logs for authorized drilldown.
 
+Benchmark Evidence (#7981): same-SHA exemption plus chunked over-limit
+drains. Baseline `EXPLAIN ANALYZE` on the candidate SELECT: 0.416 ms;
+with the dupe leg 0.609 ms (~1.5x, no `fact_records` touch, the
+newer-EXISTS probe rides `scope_generations_scope_generation_idx`).
+Chunk page SELECT is index-only at 0.348 ms per 1000 rows; the
+single-statement `DELETE ... IN (SELECT ... LIMIT)` seq-scanned at
+16.7 ms, so chunks page by keyset then delete by primary-key array.
+After: `TestGenerationRetentionChunkedDrainLive` drains one 2500-fact
+superseded generation in 3 cycles at ~27/22/38 ms per cycle on
+throwaway PostgreSQL 16.15, page cap `min(BatchRowLimit, 100000)`,
+terminal count `GenerationsPruned=1` with the remainder gone. Safe
+because every chunk stays inside one bounded key-range of its own
+scope+generation, the generation row goes last, the changed-since
+ledger rows go before the generations in the same transaction, and a
+crashed drain resumes: the remainder is still superseded and the next
+pre-screen re-selects it.
+
+Observability Evidence (#7981): `row_limit_chunked` (progress),
+`same_sha_newest` (retained newest copy), and the `prune_chunked_facts`
+phase join the existing retention counters, histograms, spans, and
+cycle logs; no new cardinality (bounded reasons and phases only).
+
 Each `generation_retention_events` row carries `row_counts`, the rows its
 generation's pruning removes by table. A content row shared by several
 generations in one batch is counted once, on the newest of them. For the
