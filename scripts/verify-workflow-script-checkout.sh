@@ -15,15 +15,18 @@
 # invocation is `scripts/<path>.sh|.bash` as the command itself, with an
 # optional `./`/`../` prefix (the working-directory: go form), an optional
 # `$GITHUB_WORKSPACE`/`${GITHUB_WORKSPACE}`/`${{ github.workspace }}`
-# prefix, or `VAR=value` prefixes; or the same path as the argument of a
-# leading `bash`/`sh`/`source`/`. ` command in the same command segment. A
-# scripts/ path that is only an argument to another command (for example
-# `echo "scripts/x/a.sh"`) does not count: the script is not executed
-# there. Full-line and trailing ` #` shell comments are stripped before
-# matching, so a commented-out invocation does not count. Step `if:`
-# conditions are NOT evaluated: a conditional checkout still counts as
-# preceding (queue-selection.yml relies on this; a static gate cannot
-# evaluate expressions).
+# prefix, stacked `VAR=value` prefixes (before and after sudo, values may be
+# quoted), or one `sudo` (flags such as `-E` or `-u <user>` allowed); or the
+# same path as the argument of a leading `bash`/`sh`/`source`/`. ` command
+# that itself starts at a command boundary in the same command segment
+# (with the same sudo and `VAR=value` prefixes allowed before that leading
+# command). A scripts/ path that is only an argument to another command
+# (for example `echo "scripts/x/a.sh"` or `echo bash scripts/x/a.sh`) does
+# not count: the script is not executed there. Full-line and trailing ` #`
+# shell comments are stripped before matching, so a commented-out invocation
+# does not count. Step `if:` conditions are NOT evaluated: a conditional
+# checkout still counts as preceding (queue-selection.yml relies on this; a
+# static gate cannot evaluate expressions).
 #
 # Out of scope: reusable-call jobs (no steps: of their own), local composite
 # actions (none exist; .github/actions/ is absent), and non-shell repo

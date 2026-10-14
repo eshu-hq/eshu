@@ -17,7 +17,10 @@
 # are recognised; unparseable YAML and bad usage fail closed (exit 2, never 0).
 # The #8057 pair: a $GITHUB_WORKSPACE/scripts/... call without a checkout
 # fails (and passes with one), while an echo of a quoted scripts/ path
-# without a checkout passes (it executes no repository script).
+# without a checkout passes (it executes no repository script). The
+# follow-up pairs: sudo with flags, VAR=value stacked before sudo, and
+# quoted VAR values each fail without a checkout, while `bash` as an echo
+# argument passes.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -317,7 +320,13 @@ out_file="${tmp_root}/sudo-red.out"
 if run_root "${sudo_red}" >"${out_file}" 2>&1; then
 	record_fail "sudo scripts without checkout fails (exited 0)"
 else
-	record_pass "sudo scripts without checkout fails"
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "sudo scripts without checkout fails naming the job"
+	else
+		record_fail "sudo scripts without checkout fails naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
 fi
 
 # 14. Stacked VAR=value prefixes without a checkout fail (previously missed).
@@ -327,7 +336,13 @@ out_file="${tmp_root}/stacked-red.out"
 if run_root "${stacked_red}" >"${out_file}" 2>&1; then
 	record_fail "stacked env scripts without checkout fails (exited 0)"
 else
-	record_pass "stacked env scripts without checkout fails"
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "stacked env scripts without checkout fails naming the job"
+	else
+		record_fail "stacked env scripts without checkout fails naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
 fi
 
 # 15. The ${GITHUB_WORKSPACE} spelling without a checkout fails.
@@ -337,7 +352,13 @@ out_file="${tmp_root}/braced-red.out"
 if run_root "${braced_red}" >"${out_file}" 2>&1; then
 	record_fail "braced workspace scripts without checkout fails (exited 0)"
 else
-	record_pass "braced workspace scripts without checkout fails"
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "braced workspace scripts without checkout fails naming the job"
+	else
+		record_fail "braced workspace scripts without checkout fails naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
 fi
 
 # 16. The ${{ github.workspace }} spelling: fails without a checkout,
@@ -348,7 +369,13 @@ out_file="${tmp_root}/dbl-red.out"
 if run_root "${dbl_red}" >"${out_file}" 2>&1; then
 	record_fail "double-brace workspace scripts without checkout fails (exited 0)"
 else
-	record_pass "double-brace workspace scripts without checkout fails"
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "double-brace workspace scripts without checkout fails naming the job"
+	else
+		record_fail "double-brace workspace scripts without checkout fails naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
 fi
 dbl_green="$(scratch dbl-green)"
 cp "${fixtures}/green-double-brace-workspace-with-checkout.yml" "${dbl_green}/.github/workflows/fixture.yml"
@@ -357,6 +384,65 @@ if run_root "${dbl_green}" >"${out_file}" 2>&1; then
 	record_pass "double-brace workspace scripts with checkout passes"
 else
 	record_fail "double-brace workspace scripts with checkout passes (exit $?)"
+	sed 's/^/  /' "${out_file}"
+fi
+
+# 17. sudo with flags (-E, -u <user>) without a checkout fails.
+sudo_flags_red="$(scratch sudo-flags-red)"
+cp "${fixtures}/red-sudo-flags-no-checkout.yml" "${sudo_flags_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/sudo-flags-red.out"
+if run_root "${sudo_flags_red}" >"${out_file}" 2>&1; then
+	record_fail "sudo-flag scripts without checkout fail (exited 0)"
+else
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "sudo-flag scripts without checkout fail naming the job"
+	else
+		record_fail "sudo-flag scripts without checkout fail naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
+fi
+
+# 18. A VAR=value prefix stacked before sudo without a checkout fails.
+env_sudo_red="$(scratch env-sudo-red)"
+cp "${fixtures}/red-env-before-sudo-no-checkout.yml" "${env_sudo_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/env-sudo-red.out"
+if run_root "${env_sudo_red}" >"${out_file}" 2>&1; then
+	record_fail "env-before-sudo scripts without checkout fail (exited 0)"
+else
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "env-before-sudo scripts without checkout fail naming the job"
+	else
+		record_fail "env-before-sudo scripts without checkout fail naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
+fi
+
+# 19. Quoted VAR=value prefixes (values with spaces) without a checkout fail.
+quoted_env_red="$(scratch quoted-env-red)"
+cp "${fixtures}/red-quoted-env-no-checkout.yml" "${quoted_env_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/quoted-env-red.out"
+if run_root "${quoted_env_red}" >"${out_file}" 2>&1; then
+	record_fail "quoted-env scripts without checkout fail (exited 0)"
+else
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "quoted-env scripts without checkout fail naming the job"
+	else
+		record_fail "quoted-env scripts without checkout fail naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
+fi
+
+# 20. `bash` as an echo argument is not an execution: passes (#8057).
+echo_bash_arg="$(scratch echo-bash-arg)"
+cp "${fixtures}/green-echo-bash-arg.yml" "${echo_bash_arg}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/echo-bash-arg.out"
+if run_root "${echo_bash_arg}" >"${out_file}" 2>&1; then
+	record_pass "echo of a bash scripts path passes"
+else
+	record_fail "echo of a bash scripts path passes (exit $?)"
 	sed 's/^/  /' "${out_file}"
 fi
 
