@@ -260,45 +260,32 @@ func listGitHubOrgRepositoriesFrom(
 	repoLimit int,
 	token string,
 ) ([]GitHubRepositoryRecord, bool, error) {
+	return listGitHubOrgRepositoriesFromWithRetry(ctx, client, baseURL, org, repoLimit, token, defaultGitHubListingRetry)
+}
+
+// listGitHubOrgRepositoriesFromWithRetry is listGitHubOrgRepositoriesFrom
+// with an explicit page-retry budget. Production callers use
+// listGitHubOrgRepositoriesFrom; tests inject a clock through retry so the
+// backoff schedule is asserted without waiting it out.
+func listGitHubOrgRepositoriesFromWithRetry(
+	ctx context.Context,
+	client *http.Client,
+	baseURL string,
+	org string,
+	repoLimit int,
+	token string,
+	retry githubListingRetryConfig,
+) ([]GitHubRepositoryRecord, bool, error) {
 	repositories := make([]GitHubRepositoryRecord, 0)
 	complete := false
 	for page := 1; len(repositories) < repoLimit; page++ {
-		request, err := http.NewRequestWithContext(
-			ctx,
-			http.MethodGet,
-			fmt.Sprintf("%s/orgs/%s/repos?per_page=%d&page=%d&type=all", baseURL, org, githubListingPageSize, page),
-			nil,
-		)
+		fetched, err := fetchGitHubListingPage(ctx, client, baseURL, org, page, token, retry)
 		if err != nil {
-			return nil, false, fmt.Errorf("build GitHub org repos request: %w", err)
+			return nil, false, err
 		}
-		request.Header.Set("Accept", "application/vnd.github+json")
-		request.Header.Set("Authorization", "Bearer "+token)
-		request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-		request.Header.Set("User-Agent", "eshu-go")
-
-		response, err := client.Do(request)
-		if err != nil {
-			return nil, false, fmt.Errorf("list GitHub org repositories: %w", err)
-		}
-		if response.Body == nil {
-			response.Close = true
-		}
-		var payload []struct {
-			ID       int64  `json:"id"`
-			FullName string `json:"full_name"`
-			Archived bool   `json:"archived"`
-		}
-		decodeErr := json.NewDecoder(response.Body).Decode(&payload)
-		_ = response.Body.Close()
-		if response.StatusCode >= 300 {
-			return nil, false, fmt.Errorf("list GitHub org repositories: status %d", response.StatusCode)
-		}
-		if decodeErr != nil {
-			return nil, false, fmt.Errorf("decode GitHub org repositories: %w", decodeErr)
-		}
+		payload := fetched.items
 		if len(payload) == 0 {
-			complete = !linkHeaderHasNext(response.Header.Values("Link"))
+			complete = !linkHeaderHasNext(fetched.linkNext)
 			break
 		}
 		for _, item := range payload {
