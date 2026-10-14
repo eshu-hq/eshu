@@ -115,6 +115,9 @@ var fileShape = shape[querycontract.FileContent, querycontract.SearchCursor]{
 		tailCap: 400 * time.Millisecond,
 		// The smallest tail timeout worth issuing (#7730 V4c).
 		tailFloor: 150 * time.Millisecond,
+		// No density extension on the file route (#8002): zero keeps the
+		// file walk byte-identical.
+		extensionRows: 0,
 	},
 	stepFirst:      stepFirstSQL,
 	stepAfter:      stepAfterSQL,

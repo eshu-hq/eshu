@@ -27,13 +27,18 @@ One call is one read-only snapshot transaction:
    at the default, about 35,000 rows). Common tokens whose matches sit near the
    start of the key order are answered here, without the tail. Each step's
    timeout is the room left in the cap.
-4. A **trigram tail** with a timeout of `min(remaining, 0.80 x budget)`
+4. A **density-gated extension** (#8002): when the last ordered window holds
+   matches and predicts the page fills inside 35,000 further rows, the walk
+   keeps reading in key order instead of paying the tail. The extension always
+   leaves the 150 ms tail floor, so a wrong prediction still reaches step 5.
+   The file route has no extension.
+5. A **trigram tail** with a timeout of `min(remaining, 0.80 x budget)`
    (up to 640 ms at the default). If less than the floor (150 ms at the
    default) remains, the tail is skipped. It is also skipped when the pattern
    has no three-character alphanumeric run (for example `db_`), because the
-   trigram index has nothing to extract; step 5 then gets the whole remaining
+   trigram index has nothing to extract; step 6 then gets the whole remaining
    budget.
-5. **Continuation** with the rest of the budget.
+6. **Continuation** with the rest of the budget.
 
 These figures are not the file search's. An ordered entity window costs about
 0.3 ms plus 0.34 us per row plus 10.2 ns per byte of `source_cache`, so a short
@@ -42,10 +47,11 @@ tail gets most of the budget. With the file figures (200, 500, 0.55, 0.50) two
 rare-token classes that are exact today end partial. All figures: #7009 S1
 shim, QA environment, warm.
 
-One disclosed trade: a common token whose 201st match lies past the first
-phase (about 50,000 rows deep) at `limit` 200 ends partial with about 149 rows,
-and one resume completes it. Limits up to 100 on the same token stay exact in
-one call.
+A common token whose 201st match lies past the first phase (about 50,000
+rows deep) at `limit` 200 goes exact in one call through the extension:
+about 246 matches sit inside the first 70,000 rows against the 201-match
+page need. Limits up to 100 on the same token stay exact in one call. All
+figures: #8002 cost-2 shim, QA environment read of 2,721,216 rows, warm.
 
 A window shorter than its size means the key space ended, so the answer is
 complete. The page is the first `limit` matches in key order after `offset`
@@ -122,6 +128,14 @@ search with `repo_id`, ask the operator to raise the server setting
 `ESHU_CONTENT_SEARCH_BUDGET_MS` (read at startup), or stop. In any case bound a
 resume loop (for example a fixed number of resumes) rather than looping until
 `partial` disappears; the `hint` then names the next step.
+
+A resume pays the trigram tail wall again, in full (#8002): the tail reads
+the whole remaining key range with a bitmap, and the keyset predicate does
+not prune it, so the wall is flat at about 1,077 ms from the start and
+1,079, 1,084 and 1,092 ms from ~10, 50 and 90% cursors (warm, 2,721,216
+rows, 23,025 bitmap rows over 21,635 heap blocks). This covers sparse
+patterns, where the tail carries recall; medium-density pages go exact in
+one call through the extension above and never reach the tail.
 
 ## MCP byte cap and partial on one page
 

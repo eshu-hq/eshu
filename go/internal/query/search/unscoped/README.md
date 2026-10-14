@@ -155,7 +155,8 @@ Span `postgres.query` (`db.operation=search_file_content_any_repo_page`) with
 `search.probe_rows_visited`, `search.continuation_steps`,
 `search.continuation_rows`, `search.tail_ran`, `search.tail_cancelled`,
 `search.outcome`, `search.cursor_present`, `search.phase_one_cap_ms`,
-`search.ended_in` (`probe`, `continuation`, `tail`, `continuation_after_tail`,
+`search.ended_in` (`probe`, `continuation`, `extension` for the density-gated
+continuation past phase one (#8002), `tail`, `continuation_after_tail`,
 `budget` when the tail was skipped under its floor, or
 `tail_skipped_no_trigram` when the pattern yields no trigram),
 `search.steps_cancelled`, `search.progressed`, `search.want` (offset +

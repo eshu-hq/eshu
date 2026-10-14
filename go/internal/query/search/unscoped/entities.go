@@ -111,15 +111,20 @@ var entityShape = shape[querycontract.EntitySearchHit, querycontract.SearchCurso
 	// default tail timeout never lands there. Model: these figures keep
 	// every class that is exact today exact at limit 10, warm and cold, with
 	// a 1.25 cost margin; the file figures turn process_entries and
-	// FeaturesTab partial. The one disclosed trade (R2.2): a decode-like
-	// common pattern at limit 200 is a partial of about 149 rows that one
-	// resume completes. TestEntityPolicyClasses pins every class.
+	// FeaturesTab partial. The former disclosed trade (R2.2) is gone since
+	// #8002: the density-gated extension fills a decode-like limit-200 page
+	// in one call. TestEntityPolicyClasses pins every class.
 	figures: figures{
 		probeRows:   1000,
 		stepRows:    5000,
 		phaseOneCap: 160 * time.Millisecond,
 		tailCap:     640 * time.Millisecond,
 		tailFloor:   150 * time.Millisecond,
+		// Extension row allowance (#8002 cost-2 shim of 2026-10-14, QA
+		// replica read of 2,721,216 rows): `decode` holds 135 matches in
+		// rows 0-35,000 and 111 in rows 35,000-70,000, so 35,000 further
+		// ordered rows fill a 201-match page without the tail.
+		extensionRows: 35_000,
 	},
 	stepFirst: entityStepFirstSQL,
 	stepAfter: entityStepAfterSQL,
