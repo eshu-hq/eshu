@@ -15,10 +15,11 @@ select(.value.steps | type == "!!seq") |
 # A step violates when its run: text executes a repository shell script:
 # either the script is the command itself at a command boundary (bare
 # scripts/, ./scripts/, ../scripts/, or a $GITHUB_WORKSPACE-style workspace
-# prefix, with optional VAR=value prefixes), or it follows a leading
-# bash/sh/source/. command in the same command segment. A scripts/ path
+# prefix, with optional stacked VAR=value prefixes and one sudo), or it
+# follows a leading bash/sh/source/. command in the same command segment.
+# A scripts/ path
 # that is only an argument to another command (echo "scripts/...") is not
 # an execution and does not match (#8057).
-select($code | test("(^|[\n;|&(){}!`])[ \t]*([A-Za-z_][A-Za-z0-9_]*=[^ \t\n;|&]+[ \t]+)?(\\./|\\.\\./)?(\\$GITHUB_WORKSPACE/|\\$\\{GITHUB_WORKSPACE\\}/|\\$\\{\\{[ \\t]*github\\.workspace[ \\t]*\\}\\}/)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)|(^|[ \t\n;|&(){}\"'`=!])(bash|sh|source|\\.)[ \\t]+[^;\\n|&]*?(\\./|\\.\\./)?(\\$GITHUB_WORKSPACE/|\\$\\{GITHUB_WORKSPACE\\}/|\\$\\{\\{[ \\t]*github\\.workspace[ \\t]*\\}\\}/)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)")) |
+select($code | test("(^|[\n;|&(){}!`])[ \t]*(sudo[ \t]+)?([A-Za-z_][A-Za-z0-9_]*=[^ \t\n;|&]+[ \t]+)*(\\./|\\.\\./)?(\\$GITHUB_WORKSPACE/|\\$\\{GITHUB_WORKSPACE\\}/|\\$\\{\\{[ \\t]*github\\.workspace[ \\t]*\\}\\}/)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)|(^|[ \t\n;|&(){}\"'`=!])(bash|sh|source|\\.)[ \\t]+[^;\\n|&]*?(\\./|\\.\\./)?(\\$GITHUB_WORKSPACE/|\\$\\{GITHUB_WORKSPACE\\}/|\\$\\{\\{[ \\t]*github\\.workspace[ \\t]*\\}\\}/)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)")) |
 select($co == null or .key < $co) |
 [$job, (.key | tostring), (.value.name // "" | tostring)] | @tsv

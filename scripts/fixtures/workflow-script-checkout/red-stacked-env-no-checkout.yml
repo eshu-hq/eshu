@@ -1,0 +1,13 @@
+name: Fixture red stacked env without checkout
+# Seeded RED for scripts/test-verify-workflow-script-checkout.sh (#8057
+# follow-up): the step executes a repository script with stacked VAR=value
+# prefixes and no actions/checkout step anywhere in the job. The verifier
+# must fail on this file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve image reference from triggering workflow_run
+        run: A=1 B=2 scripts/ci/resolve-image-scan-ref.sh

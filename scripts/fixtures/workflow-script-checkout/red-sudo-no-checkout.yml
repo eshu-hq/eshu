@@ -1,0 +1,13 @@
+name: Fixture red sudo without checkout
+# Seeded RED for scripts/test-verify-workflow-script-checkout.sh (#8057
+# follow-up): the step executes a repository script through sudo with no
+# actions/checkout step anywhere in the job. The verifier must fail on
+# this file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve image reference from triggering workflow_run
+        run: sudo scripts/ci/resolve-image-scan-ref.sh

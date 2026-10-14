@@ -310,5 +310,55 @@ else
 	sed 's/^/  /' "${out_file}"
 fi
 
+# 13. sudo scripts/ without a checkout fails (previously missed).
+sudo_red="$(scratch sudo-red)"
+cp "${fixtures}/red-sudo-no-checkout.yml" "${sudo_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/sudo-red.out"
+if run_root "${sudo_red}" >"${out_file}" 2>&1; then
+	record_fail "sudo scripts without checkout fails (exited 0)"
+else
+	record_pass "sudo scripts without checkout fails"
+fi
+
+# 14. Stacked VAR=value prefixes without a checkout fail (previously missed).
+stacked_red="$(scratch stacked-red)"
+cp "${fixtures}/red-stacked-env-no-checkout.yml" "${stacked_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/stacked-red.out"
+if run_root "${stacked_red}" >"${out_file}" 2>&1; then
+	record_fail "stacked env scripts without checkout fails (exited 0)"
+else
+	record_pass "stacked env scripts without checkout fails"
+fi
+
+# 15. The ${GITHUB_WORKSPACE} spelling without a checkout fails.
+braced_red="$(scratch braced-red)"
+cp "${fixtures}/red-braced-workspace-no-checkout.yml" "${braced_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/braced-red.out"
+if run_root "${braced_red}" >"${out_file}" 2>&1; then
+	record_fail "braced workspace scripts without checkout fails (exited 0)"
+else
+	record_pass "braced workspace scripts without checkout fails"
+fi
+
+# 16. The ${{ github.workspace }} spelling: fails without a checkout,
+# passes with one.
+dbl_red="$(scratch dbl-red)"
+cp "${fixtures}/red-double-brace-workspace-no-checkout.yml" "${dbl_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/dbl-red.out"
+if run_root "${dbl_red}" >"${out_file}" 2>&1; then
+	record_fail "double-brace workspace scripts without checkout fails (exited 0)"
+else
+	record_pass "double-brace workspace scripts without checkout fails"
+fi
+dbl_green="$(scratch dbl-green)"
+cp "${fixtures}/green-double-brace-workspace-with-checkout.yml" "${dbl_green}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/dbl-green.out"
+if run_root "${dbl_green}" >"${out_file}" 2>&1; then
+	record_pass "double-brace workspace scripts with checkout passes"
+else
+	record_fail "double-brace workspace scripts with checkout passes (exit $?)"
+	sed 's/^/  /' "${out_file}"
+fi
+
 printf 'test-verify-workflow-script-checkout: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" -eq 0 ]
