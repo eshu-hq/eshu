@@ -162,7 +162,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	// refresh to sticky failed. Skipped rows rejoin the handoff path
 	// below, and the counter records only the rows actually failed.
 	claimedBatch := triggers
-	triggers, ignoredTriggers := acceptedWebhookRefreshTriggers(claimedBatch)
+	_, ignoredTriggers := acceptedWebhookRefreshTriggers(claimedBatch)
 	if len(ignoredTriggers) > 0 {
 		failed, err := s.Store.MarkIgnoredDecisionTriggersFailed(ctx, ignoredTriggers, observedAt, webhookTriggerFailureIgnoredDecision, "webhook trigger decision is not accepted for the git collector handoff")
 		if err != nil {
