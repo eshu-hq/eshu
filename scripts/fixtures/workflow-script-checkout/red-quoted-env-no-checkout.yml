@@ -1,0 +1,15 @@
+name: Fixture red quoted env without checkout
+# Seeded RED for scripts/test-verify-workflow-script-checkout.sh (#8057
+# follow-up): the steps execute a repository script with quoted VAR=value
+# prefixes (whose values contain spaces) and no actions/checkout step
+# anywhere in the job. The verifier must fail on this file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve image reference with double-quoted env
+        run: A="1 2" scripts/ci/resolve-image-scan-ref.sh
+      - name: Resolve image reference with single-quoted env
+        run: A='x y' scripts/ci/resolve-image-scan-ref.sh

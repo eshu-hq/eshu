@@ -1,0 +1,14 @@
+name: Fixture green echo bash arg
+# Seeded GREEN for scripts/test-verify-workflow-script-checkout.sh (#8057
+# follow-up): `bash` here is an argument to `echo`, not an executed command,
+# so the quoted scripts/ path that follows it is not a repository script
+# invocation. The job has no actions/checkout step and the verifier must
+# still pass on this file.
+on:
+  workflow_dispatch:
+jobs:
+  notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say hello
+        run: echo bash scripts/ci/resolve-image-scan-ref.sh

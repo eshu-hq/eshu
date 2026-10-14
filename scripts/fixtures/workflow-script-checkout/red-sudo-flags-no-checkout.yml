@@ -1,0 +1,16 @@
+name: Fixture red sudo flags without checkout
+# Seeded RED for scripts/test-verify-workflow-script-checkout.sh (#8057
+# follow-up): the steps execute a repository script through sudo with flags
+# (`-E` preserves the environment, `-u` selects the user) and no
+# actions/checkout step anywhere in the job. The verifier must fail on this
+# file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve image reference preserving the environment
+        run: sudo -E scripts/ci/resolve-image-scan-ref.sh
+      - name: Resolve image reference as root
+        run: sudo -u root scripts/ci/resolve-image-scan-ref.sh
