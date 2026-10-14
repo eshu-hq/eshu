@@ -48,10 +48,11 @@ import (
 // unchanged files) and the delta chain after it are flagged in eligible by
 // the delta_base definition, excluded from the lock set and the prunable
 // leg at any age, and reported back on a third lock-free UNION ALL leg
-// with the same cap and ordering. The Go selection filters reported rows
-// before the witness runs, so a protected row is never also tallied as a
-// retained newest copy. The store counts the reported ones as Skipped
-// "delta_base".
+// with the same cap and ordering. A row that is both uncovered and
+// delta-protected reports only on the uncovered leg, so the summary counts
+// it once. The Go selection filters reported rows before the witness runs,
+// so a protected row is never also tallied as a retained newest copy. The
+// store counts the reported ones as Skipped "delta_base".
 //
 // $1 soft cutoff, $2 min newer superseded generations, $3 batch/lock-set
 // limit (each leg separately), $4 hard-ceiling cutoff (#7585): the count
@@ -180,6 +181,7 @@ reported_delta_bases AS (
         eligible.source_commit_sha, eligible.is_delta, eligible.freshness_hint
     FROM eligible
     WHERE eligible.delta_protected
+      AND NOT eligible.uncovered
     ORDER BY eligible.superseded_at ASC, eligible.generation_id ASC
     LIMIT $3
 ),

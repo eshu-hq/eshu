@@ -129,7 +129,9 @@ type generationRetentionTestHooks struct {
 // re-lock. provisional carries the delta-base definition over the same
 // scope-bounded horizon, the locked leg excludes flipped members without
 // locking them, and a second lock-free UNION ALL leg reports them so the
-// store counts them as skipped delta_base rows. Same residual as above.
+// store counts them as skipped delta_base rows. A member that flipped both
+// ways reports only on the uncovered leg, matching the candidate query.
+// Same residual as above.
 //
 // The lock re-checks the #7981 same-SHA exemption in the same terms as the
 // general candidate query (non-empty SHA, same scope, same is_delta, same
@@ -242,4 +244,5 @@ SELECT provisional.scope_id, provisional.generation_id, provisional.scope_kind, 
     provisional.source_commit_sha, provisional.is_delta, provisional.freshness_hint, true AS delta_protected
 FROM provisional
 WHERE provisional.delta_protected
+  AND NOT provisional.uncovered
 `

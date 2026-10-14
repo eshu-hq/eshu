@@ -28,6 +28,7 @@ func TestGenerationRetentionCandidateQueryProtectsDeltaBase(t *testing.T) {
 		"NOT eligible.delta_protected",
 		"reported_delta_bases AS (",
 		"WHERE eligible.delta_protected",
+		"AND NOT eligible.uncovered",
 		"true AS delta_protected",
 	} {
 		if !strings.Contains(generationRetentionCandidateQuery, want) {
@@ -47,6 +48,7 @@ func TestGenerationRetentionTargetedQueryProtectsDeltaBase(t *testing.T) {
 		"AS delta_protected",
 		"NOT provisional.delta_protected",
 		"WHERE provisional.delta_protected",
+		"AND NOT provisional.uncovered",
 	} {
 		if !strings.Contains(generationRetentionTargetedCandidateQuery, want) {
 			t.Errorf("targeted candidate query missing delta-base guard %q", want)
