@@ -38,7 +38,7 @@ const lowerReadinessSQL = `SELECT eshu_require_content_lower_trgm_index_ready()`
 // countAfterSQL counts the documents no completed statement read: the rows
 // strictly after the resume cursor (#7975). It touches only the primary key,
 // never a TOASTed value, so it stays an index-only scan. A zero cursor passes
-// (0, '') which precedes every row, so the count covers the whole table.
+// (0, empty string) which precedes every row, so the count covers the whole table.
 const countAfterSQL = `
 SELECT count(*)::bigint
 FROM content_files

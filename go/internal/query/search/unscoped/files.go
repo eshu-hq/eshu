@@ -18,7 +18,7 @@ const fileOperation = "search_file_content_any_repo_page"
 // key and metadata with an empty content column; the inner window selects
 // content so the outer filter can test the pattern.
 const (
-	columnsFromContent   = `repo_id, relative_path, coalesce(commit_sha, ''), '', content_hash, line_count, coalesce(language, ''), coalesce(artifact_type, '')`
+	columnsFromContent = `repo_id, relative_path, coalesce(commit_sha, ''), '', content_hash, line_count, coalesce(language, ''), coalesce(artifact_type, '')`
 	// columnsFromContentIn is the inner window's column list. It carries the
 	// stored lowercase copy instead of the raw content: the outer filter
 	// tests only content_lower, so the raw value is never detoasted (#7975).
@@ -116,12 +116,12 @@ var fileShape = shape[querycontract.FileContent, querycontract.SearchCursor]{
 		// The smallest tail timeout worth issuing (#7730 V4c).
 		tailFloor: 150 * time.Millisecond,
 	},
-	stepFirst: stepFirstSQL,
-	stepAfter: stepAfterSQL,
-	tailFirst: tailFirstSQL,
-	tailAfter: tailAfterSQL,
-	countAfter:      countAfterSQL,
-	readinessExtra:  lowerReadinessSQL,
+	stepFirst:      stepFirstSQL,
+	stepAfter:      stepAfterSQL,
+	tailFirst:      tailFirstSQL,
+	tailAfter:      tailAfterSQL,
+	countAfter:     countAfterSQL,
+	readinessExtra: lowerReadinessSQL,
 	keyArgs: func(c querycontract.SearchCursor) []any {
 		return []any{c.RepoID, c.RelativePath}
 	},
