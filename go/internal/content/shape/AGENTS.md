@@ -48,8 +48,10 @@
   rows to `ProtocolImplementation` when `module_kind == "protocol_implementation"`
   is present in `Entity.Metadata`. This handles Elixir `defimpl` at
   `materialize_labels.go:3`.
-- **Variable and SqlColumn byte caps** — `entitySourceCacheByteLimits` in `source_cache.go`
-  caps `Variable` and `SqlColumn` snippets at 4096 bytes. `limitEntitySourceCache` truncates
+- **Variable and SQL byte caps** — `entitySourceCacheByteLimits` in `source_cache.go`
+  caps `Variable`, `SqlColumn`, and the six sibling SQL labels (`SqlTable`,
+  `SqlView`, `SqlFunction`, `SqlTrigger`, `SqlIndex`, `SqlMigration`) snippets
+  at 4096 bytes. `limitEntitySourceCache` truncates
   and writes metadata keys `source_cache_truncated`, `source_cache_original_bytes`,
   `source_cache_limit_bytes`. Do not raise the cap without confirming the
   Postgres `source_cache` column can hold the new maximum.
