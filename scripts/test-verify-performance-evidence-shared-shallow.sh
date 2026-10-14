@@ -46,9 +46,17 @@ assert_complete() {
 # remote side; the gate must fetch it (origin/pr-base resolves afterwards)
 # without shallowing the checkout.
 ref_seed="$(init_repo ref-seed)"
-git -C "${ref_seed}" branch pr-base
+# pr-base MUST be created after the clone: git clone fetches every branch,
+# so creating it first pre-resolves origin/pr-base and the resolve-first
+# guard would skip the fetch, leaving the full-depth branch-fetch path
+# untested (eshu-hq/eshu#8104 review).
 git clone --quiet "file://${ref_seed}" "${tmp_root}/ref-clone"
 ref_clone="${tmp_root}/ref-clone"
+git -C "${ref_seed}" branch pr-base
+if git -C "${ref_clone}" rev-parse --verify --quiet origin/pr-base >/dev/null; then
+  printf 'fixture setup broken: origin/pr-base pre-resolved, fetch path untested\n' >&2
+  exit 1
+fi
 if [ "$(git -C "${ref_clone}" rev-parse --is-shallow-repository)" != "false" ]; then
   printf 'shallow fixture clone started shallow\n' >&2
   exit 1

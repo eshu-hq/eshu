@@ -12,11 +12,16 @@
 # must stay complete.
 
 shallow_seed="$(init_repo shallow-seed)"
-git -C "${shallow_seed}" branch pr-base
+# pr-base MUST be created after the clone: git clone fetches every branch,
+# so creating it first pre-resolves origin/pr-base and the resolve-first
+# guard would skip the fetch, leaving the full-depth branch-fetch path
+# untested (eshu-hq/eshu#8104 review).
 git clone --quiet "file://${shallow_seed}" "${tmp_root}/shallow-clone"
 shallow_clone="${tmp_root}/shallow-clone"
-
-if [ "$(git -C "${shallow_clone}" rev-parse --is-shallow-repository)" != "false" ]; then
+git -C "${shallow_seed}" branch pr-base
+if git -C "${shallow_clone}" rev-parse --verify --quiet "origin/pr-base" >/dev/null; then
+  record_fail "fixture setup broken: origin/pr-base pre-resolved, fetch path untested"
+elif [ "$(git -C "${shallow_clone}" rev-parse --is-shallow-repository)" != "false" ]; then
   record_fail "shallow fixture clone started shallow"
 elif env -u ESHU_TELEMETRY_COVERAGE_BASE -u GITHUB_BASE_REF \
   ESHU_TELEMETRY_COVERAGE_REPO_ROOT="${shallow_clone}" \

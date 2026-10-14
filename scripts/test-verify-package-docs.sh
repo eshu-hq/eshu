@@ -273,9 +273,17 @@ expect_fail "${staged_docdelete_repo}"
 # origin/pr-base assertion proves the fetch still happens) and the checkout
 # must stay complete.
 shallow_seed="$(init_repo shallow-seed)"
-git -C "${shallow_seed}" branch pr-base
+# pr-base MUST be created after the clone: git clone fetches every branch,
+# so creating it first pre-resolves origin/pr-base and the resolve-first
+# guard would skip the fetch, leaving the full-depth branch-fetch path
+# untested (eshu-hq/eshu#8104 review).
 git clone --quiet "file://${shallow_seed}" "${tmp_root}/shallow-clone"
 shallow_clone="${tmp_root}/shallow-clone"
+git -C "${shallow_seed}" branch pr-base
+if git -C "${shallow_clone}" rev-parse --verify --quiet origin/pr-base >/dev/null; then
+  printf 'fixture setup broken: origin/pr-base pre-resolved, fetch path untested\n' >&2
+  exit 1
+fi
 if [ "$(git -C "${shallow_clone}" rev-parse --is-shallow-repository)" != "false" ]; then
   printf 'shallow fixture clone started shallow\n' >&2
   exit 1
