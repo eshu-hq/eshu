@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 )
 
 // RepoSyncRepositoryRule constrains repository selection for one sync cycle.
@@ -103,8 +104,7 @@ type RepoSyncConfig struct {
 	PinnedRefFleetCap int
 	// SelectionLivenessWindow is how long the repository selection rows a
 	// githubOrg shard 0 writes stay live after each evaluation (#7625).
-	// Parsed from ESHU_REPO_SELECTION_LIVENESS_WINDOW; default 48h, minimum
-	// 1h.
+	// Parsed from ESHU_REPO_SELECTION_LIVENESS_WINDOW; default 48h, minimum 1h.
 	SelectionLivenessWindow time.Duration
 	// GitDeadlines bounds each git command the sync runs (#8052); zero = defaults.
 	GitDeadlines deadline.Limits
@@ -114,6 +114,7 @@ type RepoSyncConfig struct {
 	// their manifest skip while an operator-forced run re-indexes from scratch
 	// through the repository_reindex_requested reason path.
 	ForceReindex bool
+	GitHubAPI    rest.Settings // REST base and retry budget overrides (#8084); no env var
 }
 
 // LoadRepoSyncConfig parses the repo-sync environment contract for Go runtimes.

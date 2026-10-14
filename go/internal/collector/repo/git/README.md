@@ -285,6 +285,29 @@ selector never observes. Telemetry: the
 for the expired-row sweep (#7774), and the `git_repository_selection_*` logs;
 see `membership/README.md`.
 
+## GitHub API retry and discovery failures (#8084)
+
+The org listing (`fetchGitHubListingPage`) and the GitHub App token mint
+(`mintGitHubAppToken`) share one retry helper, `rest.Do`, in the
+`rest` subpackage; see `rest/README.md` for the fault classes, the
+constants, and the telemetry. `RepoSyncConfig.GitHubAPI` (a
+`rest.Settings`) carries the REST base, which defaults to
+`https://api.github.com`, and the retry budget. It has no environment
+variable; a test sets it to an `httptest` server and an injected clock.
+
+A retryable failure that outlasts the in-call budget returns
+`*rest.RetryableError`, which implements `collector.RetryableError` and
+unwraps to the underlying cause. `NativeRepositorySelector` holds a
+`rest.Failures`: one retryable failure of the listing or of either mint
+call in a cycle counts once, and the counter resets only when
+`SelectRepositories` returns nil, never on a webhook batch. At 20 consecutive
+cycles (`sdk.MaxConsecutiveTransportFailures`) the selector returns a plain
+error that names the class and the count, so a permanent fault still ends the
+process. A failed discovery leaves `reconcileWalkOffset` alone, reads no
+reindex watermark, and makes no selection observation. The collector loop that
+waits `RetryAfter` instead of exiting is `collector.Service.Run`; this package
+only classifies and counts.
+
 ## Git auth host scope
 
 `gitCommandEnv` builds the auth environment for every managed git command. With

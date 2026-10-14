@@ -428,6 +428,16 @@ type Instruments struct {
 	// not retried because the per-sweep retry budget was spent (#8091). Label:
 	// scope (closed: sweep).
 	GitCommandRetryBudgetExhausted metric.Int64Counter
+	// GitHubAPIAttempts counts every attempt of a GitHub REST call the git
+	// collector's discovery makes, including the first (#8084). Labels:
+	// operation (list, mint), failure_class (none on success, else server_error,
+	// rate_limited, client_error, decode, or a transport class), outcome
+	// (success, retried, failed). A shutdown cancel is counted as failed with
+	// its transport class.
+	GitHubAPIAttempts metric.Int64Counter
+	// GitHubAPIRetries counts retries the discovery call loop started (#8084).
+	// Labels: operation, failure_class (the class that caused the retry).
+	GitHubAPIRetries metric.Int64Counter
 	// GitCommandAttemptDuration is the wall time of each attempt in seconds
 	// (#8091). Labels: operation, outcome (success, retried, failed).
 	GitCommandAttemptDuration metric.Float64Histogram
@@ -2803,6 +2813,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GitCommandRetries counter: %w", err)
+	}
+
+	inst.GitHubAPIAttempts, err = meter.Int64Counter(
+		"eshu_dp_github_api_attempts_total",
+		metric.WithDescription("Total attempts of GitHub REST calls made by repository discovery (org listing page, App token mint), by bounded operation (list, mint), failure_class and outcome (success, retried, failed)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitHubAPIAttempts counter: %w", err)
+	}
+
+	inst.GitHubAPIRetries, err = meter.Int64Counter(
+		"eshu_dp_github_api_retries_total",
+		metric.WithDescription("Total retries of GitHub REST calls made by repository discovery after a retryable failure, by bounded operation (list, mint) and failure_class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitHubAPIRetries counter: %w", err)
 	}
 
 	inst.GitCommandRetryBudgetExhausted, err = meter.Int64Counter(

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 )
 
 // RepositorySelectionObserver evaluates one selector's listing against the
@@ -195,7 +197,7 @@ func discoverSelection(
 		if strings.TrimSpace(token) == "" {
 			return RepositorySelection{}, fmt.Errorf("githubOrg source mode requires GitHub token or App auth")
 		}
-		repositories, complete, err := listGitHubOrgRepositories(ctx, config.GithubOrg, config.RepoLimit, token)
+		repositories, complete, err := listGitHubOrgRepositories(ctx, config, token)
 		if err != nil {
 			return RepositorySelection{}, err
 		}
@@ -225,15 +227,16 @@ func resolveGitToken(ctx context.Context, config RepoSyncConfig) (string, error)
 }
 
 // listGitHubOrgRepositories lists the org's repositories from the GitHub API,
-// up to repoLimit. See listGitHubOrgRepositoriesFrom for the completeness flag.
+// up to config.RepoLimit, against config's API base and retry budget. See
+// listGitHubOrgRepositoriesFrom for the completeness flag.
 func listGitHubOrgRepositories(
 	ctx context.Context,
-	org string,
-	repoLimit int,
+	config RepoSyncConfig,
 	token string,
 ) ([]GitHubRepositoryRecord, bool, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
-	return listGitHubOrgRepositoriesFrom(ctx, client, "https://api.github.com", org, repoLimit, token)
+	baseURL, retry := config.GitHubAPI.Resolve()
+	return listGitHubOrgRepositoriesFromWithRetry(ctx, client, baseURL, config.GithubOrg, config.RepoLimit, token, retry)
 }
 
 // githubListingPageSize is the per_page of every org listing request. GitHub
@@ -260,7 +263,7 @@ func listGitHubOrgRepositoriesFrom(
 	repoLimit int,
 	token string,
 ) ([]GitHubRepositoryRecord, bool, error) {
-	return listGitHubOrgRepositoriesFromWithRetry(ctx, client, baseURL, org, repoLimit, token, defaultGitHubListingRetry)
+	return listGitHubOrgRepositoriesFromWithRetry(ctx, client, baseURL, org, repoLimit, token, rest.DefaultConfig())
 }
 
 // listGitHubOrgRepositoriesFromWithRetry is listGitHubOrgRepositoriesFrom
@@ -274,7 +277,7 @@ func listGitHubOrgRepositoriesFromWithRetry(
 	org string,
 	repoLimit int,
 	token string,
-	retry githubListingRetryConfig,
+	retry rest.Config,
 ) ([]GitHubRepositoryRecord, bool, error) {
 	repositories := make([]GitHubRepositoryRecord, 0)
 	complete := false
@@ -330,6 +333,10 @@ func linkHeaderHasNext(values []string) bool {
 	return false
 }
 
+// mintGitHubAppToken exchanges the configured GitHub App credentials for an
+// installation token. It shares the org listing's retry budget and fault
+// classes (#8084): a transient fault retries and then returns a
+// *rest.RetryableError, while 401, 403 and 404 are final.
 func mintGitHubAppToken(ctx context.Context, config RepoSyncConfig) (string, error) {
 	if strings.TrimSpace(config.GitHubAppID) == "" ||
 		strings.TrimSpace(config.GitHubAppInstallation) == "" ||
@@ -352,41 +359,43 @@ func mintGitHubAppToken(ctx context.Context, config RepoSyncConfig) (string, err
 		return "", fmt.Errorf("sign GitHub App JWT: %w", err)
 	}
 
-	request, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("https://api.github.com/app/installations/%s/access_tokens", config.GitHubAppInstallation),
-		bytes.NewReader([]byte("{}")),
-	)
-	if err != nil {
-		return "", fmt.Errorf("build GitHub App token request: %w", err)
+	baseURL, retry := config.GitHubAPI.Resolve()
+	mintURL := fmt.Sprintf("%s/app/installations/%s/access_tokens", baseURL, config.GitHubAppInstallation)
+	var token string
+	call := rest.Call{
+		Operation:     rest.OperationMint,
+		FailurePrefix: "mint GitHub App token",
+		DecodePrefix:  "decode GitHub App token response",
+		NewRequest: func(ctx context.Context) (*http.Request, error) {
+			request, err := http.NewRequestWithContext(ctx, http.MethodPost, mintURL, bytes.NewReader([]byte("{}")))
+			if err != nil {
+				return nil, fmt.Errorf("build GitHub App token request: %w", err)
+			}
+			request.Header.Set("Accept", "application/vnd.github+json")
+			request.Header.Set("Authorization", "Bearer "+signed)
+			request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+			request.Header.Set("User-Agent", "eshu-go")
+			return request, nil
+		},
+		Read: func(response *http.Response) error {
+			var payload struct {
+				Token string `json:"token"`
+			}
+			if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+				return err
+			}
+			token = payload.Token
+			return nil
+		},
 	}
-	request.Header.Set("Accept", "application/vnd.github+json")
-	request.Header.Set("Authorization", "Bearer "+signed)
-	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	request.Header.Set("User-Agent", "eshu-go")
-
 	client := &http.Client{Timeout: 15 * time.Second}
-	response, err := client.Do(request)
-	if err != nil {
-		return "", fmt.Errorf("mint GitHub App token: %w", err)
+	if err := rest.Do(ctx, client, retry, call); err != nil {
+		return "", err
 	}
-	defer func() {
-		_ = response.Body.Close()
-	}()
-	if response.StatusCode >= 300 {
-		return "", fmt.Errorf("mint GitHub App token: status %d", response.StatusCode)
+	if strings.TrimSpace(token) == "" {
+		return "", errors.New("GitHub App token response omitted token")
 	}
-	var payload struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		return "", fmt.Errorf("decode GitHub App token response: %w", err)
-	}
-	if strings.TrimSpace(payload.Token) == "" {
-		return "", fmt.Errorf("GitHub App token response omitted token")
-	}
-	return payload.Token, nil
+	return token, nil
 }
 
 func normalizePrivateKeyPEM(privateKey string) string {

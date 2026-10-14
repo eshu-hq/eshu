@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 )
 
 // newGitHubOrgListingServer serves total repositories for org acme with the
@@ -222,9 +224,9 @@ func TestListGitHubOrgRepositoriesFailsOnErrorStatus(t *testing.T) {
 		http.Error(w, `{"message":"boom"}`, http.StatusBadGateway)
 	}))
 	t.Cleanup(server.Close)
-	// No-op sleep: the production path waits out real backoffs, which the
+	// No-op Sleep: the production path waits out real backoffs, which the
 	// retry-schedule test above pins without waiting.
-	noWait := githubListingRetryConfig{maxAttempts: 4, baseBackoff: time.Second, sleep: func(context.Context, time.Duration) error { return nil }}
+	noWait := rest.Config{MaxAttempts: 4, BaseBackoff: time.Second, Sleep: func(context.Context, time.Duration) error { return nil }}
 	if _, complete, err := listGitHubOrgRepositoriesFromWithRetry(
 		context.Background(), server.Client(), server.URL, "acme", 100, "token-1", noWait,
 	); err == nil || complete {
@@ -262,10 +264,10 @@ func TestListGitHubOrgRepositoriesRetriesTransientServerErrors(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	retry := githubListingRetryConfig{
-		maxAttempts: 4,
-		baseBackoff: time.Second,
-		sleep: func(_ context.Context, d time.Duration) error {
+	retry := rest.Config{
+		MaxAttempts: 4,
+		BaseBackoff: time.Second,
+		Sleep: func(_ context.Context, d time.Duration) error {
 			mu.Lock()
 			defer mu.Unlock()
 			waits = append(waits, d)
@@ -305,7 +307,7 @@ func TestListGitHubOrgRepositoriesGivesUpAfterBoundedRetries(t *testing.T) {
 			http.Error(w, `{"message":"down"}`, http.StatusInternalServerError)
 		}))
 		t.Cleanup(server.Close)
-		retry := githubListingRetryConfig{maxAttempts: 3, baseBackoff: time.Second, sleep: func(context.Context, time.Duration) error { return nil }}
+		retry := rest.Config{MaxAttempts: 3, BaseBackoff: time.Second, Sleep: func(context.Context, time.Duration) error { return nil }}
 		if _, complete, err := listGitHubOrgRepositoriesFromWithRetry(
 			context.Background(), server.Client(), server.URL, "acme", 100, "token-1", retry,
 		); err == nil || complete {
@@ -325,7 +327,7 @@ func TestListGitHubOrgRepositoriesGivesUpAfterBoundedRetries(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 		var sleeps atomic.Int64
-		retry := githubListingRetryConfig{maxAttempts: 4, baseBackoff: time.Second, sleep: func(context.Context, time.Duration) error { sleeps.Add(1); return nil }}
+		retry := rest.Config{MaxAttempts: 4, BaseBackoff: time.Second, Sleep: func(context.Context, time.Duration) error { sleeps.Add(1); return nil }}
 		if _, _, err := listGitHubOrgRepositoriesFromWithRetry(
 			context.Background(), server.Client(), server.URL, "acme", 100, "token-1", retry,
 		); err == nil {
@@ -380,10 +382,10 @@ func TestSelectGitHubRepositoryIDsExposesListingAndRuleExclusions(t *testing.T) 
 // any budget, so without this pin the headline numbers could drift silently.
 func TestDefaultGitHubListingRetryBudget(t *testing.T) {
 	t.Parallel()
-	if got := defaultGitHubListingRetry.maxAttempts; got != 4 {
-		t.Fatalf("defaultGitHubListingRetry.maxAttempts = %d, want 4", got)
+	if got := rest.DefaultConfig().MaxAttempts; got != 4 {
+		t.Fatalf("rest.DefaultConfig().MaxAttempts = %d, want 4", got)
 	}
-	if got := defaultGitHubListingRetry.baseBackoff; got != time.Second {
-		t.Fatalf("defaultGitHubListingRetry.baseBackoff = %v, want 1s", got)
+	if got := rest.DefaultConfig().BaseBackoff; got != time.Second {
+		t.Fatalf("rest.DefaultConfig().BaseBackoff = %v, want 1s", got)
 	}
 }

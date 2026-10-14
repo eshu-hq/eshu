@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -54,6 +55,10 @@ type NativeRepositorySelector struct {
 	// collector drives one selector sequentially, one cycle at a time, so a
 	// plain counter is safe without a lock.
 	reconcileWalkOffset int
+	// discoveryFailures counts consecutive cycles that ended in a retryable
+	// discovery failure (#8084). It resets only when SelectRepositories
+	// returns nil, never on a webhook batch, which skips this selector.
+	discoveryFailures rest.Failures
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -62,6 +67,20 @@ type NativeRepositorySelector struct {
 // reconcile round-robin from the previous cycle's NextReconcileStartOffset;
 // callers hold one selector for the process and drive it sequentially.
 func (s *NativeRepositorySelector) SelectRepositories(
+	ctx context.Context,
+) (SelectionBatch, error) {
+	ctx = rest.WithObserver(ctx, s.Instruments, s.Logger)
+	batch, err := s.selectRepositories(ctx)
+	if err != nil {
+		return batch, s.discoveryFailures.Account(err)
+	}
+	s.discoveryFailures.Reset()
+	return batch, nil
+}
+
+// selectRepositories runs one selection cycle. SelectRepositories wraps it to
+// count retryable discovery failures across cycles.
+func (s *NativeRepositorySelector) selectRepositories(
 	ctx context.Context,
 ) (SelectionBatch, error) {
 	if strings.TrimSpace(s.Config.SourceMode) == "" {
