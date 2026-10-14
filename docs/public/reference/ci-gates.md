@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 141 gates. Local execution runs the primary
+The registry currently defines 142 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (48 gates)
+### Hygiene: Is the change well-formed? (49 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -57,6 +57,7 @@ results are derived from the inputs rather than written by hand. See
 - `filename-stutter` (blocking): Fails when a newly added or renamed path repeats its own directory name (filename stutter).
 - `no-ai-attribution` (blocking): Scans commit messages and added diff lines for AI-attribution text and blocks it.
 - `no-private-identifiers` (blocking): Scans commit messages and added diff lines for environment and organization identifiers and blocks them.
+- `answer-demo-fixtures-sanitized` (blocking): Scans fixture-bearing trees for real repository names, machine user paths, and environment or organization identifiers and blocks them.
 - `license-header` (blocking): Checks every .go file in the repo carries the required license header.
 - `ci-install-apt-packages` (blocking): Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker.
 - `ci-go-mod-download-retry` (blocking): Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt.
@@ -221,6 +222,7 @@ results are derived from the inputs rather than written by hand. See
 | `filename-stutter` | No filename or directory stutter in added/renamed paths | hygiene | pre-commit | true | `bash scripts/verify-filename-stutter.sh`<br>then self-test: `bash scripts/test-verify-filename-stutter.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `no-ai-attribution` | No AI attribution in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-ai-attribution.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `no-private-identifiers` | No environment or organization identifiers in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-private-identifiers.sh`<br>then self-test: `bash scripts/test-verify-agent-hygiene.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 10 path(s): **, scripts/verify-no-private-identifiers.sh, scripts/lib/private-identifier-pattern.sh, … |
+| `answer-demo-fixtures-sanitized` | Answer demo fixtures carry no real repository names | hygiene | pre-commit | true | `bash scripts/verify-answer-demo-fixtures-sanitized.sh`<br>then self-test: `bash scripts/test-verify-answer-demo-fixtures-sanitized.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 13 path(s): apps/console/src/**, apps/console/prototype/**, go/internal/parser/hcl/**, … |
 | `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh`<br>then self-test: `bash scripts/test-verify-license-header.sh` | test.yml / verify-contracts | 4 path(s): **/*.go, scripts/test-verify-license-header.sh, scripts/verify-license-header.sh, … |
 | `ci-install-apt-packages` | CI apt/ripgrep installer test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-install-apt-packages.sh` | test.yml / go-core | 6 path(s): scripts/ci/install-apt-packages.sh, scripts/test-ci-install-apt-packages.sh, scripts/lib/test-ci-install-apt-packages-fixtures.sh, … |
 | `ci-go-mod-download-retry` | CI Go module pre-warm retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-mod-download-retry.sh` | test.yml / go-core | 5 path(s): scripts/ci/go-mod-download-retry.sh, scripts/test-ci-go-mod-download-retry.sh, .github/workflows/test.yml, … |

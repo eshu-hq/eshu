@@ -198,17 +198,17 @@ func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
 }
 
 func TestBuildGraphDeploymentEvidenceCarriesPrivacySafeRepositoryIdentity(t *testing.T) {
-	remoteURL := "git@github.com:acme/iac-eks-argocd.git"
+	remoteURL := "git@github.com:acme/iac-eks-gitops.git"
 	result := repository.BuildGraphDeploymentEvidence([]map[string]any{
 		{
 			"artifact_id":            "artifact-1",
 			"relationship_type":      "DEPLOYS_FROM",
 			"source_repo_id":         "repository:observation-a",
-			"source_repo_name":       "iac-eks-argocd",
+			"source_repo_name":       "iac-eks-gitops",
 			"source_repo_remote_url": remoteURL,
 			"source_repo_scope_id":   "ingestion-scope:private-observation-a",
 			"target_repo_id":         "repository:service",
-			"target_repo_name":       "api-node-boats",
+			"target_repo_name":       "api-demo-shop",
 		},
 	})
 
@@ -217,7 +217,7 @@ func TestBuildGraphDeploymentEvidenceCarriesPrivacySafeRepositoryIdentity(t *tes
 		t.Fatalf("artifacts = %d, want 1", len(artifacts))
 	}
 	artifact := artifacts[0]
-	if got, want := StringVal(artifact, "source_repo_canonical_id"), "repository:r_1caa1ae8"; got != want {
+	if got, want := StringVal(artifact, "source_repo_canonical_id"), "repository:r_61da9b99"; got != want {
 		t.Fatalf("source_repo_canonical_id = %q, want %q", got, want)
 	}
 	if got := StringVal(artifact, "source_repo_scope_key"); !strings.HasPrefix(got, "scope:s_") || len(got) != len("scope:s_")+8 {
@@ -236,11 +236,11 @@ func TestBuildGraphDeploymentEvidencePreservesReadModelRepositoryIdentity(t *tes
 			"artifact_id":              "artifact-1",
 			"relationship_type":        "DEPLOYS_FROM",
 			"source_repo_id":           "repository:observation-a",
-			"source_repo_name":         "iac-eks-argocd",
-			"source_repo_canonical_id": "repository:r_1caa1ae8",
+			"source_repo_name":         "iac-eks-gitops",
+			"source_repo_canonical_id": "repository:r_61da9b99",
 			"source_repo_scope_key":    "scope:s_12345678",
 			"target_repo_id":           "repository:service",
-			"target_repo_name":         "api-node-boats",
+			"target_repo_name":         "api-demo-shop",
 		},
 	})
 
@@ -249,7 +249,7 @@ func TestBuildGraphDeploymentEvidencePreservesReadModelRepositoryIdentity(t *tes
 		t.Fatalf("artifacts = %d, want 1", len(artifacts))
 	}
 	artifact := artifacts[0]
-	if got, want := StringVal(artifact, "source_repo_canonical_id"), "repository:r_1caa1ae8"; got != want {
+	if got, want := StringVal(artifact, "source_repo_canonical_id"), "repository:r_61da9b99"; got != want {
 		t.Fatalf("source_repo_canonical_id = %q, want %q", got, want)
 	}
 	if got, want := StringVal(artifact, "source_repo_scope_key"), "scope:s_12345678"; got != want {

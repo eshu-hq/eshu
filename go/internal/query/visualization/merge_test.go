@@ -17,7 +17,7 @@ func TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent(t *testing
 		nodes := []map[string]any{
 			{
 				"id":            "repository:observation-a",
-				"label":         "iac-eks-argocd",
+				"label":         "iac-eks-gitops",
 				"kind":          "repository",
 				"category":      "deployment",
 				"role":          "deployment_configuration",
@@ -54,8 +54,8 @@ func TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent(t *testing
 		}
 		return map[string]any{
 			"service_identity": map[string]any{
-				"service_id":   "workload:api-node-boats",
-				"service_name": "api-node-boats",
+				"service_id":   "workload:api-demo-shop",
+				"service_name": "api-demo-shop",
 				"repo_id":      "repository:r_service",
 			},
 			"evidence_graph": map[string]any{"nodes": nodes, "edges": edges},
@@ -92,8 +92,8 @@ func TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent(t *testing
 func TestServiceStoryVisualizationCarriesKnownSourceDroppedEdgeCount(t *testing.T) {
 	response := map[string]any{
 		"service_identity": map[string]any{
-			"service_id":   "workload:api-node-boats",
-			"service_name": "api-node-boats",
+			"service_id":   "workload:api-demo-shop",
+			"service_name": "api-demo-shop",
 		},
 		"evidence_graph": map[string]any{
 			"nodes": []map[string]any{

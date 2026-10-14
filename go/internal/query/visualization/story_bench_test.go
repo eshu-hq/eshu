@@ -24,8 +24,8 @@ func benchmarkServiceStoryPacketResponse() map[string]any {
 	const repositoryCount = 37
 	nodes := make([]map[string]any, 0, repositoryCount+1)
 	nodes = append(nodes, map[string]any{
-		"id":       "workload:api-node-boats",
-		"label":    "api-node-boats",
+		"id":       "workload:api-demo-shop",
+		"label":    "api-demo-shop",
 		"kind":     "service",
 		"category": "service",
 	})
@@ -49,8 +49,8 @@ func benchmarkServiceStoryPacketResponse() map[string]any {
 	}
 	return map[string]any{
 		"service_identity": map[string]any{
-			"service_id":   "workload:api-node-boats",
-			"service_name": "api-node-boats",
+			"service_id":   "workload:api-demo-shop",
+			"service_name": "api-demo-shop",
 			"repo_id":      "repository:r_service",
 		},
 		"evidence_graph": map[string]any{

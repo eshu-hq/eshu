@@ -135,29 +135,29 @@ func TestServiceStoryVisualizationPrivacyInvariant(t *testing.T) {
 func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *testing.T) {
 	response := map[string]any{
 		"service_identity": map[string]any{
-			"service_id":   "workload:api-node-boats",
-			"service_name": "api-node-boats",
+			"service_id":   "workload:api-demo-shop",
+			"service_name": "api-demo-shop",
 			"repo_id":      "repository:r_service",
 		},
 		"evidence_graph": map[string]any{
 			"nodes": []map[string]any{
 				{
-					"id":       "workload:api-node-boats",
-					"label":    "api-node-boats",
+					"id":       "workload:api-demo-shop",
+					"label":    "api-demo-shop",
 					"kind":     "service",
 					"category": "service",
 					"role":     "workload",
 				},
 				{
 					"id":       "repository:r_service",
-					"label":    "api-node-boats",
+					"label":    "api-demo-shop",
 					"kind":     "repository",
 					"category": "source",
 					"role":     "source_repository",
 				},
 				{
 					"id":            "repository:r_argocd_observation_a",
-					"label":         "iac-eks-argocd",
+					"label":         "iac-eks-gitops",
 					"kind":          "repository",
 					"category":      "deployment",
 					"role":          "deployment_configuration",
@@ -166,7 +166,7 @@ func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *t
 				},
 				{
 					"id":            "repository:r_argocd_observation_b",
-					"label":         "iac-eks-argocd",
+					"label":         "iac-eks-gitops",
 					"kind":          "repository",
 					"category":      "deployment",
 					"role":          "deployment_configuration",
@@ -174,7 +174,7 @@ func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *t
 					"scope_key":     "scope:s_b",
 				},
 				{
-					"id":       "runtime:api-node-boats:eks-prod",
+					"id":       "runtime:api-demo-shop:eks-prod",
 					"label":    "eks-prod",
 					"kind":     "runtime",
 					"category": "runtime",
@@ -196,8 +196,8 @@ func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *t
 					"confidence":        0.9,
 				},
 				{
-					"source":            "workload:api-node-boats",
-					"target":            "runtime:api-node-boats:eks-prod",
+					"source":            "workload:api-demo-shop",
+					"target":            "runtime:api-demo-shop:eks-prod",
 					"relationship_type": "RUNS_AS",
 				},
 			},
@@ -229,7 +229,7 @@ func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *t
 	if len(canonicalNode.EvidenceHandles) != 2 {
 		t.Fatalf("canonical Argo evidence handles = %d, want 2 observation handles", len(canonicalNode.EvidenceHandles))
 	}
-	serviceNodeID := visualizationNodeID("service", "workload:api-node-boats")
+	serviceNodeID := visualizationNodeID("service", "workload:api-demo-shop")
 	for _, edge := range packet.Edges {
 		if edge.Relationship == "PROVISIONING_SOURCE_CHAIN" && edge.Target != serviceNodeID {
 			t.Fatalf("provisioning edge target = %q, want workload anchor %q", edge.Target, serviceNodeID)
@@ -240,13 +240,13 @@ func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *t
 func TestServiceStoryVisualizationDoesNotMergeEqualLabelsWithoutCanonicalKey(t *testing.T) {
 	response := map[string]any{
 		"service_identity": map[string]any{
-			"service_id":   "workload:api-node-boats",
-			"service_name": "api-node-boats",
+			"service_id":   "workload:api-demo-shop",
+			"service_name": "api-demo-shop",
 		},
 		"evidence_graph": map[string]any{
 			"nodes": []map[string]any{
-				{"id": "repository:r_a", "label": "iac-eks-argocd", "kind": "repository", "category": "deployment", "role": "deployment_configuration", "scope_key": "scope:s_a"},
-				{"id": "repository:r_b", "label": "iac-eks-argocd", "kind": "repository", "category": "deployment", "role": "deployment_configuration", "scope_key": "scope:s_b"},
+				{"id": "repository:r_a", "label": "iac-eks-gitops", "kind": "repository", "category": "deployment", "role": "deployment_configuration", "scope_key": "scope:s_a"},
+				{"id": "repository:r_b", "label": "iac-eks-gitops", "kind": "repository", "category": "deployment", "role": "deployment_configuration", "scope_key": "scope:s_b"},
 			},
 		},
 	}
@@ -254,7 +254,7 @@ func TestServiceStoryVisualizationDoesNotMergeEqualLabelsWithoutCanonicalKey(t *
 	packet := BuildServiceStoryPacket(response, testutil.FreshTruth())
 	observations := 0
 	for _, node := range packet.Nodes {
-		if node.Label == "iac-eks-argocd" {
+		if node.Label == "iac-eks-gitops" {
 			observations++
 			if node.ScopeKey == "" {
 				t.Fatalf("unreconciled repository observation missing scope disambiguation: %+v", node)

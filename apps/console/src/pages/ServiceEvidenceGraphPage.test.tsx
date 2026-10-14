@@ -175,21 +175,21 @@ describe("ServiceEvidenceGraphPage", () => {
         {
           id: "viznode:service",
           type: "service",
-          label: "api-node-boats",
+          label: "api-demo-shop",
           category: "service",
           role: "workload",
         },
         {
           id: "viznode:argocd",
           type: "repository",
-          label: "iac-eks-argocd",
+          label: "iac-eks-gitops",
           category: "deployment",
           role: "deployment_configuration",
         },
         {
           id: "viznode:multi-role",
           type: "repository",
-          label: "terraform-stack-user-management",
+          label: "terraform-stack-demo",
           category: "deployment",
           role: "deployment_configuration",
         },
@@ -211,16 +211,16 @@ describe("ServiceEvidenceGraphPage", () => {
       ],
     });
     const { client } = clientFor(deriveEnvelope(packet));
-    renderServiceEvidenceGraphAt("/service-story/api-node-boats", client);
+    renderServiceEvidenceGraphAt("/service-story/api-demo-shop", client);
 
     expect(
       await screen.findByText(
-        "iac-eks-argocd (deployment configuration repository) provisions api-node-boats (workload service)",
+        "iac-eks-gitops (deployment configuration repository) provisions api-demo-shop (workload service)",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "api-node-boats (workload service) is consumed by terraform-stack-user-management (downstream repository)",
+        "api-demo-shop (workload service) is consumed by terraform-stack-demo (downstream repository)",
       ),
     ).toBeInTheDocument();
     const diagnostics = screen.getAllByLabelText("Relationship diagnostic IDs");

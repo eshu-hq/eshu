@@ -11,13 +11,13 @@ import (
 
 func TestBuildServiceEvidenceGraphSeparatesWorkloadRepositoryConfigAndRuntimeRoles(t *testing.T) {
 	context := map[string]any{
-		"id":        "workload:api-node-boats",
-		"name":      "api-node-boats",
+		"id":        "workload:api-demo-shop",
+		"name":      "api-demo-shop",
 		"repo_id":   "repository:r_service",
-		"repo_name": "api-node-boats",
+		"repo_name": "api-demo-shop",
 		"instances": []map[string]any{
 			{
-				"instance_id":   "runtime:api-node-boats:eks-prod",
+				"instance_id":   "runtime:api-demo-shop:eks-prod",
 				"platform_name": "eks-prod",
 				"platform_kind": "kubernetes",
 				"environment":   "prod",
@@ -30,18 +30,18 @@ func TestBuildServiceEvidenceGraphSeparatesWorkloadRepositoryConfigAndRuntimeRol
 					"relationship_type":        "PROVISIONING_SOURCE_CHAIN",
 					"artifact_family":          "argocd",
 					"source_repo_id":           "repository:r_argocd_observation",
-					"source_repo_name":         "iac-eks-argocd",
+					"source_repo_name":         "iac-eks-gitops",
 					"source_repo_canonical_id": "repository:r_argocd_canonical",
 					"source_repo_scope_key":    "scope:s_argocd",
 					"target_repo_id":           "repository:r_service",
-					"target_repo_name":         "api-node-boats",
+					"target_repo_name":         "api-demo-shop",
 				},
 				{
 					"resolved_id":       "resolved-helm",
 					"relationship_type": "READS_CONFIG_FROM",
 					"artifact_family":   "helm",
 					"source_repo_id":    "repository:r_service",
-					"source_repo_name":  "api-node-boats",
+					"source_repo_name":  "api-demo-shop",
 					"target_repo_id":    "repository:r_helm",
 					"target_repo_name":  "helm-charts",
 				},
@@ -56,11 +56,11 @@ func TestBuildServiceEvidenceGraphSeparatesWorkloadRepositoryConfigAndRuntimeRol
 		roles[querycontract.StringVal(node, "id")] = querycontract.StringVal(node, "role")
 	}
 	for id, want := range map[string]string{
-		"workload:api-node-boats":         "workload",
+		"workload:api-demo-shop":          "workload",
 		"repository:r_service":            "source_repository",
 		"repository:r_argocd_observation": "deployment_configuration",
 		"repository:r_helm":               "deployment_configuration",
-		"runtime:api-node-boats:eks-prod": "runtime_instance",
+		"runtime:api-demo-shop:eks-prod":  "runtime_instance",
 	} {
 		if got := roles[id]; got != want {
 			t.Fatalf("node %q role = %q, want %q; nodes=%#v", id, got, want, nodes)
@@ -84,8 +84,8 @@ func TestBuildServiceEvidenceGraphSeparatesWorkloadRepositoryConfigAndRuntimeRol
 	edges := querycontract.MapSliceValue(graph, "edges")
 	foundRuntime := false
 	for _, edge := range edges {
-		if querycontract.StringVal(edge, "source") == "workload:api-node-boats" &&
-			querycontract.StringVal(edge, "target") == "runtime:api-node-boats:eks-prod" &&
+		if querycontract.StringVal(edge, "source") == "workload:api-demo-shop" &&
+			querycontract.StringVal(edge, "target") == "runtime:api-demo-shop:eks-prod" &&
 			querycontract.StringVal(edge, "relationship_type") == "RUNS_AS" {
 			foundRuntime = true
 		}
@@ -97,10 +97,10 @@ func TestBuildServiceEvidenceGraphSeparatesWorkloadRepositoryConfigAndRuntimeRol
 
 func TestBuildServiceEvidenceGraphPreservesSourceRoleAgainstDownstreamDuplicates(t *testing.T) {
 	context := map[string]any{
-		"id":        "workload:api-node-boats",
-		"name":      "api-node-boats",
+		"id":        "workload:api-demo-shop",
+		"name":      "api-demo-shop",
 		"repo_id":   "repository:r_service",
-		"repo_name": "api-node-boats",
+		"repo_name": "api-demo-shop",
 		"consumer_repositories": []map[string]any{
 			{"repo_id": "repository:r_service", "repository": "consumer-alias"},
 		},
@@ -114,7 +114,7 @@ func TestBuildServiceEvidenceGraphPreservesSourceRoleAgainstDownstreamDuplicates
 		if got, want := querycontract.StringVal(node, "role"), "source_repository"; got != want {
 			t.Fatalf("source repository role = %q, want %q", got, want)
 		}
-		if got, want := querycontract.StringVal(node, "label"), "api-node-boats"; got != want {
+		if got, want := querycontract.StringVal(node, "label"), "api-demo-shop"; got != want {
 			t.Fatalf("source repository label = %q, want %q", got, want)
 		}
 		return
@@ -124,8 +124,8 @@ func TestBuildServiceEvidenceGraphPreservesSourceRoleAgainstDownstreamDuplicates
 
 func TestBuildServiceEvidenceGraphOrdersRuntimeEdgesDeterministically(t *testing.T) {
 	context := map[string]any{
-		"id":   "workload:api-node-boats",
-		"name": "api-node-boats",
+		"id":   "workload:api-demo-shop",
+		"name": "api-demo-shop",
 		"instances": []map[string]any{
 			{"instance_id": "runtime:z", "platform_name": "z"},
 			{"instance_id": "runtime:a", "platform_name": "a"},

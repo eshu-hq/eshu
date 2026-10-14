@@ -91,7 +91,7 @@ func TestResolveEntityWorkloadTypeFiltersBeforeLimit(t *testing.T) {
 					t.Fatalf("cypher = %q, want workload label and name before LIMIT", cypher)
 				}
 				return []map[string]any{
-					{"id": "workload:api-node-boats", "name": "api-node-boats", "labels": []any{"Workload"}, "repo_name": "boats"},
+					{"id": "workload:api-demo-shop", "name": "api-demo-shop", "labels": []any{"Workload"}, "repo_name": "shop"},
 				}, nil
 			},
 		},
@@ -100,7 +100,7 @@ func TestResolveEntityWorkloadTypeFiltersBeforeLimit(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"api-node-boats","type":"workload","limit":10}`),
+		bytes.NewBufferString(`{"name":"api-demo-shop","type":"workload","limit":10}`),
 	)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()

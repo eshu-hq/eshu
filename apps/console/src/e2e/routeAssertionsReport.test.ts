@@ -211,7 +211,7 @@ describe("buildNetworkReportObservation", () => {
         failureText: null,
         method: "GET",
         status: 200,
-        url: "http://localhost/@fs/Users/operator/private-worktree/node_modules/vite/env.mjs",
+        url: "http://localhost/@fs/home/demo/fixture-worktree/node_modules/vite/env.mjs",
       },
     ]);
 
