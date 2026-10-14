@@ -30,7 +30,7 @@ One call is one read-only snapshot transaction:
 4. A **density-gated extension** (#8002): when the last ordered window holds
    matches and predicts the page fills inside 35,000 further rows, the walk
    keeps reading in key order instead of paying the tail. The extension always
-   leaves the 150 ms tail floor, so a wrong prediction still reaches step 5.
+   leaves the tail floor (150 ms at the default), so a wrong prediction still reaches step 5.
    The file route has no extension.
 5. A **trigram tail** with a timeout of `min(remaining, 0.80 x budget)`
    (up to 640 ms at the default). If less than the floor (150 ms at the
