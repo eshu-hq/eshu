@@ -10,7 +10,7 @@ branch that skips a failed discovery cycle instead of exiting, with the
 process-level test (part 2).
 
 No-Regression Evidence: the retry path adds no steady-state cost and bounds
-the worst case. Baseline (origin/main 692a952ee5): one request per page and
+the worst case. Baseline (origin/main 6081695c63): one request per page and
 one mint request per token resolution, fatal on any transport error, decode
 error, 4xx, or mint fault; a 5xx page retried up to 4 times. After (this
 branch): identical single request when GitHub answers 2xx. A retryable fault
@@ -18,7 +18,8 @@ makes at most 4 attempts per call with 1 s, 2 s, 4 s waits spread over 75% to
 125%, so a 5xx or transport fault costs at most 4 x 15 s request timeouts plus
 about 8.75 s of waits, about 69 s per page. A rate-limit hint of at most 60 s
 replaces the backoff, so a call that is rate limited on every attempt waits at
-most 3 x 60 s plus 4 request times. A longer or absent hint ends the call at
+most 3 x 60 s plus 4 request times: the in-call bound is 240 s per call
+(3 x 60 s + 4 x 15 s). A longer or absent hint ends the call at
 once with the wait handed to the collector loop. Backend: go1.26.9
 darwin/arm64, fake `httptest` GitHub (no live calls). Input shape: reset,
 client timeout, EOF mid-body, HTTP/2 stream reset, 429, rate-limited 403,
@@ -89,3 +90,41 @@ cycle` (`attempt`, `failure_class`, `consecutive_failures`,
 the error status on the `scope.assign` span. `TestServiceRunSkipSignalsReachTheOperator`,
 `TestDiscoveryConsecutiveFailuresGaugeFollowsTheSelector`, and
 `TestDiscoverRepositoriesRecordsAFailedSelection` assert them.
+
+## Webhook sync path (review r1 F1, ruling 3)
+
+The first part of this change counted only the native selector's failures.
+The webhook-trigger selector also mints a token while it syncs the claimed
+repositories, and a retryable mint failure there was returned as a skippable
+error with no counter: a 1 s skip loop, four mint POSTs per second per shard,
+and one batch of claimed triggers marked `sync_git_failed` (terminal) per
+cycle. One `rest.Failures` per process is now shared by both selectors and both
+wirings, and counts per operation (`list`, `mint`), so a good mint cannot hide
+a dead listing and a dead mint cannot hide behind a good listing.
+
+Results in tests, not deployed measurements:
+
+- A webhook selector with a real mint answering 502 through `rest.Do` ends
+  fatal on the 20th cycle in both the priority wiring and the webhook-only
+  wiring. The 19 skip waits are the 5 s doubling backoff capped at 60 s, the
+  fake GitHub sees 4 mint attempts for each of the 20 cycles, and the claimed
+  triggers are never marked failed.
+- A native `list` failure, then a good non-empty webhook cycle, leaves the
+  `list` count unchanged; a native nil return resets both operations.
+- A sync failure that arrives together with a failing `MarkTriggersFailed`
+  write stays fatal; a webhook selector with no counter wired fails closed.
+- `cmd/ingester` and `cmd/collector-git` tests assert both selectors hold the
+  same `*rest.Failures`.
+
+Figures to keep: the in-call bound is 240 s per call under three consecutive
+60 s hints (3 x 60 s + 4 x 15 s request timeouts); the between-cycle backoff
+has a 60 s base cap and is spread over 75% to 125% after the cap, so the wait
+at the ceiling is 45 s to 75 s; a provider that keeps sending a one-hour hint
+can hold the loop for up to 20 x 1 h before the cap turns fatal, which is
+provider-instructed and visible on every cycle in the WARN line and the
+consecutive-failure gauge.
+
+Still not claimed: any deployed measurement. The tests run against a fake
+provider with the sleep and loop wait injected, and with the identity jitter
+where a schedule is asserted. A rollout must re-read the real exit count, the
+skipped-cycle counter, and the consecutive-failure gauge.

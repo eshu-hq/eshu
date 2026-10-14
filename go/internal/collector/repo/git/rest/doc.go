@@ -18,6 +18,7 @@
 // The package emits eshu_dp_github_api_attempts_total and
 // eshu_dp_github_api_retries_total, the github.api_retry span event, and a
 // WARN log per retry through the observer WithObserver puts on the context.
-// It imports no git collector types and no collector package, so the git
-// package imports it without a cycle.
+// It imports the collector package (for the CycleSkipper contract) and
+// collector/sdk (for the transport classifier) but no git collector types, so
+// the git package imports it without a cycle.
 package rest

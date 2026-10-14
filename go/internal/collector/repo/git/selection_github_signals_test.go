@@ -171,7 +171,7 @@ func TestDiscoveryConsecutiveFailuresGaugeFollowsTheSelector(t *testing.T) {
 					continue
 				}
 				for _, dp := range m.Data.(metricdata.Gauge[int64]).DataPoints {
-					if collectorHasAttrs(dp.Attributes.ToSlice(), map[string]string{"collector_kind": "git"}) {
+					if collectorHasAttrs(dp.Attributes.ToSlice(), map[string]string{"collector_kind": "git", "operation": "list"}) {
 						return dp.Value
 					}
 				}

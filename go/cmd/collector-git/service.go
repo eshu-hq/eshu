@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	membershipstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/membership"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
@@ -58,12 +59,17 @@ func buildCollectorService(
 	// committer doubles as the delta-baseline resolver so git delta syncs
 	// baseline on the last projected commit per scope rather than local HEAD
 	// (epic #2340).
+	// One GitHub discovery failure counter per process, shared by both
+	// selectors so a retryable mint failure on the webhook sync path is capped
+	// the same way as a listing failure (#8084).
+	discoveryFailures := &rest.Failures{}
 	selector := git.RepositorySelector(&git.NativeRepositorySelector{
-		Config:           config,
-		Logger:           logger,
-		BaselineResolver: committer,
-		Instruments:      instruments,
-		Preparse:         preparseSource,
+		DiscoveryFailures: discoveryFailures,
+		Config:            config,
+		Logger:            logger,
+		BaselineResolver:  committer,
+		Instruments:       instruments,
+		Preparse:          preparseSource,
 		// Only the native selector sees a full githubOrg listing, so only it
 		// records repository selection observations (#7625).
 		SelectionObserver: membership.Observer{
@@ -76,16 +82,17 @@ func buildCollectorService(
 	if handoffConfig.Enabled {
 		selector = git.PriorityRepositorySelector{Selectors: []git.RepositorySelector{
 			git.WebhookTriggerRepositorySelector{
-				Config:           config,
-				Store:            webhookstore.NewWebhookTriggerStore(database),
-				Owner:            handoffConfig.Owner,
-				ClaimLimit:       handoffConfig.ClaimLimit,
-				ClaimLeaseWindow: handoffConfig.ClaimLeaseWindow,
-				MaxClaimAttempts: handoffConfig.MaxClaimAttempts,
-				Logger:           logger,
-				BaselineResolver: committer,
-				Instruments:      instruments,
-				Preparse:         preparseSource,
+				DiscoveryFailures: discoveryFailures,
+				Config:            config,
+				Store:             webhookstore.NewWebhookTriggerStore(database),
+				Owner:             handoffConfig.Owner,
+				ClaimLimit:        handoffConfig.ClaimLimit,
+				ClaimLeaseWindow:  handoffConfig.ClaimLeaseWindow,
+				MaxClaimAttempts:  handoffConfig.MaxClaimAttempts,
+				Logger:            logger,
+				BaselineResolver:  committer,
+				Instruments:       instruments,
+				Preparse:          preparseSource,
 			},
 			selector,
 		}}

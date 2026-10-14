@@ -146,6 +146,7 @@ func (s Service) recordSkippedCycle(ctx context.Context, skip CycleSkip, cause e
 	s.Logger.WarnContext(ctx, "collector discovery retryable; skipping cycle",
 		log.CollectorKind(skip.CollectorKind),
 		telemetry.FailureClassAttr(skip.FailureClass),
+		log.Operation(skip.Operation),
 		slog.Int("attempt", skip.Attempts),
 		slog.Int("consecutive_failures", skip.Consecutive),
 		slog.Float64("retry_after_seconds", skip.delay(s.PollInterval).Seconds()),

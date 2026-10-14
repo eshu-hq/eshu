@@ -35,7 +35,7 @@ func (e *skipError) CycleSkip() CycleSkip { return e.skip }
 func newSkipError(retryAfter time.Duration, consecutive int) *skipError {
 	return &skipError{
 		skip: CycleSkip{
-			CollectorKind: "git", FailureClass: "server_error",
+			CollectorKind: "git", FailureClass: "server_error", Operation: "mint",
 			Attempts: 4, Consecutive: consecutive, RetryAfter: retryAfter,
 		},
 		err: errors.New("list GitHub org repositories: status 504"),
@@ -194,6 +194,12 @@ func TestServiceRunKeepsFatalPathsFatal(t *testing.T) {
 	}{
 		{"plain", errors.New("list GitHub org repositories: status 401")},
 		{"retryable without a skip description", retryableOnly{}},
+		// The second IsRetryable branch: an owner's cap error that wraps a
+		// retryable registry failure with %w must not become a skip loop.
+		{"registry retryable failure wrapped at a cap", fmt.Errorf(
+			"OCI registry scan failed 20 consecutive scan cycles: %w",
+			RegistryFailure{Class: RegistryFailureRetryable, Message: "registry collector failed"},
+		)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -274,6 +280,7 @@ func TestServiceRunSkipSignalsReachTheOperator(t *testing.T) {
 		`"msg":"collector discovery retryable; skipping cycle"`,
 		`"level":"WARN"`,
 		`"failure_class":"server_error"`,
+		`"operation":"mint"`,
 		`"consecutive_failures":2`,
 		`"attempt":4`,
 		`"retry_after_seconds":7`,

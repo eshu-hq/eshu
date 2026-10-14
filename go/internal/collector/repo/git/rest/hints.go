@@ -21,6 +21,9 @@ func RateLimitHint(headers http.Header, now time.Time) (wait time.Duration, know
 	signalled = retryAfter != "" || exhausted
 	if retryAfter != "" {
 		if seconds, err := strconv.ParseInt(retryAfter, 10, 64); err == nil && seconds >= 0 {
+			// Clamp before multiplying: a huge value would overflow the
+			// duration and become a one-second retry instead of a deferral.
+			seconds = min(seconds, int64(RetryAfterCap/time.Second))
 			return time.Duration(seconds) * time.Second, true, signalled
 		}
 		if at, err := http.ParseTime(retryAfter); err == nil {

@@ -297,16 +297,30 @@ variable; a test sets it to an `httptest` server and an injected clock.
 
 A retryable failure that outlasts the in-call budget returns
 `*rest.RetryableError`, which implements `collector.RetryableError` and
-unwraps to the underlying cause. `NativeRepositorySelector` holds a
-`rest.Failures`: one retryable failure of the listing or of either mint
-call in a cycle counts once, and the counter resets only when
-`SelectRepositories` returns nil, never on a webhook batch. At 20 consecutive
-cycles (`sdk.MaxConsecutiveTransportFailures`) the selector returns a plain
-error that names the class and the count, so a permanent fault still ends the
-process. A failed discovery leaves `reconcileWalkOffset` alone, reads no
-reindex watermark, and makes no selection observation. The collector loop that
-waits `RetryAfter` instead of exiting is `collector.Service.Run`; this package
-only classifies and counts.
+unwraps to the underlying cause. One `rest.Failures` per process is built by
+the wiring (`cmd/ingester`, `cmd/collector-git`) and set as `DiscoveryFailures`
+on both `NativeRepositorySelector` and `WebhookTriggerRepositorySelector`. It
+counts per operation, `list` and `mint`, each with the 20-cycle cap
+(`sdk.MaxConsecutiveTransportFailures`) and its own backoff, so a good mint
+cannot hide a dead listing. The native selector resets both operations only
+when `SelectRepositories` returns nil. The webhook selector resets `mint` only
+after a sync of a non-empty repository set, and a webhook batch never resets
+`list`. At the cap the owner returns a plain error that names the operation,
+class and count, so a permanent fault still ends the process.
+
+On the webhook path a retryable sync failure (the token mint inside the sync)
+is counted against the shared counter and skips the cycle. The claimed
+triggers are not marked failed: `failed` is terminal, so marking would lose
+them to a GitHub blip. They stay `claimed` and the lease reaper requeues them
+(`ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW`, up to the claim-attempt cap). A
+webhook selector built without `DiscoveryFailures` strips the skip and stays
+fatal, and a sync failure joined with a failing `MarkTriggersFailed` write is
+a plain fatal error.
+
+A failed discovery leaves `reconcileWalkOffset` alone, reads no reindex
+watermark, and makes no selection observation. The collector loop that waits
+`RetryAfter` instead of exiting is `collector.Service.Run`; this package only
+classifies and counts.
 
 ## Git auth host scope
 

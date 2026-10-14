@@ -85,6 +85,17 @@ func (r *ctxProbeRunner) Run(ctx context.Context) error {
 	return nil
 }
 
+// awaitStarted blocks until the projector goroutine has stored its context, or
+// returns the caller's context error when the run ends first.
+func (r *ctxProbeRunner) awaitStarted(ctx context.Context) error {
+	select {
+	case <-r.started:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // alive reports whether the projector context is still live.
 func (r *ctxProbeRunner) alive() bool {
 	ctx := r.ctx.Load()
@@ -108,6 +119,12 @@ func TestCompositeRunnerKeepsTheProjectorThroughSkippedDiscoveryCycles(t *testin
 		Committer:    neverCommitter{},
 		PollInterval: time.Second,
 		Wait: func(ctx context.Context, _ time.Duration) error {
+			// The supervisor starts the collector goroutine first: wait for
+			// the projector to publish its context, so "not started yet" is
+			// never reported as "cancelled".
+			if err := projector.awaitStarted(ctx); err != nil {
+				return err
+			}
 			waits.Add(1)
 			if !projector.alive() {
 				projectorCancelled.Store(true)
@@ -294,6 +311,9 @@ func runDiscoveryRetry(t *testing.T, failCycles int) discoveryRetryRun {
 		Instruments:  instruments,
 		Logger:       logger,
 		Wait: func(ctx context.Context, d time.Duration) error {
+			if err := projector.awaitStarted(ctx); err != nil {
+				return err
+			}
 			waitMu.Lock()
 			result.waits = append(result.waits, d)
 			waitMu.Unlock()

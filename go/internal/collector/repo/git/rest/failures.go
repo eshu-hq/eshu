@@ -4,12 +4,14 @@
 package rest
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // collectorKind is the collector_kind label of the git collector's discovery
@@ -79,6 +81,7 @@ func (e *RetryableError) CycleSkip() collector.CycleSkip {
 	return collector.CycleSkip{
 		CollectorKind: collectorKind,
 		FailureClass:  e.Class,
+		Operation:     e.Operation,
 		Attempts:      e.Attempts,
 		Consecutive:   e.Consecutive,
 		RetryAfter:    e.RetryAfter,
@@ -93,50 +96,65 @@ const (
 	retryBackoffMax = 60 * time.Second
 )
 
-// Failures is the consecutive-failure policy of one discovery owner (#8084).
-// Its owner drives one cycle at a time, so it takes no lock.
+// Failures is the consecutive-failure policy of one discovery process (#8084).
+// It counts per GitHub operation (OperationList, OperationMint): a good mint
+// proves nothing about the listing, so each operation has its own count, cap
+// and backoff. One value is shared by every selector of the process; they run
+// one cycle at a time inside a single collector loop, so it takes no lock.
 type Failures struct {
 	// Jitter spreads the between-cycle wait. Nil means the production 75% to
 	// 125% Jitter; a test injects the identity function.
 	Jitter func(time.Duration) time.Duration
 
-	count int
+	counts map[string]int
 }
 
-// Reset clears the counter. The owner calls it only when a whole selection
-// cycle returned nil, never on a webhook batch that skipped it.
-func (f *Failures) Reset() { f.count = 0 }
+// Reset clears the counter of each named operation, or of every operation
+// when none is named.
+func (f *Failures) Reset(operations ...string) {
+	if len(operations) == 0 {
+		clear(f.counts)
+		return
+	}
+	for _, operation := range operations {
+		delete(f.counts, operation)
+	}
+}
 
-// Count reports the consecutive retryable failures so far.
-func (f *Failures) Count() int { return f.count }
+// Count reports the consecutive retryable failures of one operation so far.
+func (f *Failures) Count(operation string) int { return f.counts[operation] }
 
 // Account applies the policy to the error one cycle returned.
 //
-// A *RetryableError is counted once for the cycle, whichever of the listing or
-// either token mint raised it. Below sdk.MaxConsecutiveTransportFailures it
-// comes back with Consecutive set and RetryAfter raised to a jittered 5 s
-// doubling backoff (base capped at 60 s) unless the provider hint is larger,
-// itself capped at RetryAfterCap. At the cap it comes back as a plain,
-// non-retryable error that names the class and the count and wraps only the
-// cause, so the collector loop exits and a permanent fault is a crash loop an
-// operator can alert on.
+// A *RetryableError is counted once for the cycle against its operation.
+// Below sdk.MaxConsecutiveTransportFailures it comes back with Consecutive set
+// and RetryAfter raised to a jittered 5 s doubling backoff (base capped at
+// 60 s, so 45 to 75 s after jitter at the ceiling) unless the provider hint is
+// larger, itself capped at RetryAfterCap. At the cap it comes back as a plain,
+// non-retryable error that names the operation, class and count and wraps
+// only the cause, so the collector loop exits and a permanent fault is a crash
+// loop an operator can alert on.
 //
-// Any other error, including nil, passes through untouched and leaves the
+// Any other error, including nil, passes through untouched and leaves every
 // counter alone.
 func (f *Failures) Account(err error) error {
 	var typed *RetryableError
 	if !errors.As(err, &typed) {
 		return err
 	}
-	f.count++
-	if f.count >= sdk.MaxConsecutiveTransportFailures {
+	if f.counts == nil {
+		f.counts = make(map[string]int)
+	}
+	f.counts[typed.Operation]++
+	count := f.counts[typed.Operation]
+	if count >= sdk.MaxConsecutiveTransportFailures {
 		return fmt.Errorf(
 			"GitHub %s failed %d consecutive discovery cycles (class=%s): %w",
-			typed.Operation, f.count, typed.Class, typed.cause,
+			typed.Operation, count, typed.Class, typed.cause,
 		)
 	}
 	backoff := retryBackoffBase
-	for step := 1; step < f.count && backoff < retryBackoffMax; step++ {
+	for step := 1; step < count && backoff < retryBackoffMax; step++ {
 		backoff *= 2
 	}
 	backoff = min(backoff, retryBackoffMax)
@@ -145,7 +163,42 @@ func (f *Failures) Account(err error) error {
 		jitter = Jitter
 	}
 	accounted := *typed
-	accounted.Consecutive = f.count
+	accounted.Consecutive = count
 	accounted.RetryAfter = min(max(jitter(backoff), typed.RetryAfter), RetryAfterCap)
 	return &accounted
+}
+
+// Observe is Account plus the consecutive-failure gauge of the failing
+// operation. A selector calls it with the error one selection cycle returned.
+func (f *Failures) Observe(ctx context.Context, instruments *telemetry.Instruments, err error) error {
+	accounted := f.Account(err)
+	var typed *RetryableError
+	if errors.As(err, &typed) {
+		RecordConsecutiveFailures(ctx, instruments, typed.Operation, f.Count(typed.Operation))
+	}
+	return accounted
+}
+
+// Clear resets the named operations (all when none is named) and records 0 on
+// their gauges. A selector calls it when a cycle proved the operation healthy.
+func (f *Failures) Clear(ctx context.Context, instruments *telemetry.Instruments, operations ...string) {
+	if len(operations) == 0 {
+		operations = []string{OperationList, OperationMint}
+	}
+	f.Reset(operations...)
+	for _, operation := range operations {
+		RecordConsecutiveFailures(ctx, instruments, operation, 0)
+	}
+}
+
+// Strip returns err unchanged unless it carries a *RetryableError, in which
+// case it returns a plain error that keeps the message and wraps only the
+// cause, so the result is never a collector.CycleSkipper. An owner without a
+// failure counter uses it to keep a retryable failure fatal.
+func Strip(err error) error {
+	var typed *RetryableError
+	if !errors.As(err, &typed) {
+		return err
+	}
+	return fmt.Errorf("%s: %w", err.Error(), typed.cause)
 }

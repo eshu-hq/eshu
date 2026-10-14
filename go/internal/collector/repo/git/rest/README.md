@@ -41,7 +41,10 @@ flowchart LR
   cause.
 - `RecordConsecutiveFailures`: sets the
   `eshu_dp_collector_discovery_consecutive_failures` gauge the selector owns.
-- `Failures`: consecutive-cycle counter and between-cycle backoff.
+- `Failures`: per-operation consecutive-cycle counter and between-cycle
+  backoff. One value per process is shared by the native and the webhook
+  selector; `Observe` accounts a failure and sets the gauge, `Clear` resets
+  operations, `Strip` removes the skip from an error when no counter is wired.
 - `IsTransient`, `TransportClass`, `RateLimitHint`: classification helpers.
 - `WithObserver`: puts the instruments and logger on the context.
 
@@ -53,8 +56,9 @@ flowchart LR
 | Backoff | 1 s, 2 s, 4 s, each spread over 75% to 125% |
 | In-call rate-limit wait | `retry-after` or `x-ratelimit-reset` of at most 60 s replaces the backoff and uses one attempt |
 | Longer or absent hint | The call ends; `RetryAfter` is the hint capped at 1 h, or 60 s when no header names one |
-| Consecutive-cycle cap | 20 (`sdk.MaxConsecutiveTransportFailures`) |
-| Between-cycle wait | 5 s doubling to a 60 s base cap, spread 75% to 125%, or the hint when larger (capped at 1 h) |
+| In-call bound | up to 240 s per call: 3 x 60 s rate-limit hints plus 4 x 15 s request timeouts |
+| Consecutive-cycle cap | 20 per operation (`list`, `mint`), `sdk.MaxConsecutiveTransportFailures` |
+| Between-cycle wait | 5 s doubling to a 60 s base cap, spread 75% to 125% after the cap (45 to 75 s at the ceiling), or the hint when larger (capped at 1 h; a provider that keeps sending 1 h can hold the loop 20 x 1 h) |
 
 There is no environment variable. The values are pinned by
 `TestRetryBudgetConstantsArePinned`, so a permanent failure cannot be hidden by

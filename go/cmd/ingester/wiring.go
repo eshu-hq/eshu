@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -191,7 +192,12 @@ func buildIngesterCollectorService(
 	// it. The ingester is the deployed sync runtime, so without this the
 	// skipped parse and the identity stamp never run in a deployment.
 	preparseSource := func() preparse.Config { return git.PreparseConfigFor(snapshotter, config, nil, nil) }
+	// One GitHub discovery failure counter per process, shared by both
+	// selectors so a retryable mint failure on the webhook sync path is capped
+	// the same way as a listing failure (#8084).
+	discoveryFailures := &rest.Failures{}
 	nativeSelector := &git.NativeRepositorySelector{
+		DiscoveryFailures:          discoveryFailures,
 		Config:                     config,
 		Logger:                     logger,
 		BaselineResolver:           committer,
@@ -216,6 +222,7 @@ func buildIngesterCollectorService(
 		webhookSelector := git.WebhookTriggerRepositorySelector{
 			Config:                     config,
 			Store:                      webhookstore.NewWebhookTriggerStore(database),
+			DiscoveryFailures:          discoveryFailures,
 			Owner:                      handoffConfig.Owner,
 			ClaimLimit:                 handoffConfig.ClaimLimit,
 			ClaimLeaseWindow:           handoffConfig.ClaimLeaseWindow,

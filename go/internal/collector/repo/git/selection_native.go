@@ -55,10 +55,10 @@ type NativeRepositorySelector struct {
 	// collector drives one selector sequentially, one cycle at a time, so a
 	// plain counter is safe without a lock.
 	reconcileWalkOffset int
-	// discoveryFailures counts consecutive cycles that ended in a retryable
-	// discovery failure (#8084). It resets only when SelectRepositories
-	// returns nil, never on a webhook batch, which skips this selector.
-	discoveryFailures rest.Failures
+	// DiscoveryFailures is the per-process counter shared with the webhook
+	// selector (#8084); nil means this selector owns a private one.
+	DiscoveryFailures *rest.Failures
+	ownFailures       rest.Failures
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -70,15 +70,22 @@ func (s *NativeRepositorySelector) SelectRepositories(
 	ctx context.Context,
 ) (SelectionBatch, error) {
 	ctx = rest.WithObserver(ctx, s.Instruments, s.Logger)
+	failures := s.discoveryFailures()
 	batch, err := s.selectRepositories(ctx)
 	if err != nil {
-		err = s.discoveryFailures.Account(err)
-		rest.RecordConsecutiveFailures(ctx, s.Instruments, s.discoveryFailures.Count())
-		return batch, err
+		return batch, failures.Observe(ctx, s.Instruments, err)
 	}
-	s.discoveryFailures.Reset()
-	rest.RecordConsecutiveFailures(ctx, s.Instruments, 0)
+	// A nil cycle completed the listing and the mint, so both start over.
+	failures.Clear(ctx, s.Instruments)
 	return batch, nil
+}
+
+// discoveryFailures returns the shared counter, or the private one.
+func (s *NativeRepositorySelector) discoveryFailures() *rest.Failures {
+	if s.DiscoveryFailures != nil {
+		return s.DiscoveryFailures
+	}
+	return &s.ownFailures
 }
 
 // selectRepositories runs one selection cycle. SelectRepositories wraps it to

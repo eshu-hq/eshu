@@ -52,7 +52,7 @@ func discoveryRetrySelector(t *testing.T, script []error) (*NativeRepositorySele
 		SyncGit: func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error) {
 			return GitSyncSelection{NextReconcileStartOffset: 9}, nil
 		},
-		discoveryFailures: rest.Failures{Jitter: func(d time.Duration) time.Duration { return d }},
+		DiscoveryFailures: &rest.Failures{Jitter: func(d time.Duration) time.Duration { return d }},
 	}
 	return selector, &calls
 }
