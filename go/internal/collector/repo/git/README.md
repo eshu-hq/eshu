@@ -312,7 +312,18 @@ On the webhook path a retryable sync failure (the token mint inside the sync)
 is counted against the shared counter and skips the cycle. The claimed
 triggers are not marked failed: `failed` is terminal, so marking would lose
 them to a GitHub blip. They stay `claimed` and the lease reaper requeues them
-(`ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW`, up to the claim-attempt cap). A
+once per lease window (`ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW`, 15 minutes by
+default) until the claim-attempt cap (3 by default) is reached. The bound: a
+claimed trigger survives an outage of about three lease windows, 45 minutes
+with the defaults (requeued after the first and second window, exhausted after
+the third). A longer outage still ends it as `failed` with
+`claim_lease_exhausted`, a class that names a poison row, not the provider
+outage. It is visible in
+`eshu_dp_webhook_trigger_claim_reaps_total{outcome="exhausted"}`, the
+`reaped expired webhook trigger claims` log, and the stale-claims gauge. Base
+marked every claimed trigger failed on the first blip. In priority mode the
+scheduled native sync picks the repository up anyway; in webhook-only mode the
+change waits for the next push. A
 webhook selector built without `DiscoveryFailures` strips the skip and stays
 fatal, and a sync failure joined with a failing `MarkTriggersFailed` write is
 a plain fatal error.

@@ -83,3 +83,9 @@ typed retryable.
   `TestIsTransientAcceptsTheBundledHTTP2StreamError` pins the name.
 - Do not wrap `*RetryableError` with `%w` when you mean to make a failure
   fatal: `errors.As` still finds it. `Failures.Account` wraps only the cause.
+- On the webhook sync path a retryable failure leaves the claimed triggers
+  `claimed`, so the lease reaper (15 minutes by default, 3 claim attempts)
+  requeues them: they survive an outage of about 45 minutes. A longer outage
+  ends them as `failed` with `claim_lease_exhausted`, which names a poison
+  row, not the outage; the reap counter and log show it. Base lost them on the
+  first blip.

@@ -102,6 +102,21 @@ cycle. One `rest.Failures` per process is now shared by both selectors and both
 wirings, and counts per operation (`list`, `mint`), so a good mint cannot hide
 a dead listing and a dead mint cannot hide behind a good listing.
 
+Bound on trigger survival, from source: the lease window defaults to 15
+minutes and a claim row is attempted at most 3 times
+(`defaultWebhookTriggerClaimLeaseWindow`, `defaultWebhookTriggerMaxClaimAttempts`
+in `webhook_trigger_selector.go`). A row left `claimed` by skipped cycles is
+requeued after the first and second window and moved to `failed` with
+`claim_lease_exhausted` after the third, so a claimed trigger survives an
+outage of about 45 minutes with the defaults. A longer outage still ends it
+failed, under a class that names a poison row rather than the outage. The
+signals are `eshu_dp_webhook_trigger_claim_reaps_total{outcome="exhausted"}`,
+the `reaped expired webhook trigger claims` log, and the stale-claims gauge.
+Base marked every claimed trigger `sync_git_failed` on the first blip, so this
+is strictly better but not lossless. In priority mode the scheduled native
+sync picks the repository up anyway; in webhook-only mode the change waits for
+the next push to it.
+
 Results in tests, not deployed measurements:
 
 - A webhook selector with a real mint answering 502 through `rest.Do` ends

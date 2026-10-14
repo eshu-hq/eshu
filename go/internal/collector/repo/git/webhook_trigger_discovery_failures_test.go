@@ -211,7 +211,20 @@ func TestSharedFailuresCountListAndMintIndependently(t *testing.T) {
 		t.Fatalf("counts after a webhook success = list %d mint %d, want 1 and 0", failures.Count(rest.OperationList), failures.Count(rest.OperationMint))
 	}
 
+	// Cycle 3b: another webhook mint failure, so the mint count is above zero
+	// when the native listing succeeds (a native success that cleared only
+	// `list` would leave it there and let healthy cycles accumulate toward a
+	// spurious fatal cap).
+	syncErr = rest.NewRetryableError(rest.OperationMint, "server_error", 4, 0, errors.New("status 502"))
+	if _, err := priority.SelectRepositories(ctx); err == nil {
+		t.Fatal("cycle 3b error = nil, want a retryable mint failure")
+	}
+	if failures.Count(rest.OperationList) != 1 || failures.Count(rest.OperationMint) != 1 {
+		t.Fatalf("counts before the native success = list %d mint %d, want 1 and 1", failures.Count(rest.OperationList), failures.Count(rest.OperationMint))
+	}
+
 	// Cycle 4: no triggers, the native listing succeeds; both reset.
+	syncErr = nil
 	store.claimed = nil
 	if _, err := priority.SelectRepositories(ctx); err != nil {
 		t.Fatalf("cycle 4 error = %v, want nil", err)
@@ -285,5 +298,33 @@ func TestWebhookSelectorWithoutACounterFailsClosed(t *testing.T) {
 	}
 	if got := store.failedCall("sync_git_failed"); len(got) != 1 {
 		t.Fatalf("sync_git_failed marks = %v, want the claimed trigger marked as on base", got)
+	}
+}
+
+// TestUnwiredWebhookSelectorJoinedMarkFailureIsNotSkippable pins ruling 3
+// decision 5 on the one path that can join a retryable sync error with a mark
+// failure: no counter wired, a retryable GitHub failure, and a failing
+// MarkTriggersFailed write. The joined error must carry no skip and no typed
+// error, whatever the counter state, so a Postgres failure is never skipped.
+func TestUnwiredWebhookSelectorJoinedMarkFailureIsNotSkippable(t *testing.T) {
+	t.Parallel()
+
+	cause := errors.New("status 502")
+	selector := WebhookTriggerRepositorySelector{
+		Config: RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		Store:  failingMarkStore{&stubWebhookTriggerStore{claimed: webhookTestTriggers()}},
+		Owner:  "collector-git",
+		Now:    func() time.Time { return time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC) },
+		SyncGit: func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error) {
+			return GitSyncSelection{}, rest.NewRetryableError(rest.OperationMint, "server_error", 4, 0, cause)
+		},
+	}
+	_, err := selector.SelectRepositories(context.Background())
+	var typed *rest.RetryableError
+	if err == nil || collector.IsRetryable(err) || errors.As(err, new(collector.CycleSkipper)) || errors.As(err, &typed) {
+		t.Fatalf("SelectRepositories() error = %v, want a plain fatal error without the skip", err)
+	}
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "postgres unavailable") {
+		t.Fatalf("SelectRepositories() error = %v, want both the sync cause and the mark failure kept", err)
 	}
 }
