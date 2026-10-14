@@ -1,0 +1,52 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Cover the #7727 BM25 per-posting document lateral so scoring reads no heap
+-- page before the page limit.
+--
+-- WHAT GOES WRONG TODAY (a production read replica, PG 18.x, ~22k indexed
+-- documents, single-letter hybrid query, limit 30, build 7a882524b). The
+-- scoring query joins every matching posting to eshu_search_index_documents
+-- with a single-row lateral SELECT d.* before the page limit, plus one stats
+-- join per posting. The query needs only repo_id and document_length from
+-- that table beside the document key. A term with 2k-5k postings spends
+-- 0.5-1.0 s in block reads cold (I/O Timings: shared read=512 ms of 570 ms;
+-- 2,768 and 4,362 buffer reads on two repositories). Warm cost is 63-146 ms.
+--
+-- THE INDEX. (scope_id, generation_id, document_id) INCLUDE (repo_id,
+-- document_length) mirrors the documents pkey so the narrowed lateral (same
+-- change: the lateral now selects exactly the scoring/filter columns and the
+-- stats row is hoisted to one single-row CTE) is an Index Only Scan with
+-- Heap Fetches 0 on the hot path. The key is the pkey columns on purpose:
+-- the lateral probes by full document key. INCLUDE carries only the two
+-- scoring columns on purpose: the payload and unreferenced columns stay out,
+-- and documents are still fetched for the final page only. At 22k rows the
+-- index is ~1.7 MB against a ~1.3 MB pkey.
+--
+-- MEASURED on a scratch container (PG 18.6, 22,000 documents, 228,321
+-- postings, hot term scattered over 5,000 postings to match the production
+-- read profile). Restart-cold P1 (limit 30): shared reads 4,064 -> 569
+-- (-86%); the lateral is Index Only with Heap Fetches 0. Warm medians:
+-- 5,000-posting term 47.1 -> 39.2 ms, 2,200-posting term 26.8 -> 18.5 ms,
+-- 81-posting term 1.2 -> 1.1 ms, filtered shapes no slower on repeats.
+-- Top-31 order and scores byte-identical across six shapes (hot, mid, rare,
+-- source-kind, language, service-anchor fingerprints all match). Host page
+-- cache stays warm across container restarts in this sandbox, so wall times
+-- are labeled warm-ish and the read-count volume is the cold evidence.
+-- Full matrix: docs/internal/evidence/7727-bm25-posting-lookup-index.md.
+--
+-- CONCURRENTLY so bootstrap never blocks the ingester's document writes;
+-- IF NOT EXISTS so every later bootstrap over an install that has it is a
+-- no-op. The lone statement in this file so the migration coordinator can run
+-- it outside a transaction (coordination.IsSoleConcurrentIndexStatement). A
+-- new file per issue #7002: never edit an applied migration.
+--
+-- Heap Fetches 0 on the lateral also needs the visibility map: a fresh
+-- CONCURRENTLY build leaves existing heap pages non-all-visible, so the
+-- lateral keeps some heap fetches until (auto)vacuum marks
+-- eshu_search_index_documents. The scratch proof vacuumed before measuring,
+-- so its zero reflects post-vacuum state; no companion VACUUM ships here
+-- (that would take a second migration number), and autovacuum closes the
+-- gap on a live table.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS eshu_search_index_documents_bm25_posting_idx
+    ON eshu_search_index_documents (scope_id, generation_id, document_id) INCLUDE (repo_id, document_length);

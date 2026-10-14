@@ -250,17 +250,37 @@ func BuildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, ter
 		return fmt.Sprintf("$%d", len(args))
 	}
 
+	// simplifiedRepoAnchor holds when the anchor is the repo scope itself: the
+	// repo predicate already implies the handle clause's direct-repo branch,
+	// so emitting that clause would only force a document fetch per posting
+	// without changing membership (#7727). The comparison uses the bound
+	// values, not trimmed ones: the omitted clause binds the raw anchor ID
+	// while the repo predicate binds the raw repo ID, so the simplification
+	// is exact only when the two raw values are equal. Every other anchor
+	// shape keeps its handle predicate byte-for-byte.
+	simplifiedRepoAnchor := search.Anchor.Kind == searchretrieval.ScopeKindRepo &&
+		search.Anchor.ID != "" &&
+		search.Anchor.ID == search.RepoID
+
 	conditions := []string{"d.repo_id = $4"}
+	var handlePredicateEmitted bool
 	switch search.Anchor.Kind {
 	case searchretrieval.ScopeKindRepo:
-		conditions = append(conditions, searchIndexHandlePredicate(addArg, "repository", search.Anchor.ID, true))
+		if !simplifiedRepoAnchor {
+			conditions = append(conditions, searchIndexHandlePredicate(addArg, "repository", search.Anchor.ID, true))
+			handlePredicateEmitted = true
+		}
 	case searchretrieval.ScopeKindService:
 		conditions = append(conditions, searchIndexHandlePredicate(addArg, "service", search.Anchor.ID, false))
+		handlePredicateEmitted = true
 	case searchretrieval.ScopeKindWorkload:
 		conditions = append(conditions, searchIndexHandlePredicate(addArg, "workload", search.Anchor.ID, false))
+		handlePredicateEmitted = true
 	case searchretrieval.ScopeKindEnvironment:
 		conditions = append(conditions, searchIndexHandlePredicate(addArg, "environment", search.Anchor.ID, false))
+		handlePredicateEmitted = true
 	}
+	var hasSourceKindFilter bool
 	if len(search.SourceKinds) > 0 {
 		kinds := make([]string, 0, len(search.SourceKinds))
 		for _, kind := range search.SourceKinds {
@@ -270,8 +290,10 @@ func BuildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, ter
 		}
 		if len(kinds) > 0 {
 			conditions = append(conditions, "d.source_kind = ANY("+addArg(kinds)+"::text[])")
+			hasSourceKindFilter = true
 		}
 	}
+	var hasLanguageFilter bool
 	if len(search.Languages) > 0 {
 		langs := make([]string, 0, len(search.Languages))
 		for _, lang := range search.Languages {
@@ -282,7 +304,26 @@ func BuildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, ter
 		if len(langs) > 0 {
 			labels := "CASE WHEN jsonb_typeof(d.document->'Labels') = 'array' THEN d.document->'Labels' ELSE '[]'::jsonb END"
 			conditions = append(conditions, "EXISTS (SELECT 1 FROM jsonb_array_elements_text("+labels+") AS lbl WHERE lbl = ANY("+addArg(langs)+"::text[]))")
+			hasLanguageFilter = true
 		}
+	}
+	// needsDocumentFilter mirrors the predicates above: the lateral must
+	// expose the document payload exactly when a handle or label predicate
+	// reads it, and never otherwise.
+	needsDocumentFilter := handlePredicateEmitted || hasLanguageFilter
+
+	// lateralColumns carries exactly the document columns the scoring read
+	// needs before the page limit: the document key, the repo scope, and the
+	// BM25 length, plus each column an active filter predicate references.
+	// The payload and every unreferenced column stay out, so the covering
+	// posting index serves the lateral without a heap fetch (#7727). The
+	// final top_hits join below still fetches the payload for the page.
+	lateralColumns := "d.scope_id, d.generation_id, d.document_id, d.repo_id, d.document_length"
+	if hasSourceKindFilter {
+		lateralColumns += ", d.source_kind"
+	}
+	if needsDocumentFilter {
+		lateralColumns += ", d.document"
 	}
 
 	var builder strings.Builder
@@ -309,6 +350,14 @@ document_frequency AS MATERIALIZED (
     FROM matched_terms t
     GROUP BY t.term_key, t.term
 ),
+search_stats AS MATERIALIZED (
+    -- One row per query: every posting shares the active generation, so one
+    -- PK descent feeds all of scoring instead of one per posting (#7727).
+    SELECT stats.document_count, stats.average_document_length
+    FROM eshu_search_index_stats stats
+    JOIN active_generation active ON active.generation_id = stats.generation_id
+    WHERE stats.scope_id = $1
+),
 scored AS (
     SELECT
         d.scope_id,
@@ -326,16 +375,14 @@ scored AS (
     -- The document PK is unique. LIMIT 1 keeps each posting on that keyed
     -- lookup before repo and handle filters are applied.
     JOIN LATERAL (
-        SELECT d.*
+        SELECT ` + lateralColumns + `
         FROM eshu_search_index_documents d
         WHERE d.scope_id = t.scope_id
           AND d.generation_id = t.generation_id
           AND d.document_id = t.document_id
         LIMIT 1
     ) d ON true
-    JOIN eshu_search_index_stats stats
-      ON stats.scope_id = t.scope_id
-     AND stats.generation_id = t.generation_id
+    CROSS JOIN search_stats stats
     WHERE `)
 	builder.WriteString(strings.Join(conditions, "\n      AND "))
 	builder.WriteString(`

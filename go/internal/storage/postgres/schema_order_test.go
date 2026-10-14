@@ -425,6 +425,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// and still serves the existence gate on its smaller key, which is why
 	// both indexes exist rather than one superseding the other.
 	"content_entities_repo_language_type_path_idx",
+	// Migration 175 (#7727) covers the BM25 per-posting document lateral
+	// with repo_id and document_length on the documents pkey.
+	"eshu_search_index_documents_bm25_posting_idx",
 	// Migration 176 (#7975) adds the stored lowercase copy of
 	// content_files.content for the unscoped search recheck.
 	"content_files_content_lower",
