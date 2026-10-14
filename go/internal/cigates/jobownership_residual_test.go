@@ -100,6 +100,71 @@ func TestJobOwnershipResidualShapesFailClosed(t *testing.T) {
 				"          fi\n",
 			covered: true,
 		},
+		"single-line if body gates": {
+			jobIf: always,
+			steps: "      - run: |\n" +
+				"          result=\"${{ needs.dep.result }}\"\n" +
+				"          if [ \"$result\" != \"success\" ]; then exit 1; fi\n",
+			covered: true,
+		},
+		"single-line case arm gates": {
+			jobIf: always,
+			steps: "      - run: |\n" +
+				"          result=\"${{ needs.dep.result }}\"\n" +
+				"          case \"$result\" in success) ;; *) exit 1;; esac\n",
+			covered: true,
+		},
+		"single-line if without failing body does not gate": {
+			jobIf: always,
+			steps: "      - run: |\n" +
+				"          result=\"${{ needs.dep.result }}\"\n" +
+				"          if [ \"$result\" != \"success\" ]; then echo \"bad\"; fi\n",
+			covered: false,
+		},
+		"nested if with later outer failing gates": {
+			jobIf: always,
+			steps: "      - run: |\n" +
+				"          result=\"${{ needs.dep.result }}\"\n" +
+				"          if [ \"$result\" != \"success\" ]; then\n" +
+				"            if [ -n \"$VERBOSE\" ]; then\n" +
+				"              echo \"verbose\"\n" +
+				"            fi\n" +
+				"            exit 1\n" +
+				"          fi\n",
+			covered: true,
+		},
+		"callee arg-count branch plus unfailed slot gate does not gate": {
+			jobIf: always,
+			steps: "      - run: bash scripts/lib/argcount.sh \"${{ needs.dep.result }}\"\n",
+			scripts: map[string]string{
+				"scripts/lib/argcount.sh": "#!/usr/bin/env bash\nif [ $# -eq 0 ]; then\n  echo \"usage\"\n  exit 1\nfi\nif [ \"$1\" != success ]; then\n  echo \"bad: $1\"\nfi\n",
+			},
+			covered: false,
+		},
+		"callee failing before the slot gate does not gate": {
+			jobIf: always,
+			steps: "      - run: bash scripts/lib/early.sh \"${{ needs.dep.result }}\"\n",
+			scripts: map[string]string{
+				"scripts/lib/early.sh": "#!/usr/bin/env bash\n[ -n \"$FLAG\" ] || exit 1\nif [ \"$1\" != success ]; then\n  echo \"bad: $1\"\nfi\n",
+			},
+			covered: false,
+		},
+		"callee trailing exit past the slot gate does not gate": {
+			jobIf: always,
+			steps: "      - run: bash scripts/lib/trailing.sh \"${{ needs.dep.result }}\"\n",
+			scripts: map[string]string{
+				"scripts/lib/trailing.sh": "#!/usr/bin/env bash\nif [ \"$1\" != success ]; then\n  echo \"bad: $1\"\nfi\nexit 1\n",
+			},
+			covered: false,
+		},
+		"callee single-line failing body gates": {
+			jobIf: always,
+			steps: "      - run: bash scripts/lib/one.sh \"${{ needs.dep.result }}\"\n",
+			scripts: map[string]string{
+				"scripts/lib/one.sh": "#!/usr/bin/env bash\nif [ \"$1\" != success ]; then exit 1; fi\n",
+			},
+			covered: true,
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
