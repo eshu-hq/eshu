@@ -103,6 +103,17 @@ digests. Those values are high cardinality and may describe private topology.
 - Provider-specific auth and endpoint shape stay outside this package behind
   `ClientFactory`.
 
+Unchanged-generation decision (#8003): this collector sends a stable content
+hint. `ociFreshnessHint` covers the sorted reference-to-digest pairs, the
+per-reference digest provenance (registry header, computed from manifest
+bytes, or missing), and tag-list truncation; it is attached to the generation
+post-scan because digests exist only after `buildEnvelopes` fetches manifests.
+Identical registry state at a later tick shares the hint, so the store skips
+the duplicate instead of minting per tick. `TestOCIFreshnessHintSkipsIdenticalTick`
+proves identical ticks share one non-empty hint and skip, `TestOCIFreshnessHintStoresRotatedDigest`
+proves a rotated digest stores, and `TestOCIFreshnessHintEncodesDigestGapsAndTruncation`
+proves digest gaps and truncation change the hint.
+
 ## Related Docs
 
 - `go/internal/collector/ociregistry/README.md`

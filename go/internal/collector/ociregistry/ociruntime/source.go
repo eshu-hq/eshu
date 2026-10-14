@@ -139,11 +139,15 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 		result = "failed"
 		return collector.CollectedGeneration{}, err
 	}
-	envelopes, err := s.buildEnvelopes(ctx, client, target, config.CollectorInstanceID, generationValue.GenerationID, observedAt, tags)
+	envelopes, refDigests, err := s.buildEnvelopes(ctx, client, target, config.CollectorInstanceID, generationValue.GenerationID, observedAt, tags)
 	if err != nil {
 		result = "failed"
 		return collector.CollectedGeneration{}, err
 	}
+	// Digests exist only after buildEnvelopes fetches manifests, so the
+	// content hint is attached post-scan. Identical registry state at a later
+	// tick shares the hint and the store skips the duplicate (#8003).
+	generationValue.FreshnessHint = ociFreshnessHint(refDigests, tagListTruncated)
 	if tagListTruncated {
 		warning, warningErr := s.warningEnvelope(
 			target,
@@ -184,8 +188,9 @@ func (s *Source) buildEnvelopes(
 	generationID string,
 	observedAt time.Time,
 	references []string,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, []ociReferenceDigest, error) {
 	envelopes := make([]facts.Envelope, 0, 1+(len(references)*4))
+	refDigests := make([]ociReferenceDigest, 0, len(references))
 	repositoryEnvelope, err := ociregistry.NewRepositoryEnvelope(ociregistry.RepositoryObservation{
 		Identity:            target.identity(),
 		GenerationID:        generationID,
@@ -197,18 +202,18 @@ func (s *Source) buildEnvelopes(
 		SourceURI:           target.SourceURI,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	envelopes = append(envelopes, repositoryEnvelope)
 
 	for _, reference := range references {
 		manifest, err := s.getManifest(ctx, client, target, reference)
 		if err != nil {
-			return nil, fmt.Errorf("get OCI manifest: %w", err)
+			return nil, nil, fmt.Errorf("get OCI manifest: %w", err)
 		}
 		mediaType, parsed, err := parseManifest(manifest)
 		if err != nil {
-			return nil, fmt.Errorf("parse OCI manifest: %w", err)
+			return nil, nil, fmt.Errorf("parse OCI manifest: %w", err)
 		}
 		if s.Instruments != nil {
 			s.Instruments.OCIRegistryManifestsObserved.Add(ctx, 1, metric.WithAttributes(
@@ -220,15 +225,17 @@ func (s *Source) buildEnvelopes(
 		if !ok {
 			warning, warningErr := s.warningEnvelope(target, collectorInstanceID, generationID, observedAt, ociregistry.WarningMissingManifestDigest, reference, "")
 			if warningErr != nil {
-				return nil, warningErr
+				return nil, nil, warningErr
 			}
 			envelopes = append(envelopes, warning)
+			refDigests = append(refDigests, ociReferenceDigest{reference: reference, digestWarning: ociregistry.WarningMissingManifestDigest})
 			continue
 		}
+		refDigests = append(refDigests, ociReferenceDigest{reference: reference, digest: digest, digestWarning: digestWarning})
 		if digestWarning != "" {
 			warning, warningErr := s.warningEnvelope(target, collectorInstanceID, generationID, observedAt, digestWarning, reference, digest)
 			if warningErr != nil {
-				return nil, warningErr
+				return nil, nil, warningErr
 			}
 			envelopes = append(envelopes, warning)
 		}
@@ -244,7 +251,7 @@ func (s *Source) buildEnvelopes(
 			parsed.Config,
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		parsed.ConfigLabels = configLabels
 		envelopes = append(envelopes, configWarnings...)
@@ -260,22 +267,22 @@ func (s *Source) buildEnvelopes(
 			SourceURI:           target.SourceURI,
 		})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		envelopes = append(envelopes, tagEnvelope)
 
 		factsForManifest, err := s.manifestEnvelopes(target, collectorInstanceID, generationID, observedAt, reference, descriptor, parsed)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		envelopes = append(envelopes, factsForManifest...)
 		referrerEnvelopes, err := s.referrerEnvelopes(ctx, client, target, collectorInstanceID, generationID, observedAt, descriptor)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		envelopes = append(envelopes, referrerEnvelopes...)
 	}
-	return envelopes, nil
+	return envelopes, refDigests, nil
 }
 
 func (s *Source) getManifest(ctx context.Context, client RegistryClient, target TargetConfig, reference string) (distribution.ManifestResponse, error) {

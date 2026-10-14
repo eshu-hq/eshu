@@ -142,3 +142,11 @@ Collector Deployment Evidence: this package is wired by the
 The chart renders the Deployment, metrics Service, ServiceMonitor,
 NetworkPolicy, and PDB while preserving the claim-driven workflow-coordinator
 boundary.
+
+Unchanged-generation decision (#8003): this collector sends a stable content
+hint. `freshnessHint` covers the sorted stable keys of the emitted envelopes,
+so identical PagerDuty state at a later tick shares the hint and the store
+skips the duplicate instead of minting per content window.
+`TestIdenticalCollectionsSkipSecondGeneration` proves identical claimed
+collections store one generation and skip the second. No production change was
+needed: the hint already covered collection content.

@@ -390,6 +390,20 @@ shape.
   as terminal. The caller owns retry timing, claim failure persistence, and the
   generic attempt budget through `collector.ClaimedService`.
 
+Unchanged-generation decision (#8003): this collector sends a stable
+content-covering hint. `awsFreshnessHint` covers each emitted envelope's fact
+kind, stable key, and full payload — identity plus state, tags, and
+attributes — attached after `scanService`; an identity-only hint would mask
+drift that keeps the same resource. Warning facts contribute payload-only
+because their stable keys embed the generation ID and could never match across
+ticks. The credential-failure path stays hint-less: a generation that observed
+no provider truth always stores, never skips. `TestIdenticalScansShareFreshnessHintAndSkip`
+proves identical scans share one non-empty hint and skip,
+`TestMutatedStateOrTagsStoreNewGeneration` proves state, tag, and attribute
+drift stores, `TestAWSFreshnessHintCanonicalizesNestedAttributeMaps` proves
+nested attribute maps hash identically regardless of map order, and
+`TestCredentialFailureCarriesNoFreshnessHint` pins the hint-less failure path.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

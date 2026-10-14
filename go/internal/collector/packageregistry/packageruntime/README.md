@@ -136,6 +136,16 @@ No-Regression Evidence (#2374): `go test ./internal/collector/sdk ./internal/col
 
 No-Observability-Change (#2374): package-registry metadata fetches keep the existing observe-duration, request status-class, facts-emitted, rate-limit, generation-lag, parse-failure, warning-fact, health, readiness, metrics, and admin-status signals. The SDK remains telemetry-free, and no package names, metadata URLs, versions, feed paths, or credential values were added to metric labels or status details.
 
+Unchanged-generation decision (#8003): this collector sends a stable content
+hint. `packageFreshnessHint` covers the sorted stable keys of the emitted
+envelopes at the generation site — what the collector actually emits — and
+never the raw document body, which can carry out-of-window content that would
+mint a new generation while the emitted facts stand still. Identical metadata
+at a later tick shares the hint, so the store skips the duplicate instead of
+minting per tick. `TestIdenticalDocumentsShareFreshnessHintAndSkip` proves
+identical documents share one non-empty hint and skip, and
+`TestChangedDocumentStoresNewGeneration` proves a metadata change stores.
+
 ## Related Docs
 
 - [Package registry ADR](../../../../../docs/public/reference/component-package-manager.md)
