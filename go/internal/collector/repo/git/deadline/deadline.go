@@ -98,6 +98,16 @@ type Limits struct {
 	// environment setting: it complements the process deadline for a stall
 	// that starts after the connection is up.
 	LowSpeed time.Duration
+	// RetryAttempts is how many times one network git command may run before
+	// its failure is final (#8091). Zero means DefaultRetryAttempts; 1 turns
+	// the retry off.
+	RetryAttempts int
+	// RetryBackoff is the base wait between attempts, before jitter. Zero
+	// means DefaultRetryBackoff. It is not an environment setting.
+	RetryBackoff time.Duration
+	// RetrySweepBudget caps the retries one sweep may spend across all
+	// repositories. Zero means DefaultRetrySweepBudget.
+	RetrySweepBudget int
 }
 
 // DefaultLowSpeed is the default http.lowSpeedTime. A transfer that moves
@@ -154,7 +164,8 @@ func command(operation string) string {
 }
 
 // FromEnv reads ESHU_GIT_RESOLVE_TIMEOUT_SECONDS, ESHU_GIT_FETCH_TIMEOUT_SECONDS
-// and ESHU_GIT_CLONE_TIMEOUT_SECONDS. Unset or blank keeps the default. A set
+// and ESHU_GIT_CLONE_TIMEOUT_SECONDS, then the retry knobs ESHU_GIT_RETRY_ATTEMPTS
+// and ESHU_GIT_RETRY_SWEEP_BUDGET (retry_limits.go). Unset or blank keeps the default. A set
 // value must be a whole number of seconds from 1 to 86400; anything else
 // (negative, zero, fractional, non-numeric) is a startup error naming the
 // variable and the value. Zero is refused because a disabled deadline brings
@@ -175,6 +186,9 @@ func FromEnv(getenv func(string) string) (Limits, error) {
 			return Limits{}, err
 		}
 		*item.dst = value
+	}
+	if err := retryFromEnv(getenv, &limits); err != nil {
+		return Limits{}, err
 	}
 	return limits, nil
 }

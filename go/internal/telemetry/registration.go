@@ -65,6 +65,7 @@ var registrationSteps = []func(){
 	registerServiceChangedSince,
 	registerProducerGrant,
 	registerCodeTopicPartition,
+	registerGitCommandRetry,
 }
 
 func init() {

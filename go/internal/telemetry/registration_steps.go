@@ -179,6 +179,13 @@ func registerSupplyChain() {
 	spanNames = append(spanNames, supplyChainSpans...)
 }
 
+// registerGitCommandRetry appends the git command retry metric dimensions
+// (#8091). The outcome and failure_class labels it uses are already in the
+// root registry.
+func registerGitCommandRetry() {
+	metricDimensionKeys = append(metricDimensionKeys, contract.MetricDimensionHost, contract.MetricDimensionScope)
+}
+
 // registerVaultLive appends the Vault redaction field_class metric dimension.
 func registerVaultLive() {
 	metricDimensionKeys = append(metricDimensionKeys, thirdparty.MetricDimensionFieldClass)

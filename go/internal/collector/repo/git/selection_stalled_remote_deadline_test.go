@@ -215,7 +215,13 @@ func assertNoLockFiles(t *testing.T, repoPath string) {
 	})
 }
 
+// realGitConfig builds a sync config around limits. The #8052 deadline cells
+// assert one kill per stalled command, so a limits value that leaves
+// RetryAttempts unset runs with the retry off; the #8091 cells set it.
 func realGitConfig(reposDir string, limits deadline.Limits) RepoSyncConfig {
+	if limits.RetryAttempts == 0 {
+		limits.RetryAttempts = 1
+	}
 	config := syncIsolationTestConfig(reposDir)
 	config.GitDeadlines = limits
 	return config

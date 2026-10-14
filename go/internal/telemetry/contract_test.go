@@ -101,6 +101,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"stage",
 		"source_tool",
 		"field_class",
+		"host",
+		"scope",
 	}
 
 	got := MetricDimensionKeys()

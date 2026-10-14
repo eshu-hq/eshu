@@ -160,12 +160,40 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 		return
 	}
 	attrs := append(event.eventAttrs(time.Now()), slog.String("error", sanitizeGitProgressMessage(err.Error())))
-	if deadlineErr := asDeadlineError(err); deadlineErr != nil {
+	failure := asRetryFailure(err)
+	switch deadlineErr := asDeadlineError(err); {
+	case deadlineErr != nil:
 		attrs = append(attrs, deadlineFailureAttrs(deadlineErr)...)
-	} else {
+	case failure != nil && failure.Class != deadline.ClassOther:
+		attrs = append(attrs, telemetry.FailureClassAttr(failure.Class))
+	default:
 		attrs = append(attrs, telemetry.FailureClassAttr("git_sync_failure"))
 	}
+	if failure != nil {
+		attrs = append(attrs, slog.Int("attempts", failure.Attempts))
+	}
 	logger.ErrorContext(ctx, "git repository sync failed", attrs...)
+}
+
+// asRetryFailure returns the final failure of a retried network command inside
+// err, or nil for an error that did not come through the retry loop.
+func asRetryFailure(err error) *deadline.Failure {
+	var failure *deadline.Failure
+	if errors.As(err, &failure) {
+		return failure
+	}
+	return nil
+}
+
+// sanitizeGitStderrLines redacts URL userinfo from git stderr one line at a
+// time, so the retry classifier and the per-attempt log line still see the
+// line structure that sanitizeGitProgressMessage would flatten.
+func sanitizeGitStderrLines(text string) string {
+	lines := strings.FieldsFunc(text, func(r rune) bool { return isGitProgressSeparator(r) })
+	for i, line := range lines {
+		lines[i] = sanitizeGitProgressMessage(strings.TrimSpace(line))
+	}
+	return strings.Join(lines, "\n")
 }
 
 // asDeadlineError returns the deadline kill inside err, or nil when err is any
@@ -338,7 +366,15 @@ func gitRunWithStderrWriter(
 	commandArgs = append(commandArgs, args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+	var attemptStarted time.Time
 	build := func(commandCtx context.Context) *exec.Cmd {
+		attemptStarted = time.Now()
+		// One buffer pair serves every attempt of a retried command, so each
+		// attempt starts empty and the previous attempt's last progress line
+		// is logged first.
+		flushProgressWriter(stderrWriter)
+		stdout.Reset()
+		stderr.Reset()
 		command := newGitCommand(commandCtx, commandArgs...)
 		command.Env = gitCommandEnv(config, token, repoPath)
 		command.Stdout = &stdout
@@ -353,7 +389,18 @@ func gitRunWithStderrWriter(
 	if operation == "" {
 		runErr = build(ctx).Run()
 	} else {
-		runErr = deadline.Run(ctx, config.GitDeadlines, operation, build)
+		command := deadline.Command{
+			Operation: operation,
+			Host:      gitRetryHost(config, repoPath),
+			Scope:     gitRetryScope(config, repoPath),
+			Build:     build,
+			Stderr:    func() string { return sanitizeGitStderrLines(stderr.String()) },
+		}
+		if operation == deadline.Fetch {
+			// A killed fetch can leave .git/shallow.lock; clear it before the retry.
+			command.BeforeRetry = func() error { return removeKilledAttemptShallowLock(repoPath, attemptStarted) }
+		}
+		runErr = deadline.RunRetrying(ctx, config.GitDeadlines, command)
 	}
 	if err := runErr; err != nil {
 		flushProgressWriter(stderrWriter)

@@ -34,6 +34,8 @@ var NonOutputEnvKeys = map[string]string{
 	"ESHU_GIT_RESOLVE_TIMEOUT_SECONDS": "per-command git deadline; a killed command fails the cycle and emits no snapshot",
 	"ESHU_GIT_FETCH_TIMEOUT_SECONDS":   "per-command git deadline; a killed command fails the cycle and emits no snapshot",
 	"ESHU_GIT_CLONE_TIMEOUT_SECONDS":   "clone deadline; a killed clone fails the cycle and emits no snapshot",
+	"ESHU_GIT_RETRY_ATTEMPTS":          "network command retry count (#8091); a retry repeats the same fetch and emits nothing different",
+	"ESHU_GIT_RETRY_SWEEP_BUDGET":      "per-sweep network retry cap (#8091); decides how often a command retries, never what a snapshot emits",
 
 	"ESHU_GIT_AUTH_METHOD":            "credential",
 	"ESHU_GIT_TOKEN":                  "credential",

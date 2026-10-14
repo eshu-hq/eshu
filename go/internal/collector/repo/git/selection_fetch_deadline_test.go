@@ -166,7 +166,7 @@ func assertStallShimGone(t *testing.T, pidDir string) {
 
 func stallTestConfig(reposDir string) RepoSyncConfig {
 	config := syncIsolationTestConfig(reposDir)
-	config.GitDeadlines = deadline.Limits{Resolve: testGitDeadline, Fetch: testGitDeadline, Clone: testGitDeadline}
+	config.GitDeadlines = deadline.Limits{Resolve: testGitDeadline, Fetch: testGitDeadline, Clone: testGitDeadline, RetryAttempts: 1}
 	return config
 }
 
@@ -278,7 +278,7 @@ func TestSlowCloneWithinCloneDeadlineSucceeds(t *testing.T) {
 	writeStallingGit(t, stallShimOptions{SlowCloneSeconds: "2"})
 	instruments, reader := newSyncIsolationInstruments(t)
 	config := stallTestConfig(reposDir)
-	config.GitDeadlines = deadline.Limits{Fetch: testGitDeadline, Clone: time.Minute}
+	config.GitDeadlines = deadline.Limits{Fetch: testGitDeadline, Clone: time.Minute, RetryAttempts: 1}
 
 	synced, err := within(t, stallReturnBound, "syncGitRepositoriesWithLogger", func() syncResult {
 		sel, syncErr := syncGitRepositoriesWithLogger(context.Background(), config, []string{repoID},

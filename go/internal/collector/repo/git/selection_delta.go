@@ -4,9 +4,12 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -285,4 +288,69 @@ func sortUniquePathStrings(values []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// cloneRepository clones repoID into repoPath under the clone deadline and the
+// bounded retry (#8091). A killed or failed clone leaves a partial directory,
+// and git refuses to clone into a non-empty one, so the retry removes it first
+// (Command.BeforeRetry); the final failure removes it too, best effort, as it
+// always did. The clone is not idempotent in place, which is why the retry
+// removes the directory instead of resuming into it.
+func cloneRepository(
+	ctx context.Context,
+	config RepoSyncConfig,
+	repoID string,
+	repoPath string,
+	token string,
+	logger *slog.Logger,
+	event gitSyncLogEvent,
+) (bool, error) {
+	event = event.withOperation("clone")
+	logGitSyncStarted(ctx, logger, event)
+	remoteURL := repoRemoteURL(config, repoID)
+	if remoteURL == "" {
+		err := fmt.Errorf("build remote URL for %q", repoID)
+		logGitSyncFailed(ctx, logger, event, err)
+		return false, err
+	}
+	if err := os.MkdirAll(filepath.Dir(repoPath), 0o750); err != nil { // #nosec G301 -- internal git checkout parent directory
+		logGitSyncFailed(ctx, logger, event, err)
+		return false, err
+	}
+	var stderr bytes.Buffer
+	progress := newGitProgressWriter(ctx, logger, event, &stderr)
+	if err := deadline.RunRetrying(ctx, config.GitDeadlines, deadline.Command{
+		Operation: deadline.Clone,
+		Host:      gitRetryHost(config, repoPath),
+		Scope:     normalizeRepositoryID(repoID),
+		Build: func(deadlineCtx context.Context) *exec.Cmd {
+			progress.Flush()
+			stderr.Reset()
+			command := newGitCommand(
+				deadlineCtx,
+				append(config.GitDeadlines.LowSpeedArgs(),
+					"clone",
+					"--progress",
+					fmt.Sprintf("--depth=%d", config.CloneDepth),
+					"--single-branch",
+					remoteURL,
+					repoPath,
+				)...,
+			)
+			command.Env = gitCommandEnv(config, token, repoPath)
+			command.Stderr = progress
+			return command
+		},
+		Stderr:      func() string { return sanitizeGitStderrLines(stderr.String()) },
+		BeforeRetry: func() error { return os.RemoveAll(repoPath) },
+	}); err != nil {
+		progress.Flush()
+		_ = os.RemoveAll(repoPath)
+		wrapped := fmt.Errorf("clone %q: %w: %s", repoID, err, sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())))
+		logGitSyncFailed(ctx, logger, event, wrapped)
+		return false, wrapped
+	}
+	progress.Flush()
+	logGitSyncCompleted(ctx, logger, event, true)
+	return true, nil
 }

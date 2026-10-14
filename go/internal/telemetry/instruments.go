@@ -415,6 +415,22 @@ type Instruments struct {
 	// killed command; a shutdown cancel is never counted. Repository identity
 	// stays in the paired git repository sync failed log line.
 	GitCommandDeadlineExceeded metric.Int64Counter
+	// GitCommandAttempts counts every attempt of a network git command the
+	// sync loop ran, including the first (#8091). Labels: operation (clone,
+	// fetch, ls_remote, resolve), host (the provider host), failure_class (the
+	// closed class set, or none on success), outcome (success, retried,
+	// failed). A shutdown cancel is never counted.
+	GitCommandAttempts metric.Int64Counter
+	// GitCommandRetries counts retries the loop started (#8091). Labels:
+	// operation, host, failure_class (the class that caused the retry).
+	GitCommandRetries metric.Int64Counter
+	// GitCommandRetryBudgetExhausted counts failures that were retryable but
+	// not retried because the per-sweep retry budget was spent (#8091). Label:
+	// scope (closed: sweep).
+	GitCommandRetryBudgetExhausted metric.Int64Counter
+	// GitCommandAttemptDuration is the wall time of each attempt in seconds
+	// (#8091). Labels: operation, outcome (success, retried, failed).
+	GitCommandAttemptDuration metric.Float64Histogram
 	// ReconciliationFullSnapshots counts git scopes the periodic sweep forced
 	// to a full reconciliation snapshot. Labels: reason (bounded:
 	// never_reconciled, interval_elapsed, in_flight_expired,
@@ -2771,6 +2787,43 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GitCommandDeadlineExceeded counter: %w", err)
+	}
+
+	inst.GitCommandAttempts, err = meter.Int64Counter(
+		"eshu_dp_git_command_attempts_total",
+		metric.WithDescription("Total attempts of network git commands the sync loop ran, by bounded operation, host, failure_class and outcome (success, retried, failed)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitCommandAttempts counter: %w", err)
+	}
+
+	inst.GitCommandRetries, err = meter.Int64Counter(
+		"eshu_dp_git_command_retries_total",
+		metric.WithDescription("Total retries of network git commands after a retryable connectivity failure, by bounded operation, host and failure_class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitCommandRetries counter: %w", err)
+	}
+
+	inst.GitCommandRetryBudgetExhausted, err = meter.Int64Counter(
+		"eshu_dp_git_command_retry_budget_exhausted_total",
+		metric.WithDescription("Total retryable git command failures not retried because the per-sweep retry budget was spent, by bounded scope"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitCommandRetryBudgetExhausted counter: %w", err)
+	}
+
+	// Same boundaries as the documented scanner-worker-scan-seconds set: it
+	// spans sub-second successes up to the 600 s clone deadline.
+	gitAttemptBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1200}
+	inst.GitCommandAttemptDuration, err = meter.Float64Histogram(
+		"eshu_dp_git_command_attempt_duration_seconds",
+		metric.WithDescription("Wall time of each network git command attempt in seconds, by bounded operation and outcome (success, retried, failed)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(gitAttemptBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitCommandAttemptDuration histogram: %w", err)
 	}
 
 	inst.DeltaBaselineFallbacks, err = meter.Int64Counter(

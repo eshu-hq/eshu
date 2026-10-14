@@ -79,14 +79,19 @@ full generation, which re-emits id keys. A new follow-up envelope takes
 ## Every git spawn that can wait on the network is deadline-bound
 
 Run a network command through `gitRunRemote` (`ls-remote`), `gitFetchBranch` or
-`gitFetchPinnedRef` (`fetch`), or `deadline.Run` with the command built from
-the context it hands you (`cloneRepository` does this). Run a purely local
-command through `gitRun`, which has no deadline on purpose. Building a network
-command from the loop context directly gives it no deadline, and a stalled
-fetch pauses the whole fleet sync for 300 s (#8052). Put `Limits.LowSpeedArgs`
-before the subcommand of a fetch or clone. Do not add a way to switch a
-deadline off, and do not mark a deadline kill as a shutdown: `deadline.Run`
-already tells the two apart by checking the parent context.
+`gitFetchPinnedRef` (`fetch`), or `deadline.RunRetrying` with a
+`deadline.Command` whose `Build` makes the command from the context it hands you
+(`cloneRepository` does this). `RunRetrying` is the deadline plus the bounded
+retry of #8091; a bare `deadline.Run` gets the deadline and no retry. `Build`
+runs once per attempt, so it must reset every output buffer the caller reads
+afterwards, and `Command.Stderr` must keep the line structure the classifier
+reads (`sanitizeGitStderrLines`, not `sanitizeGitProgressMessage`). Run a purely
+local command through `gitRun`, which has no deadline on purpose. Building a
+network command from the loop context directly gives it no deadline, and a
+stalled fetch pauses the whole fleet sync for 300 s (#8052). Put
+`Limits.LowSpeedArgs` before the subcommand of a fetch or clone. Do not add a
+way to switch a deadline off, and do not mark a deadline kill as a shutdown:
+`deadline.Run` already tells the two apart by checking the parent context.
 
 ## Git auth follows the checkout path
 

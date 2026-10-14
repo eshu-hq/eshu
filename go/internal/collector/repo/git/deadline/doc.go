@@ -15,4 +15,12 @@
 // default); the initial clone has the longest, because a large clone that is
 // still progressing is not a stall. A cancel of the parent context is never
 // reported or counted as a deadline.
+//
+// RunRetrying wraps Run with a bounded retry for connectivity failures (#8091).
+// It classifies each failed attempt with Classify, retries only the closed
+// retryable classes, waits a jittered backoff inside the call, and gives every
+// attempt its own full deadline. Limits.RetryAttempts bounds one command, and a
+// per-sweep budget (WithSweep, an atomic counter) caps the retries of the whole
+// sweep. A failed command returns a *Failure that carries its class and the
+// attempt count.
 package deadline
