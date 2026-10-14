@@ -15,6 +15,9 @@
 # matters); reusable-call jobs and script-less jobs without a checkout pass;
 # commented-out invocations pass; ../scripts, ./scripts, and source forms
 # are recognised; unparseable YAML and bad usage fail closed (exit 2, never 0).
+# The #8057 pair: a $GITHUB_WORKSPACE/scripts/... call without a checkout
+# fails (and passes with one), while an echo of a quoted scripts/ path
+# without a checkout passes (it executes no repository script).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -267,6 +270,43 @@ if run_root "${dot_green}" >"${out_file}" 2>&1; then
 	record_pass "dot-slash ./scripts with checkout passes"
 else
 	record_fail "dot-slash ./scripts with checkout passes (exit $?)"
+	sed 's/^/  /' "${out_file}"
+fi
+
+# 11. $GITHUB_WORKSPACE/scripts form is recognised: flagged without a
+# checkout, passed with one (#8057).
+ws_red="$(scratch ws-red)"
+cp "${fixtures}/red-github-workspace-no-checkout.yml" "${ws_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/ws-red.out"
+if run_root "${ws_red}" >"${out_file}" 2>&1; then
+	record_fail "GITHUB_WORKSPACE scripts without checkout fails (exited 0)"
+else
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "GITHUB_WORKSPACE scripts without checkout fails naming the job"
+	else
+		record_fail "GITHUB_WORKSPACE scripts without checkout fails naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
+fi
+ws_green="$(scratch ws-green)"
+cp "${fixtures}/green-github-workspace-with-checkout.yml" "${ws_green}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/ws-green.out"
+if run_root "${ws_green}" >"${out_file}" 2>&1; then
+	record_pass "GITHUB_WORKSPACE scripts with checkout passes"
+else
+	record_fail "GITHUB_WORKSPACE scripts with checkout passes (exit $?)"
+	sed 's/^/  /' "${out_file}"
+fi
+
+# 12. A quoted scripts/ path that is only an echo argument passes (#8057).
+echo_arg="$(scratch echo-arg)"
+cp "${fixtures}/green-echo-quoted-path.yml" "${echo_arg}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/echo-arg.out"
+if run_root "${echo_arg}" >"${out_file}" 2>&1; then
+	record_pass "echo of a quoted scripts path passes"
+else
+	record_fail "echo of a quoted scripts path passes (exit $?)"
 	sed 's/^/  /' "${out_file}"
 fi
 
