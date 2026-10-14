@@ -85,13 +85,17 @@ gates:
       - "go/cmd/api/**"
       - "scripts/test-verify-route-coverage.sh"
       - "scripts/verify-route-coverage.sh"
+      - "scripts/test-gate-fetch-base-guard.sh"
+      - "scripts/lib/gate-diff-base.sh"
     self_test_triggers:
       - "scripts/test-verify-route-coverage.sh"
       - "scripts/verify-route-coverage.sh"
+      - "scripts/test-gate-fetch-base-guard.sh"
+      - "scripts/lib/gate-diff-base.sh"
     local:
       command: "bash scripts/verify-route-coverage.sh"
       pre_push: floor
-      test_command: "bash scripts/test-verify-route-coverage.sh"
+      test_command: "bash scripts/test-verify-route-coverage.sh && bash scripts/test-gate-fetch-base-guard.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify route coverage gate"

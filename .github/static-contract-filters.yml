@@ -20,6 +20,8 @@ route:
   - 'go/internal/query/**'
   - 'go/cmd/api/**'
   - 'scripts/*verify-route-coverage*.sh'
+  - 'scripts/test-gate-fetch-base-guard.sh'
+  - 'scripts/lib/gate-diff-base.sh'
 edge:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'

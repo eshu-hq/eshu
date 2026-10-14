@@ -14,6 +14,9 @@
 # report.
 set -euo pipefail
 
+# shellcheck source=scripts/lib/gate-diff-base.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib/gate-diff-base.sh"
+
 repo_root="${ESHU_ROUTE_COVERAGE_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
   repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -35,7 +38,8 @@ done
 
 base="${ESHU_ROUTE_COVERAGE_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  eshu_gate_fetch_base "$repo_root" \
+    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" || true
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi

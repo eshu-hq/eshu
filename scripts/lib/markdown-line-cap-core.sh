@@ -19,6 +19,12 @@
 # expansion as `"${arr[@]:-}"`. Same constraints as dirgate-core.sh; see that
 # file's header for the incidents behind each one.
 
+# Base-ref fetching without shallowing the shared clone (#8078): every
+# worktree shares one .git/shallow, so a --depth fetch from a lane shallows
+# all of them. Sourced, like this file; pure function definitions, no output.
+# shellcheck source=scripts/lib/gate-diff-base.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-diff-base.sh"
+
 MARKDOWN_LINE_CAP_MAX_LINES=500
 MARKDOWN_LINE_CAP_NAME="markdown-file-cap"
 MARKDOWN_LINE_CAP_TSV="${MARKDOWN_LINE_CAP_TSV:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/markdown-line-cap-grandfather.tsv}"
@@ -258,8 +264,8 @@ mdcap_resolve_base_sha() {
 		*) return 1 ;;
 	esac
 	[[ -n "${branch}" ]] || return 1
-	git -C "${repo_root}" fetch --no-tags --depth=1 origin \
-		"${branch}:refs/remotes/origin/${branch}" >/dev/null 2>&1 || return 1
+	eshu_gate_fetch_base "${repo_root}" \
+		"${branch}:refs/remotes/origin/${branch}" || return 1
 	git -C "${repo_root}" rev-parse --verify --quiet "${base_ref}^{commit}"
 }
 

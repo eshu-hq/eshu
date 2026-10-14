@@ -23,6 +23,9 @@ set -euo pipefail
 # derivation below.
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 
+# shellcheck source=scripts/lib/gate-diff-base.sh
+. "${script_dir}/lib/gate-diff-base.sh"
+
 repo_root="${ESHU_TELEMETRY_COVERAGE_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
   # Derive the repo root from the script's own location, NOT
@@ -42,18 +45,14 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   # them and fails unrelated lanes' methodology identity check (#8048). When
   # the ref already resolves locally there is nothing to fetch at all.
   if ! git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
-    if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
-      # The explicit destination refspec is required: `git fetch origin
-      # <branch>` with no `:<dst>` only ever updates FETCH_HEAD, never
-      # refs/remotes/origin/<branch> (eshu-hq/eshu#5542).
-      git -C "$repo_root" fetch --no-tags origin \
-        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
-    else
-      # Already shallow (CI fetch-depth): keep the bounded fetch. It cannot
-      # make a shallow checkout fail anything that does not already fail.
-      git -C "$repo_root" fetch --no-tags --depth=1 origin \
-        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
-    fi
+    # The explicit destination refspec is required: `git fetch origin
+    # <branch>` with no `:<dst>` only ever updates FETCH_HEAD, never
+    # refs/remotes/origin/<branch> (eshu-hq/eshu#5542). The fetch itself stays
+    # behind the shared eshu_gate_fetch_base helper, which fetches full
+    # history in a complete clone and keeps the bounded --depth=1 fetch only
+    # in an already-shallow checkout (#8078).
+    eshu_gate_fetch_base "$repo_root" \
+      "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" || true
   fi
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"

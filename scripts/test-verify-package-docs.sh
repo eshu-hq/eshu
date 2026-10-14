@@ -91,8 +91,11 @@ expect_pass "${deleted_repo}"
 # the fixture's scripts/ with GIT_DIR set and ESHU_PACKAGE_DOCS_REPO_ROOT unset;
 # it must still resolve the fixture root and PASS.
 gitdir_repo="$(init_repo gitdir)"
-mkdir -p "${gitdir_repo}/scripts" "${gitdir_repo}/go/internal/collector/gitdircase"
+mkdir -p "${gitdir_repo}/scripts" "${gitdir_repo}/scripts/lib" "${gitdir_repo}/go/internal/collector/gitdircase"
 cp "${verifier}" "${gitdir_repo}/scripts/verify-package-docs.sh"
+# The verifier sources its base-fetch helper relative to its own location
+# (#8078), so the fixture needs that sibling file too.
+cp "${repo_root}/scripts/lib/gate-diff-base.sh" "${gitdir_repo}/scripts/lib/gate-diff-base.sh"
 printf 'package gitdircase\n' >"${gitdir_repo}/go/internal/collector/gitdircase/source.go"
 printf 'package gitdircase\n' >"${gitdir_repo}/go/internal/collector/gitdircase/doc.go"
 printf '# Gitdir Case\n' >"${gitdir_repo}/go/internal/collector/gitdircase/README.md"

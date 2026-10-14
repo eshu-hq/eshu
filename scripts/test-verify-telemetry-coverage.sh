@@ -241,6 +241,9 @@ cp "${repo_root}/scripts/lib/telemetry-coverage-bucket-check.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-bucket-check.sh"
 cp "${repo_root}/scripts/lib/telemetry-coverage-row-check.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-row-check.sh"
+# The verifier sources its base-fetch helper the same way (#8078).
+cp "${repo_root}/scripts/lib/gate-diff-base.sh" \
+  "${case_gitdir}/scripts/lib/gate-diff-base.sh"
 git -C "${case_gitdir}" add .
 git -C "${case_gitdir}" commit -q -m "copy verifier into fixture scripts"
 if env -u ESHU_TELEMETRY_COVERAGE_REPO_ROOT -u GITHUB_BASE_REF \
