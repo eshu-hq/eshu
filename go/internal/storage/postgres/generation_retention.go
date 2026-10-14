@@ -244,10 +244,15 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 	// Uncovered writers (#7472) ride the candidate query's report leg so the
 	// pass can tally them as skipped without spending prune batch slots on
 	// them; they are never locked, row-counted for pruning, or deleted.
+	// Delta-base rows (#7802) ride their own report leg the same way.
 	prunable := candidates[:0]
 	for _, candidate := range candidates {
 		if candidate.uncovered {
 			result.Skipped["uncovered_writer"]++
+			continue
+		}
+		if candidate.deltaProtected {
+			result.Skipped["delta_base"]++
 			continue
 		}
 		prunable = append(prunable, candidate)
@@ -332,6 +337,12 @@ type generationRetentionCandidate struct {
 	sourceCommitSHA string
 	isDelta         bool
 	freshnessHint   string
+	// deltaProtected marks a reported-but-not-prunable row (#7802): the
+	// scope's active generation is a delta, and this row is its newest
+	// full generation or a delta in the chain after it. Pruning it would
+	// delete the only record of unchanged files past the hard ceiling,
+	// so it is counted as skipped and never locked or deleted.
+	deltaProtected bool
 }
 
 func (s GenerationRetentionStore) selectCandidates(

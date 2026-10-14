@@ -376,15 +376,15 @@ func generationRetentionRowsTotal(rows map[string]int64) int64 {
 // scanRetentionCandidates scans candidate rows from a query whose column
 // order matches the selection queries: scope id, generation id, scope kind,
 // superseded at, observed at, uncovered, then the #7981 same-identity triple
-// (source commit SHA, is_delta, freshness hint, already COALESCE'd to ”).
-// Six-column rows from older fixtures keep scanning with zero identity
-// values, which never match an identity group. The caller wraps the error
-// with its query context.
+// (source commit SHA, is_delta, freshness hint, already COALESCE'd to an
+// empty string), then delta_protected (#7802). Six-column rows from older
+// fixtures keep scanning with zero identity values, which never match an
+// identity group. The caller wraps the error with its query context.
 func scanRetentionCandidates(rows db.Rows) ([]generationRetentionCandidate, error) {
 	var candidates []generationRetentionCandidate
 	for rows.Next() {
 		var candidate generationRetentionCandidate
-		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt, &candidate.uncovered, &candidate.sourceCommitSHA, &candidate.isDelta, &candidate.freshnessHint); err != nil {
+		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt, &candidate.uncovered, &candidate.sourceCommitSHA, &candidate.isDelta, &candidate.freshnessHint, &candidate.deltaProtected); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("generation retention: scan candidate: %w", err)
 		}

@@ -380,9 +380,15 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 	if len(dest) == 11 && len(row) == 10 {
 		row = append(row[:9:9], append([]any{row[8]}, row[9:]...)...)
 	}
-	// #7981 triple: zero-fill six-column fixtures (zero identity never matches).
-	if len(dest) == 9 && len(row) == 6 {
-		row = append(row[:6:6], "", false, "")
+	// Retention candidate rows carry ten columns: the #7981 identity triple
+	// then the #7802 delta_protected flag. Six-column fixtures zero-fill the
+	// triple (a zero identity never matches) and the flag; nine-column
+	// fixtures staged before the flag existed zero-fill only the flag.
+	if len(dest) == 10 && len(row) == 6 {
+		row = append(row[:6:6], "", false, "", false)
+	}
+	if len(dest) == 10 && len(row) == 9 {
+		row = append(row[:9:9], false)
 	}
 	if len(dest) != len(row) {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))

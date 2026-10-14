@@ -136,10 +136,16 @@ func (s GenerationRetentionStore) relockRetentionSelection(
 	// Members the re-lock reports as uncovered flipped coverage after the
 	// selection; they were never locked, so they leave the batch here with
 	// a skip tally instead of flowing into the recount and the prune.
+	// Members it reports as delta-protected flipped the same way (#7802):
+	// their scope turned delta-active after the selection.
 	covered := locked[:0]
 	for _, candidate := range locked {
 		if candidate.uncovered {
 			result.Skipped["uncovered_writer"]++
+			continue
+		}
+		if candidate.deltaProtected {
+			result.Skipped["delta_base"]++
 			continue
 		}
 		covered = append(covered, candidate)
@@ -183,7 +189,8 @@ func (s GenerationRetentionStore) relockRetentionSelection(
 // every selected row in deterministic order; the locked set splits into the
 // chunk target and the normal subset. The chunk drains first so the recount
 // already reflects the removed page. A missed chunk target drops silently; a
-// flipped-uncovered one counts as an uncovered skip. A short page (fewer
+// flipped-uncovered one counts as an uncovered skip, a flipped delta-base
+// one as a delta_base skip (#7802). A short page (fewer
 // rows than the bound, including empty) folds back into the normal subset
 // and prunes whole. It returns the fitted batch with its counts, the drained
 // chunk, whether a chunk drained, and whether anything locked.
@@ -225,6 +232,11 @@ func (s GenerationRetentionStore) relockChunkedBatch(
 		switch {
 		case candidate.uncovered:
 			result.Skipped["uncovered_writer"]++
+		case candidate.deltaProtected:
+			// A scope that turned delta-active after selection (#7802):
+			// the member, chunk target included, is a protected base or
+			// chain row, never locked, so the skip tally stands in for it.
+			result.Skipped["delta_base"]++
 		case candidate.generationID == chunkTarget.generationID:
 			target := candidate
 			lockedChunk = &target
