@@ -501,6 +501,8 @@ PACKAGES = {
     UNSCOPED_SEARCH_PACKAGE: {
         "go/internal/query/search/unscoped/large_document_live_test.go": (
             "TestResumeChainCrossesLargeDocumentLive",
+            "TestLargeDocumentLowercaseRecheckMatchesILIKEOracleLive",
+            "TestLargeDocumentCorrectOrDisclosedLive",
         ),
     },
 }

@@ -20,7 +20,7 @@ share or a rate: the two routes have different figures and different classes.
 | `eshu_dp_content_search_step_cancel_total` | counter | `table` | Key-ordered windows (the probe and continuation steps) the server cancelled at their statement timeout. A cancelled window advances nothing; a rising rate means windows that hold large documents are stopping walks. |
 | `eshu_dp_content_search_no_progress_total` | counter | `table` | Partial results that did not advance the cursor. Resuming one repeats the identical request, so each is a dead end for the caller. |
 | `eshu_dp_content_search_unscoped_duration_seconds` | histogram | `table`, `outcome` | SQL wall time of one search. Compare its tail with `ESHU_CONTENT_SEARCH_BUDGET_MS`. |
-| `eshu_dp_content_search_unscoped_overrun_seconds` | histogram | `table` | How far a cancelled statement ran past its own timeout (0 when none). PostgreSQL cannot interrupt the lowercase copy and decompression of one value, so a large candidate adds to the wall time. Above 0.1 s the partial reason is `budget_exceeded_on_large_document`. |
+| `eshu_dp_content_search_unscoped_overrun_seconds` | histogram | `table` | How far a cancelled statement ran past its own timeout (0 when none). PostgreSQL cannot interrupt one value's stored lowercase copy scan and TOAST decompression, so a large candidate adds to the wall time. Above 0.1 s the partial reason is `budget_exceeded_on_large_document`. |
 
 ## Span
 
@@ -34,9 +34,12 @@ route, `db.sql.table=content_files`) or
 `search.outcome` (`exact`, `partial`, `exhausted`), `search.cursor_present`,
 `search.phase_one_cap_ms` (the continuation cap at the call's budget: 440 on
 the file route and 160 on the entity route at the default budget),
-`search.ended_in`, `search.steps_cancelled`, `search.progressed` and
+`search.ended_in`, `search.steps_cancelled`, `search.progressed`,
 `search.want` (offset + limit + 1, the matches the walk had to find; a high
-value on a partial says the caller asked for a large page).
+value on a partial says the caller asked for a large page) and
+`search.documents_not_searched` (the rows no completed statement read; `-1`
+when the count statement itself was cancelled; file route only — the entity
+route omits it and keeps its span byte-identical).
 
 `search.ended_in` names the decision that shaped the walk: `probe`,
 `continuation`, `tail`, or `continuation_after_tail` for the last statement
@@ -53,8 +56,9 @@ One `content_search.unscoped_partial` (file route) or
 `content_search.unscoped_entity_partial` (entity route) line (INFO) per partial
 result, with
 `reason`, `budget_ms`, `elapsed_ms`, `overrun_ms`, `rows_scanned_in_order`,
-`rows_matched`, `tail_ran`, `tail_cancelled`, `progressed`, `steps_cancelled`
-and `ended_in`.
+`rows_matched`, `tail_ran`, `tail_cancelled`,
+`progressed`, `steps_cancelled` and `ended_in`. The file-route line also
+carries `documents_not_searched`; the entity-route line omits it.
 
 At 3 AM: the `partial` share of `eshu_dp_content_search_unscoped_total` by
 `table` says how often the budget ends searches on each route; `eshu_dp_content_search_no_progress_total`

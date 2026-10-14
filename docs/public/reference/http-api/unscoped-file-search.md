@@ -52,6 +52,7 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
     "results": [{"repo_id": "...", "relative_path": "..."}],
     "count": 1, "limit": 50, "offset": 0,
     "truncated": true,
+    "documents_not_searched": 139369,
     "partial": {
       "reason": "candidate_budget_exceeded",
       "rows_scanned_in_order": 7700,
@@ -68,18 +69,25 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
 
 - `results` is an ordered prefix of the exact answer. `truncated` is always
   true with `partial`.
+- `documents_not_searched` rides on every answer: the documents no completed
+  statement read. On a partial page it is the rows strictly after the resume
+  cursor, so an unread document is named by count instead of skipped silently;
+  on an exact page it is zero. `-1` means the count statement itself was
+  cancelled and the number is unknown, never zero.
 - `truth.level` is `partial`: weaker than `derived`, stronger than `fallback`.
+  A page with a nonzero `documents_not_searched` is never exact.
 - `reason` is `budget_exceeded_on_large_document` when `overrun_ms` is above
-  100: one candidate's recheck (the whole-value lowercase copy and the
+  100: one candidate's recheck (the stored lowercase copy scan and the
   decompression) cannot be interrupted, so a cancelled statement can run past
   its timeout. It is `pattern_has_no_trigram` when the pattern has no
   three-character alphanumeric run (for example `db_`): the trigram tail
   cannot run as a bounded bitmap scan, so the search skips it and spends the
-  whole budget in key order. Otherwise it is `candidate_budget_exceeded`. A token whose
-  trigram candidates include one very large document (about 55 MB on the
-  measured corpus, about 0.7 s to recheck) is answered partial and over the
-  budget by that recheck; issue
-  [#7975](https://github.com/eshu-hq/eshu/issues/7975) tracks the fix.
+  whole budget in key order. Otherwise it is `candidate_budget_exceeded`. The recheck reads
+  a stored lowercase copy (`content_lower`) with `LIKE` instead of a per-row
+  `ILIKE`: on the measured corpus one 53 MB document rechecks in about 80 ms
+  warm instead of about 530 ms, so common terms whose tail used to die on that
+  document now finish inside the budget (issue
+  [#7975](https://github.com/eshu-hq/eshu/issues/7975)).
 - The call can exceed `budget_ms` by `overrun_ms`; the server reports it
   instead of promising a hard wall bound.
 

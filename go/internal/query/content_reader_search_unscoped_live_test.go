@@ -61,6 +61,7 @@ func openUnscopedLiveFixture(t *testing.T) (context.Context, *sql.DB) {
 			relative_path text NOT NULL,
 			commit_sha text,
 			content text NOT NULL,
+			content_lower text GENERATED ALWAYS AS (lower(content)) STORED,
 			content_hash text NOT NULL,
 			line_count integer NOT NULL,
 			language text,
@@ -68,6 +69,8 @@ func openUnscopedLiveFixture(t *testing.T) (context.Context, *sql.DB) {
 			PRIMARY KEY (repo_id, relative_path)
 		)`,
 		`CREATE FUNCTION eshu_require_content_substring_indexes_ready() RETURNS boolean
+			LANGUAGE sql STABLE AS 'SELECT true'`,
+		`CREATE FUNCTION eshu_require_content_lower_trgm_index_ready() RETURNS boolean
 			LANGUAGE sql STABLE AS 'SELECT true'`,
 		fmt.Sprintf(`INSERT INTO content_files
 			(repo_id, relative_path, commit_sha, content, content_hash, line_count, language, artifact_type)
@@ -83,6 +86,7 @@ func openUnscopedLiveFixture(t *testing.T) (context.Context, *sql.DB) {
 			       md5(g::text), 1, 'go', 'source'
 			FROM generate_series(1, %[1]d) g`, liveFixtureRows, liveDenseToken, liveMediumToken, liveRareToken, liveNoTrigramHits, liveEdgeToken),
 		`CREATE INDEX content_files_content_trgm_idx ON content_files USING gin (content gin_trgm_ops)`,
+		`CREATE INDEX content_files_content_lower_trgm_idx ON content_files USING gin (content_lower gin_trgm_ops)`,
 		`VACUUM ANALYZE content_files`,
 	}
 	for _, statement := range statements {
@@ -271,10 +275,11 @@ func explainShipped(t *testing.T, ctx context.Context, db *sql.DB, indexScanOff 
 }
 
 // TestUnscopedSearchPlanShapesLive pins the plan contract the cost bound rests
-// on: the key-ordered window never touches the trigram index, and the tail
-// run with index scans disabled is the trigram bitmap with no primary-key walk
-// and no sequential scan. The fixture proves the selective class; the
-// measured corpus-scale proof of the other classes is in the evidence note.
+// on: the key-ordered window never touches a trigram index, and the tail
+// run with index scans disabled is the lowercase-copy trigram bitmap (#7975)
+// with no primary-key walk and no sequential scan. The fixture proves the
+// selective class; the measured corpus-scale proof of the other classes is in
+// the evidence note.
 func TestUnscopedSearchPlanShapesLive(t *testing.T) {
 	ctx, db := openUnscopedLiveFixture(t)
 	statements := unscoped.Statements()
@@ -290,8 +295,8 @@ func TestUnscopedSearchPlanShapesLive(t *testing.T) {
 		var nodes []string
 		plan.walk(func(n explainNode) { nodes = append(nodes, n.NodeType+"/"+n.IndexName) })
 		joined := strings.Join(nodes, " ")
-		if strings.Contains(joined, "content_files_content_trgm_idx") || strings.Contains(joined, "Bitmap") {
-			t.Errorf("%s plan touches the trigram index: %s", name, joined)
+		if strings.Contains(joined, "trgm_idx") || strings.Contains(joined, "Bitmap") {
+			t.Errorf("%s plan touches a trigram index: %s", name, joined)
 		}
 		if !strings.Contains(joined, "content_files_pkey") {
 			t.Errorf("%s plan does not walk the primary key: %s", name, joined)
@@ -317,8 +322,8 @@ func TestUnscopedSearchPlanShapesLive(t *testing.T) {
 	} {
 		plan := explainShipped(t, ctx, db, true, c.statement, c.args...)
 		joined := strings.Join(planNodes(plan), " ")
-		if !strings.Contains(joined, "Bitmap Index Scan/content_files_content_trgm_idx") {
-			t.Errorf("%s plan is not the trigram bitmap: %s", name, joined)
+		if !strings.Contains(joined, "Bitmap Index Scan/content_files_content_lower_trgm_idx") {
+			t.Errorf("%s plan is not the lowercase trigram bitmap: %s", name, joined)
 		}
 		for _, banned := range []string{"Seq Scan", "Index Scan/content_files_pkey"} {
 			if strings.Contains(joined, banned) {

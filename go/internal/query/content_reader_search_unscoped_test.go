@@ -37,9 +37,12 @@ func (s *unscopedSnapshotStore) QueryContext(_ context.Context, query string, _ 
 
 type unscopedSnapshotTx struct {
 	readyErr error
-	hitKeys  []string
-	log      []string
-	args     [][]any
+	// lowerReadyErr fails only the lowercase-index readiness check, so the
+	// test proves the second 503 path maps to the sentinel (#7975).
+	lowerReadyErr error
+	hitKeys       []string
+	log           []string
+	args          [][]any
 	// cancelSteps makes every window statement fail with a server cancel, so
 	// the walk can only end in a partial result.
 	cancelSteps bool
@@ -59,6 +62,11 @@ func (tx *unscopedSnapshotTx) QueryContext(_ context.Context, query string, args
 	case strings.Contains(q, "eshu_require_content_substring_indexes_ready"):
 		if tx.readyErr != nil {
 			return nil, tx.readyErr
+		}
+		return &scriptedRows{pos: -1}, nil
+	case strings.Contains(q, "eshu_require_content_lower_trgm_index_ready"):
+		if tx.lowerReadyErr != nil {
+			return nil, tx.lowerReadyErr
 		}
 		return &scriptedRows{pos: -1}, nil
 	case strings.Contains(q, "FROM content_files"):
@@ -116,6 +124,18 @@ func TestContentReaderSearchFilesUnscopedClassifiesReadinessFailure(t *testing.T
 	t.Parallel()
 
 	tx := &unscopedSnapshotTx{readyErr: &pgconn.PgError{Code: "55000", Message: "content substring indexes are not ready"}}
+	reader := NewContentReaderWithReadStore(&unscopedSnapshotStore{tx: tx})
+
+	_, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "")
+	if !errors.Is(err, ErrContentSubstringIndexesNotReady) {
+		t.Fatalf("SearchFilesUnscoped() error = %v, want the readiness sentinel", err)
+	}
+}
+
+func TestContentReaderSearchFilesUnscopedClassifiesLowercaseReadinessFailure(t *testing.T) {
+	t.Parallel()
+
+	tx := &unscopedSnapshotTx{lowerReadyErr: &pgconn.PgError{Code: "55000", Message: "content substring indexes are not ready"}}
 	reader := NewContentReaderWithReadStore(&unscopedSnapshotStore{tx: tx})
 
 	_, err := reader.SearchFilesUnscoped(context.Background(), "render", 5, 0, "", "")

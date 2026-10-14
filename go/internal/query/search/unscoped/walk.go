@@ -85,6 +85,11 @@ type walk[R any, K key] struct {
 	finished  bool // want reached, or the key space is exhausted
 	exhausted bool // the key space ended before want matches were found
 
+	// notSearched counts the rows strictly after the cursor, measured only
+	// for a partial page (#7975). countUnknown while unmeasured or when the
+	// count statement itself was cancelled or failed.
+	notSearched int64
+
 	timeout  time.Duration // statement_timeout currently set on the transaction
 	expected time.Duration // predicted duration of the next continuation step
 	overrun  time.Duration // largest time a cancelled statement ran past its timeout
@@ -383,6 +388,55 @@ func (w *walk[R, K]) page(offset, limit int) (rows []R, more bool, p *partial[K]
 	return rows, len(w.matches) > offset+limit, nil
 }
 
+// countNotSearched measures the rows strictly after the cursor for a partial
+// page, so an unread document is named by count instead of skipped silently
+// (#7975). Every completed window ends at the cursor and a cancelled or
+// skipped tail advances nothing, so those rows contributed nothing to the
+// answer. The statement touches only the primary key, never a TOASTed value,
+// and runs under the tail floor: an index-only count is millisecond-scale, so
+// the floor bounds it without a new figure. Any failure leaves countUnknown:
+// the disclosure must not sink an answer the walk already earned.
+func (w *walk[R, K]) countNotSearched(ctx context.Context) {
+	w.notSearched = countUnknown
+	// The count is post-walk bookkeeping under its own allowance: a cancel
+	// here must not rewrite the walk's overrun and reclassify the partial's
+	// reason, which names the phase that lost the budget.
+	overrun := w.overrun
+	defer func() { w.overrun = overrun }()
+	if err := w.setTimeout(ctx, w.plan.tailFloor); err != nil {
+		return
+	}
+	if err := w.exec(ctx, savepointSQL); err != nil {
+		return
+	}
+	queryStart := w.now()
+	args := append([]any{}, w.shape.keyArgs(w.cursor)...)
+	rows, err := w.tx.QueryContext(ctx, w.shape.countAfter, args...)
+	if err != nil {
+		_, _ = w.settleFailure(ctx, err, queryStart, w.plan.tailFloor)
+		return
+	}
+	var count int64
+	if rows.Next() {
+		if err := rows.Scan(&count); err != nil {
+			_ = rows.Close()
+			return
+		}
+	}
+	err = rows.Err()
+	if closeErr := rows.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_, _ = w.settleFailure(ctx, err, queryStart, w.plan.tailFloor)
+		return
+	}
+	if err := w.exec(ctx, releaseSQL); err != nil {
+		return
+	}
+	w.notSearched = count
+}
+
 // progressed reports whether the call completed its answer or advanced the
 // cursor. Only a partial that completed no window is false: resuming it
 // repeats the identical request.
@@ -413,5 +467,6 @@ func (w *walk[R, K]) partial() *partial[K] {
 		overrunMS:          w.overrun.Milliseconds(),
 		progressed:         progressed,
 		hint:               hint,
+		notSearched:        w.notSearched,
 	}
 }

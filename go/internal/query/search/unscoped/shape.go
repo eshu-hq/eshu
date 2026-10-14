@@ -51,6 +51,13 @@ type shape[R any, K key] struct {
 
 	stepFirst, stepAfter string // key-ordered window, from the start or after a key
 	tailFirst, tailAfter string // trigram tail, from the start or after a key
+	// countAfter counts the rows no completed statement read (the rows
+	// strictly after the resume cursor) for a partial page; empty means the
+	// shape does not disclose a not-searched count (#7975).
+	countAfter string
+	// readinessExtra is a second readiness statement the search runs after
+	// the substring-index check; empty means no second check (#7975).
+	readinessExtra string
 
 	// keyArgs returns the "after" statements' key arguments for a cursor.
 	keyArgs func(K) []any
@@ -72,4 +79,7 @@ type partial[K key] struct {
 	overrunMS          int64
 	progressed         bool
 	hint               string
+	// notSearched counts the rows no completed statement read, or
+	// countUnknown when the count itself could not be measured (#7975).
+	notSearched int64
 }

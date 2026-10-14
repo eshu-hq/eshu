@@ -154,3 +154,25 @@ func TestSearchExactlyFullAnswerIsComplete(t *testing.T) {
 		}
 	}
 }
+
+// #7975: the recheck must run against the stored lowercase copy with LIKE.
+// A per-row ILIKE pays a whole-value lowercase copy (about 6x the LIKE cost
+// on the 53 MB scratch proof) inside an uninterruptible stretch that
+// statement_timeout cannot cut short, so one large document holds a common
+// term's tail past the budget.
+func TestShippedStatementsRecheckLowercaseColumn(t *testing.T) {
+	t.Parallel()
+
+	statements := unscoped.Statements()
+	for name, sql := range map[string]string{
+		"StepFirst": statements.StepFirst, "StepAfter": statements.StepAfter,
+		"TailFirst": statements.TailFirst, "TailAfter": statements.TailAfter,
+	} {
+		if strings.Contains(sql, "ILIKE") {
+			t.Errorf("%s still uses ILIKE: the per-row lowercase copy cannot be interrupted", name)
+		}
+		if got := strings.Count(sql, "content_lower LIKE '%' || lower($1) || '%'"); got != 1 {
+			t.Errorf("%s has %d lowercase-copy LIKE predicates, want 1", name, got)
+		}
+	}
+}

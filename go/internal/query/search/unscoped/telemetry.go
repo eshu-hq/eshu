@@ -31,16 +31,24 @@ func (s *Searcher) startSpan(ctx context.Context, table, operation string) (cont
 // outcome counter, the tail-cancel, step-cancel and no-progress counters,
 // the elapsed and overrun histograms, and one structured log line on every
 // partial. Every metric carries the shape's table label. None of them carries
-// the search pattern.
+// the search pattern. The documents_not_searched signal rides only on shapes
+// that disclose it (countAfter set, #7975); other shapes keep their span and
+// log line byte-identical.
 func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *walk[R, K], p *partial[K], cursorPresent bool) {
 	result := w.outcome()
 	elapsed := w.elapsed()
+	// notSearched is zero on an exact page (p == nil): every row was read
+	// or proven absent, so nothing is undisclosed (#7975).
+	var notSearched int64
+	if p != nil {
+		notSearched = p.notSearched
+	}
 	spanAttrs := make([]attribute.KeyValue, 0, 16)
 	spanAttrs = append(spanAttrs, attribute.String("search.scope", "unscoped"))
 	if w.shape.contentKind != "" {
 		spanAttrs = append(spanAttrs, attribute.String("search.content_kind", w.shape.contentKind))
 	}
-	span.SetAttributes(append(spanAttrs,
+	spanAttrs = append(spanAttrs,
 		attribute.Int64("search.budget_ms", w.plan.budget.Milliseconds()),
 		attribute.Int64("search.elapsed_ms", elapsed.Milliseconds()),
 		attribute.Int64("search.overrun_ms", w.overrun.Milliseconds()),
@@ -56,7 +64,11 @@ func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *
 		attribute.Int("search.steps_cancelled", w.stepsCancelled),
 		attribute.Bool("search.progressed", w.progressed()),
 		attribute.Int("search.want", w.want),
-	)...)
+	)
+	if w.shape.countAfter != "" {
+		spanAttrs = append(spanAttrs, attribute.Int64("search.documents_not_searched", notSearched))
+	}
+	span.SetAttributes(spanAttrs...)
 	if inst := s.Instruments; inst != nil {
 		// Every instrument carries the shape's table so an operator can split
 		// the file and entity routes; outcome is added where it applies.
@@ -82,7 +94,7 @@ func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *
 	if logger == nil {
 		logger = slog.Default()
 	}
-	logger.LogAttrs(ctx, slog.LevelInfo, w.shape.partialMessage,
+	attrs := []slog.Attr{
 		slog.String("event_name", w.shape.partialEvent),
 		slog.String("reason", p.reason),
 		slog.Int64("budget_ms", p.budgetMS),
@@ -90,10 +102,16 @@ func record[R any, K key](ctx context.Context, s *Searcher, span trace.Span, w *
 		slog.Int64("overrun_ms", p.overrunMS),
 		slog.Int("rows_scanned_in_order", p.rowsScannedInOrder),
 		slog.Int("rows_matched", p.rowsMatched),
+	}
+	if w.shape.countAfter != "" {
+		attrs = append(attrs, slog.Int64("documents_not_searched", p.notSearched))
+	}
+	attrs = append(attrs,
 		slog.Bool("tail_ran", w.tailRan),
 		slog.Bool("tail_cancelled", w.tailCancelled),
 		slog.Bool("progressed", p.progressed),
 		slog.Int("steps_cancelled", w.stepsCancelled),
 		slog.String("ended_in", string(w.endedIn)),
 	)
+	logger.LogAttrs(ctx, slog.LevelInfo, w.shape.partialMessage, attrs...)
 }

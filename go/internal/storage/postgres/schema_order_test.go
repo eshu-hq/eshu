@@ -425,4 +425,10 @@ var orderedBootstrapDefinitionNames = []string{
 	// and still serves the existence gate on its smaller key, which is why
 	// both indexes exist rather than one superseding the other.
 	"content_entities_repo_language_type_path_idx",
+	// Migration 176 (#7975) adds the stored lowercase copy of
+	// content_files.content for the unscoped search recheck.
+	"content_files_content_lower",
+	// Migration 177 (#7975) indexes the stored lowercase copy with a
+	// trigram index so the recheck uses the index.
+	"content_files_content_lower_trgm_index",
 }

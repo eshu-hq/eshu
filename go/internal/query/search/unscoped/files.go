@@ -18,8 +18,11 @@ const fileOperation = "search_file_content_any_repo_page"
 // key and metadata with an empty content column; the inner window selects
 // content so the outer filter can test the pattern.
 const (
-	columnsFromContent   = `repo_id, relative_path, coalesce(commit_sha, ''), '', content_hash, line_count, coalesce(language, ''), coalesce(artifact_type, '')`
-	columnsFromContentIn = `repo_id, relative_path, commit_sha, content_hash, line_count, language, artifact_type, content`
+	columnsFromContent = `repo_id, relative_path, coalesce(commit_sha, ''), '', content_hash, line_count, coalesce(language, ''), coalesce(artifact_type, '')`
+	// columnsFromContentIn is the inner window's column list. It carries the
+	// stored lowercase copy instead of the raw content: the outer filter
+	// tests only content_lower, so the raw value is never detoasted (#7975).
+	columnsFromContentIn = `repo_id, relative_path, commit_sha, content_hash, line_count, language, artifact_type, content_lower`
 )
 
 // A step reads one key-ordered window of rows and tests the pattern only on
@@ -38,7 +41,7 @@ const stepFirstSQL = `
        FROM content_files
        ORDER BY repo_id, relative_path
        LIMIT $2::bigint) head
- WHERE content ILIKE '%' || $1 || '%'
+ WHERE content_lower LIKE '%' || lower($1) || '%'
  ORDER BY repo_id, relative_path
  LIMIT $3::bigint)
 UNION ALL
@@ -54,7 +57,7 @@ const stepAfterSQL = `
        WHERE (repo_id, relative_path) > ($4::text, $5::text)
        ORDER BY repo_id, relative_path
        LIMIT $2::bigint) head
- WHERE content ILIKE '%' || $1 || '%'
+ WHERE content_lower LIKE '%' || lower($1) || '%'
  ORDER BY repo_id, relative_path
  LIMIT $3::bigint)
 UNION ALL
@@ -71,7 +74,7 @@ UNION ALL
 const tailFirstSQL = `
 SELECT 'hit' AS kind, ` + columnsFromContent + `
 FROM content_files
-WHERE content ILIKE '%' || $1 || '%'
+WHERE content_lower LIKE '%' || lower($1) || '%'
 ORDER BY repo_id, relative_path
 LIMIT $2::bigint`
 
@@ -79,7 +82,7 @@ const tailAfterSQL = `
 SELECT 'hit' AS kind, ` + columnsFromContent + `
 FROM content_files
 WHERE (repo_id, relative_path) > ($3::text, $4::text)
-  AND content ILIKE '%' || $1 || '%'
+  AND content_lower LIKE '%' || lower($1) || '%'
 ORDER BY repo_id, relative_path
 LIMIT $2::bigint`
 
@@ -113,10 +116,12 @@ var fileShape = shape[querycontract.FileContent, querycontract.SearchCursor]{
 		// The smallest tail timeout worth issuing (#7730 V4c).
 		tailFloor: 150 * time.Millisecond,
 	},
-	stepFirst: stepFirstSQL,
-	stepAfter: stepAfterSQL,
-	tailFirst: tailFirstSQL,
-	tailAfter: tailAfterSQL,
+	stepFirst:      stepFirstSQL,
+	stepAfter:      stepAfterSQL,
+	tailFirst:      tailFirstSQL,
+	tailAfter:      tailAfterSQL,
+	countAfter:     countAfterSQL,
+	readinessExtra: lowerReadinessSQL,
 	keyArgs: func(c querycontract.SearchCursor) []any {
 		return []any{c.RepoID, c.RelativePath}
 	},
@@ -143,15 +148,19 @@ func filePage(
 	if p == nil {
 		return querycontract.FileSearchPage{Files: rows, More: more}
 	}
-	return querycontract.FileSearchPage{Files: rows, Partial: &querycontract.SearchPartial{
-		Reason:             p.reason,
-		RowsScannedInOrder: p.rowsScannedInOrder,
-		RowsMatched:        p.rowsMatched,
-		Cursor:             p.cursor,
-		BudgetMS:           p.budgetMS,
-		ElapsedMS:          p.elapsedMS,
-		OverrunMS:          p.overrunMS,
-		Progressed:         p.progressed,
-		Hint:               p.hint,
-	}}
+	return querycontract.FileSearchPage{
+		Files: rows,
+		Partial: &querycontract.SearchPartial{
+			Reason:             p.reason,
+			RowsScannedInOrder: p.rowsScannedInOrder,
+			RowsMatched:        p.rowsMatched,
+			Cursor:             p.cursor,
+			BudgetMS:           p.budgetMS,
+			ElapsedMS:          p.elapsedMS,
+			OverrunMS:          p.overrunMS,
+			Progressed:         p.progressed,
+			Hint:               p.hint,
+		},
+		DocumentsNotSearched: p.notSearched,
+	}
 }

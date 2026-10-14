@@ -26,7 +26,7 @@ func TestOracleStatementIsDerivedFromShippedTailText(t *testing.T) {
 	if got, want := strings.TrimPrefix(oracle, shipped), " OFFSET $3::bigint"; got != want {
 		t.Fatalf("oracle adds %q to the shipped text, want only %q", got, want)
 	}
-	for _, part := range []string{"FROM content_files", "content ILIKE '%' || $1 || '%'", "ORDER BY repo_id, relative_path", "LIMIT $2::bigint"} {
+	for _, part := range []string{"FROM content_files", "content_lower LIKE '%' || lower($1) || '%'", "ORDER BY repo_id, relative_path", "LIMIT $2::bigint"} {
 		if !strings.Contains(oracle, part) {
 			t.Errorf("oracle lost %q", part)
 		}
