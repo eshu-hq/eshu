@@ -11,7 +11,9 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // newGitHubOrgListingServer serves total repositories for org acme with the
@@ -220,11 +222,122 @@ func TestListGitHubOrgRepositoriesFailsOnErrorStatus(t *testing.T) {
 		http.Error(w, `{"message":"boom"}`, http.StatusBadGateway)
 	}))
 	t.Cleanup(server.Close)
-	if _, complete, err := listGitHubOrgRepositoriesFrom(
-		context.Background(), server.Client(), server.URL, "acme", 100, "token-1",
+	// No-op sleep: the production path waits out real backoffs, which the
+	// retry-schedule test above pins without waiting.
+	noWait := githubListingRetryConfig{maxAttempts: 4, baseBackoff: time.Second, sleep: func(context.Context, time.Duration) error { return nil }}
+	if _, complete, err := listGitHubOrgRepositoriesFromWithRetry(
+		context.Background(), server.Client(), server.URL, "acme", 100, "token-1", noWait,
 	); err == nil || complete {
-		t.Fatalf("listGitHubOrgRepositoriesFrom() = complete %v, err %v; want an error and incomplete", complete, err)
+		t.Fatalf("listGitHubOrgRepositoriesFromWithRetry() = complete %v, err %v; want an error and incomplete", complete, err)
 	}
+}
+
+// TestListGitHubOrgRepositoriesRetriesTransientServerErrors is the #8076
+// regression: a transient 502 on the org listing must not end the listing.
+// The first two page-1 requests fail with 502, then the server recovers; the
+// listing must succeed, report complete, and show three page-1 attempts with
+// the documented backoff waits and no real waiting.
+func TestListGitHubOrgRepositoriesRetriesTransientServerErrors(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var pageOneAttempts int
+	var waits []time.Duration
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") == "1" {
+			mu.Lock()
+			pageOneAttempts++
+			fail := pageOneAttempts <= 2
+			mu.Unlock()
+			if fail {
+				http.Error(w, `{"message":"transient"}`, http.StatusBadGateway)
+				return
+			}
+		}
+		items := []map[string]any{}
+		if r.URL.Query().Get("page") == "1" {
+			items = append(items, map[string]any{"id": int64(1000), "full_name": "acme/repo-000", "archived": false})
+		}
+		_ = json.NewEncoder(w).Encode(items)
+	}))
+	t.Cleanup(server.Close)
+
+	retry := githubListingRetryConfig{
+		maxAttempts: 4,
+		baseBackoff: time.Second,
+		sleep: func(_ context.Context, d time.Duration) error {
+			mu.Lock()
+			defer mu.Unlock()
+			waits = append(waits, d)
+			return nil
+		},
+	}
+	records, complete, err := listGitHubOrgRepositoriesFromWithRetry(
+		context.Background(), server.Client(), server.URL, "acme", 100, "token-1", retry,
+	)
+	if err != nil {
+		t.Fatalf("listGitHubOrgRepositoriesFromWithRetry() error = %v", err)
+	}
+	if len(records) != 1 || !complete {
+		t.Fatalf("listed %d complete %v, want 1 complete true", len(records), complete)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if pageOneAttempts != 3 {
+		t.Fatalf("page-1 attempts = %d, want 3", pageOneAttempts)
+	}
+	if fmt.Sprint(waits) != fmt.Sprint([]time.Duration{time.Second, 2 * time.Second}) {
+		t.Fatalf("backoff waits = %v, want [1s 2s]", waits)
+	}
+}
+
+// TestListGitHubOrgRepositoriesGivesUpAfterBoundedRetries pins the other half
+// of #8076: a persistent 500 fails the listing after exactly maxAttempts
+// requests, and a 401 never retries.
+func TestListGitHubOrgRepositoriesGivesUpAfterBoundedRetries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("persistent 500 stops after maxAttempts", func(t *testing.T) {
+		t.Parallel()
+		var attempts atomic.Int64
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			http.Error(w, `{"message":"down"}`, http.StatusInternalServerError)
+		}))
+		t.Cleanup(server.Close)
+		retry := githubListingRetryConfig{maxAttempts: 3, baseBackoff: time.Second, sleep: func(context.Context, time.Duration) error { return nil }}
+		if _, complete, err := listGitHubOrgRepositoriesFromWithRetry(
+			context.Background(), server.Client(), server.URL, "acme", 100, "token-1", retry,
+		); err == nil || complete {
+			t.Fatalf("= complete %v, err %v; want an error and incomplete", complete, err)
+		}
+		if got := attempts.Load(); got != 3 {
+			t.Fatalf("attempts = %d, want 3", got)
+		}
+	})
+
+	t.Run("401 fails without retry", func(t *testing.T) {
+		t.Parallel()
+		var attempts atomic.Int64
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			http.Error(w, `{"message":"bad credentials"}`, http.StatusUnauthorized)
+		}))
+		t.Cleanup(server.Close)
+		var sleeps atomic.Int64
+		retry := githubListingRetryConfig{maxAttempts: 4, baseBackoff: time.Second, sleep: func(context.Context, time.Duration) error { sleeps.Add(1); return nil }}
+		if _, _, err := listGitHubOrgRepositoriesFromWithRetry(
+			context.Background(), server.Client(), server.URL, "acme", 100, "token-1", retry,
+		); err == nil {
+			t.Fatal("expected an error for 401, got nil")
+		}
+		if got := attempts.Load(); got != 1 {
+			t.Fatalf("attempts = %d, want 1", got)
+		}
+		if got := sleeps.Load(); got != 0 {
+			t.Fatalf("sleeps = %d, want 0", got)
+		}
+	})
 }
 
 func TestSelectGitHubRepositoryIDsExposesListingAndRuleExclusions(t *testing.T) {
