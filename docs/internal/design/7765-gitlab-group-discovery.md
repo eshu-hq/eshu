@@ -32,8 +32,8 @@ The ruling was verified read-only. Four of its premises were imprecise against
 origin/main, and this design follows the code on each:
 
 1. **Gauge label.** The ruling puts `selector_kind="gitlab_group"` on the counter
-   and the gauge. The gauge has no such label (`observer.go:184-187`) and is
-   sampled only for `github_org` (`observer.go:174`). The label goes on the
+   and the gauge. The gauge has no such label (`observer.go:233-236`) and is
+   sampled only for `github_org` (`observer.go:223`). The label goes on the
    counter only, and the gauge condition widens to `gitlab_group`.
 2. **Keyset pagination.** Keyset paging is documented for `GET /projects`, but
    the "Supported resources" table at https://docs.gitlab.com/api/rest/ does not
@@ -41,7 +41,7 @@ origin/main, and this design follows the code on each:
    `order_by=id&sort=asc`.
 3. **Listing completeness.** The ruling ends a listing on an empty page or an
    absent `rel="next"`. The GitHub code ends only on an empty page, and an absent
-   `rel="next"` on a non-empty page does not end it (`selection_github.go:293-296`).
+   `rel="next"` on a non-empty page does not end it (`selection_github.go:300-303`).
    The design mirrors the code.
 4. **Host through `KnownScopeHost`.** `membership` is a leaf and must not import
    `git` (`membership/AGENTS.md`), so `KnownScopeHost("gitlab_group")` cannot call
@@ -52,31 +52,31 @@ origin/main, and this design follows the code on each:
 Two items on the ruling's "Not verified" list are closed. Migration 166
 constrains `selector_kind` (`166_repository_selection_observations.sql:32`), so
 a new guarded migration is required. `githubOrg` does no fork filtering
-(`selection_github.go:262` uses `type=all`; `:280-284` decodes no fork field).
+(`selection_github.go:269` uses `type=all`; `:287-291` decodes no fork field).
 
 ## Current contract this builds on
 
 - **Source modes.** `discoverSelection` handles `filesystem`, `explicit` and
-  `githubOrg` (`selection_github.go:162-201`).
+  `githubOrg` (`selection_github.go:169-208`).
   `SelectRepositories` treats a token error as fatal only for `githubOrg`
-  (`selection_native.go:55-58`), and so does `syncGitRepositoriesWithLogger`
-  (`selection_cli.go:40-43`). It observes before sharding (`selection_native.go:68-69`).
-  It syncs git modes in `case "explicit", "githubOrg"` (`selection_native.go:136`).
-- **GitHub listing.** It pages at a fixed 100 (`selection_github.go:236`) with
-  `type=all` (`:262`) and decodes only `id`, `full_name` and `archived` (`:280-284`).
+  (`selection_native.go:71-74`), and so does `syncGitRepositoriesWithLogger`
+  (`selection_cli.go:43-46`). It observes before sharding (`selection_native.go:84-85`).
+  It syncs git modes in `case "explicit", "githubOrg"` (`selection_native.go:169`).
+- **GitHub listing.** It pages at a fixed 100 (`selection_github.go:243`) with
+  `type=all` (`:269`) and decodes only `id`, `full_name` and `archived` (`:287-291`).
   Only an empty page ends it, and it is complete only if that page has no
-  `rel="next"` (`:293-296`). Reaching `RepoLimit` always makes it incomplete
-  (`:309-311`). **It does no fork filtering**, so GitLab forks inside the group
+  `rel="next"` (`:300-303`). Reaching `RepoLimit` always makes it incomplete
+  (`:316-318`). **It does no fork filtering**, so GitLab forks inside the group
   are listed too.
-- **Selection.** `selectGitHubRepositoryIDs` (`selection_discovery.go:90-157`)
+- **Selection.** `selectGitHubRepositoryIDs` (`selection_discovery.go:106-173`)
   applies the archive policy. An exact rule re-admits an archived repository
-  (`:112-113`). Rules then split the rest into selected and rule-excluded.
+  (`:128-129`). Rules then split the rest into selected and rule-excluded.
   Exact rules match case-sensitively after `normalizeRepositoryID`
-  (`selection_config.go:28-42`, `:372-389`). That function already handles any
+  (`selection_config.go:29-43`, `:402-419`). That function already handles any
   path depth.
 - **Repository identity.**
   - `repoProviderAndSlug` maps `gitlab/<a>/<b>/...` (3 or more segments) to
-    provider `gitlab` (`selection_discovery.go:309-321`).
+    provider `gitlab` (`selection_discovery.go:325-337`).
   - `repoProviderHost("gitlab")` is hardcoded to `gitlab.com` (`:323-332`).
   - `repoRemoteURL` builds `https://<host>/<slug>.git` (`:292-307`).
   - The scope ID is `git-repository-scope:` plus
@@ -86,23 +86,23 @@ a new guarded migration is required. `githubOrg` does no fork filtering
     (`repositoryidentity/identity.go:84-91`). So `repo_slug` is the lowercased
     `path_with_namespace` (`:225-236`).
   - `gitScopeIdentityForRepositoryID` derives the scope ID and slug without a
-    checkout (`selection_baseline.go:426-439`).
+    checkout (`selection_baseline.go:424-437`).
 - **Membership.**
   - `KindGitHubOrg`/`KindExplicit` are at `membership/identity.go:17-24`.
   - `KnownScopeHost` returns `github.com` only for `github_org` (`:30-40`).
   - The selector hash covers version 2, kind, source mode, lowercased owner,
     normalized sorted rules and include-archived (`:76-83`, `:123-158`).
   - `partitionKnown` keeps scopes whose first slug segment equals the owner
-    (`evaluate.go:227-250`).
+    (`evaluate.go:229-252`).
   - The store reads `lower(split_part(payload->>'repo_slug','/',1)) = $1` plus
     an optional host predicate (`storage/postgres/membership/observations.go:50-58`).
-  - The store accepts only the two kinds (`observations.go:233`).
+  - The store accepts only the two kinds (`observations.go:300`).
   - Migration 166 constrains `selector_kind IN ('github_org','explicit')`
     (`migrations/166_repository_selection_observations.sql:32`).
 - **Telemetry and webhooks.** The gauge `eshu_dp_collector_repository_selection_scopes`
-  has no `selector_kind` label (`telemetry/instruments_repository_selection.go:70-81`).
+  has no `selector_kind` label (`telemetry/instruments_repository_selection.go:71-82`).
   A GitLab webhook trigger maps to `gitlab/` + `path_with_namespace`
-  (`webhook_trigger_selector.go:298-311`), the ID shape this mode uses.
+  (`webhook_trigger_selector.go:305-318`), the ID shape this mode uses.
 
 ## Configuration
 
@@ -110,11 +110,11 @@ a new guarded migration is required. `githubOrg` does no fork filtering
 | --- | --- |
 | `ESHU_REPO_SOURCE_MODE=gitlabGroup` | New mode. |
 | `ESHU_GITLAB_GROUP` (new) | Required. The group's full path (`acme/platform`) or numeric ID. Every cycle resolves it with `GET /groups/:id?with_projects=false` to `full_path`, which becomes the partition and selector owner (lowercased). A 404 fails the cycle (`group_not_found`). |
-| `ESHU_INCLUDE_ARCHIVED_REPOS` | Reused (`selection_config.go:158`). |
+| `ESHU_INCLUDE_ARCHIVED_REPOS` | Reused (`selection_config.go:179`). |
 | `ESHU_REPOSITORY_RULES_JSON` | Reused. Exact and regex rules both allowed, like `githubOrg`. |
 | `ESHU_REPO_LIMIT` | Reused (default 4000, `selection_config.go:140`). |
-| `ESHU_GIT_AUTH_METHOD` | Must be `token`. Config load rejects `githubApp` (it mints a GitHub token, `selection_github.go:213-214`), `ssh` and `none`. |
-| `ESHU_GIT_TOKEN` | Required. **`GITHUB_TOKEN` is not accepted as a fallback in this mode** (`selection_config.go:159` reads both). That fallback would send a GitHub credential to gitlab.com. |
+| `ESHU_GIT_AUTH_METHOD` | Must be `token`. Config load rejects `githubApp` (it mints a GitHub token, `selection_github.go:220-221`), `ssh` and `none`. |
+| `ESHU_GIT_TOKEN` | Required. **`GITHUB_TOKEN` is not accepted as a fallback in this mode** (`selection_config.go:180` reads both). That fallback would send a GitHub credential to gitlab.com. |
 
 An exact rule must start with `gitlab/<group full path>/`, compared
 case-sensitively like every exact rule, so the right path in the wrong case fails
@@ -190,7 +190,7 @@ docs page, so they never enter the listing even if `with_shared` were ignored.
 - Keyset pagination is not documented for `/groups/:id/projects` (see
   "Corrections to the arbiter ruling").
 - `per_page` maxes at 100 and is fixed for the whole listing (same reason as
-  `selection_github.go:232-236`).
+  `selection_github.go:239-243`).
 - Ordering by ascending `id` puts new projects at the end, so a creation during
   the listing never shifts earlier pages. It also makes `ESHU_REPO_LIMIT`
   truncation deterministic: it keeps the oldest projects.
@@ -241,7 +241,7 @@ docs page, so they never enter the listing even if `with_shared` were ignored.
 - Per-request timeout is 15s, as for GitHub (`selection_github.go:228`).
 
 **Error classes.** Any error fails the cycle with no partial listing, as GitHub
-does (`selection_github.go:287-289`). The class rides on `failure_class`.
+does (`selection_github.go:294-296`). The class rides on `failure_class`.
 
 | Class | Cause |
 | --- | --- |
@@ -294,7 +294,7 @@ Consequences, stated as contract:
     unchanged, so their IDs are unchanged. A golden test pins them (PR 1).
   - Version stays 2.
 - Owner is the lowercased resolved `full_path`.
-- Principal is `selectionPrincipal(config)` (`selection_github.go:152-160`).
+- Principal is `selectionPrincipal(config)` (`selection_github.go:159-167`).
   That gives `TokenPrincipal` here. Anonymous is unreachable because config
   requires a token.
 
@@ -316,7 +316,7 @@ Consequences, stated as contract:
   - `explicit`: `{owner, "", false}`
   - `gitlab_group`: `{owner, host, true}`
 - `Store.KnownScopes(ctx, Partition)` replaces `(ctx, owner, host)`. The one
-  production caller is `observer.go:130`. The test fakes and direct callers need
+  production caller is `observer.go:165`. The test fakes and direct callers need
   a mechanical signature update; their assertions do not change (the file list
   is in PR 1 on
   [the proof and rollout page](7765-gitlab-group-discovery-proof-and-rollout.md#pr-breakdown)).
@@ -326,7 +326,7 @@ Consequences, stated as contract:
   compiler reject a store that cannot serve a prefix partition.
 - The Postgres store's `Partition` path keeps today's input rules: it trims and
   lowercases the owner and host and rejects a blank owner before any query
-  (`observations.go:120-130`, pinned by `observations_test.go:34` and `:236`).
+  (`observations.go:153-163`, pinned by `observations_test.go:34` and `:236`).
 - In Go, `partitionKnown(known, Partition)`:
   - first-segment mode keeps today's `strings.EqualFold(slugOwner(slug), owner)`;
   - prefix mode uses `strings.HasPrefix(strings.ToLower(slug), owner+"/")`.
@@ -351,15 +351,15 @@ Consequences, stated as contract:
 **Rows.**
 - `gitlab_group` writes a full row set like `github_org`: selected, excluded and
   not listed, with the mass-miss guard.
-- `evaluateExplicit` stays `explicit`-only (`evaluate.go:143-144`).
-- `validateBatch` admits `KindGitLabGroup` (`observations.go:233`) and keeps the
-  explicit-only "selected rows only" check (`:252-254`).
+- `evaluateExplicit` stays `explicit`-only (`evaluate.go:145-146`).
+- `validateBatch` admits `KindGitLabGroup` (`observations.go:300`) and keeps the
+  explicit-only "selected rows only" check (`:319-321`).
 
 **The `github_repo_id` column.**
 - Store the GitLab project ID in it, as is. It already means "the selector's
   provider numeric ID".
 - Its readers are the COALESCE in the upsert, `Observations`
-  (`observations.go:91`, `:180`) and the carry-forward of a prior row's value
+  (`observations.go:91`, `:213`) and the carry-forward of a prior row's value
   (`observation.go:95-96`). Nothing interprets it.
 - The new migration adds `COMMENT ON COLUMN` to say so.
 - A rename is rejected (see "Risks, rejected alternatives, open questions").
@@ -394,25 +394,25 @@ like any other project, matching GitHub's lack of fork filtering.
   - `gitlabGroup` passes `NewGitLabGroupSelector(..., repoProviderHost("gitlab"),
     discovered.GroupFullPath, ...)`.
   - The existing `selection_observation_test.go` stays green unchanged.
-- `observeSelection` (`selection_github.go:44-51`) gains `case "gitlabGroup"`.
+- `observeSelection` (`selection_github.go:47-54`) gains `case "gitlabGroup"`.
   It still runs on shard 0 only, after discovery, before sharding
-  (`selection_native.go:68-69`).
-- The fatal-token checks at `selection_native.go:56` and `selection_cli.go:41`
-  extend to `gitlabGroup`, and the git sync case at `selection_native.go:136`
+  (`selection_native.go:84-85`).
+- The fatal-token checks at `selection_native.go:72` and `selection_cli.go:44`
+  extend to `gitlabGroup`, and the git sync case at `selection_native.go:169`
   adds it.
 - **Sharding.** `filterRepositoryIDsByShard` hashes the `gitlab/...` IDs exactly
   like other IDs. Every shard lists; only shard 0 observes.
 - **Webhooks.**
   - The webhook selector never observes.
   - A GitLab trigger yields the same `gitlab/<path>` ID
-    (`webhook_trigger_selector.go:306-307`), so a webhook refresh and a listing
+    (`webhook_trigger_selector.go:313-314`), so a webhook refresh and a listing
     selection share one checkout and one scope.
-  - The webhook path applies no group or rule check (`:299`). A webhook can
+  - The webhook path applies no group or rule check (`:306`). A webhook can
     therefore sync a project inside the group that the rules exclude; the next
     listing records it as `rule_excluded`, which is truthful. A project outside
     the group is never judged and reads `unknown`.
   - **Provider guard (credential safety).** `repositoryIDFromWebhookTrigger`
-    returns a bare `org/repo` for a GitHub trigger (`:303-305`) and
+    returns a bare `org/repo` for a GitHub trigger (`:310-312`) and
     `bitbucket/org/repo` for a Bitbucket one, with no source-mode check. In
     `gitlabGroup` mode that ID is cloned from another host with the GitLab token
     in `config.GitToken`. PR #7821 (head f727f0080) does not stop it: its
@@ -423,9 +423,9 @@ like any other project, matching GitHub's lack of fork filtering.
   - So in `gitlabGroup` mode the webhook selector drops every trigger whose
     provider is not `gitlab` before it builds a repository ID, marking it failed
     with the bounded reason `provider_not_selected` (a new constant beside
-    `webhookTriggerFailureUnsupportedProvider`, `:37-39`). It reuses the split in
-    `supportedWebhookRefreshTriggers` (`:260-275`) and the failure marking at
-    `:135-140`. Other modes are unchanged.
+    `webhookTriggerFailureUnsupportedProvider`, `:38-40`). It reuses the split in
+    `supportedWebhookRefreshTriggers` (`:267-282`) and the failure marking at
+    `:139-144`. Other modes are unchanged.
 
 ## Telemetry
 

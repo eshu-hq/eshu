@@ -9,7 +9,7 @@ breakdown. Source check: origin/main 7be568e44, 2026-10-09.
 
 **Hypothesis.** The prefix predicate costs about the same as the first-segment
 read. That read was measured as a seq scan of 594 buffers in 4.8-5.4 ms at
-12,000 git scopes (`storage/postgres/membership/README.md:77-94`).
+12,000 git scopes (`storage/postgres/membership/README.md:149-166`).
 
 **Shim.** A throwaway SQL script on a disposable PostgreSQL 18 with migrations
 001 and 091 indexes. The seed and query scripts are committed with PR 1 as an
@@ -299,10 +299,10 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
      query scripts plus raw outputs).
    - The mechanical `KnownScopes` signature update to `(ctx, Partition)`, with
      no assertion changes:
-     - fakes: `membership/observer_test.go:45`,
+     - fakes: `membership/observer_test.go:61`,
        `git/selection_liveness_test.go:52`,
-       `git/selection_observation_explicit_test.go:172`,
-       `git/selection_observation_test.go:155`;
+       `git/selection_observation_explicit_test.go:176`,
+       `git/selection_observation_test.go:157`;
      - direct callers: `storage/postgres/membership/observations_test.go:34`,
        `:236`, `:248`, `known_scopes_live_test.go:37` and
        `observations_live_test.go:63`.
@@ -333,7 +333,7 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
    - Files: `selection_github.go`, `selection_discovery.go`,
      `selection_native.go`, `selection_cli.go`, `selection_config.go`, the env
      registry plus the regenerated `env-registry.md`, and
-     `environment-ingestion-queues.md:11` and `:38` (the mode list and the
+     `environment-ingestion-queues.md:11` and `:39` (the mode list and the
      liveness window's modes), `webhook_trigger_selector.go` (the
      `provider_not_selected` guard), and the mode mentions in
      `go/cmd/ingester/doc.go:35` and `go/cmd/collector-git/doc.go:18`.
@@ -349,7 +349,7 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
 **Env registry.**
 - Add `ESHU_GITLAB_GROUP` (VarString, subsystem `collector`) to
   `go/internal/envregistry/entries.go`, beside
-  `ESHU_REPO_SELECTION_LIVENESS_WINDOW` (`:117`).
+  `ESHU_REPO_SELECTION_LIVENESS_WINDOW` (`:122`).
 - Add `ESHU_REPO_SOURCE_MODE` as a VarEnum
   (`githubOrg|explicit|filesystem|gitlabGroup`, default `githubOrg`), so a typo
   fails `eshu config validate`.
@@ -359,8 +359,8 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
 - Regenerate `docs/public/reference/env-registry.md`.
 
 **Helm.**
-- `values.yaml:1177-1184`: add `repoSync.source.gitlabGroup: ""`.
-- `values.schema.json:1323-1326`: add `gitlabGroup` to the mode enum.
+- `values.yaml:1182-1189`: add `repoSync.source.gitlabGroup: ""`.
+- `values.schema.json:1331-1334`: add `gitlabGroup` to the mode enum.
 - `statefulset.yaml:85-100`: render `ESHU_GITLAB_GROUP`.
 - `_validation_core.tpl:67-69`: keep the ssh rule's wording ("ssh requires
   explicit or filesystem"). Add two fails:
@@ -380,10 +380,10 @@ needs a token and an override file, like `githubOrg`.
   `eshu_dp_collector_repository_selection_evaluations_total`. Add the constant
   `RepositorySelectionSelectorKindGitLabGroup` beside the existing two
   (`instruments_repository_selection.go:35-42`) and update the description
-  (`:72`) and `contract.go:73`.
+  (`:73`) and `contract.go:73`.
 - **Gauge.** `eshu_dp_collector_repository_selection_scopes` has **no
-  `selector_kind` label** (`:76-81`, `observer.go:184-187`). Extend the
-  condition at `observer.go:174` to sample `gitlab_group` evaluated cycles too.
+  `selector_kind` label** (`:76-81`, `observer.go:233-236`). Extend the
+  condition at `observer.go:223` to sample `gitlab_group` evaluated cycles too.
   One collector process runs one source mode, so no two kinds share a series.
   No label is added, because that would be a metric contract change. The
   description becomes "githubOrg or gitlabGroup selector".
@@ -406,6 +406,6 @@ needs a token and an override file, like `githubOrg`.
   ID, whatever its kind (`storage/postgres/membership/live_read.go:22-29`), so
   it needs no change.
 - **Docs, in the same PR.** `docs/public/reference/telemetry/metrics-ingestion-collectors.md:34`
-  (465 lines, so split it if the new row crosses 500), `metrics.md:181`, the
+  (465 lines, so split it if the new row crosses 500), `metrics.md:183`, the
   discovery row in `docs/public/observability/telemetry-coverage.md:622` (the
   `telemetry-coverage` gate), and both membership READMEs.
