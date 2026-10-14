@@ -185,6 +185,61 @@ WHERE NOT granted
 	})
 }
 
+// TestProjectorAckObsoleteSkipsFencedBusyScope proves Ack's obsolete-generation
+// maintenance defers (not drops) when another transaction holds the scope's
+// claim fence (#7187). The fence holder stands in for a claim sweep, another
+// Ack's obsolete maintenance, or the write-start marker: it locks only the
+// fence row, never a generation. While it stays open, the shipped Ack must
+// still commit and activate gen-am2 while leaving the stale gen-am1
+// generation and work rows untouched; after the release, the next claim
+// retires gen-am1 through the shipped sweep.
+func TestProjectorAckObsoleteSkipsFencedBusyScope(t *testing.T) {
+	dsn := claimMaintenanceProofDSN(t)
+	database, queue, work := seedAckMarkerScope(t, dsn)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	fence, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin fence holder: %v", err)
+	}
+	defer func() { _ = fence.Rollback() }()
+	if _, err := fence.ExecContext(ctx,
+		`SELECT 1 FROM projector_scope_claim_fences WHERE scope_id = 'scope-am' FOR NO KEY UPDATE`); err != nil {
+		t.Fatalf("hold the scope-am fence: %v", err)
+	}
+	if err := queue.Ack(ctx, work, runtime.Result{}); err != nil {
+		t.Fatalf("Ack(gen-am2) with fenced-busy scope = %v, want success", err)
+	}
+	if got := generationState(t, database, "gen-am2"); got != "active" {
+		t.Fatalf("gen-am2 generation = %q, want active", got)
+	}
+	if status, class, _ := workState(t, database, "scope-am", "gen-am1"); status != "pending" || class != "" {
+		t.Fatalf("gen-am1 work = (%s, %q) while fenced, want pending with no supersede class", status, class)
+	}
+	if got := generationState(t, database, "gen-am1"); got != "pending" {
+		t.Fatalf("gen-am1 generation = %q while fenced, want pending (maintenance defers, not drops)", got)
+	}
+	if err := fence.Rollback(); err != nil {
+		t.Fatalf("release the fence: %v", err)
+	}
+	// Defer-not-drop: a newer generation arrives after the release, and the
+	// next claim retires the skipped gen-am1 through the shipped sweep.
+	now := time.Now().UTC().Truncate(time.Second)
+	seedFenceProofWork(t, database, fenceProofWork{
+		"scope-am", "gen-am3", "pending", "pending", 0, now, now, now,
+	})
+	next, ok, err := NewProjectorQueue(SQLDB{DB: database}, "claimer", time.Minute).Claim(ctx)
+	if err != nil || !ok || next.Generation.GenerationID != "gen-am3" {
+		t.Fatalf("follow-up Claim() = (%q, %v, %v), want gen-am3", next.Generation.GenerationID, ok, err)
+	}
+	if status, _, _ := workState(t, database, "scope-am", "gen-am1"); status != "superseded" {
+		t.Fatalf("gen-am1 work after release = %q, want superseded (skip defers, not drops)", status)
+	}
+	if got := generationState(t, database, "gen-am1"); got != "superseded" {
+		t.Fatalf("gen-am1 generation after release = %q, want superseded", got)
+	}
+}
+
 // ackMarkerRaceIterations is the #7820 ruling's N for marker-commit vs Ack.
 const ackMarkerRaceIterations = 300
 

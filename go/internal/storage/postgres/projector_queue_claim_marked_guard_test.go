@@ -240,15 +240,48 @@ func TestAckObsoleteSupersedeLocksStaleGenerations(t *testing.T) {
 		"FROM locked_obsolete_stale_generations AS locked,",
 		"AND stale.generation_id = locked.generation_id",
 		"AND stale_generation.generation_id = locked.generation_id",
+		"projector_scope_claim_fences AS obsolete_fence",
+		"obsolete_fence.scope_id = $2",
+		"FOR NO KEY UPDATE OF obsolete_fence SKIP LOCKED",
 	} {
 		if !strings.Contains(q, want) {
 			t.Errorf("Ack obsolete query lacks %q", want)
 		}
+	}
+	// #7187: the fence lock precedes the generation lock, so a fenced-busy
+	// scope is skipped before any generation row is touched.
+	if fence, generation := strings.Index(q, "FOR NO KEY UPDATE OF obsolete_fence SKIP LOCKED"),
+		strings.Index(q, "FOR NO KEY UPDATE OF stale_generation SKIP LOCKED"); fence < 0 || generation < 0 || fence > generation {
+		t.Errorf("Ack obsolete query must lock the fence before the generation row")
 	}
 	if got := strings.Count(q, markGuardAckGate); got != 2 {
 		t.Errorf("Ack obsolete query carries the marker gate %d times, want 2 (lock step plus re-applied UPDATE predicate)", got)
 	}
 	if strings.Contains(q, "FOR UPDATE OF stale") || strings.Contains(q, "FOR NO KEY UPDATE OF stale ") {
 		t.Error("Ack obsolete query must not add a work-row locking clause; the UPDATE's own row locks suffice")
+	}
+}
+
+// TestProjectorClaimSweepLocksSweepFenceFirst pins the #7187 sweep guard:
+// the stale-generation lock step joins each scope's claim fence and locks
+// the fence before the generation row, both SKIP LOCKED, so a fenced-busy
+// scope is skipped without walking an update chain. The guard adds no
+// work-row lock and keeps the #7469 lock-step text intact.
+func TestProjectorClaimSweepLocksSweepFenceFirst(t *testing.T) {
+	t.Parallel()
+	for _, want := range []string{
+		"JOIN projector_scope_claim_fences AS sweep_fence",
+		"ON sweep_fence.scope_id = stale_generation.scope_id",
+		"FOR NO KEY UPDATE OF sweep_fence SKIP LOCKED",
+		markGuardLockFlag,
+		markGuardWorkExclusion,
+	} {
+		if !strings.Contains(claimProjectorWorkQuery, want) {
+			t.Errorf("claim query lacks #7187/#7469 sweep guard %q", want)
+		}
+	}
+	if fence, generation := strings.Index(claimProjectorWorkQuery, "FOR NO KEY UPDATE OF sweep_fence SKIP LOCKED"),
+		strings.Index(claimProjectorWorkQuery, "FOR NO KEY UPDATE OF stale_generation SKIP LOCKED"); fence < 0 || generation < 0 || fence > generation {
+		t.Errorf("claim query must lock the sweep fence before the stale generation row")
 	}
 }

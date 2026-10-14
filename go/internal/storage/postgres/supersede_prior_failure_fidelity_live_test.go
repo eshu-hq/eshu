@@ -220,9 +220,12 @@ WHERE work_item_id = $1`, "old-"+scopeID, committed.status, *committed.class, *c
 		if time.Now().After(deadline) {
 			t.Fatal("session B never blocked on A's row lock, so the recheck was not exercised")
 		}
+		// Match the leading CTE name: pg_stat_activity truncates query text at
+		// track_activity_query_size (1kB here), past which 'superseded_work'
+		// starts (#7187 lengthened the lock step).
 		if err := database.QueryRow(`
 SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-               WHERE wait_event_type = 'Lock' AND query LIKE '%superseded_work AS%'
+               WHERE wait_event_type = 'Lock' AND query LIKE '%locked_obsolete_stale_generations%'
                  AND pid <> pg_backend_pid())`).Scan(&blocked); err != nil {
 			t.Fatalf("poll pg_stat_activity: %v", err)
 		}

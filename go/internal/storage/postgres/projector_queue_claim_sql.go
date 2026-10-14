@@ -34,10 +34,19 @@ package postgres
 // projector_scope_claim_fences row and bump fence in the same transaction.
 // The write-start marker (#7819) is the only other writer: it locks the fence
 // row SKIP LOCKED before the generation row and bumps fence when the marker
-// sets, so the marker commit and a claim's fence lock serialize. Nothing else
-// may lock or update that table, no table may reference it, and this statement
-// must not lock ingestion_scopes. Paths that only remove or renew an existing
-// lease (Ack, Fail, retry, reclaim, heartbeat) do not touch the fence. Fence
+// sets, so the marker commit and a claim's fence lock serialize. Generation
+// retirement (#7187) locks the fence without the bump: the sweep below locks
+// each stale scope's fence SKIP LOCKED before its generation rows, and Ack's
+// obsolete-generation maintenance locks its scope's fence SKIP LOCKED before
+// its stale rows, so the two never retire one scope's generations together
+// and neither walks an update chain into the other's open generation update.
+// A scope whose fence is busy is skipped by that statement's maintenance; the
+// next claim or Ack retries it. Nothing else may lock or update that table,
+// no table may reference it, and this statement must not lock ingestion_scopes.
+// Paths that only remove or renew an existing lease (Ack's work mark, Fail,
+// retry, reclaim, heartbeat) never bump the fence; the only lease-path lock
+// is Ack's obsolete-generation maintenance, which locks without the bump (see
+// Generation retirement above). Fence
 // rows come from the ingestion_scopes AFTER INSERT trigger and the migration
 // 130 backfill; a scope without one is unclaimable, which
 // eshu_dp_projector_scopes_missing_claim_fence reports. Any other insert into
@@ -205,6 +214,19 @@ supersedable_projector_generations AS (
 -- so a marker committed after the snapshot spares the row from the sweep and
 -- holds the scope's newer rows, which the snapshot-only pool cannot see.
 -- A superseded generation is never spared: its retirement already happened.
+--
+-- #7187: the step locks each stale scope's claim fence first, then the
+-- generation row, both SKIP LOCKED (LockRows takes locking clauses in
+-- order). The fence is a claim-only target with no FK children, so no
+-- update chain can form under it: locking it never waits. A scope whose
+-- fence a claimer, Ack's obsolete maintenance, or the write-start marker
+-- holds is skipped row by row without touching its generations. Without the
+-- fence, this lock walks an update chain (a running KEY SHARE locker from
+-- an FK-child insert plus a committed updater) into an open updater's
+-- version, a transactionid wait SKIP LOCKED does not cover, while the claim
+-- holds maintenance rows Ack needs (40P01). The candidate never claims a
+-- supersedable row even when its scope is skipped here, so a busy scope
+-- yields no claim and the next claim retries the sweep.
 locked_stale_scope_generations AS (
     SELECT supersedable.work_item_id,
            stale_generation.generation_id AS generation_id,
@@ -215,8 +237,11 @@ locked_stale_scope_generations AS (
     FROM scope_generations AS stale_generation
     JOIN supersedable_projector_generations AS supersedable
       ON supersedable.generation_id = stale_generation.generation_id
+    JOIN projector_scope_claim_fences AS sweep_fence
+      ON sweep_fence.scope_id = stale_generation.scope_id
     WHERE stale_generation.status IN ('pending', 'failed', 'superseded')
     ORDER BY stale_generation.generation_id
+    FOR NO KEY UPDATE OF sweep_fence SKIP LOCKED
     FOR NO KEY UPDATE OF stale_generation SKIP LOCKED
 ),
 -- The work lock step repeats the widened row-self predicate so EvalPlanQual
