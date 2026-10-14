@@ -94,6 +94,48 @@ func TestMethodologyProductionTreeRejectsBaseOnlyMigration(t *testing.T) {
 	}
 }
 
+// TestMethodologyProductionTreeAdmitsAdditiveGraphSchema pins the #8073
+// scope decision: additive graph schema files are admitted exactly like
+// additive migrations. A committed new schema file passes while every base
+// file stays byte-identical; removals, modifications, untracked additions,
+// and dirty worktrees still fail.
+func TestMethodologyProductionTreeAdmitsAdditiveGraphSchema(t *testing.T) {
+	const childMarker = "ESHU_METHODOLOGY_IDENTITY_GUARD_GRAPH_CHILD"
+	const candidateMarker = "ESHU_METHODOLOGY_IDENTITY_GUARD_GRAPH_CANDIDATE"
+	if base := os.Getenv(childMarker); base != "" {
+		methodologyVerifySameProductionTree(t, base, os.Getenv(candidateMarker), "go/internal/graph", "schema*.go")
+		return
+	}
+
+	for _, testCase := range []struct {
+		name          string
+		remove        string
+		add           string
+		modify        string
+		empty         bool
+		commitDeleted bool
+		commitAdd     bool
+		dirtyAdd      bool
+		wantFailure   bool
+		wantPath      string
+	}{
+		{name: "base only", remove: "schema_base_only.go", wantFailure: true, wantPath: "schema_base_only.go"},
+		{name: "candidate only addition admitted", add: "schema_candidate_only.go", commitAdd: true},
+		{name: "untracked addition still fails", add: "schema_candidate_only.go", wantFailure: true, wantPath: "schema_candidate_only.go"},
+		{name: "committed addition with dirty worktree", add: "schema_candidate_only.go", commitAdd: true, dirtyAdd: true, wantFailure: true, wantPath: "schema_candidate_only.go"},
+		{name: "committed addition with modified base file", add: "schema_candidate_only.go", commitAdd: true, modify: "schema_unchanged.go", wantFailure: true, wantPath: "schema_unchanged.go"},
+		{name: "committed addition with deleted base file", add: "schema_candidate_only.go", commitAdd: true, remove: "schema_base_only.go", wantFailure: true, wantPath: "schema_base_only.go"},
+		{name: "modified", modify: "schema_unchanged.go", wantFailure: true, wantPath: "schema_unchanged.go"},
+		{name: "committed deletion restored untracked", commitDeleted: true, wantFailure: true, wantPath: "schema_base_only.go"},
+		{name: "empty inventory", empty: true, wantFailure: true, wantPath: "no production sources"},
+		{name: "unchanged"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			checkMethodologyProductionTreeScenarioFor(t, methodologyGraphSchemaGuardScenario(), childMarker, testCase.remove, testCase.add, testCase.modify, testCase.empty, testCase.commitDeleted, testCase.commitAdd, testCase.dirtyAdd, testCase.wantFailure, testCase.wantPath, "")
+		})
+	}
+}
+
 func methodologyScratchGitEnv(trace string) []string {
 	env := make([]string, 0, len(os.Environ())+1)
 	for _, entry := range os.Environ() {
@@ -107,22 +149,62 @@ func methodologyScratchGitEnv(trace string) []string {
 	return append(env, "GIT_TRACE2_EVENT="+trace)
 }
 
+// methodologyGuardTreeScenario describes one production tree pinned by a
+// methodology identity guard: the tree directory, its scratch seed files,
+// the child test entry that re-executes the verification, and the marker
+// that carries the candidate revision to the child.
+type methodologyGuardTreeScenario struct {
+	directory    string
+	seed         []string
+	childTest    string
+	candidateEnv string
+}
+
+// methodologyMigrationsGuardScenario pins the Postgres migrations tree,
+// whose additive evolution the migration gates own.
+func methodologyMigrationsGuardScenario() methodologyGuardTreeScenario {
+	return methodologyGuardTreeScenario{
+		directory:    "go/internal/storage/postgres/migrations",
+		seed:         []string{"001_unchanged.sql", "002_base_only.sql"},
+		childTest:    "^TestMethodologyProductionTreeRejectsBaseOnlyMigration$",
+		candidateEnv: "ESHU_METHODOLOGY_IDENTITY_GUARD_CANDIDATE",
+	}
+}
+
+// methodologyGraphSchemaGuardScenario pins the graph schema tree
+// (go/internal/graph schema*.go). Additive graph schema files are admitted
+// exactly like additive migrations: every base file stays byte-identical
+// and the addition arrives as a committed new file (#8073).
+func methodologyGraphSchemaGuardScenario() methodologyGuardTreeScenario {
+	return methodologyGuardTreeScenario{
+		directory:    "go/internal/graph",
+		seed:         []string{"schema_unchanged.go", "schema_base_only.go"},
+		childTest:    "^TestMethodologyProductionTreeAdmitsAdditiveGraphSchema$",
+		candidateEnv: "ESHU_METHODOLOGY_IDENTITY_GUARD_GRAPH_CANDIDATE",
+	}
+}
+
 func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, add, modify string, empty, commitDeleted, commitAdd, dirtyAdd, wantFailure bool, wantPath, trace string) {
+	t.Helper()
+	checkMethodologyProductionTreeScenarioFor(t, methodologyMigrationsGuardScenario(), childMarker, remove, add, modify, empty, commitDeleted, commitAdd, dirtyAdd, wantFailure, wantPath, trace)
+}
+
+func checkMethodologyProductionTreeScenarioFor(t *testing.T, scenario methodologyGuardTreeScenario, childMarker, remove, add, modify string, empty, commitDeleted, commitAdd, dirtyAdd, wantFailure bool, wantPath, trace string) {
 	t.Helper()
 	root := t.TempDir()
 	packageDir := filepath.Join(root, "go", "internal", "query")
-	migrationDir := filepath.Join(root, "go", "internal", "storage", "postgres", "migrations")
-	for _, directory := range []string{packageDir, migrationDir} {
+	treeDir := filepath.Join(append([]string{root}, strings.Split(scenario.directory, "/")...)...)
+	for _, directory := range []string{packageDir, treeDir} {
 		if err := os.MkdirAll(directory, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	seed := []string{"001_unchanged.sql", "002_base_only.sql"}
+	seed := scenario.seed
 	if empty {
 		seed = []string{"README"}
 	}
 	for _, name := range seed {
-		if err := os.WriteFile(filepath.Join(migrationDir, name), []byte("SELECT 1;\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(treeDir, name), []byte("guard seed\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -142,44 +224,44 @@ func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, a
 	runGit("config", "--local", "gc.auto", "0")
 	runGit("config", "user.name", "Eshu Test")
 	runGit("config", "user.email", "eshu-test@example.invalid")
-	runGit("add", "go/internal/storage/postgres/migrations")
-	runGit("commit", "--quiet", "-m", "seed migration identity")
+	runGit("add", scenario.directory)
+	runGit("commit", "--quiet", "-m", "seed guard identity")
 	base := runGit("rev-parse", "HEAD")
 	if remove != "" {
-		if err := os.Remove(filepath.Join(migrationDir, remove)); err != nil {
+		if err := os.Remove(filepath.Join(treeDir, remove)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if add != "" {
-		if err := os.WriteFile(filepath.Join(migrationDir, add), []byte("SELECT 2;\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(treeDir, add), []byte("guard addition\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if modify != "" {
-		if err := os.WriteFile(filepath.Join(migrationDir, modify), []byte("SELECT 3;\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(treeDir, modify), []byte("guard modification\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if commitDeleted {
-		path := filepath.Join(migrationDir, "002_base_only.sql")
+		path := filepath.Join(treeDir, scenario.seed[len(scenario.seed)-1])
 		if err := os.Remove(path); err != nil {
 			t.Fatal(err)
 		}
 		runGit("add", "-A")
-		runGit("commit", "--quiet", "-m", "remove candidate migration")
-		if err := os.WriteFile(path, []byte("SELECT 1;\n"), 0o644); err != nil {
+		runGit("commit", "--quiet", "-m", "remove candidate file")
+		if err := os.WriteFile(path, []byte("guard seed\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if commitAdd {
 		runGit("add", "-A")
-		runGit("commit", "--quiet", "-m", "add candidate migration")
+		runGit("commit", "--quiet", "-m", "add candidate file")
 	}
 	if dirtyAdd {
 		if add == "" {
 			t.Fatal("dirtyAdd requires an added file")
 		}
-		if err := os.WriteFile(filepath.Join(migrationDir, add), []byte("SELECT 99;\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(treeDir, add), []byte("guard dirty\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -191,16 +273,16 @@ func checkMethodologyProductionTreeScenario(t *testing.T, childMarker, remove, a
 	}
 	for _, workingDirectory := range []string{packageDir, root} {
 		for _, inheritedWorkTree := range []string{"", "."} {
-			command := exec.Command(binary, "-test.run=^TestMethodologyProductionTreeRejectsBaseOnlyMigration$", "-test.v")
+			command := exec.Command(binary, "-test.run="+scenario.childTest, "-test.v")
 			command.Dir = workingDirectory
-			command.Env = append(methodologyScratchGitEnv(""), childMarker+"="+base, "ESHU_METHODOLOGY_IDENTITY_GUARD_CANDIDATE="+candidate)
+			command.Env = append(methodologyScratchGitEnv(""), childMarker+"="+base, scenario.candidateEnv+"="+candidate)
 			if inheritedWorkTree != "" {
 				command.Env = append(command.Env, "GIT_WORK_TREE="+inheritedWorkTree)
 			}
 			output, err := command.CombinedOutput()
 			if !wantFailure {
 				if err != nil {
-					t.Fatalf("unchanged migrations failed identity guard from %s (GIT_WORK_TREE=%q): %v:\n%s", workingDirectory, inheritedWorkTree, err, output)
+					t.Fatalf("unchanged sources failed identity guard from %s (GIT_WORK_TREE=%q): %v:\n%s", workingDirectory, inheritedWorkTree, err, output)
 				}
 				continue
 			}
