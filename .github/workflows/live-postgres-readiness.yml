@@ -277,6 +277,7 @@ jobs:
           ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE: '1'
           ESHU_IDENTITY_EPOCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE: '1'
+          ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
         run: bash scripts/run-live-postgres-readiness-tests.sh
 
       - name: Stop disposable physical standby

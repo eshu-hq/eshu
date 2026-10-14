@@ -20,7 +20,14 @@ own what happens after handoff.
 - `WebhookTriggerStore` with `NewWebhookTriggerStore(database db.ExecQueryer)`.
 - `EnsureSchema`, `StoreTrigger`, `ClaimQueuedTriggers`,
   `MarkTriggersHandedOff`, `MarkTriggersFailed`.
-- `ReapExpiredTriggerClaims`, `CountStaleClaims` (#7661 lease recovery).
+- `MarkIgnoredDecisionTriggersFailed`: the same-tick ignored-decision
+  terminal. It keeps the `(trigger_id, fencing token, claimed)` fence and
+  adds `AND decision <> 'accepted'` at UPDATE time, so a row flipped back
+  to accepted under the live claim is skipped for the handoff instead of
+  failed; it returns only the rows actually terminated (#7795).
+- `ReapExpiredTriggerClaims`, `CountStaleClaims` (#7661 lease recovery;
+  the reap also fails stale claims whose decision is not accepted with the
+  `ignored_decision` class instead of requeueing them, #7795).
 - `WebhookTriggerSchemaSQL()` returns the DDL.
 
 See `doc.go` for the godoc contract.
@@ -40,6 +47,9 @@ the instrumented handle and the callers own observability.
 - Storing a trigger never marks graph or repository truth fresh.
 - Claim order is `(status, received_at ASC, trigger_id ASC)`; the claim holds
   `FOR UPDATE SKIP LOCKED` so concurrent claimants never double-deliver.
+- The refresh-key upsert keeps status tracking the latest decision across
+  the queued/ignored pair in both directions; `claimed`, `handed_off`,
+  and `failed` rows stay sticky (#7795).
 - A nil database fails fast with an explicit error, never a nil panic.
 - The bootstrap migrations (`017_webhook_refresh_triggers.sql` plus
   `168_webhook_refresh_triggers_claim_fencing.sql`) must produce the same
@@ -63,6 +73,36 @@ span, or log name changes.
 No-Regression Evidence: focused `postgres` package tests plus the webhook
 claim-order and dedupe tests run green on the moved tree; the SQL text is
 unchanged so no plan or lifecycle proof is re-owed.
+
+## Evidence (#7795 same-tick guarded fail follow-up)
+
+No-Regression Evidence: the guarded fail keeps the exact `(trigger_id,
+fencing token, claimed)` predicate and adds one decision equality at
+UPDATE time; no index, plan-shape, lease, claim-order, or attempt-cap
+change. Baseline is the pre-fix behavior, proven by the RED runs on this
+branch: a 2-row ignored claim batch with one concurrent flip synced
+nothing and counted 2. After the fix,
+`go test ./internal/collector/repo/git/ -count=1` is green including
+`TestWebhookTriggerSelectorHandsOffFlipToAcceptedDuringTick` (flip syncs
+and hands off) and
+`TestWebhookTriggerSelectorCountsOnlyActuallyFailedIgnoredDecisions`;
+`go test ./internal/storage/postgres/webhook/ -count=1` is green, and the
+live Postgres proof
+`TestWebhookTriggerStoreIgnoredDecisionFailIsDecisionGuarded` (flip stays
+claimed then hands off; stale fence untouched; only the still-ignored row
+RETURNed) runs in the CI live lane — no local DSN here, so that leg is
+NOT_CHECKED locally. The RETURNING list is column-parity-checked 24/24
+against the claim query the same scanner already consumes. Input shape:
+claim batches up to the 100-row claim limit; terminal counts: only
+RETURNING rows reach failed, skipped rows stay claimed for the fenced
+handoff, so failed stays sticky only for genuinely ignored rows.
+
+Observability Evidence:
+`eshu_dp_webhook_trigger_ignored_decisions_total` now counts rows actually
+terminated, in the claiming tick and the reap alike:
+`TestWebhookTriggerSelectorCountsOnlyActuallyFailedIgnoredDecisions`
+collects the OTEL sum and asserts exactly 1 for a 2-attempt/1-terminated
+tick. The reap path already counted its RETURNING rows and is unchanged.
 
 ## Related docs
 

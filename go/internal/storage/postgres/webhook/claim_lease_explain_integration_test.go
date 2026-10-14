@@ -21,8 +21,9 @@ import (
 
 // TestWebhookTriggerStoreReapPlanUsesClaimedAtIndex proves the #7661 sweep
 // statements read the partial webhook_refresh_triggers_claimed_at_idx,
-// not the table: on 10,000 handed_off rows plus 300 stale claimed rows,
-// none of the reap, exhaust, or stuck-count plans may contain a Seq Scan
+// not the table: on 10,000 handed_off rows plus 300 stale claimed rows
+// (30 with an ignored decision for the #7795 arm), none of the reap,
+// exhaust, ignored-decision, or stuck-count plans may contain a Seq Scan
 // on webhook_refresh_triggers.
 func TestWebhookTriggerStoreReapPlanUsesClaimedAtIndex(t *testing.T) {
 	dsn := os.Getenv("ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN")
@@ -57,6 +58,7 @@ WHERE status = 'claimed' AND trigger_id LIKE 'stale-%' AND substr(trigger_id, 7)
 	}{
 		{"reap", reapStaleWebhookTriggerClaimsQuery, []any{staleBefore, 3, 100, now}},
 		{"exhaust", exhaustStaleWebhookTriggerClaimsQuery, []any{staleBefore, 3, 100, now}},
+		{"ignored", failIgnoredDecisionWebhookTriggerClaimsQuery, []any{staleBefore, 100, now}},
 		{"count", countStaleWebhookTriggerClaimsQuery, []any{staleBefore}},
 	} {
 		plan, execMs := explainClaimLeaseQuery(t, ctx, db, probe.query, probe.args...)
@@ -114,7 +116,8 @@ FROM generate_series(1, 10000) AS g`, now.Add(-24*time.Hour)); err != nil {
     delivery_id, repository_external_id, repository_full_name, default_branch,
     ref, target_sha, status, received_at, updated_at, claimed_by, claimed_at, claim_fencing_token
 ) SELECT 'stale-' || g, 'delivery-stale-' || g, 'refresh-stale-' || g,
-    'github', 'push', 'accepted', 'delivery-stale-' || g, 'repo', 'org/repo',
+    'github', 'push', CASE WHEN g % 10 = 0 THEN 'ignored' ELSE 'accepted' END,
+    'delivery-stale-' || g, 'repo', 'org/repo',
     'main', 'refs/heads/main', 'sha', 'claimed', $1, $1, 'owner-a', $1, 1
 FROM generate_series(1, 300) AS g`, now.Add(-time.Hour)); err != nil {
 		t.Fatalf("seed stale rows: %v", err)

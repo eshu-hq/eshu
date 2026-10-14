@@ -325,16 +325,21 @@ func TestLoadWebhookTriggerHandoffConfig(t *testing.T) {
 }
 
 type stubWebhookTriggerStore struct {
-	claimed       []webhook.StoredTrigger
-	handedOff     []string
-	failed        []string
-	failedCalls   []webhookTriggerFailureCall
-	reapCalls     int
-	reapErr       error
-	requeued      []webhook.StoredTrigger
-	exhausted     []webhook.StoredTrigger
-	staleCount    int64
-	staleCountErr error
+	claimed         []webhook.StoredTrigger
+	handedOff       []string
+	failed          []string
+	failedCalls     []webhookTriggerFailureCall
+	reapCalls       int
+	reapErr         error
+	requeued        []webhook.StoredTrigger
+	exhausted       []webhook.StoredTrigger
+	ignoredDecision []webhook.StoredTrigger
+	staleCount      int64
+	staleCountErr   error
+	// ignoredDecisionSkipped stands in for the decision-guarded UPDATE
+	// skipping rows concurrently flipped back to accepted: IDs listed
+	// here are returned as not-failed and stay on the handoff path.
+	ignoredDecisionSkipped map[string]bool
 }
 
 func remoteURLsFromSelectedRepositories(repositories []SelectedRepository) []string {
@@ -380,19 +385,41 @@ func (s *stubWebhookTriggerStore) MarkTriggersFailed(
 	return nil
 }
 
+func (s *stubWebhookTriggerStore) MarkIgnoredDecisionTriggersFailed(
+	_ context.Context,
+	triggers []webhook.StoredTrigger,
+	_ time.Time,
+	failureClass string,
+	_ string,
+) ([]webhook.StoredTrigger, error) {
+	failed := make([]webhook.StoredTrigger, 0, len(triggers))
+	for _, trigger := range triggers {
+		if s.ignoredDecisionSkipped[trigger.TriggerID] {
+			continue
+		}
+		failed = append(failed, trigger)
+	}
+	s.failedCalls = append(s.failedCalls, webhookTriggerFailureCall{
+		triggerIDs:   triggerIDsFromWebhookTriggers(failed),
+		failureClass: failureClass,
+	})
+	return failed, nil
+}
+
 func (s *stubWebhookTriggerStore) ReapExpiredTriggerClaims(
 	_ context.Context,
 	_ time.Time,
 	_ int,
 	_ int,
 	_ time.Time,
-) ([]webhook.StoredTrigger, []webhook.StoredTrigger, error) {
+) ([]webhook.StoredTrigger, []webhook.StoredTrigger, []webhook.StoredTrigger, error) {
 	s.reapCalls++
 	if s.reapErr != nil {
-		return nil, nil, s.reapErr
+		return nil, nil, nil, s.reapErr
 	}
 	return append([]webhook.StoredTrigger(nil), s.requeued...),
-		append([]webhook.StoredTrigger(nil), s.exhausted...), nil
+		append([]webhook.StoredTrigger(nil), s.exhausted...),
+		append([]webhook.StoredTrigger(nil), s.ignoredDecision...), nil
 }
 
 func (s *stubWebhookTriggerStore) CountStaleClaims(
