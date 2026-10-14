@@ -132,6 +132,31 @@ func isNotAGateResult(check checkRollup, runs runConclusions) bool {
 	}
 }
 
+// isFailureInCancelledRun reports whether a check reached a FAILURE verdict
+// inside a workflow run GitHub concluded `cancelled` (#8053).
+//
+// This is the failure half of the same cancellation the SKIPPED and MISSING
+// shapes already handle. An `if: always()` downstream job -- the golden-corpus
+// `differential`, with `needs: [queue-selection, differential-capture]` --
+// still runs after its upstream jobs are cancelled, finds nothing staged, and
+// records FAILURE on a run whose verdict is cancellation. Judging that row a
+// gate failure publishes red on a head where no gate failed.
+//
+// Only a failure verdict in a cancelled run qualifies, and the ordering in
+// evaluateRequiredChecks keeps it narrow: CANCELLED and STALE rows reach
+// isNotAGateResult first however they are bucketed, pending rows reach the
+// pending arm first, and SKIPPED and NEUTRAL never satisfy the verdict test
+// below, so the genuine-skip and neutral fail-closed rules cannot drift
+// through this one. A nil or absent run entry -- including a failed lookup --
+// keeps the failure failing closed, the same safe default the SKIPPED rule
+// uses.
+func isFailureInCancelledRun(check checkRollup, runs runConclusions) bool {
+	if !runs.cancelled(check.Workflow) {
+		return false
+	}
+	return strings.EqualFold(check.Bucket, "fail") || strings.EqualFold(check.State, "FAILURE")
+}
+
 // isAwaitingRunConclusion reports whether a SKIPPED check cannot be classified
 // yet because the workflow run that owns it is still executing.
 //
@@ -203,7 +228,7 @@ func missingCheckIsCancellationArtifact(gate resolvedRequiredGate, runs runConcl
 // one, which is the strand this change removes, reintroduced through the door
 // next to it.
 func needsRunConclusions(required []resolvedRequiredGate, checks []checkRollup) bool {
-	missing, skipped, running := false, false, false
+	missing, skipped, running, failed := false, false, false, false
 	for _, gate := range required {
 		matches := matchingChecks(gate, checks)
 		if len(matches) == 0 {
@@ -216,12 +241,24 @@ func needsRunConclusions(required []resolvedRequiredGate, checks []checkRollup) 
 				skipped = true
 			case isStaleCheck(check):
 				// Terminal despite its bucket; see above.
+			case isCancelledCheck(check):
+				// Terminal however gh bucketed it; needs no lookup.
 			case strings.EqualFold(check.Bucket, "pending"):
 				running = true
+			case strings.EqualFold(check.Bucket, "pass"):
+				// Decided.
+			default:
+				// A failure verdict needs the owning run's conclusion:
+				// without it a superseded run's FAILURE cannot be told from
+				// a genuine one (#8053). This fires at most once per poll
+				// that carries a failure, and a verdict follows on the same
+				// poll, so it cannot burn budget the way an unconditional
+				// per-poll call would.
+				failed = true
 			}
 		}
 	}
-	return skipped || (missing && !running)
+	return skipped || failed || (missing && !running)
 }
 
 // workflowRunConclusion is the slice of a workflow run this command reads.
