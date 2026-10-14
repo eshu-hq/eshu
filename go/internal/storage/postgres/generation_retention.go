@@ -337,11 +337,6 @@ type generationRetentionCandidate struct {
 	freshnessHint   string
 }
 
-// sameIdentityGroup reports whether the candidate carries a prunable
-// same-identity exemption key (#7981): a non-empty source commit SHA. A NULL
-// or empty SHA never matches, so backfill and legacy generations without a
-// recorded commit stay on the rank and age rule only.
-
 func (s GenerationRetentionStore) selectCandidates(
 	ctx context.Context,
 	tx db.Transaction,
