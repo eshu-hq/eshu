@@ -28,6 +28,7 @@ flowchart LR
 flowchart TB
   A["Service.Run\npoll Source.Next"] --> B{"generation\navailable?"}
   B -- no --> C["AfterBatchDrained?\nwait PollInterval"]
+  A -- "retryable CycleSkipper error" --> R["log + count, wait RetryAfter\nno drain, no escape"]
   B -- yes --> D["SpanCollectorObserve\ncollect + commit cycle"]
   D --> E["commitWithTelemetry\nCommitter.CommitScopeGeneration"]
   A2["GitSource.Next\nstartStream on first call"] --> F["discoverRepositories\nSelector.SelectRepositories\nSpanScopeAssign"]
@@ -55,6 +56,20 @@ and the generation bookkeeping each run depends on — lives in `LIFECYCLE.md`.
   `AfterEmptyBatchDrained`, `Tracer`, `Instruments`, `Logger`. `DeadLetters`
   records commit failures and clears replay state after later successful commits
 - `Source` — interface: `Next(context.Context) (CollectedGeneration, bool, error)`
+- `CycleSkipper` / `CycleSkip` — optional interface on a `RetryableError` a
+  source returns from `Next` when a discovery cycle failed in a way the
+  provider is expected to clear (#8084). `Service.Run` then skips the cycle:
+  it ends the observation with the error, logs the WARN line
+  `collector discovery retryable; skipping cycle`, counts
+  `eshu_dp_collector_discovery_skipped_cycles_total` (`collector_kind`,
+  `operation`, `failure_class`), waits `RetryAfter` (the
+  poll interval when zero), and polls again. It does not run
+  `AfterBatchDrained` and does not spend the `AfterEmptyBatchDrained` escape
+  latch, because a failed listing is not a drained batch. The source owns the
+  consecutive-failure cap and must return a non-retryable error at it. A
+  retryable error that does not implement the interface, and every plain
+  error, keeps the fatal `collect scope generation: ...` return. `Service.Wait`
+  replaces the poll and skip timer in tests
 - `ObservedSource` — optional source interface that receives a
   `StartObserveFunc` and returns a `CollectorObservation` so real collection
   attempts, not idle polls, can share one `collector.observe` span with commit

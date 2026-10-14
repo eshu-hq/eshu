@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -54,6 +55,10 @@ type NativeRepositorySelector struct {
 	// collector drives one selector sequentially, one cycle at a time, so a
 	// plain counter is safe without a lock.
 	reconcileWalkOffset int
+	// DiscoveryFailures is the per-process counter shared with the webhook
+	// selector (#8084); nil means this selector owns a private one.
+	DiscoveryFailures *rest.Failures
+	ownFailures       rest.Failures
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -62,6 +67,30 @@ type NativeRepositorySelector struct {
 // reconcile round-robin from the previous cycle's NextReconcileStartOffset;
 // callers hold one selector for the process and drive it sequentially.
 func (s *NativeRepositorySelector) SelectRepositories(
+	ctx context.Context,
+) (SelectionBatch, error) {
+	ctx = rest.WithObserver(ctx, s.Instruments, s.Logger)
+	failures := s.discoveryFailures()
+	batch, err := s.selectRepositories(ctx)
+	if err != nil {
+		return batch, failures.Observe(ctx, s.Instruments, err)
+	}
+	// A nil cycle completed the listing and the mint, so both start over.
+	failures.Clear(ctx, s.Instruments)
+	return batch, nil
+}
+
+// discoveryFailures returns the shared counter, or the private one.
+func (s *NativeRepositorySelector) discoveryFailures() *rest.Failures {
+	if s.DiscoveryFailures != nil {
+		return s.DiscoveryFailures
+	}
+	return &s.ownFailures
+}
+
+// selectRepositories runs one selection cycle. SelectRepositories wraps it to
+// count retryable discovery failures across cycles.
+func (s *NativeRepositorySelector) selectRepositories(
 	ctx context.Context,
 ) (SelectionBatch, error) {
 	if strings.TrimSpace(s.Config.SourceMode) == "" {

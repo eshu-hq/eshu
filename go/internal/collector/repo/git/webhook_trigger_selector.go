@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	"go.opentelemetry.io/otel/metric"
@@ -95,6 +96,11 @@ type WebhookTriggerRepositorySelector struct {
 	// once per cycle that claimed triggers (#7620). Like ReindexWatermark it
 	// reaches only the triggered repositories; nil disables them.
 	RepositoryReindexWatermark RepositoryReindexWatermarkReader
+	// DiscoveryFailures is the per-process discovery failure counter shared
+	// with the native selector (#8084). It must be set for a retryable GitHub
+	// failure on the sync path to skip the cycle; nil keeps such a failure
+	// fatal, so an unwired caller can never loop without a cap.
+	DiscoveryFailures *rest.Failures
 }
 
 // SelectRepositories claims queued webhook triggers, syncs only the referenced
@@ -172,6 +178,23 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	}
 	synced, err := syncGitFn(ctx, s.Config, repositoryIDs)
 	if err != nil {
+		var retryable *rest.RetryableError
+		if errors.As(err, &retryable) {
+			if s.DiscoveryFailures != nil {
+				// A retryable GitHub failure (the token mint on the sync path)
+				// is counted against the shared per-process cap and skips the
+				// cycle. The claims stay claimed: marking them failed is
+				// terminal and would lose them to a blip, while the lease
+				// reaper requeues them (#8084, ruling 3).
+				return SelectionBatch{}, fmt.Errorf(
+					"sync webhook-triggered repositories: %w",
+					s.DiscoveryFailures.Observe(ctx, s.Instruments, err),
+				)
+			}
+			// Without a shared counter nothing would cap the skip: stay fatal
+			// exactly as before the skip path existed.
+			err = rest.Strip(err)
+		}
 		if len(syncableTriggers) > 0 {
 			markErr := s.Store.MarkTriggersFailed(ctx, syncableTriggers, observedAt, webhookTriggerFailureSyncGit, err.Error())
 			if markErr != nil {
@@ -184,6 +207,11 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 		return SelectionBatch{}, fmt.Errorf("sync webhook-triggered repositories: %w", err)
 	}
 
+	if s.DiscoveryFailures != nil {
+		// A sync of a non-empty repository set mints but never lists, so only
+		// the mint count starts over.
+		s.DiscoveryFailures.Clear(ctx, s.Instruments, rest.OperationMint)
+	}
 	if len(syncableTriggers) > 0 {
 		if err := s.Store.MarkTriggersHandedOff(ctx, syncableTriggers, observedAt); err != nil {
 			return SelectionBatch{}, fmt.Errorf("mark webhook triggers handed off: %w", err)
