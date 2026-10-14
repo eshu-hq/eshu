@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -70,7 +71,18 @@ func TestFileGraphIDStableThroughSymlinkedCheckoutRoot(t *testing.T) {
 		t.Fatalf("direct snapshot emitted no file facts")
 	}
 	for _, id := range linkedIDs {
-		if strings.Contains(id, "..") {
+		// The graph id is repoID + ":" + relativePath (#8077). A parent
+		// escape is a ".." path segment in the relative portion. A bare
+		// substring check also trips on legitimate names like "a..b.py",
+		// while wrapping the whole id in slashes misses the leading
+		// "repoID:../" shape from #7998 (the ".." follows a colon, not a
+		// slash). Cut the known test repo prefix first so an unexpected id
+		// shape fails loudly instead of passing silently.
+		relative, ok := strings.CutPrefix(id, "repository:r_12345678:")
+		if !ok {
+			t.Fatalf("file graph_id has unexpected shape: %q (all: %q)", id, linkedIDs)
+		}
+		if slices.Contains(strings.Split(relative, "/"), "..") {
 			t.Fatalf("symlinked checkout emitted file graph_id with ../ segment: %q (all: %q)", id, linkedIDs)
 		}
 	}
