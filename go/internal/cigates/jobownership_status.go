@@ -48,18 +48,22 @@ func overridesStatus(ifExpr string) bool {
 	return strings.Contains(ifExpr, "||") || negationRE.MatchString(ifExpr)
 }
 
-// coverage is the walk state of the covered-job computation.
+// coverage is the walk state of the covered-job computation. repoRoot is the
+// repository root the cross-file script-body check resolves scripts/ callees
+// against.
 type coverage struct {
-	jobs    map[string]ownershipJob
-	covered map[string]bool
-	visited map[string]bool
+	repoRoot string
+	jobs     map[string]ownershipJob
+	covered  map[string]bool
+	visited  map[string]bool
 }
 
-func newCoverage(jobs map[string]ownershipJob) *coverage {
+func newCoverage(repoRoot string, jobs map[string]ownershipJob) *coverage {
 	return &coverage{
-		jobs:    jobs,
-		covered: make(map[string]bool, len(jobs)),
-		visited: make(map[string]bool, len(jobs)),
+		repoRoot: repoRoot,
+		jobs:     jobs,
+		covered:  make(map[string]bool, len(jobs)),
+		visited:  make(map[string]bool, len(jobs)),
 	}
 }
 
@@ -114,7 +118,7 @@ func (c *coverage) walk(key string) {
 			c.walk(need)
 			continue
 		}
-		if covers && !toleratesFailure(job) && readsNeedResult(job.If, job.text, need) {
+		if covers && !toleratesFailure(job) && readsNeedResult(job.If, job.text, need, c.repoRoot) {
 			c.covered[need] = true
 		}
 	}
@@ -129,62 +133,176 @@ func toleratesFailure(job ownershipJob) bool {
 }
 
 // readsNeedResult reports whether the dependent gates on needs.<need>.result
-// or needs.<need>.outcome: the reference sits in the job-level `if:`, or in a
-// value a later shell test branches on (#7882).
+// or needs.<need>.outcome: the reference sits in a non-tautological
+// job-level `if:`, or in a value a later shell test branches on (#7882, #8014).
 //
 // A bare text match is not enough: `echo "${{ needs.dep.result }}"` or a grep
 // pattern mentions the reference without gating, and the dependency would read
 // as covered while nothing fails when it does. Each leg below is the narrowest
 // shape that still covers the real aggregators:
 //
-//   - the job-level if: mentions the reference, bare or in ${{ }} (a false job
-//     if: skips the job, and a skip publishes failure). Anchoring this leg to
-//     ${{ }} would turn the legal bare spelling docker-publish.yml uses
-//     (`needs.build-and-push-image.result == 'success'`) into a false red.
-//   - a shell line opens with test, [, [[, if, or case and holds the reference
+//   - the job-level if: mentions the reference, bare or in ${{ }}, and no
+//     top-level `||` disjunct beside the reference reads true on its own (a
+//     false job if: skips the job, and a skip publishes failure). Anchoring
+//     this leg to ${{ }} would turn the legal bare spelling
+//     docker-publish.yml uses (`needs.build-and-push-image.result ==
+//     'success'`) into a false red.
+//   - a shell line opens with test, [, or [[ and holds the reference
 //     (`run: test "${{ needs.dep.result }}" = success`). The keyword must open
 //     the line: `echo "test: ${{ needs.dep.result }}"` names a test without
-//     running one.
+//     running one. A failing test fails the step, so no body is needed.
+//   - a shell line opens with if or case and holds the reference, and a
+//     failing body (exit with a nonzero literal, or false) follows within a
+//     bounded lookahead to the closing fi/esac (test.yml go-race-complete:
+//     `if [ "${result}" != "success" ]; then ... exit 1; fi`). An `if` whose
+//     body only echoes cannot fail the job, so it does not gate.
 //   - a shell assignment captures the reference and a later shell-test line
 //     branches on the variable (test.yml go-race-complete:
 //     `result="${{ needs.go-race.result }}"`, then
-//     `if [ "${result}" != "success" ]`).
+//     `if [ "${result}" != "success" ]` with an exit 1 body).
 //   - a YAML env value holds the reference and a later shell-test line
 //     branches on the variable (live-backend-tests.yml: `SHARD_RESULT` plus
-//     `case "$RUN_LIVE:$SHARD_RESULT" in`). The env key and value are separate
-//     scalars, so the name line must immediately precede a bare ${{ }} value
-//     line; only UPPER_SNAKE names bind, which keeps the `if`, `run`, and
-//     `name` mapping keys from binding.
-//   - a repo-script invocation takes the reference as an argument
+//     `case "$RUN_LIVE:$SHARD_RESULT" in` with a failing arm). The env key
+//     and value are separate scalars, so the name line must immediately
+//     precede a bare ${{ }} value line; only UPPER_SNAKE names bind, which
+//     keeps the `if`, `run`, and `name` mapping keys from binding.
+//   - a repo-script invocation takes the reference as an argument and the
+//     resolved scripts/ callee gates on its positional slot
 //     (golden-corpus-gate.yml differential passes
 //     `"${{ needs.differential-capture.result }}"` to
-//     scripts/lib/stage-differential-capture.sh, which exits 1 unless it is
-//     success). The line must open with an interpreter or a path and name a
-//     scripts/ callee, so an echo of a script path does not count.
+//     scripts/lib/stage-differential-capture.sh, which carries $5 into
+//     capture_result and exits 1 unless it is success). The line must open
+//     with an interpreter or a path and name a scripts/ callee, so an echo
+//     of a script path does not count.
 //
 // Narrowings, all fail-closed: a test chained after `;`, `&&`, or `||` on one
 // line, a branch on a lower-case env name, a callee spelled outside scripts/,
-// and the inverted step-if-plus-exit idiom each read as uncovered, so the
-// author restructures or adds an owner row. A step-level if: never counts:
-// skipping one step leaves the job green.
-//
-// Three residual gaps stay fail-open and review-visible, the same class as the
-// trivy wiring check's downstream-mutation gap: a repo script that takes the
-// reference and ignores it still covers, and an `always() || ...` job if:
-// that can never be false still covers. An `if` without a failing body
-// over-covers for the same reason: deciding that needs the branch body, which
-// is shell parsing this check does not do.
-func readsNeedResult(ifExpr, text, need string) bool {
+// a callee that is missing, non-shell, or unresolvable, a script that takes
+// the reference and ignores it, a tautological job if:, an if/case without a
+// failing body, and the inverted step-if-plus-exit idiom each read as
+// uncovered, so the author restructures or adds an owner row. A step-level
+// if: never counts: skipping one step leaves the job green.
+func readsNeedResult(ifExpr, text, need, repoRoot string) bool {
 	if mentionsNeedResult(ifExpr, need) {
 		return true
 	}
-	return gatesNeedResult(text, need)
+	return gatesNeedResult(text, need, repoRoot)
 }
 
 // mentionsNeedResult reports whether the job-level if: references
-// needs.<need>.result or needs.<need>.outcome, bare or in ${{ }}.
+// needs.<need>.result or needs.<need>.outcome, bare or in ${{ }}, without a
+// tautological escape: when a top-level `||` disjunct beside the reference
+// reads true under a failed-dependency status (always(), failure(),
+// `!cancelled()`), the job runs whatever the reference holds, so the mention
+// does not gate (#8014).
 func mentionsNeedResult(ifExpr, need string) bool {
-	return regexp.MustCompile(`needs\.` + regexp.QuoteMeta(need) + `\.(result|outcome)\b`).MatchString(ifExpr)
+	refRE := regexp.MustCompile(`needs\.` + regexp.QuoteMeta(need) + `\.(result|outcome)\b`)
+	if !refRE.MatchString(ifExpr) {
+		return false
+	}
+	return !tautologicalWithoutRef(ifExpr, refRE)
+}
+
+// tautologicalWithoutRef splits the expression on top-level `||` and reports
+// whether a disjunct that does not hold the reference reads true under a
+// failed-dependency status. Anything but a provably false disjunct
+// (success(), cancelled(), a false literal) fails closed: an unevaluable
+// condition beside the reference may run the job, so the reference does not
+// gate it.
+func tautologicalWithoutRef(ifExpr string, refRE *regexp.Regexp) bool {
+	expr := strings.TrimSpace(ifExpr)
+	if strings.HasPrefix(expr, "${{") && strings.HasSuffix(expr, "}}") {
+		expr = strings.TrimSpace(expr[len("${{") : len(expr)-len("}}")])
+	}
+	for _, disjunct := range splitTopLevelOr(expr) {
+		if refRE.MatchString(disjunct) {
+			continue
+		}
+		if !provablyFalseUnderFailure(disjunct) {
+			return true
+		}
+	}
+	return false
+}
+
+// splitTopLevelOr splits an expression on `||` outside parentheses and
+// quotes. Line-based only: no expression grammar beyond depth counting.
+func splitTopLevelOr(expr string) []string {
+	var parts []string
+	depth := 0
+	start := 0
+	inSingle := false
+	inDouble := false
+	for i := 0; i < len(expr); i++ {
+		c := expr[i]
+		switch {
+		case c == '\'' && !inDouble:
+			inSingle = !inSingle
+		case c == '"' && !inSingle:
+			inDouble = !inDouble
+		case inSingle || inDouble:
+		case c == '(':
+			depth++
+		case c == ')' && depth > 0:
+			depth--
+		case c == '|' && depth == 0 && i+1 < len(expr) && expr[i+1] == '|':
+			parts = append(parts, expr[start:i])
+			i++
+			start = i + 1
+		}
+	}
+	return append(parts, expr[start:])
+}
+
+// successCallRE and cancelledCallRE match the status calls that read false
+// under a failed-dependency status: the dependency neither succeeded nor was
+// cancelled.
+var (
+	successCallRE   = regexp.MustCompile(`(?i)^success\s*\(\s*\)$`)
+	cancelledCallRE = regexp.MustCompile(`(?i)^cancelled\s*\(\s*\)$`)
+)
+
+// provablyFalseUnderFailure reports whether a non-reference disjunct reads
+// false under a failed-dependency status, so the job still needs the
+// reference to run. always(), failure(), and `!cancelled()` read true there;
+// anything else the check cannot evaluate fails closed.
+func provablyFalseUnderFailure(disjunct string) bool {
+	s := stripOuterParens(disjunct)
+	if strings.EqualFold(s, "false") {
+		return true
+	}
+	return successCallRE.MatchString(s) || cancelledCallRE.MatchString(s)
+}
+
+// stripOuterParens removes balanced wrapping parentheses, so `(success())`
+// evaluates like `success()` while `(a) && (b)` is left alone.
+func stripOuterParens(s string) string {
+	for {
+		s = strings.TrimSpace(s)
+		if len(s) < 2 || s[0] != '(' || s[len(s)-1] != ')' {
+			return s
+		}
+		depth := 0
+		wraps := false
+		for i := 0; i < len(s); i++ {
+			switch s[i] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+				if depth == 0 {
+					wraps = i == len(s)-1
+				}
+			}
+			if depth == 0 {
+				break
+			}
+		}
+		if !wraps {
+			return s
+		}
+		s = s[1 : len(s)-1]
+	}
 }
 
 // shellGatingLeadRE matches a shell line that opens with a branching form:
@@ -215,9 +333,9 @@ func isScriptGateLine(line string) bool {
 // gatesNeedResult reports whether the job's scalar text gates on
 // needs.<need>.result or needs.<need>.outcome outside the job if: a
 // shell-test line holding the reference, a shell or env variable carrying it
-// to a later shell-test line, or a repo-script invocation taking it as an
-// argument.
-func gatesNeedResult(text, need string) bool {
+// to a later shell-test line with a failing body, or a repo-script invocation
+// whose resolved callee gates on its positional slot.
+func gatesNeedResult(text, need, repoRoot string) bool {
 	quoted := regexp.QuoteMeta(need)
 	needRE := regexp.MustCompile(`needs\.` + quoted + `\.(result|outcome)\b`)
 	// A bare ${{ }} value line, the shape a YAML env value has once
@@ -230,10 +348,19 @@ func gatesNeedResult(text, need string) bool {
 			continue
 		}
 		if shellGatingLeadRE.MatchString(line) {
+			if isBranchLead(line) {
+				if hasFailingBody(lines, i) {
+					return true
+				}
+				continue
+			}
 			return true
 		}
 		if isScriptGateLine(line) {
-			return true
+			if scriptGatesOnArg(repoRoot, line) {
+				return true
+			}
+			continue
 		}
 		varName := ""
 		if m := assignRE.FindStringSubmatch(line); m != nil {
@@ -245,8 +372,14 @@ func gatesNeedResult(text, need string) bool {
 			continue
 		}
 		refRE := regexp.MustCompile(`\$` + varName + `\b|\$\{` + varName + `[}:/]`)
-		for _, later := range lines[i+1:] {
+		for j, later := range lines[i+1:] {
 			if shellGatingLeadRE.MatchString(later) && refRE.MatchString(later) {
+				if isBranchLead(later) {
+					if hasFailingBody(lines, i+1+j) {
+						return true
+					}
+					continue
+				}
 				return true
 			}
 		}

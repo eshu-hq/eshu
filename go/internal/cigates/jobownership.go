@@ -112,7 +112,7 @@ func checkWorkflowJobOwnership(repoRoot string, reg *Registry, workflow string) 
 
 	declared := declaredCheckNames(reg, workflow)
 	names := newNameResolver(jobs, declared)
-	cov := newCoverage(jobs)
+	cov := newCoverage(repoRoot, jobs)
 	for key, job := range jobs {
 		if names.owns(key, job) {
 			cov.own(key)

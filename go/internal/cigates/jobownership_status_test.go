@@ -262,6 +262,12 @@ func TestJobOwnershipResultReadMustGate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			root := buildDriftRepo(t, minimalPreCommit("a"), nil)
+			// The "repo script argument gates" entry names
+			// scripts/lib/check.sh; check 13 resolves the callee
+			// cross-file (#8014), so every subtest materializes a
+			// gating callee. The table above is unchanged.
+			writeRepoScript(t, root, "scripts/lib/check.sh",
+				"#!/usr/bin/env bash\nif [ \"$1\" != success ]; then\n  echo \"bad result\"\n  exit 1\nfi\n")
 			writeWorkflow(t, root, "g.yml", gatingWorkflow(tc.jobIf, tc.steps))
 			reg := minimalReg([]cigates.Gate{ownershipGate("a", "g.yml", "owned-job")}, nil, nil)
 			errs := ownershipErrors(t, root, reg)
