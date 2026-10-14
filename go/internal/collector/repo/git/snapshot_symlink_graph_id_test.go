@@ -33,6 +33,11 @@ func TestFileGraphIDStableThroughSymlinkedCheckoutRoot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(realDir, "app.py"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write app.py: %v", err)
 	}
+	// Accept-leg pin (#8046 review): a substring ".." check trips on this
+	// legitimate name, while the segment check below must let it through.
+	if err := os.WriteFile(filepath.Join(realDir, "a..b.py"), []byte(body), 0o600); err != nil {
+		t.Fatalf("write a..b.py: %v", err)
+	}
 	linkedDir := filepath.Join(filepath.Dir(realDir), "linked-checkout")
 	if err := os.Symlink(realDir, linkedDir); err != nil {
 		t.Fatalf("symlink checkout: %v", err)
