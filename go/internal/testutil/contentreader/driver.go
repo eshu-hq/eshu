@@ -9,6 +9,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -48,6 +49,20 @@ type ReaderQueryResult struct {
 	// $1/$2/$3 binding is invisible to both (#5764 round-8 P2-2 review
 	// follow-up).
 	WantArgs []driver.Value
+	// RouteArgs, when non-nil, routes the answer by bind values instead of
+	// queue position: a query consumes the first queued result whose
+	// RouteArgs equal the query's leading bind values (compared after
+	// driver conversion) rather than the head of the queue. It stays nil
+	// unless concurrent queries make arrival order nondeterministic (#7126
+	// cross-repo fan-out): a FIFO queue cannot serve same-shape answers to
+	// queries that arrive in scheduling order. A routed answer is never
+	// consumed positionally, so a query that matches no routed result fails
+	// loudly while routed answers are still queued instead of silently
+	// taking the wrong rows. Route the whole concurrent read set and leave
+	// the later sequential reads positional; a positional query that arrives
+	// while a routed answer is still queued is a test bug, not a routing
+	// gap, and fails as one.
+	RouteArgs []driver.Value
 }
 
 // OpenReaderTestDB returns a *sql.DB backed by a fake driver that answers
@@ -146,10 +161,17 @@ func (contentReaderTx) Rollback() error {
 // with an empty row set of the right shape and leaves the queue untouched.
 // Consuming the queue for those would misalign every later expectation.
 //
+// A query whose leading bind values match a routed result's RouteArgs takes
+// that result wherever it sits in the queue, so concurrent same-shape reads
+// each get their own rows regardless of arrival order.
+//
 // Everything else takes the head of the queue, runs that result's assertions
-// against the SQL text and the bind values, and answers with its rows. An empty
-// queue is an error rather than an empty answer, so a handler issuing a read
-// nobody declared fails instead of passing.
+// against the SQL text and the bind values, and answers with its rows. A
+// routed head is never taken positionally: while routed answers are still
+// queued, an unmatched query is a routing gap in the test and fails instead
+// of silently taking another query's rows. An empty queue is an error rather
+// than an empty answer, so a handler issuing a read nobody declared fails
+// instead of passing.
 func (c *contentReaderConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	if rows := contentReaderDefaultRows(query, c.results); rows != nil {
 		return rows, nil
@@ -157,8 +179,46 @@ func (c *contentReaderConn) QueryContext(_ context.Context, query string, args [
 	if len(c.results) == 0 {
 		return nil, fmt.Errorf("unexpected query")
 	}
+	if index, ok := routedResultIndex(c.results, args); ok {
+		result := c.results[index]
+		c.results = append(c.results[:index], c.results[index+1:]...)
+		return answerResult(query, args, result)
+	}
 	result := c.results[0]
+	if result.RouteArgs != nil {
+		return nil, fmt.Errorf("unexpected query: no routed result matches, and the head of the queue is routed")
+	}
 	c.results = c.results[1:]
+	return answerResult(query, args, result)
+}
+
+// routedResultIndex returns the index of the first queued result whose
+// RouteArgs equal the query's leading bind values, and whether one matched.
+// Bind values compare after driver conversion, so an int limit arrives as
+// int64: route on a stable leading value such as the repository id, not on a
+// converted limit.
+func routedResultIndex(results []ReaderQueryResult, args []driver.NamedValue) (int, bool) {
+	for i, result := range results {
+		if result.RouteArgs == nil || len(args) < len(result.RouteArgs) {
+			continue
+		}
+		matched := true
+		for j, want := range result.RouteArgs {
+			if !reflect.DeepEqual(args[j].Value, want) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// answerResult runs one queued result's assertions against the SQL text and
+// the bind values and answers with its rows or its error.
+func answerResult(query string, args []driver.NamedValue, result ReaderQueryResult) (driver.Rows, error) {
 	for _, fragment := range result.QueryContains {
 		if !strings.Contains(query, fragment) {
 			return nil, fmt.Errorf("query missing fragment %q", fragment)

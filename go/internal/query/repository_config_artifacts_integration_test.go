@@ -16,25 +16,32 @@ func TestGetRepositoryStoryIncludesSharedConfigPathsFromRelatedRepos(t *testing.
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
+			// Routed by repository: the fan-out issues the anchor and
+			// related reads concurrently (#7126), so same-shape answers
+			// match on the leading repo_id bind instead of queue position.
+			// The story assertions below are unchanged.
 			columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{},
+			rows:      [][]driver.Value{},
+			routeArgs: []driver.Value{"repo-app"},
 		},
 		{
 			columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content",
 				"content_hash", "line_count", "language", "artifact_type",
 			},
-			rows: [][]driver.Value{},
+			rows:      [][]driver.Value{},
+			routeArgs: []driver.Value{"repo-app"},
 		},
 		{
 			columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content",
 				"content_hash", "line_count", "language", "artifact_type",
 			},
-			rows: [][]driver.Value{},
+			rows:      [][]driver.Value{},
+			routeArgs: []driver.Value{"repo-app"},
 		},
 		{
 			columns: []string{
@@ -51,6 +58,7 @@ func TestGetRepositoryStoryIncludesSharedConfigPathsFromRelatedRepos(t *testing.
 					"hash-k2", int64(20), "yaml", "yaml",
 				},
 			},
+			routeArgs: []driver.Value{"repo-helm"},
 		},
 		{
 			columns: []string{
@@ -67,6 +75,7 @@ resources:
 					"hash-k1", int64(5), "yaml", "yaml",
 				},
 			},
+			routeArgs: []driver.Value{"repo-helm"},
 		},
 		{
 			// The needed-content pass asks which of the files no extractor
@@ -76,6 +85,7 @@ resources:
 			queryContains: []string{
 				"btrim(content",
 			},
+			routeArgs: []driver.Value{"repo-helm"},
 		},
 		{
 			columns: []string{
@@ -95,6 +105,7 @@ spec:
 					"hash-k2", int64(20), "yaml", "yaml",
 				},
 			},
+			routeArgs: []driver.Value{"repo-helm"},
 		},
 		{
 			columns: []string{
@@ -111,6 +122,7 @@ spec:
 					"hash-k4", int64(20), "yaml", "yaml",
 				},
 			},
+			routeArgs: []driver.Value{"repo-terraform"},
 		},
 		{
 			columns: []string{
@@ -127,6 +139,7 @@ resources:
 					"hash-k3", int64(5), "yaml", "yaml",
 				},
 			},
+			routeArgs: []driver.Value{"repo-terraform"},
 		},
 		{
 			// The needed-content pass asks which of the files no extractor
@@ -136,6 +149,7 @@ resources:
 			queryContains: []string{
 				"btrim(content",
 			},
+			routeArgs: []driver.Value{"repo-terraform"},
 		},
 		{
 			columns: []string{
@@ -155,6 +169,7 @@ spec:
 					"hash-k4", int64(20), "yaml", "yaml",
 				},
 			},
+			routeArgs: []driver.Value{"repo-terraform"},
 		},
 		{
 			columns: []string{"payload"},

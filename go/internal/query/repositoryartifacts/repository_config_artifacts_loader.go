@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -197,13 +198,49 @@ func loadRepositoryConfigArtifactsForSources(
 	return productionConfigArtifactLoader.loadForSources(ctx, reader, sources, stats)
 }
 
+// repositoryConfigFanoutWidth bounds the per-repository loads loadForSources
+// runs at once (#7126). Eight matches ReadChunksInFlight, the bound the
+// within-repo chunk reader already places on concurrent content-store reads
+// (#7962): one repository load can drive up to eight chunk reads, so a
+// cross-repo width of eight keeps the usual in-flight statements near the
+// width, with short bursts the reader pool absorbs by queueing. It overlaps
+// the per-repository list, hydrate and blank-check round trips of a
+// 317-repository story without spawning one goroutine per repository.
+// Contention with concurrent stories sharing the 30-connection reader pool is
+// NOT_CHECKED: keep the width here until a deployed read measures it.
+const repositoryConfigFanoutWidth = 8
+
+// sourceLoadOutcome is one repository's per-repository load result: its rows,
+// its read statistics, and its error, if any.
+type sourceLoadOutcome struct {
+	rows      []map[string]any
+	readStats contentartifacts.ReadStats
+	err       error
+}
+
 // loadForSources runs the per-repository config artifact function of the
-// neutral package for each source in order, then merges every repository's
-// rows with one dedup map and one total sort. A source with no id or no name
-// is skipped. Each repository's allowance is the floor plus what is left of
-// the request budget; a repository that takes more than the floor spends the
+// neutral package for each source, then merges every repository's rows with
+// one dedup map and one total sort. A source with no id or no name is
+// skipped. Each repository's allowance is the floor plus what is left of the
+// request budget; a repository that takes more than the floor spends the
 // difference. The statistics of every repository are summed into stats, also
 // when a repository fails.
+//
+// The loads run in a bounded fan-out of repositoryConfigFanoutWidth workers
+// and commit in source order, which keeps the exact sequential contract:
+// merged rows in source order and budget accounting in source order. Every
+// load first runs optimistically with the widest allowance any source could
+// receive (floor plus budget). The ordered commit then adopts a repository's
+// optimistic result exactly when it provably equals the sequential result:
+// the load succeeded and its candidate pool fits the true sequential
+// allowance, so both runs read every candidate and compute the same rows and
+// the same counts. Any other repository -- one the true allowance truncates,
+// or one whose optimistic load failed -- is re-run sequentially with its
+// exact sequential allowance, so its outcome is the sequential outcome. A
+// failed repository still contributes its statistics and ends the load with
+// no rows, as in the serial walk. The fan-out never cancels the shared
+// context on an error: every optimistic load runs to completion, so the first
+// error in source order is the reported one, as in the serial walk.
 func (l configArtifactLoader) loadForSources(
 	ctx context.Context,
 	reader querycontract.ContentStore,
@@ -216,27 +253,68 @@ func (l configArtifactLoader) loadForSources(
 		return nil, nil
 	}
 
-	port := contentStoreReader{store: reader}
-	remaining := l.budget
-	perRepository := make([][]map[string]any, 0, len(sources))
+	ordered := make([]repositoryArtifactSource, 0, len(sources))
 	for _, source := range sources {
 		if source.RepoID == "" || source.RepoName == "" {
 			continue
 		}
-		rows, readStats, err := l.load(
-			ctx,
-			port,
-			contentartifacts.Repository{ID: source.RepoID, Name: source.RepoName},
-			filesFromContract(source.Files),
-			source.HasFileList,
-			l.floor+remaining,
-		)
-		stats.addRepository(readStats)
-		remaining = max(remaining-max(readStats.CandidatesHydrated-l.floor, 0), 0)
-		if err != nil {
-			return nil, err
+		ordered = append(ordered, source)
+	}
+	if len(ordered) == 0 {
+		return nil, nil
+	}
+
+	port := contentStoreReader{store: reader}
+	optimistic := l.floor + max(l.budget, 0)
+	outcomes := make([]sourceLoadOutcome, len(ordered))
+	next := make(chan int, len(ordered))
+	for i := range ordered {
+		next <- i
+	}
+	close(next)
+	var wg sync.WaitGroup
+	for w := 0; w < min(max(repositoryConfigFanoutWidth, 1), len(ordered)); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range next {
+				source := ordered[i]
+				rows, readStats, err := l.load(
+					ctx,
+					port,
+					contentartifacts.Repository{ID: source.RepoID, Name: source.RepoName},
+					filesFromContract(source.Files),
+					source.HasFileList,
+					optimistic,
+				)
+				outcomes[i] = sourceLoadOutcome{rows: rows, readStats: readStats, err: err}
+			}
+		}()
+	}
+	wg.Wait()
+
+	remaining := l.budget
+	perRepository := make([][]map[string]any, 0, len(ordered))
+	for i, source := range ordered {
+		allowance := l.floor + remaining
+		adopted := outcomes[i]
+		if adopted.err != nil || adopted.readStats.CandidateCount > allowance {
+			rows, readStats, err := l.load(
+				ctx,
+				port,
+				contentartifacts.Repository{ID: source.RepoID, Name: source.RepoName},
+				filesFromContract(source.Files),
+				source.HasFileList,
+				allowance,
+			)
+			adopted = sourceLoadOutcome{rows: rows, readStats: readStats, err: err}
 		}
-		perRepository = append(perRepository, rows)
+		stats.addRepository(adopted.readStats)
+		remaining = max(remaining-max(adopted.readStats.CandidatesHydrated-l.floor, 0), 0)
+		if adopted.err != nil {
+			return nil, adopted.err
+		}
+		perRepository = append(perRepository, adopted.rows)
 	}
 
 	merged := contentartifacts.MergeConfigPaths(perRepository...)

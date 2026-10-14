@@ -6,10 +6,12 @@
 //
 // A test queues ReaderQueryResult values through OpenReaderTestDB; each query
 // takes the head of the queue, runs that result's SQL-text and bind-value
-// assertions, and answers with its rows. Incidental reads a handler issues on
-// the way (a readiness probe, a language rollup) get an empty answer shaped by
-// the Reader*Columns helpers and leave the queue alone. An empty queue with no
-// matching default is an error, not an empty answer.
+// assertions, and answers with its rows. A result with RouteArgs set is taken
+// by bind-value match instead of queue position, for the concurrent reads
+// whose arrival order the test cannot script. Incidental reads a handler
+// issues on the way (a readiness probe, a language rollup) get an empty
+// answer shaped by the Reader*Columns helpers and leave the queue alone. An
+// empty queue with no matching default is an error, not an empty answer.
 //
 // ReaderQueryContainsInOrder and ReaderCheckArgs are the driver's two
 // assertions, exported for a test that holds a recorded query rather than a
