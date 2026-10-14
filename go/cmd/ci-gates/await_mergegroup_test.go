@@ -109,10 +109,10 @@ func TestChangedPathsForMergeGroupFailsOnAnEmptyDiff(t *testing.T) {
 // run (suite 11) supersedes an older one (suite 10), and a pull_request run
 // for the same SHA (suite 30) belongs to a different event.
 const mergeGroupRuns = `[{"workflow_runs":[
-	{"name":"Build Test","event":"merge_group","conclusion":null,"check_suite_id":11},
-	{"name":"Build Test","event":"merge_group","conclusion":"cancelled","check_suite_id":10},
-	{"name":"Static Contract Gates","event":"merge_group","conclusion":"success","check_suite_id":20},
-	{"name":"Frontend","event":"pull_request","conclusion":"success","check_suite_id":30}
+	{"id":12,"name":"Build Test","event":"merge_group","conclusion":null,"check_suite_id":11},
+	{"id":11,"name":"Build Test","event":"merge_group","conclusion":"cancelled","check_suite_id":10},
+	{"id":21,"name":"Static Contract Gates","event":"merge_group","conclusion":"success","check_suite_id":20},
+	{"id":31,"name":"Frontend","event":"pull_request","conclusion":"success","check_suite_id":30}
 ]}]`
 
 const mergeGroupCheckRuns = `[{"check_runs":[
@@ -137,10 +137,10 @@ func TestReadMergeGroupChecksJoinsCheckRunsToTheNewestMergeGroupRun(t *testing.T
 		t.Fatalf("readMergeGroupChecks: %v", err)
 	}
 	want := []checkRollup{
-		{Name: "go-core-complete", State: "IN_PROGRESS", Bucket: "pending", Workflow: "Build Test", Event: "merge_group"},
-		{Name: "Verify OpenAPI gate", State: "SUCCESS", Bucket: "pass", Workflow: "Static Contract Gates", Event: "merge_group"},
-		{Name: "Verify route coverage gate", State: "FAILURE", Bucket: "fail", Workflow: "Static Contract Gates", Event: "merge_group"},
-		{Name: "skipped leg", State: "SKIPPED", Bucket: "skipping", Workflow: "Static Contract Gates", Event: "merge_group"},
+		{Name: "go-core-complete", State: "IN_PROGRESS", Bucket: "pending", Workflow: "Build Test", Event: "merge_group", RunID: 12},
+		{Name: "Verify OpenAPI gate", State: "SUCCESS", Bucket: "pass", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21},
+		{Name: "Verify route coverage gate", State: "FAILURE", Bucket: "fail", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21},
+		{Name: "skipped leg", State: "SKIPPED", Bucket: "skipping", Workflow: "Static Contract Gates", Event: "merge_group", RunID: 21},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("checks =\n%#v\nwant\n%#v", got, want)
@@ -183,7 +183,7 @@ func TestReadMergeGroupChecksPicksTheNewestRunByIDNotListOrder(t *testing.T) {
 		t.Fatalf("readMergeGroupChecks: %v", err)
 	}
 	want := []checkRollup{
-		{Name: "go-core-complete", State: "IN_PROGRESS", Bucket: "pending", Workflow: "Build Test", Event: "merge_group"},
+		{Name: "go-core-complete", State: "IN_PROGRESS", Bucket: "pending", Workflow: "Build Test", Event: "merge_group", RunID: 901},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("checks =\n%#v\nwant the newest run (id 901) only:\n%#v", got, want)

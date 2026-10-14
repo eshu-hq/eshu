@@ -126,6 +126,11 @@ type checkRollup struct {
 	Bucket   string `json:"bucket"`
 	Workflow string `json:"workflow"`
 	Event    string `json:"event"`
+	// RunID is the workflow run that owns this row. Rows read through
+	// readEventChecks carry it from the suite join; rows read through
+	// `gh pr checks` predate run attribution and carry zero, which the log
+	// formatter omits. Zero is never a real run id.
+	RunID int64 `json:"run_id,omitempty"`
 }
 
 type requiredCheckFinding struct {
@@ -133,6 +138,10 @@ type requiredCheckFinding struct {
 	Job          string
 	GateIDs      []string
 	State        string
+	// RunID names the workflow run whose check run was judged (#8053), so the
+	// await log says which event's verdict a failure came from. Zero means
+	// the source row carried no attribution and is omitted from the log.
+	RunID int64
 }
 
 type requiredCheckEvaluation struct {
@@ -216,10 +225,10 @@ func evaluateRequiredChecks(
 			// conclusion says whether one ever will. See
 			// missingCheckIsCancellationArtifact for both directions (#6189).
 			if missingCheckIsCancellationArtifact(gate, runs) {
-				evaluation.Cancelled = append(evaluation.Cancelled, findingFor(gate, "MISSING (run cancelled)"))
+				evaluation.Cancelled = append(evaluation.Cancelled, findingFor(gate, "MISSING (run cancelled)", 0))
 				continue
 			}
-			evaluation.Pending = append(evaluation.Pending, findingFor(gate, "MISSING"))
+			evaluation.Pending = append(evaluation.Pending, findingFor(gate, "MISSING", 0))
 			continue
 		}
 
@@ -243,6 +252,14 @@ func evaluateRequiredChecks(
 				gatePending = true
 			case strings.EqualFold(check.Bucket, "pending"):
 				gatePending = true
+			// After the pending test, deliberately: only a terminal failure
+			// verdict can land here, and a FAILURE recorded inside a
+			// cancelled run is cancelled infrastructure, not a gate result
+			// (#8053). NEUTRAL and SKIPPED keep their own arms -- the
+			// predicate matches failure verdicts only, so the genuine-skip
+			// and neutral fail-closed rules below cannot drift through it.
+			case isFailureInCancelledRun(*check, runs):
+				gateCancellation = check
 			default:
 				gateFailure = check
 			}
@@ -272,11 +289,11 @@ func evaluateRequiredChecks(
 		// pins that second ordering so it cannot invert unnoticed.
 		switch {
 		case gateFailure != nil:
-			evaluation.Failed = append(evaluation.Failed, findingFor(gate, gateFailure.State))
+			evaluation.Failed = append(evaluation.Failed, findingFor(gate, gateFailure.State, gateFailure.RunID))
 		case gatePending:
-			evaluation.Pending = append(evaluation.Pending, findingFor(gate, "PENDING"))
+			evaluation.Pending = append(evaluation.Pending, findingFor(gate, "PENDING", 0))
 		case gateCancellation != nil:
-			evaluation.Cancelled = append(evaluation.Cancelled, findingFor(gate, gateCancellation.State))
+			evaluation.Cancelled = append(evaluation.Cancelled, findingFor(gate, gateCancellation.State, gateCancellation.RunID))
 		}
 	}
 	return evaluation
@@ -299,12 +316,13 @@ func matchingChecks(gate resolvedRequiredGate, checks []checkRollup) []checkRoll
 	return exact
 }
 
-func findingFor(gate resolvedRequiredGate, state string) requiredCheckFinding {
+func findingFor(gate resolvedRequiredGate, state string, runID int64) requiredCheckFinding {
 	return requiredCheckFinding{
 		WorkflowName: gate.WorkflowName,
 		Job:          gate.Job,
 		GateIDs:      append([]string(nil), gate.GateIDs...),
 		State:        state,
+		RunID:        runID,
 	}
 }
 
@@ -381,9 +399,20 @@ func awaitRequiredChecks(
 		}
 		evaluation := evaluateRequiredChecks(required, checks, runs)
 		if len(evaluation.Failed) > 0 {
-			// Wrapped so classifyAwaitOutcome recognises this structurally
-			// (#6075): this is the one outcome allowed to publish `failure`.
-			return fmt.Errorf("%w: %s", errGateFailed, formatFindings(evaluation.Failed))
+			// A failed rollup row is not yet a failed gate (#8053): the
+			// row may belong to a superseded event. Attribute each one to
+			// the newest workflow run for the commit before judging it.
+			// Only failures confirmed in the newest run keep the gate-failed
+			// outcome below, so this stays the one outcome allowed to
+			// publish `failure` (#6075) and the classification stays
+			// structural.
+			attributed := attributeFailedGatesToNewestRun(ctx, runner, repo, headSHA, event, evaluation.Failed, runs, out)
+			if len(attributed.Confirmed) > 0 {
+				return fmt.Errorf("%w: %s", errGateFailed, formatFindings(attributed.Confirmed))
+			}
+			evaluation.Failed = nil
+			evaluation.Pending = append(evaluation.Pending, attributed.Redirected.Pending...)
+			evaluation.Cancelled = append(evaluation.Cancelled, attributed.Redirected.Cancelled...)
 		}
 		if len(evaluation.Pending) == 0 {
 			if len(evaluation.Cancelled) > 0 {
@@ -429,6 +458,13 @@ func formatFindings(findings []requiredCheckFinding) string {
 		detail := finding.WorkflowName + " / " + finding.Job + " [" + strings.Join(finding.GateIDs, ",") + "]"
 		if finding.State != "" {
 			detail += "=" + finding.State
+		}
+		// The run id says which event's verdict was judged (#8053): without
+		// it a failure line cannot tell the newest event's failure from a
+		// superseded event's. Zero means the source row carried no
+		// attribution and is omitted, never printed as "run 0".
+		if finding.RunID != 0 {
+			detail += fmt.Sprintf(" (run %d)", finding.RunID)
 		}
 		parts = append(parts, detail)
 	}

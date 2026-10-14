@@ -165,10 +165,24 @@ func awaitMergeGroupRequiredChecks(
 // workflow run per workflow name, joined on check suite id. Rows from older
 // attempts or other events are dropped, matching gh's newest-row rollup.
 func readMergeGroupChecks(ctx context.Context, runner ghRunner, repo, headSHA string) ([]checkRollup, error) {
-	runsEndpoint := "repos/" + repo + "/actions/runs?per_page=100&head_sha=" + url.QueryEscape(headSHA) + "&event=" + eventMergeGroup
+	return readEventChecks(ctx, runner, repo, headSHA, eventMergeGroup)
+}
+
+// readEventChecks lists the workflow runs for a head commit filtered to one
+// triggering event, keeps the newest run per workflow name by run id, and
+// returns the commit's check runs joined to those runs on check suite id.
+//
+// Rows from older attempts or other events are dropped: a superseded attempt
+// must never own the name, or its completed rows would satisfy -- or fail -- a
+// gate the current attempt has not run yet (#8053: the pull-request await
+// picked a failed `differential` row from a cancelled, superseded event while
+// the newest event was still running). Each row carries its owning workflow
+// run id so the await log names the run that was judged.
+func readEventChecks(ctx context.Context, runner ghRunner, repo, headSHA, event string) ([]checkRollup, error) {
+	runsEndpoint := "repos/" + repo + "/actions/runs?per_page=100&head_sha=" + url.QueryEscape(headSHA) + "&event=" + event
 	runsOutput, err := runner.Run(ctx, "api", "--paginate", "--slurp", runsEndpoint)
 	if err != nil {
-		return nil, fmt.Errorf("list merge_group runs for %s: %w", headSHA, err)
+		return nil, fmt.Errorf("list %s runs for %s: %w", event, headSHA, err)
 	}
 	var runPages []struct {
 		WorkflowRuns []struct {
@@ -179,7 +193,7 @@ func readMergeGroupChecks(ctx context.Context, runner ghRunner, repo, headSHA st
 		} `json:"workflow_runs"`
 	}
 	if err := json.Unmarshal(runsOutput, &runPages); err != nil {
-		return nil, fmt.Errorf("decode merge_group runs for %s: %w", headSHA, err)
+		return nil, fmt.Errorf("decode %s runs for %s: %w", event, headSHA, err)
 	}
 	// The runs API documents no pagination sort order, so the newest run per
 	// workflow name is chosen by run id (ids increase monotonically), not by
@@ -193,7 +207,7 @@ func readMergeGroupChecks(ctx context.Context, runner ghRunner, repo, headSHA st
 	newest := make(map[string]newestRun)
 	for _, page := range runPages {
 		for _, run := range page.WorkflowRuns {
-			if run.Event != eventMergeGroup {
+			if run.Event != event {
 				continue
 			}
 			if current, seen := newest[run.Name]; seen && run.ID <= current.id {
@@ -203,8 +217,10 @@ func readMergeGroupChecks(ctx context.Context, runner ghRunner, repo, headSHA st
 		}
 	}
 	suiteWorkflow := make(map[int64]string, len(newest))
+	suiteRunID := make(map[int64]int64, len(newest))
 	for name, run := range newest {
 		suiteWorkflow[run.suite] = name
+		suiteRunID[run.suite] = run.id
 	}
 
 	checksEndpoint := "repos/" + repo + "/commits/" + url.PathEscape(headSHA) + "/check-runs?per_page=100&filter=latest"
@@ -241,7 +257,8 @@ func readMergeGroupChecks(ctx context.Context, runner ghRunner, repo, headSHA st
 				State:    strings.ToUpper(state),
 				Bucket:   checkRunBucket(run.Status, run.Conclusion),
 				Workflow: workflow,
-				Event:    eventMergeGroup,
+				Event:    event,
+				RunID:    suiteRunID[run.CheckSuite.ID],
 			})
 		}
 	}
