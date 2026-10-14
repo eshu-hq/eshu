@@ -191,12 +191,20 @@ func staleExemptions(exemptions []queryplan.ReadExemption, recordsByBackend map[
 // callsite producing a read the anchor covers: the family key when the
 // text belongs to a dispatch family, else the text itself. Usage (not
 // excuse) is the staleness bar, so an exemption idling while its read
-// returns rows still counts as live.
+// returns rows still counts as live. A matching failed read counts too:
+// the read ran, it only never answered (issue #7505). Digest-less
+// records mix failed reads with writes, so a digest-less record counts
+// only when the read seam marked it (Kind == read): a failed write
+// whose text contains a read anchor must never mask a genuinely stale
+// exemption. Records predating the discriminator fail closed.
 func exemptionUsed(exemption queryplan.ReadExemption, recordsByBackend map[string][]DifferentialRecord) bool {
 	for _, records := range recordsByBackend {
 		families := labelDispatchFamilies(records)
 		for _, record := range records {
-			if record.Digest == "" || record.Callsite != exemption.Callsite {
+			if record.Callsite != exemption.Callsite {
+				continue
+			}
+			if record.Digest == "" && (!record.Failed || record.Kind != DifferentialRecordRead) {
 				continue
 			}
 			text := normalizeCoverageText(record.Fingerprint.Statement)
@@ -289,9 +297,12 @@ func variantMatches(variant queryplan.StatementVariant, text string) bool {
 // callsite with an anchor the read key contains); a text with only
 // failed executions is failed-only (reported, never failing: transients
 // must not red the gate, and slice-3's failures kind owns persistent
-// failure). A family member that never returned rows while its family
-// did is a dispatch miss (reported, never failing: a non-owning label
-// misses by construction). Writes (no digest) never qualify.
+// failure). Digest-less failed reads join the stats as never-succeeded
+// so they report failed-only instead of vanishing; writes (and records
+// predating the read/write discriminator) never qualify, by the same
+// guard as exemption usage. A family member that never returned rows
+// while its family did is a dispatch miss (reported, never failing: a
+// non-owning label misses by construction).
 func emptyReads(records []DifferentialRecord, exemptions []queryplan.ReadExemption) (alwaysEmpty, failedOnly, dispatchMisses []string) {
 	type readStats struct {
 		succeeded  bool
@@ -300,10 +311,16 @@ func emptyReads(records []DifferentialRecord, exemptions []queryplan.ReadExempti
 	}
 	stats := make(map[string]*readStats)
 	for _, record := range records {
-		if record.Digest == "" {
+		if record.Digest == "" && (!record.Failed || record.Kind != DifferentialRecordRead) {
 			continue
 		}
 		text := normalizeCoverageText(record.Fingerprint.Statement)
+		if text == "" {
+			// A fingerprinting failure carries no statement text
+			// (issue #7505): nothing to report, and "" must never
+			// render as a blank failed-read line.
+			continue
+		}
 		entry, ok := stats[text]
 		if !ok {
 			entry = &readStats{byCallsite: make(map[string]int)}
