@@ -140,6 +140,31 @@ func TestRequiredWorkflowTerminalLeavesMergeGroupPendingOnSetupFailure(t *testin
 	}
 }
 
+// TestRequiredWorkflowTerminalLeavesMergeGroupPendingOnUnclassifiedGates
+// covers the sibling shape the owner named inline on PR 8118: the pending
+// write landed, but a later setup step (e.g. the default-branch checkout)
+// failed, so the aggregate never ran and AGGREGATE_CODE is empty. The `""`
+// no-verdict arm would publish `error` and eject a green group the same way
+// run 38334797669 did. A merge-group head with no classified verdict must be
+// left for the next queued run instead.
+func TestRequiredWorkflowTerminalLeavesMergeGroupPendingOnUnclassifiedGates(t *testing.T) {
+	t.Parallel()
+
+	terminal := requiredStepNamed(t, repositoryRequiredWorkflowSteps(t), "Publish terminal required status")
+	got := runRequiredStepWithPRs(t, terminal, "merge_group", `[]`, map[string]string{
+		"PR_DISPOSITION":  "active",
+		"PENDING_OUTCOME": "success",
+		"AGGREGATE_CODE":  "",
+	})
+	if got.err != nil {
+		t.Fatalf("terminal step must leave a merge-group head with no classified verdict alone: %v\n%s",
+			got.err, got.output)
+	}
+	if strings.Contains(got.calls, "-X POST") {
+		t.Fatalf("no terminal verdict may be published before the gates are classified; calls:\n%s", got.calls)
+	}
+}
+
 // TestRequiredWorkflowTerminalStillErrorsPullRequestSetupFailure pins the
 // unchanged pull_request path: there the pending step also classifies the PR,
 // so its failure still fails closed with `error` rather than leaving a head

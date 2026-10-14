@@ -339,6 +339,15 @@ jobs:
             echo '::notice::pending status was never published; leaving required-gates-complete for the next run'
             exit 0
           fi
+          # Same when the pending write landed but a later setup step failed
+          # before the await classified anything: AGGREGATE_CODE is empty,
+          # the `""` arm below would publish `error`, and a green group
+          # would be ejected the same way. Leave those heads for the next
+          # run too.
+          if [[ "${RUN_EVENT}" == "merge_group" && -z "${AGGREGATE_CODE}" ]]; then
+            echo '::notice::gates were never classified; leaving required-gates-complete for the next run'
+            exit 0
+          fi
           if [[ "${PENDING_OUTCOME}" != "success" ]]; then
             state=error
             description='Required gate aggregation could not start'
