@@ -25,6 +25,16 @@ var entitySourceCacheByteLimits = map[string]int{
 	// search trigram recheck). Full-file content remains indexed for exact
 	// search; entity source_cache is a snippet.
 	"SqlColumn": 4096,
+	// Sibling SQL labels share SqlColumn's file line-range fallback (none is
+	// in sourceFieldContainsCode), so a wide generated SQL file produces the
+	// same MB-scale rows under any of them (#8071). Same 4096-byte snippet
+	// cap; full-file content remains indexed for exact search.
+	"SqlFunction":  4096,
+	"SqlIndex":     4096,
+	"SqlMigration": 4096,
+	"SqlTable":     4096,
+	"SqlTrigger":   4096,
+	"SqlView":      4096,
 }
 
 // entitySourceCache returns the best source snippet for one entity using parser

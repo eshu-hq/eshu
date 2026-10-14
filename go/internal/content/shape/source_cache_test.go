@@ -98,6 +98,76 @@ func TestMaterializeLimitsOversizedSqlColumnSourceCache(t *testing.T) {
 	}
 }
 
+func TestMaterializeLimitsOversizedSqlSiblingSourceCache(t *testing.T) {
+	t.Parallel()
+
+	siblings := []struct {
+		bucket string
+		label  string
+		name   string
+	}{
+		{bucket: "sql_tables", label: "SqlTable", name: "public.events"},
+		{bucket: "sql_views", label: "SqlView", name: "public.events_view"},
+		{bucket: "sql_functions", label: "SqlFunction", name: "public.archive_events"},
+		{bucket: "sql_triggers", label: "SqlTrigger", name: "public.events_trigger"},
+		{bucket: "sql_indexes", label: "SqlIndex", name: "public.events_idx"},
+		{bucket: "sql_migrations", label: "SqlMigration", name: "20241014000000_create_events"},
+	}
+
+	for _, sibling := range siblings {
+		t.Run(sibling.label, func(t *testing.T) {
+			t.Parallel()
+
+			limit, ok := entitySourceCacheByteLimits[sibling.label]
+			if !ok {
+				t.Fatalf("entitySourceCacheByteLimits has no %s entry (issue #8071)", sibling.label)
+			}
+
+			oversizedBody := strings.Repeat("  big_col TEXT DEFAULT 'padding to widen the row',\n", 400)
+			got, err := Materialize(Input{
+				RepoID: "repository:r_sqlsibling",
+				Files: []File{{
+					Path:     "schema.sql",
+					Body:     oversizedBody,
+					Language: "sql",
+					EntityBuckets: map[string][]Entity{
+						sibling.bucket: {{
+							Name:       sibling.name,
+							LineNumber: 1,
+							EndLine:    400,
+						}},
+					},
+				}},
+			})
+			if err != nil {
+				t.Fatalf("Materialize() error = %v, want nil", err)
+			}
+			if len(got.Entities) != 1 {
+				t.Fatalf("len(Materialize().Entities) = %d, want 1", len(got.Entities))
+			}
+
+			entity := got.Entities[0]
+			if got, want := entity.EntityType, sibling.label; got != want {
+				t.Fatalf("EntityType = %q, want %q", got, want)
+			}
+			// Census assertion: max source_cache bytes for this SQL label
+			// must not exceed its cap-table limit.
+			if len(entity.SourceCache) > limit {
+				t.Fatalf("%s SourceCache length = %d, want <= %d", sibling.label, len(entity.SourceCache), limit)
+			}
+			if entity.Metadata[sourceCacheTruncatedMetadataKey] != true {
+				t.Fatalf("%s Metadata[%s] = %#v, want true", sibling.label, sourceCacheTruncatedMetadataKey, entity.Metadata[sourceCacheTruncatedMetadataKey])
+			}
+			if got, want := entity.Metadata[sourceCacheOriginalBytesMetadataKey], len(oversizedBody); got != want {
+				t.Fatalf("%s Metadata[%s] = %#v, want %#v", sibling.label, sourceCacheOriginalBytesMetadataKey, got, want)
+			}
+			if got, want := entity.Metadata[sourceCacheLimitBytesMetadataKey], limit; got != want {
+				t.Fatalf("%s Metadata[%s] = %#v, want %#v", sibling.label, sourceCacheLimitBytesMetadataKey, got, want)
+			}
+		})
+	}
+}
+
 func TestLimitEntitySourceCacheKeepsUTF8Valid(t *testing.T) {
 	t.Parallel()
 
