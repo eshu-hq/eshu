@@ -357,3 +357,47 @@ func TestAwaitSupersededFailureWithNewestConcludedWithoutJobFailsClosed(t *testi
 		t.Fatalf("a newest run that concluded without the job published state=%q published=%v; want failure", state, published)
 	}
 }
+
+// TestAttributeMissingFromNewestRunDecidesAllThreeShapes pins each arm of the
+// attribution's missing-row decision directly: a cancelled newest run is
+// cancellation state, an in-flight one keeps waiting, and a concluded run that
+// never produced the job -- including an unreadable one, which fails closed --
+// confirms the reported failure.
+func TestAttributeMissingFromNewestRunDecidesAllThreeShapes(t *testing.T) {
+	t.Parallel()
+
+	gate := supersededGate()[0]
+	for _, tc := range []struct {
+		name          string
+		runs          runConclusions
+		wantBucket    string
+		wantState     string
+		wantConfirmed bool
+	}{
+		{"cancelled newest run", runConclusions{"Golden Corpus Gate": "cancelled"}, "cancelled", "MISSING (newest run cancelled)", false},
+		{"in-flight newest run", runConclusions{"Golden Corpus Gate": ""}, "pending", "PENDING (newest run in flight)", false},
+		{"concluded newest run without the job", runConclusions{"Golden Corpus Gate": "success"}, "confirmed", "MISSING (newest run concluded without it)", true},
+		{"unreadable newest run", nil, "confirmed", "MISSING (newest run concluded without it)", true},
+	} {
+		var verdict attributedFailures
+		attributeMissingFromNewestRun(gate, tc.runs, &verdict)
+		var got []requiredCheckFinding
+		switch tc.wantBucket {
+		case "cancelled":
+			got = verdict.Redirected.Cancelled
+		case "pending":
+			got = verdict.Redirected.Pending
+		default:
+			got = verdict.Confirmed
+		}
+		if len(got) != 1 || got[0].State != tc.wantState {
+			t.Errorf("%s: findings = %#v; want exactly one %s finding with state %q", tc.name, verdict, tc.wantBucket, tc.wantState)
+		}
+		if (len(verdict.Confirmed) > 0) != tc.wantConfirmed {
+			t.Errorf("%s: confirmed = %#v; a %s row must never confirm a failure", tc.name, verdict.Confirmed, tc.wantBucket)
+		}
+		if total := len(verdict.Confirmed) + len(verdict.Redirected.Pending) + len(verdict.Redirected.Cancelled); total != 1 {
+			t.Errorf("%s: %d findings recorded; one missing row is exactly one verdict", tc.name, total)
+		}
+	}
+}
