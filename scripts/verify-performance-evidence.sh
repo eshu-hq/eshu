@@ -17,11 +17,7 @@ fi
 # fetch-depth) it keeps the bounded fetch, which cannot make a shallow
 # checkout fail anything that does not already fail.
 fetch_missing_base() {
-  if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
-    git -C "$repo_root" fetch --no-tags origin "$1" >/dev/null 2>&1
-  else
-    git -C "$repo_root" fetch --no-tags --depth=1 origin "$1" >/dev/null 2>&1
-  fi
+  eshu_gate_fetch_base "$repo_root" "$1"
 }
 
 base="${ESHU_PERFORMANCE_EVIDENCE_BASE:-}"
