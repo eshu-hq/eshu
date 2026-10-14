@@ -26,6 +26,11 @@
 #
 # The gate and its own test necessarily contain the literal they match.
 #
+# Known residual (accepted, tracked in #8112): split-concatenation such as
+# "git-repository-" + "scope:" evades this grep guard by construction, as do
+# suffixed placeholder spellings outside the bare literal. Broadening the
+# pattern would false-positive on placeholders, so the tradeoff stays.
+#
 # Modes:
 #   (default)      tree mode — scan every tracked Go file. Used by CI so a
 #                  respelled literal cannot persist on main.
