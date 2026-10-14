@@ -14,9 +14,8 @@
 #
 # Required env: TRIGGER_HEAD_BRANCH, TRIGGER_HEAD_SHA (either may be empty),
 # REPOSITORY, GITHUB_TOKEN (packages read), GITHUB_OUTPUT. Writes ref=<ref>
-# (when resolvable) and skip=<true|false> to GITHUB_OUTPUT. Optional env:
-# GHCR_BASE_URL (default https://ghcr.io; tests point it at a fake registry).
-# The token and the Bearer token never appear on stdout or stderr.
+# (when resolvable) and skip=<true|false> to GITHUB_OUTPUT. The token and
+# the Bearer token never appear on stdout or stderr.
 set -euo pipefail
 
 branch="${TRIGGER_HEAD_BRANCH:-}"
@@ -24,8 +23,6 @@ sha="${TRIGGER_HEAD_SHA:-}"
 repo="${REPOSITORY:?REPOSITORY is required}"
 token="${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
 out="${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
-registry="${GHCR_BASE_URL:-https://ghcr.io}"
-registry="${registry%/}"
 
 ref=""
 if [[ "${branch}" =~ ^v[0-9] ]]; then
@@ -41,7 +38,7 @@ else
 fi
 
 tag="${ref##*:}"
-api="${registry}/v2/${repo}"
+api="https://ghcr.io/v2/${repo}"
 manifest_accept='application/vnd.oci.image.index.v1+json'
 
 # manifest_probe: prints the manifest response headers for a basic-auth
