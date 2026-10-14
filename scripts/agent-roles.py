@@ -31,6 +31,8 @@ def load_roles():
             spec = {**resolve(base, trail + (name,)), **spec}
         if spec["tier"] not in data["models"]["codex"]:
             raise ValueError("unknown model tier for " + name)
+        if spec["tier"] not in data["models"]["claude"]:
+            raise ValueError("unknown claude model tier for " + name)
         if spec["tier"] not in data["models"]["opencode"]:
             raise ValueError("unknown opencode model tier for " + name)
         if spec["tier"] not in data["models"]["muse"]:
