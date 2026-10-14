@@ -200,5 +200,5 @@ func Strip(err error) error {
 	if !errors.As(err, &typed) {
 		return err
 	}
-	return fmt.Errorf("%s: %w", err.Error(), typed.cause)
+	return fmt.Errorf("GitHub %s failed (class=%s attempts=%d): %w", typed.Operation, typed.Class, typed.Attempts, typed.cause)
 }

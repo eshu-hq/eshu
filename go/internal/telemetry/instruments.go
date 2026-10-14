@@ -440,12 +440,12 @@ type Instruments struct {
 	GitHubAPIRetries metric.Int64Counter
 	// CollectorDiscoverySkippedCycles counts discovery cycles the collector
 	// loop skipped after a retryable source failure instead of exiting (#8084).
-	// Labels: collector_kind, failure_class (the bounded class of the failure).
+	// Labels: collector_kind, operation (list or mint), failure_class (the bounded class of the failure).
 	CollectorDiscoverySkippedCycles metric.Int64Counter
 	// CollectorDiscoveryConsecutiveFailures is the number of discovery cycles
 	// in a row that ended in a retryable failure, as the selector counts them
-	// (#8084). It returns to 0 when a selection cycle succeeds and is never
-	// reset by a webhook batch. Label: collector_kind.
+	// (#8084). It returns to 0 when a selection cycle succeeds; a webhook
+	// sync resets only mint. Labels: collector_kind, operation.
 	CollectorDiscoveryConsecutiveFailures metric.Int64Gauge
 	// GitCommandAttemptDuration is the wall time of each attempt in seconds
 	// (#8091). Labels: operation, outcome (success, retried, failed).

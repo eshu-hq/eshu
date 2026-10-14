@@ -137,6 +137,7 @@ func (s Service) recordSkippedCycle(ctx context.Context, skip CycleSkip, cause e
 	if s.Instruments != nil && s.Instruments.CollectorDiscoverySkippedCycles != nil {
 		s.Instruments.CollectorDiscoverySkippedCycles.Add(ctx, 1, metric.WithAttributes(
 			telemetry.AttrCollectorKind(skip.CollectorKind),
+			telemetry.AttrOperation(skip.Operation),
 			telemetry.AttrFailureClass(skip.FailureClass),
 		))
 	}

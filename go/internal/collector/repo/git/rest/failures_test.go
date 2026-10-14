@@ -276,8 +276,8 @@ func TestStripRemovesTheSkipAndKeepsTheCause(t *testing.T) {
 	if errors.As(stripped, &skipper) || errors.As(stripped, &asTyped) || collector.IsRetryable(stripped) {
 		t.Fatalf("Strip(%v) = %v still carries the skip", wrapped, stripped)
 	}
-	if !errors.Is(stripped, cause) || !strings.Contains(stripped.Error(), "sync webhook-triggered repositories") {
-		t.Fatalf("Strip() = %v, want the message and the cause kept", stripped)
+	if !errors.Is(stripped, cause) || stripped.Error() != "GitHub mint failed (class=server_error attempts=4): status 502" {
+		t.Fatalf("Strip() = %v, want fields plus the cause exactly once", stripped)
 	}
 	plain := errors.New("plain")
 	if got := rest.Strip(plain); got != plain {
