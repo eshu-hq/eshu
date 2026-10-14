@@ -385,6 +385,16 @@ tests:
     class: postgres_ci
     reason: "#7903 disposable PostgreSQL 18 proof that the targeted re-lock drops a candidate that flips to uncovered-writer coverage after selection and counts it as skipped while still pruning a covered bystander, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.31s wall with the full 188-migration setup on postgres:18 on 2026-10-11"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_samesha_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7981 disposable PostgreSQL 18 proof that the general and targeted candidate queries admit the same same-SHA duplicates past the count window in lockstep, that the witness retains each batch's newest copy per identity, and that a covered-but-never-activated generation prunes past the hard ceiling while an uncovered writer is retained and counted, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 3 tests in 6.81s wall with the migrated-schema setup on postgres:16 on 2026-10-14"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_chunk_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7981 disposable PostgreSQL 18 proof that an over-limit generation drains one bounded fact chunk per cycle and prunes whole once the remainder fits with no orphan rows, that the chunk statements roll back atomically, that a lock-held chunk target drops silently, and that concurrent fact inserts wait out the narrow hold, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests in 9.38s wall with the migrated-schema setup on postgres:16 on 2026-10-14"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_fairness_live_test.go
     tag: ~
     class: scheduled

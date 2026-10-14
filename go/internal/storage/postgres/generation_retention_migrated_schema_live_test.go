@@ -24,10 +24,11 @@ import (
 const generationRetentionMigratedSchemaRequiredEnv = "ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF"
 
 // generationRetentionMigratedSchemaStatements lists every SQL statement owned
-// by generation_retention_sql.go and generation_retention_row_counts_sql.go.
-// Each one is prepared against the migrated schema so a table or column that
-// drifts from the migrations fails here instead of at the first prunable
-// retention batch (#6809).
+// by generation_retention_sql.go, generation_retention_row_counts_sql.go and
+// the #7981 chunk prune in generation_retention_relock.go. Each one is
+// prepared against the migrated schema so a table or column that drifts from
+// the migrations fails here instead of at the first prunable retention
+// batch (#6809).
 var generationRetentionMigratedSchemaStatements = map[string]string{
 	"candidate":                        generationRetentionCandidateQuery,
 	"row_counts":                       generationRetentionRowCountsQuery,
@@ -38,6 +39,11 @@ var generationRetentionMigratedSchemaStatements = map[string]string{
 	"prune_content_entities":           pruneContentEntitiesForGenerationsQuery,
 	"prune_content_files":              pruneContentFilesForGenerationsQuery,
 	"delete_scope_generations":         deleteScopeGenerationsForRetentionQuery,
+	"chunk_page":                       generationRetentionChunkPageQuery,
+	"chunk_delete_facts":               generationRetentionChunkDeleteFactsQuery,
+	"chunk_prune_files":                generationRetentionChunkPruneFilesQuery,
+	"chunk_prune_entities":             generationRetentionChunkPruneEntitiesQuery,
+	"chunk_mirror_orphans":             generationRetentionChunkDeleteMirrorOrphansQuery,
 }
 
 // generationRetentionSchemaPrefix marks every schema the retention live tests

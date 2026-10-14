@@ -78,9 +78,10 @@ func TestGenerationRetentionRowLimitCountsChangedSinceLedgerRows(t *testing.T) {
 }
 
 // TestGenerationRetentionRowLimitSkipOverFactsAloneReportsOwnRowsReason proves
-// a candidate whose facts alone exceed the limit reports row_limit_own_rows
-// (#7334 fix 3 renamed this from row_limit): its own rows already exceed the
-// limit, so no recount can ever admit it, unlike a row_limit_ledger skip.
+// a candidate whose facts alone exceed the limit at count time reports
+// row_limit_own_rows (#7334 fix 3 renamed this from row_limit), unlike a
+// row_limit_ledger skip. Since #7981 this is the facts-grew race after a
+// clean pre-screen; the next cycle's pre-screen diverts it to a chunk.
 func TestGenerationRetentionRowLimitSkipOverFactsAloneReportsOwnRowsReason(t *testing.T) {
 	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
 	database := ledgerRetentionFake(now)

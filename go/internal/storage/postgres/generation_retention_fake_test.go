@@ -47,9 +47,16 @@ type generationRetentionFakeDB struct {
 	// store. Tests that need no pre-screened generation leave it unset.
 	prescreenRows  [][]any
 	prescreenCalls int
-	execResults    []sql.Result
-	queries        []fakeQueryCall
-	execs          []fakeExecCall
+	// chunkPageRows answers the over-limit chunk page (fact_id, fact_kind,
+	// is_tombstone, repo_id, relative_path, entity_id). chunkFilePrune and
+	// chunkEntityPrune answer the chunk content prunes with one count row
+	// each ([references, files] and [entities]); both default to zero.
+	chunkPageRows    [][]any
+	chunkFilePrune   []any
+	chunkEntityPrune []any
+	execResults      []sql.Result
+	queries          []fakeQueryCall
+	execs            []fakeExecCall
 	// statements records every statement in the order the transaction issued
 	// it, reads and writes together, including the transaction-local setting
 	// statement that execs and execResults deliberately skip so the positional
@@ -110,6 +117,20 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 			}
 		}
 		return &queueFakeRows{rows: locked}, nil
+	case strings.Contains(query, "retention: over-limit chunk page"):
+		return &queueFakeRows{rows: tx.database.chunkPageRows}, nil
+	case strings.Contains(query, "retention: over-limit chunk file prune"):
+		prune := tx.database.chunkFilePrune
+		if prune == nil {
+			prune = []any{int64(0), int64(0)}
+		}
+		return &queueFakeRows{rows: [][]any{prune}}, nil
+	case strings.Contains(query, "retention: over-limit chunk entity prune"):
+		prune := tx.database.chunkEntityPrune
+		if prune == nil {
+			prune = []any{int64(0)}
+		}
+		return &queueFakeRows{rows: [][]any{prune}}, nil
 	case strings.Contains(query, "retention: own-fact pre-screen"):
 		tx.database.prescreenCalls++
 		if len(args) == 0 {

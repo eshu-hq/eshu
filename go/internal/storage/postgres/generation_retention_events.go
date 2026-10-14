@@ -217,9 +217,10 @@ var ledgerRetentionTables = []string{
 // rowLimitSkipReason names why a counted generation missed the batch:
 // row_limit_ledger when only ledger rows push it over (the collector will
 // age the link out and a later pass prunes it), row_limit_own_rows when its
-// own rows outside the ledger already exceed the limit (no recount can ever
-// admit it), row_limit for the deferred rest (a smaller batch or a recount
-// may still admit them).
+// own rows outside the ledger exceed the limit at count time after a clean
+// pre-screen (a facts-grew race; the next cycle's pre-screen diverts it to
+// a #7981 chunk), row_limit for the deferred rest (a smaller batch or a
+// recount may still admit them).
 func rowLimitSkipReason(rows map[string]int64, limit int) string {
 	rowLimit := int64(limit)
 	if generationRetentionRowsTotal(rows) <= rowLimit {
@@ -374,13 +375,16 @@ func generationRetentionRowsTotal(rows map[string]int64) int64 {
 
 // scanRetentionCandidates scans candidate rows from a query whose column
 // order matches the selection queries: scope id, generation id, scope kind,
-// superseded at, observed at, uncovered. The caller wraps the error with its
-// query context.
+// superseded at, observed at, uncovered, then the #7981 same-identity triple
+// (source commit SHA, is_delta, freshness hint, already COALESCE'd to ”).
+// Six-column rows from older fixtures keep scanning with zero identity
+// values, which never match an identity group. The caller wraps the error
+// with its query context.
 func scanRetentionCandidates(rows db.Rows) ([]generationRetentionCandidate, error) {
 	var candidates []generationRetentionCandidate
 	for rows.Next() {
 		var candidate generationRetentionCandidate
-		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt, &candidate.uncovered); err != nil {
+		if err := rows.Scan(&candidate.scopeID, &candidate.generationID, &candidate.scopeKind, &candidate.supersededAt, &candidate.observedAt, &candidate.uncovered, &candidate.sourceCommitSHA, &candidate.isDelta, &candidate.freshnessHint); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("generation retention: scan candidate: %w", err)
 		}
@@ -404,6 +408,50 @@ func sortRetentionCandidatesOldestFirst(candidates []generationRetentionCandidat
 		}
 		return strings.Compare(a.generationID, b.generationID)
 	})
+}
+
+// generationRetentionPrescreenQuery counts own fact_records rows per
+// candidate generation (#7334 fix 2): the pre-screen runs unlocked right
+// after the selection's savepoint rollback, before the heavyweight row
+// count. A generation with more own facts than BatchRowLimit is over the
+// limit on facts alone: since #7981 it drains one bounded chunk per cycle
+// instead of skipping forever. Soundness: fact rows are a subset of the rows
+// outside the changed-since ledger, and every count arm is non-negative, so
+// own facts above the limit decisively exceed it. The join follows the
+// (scope_id, generation_id) index prefix; the LEFT JOIN keeps zero-fact
+// generations in the result with a zero count so they stay countable.
+//
+// $1 generation ids.
+const generationRetentionPrescreenQuery = `-- retention: own-fact pre-screen
+SELECT candidate.generation_id, COUNT(row.fact_id) AS own_facts
+FROM (SELECT unnest($1::text[]) AS generation_id) AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN fact_records AS row
+  ON row.scope_id = generation.scope_id
+ AND row.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+`
+
+// mergeChunkProgress records one drained over-limit chunk on the cycle
+// result after pruneCandidates rebuilt the normal batch's counts: the
+// chunk's deleted rows add to RowsPruned by table, the progress reason tells
+// the runner to retry soon, and the oldest age covers a chunk-only cycle.
+func mergeChunkProgress(
+	result *GenerationRetentionResult,
+	target generationRetentionCandidate,
+	chunk generationRetentionChunk,
+	now time.Time,
+) {
+	result.RowsPruned["fact_records"] += chunk.factsDeleted
+	result.RowsPruned["content_files"] += chunk.filesPruned
+	result.RowsPruned["content_file_references"] += chunk.referencesPruned
+	result.RowsPruned["content_entities"] += chunk.entitiesPruned
+	result.RowsPruned["infra_resource_entities"] += chunk.mirrorPruned
+	result.Skipped[generationRetentionChunkedProgressSkippedReason]++
+	if age := now.Sub(target.supersededAt); age > result.OldestEligibleAge {
+		result.OldestEligibleAge = age
+	}
 }
 
 // prescreenOwnFacts runs the own-fact pre-screen (#7334 fix 2): one grouped,

@@ -54,9 +54,18 @@ func TestGenerationRetentionLockSetMatchesEligibleScopesLive(t *testing.T) {
 		var scopeID, generationID, scopeKind string
 		var supersededAt, observedAt time.Time
 		var uncovered bool
-		if err := rows.Scan(&scopeID, &generationID, &scopeKind, &supersededAt, &observedAt, &uncovered); err != nil {
+		var sourceCommitSHA, freshnessHint string
+		var isDelta bool
+		if err := rows.Scan(&scopeID, &generationID, &scopeKind, &supersededAt, &observedAt, &uncovered,
+			&sourceCommitSHA, &isDelta, &freshnessHint); err != nil {
 			_ = rows.Close()
 			t.Fatalf("scan candidate: %v", err)
+		}
+		// The lock-set fixture seeds no commit identity, so every row
+		// carries the zero identity the witness never groups.
+		if sourceCommitSHA != "" || isDelta || freshnessHint != "" {
+			_ = rows.Close()
+			t.Fatalf("candidate %s identity = (%q, %v, %q), want zero values", generationID, sourceCommitSHA, isDelta, freshnessHint)
 		}
 		candidateScopes[scopeID] = true
 	}
