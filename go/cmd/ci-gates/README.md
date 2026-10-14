@@ -208,7 +208,22 @@ a green pull-request row tested the PR head, not the merge. There is no head
 re-verification; a queue commit never moves. `--event` defaults to
 `pull_request`, which requires `--pr`; `merge_group` rejects `--pr`.
 
-Four shapes qualify, and they cost different things to recognise:
+A failed rollup row is not yet a failed gate
+([#8053](https://github.com/eshu-hq/eshu/issues/8053)). The pull-request poll
+reads `gh pr checks`, which reports check runs by name on the commit with no
+event affinity: when two `pull_request` events run on one head, the rollup can
+surface a FAILURE row from the superseded, cancelled event while the newest
+event is still running -- or green. Before judging a failure, the aggregate
+attributes each failed gate to the newest workflow run for the commit (the
+same newest-by-id, suite-joined rows the merge-group poll reads) and judges
+the newest run's verdict instead: a job that failed in the newest run is a
+genuine failure; a job the newest run passed has its stale row ignored; a job
+the newest run has no verdict for yet keeps waiting, so a later aggregate
+reads the newest check runs. Anything the attribution cannot decide fails
+closed on the reported row. Confirmed failure lines name the workflow run id
+that was judged, so the log says which event's verdict a failure came from.
+
+Five shapes qualify, and they cost different things to recognise:
 
 - **Cancelled**, detected from either `state=CANCELLED` or `bucket=cancel`,
   because the runner's `gh` version is not pinned and older releases folded
@@ -245,6 +260,12 @@ Four shapes qualify, and they cost different things to recognise:
   registry and the workflow, a workflow with no run on this head is unknown,
   and a failed lookup is both. Only a `cancelled` owning run turns a missing
   check into a verdict.
+- **Failed inside a run that concluded `cancelled`.** An `if: always()`
+  downstream job -- the golden-corpus `differential`, whose `needs:` capture
+  jobs were cancelled -- still runs, finds nothing staged, and records
+  FAILURE on a cancelled run. That row is cancelled infrastructure, not a gate
+  result, and joins the `error` arm with the shapes above. A FAILURE under any
+  other run conclusion, or under an unreadable one, keeps failing closed.
 
   Its lookup is deferred while any selected check is genuinely still running,
   which keeps it off the common path: early in a head's life most selected
@@ -257,9 +278,11 @@ Four shapes qualify, and they cost different things to recognise:
 
 **A gate skipped for its own reasons still publishes `failure`.** The registry
 selected it for these paths, so a skip the workflow chose is a real
-disagreement about whether the gate should have run. The lookup is made only
-when a selected check is `SKIPPED`, and if it fails the gate stays a failure --
-it degrades to the older behaviour, never to a pass. `NEUTRAL` shares gh's
+disagreement about whether the gate should have run. The lookup is made when a
+selected check is `SKIPPED`, `MISSING` with nothing still running, or `FAILED`
+-- a failure verdict needs its owning run's conclusion before it can be told
+apart from a superseded run's -- and if it fails the gate stays a failure; it
+degrades to the older behaviour, never to a pass. `NEUTRAL` shares gh's
 `skipping` bucket but is a conclusion a job reached, so it fails closed
 unconditionally.
 
