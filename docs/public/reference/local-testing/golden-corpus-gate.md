@@ -252,7 +252,12 @@ their parens — capture and manifest load apply the same rule, so authors
 may write either form. An exemption whose callsite produces no
 anchor-matching recording on any backend fails as `stale-exemption`,
 naming the callsite plus the anchor (one callsite may hold several
-exemptions, so the anchor tells the operator which one rotted).
+exemptions, so the anchor tells the operator which one rotted). A
+matching read that failed on every backend still counts as usage — the
+read ran, it only never answered — while the read itself stays advisory
+failed-only. Digest-less records mix failed reads with writes, so only
+records the read seam marked as reads count: a failed write whose text
+contains an anchor never masks a stale exemption.
 
 No-Regression Evidence (#7233): attribution costs nothing on the served
 path and milliseconds per capture leg. With capture disabled
@@ -275,6 +280,20 @@ No-Observability-Change: no new metrics, spans, or log keys; the
 callsite travels only inside capture records, and the gate's signal set
 is unchanged (stale-exemption IDs now carry the anchor, which is
 failure-string content, not a new signal).
+
+No-Regression Evidence (#7505): the read/write guard adds one string
+assignment per captured record and two extra comparisons per record in
+the offline coverage phase. Baseline (origin/main rules) vs after,
+same 3,134-record two-backend corpus through ComputeStatementCoverage
+on AMD EPYC 9R14: 33.3/32.9/33.1 ms/op before, 32.9/32.6/31.4 ms/op
+after (delta is noise; the corpus shape matches the 3,134-record B-7
+leg). The phase stays milliseconds against the 2.2 s offline budget,
+and capture stays out of the served path (WrapGraphQuery passthrough
+unchanged when capture is off).
+
+No-Observability-Change (#7505): Kind travels only inside capture
+JSONL records next to the callsite; no new metrics, spans, log keys,
+or gate signals.
 
 A same-parameter sibling read is judged as one read. When a handler issues
 one single-label `MATCH (v:Label)` per candidate label with byte-identical

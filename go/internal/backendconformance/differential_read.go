@@ -68,16 +68,16 @@ func captureRead(cypher string, params map[string]any, rows []map[string]any, ru
 	callsite := recordCallsite()
 	fp, fpErr := FingerprintStatement(cypher, params)
 	if fpErr != nil {
-		return DifferentialRecord{Backend: backend, Callsite: callsite, RowCount: len(rows), Failed: true, Error: fpErr.Error()}
+		return DifferentialRecord{Backend: backend, Callsite: callsite, RowCount: len(rows), Failed: true, Error: fpErr.Error(), Kind: DifferentialRecordRead}
 	}
 	if runErr != nil {
-		return DifferentialRecord{Fingerprint: fp, Backend: backend, Callsite: callsite, RowCount: len(rows), Failed: true, Error: runErr.Error()}
+		return DifferentialRecord{Fingerprint: fp, Backend: backend, Callsite: callsite, RowCount: len(rows), Failed: true, Error: runErr.Error(), Kind: DifferentialRecordRead}
 	}
 	digest, digestErr := DigestRows(rows, HasOrderBy(cypher))
 	if digestErr != nil {
-		return DifferentialRecord{Fingerprint: fp, Backend: backend, Callsite: callsite, RowCount: len(rows), Failed: true, Error: digestErr.Error()}
+		return DifferentialRecord{Fingerprint: fp, Backend: backend, Callsite: callsite, RowCount: len(rows), Failed: true, Error: digestErr.Error(), Kind: DifferentialRecordRead}
 	}
-	return DifferentialRecord{Fingerprint: fp, Backend: backend, Callsite: callsite, RowCount: len(rows), Digest: digest}
+	return DifferentialRecord{Fingerprint: fp, Backend: backend, Callsite: callsite, RowCount: len(rows), Digest: digest, Kind: DifferentialRecordRead}
 }
 
 // captureAttributionFrames are the differential-capture decorator frames

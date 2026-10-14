@@ -184,6 +184,16 @@ func DigestRows(rows []map[string]any, ordered bool) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// Statement kinds name the seam that captured a record: the graph-reader
+// seam records reads, the executor seam records writes. Only the seams
+// set Kind, so a failed write with read-anchor-matching text can never
+// count as read-exemption usage (issue #7505). Records written before
+// the discriminator carry "": they fail closed wherever Kind decides.
+const (
+	DifferentialRecordRead  = "read"
+	DifferentialRecordWrite = "write"
+)
+
 // DifferentialRecord is one captured statement execution. Error carries the
 // run, fingerprint, or digest error text when Failed is true, so a
 // failures-kind divergence names the failure instead of only counting it.
@@ -200,6 +210,12 @@ type DifferentialRecord struct {
 	Failed      bool
 	Error       string
 	Counters    sourcecypher.WriteCounters
+	// Kind names the capturing seam (DifferentialRecordRead or
+	// DifferentialRecordWrite). A non-empty Digest already proves a read
+	// — only the read seam digests rows — but digest-less records mix
+	// failed reads with writes, so the digest-less usage rule keys on
+	// Kind, never on text or callsite inference.
+	Kind string
 	// Callsite is the builder identity that produced the statement: the
 	// go-relative path:symbol of the direct Run/RunSingle caller,
 	// recorded by the capture wrapper (#7233). Recordings predating
@@ -425,10 +441,10 @@ func joinWriteCounters(fps []DifferentialFingerprint, entries []sourcecypher.Wri
 func captureWrite(stmt sourcecypher.Statement, execErr error, backend string) DifferentialRecord {
 	fp, fpErr := FingerprintStatement(stmt.Cypher, stmt.Parameters)
 	if fpErr != nil {
-		return DifferentialRecord{Backend: backend, Failed: true, Error: fpErr.Error()}
+		return DifferentialRecord{Backend: backend, Failed: true, Error: fpErr.Error(), Kind: DifferentialRecordWrite}
 	}
 	if execErr != nil {
-		return DifferentialRecord{Fingerprint: fp, Backend: backend, Failed: true, Error: execErr.Error()}
+		return DifferentialRecord{Fingerprint: fp, Backend: backend, Failed: true, Error: execErr.Error(), Kind: DifferentialRecordWrite}
 	}
-	return DifferentialRecord{Fingerprint: fp, Backend: backend}
+	return DifferentialRecord{Fingerprint: fp, Backend: backend, Kind: DifferentialRecordWrite}
 }
