@@ -114,6 +114,46 @@ class ComparisonIdentityTest(unittest.TestCase):
         self.assertTrue((self.migrations / "169.sql").is_file())
         self.assertTrue((self.migrations / "207.sql").is_file())
 
+    def test_pull_request_accepts_merge_built_on_unadvertised_base(self) -> None:
+        self.git("checkout", "--quiet", "main")
+        self.git("merge", "--quiet", "--no-edit", "feature")
+        combined = self.git("rev-parse", "HEAD")
+        self.assertEqual(
+            self.git("rev-list", "--parents", "-n", "1", combined).split()[1:],
+            [self.target, self.feature],
+        )
+        (self.migrations / "171.sql").write_text("SELECT 171;\n")
+        self.commit("main advances after merge ref")
+        advanced = self.git("rev-parse", "HEAD")
+        self.git("update-ref", "refs/remotes/origin/main", advanced)
+        self.git("checkout", "--quiet", combined)
+        for stale_base in (self.base, advanced):
+            with self.subTest(stale_base=stale_base):
+                result, path = self.resolve(
+                    "pull_request",
+                    {"pull_request": {"base": {"sha": stale_base}, "head": {"sha": self.feature}}},
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                identity = json.loads(path.read_text())
+                self.assertEqual(identity["base"], self.target)
+                self.assertEqual(identity["target"], self.target)
+                self.assertEqual(identity["candidate"], combined)
+                self.assertEqual(identity["mode"], "event_combined")
+
+    def test_pull_request_without_event_head_in_parents_names_shas(self) -> None:
+        self.git("merge", "--quiet", "--no-edit", "main")
+        combined = self.git("rev-parse", "HEAD")
+        parents = self.git("rev-list", "--parents", "-n", "1", combined).split()[1:]
+        result, path = self.resolve(
+            "pull_request",
+            {"pull_request": {"base": {"sha": self.target}, "head": {"sha": self.base}}},
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(path.exists())
+        for sha in (*parents, self.target, self.base):
+            self.assertIn(sha, result.stderr)
+        self.assertIn("new event", result.stderr)
+
     def test_merge_group_uses_event_base_and_actual_combined_checkout(self) -> None:
         self.git("merge", "--quiet", "--no-edit", "main")
         combined = self.git("rev-parse", "HEAD")
