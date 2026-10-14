@@ -117,6 +117,85 @@ else
   ok "private-identifier does not echo a private match in a non-ASCII path case"
 fi
 
+# --- a `-diff` attribute must not hide added lines from the scan ---
+# git prints "Binary files differ" for a path whose attributes unset diff, so
+# a branch that adds `*.md -diff` next to a token in an .md file reads as
+# clean unless the gate forces text output. Each fixture stages the attribute
+# and the plant together, the way the bypassing pull request would.
+pi_diff_repo() {
+  pi_new_repo "$1"
+  mkdir -p "$1/docs"
+  printf '*.md -diff\n' >"$1/.gitattributes"
+  printf 'Measured on the %s cluster.\n' "$pi_qa_h" >"$1/docs/notes.md"
+  git -C "$1" add -A
+  git -C "$1" commit -q -m "docs: add a note"
+}
+
+d="$tmp/pi-path-nodiff-range"
+pi_diff_repo "$d"
+pi_expect red "-diff attribute still flags a token in range mode" pi_range "$d"
+pi_loc_once "-diff attribute, range mode" "docs/notes.md:1"
+pi_no_echo "-diff attribute, range mode" "$pi_qa_h"
+
+d="$tmp/pi-path-nodiff-staged"
+pi_new_repo "$d"
+mkdir -p "$d/docs"
+printf '*.md -diff\n' >"$d/.gitattributes"
+printf 'Seen on the %s cluster.\n' "$pi_qa_h" >"$d/docs/notes.md"
+git -C "$d" add -A
+pi_expect red "-diff attribute still flags a token in --staged" \
+  env -u ESHU_PRIVATE_IDENTIFIER_FILE ESHU_PRIVATE_IDENTIFIER_REPO_ROOT="$d" "$pi_gate" --staged
+pi_loc_once "-diff attribute, --staged" "docs/notes.md:1"
+pi_no_echo "-diff attribute, --staged" "$pi_qa_h"
+
+printf 'fix: measured on %s\n' "$pi_qa_h" >"$tmp/pi-msg-nodiff"
+pi_expect red "a token in a commit-message file still fails beside a -diff tree" \
+  env -u ESHU_PRIVATE_IDENTIFIER_FILE "$pi_gate" --message "$tmp/pi-msg-nodiff"
+
+d="$tmp/pi-path-nodiff-green"
+pi_new_repo "$d"
+mkdir -p "$d/docs"
+printf '*.md -diff\n' >"$d/.gitattributes"
+printf 'Measured on the QA environment.\n' >"$d/docs/notes.md"
+git -C "$d" add -A
+git -C "$d" commit -q -m "docs: add a clean note"
+pi_expect green "-diff attribute passes a clean tree" pi_range "$d"
+
+# --- a textconv driver must not rewrite the scanned text ---
+# The driver name lives in user config, never in the repository, so a fixture
+# sets it the way a workstation would. The blob carries NUL bytes, so git
+# hands it to the driver; the driver prints a token the blob never held.
+# Without --no-textconv the gate flags the driver's words; with it the gate
+# reads the raw blob and stays green.
+pi_blob() {
+  printf 'BLOB-body-bytes\n' >"$1"
+  head -c 4 /dev/zero >>"$1"
+  printf 'tail-bytes\n' >>"$1"
+}
+
+d="$tmp/pi-path-textconv"
+pi_new_repo "$d"
+pi_blob "$d/blob.bin"
+printf '*.bin diff=evil\n' >"$d/.gitattributes"
+git -C "$d" config diff.evil.textconv "printf 'Measured on the ${pi_qa_h} cluster.\n'"
+git -C "$d" add -A
+git -C "$d" commit -q -m "data: add a binary blob"
+pi_expect green "textconv output is not scanned" pi_range "$d"
+
+# --- a real binary beside a token adds no phantom location ---
+# Forcing text output also exposes raw binary bytes. The deterministic blob
+# holds no token, so the only reported location is the text file's line.
+d="$tmp/pi-path-bin-beside"
+pi_new_repo "$d"
+mkdir -p "$d/docs"
+pi_blob "$d/blob.bin"
+printf 'Measured on the %s cluster.\n' "$pi_qa_h" >"$d/docs/notes.md"
+git -C "$d" add -A
+git -C "$d" commit -q -m "docs: add a note and a blob"
+pi_expect red "a token beside a binary still fails" pi_range "$d"
+pi_loc_once "binary beside a token" "docs/notes.md:1"
+pi_no_echo "binary beside a token" "$pi_qa_h"
+
 # --- this file must not carry a deny token itself ---
 if [ "$(pi_lib_hits "$repo_root/scripts/lib/test-private-identifier-path-cases.sh")" -eq 0 ]; then
   ok "private-identifier path cases library carries no deny token"

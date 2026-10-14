@@ -87,16 +87,24 @@ scan_text() {
 # pinned three ways. core.quotePath=false keeps a non-ASCII byte literal instead
 # of an octal escape. --no-prefix drops the "a/" and "b/" prefix, which config
 # (diff.noprefix, diff.mnemonicPrefix) would otherwise change, so no strip can
-# eat a real "b/" directory. git still C-quotes a name that holds a double
-# quote, a backslash or a control character; awk unquotes the first two and
-# leaves a control character escaped, so one location stays one line.
+# eat a real "b/" directory. --text forces added lines out of a path whose
+# attributes unset diff (a `-diff` line would otherwise read as "Binary files
+# differ" and hide the plant). --no-textconv reads the raw blob even when user
+# config names a diff driver for the path, so the scan never sees a driver's
+# rewritten words. Forcing text also exposes raw binary bytes; those carry no
+# denylist token on this tree (measured over every tracked blob, images and
+# fixtures included), so nothing is skipped by suffix or by list, and a token
+# embedded in a binary still fails closed with its location.
+# git still C-quotes a name that holds a double quote, a backslash or a
+# control character; awk unquotes the first two and leaves a control character
+# escaped, so one location stays one line.
 loc_file="$work/added.loc"
 content_file="$work/added.content"
 added_lines() {
   local diff_text
   : >"$loc_file"
   : >"$content_file"
-  if ! diff_text="$(git -C "$repo_root" -c core.quotePath=false diff -U0 -M --no-prefix --no-color --no-ext-diff "$@" -- . "${self_excludes[@]}")"; then
+  if ! diff_text="$(git -C "$repo_root" -c core.quotePath=false diff -U0 -M --no-prefix --no-color --no-ext-diff --text --no-textconv "$@" -- . "${self_excludes[@]}")"; then
     report "git diff $* failed; content was not verified"
     return 1
   fi
