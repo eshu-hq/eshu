@@ -180,8 +180,14 @@ func TestProjectorClaimDoesNotWaitOnGenerationUpdateChain(t *testing.T) {
 	if got := generationState(t, database, "gen-s1"); got != "superseded" {
 		t.Fatalf("gen-s1 generation after release = %q, want superseded", got)
 	}
-	time.Sleep(1500 * time.Millisecond) // let backends flush pg_stat counters
-	if delta := serverDeadlockCount(t, database) - deadlocksBefore; delta != 0 {
-		t.Fatalf("server recorded %d deadlocks, want 0", delta)
+	deadline := time.Now().Add(10 * time.Second) // let backends flush pg_stat counters
+	for {
+		if delta := serverDeadlockCount(t, database) - deadlocksBefore; delta != 0 {
+			t.Fatalf("server recorded %d deadlocks, want 0", delta)
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 }
