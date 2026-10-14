@@ -3,8 +3,9 @@
 # registry that answers the Bearer challenge and serves manifests only to
 # requests carrying the Bearer token. State: ${STUB_DIR}/tags/<tag> presence
 # decides 200 vs 404, and ${STUB_REPO} scopes the v2 path. Knobs:
-# STUB_TOKEN_MODE (token|access_token|empty|malformed|denied, default token)
-# and STUB_FORCE_CODE (manifest code override for Bearer reads). The challenge
+# STUB_TOKEN_MODE (token|access_token|empty|malformed|denied, default token),
+# STUB_FORCE_CODE (manifest code override for Bearer reads), and
+# STUB_CHALLENGE_MODE (bearer|basic, default bearer) for the 401 shape. The challenge
 # realm is fake-ghcr.invalid, never ghcr.io, so the suite proves the script
 # follows the realm instead of hardcoding the token URL. Every call is logged
 # sanitized (credential presence only, never values) to ${STUB_DIR}/curl.log.
@@ -54,8 +55,11 @@ fi
 if [[ "${bearer}" != "${minted}" ]]; then
 	echo "manifest tag=${tag} bearer=no -> 401" >>"${STUB_DIR}/curl.log"
 	if [[ "${head_mode}" == "1" ]]; then
-		printf 'HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer realm="%s",service="fake-ghcr",scope="repository:%s:pull"\r\n\r\n\n401' \
-			"${realm}" "${STUB_REPO}"
+		case "${STUB_CHALLENGE_MODE:-bearer}" in
+		basic) printf 'HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="fake"\r\n\r\n\n401' ;;
+		*) printf 'HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer realm="%s",service="fake-ghcr",scope="repository:%s:pull"\r\n\r\n\n401' \
+			"${realm}" "${STUB_REPO}" ;;
+		esac
 	else
 		printf '401'
 	fi

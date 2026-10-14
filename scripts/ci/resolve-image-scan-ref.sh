@@ -106,7 +106,7 @@ if [[ "${code}" == "401" ]]; then
 	realm="$(challenge_value realm)"
 	service="$(challenge_value service)"
 	scope="$(challenge_value scope)"
-	if [[ "${challenge}" != *"Bearer"* || -z "${realm}" || -z "${service}" || -z "${scope}" ]]; then
+	if [[ "${challenge,,}" != *"bearer"* || -z "${realm}" || -z "${service}" || -z "${scope}" ]]; then
 		echo "image-scan: GHCR lookup for ${ref} failed with HTTP 401 (no Bearer challenge)" >&2
 		exit 1
 	fi

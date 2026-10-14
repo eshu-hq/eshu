@@ -55,6 +55,7 @@ fresh_case() {
 	export STUB_DIR
 	export STUB_REPO="eshu-hq/eshu"
 	unset STUB_FORCE_CODE
+	unset STUB_CHALLENGE_MODE
 	export STUB_TOKEN_MODE=token
 	mkdir -p "${STUB_DIR}/tags"
 	: >"${STUB_DIR}/curl.log"
@@ -145,7 +146,35 @@ export STUB_TOKEN_MODE=denied
 run_resolver "main" "${SHA}"
 check "denied exchange exits non-zero (rc=${RESOLVE_RC})" "$([ "${RESOLVE_RC}" != "0" ] && echo 0 || echo 1)"
 
-# 9. Neither the token nor the Bearer value ever reaches the step log.
+# 9. A 401 without a Bearer challenge fails loudly instead of exchanging
+# against a realm that is not there.
+fresh_case
+printf 'x' >"${STUB_DIR}/tags/sha-${SHA}"
+export STUB_CHALLENGE_MODE=basic
+run_resolver "main" "${SHA}"
+check "challengeless 401 exits non-zero (rc=${RESOLVE_RC})" "$([ "${RESOLVE_RC}" != "0" ] && echo 0 || echo 1)"
+
+# 10. Every token response shape the script accepts or rejects is pinned:
+# the access_token fallback scans, while empty and malformed responses
+# fail loudly.
+fresh_case
+printf 'x' >"${STUB_DIR}/tags/sha-${SHA}"
+export STUB_TOKEN_MODE=access_token
+run_resolver "main" "${SHA}"
+check "access_token response scans (rc=${RESOLVE_RC})" "$([ "${RESOLVE_RC}" == "0" ] && echo 0 || echo 1)"
+check "access_token response does not skip" "$(out_has 'skip=false' && echo 0 || echo 1)"
+fresh_case
+printf 'x' >"${STUB_DIR}/tags/sha-${SHA}"
+export STUB_TOKEN_MODE=malformed
+run_resolver "main" "${SHA}"
+check "malformed token exits non-zero (rc=${RESOLVE_RC})" "$([ "${RESOLVE_RC}" != "0" ] && echo 0 || echo 1)"
+fresh_case
+printf 'x' >"${STUB_DIR}/tags/sha-${SHA}"
+export STUB_TOKEN_MODE=empty
+run_resolver "main" "${SHA}"
+check "empty token exits non-zero (rc=${RESOLVE_RC})" "$([ "${RESOLVE_RC}" != "0" ] && echo 0 || echo 1)"
+
+# 11. Neither the token nor the Bearer value ever reaches the step log.
 fresh_case
 printf 'x' >"${STUB_DIR}/tags/sha-${SHA}"
 run_resolver "main" "${SHA}"
