@@ -92,6 +92,13 @@ repos:
         always_run: true
         pass_filenames: false
 
+      - id: scope-prefix-single-source
+        name: git repository scope prefix stays single-sourced (staged content)
+        entry: scripts/verify-scope-prefix-single-source.sh --staged
+        language: script
+        always_run: true
+        pass_filenames: false
+
       - id: filename-stutter
         name: no filename or directory stutter (staged content)
         entry: scripts/verify-filename-stutter.sh --staged

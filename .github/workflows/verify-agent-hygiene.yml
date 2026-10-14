@@ -70,6 +70,10 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-verify-no-diff-fragments.sh
 
+      - name: Run scope-prefix-single-source gate test mirror
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
+        run: scripts/test-verify-scope-prefix-single-source.sh
+
       - name: Run filename-stutter gate test mirror
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/test-verify-filename-stutter.sh
@@ -130,6 +134,10 @@ jobs:
       - name: No diff fragments or conflict markers
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/verify-no-diff-fragments.sh
+
+      - name: Git repository scope prefix stays single-sourced
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
+        run: scripts/verify-scope-prefix-single-source.sh
 
       - name: No AI attribution
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}

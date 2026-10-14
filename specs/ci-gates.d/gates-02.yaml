@@ -168,6 +168,32 @@ gates:
     ci_only_reason: ""
     hook_id: no-diff-fragments
 
+  - id: scope-prefix-single-source
+    name: Git repository scope prefix stays single-sourced
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when a production Go file spells the git repository scope prefix literal instead of naming scope.GitRepositoryScopePrefix."
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # Tree mode scans every tracked Go file, so any non-empty PR must wait
+      # for it. The drift this catches lands in a file the PR need not touch
+      # -- a respelled literal compiles and passes every suite -- so a
+      # path-scoped trigger would miss exactly the case it exists for (#8023).
+      - "**"
+    local:
+      command: "bash scripts/verify-scope-prefix-single-source.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-scope-prefix-single-source.sh"
+    ci:
+      # Runs in verify-agent-hygiene.yml's gate job alongside agent-canon and
+      # the diff-fragment check; same workflow, same job, one more step.
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: scope-prefix-single-source
+
   - id: filename-stutter
     name: No filename or directory stutter in added/renamed paths
     category: hygiene
