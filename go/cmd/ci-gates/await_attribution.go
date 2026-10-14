@@ -55,6 +55,10 @@ type attributedFailures struct {
 // event the check rows came from, as the evaluator's run-conclusions lookup
 // does. runs is the owning-run conclusions the poll already read; they decide
 // the skipped and missing shapes the same way the evaluator decides them.
+// runs was read in the outer poll while newest is read fresh here, so a re-run
+// starting between the two reads leaves stale conclusions (cancelled here,
+// in-flight in newest); that skew files Cancelled, which still blocks the
+// merge and self-heals on the next poll, so it is accepted, not fixed.
 func attributeFailedGatesToNewestRun(
 	ctx context.Context,
 	runner ghRunner,
