@@ -102,7 +102,7 @@ internal/storage/postgres` prints for this tree, and
 The live-tests ledger's five `scheduled` rows moved to the new paths with
 their class and reason unchanged; the `legacy_scheduled_exemptions`
 `sha256` in `specs/live-tests.v1.yaml` was re-pinned to the verifier's
-recomputed digest with `count` unchanged at 571 (same 571 proofs, five
+recomputed digest with `count` unchanged at 572 (same 572 proofs, five
 renamed paths under the approved #6693 move; no exemption added or
 removed).
 
