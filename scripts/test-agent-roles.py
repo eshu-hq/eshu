@@ -53,8 +53,8 @@ def main():
         missing = run(root, "generate")
         assert missing.returncode != 0
         assert "unknown opencode model tier for develop-eshu-deep" in missing.stderr
-        # Seeded RED for the muse tier validator, isolated the same way:
-        # reload the pristine manifest so only the muse deep tier is missing.
+        # Seeded RED for the claude tier validator, isolated the same way:
+        # reload the pristine manifest so only the claude deep tier is missing.
         claude_guarded = json.loads(json.dumps(manifest))
         del claude_guarded["models"]["claude"]["deep"]
         (root / ".agents" / "roles.json").write_text(json.dumps(claude_guarded))
