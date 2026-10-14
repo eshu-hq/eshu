@@ -165,6 +165,9 @@ func RunRetrying(ctx context.Context, limits Limits, c Command) error {
 	if spread == nil {
 		spread = jitterBackoff
 	}
+	// lastBackoff is the wait before the attempt now running, kept across
+	// passes so the recovery line can report what the recovery cost.
+	var lastBackoff time.Duration
 	for attempt := 1; ; attempt++ {
 		started := time.Now()
 		err := Run(ctx, limits, c.Operation, c.Build)
@@ -174,6 +177,7 @@ func RunRetrying(ctx context.Context, limits Limits, c Command) error {
 		}
 		if err == nil {
 			report.outcome = outcomeSuccess
+			report.backoff = lastBackoff
 			recordAttempt(ctx, sweep, report)
 			return nil
 		}
@@ -203,6 +207,7 @@ func RunRetrying(ctx context.Context, limits Limits, c Command) error {
 		}
 		report.outcome = outcomeRetried
 		report.backoff = spread(limits.retryBackoff())
+		lastBackoff = report.backoff
 		var refreshed <-chan struct{}
 		if needsAddressRefresh(report.class) {
 			refreshed = requester.RequestRefresh(c.Host)
@@ -211,8 +216,8 @@ func RunRetrying(ctx context.Context, limits Limits, c Command) error {
 		if sleepErr := sleep(ctx, report.backoff); sleepErr != nil {
 			return err //nolint:wrapcheck // a shutdown during the backoff is not a command failure
 		}
-		if refreshed != nil {
-			waitForRefresh(ctx, refreshed)
+		if refreshed != nil && waitForRefresh(ctx, refreshed) {
+			return err //nolint:wrapcheck // a shutdown during the refresh wait is not a command failure
 		}
 		recordRetryStarted(ctx, report)
 	}
@@ -227,12 +232,18 @@ func takeRetry(sweep *sweepState) (willRetry, exhausted bool) {
 	return false, true
 }
 
-func waitForRefresh(ctx context.Context, refreshed <-chan struct{}) {
+// waitForRefresh waits for the address refresh the requester started, up to
+// DefaultRefreshWait. It reports true when the context ended first: the caller
+// is shutting down and the retry must not start.
+func waitForRefresh(ctx context.Context, refreshed <-chan struct{}) bool {
 	timer := time.NewTimer(DefaultRefreshWait)
 	defer timer.Stop()
 	select {
 	case <-refreshed:
+		return false
 	case <-ctx.Done():
+		return true
 	case <-timer.C:
+		return false
 	}
 }
