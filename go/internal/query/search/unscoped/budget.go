@@ -59,6 +59,11 @@ type figures struct {
 	phaseOneCap time.Duration // continuation before the tail, at DefaultBudget
 	tailCap     time.Duration // largest tail timeout, at DefaultBudget
 	tailFloor   time.Duration // smallest useful tail timeout, at DefaultBudget
+	// extensionRows caps the density-gated extension past phase one
+	// (#8002): how many further ordered rows the walk may read when the
+	// last window predicts the page fills inside them. Zero disables the
+	// extension; the file route keeps it at zero.
+	extensionRows int
 }
 
 // plan holds the phase limits derived from one budget and one shape's
@@ -78,6 +83,9 @@ type plan struct {
 	phaseOneCap time.Duration // continuation before the tail
 	tailCap     time.Duration // largest tail timeout
 	tailFloor   time.Duration // smallest useful tail timeout
+	// extensionRows is the figure's row allowance, unscaled like the
+	// window sizes: the continuation stops at the remaining budget anyway.
+	extensionRows int
 }
 
 func newPlan(budget time.Duration, f figures) plan {
@@ -85,11 +93,12 @@ func newPlan(budget time.Duration, f figures) plan {
 		return time.Duration(int64(atDefault) * int64(budget) / int64(DefaultBudget))
 	}
 	return plan{
-		budget:      budget,
-		probeRows:   f.probeRows,
-		stepRows:    f.stepRows,
-		phaseOneCap: scale(f.phaseOneCap),
-		tailCap:     scale(f.tailCap),
-		tailFloor:   scale(f.tailFloor),
+		budget:        budget,
+		probeRows:     f.probeRows,
+		stepRows:      f.stepRows,
+		phaseOneCap:   scale(f.phaseOneCap),
+		tailCap:       scale(f.tailCap),
+		tailFloor:     scale(f.tailFloor),
+		extensionRows: f.extensionRows,
 	}
 }

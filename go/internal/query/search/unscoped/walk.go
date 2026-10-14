@@ -47,6 +47,8 @@ const (
 	phaseProbe phase = "probe"
 	// phaseContinuation is the continuation capped at plan.phaseOneCap.
 	phaseContinuation phase = "continuation"
+	// phaseExtension is the density-gated continuation past phase one; the
+	// constant and its gate live in extension.go (#8002).
 	// phaseTail is the trigram tail.
 	phaseTail phase = "tail"
 	// phaseContinuationAfterTail is the continuation with the budget left
@@ -94,6 +96,13 @@ type walk[R any, K key] struct {
 	expected time.Duration // predicted duration of the next continuation step
 	overrun  time.Duration // largest time a cancelled statement ran past its timeout
 
+	// lastWindow describes the most recent completed key-ordered window.
+	// The density gate reads it; a cancelled window leaves the previous
+	// completed one in place.
+	lastWindowRows    int
+	lastWindowMatches int
+	lastWindowCost    time.Duration
+
 	probeRowsVisited int
 	steps            int
 	stepsCancelled   int // key-ordered windows (probe included) the server cancelled
@@ -134,6 +143,16 @@ func (w *walk[R, K]) run(ctx context.Context) error {
 		w.noTrigram = true
 		w.endedIn = phaseTailSkippedNoTrigram
 		return w.continuation(ctx, w.remaining(), phaseTailSkippedNoTrigram)
+	}
+	// The density gate (#8002) extends the ordered walk when the last
+	// window predicts the page fills inside the shape's extension row
+	// allowance, so a medium-density page goes exact without paying the
+	// tail wall. The time allowance keeps the tail floor for a wrong
+	// prediction; the tail below then runs with at least its floor.
+	if allowance := w.extensionAllowance(); allowance > 0 {
+		if err := w.continuation(ctx, allowance, phaseExtension); err != nil || w.finished {
+			return err
+		}
 	}
 	timeout := min(w.remaining(), w.plan.tailCap)
 	if timeout < w.plan.tailFloor {
@@ -223,6 +242,10 @@ func (w *walk[R, K]) step(ctx context.Context, size int, timeout time.Duration) 
 		w.cursor = *edge
 		w.visited += size
 	}
+	// A completed window is the density gate's unit: its rows, its matches,
+	// and what it cost. A cancelled window leaves the previous one in place.
+	w.lastWindowRows, w.lastWindowMatches = size, len(hits)
+	w.lastWindowCost = w.now().Sub(queryStart)
 	return false, nil
 }
 

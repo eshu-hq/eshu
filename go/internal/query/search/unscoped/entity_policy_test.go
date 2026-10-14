@@ -61,12 +61,15 @@ func entityPolicyClasses() []entityPolicyClass {
 			name: "decode-like at limit 100", corpus: large(1128*ms, decode...), limit: 100,
 			outcome: "exact", rows: 100, endedIn: "continuation", minMS: 130, maxMS: 160,
 		},
-		// R2.2: the one disclosed trade. Seeded RED: triple B (phase one
-		// 0.35, tail cap 0.70) answers it exact.
+		// R2.2 was the one disclosed trade: a partial of 149 rows plus one
+		// resume. Since #8002 the density-gated extension fills the page in
+		// one call: the last ordered window holds ~48 matches, so the gate
+		// predicts the 201st inside the extension allowance and the tail
+		// never runs.
 		{
-			name: "decode-like at limit 200 (R2.2 pinned partial)", corpus: large(1128*ms, decode...), limit: 200,
-			outcome: "partial", rows: 149, tailRan: true, tailCancelled: true, endedIn: "tail",
-			minMS: 790, maxMS: 810, maxOverrunMS: 10,
+			name: "decode-like at limit 200 (R2.2 exact via extension)", corpus: large(1128*ms, decode...), limit: 200,
+			outcome: "exact", rows: 200, endedIn: "extension",
+			minMS: 200, maxMS: 300,
 		},
 		{
 			name: "a-like at limit 200", corpus: at(3700*ms, aPositions...), limit: 200,
@@ -238,34 +241,34 @@ func TestEntityPolicyClasses(t *testing.T) {
 	}
 }
 
-// R2.2: the decode-like class at limit 200 is a partial of 149 rows, and one
-// resume that asks for the rest of the page completes it exactly: the two
-// calls together return the first 200 matches in key order and prove a 201st.
-func TestEntityPolicyDecodeAtLimit200ResumesOnceToExact(t *testing.T) {
+// R2.2 was a partial of 149 rows plus one resume. Since #8002 the first
+// call is exact: the density-gated extension fills the page and proves the
+// 201st, so no resume is needed.
+func TestEntityPolicyDecodeAtLimit200ExactInOneCall(t *testing.T) {
 	t.Parallel()
 
 	corpus := withEntityLargeValue(entityPolicyCorpus(1128*ms, decodePositions()...))
-	first := runEntityPolicy(t, corpus, 0, 200, querycontract.SearchCursor{})
-	if first.page.Partial == nil || len(first.page.Hits) < 140 {
-		t.Fatalf("first call: partial=%v rows=%d, want a partial of at least 140 rows", first.page.Partial != nil, len(first.page.Hits))
+	got := runEntityPolicy(t, corpus, 0, 200, querycontract.SearchCursor{})
+	if got.page.Partial != nil {
+		t.Fatalf("Partial = %+v, want an exact page", got.page.Partial)
 	}
-	if !first.page.Partial.Progressed {
-		t.Fatal("first call: Progressed = false, want true")
+	if len(got.page.Hits) != 200 {
+		t.Fatalf("rows = %d, want 200", len(got.page.Hits))
 	}
-	rest := 200 - len(first.page.Hits)
-	second := runEntityPolicy(t, corpus, 0, rest, first.page.Partial.Cursor)
-	if second.page.Partial != nil {
-		t.Fatalf("resume: Partial = %+v, want an exact page", second.page.Partial)
+	if !got.page.More {
+		t.Fatal("More = false, want the 201st match proven")
 	}
-	if !second.page.More {
-		t.Fatal("resume: More = false, want the 201st match proven")
+	if got.tailRan {
+		t.Fatal("tail ran, want the extension to fill the page without it")
 	}
-	if second.elapsedMS > 1000 {
-		t.Fatalf("resume: elapsed = %d ms, over the 1.0 s bar", second.elapsedMS)
+	if got.endedIn != "extension" {
+		t.Fatalf("ended_in = %q, want extension", got.endedIn)
 	}
-	got := append(entityKeys(first.page.Hits), entityKeys(second.page.Hits)...)
-	if want := matchEntityKeys(corpus)[:200]; !equalKeys(got, want) {
-		t.Fatalf("two calls returned %d keys, want the first 200 matches", len(got))
+	if got.elapsedMS > 1000 {
+		t.Fatalf("elapsed = %d ms, over the 1.0 s bar", got.elapsedMS)
+	}
+	if want := matchEntityKeys(corpus)[:200]; !equalKeys(entityKeys(got.page.Hits), want) {
+		t.Fatalf("one call returned %d keys, want the first 200 matches", len(got.page.Hits))
 	}
 }
 

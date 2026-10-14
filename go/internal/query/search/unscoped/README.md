@@ -41,6 +41,7 @@ Figures at the default 800 ms budget (each phase limit scales with the budget):
 | phase one cap | 0.55 x budget (440 ms) | 0.20 x budget (160 ms) |
 | tail cap | 0.50 x budget (400 ms) | 0.80 x budget (640 ms) |
 | tail floor | 150 ms | 150 ms |
+| extension rows | 0 (disabled) | 35,000 (#8002) |
 
 The entity figures are triple A of the #7009 S1 shim on `content_entities` in
 the QA environment (figures in
@@ -49,8 +50,13 @@ ruling round 2, R2.1). An ordered entity window costs bytes, not rows
 (0.3 ms plus 0.34 us per row plus 10.2 ns per byte), so 160 ms walks about
 35,000 rows; the rare bitmap tails cost 400-462 ms warm, so the tail gets
 640 ms. Under the file figures `process_entries` and `FeaturesTab`, exact
-today, end partial. The one disclosed trade: a decode-like common pattern at
-limit 200 ends partial with about 149 rows and one resume completes it.
+today, end partial. The former disclosed trade (R2.2) is gone since #8002:
+when the last ordered window predicts the page fills inside 35,000 further
+rows, the walk extends past phase one and a decode-like common pattern at
+limit 200 goes exact in one call (`decode` holds 246 matches inside the
+first 70,000 rows against the 201-match page need, QA cost-2 shim of
+2026-10-14). Sparse patterns still run the tail, and a resume pays its wall
+again (flat at about 1.1 s from any cursor on the same corpus).
 `TestEntityPolicyClasses` pins every S1 class, including the 13.1 MB value:
 a tail cancel that fires 30-170 ms into the tail waits for its recheck. At the
 default budget the entity tail timeout is about 640 ms, outside that window.
@@ -155,7 +161,8 @@ Span `postgres.query` (`db.operation=search_file_content_any_repo_page`) with
 `search.probe_rows_visited`, `search.continuation_steps`,
 `search.continuation_rows`, `search.tail_ran`, `search.tail_cancelled`,
 `search.outcome`, `search.cursor_present`, `search.phase_one_cap_ms`,
-`search.ended_in` (`probe`, `continuation`, `tail`, `continuation_after_tail`,
+`search.ended_in` (`probe`, `continuation`, `extension` for the density-gated
+continuation past phase one (#8002), `tail`, `continuation_after_tail`,
 `budget` when the tail was skipped under its floor, or
 `tail_skipped_no_trigram` when the pattern yields no trigram),
 `search.steps_cancelled`, `search.progressed`, `search.want` (offset +

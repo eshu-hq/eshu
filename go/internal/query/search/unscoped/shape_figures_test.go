@@ -5,6 +5,21 @@ package unscoped
 
 import "testing"
 
+// TestExtensionRowsPinsThe8002Allowance pins the density-gated extension
+// allowance per route: 35,000 further ordered rows on entities (the #8002
+// cost-2 shim fills a 201-match page inside 70,000 rows), zero on files so
+// the file walk stays byte-identical.
+func TestExtensionRowsPinsThe8002Allowance(t *testing.T) {
+	t.Parallel()
+
+	if got := entityShape.figures.extensionRows; got != 35_000 {
+		t.Errorf("content_entities extensionRows = %d, want 35000", got)
+	}
+	if got := fileShape.figures.extensionRows; got != 0 {
+		t.Errorf("content_files extensionRows = %d, want 0 (disabled)", got)
+	}
+}
+
 // TestShapeFiguresArePositive pins that every shape's figures are positive.
 // The engine divides by probeRows when it predicts the first continuation
 // step, so a zero there would panic at run time instead of failing a test.
