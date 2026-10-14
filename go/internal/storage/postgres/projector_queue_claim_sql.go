@@ -43,8 +43,10 @@ package postgres
 // A scope whose fence is busy is skipped by that statement's maintenance; the
 // next claim or Ack retries it. Nothing else may lock or update that table,
 // no table may reference it, and this statement must not lock ingestion_scopes.
-// Paths that only remove or renew an existing
-// lease (Ack, Fail, retry, reclaim, heartbeat) do not touch the fence. Fence
+// Paths that only remove or renew an existing lease (Ack's work mark, Fail,
+// retry, reclaim, heartbeat) never bump the fence; the only lease-path lock
+// is Ack's obsolete-generation maintenance, which locks without the bump (see
+// Generation retirement above). Fence
 // rows come from the ingestion_scopes AFTER INSERT trigger and the migration
 // 130 backfill; a scope without one is unclaimable, which
 // eshu_dp_projector_scopes_missing_claim_fence reports. Any other insert into

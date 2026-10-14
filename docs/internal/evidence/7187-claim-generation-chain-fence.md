@@ -66,10 +66,59 @@ claim or Ack retries the sweep. Plain UPDATE waits that remain
 acyclic: their holders never wait on the other party. Fail keeps
 its order (scope, work, generation) and never takes the fence, as
 before; a Fail-vs-sweep overlap waits briefly but cannot cycle
-because the sweep never blocks. Residual: a non-fenced writer
-(Fail's owned-generation update) can still, in principle,
-contribute a committed-updater leg to a chain; it is exceptional,
-brief, and documented here rather than silently assumed away.
+because the sweep never blocks.
+
+Writer census (every production `UPDATE scope_generations` path, with
+statement/tx scope and lock order):
+
+- Claim candidate + sweep: one claim statement. Candidate fence
+  (lock + bump, SKIP LOCKED), then per stale scope fence →
+  generation → work, all SKIP LOCKED, fence lock-only. No wait edge.
+- Ack obsolete maintenance: inside the Ack tx; fence → generation,
+  both SKIP LOCKED, fence lock-only; the work UPDATE retires only
+  rows whose generation the lock step holds. The lock step never
+  waits.
+- Ack scope repoint, work mark, active-supersede, activate: inside
+  the Ack tx, blocking, order scope → work → generation, under
+  `lock_timeout` (55P03 → `ErrWorkAckDeferred`, retry via
+  `AckWhenScopeFree`). A wait defers, never cycles: every party the
+  Ack can wait on takes the scope row first or never waits.
+- Write-start marker: own tx; fence SKIP LOCKED, then the generation
+  row (blocking under `lock_timeout`), then the bump. Defers when
+  the fence is busy.
+- Fail dead-letter (`failProjectorWorkQuery`): one statement;
+  scope (blocking) → work (`FOR UPDATE`) → owned generation →
+  scope repoint. Scope-first like Ack; overlap with the sweep waits
+  briefly but cannot cycle because the sweep never blocks.
+- Heartbeat supersede (`supersedeRunningProjectorWorkQuery`): one
+  statement; scope → work (full lease fence) → generation, all
+  SKIP LOCKED. Never waits. The lease-renew follow-up
+  (`heartbeatProjectorWorkQuery`) is a single-row blocking UPDATE
+  holding nothing else.
+- Delta-baseline refusal (`markProjectorDeltaBaselineRefusedQuery`):
+  one separate statement after the Ack tx rolls back; work → its
+  generation, no scope row. Lease-fenced to its own row, so it
+  cannot take another attempt's locks.
+- Liveness orphaned-active supersede
+  (`supersedeOrphanedActiveGenerationsQuery`): one statement, plain
+  UPDATE over a scope-ordered `LIMIT` batch, no explicit lock order.
+  Demotes only a strictly-older active, so repeats are idempotent.
+- Reproject stamp (`reprojectActiveGenerationQuery` and the
+  preparse-identity variant): one statement; scope row first, then
+  the work re-open insert, then the generation payload stamp.
+  Operator-cadence (forced reconcile), single scope.
+- Freshness preparse-identity clear (`clearPreparseIdentityQuery`):
+  one statement, single-row UPDATE, same operator cadence.
+
+Residual: a non-fenced writer above can still, in principle,
+contribute the committed-updater leg of a chain (any committed
+generation UPDATE qualifies as U1), and only the multi-statement
+transactions that hold a generation update open (Ack, marker) can
+supply the open-updater leg — both take the fence first, so a
+sweep arriving either side skips instead of walking the chain. The
+single-statement writers hold their updates only for the statement,
+which is exceptional, brief, and documented here rather than
+silently assumed away.
 
 ## Fix implemented
 
@@ -118,6 +167,13 @@ All proof ran against PostgreSQL 18.6 on a disposable database.
   while the Ack-shaped transaction is open, skips fenced scope-s
   without touching gen-s1, retires it on the follow-up claim, 0
   server deadlocks).
+- Fenced-busy Ack: `TestProjectorAckObsoleteSkipsFencedBusyScope`
+  holds the scope's fence in an open transaction and runs the
+  shipped `ProjectorQueue.Ack`: the Ack commits, gen-am2 activates,
+  and the stale gen-am1 generation and work rows stay pending;
+  after the release, the next claim retires gen-am1 (defer, not
+  drop). RED-proven by dropping the `obsolete_fence` locking clause
+  (the Ack retires gen-am1 while fenced).
 - Concurrency matrix GREEN with the fix (245 passed, 0 failed):
   the #7108 lock-skip and #7115 scope-chain proofs, the
   maintenance-semantics set, the #7469/#7473 EPQ set

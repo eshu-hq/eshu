@@ -48,10 +48,6 @@ WHERE scope_id = $2
   AND status = 'active'
 `
 
-// supersedeProjectorObsoleteGenerationsQuery is Ack's obsolete-generation
-// supersede. It lives in projector_queue_marker_fence_sql.go beside the
-// fence row it locks first (#7187).
-
 // activateProjectorGenerationQuery is Ack's last statement and the first one
 // that row-locks the target generation. superseded is terminal (#7130), so the
 // status predicate refuses to revive it. Because the predicate sits on the

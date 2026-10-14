@@ -115,8 +115,9 @@ const defaultProjectorClaimConflictBackoff = 25 * time.Millisecond
 
 // slowClaimStatementDuration is the 3AM signal threshold for the claim
 // statement itself (#7187): every row lock it takes is SKIP LOCKED, so a
-// claim that takes this long waited on an update chain or an open updater,
-// and the warning joins to pg_stat_activity by lease owner.
+// claim that takes this long waited on an update chain or an open updater.
+// The warning carries queue, lease owner, and elapsed time so an operator
+// can correlate it with pg_stat_activity by lease owner.
 const slowClaimStatementDuration = time.Second
 
 // claimOnce runs the claim statement once and scans at most one work item.
