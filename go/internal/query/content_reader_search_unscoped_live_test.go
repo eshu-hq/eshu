@@ -15,10 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -348,75 +344,9 @@ func planHas(plan explainNode, want string) bool {
 	return false
 }
 
-// liveWalk is one live search with the span attributes that say which phases ran.
-type liveWalk struct {
-	page   querycontract.FileSearchPage
-	budget time.Duration
-	steps  int64
-	tail   bool
-	cancel bool
-}
-
-// searchLive runs a search at the given budget and records its phases.
-func searchLive(t *testing.T, ctx context.Context, db *sql.DB, budget time.Duration, token string, limit int) liveWalk {
-	t.Helper()
-	spans := tracetest.NewSpanRecorder()
-	searcher := &unscoped.Searcher{
-		Store:  postgres.NewSQLReadStore(db),
-		Budget: budget,
-		Tracer: sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	}
-	page, err := searcher.Search(ctx, token, limit, 0, querycontract.SearchCursor{})
-	if err != nil {
-		t.Fatalf("Search(%d ms) error = %v", budget.Milliseconds(), err)
-	}
-	ended := spans.Ended()
-	if len(ended) != 1 {
-		t.Fatalf("ended spans = %d, want 1", len(ended))
-	}
-	attrs := map[string]attribute.Value{}
-	for _, kv := range ended[0].Attributes() {
-		attrs[string(kv.Key)] = kv.Value
-	}
-	return liveWalk{
-		page:   page,
-		budget: budget,
-		steps:  attrs["search.continuation_steps"].AsInt64(),
-		tail:   attrs["search.tail_ran"].AsBool(),
-		cancel: attrs["search.tail_cancelled"].AsBool(),
-	}
-}
-
-// searchLiveUntil runs the search at a series of budgets until accept holds for
-// the phases that ran. Which phases run depends on host speed: a slow host
-// cancels the tail at a small budget, a fast host finishes in the continuation.
-// Rows and the look-ahead flag must be exact at every budget; only the choice of
-// the budget that exercises the wanted phases is adaptive, and failing to find
-// one is a failure, never a skip.
-func searchLiveUntil(
-	t *testing.T, ctx context.Context, db *sql.DB, token string, limit int,
-	check func(walk liveWalk),
-	accept func(walk liveWalk) bool,
-) liveWalk {
-	t.Helper()
-	budgets := []time.Duration{200, 300, 400, 800, 1600, 150, 100}
-	var tried []string
-	for _, ms := range budgets {
-		walk := searchLive(t, ctx, db, ms*time.Millisecond, token, limit)
-		check(walk)
-		if accept(walk) {
-			return walk
-		}
-		tried = append(tried, fmt.Sprintf("%dms(steps=%d tail=%v cancelled=%v)", ms, walk.steps, walk.tail, walk.cancel))
-	}
-	t.Fatalf("no budget exercised the wanted phases; tried %s", strings.Join(tried, " "))
-	return liveWalk{}
-}
-
 // TestSearchFilesUnscopedEdgeRowsAreExactLive is the SQL-level exactness proof
 // for the keyset and the window edge: the edge token is planted on every row a
-// window ends on and on the row after it, the budget is chosen so the probe, at
+// window ends on and on the row after it, the virtual window cost is chosen so the probe, at
 // least two continuation steps and then the trigram tail all run, and the
 // answer must equal the old statement's rows exactly. An inclusive keyset
 // operator duplicates a boundary row; an edge offset past the window skips
