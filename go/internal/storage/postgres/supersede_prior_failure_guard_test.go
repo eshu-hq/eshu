@@ -213,10 +213,12 @@ func TestSupersedeWriterGuardSeededViolation(t *testing.T) {
 		t.Fatalf("a retry that only reads superseded: violations=%v writers=%d, want neither", v, n)
 	}
 
-	// The projector's three writers: Ack's obsolete supersede and Ack refusal
-	// mark in projector_queue_sql.go, and the heartbeat supersede, which #7389
-	// moved next to supersedeRunningWork in projector_queue_scan.go.
-	for file, want := range map[string]int{"projector_queue_sql.go": 2, "projector_queue_scan.go": 1} {
+	// The projector's three writers: Ack refusal mark in
+	// projector_queue_sql.go, Ack's obsolete supersede in
+	// projector_queue_marker_fence_sql.go (#7187 moved it beside the fence
+	// row it locks first), and the heartbeat supersede, which #7389 moved
+	// next to supersedeRunningWork in projector_queue_scan.go.
+	for file, want := range map[string]int{"projector_queue_sql.go": 1, "projector_queue_scan.go": 1, "projector_queue_marker_fence_sql.go": 1} {
 		real, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)

@@ -212,14 +212,14 @@ func (q ProjectorQueue) Ack(
 	}
 	now := q.now()
 	// Lock order (#7389). The heartbeat supersede takes no lock it can wait on
-	// (scope, work, generation, all SKIP LOCKED), so it cannot join a wait
-	// cycle. Every blocking path takes the scope row first: Ack (scope, work,
-	// other generations, target generation), Fail (scope, work, generation) and
-	// the ingestion commit (scope, generation, work). The delta-baseline refusal
-	// takes no scope row and shares work-then-generation with Ack. The
-	// write-start marker locks the scope's fence row SKIP LOCKED (#7819) and
-	// then only its own generation row; it never waits on the fence, so this
-	// order still holds.
+	// (scope, work, generation, all SKIP LOCKED), so it cannot join a wait cycle.
+	// Every blocking path takes the scope row first: Ack (scope, work, other
+	// generations, target generation), Fail (scope, work, generation) and the
+	// ingestion commit (scope, generation, work). The claim sweep, Ack's obsolete
+	// maintenance, and the write-start marker take the scope's fence row SKIP
+	// LOCKED (#7187, #7819) before any generation row and skip a busy scope, so no
+	// two retire one scope's generations together. The delta-baseline refusal
+	// takes no scope row and shares work-then-generation with Ack.
 	if _, err := tx.ExecContext(ctx, updateProjectorScopeGenerationQuery,
 		now, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
 		return fmt.Errorf("ack projector work: update scope active generation: %w", err)

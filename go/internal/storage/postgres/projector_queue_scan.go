@@ -113,8 +113,15 @@ const projectorClaimConflictAttempts = 3
 // ProjectorQueue.ClaimConflictBackoff is unset.
 const defaultProjectorClaimConflictBackoff = 25 * time.Millisecond
 
+// slowClaimStatementDuration is the 3AM signal threshold for the claim
+// statement itself (#7187): every row lock it takes is SKIP LOCKED, so a
+// claim that takes this long waited on an update chain or an open updater,
+// and the warning joins to pg_stat_activity by lease owner.
+const slowClaimStatementDuration = time.Second
+
 // claimOnce runs the claim statement once and scans at most one work item.
 func (q ProjectorQueue) claimOnce(ctx context.Context) (projector.ScopeGenerationWork, bool, error) {
+	start := time.Now()
 	now := q.now()
 	rows, err := q.database.QueryContext(
 		ctx,
@@ -124,6 +131,13 @@ func (q ProjectorQueue) claimOnce(ctx context.Context) (projector.ScopeGeneratio
 		now.Add(q.LeaseDuration),
 		q.ClaimSourceSystem,
 	)
+	if elapsed := time.Since(start); elapsed >= slowClaimStatementDuration {
+		slog.WarnContext(ctx, "projector claim statement slow; possible lock wait",
+			slog.String("queue", "projector"),
+			slog.String("lease_owner", q.LeaseOwner),
+			slog.Duration("elapsed", elapsed),
+		)
+	}
 	if err != nil {
 		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
 	}
