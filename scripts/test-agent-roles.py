@@ -53,6 +53,14 @@ def main():
         missing = run(root, "generate")
         assert missing.returncode != 0
         assert "unknown opencode model tier for develop-eshu-deep" in missing.stderr
+        # Seeded RED for the muse tier validator, isolated the same way:
+        # reload the pristine manifest so only the muse deep tier is missing.
+        guarded = json.loads(json.dumps(manifest))
+        del guarded["models"]["muse"]["deep"]
+        (root / ".agents" / "roles.json").write_text(json.dumps(guarded))
+        missing = run(root, "generate")
+        assert missing.returncode != 0
+        assert "unknown muse model tier for develop-eshu-deep" in missing.stderr
         (root / ".agents" / "roles.json").write_text(json.dumps(manifest))
         assert run(root, "check").returncode == 0
         binding = root / ".codex" / "agents" / "debug-eshu-deep.toml"
@@ -64,7 +72,25 @@ def main():
             codex_binding = (root / ".codex" / "agents" / (name + ".toml")).read_text()
             opencode = (root / ".opencode" / "agent" / (name + ".md")).read_text()
             cursor = (root / ".cursor" / "agents" / (name + ".md")).read_text()
-            assert all(message_rule in text for text in (claude, codex_binding, opencode, cursor))
+            muse_binding = (root / ".agents" / "agents" / (name + ".md")).read_text()
+            assert all(message_rule in text for text in (claude, codex_binding, opencode, cursor, muse_binding))
+            # Muse discovers project definitions only under .agents/agents/;
+            # frontmatter name is required and authoritative (filename ignored).
+            assert muse_binding.startswith("---\nname: " + name + "\n")
+            muse_front = muse_binding.split("---\n", 2)[1]
+            muse_desc = next(x for x in muse_front.splitlines() if x.startswith("description: "))
+            if name == "scan-eshu":
+                assert json.loads(muse_desc[len("description: "):]) == tricky
+            tier = spec.get("tier") or manifest["roles"][spec["base"]]["tier"]
+            muse_model = manifest["models"]["muse"][tier]
+            assert "model: " + muse_model["model"] + "\n" in muse_front
+            assert "effort: " + muse_model["effort"] + "\n" in muse_front
+            # Definition-carried model/effort stay inert for spawned children;
+            # the file must say so or a coordinator will misread the pin.
+            assert "subagent_spawn" in muse_binding and "inert" in muse_binding
+            assert "do not dispatch" in muse_binding
+            if access == "read":
+                assert "Do not edit source files" in muse_binding
             # Cursor also loads the .claude/ and .codex/ shims and would run the
             # model they pin; the same-named .cursor/ shim wins and inherits the
             # session model, so a session on Auto stays on Auto.
@@ -149,6 +175,13 @@ def main():
         stale = run(root, "check")
         assert stale.returncode != 0 and "develop-eshu.md" in stale.stderr
         pinned.write_text(original)
+        muse_pinned = root / ".agents" / "agents" / "develop-eshu-deep.md"
+        original = muse_pinned.read_text()
+        muse_pinned.write_text(original.replace(
+            "model: muse-wonder-full-1.0", "model: bogus-model"))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "develop-eshu-deep.md" in stale.stderr
+        muse_pinned.write_text(original)
         reviewer = root / ".opencode" / "agent" / "review-eshu.md"
         assert '  - action: shell\n    resource: "*"\n    effect: deny\n' in reviewer.read_text()
         muse = run(root, "muse-exec", "review-eshu", "Review", "--dry-run")
