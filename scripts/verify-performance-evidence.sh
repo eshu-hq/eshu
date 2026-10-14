@@ -7,6 +7,20 @@ if [ -z "$repo_root" ]; then
     || (cd "$(dirname "$0")/.." && pwd))"
 fi
 
+# fetch_missing_base fetches one missing base object without changing the
+# depth of a complete checkout: every worktree shares one .git/shallow, so a
+# --depth fetch here shallows all of them and fails unrelated lanes'
+# methodology identity check (#8048). On an already shallow checkout (CI
+# fetch-depth) it keeps the bounded fetch, which cannot make a shallow
+# checkout fail anything that does not already fail.
+fetch_missing_base() {
+  if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
+    git -C "$repo_root" fetch --no-tags origin "$1" >/dev/null 2>&1
+  else
+    git -C "$repo_root" fetch --no-tags --depth=1 origin "$1" >/dev/null 2>&1
+  fi
+}
+
 base="${ESHU_PERFORMANCE_EVIDENCE_BASE:-}"
 # An explicit base must exist in this checkout before anything diffs against
 # it (eshu-hq/eshu#7134). test.yml pins github.event.pull_request.base.sha and
@@ -35,7 +49,7 @@ if [ -n "$base" ] && ! git -C "$repo_root" cat-file -e "${base}^{commit}" 2>/dev
     printf 'verify-performance-evidence: base %s is not in this checkout (main moved after the event); using HEAD^1 %s, the tree the PR merge commit was built on\n' \
       "$base" "$parent_base" >&2
     base="$parent_base"
-  elif git -C "$repo_root" fetch --no-tags --depth=1 origin "$base" >/dev/null 2>&1 &&
+  elif fetch_missing_base "$base" &&
     git -C "$repo_root" cat-file -e "${base}^{commit}" 2>/dev/null; then
     :
   else
@@ -56,8 +70,20 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   # narrow/shallow setup `origin/$GITHUB_BASE_REF` never resolved and `base`
   # silently fell through to HEAD~1 (last commit only) in every real CI run
   # (eshu-hq/eshu#5542 follow-up).
-  git -C "$repo_root" fetch --no-tags --depth=1 origin \
-    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  #
+  # When the ref already resolves locally there is nothing to fetch at all,
+  # and on a complete checkout the fetch is never depth-limited: every
+  # worktree shares one .git/shallow, so a --depth fetch here shallows all of
+  # them and fails unrelated lanes' methodology identity check (#8048).
+  if ! git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
+    if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
+      git -C "$repo_root" fetch --no-tags origin \
+        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+    else
+      git -C "$repo_root" fetch --no-tags --depth=1 origin \
+        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+    fi
+  fi
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi

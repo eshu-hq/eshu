@@ -265,4 +265,46 @@ git -C "${staged_docdelete_repo}" commit -q -m 'add oldpkg with docs'
 git -C "${staged_docdelete_repo}" rm -q go/internal/collector/oldpkg/doc.go
 expect_fail "${staged_docdelete_repo}"
 
+# Regression (#8048): resolving the CI base over the network must not change
+# the depth of a complete checkout. Every worktree shares one .git/shallow,
+# so a --depth fetch here shallows all lanes and fails unrelated lanes'
+# methodology identity check. The fixture is a full file:// clone whose base
+# branch exists only on the remote side: the gate must fetch it (the
+# origin/pr-base assertion proves the fetch still happens) and the checkout
+# must stay complete.
+shallow_seed="$(init_repo shallow-seed)"
+# pr-base MUST be created after the clone: git clone fetches every branch,
+# so creating it first pre-resolves origin/pr-base and the resolve-first
+# guard would skip the fetch, leaving the full-depth branch-fetch path
+# untested (eshu-hq/eshu#8104 review).
+git clone --quiet "file://${shallow_seed}" "${tmp_root}/shallow-clone"
+shallow_clone="${tmp_root}/shallow-clone"
+git -C "${shallow_seed}" branch pr-base
+if git -C "${shallow_clone}" rev-parse --verify --quiet origin/pr-base >/dev/null; then
+  printf 'fixture setup broken: origin/pr-base pre-resolved, fetch path untested\n' >&2
+  exit 1
+fi
+if [ "$(git -C "${shallow_clone}" rev-parse --is-shallow-repository)" != "false" ]; then
+  printf 'shallow fixture clone started shallow\n' >&2
+  exit 1
+fi
+if env -u ESHU_PACKAGE_DOCS_BASE -u GITHUB_BASE_REF \
+  ESHU_PACKAGE_DOCS_REPO_ROOT="${shallow_clone}" \
+  GITHUB_BASE_REF="pr-base" \
+  "${verifier}" >"${tmp_root}/shallow.out" 2>"${tmp_root}/shallow.err"; then
+  :
+else
+  printf 'expected verifier to resolve the CI base on a complete checkout\n' >&2
+  sed -n '1,40p' "${tmp_root}/shallow.err" >&2
+  exit 1
+fi
+if [ "$(git -C "${shallow_clone}" rev-parse --is-shallow-repository)" != "false" ]; then
+  printf 'resolving the CI base rewrote shared shallow state\n' >&2
+  exit 1
+fi
+if ! git -C "${shallow_clone}" rev-parse --verify --quiet origin/pr-base >/dev/null; then
+  printf 'resolving the CI base left origin/pr-base unresolved\n' >&2
+  exit 1
+fi
+
 printf 'verify-package-docs tests passed\n'

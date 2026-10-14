@@ -37,7 +37,24 @@ fi
 
 base="${ESHU_TELEMETRY_COVERAGE_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  # Never change the depth of a complete checkout to resolve the base: every
+  # worktree shares one .git/shallow, so a --depth fetch here shallows all of
+  # them and fails unrelated lanes' methodology identity check (#8048). When
+  # the ref already resolves locally there is nothing to fetch at all.
+  if ! git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
+    if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
+      # The explicit destination refspec is required: `git fetch origin
+      # <branch>` with no `:<dst>` only ever updates FETCH_HEAD, never
+      # refs/remotes/origin/<branch> (eshu-hq/eshu#5542).
+      git -C "$repo_root" fetch --no-tags origin \
+        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+    else
+      # Already shallow (CI fetch-depth): keep the bounded fetch. It cannot
+      # make a shallow checkout fail anything that does not already fail.
+      git -C "$repo_root" fetch --no-tags --depth=1 origin \
+        "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+    fi
+  fi
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi

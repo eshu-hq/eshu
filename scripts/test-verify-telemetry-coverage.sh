@@ -454,6 +454,13 @@ expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-multifile-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-multifile-cases.sh"
 
+# Shared-shallow cases (#8048): resolving the CI base must not change the
+# depth of a complete checkout. Extracted for the same 500-line-cap reason.
+# Sourced, not executed -- reuses init_repo/record_pass/record_fail and the
+# verifier_out/verifier_err paths above.
+# shellcheck source=scripts/lib/test-verify-telemetry-coverage-shallow-cases.sh
+. "${repo_root}/scripts/lib/test-verify-telemetry-coverage-shallow-cases.sh"
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
   exit 1
