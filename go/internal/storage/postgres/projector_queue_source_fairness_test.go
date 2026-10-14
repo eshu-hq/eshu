@@ -93,7 +93,7 @@ func TestReducerQueueBatchClaimOrdersBySourceFairnessWithinDomain(t *testing.T) 
 		"reducer_source_system",
 		"source_inflight_count",
 		"payload->>'source_system'",
-		"ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC",
+		"ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch reducer claim query missing source-fairness fragment %q:\n%s", want, query)

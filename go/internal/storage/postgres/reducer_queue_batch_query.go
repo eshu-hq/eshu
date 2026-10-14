@@ -71,6 +71,21 @@ reducer_source_inflight AS MATERIALIZED (
       AND claim_until > $1
     GROUP BY reducer_source_system
 ),
+-- #8024: per-domain inflight tally feeding the idle-domain ordering key in
+-- the locked CTE. Same scan shape as reducer_source_inflight above (claimed/running
+-- with a live lease), grouped by domain instead of source_system, so a ready
+-- row of a domain with no inflight work sorts ahead of an older same-source
+-- backlog that is already being worked.
+reducer_domain_inflight AS MATERIALIZED (
+    SELECT
+        domain AS reducer_domain,
+        count(*) AS reducer_domain_inflight_count
+    FROM fact_work_items
+    WHERE stage = 'reducer'
+      AND status IN ('claimed', 'running')
+      AND claim_until > $1
+    GROUP BY domain
+),
 -- base: every shared gate (readiness, projector drain, semantic caps)
 -- evaluated exactly once per candidate row. Every predicate mirrors the
 -- outer WHERE clauses these gates used to duplicate at each correlated call
@@ -225,11 +240,14 @@ candidate AS (
         COALESCE(source_counts.reducer_source_inflight_count, 0) AS reducer_source_inflight_count,
         CASE WHEN fact_work_items.work_item_id = source_heads.work_item_id THEN 0 ELSE 1 END AS reducer_source_fair_rank,
         reps.reducer_domain_fair_rank AS reducer_domain_fair_rank,
+        COALESCE(domain_counts.reducer_domain_inflight_count, 0) AS reducer_domain_inflight_count,
         fact_work_items.updated_at AS updated_at
     FROM reps
     JOIN fact_work_items ON fact_work_items.work_item_id = reps.work_item_id
     LEFT JOIN reducer_source_inflight AS source_counts
       ON source_counts.reducer_source_system = reps.reducer_source_system
+    LEFT JOIN reducer_domain_inflight AS domain_counts
+      ON domain_counts.reducer_domain = reps.domain
     LEFT JOIN source_heads
       ON source_heads.work_item_id = reps.work_item_id
     WHERE reps.same_rn = 1
@@ -270,7 +288,12 @@ locked AS (
       -- above; a Go-only recheck here would reintroduce the skew flake by
       -- dropping trigger-reopened rows the base filter admitted.
       AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
-    ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC
+    -- #8024: reducer_domain_inflight_count ASC sits after the fairness ranks
+    -- and before the updated_at tie-break, so a ready row of a domain with no
+    -- inflight work takes a slot ahead of an older same-source backlog without
+    -- disturbing the #3385 cross-domain interleave (which ties at 0 = 0 when
+    -- neither domain holds leases).
+    ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC
     LIMIT $8
     FOR UPDATE OF lock_target SKIP LOCKED
 ),
