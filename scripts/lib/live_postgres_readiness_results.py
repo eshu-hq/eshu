@@ -35,6 +35,22 @@ def list_neo4j_tests() -> int:
     return 0
 
 
+def parse_expect(args: list[str]) -> tuple[list[str] | None, list[str], str]:
+    """Parse an optional leading `--expect CSV` subset, failing closed on bad input."""
+    if len(args) >= 2 and args[0] == "--expect":
+        names = args[1].split(",")
+        if any(not re.fullmatch(r"Test\w+", name) for name in names):
+            return None, [], f"malformed --expect test name in {args[1]!r}"
+        known = {test for tests in EXPECTED.values() for test in tests}
+        unknown = sorted(set(names) - known)
+        if unknown:
+            return None, [], f"unknown --expect test(s): {', '.join(unknown)}"
+        if len(set(names)) != len(names):
+            return None, [], "duplicate --expect test(s)"
+        return names, args[2:], ""
+    return None, args, ""
+
+
 def parse_skips(args: list[str]) -> tuple[set[str], str]:
     """Parse repeated `--skip NAME` flags, failing closed on bad input."""
     skipped: set[str] = set()
@@ -106,11 +122,24 @@ def main() -> int:
     if len(sys.argv) == 4 and sys.argv[1] == "verify-ledger":
         return verify_ledger(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]))
     if len(sys.argv) >= 4 and sys.argv[1] == "verify-results" and sys.argv[3] in PACKAGES:
-        skipped, error = parse_skips(sys.argv[4:])
+        expected, rest, error = parse_expect(sys.argv[4:])
         if error:
             print(f"verify-results: {error}", file=sys.stderr)
             return 2
-        return verify_results(pathlib.Path(sys.argv[2]), sys.argv[3], PACKAGES, skipped)
+        skipped, error = parse_skips(rest)
+        if error:
+            print(f"verify-results: {error}", file=sys.stderr)
+            return 2
+        if expected is not None:
+            package_tests = {test for tests in PACKAGES[sys.argv[3]].values()
+                             for test in tests}
+            outside = sorted(set(expected) - package_tests)
+            if outside:
+                print(f"verify-results: --expect names tests outside {sys.argv[3]}: "
+                      f"{', '.join(outside)}", file=sys.stderr)
+                return 2
+        return verify_results(pathlib.Path(sys.argv[2]), sys.argv[3], PACKAGES,
+                              skipped, expected)
     if len(sys.argv) == 2 and sys.argv[1] == "list-packages":
         return list_packages()
     if len(sys.argv) == 2 and sys.argv[1] == "list-neo4j-tests":
@@ -129,7 +158,7 @@ def main() -> int:
         return 0
     print(
         "usage: live_postgres_readiness_results.py "
-        "verify-ledger <ledger> <repo-root> | verify-results <events> <package> [--skip NAME]... "
+        "verify-ledger <ledger> <repo-root> | verify-results <events> <package> [--expect CSV] [--skip NAME]... "
         "| list-packages | list-neo4j-tests | summary [--skip NAME]...",
         file=sys.stderr,
     )

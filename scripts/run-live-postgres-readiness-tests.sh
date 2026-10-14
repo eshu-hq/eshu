@@ -8,15 +8,37 @@
 # (plus a disposable Neo4j for the zombie-heal graph proof when its env is
 # configured; without one the graph proofs are excused and named in the
 # summary), one go test per package.
+#
+# With --shard N/4 (one CI matrix leg) the runner executes only that pinned
+# quarter of the enrolled proofs through the shards planner and leaves a
+# fail-closed per-shard JSON report instead of the suite summary; the
+# aggregator job verifies the four reports cover the full plan.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 results="${repo_root}/scripts/lib/live_postgres_readiness_results.py"
+shards="${repo_root}/scripts/lib/live_postgres_readiness_shards.py"
 ledger="${repo_root}/specs/live-tests.v1.yaml"
 
 die() { printf 'live-postgres-readiness: %s\n' "$*" >&2; exit 1; }
 
-[[ $# -eq 0 ]] || die "no arguments accepted"
+shard="all"
+report_path=""
+opt_head=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --shard) shard="${2:-}"; shift 2 ;;
+    --report) report_path="${2:-}"; shift 2 ;;
+    --head) opt_head="${2:-}"; shift 2 ;;
+    *) die "unknown argument: $1 (usage: [--shard N/4 --report PATH] [--head SHA])" ;;
+  esac
+done
+if [[ "${shard}" == "all" ]]; then
+  [[ -z "${report_path}" && -z "${opt_head}" ]] ||
+    die "--report/--head require --shard"
+else
+  [[ -n "${report_path}" ]] || die "--shard requires --report PATH"
+fi
 command -v go >/dev/null 2>&1 || die "go is required"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 
@@ -123,9 +145,16 @@ python3 "${results}" verify-ledger "${ledger}" "${repo_root}" ||
 # package path (relative to go/), -run pattern, expected test names.
 scratch="$(mktemp -d)"
 trap 'rm -rf "${scratch}"' EXIT
-python3 "${results}" list-packages >"${scratch}/packages.tsv" ||
+python3 "${results}" list-packages >"${scratch}/full.tsv" ||
   die "package list from the results verifier is invalid"
-[[ -s "${scratch}/packages.tsv" ]] || die "results verifier listed no packages"
+[[ -s "${scratch}/full.tsv" ]] || die "results verifier listed no packages"
+if [[ "${shard}" == "all" ]]; then
+  cp "${scratch}/full.tsv" "${scratch}/packages.tsv"
+else
+  python3 "${shards}" plan --shard "${shard}" <"${scratch}/full.tsv" >"${scratch}/packages.tsv" ||
+    die "shard selection is invalid"
+  [[ -s "${scratch}/packages.tsv" ]] || die "shard ${shard} selected no packages"
+fi
 
 started="${SECONDS}"
 failed_packages=()
@@ -133,7 +162,7 @@ failed_packages=()
 # Every package runs even after an earlier one fails, so one CI run reports
 # every broken proof. The final status fails closed if any package failed.
 i=0
-while IFS=$'\t' read -r package pattern _tests; do
+while IFS=$'\t' read -r package pattern tests; do
   i=$((i + 1))
   events="${scratch}/events-${i}.jsonl"
   if (cd "${repo_root}/go" && go test -json -count=1 -timeout=15m \
@@ -143,10 +172,14 @@ while IFS=$'\t' read -r package pattern _tests; do
   else
     go_status=$?
   fi
-  # The empty-array expansion keeps `set -u` safe on older bash: with no
-  # --skip flags this is exactly the historical three-argument call.
+  # A shard verifies exactly its assigned subset: --expect names the row's
+  # tests, and any event outside that subset fails closed. The empty-array
+  # expansion keeps `set -u` safe on older bash: with no --skip flags this
+  # is exactly the historical call.
+  expect_args=()
+  [[ "${shard}" == "all" ]] || expect_args=(--expect "${tests// /,}")
   # shellcheck disable=SC2086
-  if python3 "${results}" verify-results "${events}" "${package}" ${skip_args[@]+"${skip_args[@]}"} </dev/null; then
+  if python3 "${results}" verify-results "${events}" "${package}" ${expect_args[@]+"${expect_args[@]}"} ${skip_args[@]+"${skip_args[@]}"} </dev/null; then
     results_status=0
   else
     results_status=$?
@@ -161,10 +194,34 @@ while IFS=$'\t' read -r package pattern _tests; do
     printf 'live-postgres-readiness: %s: expected tests did not all pass\n' "${package}" >&2
     failed_packages+=("${package}")
   fi
+  if [[ "${shard}" != "all" ]]; then
+    if [[ "${go_status}" -ne 0 || "${results_status}" -ne 0 ]]; then
+      printf '%s|1|%s\n' "${package}" "${tests// /,}" >>"${scratch}/manifest.tsv"
+    else
+      printf '%s|0|%s\n' "${package}" "${tests// /,}" >>"${scratch}/manifest.tsv"
+    fi
+  fi
 done <"${scratch}/packages.tsv"
 printf 'live-postgres-readiness: suite_elapsed=%ss\n' "$((SECONDS - started))"
 if [[ "${#failed_packages[@]}" -ne 0 ]]; then
   die "failed packages: ${failed_packages[*]}"
 fi
-# shellcheck disable=SC2086
-python3 "${results}" summary ${skip_args[@]+"${skip_args[@]}"}
+if [[ "${shard}" == "all" ]]; then
+  # shellcheck disable=SC2086
+  python3 "${results}" summary ${skip_args[@]+"${skip_args[@]}"}
+  exit 0
+fi
+# A shard attests its assignment with a report instead of the suite summary:
+# the summary counts the whole ledger and would claim proofs this leg never ran.
+# The report head is the checkout the shard actually ran, matching the
+# aggregator's `git rev-parse HEAD` at its own checkout of the same ref; a
+# mid-run checkout drift fails the aggregate closed instead of mixing heads.
+if [[ -n "${opt_head}" ]]; then
+  head_sha="${opt_head}"
+else
+  head_sha="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null)" ||
+    die "no --head and no git HEAD: cannot attest the shard report"
+fi
+python3 "${shards}" report --head "${head_sha}" --shard "${shard}" \
+  --plan "${scratch}/full.tsv" --manifest "${scratch}/manifest.tsv" \
+  --output "${report_path}" || die "shard ${shard} report is invalid"

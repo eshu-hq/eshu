@@ -426,6 +426,81 @@ cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory.py" "${seed_d
 out="$(python3 "${seed_dir}/malformed/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "malformed test name listed"
 [[ "${out}" == *"malformed test"* ]] || fail "malformed test not named: ${out}"
 
+# Sharded execution selects a pinned quarter of the enrolled proofs through
+# the shards planner (the same pipe the CI matrix uses), runs only those
+# packages, and leaves a fail-closed per-shard report. The subset comes from
+# the planner, so this file still carries no test-name copy.
+shards_lib="${repo_root}/scripts/lib/live_postgres_readiness_shards.py"
+shard_proofs() {
+  python3 "${checker}" list-packages |
+    python3 "${shards_lib}" plan --shard "$1" |
+    while IFS=$'\t' read -r pkg _pattern names; do
+      for name in ${names}; do printf '%s|%s\n' "${pkg}" "${name}"; done
+    done
+}
+write_subset_events() {
+  local entry pkg name seen_pkgs
+  rm -f "${fake}"/*.jsonl "${fake}"/*.names "${fake}"/*.exit "${fake}"/*.bak
+  seen_pkgs=""
+  for entry in "$@"; do
+    pkg="${entry%%|*}"
+    name="${entry##*|}"
+    printf '%s\n' "${name}" >>"${fake}/$(pkg_key "${pkg}").names"
+    printf '{"Action":"run","Test":"%s"}\n' "${name}" >>"$(events_of "${pkg}")"
+    printf '{"Action":"pass","Test":"%s","Elapsed":0.25}\n' "${name}" >>"$(events_of "${pkg}")"
+    [[ "${seen_pkgs}" == *" ${pkg} "* ]] || seen_pkgs="${seen_pkgs} ${pkg} "
+  done
+  for pkg in ${seen_pkgs}; do
+    printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/%s","Elapsed":1.0}\n' \
+      "${pkg#./}" >>"$(events_of "${pkg}")"
+  done
+}
+run_shard() { bash "${runner}" --shard "$1" --report "${fake}/shard-${1%/*}.json" --head "$2" 2>&1; }
+report_ok() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ok"])' "$1"
+}
+report_count() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["expected_count"])' "$1"
+}
+shard_head="a000000000000000000000000000000000000000"
+covered=""
+for shard in 1/4 2/4 3/4 4/4; do
+  mapfile -t sproofs < <(shard_proofs "${shard}")
+  [[ "${#sproofs[@]}" -gt 0 ]] || fail "shard ${shard} selected no proofs"
+  write_subset_events "${sproofs[@]}"
+  : >"${fake}/calls"
+  out="$(run_shard "${shard}" "${shard_head}")" || fail "shard ${shard} run failed: ${out}"
+  [[ "$(report_ok "${fake}/shard-${shard%/*}.json")" == "True" ]] || fail "shard ${shard} report not ok: ${out}"
+  [[ "$(report_count "${fake}/shard-${shard%/*}.json")" -eq "${#sproofs[@]}" ]] ||
+    fail "shard ${shard} report count differs from selection: ${out}"
+  for entry in "${sproofs[@]}"; do covered="${covered}${entry}"$'\n'; done
+done
+[[ "$(printf '%s' "${covered}" | sort -u | wc -l | tr -d '[:space:]')" -eq "${total}" ]] ||
+  fail "four shard selections do not cover every enrolled proof"
+[[ "$(printf '%s' "${covered}" | sort | uniq -d | wc -l | tr -d '[:space:]')" -eq 0 ]] ||
+  fail "shard selections overlap"
+# A shard run with a dropped test event fails naming the missing run.
+mapfile -t sproofs < <(shard_proofs "2/4")
+write_subset_events "${sproofs[@]}"
+second_pkg="${sproofs[0]%%|*}"
+second_name="${sproofs[0]##*|}"
+sed -i.bak "/\"Test\":\"${second_name}\"/d" "$(events_of "${second_pkg}")"
+out="$(run_shard "2/4" "${shard_head}")" && fail "shard 2/4 with a dropped test passed"
+[[ "${out}" == *"missing or duplicate event"* ]] || fail "dropped shard test not named: ${out}"
+# A shard run with an event for a test outside its selection fails closed.
+write_subset_events "${sproofs[@]}"
+printf '{"Action":"run","Test":"%s"}\n{"Action":"pass","Test":"%s","Elapsed":0.1}\n' \
+  "${first_proof}" "${first_proof}" >>"$(events_of "${second_pkg}")"
+out="$(run_shard "2/4" "${shard_head}")" && fail "shard 2/4 with an unexpected test passed"
+[[ "${out}" == *"unexpected test event"* ]] || fail "unexpected shard test not named: ${out}"
+# An invalid shard identifier fails before any go test starts.
+write_subset_events "${sproofs[@]}"
+: >"${fake}/calls"
+out="$(run_shard "5/4" "${shard_head}")" && fail "invalid shard passed"
+[[ "${out}" == *"invalid shard"* ]] || fail "invalid shard not named: ${out}"
+[[ ! -s "${fake}/calls" ]] || fail "go test ran for an invalid shard"
+write_events
+
 # The env-excuse loop and the dropped-package assertion above both shell out
 # to the search tool, so a host without rg must fail at the guard naming it
 # instead of passing with those checks silently satisfied. Seed that absence:
