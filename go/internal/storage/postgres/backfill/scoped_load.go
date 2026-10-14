@@ -13,7 +13,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -21,16 +20,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
-
-// deferredScopedRepoIDChunkSize keeps the repo-id self-exclusion arm bounded for
-// oversized catalogs without multiplying the representative 896-repository
-// corpus into repeated per-scope scans.
-const deferredScopedRepoIDChunkSize = 1024
-
-type deferredScopedFactLoadTask struct {
-	partition ScopeGenerationPartition
-	params    DeferredScopedFactQueryParams
-}
 
 // LoadDeferredAnchorScopedRelationshipFacts is the deferred-backfill replacement
 // for LoadAnchorScopedRelationshipFacts (issue #3659), partitioned per scope and
@@ -93,7 +82,9 @@ func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 		return nil, nil, nil, nil
 	}
 
+	paramsBlock := startBlockFromContext(ctx, BlockParamsBuild)
 	params, ok := BuildDeferredScopedFactQueryParams(catalog)
+	paramsBlock.End(nil, IntAttr("anchor_terms", len(params.NonRepoIDLike)+len(params.RepoIDValues)))
 	if !ok {
 		// No anchor and no repo_id value: no content/file/gcp fact can resolve a
 		// catalog target, so skip the fact load entirely. A nil snapshot disables
@@ -102,7 +93,9 @@ func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 		return nil, nil, nil, nil
 	}
 
+	listBlock := startBlockFromContext(ctx, BlockPartitionList)
 	partitions, err := LoadActiveScopeGenerationPartitions(ctx, queryer)
+	listBlock.End(err, IntAttr("partitions", len(partitions)))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load scope-generation partitions for deferred fact load: %w", err)
 	}
@@ -122,18 +115,29 @@ func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 		snapshotGenerations[partition.ScopeID] = partition.GenerationID
 	}
 
-	loaded, skippedPartitions, err := s.LoadDeferredScopedFactsAcrossPartitions(ctx, queryer, params, partitions, instruments)
+	// The gate and the load are the two steps LoadDeferredScopedFactsAcrossPartitions
+	// runs, called separately so fact_load (load, merge, and the phase-two ArgoCD
+	// config reload) is timed without the memo gate inside it.
+	loadPartitions, skippedPartitions := s.applyDeferredMemoGate(ctx, params, partitions, instruments)
+	factBlock := startBlockFromContext(ctx, BlockFactLoad)
+	loaded, workers, err := s.loadDeferredScopedFactsForPartitions(
+		ctx, queryer, params, partitions, loadPartitions, instruments,
+	)
 	if err != nil {
+		factBlock.End(err, IntAttr("partitions", len(loadPartitions)), IntAttr("workers", workers))
 		return nil, nil, nil, err
 	}
 	if len(loaded) == 0 {
+		factBlock.End(nil, IntAttr("partitions", len(loadPartitions)), IntAttr("facts", 0), IntAttr("workers", workers))
 		return nil, snapshotGenerations, skippedPartitions, nil
 	}
 
 	merged, err := s.AppendArgoCDGeneratorConfigFacts(ctx, queryer, catalog, loaded)
 	if err != nil {
+		factBlock.End(err, IntAttr("partitions", len(loadPartitions)), IntAttr("workers", workers))
 		return nil, nil, nil, err
 	}
+	factBlock.End(nil, IntAttr("partitions", len(loadPartitions)), IntAttr("facts", len(merged)), IntAttr("workers", workers))
 	return merged, snapshotGenerations, skippedPartitions, nil
 }
 
@@ -163,6 +167,27 @@ func (s Store) LoadDeferredScopedFactsAcrossPartitions(
 	partitions []ScopeGenerationPartition,
 	instruments *telemetry.Instruments,
 ) ([]facts.Envelope, map[ScopeGenerationPartition]struct{}, error) {
+	loadPartitions, skippedPartitions := s.applyDeferredMemoGate(ctx, params, partitions, instruments)
+	merged, _, err := s.loadDeferredScopedFactsForPartitions(
+		ctx, queryer, params, partitions, loadPartitions, instruments,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return merged, skippedPartitions, nil
+}
+
+// applyDeferredMemoGate runs the Track-1 partition memo gate and returns the
+// partitions to load plus the same-pass skip-set (nil when the gate never ran;
+// see LoadDeferredScopedFactsAcrossPartitions). It is the pass's memo_gate
+// block: candidate_partitions is every partition considered, skipped the memo
+// hits, loaded the partitions the fact load will query.
+func (s Store) applyDeferredMemoGate(
+	ctx context.Context,
+	params DeferredScopedFactQueryParams,
+	partitions []ScopeGenerationPartition,
+	instruments *telemetry.Instruments,
+) ([]ScopeGenerationPartition, map[ScopeGenerationPartition]struct{}) {
 	// Partition memo gate (issue #3624 Track 1 / B'): skip re-loading and
 	// re-deriving evidence for a partition whose backward evidence already
 	// committed under the CURRENT catalog fingerprint. ArgoCD-bearing partitions
@@ -189,10 +214,27 @@ func (s Store) LoadDeferredScopedFactsAcrossPartitions(
 	if s.DB != nil {
 		memoStore := NewDeferredBackfillPartitionMemoStore(s.DB)
 		fingerprint := DeferredCatalogFingerprint(params)
+		gateBlock := startBlockFromContext(ctx, BlockMemoGate)
 		gateResult, err := ApplyDeferredPartitionMemoGate(ctx, memoStore, partitions, fingerprint, instruments)
 		if err != nil {
+			// The gate is a performance optimization, never a correctness
+			// dependency: a lookup error degrades to a full load and the pass
+			// continues. The block ends DEGRADED, not failed: its span carries
+			// the error and fallback=true, it logs deferred_backfill_block_degraded
+			// (a failed line means the pass failed), and the existing gate_failed
+			// line below stays the failure signal.
+			gateBlock.EndDegraded(err,
+				IntAttr("candidate_partitions", len(partitions)),
+				IntAttr("skipped", 0),
+				IntAttr("loaded", len(partitions)),
+			)
 			log.Printf("deferred_backfill_partition_memo_gate_failed error=%q partitions=%d falling_back=true", err, len(partitions))
 		} else {
+			gateBlock.End(nil,
+				IntAttr("candidate_partitions", len(partitions)),
+				IntAttr("skipped", len(gateResult.Skipped)),
+				IntAttr("loaded", len(gateResult.ToLoad)),
+			)
 			loadPartitions = gateResult.ToLoad
 			skippedPartitions = make(map[ScopeGenerationPartition]struct{}, len(gateResult.Skipped))
 			for _, partition := range gateResult.Skipped {
@@ -201,9 +243,26 @@ func (s Store) LoadDeferredScopedFactsAcrossPartitions(
 		}
 	}
 
+	return loadPartitions, skippedPartitions
+}
+
+// loadDeferredScopedFactsForPartitions is the fan-out half of
+// LoadDeferredScopedFactsAcrossPartitions: it loads loadPartitions (the memo
+// gate's survivors) across the bounded worker pool and returns the merged,
+// ordered facts plus the worker count it used (0 when nothing needed loading).
+// partitions is the full candidate set, kept for the existing partition metric
+// and log fields.
+func (s Store) loadDeferredScopedFactsForPartitions(
+	ctx context.Context,
+	queryer db.Queryer,
+	params DeferredScopedFactQueryParams,
+	partitions []ScopeGenerationPartition,
+	loadPartitions []ScopeGenerationPartition,
+	instruments *telemetry.Instruments,
+) ([]facts.Envelope, int, error) {
 	tasks := buildDeferredScopedFactLoadTasks(loadPartitions, params)
 	if len(tasks) == 0 {
-		return nil, skippedPartitions, nil
+		return nil, 0, nil
 	}
 	workers := s.Workers
 	if workers < 1 {
@@ -325,10 +384,10 @@ func (s Store) LoadDeferredScopedFactsAcrossPartitions(
 
 	wg.Wait()
 	if firstErr != nil {
-		return nil, nil, firstErr
+		return nil, workers, firstErr
 	}
 	if err := groupCtx.Err(); err != nil {
-		return nil, nil, err
+		return nil, workers, err
 	}
 
 	merged := mergeDeferredScopedTaskFacts(perTask)
@@ -342,66 +401,7 @@ func (s Store) LoadDeferredScopedFactsAcrossPartitions(
 		"deferred_backfill_fact_load_completed partitions=%d loaded_partitions=%d query_tasks=%d workers=%d loaded_facts=%d",
 		len(partitions), len(loadPartitions), len(tasks), workers, len(merged),
 	)
-	return merged, skippedPartitions, nil
-}
-
-func mergeDeferredScopedTaskFacts(perTask [][]facts.Envelope) []facts.Envelope {
-	total := 0
-	for _, envelopes := range perTask {
-		total += len(envelopes)
-	}
-	if total == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, total)
-	merged := make([]facts.Envelope, 0, total)
-	for _, envelopes := range perTask {
-		for _, envelope := range envelopes {
-			if envelope.FactID != "" {
-				if _, ok := seen[envelope.FactID]; ok {
-					continue
-				}
-				seen[envelope.FactID] = struct{}{}
-			}
-			merged = append(merged, envelope)
-		}
-	}
-	return merged
-}
-
-func buildDeferredScopedFactLoadTasks(
-	partitions []ScopeGenerationPartition,
-	params DeferredScopedFactQueryParams,
-) []deferredScopedFactLoadTask {
-	tasks := make([]deferredScopedFactLoadTask, 0, len(partitions))
-	for _, partition := range partitions {
-		repoIDValues := []string(params.RepoIDValues)
-		repoIDReferenceKeys := []string(DeferredRepoIDReferenceKeys(params.RepoIDValues, params.RepoIDReferenceKey))
-		if len(repoIDValues) == 0 {
-			tasks = append(tasks, deferredScopedFactLoadTask{partition: partition, params: params})
-			continue
-		}
-		for start := 0; start < len(repoIDValues); start += deferredScopedRepoIDChunkSize {
-			end := start + deferredScopedRepoIDChunkSize
-			if end > len(repoIDValues) {
-				end = len(repoIDValues)
-			}
-			taskParams := DeferredScopedFactQueryParams{
-				RepoIDValues:       array.StringArray(repoIDValues[start:end]),
-				RepoIDReferenceKey: array.StringArray(repoIDReferenceKeys[start:end]),
-			}
-			if start == 0 {
-				taskParams.NonRepoIDLike = params.NonRepoIDLike
-			} else {
-				taskParams.NonRepoIDLike = array.StringArray{}
-			}
-			tasks = append(tasks, deferredScopedFactLoadTask{
-				partition: partition,
-				params:    taskParams,
-			})
-		}
-	}
-	return tasks
+	return merged, workers, nil
 }
 
 // AppendArgoCDGeneratorConfigFacts runs the deferred backfill's phase-two ArgoCD

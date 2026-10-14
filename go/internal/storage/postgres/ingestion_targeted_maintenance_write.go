@@ -152,33 +152,59 @@ func (s IngestionStore) reopenTargetedMaintenanceWorkItems(
 		{"deployment_mapping", listSucceededDeploymentMappingWorkItemsForPartitionsQuery},
 		{"code_import_repo_edge", listSucceededCodeImportRepoEdgeWorkItemsForPartitionsQuery},
 	} {
+		block := startTargetedReopenBlock(ctx, tracer)
 		items, err := listSucceededRelationshipWorkItemsForPartitions(ctx, tx, relationship.query, relationship.domain, affected)
 		if err != nil {
+			endTargetedReopenBlock(block, err, relationship.domain, 0, 0)
 			return nil, err
 		}
 		gate := applyReopenPartitionMemoGate(ctx, relationship.domain, items, skipped, nil)
 		for _, item := range gate.ToReopen {
 			if _, err := queue.ReopenSucceeded(ctx, item.WorkItemID); err != nil {
-				return nil, fmt.Errorf("reopen %s work items: %w", relationship.domain, err)
+				err = fmt.Errorf("reopen %s work items: %w", relationship.domain, err)
+				endTargetedReopenBlock(block, err, relationship.domain, 0, len(gate.Skipped))
+				return nil, err
 			}
 		}
 		reopened[relationship.domain] = len(gate.ToReopen)
+		endTargetedReopenBlock(block, nil, relationship.domain, len(gate.ToReopen), len(gate.Skipped))
 	}
 	for _, domain := range CrossScopeCorrelationReopenDomains() {
+		block := startTargetedReopenBlock(ctx, tracer)
 		workItemIDs, err := listSucceededReducerWorkItemIDsForDomainAndPartitions(ctx, tx, domain, affected)
 		if err != nil {
+			endTargetedReopenBlock(block, err, domain, 0, 0)
 			return nil, err
 		}
 		for _, workItemID := range workItemIDs {
 			if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
-				return nil, fmt.Errorf("reopen %s work items: %w", domain, err)
+				err = fmt.Errorf("reopen %s work items: %w", domain, err)
+				endTargetedReopenBlock(block, err, domain, 0, 0)
+				return nil, err
 			}
 		}
 		reopened[domain] = len(workItemIDs)
+		endTargetedReopenBlock(block, nil, domain, len(workItemIDs), 0)
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit partition-scoped reopen transaction: %w", err)
 	}
 	committed = true
 	return reopened, nil
+}
+
+// startTargetedReopenBlock starts the relationship.backfill.reopen block of one
+// partition-scoped reopen domain call. It passes nil instruments on purpose:
+// the targeted pass runs with instruments off so the whole pass's
+// eshu_dp_deferred_backfill_* series keep measuring only the whole pass, and its
+// reopen cost is read off the span and log line, tagged pass=targeted.
+func startTargetedReopenBlock(ctx context.Context, tracer trace.Tracer) *backfill.BlockSpan {
+	return backfill.StartBlock(ctx, tracer, nil, backfill.BlockReopen)
+}
+
+// endTargetedReopenBlock ends a block from startTargetedReopenBlock with the
+// reopen block's domain, reopened, and skipped_by_memo attributes plus
+// pass=targeted, so a targeted reopen is told apart from a whole-pass one.
+func endTargetedReopenBlock(block *backfill.BlockSpan, err error, domain string, reopened, skippedByMemo int) {
+	block.End(err, append(reopenBlockAttrs(domain, reopened, skippedByMemo), backfill.StringAttr("pass", "targeted"))...)
 }

@@ -103,6 +103,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"field_class",
 		"host",
 		"scope",
+		"block",
 	}
 
 	got := MetricDimensionKeys()

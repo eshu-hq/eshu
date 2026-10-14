@@ -2195,6 +2195,14 @@ type Instruments struct {
 	DeferredBackfillTargetedOutcomes metric.Int64Counter
 	DeferredBackfillTargetedReopened metric.Int64Counter
 
+	// DeferredBackfillBlockDuration times each block of the whole deferred
+	// maintenance pass (#8082), labeled by the closed MetricDimensionBlock set.
+	// One point per block per pass; the reopen block records once per domain
+	// call under the single value "reopen". The partition-scoped pass runs with
+	// instruments off and so never records here. See
+	// registerDeferredBackfillBlockInstruments.
+	DeferredBackfillBlockDuration metric.Float64Histogram
+
 	// ReopenSkippedByPartitionMemo counts succeeded deployment_mapping and
 	// code_import_repo_edge reducer work items whose replay was skipped because
 	// their (scope_id, generation_id) partition already committed backward
@@ -5298,6 +5306,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerDeferredBackfillTargeted(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerDeferredBackfillBlockInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

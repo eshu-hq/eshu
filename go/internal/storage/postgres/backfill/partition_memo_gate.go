@@ -237,7 +237,9 @@ func writeDeferredBackfillPartitionMemos(
 	catalogFingerprint string,
 	committedAt time.Time,
 ) error {
+	probeStart := time.Now()
 	argoCDBearing, err := LoadArgoCDBearingPartitions(ctx, tx, candidates)
+	recordArgoCDProbe(ctx, time.Since(probeStart))
 	if err != nil {
 		return fmt.Errorf("check argocd-bearing partitions before memo write: %w", err)
 	}

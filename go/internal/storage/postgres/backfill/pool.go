@@ -315,9 +315,9 @@ func (s Store) PublishDeferredBackfillPartitions(
 	// Record the publication shape on the active relationship.backfill_deferred
 	// span, matching how the fact-load fan-out reports its shape
 	// (loadDeferredScopedFactsAcrossPartitions). SpanFromContext returns a no-op
-	// span when no tracer started the pass, so this is safe either way, and it
-	// keeps the fan-in off a child span of its own -- nothing comparable in this
-	// path is separately spanned.
+	// span when no tracer started the pass, so this is safe either way. The
+	// caller also times the fan-in as its own relationship.backfill.fanin child
+	// span (#8082); these attributes stay on the pass span for existing readers.
 	trace.SpanFromContext(ctx).SetAttributes(
 		attribute.Int("fanin_partition_count", len(partitions)),
 		attribute.Int("fanin_published_count", published),

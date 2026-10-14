@@ -186,6 +186,12 @@ func registerGitCommandRetry() {
 	metricDimensionKeys = append(metricDimensionKeys, contract.MetricDimensionHost, contract.MetricDimensionScope)
 }
 
+// registerDeferredBackfillBlock appends the deferred maintenance pass block
+// metric dimension (#8082).
+func registerDeferredBackfillBlock() {
+	metricDimensionKeys = append(metricDimensionKeys, contract.MetricDimensionBlock)
+}
+
 // registerVaultLive appends the Vault redaction field_class metric dimension.
 func registerVaultLive() {
 	metricDimensionKeys = append(metricDimensionKeys, thirdparty.MetricDimensionFieldClass)

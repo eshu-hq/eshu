@@ -44,6 +44,25 @@ const (
 	GitRetryScopeSweep   = contract.GitRetryScopeSweep
 )
 
+// Deferred maintenance pass block dimension and closed block value set (from
+// contract/deferred_backfill_block.go).
+const (
+	MetricDimensionBlock               = contract.MetricDimensionBlock
+	DeferredBackfillBlockCatalogLoad   = contract.DeferredBackfillBlockCatalogLoad
+	DeferredBackfillBlockParamsBuild   = contract.DeferredBackfillBlockParamsBuild
+	DeferredBackfillBlockPartitionList = contract.DeferredBackfillBlockPartitionList
+	DeferredBackfillBlockMemoGate      = contract.DeferredBackfillBlockMemoGate
+	DeferredBackfillBlockFactLoad      = contract.DeferredBackfillBlockFactLoad
+	DeferredBackfillBlockDiscover      = contract.DeferredBackfillBlockDiscover
+	DeferredBackfillBlockWriteBatches  = contract.DeferredBackfillBlockWriteBatches
+	DeferredBackfillBlockFanIn         = contract.DeferredBackfillBlockFanIn
+	DeferredBackfillBlockReopen        = contract.DeferredBackfillBlockReopen
+
+	DeferredBackfillBlockLogCompleted = contract.DeferredBackfillBlockLogCompleted
+	DeferredBackfillBlockLogFailed    = contract.DeferredBackfillBlockLogFailed
+	DeferredBackfillBlockLogDegraded  = contract.DeferredBackfillBlockLogDegraded
+)
+
 // Claimed-service run outcome and span (from contract/collector_run.go).
 const (
 	CollectorRunOutcomeSuccess       = contract.CollectorRunOutcomeSuccess
