@@ -116,9 +116,15 @@ behavior; the collapsed Java fetch returns fewer rows than the file fetch
 on every input (distinct pairs vs file rows), so fetch-adjacent work only
 shrinks; the statement adds one aggregation over the same repository
 anchor, grant predicates, ordering, and `$scan_limit`. Baseline: walk and
-fetch code at the branch base `30962c9bc`; after: this change; backend: no
-live backend on this host (in-process enumeration plus row folding);
-terminal counts: 3,903 pairs, worst 17,694 steps, zero budget stops.
+fetch code at the branch base `460682360` (post-#8086 main); after: this
+change; backend: no live backend on this host (in-process enumeration plus
+row folding); terminal counts: 3,903 pairs, worst 17,694 steps, zero budget
+stops. The counts were first measured on the pre-rebase tree and re-verified
+on the rebased tree by the passing flagship scale tests
+(`TestCollapseJavaPackageCycleRowsKeepsFlagshipScaleUnderTheScanBound`,
+`TestCollapseJavaPackageCycleRowsFoldsFileEdges`,
+`TestCollapseJavaPackageCycleRowsChangesNoAnswer`); the rebase union did not
+touch the measured Java paths.
 Wall-time profiling of the statement (`PROFILE`, DB hits, latency) is
 env-gated for CI: no Docker on this host. The new Cypher uses only core
 scalar functions (`count`, `min`, `substring`, `size`, `split`, `last`,
@@ -153,22 +159,23 @@ system's view). `factschema-diff`, `payload-usage-manifest`, and
 snapshot are untouched (the new fixtures sit outside the gate corpus, as
 in #7347).
 
-## Merge notes (sibling lifts #7347/#7348, all unmerged)
+## Merge notes (sibling lifts #7347/#7348, both merged into the base)
 
 - `ImportRow.SourcePackage`, the writer `source_package` SET/param, the
-  `cycle_language` CycleRows line, and the queryplan/testdata pins are
-  intentionally byte-parallel with the sibling branches so the rebase is a
-  union, not a redesign.
-- `Validate`'s language line, `EffectiveCycleLanguage` (lives in
-  `code_import_dependencies_java_cycles.go` here, in `request.go` there),
-  the `JavaPackageUnknown`/`GoPackageUnknown`/`TSPackageUnknown` fields,
-  the MCP/OpenAPI language lines, the `code.md` cycle paragraphs, and the
-  live-tests ledger count/digest will conflict textually at merge; each is
-  a union documented here.
-- The methodology production pin (8 reader files blob-identical plus the
-  contract runner) fails on this branch's touched readers; that question
-  is pending owner decision on PR #8037. Implemented and proved locally
-  anyway; not pushed.
+  `cycle_language` CycleRows line, and the queryplan/testdata pins were
+  intentionally byte-parallel with the sibling branches so the rebase was a
+  union, not a redesign. Resolved as the three-way union on the #8086 merge.
+- `Validate`'s language line, the `JavaPackageUnknown`/`GoPackageUnknown`/
+  `TSPackageUnknown` fields, the MCP/OpenAPI language lines, the `code.md`
+  cycle paragraphs, and the live-tests ledger count/digest conflicted
+  textually and were unioned. `EffectiveCycleLanguage` lives only in
+  `request.go` (the duplicate in the Java file was removed at rebase).
+- The methodology rewrite declaration moved 7348 to 7349 with the exact
+  5-file pinned-reader set this diff rewrites, per the declared procedure.
+- Over-cap files from the union were split with no behavior change
+  (`javaSourcePackage` to `import_extract_java.go`,
+  `countJavaEdgesMissingPackage` to `code_import_dependencies_java_cycles.go`).
+- Ledger re-pinned to count 574 for the rebased tree.
 
 ## Unresolved / NOT_CHECKED
 

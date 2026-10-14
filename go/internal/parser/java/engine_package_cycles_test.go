@@ -79,10 +79,39 @@ public class App {
 	}
 }
 
+// TestJavaPackageCyclesAnnotatedPackageDeclarationReportsPackage pins the
+// annotation half of the #7349 package identity (review F5): a package-info
+// file whose declaration carries an annotation must still report the declared
+// package, never the annotation text, so the projector never stamps a
+// non-package as source_package.
 // TestJavaPackageCyclesDefaultPackageCarriesNoPackageName pins the
 // absence half of the #7349 package identity: a file outside every package
 // declaration carries no package_name key, keeping that payload
 // byte-identical, so the projector never invents a package for it.
+func TestJavaPackageCyclesAnnotatedPackageDeclarationReportsPackage(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "main", "java", "com", "acme", "package-info.java")
+	writeJavaTestFile(t, filePath, `@NonNullApi
+package com.acme;
+
+public class PlaceHolder {
+}
+`)
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	if pkg, _ := got["package_name"].(string); pkg != "com.acme" {
+		t.Errorf("package_name = %#v, want the declared package %q", got["package_name"], "com.acme")
+	}
+}
+
 func TestJavaPackageCyclesDefaultPackageCarriesNoPackageName(t *testing.T) {
 	t.Parallel()
 

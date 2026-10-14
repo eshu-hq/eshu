@@ -82,8 +82,10 @@ the staying code family still uses.
   from the imported class name, so the shared exact-equality rule runs
   unchanged and same-package files land on one node. The Java fetch collapses
   to distinct package pairs in the statement (the flagship 34,563 file rows
-  stay under the scan bound); edges that predate the mapping are excluded and
-  counted in `CycleEnumeration.JavaPackageUnknown`.
+  stay under the scan bound); edges that predate the mapping are pre-filtered
+  and close nothing, so production reads report 0 in
+  `CycleEnumeration.JavaPackageUnknown` by construction (the key counts only
+  file-level rows fed directly to the decoder).
 - `code_relationship_story_{evidence_state,provenance}.go`,
   `code_relationships_{graph_response,resolution}.go` — story contract,
   evidence classification, graph shaping, name resolution.

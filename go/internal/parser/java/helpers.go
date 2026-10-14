@@ -111,8 +111,18 @@ func javaFilePackageName(root *tree_sitter.Node, source []byte) string {
 			return
 		}
 		walkDirectNamed(node, func(child *tree_sitter.Node) {
-			if packageName == "" {
-				packageName = strings.TrimSpace(nodeText(child, source))
+			if packageName != "" {
+				return
+			}
+			// An annotated declaration (package-info.java) carries the
+			// annotation as a direct named child ahead of the package name;
+			// stamping its text would invent a non-package, so annotations
+			// never win the name.
+			if kind := child.Kind(); kind == "annotation" || kind == "marker_annotation" {
+				return
+			}
+			if text := strings.TrimSpace(nodeText(child, source)); !strings.HasPrefix(text, "@") {
+				packageName = text
 			}
 		})
 		if packageName == "" {

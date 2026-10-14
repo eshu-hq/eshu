@@ -156,11 +156,14 @@ repository's 34,563 file rows under the scan bound), and the cycle query
 collapses packages with the same rule file cycles use. Same-package files
 report as one node, a same-package edge closes nothing, and the file and module
 slots carry package names. A single-type import loses its class name, an
-on-demand import loses its `.*` suffix, and a static member import trims to the
-enclosing class, which names no repository package: a cycle closed only through
-a static member import is missed, conservatively. Edges from a graph written
-before the mapping existed are pre-filtered by the statement and close nothing;
-file-level rows that still arrive unplaced are counted in
+on-demand import loses its `.*` suffix, an inner-class import
+(`import com.acme.Outer.Inner`) trims to `com.acme.Outer`, and a static member
+import trims to the enclosing class, which names no repository package: a cycle
+closed only through such a leg is missed, conservatively. Edges from a graph
+written before the mapping existed are pre-filtered by the statement and close
+nothing; the key therefore reads 0 on production reads by construction. It
+counts only file-level rows fed directly to the decoder, and it exists so the
+trace shape stays stable across languages. It is reported as
 `coverage.cycle_java_edges_missing_package`. The package identity is pinned by
 `TestJavaPackageCyclesParserFlags`.
 
