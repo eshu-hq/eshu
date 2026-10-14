@@ -118,11 +118,31 @@ jobs:
             esac
           fi
           echo "disposition=${disposition}" >> "${GITHUB_OUTPUT}"
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+          # The pending-status write is one API call, and a transient
+          # truncated or empty response body fails it with `unexpected end
+          # of JSON input` (#8039: run 38334797669 ejected a green merge
+          # group over exactly that, before any gate was classified).
+          # Retry the write so one bad response does not fail the step;
+          # only every attempt failing does.
+          #
+          # This run also starts late in a merge group: it wakes only after
+          # its source workflows report, and the ~30-minute
+          # live-postgres-readiness job is usually last. That lateness is
+          # expected -- the write below must still land, retried, before
+          # any verdict.
+          attempt=1
+          until gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
             -f state=pending \
             -f context=required-gates-complete \
             -f description='Waiting for path-selected blocking gates' \
-            -f target_url="${TARGET_URL}"
+            -f target_url="${TARGET_URL}"; do
+            attempt=$((attempt + 1))
+            if [[ "${attempt}" -gt 3 ]]; then
+              echo '::error::pending status write failed after 3 attempts'
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Check out trusted default-branch policy
         if: ${{ steps.pending.outputs.disposition == 'active' }}
@@ -307,6 +327,27 @@ jobs:
           # workflows that are still going, and it is authoritative. Writing
           # `pending` here instead would be harmless but pointless: the status
           # is already pending from the earlier step.
+          # #8039: a merge-group run whose pending step never succeeded has no
+          # verdict to publish -- and publishing `error` here ejects a green
+          # group from the queue (run 38334797669 did exactly that). Leave
+          # the status alone: another Required Gates run for this head is
+          # already queued behind the workflows still going, and it is
+          # authoritative. A pull_request keeps failing closed below: there
+          # the pending step also classifies the PR, so its failure carries
+          # information instead of only noise.
+          if [[ "${PENDING_OUTCOME}" != "success" && "${RUN_EVENT}" == "merge_group" ]]; then
+            echo '::notice::pending status was never published; leaving required-gates-complete for the next run'
+            exit 0
+          fi
+          # Same when the pending write landed but a later setup step failed
+          # before the await classified anything: AGGREGATE_CODE is empty,
+          # the `""` arm below would publish `error`, and a green group
+          # would be ejected the same way. Leave those heads for the next
+          # run too.
+          if [[ "${RUN_EVENT}" == "merge_group" && -z "${AGGREGATE_CODE}" ]]; then
+            echo '::notice::gates were never classified; leaving required-gates-complete for the next run'
+            exit 0
+          fi
           if [[ "${PENDING_OUTCOME}" != "success" ]]; then
             state=error
             description='Required gate aggregation could not start'

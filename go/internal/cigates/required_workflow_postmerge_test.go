@@ -244,6 +244,19 @@ if [[ "$1 $2 $3" == "api --paginate --slurp" && "$4" == "repos/${GITHUB_REPOSITO
   exit 0
 fi
 if [[ "$1" == api && "$2" == -X && "$3" == POST ]]; then
+  # ESHU_GH_POST_FAIL_FILE seeds transient status-write failures (#8039): it
+  # holds a remaining-failure count. While the count is above zero the write
+  # fails the way the real one did -- an empty-body "unexpected end of JSON
+  # input" -- and decrements the count, so the next attempt succeeds. Unset
+  # (or drained) means every write succeeds, exactly as before.
+  if [[ -n "${ESHU_GH_POST_FAIL_FILE:-}" && -f "${ESHU_GH_POST_FAIL_FILE}" ]]; then
+    remaining="$(cat "${ESHU_GH_POST_FAIL_FILE}")"
+    if [[ "${remaining}" -gt 0 ]]; then
+      printf '%d\n' "$((remaining - 1))" > "${ESHU_GH_POST_FAIL_FILE}"
+      echo "unexpected end of JSON input" >&2
+      exit 1
+    fi
+  fi
   exit 0
 fi
 exit 79
