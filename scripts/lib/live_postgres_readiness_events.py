@@ -19,7 +19,10 @@ def verify_results(
     skip passes, but a failure still fails closed. When `expected` names an
     explicit subset (one readiness shard), only that subset may appear: a
     run or terminal event for any other test fails closed, so a shard whose
-    -run pattern drifted wider than its assignment cannot pass.
+    -run pattern drifted wider than its assignment cannot pass. Subtests
+    resolve to their top-level parent: `go test -run` matches the parent and
+    emits Parent/child events, which are accepted exactly as the full suite
+    accepts them (unattributed) when the parent is expected or excused.
     """
     excused = set(skipped or ())
     full_tests = {test for tests in packages[package].values() for test in tests}
@@ -61,9 +64,15 @@ def verify_results(
                     terminals[name].append((action, event.get("Elapsed", 0)))
                 elif action == "output":
                     output[name].append(event.get("Output", "").rstrip()[:300])
-            elif strict and name and name not in excused_terminals and action in {"run", "pass", "fail", "skip"}:
-                print(f"{name}: unexpected test event outside the shard subset")
-                failed = True
+            elif strict and name:
+                parent = name.split("/")[0]
+                if parent not in expected_tests and parent not in excused_terminals:
+                    if action in {"run", "pass", "fail", "skip"}:
+                        print(f"{name}: unexpected test event outside the shard subset")
+                        failed = True
+                    continue
+                if "/" in name:
+                    continue
             elif name in excused_terminals and action in {"pass", "fail", "skip"}:
                 excused_terminals[name].append(action)
             elif not name and action in {"pass", "fail", "skip"}:

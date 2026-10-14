@@ -499,7 +499,24 @@ write_subset_events "${sproofs[@]}"
 out="$(run_shard "5/4" "${shard_head}")" && fail "invalid shard passed"
 [[ "${out}" == *"invalid shard"* ]] || fail "invalid shard not named: ${out}"
 [[ ! -s "${fake}/calls" ]] || fail "go test ran for an invalid shard"
+# Subtests resolve to their enrolled parent: `go test -run` matches the
+# parent and emits Parent/child events, which the shard subset must accept
+# exactly as the full suite does. A child of an unenrolled parent fails.
+mapfile -t sproofs < <(shard_proofs "1/4")
+write_subset_events "${sproofs[@]}"
+first_parent="${sproofs[0]##*|}"
+printf '{"Action":"run","Test":"%s/seeded-child"}\n{"Action":"pass","Test":"%s/seeded-child","Elapsed":0.1}\n' \
+  "${first_parent}" "${first_parent}" >>"$(events_of "${sproofs[0]%%|*}")"
+out="$(run_shard "1/4" "${shard_head}")" || fail "shard 1/4 with subtest events failed: ${out}"
+write_subset_events "${sproofs[@]}"
+printf '{"Action":"run","Test":"TestZzzDecoyNotEnrolled/seeded-child"}\n{"Action":"pass","Test":"TestZzzDecoyNotEnrolled/seeded-child","Elapsed":0.1}\n' \
+  >>"$(events_of "${sproofs[0]%%|*}")"
+out="$(run_shard "1/4" "${shard_head}")" && fail "shard 1/4 with a foreign subtest passed"
+[[ "${out}" == *"unexpected test event"* ]] || fail "foreign subtest not named: ${out}"
 write_events
+printf '{"Action":"run","Test":"%s/seeded-child"}\n{"Action":"pass","Test":"%s/seeded-child","Elapsed":0.1}\n' \
+  "${first_proof}" "${first_proof}" >>"$(events_of "${first_pkg}")"
+out="$(run_runner)" || fail "full run with subtest events failed: ${out}"
 
 # The env-excuse loop and the dropped-package assertion above both shell out
 # to the search tool, so a host without rg must fail at the guard naming it

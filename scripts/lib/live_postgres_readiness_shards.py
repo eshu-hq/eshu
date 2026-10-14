@@ -295,7 +295,11 @@ def _validate_report(value: object, plan: list[str], head: str,
             or any(not isinstance(error, str) for error in value["errors"])):
         raise ValueError(f"invalid accounting for {shard}")
     ok_runs = [entry["run"] for entry in raw_runs if entry["status"] == 0]
-    if not value["ok"] or value["errors"] or len(ok_runs) != len(expected):
+    if sorted(ok_runs) != sorted(expected):
+        raise ValueError(f"failed or incomplete shard {shard}: {value['errors']}")
+    if value["observed_count"] != len(ok_runs):
+        raise ValueError(f"miscounted shard {shard}: observed {value['observed_count']}")
+    if not value["ok"] or value["errors"]:
         raise ValueError(f"failed or incomplete shard {shard}: {value['errors']}")
     return expected, shard  # type: ignore[return-value]
 

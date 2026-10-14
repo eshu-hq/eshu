@@ -201,6 +201,21 @@ class ShardContractTest(unittest.TestCase):
         stale = self.write_report("4/4", head="b" * 40)
         self.assertNotEqual(self.verify([*reports[:3], stale]).returncode, 0)
 
+    def test_verify_rejects_duplicated_ok_run_covering_an_omission(self) -> None:
+        forged = self.directory / "forged-4-report.json"
+        forged.write_text(self.write_report("4/4").read_text(encoding="utf-8"),
+                          encoding="utf-8")
+        expected = shards.partition_runs(self.flat, "4/4")
+        raw = json.loads(forged.read_text(encoding="utf-8"))
+        raw["runs"] = [{"run": line, "status": 0} for line in
+                       [*expected[:-1], expected[0]]]
+        raw["observed_count"] = len(expected)
+        forged.write_text(json.dumps(raw), encoding="utf-8")
+        first_three = self.good_reports()[:3]
+        retry = self.invoke("verify", "--head", HEAD, "--plan", str(self.write_full_tsv()),
+                            *[str(p) for p in first_three], str(forged))
+        self.assertNotEqual(retry.returncode, 0)
+
     def test_verify_rejects_failed_shard_report(self) -> None:
         reports = self.good_reports()
         package = shards.partition_runs(self.flat, "4/4")[0].split("|")[0]
