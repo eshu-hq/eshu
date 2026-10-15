@@ -107,7 +107,7 @@ const StatsAndCoverage = `
                     "file_count": {"type": "integer"},
                     "entity_count": {"type": "integer"},
                     "content_last_indexed_at": {"type": "string"},
-                    "last_error": {"type": "string", "description": "One fixed string from a closed set, never backend error text: empty when graph coverage stats were read, graph coverage stats skipped because content store coverage is available, or content store not available. A failed coverage read answers an error status instead."},
+                    "last_error": {"type": "string", "description": "One of two fixed strings, never backend error text: graph coverage stats skipped because content store coverage is available, or content store not available (the graph coverage stats were read instead). A failed coverage read answers an error status instead."},
                     "languages": {
                       "type": "array",
                       "items": {
