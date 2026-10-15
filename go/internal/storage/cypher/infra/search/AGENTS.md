@@ -18,8 +18,12 @@
   `TestInfraSearchKeyFieldsMirrorFreeTextPredicate` enforces it.
 - Guard each part with `IS :: STRING NOT NULL`. On the pinned Neo4j,
   `null IS :: STRING` is true.
-- The clause is one `SET` with no `WHERE` or `WITH`, so the index-key guard can
-  read it.
+- The clause computes the joined key once: `WITH alias, <joined> AS
+  infra_search_joined_key`, then one `SET` of both properties from that row
+  variable. The over-cap value never reaches the node. The `WITH` keeps only the
+  node variable, so `Statement` appends the clause last. The index-key guard
+  reads the result (`graph.UnanalyzedIndexWrites` reports nothing; the writer
+  tests assert it).
 - `Off` must return the statement byte for byte. NornicDB cannot evaluate the
   clause.
 - Never write `infra_search_key` or `infra_search_ovf` outside `Clause` and

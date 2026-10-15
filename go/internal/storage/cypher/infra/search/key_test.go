@@ -4,6 +4,7 @@
 package search
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -19,36 +20,65 @@ func TestClauseShape(t *testing.T) {
 	t.Parallel()
 
 	clause := Clause("r")
-	if !strings.HasPrefix(clause, "SET r.infra_search_ovf = CASE WHEN size(") {
-		t.Fatalf("clause = %q, want a SET of r.infra_search_ovf first", clause)
+	// The joined key is computed once, into a row variable, so no over-cap
+	// value is ever written to the node; both properties are SET from it.
+	if want := "WITH r, " + joinedExpr("r") + " AS infra_search_joined_key\nSET r.infra_search_ovf = "; !strings.HasPrefix(clause, want) {
+		t.Fatalf("clause = %q, want prefix %q", clause, want)
 	}
 	// The bound is strict: a key of exactly 8,000 code points is stored
 	// (flag 'F'); 8,001 overflows (flag 'T', key null). The live test
-	// TestLiveInfraSearchKeyCapBoundary proves the values on the pinned Neo4j.
-	if !strings.Contains(clause, ") > 8000 THEN 'T' ELSE 'F' END, r.infra_search_key = CASE WHEN size(") ||
-		!strings.Contains(clause, ") > 8000 THEN null ELSE ") {
-		t.Fatalf("clause = %q, want flag 'T'/'F' and a null key past a strict 8000 bound", clause)
-	}
-	if !strings.Contains(clause, ", r.infra_search_key = CASE WHEN size(") {
-		t.Fatalf("clause = %q, want r.infra_search_key bounded by size()", clause)
+	// TestLiveInfraSearchKey proves the values on the pinned Neo4j.
+	wantTail := "SET r.infra_search_ovf = CASE WHEN size(infra_search_joined_key) > 8000 THEN 'T' ELSE 'F' END, " +
+		"r.infra_search_key = CASE WHEN size(infra_search_joined_key) > 8000 THEN null ELSE infra_search_joined_key END"
+	if !strings.HasSuffix(clause, wantTail) {
+		t.Fatalf("clause = %q, want suffix %q", clause, wantTail)
 	}
 	if strings.Contains(clause, "$") {
 		t.Fatalf("clause = %q reads a parameter; the key must come from the node's own properties", clause)
 	}
-	if strings.Count(clause, "> 8000") != 2 {
-		t.Fatalf("clause = %q, want the 8000 bound on both the flag and the key", clause)
+	if got := strings.Count(clause, "IS :: STRING NOT NULL"); got != 11 {
+		t.Fatalf("clause evaluates %d guarded parts, want the 11 parts once each", got)
 	}
-	for _, expr := range []string{
-		"r.name", "r.id", "r.kind", "coalesce(r.resource_type, r.data_type)", "r.arn",
-		"r.resource_id", "r.service_kind", "r.account_id", "r.region", "r.source", "r.config_path",
-	} {
-		part := "CASE WHEN " + expr + " IS :: STRING NOT NULL THEN " + expr + " ELSE '' END"
-		if got := strings.Count(clause, part); got != 3 {
-			t.Errorf("clause carries part %q %d times, want 3 (flag size, key size, key value)", part, got)
+	if strings.Contains(clause, " WHERE ") || strings.Count(clause, "WITH ") != 1 {
+		t.Fatalf("clause = %q, want exactly one WITH and no WHERE", clause)
+	}
+}
+
+// TestJoinedExprReadsExactlyFields keeps the expression the clause evaluates
+// equal to Fields(): every property it reads is a searched field, every
+// searched field is read, each part is guarded as a non-null string, and the
+// resource type is the coalesce the predicate reads, in that order.
+func TestJoinedExprReadsExactlyFields(t *testing.T) {
+	t.Parallel()
+
+	expr := joinedExpr("n")
+	read := map[string]bool{}
+	for _, m := range regexp.MustCompile(`\bn\.(\w+)\b`).FindAllStringSubmatch(expr, -1) {
+		read[m[1]] = true
+	}
+	want := map[string]bool{}
+	for _, f := range Fields() {
+		want[f] = true
+	}
+	if len(read) != len(want) {
+		t.Fatalf("joinedExpr reads %v, want exactly Fields() %v", read, want)
+	}
+	for f := range want {
+		if !read[f] {
+			t.Errorf("joinedExpr does not read %s", f)
 		}
 	}
-	if strings.Contains(clause, " WHERE ") || strings.Contains(clause, " WITH ") {
-		t.Fatalf("clause = %q carries a clause keyword; it must stay one SET the index-key guard can read", clause)
+	parts := strings.Split(expr, " + '\\u001F' + ")
+	if len(parts) != 11 {
+		t.Fatalf("joinedExpr has %d parts, want 11", len(parts))
+	}
+	for _, part := range parts {
+		if !strings.HasPrefix(part, "CASE WHEN ") || !strings.Contains(part, " IS :: STRING NOT NULL THEN ") || !strings.HasSuffix(part, " ELSE '' END") {
+			t.Errorf("part %q is not a guarded string part", part)
+		}
+	}
+	if !strings.Contains(expr, "coalesce(n.resource_type, n.data_type)") {
+		t.Fatal("joinedExpr does not coalesce resource_type before data_type")
 	}
 }
 

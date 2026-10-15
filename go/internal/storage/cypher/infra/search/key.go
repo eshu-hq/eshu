@@ -130,7 +130,8 @@ func joinedExpr(alias string) string {
 	return strings.Join(parts, " + "+separator+" + ")
 }
 
-// overflowFlagExpr is the Cypher value of infra_search_ovf for a joined key:
+// overflowFlagExpr is the Cypher value of infra_search_ovf for a joined key
+// expression (a row variable in Clause and the backfill):
 // graph.InfraSearchOverflowYes past the bound, graph.InfraSearchOverflowNo
 // otherwise. The flag representation lives here and in the graph constants
 // only.
@@ -146,16 +147,31 @@ func keyValueExpr(joined string) string {
 		" THEN null ELSE " + joined + " END"
 }
 
-// Clause returns the SET clause that maintains the key on alias.
+// joinedVar is the row variable Clause binds the joined key to. Writer
+// statements never use this name, and the backfill names its own copy
+// differently, so it never shadows an outer variable.
+const joinedVar = "infra_search_joined_key"
+
+// Clause returns the clause that maintains the key on alias. It computes the
+// joined key once into a row variable (WITH alias, <joined> AS
+// infra_search_joined_key), then SETs both properties from it.
 // infra_search_ovf is always written; the key is written only when it fits
 // graph.InfraSearchKeyMaxChars and is null otherwise. A key past the bound
 // would be one FULLTEXT term over Lucene's 32,766-byte limit, which fails the
-// commit and leaves the index FAILED, so the bound is not optional. A node
-// with a 70 KB config_path is still written and is found through the flag.
+// commit and leaves the index FAILED, so the bound is not optional. The
+// joined value lives only in the row variable: no over-cap value is ever
+// written to the node. A node with a 70 KB config_path is still written and
+// is found through the flag.
+//
+// Computing the key once costs +17 db hits per row on a 500-row batch,
+// against +41 for evaluating the join three times inline (PROFILE on the
+// pinned Neo4j, docs/internal/evidence/7245-infra-search-key-dark.md). The
+// clause ends the statement: its WITH keeps only alias in scope, so it must
+// be appended last, which Statement does.
 func Clause(alias string) string {
-	joined := joinedExpr(alias)
-	return "SET " + alias + "." + graph.InfraSearchOverflowProperty + " = " + overflowFlagExpr(joined) +
-		", " + alias + "." + graph.InfraSearchKeyProperty + " = " + keyValueExpr(joined)
+	return "WITH " + alias + ", " + joinedExpr(alias) + " AS " + joinedVar +
+		"\nSET " + alias + "." + graph.InfraSearchOverflowProperty + " = " + overflowFlagExpr(joinedVar) +
+		", " + alias + "." + graph.InfraSearchKeyProperty + " = " + keyValueExpr(joinedVar)
 }
 
 // Statement returns cypher with the key clause for alias

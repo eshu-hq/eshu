@@ -39,7 +39,7 @@ func TestInfraSearchKeyCensusFlagsSeededViolations(t *testing.T) {
 	write("map_merge.go", "func mapMerge(label string) string {\n\treturn fmt.Sprintf("+q("UNWIND $rows AS row\nMERGE (n:%s {uid: row.entity_id})\nSET n += row.props")+", label)\n}")
 	write("inline_map.go", "const inlineMap = "+q("UNWIND $rows AS row\nMERGE (k:K8sResource {uid: row.uid, name: row.name})"))
 	write("pasted.go", "const pasted = "+q("UNWIND $rows AS row\nMERGE (r:CloudResource {uid: row.uid})\nSET r.region = row.region\n"+search.Clause("r")))
-	write("comment.go", "// "+search.Clause("r")+"\nconst commented = "+q("UNWIND $rows AS row\nMERGE (r:TerraformVariable {uid: row.uid})\nSET r.id = row.uid"))
+	write("comment.go", "// "+strings.ReplaceAll(search.Clause("r"), "\n", "\n// ")+"\nconst commented = "+q("UNWIND $rows AS row\nMERGE (r:TerraformVariable {uid: row.uid})\nSET r.id = row.uid"))
 
 	// Clean.
 	write("keyed.go", "const keyedBase = "+q("UNWIND $rows AS row\nMERGE (r:CloudResource {uid: row.uid})\nSET r.name = row.name")+

@@ -66,7 +66,7 @@ func TestBackfillKeysEveryLabelWithTheWriterClause(t *testing.T) {
 		if !strings.Contains(call.cypher, "CALL (n) {\n  "+Clause("n")+"\n} IN TRANSACTIONS OF $batch_size ROWS") {
 			t.Errorf("statement for %s does not write the shared clause in batched transactions", label)
 		}
-		if !strings.Contains(call.cypher, "WHERE n.infra_search_ovf IS NULL\n   OR n.infra_search_ovf <> CASE WHEN size(infra_search_joined) > 8000 THEN 'T' ELSE 'F' END") {
+		if !strings.Contains(call.cypher, "WHERE n.infra_search_ovf IS NULL\n   OR n.infra_search_ovf <> CASE WHEN size(infra_search_current_key) > 8000 THEN 'T' ELSE 'F' END") {
 			t.Errorf("statement for %s rewrites nodes whose key already matches", label)
 		}
 		if strings.Contains(strings.ReplaceAll(call.cypher, Clause("n"), ""), "SET ") {

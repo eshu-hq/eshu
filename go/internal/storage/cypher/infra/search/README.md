@@ -14,8 +14,13 @@ in this release (PR-1 is dark). The read cutover is #7245 PR-2.
 
 ## Contract
 
-- `Clause(alias)` is the one `SET` clause that writes the key. It reads only
-  the node's own properties, never a parameter.
+- `Clause(alias)` is the one clause that writes the key. It reads only the
+  node's own properties, never a parameter. It computes the joined key once
+  into a row variable (`WITH alias, <joined> AS infra_search_joined_key`) and
+  sets both properties from it, so an over-cap value never reaches the node.
+  Measured on a 500-row batch: +17 db hits per row, against +41 when the join
+  is evaluated inline three times. The `WITH` ends the statement's scope, so
+  `Statement` appends the clause last.
 - Each part is the property when it is a non-null string, and the empty string
   otherwise. The resource type is `coalesce(resource_type, data_type)`, as in
   the predicate.
@@ -54,6 +59,11 @@ on Neo4j after graph DDL and before the schema marker.
 
 `CountUnkeyed` returns the per-label count of nodes without the flag. PR-2
 gates its readiness marker on that count and a fresh backfill.
+
+PR-2 handoff: the reader must also check, at read time, that
+`infra_search_key_ft` is `ONLINE` before it uses the key. A write that
+bypasses the clause can leave the index `FAILED`, and nothing in Eshu reports
+that until the next bootstrap runs its index-state check.
 
 `OversizedKeyCount` (statement: `OversizedKeyCountCypher`) counts keys longer
 than the cap. Bootstrap runs it before the index DDL and stops when it is not

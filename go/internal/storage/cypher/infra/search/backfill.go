@@ -153,7 +153,7 @@ func CountUnkeyed(ctx context.Context, runner Runner) (map[string]int64, error) 
 // count is read from the joined key, not the written flag, so it does not
 // depend on read-after-write inside the outer query.
 func backfillCypher(label string) string {
-	const joined = "infra_search_joined"
+	const joined = "infra_search_current_key"
 	bound := strconv.Itoa(graph.InfraSearchKeyMaxChars)
 	return "MATCH (n:" + label + ")\n" +
 		"WITH n, " + joinedExpr("n") + " AS " + joined + "\n" +
