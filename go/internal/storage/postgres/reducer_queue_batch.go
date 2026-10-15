@@ -104,6 +104,11 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 	}
 
 	claimRejected := split.supersededClaims > 0
+	// keptCommitted tracks whether every surviving claim's UPDATE matched
+	// its row. The Service reports a surviving item as succeeded only when
+	// this holds: a shortfall means some surviving claim was stale too, and
+	// naming those items succeeded would be a false success (#8007).
+	keptCommitted := true
 
 	unrelatedIntents, refreshGroups := splitValueFlowRefreshAckIntents(unrelatedIntents, resultByID)
 	for _, group := range refreshGroups {
@@ -130,6 +135,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 		}
 		if rowsAffected != int64(len(group.ids)) {
 			claimRejected = true
+			keptCommitted = false
 		}
 	}
 
@@ -156,6 +162,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 		// ack must not erase them (#6162 follow-up).
 		if rowsAffected != int64(len(targetIntents)) {
 			claimRejected = true
+			keptCommitted = false
 		}
 	}
 	if len(cicdIntents) > 0 {
@@ -178,6 +185,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 		}
 		if rowsAffected != int64(len(cicdIntents)) {
 			claimRejected = true
+			keptCommitted = false
 		}
 	}
 
@@ -205,10 +213,22 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 		}
 		if rowsAffected != int64(len(unrelatedIntents)) {
 			claimRejected = true
+			keptCommitted = false
 		}
 	}
 
 	if claimRejected {
+		// A batch that dropped superseded claims names them, so the Service
+		// can log each dropped claim as ack_claim_rejected and each
+		// committed survivor as succeeded instead of mapping one error onto
+		// the whole flush (#8007). A rejection with no supersession keeps
+		// the bare error and the existing all-unknown telemetry.
+		if len(split.superseded) > 0 {
+			return &reducer.BatchAckSupersededError{
+				Superseded:    append([]reducer.Intent(nil), split.superseded...),
+				KeptCommitted: keptCommitted,
+			}
+		}
 		return ErrReducerClaimRejected
 	}
 

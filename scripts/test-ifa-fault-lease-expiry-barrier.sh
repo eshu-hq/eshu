@@ -100,14 +100,17 @@ ifa_fault_assert_stale_ack_fenced "${barrier}" "${reducer_log}" 0 >/dev/null \
 wait "${late_pid}"
 printf 'GREEN stale-ack case 7: late record for a different intent_id passes\n'
 # One flush batch carries the stale and the successor ACK of the held item: the
-# Service then logs both as ack_outcome_unknown and writes no succeeded record
-# (run-2 shape of the real cell). That is correct queue behavior and must pass.
+# queue commits the successor and names the dropped stale claim, so the Service
+# logs one succeeded plus one ack_claim_rejected record (case 1 shape). Two
+# ack_outcome_unknown records with no succeeded record was the pre-#8007
+# allowance for the shared batch and must now fail.
 unknown='{"message":"reducer ack outcome unknown","intent_id":"owned","status":"ack_outcome_unknown"}'
 lost='{"message":"lease lost","intent_id":"owned","status":"lease_lost_during_execution"}'
 printf '%s\n%s\n' "${unknown}" "${unknown}" >"${reducer_log}"
-ifa_fault_assert_stale_ack_fenced "${barrier}" "${reducer_log}" 0 >/dev/null \
-	|| fail 'two ack_outcome_unknown records (one flush batch) rejected'
-printf 'GREEN stale-ack case 8: two ack_outcome_unknown, no succeeded, passes\n'
+if ifa_fault_assert_stale_ack_fenced "${barrier}" "${reducer_log}" 0 >/dev/null 2>&1; then
+	fail 'two ack_outcome_unknown records with no succeeded record accepted: the pre-#8007 allowance is back'
+fi
+printf 'RED stale-ack case 8: two ack_outcome_unknown, no succeeded, fails\n'
 printf '%s\n%s\n' "${ok}" "${lost}" >"${reducer_log}"
 ifa_fault_assert_stale_ack_fenced "${barrier}" "${reducer_log}" 0 >/dev/null \
 	|| fail 'one succeeded plus one lease_lost_during_execution rejected'

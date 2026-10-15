@@ -372,6 +372,12 @@ type reducerAckBatchSplit struct {
 	// so AckBatch reports the batch as claim-rejected rather than succeeded.
 	supersededClaims int
 
+	// superseded holds the dropped claims, oldest first within each work
+	// item. No UPDATE ever ran for them, so the Service can report each one
+	// as ack_claim_rejected while logging the committed survivors as
+	// succeeded (#8007).
+	superseded []reducer.Intent
+
 	// keptResultIndexByID maps each retained work item to the position its
 	// surviving intent held in the input batch, so the caller can pair it with
 	// the result that intent's handler produced. A batch carrying two claims of
@@ -405,6 +411,7 @@ func splitReducerAckBatchIntents(
 	keptResultIndexByID := make(map[string]int, len(intents))
 	kept := make([]reducer.Intent, 0, len(intents))
 	supersededClaims := 0
+	var superseded []reducer.Intent
 	for position, intent := range intents {
 		index, ok := indexByID[intent.IntentID]
 		if !ok {
@@ -428,8 +435,11 @@ func splitReducerAckBatchIntents(
 		}
 		supersededClaims++
 		if newerReducerClaim(intent, prior) {
+			superseded = append(superseded, prior)
 			kept[index] = intent
 			keptResultIndexByID[intent.IntentID] = position
+		} else {
+			superseded = append(superseded, intent)
 		}
 	}
 
@@ -438,6 +448,7 @@ func splitReducerAckBatchIntents(
 		cicd:                make([]reducer.Intent, 0, len(kept)),
 		unrelated:           make([]reducer.Intent, 0, len(kept)),
 		supersededClaims:    supersededClaims,
+		superseded:          superseded,
 		keptResultIndexByID: keptResultIndexByID,
 	}
 	for _, intent := range kept {

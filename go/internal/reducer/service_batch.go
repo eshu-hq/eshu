@@ -230,17 +230,20 @@ func (s Service) runBatchConcurrent(
 			}
 
 			if err := s.ackBatchRetryingTransient(ctx, batchSink, intents, results); err != nil {
-				status := ackFailureStatus(err)
-				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, status, err)
-				}
+				unknown := s.recordBatchAckError(ctx, pending, err)
 				if ctx.Err() == nil {
 					switch {
 					case errors.Is(err, errAckAbandonedToLeaseExpiry):
 						// Claims stay leased and expire for reclaim; the run
 						// keeps draining (#7267). Already logged by the retrier.
 					case errors.Is(err, ErrExecutionClaimRejected):
-						s.logReducerAckClaimRejected(ctx, nil, len(intents), err)
+						// A fully attributed supersession batch already
+						// logged each dropped claim with its work item id;
+						// the fence line stays for batches with
+						// unattributed items.
+						if unknown > 0 {
+							s.logReducerAckClaimRejected(ctx, nil, len(intents), err)
+						}
 					default:
 						appendErr(fmt.Errorf("batch ack reducer work: %w", err))
 					}

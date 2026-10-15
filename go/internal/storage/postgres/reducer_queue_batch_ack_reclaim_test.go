@@ -306,3 +306,79 @@ func TestReducerQueueAckBatchKeepsSupersededSignalBesideCleanTargetAck(t *testin
 		t.Fatalf("AckBatch() exec count = %d, want %d", got, want)
 	}
 }
+
+// TestReducerQueueAckBatchNamesSupersededClaims is the #8007 contract: when a
+// superseded claim shares its ack batch with its successor, AckBatch must
+// still ack the surviving claim (the #6162 row contract), and the rejection
+// it returns must name the dropped claim and say whether the survivors
+// committed, so the Service can log the successor as succeeded instead of
+// mapping one error onto both items.
+func TestReducerQueueAckBatchNamesSupersededClaims(t *testing.T) {
+	t.Parallel()
+
+	const intentID = "intent-8007-ackbatch-names-superseded"
+	staleClaim := time.Date(2026, time.October, 12, 12, 0, 0, 0, time.UTC)
+	freshClaim := staleClaim.Add(900 * time.Millisecond)
+	intents := []reducer.Intent{
+		{
+			IntentID:     intentID,
+			Domain:       reducer.DomainGCPResourceMaterialization,
+			AttemptCount: 1,
+			ClaimedAt:    &staleClaim,
+		},
+		{
+			IntentID:     intentID,
+			Domain:       reducer.DomainGCPResourceMaterialization,
+			AttemptCount: 2,
+			ClaimedAt:    &freshClaim,
+		},
+	}
+
+	for _, tc := range []struct {
+		name          string
+		rowsAffected  int64
+		wantCommitted bool
+	}{
+		{name: "survivor committed", rowsAffected: 1, wantCommitted: true},
+		{name: "survivor stale too", rowsAffected: 0, wantCommitted: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			database := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: tc.rowsAffected}}}
+			queue := ReducerQueue{
+				database:      database,
+				LeaseOwner:    "reducer-8007",
+				LeaseDuration: time.Minute,
+			}
+
+			err := queue.AckBatch(context.Background(), intents, nil)
+			if !errors.Is(err, reducer.ErrExecutionClaimRejected) {
+				t.Fatalf("AckBatch() error = %v, want an error wrapping reducer.ErrExecutionClaimRejected", err)
+			}
+			var superseded *reducer.BatchAckSupersededError
+			if !errors.As(err, &superseded) {
+				t.Fatalf("AckBatch() error type = %T, want *reducer.BatchAckSupersededError naming the dropped claim", err)
+			}
+			if got, want := len(superseded.Superseded), 1; got != want {
+				t.Fatalf("superseded claim count = %d, want %d", got, want)
+			}
+			dropped := superseded.Superseded[0]
+			if dropped.IntentID != intentID {
+				t.Fatalf("superseded intent id = %q, want %q", dropped.IntentID, intentID)
+			}
+			if dropped.ClaimedAt == nil || !dropped.ClaimedAt.Equal(staleClaim) {
+				t.Fatalf("superseded claim = %v, want the stale claim %v", dropped.ClaimedAt, staleClaim)
+			}
+			if superseded.KeptCommitted != tc.wantCommitted {
+				t.Fatalf("KeptCommitted = %v, want %v", superseded.KeptCommitted, tc.wantCommitted)
+			}
+			if !superseded.Supersedes(intents[0]) {
+				t.Fatal("Supersedes(stale claim) = false, want true")
+			}
+			if superseded.Supersedes(intents[1]) {
+				t.Fatal("Supersedes(successor claim) = true, want false: only the older claim was dropped")
+			}
+		})
+	}
+}

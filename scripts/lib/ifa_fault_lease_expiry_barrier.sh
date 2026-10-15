@@ -99,18 +99,20 @@ ifa_fault_intent_status_histogram() {
 # After release, observe the real reducer's log for the held work item. Both
 # ACKs of the item (the stale claim's and the successor's) leave one record each.
 # Flushed apart they log {succeeded 1, fenced 1}; flushed in one batch the
-# Service logs both as ack_outcome_unknown and writes no succeeded record,
-# because AckBatch commits the successor yet rejects the whole batch (#6162;
-# the Service telemetry for that batch is tracked in #8007).
-# Require at least one fenced-outcome record, at least two ACK outcome records,
-# and at most one succeeded record. A stale ACK accepted after the successor's
-# own ACK would add a second succeeded record. The log carries no claim epoch,
-# so no record is attributed to the stale claim or the successor; epoch-level
-# rejection against a live successor is proven by
-# TestReducerQueueExpiryInterleaveLive (class scheduled). The drain gate counts
-# queue rows, and a fenced ACK changes none, so wait for the log, then settle
-# and re-read so a late second succeeded record is counted. Runs after the
-# barrier wrote finished.json, so it reads the held record directly.
+# queue commits the successor and names the dropped stale claim, so the Service
+# logs {succeeded 1, ack_claim_rejected 1} (#6162 row contract; per-item
+# telemetry in #8007). Either way exactly one record is succeeded.
+# Require at least one fenced-outcome record, at least two ACK outcome records
+# in total, and exactly one succeeded record: two ack_outcome_unknown records
+# with no succeeded record was the pre-#8007 allowance for the shared batch and
+# must now fail, and a stale ACK accepted after the successor's own ACK would
+# add a second succeeded record. The log carries no claim epoch, so no record
+# is attributed to the stale claim or the successor; epoch-level rejection
+# against a live successor is proven by TestReducerQueueExpiryInterleaveLive
+# (class scheduled). The drain gate counts queue rows, and a fenced ACK changes
+# none, so wait for the log, then settle and re-read so a late second
+# succeeded record is counted. Runs after the barrier wrote finished.json, so
+# it reads the held record directly.
 ifa_fault_assert_stale_ack_fenced() {
 	local barrier="$1" reducer_log="$2" deadline=$((SECONDS + $3))
 	local held id histogram fenced succeeded
@@ -121,9 +123,9 @@ ifa_fault_assert_stale_ack_fenced() {
 		histogram="$(ifa_fault_intent_status_histogram "${reducer_log}" "${id}")" || return 1
 		fenced="$(jq -r '(.ack_claim_rejected // 0) + (.ack_outcome_unknown // 0) + (.lease_lost_during_execution // 0)' <<<"${histogram}")"
 		succeeded="$(jq -r '.succeeded // 0' <<<"${histogram}")"
-		(( fenced >= 1 && fenced + succeeded >= 2 )) && break
+		(( fenced >= 1 && succeeded >= 1 && fenced + succeeded >= 2 )) && break
 		if (( SECONDS >= deadline )); then
-			printf 'expire-lease-mid-handler: fewer than two ACK outcome records, or no fenced-outcome record, for %s by the deadline; status histogram: %s\n' "${id}" "${histogram}" >&2
+			printf 'expire-lease-mid-handler: fewer than two ACK outcome records, no fenced-outcome record, or no succeeded record, for %s by the deadline; status histogram: %s\n' "${id}" "${histogram}" >&2
 			return 1
 		fi
 		sleep 0.1
@@ -131,8 +133,8 @@ ifa_fault_assert_stale_ack_fenced() {
 	sleep 1
 	histogram="$(ifa_fault_intent_status_histogram "${reducer_log}" "${id}")" || return 1
 	succeeded="$(jq -r '.succeeded // 0' <<<"${histogram}")"
-	if (( succeeded > 1 )); then
-		printf 'expire-lease-mid-handler: %s succeeded records for %s, want at most 1; status histogram: %s\n' "${succeeded}" "${id}" "${histogram}" >&2
+	if (( succeeded != 1 )); then
+		printf 'expire-lease-mid-handler: %s succeeded records for %s, want exactly 1; status histogram: %s\n' "${succeeded}" "${id}" "${histogram}" >&2
 		return 1
 	fi
 	printf 'expire-lease-mid-handler: held work item %s log status histogram: %s\n' "${id}" "${histogram}"
