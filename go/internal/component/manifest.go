@@ -30,6 +30,10 @@ const (
 	// CollectorSDKProtocolV1Alpha1 identifies the first out-of-tree collector
 	// SDK wire protocol supported by component manifests.
 	CollectorSDKProtocolV1Alpha1 = "collector-sdk/v1alpha1"
+	// CollectorSDKProtocolV1Alpha2 identifies the second out-of-tree
+	// collector SDK wire protocol. Activation parsing admits an explicitly
+	// configured alpha2 value without changing the v1alpha1 default.
+	CollectorSDKProtocolV1Alpha2 = "collector-sdk/v1alpha2"
 	// RuntimeAdapterOCI identifies a digest-pinned OCI artifact launched by a
 	// core-owned extension host.
 	RuntimeAdapterOCI = "oci"

@@ -60,8 +60,12 @@ move into the scheduler-owned child), not adjacent scope.
   (`ok=false, err=nil`), never as an error.
 - Require `component_id`, `component_version`, `manifest_digest`, and
   `config_handle` once `schema_version` matches.
-- Require `runtime.sdk_protocol == component.CollectorSDKProtocolV1Alpha1`
-  and `runtime.adapter` in `{oci, process}`.
+- Require `runtime.sdk_protocol` in
+  `{component.CollectorSDKProtocolV1Alpha1,
+  component.CollectorSDKProtocolV1Alpha2}` (compared after trimming
+  surrounding whitespace) and `runtime.adapter` in `{oci, process}`. The
+  v1alpha1 default is unchanged; alpha2 is admitted only when explicitly
+  configured.
 - Normalize and validate an optional `host` claim; clear it when
   normalization yields an empty value instead of failing.
 

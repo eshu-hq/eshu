@@ -102,7 +102,9 @@ func ParseConfig(raw string) (Config, bool, error) {
 	if strings.TrimSpace(config.Runtime.SDKProtocol) == "" {
 		return Config{}, false, fmt.Errorf("component activation configuration runtime.sdk_protocol is required")
 	}
-	if strings.TrimSpace(config.Runtime.SDKProtocol) != component.CollectorSDKProtocolV1Alpha1 {
+	switch strings.TrimSpace(config.Runtime.SDKProtocol) {
+	case component.CollectorSDKProtocolV1Alpha1, component.CollectorSDKProtocolV1Alpha2:
+	default:
 		return Config{}, false, fmt.Errorf(
 			"component activation configuration runtime.sdk_protocol %q is unsupported",
 			config.Runtime.SDKProtocol,

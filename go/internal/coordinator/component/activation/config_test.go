@@ -3,7 +3,42 @@
 
 package activation
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+// TestParseConfigAdmitsExplicitAlpha2 proves an explicitly configured
+// collector-sdk/v1alpha2 activation parses, including a padded protocol
+// variant that must normalize rather than bypass the allowlist.
+func TestParseConfigAdmitsExplicitAlpha2(t *testing.T) {
+	t.Parallel()
+
+	for _, adapter := range []string{"oci", "process"} {
+		for _, protocol := range []string{"collector-sdk/v1alpha2", " collector-sdk/v1alpha2 "} {
+			t.Run(adapter+"/"+protocol, func(t *testing.T) {
+				t.Parallel()
+
+				raw := `{"schema_version":"eshu.component.instance.v1",` +
+					`"component_id":"dev.eshu.examples.scorecard",` +
+					`"component_version":"0.1.0",` +
+					`"manifest_digest":"sha256:1234",` +
+					`"config_handle":"component-config:abcd",` +
+					`"runtime":{"sdk_protocol":"` + protocol + `","adapter":"` + adapter + `"}}`
+				config, ok, err := ParseConfig(raw)
+				if err != nil {
+					t.Fatalf("ParseConfig() error = %v, want nil", err)
+				}
+				if !ok {
+					t.Fatal("ParseConfig() ok = false, want true")
+				}
+				if strings.TrimSpace(config.Runtime.SDKProtocol) != "collector-sdk/v1alpha2" {
+					t.Fatalf("ParseConfig() SDKProtocol = %q, want alpha2", config.Runtime.SDKProtocol)
+				}
+			})
+		}
+	}
+}
 
 // TestParseConfig pins the parse and validation contract every consumer of
 // this package depends on: extension.WorkPlanner.PlanComponentExtensionWork
