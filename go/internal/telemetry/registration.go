@@ -67,6 +67,7 @@ var registrationSteps = []func(){
 	registerCodeTopicPartition,
 	registerGitCommandRetry,
 	registerDeferredBackfillBlock,
+	registerHybridRerank,
 }
 
 func init() {
@@ -84,6 +85,18 @@ func registerCodeTopicPartition() {
 		}
 	}
 	spanNames = append(spanNames, contract.SpanQueryCodeTopicPartition)
+}
+
+// registerHybridRerank places the in-request hybrid re-rank stage span after
+// the semantic-search stage spans, the other search ranking spans.
+func registerHybridRerank() {
+	for idx, name := range spanNames {
+		if name == SpanQuerySemanticSearchVectorReady {
+			spanNames = slices.Insert(spanNames, idx+1, contract.SpanQueryHybridRerank)
+			return
+		}
+	}
+	spanNames = append(spanNames, contract.SpanQueryHybridRerank)
 }
 
 // registerAdmissionDecisions inserts the admission-decisions query span

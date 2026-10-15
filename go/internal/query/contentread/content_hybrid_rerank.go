@@ -8,8 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchembed"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
@@ -82,6 +85,9 @@ type ContentHybridRanker struct {
 	// injectable, so a governed provider embedder can never embed source text on
 	// this path.
 	localEmbedder searchhybrid.Embedder
+	// tracer records the query.hybrid_rerank stage span. Nil means the shared
+	// query tracer; in-package tests set a recording tracer here.
+	tracer trace.Tracer
 }
 
 // NewContentHybridRanker builds a content-search hybrid re-ranker. It owns a
@@ -108,7 +114,8 @@ func NewContentHybridRanker(enabled bool) *ContentHybridRanker {
 // into a scoped document keep their lexical position appended after the ranked
 // set, so the response never drops a row the lexical path returned. Reordered
 // rows carry SearchBackend="hybrid"; on applied=false the rows are returned
-// untouched.
+// untouched. A pass that reaches the ranking work records one
+// query.hybrid_rerank span (tool search_entity_content, rows, applied).
 func (r *ContentHybridRanker) RerankEntities(
 	ctx context.Context,
 	repoID string,
@@ -118,6 +125,9 @@ func (r *ContentHybridRanker) RerankEntities(
 	if !r.canRerank(ctx, repoID, len(rows)) {
 		return rows, false
 	}
+	ctx, finish := tracing.StartHybridRerankSpan(ctx, r.stageTracer(), tracing.HybridRerankToolSearchEntityContent, len(rows))
+	applied := false
+	defer func() { finish(applied) }()
 
 	docByID, order := projectEntityContentDocuments(repoID, rows)
 	if len(docByID) < 2 {
@@ -129,12 +139,13 @@ func (r *ContentHybridRanker) RerankEntities(
 		return rows, false
 	}
 
+	applied = true
 	return reorderEntityRowsByCandidates(rows, candidates), true
 }
 
 // RerankFiles reorders file-content rows by fused BM25+vector rank. It mirrors
 // RerankEntities over content_files projections; see RerankEntities for the
-// fallback and truth-basis contract.
+// fallback, truth-basis, and stage-span contract (tool search_file_content).
 func (r *ContentHybridRanker) RerankFiles(
 	ctx context.Context,
 	repoID string,
@@ -144,6 +155,9 @@ func (r *ContentHybridRanker) RerankFiles(
 	if !r.canRerank(ctx, repoID, len(rows)) {
 		return rows, false
 	}
+	ctx, finish := tracing.StartHybridRerankSpan(ctx, r.stageTracer(), tracing.HybridRerankToolSearchFileContent, len(rows))
+	applied := false
+	defer func() { finish(applied) }()
 
 	docByID, order := projectFileContentDocuments(repoID, rows)
 	if len(docByID) < 2 {
@@ -155,7 +169,17 @@ func (r *ContentHybridRanker) RerankFiles(
 		return rows, false
 	}
 
+	applied = true
 	return reorderFileRowsByCandidates(rows, candidates), true
+}
+
+// stageTracer returns the tracer for the re-rank stage span: the ranker's own
+// when a test set one, otherwise the shared query tracer.
+func (r *ContentHybridRanker) stageTracer() trace.Tracer {
+	if r.tracer != nil {
+		return r.tracer
+	}
+	return tracing.HandlerTracer()
 }
 
 // canRerank reports whether the bounded re-rank may run for this request. It

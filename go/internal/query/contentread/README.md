@@ -72,6 +72,12 @@ same `WriteSuccess`/`WriteError` envelopes (now via `querycontract`) under
 the unchanged `code_search.content_search` capability and
 `content_index` truth basis, so existing dashboards are unaffected.
 
+`ContentHybridRanker` emits one `query.hybrid_rerank` stage span per re-rank
+pass that reaches the ranking work (#7746), through
+`tracing.StartHybridRerankSpan`. It carries `search.rerank.tool`
+(`search_entity_content` or `search_file_content`), `search.rerank.rows`, and
+`search.rerank.applied`.
+
 ## Selector errors
 
 The file read, file lines, and file/entity search routes answer a

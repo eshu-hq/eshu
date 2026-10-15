@@ -229,7 +229,10 @@ response envelope whether vector retrieval participated. The ranker does not go
 through `searchretrieval` request validation, whose limit of 100 is the public
 retrieval cap. `searchhybrid.Backend.RankAll` rejects a blank query, a missing
 scope or index, and a done context, and the ranker keeps the lexical order on
-any of those errors.
+any of those errors. Each pass that reaches the ranking work emits a
+`query.hybrid_rerank` span with `search.rerank.tool=find_code`,
+`search.rerank.rows`, and `search.rerank.applied`, so the stage's duration is
+visible inside a slow request (#7746).
 
 ### search_entity_content / search_file_content Hybrid Re-rank
 
@@ -274,7 +277,9 @@ cap instead of the public retrieval limit of 100. Before #7746 a page of 101 to
 `search_backend` or `page_position` markers; such a page is now reordered and
 marked like any smaller page. `go test ./internal/query/contentread -run
 ContentHybridRerankRanksAllRowsOfAMaximumPage` covers entity and file pages of
-200 rows.
+200 rows. Each pass that reaches the ranking work emits a `query.hybrid_rerank`
+span with `search.rerank.tool` set to `search_entity_content` or
+`search_file_content`, plus `search.rerank.rows` and `search.rerank.applied`.
 
 ## Persisted Postgres Search Index
 

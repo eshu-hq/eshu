@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchembed"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
@@ -51,6 +54,10 @@ type CodeHybridRanker struct {
 	// text on this path. It is exported because the staying no-egress test
 	// asserts its concrete type via the root alias.
 	LocalEmbedder searchhybrid.Embedder
+	// tracer records the query.hybrid_rerank stage span. Nil means the shared
+	// query tracer; in-package tests set a recording tracer here instead of
+	// swapping a package-level var.
+	tracer trace.Tracer
 }
 
 // NewCodeHybridRanker builds a find_code hybrid re-ranker. It owns a
@@ -86,6 +93,10 @@ type CodeResultReranker interface {
 // with the shipped local embedder, and ranked in hybrid mode. Results that do
 // not project into a scoped document keep their lexical position appended after
 // the ranked set, so the response never drops a row the lexical path returned.
+//
+// A pass that reaches the ranking work records one query.hybrid_rerank span
+// (tool find_code, the page row count, and whether it applied), so an operator
+// can see the stage's share of a slow request.
 func (r *CodeHybridRanker) Rerank(
 	ctx context.Context,
 	repoID string,
@@ -99,6 +110,29 @@ func (r *CodeHybridRanker) Rerank(
 		return results, false
 	}
 
+	ctx, finish := tracing.StartHybridRerankSpan(ctx, r.stageTracer(), tracing.HybridRerankToolFindCode, len(results))
+	reranked, applied := r.rerank(ctx, repoID, query, results)
+	finish(applied)
+	return reranked, applied
+}
+
+// stageTracer returns the tracer for the re-rank stage span: the ranker's own
+// when a test set one, otherwise the shared query tracer.
+func (r *CodeHybridRanker) stageTracer() trace.Tracer {
+	if r.tracer != nil {
+		return r.tracer
+	}
+	return tracing.HandlerTracer()
+}
+
+// rerank projects, indexes, and ranks one page. It returns the rows unchanged
+// with applied=false on any bounded failure, so the caller keeps lexical order.
+func (r *CodeHybridRanker) rerank(
+	ctx context.Context,
+	repoID string,
+	query string,
+	results []map[string]any,
+) ([]map[string]any, bool) {
 	docByID, order := projectCodeResultDocuments(repoID, results)
 	if len(docByID) < 2 {
 		return results, false

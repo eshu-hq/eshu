@@ -28,6 +28,11 @@ functions; almost every change here is a contract change.
   route that logs on a cancel MUST call it rather than restating it.
 - A client cancel MUST NOT call `RecordError` or set the span status, and the
   `eshu.request.client_canceled` event MUST carry no attributes or error text.
+- The `query.hybrid_rerank` stage span's attributes (`search.rerank.tool`,
+  `search.rerank.rows`, `search.rerank.applied`) are an operator contract too.
+  Keep the tool value set closed; never add query text, repository IDs, or
+  row identity. `StartHybridRerankSpan` MUST take the tracer as an argument
+  for the same reason as `StartHandlerSpanWith`.
 - This package MAY import `querycontract`; `querycontract` MUST NOT import this
   package or OpenTelemetry (its own AGENTS.md dependency rule).
 
