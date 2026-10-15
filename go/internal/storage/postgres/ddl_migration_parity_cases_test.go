@@ -259,6 +259,16 @@ func TestDDLMigrationParitySyntheticCases(t *testing.T) {
 			wantGap: []string{"column widgets.excluded"},
 		},
 		{
+			name:    "fail: CREATE TABLE column named exclude with no migration",
+			goSQL:   "CREATE TABLE widgets (widget_id TEXT, exclude BOOLEAN)",
+			wantGap: []string{"column widgets.exclude"},
+		},
+		{
+			name:    "fail: bare ADD of a column named exclude with no migration",
+			goSQL:   "ALTER TABLE widgets ADD exclude BOOLEAN",
+			wantGap: []string{"column widgets.exclude"},
+		},
+		{
 			name:    "pass: CREATE TABLE constraints written without a space before the paren",
 			goSQL:   "CREATE TABLE widgets (widget_id TEXT, PRIMARY KEY(widget_id), UNIQUE(owner), CHECK(owner <> ''))",
 			wantGap: nil,

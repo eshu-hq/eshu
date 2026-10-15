@@ -24,6 +24,11 @@ func TestDDLMigrationParityRecognizedAlterForms(t *testing.T) {
 		{"ADD UNIQUE NULLS NOT DISTINCT (owner)", "add unnamed constraint", "", ""},
 		{"ADD UNIQUE USING INDEX widgets_owner_idx", "add unnamed constraint", "", ""},
 		{"ADD PRIMARY KEY USING INDEX widgets_pkey_idx", "add unnamed constraint", "", ""},
+		{"ADD NOT NULL owner", "add unnamed constraint", "", ""},
+		{"ADD exclude BOOLEAN", "add column", "exclude", ""},
+		// EXCLUDE is not reserved, so a bare ADD EXCLUDE with no USING or
+		// paren after it is a column named exclude, like ADD owner.
+		{"ADD EXCLUDE", "add column", "exclude", ""},
 		{"ADD COLUMN IF NOT EXISTS owner TEXT NOT NULL DEFAULT ''", "add column", "owner", ""},
 		{"ADD owner TEXT", "add column", "owner", ""},
 		{"ALTER CONSTRAINT widgets_fk DEFERRABLE", "alter constraint", "", ""},
@@ -70,7 +75,7 @@ func TestDDLMigrationParityRecognizedAlterForms(t *testing.T) {
 		"ALTER", "ALTER COLUMN", "ALTER COLUMN owner", "ALTER CONSTRAINT widgets_fk",
 		"DROP", "DROP COLUMN", "DROP CONSTRAINT", "RENAME TO", "RENAME COLUMN owner TO",
 		"VALIDATE CONSTRAINT", "SET (fillfactor = 70", "SET", "OWNER TO", "ADD COLUMN %s TEXT",
-		"FROBNICATE owner", "ADD EXCLUDE", "ADD PRIMARY KEY", "ADD FOREIGN KEY",
+		"FROBNICATE owner", "ADD PRIMARY KEY", "ADD FOREIGN KEY", "ADD NOT NULL", "ADD NOT NULL %s",
 	}
 	for _, action := range rejected {
 		if got, ok := classifyAlterAction(action); ok {
@@ -94,8 +99,13 @@ func TestDDLMigrationParityKeywordPrefixedColumns(t *testing.T) {
 		"owner", "attach", "detach", "partition", "cluster", "identity", "inherit",
 		"of", "not", "no", "using", "nulls",
 	}
-	for _, keyword := range keywords {
-		for _, column := range []string{keyword + "sum", keyword + "_at", keyword + "ed"} {
+	// Names that run a keyword into the token its form needs next.
+	extra := []string{"uniquenulls", "excludeusing", "primarykey", "notnull", "exclude"}
+	for _, keyword := range append(keywords, extra...) {
+		for _, column := range []string{keyword + "sum", keyword + "_at", keyword + "ed", keyword} {
+			if ddlKeywordNames[column] {
+				continue // a reserved word cannot be an unquoted column name
+			}
 			action := "ADD " + column + " TEXT"
 			got, ok := classifyAlterAction(action)
 			if !ok || got.form != "add column" || got.column != column {
@@ -106,6 +116,49 @@ func TestDDLMigrationParityKeywordPrefixedColumns(t *testing.T) {
 			if _, recorded := inv.columns[ddlColumn{table: "widgets", column: column}]; !recorded || len(inv.unresolved) != 0 {
 				t.Errorf("ALTER TABLE widgets %s: column recorded = %v, unresolved = %v", action, recorded, inv.unresolved)
 			}
+		}
+	}
+}
+
+// TestDDLMigrationParityTableElements proves a CREATE TABLE element is read
+// as a constraint only when its keyword is followed by the token the
+// grammar requires, so a column named exclude, or one whose name starts
+// with a constraint keyword, is recorded as a column.
+func TestDDLMigrationParityTableElements(t *testing.T) {
+	t.Parallel()
+
+	constraintElements := []string{
+		"PRIMARY KEY (widget_id)", "PRIMARY KEY(widget_id)", "UNIQUE (owner)", "UNIQUE(owner)",
+		"UNIQUE NULLS NOT DISTINCT (owner)", "CHECK (owner <> '')", "CHECK(owner <> '')",
+		"FOREIGN KEY (owner) REFERENCES users (id)", "EXCLUDE USING gist (owner WITH =)",
+		"EXCLUDE (owner WITH =)", "LIKE base_widgets INCLUDING ALL", "NOT NULL owner",
+		"CONSTRAINT widgets_owner_check CHECK (owner <> '')",
+	}
+	for _, element := range constraintElements {
+		inv := extractDDLInventory([]ddlSource{{file: "store/schema.go", line: 1, sql: "CREATE TABLE widgets (widget_id TEXT, " + element + ")"}})
+		if len(inv.columns) != 1 || len(inv.unresolved) != 0 {
+			t.Errorf("element %q: columns = %v, unresolved = %v; want only widget_id", element, inv.columns, inv.unresolved)
+		}
+	}
+
+	var columns []string
+	for _, word := range []string{"constraint", "primary", "unique", "check", "foreign", "exclude", "like", "not"} {
+		columns = append(columns, word+"_count", word+"sum", word+"ed")
+	}
+	columns = append(columns, "exclude", "uniquenulls", "excludeusing")
+	for _, column := range columns {
+		inv := extractDDLInventory([]ddlSource{{file: "store/schema.go", line: 1, sql: "CREATE TABLE widgets (widget_id TEXT, " + column + " BOOLEAN)"}})
+		if _, ok := inv.columns[ddlColumn{table: "widgets", column: column}]; !ok || len(inv.unresolved) != 0 {
+			t.Errorf("column %q: columns = %v, unresolved = %v; want it recorded", column, inv.columns, inv.unresolved)
+		}
+	}
+
+	// A reserved word cannot be an unquoted column, and a keyword with
+	// nothing after it is a clause joined on at runtime: both fail safe.
+	for _, element := range []string{"check BOOLEAN", "exclude", "UNIQUE", "LIKE"} {
+		inv := extractDDLInventory([]ddlSource{{file: "store/schema.go", line: 1, sql: "CREATE TABLE widgets (widget_id TEXT, " + element + ")"}})
+		if len(inv.unresolved) != 1 {
+			t.Errorf("element %q: unresolved = %v, want one entry", element, inv.unresolved)
 		}
 	}
 }

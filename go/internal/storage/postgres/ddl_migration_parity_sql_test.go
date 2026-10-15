@@ -19,8 +19,10 @@ var ddlPlainIdent = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_$]*$`)
 var ddlKeywordNames = map[string]bool{
 	"if": true, "not": true, "exists": true, "only": true, "column": true,
 	"concurrently": true, "constraint": true, "on": true,
-	// Reserved words that start an unnamed table constraint.
-	"primary": true, "unique": true, "check": true, "foreign": true, "exclude": true,
+	// Reserved words (PostgreSQL 18, Appendix C) that start an unnamed
+	// table constraint, so they cannot be unquoted column names. EXCLUDE is
+	// not reserved and stays a readable name.
+	"primary": true, "unique": true, "check": true, "foreign": true, "like": true,
 }
 
 // normalizeDDLIdent folds a possibly schema-qualified identifier the way

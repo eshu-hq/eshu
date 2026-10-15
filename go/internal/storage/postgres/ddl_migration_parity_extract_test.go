@@ -96,12 +96,11 @@ var (
 	ddlCreateFunctionPattern = regexp.MustCompile(`(?is)^create\s+(?:or\s+replace\s+)?function\s+([^\s(;,]+?)\s*\(`)
 )
 
-// ddlNonColumnWords start a CREATE TABLE element that is an unnamed
-// constraint or a LIKE clause, not a column.
-var ddlNonColumnWords = map[string]bool{
-	"primary": true, "unique": true, "constraint": true, "foreign": true,
-	"check": true, "exclude": true, "like": true,
-}
+// ddlTableConstraintElement matches a CREATE TABLE element that is not a
+// column: a named constraint (group "constraint"), an unnamed constraint, or
+// a LIKE clause. Each keyword needs the token its grammar requires next.
+var ddlTableConstraintElement = regexp.MustCompile(`(?is)^(?:constraint\s+(?P<constraint>` + ddlActionName + `)|` +
+	strings.ReplaceAll(ddlUnnamedConstraint, "NAME", ddlActionName) + `|like\s+(?P<like>` + ddlActionName + `))`)
 
 // extractDDLInventory scans every source for CREATE TABLE, ALTER TABLE ...
 // ADD [COLUMN] / ADD CONSTRAINT, CREATE INDEX, CREATE TRIGGER, and CREATE
@@ -185,13 +184,14 @@ func (inv *ddlInventory) addCreateTable(rest string, site ddlSite) {
 			inv.unresolvedAt(rest[:m[5]], site)
 			continue
 		}
-		// The first word, cut at "(" so UNIQUE(owner) reads as UNIQUE. An
-		// exact word match keeps a column such as checksum a column.
-		word := strings.ToLower(strings.SplitN(fields[0], "(", 2)[0])
+		names, matched, readable := matchDDLForm(ddlTableConstraintElement, strings.TrimSpace(element))
 		switch {
-		case word == "constraint" && len(fields) > 1:
-			inv.addObject("constraint", table, fields[1], rest[:m[5]], site)
-		case ddlNonColumnWords[word] && (len(fields) > 1 || strings.Contains(fields[0], "(")):
+		case matched && !readable:
+			inv.unresolvedAt(rest[:m[5]]+" ("+strings.TrimSpace(element), site)
+		case matched && names["constraint"] != "":
+			inv.addObject("constraint", table, names["constraint"], rest[:m[5]], site)
+		case matched:
+			// An unnamed constraint or LIKE clause: nothing to compare.
 		case len(fields) < 2:
 			// A bare keyword or a column with no type: the rest is joined on.
 			inv.unresolvedAt(rest[:m[5]]+" ("+element, site)

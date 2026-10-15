@@ -18,6 +18,16 @@ import (
 // runtime join is unreadable.
 const ddlActionName = `[^\s(),;]+`
 
+// ddlUnnamedConstraint matches the start of an unnamed table constraint: the
+// keyword plus the token PostgreSQL 18's table_constraint grammar requires
+// next. Requiring that token keeps a column whose name starts with, or is,
+// a non-reserved keyword (checksum, uniquenulls, exclude) a column. It is
+// shared by ALTER TABLE ... ADD and CREATE TABLE elements.
+const ddlUnnamedConstraint = `(?:primary\s+key(?:\s*\(|\s+using\s+index\s)` +
+	`|unique(?:\s*\(|\s+nulls\s|\s+using\s+index\s)` +
+	`|check\s*\(|foreign\s+key\s*\(|exclude(?:\s*\(|\s+using\s)` +
+	`|not\s+null\s+(?P<name>NAME))`
+
 // ddlAlterForm is one recognized ALTER TABLE action form. A "column" group
 // is recorded as a column, a "constraint" group as a named constraint, and
 // any other named group is only checked for readability. Order matters: the
@@ -40,10 +50,7 @@ func ddlForm(name, pattern string) ddlAlterForm {
 // Every other form must be complete in the literal.
 var ddlAlterForms = []ddlAlterForm{
 	ddlForm("add constraint", `add\s+constraint\s+(?P<constraint>NAME)`),
-	// Each unnamed-constraint keyword must be followed by the token its
-	// grammar requires, so a bare ADD of a column such as checksum or
-	// excluded (EXCLUDE is not reserved) is not read as a constraint.
-	ddlForm("add unnamed constraint", `add\s+(?:primary\s+key\s*(?:\(|using\s+index\b)|unique\s*(?:\(|nulls\b|using\s+index\b)|check\s*\(|foreign\s+key\s*\(|exclude\s*(?:\(|using\b))`),
+	ddlForm("add unnamed constraint", `add\s+`+ddlUnnamedConstraint),
 	ddlForm("add column", `add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?(?P<column>NAME)`),
 	ddlForm("alter constraint", `alter\s+constraint\s+(?P<name>NAME)\s+\S`),
 	ddlForm("alter column", `alter\s+(?:column\s+)?(?P<name>NAME)\s+\S`),
@@ -77,27 +84,36 @@ type ddlAlterAction struct {
 // unreadable, so the caller records the statement as unresolved.
 func classifyAlterAction(action string) (ddlAlterAction, bool) {
 	for _, form := range ddlAlterForms {
-		m := form.pattern.FindStringSubmatch(action)
-		if m == nil {
+		names, matched, ok := matchDDLForm(form.pattern, action)
+		if !matched {
 			continue
 		}
-		out := ddlAlterAction{form: form.name}
-		for i, group := range form.pattern.SubexpNames() {
-			if group == "" || m[i] == "" {
-				continue
-			}
-			name, ok := normalizeDDLIdent(m[i])
-			if !ok {
-				return ddlAlterAction{}, false
-			}
-			switch group {
-			case "column":
-				out.column = name
-			case "constraint":
-				out.constraint = name
-			}
+		if !ok {
+			return ddlAlterAction{}, false
 		}
-		return out, true
+		return ddlAlterAction{form: form.name, column: names["column"], constraint: names["constraint"]}, true
 	}
 	return ddlAlterAction{}, false
+}
+
+// matchDDLForm matches text against a form pattern and folds every named
+// group. matched reports a pattern match; ok is false when a captured name
+// is unreadable (a fmt verb or a keyword left by a runtime join).
+func matchDDLForm(pattern *regexp.Regexp, text string) (names map[string]string, matched, ok bool) {
+	m := pattern.FindStringSubmatch(text)
+	if m == nil {
+		return nil, false, false
+	}
+	names = map[string]string{}
+	for i, group := range pattern.SubexpNames() {
+		if group == "" || m[i] == "" {
+			continue
+		}
+		name, readable := normalizeDDLIdent(m[i])
+		if !readable {
+			return nil, true, false
+		}
+		names[group] = name
+	}
+	return names, true, true
 }
