@@ -36,9 +36,10 @@
   table, named constraint, trigger, or function added to a store's Go DDL
   (`EnsureSchema`, `*SchemaSQL`) needs a numbered migration in `migrations/`
   in the same change; the schema Job applies only those files.
-  `TestDDLMigrationParity` checks those names, fails on Postgres DDL it
-  cannot read unless `ddlParityDynamicDDL` lists it with a reason, and fails
-  on stale allowlist entries. It does not compare `CREATE EXTENSION`,
+  `TestDDLMigrationParity` checks those names. It fails on Postgres DDL it
+  cannot read, including an ALTER TABLE action outside `ddlAlterForms`,
+  unless `ddlParityDynamicDDL` lists it with a reason, and it fails on
+  stale allowlist entries. It does not compare `CREATE EXTENSION`,
   `ALTER COLUMN`, or definitions, so review those by hand.
 - **Fact deduplication before batching** — `upsertFacts` calls
   `deduplicateEnvelopes` before each batch to prevent `SQLSTATE 21000` on

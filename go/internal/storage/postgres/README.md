@@ -73,11 +73,11 @@ High-signal invariants for this package:
   non-test Go string literals under `internal/storage/postgres` and `cmd`
   and fails when Go DDL declares a column, index name, named constraint,
   trigger, function, or table that no migration declares. It fails on
-  Postgres DDL it cannot read (fmt verb, runtime join) unless
-  `ddlParityDynamicDDL` lists it, and on allowlist entries that match
-  nothing. It does not compare `CREATE EXTENSION`, `ALTER COLUMN`, or any
-  definition (types, defaults, index columns, constraint, trigger, and
-  function bodies).
+  Postgres DDL it cannot read (fmt verb, runtime join, or an ALTER TABLE
+  action outside `ddlAlterForms`) unless `ddlParityDynamicDDL` lists it, and
+  on allowlist entries that match nothing. It does not compare
+  `CREATE EXTENSION`, `ALTER COLUMN`, or any definition (types, defaults,
+  index columns, constraint, trigger, and function bodies).
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
   without the four exact trigram GINs for file content, file relative path,
