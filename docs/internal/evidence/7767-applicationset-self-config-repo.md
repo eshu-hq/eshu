@@ -23,9 +23,9 @@ they add no query and no loop.
 Metric boundaries: start is the call to `DiscoverEvidence`, end is its return;
 correctness invariant is "no fact has the same repository as source and target,
 and no resolved template source that is not the control repository is dropped
-silently, except the case where the generator reads config from the control
-repository itself, which stays a known silent skip pinned in the invariant test
-and tracked in #7778"; the intended delta is one added `DEPLOYS_FROM` fact per matched
+silently, including the case where the generator reads config from the control
+repository itself (issue #7778, recorded as control-to-deployed template-source
+evidence)"; the intended delta is one added `DEPLOYS_FROM` fact per matched
 self-referencing ApplicationSet file; stop threshold is a regression above 10
 percent of the baseline median.
 
