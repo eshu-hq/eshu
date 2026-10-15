@@ -180,6 +180,7 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 					[]byte(`{"name":"eshu"}`),
 				}},
 			},
+			{rows: [][]any{{false, ""}}},
 		},
 	}
 	store := NewFactStore(db)
@@ -420,6 +421,7 @@ func TestFactStoreCountFactsReturnsCount(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{rows: [][]any{{false, ""}}},
 			{rows: [][]any{{42}}},
 		},
 	}
@@ -432,11 +434,11 @@ func TestFactStoreCountFactsReturnsCount(t *testing.T) {
 	if got, want := count, 42; got != want {
 		t.Fatalf("CountFacts() = %d, want %d", got, want)
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("query count = %d, want %d", got, want)
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("query count = %d, want %d (target row plus count)", got, want)
 	}
-	if !strings.Contains(db.queries[0].query, "COUNT(*)") {
-		t.Fatalf("query = %q, want COUNT(*) query", db.queries[0].query)
+	if !strings.Contains(db.queries[1].query, "COUNT(*)") {
+		t.Fatalf("query = %q, want COUNT(*) query", db.queries[1].query)
 	}
 }
 
@@ -444,7 +446,10 @@ func TestFactStoreCountFactsPropagatesQueryErrors(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{err: errors.New("boom")}},
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{false, ""}}},
+			{err: errors.New("boom")},
+		},
 	}
 	store := NewFactStore(db)
 

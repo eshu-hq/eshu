@@ -13,6 +13,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/admin/delta-union/completeness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/admin/shared-projection/tuning-report",
       "readiness": "implemented"
     },
