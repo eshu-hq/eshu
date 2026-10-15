@@ -89,6 +89,9 @@ type RepoSyncConfig struct {
 	// ruling a9-143 D3, ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS): 0 never skips the
 	// parse of a forced reconcile; N parses at least every N intervals.
 	ReconcileParseMaxSkips int
+	// ReconcileStampIdentityWithoutParse is the opt-in first-sweep stamp
+	// (#8095): off by default; proven generations stamp without parsing.
+	ReconcileStampIdentityWithoutParse bool
 	// PinnedRefsByRepoID maps repository IDs to per-repo pinned refs. Each
 	// pinned ref produces an isolated non-default-branch snapshot with identity
 	// repo_id@ref. Parsed from ESHU_PINNED_REFS_JSON. Empty means feature off.
@@ -165,41 +168,42 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	}
 
 	config := RepoSyncConfig{
-		ReposDir:               reposDir,
-		SourceMode:             sourceMode,
-		GitAuthMethod:          gitAuthMethod,
-		GithubOrg:              strings.TrimSpace(getenv("ESHU_GITHUB_ORG")),
-		GitlabHost:             gitlabHost,
-		Repositories:           extractExactRepositoryIDs(sourceMode, repositoryRules),
-		FilesystemRoot:         strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
-		FilesystemDirect:       boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
-		CloneDepth:             intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1),
-		RepoLimit:              intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000),
-		Component:              component,
-		RepositoryRules:        repositoryRules,
-		IncludeArchivedRepos:   boolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
-		GitToken:               firstNonEmpty(getenv("ESHU_GIT_TOKEN"), getenv("GITHUB_TOKEN")),
-		GitHubAppID:            firstNonEmpty(getenv("GITHUB_APP_ID"), getenv("ESHU_GITHUB_APP_ID")),
-		GitHubAppInstallation:  firstNonEmpty(getenv("GITHUB_APP_INSTALLATION_ID"), getenv("ESHU_GITHUB_APP_INSTALLATION_ID")),
-		GitHubAppPrivateKey:    firstNonEmpty(getenv("GITHUB_APP_PRIVATE_KEY"), getenv("ESHU_GITHUB_APP_PRIVATE_KEY")),
-		SSHPrivateKeyPath:      strings.TrimSpace(getenv("ESHU_SSH_PRIVATE_KEY_PATH")),
-		SSHKnownHostsPath:      strings.TrimSpace(getenv("ESHU_SSH_KNOWN_HOSTS_PATH")),
-		DependencyMode:         boolFromEnv(getenv("ESHU_BOOTSTRAP_IS_DEPENDENCY")),
-		DependencyName:         strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_NAME")),
-		DependencyLanguage:     strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_LANGUAGE")),
-		SnapshotWorkers:        snapshotWorkerCount(getenv),
-		ParseWorkers:           parseWorkerCount(getenv),
-		LargeRepoThreshold:     largeRepoThreshold(getenv),
-		LargeRepoMaxConcurrent: largeRepoMaxConcurrent(getenv),
-		StreamBuffer:           streamBufferSize(getenv),
-		RepoShardCount:         repoShardCount,
-		RepoShardIndex:         repoShardIndex,
-		ReconcileInterval:      reconcileIntervalFromEnv(getenv),
-		ReconcileMaxPerCycle:   reconcileMaxPerCycleFromEnv(getenv),
-		ReconcileParseMaxSkips: reconcileParseMaxSkips,
-		PinnedRefsByRepoID:     pinnedRefsByRepoID,
-		PinnedRefPerRepoCap:    pinnedRefCap,
-		PinnedRefFleetCap:      pinnedRefFleetCap,
+		ReposDir:                           reposDir,
+		SourceMode:                         sourceMode,
+		GitAuthMethod:                      gitAuthMethod,
+		GithubOrg:                          strings.TrimSpace(getenv("ESHU_GITHUB_ORG")),
+		GitlabHost:                         gitlabHost,
+		Repositories:                       extractExactRepositoryIDs(sourceMode, repositoryRules),
+		FilesystemRoot:                     strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
+		FilesystemDirect:                   boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
+		CloneDepth:                         intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1),
+		RepoLimit:                          intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000),
+		Component:                          component,
+		RepositoryRules:                    repositoryRules,
+		IncludeArchivedRepos:               boolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
+		GitToken:                           firstNonEmpty(getenv("ESHU_GIT_TOKEN"), getenv("GITHUB_TOKEN")),
+		GitHubAppID:                        firstNonEmpty(getenv("GITHUB_APP_ID"), getenv("ESHU_GITHUB_APP_ID")),
+		GitHubAppInstallation:              firstNonEmpty(getenv("GITHUB_APP_INSTALLATION_ID"), getenv("ESHU_GITHUB_APP_INSTALLATION_ID")),
+		GitHubAppPrivateKey:                firstNonEmpty(getenv("GITHUB_APP_PRIVATE_KEY"), getenv("ESHU_GITHUB_APP_PRIVATE_KEY")),
+		SSHPrivateKeyPath:                  strings.TrimSpace(getenv("ESHU_SSH_PRIVATE_KEY_PATH")),
+		SSHKnownHostsPath:                  strings.TrimSpace(getenv("ESHU_SSH_KNOWN_HOSTS_PATH")),
+		DependencyMode:                     boolFromEnv(getenv("ESHU_BOOTSTRAP_IS_DEPENDENCY")),
+		DependencyName:                     strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_NAME")),
+		DependencyLanguage:                 strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_LANGUAGE")),
+		SnapshotWorkers:                    snapshotWorkerCount(getenv),
+		ParseWorkers:                       parseWorkerCount(getenv),
+		LargeRepoThreshold:                 largeRepoThreshold(getenv),
+		LargeRepoMaxConcurrent:             largeRepoMaxConcurrent(getenv),
+		StreamBuffer:                       streamBufferSize(getenv),
+		RepoShardCount:                     repoShardCount,
+		RepoShardIndex:                     repoShardIndex,
+		ReconcileInterval:                  reconcileIntervalFromEnv(getenv),
+		ReconcileMaxPerCycle:               reconcileMaxPerCycleFromEnv(getenv),
+		ReconcileParseMaxSkips:             reconcileParseMaxSkips,
+		ReconcileStampIdentityWithoutParse: boolFromEnv(getenv("ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE")),
+		PinnedRefsByRepoID:                 pinnedRefsByRepoID,
+		PinnedRefPerRepoCap:                pinnedRefCap,
+		PinnedRefFleetCap:                  pinnedRefFleetCap,
 
 		SelectionLivenessWindow: selectionLivenessWindow,
 		GitDeadlines:            gitDeadlines,
@@ -473,27 +477,4 @@ func sortUniqueStrings(values []string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-// defaultReconcileParseMaxSkips parses an unchanged repository at least once a
-// week at the default daily interval (ruling a9-143 D3).
-const defaultReconcileParseMaxSkips = 7
-
-// reconcileParseMaxSkipsFromEnv reads ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS
-// (ruling a9-143.1): unset or blank is the default, 0 never skips, and a
-// positive N allows N-1 skips after each parse. A negative or non-integer
-// value is a startup error that names the variable and the value, never a
-// silent fallback, because a typo would otherwise change how stale an
-// unfolded input may get.
-func reconcileParseMaxSkipsFromEnv(getenv func(string) string) (int, error) {
-	raw := getenv("ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS")
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return defaultReconcileParseMaxSkips, nil
-	}
-	value, err := strconv.Atoi(trimmed)
-	if err != nil || value < 0 {
-		return 0, fmt.Errorf("ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS=%q: a set value must be a non-negative integer (0 never skips the parse)", trimmed)
-	}
-	return value, nil
 }

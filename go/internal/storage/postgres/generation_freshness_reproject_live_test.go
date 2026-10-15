@@ -52,6 +52,95 @@ func (p *reprojectProof) cheapReproject(generation, sha, identity string) string
 	return outcome
 }
 
+// stampGeneration runs the first-sweep stamp re-open (#8095) for generation
+// at sha with the proven identity.
+func (p *reprojectProof) stampGeneration(generation, sha, identity string) string {
+	p.t.Helper()
+	outcome, err := p.store.StampActiveGeneration(context.Background(), scope.ActiveReprojection{
+		ScopeID: p.scope.ScopeID, GenerationID: generation, CommitSHA: sha,
+		PreparseIdentity: identity, Reason: "interval_elapsed",
+	})
+	if err != nil {
+		p.t.Fatalf("StampActiveGeneration: %v", err)
+	}
+	return outcome
+}
+
+// TestStampActiveGenerationLifecycleLive (#8095 P0): the stamp re-open matches
+// an empty stored identity at the same commit on a full active generation,
+// stamps the proven identity with the skip count reset (a stamp counts as a
+// parse for the valve), and re-opens the canonical projector row under the
+// same lock and in-flight guard as the store re-open. A repeat after a
+// successful stamp is superseded by the one-shot fence (the stored identity
+// is non-empty, so the target cannot match again) — while pending and after
+// the Ack alike; neither re-opens nor re-stamps. A moved commit or an empty
+// request is superseded too.
+func TestStampActiveGenerationLifecycleLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	ctx := context.Background()
+	// First sweep after deploy: the active generation carries no identity.
+	p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+	p.project()
+	if identity, _ := p.preparseStamp("gen-a"); identity != "" {
+		t.Fatalf("gen-a identity = %q before any stamp, want empty", identity)
+	}
+	if got := p.stampGeneration("gen-a", "sha-a", preparseIdentityA); got != telemetry.RefreshSkipReasonReconcileReprojected {
+		t.Fatalf("first stamp = %q, want %q", got, telemetry.RefreshSkipReasonReconcileReprojected)
+	}
+	if identity, skips := p.preparseStamp("gen-a"); identity != preparseIdentityA || skips != 0 {
+		t.Fatalf("gen-a stamp = %q/%d, want %q/0 (identity stamped, valve count reset)", identity, skips, preparseIdentityA)
+	}
+	if status, reopens, _ := p.workRow("gen-a"); status != "pending" || reopens != 1 {
+		t.Fatalf("gen-a work = %s reopens=%d, want pending reopens=1", status, reopens)
+	}
+	state, err := p.store.FullReconcileState(ctx, p.scope.ScopeID)
+	if err != nil || state.ActivePreparseIdentity != preparseIdentityA || state.ActivePreparseSkips != 0 {
+		t.Fatalf("active identity = %q skips = %d (%v), want %q and 0",
+			state.ActivePreparseIdentity, state.ActivePreparseSkips, err, preparseIdentityA)
+	}
+	// Repeat after a successful stamp: the one-shot fence wins over the
+	// in-flight guard (the stored identity is non-empty, so the target cannot
+	// match again) — superseded, nothing re-stamped. Production reaches a
+	// repeat stamp only via a concurrent double-decide race, whose loser
+	// parsing is the fail-safe direction.
+	if got := p.stampGeneration("gen-a", "sha-a", preparseIdentityA); got != telemetry.RefreshSkipReasonReconcileSuperseded {
+		t.Fatalf("repeat while pending = %q, want %q (one-shot fence: an identity is already stored)", got, telemetry.RefreshSkipReasonReconcileSuperseded)
+	}
+	if identity, skips := p.preparseStamp("gen-a"); identity != preparseIdentityA || skips != 0 {
+		t.Fatalf("gen-a stamp after a pending repeat = %q/%d, want %q/0", identity, skips, preparseIdentityA)
+	}
+	p.project()
+	// One-shot fence: an identity is stored now, so a second stamp parses.
+	if got := p.stampGeneration("gen-a", "sha-a", preparseIdentityA); got != telemetry.RefreshSkipReasonReconcileSuperseded {
+		t.Fatalf("second stamp = %q, want %q (an identity is already stored)", got, telemetry.RefreshSkipReasonReconcileSuperseded)
+	}
+	if identity, skips := p.preparseStamp("gen-a"); identity != preparseIdentityA || skips != 0 {
+		t.Fatalf("gen-a stamp after a refused second stamp = %q/%d, want %q/0", identity, skips, preparseIdentityA)
+	}
+	// A fresh active generation without an identity fences on commit and on
+	// the non-empty request, then stamps.
+	p.commit(p.generation("gen-b", "hint-b", "sha-b", ""))
+	p.project()
+	for _, fence := range []struct {
+		name, sha, identity string
+	}{{"moved commit", "sha-x", preparseIdentityB}, {"empty request", "sha-b", ""}} {
+		if got := p.stampGeneration("gen-b", fence.sha, fence.identity); got != telemetry.RefreshSkipReasonReconcileSuperseded {
+			t.Fatalf("fenced stamp %s = %q, want superseded", fence.name, got)
+		}
+	}
+	if identity, _ := p.preparseStamp("gen-b"); identity != "" {
+		t.Fatalf("gen-b identity after fenced stamps = %q, want empty", identity)
+	}
+	if got := p.stampGeneration("gen-b", "sha-b", preparseIdentityB); got != telemetry.RefreshSkipReasonReconcileReprojected {
+		t.Fatalf("gen-b stamp = %q, want %q", got, telemetry.RefreshSkipReasonReconcileReprojected)
+	}
+	if identity, skips := p.preparseStamp("gen-b"); identity != preparseIdentityB || skips != 0 {
+		t.Fatalf("gen-b stamp = %q/%d, want %q/0", identity, skips, preparseIdentityB)
+	}
+}
+
 // TestPreparseIdentityStampsAndActiveStateLive (#7978 follow-up, ruling
 // a9-143 item 3, bootstrap): a stored generation keeps its pre-parse identity;
 // an active generation stored before the identity existed gets it from the

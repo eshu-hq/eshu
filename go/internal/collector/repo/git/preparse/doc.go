@@ -29,11 +29,13 @@
 // decides whether it changes output.
 //
 // The side effects live in Run. It calls Decide; on a skip it asks the store,
-// through Reprojector, to re-project the active generation, and maps the
-// store's answer to the outcome (reconcile_reprojected is skipped,
-// reconcile_reprojection_pending is reprojection_pending, reconcile_superseded
-// is reprojection_superseded and parses, anything else is read_error and
-// parses). It records the decision through Recorder: one increment of
+// through Reprojector, to re-project the active generation, and on a proven
+// first-sweep stamp (#8095) to stamp its empty stored identity instead —
+// never through the identity-equality path, whose fence would refuse it. It
+// maps the store's answer to the outcome (reconcile_reprojected is skipped,
+// or stays stamped; reconcile_reprojection_pending is reprojection_pending,
+// reconcile_superseded is reprojection_superseded and parses, anything else is
+// read_error and parses). It records the decision through Recorder: one increment of
 // eshu_dp_collector_reconcile_parse_skip_decisions_total{outcome}, the span
 // event git.reconcile.parse_skip_decision on the caller's span, and the INFO
 // git_reconcile_parse_skipped or WARN git_reconcile_parse_skip_refused log.

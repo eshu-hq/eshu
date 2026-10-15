@@ -142,6 +142,10 @@ type gitDeltaBaseline struct {
 	// ParseMaxSkips is the valve: 0 never skips; N parses at least every N
 	// intervals.
 	ParseMaxSkips int
+	// StampWithoutParse carries
+	// RepoSyncConfig.ReconcileStampIdentityWithoutParse (#8095): the opt-in
+	// first-sweep identity stamp.
+	StampWithoutParse bool
 }
 
 // reindexWatermarkFor returns the reindex watermark that applies to scopeID

@@ -144,6 +144,36 @@ func TestReconcileParseMaxSkipsFromEnv(t *testing.T) {
 	}
 }
 
+// TestReconcileStampIdentityWithoutParseFromEnv (#8095): the first-sweep
+// stamp is off by default and accepts the same truthy spellings as the other
+// boolean gates; anything else stays off, so an unset or mistyped value keeps
+// today's parse.
+func TestReconcileStampIdentityWithoutParseFromEnv(t *testing.T) {
+	t.Parallel()
+	load := func(raw string) RepoSyncConfig {
+		config, err := LoadRepoSyncConfig("collector-git", func(key string) string {
+			switch key {
+			case "ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE":
+				return raw
+			case "ESHU_REPO_SOURCE_MODE":
+				return "explicit"
+			case "ESHU_REPOS_DIR":
+				return "/tmp/repos"
+			}
+			return ""
+		})
+		if err != nil {
+			t.Fatalf("raw %q: LoadRepoSyncConfig error = %v", raw, err)
+		}
+		return config
+	}
+	for raw, want := range map[string]bool{"": false, "  ": false, "0": false, "false": false, "no": false, "x": false, "1": true, "true": true, "TRUE": true, "yes": true, "on": true, " on ": true} {
+		if got := load(raw).ReconcileStampIdentityWithoutParse; got != want {
+			t.Errorf("raw %q: ReconcileStampIdentityWithoutParse = %t, want %t", raw, got, want)
+		}
+	}
+}
+
 // TestDegradedSnapshotStampsNoIdentity (review F-2, ruling a9-143.3): a
 // snapshot that fell back from SCIP or skipped a file it could not read may
 // differ from a later identical run, so its generation carries no pre-parse

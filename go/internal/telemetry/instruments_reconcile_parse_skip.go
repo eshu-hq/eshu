@@ -12,12 +12,13 @@ import (
 // registerReconcileParseSkipDecisions registers the pre-parse skip decision
 // counter (#7978 follow-up, ruling a9-143). One increment per forced reconcile
 // the git collector evaluates, labeled outcome: skipped when the parse was
-// skipped and the active generation re-projected, or the reason it parsed
-// (reason_ineligible, disabled, no_active_full, delta_active, head_moved,
-// identity_absent, identity_mismatch, submodules_present, dirty_tree,
-// valve_due, read_error), or the store's answer to a skip that did not
-// re-open (reprojection_pending: already in flight, no parse;
-// reprojection_superseded: fenced, the collector parses).
+// skipped and the active generation re-projected, stamped_without_parse when
+// the opt-in first-sweep stamp (#8095) wrote the identity without parsing, or
+// the reason it parsed (reason_ineligible, disabled, no_active_full,
+// delta_active, head_moved, identity_absent, identity_mismatch,
+// submodules_present, dirty_tree, valve_due, read_error), or the store's
+// answer to a skip that did not re-open (reprojection_pending: already in
+// flight, no parse; reprojection_superseded: fenced, the collector parses).
 func registerReconcileParseSkipDecisions(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.ReconcileParseSkipDecisions, err = meter.Int64Counter(

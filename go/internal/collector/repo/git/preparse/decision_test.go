@@ -113,7 +113,79 @@ func TestOutcomesAreClosed(t *testing.T) {
 		}
 		seen[outcome] = true
 	}
-	if len(seen) != 14 {
-		t.Fatalf("outcome count = %d, want 14", len(seen))
+	if len(seen) != 15 {
+		t.Fatalf("outcome count = %d, want 15", len(seen))
+	}
+}
+
+// TestStampWithoutParseCells (#8095): the opt-in first-sweep stamp fires only
+// when the setting is on, the stored proof matches the running collector, the
+// stored identity is empty while the current one is known, and every other
+// skip guard (reason, active full, head, submodules, valve, clean tree) also
+// allows it. Any doubt parses with the outcome the unproven path would give.
+func TestStampWithoutParseCells(t *testing.T) {
+	t.Parallel()
+	stampable := func(in *Input) {
+		in.Active.Identity = ""
+		in.StampWithoutParse = true
+		in.StampProven = true
+	}
+	cells := []struct {
+		name   string
+		mutate func(*Input)
+		clean  func() (bool, error)
+		want   Outcome
+	}{
+		{"off by default parses", func(in *Input) { in.Active.Identity = "" }, clean, OutcomeIdentityAbsent},
+		{"opt-in without proof parses", func(in *Input) {
+			in.Active.Identity = ""
+			in.StampWithoutParse = true
+		}, clean, OutcomeIdentityAbsent},
+		{"proven without opt-in parses", func(in *Input) {
+			in.Active.Identity = ""
+			in.StampProven = true
+		}, clean, OutcomeIdentityAbsent},
+		{"proven stamp, no parse", stampable, clean, OutcomeStamped},
+		{"stamp needs the current identity", func(in *Input) {
+			stampable(in)
+			in.Identity = ""
+		}, clean, OutcomeIdentityAbsent},
+		{"stamp keeps a stored identity on the skip path", func(in *Input) {
+			in.StampWithoutParse = true
+			in.StampProven = true
+		}, clean, OutcomeSkipped},
+		{"stamp refuses a moved head", func(in *Input) {
+			stampable(in)
+			in.RemoteCommit = "commit-b"
+		}, clean, OutcomeHeadMoved},
+		{"stamp refuses a delta", func(in *Input) {
+			stampable(in)
+			in.Active.IsDelta = true
+		}, clean, OutcomeDeltaActive},
+		{"stamp refuses an ineligible reason", func(in *Input) {
+			stampable(in)
+			in.Reason = "reindex_requested"
+		}, clean, OutcomeReasonIneligible},
+		{"stamp refuses submodules", func(in *Input) {
+			stampable(in)
+			in.HasSubmodules = true
+		}, clean, OutcomeSubmodules},
+		{"stamp refuses a due valve", func(in *Input) {
+			stampable(in)
+			in.Active.Skips = 6
+		}, clean, OutcomeValveDue},
+		{"stamp refuses a dirty tree", stampable, func() (bool, error) { return false, nil }, OutcomeDirtyTree},
+	}
+	for _, cell := range cells {
+		t.Run(cell.name, func(t *testing.T) {
+			t.Parallel()
+			in := eligibleInput()
+			if cell.mutate != nil {
+				cell.mutate(&in)
+			}
+			if got := Decide(in, cell.clean); got != cell.want {
+				t.Fatalf("Decide() = %q, want %q", got, cell.want)
+			}
+		})
 	}
 }

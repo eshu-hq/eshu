@@ -473,6 +473,7 @@ func (b gitDeltaBaseline) skipParse(
 		Identity:      preparse.Identity(GenerationContentVersion(), sourceSHA, repositoryDefaultBranch(refs), *b.Preparse),
 		HasSubmodules: regularFileExists(filepath.Join(repoPath, ".gitmodules")),
 		MaxSkips:      b.ParseMaxSkips, ConfigDigest: preparse.ConfigDigest(*b.Preparse),
+		StampWithoutParse: b.StampWithoutParse, StampProven: false, // unproven: no store proof producer yet (#8095)
 	}, clean, reprojector,
 		preparse.Recorder{Instruments: b.Instruments, Logger: logger})
 	return skipped, observed

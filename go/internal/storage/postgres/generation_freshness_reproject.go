@@ -235,6 +235,52 @@ stamped AS (
 SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
 `
 
+// stampActiveGenerationQuery is the first-sweep stamp re-open (#8095): the
+// collector proved the active generation equals what a full parse of the same
+// commit would emit, but no identity was ever stored for it. The target is
+// fenced on the scope's active pointer, a full (is_delta false) active
+// generation, its commit, an EMPTY stored identity, and a non-empty requested
+// one, so a second stamp (or any stamp after a parse stored an identity) is a
+// no-op: the stamp is one-shot by construction. The re-open itself is the
+// store re-open's (reprojectReopenedCTE): the same in-flight guard and attempt
+// reset. A real re-open stamps the requested identity and RESETS preparse_skips
+// to 0, like the parse path: a stamp counts as a parse for the valve, so a
+// due valve still forces a real parse.
+//
+// $1 now, $2 scope_id, $3 generation_id, $4 commit, $5 identity, $6 reason.
+const stampActiveGenerationQuery = `
+WITH target AS (
+    SELECT generation.generation_id
+    FROM scope_generations AS generation
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = generation.scope_id
+     AND scope.active_generation_id = generation.generation_id
+    WHERE generation.scope_id = $2
+      AND generation.generation_id = $3
+      AND generation.status = 'active'
+      AND generation.activated_at IS NOT NULL
+      AND generation.is_delta = false
+      AND COALESCE(generation.source_commit_sha, '') = $4
+      AND $5::text <> ''
+      AND COALESCE(generation.payload ->> 'preparse_identity', '') = ''
+),
+` + reprojectReopenedCTE + `,
+stamped AS (
+    UPDATE scope_generations AS generation
+    SET payload = COALESCE(generation.payload, '{}'::jsonb) || jsonb_build_object(
+            'reconcile_reason', $6::text,
+            'reconcile_requested_at', $1::timestamptz,
+            'preparse_identity', $5::text,
+            'preparse_skips', 0
+        )
+    FROM reopened
+    WHERE generation.generation_id = reopened.generation_id
+      AND generation.status = 'active'
+    RETURNING generation.generation_id
+)
+SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
+`
+
 // ReprojectActiveGeneration re-projects the scope's active generation without
 // a snapshot, for a forced reconcile whose pre-parse identity equals the
 // stored one (ruling a9-143). It takes the scope row lock first, as the store
@@ -245,18 +291,42 @@ SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
 // a delta, or the commit or identity differs). An error leaves nothing changed;
 // the collector then parses as before.
 func (s IngestionStore) ReprojectActiveGeneration(ctx context.Context, request scope.ActiveReprojection) (string, error) {
+	return s.execReprojectQuery(ctx, "skipped-parse re-projection", reprojectByIdentityQuery, request)
+}
+
+// StampActiveGeneration stamps the scope's active generation without a
+// snapshot, for a proven first-sweep stamp (#8095): the stored identity is
+// empty and the collector proved the running content version and
+// configuration would emit the requested identity for the same commit. It
+// returns the same closed reasons as ReprojectActiveGeneration:
+// reconcile_reprojected (re-opened, identity stamped, skips reset), or
+// reconcile_superseded (fenced: another generation is active, the generation
+// is a delta, the commit moved, the request is empty, or an identity is
+// already stored — the one-shot fence). An error leaves nothing changed; the
+// collector then parses as before.
+func (s IngestionStore) StampActiveGeneration(ctx context.Context, request scope.ActiveReprojection) (string, error) {
+	return s.execReprojectQuery(ctx, "stamp re-projection", stampActiveGenerationQuery, request)
+}
+
+// execReprojectQuery runs one snapshot-less re-open (operation names the
+// errors) under the scope row lock and returns the closed skip reason it
+// recorded: reconcile_reprojected (re-opened and stamped),
+// reconcile_reprojection_pending (the row is already open or leased; nothing
+// stamped), or reconcile_superseded (fenced). A fenced target commits nothing
+// and records nothing; an error leaves nothing changed.
+func (s IngestionStore) execReprojectQuery(ctx context.Context, operation, query string, request scope.ActiveReprojection) (string, error) {
 	if s.beginner == nil {
 		return "", errors.New("transaction beginner is required")
 	}
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
-		return "", fmt.Errorf("begin skipped-parse re-projection: %w", err)
+		return "", fmt.Errorf("begin %s: %w", operation, err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, lockReprojectScopeQuery, request.ScopeID); err != nil {
-		return "", fmt.Errorf("lock scope for skipped-parse re-projection: %w", err)
+		return "", fmt.Errorf("lock scope for %s: %w", operation, err)
 	}
-	rows, err := tx.QueryContext(ctx, reprojectByIdentityQuery, s.now(), request.ScopeID, request.GenerationID,
+	rows, err := tx.QueryContext(ctx, query, s.now(), request.ScopeID, request.GenerationID,
 		strings.TrimSpace(request.CommitSHA), strings.TrimSpace(request.PreparseIdentity), strings.TrimSpace(request.Reason))
 	if err != nil {
 		return "", fmt.Errorf("re-open active generation without a parse: %w", err)
@@ -266,7 +336,7 @@ func (s IngestionStore) ReprojectActiveGeneration(ctx context.Context, request s
 		err = rows.Scan(&matched, &reopened)
 	}
 	if err = errors.Join(err, rows.Err(), rows.Close()); err != nil {
-		return "", fmt.Errorf("read skipped-parse re-open result: %w", err)
+		return "", fmt.Errorf("read %s re-open result: %w", operation, err)
 	}
 	reason := telemetry.RefreshSkipReasonReconcileSuperseded
 	switch {
@@ -277,7 +347,7 @@ func (s IngestionStore) ReprojectActiveGeneration(ctx context.Context, request s
 	}
 	if matched {
 		if err := tx.Commit(); err != nil {
-			return "", fmt.Errorf("commit skipped-parse re-projection: %w", err)
+			return "", fmt.Errorf("commit %s: %w", operation, err)
 		}
 	}
 	s.backfillStore().RecordSkippedRefresh(ctx, scope.IngestionScope{ScopeID: request.ScopeID}, scope.ScopeGeneration{

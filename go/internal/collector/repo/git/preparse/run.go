@@ -19,10 +19,16 @@ import (
 
 // Reprojector re-projects a scope's active generation without a snapshot and
 // returns the refresh-skip reason it recorded. The ingestion store implements
-// it (IngestionStore.ReprojectActiveGeneration); a resolver without it always
-// parses.
+// it (IngestionStore.ReprojectActiveGeneration for equal identities,
+// IngestionStore.StampActiveGeneration for a proven first-sweep stamp with an
+// empty stored identity); a resolver without it always parses.
 type Reprojector interface {
 	ReprojectActiveGeneration(ctx context.Context, request scope.ActiveReprojection) (string, error)
+	// StampActiveGeneration stamps a proven first-sweep identity (#8095):
+	// the stored identity is empty and the request carries the proven one.
+	// Its fence refuses anything else, so a resolver that only implements
+	// ReprojectActiveGeneration must still parse stamps.
+	StampActiveGeneration(ctx context.Context, request scope.ActiveReprojection) (string, error)
 }
 
 // Recorder carries the git collector's telemetry for Run. Both fields may be
@@ -51,13 +57,22 @@ type Attempt struct {
 	HasSubmodules bool
 	// MaxSkips is the valve.
 	MaxSkips int
+	// StampWithoutParse is the opt-in first-sweep stamp (#8095). Off parses
+	// as before.
+	StampWithoutParse bool
+	// StampProven reports the active generation proves it was produced by the
+	// running content version and configuration with no degraded snapshot.
+	// No producer records that proof yet, so it is false and the setting
+	// parses as before; a follow-up records the proof on every parse.
+	StampProven bool
 	// ConfigDigest is ConfigDigest of the configuration, for the logs.
 	ConfigDigest string
 }
 
-// Run decides one forced reconcile and, on a skip, asks reprojector to
-// re-project the active generation. The store's answer sets the outcome
-// (review F-3): reconcile_reprojected stays skipped, reconcile_reprojection_pending
+// Run decides one forced reconcile and, on a skip or a proven first-sweep
+// stamp (#8095), asks reprojector to re-project the active generation. The
+// store's answer sets the outcome (review F-3): reconcile_reprojected stays
+// skipped (or stamped), reconcile_reprojection_pending
 // becomes reprojection_pending, and neither parses, so Run reports true;
 // reconcile_superseded becomes reprojection_superseded, and a store error or an
 // unknown reason becomes read_error, so Run reports false and the caller parses.
@@ -73,33 +88,48 @@ func Run(ctx context.Context, attempt Attempt, clean func() (bool, error), repro
 			CommitSHA: state.ActiveCommitSHA, Identity: state.ActivePreparseIdentity,
 			IsDelta: state.ActiveIsDelta, Skips: state.ActivePreparseSkips,
 		},
-		RemoteCommit:  attempt.RemoteCommit,
-		Identity:      attempt.Identity,
-		HasSubmodules: attempt.HasSubmodules,
-		MaxSkips:      attempt.MaxSkips,
+		RemoteCommit:      attempt.RemoteCommit,
+		Identity:          attempt.Identity,
+		HasSubmodules:     attempt.HasSubmodules,
+		MaxSkips:          attempt.MaxSkips,
+		StampWithoutParse: attempt.StampWithoutParse,
+		StampProven:       attempt.StampProven,
 	}
 	outcome := Decide(input, clean)
 	var storeErr error
-	if outcome == OutcomeSkipped {
-		var reason string
-		reason, storeErr = reprojector.ReprojectActiveGeneration(ctx, scope.ActiveReprojection{
+	// A stamp never takes the identity-equality path: its stored identity is
+	// empty by definition, so that fence would refuse it. It takes the store
+	// stamp path, whose fence matches the empty stored identity and stamps
+	// the proven one with the skip count reset.
+	if outcome == OutcomeStamped || outcome == OutcomeSkipped {
+		request := scope.ActiveReprojection{
 			ScopeID: attempt.ScopeID, GenerationID: state.ActiveGenerationID, CommitSHA: attempt.RemoteCommit,
 			PreparseIdentity: attempt.Identity, Reason: attempt.Reason,
-		})
-		outcome, storeErr = storeOutcome(reason, storeErr)
+		}
+		var reason string
+		if outcome == OutcomeStamped {
+			reason, storeErr = reprojector.StampActiveGeneration(ctx, request)
+		} else {
+			reason, storeErr = reprojector.ReprojectActiveGeneration(ctx, request)
+		}
+		outcome, storeErr = storeOutcome(outcome, reason, storeErr)
 	}
 	recorder.record(ctx, attempt, input, outcome, storeErr)
 	return parseSkipped(outcome)
 }
 
 // storeOutcome maps the store's re-projection answer to the decision outcome.
+// A re-opened stamp stays stamped so the counter tells stamps from skips.
 // Any doubt parses: an error or a reason this code does not know is read_error.
-func storeOutcome(reason string, err error) (Outcome, error) {
+func storeOutcome(decided Outcome, reason string, err error) (Outcome, error) {
 	if err != nil {
 		return OutcomeReadError, err
 	}
 	switch reason {
 	case telemetry.RefreshSkipReasonReconcileReprojected:
+		if decided == OutcomeStamped {
+			return OutcomeStamped, nil
+		}
 		return OutcomeSkipped, nil
 	case telemetry.RefreshSkipReasonReconcileReprojectionPending:
 		return OutcomeReprojectionPending, nil
@@ -111,7 +141,7 @@ func storeOutcome(reason string, err error) (Outcome, error) {
 
 // parseSkipped reports whether the outcome leaves the repository unparsed.
 func parseSkipped(outcome Outcome) bool {
-	return outcome == OutcomeSkipped || outcome == OutcomeReprojectionPending
+	return outcome == OutcomeSkipped || outcome == OutcomeStamped || outcome == OutcomeReprojectionPending
 }
 
 func (r Recorder) record(ctx context.Context, attempt Attempt, input Input, outcome Outcome, storeErr error) {
