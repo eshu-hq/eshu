@@ -38,11 +38,11 @@ type phpPackageKeys struct {
 	types []phpTypeDeclaration
 	// publicStaticMethods are the class methods eligible for a producer key.
 	publicStaticMethods []phpStaticMethod
-	// lockChecked and lockPresent cache whether any composer.lock can key this
-	// file, so a file with no lock pays one directory walk.
-	lockChecked bool
-	lockPresent bool
-	// lockedPackages memoizes LockedPackage per fully qualified class name.
+	// locks is the file's composer.lock chain, read once at the first
+	// candidate call.
+	locks     composer.Locks
+	locksRead bool
+	// lockedPackages memoizes locks.Package per fully qualified class name.
 	lockedPackages map[string]string
 }
 
@@ -106,11 +106,11 @@ func (k *phpPackageKeys) recordType(name string, isClass bool, item map[string]a
 
 // recordMethod stages a class method for the producer key when it is public
 // and static, the only methods another package can call as Class::method().
-func (k *phpPackageKeys) recordMethod(node *tree_sitter.Node, source []byte, typeName string, typeKind string, item map[string]any) {
+func (k *phpPackageKeys) recordMethod(node *tree_sitter.Node, typeName string, typeKind string, isPublic bool, item map[string]any) {
 	if k == nil {
 		return
 	}
-	if typeKind != "class_declaration" || typeName == "" || !phpMethodIsPublic(node, source) || !phpMethodIsStatic(node) {
+	if typeKind != "class_declaration" || typeName == "" || !isPublic || !phpMethodIsStatic(node) {
 		return
 	}
 	k.publicStaticMethods = append(k.publicStaticMethods, phpStaticMethod{className: typeName, item: item})
@@ -180,16 +180,16 @@ func (k *phpPackageKeys) consumerKey(fqcn string, member string) string {
 	if k == nil || fqcn == "" {
 		return ""
 	}
-	if !k.lockChecked {
-		k.lockChecked = true
-		k.lockPresent = composer.HasLock(k.repoRoot, k.path)
+	if !k.locksRead {
+		k.locksRead = true
+		k.locks = composer.LocksFor(k.repoRoot, k.path)
 	}
-	if !k.lockPresent {
+	if k.locks.Empty() {
 		return ""
 	}
 	packageName, seen := k.lockedPackages[fqcn]
 	if !seen {
-		packageName = composer.LockedPackage(k.repoRoot, k.path, fqcn)
+		packageName = k.locks.Package(fqcn)
 		k.lockedPackages[fqcn] = packageName
 	}
 	if packageName == "" {

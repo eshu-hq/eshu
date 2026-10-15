@@ -7,8 +7,8 @@ Composer manifest reads for the PHP cross-repository call keys (#7601).
 | Function | Side | Reads | Answers |
 | --- | --- | --- | --- |
 | `ProducerPackage(repoRoot, path, fqcn)` | producer | nearest `composer.json` | the package that publishes `fqcn` from this file, or `""` |
-| `LockedPackage(repoRoot, path, fqcn)` | consumer | every `composer.lock` up to `repoRoot`, nearest first | the locked package that provides `fqcn`, or `""` |
-| `HasLock(repoRoot, path)` | consumer | `composer.lock` stats | whether any lock can key this file |
+| `LocksFor(repoRoot, path)` | consumer | every `composer.lock` up to `repoRoot`, nearest first | the file's lock chain, read once per file |
+| `Locks.Package(fqcn)` | consumer | the chain | the locked package that provides `fqcn`, or `""` |
 | `ManifestName(content)` | loader | one `composer.json` | its name in the composer grammar, or `""` |
 | `ValidPackageName(name)` | both | none | composer's `vendor/name` grammar |
 
@@ -28,7 +28,9 @@ Composer manifest reads for the PHP cross-repository call keys (#7601).
 ## Performance
 
 Both files go through `project.ScopeCache` keyed by `(path, mtime, size)`, so a
-`composer.lock` is decoded once per content generation, not once per PHP file.
+`composer.lock` is decoded once per content generation, not once per PHP file,
+and the PHP adapter builds a file's lock chain once, at its first candidate
+call. A lookup probes one map entry per namespace segment of the class.
 `BenchmarkParsePathPHPWithComposerLock` in the parent package measures the
 per-file cost with a lock the size of a Symfony application's.
 

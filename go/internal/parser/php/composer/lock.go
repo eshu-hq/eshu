@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
 )
@@ -20,10 +21,13 @@ type lockPrefix struct {
 	name   string
 }
 
-// lockIndex is the prefix list of one composer.lock, read from both packages
-// and packages-dev.
+// lockIndex is the prefix table of one composer.lock, read from both packages
+// and packages-dev. Prefixes that end in '\' (every valid psr-4 prefix) are
+// grouped by prefix so a lookup costs one map probe per namespace segment of
+// the class; the rest (psr-0 prefixes such as "Twig_") are scanned.
 type lockIndex struct {
-	prefixes []lockPrefix
+	bySegmentPrefix map[string][]string
+	unsegmented     []lockPrefix
 }
 
 // lockCache memoizes parsed composer.lock files by (path, stat). A lock is
@@ -31,8 +35,8 @@ type lockIndex struct {
 // parsed once per content generation, not once per file.
 var lockCache = project.NewScopeCache[lockIndex]()
 
-// parseLock builds the prefix list of a composer.lock document. A document
-// that does not decode yields an empty list, so its classes stay unkeyed.
+// parseLock builds the prefix table of a composer.lock document. A document
+// that does not decode yields an empty table, so its classes stay unkeyed.
 func parseLock(content []byte) lockIndex {
 	type lockedPackage struct {
 		Name     any `json:"name"`
@@ -45,27 +49,42 @@ func parseLock(content []byte) lockIndex {
 		Packages    []lockedPackage `json:"packages"`
 		PackagesDev []lockedPackage `json:"packages-dev"`
 	}
+	index := lockIndex{bySegmentPrefix: map[string][]string{}}
 	if err := json.Unmarshal(content, &document); err != nil {
-		return lockIndex{}
+		return index
 	}
-	var index lockIndex
+	add := func(prefix string, name string) {
+		if prefix == "" {
+			return
+		}
+		if strings.HasSuffix(prefix, `\`) {
+			index.bySegmentPrefix[prefix] = append(index.bySegmentPrefix[prefix], name)
+			return
+		}
+		index.unsegmented = append(index.unsegmented, lockPrefix{prefix: prefix, name: name})
+	}
 	for _, locked := range append(document.Packages, document.PackagesDev...) {
 		name, _ := locked.Name.(string)
 		if !ValidPackageName(name) {
 			name = ""
 		}
 		for rawPrefix := range locked.Autoload.PSR4 {
-			if prefix := normalizePrefix(rawPrefix); prefix != "" {
-				index.prefixes = append(index.prefixes, lockPrefix{prefix: prefix, name: name})
-			}
+			add(normalizePrefix(rawPrefix), name)
 		}
 		for rawPrefix := range locked.Autoload.PSR0 {
-			if prefix := normalizePrefix(rawPrefix); prefix != "" {
-				index.prefixes = append(index.prefixes, lockPrefix{prefix: prefix})
-			}
+			add(normalizePrefix(rawPrefix), "")
 		}
 	}
 	return index
+}
+
+// size reports how many prefixes the table holds.
+func (index lockIndex) size() int {
+	count := len(index.unsegmented)
+	for _, names := range index.bySegmentPrefix {
+		count += len(names)
+	}
+	return count
 }
 
 // lookup returns the package whose prefix is the longest one covering fqcn,
@@ -74,30 +93,38 @@ func parseLock(content []byte) lockIndex {
 // but cannot be keyed, so the caller must stop rather than ask another lock.
 func (index lockIndex) lookup(fqcn string) (string, bool) {
 	best := -1
-	name := ""
-	tied := false
-	for _, entry := range index.prefixes {
-		if !coversClass(entry.prefix, fqcn) || len(entry.prefix) < best {
-			continue
+	var names []string
+	consider := func(prefix string, candidates ...string) {
+		if !coversClass(prefix, fqcn) || len(prefix) < best {
+			return
 		}
-		if len(entry.prefix) > best {
-			best, name, tied = len(entry.prefix), entry.name, false
-			continue
+		if len(prefix) > best {
+			best, names = len(prefix), nil
 		}
-		if entry.name != name {
-			tied = true
+		names = append(names, candidates...)
+	}
+	for cut := strings.LastIndex(fqcn, `\`); cut >= 0; cut = strings.LastIndex(fqcn[:cut], `\`) {
+		prefix := fqcn[:cut+1]
+		if candidates, ok := index.bySegmentPrefix[prefix]; ok {
+			consider(prefix, candidates...)
+			break
 		}
+	}
+	for _, entry := range index.unsegmented {
+		consider(entry.prefix, entry.name)
 	}
 	if best < 0 {
 		return "", false
 	}
-	if tied {
-		return "", true
+	for _, name := range names[1:] {
+		if name != names[0] {
+			return "", true
+		}
 	}
-	return name, true
+	return names[0], true
 }
 
-// readLock returns the cached prefix list of the composer.lock at path, and
+// readLock returns the cached prefix table of the composer.lock at path, and
 // false when no file exists there.
 func readLock(path string) (lockIndex, bool) {
 	stat, ok := project.StatFor(path)
@@ -113,40 +140,50 @@ func readLock(path string) (lockIndex, bool) {
 	}), true
 }
 
-// LockedPackage returns the composer package that provides the class fqcn to
-// the file at path, or "" when none can be proven. It reads every composer.lock
-// from the file's directory up to repoRoot, nearest first, and the first lock
-// whose packages or packages-dev autoload a prefix covering fqcn decides: the
-// longest covering prefix wins, and a tie, a psr-0 prefix, or a name outside
-// the composer grammar yields "". A lock lists only installed dependencies,
-// never the root package, so the consumer's own classes are never resolved.
-func LockedPackage(repoRoot string, path string, fqcn string) string {
+// Locks is the chain of composer.lock files that can provide classes to one
+// file: every lock from the file's directory up to the repository root, nearest
+// first. Build it once per file with LocksFor and ask it per class.
+type Locks struct {
+	indexes []lockIndex
+}
+
+// LocksFor reads every composer.lock from path's directory up to repoRoot,
+// nearest first, through the (path, stat) cache. A path outside repoRoot, or a
+// tree with no lock, yields an empty chain.
+func LocksFor(repoRoot string, path string) Locks {
 	repoRoot = project.CleanPath(repoRoot)
 	path = project.CleanPath(path)
-	if repoRoot == "" || path == "" || fqcn == "" {
+	if repoRoot == "" || path == "" {
+		return Locks{}
+	}
+	var locks Locks
+	for _, dir := range ancestorDirs(repoRoot, path) {
+		if index, ok := readLock(filepath.Join(dir, "composer.lock")); ok && index.size() > 0 {
+			locks.indexes = append(locks.indexes, index)
+		}
+	}
+	return locks
+}
+
+// Empty reports whether the chain holds no lock that could key a class.
+func (l Locks) Empty() bool {
+	return len(l.indexes) == 0
+}
+
+// Package returns the composer package that provides the class fqcn, or ""
+// when none can be proven. The first lock, nearest first, whose packages or
+// packages-dev autoload a prefix covering fqcn decides: the longest covering
+// prefix wins, and a tie between packages, a psr-0 prefix, or a name outside
+// the composer grammar yields "". A lock lists only installed dependencies,
+// never the root package, so the consumer's own classes are never resolved.
+func (l Locks) Package(fqcn string) string {
+	if fqcn == "" {
 		return ""
 	}
-	for _, dir := range ancestorDirs(repoRoot, path) {
-		index, ok := readLock(filepath.Join(dir, "composer.lock"))
-		if !ok {
-			continue
-		}
+	for _, index := range l.indexes {
 		if name, covered := index.lookup(fqcn); covered {
 			return name
 		}
 	}
 	return ""
-}
-
-// HasLock reports whether any composer.lock sits between the file at path and
-// repoRoot. Callers use it to skip binding work for a file no lock can key.
-func HasLock(repoRoot string, path string) bool {
-	repoRoot = project.CleanPath(repoRoot)
-	path = project.CleanPath(path)
-	for _, dir := range ancestorDirs(repoRoot, path) {
-		if _, ok := project.StatFor(filepath.Join(dir, "composer.lock")); ok {
-			return true
-		}
-	}
-	return false
 }

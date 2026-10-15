@@ -4,7 +4,7 @@
 // Package composer reads the Composer manifests the PHP adapter needs to key
 // cross-repository calls (#7601): the nearest composer.json for the producer
 // half (ProducerPackage, ManifestName) and every composer.lock up to the
-// repository root for the consumer half (LockedPackage, HasLock).
+// repository root for the consumer half (LocksFor, Locks.Package).
 //
 // A producer class is keyed only when composer could autoload it for a
 // consumer: the nearest composer.json has a name in the composer grammar

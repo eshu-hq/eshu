@@ -50,8 +50,8 @@ func TestParseLockToleratesMalformedDocuments(t *testing.T) {
 	t.Parallel()
 
 	for _, content := range []string{`{"packages": 3}`, `[`, `{"packages": [{"name": "a/b", "autoload": []}]}`} {
-		if index := parseLock([]byte(content)); len(index.prefixes) != 0 {
-			t.Errorf("parseLock(%s) = %#v, want no prefixes", content, index.prefixes)
+		if index := parseLock([]byte(content)); index.size() != 0 {
+			t.Errorf("parseLock(%s) holds %d prefixes, want none", content, index.size())
 		}
 	}
 }

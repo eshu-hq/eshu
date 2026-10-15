@@ -174,7 +174,8 @@ func collectPHPFunction(state *phpParseState, node *tree_sitter.Node, typeName s
 
 	state.recordPHPFunctionParameterTypes(node, typeName, name)
 	fingerprint.Attach("php", state.fpHasError, node.ChildByFieldName("body"), state.source, item, state.fpStats)
-	state.packageKeys.recordMethod(node, state.source, typeName, typeKind, item)
+	isPublic := phpMethodIsPublic(node, state.source)
+	state.packageKeys.recordMethod(node, typeName, typeKind, isPublic, item)
 	recordPHPDeadCodeFunction(state.deadCodeFacts, name, typeName, typeKind, parameters)
 	state.deadCodeFunctions = append(state.deadCodeFunctions, phpDeadCodeFunctionFact{
 		item:        item,
@@ -183,7 +184,7 @@ func collectPHPFunction(state *phpParseState, node *tree_sitter.Node, typeName s
 		contextKind: typeKind,
 		lineNumber:  shared.NodeLine(phpNameNode(node)),
 		parameters:  parameters,
-		isPublic:    phpMethodIsPublic(node, state.source),
+		isPublic:    isPublic,
 	})
 	shared.AppendBucket(state.payload, "functions", item)
 }
