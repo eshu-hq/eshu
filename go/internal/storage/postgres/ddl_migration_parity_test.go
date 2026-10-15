@@ -31,30 +31,39 @@ import (
 var ddlParityScanRoots = []string{"internal/storage/postgres", "cmd"}
 
 // ddlParityGoOnlyTables names tables that Go DDL may create without a
-// numbered migration. Each entry needs a reason and an issue link. It is
-// empty: every table Go DDL creates today is also created by a migration.
+// numbered migration. Each entry needs a reason and an issue link, and an
+// entry that matches nothing fails the guard. It is empty: every table Go DDL
+// creates today is also created by a migration.
 var ddlParityGoOnlyTables = map[string]string{}
 
 // ddlParityDynamicDDL names Go DDL whose target the scan cannot read because
-// the name is formatted or joined at runtime, keyed by
-// "<file relative to go/>|<statement head>". Each entry needs a reason; a
-// new dynamic statement fails the guard until it is listed here.
+// the name or a clause is formatted or joined at runtime, keyed by
+// "<file relative to go/>|<top-level declaration>|<statement head>". Each
+// entry needs a reason. A new dynamic statement fails the guard until it is
+// listed here, and an entry that matches nothing fails until it is removed.
 var ddlParityDynamicDDL = map[string]string{
-	"internal/storage/postgres/schema_bootstrap_lock.go|CREATE TABLE IF NOT EXISTS %s": "the " +
+	"internal/storage/postgres/schema_bootstrap_lock.go|schemaMigrationsTableSQL|CREATE TABLE IF NOT EXISTS %s": "the " +
 		"eshu_schema_migrations ledger, schema-qualified at runtime; ApplyBootstrap creates it " +
 		"itself before it applies any numbered migration, so the schema Job always has it (#7792)",
 }
 
-// TestDDLMigrationParity enforces three rules over Go DDL in non-test files
-// under go/internal/storage/postgres and go/cmd, against the embedded
-// numbered migrations the schema Job applies:
+// TestDDLMigrationParity checks Go DDL in non-test files under
+// go/internal/storage/postgres and go/cmd against the embedded numbered
+// migrations the schema Job applies. It fails when Go DDL declares:
 //
-//  1. every column Go DDL declares (CREATE TABLE column list or ALTER TABLE
-//     ADD [COLUMN]) on a migration-created table is declared by a migration;
-//  2. every index Go DDL creates on a migration-created table exists in the
-//     migrations under the same name and on the same table;
-//  3. every table Go DDL creates is also created by a migration, unless it is
-//     listed in ddlParityGoOnlyTables.
+//  1. a column (CREATE TABLE column list or ALTER TABLE ADD [COLUMN]) on a
+//     migration-created table that no migration declares;
+//  2. an index name no migration creates, or one a migration puts on
+//     another table;
+//  3. a table no migration creates, unless ddlParityGoOnlyTables lists it;
+//  4. a named constraint or trigger on a migration-created table, or a
+//     function, that no migration declares;
+//  5. a statement the scan cannot read, unless ddlParityDynamicDDL lists it.
+//
+// A stale entry in either allowlist also fails. The guard compares names
+// only. It does not see CREATE EXTENSION or ALTER COLUMN, and it does not
+// compare definitions: column types and defaults, index columns and
+// predicates, or constraint, trigger, and function bodies.
 func TestDDLMigrationParity(t *testing.T) {
 	t.Parallel()
 
@@ -87,9 +96,10 @@ func ddlParityRealTree(t *testing.T) (ddlInventory, ddlInventory) {
 func assertDDLParityFloor(t *testing.T, migInv, goInv ddlInventory) {
 	t.Helper()
 
-	t.Logf("migrations: %d tables, %d columns, %d indexes; Go DDL: %d tables, %d columns, %d indexes, %d unresolved",
-		len(migInv.tables), len(migInv.columns), len(migInv.indexes),
-		len(goInv.tables), len(goInv.columns), len(goInv.indexes), len(goInv.unresolved))
+	migKinds, goKinds := ddlObjectKinds(migInv), ddlObjectKinds(goInv)
+	t.Logf("migrations: %d tables, %d columns, %d indexes, objects %v; Go DDL: %d tables, %d columns, %d indexes, objects %v, %d unresolved",
+		len(migInv.tables), len(migInv.columns), len(migInv.indexes), migKinds,
+		len(goInv.tables), len(goInv.columns), len(goInv.indexes), goKinds, len(goInv.unresolved))
 	floors := []struct {
 		name      string
 		got, want int
@@ -100,6 +110,12 @@ func assertDDLParityFloor(t *testing.T, migInv, goInv ddlInventory) {
 		{"Go DDL tables", len(goInv.tables), 20},
 		{"Go DDL columns", len(goInv.columns), 200},
 		{"Go DDL indexes", len(goInv.indexes), 50},
+		{"migration constraints", migKinds["constraint"], 10},
+		{"migration triggers", migKinds["trigger"], 3},
+		{"migration functions", migKinds["function"], 3},
+		{"Go DDL constraints", goKinds["constraint"], 3},
+		{"Go DDL triggers", goKinds["trigger"], 3},
+		{"Go DDL functions", goKinds["function"], 2},
 	}
 	for _, f := range floors {
 		if f.got < f.want {
@@ -111,11 +127,20 @@ func assertDDLParityFloor(t *testing.T, migInv, goInv ddlInventory) {
 	}
 }
 
+// ddlObjectKinds counts an inventory's named objects by kind.
+func ddlObjectKinds(inv ddlInventory) map[string]int {
+	counts := map[string]int{}
+	for obj := range inv.objects {
+		counts[obj.kind]++
+	}
+	return counts
+}
+
 // goStringLiteralSources parses every non-test .go file under roots
 // (relative to goRoot), skipping the migrations directory, and returns each
 // string literal as a ddlSource. The migrations are read from the embedded
-// definitions instead, and testdata trees are not compiled. A chain of string literals joined with + is
-// folded into one source. Comments are never read, so DDL in a doc comment
+// definitions instead, and testdata trees are not compiled. A chain of string
+// literals joined with + is folded into one source. Comments are never read, so DDL in a doc comment
 // does not count.
 func goStringLiteralSources(goRoot string, roots []string) ([]ddlSource, error) {
 	var sources []ddlSource
@@ -153,15 +178,17 @@ func goStringLiteralSources(goRoot string, roots []string) ([]ddlSource, error) 
 }
 
 // goFileStringLiterals returns the string literals of one Go file, with
-// literal-only + chains folded. A file that never mentions TABLE or INDEX in
-// any case cannot hold DDL and is not parsed.
+// literal-only + chains folded and each tagged with the top-level
+// declaration that holds it. A file that never mentions TABLE, INDEX,
+// TRIGGER, or FUNCTION in any case cannot hold DDL and is not parsed.
 func goFileStringLiterals(fset *token.FileSet, goRoot, path string) ([]ddlSource, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	lower := bytes.ToLower(src)
-	if !bytes.Contains(lower, []byte("table")) && !bytes.Contains(lower, []byte("index")) {
+	if !bytes.Contains(lower, []byte("table")) && !bytes.Contains(lower, []byte("index")) &&
+		!bytes.Contains(lower, []byte("trigger")) && !bytes.Contains(lower, []byte("function")) {
 		return nil, nil
 	}
 	file, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
@@ -174,22 +201,34 @@ func goFileStringLiterals(fset *token.FileSet, goRoot, path string) ([]ddlSource
 	}
 	rel = filepath.ToSlash(rel)
 	var sources []ddlSource
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.BinaryExpr:
-			if text, ok := foldStringConcat(node); ok {
-				sources = append(sources, ddlSource{file: rel, line: fset.Position(node.Pos()).Line, sql: text})
-				return false
-			}
-		case *ast.BasicLit:
-			if node.Kind == token.STRING {
-				if text, err := strconv.Unquote(node.Value); err == nil {
-					sources = append(sources, ddlSource{file: rel, line: fset.Position(node.Pos()).Line, sql: text})
+	visit := func(scope string, root ast.Node) {
+		ast.Inspect(root, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.BinaryExpr:
+				if text, ok := foldStringConcat(node); ok {
+					sources = append(sources, ddlSource{file: rel, scope: scope, line: fset.Position(node.Pos()).Line, sql: text})
+					return false
+				}
+			case *ast.BasicLit:
+				if node.Kind == token.STRING {
+					if text, err := strconv.Unquote(node.Value); err == nil {
+						sources = append(sources, ddlSource{file: rel, scope: scope, line: fset.Position(node.Pos()).Line, sql: text})
+					}
 				}
 			}
+			return true
+		})
+	}
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			visit(goFuncScope(d), d)
+		case *ast.GenDecl:
+			for _, spec := range d.Specs {
+				visit(goSpecScope(spec), spec)
+			}
 		}
-		return true
-	})
+	}
 	return sources, nil
 }
 
@@ -217,4 +256,37 @@ func foldStringConcat(expr ast.Expr) (string, bool) {
 		return left + right, ok
 	}
 	return "", false
+}
+
+// goFuncScope names a function or method declaration, such as "T.Method".
+func goFuncScope(d *ast.FuncDecl) string {
+	if d.Recv == nil || len(d.Recv.List) == 0 {
+		return d.Name.Name
+	}
+	recv := d.Recv.List[0].Type
+	if star, ok := recv.(*ast.StarExpr); ok {
+		recv = star.X
+	}
+	if index, ok := recv.(*ast.IndexExpr); ok {
+		recv = index.X
+	}
+	if ident, ok := recv.(*ast.Ident); ok {
+		return ident.Name + "." + d.Name.Name
+	}
+	return d.Name.Name
+}
+
+// goSpecScope names a const, var, or type spec by its identifiers.
+func goSpecScope(spec ast.Spec) string {
+	switch s := spec.(type) {
+	case *ast.ValueSpec:
+		names := make([]string, 0, len(s.Names))
+		for _, name := range s.Names {
+			names = append(names, name.Name)
+		}
+		return strings.Join(names, ",")
+	case *ast.TypeSpec:
+		return s.Name.Name
+	}
+	return ""
 }

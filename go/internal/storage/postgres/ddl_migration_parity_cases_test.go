@@ -10,8 +10,9 @@ import (
 
 // ddlParityMigrationBase is a numbered-migration corpus the synthetic cases share. It
 // creates a table with a table-level PRIMARY KEY, CONSTRAINT, and UNIQUE
-// clause (none of which are columns), adds a column in a later ALTER, and
-// creates one named index.
+// clause (none of which are columns), adds a column and a named constraint
+// in later ALTERs, and creates one named index, one function, and one
+// trigger.
 const ddlParityMigrationBase = `
 -- a leading comment: CREATE TABLE commented_out (ghost TEXT);
 CREATE TABLE IF NOT EXISTS public.widgets (
@@ -25,6 +26,10 @@ CREATE TABLE IF NOT EXISTS public.widgets (
 );
 ALTER TABLE widgets ADD COLUMN IF NOT EXISTS fencing_token BIGINT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS widgets_owner_idx ON widgets (owner);
+ALTER TABLE widgets ADD CONSTRAINT widgets_fencing_check CHECK (fencing_token >= 0);
+CREATE OR REPLACE FUNCTION touch_widgets() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RETURN NEW; END $$;
+CREATE TRIGGER widgets_touch BEFORE UPDATE ON widgets FOR EACH ROW EXECUTE FUNCTION touch_widgets();
 CREATE TABLE "Gadgets" (gadget_id TEXT PRIMARY KEY)
 `
 
@@ -56,7 +61,7 @@ func TestDDLMigrationParitySyntheticCases(t *testing.T) {
 		},
 		{
 			name:    "pass: matching Go CREATE TABLE mirror with table-level clauses",
-			goSQL:   "CREATE TABLE IF NOT EXISTS widgets (\n widget_id TEXT NOT NULL,\n owner TEXT,\n PRIMARY KEY (widget_id),\n CONSTRAINT c UNIQUE (owner)\n)",
+			goSQL:   "CREATE TABLE IF NOT EXISTS widgets (\n widget_id TEXT NOT NULL,\n owner TEXT,\n PRIMARY KEY (widget_id),\n CONSTRAINT widgets_owner_check CHECK (owner <> '')\n)",
 			wantGap: nil,
 		},
 		{
@@ -70,14 +75,45 @@ func TestDDLMigrationParitySyntheticCases(t *testing.T) {
 			wantGap: nil,
 		},
 		{
-			name:    "pass: ADD CONSTRAINT is not a column",
-			goSQL:   "ALTER TABLE widgets ADD CONSTRAINT widgets_fk FOREIGN KEY (owner) REFERENCES users (id), ADD PRIMARY KEY (widget_id)",
+			name:    "pass: ADD CONSTRAINT is a constraint, not a column",
+			goSQL:   "ALTER TABLE widgets ADD CONSTRAINT widgets_fencing_check CHECK (fencing_token >= 0), ADD PRIMARY KEY (widget_id)",
 			wantGap: nil,
 		},
 		{
 			name:    "pass: temporary tables are session-local, not schema",
 			goSQL:   "CREATE TEMP TABLE scratch_rows (id TEXT)",
 			wantGap: nil,
+		},
+		{
+			name: "pass: function, trigger, and constraint present in migrations",
+			goSQL: "CREATE OR REPLACE FUNCTION public.touch_widgets() RETURNS trigger AS $$ BEGIN RETURN NEW; END $$ LANGUAGE plpgsql;\n" +
+				"CREATE TRIGGER widgets_touch BEFORE UPDATE OF owner, payload ON widgets FOR EACH ROW EXECUTE FUNCTION touch_widgets()",
+			wantGap: nil,
+		},
+		{
+			name:    "fail: Go ADD CONSTRAINT with no migration",
+			goSQL:   "ALTER TABLE widgets ADD CONSTRAINT widgets_lease_check CHECK (owner <> '')",
+			wantGap: []string{"constraint widgets_lease_check on widgets"},
+		},
+		{
+			name:    "fail: Go CREATE TABLE names a constraint no migration has",
+			goSQL:   "CREATE TABLE IF NOT EXISTS widgets (widget_id TEXT, CONSTRAINT widgets_extra_check CHECK (true))",
+			wantGap: []string{"constraint widgets_extra_check on widgets"},
+		},
+		{
+			name:    "fail: Go CREATE TRIGGER with no migration",
+			goSQL:   "CREATE OR REPLACE TRIGGER widgets_audit AFTER INSERT ON widgets FOR EACH ROW EXECUTE FUNCTION touch_widgets()",
+			wantGap: []string{"trigger widgets_audit on widgets"},
+		},
+		{
+			name:    "fail: Go trigger name exists in migrations on another table",
+			goSQL:   `CREATE TRIGGER widgets_touch BEFORE UPDATE ON "Gadgets" FOR EACH ROW EXECUTE FUNCTION touch_widgets()`,
+			wantGap: []string{"trigger widgets_touch on Gadgets"},
+		},
+		{
+			name:    "fail: Go CREATE FUNCTION with no migration",
+			goSQL:   "CREATE FUNCTION audit_widgets() RETURNS trigger AS $$ BEGIN RETURN NEW; END $$ LANGUAGE plpgsql",
+			wantGap: []string{"function audit_widgets"},
 		},
 		{
 			name:    "fail: Go ADD COLUMN with no migration",
@@ -127,6 +163,36 @@ func TestDDLMigrationParitySyntheticCases(t *testing.T) {
 		{
 			name:    "fail: unnamed index",
 			goSQL:   "CREATE INDEX ON widgets (owner)",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: literal table name with its column list joined on at runtime",
+			goSQL:   "CREATE TABLE IF NOT EXISTS go_only_tbl",
+			wantGap: []string{"table go_only_tbl", "unresolved"},
+		},
+		{
+			name:    "fail: Go-only PARTITION OF table is a table, not unresolved",
+			goSQL:   "CREATE TABLE IF NOT EXISTS widgets_p0 PARTITION OF widgets FOR VALUES WITH (MODULUS 2, REMAINDER 0)",
+			wantGap: []string{"table widgets_p0"},
+		},
+		{
+			name:    "fail: column list cut off by a runtime join",
+			goSQL:   "CREATE TABLE widgets (widget_id TEXT, ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: ALTER TABLE IF EXISTS with the table joined on at runtime",
+			goSQL:   "ALTER TABLE IF EXISTS ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: trailing action joined on at runtime",
+			goSQL:   "ALTER TABLE widgets ADD COLUMN owner TEXT, ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: column name joined on at runtime",
+			goSQL:   "ALTER TABLE widgets ADD COLUMN IF NOT EXISTS ",
 			wantGap: []string{"unresolved"},
 		},
 	}
@@ -186,20 +252,70 @@ func TestDDLMigrationParityMigrationExtraction(t *testing.T) {
 	if idx, ok := inv.indexes["widgets_owner_idx"]; !ok || idx.table != "widgets" {
 		t.Errorf("index widgets_owner_idx = %+v, %v; want on widgets", idx, ok)
 	}
+	wantObjects := []ddlObject{
+		{"constraint", "widgets", "widgets_owner_check"},
+		{"constraint", "widgets", "widgets_fencing_check"},
+		{"function", "", "touch_widgets"},
+		{"trigger", "widgets", "widgets_touch"},
+	}
+	for _, obj := range wantObjects {
+		if _, ok := inv.objects[obj]; !ok {
+			t.Errorf("object %v not extracted", obj)
+		}
+	}
+	if len(inv.objects) != len(wantObjects) {
+		t.Errorf("objects = %d %v, want %d", len(inv.objects), inv.objects, len(wantObjects))
+	}
 }
 
 // TestDDLMigrationParityAllowlists proves the two explicit allowlists exempt
-// only the entries they name.
+// only the entries they name, that a dynamic-DDL key is scoped to its Go
+// declaration, and that an entry matching nothing fails.
 func TestDDLMigrationParityAllowlists(t *testing.T) {
 	t.Parallel()
 
 	migInv := extractDDLInventory([]ddlSource{{file: "m.sql", line: 1, sql: ddlParityMigrationBase}})
-	goInv := extractDDLInventory([]ddlSource{{file: "store/ledger.go", line: 5, sql: "CREATE TABLE IF NOT EXISTS go_ledger (id TEXT); CREATE TABLE IF NOT EXISTS %s (id TEXT); CREATE TABLE other_only (id TEXT)"}})
+	goInv := extractDDLInventory([]ddlSource{
+		{file: "store/ledger.go", scope: "ledgerSQL", line: 5, sql: "CREATE TABLE IF NOT EXISTS go_ledger (id TEXT); CREATE TABLE IF NOT EXISTS %s (id TEXT)"},
+		{file: "store/ledger.go", scope: "otherSQL", line: 9, sql: "CREATE TABLE IF NOT EXISTS %s (id TEXT)"},
+		{file: "store/ledger.go", scope: "onlySQL", line: 12, sql: "CREATE TABLE other_only (id TEXT)"},
+	})
 	gaps := ddlParityGaps(goInv, migInv,
-		map[string]string{"go_ledger": "reason"},
-		map[string]string{"store/ledger.go|CREATE TABLE IF NOT EXISTS %s": "reason"},
+		map[string]string{"go_ledger": "reason", "stale_table": "reason"},
+		map[string]string{
+			"store/ledger.go|ledgerSQL|CREATE TABLE IF NOT EXISTS %s": "reason",
+			"store/gone.go|goneSQL|CREATE TABLE IF NOT EXISTS %s":     "reason",
+		},
 	)
-	if len(gaps) != 1 || !strings.Contains(gaps[0], "table other_only") {
-		t.Fatalf("gaps = %q, want only the unlisted table other_only", gaps)
+	want := []string{
+		`ddlParityDynamicDDL entry "store/gone.go|goneSQL|CREATE TABLE IF NOT EXISTS %s" matched no unresolved Go DDL`,
+		`ddlParityGoOnlyTables entry "stale_table" matched no Go-only table`,
+		"store/ledger.go:12: table other_only",
+		`store/ledger.go:9: unresolved DDL in "CREATE TABLE IF NOT EXISTS %s"`,
+	}
+	if len(gaps) != len(want) {
+		t.Fatalf("gaps = %d %q, want %d", len(gaps), gaps, len(want))
+	}
+	for i := range want {
+		if !strings.Contains(gaps[i], want[i]) {
+			t.Errorf("gap[%d] = %q, want it to contain %q", i, gaps[i], want[i])
+		}
+	}
+}
+
+// TestDDLMigrationParityTempTableScope proves a temporary table exempts
+// only DDL in the file that creates it: a session-local table in one file
+// must not hide an ALTER on a real table of the same name elsewhere.
+func TestDDLMigrationParityTempTableScope(t *testing.T) {
+	t.Parallel()
+
+	migInv := extractDDLInventory([]ddlSource{{file: "m.sql", line: 1, sql: ddlParityMigrationBase}})
+	goInv := extractDDLInventory([]ddlSource{
+		{file: "store/a.go", line: 3, sql: "CREATE TEMP TABLE phantom (id TEXT); ALTER TABLE phantom ADD COLUMN scratch TEXT"},
+		{file: "store/b.go", line: 7, sql: "ALTER TABLE phantom ADD COLUMN extra TEXT"},
+	})
+	gaps := ddlParityGaps(goInv, migInv, nil, nil)
+	if len(gaps) != 1 || !strings.Contains(gaps[0], "store/b.go:7: column phantom.extra") {
+		t.Fatalf("gaps = %q, want only store/b.go's phantom.extra", gaps)
 	}
 }
