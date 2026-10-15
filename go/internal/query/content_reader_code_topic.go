@@ -77,7 +77,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		var err error
 		for attempt := 0; attempt < 2; attempt++ {
 			results, err = codetopicparallel.Investigate(ctx, parallelStore, span, attempt, req, candidateCap, filters, args, scanCodeTopicEvidenceRows)
-			if err == nil || ctx.Err() != nil || attempt > 0 || !isReaderMemberLoss(err) {
+			if err == nil || ctx.Err() != nil || attempt > 0 || !codetopicparallel.IsReaderMemberLoss(err) {
 				break
 			}
 			span.SetAttributes(attribute.Int("code_topic.reader_member_retries", 1))
@@ -87,7 +87,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 			return results, nil
 		}
 		if errors.Is(err, db.ErrSnapshotExportUnqualified) {
-			return nil, recordCodeTopicSnapshotExportDenial(span, err)
+			return nil, codetopicparallel.RecordSnapshotExportDenial(span, err)
 		}
 		if ctx.Err() != nil || !errors.Is(err, db.ErrSnapshotReservationCapacity) {
 			span.SetAttributes(attribute.String("code_topic.execution_mode", "parallel_shared_snapshot"))
