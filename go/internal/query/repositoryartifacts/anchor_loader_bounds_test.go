@@ -5,6 +5,7 @@ package repositoryartifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -44,8 +45,8 @@ func TestAnchorHydrationReadsWholeCandidateWindow(t *testing.T) {
 	if store.singleCalls != 0 {
 		t.Fatalf("GetFileContent statements = %d, want 0 (anchor hydration reads in chunks)", store.singleCalls)
 	}
-	if len(store.batchCalls) == 0 {
-		t.Fatal("GetFileContents statements = 0, want at least one chunked read")
+	if got, want := len(store.batchCalls), 6; got != want {
+		t.Fatalf("GetFileContents statements = %d, want %d (60 candidates at 10 paths per chunk)", got, want)
 	}
 }
 
@@ -149,5 +150,31 @@ func TestAnchorLoaderListClipsSentinelRow(t *testing.T) {
 	}
 	if got != nil {
 		t.Fatalf("LoadRepositoryWorkflowArtifacts() = %v, want nil (the only workflow file sits past the window)", got)
+	}
+}
+
+// failingBatchStore fails every GetFileContents chunk.
+type failingBatchStore struct {
+	querycontract.ContentStore
+	calls int
+}
+
+func (s *failingBatchStore) GetFileContents(context.Context, string, []string) ([]querycontract.FileContent, error) {
+	s.calls++
+	return nil, errors.New("test chunk failure")
+}
+
+// TestAnchorHydrationFailedChunkFailsPass proves a failed chunk fails the
+// pass instead of returning partial hydration (#7951 follow-up).
+func TestAnchorHydrationFailedChunkFailsPass(t *testing.T) {
+	t.Parallel()
+
+	files := []querycontract.FileContent{{RelativePath: ".github/workflows/deploy.yml"}}
+	store := &failingBatchStore{}
+	if _, err := HydrateRepositoryCandidateFiles(context.Background(), store, "repo-a", files, IsGitHubActionsWorkflowFile); err == nil {
+		t.Fatal("HydrateRepositoryCandidateFiles() error = nil, want chunk failure")
+	}
+	if store.calls == 0 {
+		t.Fatal("GetFileContents calls = 0, want at least one attempted chunk")
 	}
 }
