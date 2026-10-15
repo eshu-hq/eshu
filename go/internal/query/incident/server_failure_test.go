@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
 // TestIncidentContextAnswersFixedServerFailures is the #7674 regression for
@@ -21,22 +22,22 @@ import (
 // parallel: it swaps incidentHandlerTracer.
 func TestIncidentContextAnswersFixedServerFailures(t *testing.T) {
 	const path = "/api/v0/incidents/PABC123/context?provider=pagerduty&scope_id=pd-prod&limit=10"
-	runServerFailureRoutes(t, []serverFailureRoute{
+	failure.Run(t, failure.Suite{HandlerTracer: &incidentHandlerTracer, Routes: []failure.Route{
 		{
-			name: "context read", path: path, message: incidentContextReadFailedMessage,
-			handler: func(err error) serverFailureMounter {
+			Name: "context read", Path: path, Message: incidentContextReadFailedMessage,
+			Handler: func(err error) failure.Mounter {
 				return &IncidentHandler{Context: erroringIncidentContextStore{err: err}}
 			},
 		},
 		{
-			name: "scoped authorization", path: path, message: incidentContextAuthorizationFailedMessage,
-			handler: func(err error) serverFailureMounter {
+			Name: "scoped authorization", Path: path, Message: incidentContextAuthorizationFailedMessage,
+			Handler: func(err error) failure.Mounter {
 				return &IncidentHandler{
 					Context:    &failingIncidentContextStore{},
 					Authorizer: &recordingIncidentRepositoryAuthorizer{err: err},
 				}
 			},
-			scope: func(ctx context.Context) context.Context {
+			Scope: func(ctx context.Context) context.Context {
 				return auth.ContextWithAuthContext(ctx, auth.AuthContext{
 					Mode:                 auth.AuthModeScoped,
 					TenantID:             "tenant-a",
@@ -45,20 +46,21 @@ func TestIncidentContextAnswersFixedServerFailures(t *testing.T) {
 				})
 			},
 		},
-	})
+	}})
 }
 
 // TestIncidentContextNotFoundAnswersFixedText proves a not-found that arrives
 // wrapped answers the sentinel's fixed text, never the wrapper's (#7674). The
 // scoped denial already answers the same text, so the two stay identical.
 func TestIncidentContextNotFoundAnswersFixedText(t *testing.T) {
-	err := fmt.Errorf("backend: %s: %w", serverFailureCanary, model.ErrIncidentContextNotFound)
-	rec, _ := serveServerFailure(t, serverFailureRoute{path: "/api/v0/incidents/PABC123/context?limit=10"},
+	err := fmt.Errorf("backend: %s: %w", failure.Canary, model.ErrIncidentContextNotFound)
+	rec, _ := failure.Serve(failure.Suite{HandlerTracer: &incidentHandlerTracer},
+		failure.Route{Path: "/api/v0/incidents/PABC123/context?limit=10"},
 		&IncidentHandler{Context: erroringIncidentContextStore{err: err}}, false)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body = %s", rec.Code, rec.Body.String())
 	}
-	if got, want := serverFailureMessage(rec.Body.Bytes()), model.ErrIncidentContextNotFound.Error(); got != want {
+	if got, want := failure.Message(rec.Body.Bytes()), model.ErrIncidentContextNotFound.Error(); got != want {
 		t.Fatalf("body message = %q, want the fixed %q; body = %s", got, want, rec.Body.String())
 	}
 }

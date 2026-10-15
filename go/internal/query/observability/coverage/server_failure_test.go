@@ -6,6 +6,8 @@ package coverage
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
 // TestObservabilityCoverageAnswersFixedServerFailures is the #7674 regression
@@ -13,13 +15,13 @@ import (
 // the store error text, skipped the reader-fence 503, and answered a client
 // cancel as a server fault. Not parallel: it swaps coverageHandlerTracer.
 func TestObservabilityCoverageAnswersFixedServerFailures(t *testing.T) {
-	runServerFailureRoutes(t, []serverFailureRoute{{
-		name: "coverage correlations", path: "/api/v0/observability/coverage/correlations?scope_id=scope-1&limit=10",
-		message: coverageCorrelationsListFailedMessage,
-		handler: func(err error) serverFailureMounter {
+	failure.Run(t, failure.Suite{HandlerTracer: &coverageHandlerTracer, Routes: []failure.Route{{
+		Name: "coverage correlations", Path: "/api/v0/observability/coverage/correlations?scope_id=scope-1&limit=10",
+		Message: coverageCorrelationsListFailedMessage,
+		Handler: func(err error) failure.Mounter {
 			return &Handler{Correlations: failingCoverageCorrelationStore{err: err}}
 		},
-	}})
+	}}})
 }
 
 // failingCoverageCorrelationStore fails the correlation list read with err.
