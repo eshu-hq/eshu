@@ -50,7 +50,7 @@ func TestRunDoesNotAdoptNeo4jSchemaThatStillHasRetiredConstraints(t *testing.T) 
 		func(context.Context, func(string) string) (bootstrapDB, error) { return db, nil },
 		func(context.Context, bootstrapExecutor) error { return nil },
 		func(context.Context, func(string) string) (neo4jDeps, error) {
-			return neo4jDeps{executor: &fakeNeo4jExecutor{}, inspector: inspector, close: func() error { return nil }}, nil
+			return neo4jDeps{executor: &fakeNeo4jExecutor{}, inspector: inspector, runner: &fakeGraphRunner{events: new([]string)}, close: func() error { return nil }}, nil
 		},
 		func(_ context.Context, _ graph.CypherExecutor, _ *slog.Logger, _ graph.SchemaBackend) error {
 			graphApplied = true

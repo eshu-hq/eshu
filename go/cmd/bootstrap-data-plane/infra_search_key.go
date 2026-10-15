@@ -1,0 +1,150 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+
+	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// infraSearchKeyRunbook names the operator procedure for a key past the cap
+// or a FAILED infra_search_key_ft index.
+const infraSearchKeyRunbook = "go/internal/graph/README.md#infra-search-key-index-runbook"
+
+// infraSearchKeyIndexStateCypher reads the state and population of the #7245
+// FULLTEXT index.
+const infraSearchKeyIndexStateCypher = "SHOW FULLTEXT INDEXES YIELD name, state, populationPercent " +
+	"WHERE name = $name RETURN name, state, populationPercent"
+
+// checkInfraSearchKeyReadiness runs before the Neo4j graph DDL. A key longer
+// than graph.InfraSearchKeyMaxChars is one FULLTEXT term over Lucene's limit:
+// creating or populating infra_search_key_ft over it fails the index instead
+// of rejecting a row. The writer clause never stores one, so a non-zero count
+// means something bypassed it, and bootstrap stops before the DDL.
+func checkInfraSearchKeyReadiness(ctx context.Context, runner search.Runner, logger *slog.Logger) error {
+	if runner == nil {
+		return errors.New("infra search key readiness probe requires a graph query runner")
+	}
+	oversized, err := search.OversizedKeyCount(ctx, runner)
+	if err != nil {
+		return err
+	}
+	logger.InfoContext(ctx, "infra search key readiness probe",
+		telemetry.EventAttr("bootstrap.graph.infra_search_key.readiness"),
+		"index", graph.InfraSearchKeyIndexName,
+		"oversized_keys", oversized,
+		"max_chars", graph.InfraSearchKeyMaxChars,
+	)
+	if oversized == 0 {
+		return nil
+	}
+	logger.ErrorContext(ctx, "infra search keys exceed the FULLTEXT term cap; refusing graph DDL",
+		telemetry.EventAttr("bootstrap.graph.infra_search_key.oversized"),
+		"index", graph.InfraSearchKeyIndexName,
+		"oversized_keys", oversized,
+		"max_chars", graph.InfraSearchKeyMaxChars,
+		"runbook", infraSearchKeyRunbook,
+	)
+	return fmt.Errorf("%d infra search nodes hold a key longer than %d code points; refusing to create %s (see %s)",
+		oversized, graph.InfraSearchKeyMaxChars, graph.InfraSearchKeyIndexName, infraSearchKeyRunbook)
+}
+
+// backfillInfraSearchKeys runs after the Neo4j graph DDL and before the schema
+// marker: it keys every existing infra node, then checks the index. A failed
+// label or a FAILED index leaves the marker unset, so the next bootstrap
+// retries; the backfill skips nodes already keyed, so a retry resumes.
+func backfillInfraSearchKeys(ctx context.Context, runner search.Runner, logger *slog.Logger) error {
+	if runner == nil {
+		return errors.New("infra search key backfill requires a graph query runner")
+	}
+	if _, err := search.Backfill(ctx, runner, search.BackfillOptions{Logger: logger}); err != nil {
+		return err
+	}
+	rows, err := runner.Run(ctx, infraSearchKeyIndexStateCypher, map[string]any{"name": graph.InfraSearchKeyIndexName})
+	if err != nil {
+		return fmt.Errorf("read %s state: %w", graph.InfraSearchKeyIndexName, err)
+	}
+	if len(rows) == 0 {
+		return fmt.Errorf("%s is missing after graph DDL", graph.InfraSearchKeyIndexName)
+	}
+	state, _ := rows[0]["state"].(string)
+	population, _ := rows[0]["populationPercent"].(float64)
+	logger.InfoContext(ctx, "infra search key index state",
+		telemetry.EventAttr("bootstrap.graph.infra_search_key.index_state"),
+		"index", graph.InfraSearchKeyIndexName,
+		"state", state,
+		"population_percent", population,
+	)
+	if state == "FAILED" {
+		logger.ErrorContext(ctx, "infra search key index is FAILED",
+			telemetry.EventAttr("bootstrap.graph.infra_search_key.index_failed"),
+			"index", graph.InfraSearchKeyIndexName,
+			"runbook", infraSearchKeyRunbook,
+		)
+		return fmt.Errorf("%s is FAILED (see %s)", graph.InfraSearchKeyIndexName, infraSearchKeyRunbook)
+	}
+	return nil
+}
+
+// infraSearchKeyRunner bounds runner with the graph schema statement timeout,
+// or returns nil when the backend gave no runner.
+func infraSearchKeyRunner(runner search.Runner, timeout time.Duration) search.Runner {
+	if runner == nil {
+		return nil
+	}
+	return statementTimeoutRunner{runner: runner, timeout: timeout}
+}
+
+// statementTimeoutRunner bounds each runner statement, like
+// statementTimeoutExecutor bounds DDL. One backfill statement covers one
+// label and commits in batches, so a label that times out keeps its progress
+// and the next run resumes after the nodes already keyed.
+type statementTimeoutRunner struct {
+	runner  search.Runner
+	timeout time.Duration
+}
+
+func (r statementTimeoutRunner) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	statementCtx, cancel := context.WithTimeout(ctx, r.timeout)
+	defer cancel()
+	rows, err := r.runner.Run(statementCtx, cypher, params)
+	if err != nil && errors.Is(statementCtx.Err(), context.DeadlineExceeded) {
+		return nil, fmt.Errorf("graph statement exceeded %s: %w", r.timeout, context.DeadlineExceeded)
+	}
+	return rows, err
+}
+
+// Run executes one statement in an auto-commit transaction and returns its
+// rows. Auto-commit is required: the backfill uses CALL { } IN TRANSACTIONS.
+func (e *neo4jSchemaExecutor) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeWrite,
+		DatabaseName: e.databaseName,
+	})
+	defer func() {
+		_ = session.Close(ctx)
+	}()
+	result, err := session.Run(ctx, cypher, params)
+	if err != nil {
+		return nil, err
+	}
+	records, err := result.Collect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		rows = append(rows, record.AsMap())
+	}
+	return rows, nil
+}
