@@ -28,6 +28,20 @@ tests:
     class: postgres_ci
     reason: "#7730 disposable PostgreSQL 18 proof of the unscoped file search walk: page equality with the old single statement, the real statement-timeout cancel with cursor resume to the exact answer, and the plan shapes (ordered key walk with no trigram node; trigram bitmap tail under disabled index scans); one local PostgreSQL 18 run took about 11 s"
     runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_search_scoped_workbound_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7930 disposable PostgreSQL 18 proof of the scoped file search custom-generic-reader equivalence oracle plus the shipped-WHERE derivation guard; one local PostgreSQL 18 run took about 6 s"
+    runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_search_scoped_workbound_guard_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7930 RED-by-design kill record for the scoped file search work-bound guard (S3/S5/M2 over caps in both regimes); gated by ESHU_SCOPED_SEARCH_PROOF_DSN opt-in, local-only, never a blocking proof — promote to blocking only with a green re-baseline plus timing evidence"
+  - file: go/internal/query/content_reader_search_scoped_union_probe_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7930 disposable PostgreSQL 18 proof of the per-repo UNION ALL probe (work and row equivalence against the shipped multi cells in both regimes) and the rare/empty single-scope BitmapAnd investigation; one local PostgreSQL 18 run took about 6 s"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_security_secrets_fallback_live_test.go
     tag: ~
     class: scheduled

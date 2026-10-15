@@ -408,6 +408,16 @@ PACKAGES = {
             "TestNonBlankRepoFilePathsMatchesTrimSpaceLive",
             "TestNonBlankSpaceSetMatchesGoOverEveryRuneLive",
         ),
+        "go/internal/query/content_reader_search_scoped_union_probe_live_test.go": (
+            "TestUnionAllProbeDerivationGuard",
+            "TestUnionAllProbePoisonLegKeepsBindPositions",
+            "TestUnionAllProbeWorkAndEquivalenceLive",
+            "TestRareEmptySingleScopeBitmapInvestigationLive",
+        ),
+        "go/internal/query/content_reader_search_scoped_workbound_live_test.go": (
+            "TestScopedSearchShippedDerivationGuard",
+            "TestScopedSearchCustomGenericEquivalenceLive",
+        ),
         "go/internal/query/content_reader_wide_window_live_test.go": (
             "TestWideWindowChunkPlansUseAnIndexLive",
             "TestWideWindowReadsMatchSingleReadsLive",

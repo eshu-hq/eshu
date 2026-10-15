@@ -178,6 +178,42 @@ func (cr *ContentReader) SearchEntitiesUnscoped(
 	}, nil
 }
 
+// fileContentSingleScopeWhere returns the shipped single-repository WHERE
+// fragment for the scoped file-content search (#7930). argRepo and argPattern
+// are the 1-based bind positions of the repository id and the substring
+// pattern. The content predicate is intentionally identical to the multi-scope
+// fragment so single legs and the multi statement share one selectivity shape.
+func fileContentSingleScopeWhere(argRepo, argPattern int) string {
+	return fmt.Sprintf("repo_id = $%d AND content ILIKE '%%' || $%d || '%%'", argRepo, argPattern)
+}
+
+// fileContentMultiScopeWhere returns the shipped repository-set WHERE fragment
+// for the scoped file-content search (#7930). Repository ids travel as one
+// unit-separator-joined bind value; ANY over an empty array matches no row, so
+// an empty grant reads nothing without a separate short-circuit.
+func fileContentMultiScopeWhere(argIDs, argPattern int) string {
+	return fmt.Sprintf("repo_id = ANY(string_to_array($%d, E'\\x1f')) AND content ILIKE '%%' || $%d || '%%'", argIDs, argPattern)
+}
+
+// fileContentScopedQuery assembles the shipped scoped file-content statement
+// (#7930): a fixed 8-column SELECT over content_files, the caller-chosen WHERE
+// fragment, key-order pagination, and bound LIMIT/OFFSET positions. Probes and
+// oracles derive their SQL from this builder, never from a copied literal, so
+// a drift in the shipped text fails their prefix guards instead of testing a
+// stale statement.
+func fileContentScopedQuery(where string, limitArg, offsetArg int) string {
+	// #nosec G201 -- `where` is a compile-time fragment from fileContentSingleScopeWhere/fileContentMultiScopeWhere; limitArg/offsetArg are integers; no user data concatenated into SQL
+	return fmt.Sprintf(`
+		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
+		       '', content_hash, line_count, coalesce(language, ''),
+		       coalesce(artifact_type, '')
+		FROM content_files
+		WHERE %s
+		ORDER BY repo_id, relative_path
+		LIMIT $%d OFFSET $%d
+	`, where, limitArg, offsetArg)
+}
+
 // searchFileContentPage searches one repository with deterministic pagination.
 func (cr *ContentReader) searchFileContentPage(
 	ctx context.Context,
@@ -186,7 +222,7 @@ func (cr *ContentReader) searchFileContentPage(
 	limit int,
 	offset int,
 ) ([]FileContent, error) {
-	return cr.searchFileContentScoped(ctx, "search_file_content_page", "repo_id = $1 AND content ILIKE '%' || $2 || '%'", []any{repoID, pattern}, limit, offset)
+	return cr.searchFileContentScoped(ctx, "search_file_content_page", fileContentSingleScopeWhere(1, 2), []any{repoID, pattern}, limit, offset)
 }
 
 // searchFileContentInRepos searches an explicit repository set with one SQL query.
@@ -197,7 +233,7 @@ func (cr *ContentReader) searchFileContentInRepos(
 	limit int,
 	offset int,
 ) ([]FileContent, error) {
-	return cr.searchFileContentScoped(ctx, "search_file_content_in_repos", "repo_id = ANY(string_to_array($1, E'\\x1f')) AND content ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset)
+	return cr.searchFileContentScoped(ctx, "search_file_content_in_repos", fileContentMultiScopeWhere(1, 2), []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset)
 }
 
 // searchFileContentScoped executes a bounded file-content query using a fixed
@@ -222,16 +258,9 @@ func (cr *ContentReader) searchFileContentScoped(
 
 	limitArg := len(args) + 1
 	offsetArg := len(args) + 2
-	// #nosec G201 -- `where` is a compile-time literal string chosen by the caller (e.g. "repo_id = $1 AND content ILIKE '%' || $2 || '%'"); limitArg/offsetArg are integers; no user data concatenated into SQL
-	query := fmt.Sprintf(`
-		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
-		       '', content_hash, line_count, coalesce(language, ''),
-		       coalesce(artifact_type, '')
-		FROM content_files
-		WHERE %s
-		ORDER BY repo_id, relative_path
-		LIMIT $%d OFFSET $%d
-	`, where, limitArg, offsetArg)
+	// Assembled from fileContentScopedQuery so the serving statement cannot
+	// drift from the builder the derivation guard pins.
+	query := fileContentScopedQuery(where, limitArg, offsetArg)
 	args = append(args, limit, offset)
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
