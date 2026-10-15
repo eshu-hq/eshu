@@ -31,8 +31,12 @@ tests:
   - file: go/internal/query/content_reader_search_scoped_workbound_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7930 disposable PostgreSQL 18 proof of the scoped file search work-bound guard: the 20-cell custom/generic matrix over a 12,000-file repository plus small repositories, with the custom-generic-reader equivalence oracle; one local PostgreSQL 18 run took about 6 s"
+    reason: "#7930 disposable PostgreSQL 18 proof of the scoped file search custom-generic-reader equivalence oracle plus the shipped-WHERE derivation guard; one local PostgreSQL 18 run took about 6 s"
     runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_search_scoped_workbound_guard_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7930 RED-by-design kill record for the scoped file search work-bound guard (S3/S5/M2 over caps in both regimes); gated by ESHU_SCOPED_SEARCH_PROOF_DSN opt-in, local-only, never a blocking proof — promote to blocking only with a green re-baseline plus timing evidence"
   - file: go/internal/query/content_reader_search_scoped_union_probe_live_test.go
     tag: ~
     class: postgres_ci

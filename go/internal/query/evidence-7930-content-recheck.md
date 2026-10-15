@@ -92,3 +92,27 @@ not, and wall time is not capped at this rung); collation en_US.UTF-8/UTF8
 asserted in-fixture. No serving claims: nothing here predicts production
 latency. NOT_CHECKED (rung-3/4): built-binary replay, p50/p95, standby
 replay, pooler characterization.
+
+## Rung-3/4 serving proof (2026-10-15, QA, Eshu 8ee65f5, ledger 177)
+
+Built-binary replay through the deployed serving path (MCP search_file_content,
+same shapes as the guard cells, 1 cold + 10 warm each):
+
+- S3-analog (single scope, medium term decode, limit 10): cold 0.326 s,
+  p50 0.137 s, warm p95 0.157 s, 11/11 HTTP 200, single ordered digest, 6 rows.
+- S5-analog (single scope, no-trigram term zz, limit 10): cold 0.127 s,
+  p50 0.131 s, warm p95 0.173 s, 0 rows, digest stable.
+- M2-analog (3 scopes, zz, limit 10): cold 0.116 s, p50 0.110 s,
+  warm p95 0.122 s, 1 row, digest stable.
+
+Pooler characterization: single-story pooler acquisitions sub-ms median
+(see #8140: 21 reader spans, median start-gap 0.16 ms, one 81 ms wait).
+Generic-plan regime stays covered by the guard's custom/generic EXPLAIN
+rungs on fixture; no serving change alters the plan choice.
+
+Reading: on the deployed 177 schema (stored lowercase + trigram GIN), the
+S3/S5/M2 shapes serve in ~0.15 s with stable rows. The guard RED was plan
+evidence on the pre-177 fixture; serving on the shipped schema does not
+reproduce a tail. No probe ships: probes A/B stay killed (measured
+no-gain), bitmap-free guard stays superseded, trigram-GIN preservation
+stands. Guard + kill record pinned by the tests in this change.
