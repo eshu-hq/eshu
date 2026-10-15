@@ -32,7 +32,10 @@ See `doc.go` for the godoc-rendered package contract.
 - `Index` / `NewIndex` — a bounded in-memory index with `Size`, `Overflow`, and
   `HasEmbedder` accessors.
 - `Backend` — implements `searchretrieval.Backend` for keyword, semantic, and
-  hybrid retrieval.
+  hybrid retrieval. `Backend.RankAll` ranks every in-scope indexed document in
+  hybrid mode for request-local re-rankers (`find_code`, content search) whose
+  page can exceed the public retrieval limit of 100; it is bounded by the
+  index's `MaxDocuments` cap instead (#7746).
 - `DocumentText` / `DocumentContentHash` — shared searchable-text and hash
   helpers for persisted vector builders.
 - `DocumentTerms` / `QueryTerms` — shared lexical tokenizers used by the
@@ -58,7 +61,11 @@ See `doc.go` for the godoc-rendered package contract.
 Each backend resolves the smallest request scope first, ranks only in-scope
 documents, and returns up to `limit+1` candidates so the runner can detect and
 report truncation. Ordering is deterministic for fixed inputs: ties break by
-document id, matching the runner's normalization.
+document id, matching the runner's normalization. BM25 sums each document's
+per-term contributions in sorted term order, never Go map-iteration order, so
+score bits are identical on every request (#7746). `RankAll` shares the same
+ranking core with a fusion pool of the whole index and returns every ranked
+in-scope document, not `limit+1`.
 
 ## Bounded memory and overflow
 

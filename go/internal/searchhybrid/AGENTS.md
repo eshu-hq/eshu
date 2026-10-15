@@ -43,7 +43,12 @@
 - Symptom: non-deterministic order - a new ranking path likely lacks the id
   tie-break; route it through `rankByScore`.
 - Symptom: unexpectedly many candidates - retrieval returns at most `limit+1`;
-  the runner truncates to `limit`.
+  the runner truncates to `limit`. `RankAll` returns every ranked in-scope
+  document by design; it is only for request-local re-rankers whose input the
+  caller already bounded.
+- Symptom: score bits or tie order change between identical requests - a sum
+  over a map is iterating in map order; sum in a sorted key order
+  (`sortedQueryTerms`).
 
 ## Anti-patterns specific to this package
 

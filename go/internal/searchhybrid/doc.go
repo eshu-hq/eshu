@@ -21,6 +21,7 @@
 //
 // The index enforces a hard cap on indexed document count and signals overflow
 // explicitly, and retrieval returns deterministic top-K results for fixed
-// inputs. Search rank and score stay derived retrieval evidence; nothing here
+// inputs. Backend.RankAll ranks every in-scope document of an already bounded,
+// request-local index for in-request re-rankers. Search rank and score stay derived retrieval evidence; nothing here
 // writes the canonical graph or promotes a score to canonical truth.
 package searchhybrid
