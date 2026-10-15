@@ -18,7 +18,8 @@ they say whether the declaring file is included.
 
 ## Nested leaves
 
-Two packages nest under this one (#6642):
+Three packages nest under this one (`content/` and `graph/` for #6642,
+`failure/` for #7674):
 
 - `content/` — the content-read test doubles (`FakePortContentStore`,
   `FakeDeadCodeContentStore`, and related fixtures). The fake `database/sql`
@@ -29,14 +30,18 @@ Two packages nest under this one (#6642):
   and the #6786 NornicDB Cypher-shape guards
   (`AssertCypherHasNoBrokenAndOr`, `AssertCypherHasNoIgnoredLabelPredicate`).
   See `graph/README.md` and `graph/AGENTS.md`.
+- `failure/` — the shared failure-case harness for routes converted to
+  `tracing.WriteServerFailure` (`Run`, `Suite`, `Route`, `Cases`): canary
+  leak, reader-fence 503, client-cancel 499, and inner-cancel 500, with the
+  span assertions. See `failure/README.md` and `failure/AGENTS.md`.
 
-Every invariant in this file and in `AGENTS.md` applies to both leaves: no
+Every invariant in this file and in `AGENTS.md` applies to every leaf: no
 production behavior, helpers live in ordinary (non-`_test.go`) files, no
 `Run`/`RunSingle` call in a non-test file, and no non-test file under
-`internal/query` may import this package or either leaf.
+`internal/query` may import this package or any leaf.
 `internal/queryplan`'s production-import guard matches `testutil` as an
-import-path element, so it covers `testutil/content` and
-`testutil/graph` the same way it covers this package.
+import-path element, so it covers `testutil/content`, `testutil/graph`, and
+`testutil/failure` the same way it covers this package.
 
 ## Ownership boundary
 

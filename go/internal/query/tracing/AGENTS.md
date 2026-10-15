@@ -41,7 +41,11 @@ across every query route.
 Moving a route's 500 onto `WriteServerFailure`: keep the call order (route
 503s, then `querycontract.WriteGraphReadError` with a literal capability, then
 route 400 sentinels, then `WriteServerFailure`), and define the message as a
-package constant in the route's own package.
+package constant in the route's own package. Prove the conversion with
+`go/internal/query/testutil/failure` (`failure.Run` over the route's
+`failure.Suite`), which asserts the canary leak, reader-fence 503,
+client-cancel 499, and inner-cancel 500 cases plus the span shape; do not add
+a new inline copy of that harness.
 
 ## Verification
 
