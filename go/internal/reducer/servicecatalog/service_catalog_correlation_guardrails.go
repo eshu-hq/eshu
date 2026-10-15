@@ -22,11 +22,17 @@ type serviceCatalogCorrelationGuardrailSummary struct {
 	MissingAnchorEntities      int
 }
 
+// serviceCatalogCorrelationRequiredAnchorKeys names the repo-local scope
+// anchor through serviceCatalogGitRepositoryScopePrefix (the #7879
+// single-source constant) plus its placeholder suffix, instead of respelling
+// the prefix literal: the scope-prefix grep gate only matches the bare
+// literal, so a suffixed placeholder spelling would otherwise sit outside it
+// (#8112).
 func serviceCatalogCorrelationRequiredAnchorKeys() []string {
 	return []string{
 		"repository_id",
 		"normalized_url|repository_url|raw_url|url",
-		"git-repository-scope:<repo_id>",
+		serviceCatalogGitRepositoryScopePrefix + "<repo_id>",
 	}
 }
 
