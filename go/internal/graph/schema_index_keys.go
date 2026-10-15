@@ -51,7 +51,8 @@ var (
 // DDL name. It returns an error naming each index statement whose shape it
 // cannot read, so a new index shape cannot be silently left unguarded.
 // Fulltext indexes are excluded: they tokenize values instead of storing one
-// bounded key per node.
+// bounded key per node. That includes the #7245 infra_search_key_ft index,
+// whose term bound the writer clause enforces instead (InfraSearchKeyMaxChars).
 func SchemaIndexKeys() ([]IndexKey, error) {
 	statements := make([]string, 0, len(schemaConstraints)+len(schemaPerformanceIndexes)+len(nornicDBMergeLookupIndexes)+2*len(uidConstraintLabels))
 	// Raw constraints, not the dialect output: NornicDB drops composite

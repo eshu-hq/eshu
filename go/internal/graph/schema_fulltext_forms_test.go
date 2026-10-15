@@ -82,8 +82,9 @@ func TestEnsureSchemaNeverAttemptsTheRemovedProcedureOnNeo4j(t *testing.T) {
 			modern++
 		}
 	}
-	if modern != len(schemaFulltextIndexes) {
-		t.Fatalf("Neo4j apply attempted %d modern full-text forms, want %d", modern, len(schemaFulltextIndexes))
+	// The Neo4j-only #7245 infra_search_key_ft index is a modern form too.
+	if want := len(schemaFulltextIndexes) + len(neo4jInfraSearchKeyIndexes); modern != want {
+		t.Fatalf("Neo4j apply attempted %d modern full-text forms, want %d", modern, want)
 	}
 }
 

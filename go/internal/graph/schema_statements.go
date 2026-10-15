@@ -44,6 +44,9 @@ func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
 	if dialect.includeNeo4jUIDLookupIndexes {
 		stmts = append(stmts, neo4jUIDLookupIndexes...)
 	}
+	if dialect.includeInfraSearchKeyIndex {
+		stmts = append(stmts, neo4jInfraSearchKeyIndexes...)
+	}
 	stmts = append(stmts, dialect.retiredConstraintPathIndexes...)
 	if dialect.includeMergeLookupIndexes {
 		stmts = append(stmts, nornicDBMergeLookupIndexes...)
