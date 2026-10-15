@@ -31,9 +31,10 @@ type wrongSample struct {
 // wrongSamples holds one sample per assertion Check makes.
 // TestEveryAssertionHasOneWrongSample requires this list and Assertions() to
 // match one for one, and TestEveryReportedAssertionIsListed requires every
-// Assertion that check code reports to be a constant listed in Assertions().
-// Together they keep a new condition from landing without a sample that only
-// it catches. NoCanaryInBody also has one single-token variant per canary
+// constant-valued Assertion in check code to be a declared constant listed in
+// Assertions(). Together they keep a new constant assertion from landing
+// without a sample that only it catches; a var or non-constant Assertion is
+// outside both and excluded by the AGENTS.md declared-constant rule. NoCanaryInBody also has one single-token variant per canary
 // token in TestCanaryScanChecksEveryToken, outside this registry.
 var wrongSamples = []wrongSample{
 	{assertion: failure.NoCanaryInBody, respond: leaky},

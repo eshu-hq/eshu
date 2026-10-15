@@ -15,8 +15,8 @@
 - Never weaken an assertion in `check.go` to make a route pass. If a route
   legitimately answers differently (a 504 budget, a write path with no reader
   fence), keep its own harness and note why, or add an explicit option here
-  with a sample route in `check_test.go` that proves the option still rejects
-  the wrong answer.
+  with a sample route in `samples_test.go` that proves the option still
+  rejects the wrong answer.
 - Every condition `Check` tests is an `Assertion` constant listed in
   `Assertions()`, evaluated on its own (never folded into another's `if`), and
   has exactly one wrong sample route in `samples_test.go` that violates it and
@@ -24,6 +24,11 @@
   drift; `TestCheckCatchesEachWrongSampleOnItsAssertionOnly` fails when an
   assertion is weakened (its sample violates nothing) or a sample is wrong in
   two ways. Adding a condition means adding its constant and its sample.
+- An assertion is always a declared `Assertion` constant. Never report one
+  from a package-scope `var` of type `Assertion` or from a conversion of a
+  non-constant value. `TestEveryReportedAssertionIsListed` checks only
+  constant-valued `Assertion` expressions, so it cannot see either form; this
+  rule, held in review, is what excludes them.
 - The `Canary` tokens must stay distinctive. A token a real fixed message
   could contain makes the leak scan fail a correct route.
 

@@ -121,7 +121,8 @@ func TestCheckPassesConvertedRoute(t *testing.T) {
 
 // TestEveryAssertionHasOneWrongSample is the registry: every assertion Check
 // makes has exactly one wrong sample route, and every sample names a real
-// assertion. Adding an assertion without a sample fails here.
+// assertion. Listing an assertion in Assertions() without a sample fails
+// here.
 func TestEveryAssertionHasOneWrongSample(t *testing.T) {
 	t.Parallel()
 	assertions := failure.Assertions()

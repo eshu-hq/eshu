@@ -91,14 +91,17 @@ exactly one way. `TestEveryAssertionHasOneWrongSample` requires the sample list
 and `Assertions()` to match one for one, and
 `TestCheckCatchesEachWrongSampleOnItsAssertionOnly` requires each sample to
 violate its own assertion and no other. `TestEveryReportedAssertionIsListed`
-type-checks the package and requires every constant `Assertion` that check
-code reports to be a declared constant listed in `Assertions()`, and every
-listed one to be reported somewhere, so a new condition cannot bypass the
-registry. `TestCanaryScanChecksEveryToken` drives one route per canary token
+type-checks the package and requires every constant-valued `Assertion`
+expression in check code to be a declared `Assertion` constant listed in
+`Assertions()`, and every listed one to be reported somewhere. It inspects
+constant values only: an `Assertion` held in a package-scope `var`, or a
+conversion of a non-constant value, is outside it. Those are excluded by the
+`AGENTS.md` rule that every assertion is a declared constant, which review
+enforces, not this test. `TestCanaryScanChecksEveryToken` drives one route per canary token
 that leaks only that token (credential, host, relation, Cypher) and requires
 a `NoCanaryInBody` violation and nothing else. Weakening any assertion,
-dropping a canary token, or reporting an unlisted assertion therefore turns
-the package RED. This was run as 21 `go test -overlay` mutants plus the
+dropping a canary token, or reporting an unlisted constant `Assertion`
+therefore turns the package RED. This was run as 21 `go test -overlay` mutants plus the
 review's K1 (one canary token) and K2 (an unlisted assertion), all RED
 (#7674 slice 5 PR body). The type-check test reads source from disk, so
 mutate `check.go` on disk for it, not with `-overlay`.

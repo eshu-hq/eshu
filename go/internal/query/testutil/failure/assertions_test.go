@@ -14,17 +14,21 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
-// TestEveryReportedAssertionIsListed ties the conditions in check code to
-// Assertions(), so the wrong-sample registry covers every one of them. It
+// TestEveryReportedAssertionIsListed ties the constant assertions in check
+// code to Assertions(), so the wrong-sample registry covers each of them. It
 // type-checks this package's non-test files and requires:
 //
 //   - every constant-valued expression of type Assertion is a declared
-//     Assertion constant, so a check cannot report Assertion("...") or an
-//     untyped string literal that no sample covers;
+//     Assertion constant, so a check that reports Assertion("...") or an
+//     untyped string literal fails here;
 //   - the declared Assertion constants and the Assertions() entries are the
 //     same set, with no entry listed twice;
 //   - every Assertions() entry is referenced outside Assertions() and its own
 //     declaration, so a listed assertion is actually checked.
+//
+// It inspects constant values only. An Assertion held in a package-scope var,
+// or a conversion of a non-constant value, is outside it; AGENTS.md excludes
+// those by requiring every assertion to be a declared constant.
 //
 // It reads source from disk, so a go test -overlay mutant of check.go is
 // invisible to it: mutate the file, run, then git restore.
