@@ -238,8 +238,8 @@ entity id, 404 for an empty scoped grant) carries neither attribute and is not
 counted.
 
 `POST /api/v0/code/language-query`'s request span (`query.language_query`)
-carries, when the route enriched a non-empty graph page with content-store
-metadata, `eshu.language_query.metadata_path` (`anchored` or `page_read`),
+carries, when a non-empty graph page reached content-metadata enrichment (even
+if no row received metadata), `eshu.language_query.metadata_path` (`anchored` or `page_read`),
 `eshu.language_query.metadata_rows_enriched` and
 `eshu.language_query.metadata_rows_missing` (#7247). They are the same closed
 path set and the same counts as `eshu_dp_language_query_metadata_rows_total`.
