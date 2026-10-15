@@ -21,6 +21,12 @@ const (
 	// KindExplicit is an explicit repository list. Its rows are only ever
 	// selected, one per configured repository that already has a scope.
 	KindExplicit = "explicit"
+	// KindGitLabGroup is a GitLab group listing, including subgroups. Its
+	// rows cover every known scope under the group's path prefix: selected,
+	// excluded, or not listed. The owner is the lowercased group full path
+	// and may contain slashes, so the partition is a path prefix, not the
+	// first slug segment (#7765).
+	KindGitLabGroup = "gitlab_group"
 )
 
 // gitHubHost is the remote host every githubOrg listing covers: the listing
@@ -63,16 +69,55 @@ type Rule struct {
 // "<config hash>@<principal>": the hash covers everything that decides which
 // repositories a listing selects, and the principal names the credential that
 // listed them, so two collectors with different rules or credentials on the
-// same owner write separate observation rows. Owner is the lowercased org or
-// user.
+// same owner write separate observation rows. Owner is the lowercased org,
+// user, or GitLab group full path. Host is the listing's remote host, set
+// only for gitlab_group selectors whose host is configured.
 type Selector struct {
 	ID    string
 	Kind  string
 	Owner string
+	Host  string
+}
+
+// Partition is the known-scope partition one selector judges: the scopes
+// whose stored slug belongs to Owner, plus the remote host they must carry.
+// PathPrefix selects the prefix partition (slug equals Owner or starts with
+// Owner+"/") for nested GitLab groups; otherwise the partition is the slug's
+// first segment.
+type Partition struct {
+	Owner      string
+	Host       string
+	PathPrefix bool
+}
+
+// Partition returns the known-scope partition this selector judges: the
+// github.com host with a first-segment owner for github_org, no host with a
+// first-segment owner for explicit, and the selector host with a path-prefix
+// owner for gitlab_group.
+func (s Selector) Partition() Partition {
+	switch s.Kind {
+	case KindGitLabGroup:
+		return Partition{Owner: s.Owner, Host: s.Host, PathPrefix: true}
+	case KindGitHubOrg:
+		return Partition{Owner: s.Owner, Host: gitHubHost}
+	default:
+		return Partition{Owner: s.Owner}
+	}
+}
+
+// knownHost returns the remote host this selector's known scopes must carry:
+// the selector host for gitlab_group, KnownScopeHost for every other kind.
+func (s Selector) knownHost() string {
+	if s.Kind == KindGitLabGroup {
+		return s.Host
+	}
+	return KnownScopeHost(s.Kind)
 }
 
 // selectorIdentity is the canonical encoding hashed into a selector id.
-// Changing a field name or the version changes every selector id.
+// Changing a field name or the version changes every selector id. Host is
+// omitempty so github_org and explicit selectors keep their version-2 ids
+// byte-identical; only gitlab_group selectors hash a host.
 type selectorIdentity struct {
 	Version         int    `json:"version"`
 	Kind            string `json:"kind"`
@@ -80,6 +125,7 @@ type selectorIdentity struct {
 	Owner           string `json:"owner"`
 	Rules           []Rule `json:"rules"`
 	IncludeArchived bool   `json:"include_archived"`
+	Host            string `json:"host,omitempty"`
 }
 
 // GitHubAppPrincipal returns the selector principal of a GitHub App
@@ -109,7 +155,7 @@ func TokenPrincipal(token string) string {
 // ".." segments dropped), regex values trimmed, then sorted and deduplicated.
 // Values keep their case because rules match case-sensitively.
 func NewGitHubOrgSelector(sourceMode, org string, rules []Rule, includeArchived bool, principal string) Selector {
-	return newSelector(KindGitHubOrg, sourceMode, org, rules, includeArchived, principal)
+	return newSelector(KindGitHubOrg, sourceMode, org, rules, includeArchived, principal, "")
 }
 
 // NewExplicitSelector returns the selector for the configured explicit
@@ -117,10 +163,21 @@ func NewGitHubOrgSelector(sourceMode, org string, rules []Rule, includeArchived 
 // NewGitHubOrgSelector encoding with the explicit kind, so an explicit list
 // and an org listing never share a selector.
 func NewExplicitSelector(sourceMode, owner string, rules []Rule, principal string) Selector {
-	return newSelector(KindExplicit, sourceMode, owner, rules, false, principal)
+	return newSelector(KindExplicit, sourceMode, owner, rules, false, principal, "")
 }
 
-func newSelector(kind, sourceMode, owner string, rules []Rule, includeArchived bool, principal string) Selector {
+// NewGitLabGroupSelector returns the selector for a GitLab group listing of
+// fullPath (the resolved group full path, which may nest, e.g.
+// "acme/platform") on host, listed with principal. The owner is the
+// lowercased group full path and the host joins the identity hash, so two
+// hosts or two groups never share a selector. Host must be the listing's
+// remote host; a blank host fails closed at observation time.
+func NewGitLabGroupSelector(sourceMode, host, fullPath string, rules []Rule, includeArchived bool, principal string) Selector {
+	host = strings.ToLower(strings.TrimSpace(host))
+	return newSelector(KindGitLabGroup, sourceMode, fullPath, rules, includeArchived, principal, host)
+}
+
+func newSelector(kind, sourceMode, owner string, rules []Rule, includeArchived bool, principal, host string) Selector {
 	owner = strings.ToLower(strings.TrimSpace(owner))
 	normalized := make([]Rule, 0, len(rules))
 	for _, rule := range rules {
@@ -144,6 +201,7 @@ func newSelector(kind, sourceMode, owner string, rules []Rule, includeArchived b
 		Owner:           owner,
 		Rules:           normalized,
 		IncludeArchived: includeArchived,
+		Host:            host,
 	})
 	sum := sha256.Sum256(encoded)
 	principal = strings.TrimSpace(principal)
@@ -154,6 +212,7 @@ func newSelector(kind, sourceMode, owner string, rules []Rule, includeArchived b
 		ID:    hex.EncodeToString(sum[:selectorIDBytes]) + "@" + principal,
 		Kind:  kind,
 		Owner: owner,
+		Host:  host,
 	}
 }
 

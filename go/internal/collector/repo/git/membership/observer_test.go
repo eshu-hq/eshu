@@ -58,14 +58,14 @@ func (s *fakeStore) expected() Selector {
 	return s.selector
 }
 
-func (s *fakeStore) KnownScopes(_ context.Context, owner, host string) ([]KnownScope, error) {
+func (s *fakeStore) KnownScopes(_ context.Context, partition Partition) ([]KnownScope, error) {
 	s.knownCalls++
-	s.knownHosts = append(s.knownHosts, host)
-	if owner != s.expected().Owner {
-		return nil, errors.New("unexpected owner " + owner)
+	s.knownHosts = append(s.knownHosts, partition.Host)
+	if partition.Owner != s.expected().Owner {
+		return nil, errors.New("unexpected owner " + partition.Owner)
 	}
 	if s.knownByHost != nil {
-		return s.knownByHost[host], s.knownErr
+		return s.knownByHost[partition.Host], s.knownErr
 	}
 	return s.known, s.knownErr
 }
