@@ -13,8 +13,9 @@ import (
 // history ceiling (#7585), which never frees active, live-work, or
 // dependency-pinned generations. Generations the reconcile probe still needs
 // (uncovered writers, #7472) are never candidates at any age. Neither is the
-// newest full generation of a delta-active scope nor the delta chain after
-// it (#7802): they are the only record of unchanged files, kept at any age.
+// newest activated full generation of a delta-active scope nor the delta
+// chain after it (#7802): they are the only record of unchanged files, kept
+// at any age.
 type GenerationRetentionPolicy struct {
 	MinSupersededGenerations int
 	MaxSupersededAge         time.Duration
@@ -126,10 +127,15 @@ type generationRetentionTestHooks struct {
 // The re-lock re-checks delta-base protection the same way (#7802): a
 // delta that activated after the selection can make a selected candidate
 // the protected base (or chain) of a newly delta-active scope before the
-// re-lock. provisional carries the delta-base definition over the same
-// scope-bounded horizon, the locked leg excludes flipped members without
-// locking them, and a second lock-free UNION ALL leg reports them so the
-// store counts them as skipped delta_base rows. A member that flipped both
+// re-lock. delta_base is the newest activated full per delta-active scope,
+// as in the candidate query; a newer full that is pending or failed never
+// displaces it. Every table in delta_base (generation, scope and active) is
+// bounded by the batch's scope ids ($4), so the planner reads the batch's
+// scopes through the primary keys and scope_generations_scope_generation_idx
+// and its cost follows the batch, not the delta-generation count.
+// provisional joins that definition, the locked leg excludes flipped
+// members without locking them, and a second lock-free UNION ALL leg
+// reports them so the store counts them as skipped delta_base rows. A member that flipped both
 // ways reports only on the uncovered leg, matching the candidate query.
 // Same residual as above.
 //
@@ -165,8 +171,11 @@ delta_base AS (
     JOIN ingestion_scopes AS scope ON scope.scope_id = generation.scope_id
     JOIN scope_generations AS active ON active.generation_id = scope.active_generation_id
     WHERE generation.scope_id = ANY($4::text[])
+      AND scope.scope_id = ANY($4::text[])
+      AND active.scope_id = ANY($4::text[])
       AND active.is_delta = true
       AND generation.is_delta = false
+      AND generation.activated_at IS NOT NULL
     ORDER BY generation.scope_id, generation.ingested_at DESC, generation.generation_id DESC
 ),
 provisional AS (

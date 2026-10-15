@@ -44,8 +44,10 @@ import (
 // identity in each prune batch, so one cycle never removes every copy.
 //
 // Delta-base rows (#7802) follow the same shape: for a scope whose active
-// generation is a delta, the newest full generation (the only record of
-// unchanged files) and the delta chain after it are flagged in eligible by
+// generation is a delta, the newest activated full generation (the only
+// record of unchanged files; a newer full that is pending or failed never
+// activated, so it holds no rebuildable truth and is not the base) and the
+// delta chain after it are flagged in eligible by
 // the delta_base definition, excluded from the lock set and the prunable
 // leg at any age, and reported back on a third lock-free UNION ALL leg
 // with the same cap and ordering. A row that is both uncovered and
@@ -58,7 +60,7 @@ import (
 // limit (each leg separately), $4 hard-ceiling cutoff (#7585): the count
 // preference cannot retain ordinary superseded history older than $4.
 // Delta-base rows (#7802) are never prunable at any age, including past
-// the hard ceiling: the newest full generation of a delta-active scope is
+// the hard ceiling: the newest activated full of a delta-active scope is
 // the only record of unchanged files, and the delta chain after it is the
 // only way to rebuild the scope from facts.
 const generationRetentionCandidateQuery = `
@@ -100,6 +102,7 @@ delta_base AS (
       ON active.generation_id = scope.active_generation_id
     WHERE active.is_delta = true
       AND generation.is_delta = false
+      AND generation.activated_at IS NOT NULL
     ORDER BY generation.scope_id, generation.ingested_at DESC, generation.generation_id DESC
 ),
 live_work AS MATERIALIZED (

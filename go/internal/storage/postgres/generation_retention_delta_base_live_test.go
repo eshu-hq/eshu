@@ -4,6 +4,8 @@
 package postgres
 
 import (
+	"context"
+	"database/sql"
 	"os"
 	"strings"
 	"testing"
@@ -13,8 +15,8 @@ import (
 )
 
 // TestGenerationRetentionDeltaBaseLive is the #7802 acceptance proof: a
-// scope whose active generation is a delta keeps its newest full generation
-// (the only record of unchanged files) and the delta chain after it past
+// scope whose active generation is a delta keeps its newest activated full
+// generation (the only record of unchanged files) and the delta chain after it past
 // the hard history ceiling, while a scope whose active generation is a full
 // snapshot still prunes old superseded generations. The retention summary
 // counts the kept delta-base rows so an operator can see them. Fixture ages
@@ -37,13 +39,23 @@ func TestGenerationRetentionDeltaBaseLive(t *testing.T) {
 			t.Fatalf("mark %s delta: %v", generationID, err)
 		}
 	}
+	// A real base full was always activated before it was superseded
+	// (activation sets activated_at and superseding keeps it), and the
+	// delta_base definition reads only activated fulls. The shared
+	// superseded seeder leaves activated_at NULL, so mark each base.
+	activate := func(generationID string) {
+		t.Helper()
+		markRetentionGenerationActivated(t, ctx, database, generationID)
+	}
 
-	// Delta-active scope: active generation is a delta, newest full is a
-	// 100-day superseded base, one 95-day superseded delta sits between.
+	// Delta-active scope: active generation is a delta, the newest activated
+	// full is a 100-day superseded base, and one 95-day superseded delta
+	// sits between.
 	testfixtures.SeedScope(t, ctx, database, "deltabase-delta")
 	markDelta("deltabase-delta-active")
 	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"deltabase-delta", "deltabase-delta-base", now.Add(-100*24*time.Hour))
+	activate("deltabase-delta-base")
 	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"deltabase-delta", "deltabase-delta-mid", now.Add(-95*24*time.Hour))
 	markDelta("deltabase-delta-mid")
@@ -56,6 +68,7 @@ func TestGenerationRetentionDeltaBaseLive(t *testing.T) {
 	markDelta("deltabase-both-active")
 	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"deltabase-both", "deltabase-both-base", now.Add(-100*24*time.Hour))
+	activate("deltabase-both-base")
 	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"deltabase-both", "deltabase-both-delta", now.Add(-95*24*time.Hour))
 	markDelta("deltabase-both-delta")
@@ -71,9 +84,9 @@ func TestGenerationRetentionDeltaBaseLive(t *testing.T) {
 		"deltabase-full", "deltabase-full-old", now.Add(-100*24*time.Hour))
 
 	// Same-SHA scope (#7981 with #7802): the active generation is a delta,
-	// the newest full is a protected base, and an older full of the same
-	// commit sits inside the count window. The same-SHA rule prunes the
-	// older copy because the protected base is its newer witness (the
+	// the newest activated full is a protected base, and an older full of
+	// the same commit sits inside the count window. The same-SHA rule prunes
+	// the older copy because the protected base is its newer witness (the
 	// witness read is independent of the delta leg); the base itself stays.
 	// It is inside the window and has no newer copy, so it is not eligible
 	// and reports nothing.
@@ -83,6 +96,8 @@ func TestGenerationRetentionDeltaBaseLive(t *testing.T) {
 		"deltabase-dup", "deltabase-dup-old", now.Add(-20*24*time.Hour))
 	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"deltabase-dup", "deltabase-dup-base", now.Add(-10*24*time.Hour))
+	activate("deltabase-dup-old")
+	activate("deltabase-dup-base")
 	if _, err := database.ExecContext(ctx,
 		`UPDATE scope_generations SET source_commit_sha = 'deltabase-dup-sha'
 		  WHERE generation_id IN ('deltabase-dup-old', 'deltabase-dup-base')`); err != nil {
@@ -141,5 +156,73 @@ func TestGenerationRetentionDeltaBaseLive(t *testing.T) {
 	}
 	if got := result.Skipped["uncovered_writer"]; got != 1 {
 		t.Errorf("Skipped[uncovered_writer] = %d, want 1 (overlap row reported exactly once)", got)
+	}
+}
+
+// TestGenerationRetentionDeltaBaseSkipsUnactivatedNewerFullLive pins the base
+// to the newest ACTIVATED full (#7802 review F1). A newer full that never
+// activated (status failed after a dead letter, or pending until its
+// projection acks) carries no rebuildable truth, so it must not displace the
+// real base of the active delta. If it did, the real base would lose its
+// protection and prune past the hard ceiling.
+func TestGenerationRetentionDeltaBaseSkipsUnactivatedNewerFullLive(t *testing.T) {
+	for _, status := range []string{"failed", "pending"} {
+		t.Run(status, func(t *testing.T) {
+			bridgeRetentionFamilyDSN(t)
+			database, ctx := openGenerationRetentionMigratedSchema(t)
+			now := time.Now().UTC()
+			const scopeID = "deltabase-unactivated"
+			testfixtures.SeedScope(t, ctx, database, scopeID)
+			// Real base: a full superseded 100 days ago that was activated.
+			testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, scopeID+"-base", now.Add(-100*24*time.Hour))
+			markRetentionGenerationActivated(t, ctx, database, scopeID+"-base")
+			if _, err := database.ExecContext(ctx,
+				`UPDATE scope_generations SET is_delta = true, activated_at = $2 WHERE generation_id = $1`,
+				scopeID+"-active", now); err != nil {
+				t.Fatalf("mark active delta: %v", err)
+			}
+			// A newer full that never activated.
+			if _, err := database.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, is_delta)
+VALUES ($1, $2, 'snapshot', $3, $3, $4, false)`,
+				scopeID+"-newer-full", scopeID, now.Add(time.Minute), status); err != nil {
+				t.Fatalf("seed newer %s full: %v", status, err)
+			}
+
+			store := NewGenerationRetentionStore(SQLDB{DB: database})
+			store.Now = func() time.Time { return now }
+			result, err := store.PruneSupersededGenerations(ctx, GenerationRetentionPolicy{
+				MinSupersededGenerations: 24,
+				MaxSupersededAge:         7 * 24 * time.Hour,
+				HardMaxSupersededAge:     90 * 24 * time.Hour,
+				BatchGenerationLimit:     10,
+				BatchRowLimit:            1_000_000_000,
+				PolicyScope:              "global",
+				PolicyRevision:           "7802-unactivated-newer-full-live",
+			})
+			if err != nil {
+				t.Fatalf("PruneSupersededGenerations() error = %v", err)
+			}
+			remaining := remainingScopeGenerations(t, ctx, database, []string{scopeID + "-base"})
+			if !remaining[scopeID+"-base"] {
+				t.Errorf("activated base of the active delta was pruned while a newer %s full exists, want kept", status)
+			}
+			if result.GenerationsPruned != 0 {
+				t.Errorf("GenerationsPruned = %d, want 0", result.GenerationsPruned)
+			}
+			if got := result.Skipped["delta_base"]; got != 1 {
+				t.Errorf("Skipped[delta_base] = %d, want 1 (the activated base)", got)
+			}
+		})
+	}
+}
+
+// markRetentionGenerationActivated sets activated_at to ingested_at, the
+// state activation leaves on a full before a newer generation supersedes it.
+func markRetentionGenerationActivated(t *testing.T, ctx context.Context, database *sql.DB, generationID string) {
+	t.Helper()
+	if _, err := database.ExecContext(ctx,
+		`UPDATE scope_generations SET activated_at = ingested_at WHERE generation_id = $1`, generationID); err != nil {
+		t.Fatalf("activate %s: %v", generationID, err)
 	}
 }

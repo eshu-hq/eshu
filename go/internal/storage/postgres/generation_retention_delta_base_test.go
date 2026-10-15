@@ -14,7 +14,7 @@ import (
 
 // TestGenerationRetentionCandidateQueryProtectsDeltaBase pins the #7802
 // guard in the all-scope candidate query: the delta_base definition finds
-// each delta-active scope's newest full generation, eligible flags it and
+// each delta-active scope's newest activated full, eligible flags it and
 // its newer chain as delta_protected, both stay out of the lock set and
 // the prunable leg, and a lock-free leg reports them.
 func TestGenerationRetentionCandidateQueryProtectsDeltaBase(t *testing.T) {
