@@ -146,7 +146,7 @@ rows are never claimable, so claim and the wake do not contend on consumers.
 connections, per round: two identical targeted replays, one broad stage-wide
 replay that selects the consumers directly, one bounded replay in reverse
 scope order, and a consumer-domain claimer; 15 rounds of 6 scopes. It requires
-no error and every row reopened exactly once (85 to 88 of 180 consumers per run
+no error and every row reopened exactly once (69 to 88 of 180 consumers per run
 went through the wake, the rest through the broad replay). Passing 5 of 5 runs.
 Mutation: with `SKIP LOCKED` removed from the wake, a 5-run `-count=5` pass
 failed with 9 `SQLSTATE 40P01` "deadlock detected" errors, so the test bites;

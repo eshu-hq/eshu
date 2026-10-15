@@ -285,6 +285,16 @@ PACKAGES = {
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go": (
+            "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
+            "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
+        ),
+        "go/internal/storage/postgres/recovery_producer_wake_live_test.go": (
+            "TestReplayDeadLetteredDeploymentMappingWakesProducerTerminalConsumersLive",
+        ),
+        "go/internal/storage/postgres/recovery_producer_wake_concurrency_live_test.go": (
+            "TestReplayWakeConcurrentReplaysAreIdempotentLive",
+        ),
     },
     WEBHOOK_PACKAGE: {
         "go/internal/storage/postgres/webhook/ignored_decision_live_test.go": (

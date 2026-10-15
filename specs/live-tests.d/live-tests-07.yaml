@@ -61,6 +61,21 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7597 own gate bounded by its deployment_mapping producer through the real ReducerQueue claim/Fail SQL and the production Postgres lookups: a dead-lettered producer dead-letters the deployable-unit and workload consumers within MaxAttempts in the counting producer-terminal class, a producer retrying on backward evidence keeps them non-counting with attempt_count frozen; isolated schema per subtest, about 6 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/recovery_producer_wake_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7597 ReplayFailedWorkItems of a dead-lettered deployment_mapping row reopens only the same scope-generation producer-terminal consumers in the same statement (unbounded and bounded), flips the repo-dependency workload replay outcome from NotScheduled to Scheduled, and the woken workload item succeeds after the producer activates; isolated schema per subtest, about 3 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/recovery_producer_wake_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7597 concurrent replays (duplicate targeted, broad, bounded reverse-order) plus a consumer claimer on independent connections: no 40P01 and every row reopened exactly once; dropping the wake's SKIP LOCKED deadlocks it; isolated schema, about 2 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go
     tag: ~
     class: postgres_ci
