@@ -40,7 +40,10 @@ func ddlForm(name, pattern string) ddlAlterForm {
 // Every other form must be complete in the literal.
 var ddlAlterForms = []ddlAlterForm{
 	ddlForm("add constraint", `add\s+constraint\s+(?P<constraint>NAME)`),
-	ddlForm("add unnamed constraint", `add\s+(?:primary\s+key|unique|check|foreign\s+key|exclude)\s*\S`),
+	// Each unnamed-constraint keyword must be followed by the token its
+	// grammar requires, so a bare ADD of a column such as checksum or
+	// excluded (EXCLUDE is not reserved) is not read as a constraint.
+	ddlForm("add unnamed constraint", `add\s+(?:primary\s+key\s*(?:\(|using\s+index\b)|unique\s*(?:\(|nulls\b|using\s+index\b)|check\s*\(|foreign\s+key\s*\(|exclude\s*(?:\(|using\b))`),
 	ddlForm("add column", `add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?(?P<column>NAME)`),
 	ddlForm("alter constraint", `alter\s+constraint\s+(?P<name>NAME)\s+\S`),
 	ddlForm("alter column", `alter\s+(?:column\s+)?(?P<name>NAME)\s+\S`),

@@ -181,15 +181,20 @@ func (inv *ddlInventory) addCreateTable(rest string, site ddlSite) {
 	}
 	for _, element := range splitTopLevelCommas(body) {
 		fields := strings.Fields(element)
-		switch {
-		case len(fields) == 0:
+		if len(fields) == 0 {
 			inv.unresolvedAt(rest[:m[5]], site)
-		case strings.EqualFold(fields[0], "constraint") && len(fields) > 1:
+			continue
+		}
+		// The first word, cut at "(" so UNIQUE(owner) reads as UNIQUE. An
+		// exact word match keeps a column such as checksum a column.
+		word := strings.ToLower(strings.SplitN(fields[0], "(", 2)[0])
+		switch {
+		case word == "constraint" && len(fields) > 1:
 			inv.addObject("constraint", table, fields[1], rest[:m[5]], site)
+		case ddlNonColumnWords[word] && (len(fields) > 1 || strings.Contains(fields[0], "(")):
 		case len(fields) < 2:
 			// A bare keyword or a column with no type: the rest is joined on.
 			inv.unresolvedAt(rest[:m[5]]+" ("+element, site)
-		case ddlNonColumnWords[strings.ToLower(fields[0])]:
 		default:
 			if column, ok := normalizeDDLIdent(fields[0]); ok {
 				inv.addColumn(ddlColumn{table: table, column: column}, site)

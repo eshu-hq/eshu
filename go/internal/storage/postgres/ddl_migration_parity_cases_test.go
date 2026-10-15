@@ -244,6 +244,26 @@ func TestDDLMigrationParitySyntheticCases(t *testing.T) {
 			wantGap: nil,
 		},
 		{
+			name:    "fail: bare ADD of a column whose name starts with CHECK",
+			goSQL:   "ALTER TABLE widgets ADD checksum TEXT",
+			wantGap: []string{"column widgets.checksum"},
+		},
+		{
+			name:    "fail: bare ADD of a column whose name starts with UNIQUE",
+			goSQL:   "ALTER TABLE widgets ADD unique_token TEXT",
+			wantGap: []string{"column widgets.unique_token"},
+		},
+		{
+			name:    "fail: bare ADD of a column whose name starts with EXCLUDE",
+			goSQL:   "ALTER TABLE widgets ADD excluded BOOLEAN",
+			wantGap: []string{"column widgets.excluded"},
+		},
+		{
+			name:    "pass: CREATE TABLE constraints written without a space before the paren",
+			goSQL:   "CREATE TABLE widgets (widget_id TEXT, PRIMARY KEY(widget_id), UNIQUE(owner), CHECK(owner <> ''))",
+			wantGap: nil,
+		},
+		{
 			name:    "fail: column name joined on at runtime",
 			goSQL:   "ALTER TABLE widgets ADD COLUMN IF NOT EXISTS ",
 			wantGap: []string{"unresolved"},
