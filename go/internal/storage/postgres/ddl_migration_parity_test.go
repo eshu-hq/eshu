@@ -58,7 +58,8 @@ var ddlParityDynamicDDL = map[string]string{
 //  3. a table no migration creates, unless ddlParityGoOnlyTables lists it;
 //  4. a named constraint or trigger on a migration-created table, or a
 //     function, that no migration declares;
-//  5. a statement the scan cannot read, unless ddlParityDynamicDDL lists it.
+//  5. a statement the scan cannot read, including an ALTER TABLE action that
+//     matches no form in ddlAlterForms, unless ddlParityDynamicDDL lists it.
 //
 // A stale entry in either allowlist also fails. The guard compares names
 // only. It does not see CREATE EXTENSION or ALTER COLUMN, and it does not
@@ -113,6 +114,11 @@ func assertDDLParityFloor(t *testing.T, migInv, goInv ddlInventory) {
 		{"migration constraints", migKinds["constraint"], 10},
 		{"migration triggers", migKinds["trigger"], 3},
 		{"migration functions", migKinds["function"], 3},
+		// The Go-side object floors sit just under today's counts (6
+		// constraints, 4 triggers, 3 functions). Every trigger and function
+		// comes from the container image identity DDL
+		// (schema_container_image_identity_*.go). Lower a floor only when
+		// that DDL leaves Go, never to silence a broken extractor.
 		{"Go DDL constraints", goKinds["constraint"], 3},
 		{"Go DDL triggers", goKinds["trigger"], 3},
 		{"Go DDL functions", goKinds["function"], 2},

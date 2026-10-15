@@ -88,12 +88,6 @@ var (
 	// ddlAlterTablePattern is anchored at an ALTER TABLE head; group 1 is the
 	// table and group 2 the action list up to the statement end.
 	ddlAlterTablePattern = regexp.MustCompile(`(?is)^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([^\s(;,]+)\s+([^;]*)`)
-	// ddlAddColumnPattern matches one ALTER TABLE action that adds a column;
-	// the COLUMN keyword is optional in PostgreSQL.
-	ddlAddColumnPattern = regexp.MustCompile(`(?is)^add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?([^\s(,]+)`)
-	// ddlAddConstraintPattern matches one ALTER TABLE action that adds a
-	// named constraint.
-	ddlAddConstraintPattern = regexp.MustCompile(`(?is)^add\s+constraint\s+([^\s(,]+)`)
 	// ddlCreateTriggerPattern is anchored at a CREATE TRIGGER head; group 1
 	// is the trigger name and group 2 the table after ON.
 	ddlCreateTriggerPattern = regexp.MustCompile(`(?is)^create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+([^\s(;,]+)\s[^;]*?\bon\s+(?:only\s+)?([^\s(;,]+)`)
@@ -102,8 +96,8 @@ var (
 	ddlCreateFunctionPattern = regexp.MustCompile(`(?is)^create\s+(?:or\s+replace\s+)?function\s+([^\s(;,]+?)\s*\(`)
 )
 
-// ddlNonColumnWords start a table element or ADD action that is a
-// constraint, not a column.
+// ddlNonColumnWords start a CREATE TABLE element that is an unnamed
+// constraint or a LIKE clause, not a column.
 var ddlNonColumnWords = map[string]bool{
 	"primary": true, "unique": true, "constraint": true, "foreign": true,
 	"check": true, "exclude": true, "like": true,
@@ -192,6 +186,9 @@ func (inv *ddlInventory) addCreateTable(rest string, site ddlSite) {
 			inv.unresolvedAt(rest[:m[5]], site)
 		case strings.EqualFold(fields[0], "constraint") && len(fields) > 1:
 			inv.addObject("constraint", table, fields[1], rest[:m[5]], site)
+		case len(fields) < 2:
+			// A bare keyword or a column with no type: the rest is joined on.
+			inv.unresolvedAt(rest[:m[5]]+" ("+element, site)
 		case ddlNonColumnWords[strings.ToLower(fields[0])]:
 		default:
 			if column, ok := normalizeDDLIdent(fields[0]); ok {
@@ -204,8 +201,9 @@ func (inv *ddlInventory) addCreateTable(rest string, site ddlSite) {
 }
 
 // addAlterTable records each ADD [COLUMN] and ADD CONSTRAINT action of an
-// ALTER TABLE. An empty action list or a trailing empty action means the
-// rest is joined on at runtime.
+// ALTER TABLE. Every action must match a form in ddlAlterForms; an empty
+// action list, an empty action, or an unrecognized action means part of the
+// statement is joined on at runtime, and is recorded as unresolved.
 func (inv *ddlInventory) addAlterTable(rest string, site ddlSite) {
 	m := ddlAlterTablePattern.FindStringSubmatchIndex(rest)
 	if m == nil {
@@ -220,24 +218,15 @@ func (inv *ddlInventory) addAlterTable(rest string, site ddlSite) {
 	}
 	for _, action := range splitTopLevelCommas(rest[m[4]:m[5]]) {
 		action = strings.TrimSpace(action)
-		if action == "" {
-			inv.unresolvedAt(head+" ... ,", site)
-			continue
-		}
-		if c := ddlAddConstraintPattern.FindStringSubmatch(action); c != nil {
-			inv.addObject("constraint", table, c[1], head, site)
-			continue
-		}
-		add := ddlAddColumnPattern.FindStringSubmatch(action)
-		if add == nil || ddlNonColumnWords[strings.ToLower(add[1])] {
-			continue
-		}
-		column, ok := normalizeDDLIdent(add[1])
-		if !ok {
+		classified, ok := classifyAlterAction(action)
+		switch {
+		case !ok:
 			inv.unresolvedAt(head+" "+action, site)
-			continue
+		case classified.column != "":
+			inv.addColumn(ddlColumn{table: table, column: classified.column}, site)
+		case classified.constraint != "":
+			inv.addObject("constraint", table, classified.constraint, head, site)
 		}
-		inv.addColumn(ddlColumn{table: table, column: column}, site)
 	}
 }
 

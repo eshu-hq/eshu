@@ -34,8 +34,9 @@ CREATE TABLE "Gadgets" (gadget_id TEXT PRIMARY KEY)
 `
 
 // TestDDLMigrationParitySyntheticCases is the seeded RED/GREEN proof for the
-// guard: each failing case plants one violation of the three rules and must
-// produce exactly the expected gap; each passing case must produce none.
+// guard: each failing case plants one violation of the five rules listed on
+// TestDDLMigrationParity and must produce exactly the expected gaps; each
+// passing case must produce none.
 func TestDDLMigrationParitySyntheticCases(t *testing.T) {
 	t.Parallel()
 
@@ -189,6 +190,58 @@ func TestDDLMigrationParitySyntheticCases(t *testing.T) {
 			name:    "fail: trailing action joined on at runtime",
 			goSQL:   "ALTER TABLE widgets ADD COLUMN owner TEXT, ",
 			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: constraint name joined on at runtime",
+			goSQL:   "ALTER TABLE widgets ADD CONSTRAINT ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: bare ADD with the column definition joined on at runtime",
+			goSQL:   "ALTER TABLE widgets ADD ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: second ADD joined on at runtime",
+			goSQL:   "ALTER TABLE widgets ADD COLUMN owner TEXT, ADD ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: ADD COLUMN with the name joined on at runtime",
+			goSQL:   "ALTER TABLE widgets ADD COLUMN ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: DROP COLUMN with the name joined on at runtime",
+			goSQL:   "ALTER TABLE widgets DROP COLUMN ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: ALTER COLUMN with the name joined on at runtime",
+			goSQL:   "ALTER TABLE widgets ALTER COLUMN ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: RENAME TO with the new name joined on at runtime",
+			goSQL:   "ALTER TABLE widgets RENAME TO ",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: unrecognized ALTER TABLE action",
+			goSQL:   "ALTER TABLE widgets FROBNICATE owner",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			name:    "fail: CREATE TABLE column with no type",
+			goSQL:   "CREATE TABLE widgets (widget_id, owner TEXT)",
+			wantGap: []string{"unresolved"},
+		},
+		{
+			// Only names are compared, so a readable constraint name is
+			// enough; its definition may be joined on at runtime.
+			name:    "pass: ADD CONSTRAINT with a readable name and a runtime definition",
+			goSQL:   "ALTER TABLE widgets ADD CONSTRAINT widgets_fencing_check ",
+			wantGap: nil,
 		},
 		{
 			name:    "fail: column name joined on at runtime",
