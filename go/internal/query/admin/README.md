@@ -76,10 +76,24 @@ writer-backed `Handler.Store`. A nil read port preserves legacy construction;
 a configured read port never falls back to the writer after an error. The
 three list-only MCP handlers accept `ReadStore` and expose no mutation routes.
 
-Failure telemetry (#7674): No-Observability-Change. No instrument was added
-or renamed. A failed step now marks the request span through
-`tracing.WriteServerFailure` (Error status with the fixed message, one
-`exception` event; or the `eshu.request.client_canceled` event on a client
-cancel), and the routes keep `eshu_dp_api_request_duration_seconds` and
-`eshu_dp_api_request_errors_total`. The changed-since child span no longer
-records a client cancel as an exception. No SQL changed.
+## Fixed failure answers (#7674)
+
+No-Regression Evidence: baseline `origin/main` at `ef5703ec2` versus this
+branch. The change touches only the error branches of the admin handlers:
+no SQL, Cypher, transaction, idempotency-ledger, or lock path changed, so
+backend (PostgreSQL), input shape, statement count, and row counts are the
+same as the baseline, and the replay, reopen, and recover-generations
+success and refusal paths keep their existing tests green. Measured with
+stub stores, no live backend: `go test ./internal/query/... -count=1` passes
+76 packages (143 live tests skip without a backend), and the 71 admin
+failure-table subtests in `server_failure_routes_test.go` all failed on the
+baseline handlers and pass here.
+
+No-Observability-Change: no instrument was added or renamed, and the routes
+keep `eshu_dp_api_request_duration_seconds` and
+`eshu_dp_api_request_errors_total`. Observability Evidence: a failed step
+marks the request span through `tracing.WriteServerFailure` (Error status
+with the fixed message and one `exception` event, or only the
+`eshu.request.client_canceled` event on a client cancel), pinned by
+`assertAdminFailureSpan`. The changed-since child span no longer records a
+client cancel as an exception (`TestPoisonedLinkChildSpanSkipsClientCancel`).
