@@ -31,7 +31,7 @@ func TestObservationStoreKnownScopesReadsTheOrgPartition(t *testing.T) {
 		{"git-repository-scope:a", "acme/a"},
 		{"git-repository-scope:b", "Acme/b"},
 	}}}}
-	got, err := membershipstore.NewObservationStore(database).KnownScopes(context.Background(), " Acme ", " GitHub.com ")
+	got, err := membershipstore.NewObservationStore(database).KnownScopes(context.Background(), membership.Partition{Owner: " Acme ", Host: " GitHub.com "})
 	if err != nil {
 		t.Fatalf("KnownScopes() error = %v", err)
 	}
@@ -196,7 +196,7 @@ func TestObservationStoreRejectsInvalidInputWithoutWriting(t *testing.T) {
 	explicit := membership.NewExplicitSelector("explicit", "acme", nil, testPrincipal)
 	cases := map[string]func(*membership.Batch){
 		"blank selector id": func(b *membership.Batch) { b.Selector.ID = " " },
-		"unknown kind":      func(b *membership.Batch) { b.Selector.Kind = "gitlab_group" },
+		"unknown kind":      func(b *membership.Batch) { b.Selector.Kind = "bitbucket_workspace" },
 		"blank owner":       func(b *membership.Batch) { b.Selector.Owner = "" },
 		"zero evaluated_at": func(b *membership.Batch) { b.EvaluatedAt = time.Time{} },
 		"sub-second window": func(b *membership.Batch) { b.LivenessWindow = time.Millisecond },
@@ -233,7 +233,7 @@ func TestObservationStoreRejectsInvalidInputWithoutWriting(t *testing.T) {
 	}
 
 	store := membershipstore.NewObservationStore(&fake.ExecQueryer{})
-	if _, err := store.KnownScopes(context.Background(), " ", "github.com"); err == nil {
+	if _, err := store.KnownScopes(context.Background(), membership.Partition{Owner: " ", Host: "github.com"}); err == nil {
 		t.Fatal("KnownScopes(blank) error = nil, want non-nil")
 	}
 	if _, err := store.Observations(context.Background(), ""); err == nil {
@@ -245,7 +245,7 @@ func TestObservationStoreRequiresDatabase(t *testing.T) {
 	t.Parallel()
 
 	store := membershipstore.NewObservationStore(nil)
-	if _, err := store.KnownScopes(context.Background(), "acme", ""); err == nil {
+	if _, err := store.KnownScopes(context.Background(), membership.Partition{Owner: "acme"}); err == nil {
 		t.Fatal("KnownScopes() error = nil without a database")
 	}
 	if _, err := store.Observations(context.Background(), testSelector.ID); err == nil {

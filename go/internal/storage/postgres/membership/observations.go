@@ -57,6 +57,24 @@ WHERE source_system = 'git'
   AND ($2 = '' OR lower(split_part(payload->>'remote_url', '/', 3)) = $2)
 `
 
+// knownScopesPrefixQuery reads one nested GitLab group's git repository
+// scopes without locking them. $1 is the lowercased group full path plus a
+// trailing slash, so acme/platform/ never matches acme/platformer. It uses
+// starts_with instead of LIKE because _ is a LIKE wildcard and legal in
+// GitLab paths. repository_ref scopes stay excluded by scope_kind, and the
+// host predicate matches knownScopesQuery. See the prove-first evidence in
+// the store README ("Performance Evidence (#7765)"): no index serves this
+// read, by measurement.
+const knownScopesPrefixQuery = `
+SELECT scope_id, payload->>'repo_slug'
+FROM ingestion_scopes
+WHERE source_system = 'git'
+  AND scope_kind = 'repository'
+  AND collector_kind = 'git'
+  AND starts_with(lower(payload->>'repo_slug'), $1)
+  AND ($2 = '' OR lower(split_part(payload->>'remote_url', '/', 3)) = $2)
+`
+
 // observationsQuery reads every stored observation of one selector.
 const observationsQuery = `
 SELECT scope_id, state, github_repo_id, last_listed_at, state_since,
@@ -145,21 +163,26 @@ func NewObservationStore(database db.ExecQueryer) ObservationStore {
 	return ObservationStore{database: database}
 }
 
-// KnownScopes returns the git repository scopes whose repo slug org equals
-// owner, compared case-insensitively, and, when host is non-empty, whose
-// stored remote_url host equals host (a scope without a remote_url then never
-// matches). owner and host are trimmed and lowercased; a blank owner is
-// rejected before any query.
-func (s ObservationStore) KnownScopes(ctx context.Context, owner, host string) ([]membership.KnownScope, error) {
+// KnownScopes returns the git repository scopes in partition: first-segment
+// owner match, or path-prefix match for a nested group partition, compared
+// case-insensitively. When the partition host is non-empty the scope's
+// stored remote_url host must equal it (a scope without a remote_url then
+// never matches). Owner and host are trimmed and lowercased; a blank owner
+// is rejected before any query.
+func (s ObservationStore) KnownScopes(ctx context.Context, partition membership.Partition) ([]membership.KnownScope, error) {
 	if s.database == nil {
 		return nil, errors.New("repository selection store database is required")
 	}
-	owner = strings.ToLower(strings.TrimSpace(owner))
+	owner := strings.ToLower(strings.TrimSpace(partition.Owner))
 	if owner == "" {
 		return nil, errors.New("read known repository scopes: owner must not be blank")
 	}
-	host = strings.ToLower(strings.TrimSpace(host))
-	rows, err := s.database.QueryContext(ctx, knownScopesQuery, owner, host)
+	host := strings.ToLower(strings.TrimSpace(partition.Host))
+	query, arg := knownScopesQuery, owner
+	if partition.PathPrefix {
+		query, arg = knownScopesPrefixQuery, owner+"/"
+	}
+	rows, err := s.database.QueryContext(ctx, query, arg, host)
 	if err != nil {
 		return nil, fmt.Errorf("read known repository scopes: %w", err)
 	}
@@ -297,7 +320,7 @@ func validateBatch(batch membership.Batch) ([]membership.Row, int64, error) {
 	switch {
 	case strings.TrimSpace(batch.Selector.ID) == "":
 		return nil, 0, errors.New("selector id must not be blank")
-	case batch.Selector.Kind != membership.KindGitHubOrg && batch.Selector.Kind != membership.KindExplicit:
+	case batch.Selector.Kind != membership.KindGitHubOrg && batch.Selector.Kind != membership.KindExplicit && batch.Selector.Kind != membership.KindGitLabGroup:
 		return nil, 0, fmt.Errorf("unsupported selector kind %q", batch.Selector.Kind)
 	case strings.TrimSpace(batch.Selector.Owner) == "":
 		return nil, 0, errors.New("selector owner must not be blank")
