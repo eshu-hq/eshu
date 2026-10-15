@@ -201,6 +201,14 @@ nil). The reader pool keeps its own fixed `privateError` texts.
 
 ## Freshness and failure
 
+Snapshot sets are deny-by-default (#7957): below PostgreSQL 18.7, or on any
+other major, only a `server_version` declared exactly in
+`ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS` may export. The build rides the
+identity statement every dial and borrow already runs; an unqualified pool or
+member refuses with `db.ErrSnapshotExportUnqualified` before any borrow, and
+each set connection is rechecked before `BEGIN`. See
+[read routing](../../../../docs/public/deployment/postgres-read-routing.md#shared-snapshot-export-qualification).
+
 Startup validates a writable primary and its system/database identity, reads
 its postmaster-start microseconds (incarnation), insert timeline, and flushed
 WAL position on the same connection, closes it, and publishes that identity.
@@ -370,7 +378,10 @@ operator must bind the DSN to the intended standby and verify its instance
 identity outside this test.
 
 The disposable live tests take `ESHU_READER_TEST_WRITER_DSN` and
-`ESHU_READER_TEST_READER_DSN`. `TestSingleReaderMemberKeepsSnapshotAndFailsClosed`
+`ESHU_READER_TEST_READER_DSN` and declare the fixture's own build; the #7957
+`snapshot_export_standby_test.go` proofs also run it undeclared, and the
+`ESHU_READER_TEST_SNAPSHOT_EXPORT_SMOKE=1` consistency smoke needs a qualified
+build. `TestSingleReaderMemberKeepsSnapshotAndFailsClosed`
 uses those two endpoints to check one direct standby, four connections on one
 snapshot, zero leaked leases, and refusal after that member's frozen epoch
 changes. Candidate tests additionally take complete

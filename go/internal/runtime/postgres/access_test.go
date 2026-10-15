@@ -63,6 +63,7 @@ func testAccess(t *testing.T, reader string, readMax ...int) *Access {
 		}
 	}
 	cfg.ReplayTimeout = 500 * time.Millisecond
+	declareFixtureSnapshotExport(t, &cfg)
 	access, err := Open(context.Background(), cfg, &observed{seen: map[Stage]map[Outcome]int{}})
 	if err != nil {
 		t.Fatal(err)

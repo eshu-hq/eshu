@@ -195,6 +195,7 @@ func TestReaderMembersSnapshotSetsStayOnOnePhysicalReader(t *testing.T) {
 	cfg.ReadMaxOpenConns = 8
 	cfg.ReadMaxIdleConns = 8
 	cfg.ReplayTimeout = 150 * time.Millisecond
+	declareFixtureSnapshotExport(t, &cfg)
 	access, err := Open(context.Background(), cfg, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -348,6 +349,7 @@ func TestReaderMembersRejectPrimaryAsStandby(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg.ReadMembers = []ReaderMember{{ID: "standby", Host: standby.Host, Port: standby.Port}, {ID: "wrong", Host: primary.Host, Port: primary.Port}}
+	declareFixtureSnapshotExport(t, &cfg)
 	access, err := Open(context.Background(), cfg, nil)
 	if access != nil {
 		_ = access.Close()
@@ -402,6 +404,7 @@ func openFleetAccess(t *testing.T, replayTimeout time.Duration, maxConns int) *A
 	cfg.ReadMaxOpenConns = maxConns
 	cfg.ReadMaxIdleConns = maxConns
 	cfg.ReplayTimeout = replayTimeout
+	declareFixtureSnapshotExport(t, &cfg)
 	access, err := Open(context.Background(), cfg, nil)
 	if err != nil {
 		t.Fatal(err)

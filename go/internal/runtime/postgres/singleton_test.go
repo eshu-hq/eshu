@@ -48,6 +48,7 @@ func TestSingleReaderMemberKeepsSnapshotAndFailsClosed(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	declareFixtureSnapshotExport(t, &cfg)
 	access, err := Open(ctx, cfg, nil)
 	if err != nil {
 		t.Fatalf("open singleton fleet: %v (stale=%t unavailable=%t topology=%t deadline=%t)",
@@ -168,6 +169,7 @@ func TestSingleReaderMemberSnapshotSetupCost(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	declareFixtureSnapshotExport(t, &cfg)
 	legacy, err := Open(ctx, cfg, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -32,6 +32,16 @@
 // exported snapshots are server-local.
 // No failed fence falls back to the writer or executes business SQL.
 //
+// Snapshot sets are refused with db.ErrSnapshotExportUnqualified (#7957)
+// unless the reader build is qualified for pg_export_snapshot: PostgreSQL 18 at
+// or above 18.7, or an exact server_version declared in
+// Config.SnapshotExportBuilds (ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS). The
+// build rides the identity statement every dial and borrow already runs, an
+// atomic verdict per pool or fleet member lets the refusal happen before any
+// borrow, gate wait, or reservation, and each borrowed set connection is
+// rechecked against its own build before BEGIN. MaxReadConnections stays pure
+// capacity and there is no fallback.
+//
 // NewSnapshotStatusReader confines each status read to one such snapshot and
 // runs SET LOCAL jit = off in it before any status statement, as control SQL
 // that adds no business query event. The setting ends with the transaction;

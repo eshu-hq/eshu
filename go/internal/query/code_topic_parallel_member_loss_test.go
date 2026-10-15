@@ -398,6 +398,7 @@ VALUES ('entity-a', 'repo-a', 'src/alpha.go', 'Function', 'alphaHandler', 1, 2, 
 		{ID: "first", Host: firstConfig.Host, Port: firstConfig.Port},
 		{ID: "second", Host: secondConfig.Host, Port: secondConfig.Port},
 	}
+	cfg.SnapshotExportBuilds = codeTopicFixtureSnapshotExportBuilds(t, first)
 	access, err := runtimepostgres.Open(ctx, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
