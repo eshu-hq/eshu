@@ -39,6 +39,17 @@ func countRetentionSearchIndex(t *testing.T, ctx context.Context, database *sql.
 	return terms, documents
 }
 
+// retentionEventSearchIndexRows sums one table's rows over every retention
+// event in the schema.
+func retentionEventSearchIndexRows(t *testing.T, ctx context.Context, database *sql.DB, table string) int64 {
+	t.Helper()
+	var rows int64
+	if err := database.QueryRowContext(ctx, `SELECT COALESCE(sum((row_counts->>$1)::bigint), 0) FROM generation_retention_events`, table).Scan(&rows); err != nil {
+		t.Fatalf("read event row_counts: %v", err)
+	}
+	return rows
+}
+
 // TestGenerationRetentionPredeletesSearchIndexBeforeTheScopeLockLive is the
 // #7427 PR1 behavior proof. A prunable superseded generation owns 45,000
 // terms and 4,500 documents. Before #7427 they were deleted only by the
@@ -85,6 +96,14 @@ func TestGenerationRetentionPredeletesSearchIndexBeforeTheScopeLockLive(t *testi
 	if _, ok := result.PhaseDurations["predelete_search_index"]; !ok {
 		t.Fatalf("PhaseDurations = %v, want predelete_search_index", result.PhaseDurations)
 	}
+	// The pruned generation's retention event must carry the rows the
+	// counter adds for the search index tables (metrics-reducer-storage.md:
+	// a batch's event counts sum to what the counter adds per table).
+	for _, table := range []string{"eshu_search_index_terms", "eshu_search_index_documents"} {
+		if eventRows := retentionEventSearchIndexRows(t, ctx, database, table); eventRows != result.RowsPruned[table] {
+			t.Fatalf("event row_counts[%s] = %d, RowsPruned[%s] = %d: the event must record the pre-deleted rows", table, eventRows, table, result.RowsPruned[table])
+		}
+	}
 	if terms, documents := countRetentionSearchIndex(t, ctx, database, scopeID, activeID); terms != 9000 || documents != 4500 {
 		t.Fatalf("active generation has %d terms, %d documents, want 9000 and 4500", terms, documents)
 	}
@@ -121,6 +140,9 @@ func TestGenerationRetentionAdmitsOnlyDrainedGenerationsLive(t *testing.T) {
 	if remaining := remainingScopeGenerations(t, ctx, database, []string{oldID}); !remaining[oldID] {
 		t.Fatal("undrained generation was pruned")
 	}
+	if events := retentionEventSearchIndexRows(t, ctx, database, "eshu_search_index_terms"); events != 0 {
+		t.Fatalf("undrained pass wrote events with %d terms rows, want none: its pre-deleted rows are counter-only", events)
+	}
 
 	policy.SearchIndexPredeleteRowCap = 0
 	second, err := store.PruneSupersededGenerations(ctx, policy)
@@ -132,6 +154,9 @@ func TestGenerationRetentionAdmitsOnlyDrainedGenerationsLive(t *testing.T) {
 	}
 	if terms, documents := countRetentionSearchIndex(t, ctx, database, scopeID, oldID); terms != 0 || documents != 0 {
 		t.Fatalf("%d terms, %d documents remain, want none", terms, documents)
+	}
+	if events := retentionEventSearchIndexRows(t, ctx, database, "eshu_search_index_terms"); events != second.RowsPruned["eshu_search_index_terms"] {
+		t.Fatalf("event terms rows = %d, second pass RowsPruned = %d, want equal for the pruned generation", events, second.RowsPruned["eshu_search_index_terms"])
 	}
 	if _, ok := second.PhaseDurations[GenerationRetentionPhaseSweepSearchIndex]; !ok {
 		t.Fatalf("PhaseDurations = %v, want %s", second.PhaseDurations, GenerationRetentionPhaseSweepSearchIndex)

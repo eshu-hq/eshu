@@ -387,13 +387,17 @@ const generationRetentionSearchIndexReadMarker = "-- retention: search index pre
 // generationRetentionSearchIndexReadQuery is the shipped selection with its
 // two FOR UPDATE ... SKIP LOCKED clauses weakened to FOR NO KEY UPDATE ...
 // SKIP LOCKED, run in its own short transaction that rolls back before the
-// first pre-delete batch (#7427). It still skips, never waits for, a scope or
-// generation another retention pass or an Ack holds FOR UPDATE, so it picks
-// the set the prune's selection will pick; unlike FOR UPDATE it does not
-// conflict with the FOR KEY SHARE a concurrent fact insert's foreign-key
-// check takes, so it neither blocks ingestion nor skips a scope only because
-// an insert is in flight. Its row locks end at the rollback, so no retention
-// row lock spans a batch. A test pins the derivation.
+// first pre-delete batch (#7427). Like the selection it skips, never waits
+// for, a scope or generation another retention pass or an Ack holds FOR
+// UPDATE. Unlike the selection it does not conflict with the FOR KEY SHARE a
+// concurrent fact insert's foreign-key check takes, so it never blocks
+// ingestion. That also means it is not guaranteed to pick the set the
+// prune's selection picks: while inserts are in flight the read can spend
+// BatchGenerationLimit slots on scopes the prune's FOR UPDATE then skips,
+// and the prune's replacement scopes are then undrained and skipped as
+// search_index_undrained until a later pass (a throughput cost; a generation
+// is never pruned undrained). Its row locks end at the rollback, so no
+// retention row lock spans a batch. A test pins the derivation.
 var generationRetentionSearchIndexReadQuery = searchIndexCandidateReadQuery(generationRetentionCandidateQuery)
 
 // generationRetentionSearchIndexReadWorkMemStatement is the selection's
@@ -562,9 +566,38 @@ func (si *generationRetentionSearchIndex) admit(
 	return admitted, chunkTarget, nil
 }
 
+// eventCounts returns the per-generation event row counts with each
+// generation's pre-deleted search index rows added: the recount under the
+// lock runs after the pre-delete and sees those tables empty, so without
+// this a pruned generation's retention event would record 0 rows the
+// counter (finish) still adds. It copies every inner map it changes; the
+// batch's row-limit totals were already computed from the recount.
+func (si *generationRetentionSearchIndex) eventCounts(perGeneration map[string]map[string]int64) map[string]map[string]int64 {
+	out := make(map[string]map[string]int64, len(perGeneration))
+	for generationID, tables := range perGeneration {
+		out[generationID] = tables
+	}
+	for _, candidate := range si.admitted {
+		report, ok := si.pass.Report(candidate.generationID)
+		if !ok || report.Rows() == 0 {
+			continue
+		}
+		tables := make(map[string]int64, len(out[candidate.generationID])+2)
+		for table, rows := range out[candidate.generationID] {
+			tables[table] = rows
+		}
+		tables["eshu_search_index_terms"] += report.TermsDeleted
+		tables["eshu_search_index_documents"] += report.DocumentsDeleted
+		out[candidate.generationID] = tables
+	}
+	return out
+}
+
 // finish adds the pre-delete's rows to RowsPruned once pruneCandidates has
 // rebuilt it from the batch counts (the recount sees the drained tables
-// empty), and logs every admitted generation the prune did not then remove:
+// empty). Rows of generations the prune removed also sit in their events
+// (eventCounts); rows pre-deleted for a generation this pass did not prune
+// appear only on the counter, because no event is written for it. It logs every admitted generation the prune did not then remove:
 // a re-lock miss, a row-limit refit or a chunk drain. Its search index rows
 // are already gone, which is harmless for a terminal superseded generation;
 // a later pass prunes the rest.

@@ -4,13 +4,16 @@
 package indexretention
 
 // BatchRows is the rows one pre-delete batch transaction removes from one
-// table. Measured on PostgreSQL 18.6 against a 4.1M-row terms leaf (#7427):
-// the ctid-array keyset batch at 20,000 rows cost 1.12 us and 3.0 buffers per
-// deleted row, 23 ms and 1.08 MB of WAL per batch, with zero full-page images,
-// and the first and a late batch cost the same. One batch therefore holds its
-// row locks and the per-generation advisory lock for tens of milliseconds, so
-// a writer or a concurrent pass waits at most that long. There is no knob:
-// a different size needs a new measurement.
+// table. Measured for the shipped terms statement on PostgreSQL 18.6 under a
+// forced generic plan (#7427 evidence note): a 20,000-row batch read
+// 80,179-80,688 shared buffers (about 4 per row: 1 for the keyset page, 3 for
+// the ctid delete), wrote 20,000 WAL records (1.08 MB, up to 5.2 MB when the
+// first touch after a checkpoint writes full-page images), and ran 36-41 ms
+// under EXPLAIN ANALYZE; a late batch cost the same. In a
+// committed loop over a 400,000-row generation the batches ran p50 28 ms. One
+// batch therefore holds its row locks and the per-generation advisory lock
+// for tens of milliseconds. There is no knob: a different size needs a new
+// measurement.
 const BatchRows = 20000
 
 // LockClass is the first key of the two-integer advisory lock that keeps a
@@ -50,8 +53,11 @@ WHERE pg_try_advisory_xact_lock(7427, hashtext(candidate.generation_id))
 // eligibleGenerationCTE re-reads, in the batch's own statement and snapshot,
 // that the generation is still a terminal superseded generation, is not the
 // scope's active generation, and has no claimed, running, or retrying work
-// item. When it returns no row the batch deletes nothing. $1 scope id, $2
-// generation id.
+// item. The live-work test matches the retention selection's live_work
+// exactly (generation_id and status, no scope_id): fact_work_items carries
+// no (scope_id, generation_id) foreign key, so a work row's scope_id is not
+// guaranteed to equal its generation's. When it returns no row the batch
+// deletes nothing. $1 scope id, $2 generation id.
 const eligibleGenerationCTE = `eligible AS MATERIALIZED (
     SELECT 1 AS ok
     FROM scope_generations AS generation
@@ -65,8 +71,7 @@ const eligibleGenerationCTE = `eligible AS MATERIALIZED (
       AND NOT EXISTS (
           SELECT 1
           FROM fact_work_items AS work
-          WHERE work.scope_id = $1
-            AND work.generation_id = $2
+          WHERE work.generation_id = $2
             AND work.status IN ('claimed', 'running', 'retrying')
       )
 )`

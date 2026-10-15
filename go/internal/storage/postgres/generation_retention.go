@@ -84,12 +84,12 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	if err := policy.validate(); err != nil { // fail closed before locking anything (#7585)
 		return GenerationRetentionResult{}, err
 	}
-	start := time.Now()
 	now := s.now()
 	searchIndex, err := s.predeleteSearchIndex(ctx, beginner, now, policy) // committed batches, before Begin (#7427)
 	if err != nil {
 		return GenerationRetentionResult{}, err
 	}
+	start := time.Now() // Duration is the prune transaction; the pre-delete has its own phases
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: begin: %w", err)
@@ -147,7 +147,7 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 		}
 	}
 	if len(candidates) > 0 {
-		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, eventRowCounts, policy, now, &result); err != nil {
+		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, searchIndex.eventCounts(eventRowCounts), policy, now, &result); err != nil {
 			return GenerationRetentionResult{}, err
 		}
 	}

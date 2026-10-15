@@ -82,3 +82,31 @@ func TestGenerationRetentionSkipsUndrainedAndBusyCandidates(t *testing.T) {
 		}
 	}
 }
+
+// TestGenerationRetentionDurationExcludesThePredelete pins #7427 review F4:
+// Duration (eshu_dp_generation_retention_duration_seconds) stays the prune
+// transaction's time; the pre-delete's committed batches are reported only
+// through their own phases and the batches histogram.
+func TestGenerationRetentionDurationExcludesThePredelete(t *testing.T) {
+	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-10 * 24 * time.Hour)
+	database := &generationRetentionFakeDB{
+		candidateRows:       [][]any{{"scope-a", "gen-a", "repository", old, old, false}},
+		countRows:           [][]any{{"gen-a", "fact_records", int64(1)}},
+		predeleteBatchDelay: 40 * time.Millisecond,
+	}
+	store := NewGenerationRetentionStore(database)
+	store.Now = func() time.Time { return now }
+	result, err := store.PruneSupersededGenerations(context.Background(), DefaultGenerationRetentionPolicy())
+	if err != nil {
+		t.Fatalf("PruneSupersededGenerations() error = %v", err)
+	}
+	predelete := result.PhaseDurations[GenerationRetentionPhasePredeleteSearchIndex] +
+		result.PhaseDurations[GenerationRetentionPhaseSweepSearchIndex]
+	if predelete < 80*time.Millisecond {
+		t.Fatalf("pre-delete phases = %v, want at least the two 40ms batches", predelete)
+	}
+	if result.Duration >= 40*time.Millisecond {
+		t.Fatalf("Duration = %v includes the pre-delete (%v); want the prune transaction only", result.Duration, predelete)
+	}
+}

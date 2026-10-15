@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -80,6 +81,9 @@ type generationRetentionFakeDB struct {
 	// predeleteLockBusy names generations whose advisory lock the fake
 	// reports as held by another session.
 	predeleteLockBusy []string
+	// predeleteBatchDelay makes every pre-delete batch statement take this
+	// long, so a test can tell pre-delete time from prune time.
+	predeleteBatchDelay time.Duration
 }
 
 // isSearchIndexPredeleteStatement reports whether a statement belongs to the
@@ -110,6 +114,7 @@ func (database *generationRetentionFakeDB) answerSearchIndexPredelete(query stri
 		id, _ := args[0].(string)
 		return &queueFakeRows{rows: [][]any{{!slices.Contains(database.predeleteLockBusy, id)}}}, nil
 	case strings.Contains(query, "pre-delete batch"):
+		time.Sleep(database.predeleteBatchDelay)
 		if len(database.predeleteBatchRows) > 0 {
 			row := database.predeleteBatchRows[0]
 			database.predeleteBatchRows = database.predeleteBatchRows[1:]
