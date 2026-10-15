@@ -476,13 +476,19 @@ type Instruments struct {
 	ReconcileParseSkipDecisions metric.Int64Counter
 	// PreparseIdentityDropped counts snapshots and fact streams that kept the
 	// pre-parse identity off a generation, by closed reason (review F-2, F-7).
-	PreparseIdentityDropped        metric.Int64Counter
-	ReconciliationDriftRetractions metric.Int64Counter
-	ReconciliationConvergence      metric.Int64Counter
-	DocumentationEntityMentions    metric.Int64Counter
-	DocumentationClaimCandidates   metric.Int64Counter
-	DocumentationClaimsSuppressed  metric.Int64Counter
-	DocumentationDriftFindings     metric.Int64Counter
+	PreparseIdentityDropped metric.Int64Counter
+	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
+	// the parse while carrying the active generation's recorded stream drops
+	// (#8185): every recorded path still failed to open, so the skip replays
+	// the same incomplete facts. One increment per skip, no labels — the
+	// per-interval rate is the operator's count of scopes in drop debt.
+	ReconcileParseSkipPersistentDrops metric.Int64Counter
+	ReconciliationDriftRetractions    metric.Int64Counter
+	ReconciliationConvergence         metric.Int64Counter
+	DocumentationEntityMentions       metric.Int64Counter
+	DocumentationClaimCandidates      metric.Int64Counter
+	DocumentationClaimsSuppressed     metric.Int64Counter
+	DocumentationDriftFindings        metric.Int64Counter
 	// CodeFingerprintEntities counts function entities fingerprinted or
 	// skipped by outcome, skip reason, and language (#6835).
 	CodeFingerprintEntities                   metric.Int64Counter

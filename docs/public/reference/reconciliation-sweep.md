@@ -174,12 +174,12 @@ and stamps; later sweeps compare. The ingester and collector-git run the skip on
 both their scheduled and webhook selectors; bootstrap-index only stamps. A
 snapshot that fell back from SCIP or could not read a file stamps no identity,
 so the next sweep reads `identity_absent` and parses again. A generation whose
-fact stream dropped a file it could not read carries no pre-parse identity and
-is marked `stream_dropped`. The next reconcile of that scope parses (no
-identity) and stores a new generation instead of re-opening the marked one, so
-the dropped fact is present again after one sweep. A drop is logged at WARN
-(`git_snapshot_preparse_identity_dropped`) and counted by reason
-(`eshu_dp_collector_preparse_identity_dropped_total{reason}`).
+fact stream dropped a file it could not read keeps its identity, is marked
+`stream_dropped`, and records the dropped paths (`stream_dropped_paths`, at most
+32, #8185). The next equal snapshot re-opens each recorded path first: a path
+that reads now parses to heal, still-failing paths keep the skip (counter
+`eshu_dp_collector_reconcile_parse_skip_persistent_drops_total`); drops still
+log WARN `git_snapshot_preparse_identity_dropped` and count by reason.
 
 | Condition | Result | `outcome` |
 | --- | --- | --- |
@@ -192,6 +192,7 @@ the dropped fact is present again after one sweep. A drop is logged at WARN
 | the scope already skipped N-1 times since its last parse | parse | `valve_due` |
 | the checkout has untracked or modified files | parse | `dirty_tree` |
 | the tree check or the store call fails, or the store answers with an unknown reason | parse | `read_error` |
+| a recorded stream drop opens again (the file reads now, so the parse would heal the generation) | parse, before the decision runs | no `outcome`; INFO `git_reconcile_parse_skip_refused_drop_returned` |
 | the store fence refuses the re-open (another generation is active, or the commit or identity changed) | parse in the same cycle | `reprojection_superseded` |
 | the re-projection is already open or leased | no parse, nothing stamped | `reprojection_pending` |
 | otherwise | re-project the active generation, no parse | `skipped` |

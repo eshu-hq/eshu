@@ -322,10 +322,18 @@ type ScopeGeneration struct {
 	// PreparseIdentityDropped, when set, is true after the fact stream has
 	// drained if the stream dropped a file it could not read (review F-7,
 	// ruling a9-143.14). The facts of such a generation may differ from a later
-	// identical run, so the store keeps PreparseIdentity off it: it clears the
-	// stored identity before the commit and stamps none on a re-open. A pointer
-	// keeps ScopeGeneration comparable; it is never persisted.
+	// identical run, so the store records the drop in the payload instead of
+	// trusting the identity blindly: the identity stays (a persistent drop
+	// recurs identically, so the next equal snapshot may still skip, #8185),
+	// and the skip probe re-checks PreparseIdentityDroppedPaths first. A
+	// pointer keeps ScopeGeneration comparable; it is never persisted.
 	PreparseIdentityDropped *atomic.Bool `json:"-"`
+	// PreparseIdentityDroppedPaths accumulates the repository-relative paths
+	// the fact stream dropped (#8185). The store persists Sorted in the
+	// generation payload next to the stream_dropped mark; the collector's
+	// skip probe reads them back through the active generation. A pointer
+	// keeps ScopeGeneration comparable; it is never persisted directly.
+	PreparseIdentityDroppedPaths *StreamDroppedPaths `json:"-"`
 }
 
 // Validate checks the generation fields and lifecycle status.

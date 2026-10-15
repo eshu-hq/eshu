@@ -5,12 +5,32 @@ package postgres
 
 import (
 	"context"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
+
+// fullReconcileStatesEqual reports whether two FullReconcileState values
+// carry the same sweep view. The recorded drop paths (#8185) keep the struct
+// from being == comparable, so the comparison walks every field by
+// reflection — a field added later is covered without updating this helper —
+// with the paths compared by value so nil and empty compare equal.
+func fullReconcileStatesEqual(got, want scope.FullReconcileState) bool {
+	gotValue, wantValue := reflect.ValueOf(got), reflect.ValueOf(want)
+	for i := 0; i < gotValue.NumField(); i++ {
+		if gotValue.Type().Field(i).Name == "ActiveStreamDroppedPaths" {
+			continue
+		}
+		if !reflect.DeepEqual(gotValue.Field(i).Interface(), wantValue.Field(i).Interface()) {
+			return false
+		}
+	}
+	return slices.Equal(got.ActiveStreamDroppedPaths, want.ActiveStreamDroppedPaths)
+}
 
 func TestUpsertScopeGenerationQueryPersistsIsDelta(t *testing.T) {
 	t.Parallel()
@@ -30,7 +50,7 @@ func TestFullReconcileStateScansBothProbes(t *testing.T) {
 	latest := time.Date(2026, 9, 27, 11, 30, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{
 		projected, projected, nil, nil, nil, latest, "pending", false, "sha-latest", true,
-		"gen-active", false, "sha-active", "preparse:v1:x", int64(3),
+		"gen-active", false, "sha-active", "preparse:v1:x", int64(3), `["gone.yml", "a.py"]`, false,
 	}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
@@ -45,8 +65,9 @@ func TestFullReconcileStateScansBothProbes(t *testing.T) {
 		LatestFullSourceCommitSHA: "sha-latest", LatestFullWorkLive: true,
 		ActiveGenerationID: "gen-active", ActiveCommitSHA: "sha-active",
 		ActivePreparseIdentity: "preparse:v1:x", ActivePreparseSkips: 3,
+		ActiveStreamDroppedPaths: []string{"a.py", "gone.yml"},
 	}
-	if got != want {
+	if !fullReconcileStatesEqual(got, want) {
 		t.Fatalf("FullReconcileState() = %+v, want %+v", got, want)
 	}
 
@@ -60,6 +81,7 @@ func TestFullReconcileStateScansBothProbes(t *testing.T) {
 		"ORDER BY attempt.ingested_at DESC, attempt.generation_id DESC",
 		"pointed.generation_id = pointer.active_generation_id",
 		"payload ->> 'preparse_identity'",
+		"payload ->> 'stream_dropped_paths'",
 	} {
 		if !strings.Contains(q, fragment) {
 			t.Fatalf("fullReconcileStateQuery missing %q:\n%s", fragment, q)
@@ -72,7 +94,7 @@ func TestFullReconcileStateZeroWhenNoFullGeneration(t *testing.T) {
 
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{
 		nil, nil, nil, nil, nil, nil, nil, false, "", false,
-		"", false, "", "", int64(0),
+		"", false, "", "", int64(0), "[]", false,
 	}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
@@ -80,7 +102,7 @@ func TestFullReconcileStateZeroWhenNoFullGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FullReconcileState() error = %v", err)
 	}
-	if got != (scope.FullReconcileState{}) {
+	if !fullReconcileStatesEqual(got, scope.FullReconcileState{}) {
 		t.Fatalf("FullReconcileState() = %+v, want zero state", got)
 	}
 }
@@ -95,7 +117,7 @@ func TestFullReconcileStateBlankScopeDoesNotQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FullReconcileState() error = %v", err)
 	}
-	if got != (scope.FullReconcileState{}) {
+	if !fullReconcileStatesEqual(got, scope.FullReconcileState{}) {
 		t.Fatalf("FullReconcileState() = %+v, want zero state", got)
 	}
 	if len(queryer.queries) != 0 {
