@@ -364,32 +364,7 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 	if r.index >= len(r.rows) {
 		return errors.New("scan called without row")
 	}
-	row := r.rows[r.index]
-	// Reducer claim rows gained a target-only claim epoch between attempt_count
-	// and created_at. Older unrelated-domain fixtures intentionally omit it;
-	// synthesize the zero opt-out value while target-domain fixtures exercise
-	// the explicit ninth column.
-	if len(dest) == 9 && len(row) == 8 {
-		row = append(row[:5:5], append([]any{int64(0)}, row[5:]...)...)
-	}
-	// Reducer claim rows now also return the persisted last_attempt_at token
-	// between cycle_started_at and payload. Older fixtures predate that output;
-	// use their cycle anchor as an explicit timestamp so they remain focused on
-	// the queue behavior they were written to cover. Dedicated claim-fence tests
-	// provide a distinct token and assert it exactly.
-	if len(dest) == 11 && len(row) == 10 {
-		row = append(row[:9:9], append([]any{row[8]}, row[9:]...)...)
-	}
-	// Retention candidate rows carry ten columns: the #7981 identity triple
-	// then the #7802 delta_protected flag. Six-column fixtures zero-fill the
-	// triple (a zero identity never matches) and the flag; nine-column
-	// fixtures staged before the flag existed zero-fill only the flag.
-	if len(dest) == 10 && len(row) == 6 {
-		row = append(row[:6:6], "", false, "", false)
-	}
-	if len(dest) == 10 && len(row) == 9 {
-		row = append(row[:9:9], false)
-	}
+	row := padQueueFakeRow(r.rows[r.index], len(dest))
 	if len(dest) != len(row) {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
 	}
