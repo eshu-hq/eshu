@@ -8,9 +8,10 @@
 -- WHAT GOES WRONG TODAY. The table reaches fact_records only through its
 -- per-fact fact_id foreign key (ON DELETE CASCADE), so a retention prune
 -- fires one referential-integrity trigger per deleted fact (1.5M calls for a
--- 1.5M-fact generation). #7420 replaces that cascade with an explicit
--- DELETE ... WHERE scope_id = $1 AND generation_id = $2 before the
--- generation delete, and a page delete that also binds the page's fact ids.
+-- 1.5M-fact generation). #7420 PR1 adds explicit deletes; PR2 drops the
+-- cascade. The deletes are DELETE ... WHERE scope_id = $1 AND generation_id
+-- = $2 before the generation delete, and a page delete that also binds the
+-- page's fact ids.
 -- The existing indexes cannot serve those predicates: the primary key leads
 -- with fact_id and the lookup index with (ecosystem, package_name), so the
 -- generation delete plans as a sequential scan of the whole table (measured

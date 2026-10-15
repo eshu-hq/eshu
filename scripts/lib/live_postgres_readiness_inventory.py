@@ -202,6 +202,7 @@ PACKAGES = {
         "go/internal/storage/postgres/generation_retention_fact_keys_live_test.go": (
             "TestGenerationRetentionNormalPruneLeavesNoOrphanFactKeysLive",
             "TestGenerationRetentionChunkDrainLeavesNoOrphanFactKeysLive",
+            "TestGenerationRetentionRefusesWithoutValidFactKeyIndexLive",
         ),
         "go/internal/storage/postgres/generation_retention_fact_keys_plan_live_test.go": (
             "TestGenerationRetentionFactKeyStatementsPrepareLive",

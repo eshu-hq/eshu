@@ -7,9 +7,9 @@
 --
 -- WHAT GOES WRONG TODAY. Same shape as migration 181: the table reaches
 -- fact_records only through its per-fact fact_id foreign key, so a retention
--- prune fires one referential-integrity trigger per deleted fact. #7420
--- replaces that cascade with explicit deletes keyed by (scope_id,
--- generation_id), plus the page's fact ids on the over-limit chunk path. The
+-- prune fires one referential-integrity trigger per deleted fact. #7420 PR1
+-- adds explicit deletes keyed by (scope_id, generation_id), plus the page's
+-- fact ids on the over-limit chunk path; PR2 drops the cascade. The
 -- primary key leads with fact_id and the lookup index with (ecosystem,
 -- package_name), so neither serves those predicates; the page delete by
 -- fact id alone chose a sequential scan of the whole table.

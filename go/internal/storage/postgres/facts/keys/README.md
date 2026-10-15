@@ -14,7 +14,8 @@ writers fill next to `fact_records`:
 Each table references `fact_records(fact_id) ON DELETE CASCADE`. A retention
 prune of a 1.5M-fact generation fired 1.5M trigger calls per table: 7.1 s,
 5.7 s and 5.1 s of a 28.1 s transaction. With the cascade replaced by these
-set-based deletes the same transaction took 2.4 s (#7420). This package holds
+explicit deletes (set-based per generation) the same transaction took 2.4 s
+(#7420). This package holds
 the deletes; the foreign key drop follows in a separate change.
 
 ## Contract
@@ -28,6 +29,9 @@ the deletes; the foreign key drop follows in a separate change.
 - `DeletePage` deletes one chunk page's rows by `(scope_id, generation_id)`
   plus `fact_id = ANY(page)`, and returns the deleted rows by table.
 - Every statement starts with `DeleteMarker`.
+- `UnavailablePartitionIndexesSQL` names each partition index that is
+  missing, invalid or not `(scope_id, generation_id, fact_id)`; retention
+  appends it to its key index check and refuses the cycle on any name.
 
 Callers run both in their own transaction, before the fact delete.
 

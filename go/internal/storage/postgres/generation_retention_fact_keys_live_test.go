@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -192,5 +194,85 @@ func TestGenerationRetentionChunkDrainLeavesNoOrphanFactKeysLive(t *testing.T) {
 		if got := factKeyRowsFor(t, ctx, database, table, chunkNeighbor, chunkNeighbor+"-active"); got != rows {
 			t.Errorf("neighbor %s rows = %d, want %d kept", table, got, rows)
 		}
+	}
+}
+
+// TestGenerationRetentionRefusesWithoutValidFactKeyIndexLive extends the
+// #7279 refusal to the #7420 key sidecar deletes: they run under the scope
+// lock and probe each table's (scope_id, generation_id, fact_id) partition
+// index, so a dropped index, an INVALID one (what a failed concurrent build
+// of migration 181 or 182 leaves) and a valid index of the right name but
+// the wrong shape each refuse the cycle, name the index, and prune nothing.
+// Restoring the index lets the next cycle run.
+func TestGenerationRetentionRefusesWithoutValidFactKeyIndexLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
+	database, ctx := openGenerationRetentionMigratedSchema(t)
+	now := time.Now().UTC()
+	const scope, oldGen = "keys-refuse", "keys-refuse-old"
+	testfixtures.SeedScope(t, ctx, database, scope)
+	testfixtures.SeedSupersededGeneration(t, ctx, database, scope, oldGen, now.Add(-10*24*time.Hour))
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+    source_fact_key, observed_at, ingested_at, payload)
+SELECT md5($2 || '-' || n), $1, $2, 'content_entity', 'k-' || n, 'git', 'k-' || n, now(), now(), '{}'::jsonb
+FROM generate_series(1, 200) AS n`, scope, oldGen); err != nil {
+		t.Fatalf("seed facts: %v", err)
+	}
+	seedFactKeysForGeneration(t, ctx, database, scope, oldGen)
+	const manifestIndex = "package_manifest_consumption_keys_partition_idx"
+	restore := `CREATE INDEX CONCURRENTLY ` + manifestIndex + `
+    ON package_manifest_consumption_keys (scope_id, generation_id, fact_id)`
+	store := NewGenerationRetentionStore(SQLDB{DB: database})
+	store.Now = func() time.Time { return now }
+	for _, tc := range []struct {
+		name, index string
+		setup       []string
+	}{
+		{"manifest-dropped", manifestIndex, []string{"DROP INDEX " + manifestIndex}},
+		{"manifest-invalid", manifestIndex, []string{
+			// Duplicate (scope_id, generation_id) pairs make the unique
+			// concurrent build fail after it created the catalog entry,
+			// leaving indisvalid = false.
+			"DROP INDEX " + manifestIndex,
+			`CREATE UNIQUE INDEX CONCURRENTLY ` + manifestIndex + `
+    ON package_manifest_consumption_keys (scope_id, generation_id)`,
+		}},
+		{"manifest-wrong-shape", manifestIndex, []string{
+			"DROP INDEX " + manifestIndex,
+			`CREATE INDEX ` + manifestIndex + ` ON package_manifest_consumption_keys (fact_id, scope_id, generation_id)`,
+		}},
+		{"registry-dropped", "package_registry_identity_keys_partition_idx", []string{"DROP INDEX package_registry_identity_keys_partition_idx"}},
+		{"relationship-dropped", "relationship_reference_candidate_keys_partition_idx", []string{"DROP INDEX relationship_reference_candidate_keys_partition_idx"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for i, statement := range tc.setup {
+				_, err := database.ExecContext(ctx, statement)
+				expectedFailure := tc.name == "manifest-invalid" && i == 1
+				if err != nil && !expectedFailure {
+					t.Fatalf("setup %q: %v", statement, err)
+				}
+			}
+			_, err := store.PruneSupersededGenerations(ctx, chunkDrainPolicy())
+			if !errors.Is(err, ErrGenerationRetentionKeyIndexUnavailable) || !strings.Contains(err.Error(), tc.index) {
+				t.Fatalf("PruneSupersededGenerations() error = %v, want ErrGenerationRetentionKeyIndexUnavailable naming %s", err, tc.index)
+			}
+			if remaining := remainingScopeGenerations(t, ctx, database, []string{oldGen}); !remaining[oldGen] {
+				t.Fatal("refused cycle pruned the superseded generation")
+			}
+			for _, statement := range []string{
+				"DROP INDEX IF EXISTS " + tc.index,
+				strings.Replace(restore, manifestIndex, tc.index, 1),
+			} {
+				statement = strings.Replace(statement, "ON package_manifest_consumption_keys",
+					"ON "+strings.TrimSuffix(tc.index, "_partition_idx"), 1)
+				if _, err := database.ExecContext(ctx, statement); err != nil {
+					t.Fatalf("restore %s: %v", tc.index, err)
+				}
+			}
+		})
+	}
+	result, err := store.PruneSupersededGenerations(ctx, chunkDrainPolicy())
+	if err != nil || result.GenerationsPruned != 1 {
+		t.Fatalf("PruneSupersededGenerations() after restoring the indexes = %d pruned, %v; want 1, nil", result.GenerationsPruned, err)
 	}
 }

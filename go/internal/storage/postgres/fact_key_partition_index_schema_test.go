@@ -64,3 +64,24 @@ func migrationSQLOrEmpty(name string) string {
 	}
 	return ""
 }
+
+// TestRetentionKeyIndexCheckCoversFactKeyPartitionIndexes pins the #7420
+// extension of the #7279 refusal: the one key index check statement names
+// every key sidecar partition index the explicit deletes probe, with its
+// three-column shape, so a missing or INVALID one refuses the cycle.
+func TestRetentionKeyIndexCheckCoversFactKeyPartitionIndexes(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"fact_records_content_entity_key_idx",
+		"('relationship_reference_candidate_keys_partition_idx', 'relationship_reference_candidate_keys')",
+		"('package_manifest_consumption_keys_partition_idx', 'package_manifest_consumption_keys')",
+		"('package_registry_identity_keys_partition_idx', 'package_registry_identity_keys')",
+		"ARRAY['scope_id', 'generation_id', 'fact_id']",
+		"index_state.indisvalid",
+	} {
+		if !strings.Contains(generationRetentionKeyIndexesQuery, want) {
+			t.Errorf("key index check is missing %q", want)
+		}
+	}
+}

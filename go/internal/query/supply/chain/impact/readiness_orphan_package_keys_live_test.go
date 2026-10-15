@@ -54,7 +54,10 @@ func TestReadinessIgnoresOrphanPackageKeysLive(t *testing.T) {
 		return readinessPackageConsumptionFactCount(snapshot)
 	}
 	packageQuery := ReadinessQuery{PackageID: "npm://registry.npmjs.org/lodash"}
-	orphanRepoQuery := ReadinessQuery{RepositoryID: "repository:orphan"}
+	// A package anchor takes the key arm ($20); a repository-only anchor reads
+	// facts directly and never touches the keys, so the orphan check pairs
+	// the package with the orphan's repository.
+	orphanRepoQuery := ReadinessQuery{PackageID: "npm://registry.npmjs.org/lodash", RepositoryID: "repository:orphan"}
 	if got := read(packageQuery); got != 2 {
 		t.Fatalf("baseline package.consumption fact count = %d, want 2", got)
 	}
@@ -79,8 +82,30 @@ VALUES ('orphan-registry', 'readiness-registry-default', 'readiness-registry-def
 	if got := read(orphanRepoQuery); got != 0 {
 		t.Fatalf("orphan repository package.consumption fact count = %d, want 0", got)
 	}
-	// Sensitivity: the same registry key with a live fact behind it is a
-	// second owner, so the orphan above would have mattered had it been read.
+	// Sensitivity, manifest side: the same manifest key with a live fact
+	// behind it is package.consumption evidence for repository:orphan, so the
+	// orphan above would have mattered had it been read.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+    source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+VALUES ('orphan-manifest', 'readiness-consumption-consuming-one', 'readiness-consumption-consuming-one-gen',
+        'content_entity', 'orphan-manifest', 'git', 'orphan-manifest',
+        clock_timestamp(), clock_timestamp(), FALSE,
+        jsonb_build_object('repo_id', 'repository:orphan', 'entity_type', 'Variable', 'entity_name', 'lodash',
+            'entity_metadata', jsonb_build_object('config_kind', 'dependency', 'package_manager', 'npm')))`); err != nil {
+		t.Fatalf("give the orphan manifest key a fact: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM package_manifest_consumption_key_dirty_scopes`); err != nil {
+		t.Fatalf("clear dirty scope mark: %v", err)
+	}
+	if got := read(orphanRepoQuery); got != 1 {
+		t.Fatalf("repository:orphan package.consumption fact count with a live fact = %d, want 1", got)
+	}
+	if got := read(packageQuery); got != 3 {
+		t.Fatalf("package.consumption fact count with a live fact behind the manifest key = %d, want 3", got)
+	}
+	// Sensitivity, registry side: the same registry key with a live fact
+	// behind it is a second owner, so the orphan above would have mattered.
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
     source_fact_key, observed_at, ingested_at, is_tombstone, payload)

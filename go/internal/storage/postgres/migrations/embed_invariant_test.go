@@ -79,7 +79,7 @@ import (
 // 181_fact_records_package_manifest_consumption_backfill_idx.sql; #7420 adds
 // 181_package_manifest_consumption_keys_partition_idx.sql and
 // 182_package_registry_identity_keys_partition_idx.sql.
-const goldenBootstrapDefinitionsDigest = "cdfea5fa08ce92f76657f53b649c2000ccba84bdd2a869333998f4ea7e17b03f"
+const goldenBootstrapDefinitionsDigest = "842eb960e896d3d3fc618ba794166dd03990ab75d02e304ae6f1b3245fa448ab"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

@@ -32,7 +32,9 @@ rrck 7,051.2 ms, pmck 5,710.6 ms, prik 5,055.0 ms (pg_stat_statements on the
 statements). Pre-deleting the children while keeping the foreign key saves
 only about 4%: each per-fact trigger still runs a primary-key probe that
 finds nothing. The keep-FK pre-delete theory is therefore rejected. The fix
-is the explicit set-based delete plus the foreign key drop.
+is the explicit delete, set-based per generation (3 statements per candidate,
+up to 3 x 100 under the scope lock), plus the foreign key drop. PR2 should
+measure a full 100-candidate batch of these statements under the lock.
 
 ## Site A: whole-generation prune
 
@@ -172,6 +174,22 @@ dropped in its isolated schema only (PR2's end state):
   retention, ingestion and the rebuild all lock the `ingestion_scopes` row
   first, so the child order is a second line of defense.
 
+Index refusal (#7279 extension): the deletes depend on the three partition
+indexes, and migrations run in a separate bootstrap job, so a reducer can run
+retention while a concurrent build is in progress or after one failed and left
+an INVALID index. Without the index the pmck generation delete took 1,007 ms
+(a 2,049-search skip scan) per candidate under the lock. Retention now refuses
+the cycle with `ErrGenerationRetentionKeyIndexUnavailable`
+(`failures_total{reason="key_index_unavailable"}`) when
+`relationship_reference_candidate_keys_partition_idx`,
+`package_manifest_consumption_keys_partition_idx` or
+`package_registry_identity_keys_partition_idx` is missing, invalid, or not a
+plain btree on `(scope_id, generation_id, fact_id)`
+(`TestGenerationRetentionRefusesWithoutValidFactKeyIndexLive`: dropped,
+INVALID and wrong-shape cases refuse and prune nothing; on the code before the
+check, every case returned a nil error). The rrck index is included because
+its delete has the same dependency.
+
 Fact delete sites (`TestFactRecordDeleteSitesAreKeySidecarSafe`; the seeded
 violations in `TestFactRecordDeleteGuardCatchesPlantedViolations`): retention
 `deleteScopeGenerationsForRetentionQuery` (site A, paired) and
@@ -181,7 +199,10 @@ kind-parameter retires bound to `reducer_eshu_search_document`,
 `reducer_aws_cloud_runtime_drift_finding`,
 `reducer_terraform_config_state_drift_finding` and
 `reducer_code_drifted_finding`. Ingestion deletes no facts; its writers delete
-keys by `fact_id` themselves.
+keys by `fact_id` themselves. The guard scans every non-test Go file under
+`go/`, single string literals only. The one known delete outside its reach is
+`scripts/lib/golden-corpus-vulnerability-suppression.sh` (`fact_kind`
+`vulnerability.suppression`, which owns no key sidecar rows).
 
 ## Signals
 

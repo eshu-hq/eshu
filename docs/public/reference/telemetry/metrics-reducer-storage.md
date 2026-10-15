@@ -109,11 +109,11 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 | `eshu_dp_changed_since_deltas_rows` | gauge | Planner row estimate of `changed_since_link_deltas`. |
 | `eshu_dp_changed_since_ledger_orphans` | gauge | Orphan probe by `kind`: `link` (a link naming a pruned generation or prior), `activation` (an activation of a pruned generation), `bucket_group` (bucket counts with no link). Sampled at most once a minute. Zero while every ledger writer locks the generations it names (#7127 PR-3e); non-zero only briefly for a deleted scope, so a value that persists is a writer defect. |
 
-A cleanup cycle checks that `fact_records_content_entity_key_idx` and
-`fact_records_file_key_idx` (migrations 146 and 147) are valid before it locks
-anything. Its content prunes probe those indexes once per candidate key; without
-them each probe would scan `fact_records` while the scope locks are held. When
-either index is missing, invalid (a failed concurrent build), or a different
+A cleanup cycle checks that `fact_records_content_entity_key_idx`,
+`fact_records_file_key_idx` (migrations 146, 147) and the three key sidecar
+`*_partition_idx` indexes (058, 181, 182; #7420) are valid before it locks
+anything; without them each probe or key delete scans its table under the scope
+locks. When any is missing, invalid (a failed concurrent build), or a different
 shape, the cycle is refused: `eshu_dp_generation_retention_failures_total{reason="key_index_unavailable"}`
 increments and the reducer logs `failure_class=generation_retention_key_index_unavailable`
 with the index name. Rebuild the index (a restart reruns the migration, which

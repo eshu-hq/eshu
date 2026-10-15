@@ -242,7 +242,9 @@
   clears manifest then registry keys, and the reversed order deadlocks
   (`TestRetentionFactKeyReversedOrderDeadlocksLive`). Keep every delete on
   the `(scope_id, generation_id, fact_id)` partition index; a fact_id-only
-  page delete plans as a sequential scan.
+  page delete plans as a sequential scan. A new sidecar's partition index
+  joins `factkeys.UnavailablePartitionIndexesSQL`, so retention refuses
+  rather than scan when it is missing or invalid.
 
 ## Evidence notes
 

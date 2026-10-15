@@ -4,11 +4,13 @@
 package postgres
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -38,9 +40,12 @@ type factDeleteSite struct {
 	pairedWith  string
 }
 
-// factDeleteSites is every fact delete statement in non-test Go under
-// go/internal/storage/postgres and go/internal/reducer, keyed by
-// "<package dir>:<const or func name>".
+// factDeleteSites is every fact delete statement in non-test Go under go/,
+// keyed by "<package dir>:<const or func name>". The guard reads single Go
+// string literals only: a statement assembled from several literals, or one
+// outside go/, is out of its reach. The one known outside delete is
+// scripts/lib/golden-corpus-vulnerability-suppression.sh (fact_kind
+// vulnerability.suppression, which owns no key sidecar rows).
 var factDeleteSites = map[string]factDeleteSite{
 	// Retention site A: the cascade from scope_generations.
 	"internal/storage/postgres:deleteScopeGenerationsForRetentionQuery": {pairedWith: "DeleteGenerations"},
@@ -72,13 +77,8 @@ func TestFactRecordDeleteSitesAreKeySidecarSafe(t *testing.T) {
 	t.Parallel()
 
 	fset := token.NewFileSet()
-	var scanned, resolve []guardSource
-	for _, root := range []string{".", "../../reducer"} {
-		scanned = append(scanned, parseGuardSources(t, fset, root)...)
-	}
-	resolve = append(resolve, scanned...)
-	resolve = append(resolve, parseGuardSources(t, fset, "../../facts")...)
-	if violations := factDeleteGuardViolations(fset, scanned, resolve, factDeleteSites); len(violations) > 0 {
+	scanned := parseGuardSources(t, fset, "../../..")
+	if violations := factDeleteGuardViolations(fset, scanned, scanned, factDeleteSites); len(violations) > 0 {
 		t.Fatalf("fact delete sites not key-sidecar safe:\n%s", strings.Join(violations, "\n"))
 	}
 }
@@ -148,7 +148,16 @@ func parseGuardSources(t *testing.T, fset *token.FileSet, root string) []guardSo
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		file, err := parser.ParseFile(fset, path, nil, 0)
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		// Parse only files that can hold a delete or a kind constant: the
+		// whole go/ tree is too large to parse on every run.
+		if !bytes.Contains(bytes.ToUpper(source), []byte("DELETE")) && !bytes.Contains(source, []byte("FactKind")) {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, source, 0)
 		if err != nil {
 			return err
 		}
