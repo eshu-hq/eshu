@@ -109,3 +109,37 @@ func TestRoutedHeadRefusesPositionalConsumption(t *testing.T) {
 		t.Fatalf("unmatched query error = %v, want a routing-gap failure", err)
 	}
 }
+
+// TestRoutedResultsMatchIntAgainstInt64Bind proves routing tolerates driver
+// conversion: a RouteArgs written as a plain int matches the int64 bind the
+// driver actually delivers, the same tolerance WantArgs already applies.
+func TestRoutedResultsMatchIntAgainstInt64Bind(t *testing.T) {
+	t.Parallel()
+
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+		{
+			Columns:   []string{"n"},
+			Rows:      [][]driver.Value{{int64(50)}},
+			RouteArgs: []driver.Value{50},
+		},
+	})
+
+	rows, err := db.QueryContext(context.Background(), "SELECT n WHERE n = $1", 50)
+	if err != nil {
+		t.Fatalf("QueryContext(limit 50) error = %v, want nil", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	if !rows.Next() {
+		t.Fatalf("QueryContext(limit 50) returned no rows, want one")
+	}
+	var got int64
+	if err := rows.Scan(&got); err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	if got != 50 {
+		t.Fatalf("routed query answered with n = %d, want 50", got)
+	}
+}

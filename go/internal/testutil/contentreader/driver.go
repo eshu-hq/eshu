@@ -9,7 +9,6 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -204,7 +203,7 @@ func routedResultIndex(results []ReaderQueryResult, args []driver.NamedValue) (i
 		}
 		matched := true
 		for j, want := range result.RouteArgs {
-			if !reflect.DeepEqual(args[j].Value, want) {
+			if !contentReaderArgEqual(args[j].Value, want) {
 				matched = false
 				break
 			}
