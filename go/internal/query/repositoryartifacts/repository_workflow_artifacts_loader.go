@@ -34,28 +34,33 @@ func BuildRepositoryWorkflowArtifacts(files []querycontract.FileContent) map[str
 	return map[string]any{"workflow_artifacts": artifacts}
 }
 
+// LoadRepositoryWorkflowArtifacts loads the anchor repository's workflow
+// artifacts. The truncated flag is true only when the nil-list fallback
+// clipped the anchor list at the window; a caller holding its own list (the
+// production path) always sees false.
 func LoadRepositoryWorkflowArtifacts(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	repoID string,
 	files []querycontract.FileContent,
-) (map[string]any, error) {
+) (map[string]any, bool, error) {
 	if reader == nil || repoID == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	candidates := files
+	truncated := false
 	if candidates == nil {
 		var err error
-		candidates, err = listAnchorCandidateFiles(ctx, reader, repoID, "workflow")
+		candidates, truncated, err = listAnchorCandidateFiles(ctx, reader, repoID, "workflow")
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
 	hydratedCandidates, err := HydrateRepositoryCandidateFiles(ctx, reader, repoID, candidates, IsGitHubActionsWorkflowFile)
 	if err != nil {
-		return nil, fmt.Errorf("hydrate workflow artifact files: %w", err)
+		return nil, false, fmt.Errorf("hydrate workflow artifact files: %w", err)
 	}
 
 	contentFiles := make([]querycontract.FileContent, 0, len(hydratedCandidates))
@@ -68,7 +73,7 @@ func LoadRepositoryWorkflowArtifacts(
 		}
 		contentFiles = append(contentFiles, file)
 	}
-	return BuildRepositoryWorkflowArtifacts(contentFiles), nil
+	return BuildRepositoryWorkflowArtifacts(contentFiles), truncated, nil
 }
 
 func IsGitHubActionsWorkflowFile(file querycontract.FileContent) bool {
@@ -96,6 +101,6 @@ func loadRepositoryWorkflowArtifacts(
 	reader querycontract.ContentStore,
 	repoID string,
 	files []querycontract.FileContent,
-) (map[string]any, error) {
+) (map[string]any, bool, error) {
 	return LoadRepositoryWorkflowArtifacts(ctx, reader, repoID, files)
 }

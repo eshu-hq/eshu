@@ -73,25 +73,25 @@ func HydrateRepositoryCandidateFiles(
 // listAnchorCandidateFiles reads the anchor repository's file list for an
 // anchor-only loader's fallback path, when the caller holds no list. It reads
 // anchorCandidateListLimit+1 rows; a row past the window clips the list to
-// the window, and the clipped file is never hydrated. In production the story,
-// context and service callers already hold the sentinel-clipped anchor list
-// and pass it in, and they disclose a cut anchor list themselves
-// (AnchorFileListTruncatedReason), so this fallback list only serves direct
-// calls.
+// the window, and the clipped file is never hydrated. The truncated flag
+// reports the clip so a direct caller can disclose the cut the same way
+// production callers do (AnchorFileListTruncatedReason). In production the
+// story, context and service callers already hold the sentinel-clipped anchor
+// list and pass it in, so this fallback list only serves direct calls.
 func listAnchorCandidateFiles(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	repoID string,
 	purpose string,
-) ([]querycontract.FileContent, error) {
+) ([]querycontract.FileContent, bool, error) {
 	files, err := reader.ListRepoFiles(ctx, repoID, anchorCandidateListLimit+1)
 	if err != nil {
-		return nil, fmt.Errorf("list %s artifact files: %w", purpose, err)
+		return nil, false, fmt.Errorf("list %s artifact files: %w", purpose, err)
 	}
 	if len(files) > anchorCandidateListLimit {
-		files = files[:anchorCandidateListLimit]
+		return files[:anchorCandidateListLimit], true, nil
 	}
-	return files, nil
+	return files, false, nil
 }
 
 // selectHydrationIndexes returns the positions of every file that satisfies

@@ -30,8 +30,9 @@
 - The anchor-only loaders (controller, runtime, workflow) have no silent bound
   either since the #7951 follow-up: `HydrateRepositoryCandidateFiles` reads the
   whole list window in `GetFileContents` chunks, and the fallback lists read
-  `anchorCandidateListLimit+1` rows and clip to the window. Keep both, and the
-  `anchor_loader_bounds_test.go` pair that pins them.
+  `anchorCandidateListLimit+1` rows, clip to the window, and report the clip
+  via the propagated truncated flag (#8157). Keep all three, and the
+  `anchor_loader_bounds_test.go` bounds that pin them.
 - Artifact predicates feed access decisions (`filter...ForAccess` callers);
   keep the fail-closed behavior and bounded limits exactly as they are.
 

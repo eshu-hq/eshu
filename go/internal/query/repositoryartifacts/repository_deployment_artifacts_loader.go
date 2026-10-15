@@ -13,6 +13,11 @@ import (
 // anchor repository (config, controller, CloudFormation, runtime and workflow)
 // and of its related repositories into overview. It is
 // LoadDeploymentArtifactOverviewWithStats without the stats.
+//
+// Pass the anchor file list the caller holds: a nil files list fires each
+// anchor loader's own anchor-list fallback listing, and any truncation of
+// those fallback lists stays undisclosed in the merged overview (#8157).
+// Production callers always hold the list, so the fallback never fires there.
 func LoadDeploymentArtifactOverview(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -35,6 +40,12 @@ func LoadDeploymentArtifactOverview(
 // when the load fails, so an operator sees how far it got. The stats carry the
 // candidate counts of the floor and request budget (#7951), and BoundReasons
 // names the reasons the caller must add to the response.
+//
+// Pass the anchor file list the caller holds: a nil files list fires each
+// anchor loader's own anchor-list fallback listing, and any truncation of
+// those fallback lists stays undisclosed -- BoundReasons carries no reason
+// for it (#8157). Production callers always hold the list, so the fallback
+// never fires there.
 func LoadDeploymentArtifactOverviewWithStats(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -118,14 +129,16 @@ func (l configArtifactLoader) loadDeploymentArtifactOverview(
 	cloudFormationArtifacts := buildRepositoryCloudFormationRuntimeArtifacts(infrastructure)
 	merged = mergeArtifactOverview(merged, cloudFormationArtifacts)
 
-	runtimeArtifacts, err := loadRepositoryRuntimeArtifacts(ctx, content, repoID, artifactFiles)
+	// The overview keeps its shape: production callers hold the anchor list,
+	// so the fallback never fires here and the flag is always false (#8157).
+	runtimeArtifacts, _, err := loadRepositoryRuntimeArtifacts(ctx, content, repoID, artifactFiles)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	} else {
 		merged = mergeArtifactOverview(merged, runtimeArtifacts)
 	}
 
-	workflowArtifacts, err := loadRepositoryWorkflowArtifacts(ctx, content, repoID, artifactFiles)
+	workflowArtifacts, _, err := loadRepositoryWorkflowArtifacts(ctx, content, repoID, artifactFiles)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	} else {

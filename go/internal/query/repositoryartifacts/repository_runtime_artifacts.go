@@ -75,22 +75,25 @@ func BuildRepositoryRuntimeArtifacts(files []querycontract.FileContent) map[stri
 	}
 }
 
+// loadRepositoryRuntimeArtifacts reports a clipped nil-list fallback in
+// truncated; callers holding their own list always see false (#8157).
 func loadRepositoryRuntimeArtifacts(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	repoID string,
 	files []querycontract.FileContent,
-) (map[string]any, error) {
+) (map[string]any, bool, error) {
 	if reader == nil || repoID == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	candidates := files
+	truncated := false
 	if candidates == nil {
 		var err error
-		candidates, err = listAnchorCandidateFiles(ctx, reader, repoID, "runtime")
+		candidates, truncated, err = listAnchorCandidateFiles(ctx, reader, repoID, "runtime")
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
@@ -98,7 +101,7 @@ func loadRepositoryRuntimeArtifacts(
 		return IsDockerComposeArtifact(file) || isDockerfileArtifact(file)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("hydrate runtime artifact files: %w", err)
+		return nil, false, fmt.Errorf("hydrate runtime artifact files: %w", err)
 	}
 
 	contentFiles := make([]querycontract.FileContent, 0, len(hydratedCandidates))
@@ -112,7 +115,7 @@ func loadRepositoryRuntimeArtifacts(
 		contentFiles = append(contentFiles, file)
 	}
 
-	return BuildRepositoryRuntimeArtifacts(contentFiles), nil
+	return BuildRepositoryRuntimeArtifacts(contentFiles), truncated, nil
 }
 
 func MergeDeploymentArtifactMaps(left map[string]any, right map[string]any) map[string]any {
