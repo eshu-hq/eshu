@@ -79,7 +79,8 @@ predicate coverage pinned by test. Backend: scratch PostgreSQL 18-alpine
 plan comparison only, no wall-time claim. Queue/row counts: terminal live
 proofs green (`TestIdentityEpochProbeIgnoresIdentityEmptySupersessionLive`
 PASS: empty flip ignored with count=3; `DetectsSupersessionLive` PASS with
-count=2 unchanged and fingerprint flipped).
+count=2 unchanged and fingerprint flipped; counts are global over the shared
+scratch DB, not per-test seeding).
 
 ## No-Observability-Change:
 
