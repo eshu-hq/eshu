@@ -973,19 +973,21 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
     does. The probe reads the heap (the partial index holds only
     `(observed_at, fact_id)`): ~120-135 ms on the 1.0M-fact shim, not an Index
     Only Scan. The all-generations / ~51 ms description is superseded.
-  * `active_fingerprint` — SHA-256 hex digest of
-    `COALESCE(string_agg(scope_id::text || ':' ||
-    active_generation_id::text, '|' ORDER BY scope_id), '') FROM
-    ingestion_scopes`, encoded as UTF-8 before hashing. This avoids MD5,
-    which is unavailable on FIPS-configured PostgreSQL, and detects a
-    supersession (active_generation_id flip) that changes the active identity
-    set without changing the active fact count or max observed_at.
+  * `active_fingerprint` — SHA-256 hex digest of the DISTINCT active
+    `(scope_id, generation_id)` pairs in the filtered identity set
+    (`string_agg(DISTINCT fact.scope_id::text || ':' || fact.generation_id::text,
+    '|' ORDER BY ...)` over the same active-generation filter count/max use).
+    This avoids MD5, unavailable on FIPS-configured PostgreSQL, and detects an
+    identity-bearing supersession (active_generation_id flip) that leaves count
+    and max observed_at unchanged. A flip in a scope with no identity facts
+    leaves the pair set unchanged and does not move the epoch (#7825). An empty
+    identity set digests the empty string, so the digest is always 64 hex.
   * **Collision resistance**: with only (count, max), a supersession to a new
     generation of equal cardinality would false-hit. The fingerprint hashes the
-    full ordered mapping (`ORDER BY scope_id`, joined with `'|'`) with SHA-256,
-    so any change to any scope's active generation changes the digest input. The
-    earlier `sum(hashtext(...))` fingerprint could miss a 32-bit collision or
-    offsetting per-scope deltas; a digest of the ordered mapping cannot.
+    full ordered pair set (ordered, joined with `'|'`) with SHA-256, so any
+    change to the covered pair set changes the digest input. The earlier
+    `sum(hashtext(...))` fingerprint could miss a 32-bit collision or
+    offsetting per-scope deltas; a digest of the ordered set cannot.
 - **Cap behavior**: `ESHU_IDENTITY_CACHE_MAX_BYTES` (default 500 MiB, measured).
   Loaded set exceeding the cap is served DIRECTLY (passthrough, never partial,
   never cached) and increments `eshu_dp_identity_cache_passthrough_total`.

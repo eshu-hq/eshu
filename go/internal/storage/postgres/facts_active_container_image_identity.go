@@ -133,41 +133,41 @@ LIMIT $3
 // 120 ms versus 60 ms on a 1.0M-identity-fact shim, docs/internal/evidence/
 // 7805-identity-epoch-flight.md) and needs no new index.
 //
-// The fingerprint is a collision-resistant SHA-256 digest of the active
-// generation mapping from ingestion_scopes (every scope's
-// "scope_id:active_generation_id" pair, ORDER BY scope_id, joined with '|').
-// It detects supersession (active_generation_id flip) so the cache misses when
-// a new generation becomes active even when the active count and max
-// observed_at are unchanged. Unlike a summed hash, the ordered digest has no
-// collision mode where two different active mappings (a 32-bit hashtext
-// collision, or offsetting deltas that cancel in a sum) produce the same
-// fingerprint.
+// The fingerprint is a collision-resistant SHA-256 digest of the DISTINCT
+// active (scope_id, generation_id) pairs present in that same filtered identity
+// set, ordered and joined with '|'. It detects supersession
+// (active_generation_id flip) so the cache misses when a new generation becomes
+// active even when the active count and max observed_at are unchanged. Unlike a
+// summed hash, the ordered digest has no collision mode where two different
+// active mappings (a 32-bit hashtext collision, or offsetting deltas that
+// cancel in a sum) produce the same fingerprint.
+//
+// The fingerprint deliberately covers only scopes whose active generation holds
+// at least one identity fact (#7825): a generation activation in a scope with
+// no identity facts leaves the distinct pair set unchanged, so it no longer
+// moves the epoch or tears an in-flight load. The torn test in
+// identity_epoch_cache.go compares whole epochs, so narrowing the fingerprint
+// narrows the torn test with no second change. An empty identity set digests
+// the empty string, so the fingerprint is always 64 hex characters.
 const probeIdentityEpochQuery = `
 SELECT
-    f.cnt,
-    COALESCE(f.max_obs, '-infinity'::timestamptz),
-    COALESCE(s.fingerprint, '')
-FROM (
-    SELECT count(*) AS cnt, max(fact.observed_at) AS max_obs
-    FROM fact_records AS fact
-    WHERE ` + identityFactFilterSQL + `
-      AND fact.is_tombstone = FALSE
-      AND (
-        (fact.scope_id, fact.generation_id) IN (
-          SELECT scope.scope_id, scope.active_generation_id
-          FROM ingestion_scopes AS scope
-          JOIN scope_generations AS generation
-            ON generation.scope_id = scope.scope_id
-           AND generation.generation_id = scope.active_generation_id
-          WHERE generation.status = 'active'
-        )
-        OR FALSE
-      )
-) f
-CROSS JOIN (
-    SELECT encode(sha256(convert_to(COALESCE(string_agg(scope_id::text || ':' || active_generation_id::text, '|' ORDER BY scope_id), ''), 'UTF8')), 'hex') AS fingerprint
-    FROM ingestion_scopes
-) s
+    count(*) AS cnt,
+    COALESCE(max(fact.observed_at), '-infinity'::timestamptz),
+    encode(sha256(convert_to(COALESCE(string_agg(DISTINCT fact.scope_id::text || ':' || fact.generation_id::text, '|' ORDER BY fact.scope_id::text || ':' || fact.generation_id::text), ''), 'UTF8')), 'hex') AS fingerprint
+FROM fact_records AS fact
+WHERE ` + identityFactFilterSQL + `
+  AND fact.is_tombstone = FALSE
+  AND (
+    (fact.scope_id, fact.generation_id) IN (
+      SELECT scope.scope_id, scope.active_generation_id
+      FROM ingestion_scopes AS scope
+      JOIN scope_generations AS generation
+        ON generation.scope_id = scope.scope_id
+       AND generation.generation_id = scope.active_generation_id
+      WHERE generation.status = 'active'
+    )
+    OR FALSE
+  )
 `
 
 // ListActiveContainerImageIdentityFacts loads active OCI registry facts and

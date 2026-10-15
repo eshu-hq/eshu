@@ -26,17 +26,19 @@ const defaultIdentityCacheMaxBytes = 500 * 1024 * 1024 // 500 MiB
 
 // identityEpoch is the set-identity probe for the identity-fact cache.
 // Two epochs are equal when count, max observed_at, and active_fingerprint
-// all match. The fingerprint captures the active-generation mapping from
-// ingestion_scopes so a supersession (active_generation_id flip) is detected
-// even when total fact count and max observed_at are unchanged.
+// all match. The fingerprint captures the DISTINCT active (scope_id,
+// generation_id) pairs present in the filtered identity set, so a supersession
+// (active_generation_id flip) in a scope that holds identity facts is detected
+// even when total fact count and max observed_at are unchanged. A flip in a
+// scope with no identity facts leaves the pair set unchanged and does not move
+// the epoch (#7825).
 //
-// The fingerprint is a collision-resistant SHA-256 digest of the ordered active-
-// generation mapping (every scope's "scope_id:active_generation_id" pair,
-// ORDER BY scope_id, joined with '|'), not a summed 32-bit hash. Any change
-// to the active mapping — including two different mappings that would
-// collide under a 32-bit hashtext sum, or offsetting deltas that would
-// cancel out in a sum — changes the digest deterministically, so the epoch
-// always changes when the active mapping changes.
+// The fingerprint is a collision-resistant SHA-256 digest of the ordered pair
+// set ("scope_id:generation_id" pairs, ordered, joined with '|'), not a summed
+// 32-bit hash. Any change to the covered pair set — including two different
+// sets that would collide under a 32-bit hashtext sum, or offsetting deltas
+// that would cancel out in a sum — changes the digest deterministically, so
+// the epoch always changes when the covered set changes.
 type identityEpoch struct {
 	count             int
 	maxObservedAt     time.Time
