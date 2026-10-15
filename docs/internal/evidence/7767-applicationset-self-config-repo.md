@@ -23,9 +23,9 @@ they add no query and no loop.
 Metric boundaries: start is the call to `DiscoverEvidence`, end is its return;
 correctness invariant is "no fact has the same repository as source and target,
 and no resolved template source that is not the control repository is dropped
-silently, except the case where the generator reads config from the control
-repository itself, which stays a known silent skip pinned in the invariant test
-and tracked in #7778"; the intended delta is one added `DEPLOYS_FROM` fact per matched
+silently, including the case where the generator reads config from the control
+repository itself (issue #7778, recorded as control-to-deployed template-source
+evidence)"; the intended delta is one added `DEPLOYS_FROM` fact per matched
 self-referencing ApplicationSet file; stop threshold is a regression above 10
 percent of the baseline median.
 
@@ -90,15 +90,15 @@ No-Regression Evidence: DiscoverEvidence on 190 ApplicationSets and 396 envelope
 
 ## Operator visibility
 
-Observability Evidence: new counter eshu_dp_argocd_applicationset_template_source_total{outcome} with the closed outcome set deploy_source, template_source_self_reference, skipped_control_repo and skipped_templated_destination, recorded at the ingestion commit path, documented in docs/public/reference/telemetry/metrics-reducer-storage.md and the telemetry-coverage.md row; scripts/verify-telemetry-coverage.sh passes and the Postgres commit-path test asserts one data point per outcome.
+Observability Evidence: new counter eshu_dp_argocd_applicationset_template_source_total{outcome} with the closed outcome set deploy_source, template_source_self_reference, template_source_control_config (#7778), skipped_control_repo and skipped_templated_destination, recorded at the ingestion commit path, documented in docs/public/reference/telemetry/metrics-reducer-storage.md and the telemetry-coverage.md row; scripts/verify-telemetry-coverage.sh passes and the Postgres commit-path test asserts one data point per outcome.
 
 An operator at 3 AM reads the counter by outcome: a `template_source_self_reference`
 rate shows repositories gaining a deployment source, a sustained
 `skipped_templated_destination` rate shows platform edges missing because
 destinations are templated (the repository edge was still emitted), and
-`skipped_control_repo` is a designed skip. The counter does not cover an
-`ApplicationSet` whose generator reads config from the control repository
-itself; that case is tracked in #7778.
+`skipped_control_repo` is a designed skip. An `ApplicationSet` whose
+generator reads config from the control repository itself is covered by the
+`template_source_control_config` outcome (issue #7778).
 
 ## Why this is safe
 

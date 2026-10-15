@@ -23,18 +23,13 @@ type appSetRelation struct {
 	// to, or "" when it must not yield a deployment fact (it is the control
 	// repository).
 	deployedRepoID string
-	// knownSilentSkip marks a relation the extractor drops today even though
-	// its template source resolves to a non-control repository. The test pins
-	// the drop so a fix has to update it deliberately; the open debt is
-	// tracked in #7778 (generator reads config from the control repository).
-	knownSilentSkip bool
 }
 
 var appSetRelations = []appSetRelation{
 	{name: "D==G", generatorAlias: "app-repo", configScope: "repo-app", deployedAlias: "app-repo", deployedRepoID: "repo-app"},
 	{name: "D!=G", generatorAlias: "central-config", configScope: "repo-central", deployedAlias: "other-service", deployedRepoID: "repo-other"},
 	{name: "D==C", generatorAlias: "central-config", configScope: "repo-central", deployedAlias: "gitops-repo", deployedRepoID: ""},
-	{name: "G==C", generatorAlias: "gitops-repo", configScope: "repo-gitops", deployedAlias: "other-service", deployedRepoID: "repo-other", knownSilentSkip: true},
+	{name: "G==C", generatorAlias: "gitops-repo", configScope: "repo-gitops", deployedAlias: "other-service", deployedRepoID: "repo-other"},
 }
 
 // appSetInvariantEnvelopes builds the YAML or the structured form of one
@@ -92,8 +87,7 @@ func TestApplicationSetRelationInvariants(t *testing.T) {
 							involving++
 						}
 					}
-					switch {
-					case relation.deployedRepoID == "":
+					if relation.deployedRepoID == "" {
 						for _, kind := range []EvidenceKind{
 							EvidenceKindArgoCDApplicationSetDeploySource,
 							EvidenceKindArgoCDApplicationSetTemplateSource,
@@ -102,19 +96,13 @@ func TestApplicationSetRelationInvariants(t *testing.T) {
 								t.Fatalf("control repo as template source produced %s: %#v", kind, got)
 							}
 						}
-					case relation.knownSilentSkip:
-						if involving != 0 {
-							t.Fatalf("known silent skip %s now yields %d facts; update the table", relation.name, involving)
-						}
-					default:
-						if involving == 0 {
-							t.Fatalf("template source %s resolves to %s but no DEPLOYS_FROM fact involves it: %#v",
-								relation.deployedAlias, relation.deployedRepoID, evidence)
-						}
+					} else if involving == 0 {
+						t.Fatalf("template source %s resolves to %s but no DEPLOYS_FROM fact involves it: %#v",
+							relation.deployedAlias, relation.deployedRepoID, evidence)
 					}
 
 					wantPlatform := 0
-					if literal && relation.deployedRepoID != "" && !relation.knownSilentSkip {
+					if literal && relation.deployedRepoID != "" {
 						wantPlatform = 1
 					}
 					if got := len(evidenceOfKind(evidence, EvidenceKindArgoCDDestinationPlatform)); got != wantPlatform {

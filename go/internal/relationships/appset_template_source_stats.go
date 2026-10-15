@@ -3,19 +3,19 @@
 
 package relationships
 
-// ApplicationSet template-source outcomes (issue #7767). This is the closed,
-// bounded label set the ApplicationSet extractors tally into
-// ApplicationSetTemplateSourceStats and the
+// ApplicationSet template-source outcomes (issue #7767, extended by #7778).
+// This is the closed, bounded label set the ApplicationSet extractors tally
+// into ApplicationSetTemplateSourceStats and the
 // eshu_dp_argocd_applicationset_template_source_total metric's outcome label;
-// producers must use exactly these four values, and never a repository name.
+// producers must use exactly these five values, and never a repository name.
 //
-// The first three outcomes describe a matched template source (one that
+// deploy_source, template_source_self_reference, and
+// template_source_control_config describe a matched template source (one that
 // resolves to a catalog repository) and are mutually exclusive for it. The
 // fourth, skipped_templated_destination, is a per-matched-repository extra on
-// top of deploy_source or template_source_self_reference, not a partition: the
-// repository edge was emitted but its destination was templated, so no
-// platform edge could be. A template source that matches no catalog
-// repository is never counted.
+// top of an emitted repository edge, not a partition: the repository edge was
+// emitted but its destination was templated, so no platform edge could be. A
+// template source that matches no catalog repository is never counted.
 const (
 	// ApplicationSetTemplateSourceOutcomeDeploySource is the outcome when a
 	// template source resolves to a repository that is neither the control
@@ -27,6 +27,12 @@ const (
 	// control repository), and a control-to-deployed template-source fact was
 	// newly emitted instead of a self-loop.
 	ApplicationSetTemplateSourceOutcomeSelfReference = "template_source_self_reference"
+	// ApplicationSetTemplateSourceOutcomeControlConfig is the outcome when the
+	// generator reads config from the control repository itself (issue #7778),
+	// and a control-to-deployed template-source fact naming the control
+	// repository as the config repository was newly emitted. Like the
+	// self-reference, it is counted once per newly emitted fact.
+	ApplicationSetTemplateSourceOutcomeControlConfig = "template_source_control_config"
 	// ApplicationSetTemplateSourceOutcomeSkippedControlRepo is the outcome when
 	// the template source is the control repository itself: nothing is emitted.
 	ApplicationSetTemplateSourceOutcomeSkippedControlRepo = "skipped_control_repo"
@@ -47,7 +53,7 @@ const (
 
 // ApplicationSetTemplateSourceStats tallies the ApplicationSet template-source
 // outcomes for one discovery pass. Unlike FluxCrossRepoURLResolutionStats,
-// which counts every URL it considers, these count distinct facts: the two
+// which counts every URL it considers, these count distinct facts: the three
 // emit outcomes only when a fact is newly emitted, and the two skip outcomes
 // once per (control repository, deployed repository, file path). Many overlays
 // that name the same repository therefore tally once, matching the facts
@@ -55,6 +61,7 @@ const (
 type ApplicationSetTemplateSourceStats struct {
 	DeploySource                int
 	SelfReference               int
+	ControlConfig               int
 	SkippedControlRepo          int
 	SkippedTemplatedDestination int
 }
@@ -68,6 +75,8 @@ func (s *ApplicationSetTemplateSourceStats) record(outcome string) {
 		s.DeploySource++
 	case ApplicationSetTemplateSourceOutcomeSelfReference:
 		s.SelfReference++
+	case ApplicationSetTemplateSourceOutcomeControlConfig:
+		s.ControlConfig++
 	case ApplicationSetTemplateSourceOutcomeSkippedControlRepo:
 		s.SkippedControlRepo++
 	case ApplicationSetTemplateSourceOutcomeSkippedTemplatedDestination:

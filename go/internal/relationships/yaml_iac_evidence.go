@@ -61,12 +61,16 @@ func discoverArgoCDDocumentEvidence(
 
 	for _, discovery := range discoveryTargets {
 		for _, configRepo := range matchingCatalogEntries(discovery.repoURL, matcher) {
-			if configRepo.RepoID == controlRepoID {
-				continue
+			// #7778: a generator that reads config from the control
+			// repository itself yields no discovery fact (control ->
+			// control would be a self-loop), but its template sources
+			// still resolve in the loop below.
+			controlConfig := configRepo.RepoID == controlRepoID
+			if !controlConfig {
+				evidence = append(evidence, appendDiscoveryEvidence(
+					controlRepoID, configRepo, filePath, discovery.path, seen,
+				)...)
 			}
-			evidence = append(evidence, appendDiscoveryEvidence(
-				controlRepoID, configRepo, filePath, discovery.path, seen,
-			)...)
 			for _, templateSource := range append(
 				templateSources,
 				append(
@@ -81,6 +85,13 @@ func discoverArgoCDDocumentEvidence(
 							ApplicationSetTemplateSourceOutcomeSkippedControlRepo,
 							controlRepoID, deployedRepo.RepoID, filePath,
 						)
+						continue
+					}
+					if controlConfig {
+						evidence = append(evidence, appendControlConfigEvidence(
+							controlRepoID, deployedRepo, filePath, discovery.path, templateSource,
+							argocdDocumentDestinations(document), seen, stats,
+						)...)
 						continue
 					}
 					if deployedRepo.RepoID == configRepo.RepoID {
@@ -239,6 +250,63 @@ func appendSelfReferenceEvidence(
 				"extractor":       "argocd",
 				"matched_alias":   firstAlias(deployedRepo),
 				"self_reference":  true,
+			},
+		})
+	}
+	return append(evidence, appendApplicationSetPlatformEvidence(
+		controlRepoID, deployedRepo.RepoID, filePath, destinations, seen, stats,
+	)...)
+}
+
+// appendControlConfigEvidence records an ApplicationSet whose git generator
+// reads config from the control repository itself (issue #7778). There is no
+// discovery fact for it — control -> control would be a self-loop — but each
+// template source that resolves to a non-control repository is recorded as a
+// DEPLOYS_FROM from the control repository, together with the platform of each
+// literal destination. Both the YAML and the structured ApplicationSet paths
+// call it so the two cannot drift. The caller guarantees deployedRepo is not
+// the control repository.
+//
+// Details name the control repository as the config repository and carry no
+// self_reference flag: unlike appendSelfReferenceEvidence, the template source
+// is not the generator's own config repository but a third repository the
+// control repository deploys.
+func appendControlConfigEvidence(
+	controlRepoID string,
+	deployedRepo CatalogEntry,
+	filePath, discoveryPath, templateSource string,
+	destinations []argocdDestination,
+	seen map[evidenceKey]struct{},
+	stats *DiscoveryStats,
+) []EvidenceFact {
+	var evidence []EvidenceFact
+	key := evidenceKey{
+		EvidenceKind: EvidenceKindArgoCDApplicationSetTemplateSource,
+		SourceRepoID: controlRepoID,
+		TargetRepoID: deployedRepo.RepoID,
+		Path:         filePath,
+	}
+	if _, ok := seen[key]; !ok {
+		seen[key] = struct{}{}
+		stats.recordApplicationSetTemplateSource(ApplicationSetTemplateSourceOutcomeControlConfig)
+		evidence = append(evidence, EvidenceFact{
+			EvidenceKind:     EvidenceKindArgoCDApplicationSetTemplateSource,
+			RelationshipType: RelDeploysFrom,
+			SourceRepoID:     controlRepoID,
+			TargetRepoID:     deployedRepo.RepoID,
+			Confidence:       DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDApplicationSetTemplateSource),
+			Rationale:        "ArgoCD ApplicationSet template source is deployed from the control repository whose generator reads config from it",
+			Details: map[string]any{
+				"path":                  filePath,
+				"control_plane_repo_id": controlRepoID,
+				"config_repo_id":        controlRepoID,
+				"discovery_path":        discoveryPath,
+				// deploy_repo_url is the matched template-source string: a URL on
+				// the repoURL path, or a bare service or release name on the
+				// config-identity path (matched by alias, not parsed as a URL).
+				"deploy_repo_url": templateSource,
+				"extractor":       "argocd",
+				"matched_alias":   firstAlias(deployedRepo),
 			},
 		})
 	}

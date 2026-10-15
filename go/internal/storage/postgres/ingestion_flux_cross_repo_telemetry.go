@@ -69,6 +69,7 @@ func recordArgoCDApplicationSetTemplateSourceStats(
 	counter := instruments.ArgoCDApplicationSetTemplateSource
 	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeDeploySource, stats.DeploySource)
 	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeSelfReference, stats.SelfReference)
+	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeControlConfig, stats.ControlConfig)
 	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeSkippedControlRepo, stats.SkippedControlRepo)
 	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeSkippedTemplatedDestination, stats.SkippedTemplatedDestination)
 }

@@ -188,6 +188,20 @@ stored as legacy NULL rows keep resolving through the COALESCE fallback
 and are never rewritten: a legacy row without a namespace maps to no single
 new identity.
 
+## ApplicationSet Control-Config Generator
+
+An ApplicationSet whose git generator reads config from the control
+repository itself (generator repository is the control repository, G==C,
+#7778) emits no `DISCOVERS_CONFIG_IN`: control to control would be a
+self-loop. Each template source that resolves to a catalog repository other
+than the control repository is still recorded as a `DEPLOYS_FROM` from the
+control repository (`ARGOCD_APPLICATIONSET_TEMPLATE_SOURCE`, 0.95), with
+`RUNS_ON` platform evidence for literal destinations. The fact details name
+the control repository as the config repository and carry no
+`self_reference` flag: the template source is a third repository the control
+repository deploys, not the generator's own config repository. A template
+source that resolves to the control repository itself stays skipped.
+
 ## Terraform State MATCHES_STATE Edge Existence
 
 `MATCHES_STATE` links a config-declared `TerraformResource` to the
