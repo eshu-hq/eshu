@@ -225,6 +225,34 @@ func TestAnchorLoaderFallbackPropagatesTruncation(t *testing.T) {
 	if _, truncated, err := LoadRepositoryWorkflowArtifacts(context.Background(), &anchorListLimitRecorder{}, "repo-a", whole); err != nil || truncated {
 		t.Fatalf("LoadRepositoryWorkflowArtifacts(non-nil) = (_, %v, %v), want (_, false, nil)", truncated, err)
 	}
+	if _, truncated, err := loadRepositoryRuntimeArtifacts(context.Background(), &anchorListLimitRecorder{}, "repo-a", whole); err != nil || truncated {
+		t.Fatalf("loadRepositoryRuntimeArtifacts(non-nil) = (_, %v, %v), want (_, false, nil)", truncated, err)
+	}
+	if _, truncated, err := LoadRepositoryControllerArtifacts(context.Background(), &anchorListLimitRecorder{}, "repo-a", "svc", whole); err != nil || truncated {
+		t.Fatalf("LoadRepositoryControllerArtifacts(non-nil) = (_, %v, %v), want (_, false, nil)", truncated, err)
+	}
+}
+
+// TestDeploymentOverviewNilFilesStaysUndisclosed pins the documented nil
+// files contract of the deployment overview (#8157): a nil list still merges
+// (each anchor loader fires its own fallback listing) but no truncation of
+// those fallback lists reaches the caller, so BoundReasons stays silent.
+func TestDeploymentOverviewNilFilesStaysUndisclosed(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContentStore(map[string][]querycontract.FileContent{"repo-a": loaderFiles()})
+	_, stats, err := LoadDeploymentArtifactOverviewWithStats(
+		context.Background(), emptyGraph{}, store, "repo-a", "svc", nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("LoadDeploymentArtifactOverviewWithStats(nil files) error = %v, want nil", err)
+	}
+	if store.listCalls == 0 {
+		t.Fatal("ListRepoFiles calls = 0, want the anchor-loader fallback listings to fire on a nil list")
+	}
+	if reasons := stats.BoundReasons(); len(reasons) != 0 {
+		t.Fatalf("BoundReasons() = %v, want empty (fallback-list truncation stays undisclosed)", reasons)
+	}
 }
 
 // failingBatchStore fails every GetFileContents chunk.
