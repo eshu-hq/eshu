@@ -271,6 +271,21 @@ Compose `postgres:18-alpine` image and the CI standby mirror of
 request whose topic expands to 16 terms with that `503` until the operator
 upgrades the reader or declares the build.
 
+For local Compose, read `SELECT current_setting('server_version')` on the
+Compose database and, only if you accept the risk on local data, declare that
+exact string for the `eshu` and `mcp-server` services, for example in a
+`docker-compose.override.yaml`:
+
+```yaml
+services:
+  eshu:
+    environment:
+      ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS: '[{"server_version":"<exact server_version>","evidence":"local compose; unpatched"}]'
+  mcp-server:
+    environment:
+      ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS: '[{"server_version":"<exact server_version>","evidence":"local compose; unpatched"}]'
+```
+
 At 3 AM, check in this order:
 
 1. `eshu_dp_postgres_reader_snapshot_export_qualified` (0 or 1; one series
