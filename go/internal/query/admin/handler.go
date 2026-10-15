@@ -395,7 +395,9 @@ func (h *Handler) refinalize(w http.ResponseWriter, r *http.Request) {
 		ScopeIDs: req.ScopeIDs,
 	})
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		// Refinalize runs in one transaction, so a client cancel rolls it back
+		// unless it lands while the commit itself runs.
+		writeMutationFailure(w, r, err, refinalizeFailedMessage)
 		return
 	}
 

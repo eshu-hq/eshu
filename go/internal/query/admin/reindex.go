@@ -57,7 +57,10 @@ func (h *Handler) reindex(w http.ResponseWriter, r *http.Request) {
 	}
 	requestedAt, err := h.Reindexer.RequestReindex(r.Context(), req.Ingester)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		// One upsert that never lowers the watermark: a cancel observed after
+		// it committed answers 499 with the watermark recorded, and a re-run
+		// only moves it forward.
+		writeMutationFailure(w, r, err, reindexFailedMessage)
 		return
 	}
 

@@ -164,14 +164,19 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen resolve: %v", err))
+		// A read before the claim: nothing was reopened and the key is not
+		// consumed, so a 499 on a client cancel is exact.
+		writeMutationFailure(w, r, err, reopenResolveFailedMessage)
 		return
 	}
 
 	fingerprint := reopenRequestFingerprint(req.Domain, req.ScopeID, req.limit())
 	claim, err := h.Store.ClaimReplayIdempotency(r.Context(), req.IdempotencyKey, fingerprint, h.now())
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen idempotency: %v", err))
+		// One INSERT ... ON CONFLICT DO NOTHING, as for replay: a cancel
+		// after the insert committed leaves the key in_progress with nothing
+		// reopened, and a retry with the same key answers 409.
+		writeMutationFailure(w, r, err, reopenClaimFailedMessage)
 		return
 	}
 	if !claim.Claimed {
@@ -211,7 +216,11 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen: %v", err))
+		// A client cancel rolls the transaction back unless it lands while
+		// the commit itself runs, so a 499 here almost always means nothing
+		// was reopened; the in_progress key keeps the commit-race case
+		// visible as a 409 on retry.
+		writeMutationFailure(w, r, err, reopenFailedMessage)
 		return
 	}
 
@@ -219,8 +228,10 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 	if err := h.Store.CompleteReplayIdempotency(r.Context(), req.IdempotencyKey, len(combined), combined, h.now()); err != nil {
 		// The reopen already committed; only the ledger finalize failed.
 		// Leave the row in_progress (retry returns 409) so the durable
-		// outcome is never erased by a reclaim.
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen record: %v", err))
+		// outcome is never erased by a reclaim. A client cancel here still
+		// answers 499 even though the reopen applied; the fixed message
+		// names that outcome.
+		writeMutationFailure(w, r, err, reopenRecordFailedMessage)
 		return
 	}
 

@@ -5,7 +5,6 @@ package admin
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -104,7 +103,10 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 	fingerprint := replayRequestFingerprint(req.WorkItemIDs, req.ScopeID, req.Stage, req.FailureClass, req.limit(), req.Force)
 	claim, err := h.Store.ClaimReplayIdempotency(r.Context(), req.IdempotencyKey, fingerprint, h.now())
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay idempotency: %v", err))
+		// One INSERT ... ON CONFLICT DO NOTHING: a cancel observed after the
+		// insert committed leaves the key in_progress with nothing replayed,
+		// so a retry with the same key answers 409 and needs a new key.
+		writeMutationFailure(w, r, err, replayClaimFailedMessage)
 		return
 	}
 	if !claim.Claimed {
@@ -131,8 +133,9 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 		// Leave the ledger row in_progress rather than abandoning it: deleting it
 		// would let a retry with the same key claim a fresh row, observe zero
 		// terminal items, and lose the prior outcome. A retry instead gets a
-		// 409 so an operator inspects what was replayed.
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay: %v", err))
+		// 409 so an operator inspects what was replayed. A client cancel
+		// answers 499 under the same rule: work items may already be pending.
+		writeMutationFailure(w, r, err, replayFailedMessage)
 		return
 	}
 
@@ -140,8 +143,9 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 	if err := h.Store.CompleteReplayIdempotency(r.Context(), req.IdempotencyKey, len(items), ids, h.now()); err != nil {
 		// The replay already committed; only the ledger finalize failed. Leave the
 		// row in_progress (retry returns 409) so the durable outcome is never
-		// erased by a reclaim.
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay record: %v", err))
+		// erased by a reclaim. A client cancel here still answers 499 even
+		// though the replay applied; the fixed message names that outcome.
+		writeMutationFailure(w, r, err, replayRecordFailedMessage)
 		return
 	}
 
