@@ -692,6 +692,16 @@ const (
 	// proceeded straight to the solve, or hit a fence read error.
 	SpanReducerValueFlowInputsFence = "reducer.value_flow_inputs_fence"
 
+	// SpanQueryResourceToCodeTraversal wraps the trace-resource-to-code
+	// graph traversal stage (#7931 option C, observability only): the
+	// resolved-anchor traversal build plus the bounded graph run, through
+	// Go-side page shaping. It carries the closed stage-timing attribute
+	// set (start label, max depth, limit, scoped, rows expanded vs rows
+	// returned, max depth reached, traversal milliseconds) so an operator
+	// can tell a slow traversal from slow shaping without changing the
+	// traversal statement or the response.
+	SpanQueryResourceToCodeTraversal = "query.resource_to_code.traversal"
+
 	// Dependency service spans — track external call performance.
 	SpanPostgresExec  = "postgres.exec"
 	SpanPostgresQuery = "postgres.query"
