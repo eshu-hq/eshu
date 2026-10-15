@@ -236,11 +236,21 @@ func TestAnchorLoaderFallbackPropagatesTruncation(t *testing.T) {
 // TestDeploymentOverviewNilFilesStaysUndisclosed pins the documented nil
 // files contract of the deployment overview (#8157): a nil list still merges
 // (each anchor loader fires its own fallback listing) but no truncation of
-// those fallback lists reaches the caller, so BoundReasons stays silent.
+// those fallback lists reaches the caller, so BoundReasons stays silent. The
+// seeded fixture overflows the anchor window, so the fallback lists really do
+// truncate and the empty-BoundReasons assertion is pinned, not vacuous.
 func TestDeploymentOverviewNilFilesStaysUndisclosed(t *testing.T) {
 	t.Parallel()
 
-	store := newFakeContentStore(map[string][]querycontract.FileContent{"repo-a": loaderFiles()})
+	limit := querycontract.RepositorySemanticEntityLimit
+	rows := make([]querycontract.FileContent, 0, limit+1)
+	for i := 0; i < limit+1; i++ {
+		rows = append(rows, querycontract.FileContent{RelativePath: fmt.Sprintf("file-%05d.txt", i)})
+	}
+	store := newFakeContentStore(map[string][]querycontract.FileContent{"repo-a": rows})
+	if _, truncated, err := listAnchorCandidateFiles(context.Background(), store, "repo-a", "workflow"); err != nil || !truncated {
+		t.Fatalf("listAnchorCandidateFiles() = (_, %v, %v), want (_, true, nil) (fixture must overflow the window)", truncated, err)
+	}
 	_, stats, err := LoadDeploymentArtifactOverviewWithStats(
 		context.Background(), emptyGraph{}, store, "repo-a", "svc", nil, nil, nil,
 	)
