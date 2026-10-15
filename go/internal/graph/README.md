@@ -84,6 +84,41 @@ migrations, and `%s` label templates itself, and it skips `cmd/*-gate` and
 `cmd/*-gates` tools, which seed throwaway stores and are not deployed write
 paths.
 
+## Infra search key index (#7245)
+
+The Neo4j dialect creates one keyword FULLTEXT index, `infra_search_key_ft`,
+over `infra_search_key` and `infra_search_ovf` on the 27
+`InfraSearchKeyLabels` (equal to `querycontract.AllInfraLabels`), with
+`fulltext.eventually_consistent: false`. It is in `neo4jInfraSearchKeyIndexes`,
+not `schemaFulltextIndexes`, so NornicDB receives no form of it. The writer
+clause in `internal/storage/cypher/infra/search` fills both properties. No
+reader uses the index yet; the read cutover is #7245 PR-2.
+
+The keyword analyzer makes each key one Lucene term. A term longer than
+32,766 bytes is not a rejected row: the commit fails after the node is
+written, the database reports a critical error until restart, and the index
+comes back `FAILED`. The clause stores no key longer than
+`InfraSearchKeyMaxChars` (8,000 code points, at most 32,000 bytes) and sets
+`infra_search_ovf = 'T'` instead. Two census tests in
+`internal/storage/cypher` keep every writer on that clause.
+`eshu-bootstrap-data-plane` refuses graph DDL while any key passes the cap.
+
+### Infra search key index runbook
+
+Use this when bootstrap logs `bootstrap.graph.infra_search_key.oversized` or
+`bootstrap.graph.infra_search_key.index_failed`, or when
+`SHOW FULLTEXT INDEXES` reports `infra_search_key_ft` as `FAILED`.
+
+1. Count the oversized keys with `search.OversizedKeyCountCypher()`:
+   `MATCH (n:<the 27 labels>) WHERE size(n.infra_search_key) > 8000 RETURN count(n)`.
+2. Clear them so the backfill recomputes them under the cap:
+   `MATCH (n:<the 27 labels>) WHERE size(n.infra_search_key) > 8000
+   REMOVE n.infra_search_key, n.infra_search_ovf`.
+3. Rebuild the index: `DROP INDEX infra_search_key_ft IF EXISTS`, then rerun
+   `eshu-bootstrap-data-plane` with `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true`. It
+   re-runs the probe, recreates the index, and backfills the cleared nodes.
+4. Find the writer that bypassed the clause before the next write repeats it.
+
 ## Ownership boundary
 
 `graph` owns the write contract, entity merge builders, UNWIND helpers,

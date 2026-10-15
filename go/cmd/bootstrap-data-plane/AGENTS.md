@@ -28,6 +28,10 @@
 - **Backend gate** — `schemaBackendFromEnv` calls `LoadGraphBackend` and maps
   the result to `graph.SchemaBackend`; unknown values return an error before
   any DDL runs. Enforced at `main.go:156`.
+- **Infra search key gate (Neo4j)** — the oversized-key probe runs before any
+  graph DDL and the backfill plus index-state check run after it, both before
+  `markGraphSchemaApplied`. Do not move the probe after the DDL: creating
+  `infra_search_key_ft` over a key past the cap fails the index (#7245).
 - **Write session only** — `neo4jSchemaExecutor` always opens a session with
   `AccessModeWrite`; it must not be pointed at a read replica. Enforced at
   `main.go:226`.

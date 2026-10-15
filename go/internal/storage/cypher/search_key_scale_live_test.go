@@ -49,6 +49,11 @@ func TestLiveInfraSearchKeyBackfillScale(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
 	g := openLiveSearchKeyGraph(ctx, t)
+	// The full production Neo4j schema, so writer MATCH and MERGE anchors
+	// seek their uid constraints exactly as in production.
+	if err := graph.EnsureSchemaWithBackendStrict(ctx, liveSchemaExecutor{g: g}, nil, graph.SchemaBackendNeo4j); err != nil {
+		t.Fatalf("EnsureSchemaWithBackendStrict(neo4j) error = %v", err)
+	}
 	g.ensureIndex(ctx, t)
 	const prefix = liveSearchKeyPrefix + "scale:"
 	drop := func() {
@@ -56,6 +61,7 @@ func TestLiveInfraSearchKeyBackfillScale(t *testing.T) {
 	}
 	drop()
 	defer drop()
+	defer g.cleanup(context.Background(), t)
 
 	total := 0
 	seedStart := time.Now()
@@ -98,12 +104,12 @@ func TestLiveInfraSearchKeyBackfillScale(t *testing.T) {
 		mat := canonical.CanonicalMaterialization{
 			ScopeID: prefix + "scope", GenerationID: prefix + "gen-" + tag, RepoID: prefix + "repo",
 			Repository: &canonical.RepositoryRow{RepoID: prefix + "repo", Name: "zz7245", Path: "/zz7245/scale"},
-			Files:      []canonical.FileRow{{Path: "/zz7245/scale/vars.tf", RelativePath: "vars.tf", Name: "vars.tf", Language: "hcl", RepoID: prefix + "repo", DirPath: "/zz7245/scale"}},
+			Files:      []canonical.FileRow{{Path: "/zz7245/scale/" + tag + "/vars.tf", RelativePath: tag + "/vars.tf", Name: "vars.tf", Language: "hcl", RepoID: prefix + "repo", DirPath: "/zz7245/scale/" + tag}},
 		}
 		for i := 0; i < 5000; i++ {
 			mat.Entities = append(mat.Entities, canonical.EntityRow{
 				EntityID: fmt.Sprintf("%sw-%s-%d", prefix, tag, i), Label: "TerraformVariable", EntityName: fmt.Sprintf("var_%d", i),
-				FilePath: "/zz7245/scale/vars.tf", RelativePath: "vars.tf", StartLine: i + 1, EndLine: i + 1, Language: "hcl", RepoID: prefix + "repo",
+				FilePath: "/zz7245/scale/" + tag + "/vars.tf", RelativePath: tag + "/vars.tf", StartLine: i + 1, EndLine: i + 1, Language: "hcl", RepoID: prefix + "repo",
 			})
 		}
 		return mat
@@ -162,4 +168,12 @@ func (g *liveSearchKeyGraph) profileDBHits(ctx context.Context, t *testing.T, cy
 		t.Fatal("PROFILE returned no plan")
 	}
 	return sum(summary.Profile()), time.Since(start)
+}
+
+// liveSchemaExecutor applies schema DDL through the live session.
+type liveSchemaExecutor struct{ g *liveSearchKeyGraph }
+
+func (e liveSchemaExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatement) error {
+	_, err := e.g.Run(ctx, stmt.Cypher, stmt.Parameters)
+	return err
 }
