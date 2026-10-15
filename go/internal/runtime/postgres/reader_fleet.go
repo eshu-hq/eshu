@@ -133,6 +133,7 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 	tried := make(map[int]bool)
 	var failures error
 	capacityTimeout := false
+	exportExcluded := 0
 	for bounded.Err() == nil {
 		eligible := make([]int, 0, len(order))
 		for _, member := range order {
@@ -183,6 +184,14 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 		}
 		reservation.Release()
 		failures = errors.Join(failures, attemptErr)
+		var unqualified memberSnapshotExportUnqualified
+		if errors.As(attemptErr, &unqualified) {
+			// The member's own connection reported an unqualified build
+			// (#7957); a qualified sibling may still serve this set.
+			excluded[reservation.member] = true
+			exportExcluded++
+			continue
+		}
 		if sharedFleetFailure(bounded, attemptErr) {
 			return zero, attemptErr
 		}
@@ -200,6 +209,11 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 	}
 	if ctx.Err() != nil {
 		return zero, ctx.Err()
+	}
+	if count > 1 && exportExcluded == len(order) {
+		// No member may export: either memberOrder admitted none, or every
+		// admitted member's connection reported an unqualified build.
+		return zero, access.refuseSnapshotExport(ctx)
 	}
 	if failures == nil {
 		failures = ErrReaderUnavailable
@@ -286,6 +300,11 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 			return nil, borrowErr
 		}
 		connections = append(connections, conn)
+		if !conn.snapshotExportQualified {
+			// checkReader flipped this member's verdict; runFleet excludes it
+			// for this call and tries a qualified sibling.
+			return nil, memberSnapshotExportUnqualified{}
+		}
 	}
 	exporter, err := beginReadTransactionOwned(txCtx, connections[0], a)
 	if err != nil {

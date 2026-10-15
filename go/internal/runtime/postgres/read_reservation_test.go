@@ -26,6 +26,7 @@ func TestSnapshotReservationCapacityMarkerExcludesDialAndCancellation(t *testing
 		readerPermits:   make(chan struct{}, 4),
 	}
 	access.snapshotSetGate <- struct{}{}
+	qualifySnapshotExport(access)
 	checkpointCtx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{owner: access})
 	reader := fencedQueryer{access: access}
 

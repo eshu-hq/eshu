@@ -42,6 +42,13 @@ func (q fencedQueryer) MaxReadConnections() int {
 // BeginReadOnlySnapshotSet opens count read-only repeatable-read transactions
 // on one exported snapshot. All connections are fenced before any transaction
 // begins, and the exporter remains open until the returned set is closed.
+//
+// It refuses with db.ErrSnapshotExportUnqualified (#7957) when no reader target
+// runs a build qualified for pg_export_snapshot: before any borrow, gate wait,
+// or allocator reservation when the pool or member verdicts already say so,
+// and on each borrowed connection whose own identity reports an unqualified
+// build, before its BEGIN. There is no fallback: the refusal is permanent until
+// the reader build is upgraded or declared.
 func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) (set db.ReadSnapshotSet, err error) {
 	a := q.access
 	if a != nil && a.readerHasFallbacks {
@@ -50,10 +57,13 @@ func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) 
 	if count < 1 || count > q.MaxReadConnections() {
 		return nil, privateFailure(failureSnapshotBegin, errors.New("invalid snapshot reader count"))
 	}
-	if a != nil && len(a.readerMembers) > 0 {
+	if !a.snapshotExportAvailable(count) {
+		return nil, privateFailure(failureSnapshotBegin, a.refuseSnapshotExport(ctx))
+	}
+	if len(a.readerMembers) > 0 {
 		return a.beginFleetSnapshotSet(ctx, count)
 	}
-	if a == nil || a.snapshotSetGate == nil {
+	if a.snapshotSetGate == nil {
 		return nil, privateFailure(failureSnapshotBegin, errors.New("snapshot set gate unavailable"))
 	}
 	select {
@@ -98,6 +108,12 @@ func (a *Access) beginSnapshotSetOn(ctx context.Context, count int, pool *sql.DB
 			return nil, privateFailure(failureSnapshotBegin, borrowErr)
 		}
 		connections = append(connections, conn)
+		if !conn.snapshotExportQualified {
+			// This connection's own identity reported an unqualified build
+			// after the pool verdict admitted the set; checkReader already
+			// flipped that verdict. Release everything before any BEGIN.
+			return nil, privateFailure(failureSnapshotBegin, a.refuseSnapshotExport(ctx))
+		}
 	}
 	exporter, err := beginReadTransaction(ctx, connections[0], a)
 	if err != nil {

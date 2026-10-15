@@ -338,7 +338,7 @@ func (a *Access) memberOrder(count int) []int {
 	order := make([]int, 0, len(a.readerMembers))
 	for offset := range a.readerMembers {
 		index := (start + offset) % len(a.readerMembers)
-		if a.readerMembers[index].maxOpen >= count {
+		if a.readerMembers[index].maxOpen >= count && a.readerMembers[index].snapshotExportEligible(count) {
 			order = append(order, index)
 		}
 	}

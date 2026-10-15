@@ -468,6 +468,7 @@ func TestMemberOrderCounterWrapKeepsIndexesInBounds(t *testing.T) {
 	access := &Access{readerMembers: []physicalReaderMember{
 		{maxOpen: 4}, {maxOpen: 4}, {maxOpen: 4},
 	}}
+	qualifySnapshotExport(access)
 	access.nextReader.Store(^uint64(0))
 	order := access.memberOrder(4)
 	if len(order) != 3 || order[0] != 0 || order[1] != 1 || order[2] != 2 {

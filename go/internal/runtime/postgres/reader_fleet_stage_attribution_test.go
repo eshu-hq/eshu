@@ -77,6 +77,7 @@ func newFleetStageFixtureAccess(tb testing.TB, observer Observer) (*Access, cont
 		replayTimeout: time.Second,
 		lineage:       newWriterLineage(physicalIdentity{systemID: "7", database: "eshu", incarnation: "inc-1"}, lineageObservation{}, nil),
 	}
+	qualifySnapshotExport(access)
 	ctx := context.WithValue(context.Background(), checkpointKey{}, checkpoint{
 		owner: access, systemID: "7", database: "eshu", incarnation: "inc-1", lsn: "0/10",
 	})
