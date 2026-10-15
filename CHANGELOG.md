@@ -18,8 +18,9 @@ recent shipped work grouped by feature area.
   after 18.6. The API and MCP now export a shared snapshot only on PostgreSQL
   18.7 or later, or on a build whose exact `server_version` is declared in
   `ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS` with evidence. **Breaking:** on
-  any undeclared reader below 18.7, including local Compose
-  (`postgres:18-alpine`) and the CI standby mirror, a code-topic or
+  any undeclared reader below 18.7, including the CI standby mirror and local
+  Compose while its floating `postgres:18-alpine` tag resolves below 18.7, a
+  code-topic or
   change-surface request whose topic expands to 16 terms answers `503`
   `backend_unavailable` with `details.reason=snapshot_export_unqualified` and
   no `Retry-After` until the reader is upgraded or declared. There is no

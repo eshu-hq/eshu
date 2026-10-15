@@ -254,10 +254,12 @@ because it matches every build with that label, patched or not, and cannot
 detect an image pin that regresses.
 
 Eshu reads `server_version` and `server_version_num` on the identity statement
-every reader dial and borrow already runs, so the check adds no query. An
-unqualified reader refuses each shared-snapshot request before borrowing any
-connection, exporting, or importing; each borrowed snapshot connection is also
-rechecked against its own build before `BEGIN`. In fleet mode an unqualified
+every reader dial and borrow already runs, so the check adds no query. Every
+refusal happens before any transaction begins or any snapshot is exported or
+imported, so no business SQL runs. A reader already known to be unqualified is
+refused without borrowing a connection; a borrowed snapshot connection whose
+own identity check reports an unqualified build is released before its
+`BEGIN`. In fleet mode an unqualified
 member is skipped for snapshot sets and a qualified member serves them. The
 client receives a permanent HTTP `503` `backend_unavailable` with
 `error.details.reason: "snapshot_export_unqualified"` and no `Retry-After`
@@ -265,11 +267,12 @@ client receives a permanent HTTP `503` `backend_unavailable` with
 There is no single-statement fallback, and ordinary fenced reads and single
 snapshots keep working.
 
-**Breaking change.** Any undeclared reader below 18.7, including the local
-Compose `postgres:18-alpine` image and the CI standby mirror of
-`postgres:18.6-bookworm`, now answers every code-topic and change-surface
+**Breaking change.** Any undeclared reader below 18.7 now answers every code-topic and change-surface
 request whose topic expands to 16 terms with that `503` until the operator
-upgrades the reader or declares the build.
+upgrades the reader or declares the build. The CI standby mirror of
+`postgres:18.6-bookworm` is one, and so is the local Compose
+`postgres:18-alpine` tag while it resolves below 18.7 (the tag floats; check
+`SHOW server_version`).
 
 For local Compose, read `SELECT current_setting('server_version')` on the
 Compose database and, only if you accept the risk on local data, declare that
@@ -300,6 +303,10 @@ At 3 AM, check in this order:
    `postgres.reader.snapshot_export_denied`. Both carry `server_version`,
    `server_version_num`, `in_recovery`, `reason`, the matched `evidence`, and
    `member_ordinal` in fleet mode; neither carries a DSN, SQL, or credential.
+   The denial WARN is not rate-limited: it fires once per refused request for
+   the single pool, or once per member per refused request in fleet mode, so
+   a busy unqualified reader logs at request rate. Silence it by declaring the
+   build or upgrading the reader to 18.7 or later, not by filtering the log.
 4. The request span `postgres.query` with `db.operation=investigate_code_topic`
    records `code_topic.execution_mode=denied` and
    `code_topic.denial_reason=snapshot_export_unqualified`.

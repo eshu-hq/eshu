@@ -58,7 +58,9 @@ transaction, or a raw connection.
   do not carry this marker.
 - `ErrSnapshotExportUnqualified` -- marks a snapshot set refused because the
   PostgreSQL reader build is not qualified for shared-snapshot export (#7957).
-  No reader was borrowed, no transaction began, and no snapshot was exported.
+  It is raised before any transaction begins or any snapshot is exported, so
+  no business SQL runs: the pre-borrow check borrows nothing, and the
+  per-connection recheck releases the connections it fenced.
   It is permanent until the operator upgrades or declares the build: callers
   must not retry, fall back to a single statement, or open independent
   snapshots. The query layer answers it as a non-retryable 503.

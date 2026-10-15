@@ -135,7 +135,10 @@ reader with at least four connections. It carries
 `error.details.reason: "snapshot_export_unqualified"` and **no** `Retry-After`
 or `retry_after_seconds`: it lasts until the operator upgrades the reader to
 PostgreSQL 18.7 or later or declares the exact build, so retrying does not
-help. No reader connection was borrowed and no snapshot was exported. See
+help. It is raised before any transaction begins or any snapshot is
+exported, so no business SQL runs: a reader already known to be unqualified
+is refused without borrowing a connection, and a connection whose identity
+check reveals an unqualified build is released before its `BEGIN`. See
 [Shared-snapshot export qualification](../deployment/postgres-read-routing.md#shared-snapshot-export-qualification).
 
 The stale or timed-out reader response carries `Retry-After: 2` (a fixed number of seconds, sized to the

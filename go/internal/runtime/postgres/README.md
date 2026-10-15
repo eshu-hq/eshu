@@ -205,8 +205,8 @@ Snapshot sets are deny-by-default (#7957): below PostgreSQL 18.7, or on any
 other major, only a `server_version` declared exactly in
 `ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS` may export. The build rides the
 identity statement every dial and borrow already runs; an unqualified pool or
-member refuses with `db.ErrSnapshotExportUnqualified` before any borrow, and
-each set connection is rechecked before `BEGIN`. See
+member refuses with `db.ErrSnapshotExportUnqualified` before any borrow, and a
+set connection whose recheck fails is released before `BEGIN`. See
 [read routing](../../../../docs/public/deployment/postgres-read-routing.md#shared-snapshot-export-qualification).
 
 Startup validates a writable primary and its system/database identity, reads

@@ -48,7 +48,9 @@
 - `ErrSnapshotReservationCapacity` and `ErrSnapshotExportUnqualified` live in
   `read.go` beside the snapshot-set contract they describe, not in
   `reader_errors.go`. `ErrSnapshotExportUnqualified` (#7957) is a permanent
-  refusal: `runtime/postgres` returns it before any borrow or export, and the
+  refusal: `runtime/postgres` returns it before any transaction begins or any
+  snapshot is exported (the pre-borrow check borrows nothing; the
+  per-connection recheck releases the connections it fenced), and the
   query layer maps it to a non-retryable 503. Never give it a fallback, a
   retry hint, or a `context.DeadlineExceeded` join.
 - Standard library only (`context`, `database/sql`, `fmt`, `strings`, `sync/atomic`, `time`). No

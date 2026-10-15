@@ -44,9 +44,15 @@ Statement counts on the touched path are unchanged. `server_version` and
 statements for borrows. A borrow still issues one identity statement plus the
 replica replay probe. A dial still issues the same metadata statements.
 `TestFleetReaderStagesAreChildrenOfTheRequestSpan` still pins one
-`reader_identity` observation per borrow. A refused set issues zero
+`reader_identity` observation per borrow. A set refused on the pre-borrow
+fast path (the pool or member verdict already unqualified) issues zero
 statements, where it used to issue 4 identity checks, 4 replay probes,
-4 `BEGIN`s, 1 `pg_export_snapshot()`, and 3 `SET TRANSACTION SNAPSHOT`s.
+4 `BEGIN`s, 1 `pg_export_snapshot()`, and 3 `SET TRANSACTION SNAPSHOT`s. A set
+refused by the per-connection recheck (a stale qualified verdict) has already
+borrowed and fenced the connection whose identity check revealed the
+unqualified build; it releases that connection and any earlier ones before a
+`BEGIN`, so it issues their identity and replay statements but no `BEGIN`, no
+export, no import, and no business SQL.
 
 Allocations. Interleaved A/B of `go test -c` binaries: base `261ca79b8` and
 head `e0193346f`, five alternating `-test.count 1` runs each, on a shared
@@ -65,7 +71,10 @@ head `e0193346f`, five alternating `-test.count 1` runs each, on a shared
 The ns/op medians are noise-bound on this host. Per-run ranges overlap fully,
 for example `nil_observer` base 5702 to 14195 and head 5917 to 15124. So the
 timing column is not a speedup or slowdown claim. The allocation counts are
-deterministic. Two regressions found during the run were fixed before this
+deterministic. The review base `7be0f4ce7` has an empty diff from `261ca79b8`
+for `go/internal/runtime/postgres` and `go/internal/storage/postgres/db`
+(`git diff 261ca79b8 7be0f4ce7 -- <both dirs>` prints nothing), so these
+numbers carry over to the rebased branch. Two regressions found during the run were fixed before this
 measurement. First, adding the eligibility check made `memberOrder`
 non-inlinable, which moved its order slice to the heap on every fleet borrow
 (+1 alloc, +8 B). The set-only filter now lives in `runFleet`. Second, the two
@@ -113,20 +122,61 @@ standby ran `log_statement=all`.
 - The existing snapshot-set suites (`TestReadSnapshotSet*`) passed with the
   fixture build declared.
 - `TestCodeTopicSnapshotExportQualificationEndpointPostgresLive` passed. The
-  undeclared request got a 503 with zero borrows, and no business, export, or
+  undeclared request was refused on the pre-borrow path: a 503 with zero
+  borrows, and no business, export, or
   import statement reached the standby. The declared request got a 200 on
   `parallel_shared_snapshot`.
 - `TestCodeTopicFleetCapacityEndpointPostgresLive` passed with the fixture
   build declared.
+- `TestInvestigateCodeTopicGuardedParallelPostgresLive` failed all five
+  subtests at head `b76337a28` ("PostgreSQL reader snapshot failed to begin")
+  and passed all five once its Access declared the fixture build.
 - The opt-in `TestSnapshotExportConsistencySmoke` skipped undeclared. It
   passed when the unpatched build was declared, which proves only its
   mechanics. Its build-safety purpose needs a qualified image (#260).
 
-Six package tests fail against this fixture shape on base `261ca79b8` and on
-the branch alike: `TestAccessStreamingRoleAndReplayFailClosed`,
+Base-versus-head live count. `go test ./internal/runtime/postgres
+./internal/query -count=1 -p 1 -v` ran against the same fixture with both the
+`ESHU_READER_TEST_*` and the `ESHU_TEST_CONTENT_INDEX_POSTGRES_*` variables
+set, on base `7be0f4ce7` and on the branch after the guarded-proof fix below.
+Base: 3003 pass, 94 skip, 6 fail. Head: 3026 pass, 95 skip, 6 fail. The six
+failures are identical on both: `TestAccessStreamingRoleAndReplayFailClosed`,
 `TestAccessReplayDeadlineBeforeBusinessSQL`,
 `TestReadStoreStreamingSnapshotAndCancellation`,
 `TestReaderMembersRejectPrimaryAsStandby`,
 `TestReaderOpenKeepsHealthyMemberWhenFirstMemberBlackholes`, and
 `TestAccessWrongDatabaseFailsBeforePoolExposure`. They need fixture
-preparation this harness does not do, and they are unrelated to this change.
+preparation this harness does not do and are unrelated to this change.
+
+An earlier version of this note listed only those six because it ran the query
+live tests one at a time. That missed
+`TestInvestigateCodeTopicGuardedParallelPostgresLive`, which failed at head:
+all five subtests were refused, including the reader-pressure fallback,
+because the refusal is checked before capacity. It now declares the fixture
+build. Its ledger class is `scheduled`, so CI would not have caught it.
+
+## Live-suite declaration sweep
+
+Every test that builds a `runtime/postgres` Config or Access was checked, by
+`rg 'runtimepostgres\.(LoadConfig|Open)|LoadConfig\(|Open\(ctx|Open\(context'`
+over `*_test.go` in `go/internal`, `go/cmd`, and `scripts`. Each one either
+declares the fixture build or never reaches `BeginReadOnlySnapshotSet`.
+
+| Test site | Reaches a snapshot set | Disposition |
+| --- | --- | --- |
+| `runtime/postgres/access_test.go` `testAccess` | yes (`read_snapshot_set_test.go`, status and restart suites) | declares |
+| `runtime/postgres/access_test.go` other `Open` calls (wrong topology, budgets) | no | n/a |
+| `runtime/postgres/reader_members_test.go`, 3 `Open` calls including `openFleetAccess`, which `reader_begin_timeout_test.go` uses | yes | declares |
+| `runtime/postgres/singleton_test.go` `access`, `legacy`, `fleet` | yes | declares; `fleet` reuses the declared Config |
+| `runtime/postgres/singleton_test.go` `wrong` | no; `Open` must fail | n/a |
+| `runtime/postgres/reader_fleet_bench_test.go` | yes | declares |
+| `runtime/postgres/snapshot_export_standby_test.go` | yes | deliberate undeclared and declared halves |
+| `runtime/postgres/snapshot_export_smoke_test.go` | yes | declaration from the environment; skips when unqualified |
+| `runtime/postgres/legacy_writer_budget_test.go`, `read_store_test.go`, `reader_qualification_test.go`, `topology_test.go`, `writer_candidates_test.go` | no | n/a |
+| `query/code_topic_fleet_endpoint_live_test.go` | yes | declares |
+| `query/code_topic_parallel_member_loss_test.go` | yes | declares |
+| `query/code_topic_parallel_guarded_live_test.go` | yes | declares (fixed in this revision) |
+| `query/code_topic_snapshot_export_endpoint_live_test.go` | yes | deliberate undeclared and declared halves |
+| `scopedtoken/identity_postgres_restart_test.go` | no; writer only | n/a |
+
+No test under `go/cmd` or `scripts` opens a `runtime/postgres` Access.

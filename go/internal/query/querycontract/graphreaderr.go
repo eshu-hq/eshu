@@ -201,8 +201,9 @@ func mapGraphReadHTTPError(err error) (graphReadHTTPError, bool) {
 	switch {
 	case errors.Is(err, db.ErrSnapshotExportUnqualified):
 		// Checked first, before the deadline and fence verdicts: the refusal
-		// happened before any reader was borrowed, so it is the cause even if
-		// the bounded budget expired afterward. It is permanent until the
+		// happened before any transaction began or any snapshot was exported,
+		// so it is the cause even if the bounded budget expired afterward.
+		// It is permanent until the
 		// reader build is upgraded or declared: no retryable marker, no hint.
 		return graphReadHTTPError{
 			status:  http.StatusServiceUnavailable,
