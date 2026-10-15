@@ -33,20 +33,42 @@ check() {
   fi
 }
 
+gate_targets() {
+  # The gate script's scan targets, one per line, parsed from its targets
+  # array so this skeleton cannot drift from the gate (#7918 P2): adding a
+  # target to the gate without updating this mirror changes the parse output
+  # the skeleton is built from, never a hardcoded list.
+  sed -n '/^targets=(/,/^)/p' "$gate" | rg -o '"[^"]+"' | tr -d '"'
+}
+
 new_repo() {
   # A missing target is a gate error (exit 2), never a pass, so every temp
-  # repo carries the full target skeleton before seeding.
-  local dir
+  # repo carries the full target skeleton before seeding. The skeleton is
+  # derived from gate_targets, not restated, so coverage and mirror cannot
+  # drift apart.
+  local dir target
   dir="$(mktemp -d)"
   printf '%s\n' "$dir" >>"$tmp_list"
-  mkdir -p "$dir/apps/console/src" "$dir/apps/console/prototype" \
-    "$dir/go/internal/parser/hcl" "$dir/go/internal/parser/rust" \
-    "$dir/go/internal/query/service" "$dir/go/internal/query/visualization" \
-    "$dir/go/internal/query"
-  # The two go/internal/query file targets must exist: rg errors on a
-  # missing file target exactly like on a missing directory.
-  : >"$dir/go/internal/query/entity_resolve_contract_test.go"
-  : >"$dir/go/internal/query/repository_deployment_evidence_test.go"
+  while IFS= read -r target; do
+    [ -n "$target" ] || continue
+    case "$target" in
+      *.go)
+        mkdir -p "$dir/$(dirname "$target")"
+        : >"$dir/$target"
+        ;;
+      *)
+        mkdir -p "$dir/$target"
+        ;;
+    esac
+  done < <(gate_targets)
+  # An empty parse (gate format drift) must fail loudly, never seed silently:
+  # the two go/internal/query file targets anchor the parse output.
+  for target in go/internal/query/entity_resolve_contract_test.go go/internal/query/repository_deployment_evidence_test.go; do
+    if [ ! -f "$dir/$target" ]; then
+      printf 'FAIL skeleton: %s missing, gate targets parse changed\n' "$target" >&2
+      return 1
+    fi
+  done
   printf '%s\n' "$dir"
 }
 
@@ -129,6 +151,24 @@ repo="$(mktemp -d)"
 printf '%s\n' "$repo" >>"$tmp_list"
 seed "$repo" apps/console/src/api/fixture.test.ts 'label: "example-shop",'
 check "missing target directory exits 2" 2 "$(run_gate "$repo")"
+
+# 10. SYNC: every go/internal/query file target of the gate appears in the
+# gates-02.yaml triggers, so a renamed target cannot silently lose CI
+# selection (#7918 P2).
+triggers_yaml="${script_dir}/../specs/ci-gates.d/gates-02.yaml"
+sync_failures=0
+while IFS= read -r sync_target; do
+  [ -n "$sync_target" ] || continue
+  case "$sync_target" in
+    *.go)
+      if ! rg -q --fixed-strings -- "\"$sync_target\"" "$triggers_yaml"; then
+        printf 'FAIL trigger sync: gate file target %s not in gates-02.yaml triggers\n' "$sync_target" >&2
+        sync_failures=$((sync_failures + 1))
+      fi
+      ;;
+  esac
+done < <(gate_targets)
+check "gate file targets are gates-02.yaml triggers" 0 "$sync_failures"
 
 if [ "$failures" -ne 0 ]; then
   printf '%s case(s) failed\n' "$failures" >&2
