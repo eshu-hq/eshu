@@ -513,6 +513,44 @@ printf '{"Action":"run","Test":"TestZzzDecoyNotEnrolled/seeded-child"}\n{"Action
   >>"$(events_of "${sproofs[0]%%|*}")"
 out="$(run_shard "1/4" "${shard_head}")" && fail "shard 1/4 with a foreign subtest passed"
 [[ "${out}" == *"unexpected test event"* ]] || fail "foreign subtest not named: ${out}"
+# Shard-plus-degrade: without a Neo4j backend a shard excuses its graph
+# proofs, and an excused proof that fails still fails the leg by name.
+shard_graph_tests="$(python3 "${checker}" list-neo4j-tests)" || fail "list-neo4j-tests rejected"
+degraded_shard=""
+degraded_graph=""
+for shard in 1/4 2/4 3/4 4/4; do
+  mapfile -t sproofs < <(shard_proofs "${shard}")
+  for entry in "${sproofs[@]}"; do
+    for g in ${shard_graph_tests}; do
+      if [[ "${entry##*|}" == "${g}" ]]; then degraded_shard="${shard}"; degraded_graph="${g}"; fi
+    done
+  done
+done
+[[ -n "${degraded_shard}" ]] || fail "no shard carries a graph proof"
+cp "${fake}/envs" "${fake}/envs.shard-degrade"
+rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs.shard-degrade" >"${fake}/envs"
+unset ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD ESHU_GRAPH_BACKEND
+mapfile -t sproofs < <(shard_proofs "${degraded_shard}")
+write_subset_events "${sproofs[@]}"
+for entry in "${sproofs[@]}"; do
+  if [[ "${entry##*|}" == "${degraded_graph}" ]]; then
+    sed -i.bak "/\"Test\":\"${degraded_graph}\"/d" "$(events_of "${entry%%|*}")"
+  fi
+done
+out="$(run_shard "${degraded_shard}" "${shard_head}")" || fail "degraded shard ${degraded_shard} failed: ${out}"
+write_subset_events "${sproofs[@]}"
+for entry in "${sproofs[@]}"; do
+  if [[ "${entry##*|}" == "${degraded_graph}" ]]; then
+    sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${degraded_graph}\"/\"Action\":\"fail\",\"Test\":\"${degraded_graph}\"/" "$(events_of "${entry%%|*}")"
+  fi
+done
+out="$(run_shard "${degraded_shard}" "${shard_head}")" && fail "degraded shard with graph failure passed"
+[[ "${out}" == *"does not cover failure"* ]] || fail "excused shard failure not named: ${out}"
+cp "${fake}/envs.shard-degrade" "${fake}/envs"
+export ESHU_NEO4J_URI="${ESHU_EXPECTED_NEO4J_URI}"
+export ESHU_NEO4J_USERNAME="${ESHU_EXPECTED_NEO4J_USERNAME}"
+export ESHU_NEO4J_PASSWORD="${ESHU_EXPECTED_NEO4J_PASSWORD}"
+export ESHU_GRAPH_BACKEND=neo4j
 write_events
 printf '{"Action":"run","Test":"%s/seeded-child"}\n{"Action":"pass","Test":"%s/seeded-child","Elapsed":0.1}\n' \
   "${first_proof}" "${first_proof}" >>"$(events_of "${first_pkg}")"

@@ -64,6 +64,8 @@ def verify_results(
                     terminals[name].append((action, event.get("Elapsed", 0)))
                 elif action == "output":
                     output[name].append(event.get("Output", "").rstrip()[:300])
+            elif name in excused_terminals and action in {"pass", "fail", "skip"}:
+                excused_terminals[name].append(action)
             elif strict and name:
                 parent = name.split("/")[0]
                 if parent not in expected_tests and parent not in excused_terminals:
@@ -73,8 +75,6 @@ def verify_results(
                     continue
                 if "/" in name:
                     continue
-            elif name in excused_terminals and action in {"pass", "fail", "skip"}:
-                excused_terminals[name].append(action)
             elif not name and action in {"pass", "fail", "skip"}:
                 package_terminal.append(action)
 
