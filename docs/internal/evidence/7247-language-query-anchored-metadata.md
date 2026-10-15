@@ -114,30 +114,45 @@ touch.
 
 ## Performance Evidence
 
-Performance Evidence: measured on a disposable PostgreSQL 18.6 container
-(`postgres:18-alpine`, `shared_buffers=256MB`). Every bootstrap migration
-through 177 was applied, so `content_entities_pkey` and migrations 164 and 174
-exist. The fixture has 160,000 `content_entities` rows: one 40,000-row PHP
-repository over 2,500 files, and three 40,000-row PHP repositories whose paths
-sort first. The ids are the first 200 rows of the graph-page order. The page
-read is the replaced statement for the same repository and language with the
+Performance Evidence: measured with `TestEntityMetadataByIDsLive`
+(`go/internal/query/content_reader_entity_metadata_by_ids_live_test.go`) on
+two disposable PostgreSQL 18.6 images. Every bootstrap migration through 177
+was applied (196 files, the same set on both runs), so
+`content_entities_pkey` and migrations 164 and 174 exist. The fixture has
+160,000 `content_entities` rows: one 40,000-row PHP repository over 2,500
+files, and three 40,000-row PHP repositories whose paths sort first. The ids
+are the first 200 rows of the graph-page order. The page read is the
+replaced statement for the same repository and language with the
 two-character pattern `qz`, which matches 100 rows. That is the
 selective-pattern shape the issue named as the worst generic-plan case.
-Prepared with typed parameters, then `EXPLAIN (ANALYZE, BUFFERS)`.
-Proof: `TestEntityMetadataByIDsLive`
-(`go/internal/query/content_reader_entity_metadata_by_ids_live_test.go`),
-three runs with identical buffers.
+Each statement is prepared with typed parameters, then run under
+`EXPLAIN (ANALYZE, BUFFERS)`.
 
-| Read | plan_cache_mode | Rows | Shared buffers | Plan |
-| --- | --- | ---: | ---: | --- |
-| id lookup (new) | auto (custom) | 200 | 458 | `content_entities_pkey` index scan, no Seq Scan |
-| id lookup (new) | force_generic_plan | 200 | 458 | `content_entities_pkey` index scan, no Seq Scan |
-| page read (old) | auto (custom) | 100 | 2,259 | |
-| page read (old) | force_generic_plan | 100 | 157,469 | |
+- Run A: `postgres:18-alpine` (18.6, musl), `shared_buffers=256MB`, three runs
+  with identical buffers, on the branch before its rebase onto `eef372440`.
+- Run B: `postgres:18` (Debian `18.6-1.pgdg13+2`, glibc), default
+  `shared_buffers=128MB`, two runs with identical buffers, at `1948dc60c`. The
+  independent reviewer reported the same four counts from a Debian
+  PostgreSQL 18.6 image.
 
-Execution time, non-gating, shared host: the id lookup took 0.45-0.65 ms in
-both modes. The page read took 16.2-16.5 ms (custom) and 100.2-112.0 ms
-(generic).
+| Read | plan_cache_mode | Rows | Buffers, run A | Buffers, run B | Plan |
+| --- | --- | ---: | ---: | ---: | --- |
+| id lookup (new) | auto (custom) | 200 | 458 | 465 | `content_entities_pkey` index scan, no Seq Scan |
+| id lookup (new) | force_generic_plan | 200 | 458 | 465 | `content_entities_pkey` index scan, no Seq Scan |
+| page read (old) | auto (custom) | 100 | 2,259 | 2,259 | |
+| page read (old) | force_generic_plan | 100 | 157,469 | 157,465 | |
+
+The id lookup used the same plan on both images (a `content_entities_pkey`
+index scan with no Seq Scan, which the test asserts); the counts differ by at
+most 7 buffers (1.53%, on the id lookup) between images. The page-read plans
+were not compared node by node, and the cause of the small difference was not
+isolated.
+
+Execution time, non-gating, shared host. Run A: the id lookup took 0.45-0.65
+ms in both modes; the page read took 16.2-16.5 ms (custom) and 100.2-112.0 ms
+(generic). Run B: the id lookup took 1.44-1.59 ms; the page read took
+23.7-37.9 ms (custom) and 137.6-1,795.7 ms (generic, the slow figure on the
+first run).
 
 The test gates on the new read's shape: exact rows, a primary-key index scan,
 no Seq Scan, and at most 10 buffers per id. The old read's buffers are logged

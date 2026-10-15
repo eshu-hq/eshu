@@ -132,10 +132,14 @@ content entity type keeps the page read; a label without one (for example
 `TerraformBackend`) never reaches the enrichment.
 
 Performance Evidence: one bounded primary-key lookup replaces the filtered
-page read for anchored labels. On the disposable PostgreSQL 18 fixture in
+page read for anchored labels. On the 160,000-row disposable fixture in
 `content_reader_entity_metadata_by_ids_live_test.go`, the lookup for 200 ids
-read 458 shared buffers under both a custom and a forced generic plan. The
-page read it replaces read 2,259 (custom) and 157,469 (generic). See
+read 458 shared buffers on `postgres:18-alpine` (18.6, `shared_buffers=256MB`)
+and 465 on `postgres:18` (Debian 18.6, `shared_buffers=128MB`), under both a
+custom and a forced generic plan. The page read it replaces read 2,259
+(custom) on both, and 157,469 and 157,465 (generic). The id lookup used the
+same plan on both images; the counts differ by at most 7 buffers (1.53%)
+between images. See
 `docs/internal/evidence/7247-language-query-anchored-metadata.md`.
 
 Observability Evidence: the request span carries
