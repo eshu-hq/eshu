@@ -8,7 +8,7 @@
 -- varied (non-repeating) parsed_file_data text, and 8 go.mod rows.
 \set ON_ERROR_STOP on
 
-SELECT current_database() LIKE 'eshu_7623_%' AS eshu_7623_disposable \gset
+SELECT starts_with(current_database(), 'eshu_7623_') AS eshu_7623_disposable \gset
 \if :eshu_7623_disposable
 \else
   \echo 'refusing non-disposable database; expected an eshu_7623_ prefix'
@@ -28,7 +28,7 @@ SELECT 'generation-scope:' || n, 'scope:' || n, 'snapshot', now(), now(), 'activ
 FROM generate_series(1, 766) AS n;
 
 -- 766 scopes x 166 files = 127,156 file facts. Each function's source text is built
--- from md5 values that depend on the scope, file and function, so no two differ.
+-- from md5 values that depend on the scope, file and function, so no two are alike.
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
     source_system, source_fact_key, observed_at, ingested_at, payload)
 SELECT 'fact-' || s || '-' || f, 'scope:' || s, 'generation-scope:' || s, 'file',
