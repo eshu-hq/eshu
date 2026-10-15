@@ -277,7 +277,11 @@ func TestEntityUnscopedSearchPlanShapesLive(t *testing.T) {
 // entityLiveWalk is one live entity search with the span attributes that say
 // which phases ran.
 type entityLiveWalk struct {
-	page   unscoped.EntityPage
+	page unscoped.EntityPage
+	// budget is the virtual cost of one 500-row window the walk ran under, the
+	// one dimension that varies between attempts (the walk's own budget is the
+	// constant virtualBudget). The proofs' failure messages print it as the
+	// budget, so a failure names the attempt that produced it.
 	budget time.Duration
 	steps  int64
 	tail   bool
@@ -289,8 +293,10 @@ type entityLiveWalk struct {
 	continuationRows int64
 }
 
-// searchEntityLive runs an entity search at the given budget and records its
-// phases.
+// searchEntityLive runs an entity search at the given real budget and records
+// its phases. Only observeEntityWindowFigures uses it: the figures come from
+// the walk's own telemetry and need a walk that covers the table, not a phase
+// choice. Phase proofs use searchEntityLiveVirtual.
 func searchEntityLive(t *testing.T, ctx context.Context, db *sql.DB, budget time.Duration, token string, limit int) entityLiveWalk {
 	t.Helper()
 	spans := tracetest.NewSpanRecorder()
@@ -442,16 +448,50 @@ func TestSearchEntitiesUnscopedEdgeRowsAreExactLive(t *testing.T) {
 		})
 }
 
-// searchEntityLiveUntil runs the entity search at a series of budgets until
-// accept holds for the phases that ran. Which phases run depends on host
-// speed: the probe and two 5,000-row steps must fit the continuation room
-// (0.2 x budget) and the next step must not, so the viable budget band is
-// narrow in absolute terms and moves with the host. The budgets therefore
-// climb geometrically from the smallest accepted budget to the largest, so
-// some budget lands in the band on a fast or a loaded host. Rows and the
-// look-ahead flag must be exact at every budget; only the choice of the
-// budget that exercises the wanted phases is adaptive, and failing to find
-// one is a failure, never a skip.
+// searchEntityLiveVirtual runs an entity search under the virtual clock at
+// one virtual window cost and records its phases.
+func searchEntityLiveVirtual(t *testing.T, ctx context.Context, db *sql.DB, cost time.Duration, token string, limit int) entityLiveWalk {
+	t.Helper()
+	clock := newVirtualClock()
+	spans := tracetest.NewSpanRecorder()
+	searcher := &unscoped.Searcher{
+		Store:  &virtualStore{inner: postgres.NewSQLReadStore(db), clock: clock, windowCost: cost},
+		Budget: virtualBudget,
+		Now:    clock.Now,
+		Tracer: sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	page, err := searcher.SearchEntities(ctx, token, limit, 0, querycontract.SearchCursor{})
+	if err != nil {
+		t.Fatalf("SearchEntities(virtual window cost %d ms) error = %v", cost.Milliseconds(), err)
+	}
+	ended := spans.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(ended))
+	}
+	attrs := map[string]attribute.Value{}
+	for _, kv := range ended[0].Attributes() {
+		attrs[string(kv.Key)] = kv.Value
+	}
+	return entityLiveWalk{
+		page:   page,
+		budget: cost,
+		steps:  attrs["search.continuation_steps"].AsInt64(),
+		tail:   attrs["search.tail_ran"].AsBool(),
+		cancel: attrs["search.tail_cancelled"].AsBool(),
+
+		probeRows:        attrs["search.probe_rows_visited"].AsInt64(),
+		continuationRows: attrs["search.continuation_rows"].AsInt64(),
+	}
+}
+
+// searchEntityLiveUntil runs the entity search at a bounded list of virtual
+// window costs until accept holds for the phases that ran. The phase
+// decisions depend on the virtual clock only, so the first cost that
+// exercises the wanted phases is the same on every host. Rows and the
+// look-ahead flag must be exact at every cost; only the choice of the cost
+// that exercises the wanted phases is searched, and failing to find one is
+// a failure, never a skip.
 func searchEntityLiveUntil(
 	t *testing.T, ctx context.Context, db *sql.DB, token string, limit int,
 	check func(walk entityLiveWalk),
@@ -459,14 +499,18 @@ func searchEntityLiveUntil(
 ) entityLiveWalk {
 	t.Helper()
 	var tried []string
-	for budget := unscoped.MinBudget; budget <= unscoped.MaxBudget; budget = budget * 6 / 5 {
-		walk := searchEntityLive(t, ctx, db, budget, token, limit)
+	for _, cost := range entityVirtualWindowCosts {
+		walk := searchEntityLiveVirtual(t, ctx, db, cost, token, limit)
+		t.Logf("virtual window cost %d ms: steps=%d tail=%v cancelled=%v partial=%v more=%v",
+			cost.Milliseconds(), walk.steps, walk.tail, walk.cancel, walk.page.Partial != nil, walk.page.More)
 		check(walk)
 		if accept(walk) {
+			t.Logf("virtual window cost %d ms exercised the wanted phases: steps=%d tail=%v cancelled=%v partial=%v more=%v",
+				cost.Milliseconds(), walk.steps, walk.tail, walk.cancel, walk.page.Partial != nil, walk.page.More)
 			return walk
 		}
-		tried = append(tried, fmt.Sprintf("%dms(steps=%d tail=%v cancelled=%v)", budget.Milliseconds(), walk.steps, walk.tail, walk.cancel))
+		tried = append(tried, fmt.Sprintf("%dms(steps=%d tail=%v cancelled=%v)", cost.Milliseconds(), walk.steps, walk.tail, walk.cancel))
 	}
-	t.Fatalf("no budget exercised the wanted phases; tried %s", strings.Join(tried, " "))
+	t.Fatalf("no virtual window cost exercised the wanted phases; tried %s", strings.Join(tried, " "))
 	return entityLiveWalk{}
 }

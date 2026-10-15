@@ -60,6 +60,18 @@ var virtualWindowCosts = []time.Duration{
 	25 * time.Millisecond, 400 * time.Millisecond,
 }
 
+// entityVirtualWindowCosts are the virtual costs searchEntityLiveUntil tries.
+// With the entity shape's figures at the default budget (continuation cap
+// 160 ms, 1,000-row probe charged twice the cost and 5,000-row steps ten
+// times it) a cost of 8 ms runs the probe plus two steps inside the cap and
+// leaves the rest of the 12,000-row fixture to the tail; the list spans the
+// neighboring bands so a figure change still lands one cost on two steps
+// plus the tail.
+var entityVirtualWindowCosts = []time.Duration{
+	8 * time.Millisecond, 6 * time.Millisecond, 4 * time.Millisecond,
+	12 * time.Millisecond, 16 * time.Millisecond,
+}
+
 // virtualClock is the only clock a virtual walk sees.
 type virtualClock struct{ now time.Time }
 
@@ -77,18 +89,27 @@ type virtualStore struct {
 	windowCost time.Duration
 }
 
-// BeginReadOnlySnapshot implements unscoped.Beginner.
+// BeginReadOnlySnapshot implements unscoped.Beginner. The maps cover the
+// file and the entity statement sets: both walks share the walker's clock
+// and window-size charging, so one virtual store drives both (#8141).
 func (s *virtualStore) BeginReadOnlySnapshot(ctx context.Context) (db.ReadTransaction, error) {
 	tx, err := s.inner.BeginReadOnlySnapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
 	statements := unscoped.Statements()
+	entity := unscoped.EntityStatements()
 	return &virtualTx{
 		ReadTransaction: tx,
 		store:           s,
-		windows:         map[string]bool{statements.StepFirst: true, statements.StepAfter: true},
-		tails:           map[string]bool{statements.TailFirst: true, statements.TailAfter: true},
+		windows: map[string]bool{
+			statements.StepFirst: true, statements.StepAfter: true,
+			entity.StepFirst: true, entity.StepAfter: true,
+		},
+		tails: map[string]bool{
+			statements.TailFirst: true, statements.TailAfter: true,
+			entity.TailFirst: true, entity.TailAfter: true,
+		},
 	}, nil
 }
 
