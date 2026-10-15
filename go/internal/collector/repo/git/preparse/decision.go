@@ -21,10 +21,11 @@ const (
 // value of eshu_dp_collector_reconcile_parse_skip_decisions_total.
 type Outcome string
 
-// The closed outcome set. Decide returns the first twelve. Run replaces
-// OutcomeSkipped with the store's answer: OutcomeSkipped (a real re-open) and
-// OutcomeReprojectionPending (a re-open already in flight) do not parse; every
-// other outcome parses as before #7978's follow-up.
+// The closed outcome set. Decide returns the first twelve, or OutcomeStamped
+// for a proven first-sweep stamp (#8095). Run replaces OutcomeSkipped and
+// OutcomeStamped with the store's answer: OutcomeSkipped and OutcomeStamped (a
+// real re-open) and OutcomeReprojectionPending (a re-open already in flight) do
+// not parse; every other outcome parses as before #7978's follow-up.
 const (
 	// OutcomeSkipped: identity equal at the active commit; the parse is skipped
 	// and the active generation is re-projected.
@@ -63,6 +64,11 @@ const (
 	// delta, or the commit or identity changed), so the collector parses in the
 	// same cycle (review F-3).
 	OutcomeReprojectionSuperseded Outcome = "reprojection_superseded"
+	// OutcomeStamped: the opt-in first-sweep stamp (#8095) wrote the identity
+	// for a proven unchanged repository without a full parse and re-projected
+	// the active generation. The re-projection stamps preparse_skips 0, so a
+	// stamp counts as a parse for the valve.
+	OutcomeStamped Outcome = "stamped_without_parse"
 )
 
 // Outcomes returns the closed outcome set in a stable order.
@@ -71,7 +77,7 @@ func Outcomes() []Outcome {
 		OutcomeSkipped, OutcomeReasonIneligible, OutcomeDisabled, OutcomeNoActiveFull,
 		OutcomeDeltaActive, OutcomeHeadMoved, OutcomeIdentityAbsent, OutcomeIdentityMismatch,
 		OutcomeSubmodules, OutcomeDirtyTree, OutcomeValveDue, OutcomeReadError,
-		OutcomeReprojectionPending, OutcomeReprojectionSuperseded,
+		OutcomeReprojectionPending, OutcomeReprojectionSuperseded, OutcomeStamped,
 	}
 }
 
@@ -108,6 +114,16 @@ type Input struct {
 	// MaxSkips is the valve: 0 never skips; N > 0 parses at least every N
 	// intervals (N-1 skips after each parse).
 	MaxSkips int
+	// StampWithoutParse is the opt-in first-sweep stamp (#8095,
+	// ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE): off by default, so an
+	// unchanged repository with no stored identity parses once to stamp one.
+	StampWithoutParse bool
+	// StampProven reports that the active generation proves it was produced by
+	// the running content version and configuration with no degraded snapshot
+	// (SCIP fallback, unreadable file). The store records that proof on every
+	// parse; until it does, no generation is proven and the setting parses as
+	// before. Any doubt parses.
+	StampProven bool
 }
 
 // Decide returns whether a forced reconcile may skip the parse. The rules run
@@ -115,6 +131,11 @@ type Input struct {
 // allows the skip. Any doubt parses: a wrong skip keeps stale facts, a wrong
 // parse costs CPU.
 func Decide(in Input, clean func() (bool, error)) Outcome {
+	// stamp is a first-sweep stamp candidate (#8095): the setting is on, the
+	// stored proof matches the running collector, and the stored identity is
+	// empty while the current one is known. It still runs every later guard,
+	// including the clean-tree check, and any refusal parses.
+	stamp := in.StampWithoutParse && in.StampProven && in.Active.Identity == "" && in.Identity != ""
 	switch {
 	case in.MaxSkips <= 0:
 		return OutcomeDisabled
@@ -127,7 +148,18 @@ func Decide(in Input, clean func() (bool, error)) Outcome {
 	case strings.TrimSpace(in.RemoteCommit) == "" || in.RemoteCommit != in.Active.CommitSHA:
 		return OutcomeHeadMoved
 	case in.Active.Identity == "" || in.Identity == "":
-		return OutcomeIdentityAbsent
+		if !stamp {
+			return OutcomeIdentityAbsent
+		}
+		// A stamp candidate matched an earlier case, so the later guards
+		// below never evaluate for it: repeat the submodule and valve guards
+		// here so a stamp never bypasses a parse they require.
+		if in.HasSubmodules {
+			return OutcomeSubmodules
+		}
+		if in.Active.Skips >= in.MaxSkips-1 {
+			return OutcomeValveDue
+		}
 	case in.Active.Identity != in.Identity:
 		return OutcomeIdentityMismatch
 	case in.HasSubmodules:
@@ -141,6 +173,9 @@ func Decide(in Input, clean func() (bool, error)) Outcome {
 	}
 	if !ok {
 		return OutcomeDirtyTree
+	}
+	if stamp {
+		return OutcomeStamped
 	}
 	return OutcomeSkipped
 }

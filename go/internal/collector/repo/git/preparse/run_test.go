@@ -52,3 +52,81 @@ func TestRunEventNamesTheScope(t *testing.T) {
 		}
 	}
 }
+
+type spyReprojector struct {
+	reason string
+	got    scope.ActiveReprojection
+	calls  int
+}
+
+func (r *spyReprojector) ReprojectActiveGeneration(_ context.Context, request scope.ActiveReprojection) (string, error) {
+	r.got = request
+	r.calls++
+	return r.reason, nil
+}
+
+// TestRunStampsIdentityWithoutParsing (#8095): with the opt-in setting and a
+// proven generation, the first sweep re-projects the active generation with
+// the computed identity and stores no new generation, so the stamped facts
+// equal a full parse's facts by construction (no parse runs, no facts change).
+func TestRunStampsIdentityWithoutParsing(t *testing.T) {
+	t.Parallel()
+	recorder := tracetest.NewSpanRecorder()
+	ctx, span := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("t").Start(context.Background(), "cycle")
+	spy := &spyReprojector{reason: telemetry.RefreshSkipReasonReconcileReprojected}
+	attempt := Attempt{
+		ScopeID: "git-repository-scope:first-sweep", Reason: ReasonIntervalElapsed,
+		RemoteCommit: "c", Identity: "preparse:v1:now", MaxSkips: 7,
+		StampWithoutParse: true, StampProven: true,
+		State: scope.FullReconcileState{ActiveGenerationID: "gen-0", ActiveCommitSHA: "c"},
+	}
+	if !Run(ctx, attempt, func() (bool, error) { return true, nil }, spy, Recorder{}) {
+		t.Fatal("Run() = false, want the stamp to skip the parse")
+	}
+	if spy.calls != 1 {
+		t.Fatalf("re-projection calls = %d, want 1", spy.calls)
+	}
+	if spy.got.GenerationID != "gen-0" || spy.got.CommitSHA != "c" || spy.got.PreparseIdentity != "preparse:v1:now" {
+		t.Fatalf("re-projection request = %+v, want gen-0 at c with the computed identity", spy.got)
+	}
+	span.End()
+	events := recorder.Ended()[0].Events()
+	if len(events) != 1 {
+		t.Fatalf("events = %+v, want one git.reconcile.parse_skip_decision", events)
+	}
+	outcome := ""
+	skipped := ""
+	for _, kv := range events[0].Attributes {
+		switch string(kv.Key) {
+		case "eshu.reconcile.parse_skip_outcome":
+			outcome = kv.Value.String()
+		case "eshu.reconcile.parse_skipped":
+			skipped = kv.Value.String()
+		}
+	}
+	if outcome != "stamped_without_parse" || skipped != "true" {
+		t.Fatalf("span outcome = %q skipped = %q, want stamped_without_parse/true", outcome, skipped)
+	}
+}
+
+// TestRunParsesWhenTheStampIsUnproven (#8095): the setting without the proof
+// parses exactly as before, so the default and the unproven opt-in sweep keep
+// today's behavior and facts.
+func TestRunParsesWhenTheStampIsUnproven(t *testing.T) {
+	t.Parallel()
+	for _, proven := range []bool{false, true} {
+		spy := &spyReprojector{reason: telemetry.RefreshSkipReasonReconcileReprojected}
+		attempt := Attempt{
+			ScopeID: "git-repository-scope:first-sweep", Reason: ReasonIntervalElapsed,
+			RemoteCommit: "c", Identity: "preparse:v1:now", MaxSkips: 7,
+			StampWithoutParse: false, StampProven: proven,
+			State: scope.FullReconcileState{ActiveGenerationID: "gen-0", ActiveCommitSHA: "c"},
+		}
+		if Run(context.Background(), attempt, func() (bool, error) { return true, nil }, spy, Recorder{}) {
+			t.Fatalf("proven=%t: Run() = true, want a parse when the setting is off", proven)
+		}
+		if spy.calls != 0 {
+			t.Fatalf("proven=%t: re-projection calls = %d, want 0", proven, spy.calls)
+		}
+	}
+}

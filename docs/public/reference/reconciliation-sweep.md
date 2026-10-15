@@ -187,7 +187,7 @@ the dropped fact is present again after one sweep. A drop is logged at WARN
 | `ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS=0` | parse | `disabled` |
 | no active generation, or the active generation is a delta | parse | `no_active_full`, `delta_active` |
 | the remote head is not the active generation's commit | parse | `head_moved` |
-| no stored identity yet, or it differs (content version or configuration moved) | parse | `identity_absent`, `identity_mismatch` |
+| no stored identity yet, or it differs (content version or configuration moved) | parse, unless the opt-in first-sweep stamp proves the generation and writes the identity without parsing | `identity_absent`, `identity_mismatch`, `stamped_without_parse` |
 | the repository has `.gitmodules` | parse | `submodules_present` |
 | the scope already skipped N-1 times since its last parse | parse | `valve_due` |
 | the checkout has untracked or modified files | parse | `dirty_tree` |
@@ -208,7 +208,7 @@ repository parses at least every N intervals, so an input the identity does not
 cover stays stale for at most N intervals; at the daily default that is one
 parse per repository per week. Set a larger N to parse less often, or 0 to
 always parse. A negative or non-integer value stops the collector at startup
-with an error that names the variable and the value.
+with an error that names the variable and the value. The opt-in `ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE` stamp (#8095, off by default) writes a proven unchanged identity without parsing; unproven generations parse as before, and `stamped_without_parse` counts the stamps.
 
 Each decision increments
 `eshu_dp_collector_reconcile_parse_skip_decisions_total{outcome}` and adds a span

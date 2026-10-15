@@ -24,7 +24,8 @@ re-open, which `Run` reaches through the `Reprojector` interface.
 - `Identity`, `ConfigDigest`, `IdentityPrefix`: the identity and its config
   part (pure).
 - `Decide`, `Input`, `ActiveGeneration`, `Outcome`, `Outcomes`: the skip
-  decision and its closed set of 14 outcomes (pure).
+  decision and its closed set of 15 outcomes (pure), including the opt-in
+  #8095 first-sweep stamp (`stamped_without_parse`).
 - `ReasonIntervalElapsed`, `ReasonGraphDirty`: the two eligible reasons.
 - `FoldedEnvKeys`, `NonOutputEnvKeys`: the env key classification (`keys.go`).
 - `Run`, `Attempt`, `Recorder`, `Reprojector`: one forced reconcile end to
@@ -50,8 +51,9 @@ refresh-skip reasons), `pkg/log`, and OpenTelemetry metric and trace.
   `scope_id`, `eshu.reconcile.parse_skip_outcome`, and
   `eshu.reconcile.parse_skipped`;
 - INFO `git_reconcile_parse_skipped` when the parse did not run (`skipped`,
-  `reprojection_pending`), or WARN `git_reconcile_parse_skip_refused` for an
-  identity mismatch, a fenced re-open, or a store error.
+  `stamped_without_parse`, `reprojection_pending`), or WARN
+  `git_reconcile_parse_skip_refused` for an identity mismatch, a fenced
+  re-open, or a store error.
 
 ## Gotchas / invariants
 
@@ -63,9 +65,15 @@ refresh-skip reasons), `pkg/log`, and OpenTelemetry metric and trace.
   value to the snapshotter and the selectors, so the stamped identity and the
   compared identity cannot drift. Each binary's wiring guard test fails when a
   selector that can force a reconcile has no `Preparse` source.
-- Any doubt parses: every outcome but `skipped` and `reprojection_pending`
-  parses as before.
-- The valve: `MaxSkips` 0 never skips; N parses at least every N intervals.
+- Any doubt parses: every outcome but `skipped`, `stamped_without_parse`,
+  and `reprojection_pending` parses as before.
+- The valve: `MaxSkips` 0 never skips; N parses at least every N intervals. A
+  stamp counts as a parse (the re-projection stamps `preparse_skips` 0).
+- The #8095 stamp is opt-in and fail-closed: it fires only with
+  `ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE` on and a proven
+  generation; until the store records the content-version and configuration
+  proof on every parse, no generation is proven and the setting parses as
+  before.
 
 ## Related docs
 

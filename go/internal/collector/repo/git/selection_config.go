@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//nolint:filelength // The repo-sync env contract (config struct, loader, and
+// readers) intentionally stays in one file so the contract reads in one
+// place; the file was already at the cap before #8095 added its setting.
+
 package git
 
 import (
@@ -89,6 +93,9 @@ type RepoSyncConfig struct {
 	// ruling a9-143 D3, ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS): 0 never skips the
 	// parse of a forced reconcile; N parses at least every N intervals.
 	ReconcileParseMaxSkips int
+	// ReconcileStampIdentityWithoutParse is the opt-in first-sweep stamp
+	// (#8095): off by default; proven generations stamp without parsing.
+	ReconcileStampIdentityWithoutParse bool
 	// PinnedRefsByRepoID maps repository IDs to per-repo pinned refs. Each
 	// pinned ref produces an isolated non-default-branch snapshot with identity
 	// repo_id@ref. Parsed from ESHU_PINNED_REFS_JSON. Empty means feature off.
@@ -165,41 +172,42 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	}
 
 	config := RepoSyncConfig{
-		ReposDir:               reposDir,
-		SourceMode:             sourceMode,
-		GitAuthMethod:          gitAuthMethod,
-		GithubOrg:              strings.TrimSpace(getenv("ESHU_GITHUB_ORG")),
-		GitlabHost:             gitlabHost,
-		Repositories:           extractExactRepositoryIDs(sourceMode, repositoryRules),
-		FilesystemRoot:         strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
-		FilesystemDirect:       boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
-		CloneDepth:             intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1),
-		RepoLimit:              intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000),
-		Component:              component,
-		RepositoryRules:        repositoryRules,
-		IncludeArchivedRepos:   boolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
-		GitToken:               firstNonEmpty(getenv("ESHU_GIT_TOKEN"), getenv("GITHUB_TOKEN")),
-		GitHubAppID:            firstNonEmpty(getenv("GITHUB_APP_ID"), getenv("ESHU_GITHUB_APP_ID")),
-		GitHubAppInstallation:  firstNonEmpty(getenv("GITHUB_APP_INSTALLATION_ID"), getenv("ESHU_GITHUB_APP_INSTALLATION_ID")),
-		GitHubAppPrivateKey:    firstNonEmpty(getenv("GITHUB_APP_PRIVATE_KEY"), getenv("ESHU_GITHUB_APP_PRIVATE_KEY")),
-		SSHPrivateKeyPath:      strings.TrimSpace(getenv("ESHU_SSH_PRIVATE_KEY_PATH")),
-		SSHKnownHostsPath:      strings.TrimSpace(getenv("ESHU_SSH_KNOWN_HOSTS_PATH")),
-		DependencyMode:         boolFromEnv(getenv("ESHU_BOOTSTRAP_IS_DEPENDENCY")),
-		DependencyName:         strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_NAME")),
-		DependencyLanguage:     strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_LANGUAGE")),
-		SnapshotWorkers:        snapshotWorkerCount(getenv),
-		ParseWorkers:           parseWorkerCount(getenv),
-		LargeRepoThreshold:     largeRepoThreshold(getenv),
-		LargeRepoMaxConcurrent: largeRepoMaxConcurrent(getenv),
-		StreamBuffer:           streamBufferSize(getenv),
-		RepoShardCount:         repoShardCount,
-		RepoShardIndex:         repoShardIndex,
-		ReconcileInterval:      reconcileIntervalFromEnv(getenv),
-		ReconcileMaxPerCycle:   reconcileMaxPerCycleFromEnv(getenv),
-		ReconcileParseMaxSkips: reconcileParseMaxSkips,
-		PinnedRefsByRepoID:     pinnedRefsByRepoID,
-		PinnedRefPerRepoCap:    pinnedRefCap,
-		PinnedRefFleetCap:      pinnedRefFleetCap,
+		ReposDir:                           reposDir,
+		SourceMode:                         sourceMode,
+		GitAuthMethod:                      gitAuthMethod,
+		GithubOrg:                          strings.TrimSpace(getenv("ESHU_GITHUB_ORG")),
+		GitlabHost:                         gitlabHost,
+		Repositories:                       extractExactRepositoryIDs(sourceMode, repositoryRules),
+		FilesystemRoot:                     strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
+		FilesystemDirect:                   boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
+		CloneDepth:                         intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1),
+		RepoLimit:                          intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000),
+		Component:                          component,
+		RepositoryRules:                    repositoryRules,
+		IncludeArchivedRepos:               boolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
+		GitToken:                           firstNonEmpty(getenv("ESHU_GIT_TOKEN"), getenv("GITHUB_TOKEN")),
+		GitHubAppID:                        firstNonEmpty(getenv("GITHUB_APP_ID"), getenv("ESHU_GITHUB_APP_ID")),
+		GitHubAppInstallation:              firstNonEmpty(getenv("GITHUB_APP_INSTALLATION_ID"), getenv("ESHU_GITHUB_APP_INSTALLATION_ID")),
+		GitHubAppPrivateKey:                firstNonEmpty(getenv("GITHUB_APP_PRIVATE_KEY"), getenv("ESHU_GITHUB_APP_PRIVATE_KEY")),
+		SSHPrivateKeyPath:                  strings.TrimSpace(getenv("ESHU_SSH_PRIVATE_KEY_PATH")),
+		SSHKnownHostsPath:                  strings.TrimSpace(getenv("ESHU_SSH_KNOWN_HOSTS_PATH")),
+		DependencyMode:                     boolFromEnv(getenv("ESHU_BOOTSTRAP_IS_DEPENDENCY")),
+		DependencyName:                     strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_NAME")),
+		DependencyLanguage:                 strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_LANGUAGE")),
+		SnapshotWorkers:                    snapshotWorkerCount(getenv),
+		ParseWorkers:                       parseWorkerCount(getenv),
+		LargeRepoThreshold:                 largeRepoThreshold(getenv),
+		LargeRepoMaxConcurrent:             largeRepoMaxConcurrent(getenv),
+		StreamBuffer:                       streamBufferSize(getenv),
+		RepoShardCount:                     repoShardCount,
+		RepoShardIndex:                     repoShardIndex,
+		ReconcileInterval:                  reconcileIntervalFromEnv(getenv),
+		ReconcileMaxPerCycle:               reconcileMaxPerCycleFromEnv(getenv),
+		ReconcileParseMaxSkips:             reconcileParseMaxSkips,
+		ReconcileStampIdentityWithoutParse: boolFromEnv(getenv("ESHU_REPO_RECONCILE_STAMP_IDENTITY_WITHOUT_PARSE")),
+		PinnedRefsByRepoID:                 pinnedRefsByRepoID,
+		PinnedRefPerRepoCap:                pinnedRefCap,
+		PinnedRefFleetCap:                  pinnedRefFleetCap,
 
 		SelectionLivenessWindow: selectionLivenessWindow,
 		GitDeadlines:            gitDeadlines,

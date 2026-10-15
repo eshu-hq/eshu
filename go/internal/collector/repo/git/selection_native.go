@@ -211,6 +211,7 @@ func (s *NativeRepositorySelector) selectRepositories(
 					Now:                          s.Now,
 					Preparse:                     preparseConfig(s.Preparse),
 					ParseMaxSkips:                config.ReconcileParseMaxSkips,
+					StampWithoutParse:            config.ReconcileStampIdentityWithoutParse,
 				})
 			}
 		}

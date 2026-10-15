@@ -209,6 +209,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 				Now:                          s.Now,
 				Preparse:                     preparseConfig(s.Preparse),
 				ParseMaxSkips:                config.ReconcileParseMaxSkips,
+				StampWithoutParse:            config.ReconcileStampIdentityWithoutParse,
 			})
 		}
 	}
