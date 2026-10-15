@@ -70,6 +70,10 @@ unchanged. Before degrading to that partial `200`, both routes answer a reader
 fence on the coverage read with the retryable `503` and `Retry-After`, and a
 client cancel with `499` and the fixed message `repository stats content
 coverage read failed` or `repository story content coverage read failed`.
+The fence wins over the stats route timeout: when the 2s budget expires while
+the coverage read waits on the reader fence, the route answers `503`, and that
+read's `content_coverage` stage log may still show `timeout=true` and
+`content_store_coverage_timeout`.
 
 Stats responses also carry the canonical truth envelope plus an additive
 `result_limits` drilldown block and an explicit `partial_reasons` slot, matching
