@@ -84,7 +84,7 @@ var ErrGenerationRetentionKeyIndexUnavailable = errors.New("generation retention
 // checkGenerationRetentionKeyIndexes returns an error wrapping
 // ErrGenerationRetentionKeyIndexUnavailable that names each unusable key index,
 // or nil when all are valid.
-func checkGenerationRetentionKeyIndexes(ctx context.Context, tx db.Transaction) error {
+func checkGenerationRetentionKeyIndexes(ctx context.Context, tx db.Queryer) error {
 	rows, err := tx.QueryContext(ctx, generationRetentionKeyIndexesQuery)
 	if err != nil {
 		return fmt.Errorf("generation retention: check key indexes: %w", err)
