@@ -2452,6 +2452,12 @@ type Instruments struct {
 	// content store both had no row. Registered by
 	// registerEntityContextResolutionInstruments.
 	EntityContextResolution metric.Int64Counter
+	// LanguageQueryMetadataRows counts POST /api/v0/code/language-query graph
+	// rows sent to content-metadata enrichment, by metadata_path (anchored,
+	// page_read) and outcome (enriched, missing; #7247). page_read/missing is
+	// the share the filtered page read could not key to the graph rows.
+	// Registered by registerLanguageQueryMetadataInstruments.
+	LanguageQueryMetadataRows metric.Int64Counter
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -5298,6 +5304,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerEntityContextResolutionInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerLanguageQueryMetadataInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

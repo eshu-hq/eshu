@@ -92,6 +92,11 @@ type Handler struct {
 	// existing constructions that do not set it keep working; logging is
 	// skipped in that case.
 	Logger *slog.Logger
+	// Instruments backs eshu_dp_language_query_metadata_rows_total, the
+	// per-row count of how content-metadata enrichment served graph rows
+	// (#7247). Nil is tolerated; the request span still carries the same
+	// counts as attributes.
+	Instruments *telemetry.Instruments
 }
 
 // profile returns the handler's normalized query profile, defaulting to

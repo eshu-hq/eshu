@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -63,6 +64,96 @@ func (cr *ContentReader) ListRepoEntitiesByIDs(
 	defer func() { _ = rows.Close() }()
 
 	return scanEntityContentRows(rows, span, "scan repo entity by id")
+}
+
+// ListEntityMetadataByIDsForAccess reads the content rows for a bounded set of
+// entity ids with the caller's repository scope bound in the same WHERE
+// (#7247). It is the language-query enrichment's id-anchored read: the ids are
+// the graph rows' own entity ids, so this replaces a second, differently
+// ordered content page that shared few rows with the graph page.
+//
+// entity_id is the table's primary key, so the read returns at most one row
+// per id, never more than taxonomy.MaxLanguageEntityIDLookup rows, and needs no
+// ORDER BY or LIMIT: the caller merges by id. It projects no source_cache, the
+// widest column, because the caller merges metadata only. An empty id set
+// issues no statement; an oversized one is refused before any statement.
+func (cr *ContentReader) ListEntityMetadataByIDsForAccess(
+	ctx context.Context,
+	lookup taxonomy.LanguageEntityIDLookup,
+) ([]EntityContent, error) {
+	ctx, span := cr.tracer.Start(ctx, "postgres.query", trace.WithAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "list_entity_metadata_by_ids"),
+		attribute.String("db.sql.table", "content_entities"),
+	))
+	defer span.End()
+
+	ids := uniqueStrings(lookup.EntityIDs)
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	if len(ids) > taxonomy.MaxLanguageEntityIDLookup {
+		err := fmt.Errorf("list entity metadata by ids: %d ids exceeds %d", len(ids), taxonomy.MaxLanguageEntityIDLookup)
+		span.RecordError(err)
+		return nil, err
+	}
+	span.SetAttributes(attribute.Int("eshu.content.entity_ids", len(ids)))
+
+	statement, args := buildEntityMetadataByIDsQuery(ids, lookup)
+	rows, err := cr.db.QueryContext(ctx, statement, args...)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("list entity metadata by ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	results := make([]EntityContent, 0, len(ids))
+	for rows.Next() {
+		var entity EntityContent
+		var rawMetadata []byte
+		if err := rows.Scan(
+			&entity.EntityID, &entity.RepoID, &entity.RelativePath, &entity.EntityType,
+			&entity.EntityName, &entity.StartLine, &entity.EndLine, &entity.Language, &rawMetadata,
+		); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan entity metadata by id: %w", err)
+		}
+		if entity.Metadata, err = decodeEntityMetadata(rawMetadata); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan entity metadata by id: %w", err)
+		}
+		results = append(results, entity)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("list entity metadata by ids: %w", err)
+	}
+	return results, nil
+}
+
+// buildEntityMetadataByIDsQuery renders the id-anchored metadata read. A
+// non-empty RepoID binds the one repository; otherwise the caller's grant is
+// bound through appendRepositoryGrantFilter, the same filter the language
+// page read uses; both empty leaves the read to the id set alone (unscoped
+// callers).
+func buildEntityMetadataByIDsQuery(ids []string, lookup taxonomy.LanguageEntityIDLookup) (string, []any) {
+	filters := []string{"entity_id = ANY($1)"}
+	args := []any{array.Of(ids)}
+	if lookup.RepoID != "" {
+		filters = append(filters, "repo_id = $2")
+		args = append(args, lookup.RepoID)
+	} else {
+		filters, args, _ = appendRepositoryGrantFilter(filters, args, 2, lookup.AllowedRepositoryIDs)
+	}
+	// #nosec G201 -- filters are constant text plus $N placeholders; every
+	// value is a bind argument.
+	statement := fmt.Sprintf(`
+		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
+		       start_line, end_line, coalesce(language, ''), metadata
+		FROM content_entities
+		WHERE %s
+	`, strings.Join(filters, " AND "))
+	return statement, args
 }
 
 // ListRepoEntitiesByKeys reads at most two content rows for each unique exact

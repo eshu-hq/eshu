@@ -396,6 +396,9 @@ PACKAGES = {
         "go/internal/query/code_topic_fleet_endpoint_live_test.go": (
             "TestCodeTopicFleetCapacityEndpointPostgresLive",
         ),
+        "go/internal/query/content_reader_entity_metadata_by_ids_live_test.go": (
+            "TestEntityMetadataByIDsLive",
+        ),
         "go/internal/query/content_reader_entity_search_unscoped_live_test.go": (
             "TestSearchEntitiesUnscopedMatchesOldStatementLive",
             "TestEntityUnscopedSearchPlanShapesLive",

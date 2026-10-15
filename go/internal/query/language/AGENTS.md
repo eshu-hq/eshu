@@ -13,7 +13,8 @@ writers), `cypher.go` (the four Cypher
 builders and `BuildCypherWithSemanticFilter`), `entities.go`
 (`buildLanguageResult`, the entity-type-family maps), `metadata.go`
 (`EntitySearch`, the content-metadata enrichment merge,
-`searchLanguageEntities`), `reasons.go` (the truth-basis-to-reason and
+`searchLanguageEntities`), `metadata_anchored.go` (the #7247 id-anchored
+enrichment and its telemetry), `reasons.go` (the truth-basis-to-reason and
 truth-basis-to-source_backend mappings), `registry.go` (language
 canonicalization and spelling), and `graph_configured.go`, plus this
 package's own tests, several moved in verbatim from root -- see README.md's
@@ -76,6 +77,15 @@ Move evidence.
 - The `var _ taxonomy.LanguageEntityContentSearcher = (*ContentReader)(nil)`
   compile-time pin lives in root's `language_alias.go`, not here: `ContentReader`
   is a later lane's family (Part B) and this leaf must never name it.
+
+- `contentIDAnchoredLabels` (metadata_anchored.go) MUST hold only labels
+  whose graph `entity_id` is the content primary key for the same entity.
+  `metadata_anchored_identity_test.go` derives that from the projector's
+  `canonical.ExtractEntityRows` and `content.CanonicalEntityIDWithMetadata`;
+  never add a label by name alone. `Variable` stays out: a dependency-manifest
+  Variable's content id is not its graph id. An anchored content row merges
+  only into the graph row with the same id AND repository; do not relax that
+  to an id-only match.
 
 ## Test fixtures hoisted to testutil (#6608 rule)
 

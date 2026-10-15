@@ -3,6 +3,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged disposable PostgreSQL proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1; one local PostgreSQL 18 run took 1.60 s, and the graph live-backend job has no PostgreSQL DSN — promote after CI provisioning and timing evidence
+  - file: go/internal/query/content_reader_entity_metadata_by_ids_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7247 disposable PostgreSQL proof of the language-query id-anchored metadata read on a 160,000-row fixture with every bootstrap migration: exact rows for 200 graph-page ids under repository, grant and unscoped scope and none outside the scope, a content_entities_pkey index scan with no Seq Scan and at most 10 shared buffers per id under a custom and a forced generic plan, and the replaced page read's buffers logged for comparison; three local PostgreSQL 18 runs took 9.3-11.5 s"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_entity_search_unscoped_live_test.go
     tag: ~
     class: postgres_ci

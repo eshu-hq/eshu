@@ -96,6 +96,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"model_key",
 		"resolved_by",
 		"table",
+		"metadata_path",
 		"source_file_kind",
 		"bootstrap_phase",
 		"stage",

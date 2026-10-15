@@ -21,6 +21,13 @@
 // answered without reaching any backend. A scoped caller with no repository
 // grants gets an empty result set without reaching either backend.
 //
+// Content-metadata enrichment of a graph page reads, for a label whose graph
+// id is the content primary key (contentIDAnchoredLabels), the page's own
+// content rows by entity id; every other label keeps the filtered content
+// page read (#7247). Either way it records the path and the enriched and
+// missing row counts on the request span and the
+// eshu_dp_language_query_metadata_rows_total counter.
+//
 // The Directory branch of the graph-backed dispatch is not a single
 // build-and-run like the other three labels. Its statement seeks each granted
 // repository's directories by an indexed repo_id and binds no Repository at
@@ -35,8 +42,8 @@
 // its own tests cross-check against), entitysemantics (semantic-summary
 // attachment), querycontract (profiles, envelopes, capability registration,
 // HTTP helpers, read ports, and their content-model closure), rows
-// (the shared semantic-metadata Cypher projection fragment), and tracing
-// (the shared handler-span seam); it MUST NOT import the query root, or root
+// (the shared semantic-metadata Cypher projection fragment), tracing
+// (the shared handler-span seam), and telemetry (the metadata-rows counter); it MUST NOT import the query root, or root
 // would cycle back through its own compatibility aliases in
 // language_alias.go, which import this package for the Handler type alias
 // and the forwarders cmd/api and cmd/mcp-server wiring still use. See

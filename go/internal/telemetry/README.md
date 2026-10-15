@@ -284,12 +284,12 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `S3InternetExposureSkipped` | `eshu_dp_s3_internet_exposure_skipped_total` |
 | `DriftUnresolvedModuleCalls` | `eshu_dp_drift_unresolved_module_calls_total` |
 | `DriftSchemaUnknownComposite` | `eshu_dp_drift_schema_unknown_composite_total` |
-| `WebhookRequests` | `eshu_dp_webhook_requests_total` |
-| `WebhookTriggerDecisions` | `eshu_dp_webhook_trigger_decisions_total` |
+| `WebhookRequests`, `WebhookTriggerDecisions` | `eshu_dp_webhook_requests_total`; `eshu_dp_webhook_trigger_decisions_total` |
 | `WebhookStoreOperations`, `WebhookTriggerClaimReaps`, `WebhookTriggerStaleClaims`, `WebhookTriggerIgnoredDecisions` | `eshu_dp_webhook_store_operations_total`; `eshu_dp_webhook_trigger_claim_reaps_total` (label: `outcome` = `requeued` \| `exhausted` \| `ignored_decision`) and `eshu_dp_webhook_trigger_stale_claims` (#7661 claim lease); `eshu_dp_webhook_trigger_ignored_decisions_total` (#7795 non-accepted terminal; counts rows actually terminated, not attempts) |
 | `QueryScopeGrantInlineCapped` | `eshu_dp_query_scope_grant_inline_capped_total` |
 | `QueryScopedGrantDenied` | `eshu_dp_query_scoped_grant_denied_total` (labels: `operation`, `reason` = `grant_denied` \| `backend_anchor_mismatch`; #6786 R2-4 Go-side scoped-grant decision seams in entity/handler.go, entity/workload_context.go, entity/workload_lookup.go, deployment/workload_selection.go; `grant_denied` counts once per request, only when no lookup admitted a workload) |
 | `EntityContextResolution` | `eshu_dp_entity_context_resolution_total` (label: `resolved_by` = `anchor` \| `fallback` \| `content` \| `none`; #7212; emitted by `GET /api/v0/entities/{entity_id}/context` in `go/internal/query/entity/context_resolution.go`; an errored request is not counted) |
+| `LanguageQueryMetadataRows` | `eshu_dp_language_query_metadata_rows_total` (labels: `metadata_path` = `anchored` \| `page_read`, `outcome` = `enriched` \| `missing`; #7247; emitted by `POST /api/v0/code/language-query` content-metadata enrichment in `go/internal/query/language/metadata_anchored.go`) |
 | `QueryImpactScopedPathsWithheld`, `QueryImpactOwnershipCheckDuration` | `eshu_dp_query_impact_scoped_paths_withheld_total` (labels: `route`, `reason` = `ungranted_node` \| `unchecked_over_cap` \| `withheld_sink_class` \| `anchor_ungranted`) and `eshu_dp_query_impact_ownership_check_duration_seconds` (labels: `route`, `node_label`, `outcome`; one ownership statement chunk); #5167 impact/ownership |
 | `InfraInventoryReads` | `eshu_dp_infra_inventory_reads_total` |
 | `InfraInventoryDerives` | `eshu_dp_infra_inventory_derives_total` |
