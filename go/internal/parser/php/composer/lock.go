@@ -13,8 +13,8 @@ import (
 )
 
 // lockPrefix is one namespace prefix a locked package autoloads. name is ""
-// when the package's name is outside the composer grammar or the prefix comes
-// from psr-0: such a prefix still competes in the longest-match rule, so it
+// when the package's name is outside the composer grammar, the prefix comes
+// from psr-0, or it is a psr-4 prefix without the trailing '\': such a prefix still competes in the longest-match rule, so it
 // can block a shorter prefix of another package, but it never produces a key.
 type lockPrefix struct {
 	prefix string
@@ -61,7 +61,10 @@ func parseLock(content []byte) lockIndex {
 			index.bySegmentPrefix[prefix] = append(index.bySegmentPrefix[prefix], name)
 			return
 		}
-		index.unsegmented = append(index.unsegmented, lockPrefix{prefix: prefix, name: name})
+		// Composer refuses a psr-4 prefix without the trailing '\', and the
+		// producer rule drops it, so such an entry (and every psr-0 one) only
+		// blocks: it competes in the longest-match rule but never keys.
+		index.unsegmented = append(index.unsegmented, lockPrefix{prefix: prefix})
 	}
 	for _, locked := range append(document.Packages, document.PackagesDev...) {
 		name, _ := locked.Name.(string)
@@ -92,6 +95,13 @@ func (index lockIndex) size() int {
 // longest prefix that yields no key, returns ("", true): the class is covered
 // but cannot be keyed, so the caller must stop rather than ask another lock.
 func (index lockIndex) lookup(fqcn string) (string, bool) {
+	name, _, covered := index.lookupPrefix(fqcn)
+	return name, covered
+}
+
+// lookupPrefix is lookup that also returns the length of the winning prefix,
+// which the own-namespace rule compares against.
+func (index lockIndex) lookupPrefix(fqcn string) (string, int, bool) {
 	best := -1
 	var names []string
 	consider := func(prefix string, candidates ...string) {
@@ -114,14 +124,14 @@ func (index lockIndex) lookup(fqcn string) (string, bool) {
 		consider(entry.prefix, entry.name)
 	}
 	if best < 0 {
-		return "", false
+		return "", 0, false
 	}
 	for _, name := range names[1:] {
 		if name != names[0] {
-			return "", true
+			return "", best, true
 		}
 	}
-	return names[0], true
+	return names[0], best, true
 }
 
 // readLock returns the cached prefix table of the composer.lock at path, and
@@ -145,11 +155,11 @@ func readLock(path string) (lockIndex, bool) {
 // first. Build it once per file with LocksFor and ask it per class.
 type Locks struct {
 	indexes []lockIndex
-	// ownPrefixes are the namespace prefixes the consumer's own composer.json
-	// files (file directory up to the repository root) autoload; ownFallback
-	// is true when one of them is the empty fallback.
+	// ownPrefixes are the non-empty namespace prefixes the consumer's own
+	// composer.json files (file directory up to the repository root)
+	// autoload. The empty fallback is not kept: Composer searches it after
+	// every prefixed directory, so it never outranks a locked prefix.
 	ownPrefixes []string
-	ownFallback bool
 }
 
 // LocksFor reads every composer.lock from path's directory up to repoRoot,
@@ -168,41 +178,55 @@ func LocksFor(repoRoot string, path string) Locks {
 		}
 		if own, ok := readManifest(filepath.Join(dir, "composer.json")); ok {
 			locks.ownPrefixes = append(locks.ownPrefixes, own.ownPrefixes...)
-			locks.ownFallback = locks.ownFallback || own.ownFallback
 		}
 	}
 	return locks
 }
 
-// Empty reports whether the chain can key no class: it holds no lock, or the
-// consumer's own composer.json claims every namespace with the empty fallback.
+// Empty reports whether the chain holds no lock that could key a class.
 func (l Locks) Empty() bool {
-	return len(l.indexes) == 0 || l.ownFallback
+	return len(l.indexes) == 0
 }
 
 // Package returns the composer package that provides the class fqcn, or ""
 // when none can be proven. The first lock, nearest first, whose packages or
 // packages-dev autoload a prefix covering fqcn decides: the longest covering
-// prefix wins, and a tie between packages, a psr-0 prefix, or a name outside
-// the composer grammar yields "". A class under a namespace the consumer's own
-// composer.json files autoload is never keyed, even when a locked package
-// declares the same prefix: the lock lists only installed dependencies, but a
-// dependency can claim a namespace the application also uses (laravel/pint
-// declares App\, the namespace of every Laravel application), and binding
-// the application's own class to it would be a false link.
+// prefix wins, and a tie between packages, a psr-0 prefix, a psr-4 prefix
+// without the trailing '\', or a name outside the composer grammar yields "".
+//
+// The consumer's own composer.json files can claim the class too. Composer
+// tries the longest psr-4 prefix first, so an own prefix suppresses the key
+// only when it is at least as long as the winning locked prefix: own MyCorp\
+// yields to a locked MyCorp\Logging\, but own App\ ties laravel/pint's
+// App\ (the namespace of every Laravel application), and binding the
+// application's own class to the dev tool would be a false link. The
+// comparison treats own psr-0 prefixes the same way, which is stricter than
+// Composer (it reads psr-0 after psr-4) and can only drop a key.
 func (l Locks) Package(fqcn string) string {
-	if fqcn == "" || l.ownFallback {
+	if fqcn == "" {
 		return ""
 	}
-	for _, prefix := range l.ownPrefixes {
-		if strings.HasPrefix(fqcn, prefix) {
+	for _, index := range l.indexes {
+		name, prefixLength, covered := index.lookupPrefix(fqcn)
+		if !covered {
+			continue
+		}
+		if name == "" || l.longestOwnPrefix(fqcn) >= prefixLength {
 			return ""
 		}
-	}
-	for _, index := range l.indexes {
-		if name, covered := index.lookup(fqcn); covered {
-			return name
-		}
+		return name
 	}
 	return ""
+}
+
+// longestOwnPrefix returns the length of the longest own prefix covering
+// fqcn, or -1 when none does.
+func (l Locks) longestOwnPrefix(fqcn string) int {
+	longest := -1
+	for _, prefix := range l.ownPrefixes {
+		if len(prefix) > longest && coversClass(prefix, fqcn) {
+			longest = len(prefix)
+		}
+	}
+	return longest
 }

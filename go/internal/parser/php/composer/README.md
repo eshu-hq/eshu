@@ -20,13 +20,16 @@ Composer manifest reads for the PHP cross-repository call keys (#7601).
   do not), and the declaring file must sit exactly at the mapped directory
   plus the namespace remainder plus `.php`.
 - Consumer: the first lock (nearest first) with a covering prefix decides. The
-  longest covering prefix wins; a tie between packages, a `psr-0` prefix, or a
-  name outside the grammar yields no key and stops the walk.
-- Consumer: a class under a namespace the consumer's own `composer.json` files
-  autoload (`autoload` or `autoload-dev`, `psr-4` or `psr-0`, file directory up
-  to the repository root) is never keyed, whatever the lock says. A dev tool
-  such as `laravel/pint` declares `App\\`, the namespace of every Laravel
-  application, and would otherwise capture the application's own classes.
+  longest covering prefix wins; a tie between packages, a `psr-0` prefix, a
+  `psr-4` prefix without the trailing `\`, or a name outside the grammar
+  yields no key and stops the walk.
+- Consumer: the consumer's own `composer.json` files (`autoload` or
+  `autoload-dev`, `psr-4` or `psr-0`, file directory up to the repository root)
+  can claim the class too. Composer tries the longest psr-4 prefix first, so an
+  own prefix suppresses the key only when it is at least as long as the winning
+  locked prefix: own `MyCorp\` yields to a locked `MyCorp\Logging\`, while own
+  `App\` ties `laravel/pint`'s `App\` (the namespace of every Laravel
+  application) and suppresses. The empty own fallback never suppresses.
 - Every `""` is a miss, never a guess: the reducer resolves a key only when
   exactly one definition carries it.
 

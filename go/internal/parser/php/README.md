@@ -81,6 +81,9 @@ key the reducer already resolves:
   bound by a `use` import (alias and group use included) or written as a fully
   qualified literal, and a `composer.lock` between the file and the repository
   root names the providing package through the longest covering psr-4 prefix.
+  An own autoload prefix of the consumer at least as long as that locked
+  prefix suppresses the key, and a `function` or `const` clause in a mixed group
+  use binds no class.
   Not keyed: `self`/`static`/`parent`, `$var::`, `new $var`, relative qualified
   names, instance calls, free functions, `use function`/`use const`, type
   references, `X::class`, and constants.

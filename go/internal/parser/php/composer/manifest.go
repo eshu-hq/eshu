@@ -24,14 +24,11 @@ type psr4Mapping struct {
 // when the document has no name in the composer grammar. psr4 holds the
 // producer mappings. ownPrefixes holds every namespace prefix the manifest
 // autoloads from its own tree (psr-4 and psr-0, autoload and autoload-dev,
-// the empty fallback included) for the consumer rule.
+// non-empty keys only) for the consumer rule.
 type manifest struct {
 	name        string
 	psr4        []psr4Mapping
 	ownPrefixes []string
-	// ownFallback is true when an own prefix is the empty fallback, which
-	// claims every namespace for the manifest's tree.
-	ownFallback bool
 }
 
 // manifestCache memoizes parsed composer.json files by (path, stat), the same
@@ -84,8 +81,6 @@ func parseManifest(content []byte) manifest {
 			for rawPrefix := range keys {
 				if prefix := normalizePrefix(rawPrefix); prefix != "" {
 					parsed.ownPrefixes = append(parsed.ownPrefixes, prefix)
-				} else {
-					parsed.ownFallback = true
 				}
 			}
 		}

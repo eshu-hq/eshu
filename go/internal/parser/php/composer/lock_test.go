@@ -86,3 +86,88 @@ func TestProducerPackageMatchesEveryMappedDirectory(t *testing.T) {
 		}
 	}
 }
+
+// writeTree writes files under a fresh repository root and returns it.
+func writeTree(t *testing.T, files map[string]string) string {
+	t.Helper()
+	repoRoot := t.TempDir()
+	for relative, body := range files {
+		path := filepath.Join(repoRoot, relative)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return repoRoot
+}
+
+// TestLocksOwnNamespaceYieldsOnlyToALongerLockedPrefix pins the own-namespace
+// rule against Composer's own order, which tries the longest psr-4 prefix
+// first: an own prefix suppresses a key only when it is at least as long as the
+// winning locked prefix. MyCorp\ (own) loses to mycorp/logging's
+// MyCorp\Logging\, while App\ (own) ties laravel/pint's App\ and suppresses,
+// and a longer own MyCorp\Logging\Internal\ beats the locked MyCorp\Logging\.
+func TestLocksOwnNamespaceYieldsOnlyToALongerLockedPrefix(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := writeTree(t, map[string]string{
+		"composer.json": `{"name": "mycorp/app", "autoload": {"psr-4": {"MyCorp\\": "src/", "App\\": "app/"}}, "autoload-dev": {"psr-4": {"MyCorp\\Logging\\Internal\\": "tests/"}}}`,
+		"composer.lock": `{"packages": [
+			{"name": "mycorp/logging", "autoload": {"psr-4": {"MyCorp\\Logging\\": "src/"}}},
+			{"name": "laravel/pint", "autoload": {"psr-4": {"App\\": "app/"}}}
+		]}`,
+	})
+	locks := LocksFor(repoRoot, filepath.Join(repoRoot, "src", "Service.php"))
+	for _, tc := range []struct {
+		fqcn string
+		want string
+	}{
+		{`MyCorp\Logging\Logger`, "mycorp/logging"},
+		{`MyCorp\Logging\Internal\Probe`, ""},
+		{`MyCorp\Billing\Invoice`, ""},
+		{`App\Models\User`, ""},
+	} {
+		if got := locks.Package(tc.fqcn); got != tc.want {
+			t.Errorf("Package(%s) = %q, want %q", tc.fqcn, got, tc.want)
+		}
+	}
+}
+
+// TestLocksOwnFallbackPrefixNeverOutranksALockedPrefix: Composer searches the
+// empty fallback after every prefixed directory, so it never beats a locked
+// prefix that covers the class.
+func TestLocksOwnFallbackPrefixNeverOutranksALockedPrefix(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := writeTree(t, map[string]string{
+		"composer.json": `{"name": "mycorp/app", "autoload": {"psr-0": {"": "src/"}}}`,
+		"composer.lock": `{"packages": [{"name": "mycorp/logging", "autoload": {"psr-4": {"MyCorp\\Logging\\": "src/"}}}]}`,
+	})
+	locks := LocksFor(repoRoot, filepath.Join(repoRoot, "src", "Service.php"))
+	if got := locks.Package(`MyCorp\Logging\Logger`); got != "mycorp/logging" {
+		t.Fatalf("Package() = %q, want mycorp/logging", got)
+	}
+	if got := locks.Package(`App\Models\User`); got != "" {
+		t.Fatalf("Package(own class) = %q, want none", got)
+	}
+}
+
+// TestLockPSR4PrefixWithoutTrailingBackslashOnlyBlocks: Composer refuses a
+// psr-4 prefix that does not end in '\' and the producer rule drops it, so a
+// lock entry like "Acme" must never key a class (it would match AcmeOther\
+// off a namespace boundary); it still blocks a shorter prefix.
+func TestLockPSR4PrefixWithoutTrailingBackslashOnlyBlocks(t *testing.T) {
+	t.Parallel()
+
+	index := parseLock([]byte(`{"packages": [
+		{"name": "acme/noslash", "autoload": {"psr-4": {"Acme": "src/"}}},
+		{"name": "acme/root", "autoload": {"psr-4": {"Acm\\": "src/"}}}
+	]}`))
+	for _, fqcn := range []string{`AcmeOther\Thing`, `Acme\Thing`} {
+		if name, covered := index.lookup(fqcn); name != "" || !covered {
+			t.Errorf("lookup(%s) = (%q, %v), want (\"\", true)", fqcn, name, covered)
+		}
+	}
+}
