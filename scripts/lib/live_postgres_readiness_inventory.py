@@ -179,6 +179,10 @@ PACKAGES = {
         ),
         "go/internal/storage/postgres/generation_retention_delta_base_live_test.go": (
             "TestGenerationRetentionDeltaBaseLive",
+            "TestGenerationRetentionDeltaBaseSkipsUnactivatedNewerFullLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_delta_base_relock_live_test.go": (
+            "TestGenerationRetentionRelockKeepsFlippedDeltaChainLive",
         ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
