@@ -46,7 +46,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Entity-content search with no repository filter: work budget, partial results, resume cursor | [Unscoped entity search](http-api/unscoped-entity-search.md) |
 | Multi-cloud canonical resource inventory (AWS/GCP/Azure, bounded, paginated) | [Cloud inventory readback](http-api/cloud-inventory.md) |
 | Natural-language answers over the graph (`POST /api/v0/ask`), agent-loop budget, answer-narration status | [Ask Eshu](http-api/ask.md) |
-| Repository catalog, repository context/stats/coverage | [Repository routes](http-api/repositories-ingesters-bundles.md) |
+| Repository catalog, repository context/stats/coverage | [Repository routes](http-api/repositories-ingesters-bundles.md), [stats and story coverage](http-api/repository-coverage.md) |
 | Ingester status, bundle search | [Container image, ingester, and bundle routes](http-api/images-ingesters-bundles.md) |
 
 Repository context marks unavailable content coverage and bounded or failed

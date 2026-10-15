@@ -53,7 +53,7 @@ const StatsAndCoverage = `
                         "languages_source": {"type": "string"},
                         "entity_types_source": {"type": "string"},
                         "content_last_indexed_at": {"type": "string"},
-                        "last_error": {"type": "string"}
+                        "last_error": {"type": "string", "description": "Present when counts are unavailable. One fixed string from a closed set, never backend error text: content store coverage exceeded 2s route timeout, content store coverage read failed (missing_evidence names content_store_coverage_error), content store not configured, or content store coverage unavailable. A reader fence on the coverage read answers 503 and a client cancel 499 instead of this partial."}
                       }
                     },
                     "result_limits": {"type": "object", "description": "Additive drilldown block: bounded language/entity-type limit, deterministic ordering, language and entity-type counts, truncation flag, and the get_repository_coverage drilldown plus stats context path.", "additionalProperties": true},
@@ -107,7 +107,7 @@ const StatsAndCoverage = `
                     "file_count": {"type": "integer"},
                     "entity_count": {"type": "integer"},
                     "content_last_indexed_at": {"type": "string"},
-                    "last_error": {"type": "string"},
+                    "last_error": {"type": "string", "description": "One fixed string from a closed set, never backend error text: empty when graph coverage stats were read, graph coverage stats skipped because content store coverage is available, or content store not available. A failed coverage read answers an error status instead."},
                     "languages": {
                       "type": "array",
                       "items": {

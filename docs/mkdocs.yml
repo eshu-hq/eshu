@@ -127,6 +127,7 @@ nav:
         - Unscoped File Search: reference/http-api/unscoped-file-search.md
         - Infrastructure Resource Aggregates: reference/http-api/infra-resource-aggregates.md
         - Repositories: reference/http-api/repositories-ingesters-bundles.md
+        - Repository Stats And Story Coverage: reference/http-api/repository-coverage.md
         - Images, Ingester, And Bundles: reference/http-api/images-ingesters-bundles.md
       - MCP Reference: reference/mcp-reference.md
       - MCP Tool Contract Matrix: reference/mcp-tool-contract-matrix.md

@@ -29,14 +29,21 @@
   `querycontract.WriteGraphReadError` (503/504), then (stats only) the 504
   for a `context.DeadlineExceeded` route-budget expiry through
   `tracing.WriteServerFailure` (fixed body, span error), then
-  `selector.WriteLookupFailure` (500, fixed body, span error), then 404 for
-  not-found and 400 otherwise. Never write a `selector.LookupError`'s
-  `err.Error()` to a body; it carries backend text.
-- A stats or coverage read that fails after the selector resolved answers
+  `selector.WriteLookupFailure` (500, fixed body, span error), then
+  `writeSelectorAnswer`: 404 with the typed `NotFoundError` text, 400 with the
+  typed `AmbiguousError` text, and the fixed 500 for anything else. Never write
+  a selector error's `err.Error()` to a body; a wrapper carries backend text.
+- Any read that fails after the selector resolved answers
   `querycontract.WriteGraphReadError` with the literal capability first, then
-  `tracing.WriteServerFailure` with a package message constant (stats passes
-  `repositoryStatsErrorStatus(err)` so its own budget keeps 504). Never format
-  `err` into a body (#7626).
+  `tracing.WriteServerFailure` with that step's message constant from
+  `failure.go` (`writeReadFailure`; stats passes
+  `repositoryStatsErrorStatus(err)` so its own budget keeps 504). Add one
+  constant per new failing step. Never format `err` into a body (#7626, #7674).
+- Stats and story degrade a failed coverage read to a 200 partial, but call
+  `writeCoverageVerdict` first so a reader fence answers 503 and a client
+  cancel 499. `coverage.last_error` is a closed set of fixed strings; never
+  copy `err` into it (#7674). Keep the OpenAPI `last_error` descriptions and
+  `docs/public/reference/http-api/repository-coverage.md` in step with it.
 
 ## Verification
 
