@@ -66,6 +66,15 @@ in `internal/reducer`.
 High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
+- The schema Job applies only the numbered `migrations/*.sql`. Go DDL that a
+  store's `EnsureSchema` applies at runtime (webhook-listener,
+  workflow-coordinator) must never be the only place a column, index, or
+  table exists. `TestDDLMigrationParity` (`ddl_migration_parity_test.go`,
+  #7792) scans non-test Go string literals under `internal/storage/postgres`
+  and `cmd` and fails when Go DDL declares a column or index on a
+  migration-created table that no migration declares, or creates a table no
+  migration creates. A DDL name it cannot read (fmt verb, runtime join) fails
+  until it is listed in `ddlParityDynamicDDL` with a reason.
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
   without the four exact trigram GINs for file content, file relative path,

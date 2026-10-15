@@ -31,7 +31,9 @@
   `TestWebhookTriggerStoreRunsOnBootstrapSchemaLive` fails when the columns
   or indexes the two build differ (name, type, nullability, default, or
   index definition). It does not compare constraints other than the primary
-  key, or triggers.
+  key, or triggers. Without a database, the parent package's
+  `TestDDLMigrationParity` (#7792) fails when a column or index name in this
+  DDL has no numbered migration.
 - Change claim predicates only with the SKIP LOCKED contention test and an
   idempotency proof.
 

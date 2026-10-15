@@ -17,6 +17,32 @@ schema, graph schema, and worker behavior move together.
    completeness.
 6. Write an upgrade-state declaration for durable Postgres state, queue state,
    graph rebuild assumptions, and preserved volumes.
+7. Check the release range for Postgres schema changes in two places: new
+   numbered migration files, and DDL that Go code applies at startup. The
+   schema Job (`eshu-bootstrap-data-plane`) applies only the numbered files
+   in `go/internal/storage/postgres/migrations/`. Some stores also run their
+   own DDL from `EnsureSchema`, but only in the binaries that own them
+   (`webhook-listener`, `workflow-coordinator`). A column or index that a
+   release adds only in that Go DDL is missing for every other binary until
+   an owner starts. For each Go file the second command lists, confirm that
+   a numbered migration at or before the target tag declares the same
+   column, index, or table. If one is missing, hold the upgrade. Since #7792 a unit test fails
+   the build on that gap, so a hit here is a reason to check, not proof of a
+   gap.
+
+```bash
+FROM=v1.3.2   # tag the cluster runs now
+TO=v1.3.3     # tag you are upgrading to
+
+# New numbered migrations the schema Job will apply.
+git diff --name-status --diff-filter=A "$FROM..$TO" -- \
+  go/internal/storage/postgres/migrations/
+
+# Go files whose DDL changed; each needs a matching numbered migration.
+git diff --stat "$FROM..$TO" \
+  -G'ADD COLUMN|CREATE (UNIQUE )?INDEX|CREATE TABLE' -- \
+  'go/*.go' ':!*_test.go' ':!go/internal/storage/postgres/migrations/'
+```
 
 When the release has the legacy `<release>-nornicdb-data` PVC, stop graph
 writers and protect that volume before rendering the v1.3.3 upgrade. The chart
