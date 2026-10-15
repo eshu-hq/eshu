@@ -46,6 +46,10 @@ type finalizeLedger struct {
 	recordedIDs    []string
 }
 
+// finalizeSafetyWindow caps how long a blocked finalize double waits when the
+// handler did not bound it.
+const finalizeSafetyWindow = 3 * time.Second
+
 func newFinalizeLedger() *finalizeLedger {
 	return &finalizeLedger{stubAdminStore: &stubAdminStore{}, cancelRequest: func() {}}
 }
@@ -78,8 +82,14 @@ func (l *finalizeLedger) CompleteReplayIdempotency(ctx context.Context, _ string
 	l.finalizeDL, l.finalizeHasDL = ctx.Deadline()
 	l.finalizeSpan = trace.SpanFromContext(ctx).SpanContext()
 	if l.blockFinalize {
-		<-ctx.Done()
-		return ctx.Err()
+		// A finalize the handler failed to bound returns after a safety
+		// window, so the test fails on elapsed time instead of hanging.
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(finalizeSafetyWindow):
+			return errors.New("finalize was not bounded")
+		}
 	}
 	if l.finalizeErr != nil {
 		return l.finalizeErr
@@ -266,7 +276,7 @@ func TestAdminMutationFinalizeTimeoutIsBounded(t *testing.T) {
 			h.FinalizeTimeout = bound
 			started := time.Now()
 			rec, ended, _ := serveFinalize(t, h, ledger, route, true)
-			if elapsed := time.Since(started); elapsed > bound+2*time.Second {
+			if elapsed := time.Since(started); elapsed >= finalizeSafetyWindow {
 				t.Fatalf("handler took %v, want it bounded near %v", elapsed, bound)
 			}
 			if ledger.finalizeCtxErr != nil {
