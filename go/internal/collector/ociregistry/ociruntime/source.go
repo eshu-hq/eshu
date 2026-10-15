@@ -144,10 +144,6 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 		result = "failed"
 		return collector.CollectedGeneration{}, err
 	}
-	// Digests exist only after buildEnvelopes fetches manifests, so the
-	// content hint is attached post-scan. Identical registry state at a later
-	// tick shares the hint and the store skips the duplicate (#8003).
-	generationValue.FreshnessHint = ociFreshnessHint(refDigests, tagListTruncated)
 	if tagListTruncated {
 		warning, warningErr := s.warningEnvelope(
 			target,
@@ -164,6 +160,9 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 		}
 		envelopes = append(envelopes, warning)
 	}
+	// Digests exist only after buildEnvelopes fetches manifests, so the
+	// content hint is attached post-scan (#8003).
+	generationValue.FreshnessHint = ociScanFreshnessHint(refDigests, envelopes, tagListTruncated)
 	if s.Logger != nil {
 		s.Logger.InfoContext(
 			ctx, "OCI registry scan completed",

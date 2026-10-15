@@ -143,10 +143,12 @@ The chart renders the Deployment, metrics Service, ServiceMonitor,
 NetworkPolicy, and PDB while preserving the claim-driven workflow-coordinator
 boundary.
 
-Unchanged-generation decision (#8003): this collector sends a stable content
-hint. `freshnessHint` covers the sorted stable keys of the emitted envelopes,
-so identical PagerDuty state at a later tick shares the hint and the store
-skips the duplicate instead of minting per content window.
+Unchanged-generation decision (#8003): this collector sends a stable hint.
+`freshnessHint` covers the sorted stable keys (identities) of the emitted
+envelopes, so identical PagerDuty state at a later tick shares the hint and
+the store skips the duplicate instead of minting per tick.
 `TestIdenticalCollectionsSkipSecondGeneration` proves identical claimed
-collections store one generation and skip the second. No production change was
-needed: the hint already covered collection content.
+collections share one hint and the store skips the second generation. No
+production change was needed for identical-state skip: the pre-existing hint
+already covered envelope identities. Same-key payload drift stays as deferred
+follow-up work and does not change this hint.

@@ -16,8 +16,8 @@ import (
 // TestIdenticalDocumentsShareFreshnessHintAndSkip proves two collections over
 // identical registry metadata share one non-empty freshness hint, so the
 // store can skip the second generation instead of minting per tick (#8003).
-// The hint covers the emitted envelopes' stable keys, not the raw document
-// body, which can carry out-of-window content.
+// The hint covers the emitted envelopes' keyed payloads, not the raw
+// document body, which can carry out-of-window content.
 func TestIdenticalDocumentsShareFreshnessHintAndSkip(t *testing.T) {
 	t.Parallel()
 
@@ -49,6 +49,59 @@ func TestIdenticalDocumentsShareFreshnessHintAndSkip(t *testing.T) {
 	action, _ := backfill.DecideUnchangedGeneration(second.Generation, candidate, true)
 	if action != backfill.UnchangedActionSkip {
 		t.Fatalf("DecideUnchangedGeneration() = %d, want skip (%d)", action, backfill.UnchangedActionSkip)
+	}
+}
+
+// TestYankedVersionStoresNewGeneration proves a yank-flag flip mints a new
+// generation even though the version identity (and therefore every stable
+// key) is unchanged (#8003 F2). A key-only hint would skip over yanked,
+// deprecated, retracted, checksum, URL, published_at, visibility, and
+// warning-text drift that keeps the same keys.
+func TestYankedVersionStoresNewGeneration(t *testing.T) {
+	t.Parallel()
+
+	before := []byte(`{
+		"info": {"name": "team-api", "version": "1.2.3"},
+		"releases": {
+			"1.2.3": [{
+				"packagetype": "bdist_wheel",
+				"url": "https://files.pythonhosted.org/packages/team-api-1.2.3-py3-none-any.whl",
+				"filename": "team-api-1.2.3-py3-none-any.whl",
+				"size": 1234,
+				"upload_time_iso_8601": "2026-05-11T09:00:00Z",
+				"yanked": false,
+				"digests": {"sha256": "abc123"}
+			}]
+		}
+	}`)
+	after := []byte(`{
+		"info": {"name": "team-api", "version": "1.2.3"},
+		"releases": {
+			"1.2.3": [{
+				"packagetype": "bdist_wheel",
+				"url": "https://files.pythonhosted.org/packages/team-api-1.2.3-py3-none-any.whl",
+				"filename": "team-api-1.2.3-py3-none-any.whl",
+				"size": 1234,
+				"upload_time_iso_8601": "2026-05-11T09:00:00Z",
+				"yanked": true,
+				"digests": {"sha256": "abc123"}
+			}]
+		}
+	}`)
+	first := collectPyPIPackageTick(t, before, "package_registry:pypi-generation-1")
+	second := collectPyPIPackageTick(t, after, "package_registry:pypi-generation-2")
+
+	if first.Generation.FreshnessHint == second.Generation.FreshnessHint {
+		t.Fatalf("FreshnessHint did not change after yank flag flip: %q", first.Generation.FreshnessHint)
+	}
+	candidate := backfill.UnchangedGenerationCandidate{
+		GenerationID:  "package_registry:pypi-generation-1",
+		FreshnessHint: first.Generation.FreshnessHint,
+		Status:        scope.GenerationStatusActive,
+	}
+	action, _ := backfill.DecideUnchangedGeneration(second.Generation, candidate, true)
+	if action != backfill.UnchangedActionStore {
+		t.Fatalf("DecideUnchangedGeneration() = %d, want store (%d)", action, backfill.UnchangedActionStore)
 	}
 }
 
@@ -92,6 +145,38 @@ func collectPackageTick(t *testing.T, document []byte, generationID string) coll
 	}, staticMetadataProvider{document: document})
 
 	item := testPackageRegistryWorkItem()
+	item.GenerationID = generationID
+	item.SourceRunID = generationID
+	item.WorkItemID = "package-registry-work-item-" + generationID
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	for range collected.Facts {
+	}
+	return collectedPackageTick{Generation: collected.Generation}
+}
+
+func collectPyPIPackageTick(t *testing.T, document []byte, generationID string) collectedPackageTick {
+	t.Helper()
+
+	const pypiScopeID = "package-registry://pypi/simple/team-api"
+	source := newTestClaimedSource(t, TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:     "pypi",
+			Ecosystem:    packageregistry.EcosystemPyPI,
+			Registry:     "https://pypi.org/pypi",
+			ScopeID:      pypiScopeID,
+			Packages:     []string{"team-api"},
+			PackageLimit: 1,
+			VersionLimit: 2,
+		},
+	}, staticMetadataProvider{document: document})
+
+	item := testPackageRegistryWorkItemForScope(pypiScopeID)
 	item.GenerationID = generationID
 	item.SourceRunID = generationID
 	item.WorkItemID = "package-registry-work-item-" + generationID
