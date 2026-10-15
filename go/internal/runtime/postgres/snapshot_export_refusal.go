@@ -43,10 +43,17 @@ func (a *Access) snapshotExportAvailable(count int) bool {
 	return false
 }
 
-// snapshotExportEligible reports whether a fleet member may receive a
-// snapshot set. Single-connection reads ignore the verdict: only sets export.
-func (m *physicalReaderMember) snapshotExportEligible(count int) bool {
-	return count <= 1 || m.snapshotExport.qualified()
+// snapshotExportMembers filters a snapshot-set member order, in place, to the
+// members whose verdict is qualified. Single-connection reads never call it:
+// only sets export.
+func (a *Access) snapshotExportMembers(order []int) []int {
+	kept := order[:0]
+	for _, index := range order {
+		if a.readerMembers[index].snapshotExport.qualified() {
+			kept = append(kept, index)
+		}
+	}
+	return kept
 }
 
 // refuseSnapshotExport records one refused snapshot set (the denial counter

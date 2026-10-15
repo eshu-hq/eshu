@@ -129,6 +129,12 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 	bounded, cancel := context.WithTimeout(ctx, access.replayTimeout)
 	defer cancel()
 	order := access.memberOrder(count)
+	if count > 1 {
+		// Only a snapshot set exports (#7957): drop members whose verdict is
+		// unqualified. Filtering here keeps memberOrder inlinable, so the
+		// single-connection borrow path pays nothing for it.
+		order = access.snapshotExportMembers(order)
+	}
 	excluded := make(map[int]bool)
 	tried := make(map[int]bool)
 	var failures error

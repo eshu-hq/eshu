@@ -128,20 +128,24 @@ const (
 // verdict that the snapshot-set fast path and the qualification gauge read.
 func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint, member *physicalReaderMember) (exportQualified bool, err error) {
 	started := time.Now()
-	var readOnly, systemID, database, serverVersion string
-	var recovery bool
-	var serverVersionNum int
-	var incarnation, serverAddress string
+	// One value holds every scan destination, so the identity scan costs one
+	// heap object however many columns it reads. The build number scans into
+	// int64, which database/sql assigns without a string round trip.
+	var id struct {
+		readOnly, systemID, database, incarnation, serverAddress, serverVersion string
+		recovery                                                                bool
+		serverVersionNum                                                        int64
+	}
 	if member == nil {
-		err = conn.QueryRowContext(ctx, readerIdentitySQL).Scan(&readOnly, &recovery, &systemID, &database, &serverVersion, &serverVersionNum)
+		err = conn.QueryRowContext(ctx, readerIdentitySQL).Scan(&id.readOnly, &id.recovery, &id.systemID, &id.database, &id.serverVersion, &id.serverVersionNum)
 	} else {
-		err = conn.QueryRowContext(ctx, memberIdentitySQL).Scan(&readOnly, &recovery, &systemID, &database, &incarnation, &serverAddress, &serverVersion, &serverVersionNum)
+		err = conn.QueryRowContext(ctx, memberIdentitySQL).Scan(&id.readOnly, &id.recovery, &id.systemID, &id.database, &id.incarnation, &id.serverAddress, &id.serverVersion, &id.serverVersionNum)
 	}
 	writer := a.lineage.identity()
-	if err == nil && (readOnly != "on" || systemID != point.systemID || database != point.database || systemID != writer.systemID || database != writer.database || recovery == a.samePrimary) {
+	if err == nil && (id.readOnly != "on" || id.systemID != point.systemID || id.database != point.database || id.systemID != writer.systemID || id.database != writer.database || id.recovery == a.samePrimary) {
 		err = ErrWrongTopology
 	}
-	if err == nil && member != nil && (incarnation != member.incarnation || !addressMatches(serverAddress, member.addresses)) {
+	if err == nil && member != nil && (id.incarnation != member.incarnation || !addressMatches(id.serverAddress, member.addresses)) {
 		err = memberLocalTopology{}
 	}
 	a.observe(ctx, "reader", StageReaderIdentity, started, err)
@@ -155,7 +159,7 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 	if member != nil {
 		holder = member.snapshotExport
 	}
-	exportQualified = holder.observe(serverVersion, serverVersionNum, recovery)
+	exportQualified = holder.observe(id.serverVersion, int(id.serverVersionNum), id.recovery)
 	if a.samePrimary {
 		return exportQualified, nil
 	}
