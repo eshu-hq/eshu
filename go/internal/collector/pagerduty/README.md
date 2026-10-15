@@ -160,3 +160,20 @@ hint: raw provider body content that never reaches an envelope, and envelope
 transport metadata (fact and generation IDs, fencing token, and the
 collection-clock observed_at). `TestStatusOnlyChangeStoresNewGeneration`
 proves a status-only change with no new lifecycle event stores.
+
+No-Regression Evidence (#8149): baseline `go test
+./internal/collector/pagerduty -count=1` on `origin/main` (74d6777a81)
+passes in ~0.015s; after the keyed-payload fold the same suite plus
+`TestStatusOnlyChangeStoresNewGeneration` passes in ~0.016s (Go 1.26.9
+linux/amd64, unit backend with no Docker). Input shape is the existing unit
+fixture set (one bounded incident per collection, static evidence client);
+terminal queue and row counts are unchanged because the hint is generation
+metadata computed from already-emitted envelopes, adding one JSON encode per
+envelope plus one sort with no new I/O, no new goroutine, and no cardinality
+change, while out-of-window body content stays excluded because it never
+reaches an envelope. Safe because the computation is linear in the
+already-bounded envelope set and proven by the new RED-first status test.
+
+No-Observability-Change: the payload fold adds no metric, span, or log;
+provider request volume, fact volume, rate limits, fetch duration, and
+generation lag stay covered by the existing PagerDuty telemetry signals.
