@@ -10,7 +10,10 @@ moves the Neo4j search onto the key after a cold-plan check.
 - `infra_search_key`: the twelve properties
   `deployment.InfraResourceFreeTextPredicate` reads, joined with U+001F, built
   in Cypher by one clause (`search.Clause`) from the node's own properties in
-  the same statement that writes them. Each part is the property when it is a
+  the same statement that writes them. The clause computes the joined value
+  once into a row variable (`WITH alias, <joined> AS infra_search_joined_key`)
+  and sets both properties from it, so an over-cap value never reaches the
+  node. Each part is the property when it is a
   non-null string, and the empty string otherwise. The resource type is
   `coalesce(resource_type, data_type)`, as in the predicate.
 - `infra_search_ovf`: always written by the clause. It is `'T'` when the
@@ -24,8 +27,39 @@ moves the Neo4j search onto the key after a cold-plan check.
   bootstrap-index, ingester, projector, and reducer passes the dialect resolved
   from `runtimecfg.LoadGraphBackend`.
 - Bootstrap (Neo4j only): an oversized-key probe before graph DDL, then a
-  batched, idempotent backfill and an index-state check before the schema
-  marker.
+  batched, idempotent backfill, a `db.awaitIndex` wait, and a required
+  `ONLINE` state before the schema marker. Schema adoption runs the same gate
+  before its marker.
+
+## Design decisions
+
+These three decisions replace the design first claimed on #7245. The query
+shapes were measured by the #7245 cold-plan shim on the pinned
+neo4j:2026-community 2026.08.1, on a fixture shaped like the QA environment
+(181,953 nodes across the 27 labels).
+
+1. **E2 rejected: 27 TEXT + 27 RANGE indexes behind 27 UNION branches.** Every
+   27-branch shape (E2, E2r, E2u) replans in 1.7-2.3 s whenever `$query` falls
+   in a new string-length bucket, because the plan cache is keyed partly by
+   that bucket. A cold p95 under 1 s is out of reach for that shape, and
+   prewarming every bucket is not a fix.
+2. **E3d chosen.** One keyword FULLTEXT index, `infra_search_key_ft`, over
+   `[infra_search_key, infra_search_ovf]` on the 27 labels
+   (`eventually_consistent: false`); a single `db.index.fulltext.queryNodes`
+   branch with `infra_search_key:*<escaped query>* OR infra_search_ovf:T`; the
+   unchanged twelve-field predicate re-applied to every candidate; and
+   `RETURN DISTINCT ... ORDER BY name LIMIT $limit` with no inner top-k. An
+   inner top-k breaks the de-duplication at the page edge (13 rows against
+   the correct 17). The read side is PR-2; this PR builds what it reads.
+3. **The earlier FULLTEXT rejection is answered, not ignored.** A 40,000-byte
+   value written to a keyword FULLTEXT index fails its commit, needs a Neo4j
+   restart, and leaves the index FAILED. Three things keep that from
+   happening: the writer clause stores no key over 8,000 code points (at most
+   32,000 bytes, below Lucene's 32,766-byte term limit); two census tests keep
+   every writer on that clause and keep anything else from writing the key or
+   flag; and bootstrap refuses graph DDL or adoption while any key passes the
+   cap. The overflow flag is the string `'T'`/`'F'`, not a boolean, because a
+   FULLTEXT index indexes only strings.
 
 ## Backend facts behind the design
 
@@ -61,34 +95,39 @@ on a shared host with load average 18-30 (wall times are indicative, not
 gating; db hits are deterministic).
 
 - Backfill (`TestLiveInfraSearchKeyBackfillScale`,
-  `ESHU_INFRA_SEARCH_KEY_SCALE=1`): 181,929 unkeyed nodes in the label shape
-  measured in the QA environment (TerraformVariable 65,257, TerraformResource
-  35,018, TerraformLocal 30,414, CloudResource 180, 2,220 on each other infra
-  label) keyed in 13.9 s (13.940 s; two earlier runs on the same shape 10.4 s
-  and 10.9 s), with the index ONLINE afterwards. TerraformVariable took 3.4 s.
-  The idempotent re-run, which reads every node and writes none, took 0.96 s.
+  `ESHU_INFRA_SEARCH_KEY_SCALE=1`, run after the single-computation change):
+  181,929 unkeyed nodes in the label shape measured in the QA environment
+  (TerraformVariable 65,257, TerraformResource 35,018, TerraformLocal 30,414,
+  CloudResource 180, 2,220 on each other infra label) keyed in 11.1 s
+  (11.112 s; earlier runs of the inline form on the same shape took 10.4 s,
+  10.9 s, and 13.9 s), with the index ONLINE afterwards. The idempotent
+  re-run, which reads every node and writes none, took 1.3 s.
 - Writer clause overhead, wall time: 5,000 TerraformVariable entity rows
   through the real canonical writer, alternating dialects on fresh nodes:
 
   | Rep | Keyed (Neo4j dialect) | Unkeyed (NornicDB shape) |
   | --- | ---: | ---: |
-  | 0 | 2.828 s (first run of the new statement text, cold plan) | 0.745 s |
-  | 1 | 0.817 s | 0.637 s |
-  | 2 | 0.583 s | 0.567 s |
+  | 0 | 2.586 s (first run of the new statement text, cold plan) | 0.766 s |
+  | 1 | 0.738 s | 0.573 s |
+  | 2 | 0.595 s | 0.997 s |
 
-  Warm, the keyed write costs between 0.016 s and 0.180 s more per 5,000 rows
-  on this host; the spread is host noise, not a resolved delta.
+  Warm, the two dialects are within this host's noise; no wall-time delta is
+  resolved.
 - Writer clause overhead, deterministic: `PROFILE` of one 500-row
-  `canonicalNodeEntityUpsertTemplate` batch on TerraformVariable reports 3,000
-  db hits unkeyed and 19,000 keyed: +32 db hits per row. The clause reads the
-  twelve properties for the overflow flag, the bound check, and the key value,
-  and writes two properties that maintain the FULLTEXT index entry. The
-  measured wall-time cost is small next to the rest of a canonical write, so
-  the clause keeps the simpler single-SET form. A form that computes the
-  joined key once would hold an over-cap key in transaction state before
-  nulling it; with a FAILED index as the failure mode, that is not taken
-  without its own proof.
-- Correctness on the same backend (`TestLiveInfraSearchKey`, 9.1 s): a 40 KB
+  `canonicalNodeEntityUpsertTemplate` batch on TerraformVariable, full schema
+  and the 27-label index present: 3,000 db hits unkeyed and 10,500 keyed, +15
+  per row. The same harness measured 19,000 (+32 per row) for the earlier form
+  that evaluated the join three times inline; an independent review rerun
+  measured 18,000 for that form.
+- Why the join is computed once: a focused `PROFILE` on a single-label index
+  with only the TerraformVariable uid constraint (500 rows, fresh nodes each):
+  4,000 db hits unkeyed, 24,500 inline (+41 per row), 12,500 with the
+  row-variable form (+17 per row). Keys and flags were identical on all 500
+  node pairs. The joined value lives only in the row variable, so no over-cap
+  value is ever written to a node; a 40 KB value still overflows to `'T'`
+  with no key, and the index stayed ONLINE.
+- Correctness on the same backend (`TestLiveInfraSearchKey`, 9.5 s with the
+  single-computation clause): a 40 KB
   name and a 70 KB config_path written through the real writers succeed with
   `infra_search_ovf = 'T'` and no key; an 8,000-code-point key of 4-byte
   characters (about 32,000 bytes) is stored with `'F'`; 8,001 overflows; the
@@ -124,11 +163,16 @@ The Neo4j schema fingerprint moves; the previous tip stays compatible (the
 index changes no MERGE or MATCH identity). A writer on the previous release
 does not maintain the key during a rolling upgrade, so PR-2 must re-run the
 backfill (which rewrites any key that disagrees with its node's fields) and
-check `search.CountUnkeyed` before it trusts the key. The NornicDB fingerprint
-does not move.
+check `search.CountUnkeyed` before it trusts the key. The reader must also
+check at read time that `infra_search_key_ft` is `ONLINE`: a write that
+bypasses the clause can leave it `FAILED`, and nothing in Eshu reports that
+until the next bootstrap. The NornicDB fingerprint does not move.
 
 ## Not checked here
 
 - NornicDB live legs beyond the probes above; the NornicDB statements are
   byte-pinned to main by unit goldens instead.
+- The bootstrap binary end to end against a live Neo4j and Postgres. Its
+  probe, backfill, `db.awaitIndex`, and state statements were each run on the
+  pinned Neo4j, and the control flow is unit-tested.
 - The QA environment; any read latency (PR-2).

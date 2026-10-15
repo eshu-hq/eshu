@@ -109,15 +109,22 @@ Use this when bootstrap logs `bootstrap.graph.infra_search_key.oversized` or
 `bootstrap.graph.infra_search_key.index_failed`, or when
 `SHOW FULLTEXT INDEXES` reports `infra_search_key_ft` as `FAILED`.
 
-1. Count the oversized keys with `search.OversizedKeyCountCypher()`:
+1. Restart Neo4j first if it reports that the database needs a restart. A
+   key past the term limit fails its commit, and every later query then gets
+   that error. After the restart the index is `FAILED`, and the node is still
+   there with the full key.
+2. Count the oversized keys with `search.OversizedKeyCountCypher()`:
    `MATCH (n:<the 27 labels>) WHERE size(n.infra_search_key) > 8000 RETURN count(n)`.
-2. Clear them so the backfill recomputes them under the cap:
+3. Clear them so the backfill recomputes them under the cap. On a large graph,
+   batch it:
    `MATCH (n:<the 27 labels>) WHERE size(n.infra_search_key) > 8000
-   REMOVE n.infra_search_key, n.infra_search_ovf`.
-3. Rebuild the index: `DROP INDEX infra_search_key_ft IF EXISTS`, then rerun
+   CALL (n) { REMOVE n.infra_search_key, n.infra_search_ovf }
+   IN TRANSACTIONS OF 1000 ROWS`.
+4. Rebuild the index: `DROP INDEX infra_search_key_ft IF EXISTS`, then rerun
    `eshu-bootstrap-data-plane` with `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true`. It
-   re-runs the probe, recreates the index, and backfills the cleared nodes.
-4. Find the writer that bypassed the clause before the next write repeats it.
+   re-runs the probe, recreates the index, backfills the cleared nodes, and
+   waits for the index to be `ONLINE`.
+5. Find the writer that bypassed the clause before the next write repeats it.
 
 ## Ownership boundary
 
