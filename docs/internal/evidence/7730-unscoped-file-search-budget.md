@@ -80,17 +80,21 @@ the shipped tail statement plus only the old OFFSET; the hermetic
 `TestOracleStatementIsDerivedFromShippedTailText` pins that derivation.
 
 A page the trigram tail fills (`TestSearchFilesUnscopedTailFilledPageKeepsMoreLive`,
-limits 2 and 1 under a small budget) returns the old statement's rows and its
+limits 2 and 1 under a virtual clock) returns the old statement's rows and its
 look-ahead flag: the tail is asked for the look-ahead row, so a tail that
 returns every row it was asked for means a further match exists. The unit
 `TestSearchTailFilledPageReportsMore` pins the same for a tail that returns
-exactly the rows it was asked for. Which phases run depends on host speed, so
-the live tests try a series of budgets. At every budget a complete walk must
-return the old statement's rows (and, where the test pins it, its look-ahead
-flag) and a cut-short walk must return an ordered prefix of them; the wanted
-phases (the tail, or two continuation steps and the tail) are required only at
-the budget where the span shows them, and the test fails if no budget reaches
-them. An answer with exactly the requested number of matches is complete and
+exactly the rows it was asked for. The two file proofs that need a chosen phase
+(`TestSearchFilesUnscopedTailFilledPageKeepsMoreLive` and
+`TestSearchFilesUnscopedEdgeRowsAreExactLive`) inject a virtual clock through
+`Searcher.Now` and charge a fixed virtual cost to each window and tail
+statement (#8141), so the phases that run depend on the fixture and a short
+list of virtual costs, never on host speed; the SQL, the rows and the span
+attributes stay real. At every cost a complete walk must return the old
+statement's rows (and, where the test pins it, its look-ahead flag) and a
+cut-short walk must return an ordered prefix of them; the wanted phases (the
+tail, or two continuation steps and the tail) are required only at the cost
+where the span shows them, and the test fails if no cost reaches them. An answer with exactly the requested number of matches is complete and
 not truncated, and one more match makes it truncated
 (`TestSearchFilesUnscopedMatchesOldStatementLive` pages of 3 and 2 for the
 three-match selective token, and `TestSearchExactlyFullAnswerIsComplete`).
