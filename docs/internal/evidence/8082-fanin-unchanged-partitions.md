@@ -82,12 +82,26 @@ The ArgoCD-bearing probe (`ListArgoCDBearingPartitionsQuery`) is 97.3 to 97.4
 percent of summed transaction time (36.9 to 37.3 s over 809 calls, mean
 46 ms). Every other fan-in statement totals about 0.1 s.
 
-The readiness part of the check, `EXPLAIN (ANALYZE, BUFFERS)` on the same shim
-over the 740 memo-hit partitions: a Nested Loop Anti Join with 740 index-only
-probes of `graph_projection_phase_state_pkey`, 0 heap fetches, 1,459 shared
-hits, and 8.0 ms of execution (3.0 ms of it builds the input arrays). The
-shipped check also reads each scope's active generation. Its whole cost is
-inside the after timings above.
+The shipped check, `ListUnchangedPartitionsNeedingPublicationQuery`, ran
+under `EXPLAIN (ANALYZE, BUFFERS) EXECUTE` of a prepared statement with the
+740 memo-hit partitions. It ran on `p8082_plan`, a `TEMPLATE p8082` copy whose
+phase table was padded with extra keyspace rows. Times are the warm second and
+third runs.
+
+| Phase table rows (heap) | Readiness plan | Execution |
+| --- | --- | --- |
+| 810 (592 kB) | hashed SubPlan over one Seq Scan | 2.8 ms |
+| 97,900 (13 MB) | hashed SubPlan over one Seq Scan | 7.6 ms |
+| 214,408 (27 MB) | hashed SubPlan over one Parallel Seq Scan | 9.8 to 10.1 ms |
+| 1,165,890 (149 MB) | 740 index-only probes of `graph_projection_phase_state_pkey`, 0 heap fetches | 4.9 to 5.0 ms |
+
+The readiness test sits in the select list as `NOT EXISTS`, so Postgres
+chooses between a hashed and a per-row subplan by cost. It is not an anti
+join. The generation probe is 740 index-only scans of
+`scope_generations_scope_latest_lookup_idx` at every size. QA's phase heap is
+about 29 MB, next to the 27 MB row. At that size the check costs about 10 ms
+per pass, against about 4.4 s it removes, so it is not a performance problem.
+Its cost is included in the after timings above.
 
 QA log facts before the change: `deferred_backfill_fanin_completed
 partitions=809 published=809 skipped=0`, `unskipped_new_evidence=0`, and a

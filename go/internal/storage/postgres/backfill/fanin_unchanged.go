@@ -32,9 +32,12 @@ var activeGenerationForRequestedScope = strings.Replace(
 // phase the fan-in writes (reducer.GraphProjectionKeyspaceCrossRepoEvidence
 // and reducer.GraphProjectionPhaseBackwardEvidenceCommitted), passed as
 // parameters so the check cannot drift from the writer. The readiness probe
-// uses every graph_projection_phase_state primary-key column in key order; the
-// generation probe is the scope_generations_scope_latest_lookup_idx read
-// LoadActiveGenerationForScope uses.
+// names every graph_projection_phase_state primary-key column, but it sits in
+// the select list, so the planner picks by cost: one hashed seq scan of the
+// phase table when it is small, primary-key index-only probes when it is
+// large. The generation probe is the scope_generations_scope_latest_lookup_idx
+// read LoadActiveGenerationForScope uses. Measured plans and timings are in
+// docs/internal/evidence/8082-fanin-unchanged-partitions.md.
 var ListUnchangedPartitionsNeedingPublicationQuery = `
 SELECT checked.scope_id, checked.generation_id, checked.readiness_missing, checked.generation_advanced
 FROM (
