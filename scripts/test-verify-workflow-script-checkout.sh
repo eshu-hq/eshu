@@ -20,7 +20,8 @@
 # without a checkout passes (it executes no repository script). The
 # follow-up pairs: sudo with flags, VAR=value stacked before sudo, and
 # quoted VAR values each fail without a checkout, while `bash` as an echo
-# argument passes.
+# argument passes. The #8107 triple: `sudo --`, `sudo -u$USER` (joined
+# short-option argument), and `sudo env A=1` each fail without a checkout.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -444,6 +445,55 @@ if run_root "${echo_bash_arg}" >"${out_file}" 2>&1; then
 else
 	record_fail "echo of a bash scripts path passes (exit $?)"
 	sed 's/^/  /' "${out_file}"
+fi
+
+# 21. `sudo --` (end-of-options) without a checkout fails (#8107).
+eoo_red="$(scratch eoo-red)"
+cp "${fixtures}/red-sudo-end-of-options-no-checkout.yml" "${eoo_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/eoo-red.out"
+if run_root "${eoo_red}" >"${out_file}" 2>&1; then
+	record_fail "sudo end-of-options scripts without checkout fail (exited 0)"
+else
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "sudo end-of-options scripts without checkout fail naming the job"
+	else
+		record_fail "sudo end-of-options scripts without checkout fail naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
+fi
+
+# 22. `sudo -u$USER` (joined short-option argument) without a checkout
+# fails (#8107).
+joined_red="$(scratch joined-red)"
+cp "${fixtures}/red-sudo-joined-option-no-checkout.yml" "${joined_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/joined-red.out"
+if run_root "${joined_red}" >"${out_file}" 2>&1; then
+	record_fail "sudo joined-option scripts without checkout fail (exited 0)"
+else
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "sudo joined-option scripts without checkout fail naming the job"
+	else
+		record_fail "sudo joined-option scripts without checkout fail naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
+fi
+
+# 23. `sudo env A=1` without a checkout fails (#8107).
+sudo_env_red="$(scratch sudo-env-red)"
+cp "${fixtures}/red-sudo-env-no-checkout.yml" "${sudo_env_red}/.github/workflows/fixture.yml"
+out_file="${tmp_root}/sudo-env-red.out"
+if run_root "${sudo_env_red}" >"${out_file}" 2>&1; then
+	record_fail "sudo env scripts without checkout fail (exited 0)"
+else
+	code=$?
+	if [ "${code}" -eq 1 ] && grep -q "job <image-scan>" "${out_file}"; then
+		record_pass "sudo env scripts without checkout fail naming the job"
+	else
+		record_fail "sudo env scripts without checkout fail naming the job (exit ${code})"
+		sed 's/^/  /' "${out_file}"
+	fi
 fi
 
 printf 'test-verify-workflow-script-checkout: %d passed, %d failed\n' "${pass}" "${fail}"

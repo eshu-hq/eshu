@@ -16,13 +16,14 @@ select(.value.steps | type == "!!seq") |
 # either the script is the command itself at a command boundary (bare
 # scripts/, ./scripts/, ../scripts/, or a $GITHUB_WORKSPACE-style workspace
 # prefix, with optional stacked VAR=value prefixes before and after one sudo
-# carrying flags such as -E or -u <user>), or it follows a leading
+# carrying flags such as -E, -u <user>, a joined -u$USER, a bare --, or an
+# env command), or it follows a leading
 # bash/sh/source/. command at a command boundary in the same command
 # segment (with the same sudo and VAR=value prefixes allowed before that
 # leading command). A scripts/ path that is only an argument to another
 # command (echo "scripts/...", echo bash scripts/...) is not an execution
 # and does not match: the leading command must start at a true command
 # boundary (start of line or one of ;|&(){}!`), never mid-command (#8057).
-select($code | test("(^|[\n;|&(){}!`])[ \t]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\n\"]*\"|'[^'\n]*'|[^ \t\n;|&]+)[ \t]+)*(sudo([ \t]+(-[A-Za-z]+|--[A-Za-z0-9-]+(=[^ \t\n;|&]+)?|-[ug][ \t]+[^ \t\n;|&]+|--(user|group)[ \t]+[^ \t\n;|&]+))*[ \t]+)?([A-Za-z_][A-Za-z0-9_]*=(\"[^\n\"]*\"|'[^'\n]*'|[^ \t\n;|&]+)[ \t]+)*(\\./|\\.\\./)?(\\$GITHUB_WORKSPACE/|\\$\\{GITHUB_WORKSPACE\\}/|\\$\\{\\{[ \\t]*github\\.workspace[ \\t]*\\}\\}/)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)|(^|[\n;|&(){}!`])[ \t]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\n\"]*\"|'[^'\n]*'|[^ \t\n;|&]+)[ \t]+)*(sudo([ \t]+(-[A-Za-z]+|--[A-Za-z0-9-]+(=[^ \t\n;|&]+)?|-[ug][ \t]+[^ \t\n;|&]+|--(user|group)[ \t]+[^ \t\n;|&]+))*[ \t]+)?([A-Za-z_][A-Za-z0-9_]*=(\"[^\n\"]*\"|'[^'\n]*'|[^ \t\n;|&]+)[ \t]+)*(bash|sh|source|\\.)[ \\t]+[^;\\n|&]*?(\\./|\\.\\./)?(\\$GITHUB_WORKSPACE/|\\$\\{GITHUB_WORKSPACE\\}/|\\$\\{\\{[ \\t]*github\\.workspace[ \\t]*\\}\\}/)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)")) |
+select($code | test("(^|[\n;|&(){}!`])[ \t]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\n\"]*\"|'[^'\n]*'|[^ \t\n;|&]+)[ \t]+)*(sudo([ \t]+(--|env|-[A-Za-z]+|--[A-Za-z0-9-]+(=[^ \t\n;|&]+)?|-[ug]([ \t]+[^ \t\n;|&]+|[^ \t\n;|&]+)|--(user|group)[ \t]+[^ \t\n;|&]+))*[ \t]+)?([A-Za-z_][A-Za-z0-9_]*=(\"[^\n\"]*\"|'[^'\n]*'|[^ \t\n;|&]+)[ \t]+)*(\\./|\\.\\./)?(\\$GITHUB_WORKSPACE/|\\$\\{GITHUB_WORKSPACE\\}/|\\$\\{\\{[ \\t]*github\\.workspace[ \\t]*\\}\\}/)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)|(^|[\n;|&(){}!`])[ \t]*([A-Za-z_][A-Za-z0-9_]*=(\"[^\n\"]*\"|'[^'\n]*'|[^ \t\n;|&]+)[ \t]+)*(sudo([ \t]+(--|env|-[A-Za-z]+|--[A-Za-z0-9-]+(=[^ \t\n;|&]+)?|-[ug]([ \t]+[^ \t\n;|&]+|[^ \t\n;|&]+)|--(user|group)[ \t]+[^ \t\n;|&]+))*[ \t]+)?([A-Za-z_][A-Za-z0-9_]*=(\"[^\n\"]*\"|'[^'\n]*'|[^ \t\n;|&]+)[ \t]+)*(bash|sh|source|\\.)[ \\t]+[^;\\n|&]*?(\\./|\\.\\./)?(\\$GITHUB_WORKSPACE/|\\$\\{GITHUB_WORKSPACE\\}/|\\$\\{\\{[ \\t]*github\\.workspace[ \\t]*\\}\\}/)?scripts/[A-Za-z0-9_@./-]*\\.(sh|bash)([^A-Za-z0-9_.-]|$)")) |
 select($co == null or .key < $co) |
 [$job, (.key | tostring), (.value.name // "" | tostring)] | @tsv
