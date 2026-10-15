@@ -50,7 +50,7 @@ func RefinalizeClaimFenceWithRetry(
 			return result, nil
 		}
 		if ctx.Err() != nil {
-			return recovery.RefinalizeResult{}, err
+			return recovery.RefinalizeResult{}, fmt.Errorf("refinalize claim fence retry: %w", ctx.Err())
 		}
 		if admission.Expired() {
 			return recovery.RefinalizeResult{}, budgetError(attempts, "admission_deadline")

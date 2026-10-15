@@ -134,6 +134,23 @@ func TestRefinalizeClaimFenceWithRetryPreservesOtherErrors(t *testing.T) {
 	}
 }
 
+func TestRefinalizeClaimFenceWithRetryReturnsCallerCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	lockErr := &ClaimFenceLockTimeoutError{err: &pgconn.PgError{Code: "55P03"}}
+	_, err := RefinalizeClaimFenceWithRetry(
+		ctx, time.Second, nil,
+		func(_ context.Context, budget *FenceAdmissionBudget) (recovery.RefinalizeResult, error) {
+			budget.start()
+			cancel()
+			return recovery.RefinalizeResult{}, lockErr
+		},
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want caller cancellation", err)
+	}
+}
+
 func TestRefinalizeClaimFenceWithRetryExhaustsAdmissionBudget(t *testing.T) {
 	attempts := 0
 	_, err := RefinalizeClaimFenceWithRetry(

@@ -188,7 +188,11 @@ func acquireReducerClaimFence(
 		return fmt.Errorf("refinalize reducer claim fence: read lock_timeout: %w", err)
 	}
 	if !rows.Next() {
+		rowsErr := rows.Err()
 		_ = rows.Close()
+		if rowsErr != nil {
+			return fmt.Errorf("refinalize reducer claim fence: read lock_timeout: %w", rowsErr)
+		}
 		return fmt.Errorf("refinalize reducer claim fence: read lock_timeout: no setting returned")
 	}
 	var priorTimeout string

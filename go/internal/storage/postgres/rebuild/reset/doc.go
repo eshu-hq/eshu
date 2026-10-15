@@ -39,9 +39,9 @@
 //
 // ApplyPreRetirement and RetireResolutionGenerations are the reset entry
 // points; Counts reports what they cleared. The ordered coordination around it
-// — ReadAffectedGenerations, WaitForReducerDrain, EnqueueProjectorWork,
-// AcquireReducerClaimFence in claim_fence.go, and AssertRetirementFenced in
-// refinalize.go — is part of the same contract: the caller runs the sequence in
+// — ReadAffectedGenerations, WaitForReducerDrain,
+// AcquireReducerClaimFence in claim_fence.go, EnqueueProjectorWork, and
+// AssertRetirementFenced in refinalize.go — is part of the same contract: the caller runs the sequence in
 // its transaction around Apply, so every statement binds the one generation set
 // read first. That one read also classifies every scope it could not cover
 // (recovery.SkipReason*), so the skipped-scope report describes the same

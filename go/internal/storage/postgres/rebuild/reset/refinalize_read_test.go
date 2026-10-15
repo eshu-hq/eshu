@@ -5,6 +5,7 @@ package reset
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -52,6 +53,27 @@ func (q *readFakeQueryer) QueryContext(_ context.Context, query string, args ...
 	q.query = query
 	q.args = args
 	return &readFakeRows{rows: q.rows, deltas: q.deltas}, nil
+}
+
+type claimFenceReadErrorQueryer struct{ rows Rows }
+
+func (q claimFenceReadErrorQueryer) QueryContext(context.Context, string, ...any) (Rows, error) {
+	return q.rows, nil
+}
+
+func (claimFenceReadErrorQueryer) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, errors.New("unexpected write")
+}
+
+func TestAcquireReducerClaimFenceReturnsLockTimeoutReadError(t *testing.T) {
+	readErr := errors.New("lock_timeout read canceled")
+	queryer := claimFenceReadErrorQueryer{rows: &readFakeRows{err: readErr}}
+	err := AcquireReducerClaimFence(
+		context.Background(), queryer, Generations{ScopeIDs: []string{"scope"}, GenerationIDs: []string{"gen"}},
+	)
+	if !errors.Is(err, readErr) {
+		t.Fatalf("AcquireReducerClaimFence() error = %v, want lock_timeout read error", err)
+	}
 }
 
 // TestReadAffectedGenerationsSplitsCoveredFromSkipped pins the classification
