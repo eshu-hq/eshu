@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -117,6 +118,55 @@ func (s *RelationshipStore) IncompleteActiveScopeRelationshipGenerations(
 		return nil, fmt.Errorf("iterate incomplete scope relationship generations: %w", err)
 	}
 	return scopeIDs, nil
+}
+
+// resolutionProducerStateSQL reads the scope's active generation and the
+// newest deployment_mapping work item of one scope generation (#7597). It runs
+// only when an own-gate consumer already defers, and both reads are index
+// scans: ingestion_scopes_pkey and fact_work_items_scope_generation_idx
+// (scope_id, generation_id, ...), filtering the generation's few reducer rows
+// on stage and domain. Evidence:
+// docs/internal/evidence/7597-own-gate-producer-terminal.md.
+const resolutionProducerStateSQL = `
+SELECT COALESCE(s.active_generation_id, ''),
+       COALESCE(w.work_item_id, ''), COALESCE(w.status, ''), COALESCE(w.failure_class, '')
+FROM ingestion_scopes AS s
+LEFT JOIN LATERAL (
+    SELECT d.work_item_id, d.status, d.failure_class
+    FROM fact_work_items AS d
+    WHERE d.scope_id = s.scope_id
+      AND d.generation_id = $2
+      AND d.stage = 'reducer'
+      AND d.domain = 'deployment_mapping'
+    ORDER BY d.updated_at DESC, d.work_item_id DESC
+    LIMIT 1
+) AS w ON TRUE
+WHERE s.scope_id = $1
+`
+
+// NewResolutionProducerLookup reads the own-gate producer state the
+// deployable-unit and workload consumers consult when their own relationship
+// generation is inactive (crossrepo.EvaluateOwnGate). A missing scope row
+// reads as an empty state, which the gate treats as "scope moved on" and
+// defers. A query error is returned for the gate to classify.
+func NewResolutionProducerLookup(database db.Queryer) crossrepo.ProducerLookup {
+	return func(ctx context.Context, scopeID, generationID string) (crossrepo.ProducerState, error) {
+		rows, err := database.QueryContext(ctx, resolutionProducerStateSQL, scopeID, generationID)
+		if err != nil {
+			return crossrepo.ProducerState{}, fmt.Errorf("query resolution producer state: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+		var state crossrepo.ProducerState
+		if rows.Next() {
+			if err := rows.Scan(&state.ScopeActiveGenerationID, &state.WorkItemID, &state.Status, &state.FailureClass); err != nil {
+				return crossrepo.ProducerState{}, fmt.Errorf("scan resolution producer state: %w", err)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return crossrepo.ProducerState{}, fmt.Errorf("iterate resolution producer state: %w", err)
+		}
+		return state, nil
+	}
 }
 
 // NewAcceptedGenerationLookup creates an exact bounded-unit acceptance lookup

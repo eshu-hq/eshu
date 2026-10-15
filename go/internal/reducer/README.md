@@ -364,6 +364,23 @@ values each counter carries.
   pair a passing verdict with a partial set (#6740). Other stores keep the
   pre-read fence plus post-read recheck (#6730), which has that window. See
   `docs/internal/evidence/6740-corpus-fence-snapshot.md`.
+- **The own gate is bounded by its producer** — when the own relationship
+  generation is inactive, `crossrepo.EvaluateOwnGate` reads the newest
+  `deployment_mapping` row of the same scope generation
+  (`ResolutionProducerLookup`). A live, superseded, or succeeded producer, or
+  a scope that moved on, keeps the non-counting deferral, now naming the
+  producer. A dead-lettered producer returns the counting
+  `deployable_unit_correlation_producer_dead_lettered` or
+  `workload_materialization_producer_dead_lettered` class, so the retry
+  budget dead-letters the consumer; replaying the producer
+  (`RecoveryStore.ReplayFailedWorkItems`) reopens it in the same statement. A
+  missing producer defers for `crossscope.ProducerReadinessMaxWait`, then
+  counts. See `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
+- **Non-counting failures record `deferred`** — `Service.IsDeferredFailureClass`
+  (wired to `postgres.IsNonCountingReducerRetryFailureClass`) turns a
+  retryable failure in a non-counting class into
+  `eshu_dp_reducer_executions_total{status="deferred"}` and a WARN
+  `reducer execution deferred` log; every other failure stays `failed`/ERROR.
 - **Phase publications and graph writes are not atomic** — if a graph write
   commits but the phase publication fails, `GraphProjectionPhaseRepairQueue`
   captures the retry.

@@ -15,6 +15,7 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -47,6 +48,10 @@ type DeployableUnitCorrelationHandler struct {
 	// on a deferral, so the error is actionable instead of opaque (#6730).
 	// Nil-safe: a nil lookup or a lookup error simply omits the holder list.
 	IncompleteScopesLookup accepted.RelationshipGenerationsIncompleteScopesLookup
+	// ResolutionProducerLookup reads the own generation's deployment_mapping
+	// producer when the own gate is closed (#7597). Nil keeps the plain
+	// deferral for test wiring; see crossrepo.EvaluateOwnGate.
+	ResolutionProducerLookup crossrepo.ProducerLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 	// Logger receives the bound-expiry WARN emitted when a shared-edge target
@@ -97,9 +102,15 @@ func (h DeployableUnitCorrelationHandler) Handle(
 
 	// Fail closed before the resolved-relationship read: both feeds are partial
 	// until resolutions complete corpus-wide, and success is never reopened.
-	if !ownResolutionGenerationReady(h.ResolutionActiveLookup, intent, candidates) {
+	// A dead-lettered own producer counts instead of deferring (#7597).
+	gate := crossrepo.EvaluateOwnGate(ctx, h.ResolutionActiveLookup, h.ResolutionProducerLookup,
+		intent, len(candidates) > 0, time.Now().UTC())
+	if gate.Err != nil {
+		return Result{}, gate.Err
+	}
+	if !gate.Ready {
 		return Result{}, deployableUnitCorrelationResolutionNotReadyError{
-			scopeID: intent.ScopeID, generationID: intent.GenerationID,
+			scopeID: intent.ScopeID, generationID: intent.GenerationID, producerDetail: gate.ProducerDetail,
 		}
 	}
 	if err := deployableUnitCanonicalReposReady(ctx, h.CanonicalQuiescence, intent, len(candidates) > 0); err != nil {

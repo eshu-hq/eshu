@@ -893,6 +893,17 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - Dead-letter items accumulate in `fact_work_items` when `attempt_count >=
   MaxAttempts`; use `RecoveryStore` to replay after investigating
   `failure_class`.
+- A `deployable_unit_correlation_producer_dead_lettered` or
+  `workload_materialization_producer_dead_lettered` dead letter means the
+  scope generation's `deployment_mapping` item is dead-lettered (#7597).
+  Replay that producer: a reducer `ReplayFailedWorkItems` that reopens a
+  `deployment_mapping` row reopens those consumers of the same
+  `(scope_id, generation_id)` in the same statement (`woken` CTE,
+  `replayWakeProducerConsumersCTE`), reports them in
+  `ReplayResult.WokenConsumerIDs`, and logs INFO `replay reopened
+  producer-terminal consumers of replayed deployment_mapping work`. Every row
+  the replay reopens gets `reopened_at = now`. See
+  `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
 - `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs means a
   heartbeat or ack arrived after lease expiry; the original worker must stop and
   not retry the ack.

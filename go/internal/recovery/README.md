@@ -61,7 +61,10 @@ backend, or any network connection directly.
   `ScopeIDs` (empty means all), `FailureClass`, `ExcludeFailureClasses` (durable
   classes the store must never select, applied store-side), `Limit`.
 - `ReplayResult` — outcome of a replay call: `Stage`, `Replayed` count,
-  `WorkItemIDs`.
+  `WorkItemIDs`, `SkippedSupersededGeneration`, and `WokenConsumerIDs` (the
+  dead-lettered reducer consumers the same statement reopened because their
+  `deployment_mapping` producer was replayed, #7597; not counted in
+  `Replayed` or against `Limit`).
 - `DrainableClass` — string alias for a failure class the drain may replay
   without operator force; `DrainableClassRetryExhausted` (`"retry_exhausted"`)
   is the safe transient default.

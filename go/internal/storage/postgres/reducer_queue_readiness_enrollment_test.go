@@ -65,6 +65,12 @@ func TestEveryReadinessFailureClassIsEnrolled(t *testing.T) {
 
 	var missing []string
 	for class := range found {
+		// The explicit, reasoned exemption list (#7597): a Retryable class
+		// that must count. TestDeliberatelyCountingClassesAreNeverEnrolled
+		// proves none of them is enrolled.
+		if _, counting := deliberatelyCountingReducerFailureClasses[class]; counting {
+			continue
+		}
 		if !enrolled[class] {
 			missing = append(missing, class+" ("+found[class]+")")
 		}

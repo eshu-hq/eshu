@@ -19,6 +19,7 @@ else in the reducer depends on its internals.
 | retraction rows | `cross_repo_resolution_retract.go` | the rows emitted for a source repo that resolved to no edges, so a stale edge is withdrawn rather than left standing |
 | evidence artifacts | `cross_repo_evidence_artifacts.go` | the bounded `EvidenceArtifact` summaries an edge carries, including citation fields and the `GITHUB_ACTIONS_*` ref/pinned classification |
 | evidence type and source tool | `cross_repo_evidence_type.go` | the pure evidence-kind to `evidence_type` / `source_tool` classifier |
+| own gate (#7597) | `own_gate.go` | `EvaluateOwnGate`, the own-generation gate of `deployable_unit_correlation` and `workload_materialization`, bounded by this handler's own `deployment_mapping` work item: `ProducerLookup`/`ProducerState`, the counting `ProducerDeadLetteredError` and `ProducerMissingError`, and the two `*_producer_dead_lettered` classes |
 
 `CrossRepoEvidenceSource` is exported on purpose. Workload materialization
 writes the identical `(WorkloadInstance)-[:RUNS_ON]->(Platform)` shape under a
@@ -30,7 +31,9 @@ stamps.
 ## Package boundary
 
 Imports point strictly downward. This package reaches `reducer/contract`,
-`reducer/gpphase`, `reducer/payloadcore`, `reducer/sharedintent`,
+`reducer/crossscope` and `reducer/factload` (the own gate's elapsed bound and
+lookup-error classifier), `reducer/gpphase`, `reducer/payloadcore`,
+`reducer/sharedintent`,
 `internal/environment`, `internal/ghactionsref`, `internal/relationships`,
 `internal/telemetry` and `pkg/log`, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
@@ -121,6 +124,15 @@ telemetry-coverage rows cite changed.
 - **`evidence_type` and `source_tool` derive from the FIRST evidence kind in
   the preview**, so preview ordering is part of the contract, not a display
   detail.
+- **The own gate counts a dead producer, never defers on it forever.** When
+  a consumer's own relationship generation is inactive, `EvaluateOwnGate`
+  reads the newest `deployment_mapping` row of the same scope generation. Only
+  `dead_letter` (or legacy `failed`) counts; live, superseded and succeeded
+  producers and a moved scope keep the caller's non-counting deferral; a
+  missing row counts only after `crossscope.ProducerReadinessMaxWait`. The
+  counting errors must never wrap the deferral (errors.As would find its
+  non-counting class), and their classes must never be enrolled as
+  non-counting. A lookup error goes through `factload.ClassifyFactLoadError`.
 - **Activation is fenced, not skipped, on an intent-commit failure.** The
   handler returns without activating the generation so downstream consumers
   never read a half-committed resolution; the fenced counter is the only signal
