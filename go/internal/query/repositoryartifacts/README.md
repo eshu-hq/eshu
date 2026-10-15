@@ -63,13 +63,15 @@ importing a query package. This package keeps:
   `contentStoreReader`, which presents a `ContentStore` as the neutral
   `Reader`. The statement counting wrapper (`countingContentStore`) sits under
   the adapter, so every read is counted;
-- `HydrateRepositoryCandidateFiles`, the one-file-per-statement full pass the
-  anchor repository's controller, runtime, workflow and compose loaders use.
-  Its hydration set comes from `contentartifacts.SelectHydrationIndexes` at
-  the allowance `RepositoryArtifactHydrationLimit` (the 50-candidate floor), so
-  the order is the config-artifact load's. These anchor-only loaders keep
-  their silent 50 cap until the follow-up of #7951 moves them to the chunked
-  reader;
+- `HydrateRepositoryCandidateFiles`, the whole-window chunked full pass the
+  anchor repository's controller, runtime, workflow and compose loaders use
+  (the #7951 follow-up). Its hydration set comes from
+  `contentartifacts.SelectHydrationIndexes` at the whole-window allowance, so
+  the selection and order match the config-artifact load's; one
+  `GetFileContents` statement per ten paths replaced the old one-file reads
+  capped at `RepositoryArtifactHydrationLimit` (the 50-candidate floor, kept
+  exported for #6060). The loader fallback lists read
+  `RepositorySemanticEntityLimit+1` rows and clip to the window;
 - `ConfigArtifactReadStats`, which sums the per-repository `ReadStats` of the
   neutral package with the stage's statement and byte counts.
 
@@ -142,6 +144,29 @@ file list was cut. A response that is a lower bound names the bound in
 `limitations` or `partial_reasons`, and sets `truncated` (story) or
 `result_limits.truncated` (service and workload routes); the repository context
 has no `truncated` field.
+
+### Anchor-loader whole-window hydration (follow-up of #7951)
+
+Benchmark Evidence (#7951 anchor follow-up):
+`BenchmarkAnchorHydrationWholeWindow` hydrates 500 workflow candidates through
+the chunked anchor pass on the in-memory `fakeContentStore` (go1.26.9
+linux/amd64, AMD EPYC 9R14): 50 `GetFileContents` statements, ~1.75 ms/op
+median over 3 runs of ~687 iters, 500 of 500 rows hydrated. Baseline is the
+pre-follow-up pass: at most 50 one-file `GetFileContent` statements covering
+only the first 50 candidates, so any window with more than 50 candidates
+returned an incomplete body. After the change the statement count is
+ceil(candidates/10) and the body is the whole window: 60 candidates cost 6
+statements for 60 rows instead of 50 statements for 50 rows. The 5,000-file
+window bounds the worst case at 500 statements; anchor candidates (compose,
+workflow, controller files) are rare per repository, so the usual cost is 0-2
+statements. The in-flight bound stays 8, the bound the per-file reader used,
+and row semantics are unchanged (rows by `RelativePath`, missing row keeps
+the list row, first chunk error fails the pass), so the change is safe.
+
+No-Observability-Change: no new metric, span, log field, or stage-line field.
+The `candidate_count`/`candidates_hydrated` stage lines and
+`eshu_dp_config_artifact_candidates_total` already cover the config load; the
+anchor pass adds no per-loader counts of its own.
 The metric and log fields are in
 [Telemetry metrics](../../../../docs/public/reference/telemetry/metrics.md) and
 [Telemetry logs](../../../../docs/public/reference/telemetry/logs.md).

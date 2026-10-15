@@ -88,9 +88,9 @@ func loadRepositoryRuntimeArtifacts(
 	candidates := files
 	if candidates == nil {
 		var err error
-		candidates, err = reader.ListRepoFiles(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
+		candidates, err = listAnchorCandidateFiles(ctx, reader, repoID, "runtime")
 		if err != nil {
-			return nil, fmt.Errorf("list runtime artifact files: %w", err)
+			return nil, err
 		}
 	}
 

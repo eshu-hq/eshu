@@ -47,9 +47,9 @@ func LoadRepositoryWorkflowArtifacts(
 	candidates := files
 	if candidates == nil {
 		var err error
-		candidates, err = reader.ListRepoFiles(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
+		candidates, err = listAnchorCandidateFiles(ctx, reader, repoID, "workflow")
 		if err != nil {
-			return nil, fmt.Errorf("list workflow artifact files: %w", err)
+			return nil, err
 		}
 	}
 

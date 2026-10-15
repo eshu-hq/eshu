@@ -22,11 +22,13 @@ type singleFileReader interface {
 const fullPassConcurrency = 8
 
 // fullPassCandidateFiles is a frozen copy of the query package's
-// HydrateRepositoryCandidateFiles, the full pass that reads the content of the
-// first allowance candidates that satisfy shouldHydrate one file per
-// statement. The query package keeps the production version for the anchor
-// repository; this copy is the oracle of the neutral package's equality
-// tests, so a change to the needed-content pass cannot move its own reference.
+// HydrateRepositoryCandidateFiles before the #7951 follow-up: the full pass
+// that reads the content of the first allowance candidates that satisfy
+// shouldHydrate one file per statement. The query package's production
+// version for the anchor repository has since moved to whole-window chunked
+// reads; this copy stays frozen as the oracle of the neutral package's
+// equality tests, so a change to the needed-content pass cannot move its own
+// reference.
 func fullPassCandidateFiles(
 	ctx context.Context,
 	reader Reader,

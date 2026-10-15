@@ -89,12 +89,16 @@ type hydrationCoverageStore struct {
 	hydrated atomic.Int32
 }
 
-func (s *hydrationCoverageStore) GetFileContent(context.Context, string, string) (*querycontract.FileContent, error) {
-	s.hydrated.Add(1)
+func (s *hydrationCoverageStore) GetFileContents(_ context.Context, _ string, relativePaths []string) ([]querycontract.FileContent, error) {
+	s.hydrated.Add(int32(len(relativePaths)))
 	return nil, nil
 }
 
-func TestWorkflowCoveragePreservesDisplayAndHydrationLimits(t *testing.T) {
+// TestWorkflowCoveragePreservesDisplayLimitAndHydratesWholeWindow proves the
+// static workflow evidence keeps its 20-path display cap while the image
+// evidence hydration reads the whole candidate window through chunked
+// GetFileContents statements, not just the first 50 (#7951 follow-up).
+func TestWorkflowCoveragePreservesDisplayLimitAndHydratesWholeWindow(t *testing.T) {
 	t.Parallel()
 	store := &hydrationCoverageStore{}
 	files := coverageFiles(5000, 0)
@@ -105,8 +109,8 @@ func TestWorkflowCoveragePreservesDisplayAndHydrationLimits(t *testing.T) {
 	if got.State != "present" || got.Count != 60 || len(got.Paths) != 20 || !got.Truncated || got.CandidatePoolStatus != "unknown_at_limit" {
 		t.Fatalf("bounded workflow evidence = %#v", got)
 	}
-	if store.listCalls != 0 || store.hydrated.Load() != 50 {
-		t.Fatalf("content reads = list %d hydrate %d, want zero/50", store.listCalls, store.hydrated.Load())
+	if store.listCalls != 0 || store.hydrated.Load() != 60 {
+		t.Fatalf("content reads = list %d hydrate %d, want zero/60", store.listCalls, store.hydrated.Load())
 	}
 	if !slices.IsSorted(got.Paths) {
 		t.Fatalf("paths are not sorted: %v", got.Paths)

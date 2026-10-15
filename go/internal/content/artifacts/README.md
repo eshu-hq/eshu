@@ -135,8 +135,10 @@ per-file reader returned whichever failure arrived first.
 
 `HydrateRepositoryCandidateFiles` in the query package (used by the controller,
 runtime, workflow and compose/GitHub Actions loaders for the anchor repository)
-still reads one file per statement. The related repositories, which dominate
-the statement count, go through the needed-content pass above.
+reads the whole window through the same chunked shape as the needed-content
+pass above, at ten paths per statement (the #7951 follow-up). The related
+repositories, which dominate the statement count, go through the
+needed-content pass above.
 
 The output of `BuildConfigPaths` is identical to reading every
 candidate. One read-path difference is intended: a read failure on a file no

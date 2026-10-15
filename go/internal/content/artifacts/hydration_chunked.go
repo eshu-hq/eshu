@@ -46,8 +46,9 @@ var productionChunkedRead = chunkedRead{
 }
 
 // fetch replaces hydrated[i] with the stored row for every i in indexes. It is
-// the chunked counterpart of the one-file-at-a-time read of the anchor
-// repository's full pass and keeps its row semantics:
+// the chunked reader of the needed-content pass; the anchor repository's full
+// pass in the query package reads the same chunked way since the #7951
+// follow-up, and both keep its row semantics:
 //
 //   - a path with no stored row leaves the list row in place, so the load
 //     drops it as blank, exactly as an absent single-file row does;
