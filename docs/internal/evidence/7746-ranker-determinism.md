@@ -17,6 +17,8 @@ order:
 8. `feat(query): add a query.hybrid_rerank stage span`
 9. `docs(search): cite rebased commits and the stage span in #7746 evidence`
 10. `docs(search): name #7746 evidence commits by subject`
+11. `test(searchhybrid): pin Search scores to 8 digits, not raw bits`
+12. `docs(search): record the cross-architecture score limit for #7746`
 
 Every figure below was measured on the branch before rebasing onto
 `origin/main`. `git range-diff` shows the patches unchanged across each rebase,
@@ -38,7 +40,9 @@ class in the persisted Postgres index with an ordered `SUM`.
 Fix: both functions now sum in sorted term order (`sortedQueryTerms`). The
 in-process and Postgres paths each produce stable bits. They are not equal to
 each other, because they order on different keys and group the BM25 formula
-differently.
+differently. The in-process bits are stable per binary, which means per
+process and per architecture, not across architectures (see the known limit
+below).
 
 RED: `TestBM25ScoreBytesStableAcrossTermOrder` uses 8 terms and 4 query-term
 maps, with 200 scorings of each map. On `88beb12d0`, a main commit, it failed
@@ -51,6 +55,12 @@ The failure text is
 `bm25Score bits differ from sorted-term reference in N/800 runs`.
 
 GREEN: 0/20 runs failed after the fix (ledger:7746-bm25-order-green-runs).
+
+This test is valid on every architecture. It compares production against a
+reference computed in the same binary, with the same `termContribution` and the
+same summation order. No product feeds the summing add directly, so FMA fusion
+cannot treat the two sums differently. It passed on the amd64 CI race shard
+whose only failure was the raw-bits golden pin described below.
 
 Other float accumulations in `searchhybrid` were checked. None of them depends
 on order:
@@ -94,8 +104,10 @@ Fix:
   retrieval limit.
 - `RankAll` shares an unexported `rank` core with `Search`. A golden digest of
   `Search` output, taken before the refactor, still matches after it
-  (`TestBackendSearchOutputIsPinned`): 90 mode/limit/cap/query cases, with
-  candidate order, score bits, and metadata.
+  (`TestBackendSearchOutputIsPinned`). It covers 90 mode/limit/cap/query cases
+  and pins candidate order, ranks, metadata, and failures exactly, with each
+  score to 8 significant digits. Digest provenance and mutation proof are in
+  "Golden pin provenance" below.
 - `RankAll` errors on a blank query, a missing scope or index, or a done
   context, and both rankers keep the lexical order on any error. Overflow uses
   the existing drop-by-id rule and per-candidate truncation signal
@@ -134,6 +146,55 @@ GREEN: `TestCodeHybridRerankRanksAllRowsOfAMaximumPage` and
 `TestContentHybridRerankRanksAllRowsOfAMaximumPage` (entities, files) pass.
 All 200 rows come back `search_backend=hybrid`, and the strongest match,
 which has the highest id, ranks first.
+
+## Known limit: score bits across architectures
+
+A first version of the golden pin hashed raw `math.Float64bits` scores. It
+passed on the arm64 dev host and failed on the amd64 CI race shard. Diffing the
+two 424-line transcripts showed 21 score lines differing by at most 4 ulp
+(for example `401361fb535fb255` on amd64 vs `401361fb535fb254` on arm64). Order,
+ranks, metadata, and failures were identical on every line.
+
+The cause is FMA fusion, which the Go spec permits. On arm64 the compiler fuses
+the `termContribution` denominator `tf + k1*(1-b+b*len/avg)` into `FMADDD`
+(`go build -gcflags=-S`). On amd64 at the CI's default `GOAMD64=v1` the same
+code compiles to separate `MULSD`/`DIVSD`/add instructions with no `VFMADD`.
+
+So BM25 score bits are stable per binary, which means per process and per
+architecture. Across architectures a score can differ by a few ulp. Two scores
+within that noise can tie-break differently on different replicas. This
+matters for the later score-keyed cursor in #7746: a cursor issued by an arm64
+replica and resumed on an amd64 replica must not compare exact score bits. It
+needs either an architecture-independent score (for example explicit
+`float64(...)` conversions, which the Go spec says prevent fusion, at every
+product in the BM25, cosine, and hash-embedding paths) or a key that does not
+rely on score bits.
+
+## Golden pin provenance
+
+- The transcript renders each score with `%.8g` (`searchGoldenScoreDigits`).
+  Everything else is unchanged.
+- The digest `b3fa9fa441889008d0e3e8ac6650ea620ea00ae9a6b8f3ea12fe364d0288d413`
+  came from the new test file run against the pre-refactor `Search`. That run
+  used a throwaway worktree detached at the branch commit
+  `fix(searchhybrid): sum BM25 contributions in sorted term order`, whose
+  `backend.go` has no `RankAll`, on arm64. The same digest results at the head
+  of the branch. The baseline is that commit, not `origin/main`, because the
+  sorted-order fix itself changes BM25 scores relative to main.
+- Cross-architecture proof without amd64 hardware: the raw-bits amd64 CI
+  transcript (digest `5a2d53df…`, matching the CI failure line) and the raw-bits
+  arm64 transcript (digest `bff1157a…`), each re-rendered with `%.8g`, both
+  hash to `b3fa9fa4…`.
+- Margin: shifting any of the 307 nonzero scores (334 score lines) by up to
+  262144 ulp leaves its `%.8g` rendering unchanged, so the observed 4 ulp is
+  far from a rounding boundary.
+- Not a tautology (seeded mutations, each restored):
+  - `limit+1` -> `limit+2` in `Search` gives
+    `Search transcript digest = 7c0b96fe…, want b3fa9fa4…`.
+  - `defaultK1` 1.2 -> 1.2000001 gives digest `823f33ea…`, and 1.2 ->
+    1.20000001 gives digest `a24a125c…`. Both fail.
+  - 1.2 -> 1.200000001, a relative change of about 1e-9, passes. The pin
+    resolves score changes of about 1e-8 relative or larger.
 
 ## Performance Evidence
 
