@@ -83,7 +83,18 @@ and no handler span (RED). Each assertion was mutated off in turn and the
 matching wrong route then passed, which is the evidence each one is
 load-bearing (#7674 slice 5 PR body).
 
-No-Observability-Change: test-only package; it emits nothing at runtime.
+No-Regression Evidence: test-only package with no production importer
+(`internal/queryplan`'s production-import guard rejects one). The `MATCH (n)`
+in `harness.go` is canary text inside the `Canary` string, standing in for a
+Cypher fragment a backend error might quote; no query runs here, and the
+queryplan callsite inventory (`TestHotCypherManifestCoversEveryProductionQueryCall`)
+passes with this package in the tree. The retrofitted families' production
+code is unchanged, so their read paths, bounds, and costs are unchanged.
+
+No-Observability-Change: test-only package; it emits nothing at runtime. It
+asserts the existing handler-span signals (`exception` event, Error status,
+`eshu.request.client_canceled`) that `tracing.WriteServerFailure` already
+emits.
 
 ## Related docs
 
