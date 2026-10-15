@@ -205,7 +205,7 @@ func TestContentReaderRepositoryDeploymentEvidenceIsBoundedAtSQL(t *testing.T) {
 	}
 }
 
-func TestHydrateRepositoryCandidateFilesStartsExactReadsConcurrently(t *testing.T) {
+func TestHydrateRepositoryCandidateFilesStartsChunkReadConcurrently(t *testing.T) {
 	t.Parallel()
 
 	store := &blockingArtifactHydrationStore{
@@ -214,13 +214,17 @@ func TestHydrateRepositoryCandidateFilesStartsExactReadsConcurrently(t *testing.
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	done := make(chan error, 1)
+	type hydrateOutcome struct {
+		files []querycontract.FileContent
+		err   error
+	}
+	done := make(chan hydrateOutcome, 1)
 	go func() {
-		_, err := artifacts.HydrateRepositoryCandidateFiles(ctx, store, "repo-service", []querycontract.FileContent{
+		hydrated, err := artifacts.HydrateRepositoryCandidateFiles(ctx, store, "repo-service", []querycontract.FileContent{
 			{RepoID: "repo-service", RelativePath: "compose-a.yaml", ArtifactType: "docker_compose"},
 			{RepoID: "repo-service", RelativePath: "compose-b.yaml", ArtifactType: "docker_compose"},
 		}, artifacts.IsDockerComposeArtifact)
-		done <- err
+		done <- hydrateOutcome{files: hydrated, err: err}
 	}()
 
 	seen := map[string]struct{}{}
@@ -229,16 +233,26 @@ func TestHydrateRepositoryCandidateFilesStartsExactReadsConcurrently(t *testing.
 		case path := <-store.started:
 			seen[path] = struct{}{}
 		case <-time.After(300 * time.Millisecond):
-			t.Fatalf("started hydration reads = %#v, want both reads before release", seen)
+			t.Fatalf("started hydration chunk paths = %#v, want both paths before release", seen)
 		}
 	}
 	close(store.release)
-	if err := <-done; err != nil {
-		t.Fatalf("artifacts.HydrateRepositoryCandidateFiles() error = %v, want nil", err)
+	outcome := <-done
+	if outcome.err != nil {
+		t.Fatalf("artifacts.HydrateRepositoryCandidateFiles() error = %v, want nil", outcome.err)
+	}
+	for _, file := range outcome.files {
+		if file.Content == "" {
+			t.Fatalf("hydrated %q has no content, want the chunked read to hydrate it", file.RelativePath)
+		}
 	}
 }
 
-func TestHydrateRepositoryCandidateFilesCapsExactReads(t *testing.T) {
+// TestHydrateRepositoryCandidateFilesReadsWholeCandidateWindow proves the
+// anchor hydration pass no longer stops at RepositoryArtifactHydrationLimit:
+// every candidate in the window is read, through chunked GetFileContents
+// statements (#7951 follow-up).
+func TestHydrateRepositoryCandidateFilesReadsWholeCandidateWindow(t *testing.T) {
 	t.Parallel()
 
 	store := &countingArtifactHydrationStore{}
@@ -251,12 +265,20 @@ func TestHydrateRepositoryCandidateFilesCapsExactReads(t *testing.T) {
 		})
 	}
 
-	_, err := artifacts.HydrateRepositoryCandidateFiles(context.Background(), store, "repo-service", files, artifacts.IsGitHubActionsWorkflowFile)
+	hydrated, err := artifacts.HydrateRepositoryCandidateFiles(context.Background(), store, "repo-service", files, artifacts.IsGitHubActionsWorkflowFile)
 	if err != nil {
 		t.Fatalf("artifacts.HydrateRepositoryCandidateFiles() error = %v, want nil", err)
 	}
-	if got := int(store.calls.Load()); got != artifacts.RepositoryArtifactHydrationLimit {
-		t.Fatalf("GetFileContent calls = %d, want cap %d", got, artifacts.RepositoryArtifactHydrationLimit)
+	for i, file := range hydrated {
+		if file.Content == "" {
+			t.Fatalf("hydrated[%d] %q has no content, want the whole window hydrated", i, file.RelativePath)
+		}
+	}
+	if got, want := int(store.paths.Load()), artifacts.RepositoryArtifactHydrationLimit+5; got != want {
+		t.Fatalf("GetFileContents paths = %d, want %d", got, want)
+	}
+	if got := int(store.chunks.Load()); got == 0 {
+		t.Fatal("GetFileContents chunks = 0, want chunked reads")
 	}
 }
 
@@ -266,15 +288,21 @@ type blockingArtifactHydrationStore struct {
 	release chan struct{}
 }
 
-func (s *blockingArtifactHydrationStore) GetFileContent(ctx context.Context, repoID, relativePath string) (*querycontract.FileContent, error) {
-	select {
-	case s.started <- relativePath:
-	case <-ctx.Done():
-		return nil, ctx.Err()
+func (s *blockingArtifactHydrationStore) GetFileContents(ctx context.Context, repoID string, relativePaths []string) ([]querycontract.FileContent, error) {
+	for _, relativePath := range relativePaths {
+		select {
+		case s.started <- relativePath:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 	select {
 	case <-s.release:
-		return &querycontract.FileContent{RepoID: repoID, RelativePath: relativePath, Content: "services: {}"}, nil
+		rows := make([]querycontract.FileContent, 0, len(relativePaths))
+		for _, relativePath := range relativePaths {
+			rows = append(rows, querycontract.FileContent{RepoID: repoID, RelativePath: relativePath, Content: "services: {}"})
+		}
+		return rows, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -282,10 +310,16 @@ func (s *blockingArtifactHydrationStore) GetFileContent(ctx context.Context, rep
 
 type countingArtifactHydrationStore struct {
 	querycontract.ContentStore
-	calls atomic.Int64
+	chunks atomic.Int64
+	paths  atomic.Int64
 }
 
-func (s *countingArtifactHydrationStore) GetFileContent(_ context.Context, repoID, relativePath string) (*querycontract.FileContent, error) {
-	s.calls.Add(1)
-	return &querycontract.FileContent{RepoID: repoID, RelativePath: relativePath, Content: "name: deploy"}, nil
+func (s *countingArtifactHydrationStore) GetFileContents(_ context.Context, repoID string, relativePaths []string) ([]querycontract.FileContent, error) {
+	s.chunks.Add(1)
+	s.paths.Add(int64(len(relativePaths)))
+	rows := make([]querycontract.FileContent, 0, len(relativePaths))
+	for _, relativePath := range relativePaths {
+		rows = append(rows, querycontract.FileContent{RepoID: repoID, RelativePath: relativePath, Content: "name: deploy"})
+	}
+	return rows, nil
 }

@@ -47,7 +47,8 @@ func (s *recordingRunCorrelationStore) ListCICDRunCorrelations(
 
 type workflowPathOnlyContentStore struct {
 	content.FakePortContentStore
-	getFileContentCalls int
+	getFileContentCalls  int
+	getFileContentsCalls int
 }
 
 func (s *workflowPathOnlyContentStore) GetFileContent(
@@ -57,6 +58,18 @@ func (s *workflowPathOnlyContentStore) GetFileContent(
 ) (*querycontract.FileContent, error) {
 	s.getFileContentCalls++
 	return nil, errUnexpectedContentHydration
+}
+
+// GetFileContents counts the chunked batch reads the anchor hydration pass
+// issues since the #7951 follow-up; it delegates to the embedded fake so the
+// fixture row still hydrates exactly as the singular read answered it.
+func (s *workflowPathOnlyContentStore) GetFileContents(
+	ctx context.Context,
+	repoID string,
+	relativePaths []string,
+) ([]querycontract.FileContent, error) {
+	s.getFileContentsCalls++
+	return s.FakePortContentStore.GetFileContents(ctx, repoID, relativePaths)
 }
 
 func TestCICDListRunCorrelationsRequiresScopeAndLimit(t *testing.T) {
@@ -184,8 +197,11 @@ func TestCICDListRunCorrelationsHydratesStaticWorkflowArtifactsOnce(t *testing.T
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got := content.getFileContentCalls; got != 1 {
-		t.Fatalf("GetFileContent calls = %d, want 1 bounded workflow evidence hydration", got)
+	if got := content.getFileContentCalls; got != 0 {
+		t.Fatalf("GetFileContent calls = %d, want 0 (anchor hydration reads in chunks)", got)
+	}
+	if got, want := content.getFileContentsCalls, 1; got != want {
+		t.Fatalf("GetFileContents calls = %d, want %d bounded workflow evidence hydration", got, want)
 	}
 
 	var resp struct {
@@ -200,8 +216,8 @@ func TestCICDListRunCorrelationsHydratesStaticWorkflowArtifactsOnce(t *testing.T
 	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.Paths, []string{".github/workflows/deploy.yml"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("static_workflow_artifacts.paths = %#v, want %#v", got, want)
 	}
-	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.Reason, "workflow_image_evidence_read_failed"; got != want {
-		t.Fatalf("static_workflow_artifacts.reason = %q, want %q", got, want)
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.Reason, ""; got != want {
+		t.Fatalf("static_workflow_artifacts.reason = %q, want %q (chunked hydration succeeds)", got, want)
 	}
 }
 

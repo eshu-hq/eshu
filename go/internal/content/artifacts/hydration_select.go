@@ -8,8 +8,9 @@ const (
 	// repository of a live load always hydrates (#7951). It was the hard cap of
 	// the load before #7951, so a load with any allowance at or above the floor
 	// returns a superset of the capped rows. The query package's anchor-only
-	// loaders (compose, workflow, controller and runtime artifacts) still use it
-	// as their cap until they move to the chunked reader.
+	// loaders (compose, workflow, controller and runtime artifacts) used it
+	// as their cap until the #7951 follow-up moved them to the whole-window
+	// chunked reader.
 	HydrationFloor = 50
 
 	// AllowanceWholeWindow is the allowance that selects every candidate in

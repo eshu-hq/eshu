@@ -96,9 +96,9 @@ func LoadRepositoryControllerArtifacts(
 	candidates := files
 	if candidates == nil {
 		var err error
-		candidates, err = reader.ListRepoFiles(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
+		candidates, err = listAnchorCandidateFiles(ctx, reader, repoID, "controller")
 		if err != nil {
-			return nil, fmt.Errorf("list controller artifact files: %w", err)
+			return nil, err
 		}
 	}
 

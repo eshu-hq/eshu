@@ -13,22 +13,41 @@ import (
 )
 
 const (
-	// RepositoryArtifactHydrationLimit bounds the files one pass of the
-	// anchor-only loaders (compose, workflow, controller and runtime
-	// artifacts) reads. It equals the config-artifact floor; the
-	// config-artifact load itself has no cap since #7951. Exported for #6060
-	// so root performance tests can name it from outside this package.
+	// RepositoryArtifactHydrationLimit is the per-repository candidate floor
+	// of the config-artifact load: every repository of a live load always
+	// hydrates this many candidates. It equaled the hard cap of the load
+	// before #7951, and it was the cap of the anchor-only loaders (compose,
+	// workflow, controller and runtime artifacts) until the #7951 follow-up
+	// moved them to the whole-window chunked reader below. Retained exported
+	// for #6060 so root performance tests can name the floor from outside
+	// this package.
 	RepositoryArtifactHydrationLimit       = contentartifacts.HydrationFloor
 	repositoryArtifactHydrationConcurrency = 8
+	// anchorHydrationChunkSize is the number of paths one GetFileContents
+	// statement of the anchor hydration pass reads. It mirrors the neutral
+	// package's ReadChunkSize: one statement detoasts its rows serially on
+	// one backend, so ten paths keep a statement short while the in-flight
+	// bound below runs several at once.
+	anchorHydrationChunkSize = 10
+	// anchorCandidateListLimit is the file-list window of the anchor-only
+	// loaders: the first anchorCandidateListLimit files of the anchor
+	// repository by relative_path. It equals
+	// querycontract.RepositorySemanticEntityLimit, the window the repository
+	// story uses for the anchor list; listAnchorCandidateFiles reads one row
+	// past it so a cut list is known, never silent.
+	anchorCandidateListLimit = querycontract.RepositorySemanticEntityLimit
 )
 
 type repositoryArtifactFilePredicate func(querycontract.FileContent) bool
 
-// HydrateRepositoryCandidateFiles reads the content of the first
-// RepositoryArtifactHydrationLimit files that satisfy shouldHydrate and carry
-// no content yet, replacing each list row with the stored row. Reads run with
-// bounded concurrency inside the repository; the first read error cancels the
-// pass and is returned.
+// HydrateRepositoryCandidateFiles reads the content of every file that
+// satisfies shouldHydrate and carries no content yet, replacing each list row
+// with the stored row. It reads the whole list window in chunks of
+// anchorHydrationChunkSize paths with at most
+// repositoryArtifactHydrationConcurrency chunk reads in flight (#7951
+// follow-up: no 50-candidate cap). A path with no stored row keeps its list
+// row. A failed chunk fails the pass and hydrated is left unchanged, so no
+// partial result is mistaken for success.
 func HydrateRepositoryCandidateFiles(
 	ctx context.Context,
 	reader querycontract.ContentStore,
@@ -51,23 +70,50 @@ func HydrateRepositoryCandidateFiles(
 	return hydrated, nil
 }
 
-// selectHydrationIndexes returns the positions of the first
-// RepositoryArtifactHydrationLimit files that satisfy shouldHydrate and have
-// no content yet, in list order. It is the neutral package's
-// SelectHydrationIndexes, the single definition of the hydration set that the
-// config-artifact load's needed-content pass starts from too.
+// listAnchorCandidateFiles reads the anchor repository's file list for an
+// anchor-only loader's fallback path, when the caller holds no list. It reads
+// anchorCandidateListLimit+1 rows; a row past the window clips the list to
+// the window, and the clipped file is never hydrated. In production the story,
+// context and service callers already hold the sentinel-clipped anchor list
+// and pass it in, and they disclose a cut anchor list themselves
+// (AnchorFileListTruncatedReason), so this fallback list only serves direct
+// calls.
+func listAnchorCandidateFiles(
+	ctx context.Context,
+	reader querycontract.ContentStore,
+	repoID string,
+	purpose string,
+) ([]querycontract.FileContent, error) {
+	files, err := reader.ListRepoFiles(ctx, repoID, anchorCandidateListLimit+1)
+	if err != nil {
+		return nil, fmt.Errorf("list %s artifact files: %w", purpose, err)
+	}
+	if len(files) > anchorCandidateListLimit {
+		files = files[:anchorCandidateListLimit]
+	}
+	return files, nil
+}
+
+// selectHydrationIndexes returns the positions of every file that satisfies
+// shouldHydrate and has no content yet, in list order. It is the neutral
+// package's SelectHydrationIndexes at the whole-window allowance, the single
+// definition of the hydration set that the config-artifact load's
+// needed-content pass starts from too.
 func selectHydrationIndexes(files []querycontract.FileContent, shouldHydrate repositoryArtifactFilePredicate) []int {
 	indexes, _ := contentartifacts.SelectHydrationIndexes(files, shouldHydrate, func(file querycontract.FileContent) string {
 		return file.Content
-	}, RepositoryArtifactHydrationLimit)
+	}, contentartifacts.AllowanceWholeWindow)
 	return indexes
 }
 
 // hydrateFileIndexes replaces hydrated[i] with the stored row for every i in
-// indexes, using up to repositoryArtifactHydrationConcurrency concurrent
-// reads. A missing row (nil) keeps the list row. The first error cancels the
-// remaining reads and is returned; hydrated is then partially updated and the
-// caller must discard it.
+// indexes, reading one GetFileContents statement per chunk of
+// anchorHydrationChunkSize paths with up to
+// repositoryArtifactHydrationConcurrency chunk reads in flight. List rows that
+// share a path read the row once and each receive it; rows are assigned by
+// RelativePath, never by position, and a path with no stored row keeps its
+// list row. The first error cancels the remaining reads and is returned;
+// hydrated is then unchanged and the caller must discard it.
 func hydrateFileIndexes(
 	ctx context.Context,
 	reader querycontract.ContentStore,
@@ -79,6 +125,20 @@ func hydrateFileIndexes(
 		return nil
 	}
 
+	positions := make(map[string][]int, len(indexes))
+	paths := make([]string, 0, len(indexes))
+	for _, index := range indexes {
+		relativePath := hydrated[index].RelativePath
+		if _, ok := positions[relativePath]; !ok {
+			paths = append(paths, relativePath)
+		}
+		positions[relativePath] = append(positions[relativePath], index)
+	}
+	chunks := make([][]string, 0, (len(paths)+anchorHydrationChunkSize-1)/anchorHydrationChunkSize)
+	for start := 0; start < len(paths); start += anchorHydrationChunkSize {
+		chunks = append(chunks, paths[start:min(start+anchorHydrationChunkSize, len(paths))])
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -86,47 +146,53 @@ func hydrateFileIndexes(
 	var (
 		wg       sync.WaitGroup
 		mu       sync.Mutex
+		byPath   = make(map[string]querycontract.FileContent, len(paths))
 		firstErr error
 	)
 	workerCount := repositoryArtifactHydrationConcurrency
-	if len(indexes) < workerCount {
-		workerCount = len(indexes)
+	if len(chunks) < workerCount {
+		workerCount = len(chunks)
 	}
 	for range workerCount {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for index := range jobs {
-				file := hydrated[index]
-				fileContent, err := reader.GetFileContent(ctx, repoID, file.RelativePath)
+			for chunk := range jobs {
+				rows, err := reader.GetFileContents(ctx, repoID, chunks[chunk])
+				mu.Lock()
 				if err != nil {
-					mu.Lock()
 					if firstErr == nil {
-						firstErr = fmt.Errorf("get artifact file %q: %w", file.RelativePath, err)
+						firstErr = fmt.Errorf("get artifact files from %q (chunk of %d): %w", chunks[chunk][0], len(chunks[chunk]), err)
 						cancel()
 					}
 					mu.Unlock()
 					continue
 				}
-				if fileContent == nil {
-					continue
+				for _, row := range rows {
+					byPath[row.RelativePath] = row
 				}
-				mu.Lock()
-				hydrated[index] = *fileContent
 				mu.Unlock()
 			}
 		}()
 	}
 
 sendLoop:
-	for _, index := range indexes {
+	for chunk := range chunks {
 		select {
 		case <-ctx.Done():
 			break sendLoop
-		case jobs <- index:
+		case jobs <- chunk:
 		}
 	}
 	close(jobs)
 	wg.Wait()
-	return firstErr
+	if firstErr != nil {
+		return firstErr
+	}
+	for path, row := range byPath {
+		for _, index := range positions[path] {
+			hydrated[index] = row
+		}
+	}
+	return nil
 }
