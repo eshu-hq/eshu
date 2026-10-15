@@ -330,44 +330,37 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	if retryBudget <= 0 {
 		retryBudget = reset.DefaultRefinalizeClaimFenceRetryBudget
 	}
-	started := time.Time{}
+	admission := reset.NewFenceAdmissionBudget(ctx, retryBudget)
+	defer admission.Close()
+	budgetError := func(attempt int, cause string) error {
+		elapsed := admission.Elapsed()
+		logger.WarnContext(ctx, "refinalize claim fence admission budget exhausted",
+			slog.String("outcome", "blocked/claim_fence_busy"), slog.Int("attempts", attempt),
+			slog.Duration("retry_elapsed", elapsed), slog.String("phase", "fence_admission"),
+			slog.String("cause", cause), slog.String("last_sqlstate", "55P03"))
+		return fmt.Errorf("%w after %s and %d attempts", recovery.ErrRefinalizeClaimFenceBusy, elapsed.Round(time.Millisecond), attempt)
+	}
 	for attempt := 1; ; attempt++ {
-		attemptCtx := ctx
-		var cancel context.CancelFunc
-		if !started.IsZero() {
-			attemptCtx, cancel = context.WithDeadline(ctx, started.Add(retryBudget))
-		}
-		result, err := s.refinalizeScopeProjectionsAttempt(attemptCtx, filter, now)
-		budgetExpired := !started.IsZero() && attemptCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil
-		if cancel != nil {
-			cancel()
-		}
+		result, err := s.refinalizeScopeProjectionsAttempt(admission.Context(), admission, filter, now)
 		if err == nil {
 			return result, nil
 		}
-		if budgetExpired {
-			elapsed := time.Since(started)
-			logger.WarnContext(ctx, "refinalize claim fence retry budget exhausted",
-				slog.String("outcome", "blocked/claim_fence_busy"), slog.Int("attempts", attempt),
-				slog.Duration("retry_elapsed", elapsed), slog.String("sqlstate", "55P03"))
-			return recovery.RefinalizeResult{}, fmt.Errorf("%w after %s and %d attempts", recovery.ErrRefinalizeClaimFenceBusy, elapsed.Round(time.Millisecond), attempt)
+		if ctx.Err() != nil {
+			return recovery.RefinalizeResult{}, err
+		}
+		if admission.Expired() {
+			return recovery.RefinalizeResult{}, budgetError(attempt, "admission_deadline")
 		}
 		var lockTimeout *reset.ClaimFenceLockTimeoutError
 		if !errors.As(err, &lockTimeout) || !coordination.IsLockNotAvailable(err) {
 			return recovery.RefinalizeResult{}, err
 		}
-		if started.IsZero() {
-			started = time.Now().Add(-reset.RefinalizeClaimFenceLockTimeout)
-		}
-		elapsed := time.Since(started)
-		if elapsed+reset.RefinalizeClaimFenceLockTimeout > retryBudget {
-			logger.WarnContext(ctx, "refinalize claim fence retry budget exhausted",
-				slog.String("outcome", "blocked/claim_fence_busy"), slog.Int("attempts", attempt),
-				slog.Duration("retry_elapsed", elapsed), slog.String("sqlstate", "55P03"))
-			return recovery.RefinalizeResult{}, fmt.Errorf("%w after %s and %d attempts", recovery.ErrRefinalizeClaimFenceBusy, elapsed.Round(time.Millisecond), attempt)
+		elapsed := admission.Elapsed()
+		if elapsed >= retryBudget {
+			return recovery.RefinalizeResult{}, budgetError(attempt, "last_fence_timeout")
 		}
 		delay := 100*time.Millisecond + time.Duration(rand.Int64N(401))*time.Millisecond
-		if remaining := retryBudget - elapsed - reset.RefinalizeClaimFenceLockTimeout; delay > remaining {
+		if remaining := retryBudget - elapsed; delay > remaining {
 			delay = remaining
 		}
 		logger.InfoContext(ctx, "refinalize claim fence timed out; retrying transaction",
@@ -375,9 +368,12 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 			slog.Duration("retry_elapsed", elapsed), slog.String("sqlstate", "55P03"))
 		timer := time.NewTimer(delay)
 		select {
-		case <-ctx.Done():
+		case <-admission.Context().Done():
 			timer.Stop()
-			return recovery.RefinalizeResult{}, fmt.Errorf("refinalize claim fence retry: %w", ctx.Err())
+			if ctx.Err() != nil {
+				return recovery.RefinalizeResult{}, fmt.Errorf("refinalize claim fence retry: %w", ctx.Err())
+			}
+			return recovery.RefinalizeResult{}, budgetError(attempt, "admission_deadline")
 		case <-timer.C:
 		}
 	}
@@ -385,6 +381,7 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 
 func (s RecoveryStore) refinalizeScopeProjectionsAttempt(
 	ctx context.Context,
+	admission *reset.FenceAdmissionBudget,
 	filter recovery.RefinalizeFilter,
 	now time.Time,
 ) (recovery.RefinalizeResult, error) {
@@ -420,7 +417,7 @@ func (s RecoveryStore) refinalizeScopeProjectionsAttempt(
 	if err := reset.WaitForReducerDrain(ctx, rq, generations, s.refinalizeDrainTimeout, s.refinalizeDrainPoll); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
-	if err := reset.AcquireReducerClaimFence(ctx, rq, generations); err != nil {
+	if err := reset.AcquireReducerClaimFenceWithAdmission(ctx, rq, generations, admission); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 

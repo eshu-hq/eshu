@@ -233,6 +233,9 @@ func TestRefinalizeFenceRetryBudgetIncludesReducerDrain(t *testing.T) {
 	case <-proofCtx.Done():
 		t.Fatalf("refinalize did not apply the 4s retry budget: %v", proofCtx.Err())
 	}
+	if got := refinalizeResetWorkItemStatus(t, ctx, database, workItemID); got != "claimed" {
+		t.Fatalf("live reducer lease status after retry drain deadline = %q, want claimed", got)
+	}
 }
 
 type refinalizeLockRequestDB struct {

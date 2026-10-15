@@ -45,7 +45,9 @@
 // its transaction around Apply, so every statement binds the one generation set
 // read first. That one read also classifies every scope it could not cover
 // (recovery.SkipReason*), so the skipped-scope report describes the same
-// snapshot as the covered set. It also returns is_delta for each covered
+// snapshot as the covered set. FenceAdmissionBudget limits retries before the
+// claim fence is acquired; afterward the caller context governs commit. It also
+// returns is_delta for each covered
 // generation (#7797): a delta carries only the files that changed since its
 // baseline, so re-projecting it onto a wiped graph restores only those files.
 // Generations.DeltaActive classifies those pairs with
