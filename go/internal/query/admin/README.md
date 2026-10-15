@@ -64,20 +64,13 @@ This family moved here verbatim from the query root (`admin.go`,
 move because `store/idempotency.go` keeps the `INSERT ... ON CONFLICT DO
 NOTHING` replay-claim statement.
 
-No-Regression Evidence: baseline `origin/main` at `7be0f4ce7` versus this
-branch. No SQL, Cypher, transaction, or lock path changed: backend
-(PostgreSQL), input shape, statement count, and row counts are the same as
-the baseline. The handlers change only their error branches and, for replay,
-reopen, and recover-generations, the context of the post-commit idempotency
-finalize (one autocommit `UPDATE` by primary key) and the accepted audit
-append: they run detached from the request's cancel, bounded at 2s, so a
-client cancel no longer strands the ledger row in_progress. Measured with
-stub stores, no live backend: `go test ./internal/query/... -count=1` passes
-76 packages (143 live tests skip without a backend). The 71 failure-table
-subtests in `server_failure_routes_test.go` all failed on the baseline
-handlers; 68 remain after the three finalize cancel variants moved to
-`finalize_test.go`, whose 12 subtests pass here and whose cancel and bound
-cases (6) failed before the finalize was detached.
+No-Regression Evidence: baseline `d215fb2c5` vs this branch —
+`go test ./internal/query/...` passes 25 packages with 0 failures, and a
+normalized old-vs-new diff of the idempotency file shows the SQL text, call
+order, and error wraps are byte-identical (only package and type qualifiers
+changed). Input shape and row counts are unchanged because no statement
+changed; the existing `admin/store` tests cover the claim and complete
+paths.
 
 No-Observability-Change: no instrument was added, removed, or renamed — the
 admin routes keep `eshu_dp_api_request_duration_seconds` and
@@ -92,16 +85,22 @@ three list-only MCP handlers accept `ReadStore` and expose no mutation routes.
 
 ## Fixed failure answers (#7674)
 
-No-Regression Evidence: baseline `origin/main` at `ef5703ec2` versus this
-branch. The change touches only the error branches of the admin handlers:
-no SQL, Cypher, transaction, idempotency-ledger, or lock path changed, so
-backend (PostgreSQL), input shape, statement count, and row counts are the
-same as the baseline, and the replay, reopen, and recover-generations
-success and refusal paths keep their existing tests green. Measured with
-stub stores, no live backend: `go test ./internal/query/... -count=1` passes
-76 packages (143 live tests skip without a backend), and the 71 admin
-failure-table subtests in `server_failure_routes_test.go` all failed on the
-baseline handlers and pass here.
+No-Regression Evidence: baseline `origin/main` at `7be0f4ce7` versus this
+branch. No SQL, Cypher, transaction, or lock path changed: backend
+(PostgreSQL), input shape, statement count, and row counts are the same as
+the baseline. The handlers change their error branches, and the idempotency
+finalize path DID change: for replay, reopen, and recover-generations, the
+post-commit `CompleteReplayIdempotency` (one autocommit `UPDATE` by primary
+key) and the accepted audit append now run on a context detached from the
+request's cancel and bounded at 2s (`finalize.go`), so a client cancel no
+longer strands the ledger row in_progress; a finalize failure is always a
+500. Measured with stub stores, no live backend: `go test
+./internal/query/... -count=1` passes 76 packages (143 live tests skip
+without a backend). `server_failure_routes_test.go` has 68 route subtests
+and `finalize_test.go` 15; the route subtests failed on the baseline
+handlers (71 before the three finalize cancel variants moved to
+`finalize_test.go`), and the finalize cancel and bound subtests (6) failed
+before the finalize was detached.
 
 No-Observability-Change: no instrument was added or renamed, and the routes
 keep `eshu_dp_api_request_duration_seconds` and
