@@ -136,6 +136,23 @@ No-Regression Evidence (#2374): `go test ./internal/collector/sdk ./internal/col
 
 No-Observability-Change (#2374): package-registry metadata fetches keep the existing observe-duration, request status-class, facts-emitted, rate-limit, generation-lag, parse-failure, warning-fact, health, readiness, metrics, and admin-status signals. The SDK remains telemetry-free, and no package names, metadata URLs, versions, feed paths, or credential values were added to metric labels or status details.
 
+Unchanged-generation decision (#8003): this collector sends a stable content
+hint. `packageFreshnessHint` covers the sorted keyed payload digests of the
+emitted envelopes at the generation site — each entry covers its fact kind,
+stable key, and full payload, so same-key drift in yanked, deprecated,
+retracted, checksum, URL, published_at, visibility, or warning text mints
+instead of skipping — and never the raw document body, which can carry
+out-of-window content that would mint a new generation while the emitted facts
+stand still. Identical metadata at a later tick shares the hint, so the store
+skips the duplicate instead of minting per tick. `TestIdenticalDocumentsShareFreshnessHintAndSkip` proves
+identical documents share one non-empty hint and skip,
+`TestChangedDocumentStoresNewGeneration` proves a metadata change stores, and
+`TestYankedVersionStoresNewGeneration` proves a yank-flag flip stores.
+
+No-Regression Evidence (#8003 F2): baseline `go test ./internal/collector/packageregistry/packageruntime -count=1` on HEAD passes the two pre-existing freshness tests; after the keyed-payload fold the same suite plus `TestYankedVersionStoresNewGeneration` passes in ~0.03-0.04s (Go 1.26.9, clang 22.1.8, unit backend with no Docker). Input shape is one bounded metadata document (package_limit 1, version_limit 2) parsed to in-window envelopes; terminal queue and row counts are unchanged because the hint is generation metadata computed from already-emitted envelopes, adding one JSON encode per envelope plus one sort with no new I/O, no new goroutine, and no cardinality change, while out-of-window body content stays excluded because it never reaches an envelope. The B-7 golden-corpus unit and static corpus contract stay green with unchanged cassettes and snapshot, so no fixture drift. Safe because the computation is linear in the already-bounded envelope set and proven by the new RED-first yank test.
+
+No-Observability-Change: the payload fold adds no metric, span, or log; request volume, fact volume, parse failures, observe duration, and generation lag stay covered by the existing package-registry telemetry signals.
+
 ## Related Docs
 
 - [Package registry ADR](../../../../../docs/public/reference/component-package-manager.md)

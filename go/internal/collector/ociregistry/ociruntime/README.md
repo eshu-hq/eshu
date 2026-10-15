@@ -103,6 +103,26 @@ digests. Those values are high cardinality and may describe private topology.
 - Provider-specific auth and endpoint shape stay outside this package behind
   `ClientFactory`.
 
+Unchanged-generation decision (#8003): this collector sends a stable content
+hint. `ociFreshnessHint` covers the sorted reference-to-digest pairs, the
+per-reference digest provenance (registry header, computed from manifest
+bytes, or missing), the sorted referrer identities (subject plus referrer
+digest, media, and artifact type), the sorted warning outcomes (code, message,
+and digest for referrer-API and config-blob warnings), and tag-list
+truncation; it is attached to the generation post-scan because digests exist
+only after `buildEnvelopes` fetches manifests. Identical registry state at a
+later tick shares the hint, so the store skips the duplicate instead of
+minting per tick. `TestOCIFreshnessHintSkipsIdenticalTick`
+proves identical ticks share one non-empty hint and skip, `TestOCIFreshnessHintStoresRotatedDigest`
+proves a rotated digest stores, `TestOCIFreshnessHintStoresReferrerDrift`
+proves a new referrer stores, `TestOCIFreshnessHintEncodesWarningOutcomes`
+proves referrer and warning input changes the hint, and `TestOCIFreshnessHintEncodesDigestGapsAndTruncation`
+proves digest gaps and truncation change the hint.
+
+No-Regression Evidence (#8003 F1): baseline `go test ./internal/collector/ociregistry/ociruntime -count=1` on HEAD passes the three pre-existing freshness tests; after the referrer/warning fold the same suite plus `TestOCIFreshnessHintStoresReferrerDrift` and `TestOCIFreshnessHintEncodesWarningOutcomes` passes in ~0.04s (Go 1.26.9, clang 22.1.8, unit backend with no Docker). Input shape is one bounded tag window (TagLimit 1) with a single manifest plus stubbed referrers; terminal queue and row counts are unchanged because the hint is generation metadata computed from already-emitted in-memory envelopes, adding one sort over at most TagLimit entries plus one StableID encode with no new I/O, no new goroutine, and no cardinality change. The B-7 golden-corpus unit (`go test ./cmd/golden-corpus-gate/ -count=1`) and the static corpus contract (`bash scripts/test-verify-golden-corpus-gate.sh`) stay green with unchanged cassettes and snapshot, so no fixture drift. Safe because the computation is linear in the already-bounded scan window and proven by the new RED-first tests.
+
+No-Observability-Change: the hint fold adds no metric, span, or log; scan volume and duration stay covered by `eshu_dp_oci_registry_api_calls_total`, `eshu_dp_oci_registry_scan_duration_seconds`, and the existing OCI registry telemetry rows.
+
 ## Related Docs
 
 - `go/internal/collector/ociregistry/README.md`

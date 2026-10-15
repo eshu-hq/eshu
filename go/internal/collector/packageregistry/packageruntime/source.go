@@ -328,6 +328,8 @@ func (s *ClaimedSource) collectDocument(
 		IngestedAt:   observedAt,
 		Status:       scope.GenerationStatusPending,
 		TriggerKind:  scope.TriggerKindSnapshot,
+		// Hint covers emitted envelopes, not the raw body (#8003).
+		FreshnessHint: packageFreshnessHint(envs),
 	}
 	return collector.FactsFromSlice(ingestionScope, generation, envs), nil
 }

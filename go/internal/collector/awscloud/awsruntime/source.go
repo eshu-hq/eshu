@@ -127,6 +127,12 @@ func (s ClaimedSource) NextClaimed(
 	if err := s.observeScanStatus(ctx, boundary, apiRecorder.Snapshot(), envelopes, nil); err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
+	// The hint covers the scanned content — identity plus state, tags, and
+	// attributes — so an unchanged scan at a later tick shares the hint and
+	// the store skips the duplicate (#8003). The credential-failure path
+	// above stays hint-less: a generation that observed no provider truth
+	// must always store.
+	generationValue.FreshnessHint = awsFreshnessHint(envelopes)
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -218,6 +219,60 @@ func TestClaimedSourceUsesProviderNativeStableKeysAcrossDuplicateWindows(t *test
 	}
 	if first.Generation.FreshnessHint != second.Generation.FreshnessHint {
 		t.Fatalf("FreshnessHint changed for unchanged incidents: %q vs %q", first.Generation.FreshnessHint, second.Generation.FreshnessHint)
+	}
+}
+
+// TestIdenticalCollectionsSkipSecondGeneration proves two claimed collections
+// over identical PagerDuty state store one generation: the second collection
+// shares the first generation's freshness hint, so the store skips it (#8003).
+func TestIdenticalCollectionsSkipSecondGeneration(t *testing.T) {
+	t.Parallel()
+
+	now := testObservedAt()
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "pagerduty-primary",
+		Targets: []TargetConfig{{
+			Provider:         ProviderPagerDuty,
+			ScopeID:          "pagerduty:account:example",
+			AccountID:        "example",
+			Token:            "pd-token",
+			IncidentLookback: time.Hour,
+		}},
+		ClientFactory: func(TargetConfig) (EvidenceClient, error) {
+			return staticEvidenceClient{result: CollectionResult{
+				Incidents:  []Incident{testIncident("P123")},
+				ObservedAt: now,
+			}}, nil
+		},
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	first, ok, err := source.NextClaimed(context.Background(), testPagerDutyWorkItem(now))
+	if err != nil || !ok {
+		t.Fatalf("first NextClaimed() = ok %v err %v, want ok true nil", ok, err)
+	}
+	secondItem := testPagerDutyWorkItem(now.Add(time.Minute))
+	secondItem.GenerationID = "pagerduty:generation-2"
+	secondItem.WorkItemID = "pagerduty:pagerduty-primary:generation-2"
+	second, ok, err := source.NextClaimed(context.Background(), secondItem)
+	if err != nil || !ok {
+		t.Fatalf("second NextClaimed() = ok %v err %v, want ok true nil", ok, err)
+	}
+
+	if strings.TrimSpace(first.Generation.FreshnessHint) == "" {
+		t.Fatal("first FreshnessHint is blank, want stable content digest")
+	}
+	candidate := backfill.UnchangedGenerationCandidate{
+		GenerationID:  first.Generation.GenerationID,
+		FreshnessHint: first.Generation.FreshnessHint,
+		Status:        scope.GenerationStatusActive,
+	}
+	action, _ := backfill.DecideUnchangedGeneration(second.Generation, candidate, true)
+	if action != backfill.UnchangedActionSkip {
+		t.Fatalf("DecideUnchangedGeneration() = %d, want skip (%d)", action, backfill.UnchangedActionSkip)
 	}
 }
 
