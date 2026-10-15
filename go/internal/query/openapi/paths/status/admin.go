@@ -20,6 +20,7 @@ const Admin = `
             "content": {"application/json": {"schema": {"type": "object", "properties": {"skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"}, "delta_active_scopes": {"$ref": "#/components/schemas/DeltaActiveScopesReport"}, "reindex_requests_written": {"$ref": "#/components/schemas/ReindexRequestsWrittenReport"}}}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"description": "Recovery could not acquire the reducer claim fence within its bounded retry window; response contains blocked/claim_fence_busy. Retry after queue contention subsides."},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
@@ -162,7 +163,7 @@ const Admin = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"description": "Recovery requires an admin (all-scopes) token"},
-          "409": {"description": "Idempotency key already in progress or reused with different scope_ids"},
+          "409": {"description": "Idempotency key already in progress or reused with different scope_ids, or recovery could not acquire the reducer claim fence within its bounded retry window. On claim-fence exhaustion, the response contains blocked/claim_fence_busy, the idempotency key remains in_progress, and retry requires a fresh key after contention subsides."},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }

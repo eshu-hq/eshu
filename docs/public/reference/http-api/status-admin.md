@@ -572,7 +572,7 @@ console or API defect.
 
 - A failed step on these routes answers a fixed message, never backend error text: [Admin route failures](admin-failures.md).
 - `POST /api/v0/admin/refinalize` re-enqueues scope generations for projection
-  through the durable Go work queue and reports `skipped_scopes`, `delta_active_scopes`, and `reindex_requests_written` (see below).
+  through the durable Go work queue and reports `skipped_scopes`, `delta_active_scopes`, and `reindex_requests_written` (see below). A busy reducer claim fence returns `409` with `blocked/claim_fence_busy` after bounded retries; retry after queue contention subsides.
 - `POST /api/v0/admin/reindex` records a fleet or per-repository reindex watermark
   for the git ingesters: [Reindex requests](../reconciliation-sweep.md#reindex-requests).
 - `POST /api/v0/admin/recover-generations` is the operator escape hatch for
@@ -585,6 +585,7 @@ console or API defect.
   restoring Postgres, an operator rebuilding the graph from preserved facts has
   no scope list. Sending both is rejected, and one idempotency key cannot cover
   both modes. Procedure: [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
+  A busy reducer claim fence returns `409` with `blocked/claim_fence_busy`; the failed transaction is rolled back. Because the idempotency ledger remains `in_progress`, submit a retry after contention subsides with a fresh `idempotency_key`.
 
   Alongside `status`, `enqueued`, and `scope_ids`, the response reports what the
   call cleared so the re-projection can rebuild the whole graph rather than only

@@ -6,8 +6,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -328,30 +331,56 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 	}, nil
 }
 
-// RefinalizeScopeProjections re-enqueues projector work by inserting new pending
-// work items: for the given scope IDs, or for every recoverable scope when the
-// filter sets AllScopes. An active scope is re-enqueued through its active
-// generation; a failed scope with no active generation through its newest
-// failed generation (#7116). Scopes it cannot re-enqueue are reported by reason
-// in the result's Skipped field rather than dropped silently.
-//
-// It also clears the downstream dedup state that would otherwise stop the
-// re-projection at source-local structure; the reset subpackage says
-// which state and why each piece blocks a rebuild.
-//
-// For each re-enqueued generation that is a delta it also records a
-// per-repository reindex watermark when the scope is a git default-branch scope
-// and reports every such scope in the result's DeltaActive field (#7797): a
-// delta restores only its changed files onto a wiped graph, so the full
-// re-parse the watermark forces is what restores the rest.
-//
-// Every statement runs in one transaction so a refinalize cannot leave the
-// queue re-enqueued while its downstream state still says the work is done, or
-// a delta re-projected without its repair request; that half-applied state is
-// invisible until the graph comes back short. They all bind one generation set,
-// read once at the top -- see reset.ReadAffectedGenerations for why re-deriving
-// it per statement is unsafe.
+// RefinalizeScopeProjections atomically re-enqueues the selected scopes and
+// clears dedup state. A claim-fence 55P03 retries the whole transaction with
+// bounded jitter; exhaustion returns recovery.ErrRefinalizeClaimFenceBusy.
 func (s RecoveryStore) RefinalizeScopeProjections(
+	ctx context.Context,
+	filter recovery.RefinalizeFilter,
+	now time.Time,
+) (recovery.RefinalizeResult, error) {
+	logger := s.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	started := time.Time{}
+	for attempt := 1; ; attempt++ {
+		result, err := s.refinalizeScopeProjectionsAttempt(ctx, filter, now)
+		if err == nil {
+			return result, nil
+		}
+		var lockTimeout *reset.ClaimFenceLockTimeoutError
+		if !errors.As(err, &lockTimeout) || !coordination.IsLockNotAvailable(err) {
+			return recovery.RefinalizeResult{}, err
+		}
+		if started.IsZero() {
+			started = time.Now().Add(-reset.RefinalizeClaimFenceLockTimeout)
+		}
+		elapsed := time.Since(started)
+		if elapsed+reset.RefinalizeClaimFenceLockTimeout > reset.DefaultRefinalizeClaimFenceRetryBudget {
+			logger.WarnContext(ctx, "refinalize claim fence retry budget exhausted",
+				slog.String("outcome", "blocked/claim_fence_busy"), slog.Int("attempts", attempt),
+				slog.Duration("retry_elapsed", elapsed), slog.String("sqlstate", "55P03"))
+			return recovery.RefinalizeResult{}, fmt.Errorf("%w after %s and %d attempts", recovery.ErrRefinalizeClaimFenceBusy, elapsed.Round(time.Millisecond), attempt)
+		}
+		delay := 100*time.Millisecond + time.Duration(rand.Int64N(401))*time.Millisecond
+		if remaining := reset.DefaultRefinalizeClaimFenceRetryBudget - elapsed - reset.RefinalizeClaimFenceLockTimeout; delay > remaining {
+			delay = remaining
+		}
+		logger.InfoContext(ctx, "refinalize claim fence timed out; retrying transaction",
+			slog.Int("attempt", attempt), slog.Duration("backoff", delay),
+			slog.Duration("retry_elapsed", elapsed), slog.String("sqlstate", "55P03"))
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return recovery.RefinalizeResult{}, fmt.Errorf("refinalize claim fence retry: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
+
+func (s RecoveryStore) refinalizeScopeProjectionsAttempt(
 	ctx context.Context,
 	filter recovery.RefinalizeFilter,
 	now time.Time,
