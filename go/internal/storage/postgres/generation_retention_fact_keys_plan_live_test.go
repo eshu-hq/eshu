@@ -28,6 +28,7 @@ const (
 // TestGenerationRetentionFactKeyStatementsPrepareLive fails when a #7420 key
 // sidecar delete names a relation or column the migrations do not create.
 func TestGenerationRetentionFactKeyStatementsPrepareLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	for _, keys := range factkeys.Deletes() {
 		for form, statement := range map[string]string{"generation": keys.Generation, "page": keys.Page} {
@@ -49,6 +50,7 @@ func TestGenerationRetentionFactKeyStatementsPrepareLive(t *testing.T) {
 // The seeded REDs prove the check sees both hazards: the rejected fact_id-only
 // page form, and the page form with its partition index dropped.
 func TestGenerationRetentionFactKeyPlansStayOnPartitionIndexLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	for _, table := range []string{"fact_records", "relationship_reference_candidate_keys", "package_manifest_consumption_keys", "package_registry_identity_keys"} {
 		if _, err := database.ExecContext(ctx, "ALTER TABLE "+table+" SET (autovacuum_enabled = false)"); err != nil {

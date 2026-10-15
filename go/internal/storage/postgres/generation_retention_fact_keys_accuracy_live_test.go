@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -144,10 +143,7 @@ VALUES ($1, 'keys-shadow', 'keys-shadow-old', 'repo-keys', 'npm', 'pkg-orphan-ex
 // loaded generation, changes nothing. The package key readers have the same
 // proof in go/internal/query/supply/chain/impact.
 func TestOrphanRelationshipKeysAreInvisibleToDeferredLoadLive(t *testing.T) {
-	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the orphan relationship key reader proof")
-	}
+	dsn := dsnForDeferredHoistProof(t)
 	ctx := context.Background()
 	db := openDeferredHoistProofDB(t, dsn)
 	provisionDeferredHoistSchema(t, db)

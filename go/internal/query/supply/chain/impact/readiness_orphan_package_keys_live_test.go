@@ -22,9 +22,17 @@ import (
 // active generations, the worst case, add no package.consumption evidence and
 // no second registry owner (which would make ownership ambiguous).
 func TestReadinessIgnoresOrphanPackageKeysLive(t *testing.T) {
-	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	// The readiness runner provides the package consumption family DSN with
+	// its disposable opt-in; a local run may use ESHU_POSTGRES_DSN instead.
+	dsn := strings.TrimSpace(os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN"))
+	if dsn != "" && os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE") != "1" {
+		t.Fatal("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN is set without ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=1")
+	}
 	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the orphan package key reader proof")
+		dsn = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	}
+	if dsn == "" {
+		t.Skip("set ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN or ESHU_POSTGRES_DSN to run the orphan package key reader proof")
 	}
 	db := postgresproof.OpenIsolatedSchema(t, dsn, "eshu_7420_orphan_keys", func(ctx context.Context, db *sql.DB) error {
 		return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
