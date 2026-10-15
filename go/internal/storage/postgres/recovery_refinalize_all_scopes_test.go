@@ -44,6 +44,7 @@ func refinalizeFakeDB(pairs [][]any, enqueued [][]any) *fakeBeginnerExecQueryer 
 			queryResponses: []queueFakeRows{
 				{rows: generationRows},
 				{rows: [][]any{{0}}},
+				{rows: [][]any{{"0"}}},
 				{rows: [][]any{{0}}},
 				{rows: enqueued},
 			},
@@ -76,8 +77,8 @@ func TestRecoveryStoreRefinalizeScopeProjectionsAllScopes(t *testing.T) {
 		t.Fatalf("result.Enqueued = %d, want %d", got, want)
 	}
 
-	if len(db.queries) != 4 {
-		t.Fatalf("query count = %d, want 4 (generation read, drain poll, post-lock recheck, enqueue)", len(db.queries))
+	if len(db.queries) != 5 {
+		t.Fatalf("query count = %d, want 5 (generation read, lock timeout read, drain poll, post-lock recheck, enqueue)", len(db.queries))
 	}
 	selectQuery := db.queries[0].query
 	if strings.Contains(selectQuery, "scope.scope_id = ANY(") {
@@ -206,8 +207,8 @@ func assertRefinalizeBindsOneGenerationSet(
 ) {
 	t.Helper()
 
-	if len(db.queries) != 4 {
-		t.Fatalf("query count = %d, want 4 (generation read, drain poll, post-lock recheck, enqueue)", len(db.queries))
+	if len(db.queries) != 5 {
+		t.Fatalf("query count = %d, want 5 (generation read, lock timeout read, drain poll, post-lock recheck, enqueue)", len(db.queries))
 	}
 	poll := db.queries[1]
 	if !strings.Contains(poll.query, "fact_work_items") || !strings.Contains(poll.query, "claim_until > clock_timestamp()") {
@@ -223,13 +224,13 @@ func assertRefinalizeBindsOneGenerationSet(
 	}
 	assertStringSliceArg(t, "drain poll scope ids", poll.args[0], wantScopeIDs)
 	assertStringSliceArg(t, "drain poll generation ids", poll.args[1], wantGenerationIDs)
-	postLockRecheck := db.queries[2]
+	postLockRecheck := db.queries[3]
 	if postLockRecheck.query != poll.query {
 		t.Fatalf("post-lock live-lease recheck differs from the drain predicate:\n%s\n---\n%s", poll.query, postLockRecheck.query)
 	}
 	assertStringSliceArg(t, "post-lock recheck scope ids", postLockRecheck.args[0], wantScopeIDs)
 	assertStringSliceArg(t, "post-lock recheck generation ids", postLockRecheck.args[1], wantGenerationIDs)
-	enqueue := db.queries[3]
+	enqueue := db.queries[4]
 	if strings.Contains(enqueue.query, "ingestion_scopes") {
 		t.Fatalf("the projector re-enqueue still reads ingestion_scopes instead of binding the "+
 			"generation set already read: %s", enqueue.query)
@@ -240,14 +241,23 @@ func assertRefinalizeBindsOneGenerationSet(
 	assertStringSliceArg(t, "projector re-enqueue scope ids", enqueue.args[1], wantScopeIDs)
 	assertStringSliceArg(t, "projector re-enqueue generation ids", enqueue.args[2], wantGenerationIDs)
 
-	if len(db.execs) != 6 {
-		t.Fatalf("claim-fence plus rebuild-reset statement count = %d, want 6", len(db.execs))
+	if len(db.execs) != 8 {
+		t.Fatalf("claim-fence plus rebuild-reset statement count = %d, want 8", len(db.execs))
 	}
-	if !strings.Contains(db.execs[0].query, "LOCK TABLE fact_work_items IN EXCLUSIVE MODE") {
-		t.Fatalf("first post-drain exec is not the reducer claim fence: %s", db.execs[0].query)
+	if !strings.Contains(db.execs[0].query, "set_config('lock_timeout'") {
+		t.Fatalf("first post-drain exec does not set the bounded lock timeout: %s", db.execs[0].query)
 	}
-	if len(db.execs[0].args) != 0 {
-		t.Fatalf("claim-fence arg count = %d, want 0", len(db.execs[0].args))
+	if len(db.execs[0].args) != 1 {
+		t.Fatalf("lock-timeout setup arg count = %d, want 1", len(db.execs[0].args))
+	}
+	if !strings.Contains(db.execs[1].query, "LOCK TABLE fact_work_items IN EXCLUSIVE MODE") {
+		t.Fatalf("second post-drain exec is not the reducer claim fence: %s", db.execs[1].query)
+	}
+	if len(db.execs[1].args) != 0 {
+		t.Fatalf("claim-fence arg count = %d, want 0", len(db.execs[1].args))
+	}
+	if !strings.Contains(db.execs[2].query, "set_config('lock_timeout'") {
+		t.Fatalf("third post-drain exec does not restore lock_timeout: %s", db.execs[2].query)
 	}
 	wantTargets := []string{
 		"DELETE FROM fact_work_items",
@@ -257,7 +267,7 @@ func assertRefinalizeBindsOneGenerationSet(
 		"UPDATE relationship_generations",
 	}
 	for i, want := range wantTargets {
-		exec := db.execs[i+1]
+		exec := db.execs[i+3]
 		if !strings.Contains(exec.query, want) {
 			t.Fatalf("rebuild-reset statement %d does not target %q: %s", i, want, exec.query)
 		}

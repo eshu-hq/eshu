@@ -63,6 +63,7 @@ func RefinalizeClaimFenceWithRetry(
 		if elapsed >= retryBudget {
 			return recovery.RefinalizeResult{}, budgetError(attempts, "last_fence_timeout")
 		}
+		// #nosec G404 -- jitter spreads retry timing and makes no security decision.
 		delay := 100*time.Millisecond + time.Duration(rand.Int64N(401))*time.Millisecond
 		if remaining := retryBudget - elapsed; delay > remaining {
 			delay = remaining

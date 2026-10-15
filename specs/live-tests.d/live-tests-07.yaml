@@ -100,10 +100,20 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/recovery_refinalize_fence_admission_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7852 PostgreSQL 18.3 lock-admission proofs: admission stops after lock acceptance, persistent holders exhaust without convoy, retry transaction acquisition stays inside the budget, caller cancellation is preserved, and write/commit errors keep their causes; the complete 7-test refinalize contention matrix across this file and recovery_refinalize_lock_convoy_live_test.go passed in 48.477s package time on 2026-10-15; isolated disposable schemas; enrolled in live-postgres-readiness"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/recovery_refinalize_rebuild_guard_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/recovery_refinalize_lock_convoy_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7852 PostgreSQL 18.3 queue-concurrency proofs: an unrelated writer completes while a queued refinalize fence waits, and the retry budget includes reducer drain; the complete 7-test refinalize contention matrix across this file and recovery_refinalize_fence_admission_live_test.go passed in 48.477s package time on 2026-10-15; isolated disposable schemas; enrolled in live-postgres-readiness"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/recovery_replay_superseded_live_test.go
     tag: ~
     class: verified_scheduled
