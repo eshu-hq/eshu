@@ -106,6 +106,55 @@ func TestApplicationSetControlConfigTemplatedDestinationStillDeploysFrom(t *test
 	wantControlConfigFacts(t, evidence, stats, 0, ApplicationSetTemplateSourceStats{ControlConfig: 1, SkippedTemplatedDestination: 1})
 }
 
+// TestApplicationSetControlConfigFirstAppSetKeepsDetails pins the multi-
+// ApplicationSet corner from the #7778 review: two control-config
+// ApplicationSets in one file naming the same template source emit one
+// template-source fact (seen-keyed), and it keeps the first ApplicationSet's
+// first-party details — a later ApplicationSet never restamps an earlier fact.
+func TestApplicationSetControlConfigFirstAppSetKeepsDetails(t *testing.T) {
+	t.Parallel()
+	appSet := func(name string) map[string]any {
+		return map[string]any{
+			"name":                   name,
+			"generator_source_repos": "https://github.com/myorg/gitops-repo",
+			"generator_source_paths": "argocd/svc/overlays/*/config.yaml",
+			"template_source_repos":  "https://github.com/myorg/other-service",
+			"template_source_paths":  "deploy",
+			"dest_server":            "https://kubernetes.default.svc",
+			"dest_namespace":         "svc",
+		}
+	}
+	evidence, stats := DiscoverEvidenceWithStats([]facts.Envelope{{
+		ScopeID: "repo-gitops",
+		Payload: map[string]any{
+			"artifact_type": "argocd",
+			"relative_path": "applicationsets/svc.yaml",
+			"parsed_file_data": map[string]any{
+				"argocd_applicationsets": []any{appSet("svc-one"), appSet("svc-two")},
+			},
+		},
+	}}, appSetConfigRepoCatalog)
+
+	template := evidenceOfKind(evidence, EvidenceKindArgoCDApplicationSetTemplateSource)
+	if len(template) != 1 {
+		t.Fatalf("template-source evidence = %d, want 1 (seen-keyed): %#v", len(template), template)
+	}
+	if got := template[0].Details["argocd_applicationset_name"]; got != "svc-one" {
+		t.Fatalf("argocd_applicationset_name = %#v, want svc-one (first wins, never restamped)", got)
+	}
+	if platform := evidenceOfKind(evidence, EvidenceKindArgoCDDestinationPlatform); len(platform) != 1 {
+		t.Fatalf("platform evidence = %d, want 1: %#v", len(platform), platform)
+	}
+	for _, f := range evidence {
+		if f.SourceRepoID != "" && f.SourceRepoID == f.TargetRepoID {
+			t.Fatalf("self-loop evidence %s %s -> %s", f.EvidenceKind, f.SourceRepoID, f.TargetRepoID)
+		}
+	}
+	if want := (ApplicationSetTemplateSourceStats{ControlConfig: 1}); stats.ApplicationSetTemplateSource != want {
+		t.Fatalf("stats = %+v, want %+v", stats.ApplicationSetTemplateSource, want)
+	}
+}
+
 // TestApplicationSetControlConfigStructuredPathMatchesYAMLPath runs the
 // control-config shape through the parsed_file_data path and expects the same
 // facts.
