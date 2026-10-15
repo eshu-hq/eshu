@@ -508,7 +508,7 @@ moved here verbatim from the Postgres ingestion path
 delegates to it, so Ifá's offline derived catalog (#4394) computes a
 generation's committed repository identity identically to the streaming commit
 path. The raw-payload-usage exemption for these pre-typed reads moved with the
-code (`go/internal/payloadusage/rawpayload.go`); no read changed.
+code (`go/internal/payloadusage/rawpayload.go`); no read changed. A key read here must also be listed in `RepositoryCatalogPayloadKeys` (#8082), or the Postgres loader will not select it.
 
 `RemoteURL` (issue #5483 C2) is `repositoryidentity.NormalizeRemoteURL(payload["remote_url"])`,
 captured alongside `Aliases` but never folded into it — it feeds only

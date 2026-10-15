@@ -350,6 +350,11 @@ offline from the same facts. Do not re-implement repository-alias derivation in
 an extractor; use this helper so alias-drift detection compares consistently
 shaped aliases.
 
+The deferred backfill catalog load asks Postgres for only the keys that helper
+reads. `relationships.RepositoryCatalogPayloadKeys()` lists them and the SQL
+statement is rendered from that list (#8082), so a key `RepositoryCatalogEntry`
+reads must also be in the list or the loader will not select it.
+
 ### Boundary-aware repository reference keys
 
 Deferred relationship backfill loads candidate `content`, `file`, and

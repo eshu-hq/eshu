@@ -202,6 +202,9 @@ PACKAGES = {
         "go/internal/storage/postgres/targeted_partition_evidence_theory_live_test.go": (
             "TestTheoryExactPartitionEvidenceClosure",
         ),
+        "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
+            "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
+        ),
         "go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go": (
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
             "TestContainerImageIdentityActivationEpochMissIsSentinelLive",

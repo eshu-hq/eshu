@@ -29,7 +29,13 @@ import (
 //
 // The ok result is false when payload carries none of repo_id, graph_id, or
 // name — RepoID would otherwise be blank, which is never a valid catalog entry.
+//
+// The derivation reads only the keys RepositoryCatalogPayloadKeys declares.
+// It projects payload onto those keys first, so a read of any other key sees
+// nothing, and a SQL projection of the same keys (the backfill catalog loader,
+// #8082) derives the identical entry from a much smaller payload.
 func RepositoryCatalogEntry(payload map[string]any) (CatalogEntry, bool) {
+	payload = projectRepositoryCatalogPayload(payload)
 	repoID := catalogPayloadString(payload, "repo_id", "graph_id", "name")
 	if strings.TrimSpace(repoID) == "" {
 		return CatalogEntry{}, false
@@ -51,6 +57,37 @@ func RepositoryCatalogEntry(payload map[string]any) (CatalogEntry, bool) {
 		Aliases:   aliases,
 		RemoteURL: remoteURL,
 	}, true
+}
+
+// repositoryCatalogPayloadKeys lists every repository-fact payload key
+// RepositoryCatalogEntry reads, in the precedence order of its reads: the
+// RepoID keys (repo_id, graph_id, name), then the alias keys (name, repo_name,
+// repo_slug, where name is already listed), then remote_url.
+// TestRepositoryCatalogEntryReadsExactlyTheDeclaredKeys keeps the literals
+// passed to catalogPayloadString equal to this list.
+var repositoryCatalogPayloadKeys = [...]string{
+	"repo_id", "graph_id", "name", "repo_name", "repo_slug", "remote_url",
+}
+
+// RepositoryCatalogPayloadKeys returns the repository-fact payload keys that
+// RepositoryCatalogEntry reads. It is the single list the Postgres catalog
+// loader (go/internal/storage/postgres/backfill) projects in SQL so the
+// database ships only these keys instead of whole repository payloads (#8082).
+// The caller owns the returned slice.
+func RepositoryCatalogPayloadKeys() []string {
+	return append([]string(nil), repositoryCatalogPayloadKeys[:]...)
+}
+
+// projectRepositoryCatalogPayload copies the declared keys of payload that are
+// present, so RepositoryCatalogEntry cannot depend on any other key.
+func projectRepositoryCatalogPayload(payload map[string]any) map[string]any {
+	projected := make(map[string]any, len(repositoryCatalogPayloadKeys))
+	for _, key := range repositoryCatalogPayloadKeys {
+		if value, ok := payload[key]; ok {
+			projected[key] = value
+		}
+	}
+	return projected
 }
 
 func catalogPayloadString(payload map[string]any, keys ...string) string {

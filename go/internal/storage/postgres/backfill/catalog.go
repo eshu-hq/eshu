@@ -6,6 +6,9 @@ package backfill
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -13,14 +16,49 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
-// listRepositoryCatalogQuery loads every repository fact payload, newest
-// first, for the catalog loader below.
-const listRepositoryCatalogQuery = `
-SELECT payload, observed_at
-FROM fact_records
-WHERE fact_kind = 'repository'
-ORDER BY observed_at DESC, fact_id DESC
-`
+// listRepositoryCatalogQuery loads, newest first, one projected object per
+// repository fact for the catalog loader below. The object carries only the
+// keys relationships.RepositoryCatalogPayloadKeys declares: reading six keys
+// from 28,000 payloads of 158 KB on average used to ship 4.4 GB and decode it
+// in Go (#8082). jsonb_to_record detoasts each payload once; six
+// payload->'key' calls would detoast it six times. Typed jsonb columns keep a
+// non-string value a non-string, and an absent key becomes JSON null, which
+// the Go reader skips exactly as it skips an absent key. The object guard
+// drops the rows the old whole-payload decode into a map skipped, because
+// jsonb_to_record raises on a non-object.
+var listRepositoryCatalogQuery = renderRepositoryCatalogQuery(relationships.RepositoryCatalogPayloadKeys())
+
+// renderRepositoryCatalogQuery renders the projecting catalog statement for
+// keys. Every key becomes a jsonb_build_object argument and a jsonb_to_record
+// column, so the statement cannot name a key the list lacks. Keys are spliced
+// into SQL text, double-quoted so a reserved word such as "order" stays valid,
+// and a key that is not a lowercase identifier panics: the list is a
+// compile-time constant of the relationships package, never input.
+func renderRepositoryCatalogQuery(keys []string) string {
+	var objectArgs, columns strings.Builder
+	for i, key := range keys {
+		if !catalogKeyPattern.MatchString(key) {
+			panic(fmt.Sprintf("backfill: repository catalog key %q is not a lowercase identifier", key))
+		}
+		if i > 0 {
+			objectArgs.WriteString(", ")
+			columns.WriteString(", ")
+		}
+		quoted := `"` + key + `"`
+		objectArgs.WriteString("'" + key + "', x." + quoted)
+		columns.WriteString(quoted + " jsonb")
+	}
+	return "\nSELECT jsonb_build_object(" + objectArgs.String() + ") AS payload, f.observed_at\n" +
+		"FROM fact_records AS f,\n" +
+		"     LATERAL jsonb_to_record(f.payload) AS x(" + columns.String() + ")\n" +
+		"WHERE f.fact_kind = 'repository'\n" +
+		"  AND jsonb_typeof(f.payload) = 'object'\n" +
+		"ORDER BY f.observed_at DESC, f.fact_id DESC\n"
+}
+
+// catalogKeyPattern admits the payload keys that are safe to render as a
+// double-quoted SQL identifier and a single-quoted jsonb key.
+var catalogKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 // catalogLoadStats counts what one LoadRepositoryCatalog call did, so the
 // deferred pass's catalog_load block can report rows scanned and decode time.
