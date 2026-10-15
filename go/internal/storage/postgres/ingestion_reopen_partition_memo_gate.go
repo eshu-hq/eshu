@@ -182,3 +182,14 @@ func logReopenPartitionMemoGateResult(
 		domain, candidateCount, len(result.Skipped), len(result.ToReopen),
 	)
 }
+
+// reopenBlockAttrs builds the attributes of one relationship.backfill.reopen
+// block: the reopen domain (a closed set of reducer domain names), the work
+// items reopened, and the work items the partition memo gate skipped.
+func reopenBlockAttrs(domain string, reopened, skippedByMemo int) []backfill.BlockAttr {
+	return []backfill.BlockAttr{
+		backfill.StringAttr("domain", domain),
+		backfill.IntAttr("reopened", reopened),
+		backfill.IntAttr("skipped_by_memo", skippedByMemo),
+	}
+}

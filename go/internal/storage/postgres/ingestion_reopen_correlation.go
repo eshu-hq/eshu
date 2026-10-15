@@ -9,6 +9,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -364,24 +365,47 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 		if domain == "" {
 			continue
 		}
-		workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
-		if err != nil {
+		if err := s.reopenCorrelationDomain(ctx, tracer, queue, instruments, domain); err != nil {
 			return err
 		}
-		for _, workItemID := range workItemIDs {
-			if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
-				return fmt.Errorf("reopen %s work items: %w", domain, err)
-			}
-		}
-		if instruments != nil {
-			instruments.CorrelationReopened.Add(
-				ctx, int64(len(workItemIDs)),
-				metric.WithAttributes(attribute.String("domain", domain)),
-			)
-		}
-		log.Printf("reducer_work_items_reopened domain=%s count=%d", domain, len(workItemIDs))
 	}
 
+	return nil
+}
+
+// reopenCorrelationDomain lists and reopens the succeeded work items of one
+// correlation domain as one relationship.backfill.reopen block. The correlation
+// domains are not gated on the partition memo, so skipped_by_memo is always 0.
+func (s IngestionStore) reopenCorrelationDomain(
+	ctx context.Context,
+	tracer trace.Tracer,
+	queue ReducerQueue,
+	instruments *telemetry.Instruments,
+	domain string,
+) (err error) {
+	reopened := 0
+	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
+	defer func() {
+		reopenBlock.End(err, reopenBlockAttrs(domain, reopened, 0)...)
+	}()
+
+	workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
+	if err != nil {
+		return err
+	}
+	for _, workItemID := range workItemIDs {
+		if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
+			return fmt.Errorf("reopen %s work items: %w", domain, err)
+		}
+		reopened++
+	}
+	if instruments != nil {
+		instruments.CorrelationReopened.Add(
+			ctx, int64(len(workItemIDs)),
+			metric.WithAttributes(attribute.String("domain", domain)),
+		)
+	}
+	log.Printf("reducer_work_items_reopened domain=%s count=%d", domain, len(workItemIDs))
 	return nil
 }
 

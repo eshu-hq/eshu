@@ -33,6 +33,17 @@
   collaborators (`IngestionStore`, commit path, live DSN) lives in the
   root package.
 
+- **Block telemetry is a closed set** — the `Block*` constants in
+  `block_telemetry.go` are the nine blocks of #8082. A failed block ends its
+  span with the error, emits one `deferred_backfill_block_failed` line, and
+  records no histogram sample; a non-fatal degrade (the memo gate falling back
+  to a full load) ends the block with `EndDegraded`: span Error with
+  `fallback=true`, one `deferred_backfill_block_degraded` line, histogram
+  sample kept, and never a failed line. Never put a scope or
+  repository ID on a block. The pass tracer reaches helpers through the
+  context (`withBlockTelemetry`), so helpers called from the targeted pass
+  stay silent.
+
 ## Change guidance
 
 - Keep `Store` fields behind the seam: a new durable collaborator needs a

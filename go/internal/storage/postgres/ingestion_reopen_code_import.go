@@ -52,7 +52,7 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	skippedPartitions map[backfill.ScopeGenerationPartition]struct{},
-) error {
+) (err error) {
 	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")
 	}
@@ -63,17 +63,25 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 		defer span.End()
 	}
 
+	var reopened, skippedByMemo int
+	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
+	defer func() {
+		reopenBlock.End(err, reopenBlockAttrs("code_import_repo_edge", reopened, skippedByMemo)...)
+	}()
+
 	items, err := listSucceededCodeImportRepoEdgeWorkItems(ctx, s.database)
 	if err != nil {
 		return err
 	}
 	gateResult := applyReopenPartitionMemoGate(ctx, "code_import_repo_edge", items, skippedPartitions, instruments)
+	skippedByMemo = len(gateResult.Skipped)
 
 	queue := ReducerQueue{database: s.database, Now: s.Now}
 	for _, item := range gateResult.ToReopen {
 		if _, err := queue.ReopenSucceeded(ctx, item.WorkItemID); err != nil {
 			return fmt.Errorf("reopen code_import_repo_edge work items: %w", err)
 		}
+		reopened++
 	}
 
 	if instruments != nil {

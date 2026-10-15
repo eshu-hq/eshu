@@ -62,8 +62,20 @@ See `doc.go` for the full contract.
   `deferred_backfill_fanin_completed` (per pass),
   `deferred_backfill_fanin_partition_skipped` (per withheld partition)
 - Spans: `relationship.backfill_deferred` — fan-out attributes land on it;
-  the root seam tests pin them
-- Metrics: served through the `Instruments` the root supplies on `Store`
+  the root seam tests pin them. Eight child spans, one per block
+  (`relationship.backfill.catalog_load`, `params_build`, `partition_list`,
+  `memo_gate`, `fact_load`, `discover`, `write_batches`, `fanin`), and one
+  `relationship.backfill.reopen` span per reopen domain call from the root
+  package (#8082). Each ends with one log line:
+  `deferred_backfill_block_completed`, or `deferred_backfill_block_failed`
+  when it fails the pass, or `deferred_backfill_block_degraded` when it
+  errored but the pass fell back (the memo gate). See `block_telemetry.go`; the `Block*` constants are the closed
+  set, and `docs/public/reference/telemetry/deferred-backfill-blocks.md`
+  lists the attributes.
+- Metrics: served through the `Instruments` the root supplies on `Store`.
+  `eshu_dp_deferred_backfill_block_duration_seconds{block}` records one
+  sample per block per whole pass (#8082); the partition-scoped pass passes
+  nil instruments and records none
 
 ## Gotchas / invariants
 

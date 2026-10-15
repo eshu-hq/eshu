@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"sort"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -75,14 +74,13 @@ func (s Store) RunAllRelationshipEvidence(
 		ctx, span = tracer.Start(ctx, "relationship.backfill_deferred")
 		defer span.End()
 	}
+	// Mark the pass so the fact-load and fan-in helpers report their blocks
+	// (#8082) without a tracer parameter on their exported signatures.
+	ctx = withBlockTelemetry(ctx, tracer, instruments)
 
-	var catalog []relationships.CatalogEntry
-	if s.LoadCatalog != nil {
-		var err error
-		catalog, _, err = s.LoadCatalog(ctx, s.DB)
-		if err != nil {
-			return nil, fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
-		}
+	catalog, err := s.loadCatalogBlock(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
 	}
 
 	// Scope the corpus-wide source-fact load to the content anchors of the full
@@ -106,19 +104,7 @@ func (s Store) RunAllRelationshipEvidence(
 		return nil, fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}
 
-	discoveredEvidence := relationships.DedupeEvidenceFacts(
-		relationships.DiscoverEvidence(activeFacts, catalog),
-	)
-
-	var totalEvidence int64
-	evidenceBySourceRepo := make(map[string][]relationships.EvidenceFact)
-	for _, fact := range discoveredEvidence {
-		if strings.TrimSpace(fact.SourceRepoID) == "" || strings.TrimSpace(fact.TargetRepoID) == "" {
-			continue
-		}
-		evidenceBySourceRepo[fact.SourceRepoID] = append(evidenceBySourceRepo[fact.SourceRepoID], fact)
-		totalEvidence++
-	}
+	evidenceBySourceRepo, totalEvidence := discoverEvidenceBlock(ctx, activeFacts, catalog)
 
 	// The catalog fingerprint (issue #3624 Track 1 / B') is derived from the
 	// SAME $1/$2 query parameters BuildDeferredScopedFactQueryParams already
@@ -171,11 +157,17 @@ func (s Store) writeDeferredBackfillInBatches(
 	catalogFingerprint string,
 	instruments *telemetry.Instruments,
 ) (int, map[ScopeGenerationPartition]int64, error) {
+	// write_batches covers the active-generation read, the batch writes, and its
+	// own shape; its attributes also carry the fan-in's readiness count, so it
+	// is ended with the batches' own end time once the fan-in has returned.
+	batchBlock := startBlockFromContext(ctx, BlockWriteBatches)
 	repoGenerations, err := LoadActiveRepositoryGenerations(ctx, s.DB)
 	if err != nil {
+		batchBlock.End(err)
 		return 0, nil, fmt.Errorf("load active repository generations for deferred relationship backfill: %w", err)
 	}
 	if len(repoGenerations) == 0 {
+		batchBlock.End(nil, IntAttr("batches", 0), IntAttr("readiness_rows", 0), IntAttr("inserted_rows", 0))
 		return 0, nil, nil
 	}
 
@@ -218,7 +210,9 @@ func (s Store) writeDeferredBackfillInBatches(
 	contributions, insertedRows, err := s.runDeferredBackfillBatches(
 		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, instruments,
 	)
+	batchesEnd := time.Now()
 	if err != nil {
+		batchBlock.EndAt(batchesEnd, err, IntAttr("batches", len(bounds)))
 		// A failed or canceled batch means at least one partition's evidence is
 		// only partly committed. Publishing readiness or a memo row for ANY
 		// partition now would claim completion the pass did not achieve, and the
@@ -230,10 +224,21 @@ func (s Store) writeDeferredBackfillInBatches(
 		return 0, nil, err
 	}
 	if err := ctx.Err(); err != nil {
+		batchBlock.EndAt(batchesEnd, err, IntAttr("batches", len(bounds)))
 		return 0, nil, fmt.Errorf("deferred backfill canceled before readiness publication: %w", err)
 	}
 
-	published, err := s.PublishDeferredBackfillPartitions(ctx, contributions, snapshotGenerations, catalogFingerprint, workers, instruments)
+	fanInBlock := startBlockFromContext(ctx, BlockFanIn)
+	probeTimer := &argoCDProbeTimer{}
+	published, err := s.PublishDeferredBackfillPartitions(
+		withArgoCDProbeTimer(ctx, probeTimer), contributions, snapshotGenerations, catalogFingerprint, workers, instruments,
+	)
+	endFanInBlock(fanInBlock, err, len(contributions), published, probeTimer.seconds())
+	batchBlock.EndAt(batchesEnd, nil,
+		IntAttr("batches", len(bounds)),
+		IntAttr("readiness_rows", published),
+		IntAttr("inserted_rows", int(sumInsertedRows(insertedRows))),
+	)
 	if err != nil {
 		return 0, nil, err
 	}

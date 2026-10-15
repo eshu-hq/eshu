@@ -22,6 +22,24 @@ WHERE fact_kind = 'repository'
 ORDER BY observed_at DESC, fact_id DESC
 `
 
+// catalogLoadStats counts what one LoadRepositoryCatalog call did, so the
+// deferred pass's catalog_load block can report rows scanned and decode time.
+// The loader returns only the kept entries, so the scanned row count and the
+// JSON decode time travel through the context instead of the CatalogLoader
+// signature.
+type catalogLoadStats struct {
+	rows   int64
+	decode time.Duration
+}
+
+type catalogLoadStatsKey struct{}
+
+// withCatalogLoadStats returns ctx carrying stats for LoadRepositoryCatalog to
+// fill. Without it the loader does no extra work.
+func withCatalogLoadStats(ctx context.Context, stats *catalogLoadStats) context.Context {
+	return context.WithValue(ctx, catalogLoadStatsKey{}, stats)
+}
+
 // LoadRepositoryCatalog loads the deduplicated repository identity catalog
 // (newest row per repository wins via the query ORDER BY) plus each kept
 // entry's observed_at, which the shared cache uses as the freshness key so a
@@ -41,6 +59,7 @@ func LoadRepositoryCatalog(
 	}
 	defer func() { _ = rows.Close() }()
 
+	stats, _ := ctx.Value(catalogLoadStatsKey{}).(*catalogLoadStats)
 	seen := make(map[string]struct{})
 	catalog := make([]relationships.CatalogEntry, 0)
 	observedAt := make(map[string]time.Time)
@@ -50,7 +69,15 @@ func LoadRepositoryCatalog(
 		if err := rows.Scan(&rawPayload, &rowObservedAt); err != nil {
 			return nil, nil, err
 		}
+		var decodeStart time.Time
+		if stats != nil {
+			stats.rows++
+			decodeStart = time.Now()
+		}
 		entry, ok := repositoryCatalogEntryFromPayload(rawPayload)
+		if stats != nil {
+			stats.decode += time.Since(decodeStart)
+		}
 		if !ok {
 			continue
 		}

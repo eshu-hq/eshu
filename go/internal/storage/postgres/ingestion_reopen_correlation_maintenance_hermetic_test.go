@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestRunDeferredRelationshipMaintenanceIssuesCorrelationListingPerDomain is the
@@ -104,6 +108,25 @@ func TestRunDeferredRelationshipMaintenanceCorrelationListingCarriesReplayBound(
 // in the order the store begins them.
 func runHermeticDeferredMaintenance(t *testing.T) (reopenTx, backfillTx *fakeTx) {
 	t.Helper()
+	return runHermeticDeferredMaintenanceTraced(t, nil)
+}
+
+// runHermeticDeferredMaintenanceTraced is runHermeticDeferredMaintenance with a
+// caller-supplied tracer so a test can read the spans the pass emits.
+func runHermeticDeferredMaintenanceTraced(t *testing.T, tracer trace.Tracer) (reopenTx, backfillTx *fakeTx) {
+	t.Helper()
+	return runHermeticDeferredMaintenanceObserved(t, tracer, nil)
+}
+
+// runHermeticDeferredMaintenanceObserved is runHermeticDeferredMaintenance with a
+// caller-supplied tracer and instruments so a test can read the spans and
+// metrics the pass emits.
+func runHermeticDeferredMaintenanceObserved(
+	t *testing.T,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+) (reopenTx, backfillTx *fakeTx) {
+	t.Helper()
 
 	now := time.Date(2026, time.July, 27, 12, 0, 0, 0, time.UTC)
 	activeGenerations := [][]any{{"repo-alpha", "scope-alpha", "gen-alpha"}}
@@ -134,7 +157,7 @@ func runHermeticDeferredMaintenance(t *testing.T) (reopenTx, backfillTx *fakeTx)
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
 
-	if err := store.RunDeferredRelationshipMaintenance(context.Background(), nil, nil); err != nil {
+	if err := store.RunDeferredRelationshipMaintenance(context.Background(), tracer, instruments); err != nil {
 		t.Fatalf("RunDeferredRelationshipMaintenance() error = %v, want nil", err)
 	}
 	if !reopenTx.committed {
