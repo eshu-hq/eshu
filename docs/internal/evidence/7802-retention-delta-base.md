@@ -21,10 +21,27 @@ same class as #7903: a delta that commits after the re-lock's snapshot still
 flips a locked member before the prune commits; closing that would serialize
 activation against retention, which the repo forbids.
 
-The targeted candidate query moved code-identically into
-`generation_retention_relock.go` beside its only consumer because the guard
-pushed `generation_retention_sql.go` toward the 500-line cap; no new file,
-so no dirgate re-pin.
+The targeted candidate query lives in `generation_retention_policy.go`,
+beside the eligibility rules it re-checks at lock time, because the guard
+pushed `generation_retention_sql.go` past the 500-line cap and the other
+retention files (`generation_retention_relock.go` after the #7981 chunk path
+landed) have no room left; no new file, so no dirgate re-pin.
+
+Both candidate statements return ten columns in one order: scope id,
+generation id, scope kind, superseded at, observed at, uncovered, the #7981
+identity triple (source commit SHA, `is_delta`, freshness hint), then
+`delta_protected`. The chunked re-lock (`relockChunkedBatch`) skips a flipped
+delta-protected member before it can become the chunk target, so a protected
+row never drains a chunk. The selection filters delta-protected rows before
+the same-SHA witness runs, so a protected row counts once as `delta_base` and
+never also as `same_sha_newest`.
+
+After the rebase onto the #7981 same-SHA and chunk work, `TestGenerationRetentionDeltaBaseLive`
+gained a same-SHA scope (active delta, older full copy inside the window,
+newest full as protected base): the older copy prunes against the protected
+base as witness and the base stays. The 0.79 ms plan figure below was measured
+before that rebase and is not re-measured on the merged statement; the
+retention plan live tests were re-run green against it.
 
 No-Regression Evidence (#7802): baseline is the pre-fix candidate query,
 which prunes a 100-day base full and a 95-day chain delta under a 90-day

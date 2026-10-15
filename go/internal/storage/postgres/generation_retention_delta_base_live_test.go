@@ -70,6 +70,25 @@ func TestGenerationRetentionDeltaBaseLive(t *testing.T) {
 	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"deltabase-full", "deltabase-full-old", now.Add(-100*24*time.Hour))
 
+	// Same-SHA scope (#7981 with #7802): the active generation is a delta,
+	// the newest full is a protected base, and an older full of the same
+	// commit sits inside the count window. The same-SHA rule prunes the
+	// older copy because the protected base is its newer witness (the
+	// witness read is independent of the delta leg); the base itself stays.
+	// It is inside the window and has no newer copy, so it is not eligible
+	// and reports nothing.
+	testfixtures.SeedScope(t, ctx, database, "deltabase-dup")
+	markDelta("deltabase-dup-active")
+	testfixtures.SeedSupersededGeneration(t, ctx, database,
+		"deltabase-dup", "deltabase-dup-old", now.Add(-20*24*time.Hour))
+	testfixtures.SeedSupersededGeneration(t, ctx, database,
+		"deltabase-dup", "deltabase-dup-base", now.Add(-10*24*time.Hour))
+	if _, err := database.ExecContext(ctx,
+		`UPDATE scope_generations SET source_commit_sha = 'deltabase-dup-sha'
+		  WHERE generation_id IN ('deltabase-dup-old', 'deltabase-dup-base')`); err != nil {
+		t.Fatalf("mark same-SHA copies: %v", err)
+	}
+
 	store := NewGenerationRetentionStore(SQLDB{DB: database})
 	store.Now = func() time.Time { return now }
 	result, err := store.PruneSupersededGenerations(ctx, GenerationRetentionPolicy{
@@ -85,11 +104,20 @@ func TestGenerationRetentionDeltaBaseLive(t *testing.T) {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
 
-	if result.GenerationsPruned != 1 {
-		t.Errorf("GenerationsPruned = %d, want 1 (only the active-full scope's old generation)", result.GenerationsPruned)
+	if result.GenerationsPruned != 2 {
+		t.Errorf("GenerationsPruned = %d, want 2 (the active-full scope's old generation and the same-SHA older copy)", result.GenerationsPruned)
 	}
 	remaining := remainingScopeGenerations(t, ctx, database,
-		[]string{"deltabase-delta-base", "deltabase-delta-mid", "deltabase-full-old", "deltabase-both-base", "deltabase-both-delta"})
+		[]string{
+			"deltabase-delta-base", "deltabase-delta-mid", "deltabase-full-old", "deltabase-both-base",
+			"deltabase-both-delta", "deltabase-dup-old", "deltabase-dup-base",
+		})
+	if remaining["deltabase-dup-old"] {
+		t.Error("same-SHA older copy was retained, want pruned against the protected base witness")
+	}
+	if !remaining["deltabase-dup-base"] {
+		t.Error("same-SHA protected base was pruned, want kept")
+	}
 	if !remaining["deltabase-delta-base"] {
 		t.Error("delta-active base full was pruned past the hard ceiling, want kept whatever the age")
 	}
@@ -106,7 +134,10 @@ func TestGenerationRetentionDeltaBaseLive(t *testing.T) {
 		t.Error("overlap scope chain delta was pruned, want kept")
 	}
 	if got := result.Skipped["delta_base"]; got != 3 {
-		t.Errorf("Skipped[delta_base] = %d, want 3 (two bases plus the covered chain delta)", got)
+		t.Errorf("Skipped[delta_base] = %d, want 3 (two bases plus the covered chain delta; the in-window same-SHA base is not eligible, so it is not reported)", got)
+	}
+	if got := result.Skipped[sameSHANewestSkippedReason]; got != 0 {
+		t.Errorf("Skipped[%s] = %d, want 0 (a protected base is never a witness-retained copy)", sameSHANewestSkippedReason, got)
 	}
 	if got := result.Skipped["uncovered_writer"]; got != 1 {
 		t.Errorf("Skipped[uncovered_writer] = %d, want 1 (overlap row reported exactly once)", got)
