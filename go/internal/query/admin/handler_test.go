@@ -365,6 +365,7 @@ func TestAdminHandler_Mount_RegistersAllRoutes(t *testing.T) {
 		{http.MethodPost, "/api/v0/admin/replay"},
 		{http.MethodPost, "/api/v0/admin/backfill"},
 		{http.MethodPost, "/api/v0/admin/replay-events/query"},
+		{http.MethodGet, "/api/v0/admin/delta-union/completeness"},
 	}
 
 	for _, rt := range routes {

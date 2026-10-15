@@ -1034,6 +1034,14 @@ type Instruments struct {
 	// reindex_unsupported). Never carries scope ids. Registered in
 	// instruments_recovery_delta_active.go.
 	RecoveryDeltaActiveScopes metric.Int64Counter
+	// ProjectorDeltaUnion counts delta-base union fact-load decisions by the
+	// closed outcome set (union_base_found, union_base_missing_refused),
+	// and ProjectorDeltaUnionFacts carries the base, delta, and union fact
+	// counts behind each decision as histogram values (#7797). Labels never
+	// carry scope ids, generation ids, or commit SHAs. Registered in
+	// instruments_delta_union.go.
+	ProjectorDeltaUnion      metric.Int64Counter
+	ProjectorDeltaUnionFacts metric.Int64Histogram
 	// ConfigArtifactCandidates counts the config-artifact candidates of the
 	// deployment-artifact load of the repository story, repository context
 	// and service story or context routes (issue #7951), by outcome:
@@ -5386,6 +5394,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerRecoveryDeltaActiveScopes(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerProjectorDeltaUnion(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerConfigArtifactCandidates(meter, inst); err != nil {

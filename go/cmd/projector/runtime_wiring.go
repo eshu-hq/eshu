@@ -105,7 +105,7 @@ func buildProjectorService(
 	return projector.Service{
 		PollInterval: time.Second,
 		WorkSource:   projectorQueue,
-		FactStore:    postgres.NewFactStore(database),
+		FactStore:    postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),
 		Runner:       runner,
 		WorkSink:     projectorQueue,
 		Heartbeater:  projectorQueue,

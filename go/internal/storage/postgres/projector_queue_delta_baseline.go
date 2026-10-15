@@ -256,6 +256,9 @@ func (q ProjectorQueue) markDeltaBaselineRefused(
 	if refusal.Phase == projector.DeltaBaselinePhaseAck {
 		message = "projector delta refused at ack after projection: baseline is not the active commit"
 	}
+	if refusal.Outcome == projector.DeltaBaselineRefusedBaseMissing {
+		message = "projector delta refused before projection: base full generation is missing"
+	}
 	rows, err := q.database.QueryContext(ctx, markProjectorDeltaBaselineRefusedQuery,
 		now, work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner, work.AttemptCount,
 		class, message, refusal.State.BaselineCommitSHA, refusal.ActiveCommitForLog(),
@@ -275,6 +278,9 @@ func (q ProjectorQueue) markDeltaBaselineRefused(
 	}
 	if workRows != 1 {
 		return fmt.Errorf("mark delta baseline refusal: %w", ErrProjectorClaimRejected)
+	}
+	if refusal.Outcome == projector.DeltaBaselineRefusedBaseMissing {
+		q.requestDeltaBaseMissingReindex(ctx, work.Scope.ScopeID)
 	}
 	return fmt.Errorf("delta generation %s refused: %w",
 		work.Generation.GenerationID, projectorWorkSupersededError{failureClass: class})

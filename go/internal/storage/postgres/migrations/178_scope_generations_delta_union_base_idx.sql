@@ -1,0 +1,53 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Serve the #7797 delta-base union's base-generation lookup as one partial
+-- index seek instead of a per-scope generation-history scan.
+--
+-- WHAT IT READS. The union resolves, for one delta generation, the newest
+-- projected full generation at its baseline commit
+-- (go/internal/storage/postgres/delta_union.go deltaUnionBaseQuery):
+-- WHERE scope_id = $1 AND is_delta = false AND activated_at IS NOT NULL
+-- AND status IN ('active','completed','superseded')
+-- AND source_commit_sha = $2
+-- ORDER BY (status IN ('active','completed')) DESC,
+-- ingested_at DESC, generation_id DESC LIMIT 1.
+-- The tier orders intact (active/completed, never prune-eligible) bases
+-- before superseded ones; the WHERE prefix is what the index serves.
+--
+-- THE PROBLEM. None of the existing scope_generations indexes leads with the
+-- lookup's equality prefix: scope_generations_scope_idx leads
+-- (scope_id, status, ingested_at) and serves the status-bounded bitmap the
+-- planner then filters on is_delta, activated_at, and source_commit_sha --
+-- 898 rows removed by filter for one 1,500-generation scope, 56 buffers,
+-- 0.33 ms warm. A plain (scope_id, is_delta, source_commit_sha) index does
+-- not help either: the planner still prefers the status bitmap and never
+-- chooses it (measured identical 0.33 ms / 56 buffers with it present).
+--
+-- THE INDEX. A partial index whose predicate IS the projected-full
+-- predicate, so the planner matches it exactly and seeks on
+-- (scope_id, source_commit_sha):
+--
+--   Index Scan using scope_generations_delta_union_base_idx
+--     Index Cond: ((scope_id = 'scope-17') AND (source_commit_sha = $0))
+--     Buffers: shared hit=8 (+ sort: hit=19)   Execution Time: 0.132 ms
+--
+-- Measured on PostgreSQL 16 with 60,000 scope_generations rows (40 scopes x
+-- 1,500 generations, mixed full/delta and five statuses): 0.132 ms against
+-- 0.328 ms without, buffers 19 against 56, byte-identical row. The lookup
+-- runs once per delta fact load and once per delta fact count, so the
+-- absolute saving is small; the index is partial (projected fulls only) and
+-- cheap to carry, and it keeps the union read off the scope's full
+-- generation history as retention grows that history.
+--
+-- COST. Partial btree over projected full generations only; generation
+-- inserts pay one more small index write. No existing index is dropped:
+-- scope_generations_scope_idx still serves the status-led readers.
+--
+-- CONCURRENTLY so bootstrap never blocks generation commits; IF NOT EXISTS
+-- so every later bootstrap over an install that has it is a no-op. The lone
+-- statement in this file so the migration coordinator can run it outside a
+-- transaction. A new file per issue #7002: never edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS scope_generations_delta_union_base_idx
+    ON scope_generations (scope_id, source_commit_sha)
+    WHERE is_delta = false AND activated_at IS NOT NULL AND status IN ('active', 'completed', 'superseded');

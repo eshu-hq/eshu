@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	adminstore "github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/query/capability"
 	"github.com/eshu-hq/eshu/go/internal/query/cicd"
@@ -307,6 +308,10 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			ReadStore:   adminstore.NewReadStore(reader),
 			Audit:       adminRecoveryAuditAppender(governanceAudit),
 			Instruments: instruments,
+			Completeness: &admin.DeltaUnionCompletenessChecker{
+				Active: pgstatus.NewFactStore(pgstatus.SQLDB{DB: writer}),
+				Graph:  neo4jReader,
+			},
 		},
 	}
 	if writer == nil {
