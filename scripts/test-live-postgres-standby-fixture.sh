@@ -36,8 +36,11 @@ standby_teardown_guard() {
   normalized="$(printf '%s' "${condition}" | tr -d "[:space:]'\"")"
   expected_queue='if:${{(github.event_name!=merge_group||(contains(fromJSON(needs.queue-selection.outputs.jobs||[]),live-postgres-readiness(postgres18))))&&(always())}}'
   expected_run="        run: bash scripts/ci/live-postgres-standby-fixture.sh stop '\${{ github.run_id }}-\${{ github.run_attempt }}'"
+  # Sharded legs suffix the fixture ID with the matrix shard so parallel legs
+  # stop their own standby container; accept either exact form (#7864).
+  expected_run_sharded="${expected_run%\'}-\${{ matrix.shard }}'"
   [[ "${normalized}" == 'if:always()' || "${normalized}" == "${expected_queue}" ]] || return 1
-  [[ "${command}" == "${expected_run}" ]]
+  [[ "${command}" == "${expected_run}" || "${command}" == "${expected_run_sharded}" ]]
 }
 standby_teardown_guard "${workflow}" || fail 'workflow lacks always-on teardown'
 
