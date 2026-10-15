@@ -30,12 +30,19 @@ API, OpenAPI, or MCP code changed.
   `package:<locked name>#<FQCN>[::<method>]` when `X` is a `use`-bound name
   (alias and group use included) or a fully qualified literal. The name is
   bound from the raw class node and the `use` rows, never from the parser's
-  last-segment alias map. The locked name comes from every `composer.lock` from
+  last-segment alias map, and a clause with its own `function` or `const`
+  keyword (`use A\{B, function c}`) binds nothing. The locked name comes from every `composer.lock` from
   the file's directory up to the repository root, nearest first. The first lock
   whose `packages` or `packages-dev` autoload a covering prefix decides. The
-  longest prefix wins. A tie, a psr-0 prefix, or a name outside the grammar
-  gives no key. A class under a namespace the consumer's own `composer.json`
-  files autoload is never keyed.
+  longest prefix wins. A tie, a psr-0 prefix, a psr-4 prefix without the
+  trailing `\`, or a name outside the grammar gives no key. The consumer's
+  own `composer.json` files (autoload and autoload-dev, psr-4 and psr-0) can
+  claim the class too. An own
+  prefix suppresses the key only when it is at least as long as the winning
+  locked prefix, because Composer tries the longest psr-4 prefix first: own
+  `MyCorp\` yields to a locked `MyCorp\Logging\`, while own `App\` ties
+  laravel/pint's `App\` and suppresses. The empty own fallback never
+  suppresses (Composer searches it last).
 - **Loader** (`go/internal/storage/postgres/code/producers/store.go`).
   `PackageScopeIDs` sends a composer name to the new `ComposerManifestsQuery`
   (`composer.json`, MATERIALIZED CTE, generation-tag rule, `vendor/`
@@ -58,7 +65,10 @@ API, OpenAPI, or MCP code changed.
   guard, all 5,767 of monica's own `App\` calls were keyed to `laravel/pint`.
   Turning the guard off makes
   `TestExtractRowsKeepsLaravelStyleOwnClassOutOfAnotherRepository` resolve
-  `index` into `uid:repo-pint:User`.
+  `index` into `uid:repo-pint:User`. Review narrowed it to the length rule
+  above: the first version dropped every class under an own prefix, which also
+  dropped `composer/composer`'s calls into `composer/pcre` (`Composer\Pcre\`
+  is longer than its own `Composer\`).
 
 ## Measurements
 
@@ -98,10 +108,10 @@ Rule B, on the final code (38 repositories):
 | Measure | Count |
 | --- | --- |
 | Producer stamps (classes, interfaces, public static methods) | 14,631 / 1,120 / 8,258 |
-| Keyed consumer calls (`new` / static) | 740 / 6,355 |
+| Keyed consumer calls (`new` / static) | 1,089 / 6,938 |
 | Resolved cross-repository (`new` / static) | 152 / 86 |
 | Unresolved, ambiguous | 184 (symfony/console 137, process 28, finder 15, filesystem 4: each split repository and the monorepo stamp the same name) |
-| Unresolved, no definition | 6,673 (producer not in the corpus, inherited or trait static methods, laravel/framework subpackage names) |
+| Unresolved, no definition | 7,605 (producer not in the corpus, inherited or trait static methods, laravel/framework subpackage names) |
 
 The automatic check passed all 238 resolved edges: the call is on the line
 through the `use` binding or a fully qualified literal; the producer file
@@ -123,6 +133,9 @@ Scripts and outputs are in the session scratchpad, not committed.
 | No `composer.lock`; multi-namespace consumer | No consumer key | `TestDefaultEngineParsePathPHPSkipsConsumerKeysWithoutComposerLock`, `...InMultiNamespaceFile` |
 | Nested lock that does not cover the class | Next lock up decides | `TestDefaultEngineParsePathPHPKeysConsumerFromNearestCoveringLock` |
 | Locked dev tool declaring the consumer's own namespace | No consumer key | `TestDefaultEngineParsePathPHPSkipsConsumerKeysForOwnNamespaces` |
+| Own prefix shorter than, equal to, or longer than the locked one; own empty fallback | Keyed only when the locked prefix is longer | `TestLocksOwnNamespaceYieldsOnlyToALongerLockedPrefix`, `TestLocksOwnFallbackPrefixNeverOutranksALockedPrefix` |
+| Locked psr-4 prefix without the trailing `\` (`Acme` against `AcmeOther\Thing`) | Blocks, never keys | `TestLockPSR4PrefixWithoutTrailingBackslashOnlyBlocks` |
+| `function` or `const` clause in a mixed group use | Binds no class | `TestDefaultEngineParsePathPHPSkipsUnprovableConsumerKeys` |
 | Two repositories stamp the same composer name | No row | `TestExtractRowsLeavesParsedPHPComposerImportUnresolvedWhenTwoProducersShareTheName` |
 
 ## Correlation truth matrix
@@ -162,6 +175,20 @@ third closed `kind` label, `composer`
 producer scopes (composer keys count as package keys). Resolved edges carry
 `resolution_method=import_binding`. There is no new metric, span, or log key.
 
+## Content version
+
+`gitGenerationContentVersion` moves from `git-collector.v2` to
+`git-collector.v3`. The parser now emits new fields for unchanged PHP input
+that has composer files, and without the bump `GenerationContentVersion()` is
+byte-identical on base and head, so already-indexed PHP repositories would keep
+keyless facts until their next commit. The pin fixture
+(`testdata/content_version`) has no composer files, so the re-pin moves only
+`content_version`; the digest and the 238-fact count are unchanged. A PHP
+composer change is therefore not caught by the pin; the fixture was left alone
+because #7978 owns it. Production discovery already prunes `vendor/`
+(`go/internal/collector/repo/git/snapshot_discovery.go`); the parser and loader
+`vendor/` guards stay as defense in depth.
+
 ## Known limits
 
 - Split monorepos: symfony/symfony and laravel/framework stamp their nested
@@ -182,11 +209,7 @@ producer scopes (composer keys count as package keys). Resolved edges carry
 - QA corpus: `composer.lock` count and duplicate composer names (replica
   queries: `count(*)` of `content_files` where `relative_path` is or ends in
   `composer.lock`, and duplicate `name` values across stored `composer.json`).
-- Whether production discovery prunes `vendor/` for every repository.
 - `packages-dev` autoload presence in real locks (packages-dev is read the same
   way as packages).
-- Whether `gitGenerationContentVersion` must be bumped. Parser output changes
-  for unchanged PHP input that has composer files. The pin test fixture has
-  none, so the pin test stays green.
 - Live B-7 on Neo4j for the new query shape, and the replica EXPLAIN of
   `ComposerManifestsQuery`.

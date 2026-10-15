@@ -13,8 +13,8 @@ class Formatter
         return self::pad(intdiv($cents, 100)) . '.' . self::pad($cents % 100);
     }
 
-    // Same name as invoice-portal's own Support\Formatter helper; private, so
-    // it gets no package key.
+    // A private helper: only a public static method gets a package key, so
+    // pad stays unkeyed.
     private static function pad(int $value): string
     {
         return str_pad((string) $value, 2, '0', STR_PAD_LEFT);
