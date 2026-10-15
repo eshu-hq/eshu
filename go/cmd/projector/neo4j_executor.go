@@ -52,12 +52,13 @@ func (e projectorNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 			if runErr != nil {
 				return nil, runErr
 			}
+			dropped := sourcecypher.CollectRetiredRelationships(ctx, stmt.Cypher, result)
 			summary, consumeErr := result.Consume(ctx)
 			if consumeErr != nil {
 				return nil, consumeErr
 			}
 			counts = append(counts, statementRetractionCounts(stmt, summary))
-			sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
+			sourcecypher.ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
 		}
 		return counts, nil
 	}, e.transactionConfigurers()...)
@@ -87,6 +88,7 @@ func (e projectorNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 	if err != nil {
 		return err
 	}
+	dropped := sourcecypher.CollectRetiredRelationships(ctx, statement.Cypher, result)
 	summary, err := result.Consume(ctx)
 	if err == nil {
 		sourcecypher.RecordReconciliationDriftRetractions(
@@ -96,7 +98,7 @@ func (e projectorNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 			int64(summary.Counters().NodesDeleted()),
 			int64(summary.Counters().RelationshipsDeleted()),
 		)
-		sourcecypher.ReportWriteCounts(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
+		sourcecypher.ReportWriteCountsWithDropped(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
 	}
 	return err
 }

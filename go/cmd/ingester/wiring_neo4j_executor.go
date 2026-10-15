@@ -46,6 +46,7 @@ func (e ingesterNeo4jExecutor) Execute(ctx context.Context, statement sourcecyph
 	if err != nil {
 		return err
 	}
+	dropped := sourcecypher.CollectRetiredRelationships(ctx, statement.Cypher, result)
 	summary, err := result.Consume(ctx)
 	if err == nil {
 		sourcecypher.RecordReconciliationDriftRetractions(
@@ -58,7 +59,7 @@ func (e ingesterNeo4jExecutor) Execute(ctx context.Context, statement sourcecyph
 		// Mirror cmd/projector/neo4j_executor.go: the in-process projector's
 		// canonical writer reads these to report path-conflict Repository
 		// retirements (#7324), and differential capture joins on them.
-		sourcecypher.ReportWriteCounts(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
+		sourcecypher.ReportWriteCountsWithDropped(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
 	}
 	return err
 }
@@ -90,12 +91,13 @@ func (e ingesterNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcec
 				if runErr != nil {
 					return nil, runErr
 				}
+				dropped := sourcecypher.CollectRetiredRelationships(ctx, stmt.Cypher, result)
 				return func(ctx context.Context) (fileResult, error) {
 					summary, consumeErr := result.Consume(ctx)
 					if consumeErr != nil {
 						return fileResult{}, consumeErr
 					}
-					sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
+					sourcecypher.ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
 					return ingesterStatementRetractionCounts(stmt, summary), nil
 				}, nil
 			})
@@ -106,6 +108,7 @@ func (e ingesterNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcec
 			if runErr != nil {
 				return runErr
 			}
+			dropped := sourcecypher.CollectRetiredRelationships(ctx, stmt.Cypher, result)
 			summary, consumeErr := result.Consume(ctx)
 			if consumeErr != nil {
 				return consumeErr
@@ -113,7 +116,7 @@ func (e ingesterNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcec
 			counts = append(counts, ingesterStatementRetractionCounts(stmt, summary))
 			// Reported inside the transaction function, as the projector does:
 			// a driver retry re-runs and re-reports, and the last report wins.
-			sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
+			sourcecypher.ReportWriteCountsWithDropped(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()), dropped)
 			return nil
 		}, e.ProfileGroupStatements, nil)
 		if err != nil {

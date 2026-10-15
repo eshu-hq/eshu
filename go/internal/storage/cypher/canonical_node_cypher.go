@@ -117,9 +117,26 @@ DETACH DELETE p`
 // There is deliberately no by-id Repository delete here (#7285): the node is
 // MERGEd in place so edges owned by other writers survive re-projection.
 
+// canonicalNodeRepositoryPathCleanupCypher retires a DIFFERENT-id
+// Repository still holding the projected path (#7324). The incident-edge
+// collection runs in the SAME statement, before the delete, so the
+// attribution describes exactly the relationships the delete drops: a
+// separate pre-read would race a concurrent writer between the read and the
+// delete, and the Executor interfaces (writer.go) cannot return records.
+//
+// Shape notes: the OPTIONAL MATCH keeps the one-row-per-edge fanout off the
+// delete (an edgeless node still yields its single row, so the delete still
+// runs); the CASE keeps NULL rels out of the collection (collect skips
+// NULL), so an edgeless retirement reports an empty dropped list rather
+// than one junk entry; startNode decides direction from the stored edge,
+// not from a pattern arrow. RETURN dropped yields exactly one record when a
+// node matched, zero when the MATCH matched nothing (steady state).
 const canonicalNodeRepositoryPathCleanupCypher = `MATCH (r:Repository {path: $path})
 WHERE r.id <> $repo_id
-DETACH DELETE r`
+OPTIONAL MATCH (r)-[rel]-(other)
+WITH r, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped
+DETACH DELETE r
+RETURN dropped`
 
 const canonicalNodeRepositoryUpsertCypher = `MERGE (r:Repository {id: $repo_id})
 SET r.name = $name, r.path = $path, r.local_path = $local_path,

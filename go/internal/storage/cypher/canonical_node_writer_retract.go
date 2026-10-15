@@ -6,14 +6,10 @@ package cypher
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
 
-	"go.opentelemetry.io/otel/metric"
-
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func (w *CanonicalNodeWriter) buildRetractStatements(mat canonical.CanonicalMaterialization) []Statement {
@@ -354,61 +350,4 @@ func captureRepositoryRetirement(ctx context.Context, statements []Statement) (c
 		return WithWriteCountsCollector(ctx, collector), collector
 	}
 	return ctx, nil
-}
-
-// reportRepositoryRetirement publishes what the committed path-conflict
-// retirement deleted (#7324). The statement DETACH DELETEs a different-id
-// Repository still holding this path, which drops every relationship on it:
-// reducer edges other scopes wrote into it, which nothing re-arms, and its
-// own projector edges. relationships_deleted is the backend's count of both
-// directions; direction and type are not attributed.
-//
-// The last collected entry is the committed attempt: a driver or executor
-// retry re-runs the statement and reports again, and Write calls this only
-// after the statement's transaction committed. The `canonical repository
-// retired` line and the counter appear only when the statement deleted a
-// node; a retirement that matched nothing (the steady state) records nothing
-// at INFO or WARN. With no entry at all the executor reported no write
-// summary, so nothing is known about the retirement: a DEBUG line with a
-// distinct message and deletes_counted=false says so, and no counter moves.
-// A retirement that committed but whose driver call still returned an error
-// is re-run on retry, matches nothing, and so is not counted: the count is
-// at most once per retirement, not exactly once.
-func (w *CanonicalNodeWriter) reportRepositoryRetirement(
-	ctx context.Context,
-	mat canonical.CanonicalMaterialization,
-	collector *WriteCountsCollector,
-) {
-	if collector == nil || mat.Repository == nil {
-		return
-	}
-	entries := collector.Entries()
-	fields := []any{
-		"scope_id", mat.ScopeID,
-		"generation_id", mat.GenerationID,
-		"repo_id", mat.Repository.RepoID,
-		"path", mat.Repository.Path,
-	}
-	if len(entries) == 0 {
-		slog.DebugContext(ctx, "canonical repository retirement not counted: executor reported no write summary",
-			append(fields, "deletes_counted", false)...)
-		return
-	}
-	counters := entries[len(entries)-1].Counters
-	if counters.NodesDeleted == 0 {
-		return
-	}
-	outcome, level := telemetry.RepositoryRetirementOutcomeClean, slog.LevelInfo
-	if counters.RelationshipsDeleted > 0 {
-		outcome, level = telemetry.RepositoryRetirementOutcomeDroppedRelationships, slog.LevelWarn
-	}
-	if w.instruments != nil && w.instruments.CanonicalRepositoryRetirements != nil {
-		w.instruments.CanonicalRepositoryRetirements.Add(ctx, 1, metric.WithAttributes(telemetry.AttrOutcome(outcome)))
-	}
-	slog.Log(ctx, level, "canonical repository retired", append(fields,
-		"nodes_deleted", counters.NodesDeleted,
-		"relationships_deleted", counters.RelationshipsDeleted,
-		"deletes_counted", true,
-		"outcome", outcome,
-	)...)
 }

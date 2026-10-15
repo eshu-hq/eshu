@@ -1815,6 +1815,15 @@ type Instruments struct {
 	// record nothing.
 	CanonicalRepositoryRetirements metric.Int64Counter
 
+	// CanonicalRepositoryRetiredRelationships counts the relationships the
+	// canonical writer's path-conflict retirement dropped with the retired
+	// Repository (#7324 item: per-direction/per-type split), by closed
+	// direction (incoming, outgoing) and owner class (reducer, projector,
+	// other). It moves only when the executor consumed the statement's
+	// RETURN dropped record; unattributed retirements move only
+	// CanonicalRepositoryRetirements.
+	CanonicalRepositoryRetiredRelationships metric.Int64Counter
+
 	// RepositorySelectionEvaluations counts git collector repository
 	// selection evaluations (#7625) by collector_kind and a closed outcome
 	// (evaluated, listing_truncated, guard_tripped, store_error).
