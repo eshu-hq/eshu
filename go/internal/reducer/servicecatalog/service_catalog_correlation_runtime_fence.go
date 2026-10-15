@@ -1,0 +1,251 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package servicecatalog
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"slices"
+	"time"
+
+	"go.opentelemetry.io/otel/metric"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// RuntimeNotReadyFailureClass classifies a deferral of a service catalog
+// correlation intent whose runtime evidence would be read while a correlated
+// repository's WorkloadInstance producer is still in flight (#7816).
+//
+// Registered as a non-counting reducer retry class
+// (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the intent
+// waits on upstream materialization, not on its own merits. Without the fence
+// the handler read zero WorkloadInstance rows before the producer's MERGE and
+// committed a service generation with an empty runtime family that nothing
+// later repairs. The wait is bounded by crossscope.ProducerReadinessMaxWait
+// measured from crossscope.ReadinessCycleAnchor, so it cannot wedge.
+const RuntimeNotReadyFailureClass = "service_catalog_correlation_runtime_not_ready"
+
+// Runtime readiness outcomes recorded on
+// eshu_dp_service_catalog_runtime_readiness_total. The set is closed.
+const (
+	// RuntimeReadinessReady means every correlated repository has producer
+	// work at its active generation and none of it is in flight.
+	RuntimeReadinessReady = "ready"
+	// RuntimeReadinessNoProducer means no correlated repository has a
+	// producer work item at its active generation (a repository without
+	// workloads). Absent means ready, so such repositories never deadlock.
+	RuntimeReadinessNoProducer = "no_producer"
+	// RuntimeReadinessDeferred means a producer is in flight inside the bound
+	// and the intent deferred with nothing written.
+	RuntimeReadinessDeferred = "deferred"
+	// RuntimeReadinessBoundExceeded means a producer was still in flight past
+	// crossscope.ProducerReadinessMaxWait and the handler proceeded with the
+	// runtime evidence it could read.
+	RuntimeReadinessBoundExceeded = "bound_exceeded"
+)
+
+// runtimeProducerDomains is the enumerated producer set of the runtime
+// evidence family: every reducer queue domain whose fact_work_items rows write
+// the WorkloadInstance nodes and RUNS_ON edges GraphServiceRuntimeInstanceLoader
+// reads. TestRuntimeProducerSetCoversEveryRuntimeWriter pins it against the
+// writers found in source; a new writer fails that guard until it is either
+// added here or classified there with a reason.
+var runtimeProducerDomains = []reducercontract.Domain{
+	reducercontract.DomainWorkloadMaterialization,
+}
+
+// RuntimeProducerDomains returns a copy of the producer domains the runtime
+// fence waits on, in declaration order.
+func RuntimeProducerDomains() []reducercontract.Domain {
+	return slices.Clone(runtimeProducerDomains)
+}
+
+// RuntimeProducerState counts one repository's producer work items at its
+// active generation, by queue status. Total counts every status, terminal
+// ones included, so a zero Total means the repository has no producer work at
+// its active generation.
+type RuntimeProducerState struct {
+	Pending  int
+	Retrying int
+	Claimed  int
+	Running  int
+	Total    int
+}
+
+// InFlight reports how many producer work items are not yet terminal.
+func (s RuntimeProducerState) InFlight() int {
+	return s.Pending + s.Retrying + s.Claimed + s.Running
+}
+
+// RuntimeProducerReadiness reports, per repository, the state of the producer
+// work that writes the repository's WorkloadInstance nodes. Only work items at
+// the repository scope's ACTIVE generation count: a newer pending generation
+// is a later cycle and an older one is superseded. A repository with no
+// producer row there is absent from the result. An error means the question
+// could not be answered and must never be read as ready or not ready.
+type RuntimeProducerReadiness interface {
+	RuntimeProducerStates(
+		ctx context.Context,
+		repoIDs []string,
+		producerDomains []reducercontract.Domain,
+	) (map[string]RuntimeProducerState, error)
+}
+
+// runtimeNotReadyError defers the whole intent, before any write, until the
+// runtime producers of its correlated repositories drain.
+type runtimeNotReadyError struct {
+	scopeID      string
+	generationID string
+	repoIDs      []string
+}
+
+func (e runtimeNotReadyError) Error() string {
+	return fmt.Sprintf(
+		"workload materialization in flight for %d correlated repositor(ies) %v of service catalog scope %s generation %s; deferring service catalog correlation rather than committing runtime evidence read before the WorkloadInstance write",
+		len(e.repoIDs), e.repoIDs, e.scopeID, e.generationID,
+	)
+}
+
+// Retryable reports that the deferral must be retried once the producers drain.
+func (runtimeNotReadyError) Retryable() bool { return true }
+
+// FailureClass returns the non-counting readiness class for the queue.
+func (runtimeNotReadyError) FailureClass() string { return RuntimeNotReadyFailureClass }
+
+// runtimeReadinessLogRepoSample bounds the repository ids one log line carries.
+const runtimeReadinessLogRepoSample = 10
+
+// checkServiceRuntimeReadiness is the #7816 fence. It runs before the runtime
+// read and before any write. It is a no-op when no runtime loader or readiness
+// port is wired, or no service carries a repository, because then there is no
+// runtime read to fence. When a correlated repository's producer is in flight
+// it returns runtimeNotReadyError inside the elapsed bound and proceeds past
+// it, recording the outcome either way.
+func (h ServiceCatalogCorrelationHandler) checkServiceRuntimeReadiness(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	writes []ServiceMaterializationWrite,
+	decisions []ServiceCatalogCorrelationDecision,
+) error {
+	if h.RuntimeInstanceLoader == nil || h.RuntimeProducerReadiness == nil || len(writes) == 0 {
+		return nil
+	}
+	repoIDs := distinctServiceRepositoryIDs(writes, serviceRepositoryIndex(decisions))
+	if len(repoIDs) == 0 {
+		return nil
+	}
+	states, err := h.RuntimeProducerReadiness.RuntimeProducerStates(ctx, repoIDs, RuntimeProducerDomains())
+	if err != nil {
+		// A torn connection is the retryable fact_load_transient class, which
+		// still counts against the retry budget; every other error is returned
+		// as is. Neither is ever converted into the non-counting class.
+		return fmt.Errorf("check service runtime producer readiness: %w", factload.ClassifyFactLoadError(err))
+	}
+	inFlight, totals := runtimeReadinessInFlight(repoIDs, states)
+	if len(inFlight) == 0 {
+		outcome := RuntimeReadinessReady
+		if totals.Total == 0 {
+			outcome = RuntimeReadinessNoProducer
+		}
+		h.recordRuntimeReadiness(ctx, outcome)
+		return nil
+	}
+	now := h.now()
+	anchor := crossscope.ReadinessCycleAnchor(intent)
+	if !anchor.IsZero() && now.Sub(anchor) >= crossscope.ProducerReadinessMaxWait {
+		h.recordRuntimeReadiness(ctx, RuntimeReadinessBoundExceeded)
+		logRuntimeReadiness(ctx, slog.LevelWarn,
+			"service catalog runtime readiness bound exceeded; committing the runtime evidence read now",
+			intent, now, RuntimeReadinessBoundExceeded, inFlight, totals)
+		return nil
+	}
+	h.recordRuntimeReadiness(ctx, RuntimeReadinessDeferred)
+	logRuntimeReadiness(ctx, slog.LevelInfo,
+		"service catalog correlation deferred: workload materialization in flight for a correlated repository",
+		intent, now, RuntimeReadinessDeferred, inFlight, totals)
+	return runtimeNotReadyError{scopeID: intent.ScopeID, generationID: intent.GenerationID, repoIDs: inFlight}
+}
+
+// runtimeReadinessInFlight returns the repositories with in-flight producer
+// work, in repoIDs order, and the summed state across every repository.
+func runtimeReadinessInFlight(
+	repoIDs []string,
+	states map[string]RuntimeProducerState,
+) ([]string, RuntimeProducerState) {
+	var inFlight []string
+	var totals RuntimeProducerState
+	for _, repoID := range repoIDs {
+		state := states[repoID]
+		totals.Pending += state.Pending
+		totals.Retrying += state.Retrying
+		totals.Claimed += state.Claimed
+		totals.Running += state.Running
+		totals.Total += state.Total
+		if state.InFlight() > 0 {
+			inFlight = append(inFlight, repoID)
+		}
+	}
+	return inFlight, totals
+}
+
+func (h ServiceCatalogCorrelationHandler) now() time.Time {
+	if h.Now != nil {
+		return h.Now()
+	}
+	return time.Now()
+}
+
+func (h ServiceCatalogCorrelationHandler) recordRuntimeReadiness(ctx context.Context, outcome string) {
+	if h.Instruments == nil || h.Instruments.ServiceCatalogRuntimeReadiness == nil {
+		return
+	}
+	h.Instruments.ServiceCatalogRuntimeReadiness.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrDomain(string(reducercontract.DomainServiceCatalogCorrelation)),
+		telemetry.AttrOutcome(outcome),
+	))
+}
+
+// logRuntimeReadiness writes the defer or bound-exceeded line. It carries
+// elapsed time since the cycle anchor against the bound, never attempt_count,
+// which the non-counting class freezes. Producer states are counts only; the
+// repository ids are bounded to runtimeReadinessLogRepoSample.
+func logRuntimeReadiness(
+	ctx context.Context,
+	level slog.Level,
+	message string,
+	intent reducercontract.Intent,
+	now time.Time,
+	outcome string,
+	inFlight []string,
+	totals RuntimeProducerState,
+) {
+	sample := inFlight
+	if len(sample) > runtimeReadinessLogRepoSample {
+		sample = sample[:runtimeReadinessLogRepoSample]
+	}
+	attrs := []slog.Attr{
+		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
+		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
+		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
+		slog.String(telemetry.LogKeyFailureClass, RuntimeNotReadyFailureClass),
+		slog.String("runtime_readiness_outcome", outcome),
+		slog.Int("in_flight_repo_count", len(inFlight)),
+		slog.Any("in_flight_repo_ids", sample),
+		slog.Int("producer_pending", totals.Pending),
+		slog.Int("producer_retrying", totals.Retrying),
+		slog.Int("producer_claimed", totals.Claimed),
+		slog.Int("producer_running", totals.Running),
+		slog.Duration("max_wait", crossscope.ProducerReadinessMaxWait),
+	}
+	if anchor := crossscope.ReadinessCycleAnchor(intent); !anchor.IsZero() {
+		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))
+	}
+	slog.Default().LogAttrs(ctx, level, message, attrs...)
+}

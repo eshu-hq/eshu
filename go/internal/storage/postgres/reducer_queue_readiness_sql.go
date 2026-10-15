@@ -177,6 +177,13 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// nothing reopens. Counting the deferral would dead-letter the intent the
 	// same way.
 	servicecatalog.ServiceCatalogCorrelationResolutionNotReadyFailureClass,
+	// #7816: service catalog correlation deferred while a correlated
+	// repository's workload_materialization work is in flight at its active
+	// generation. Reading runtime evidence then returns no WorkloadInstance
+	// rows and commits an empty runtime family nothing reopens. Counting the
+	// deferral would dead-letter the intent; the handler bounds the wait by
+	// elapsed time since the repair cycle began, not by this budget.
+	servicecatalog.RuntimeNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

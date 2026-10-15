@@ -27,6 +27,7 @@ through the root's compatibility aliases.
 | dependencies evidence | `service_materialization_dependencies.go` | `ServiceDependencyEvidenceKey`, sharing deployment's resolved relationships |
 | corpus-fenced relationship read | `service_catalog_correlation_corpus_fence.go` | `attachServiceRelationshipEvidence` and the `ServiceCatalogCorrelationResolutionNotReadyFailureClass` deferral (#7258) |
 | runtime evidence | `service_materialization_runtime.go` | `ServiceRuntimeEvidenceKey` over the durable platform/environment/workload identity |
+| runtime readiness fence | `service_catalog_correlation_runtime_fence.go` | `checkServiceRuntimeReadiness`, the `RuntimeProducerReadiness` port, and the `RuntimeNotReadyFailureClass` deferral (#7816) |
 | docs evidence | `service_materialization_docs.go` | `ServiceDocumentationEvidenceKey` over exact documentation-entity mentions |
 | incidents evidence | `service_materialization_incidents.go` | `ServiceIncidentEvidenceKey` over exact PagerDuty routing evidence |
 | vulnerabilities evidence | `service_materialization_vulnerabilities.go` | `ServiceVulnerabilityEvidenceKey` over supply-chain advisory findings |
@@ -71,13 +72,17 @@ prefix is a historical artifact of the flat root, not a package boundary.
 | `ServiceVulnerabilityAdvisoryLoader` / `ServiceVulnerabilityRecord` | the vulnerabilities evidence loader contract |
 | `CorpusFencedResolvedRelationshipLoader` | the deployment/dependencies shared, corpus-fenced relationship loader contract (locally redeclared, see below) |
 | `ServiceCatalogCorrelationResolutionNotReadyFailureClass` | the non-counting readiness class of the corpus-fence deferral (#7258) |
+| `RuntimeProducerReadiness` / `RuntimeProducerState` / `RuntimeProducerDomains` | the runtime fence's producer readiness port, its per-repository state, and the enumerated producer domain set (#7816) |
+| `RuntimeNotReadyFailureClass` | the non-counting readiness class of the runtime fence deferral (#7816) |
+| `RuntimeReadinessReady` / `NoProducer` / `Deferred` / `BoundExceeded` | the closed outcome set of `eshu_dp_service_catalog_runtime_readiness_total` |
 
 ## Package boundary
 
 Imports point strictly downward. This package reaches `reducer/contract`,
 `reducer/factload`, `reducer/factdecode`, `reducer/factwrite`,
 `reducer/payloadcore`, `reducer/schemadecode`, `reducer/packages/source`,
-`internal/facts`, `internal/relationships`, `internal/telemetry`,
+`reducer/crossscope` (the #7816 runtime fence's elapsed bound and cycle
+anchor), `internal/facts`, `internal/relationships`, `internal/telemetry`,
 `internal/truth`, and the factschema SDK, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
 compatibility aliases in the service-catalog stanza of `compat_correlation.go` so its own
@@ -109,6 +114,16 @@ importing the other.
 |---|---|---|
 | correlation decisions | `eshu_dp_service_catalog_correlations_total` | `domain`, `outcome` |
 | guardrail events | `eshu_dp_service_catalog_correlation_guardrails_total` | `domain`, `guardrail` |
+| runtime readiness fence (#7816) | `eshu_dp_service_catalog_runtime_readiness_total` | `domain`, `outcome` (`ready`, `no_producer`, `deferred`, `bound_exceeded`) |
+
+The fence also logs each deferral at info ("service catalog correlation
+deferred: workload materialization in flight for a correlated repository")
+and each bound overrun at warn, with `scope_id`, `generation_id`,
+`failure_class`, `runtime_readiness_outcome`, `in_flight_repo_count`,
+`in_flight_repo_ids` (first 10), `producer_pending`, `producer_retrying`,
+`producer_claimed`, `producer_running`, `elapsed_since_cycle_start`, and
+`max_wait`. It never logs `attempt_count`, which the non-counting class
+freezes.
 
 Facts rejected for a malformed payload feed the shared
 `eshu_dp_reducer_input_invalid_facts_total` counter through `factdecode`
@@ -176,7 +191,43 @@ eshu_dp_service_catalog_correlation_guardrails_total counters asserted by
 TestServiceCatalogCorrelationCountersSeparateGuardrails record the same
 values as the baseline; only the Go spelling of the anchor key changed.
 
+### #7816 runtime readiness fence
+
+Performance Evidence (#7816): the fence adds one read-only Postgres lookup
+per service catalog pass that has a runtime loader and at least one
+correlated repository (`readiness/producer.RuntimeProducerStatesQuery`). On a
+1,057,536-row `fact_work_items` table it is an index plan with no sequential
+scan: one repository 0.12 ms, fifty repositories 2.5 ms; `pgbench`, 4
+clients, 283,482 single-repository lookups: p50 0.189 ms, p95 0.298 ms. A
+deferral adds the queue's retry delay to that pass and writes nothing. The
+runtime graph read moved earlier in the pass (before the correlation write)
+but runs the same number of times per committed pass.
+
+Observability Evidence (#7816): `eshu_dp_service_catalog_runtime_readiness_total`
+by outcome, the defer and bound-overrun logs above, and the durable
+`failure_class` `service_catalog_correlation_runtime_not_ready` on the work
+item, visible through `eshu_dp_queue_depth`,
+`eshu_dp_reducer_queue_wait_seconds`, and `fact_work_items`.
+
 ## Gotchas / invariants
+
+- **Runtime evidence is read only behind the runtime fence (#7816).**
+  `prepareServiceMaterializations` runs the corpus fence, then
+  `checkServiceRuntimeReadiness`, then `attachServiceRuntimeEvidence`, all
+  before any write. Never move the runtime read back after a write or ahead
+  of the check: a check after the read lets a producer that commits in
+  between pass the fence with an empty read in hand. The reducer default
+  wiring (`serviceCatalogRuntimeInstanceLoader`) wires no runtime loader
+  without the fence.
+- **The producer set is enumerated from source.**
+  `TestRuntimeProducerSetCoversEveryRuntimeWriter` fails when a new file
+  writes a `WorkloadInstance` node or `RUNS_ON` edge and is neither a fenced
+  producer domain nor classified with a reason. The repo_dependency shared
+  projection's `RUNS_ON` writer (`storage/cypher/canonical_relationships.go`,
+  evidence source `resolver/cross-repo`, queued on
+  `shared_projection_intents`) is classified but not fenced: a catalog read
+  while that intent is still pending can miss a platform row. Repairing a
+  generation committed on partial input is #8169.
 
 - **Do not import the reducer root from here.** If this package needs a
   symbol the root defines, hoist it to a shared-core tier

@@ -12,7 +12,7 @@ Imports point strictly downward:
 This package is a family. It may import `reducer/contract`,
 `reducer/factload`, `reducer/factdecode`, `reducer/factwrite`,
 `reducer/payloadcore`, `reducer/schemadecode`, `reducer/packages/source`,
-`internal/facts`, `internal/relationships`, `internal/telemetry`,
+`reducer/crossscope`, `internal/facts`, `internal/relationships`, `internal/telemetry`,
 `internal/truth`, and the factschema SDK. It must **never** import the parent
 `internal/reducer` package, directly or transitively.
 
@@ -91,6 +91,17 @@ root copy needs the same change — nothing enforces they stay in sync.
   `verify-dirgate.sh --digest internal/reducer` and regenerate the mirror with
   `generate-dirgate-grandfather-go.sh`. Never hand-edit either, and never
   grandfather a count upward.
+
+## The runtime readiness fence (#7816)
+
+`prepareServiceMaterializations` runs the corpus fence, then
+`checkServiceRuntimeReadiness`, then `attachServiceRuntimeEvidence`, all
+before any write. Keep that order. A new writer of `WorkloadInstance` nodes
+or `RUNS_ON` edges must be added to `runtimeProducerDomains` (if its queue is
+`fact_work_items`) or classified in `runtimeWriterClasses`
+(`service_catalog_runtime_producer_guard_test.go`) with a reason; the guard
+fails otherwise. This package imports `reducer/crossscope` for the elapsed
+bound and cycle anchor; that is a downward import to a shared tier.
 
 ## Do not
 
