@@ -83,8 +83,10 @@ High-signal invariants for this package:
   skips inline column `CONSTRAINT` clauses, and reports a Go
   `ADD CONSTRAINT <table>_pkey` against a migration's unnamed `PRIMARY KEY`
   as a gap no allowlist can exempt; name the constraint in the migration.
-  `EXCLUDE` is not reserved in PostgreSQL, but a column named `exclude`
-  reads as unresolved and needs a `ddlParityDynamicDDL` entry.
+  A constraint keyword counts only with the token its grammar needs next
+  (`CHECK (`, `PRIMARY KEY (`, `EXCLUDE USING`, `NOT NULL <column>`, and so
+  on). `EXCLUDE` is not reserved, so a column named `exclude` is read as a
+  column in CREATE TABLE and in ALTER TABLE, including a bare `ADD exclude`.
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
   without the four exact trigram GINs for file content, file relative path,
