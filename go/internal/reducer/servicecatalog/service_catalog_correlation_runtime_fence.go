@@ -161,13 +161,13 @@ func (h ServiceCatalogCorrelationHandler) checkServiceRuntimeReadiness(
 	anchor := crossscope.ReadinessCycleAnchor(intent)
 	if !anchor.IsZero() && now.Sub(anchor) >= crossscope.ProducerReadinessMaxWait {
 		h.recordRuntimeReadiness(ctx, RuntimeReadinessBoundExceeded)
-		logRuntimeReadiness(ctx, slog.LevelWarn,
+		logRuntimeReadiness(ctx, h.logger(), slog.LevelWarn,
 			"service catalog runtime readiness bound exceeded; committing the runtime evidence read now",
 			intent, now, RuntimeReadinessBoundExceeded, inFlight, totals)
 		return nil
 	}
 	h.recordRuntimeReadiness(ctx, RuntimeReadinessDeferred)
-	logRuntimeReadiness(ctx, slog.LevelInfo,
+	logRuntimeReadiness(ctx, h.logger(), slog.LevelInfo,
 		"service catalog correlation deferred: workload materialization in flight for a correlated repository",
 		intent, now, RuntimeReadinessDeferred, inFlight, totals)
 	return runtimeNotReadyError{scopeID: intent.ScopeID, generationID: intent.GenerationID, repoIDs: inFlight}
@@ -202,6 +202,13 @@ func (h ServiceCatalogCorrelationHandler) now() time.Time {
 	return time.Now()
 }
 
+func (h ServiceCatalogCorrelationHandler) logger() *slog.Logger {
+	if h.Logger != nil {
+		return h.Logger
+	}
+	return slog.Default()
+}
+
 func (h ServiceCatalogCorrelationHandler) recordRuntimeReadiness(ctx context.Context, outcome string) {
 	if h.Instruments == nil || h.Instruments.ServiceCatalogRuntimeReadiness == nil {
 		return
@@ -218,6 +225,7 @@ func (h ServiceCatalogCorrelationHandler) recordRuntimeReadiness(ctx context.Con
 // repository ids are bounded to runtimeReadinessLogRepoSample.
 func logRuntimeReadiness(
 	ctx context.Context,
+	logger *slog.Logger,
 	level slog.Level,
 	message string,
 	intent reducercontract.Intent,
@@ -247,5 +255,5 @@ func logRuntimeReadiness(
 	if anchor := crossscope.ReadinessCycleAnchor(intent); !anchor.IsZero() {
 		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))
 	}
-	slog.Default().LogAttrs(ctx, level, message, attrs...)
+	logger.LogAttrs(ctx, level, message, attrs...)
 }

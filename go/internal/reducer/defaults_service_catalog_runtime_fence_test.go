@@ -5,6 +5,8 @@ package reducer
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"testing"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -47,9 +49,13 @@ func TestServiceCatalogRuntimeLoaderRequiresTheReadinessFence(t *testing.T) {
 
 	fenced := base
 	fenced.ServiceRuntimeProducerReadiness = stubRuntimeProducerReadiness{}
+	fenced.CrossScopeReadinessLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := serviceCatalogHandlerFromDefaults(t, fenced)
 	if handler.RuntimeInstanceLoader == nil || handler.RuntimeProducerReadiness == nil {
 		t.Fatalf("runtime loader=%v readiness=%v, want both wired", handler.RuntimeInstanceLoader, handler.RuntimeProducerReadiness)
+	}
+	if handler.Logger != fenced.CrossScopeReadinessLogger {
+		t.Fatal("runtime fence logger not wired to the reducer's structured readiness logger")
 	}
 }
 

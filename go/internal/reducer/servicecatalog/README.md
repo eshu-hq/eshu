@@ -116,7 +116,9 @@ importing the other.
 | guardrail events | `eshu_dp_service_catalog_correlation_guardrails_total` | `domain`, `guardrail` |
 | runtime readiness fence (#7816) | `eshu_dp_service_catalog_runtime_readiness_total` | `domain`, `outcome` (`ready`, `no_producer`, `deferred`, `bound_exceeded`) |
 
-The fence also logs each deferral at info ("service catalog correlation
+The fence also logs, through the reducer's structured readiness logger
+(`Logger`, wired from `DefaultHandlers.CrossScopeReadinessLogger`), each
+deferral at info ("service catalog correlation
 deferred: workload materialization in flight for a correlated repository")
 and each bound overrun at warn, with `scope_id`, `generation_id`,
 `failure_class`, `runtime_readiness_outcome`, `in_flight_repo_count`,

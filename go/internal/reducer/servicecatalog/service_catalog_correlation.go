@@ -6,6 +6,7 @@ package servicecatalog
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -130,6 +131,9 @@ type ServiceCatalogCorrelationHandler struct {
 	// Now is the clock the runtime fence measures its elapsed bound against.
 	// Nil means time.Now.
 	Now func() time.Time
+	// Logger receives the runtime fence's defer and bound-overrun lines. Nil
+	// means slog.Default(); the reducer wires its structured logger.
+	Logger *slog.Logger
 	// DocumentationEvidenceLoader, when set alongside MaterializationWriter,
 	// supplies the documentation facts that reference each correlated service so
 	// the docs evidence family (#1988) is materialized into the same generation as
