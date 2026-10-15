@@ -1,0 +1,132 @@
+# testutil/failure
+
+## Purpose
+
+One copy of the failure-case harness that each #7674 route conversion used to
+carry inline. A route conversion moves a read's 500 onto
+`tracing.WriteServerFailure` behind `querycontract.WriteGraphReadError`; its
+regression proves three things per failure site: the backend error text never
+reaches the body, a stale reader answers a retryable 503, and a client cancel
+answers 499 without reading as a server fault on the span. Eleven handler
+families carried a ~200-line copy of that harness before this package.
+
+## Ownership boundary
+
+Same as the parent `testutil`: test-only, no production behavior, helpers in
+ordinary `.go` files. The route's fixed message stays a constant in the
+route's own package; the handler tracer var stays in the route's package and
+is passed here by pointer.
+
+## Exported surface
+
+- `Suite`, `Route`, `Mounter` — what a test declares: the routes, the request
+  that reaches each failure site, the fixed message, the handler constructor,
+  and the package handler tracer (`*trace.Tracer`, nil when the route opens no
+  span of its own).
+- `Run(t, suite)` — drives every route through every case and reports each
+  wrong answer as a test error named `route / case`. It opens no subtests:
+  a `t.Run` call in this non-test file would count as an unregistered query
+  callsite under `internal/queryplan`'s inventory (parent invariant 4).
+- `Check(suite, route, case)` — the same check returning an error that
+  joins every violation.
+- `Evaluate(suite, route, case)` — the violations as `[]Violation`, each
+  naming the `Assertion` it broke. `Assertions()` lists every assertion
+  `Check` makes (17, one exported constant each).
+- `Cases`, `Case`, `Kind` (`Fault`, `ClientCancel`, `InnerCancel`,
+  `ReaderFence`) and `Canary` — the failure table.
+- `Serve` and `Message` — one request on a recording tracer, and the error
+  text of a `detail` or envelope body, for single-request checks.
+
+```go
+func TestRoutesAnswerFixedServerFailures(t *testing.T) {
+	failure.Run(t, failure.Suite{
+		HandlerTracer: &cicdHandlerTracer,
+		Routes: []failure.Route{{
+			Name: "run correlations count", Path: "/api/v0/ci-cd/run-correlations/count?scope_id=s",
+			Message: runCorrelationsCountFailedMessage,
+			Handler: func(err error) failure.Mounter { return &Handler{Aggregates: failingStore{err: err}} },
+		}},
+	})
+}
+```
+
+## What Check asserts
+
+Each row below is one or more `Assertion` constants, evaluated independently,
+so a route wrong in two ways reports both. For every case the body carries no
+`Canary` token (credential, host, relation, Cypher). Then by kind:
+
+| Kind | Status | Body | Span |
+| --- | --- | --- | --- |
+| `Fault` | 500 | fixed message | Error, description = message, 1 exception, no cancel event |
+| `ClientCancel` | 499 | fixed message | Unset, 0 exceptions, 1 cancel event with no attributes |
+| `InnerCancel` | 500 | fixed message | same as `Fault` |
+| `ReaderFence` | 503 | `backend_unavailable` envelope + `Retry-After` | not checked |
+
+With a `HandlerTracer`, exactly one span must open directly under the test's
+`request` span (`OneHandlerSpan`), and that is the span checked; without one
+the `request` span itself is checked, standing in for the otelhttp server
+span. The fault description is checked only when the status is Error, so an
+Unset fault span reports `FaultSpanError` alone.
+
+## Gotchas / invariants
+
+- `Serve` swaps the package tracer var named by `Suite.HandlerTracer` for the
+  request and restores it before returning; `Run`, `Check`, and `Evaluate`
+  reach it through `Serve`, and a route test may call `Serve` directly (the
+  incident 404 test does). Any test whose suite sets `HandlerTracer` must not
+  be parallel.
+- `InnerCancel` is the case that keeps the `tracing.ClientCanceled`
+  conjunction honest: a route that answers 499 for any `context.Canceled`
+  passes the client-cancel case and fails this one.
+- A route whose handler fake checks the request context before returning the
+  injected error never reaches the failure step on `ClientCancel`. Make the
+  fake return the injected error unconditionally.
+
+## Proof
+
+`check_test.go` drives a converted sample route (GREEN, in both span modes).
+`samples_test.go` holds one wrong sample route per `Assertion`, each wrong in
+exactly one way. `TestEveryAssertionHasOneWrongSample` requires the sample list
+and `Assertions()` to match one for one, and
+`TestCheckCatchesEachWrongSampleOnItsAssertionOnly` requires each sample to
+violate its own assertion and no other. `TestEveryReportedAssertionIsListed`
+type-checks the package and requires every constant-valued `Assertion`
+expression in check code to be a declared `Assertion` constant listed in
+`Assertions()`, and every listed one to be reported somewhere. It inspects
+constant values only: an `Assertion` held in a package-scope `var`, or a
+conversion of a non-constant value, is outside it. Those are excluded by the
+`AGENTS.md` rule that every assertion is a declared constant, which review
+enforces, not this test. `TestCanaryScanChecksEveryToken` drives one route per canary token
+that leaks only that token (credential, host, relation, Cypher) and requires
+a `NoCanaryInBody` violation and nothing else. Weakening any assertion,
+dropping a canary token, or reporting an unlisted constant `Assertion`
+therefore turns the package RED. This was run as 21 `go test -overlay` mutants plus the
+review's K1 (one canary token) and K2 (an unlisted assertion), all RED
+(#7674 slice 5 PR body). The type-check test reads source from disk, so
+mutate `check.go` on disk for it, not with `-overlay`.
+
+## Remainder
+
+Three families still carry an inline copy (`service`, `terraform/drift`,
+`workitem`), and nine more carry a custom harness this one does not yet cover
+(stage logs, a 504 fault status, write paths with no fence, sentinel 503s).
+#8172 tracks moving them here.
+
+No-Regression Evidence: test-only package with no production importer
+(`internal/queryplan`'s production-import guard rejects one). The `MATCH (n)`
+in `harness.go` is canary text inside the `Canary` string, standing in for a
+Cypher fragment a backend error might quote; no query runs here, and the
+queryplan callsite inventory (`TestHotCypherManifestCoversEveryProductionQueryCall`)
+passes with this package in the tree. The retrofitted families' production
+code is unchanged, so their read paths, bounds, and costs are unchanged.
+
+No-Observability-Change: test-only package; it emits nothing at runtime. It
+asserts the existing handler-span signals (`exception` event, Error status,
+`eshu.request.client_canceled`) that `tracing.WriteServerFailure` already
+emits.
+
+## Related docs
+
+- `../README.md` and `../AGENTS.md` — the `testutil` contract.
+- `../../tracing/README.md` — `WriteServerFailure` and the cancel rule.

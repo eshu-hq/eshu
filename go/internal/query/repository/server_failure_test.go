@@ -141,15 +141,17 @@ func serveRepoServerFailure(t *testing.T, handler *Handler, path, message string
 		t.Fatalf("status = %d, want %d; body = %s", rec.Code, tc.wantStatus, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if strings.Contains(body, "private") || strings.Contains(body, "did not match") {
-		t.Fatalf("body leaked backend or selector error text: %s", body)
+	for _, leaked := range []string{"private", "did not match", "hunter2", "db.internal", "content_files"} {
+		if strings.Contains(body, leaked) {
+			t.Fatalf("body leaked backend or selector error text %q: %s", leaked, body)
+		}
 	}
 	if tc.wantStatus == http.StatusServiceUnavailable {
 		if rec.Header().Get("Retry-After") == "" {
 			t.Fatal("reader fence 503 is missing Retry-After")
 		}
-	} else if !strings.Contains(body, message) {
-		t.Fatalf("body = %s, want the fixed %q", body, message)
+	} else if got := repoFailureDetail(t, body); got != message {
+		t.Fatalf("body detail = %q, want the fixed %q; body = %s", got, message, body)
 	}
 
 	ended := recorder.Ended()

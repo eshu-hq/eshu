@@ -3,7 +3,11 @@
 
 package codeowners
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
+)
 
 // TestCodeownersOwnershipAnswersFixedServerFailures is the #7674 regression
 // for both reads of GET /api/v0/codeowners/ownership. Each answered 500 with
@@ -11,18 +15,18 @@ import "testing"
 // parallel: it swaps queryHandlerTracer.
 func TestCodeownersOwnershipAnswersFixedServerFailures(t *testing.T) {
 	const path = "/api/v0/codeowners/ownership?repository_id=repository:r_payments&limit=10"
-	runServerFailureRoutes(t, []serverFailureRoute{
+	failure.Run(t, failure.Suite{HandlerTracer: &queryHandlerTracer, Routes: []failure.Route{
 		{
-			name: "ownership rows", path: path, message: codeownersOwnershipReadFailedMessage,
-			handler: func(err error) serverFailureMounter {
+			Name: "ownership rows", Path: path, Message: codeownersOwnershipReadFailedMessage,
+			Handler: func(err error) failure.Mounter {
 				return &Handler{Neo4j: &recordingCodeownersGraphReader{runErr: err}}
 			},
 		},
 		{
-			name: "effective owner", path: path, message: codeownersEffectiveOwnerFailedMessage,
-			handler: func(err error) serverFailureMounter {
+			Name: "effective owner", Path: path, Message: codeownersEffectiveOwnerFailedMessage,
+			Handler: func(err error) failure.Mounter {
 				return &Handler{Neo4j: &recordingCodeownersGraphReader{singleErr: err}}
 			},
 		},
-	})
+	}})
 }

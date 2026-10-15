@@ -5,7 +5,6 @@ package repository
 
 import (
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -54,10 +53,7 @@ func (h *Handler) getRepositoryContent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	repoRef, _, err := h.repositoryStatsRepositoryRef(ctx, repoID)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository failed: %v", err))
+		writeReadFailure(w, r, err, "code_search.content_search", repositoryContentLookupFailedMessage)
 		return
 	}
 	if repoRef == nil {
@@ -71,7 +67,7 @@ func (h *Handler) getRepositoryContent(w http.ResponseWriter, r *http.Request) {
 	}
 	fc, err := h.Content.GetFileContent(ctx, repoID, relativePath)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("read file content failed: %v", err))
+		writeReadFailure(w, r, err, "code_search.content_search", repositoryContentReadFailedMessage)
 		return
 	}
 	if fc == nil {
@@ -79,10 +75,10 @@ func (h *Handler) getRepositoryContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if status, message, err := readmodel.ValidateSelectedRepositoryRef(ctx, h.Content, repoID, requestedRef, fc.CommitSHA); err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
+		writeReadFailure(w, r, err, "code_search.content_search", repositoryContentRefsFailedMessage)
 		return
 	} else if status != 0 {
-		querycontract.WriteError(w, status, message)
+		writeRefVerdict(w, status, message)
 		return
 	}
 

@@ -84,11 +84,7 @@ func (h *Handler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.R
 		if selector.WriteLookupFailure(w, r, err) {
 			return "", false
 		}
-		status := http.StatusBadRequest
-		if selector.IsNotFound(err) {
-			status = http.StatusNotFound
-		}
-		querycontract.WriteError(w, status, err.Error())
+		writeSelectorAnswer(w, r, err)
 		return "", false
 	}
 	return repoID, true

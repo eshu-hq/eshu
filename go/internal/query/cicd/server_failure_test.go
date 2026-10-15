@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 )
 
 // TestCICDRoutesAnswerFixedServerFailures is the #7674 regression for every
@@ -15,25 +16,25 @@ import (
 // reader-fence 503, and answered a client cancel as a server fault. Not
 // parallel: it swaps cicdHandlerTracer.
 func TestCICDRoutesAnswerFixedServerFailures(t *testing.T) {
-	runServerFailureRoutes(t, []serverFailureRoute{
+	failure.Run(t, failure.Suite{HandlerTracer: &cicdHandlerTracer, Routes: []failure.Route{
 		{
-			name: "run correlations list", path: "/api/v0/ci-cd/run-correlations?scope_id=scope-1&limit=10",
-			message: runCorrelationsListFailedMessage,
-			handler: func(err error) serverFailureMounter {
+			Name: "run correlations list", Path: "/api/v0/ci-cd/run-correlations?scope_id=scope-1&limit=10",
+			Message: runCorrelationsListFailedMessage,
+			Handler: func(err error) failure.Mounter {
 				return &Handler{Correlations: failingRunCorrelationStore{err: err}}
 			},
 		},
 		{
-			name: "run correlations count", path: "/api/v0/ci-cd/run-correlations/count?scope_id=scope-1",
-			message: runCorrelationsCountFailedMessage,
-			handler: func(err error) serverFailureMounter { return &Handler{Aggregates: failingAggregateStore{err: err}} },
+			Name: "run correlations count", Path: "/api/v0/ci-cd/run-correlations/count?scope_id=scope-1",
+			Message: runCorrelationsCountFailedMessage,
+			Handler: func(err error) failure.Mounter { return &Handler{Aggregates: failingAggregateStore{err: err}} },
 		},
 		{
-			name: "run correlations inventory", path: "/api/v0/ci-cd/run-correlations/inventory?scope_id=scope-1&limit=10",
-			message: runCorrelationsInventoryFailedMessage,
-			handler: func(err error) serverFailureMounter { return &Handler{Aggregates: failingAggregateStore{err: err}} },
+			Name: "run correlations inventory", Path: "/api/v0/ci-cd/run-correlations/inventory?scope_id=scope-1&limit=10",
+			Message: runCorrelationsInventoryFailedMessage,
+			Handler: func(err error) failure.Mounter { return &Handler{Aggregates: failingAggregateStore{err: err}} },
 		},
-	})
+	}})
 }
 
 // failingRunCorrelationStore fails the run-correlation list read with err.
