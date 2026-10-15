@@ -234,7 +234,7 @@ status.
 A scope has at most one active generation, named by
 `ingestion_scopes.active_generation_id`. Promotion happens at projection
 acknowledgement, not at commit. When a projector finishes a generation's work,
-`ProjectorQueue.Ack` (`go/internal/storage/postgres/projector_queue.go`) runs
+`ProjectorQueue.Ack` (`go/internal/storage/postgres/projector_queue_ack.go`) runs
 five ordered steps in a single transaction:
 
 1. Update the scope's `active_generation_id` to the target, locking the scope.
