@@ -37,8 +37,10 @@ gate_targets() {
   # The gate script's scan targets, one per line, parsed from its targets
   # array so this skeleton cannot drift from the gate (#7918 P2): adding a
   # target to the gate without updating this mirror changes the parse output
-  # the skeleton is built from, never a hardcoded list.
-  sed -n '/^targets=(/,/^)/p' "$gate" | rg -o '"[^"]+"' | tr -d '"'
+  # the skeleton is built from, never a hardcoded list. Only lines starting
+  # with optional whitespace plus a quote are target lines: a future comment
+  # containing quotes must not inject a phantom skeleton target.
+  sed -n '/^targets=(/,/^)/p' "$gate" | rg '^[[:space:]]*"' | rg -o '"[^"]+"' | tr -d '"'
 }
 
 new_repo() {
@@ -152,23 +154,28 @@ printf '%s\n' "$repo" >>"$tmp_list"
 seed "$repo" apps/console/src/api/fixture.test.ts 'label: "example-shop",'
 check "missing target directory exits 2" 2 "$(run_gate "$repo")"
 
-# 10. SYNC: every go/internal/query file target of the gate appears in the
-# gates-02.yaml triggers, so a renamed target cannot silently lose CI
-# selection (#7918 P2).
+# 10. SYNC: every go/internal/query file target of the gate appears in this
+# gate's triggers block in gates-02.yaml, so a renamed target cannot silently
+# lose CI selection (#7918 P2). The search is scoped to the triggers block: a
+# target mentioned in a comment or under self_test_triggers elsewhere in the
+# file must not satisfy it.
 triggers_yaml="${script_dir}/../specs/ci-gates.d/gates-02.yaml"
+triggers_block="$(mktemp)"
+printf '%s\n' "$triggers_block" >>"$tmp_list"
+sed -n '/id: answer-demo-fixtures-sanitized/,/self_test_triggers:/p' "$triggers_yaml" | sed -n '/^ *triggers:/,$p' | sed '$d' >"$triggers_block"
 sync_failures=0
 while IFS= read -r sync_target; do
   [ -n "$sync_target" ] || continue
   case "$sync_target" in
     *.go)
-      if ! rg -q --fixed-strings -- "\"$sync_target\"" "$triggers_yaml"; then
-        printf 'FAIL trigger sync: gate file target %s not in gates-02.yaml triggers\n' "$sync_target" >&2
+      if ! rg -q --fixed-strings -- "- \"$sync_target\"" "$triggers_block"; then
+        printf 'FAIL trigger sync: gate file target %s not in this gate triggers block\n' "$sync_target" >&2
         sync_failures=$((sync_failures + 1))
       fi
       ;;
   esac
 done < <(gate_targets)
-check "gate file targets are gates-02.yaml triggers" 0 "$sync_failures"
+check "gate file targets are this gate triggers" 0 "$sync_failures"
 
 if [ "$failures" -ne 0 ]; then
   printf '%s case(s) failed\n' "$failures" >&2
