@@ -39,6 +39,29 @@ const (
 	// RepositorySelectionSelectorKindExplicit is an explicit-mode collector
 	// recording which configured repositories it selects.
 	RepositorySelectionSelectorKindExplicit = "explicit"
+	// RepositorySelectionSelectorKindGitLabGroup is a gitlabGroup collector
+	// evaluating a complete group listing, including subgroups (#7765).
+	RepositorySelectionSelectorKindGitLabGroup = "gitlab_group"
+)
+
+// Closed outcome values for
+// eshu_dp_collector_repository_listing_requests_total (#7765): one GitLab
+// group listing or group resolve request.
+const (
+	// RepositoryListingOutcomeSuccess means the request decoded a page.
+	RepositoryListingOutcomeSuccess = "success"
+	// RepositoryListingOutcomeRetried means a retryable status or transport
+	// fault was retried; the request still ended in another outcome.
+	RepositoryListingOutcomeRetried = "retried"
+	// RepositoryListingOutcomeRateLimited means 429s exhausted the retry
+	// budget.
+	RepositoryListingOutcomeRateLimited = "rate_limited"
+	// RepositoryListingOutcomeHTTPError means a final HTTP status failed it.
+	RepositoryListingOutcomeHTTPError = "http_error"
+	// RepositoryListingOutcomeTransportError means the network failed it.
+	RepositoryListingOutcomeTransportError = "transport_error"
+	// RepositoryListingOutcomeDecodeError means the body did not decode.
+	RepositoryListingOutcomeDecodeError = "decode_error"
 )
 
 // Closed state values for eshu_dp_collector_repository_selection_scopes
@@ -62,23 +85,29 @@ const (
 )
 
 // registerRepositorySelection registers the #7625 repository selection
-// evaluation counter and scope gauge, and the #7774 expired-row deletion
-// counter, on inst. Labels are closed sets
-// (collector_kind, selector_kind, outcome, state); repository slugs ride only
-// on logs.
+// evaluation counter and scope gauge, the #7774 expired-row deletion
+// counter, and the #7765 GitLab listing request counter, on inst. Labels
+// are closed sets (collector_kind, selector_kind, outcome, state,
+// provider); repository slugs ride only on logs.
 func registerRepositorySelection(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.RepositorySelectionEvaluations, err = meter.Int64Counter(
 		"eshu_dp_collector_repository_selection_evaluations_total",
-		metric.WithDescription("Git collector repository selection evaluations by collector_kind, selector_kind (github_org, explicit), and outcome (evaluated, listing_truncated, guard_tripped, store_error) (#7625)"),
+		metric.WithDescription("Git collector repository selection evaluations by collector_kind, selector_kind (github_org, explicit, gitlab_group), and outcome (evaluated, listing_truncated, guard_tripped, store_error) (#7625, #7765)"),
 	); err != nil {
 		return fmt.Errorf("register RepositorySelectionEvaluations counter: %w", err)
 	}
 	if inst.RepositorySelectionScopes, err = meter.Int64Gauge(
 		"eshu_dp_collector_repository_selection_scopes",
-		metric.WithDescription("Known repository scopes of the evaluating githubOrg selector by collector_kind and state (selected, not_listed_pending, not_listed, archived_excluded, rule_excluded), sampled after each evaluated cycle (#7625)"),
+		metric.WithDescription("Known repository scopes of the evaluating githubOrg or gitlabGroup selector by collector_kind and state (selected, not_listed_pending, not_listed, archived_excluded, rule_excluded), sampled after each evaluated cycle (#7625, #7765)"),
 	); err != nil {
 		return fmt.Errorf("register RepositorySelectionScopes gauge: %w", err)
+	}
+	if inst.RepositoryListingRequests, err = meter.Int64Counter(
+		"eshu_dp_collector_repository_listing_requests_total",
+		metric.WithDescription("Git collector repository listing requests by collector_kind, provider (gitlab), and outcome (success, retried, rate_limited, http_error, transport_error, decode_error) (#7765)"),
+	); err != nil {
+		return fmt.Errorf("register RepositoryListingRequests counter: %w", err)
 	}
 	if inst.RepositorySelectionObservationsDeleted, err = meter.Int64Counter(
 		"eshu_dp_collector_repository_selection_observations_deleted_total",
