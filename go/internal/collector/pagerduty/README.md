@@ -143,12 +143,20 @@ The chart renders the Deployment, metrics Service, ServiceMonitor,
 NetworkPolicy, and PDB while preserving the claim-driven workflow-coordinator
 boundary.
 
-Unchanged-generation decision (#8003): this collector sends a stable hint.
-`freshnessHint` covers the sorted stable keys (identities) of the emitted
-envelopes, so identical PagerDuty state at a later tick shares the hint and
-the store skips the duplicate instead of minting per tick.
-`TestIdenticalCollectionsSkipSecondGeneration` proves identical claimed
-collections share one hint and the store skips the second generation. No
-production change was needed for identical-state skip: the pre-existing hint
-already covered envelope identities. Same-key payload drift stays as deferred
-follow-up work and does not change this hint.
+Unchanged-generation decision (#8003, status fold #8149): this collector
+sends a stable content hint. `freshnessHint` covers the sorted keyed payload
+digests of the emitted envelopes — each entry covers its fact kind, stable
+key (identity), and full payload — so identical PagerDuty state at a later
+tick shares the hint and the store skips the duplicate instead of minting
+per tick. `TestIdenticalCollectionsSkipSecondGeneration` proves identical
+claimed collections share one hint and the store skips the second
+generation.
+Same-key payload drift stores a new generation. These emitted payload fields
+move the hint: incident status, urgency, priority, assignments, teams,
+service and escalation references, title, and created/updated/resolved
+timestamps, plus lifecycle-event, change-event, config
+(service/integration), and warning payload changes. These stay out of the
+hint: raw provider body content that never reaches an envelope, and envelope
+transport metadata (fact and generation IDs, fencing token, and the
+collection-clock observed_at). `TestStatusOnlyChangeStoresNewGeneration`
+proves a status-only change with no new lifecycle event stores.

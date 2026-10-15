@@ -6,7 +6,6 @@ package pagerduty
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -323,15 +322,6 @@ func fetchStatusClass(result CollectionResult, configResult ConfigCollectionResu
 		return "partial"
 	}
 	return "success"
-}
-
-func freshnessHint(envs []facts.Envelope) string {
-	keys := make([]string, 0, len(envs))
-	for _, env := range envs {
-		keys = append(keys, env.StableFactKey)
-	}
-	sort.Strings(keys)
-	return facts.StableID("pagerduty.collection.freshness", map[string]any{"stable_fact_keys": keys})
 }
 
 func cleanStrings(values []string) []string {
