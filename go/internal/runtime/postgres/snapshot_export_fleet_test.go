@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -182,6 +183,35 @@ func TestFleetConcurrentSetsReadsAndVerdictFlipsAreRaceFree(t *testing.T) {
 	}
 	if declared.exports.Load() == 0 {
 		t.Fatal("declared member never served a set")
+	}
+	assertAllocatorIdle(t, access)
+}
+
+// TestFleetPerBorrowExclusionKeepsSiblingCapacityClassification proves an
+// export exclusion is not a setup failure: when the stale member is excluded
+// and the qualified sibling's admission wait then expires, the caller still
+// gets the capacity marker (its fenced single-statement path), not the
+// permanent refusal and not an unclassified failure.
+func TestFleetPerBorrowExclusionKeepsSiblingCapacityClassification(t *testing.T) {
+	stale, busy := &exportSpyStats{}, &exportSpyStats{}
+	access, ctx := newExportSpyFleetAccess(t, patchedBuild, newExportSpyObserver(),
+		exportSpyMember{stats: stale, version: "18.6", versionNum: 180006},
+		exportSpyMember{stats: busy, version: "18.6 (eshu-pg r2)", versionNum: 180006},
+	)
+	access.replayTimeout = 60 * time.Millisecond
+	access.readerMembers[0].snapshotExport.observe("18.6 (eshu-pg r2)", 180006, true)
+	held, err := access.allocator.reserve(ctx, []int{1}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access.nextReader.Store(0)
+	set, err := (fencedQueryer{access: access}).BeginReadOnlySnapshotSet(ctx, 4)
+	held.Release()
+	if set != nil || !errors.Is(err, db.ErrSnapshotReservationCapacity) || errors.Is(err, db.ErrSnapshotExportUnqualified) {
+		t.Fatalf("stale member plus saturated sibling: set=%v err=%v, want capacity marker only", set, err)
+	}
+	if stale.exports.Load() != 0 || busy.exports.Load() != 0 {
+		t.Fatalf("exports stale=%d busy=%d", stale.exports.Load(), busy.exports.Load())
 	}
 	assertAllocatorIdle(t, access)
 }

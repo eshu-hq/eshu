@@ -183,15 +183,18 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 			return result, nil
 		}
 		reservation.Release()
-		failures = errors.Join(failures, attemptErr)
 		var unqualified memberSnapshotExportUnqualified
 		if errors.As(attemptErr, &unqualified) {
 			// The member's own connection reported an unqualified build
-			// (#7957); a qualified sibling may still serve this set.
+			// (#7957); a qualified sibling may still serve this set. The
+			// exclusion is not a setup failure of a qualified member, so it
+			// stays out of failures and a later sibling admission wait keeps
+			// its capacity classification.
 			excluded[reservation.member] = true
 			exportExcluded++
 			continue
 		}
+		failures = errors.Join(failures, attemptErr)
 		if sharedFleetFailure(bounded, attemptErr) {
 			return zero, attemptErr
 		}
