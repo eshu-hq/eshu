@@ -145,6 +145,11 @@ func readLock(path string) (lockIndex, bool) {
 // first. Build it once per file with LocksFor and ask it per class.
 type Locks struct {
 	indexes []lockIndex
+	// ownPrefixes are the namespace prefixes the consumer's own composer.json
+	// files (file directory up to the repository root) autoload; ownFallback
+	// is true when one of them is the empty fallback.
+	ownPrefixes []string
+	ownFallback bool
 }
 
 // LocksFor reads every composer.lock from path's directory up to repoRoot,
@@ -161,24 +166,38 @@ func LocksFor(repoRoot string, path string) Locks {
 		if index, ok := readLock(filepath.Join(dir, "composer.lock")); ok && index.size() > 0 {
 			locks.indexes = append(locks.indexes, index)
 		}
+		if own, ok := readManifest(filepath.Join(dir, "composer.json")); ok {
+			locks.ownPrefixes = append(locks.ownPrefixes, own.ownPrefixes...)
+			locks.ownFallback = locks.ownFallback || own.ownFallback
+		}
 	}
 	return locks
 }
 
-// Empty reports whether the chain holds no lock that could key a class.
+// Empty reports whether the chain can key no class: it holds no lock, or the
+// consumer's own composer.json claims every namespace with the empty fallback.
 func (l Locks) Empty() bool {
-	return len(l.indexes) == 0
+	return len(l.indexes) == 0 || l.ownFallback
 }
 
 // Package returns the composer package that provides the class fqcn, or ""
 // when none can be proven. The first lock, nearest first, whose packages or
 // packages-dev autoload a prefix covering fqcn decides: the longest covering
 // prefix wins, and a tie between packages, a psr-0 prefix, or a name outside
-// the composer grammar yields "". A lock lists only installed dependencies,
-// never the root package, so the consumer's own classes are never resolved.
+// the composer grammar yields "". A class under a namespace the consumer's own
+// composer.json files autoload is never keyed, even when a locked package
+// declares the same prefix: the lock lists only installed dependencies, but a
+// dependency can claim a namespace the application also uses (laravel/pint
+// declares App\, the namespace of every Laravel application), and binding
+// the application's own class to it would be a false link.
 func (l Locks) Package(fqcn string) string {
-	if fqcn == "" {
+	if fqcn == "" || l.ownFallback {
 		return ""
+	}
+	for _, prefix := range l.ownPrefixes {
+		if strings.HasPrefix(fqcn, prefix) {
+			return ""
+		}
 	}
 	for _, index := range l.indexes {
 		if name, covered := index.lookup(fqcn); covered {

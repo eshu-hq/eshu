@@ -22,6 +22,11 @@ Composer manifest reads for the PHP cross-repository call keys (#7601).
 - Consumer: the first lock (nearest first) with a covering prefix decides. The
   longest covering prefix wins; a tie between packages, a `psr-0` prefix, or a
   name outside the grammar yields no key and stops the walk.
+- Consumer: a class under a namespace the consumer's own `composer.json` files
+  autoload (`autoload` or `autoload-dev`, `psr-4` or `psr-0`, file directory up
+  to the repository root) is never keyed, whatever the lock says. A dev tool
+  such as `laravel/pint` declares `App\\`, the namespace of every Laravel
+  application, and would otherwise capture the application's own classes.
 - Every `""` is a miss, never a guess: the reducer resolves a key only when
   exactly one definition carries it.
 

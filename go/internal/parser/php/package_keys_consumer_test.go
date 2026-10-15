@@ -245,3 +245,34 @@ func assertPHPNoConsumerKeys(t *testing.T, payload map[string]any) {
 		}
 	}
 }
+
+// TestDefaultEngineParsePathPHPSkipsConsumerKeysForOwnNamespaces pins the
+// false link the public-corpus redraw found: monicahq/monica locks
+// laravel/pint, whose composer.json declares psr-4 App\, so every App\ class
+// of the application was keyed to laravel/pint. A class under a namespace the
+// consumer's own composer.json autoloads (autoload or autoload-dev, psr-4 or
+// psr-0) is never keyed, whatever the lock says.
+func TestDefaultEngineParsePathPHPSkipsConsumerKeysForOwnNamespaces(t *testing.T) {
+	t.Parallel()
+
+	source := "<?php\nnamespace App\\Http;\n\nuse App\\Models\\User;\nuse Tests\\Support\\Factory;\nuse Acme\\Logging\\Logger;\n\nfunction run() {\n    $a = User::find(1);\n    $b = new Factory();\n    $c = new Logger();\n}\n"
+	got := parsePHPProducerRepo(t, map[string]string{
+		"composer.json": `{"name": "acme/app", "autoload": {"psr-4": {"App\\": "app/"}}, "autoload-dev": {"psr-4": {"Tests\\": "tests/"}}}`,
+		"composer.lock": `{"packages": [
+			{"name": "acme/logging", "autoload": {"psr-4": {"Acme\\Logging\\": "src/"}}}
+		], "packages-dev": [
+			{"name": "laravel/pint", "autoload": {"psr-4": {"App\\": "app/", "Tests\\": "tests/"}}}
+		]}`,
+		"app/Http/run.php": source,
+	}, "app/Http/run.php")
+	for _, tc := range []struct{ marker, fullName string }{
+		{"$a = User::find(1);", "User.find"},
+		{"$b = new Factory();", "Factory"},
+	} {
+		if value, ok := phpCallOnLine(t, got, source, tc.marker, tc.fullName)["package_export_symbol"]; ok {
+			t.Errorf("%s: package_export_symbol = %#v, want absent (own namespace)", tc.marker, value)
+		}
+	}
+	parsertest.AssertStringFieldValue(t, phpCallOnLine(t, got, source, "$c = new Logger();", "Logger"),
+		"package_export_symbol", `package:acme/logging#Acme\Logging\Logger`)
+}

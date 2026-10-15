@@ -20,11 +20,18 @@ type psr4Mapping struct {
 	dirs   []string
 }
 
-// manifest is the part of a composer.json the producer rule reads. name is
-// empty when the document has no name in the composer grammar.
+// manifest is the part of a composer.json the key rules read. name is empty
+// when the document has no name in the composer grammar. psr4 holds the
+// producer mappings. ownPrefixes holds every namespace prefix the manifest
+// autoloads from its own tree (psr-4 and psr-0, autoload and autoload-dev,
+// the empty fallback included) for the consumer rule.
 type manifest struct {
-	name string
-	psr4 []psr4Mapping
+	name        string
+	psr4        []psr4Mapping
+	ownPrefixes []string
+	// ownFallback is true when an own prefix is the empty fallback, which
+	// claims every namespace for the manifest's tree.
+	ownFallback bool
 }
 
 // manifestCache memoizes parsed composer.json files by (path, stat), the same
@@ -50,24 +57,41 @@ func ManifestName(content []byte) string {
 	return name
 }
 
-// parseManifest reads the name and the autoload psr-4 map of a composer.json
-// document. autoload-dev is ignored on purpose: composer loads it for the root
-// package only, so no consumer can ever reach those classes. classmap, files,
-// and psr-0 are ignored too: none of them proves which file holds a class from
-// its name alone. An empty prefix (the psr-4 fallback for every namespace) and
-// a prefix without the trailing '\' composer requires are dropped.
+// parseManifest reads the name, the producer psr-4 map, and the own prefixes
+// of a composer.json document. Producer mappings come from autoload.psr-4
+// only: autoload-dev is loaded for the root package alone, so no consumer can
+// reach those classes, and classmap, files, and psr-0 do not prove which file
+// holds a class from its name. An empty prefix (the psr-4 fallback for every
+// namespace) and a prefix without the trailing '\' composer requires produce
+// no mapping. The own prefixes take every autoload and autoload-dev psr-4 and
+// psr-0 key, because a class under any of them can live in the manifest's own
+// tree.
 func parseManifest(content []byte) manifest {
-	var document struct {
-		Autoload struct {
-			PSR4 map[string]any `json:"psr-4"`
-		} `json:"autoload"`
+	type autoload struct {
+		PSR4 map[string]any `json:"psr-4"`
+		PSR0 map[string]any `json:"psr-0"`
 	}
-	parsed := manifest{name: ManifestName(content)}
-	if parsed.name == "" {
-		return parsed
+	var document struct {
+		Autoload    autoload `json:"autoload"`
+		AutoloadDev autoload `json:"autoload-dev"`
 	}
 	if err := json.Unmarshal(content, &document); err != nil {
 		return manifest{}
+	}
+	parsed := manifest{name: ManifestName(content)}
+	for _, section := range []autoload{document.Autoload, document.AutoloadDev} {
+		for _, keys := range []map[string]any{section.PSR4, section.PSR0} {
+			for rawPrefix := range keys {
+				if prefix := normalizePrefix(rawPrefix); prefix != "" {
+					parsed.ownPrefixes = append(parsed.ownPrefixes, prefix)
+				} else {
+					parsed.ownFallback = true
+				}
+			}
+		}
+	}
+	if parsed.name == "" {
+		return parsed
 	}
 	for rawPrefix, value := range document.Autoload.PSR4 {
 		prefix := normalizePrefix(rawPrefix)

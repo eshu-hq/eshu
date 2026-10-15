@@ -106,10 +106,26 @@ func TestExtractRowsKeepsLaravelStyleOwnClassOutOfAnotherRepository(t *testing.T
 		"app/Http/Controller.php": "<?php\nnamespace App\\Http;\n\nuse App\\Models\\User;\n\nclass Controller\n{\n    public function show(): void\n    {\n        User::find(1);\n        new User();\n    }\n}\n",
 	})
 
-	_, rows := ExtractRows(append(consumer.envelopes, other.envelopes...))
-	for callee := range callRowsFrom(rows, "uid:repo-app:show") {
-		if strings.HasPrefix(callee, "uid:repo-other-app:") {
-			t.Fatalf("show resolved into the other application: %s", callee)
+	// A locked dev tool that declares the same App\ prefix (laravel/pint does)
+	// and defines the same class must not capture the application's own call.
+	pint := parsePackageKeyRepo(t, "repo-pint", map[string]string{
+		"composer.json":       `{"name": "laravel/pint", "autoload": {"psr-4": {"App\\": "app/"}}}`,
+		"app/Models/User.php": userModel,
+	})
+	pintConsumer := parsePackageKeyRepo(t, "repo-app-with-pint", map[string]string{
+		"composer.json":           `{"name": "acme/app", "autoload": {"psr-4": {"App\\": "app/"}}}`,
+		"composer.lock":           `{"packages-dev": [{"name": "laravel/pint", "autoload": {"psr-4": {"App\\": "app/"}}}]}`,
+		"app/Http/Controller.php": "<?php\nnamespace App\\Http;\n\nuse App\\Models\\User;\n\nclass Controller\n{\n    public function index(): void\n    {\n        User::find(1);\n        new User();\n    }\n}\n",
+	})
+
+	envelopes := append(consumer.envelopes, other.envelopes...)
+	envelopes = append(envelopes, pint.envelopes...)
+	_, rows := ExtractRows(append(envelopes, pintConsumer.envelopes...))
+	for _, caller := range []string{"uid:repo-app:show", "uid:repo-app-with-pint:index"} {
+		for callee := range callRowsFrom(rows, caller) {
+			if strings.HasPrefix(callee, "uid:repo-other-app:") || strings.HasPrefix(callee, "uid:repo-pint:") {
+				t.Fatalf("%s resolved into another repository: %s", caller, callee)
+			}
 		}
 	}
 }
