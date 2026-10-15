@@ -15,6 +15,15 @@ const (
 	MetricReaderMemberReservations = "eshu_dp_postgres_reader_member_reservations"
 	MetricReaderMemberWaiters      = "eshu_dp_postgres_reader_member_waiters"
 	MetricReaderMemberAttempts     = "eshu_dp_postgres_reader_member_attempts_total"
+	// MetricReaderSnapshotExportQualified reports 1 when a reader pool, or
+	// each fleet member by member_ordinal, runs a build qualified for
+	// shared-snapshot export (#7957), and 0 when every snapshot set it would
+	// serve is refused.
+	MetricReaderSnapshotExportQualified = "eshu_dp_postgres_reader_snapshot_export_qualified"
+	// MetricReaderSnapshotExportDenials counts snapshot sets refused because
+	// no reader target was qualified, by closed reason (no_declaration or
+	// undeclared_build).
+	MetricReaderSnapshotExportDenials = "eshu_dp_postgres_reader_snapshot_export_denials_total"
 )
 
 const (
@@ -23,6 +32,7 @@ const (
 	readerAttributeOutcome       = "outcome"
 	readerAttributeState         = "state"
 	readerAttributeMemberOrdinal = "member_ordinal"
+	readerAttributeReason        = "reason"
 	readerUnknown                = "unknown"
 	readerAccessSpanName         = "postgres.reader_access"
 	readerQueryStartEventName    = "postgres.reader_query_start"

@@ -60,6 +60,19 @@ to identify the pressured member. `eshu_dp_postgres_reader_member_attempts_total
 counts each fleet attempt by original `member_ordinal` and a closed `outcome`
 (`ok`, `error`, `deadline`, or `canceled`). An error rate on one ordinal beside
 successful attempts on another shows failover without exposing the endpoint.
+`eshu_dp_postgres_reader_snapshot_export_qualified` is `1` when the reader
+build may export a shared snapshot (PostgreSQL 18.7 or later, or a build
+declared exactly in `ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS`) and `0` when
+every shared-snapshot read it would serve is refused (#7957). It has no label
+for a single reader pool and one `member_ordinal` series per live fleet member;
+it is not the bootstrap membership signal `eshu_dp_postgres_reader_member_qualified`.
+The scrape reads the in-memory verdict that every reader borrow refreshes, so
+it runs no SQL. `eshu_dp_postgres_reader_snapshot_export_denials_total` counts
+refused shared-snapshot reads by a closed `reason`: `no_declaration` (no build
+declared) or `undeclared_build` (declarations exist but none equals the running
+`server_version`). A rising counter with the gauge at `0` is the permanent
+`503` `snapshot_export_unqualified`; see
+[PostgreSQL read routing](../../deployment/postgres-read-routing.md#shared-snapshot-export-qualification).
 The `NewObserver` observer implements the optional
 `ContextObserver`, so each reader `postgres.reader_access` stage span, on the
 single-endpoint and member-fleet paths alike, is a child
