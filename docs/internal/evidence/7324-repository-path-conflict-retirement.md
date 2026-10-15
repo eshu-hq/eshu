@@ -195,7 +195,10 @@ file byte-identical afterwards.
 
 ## Per-direction/per-type split of dropped relationships (item)
 
-Base: origin/main 88beb12d0. Graph backend for every live number here:
+Base: origin/main 88beb12d0 (measurement tree; branch rebased onto 261ca79b8
+with identical cumulative diff — `git range-diff` all `=`, patch-id
+021c4b1d3a956ee613c30ecd8ee8a978893196f6 both sides). Graph backend for every
+live number here:
 `neo4j:2026-community` at the same pinned digest (`eabfbb04...`), a dedicated
 local container with `NEO4J_AUTH=none`, the production schema applied by the
 harness (`repository_id` and `repository_path` unique constraints present).
