@@ -207,7 +207,7 @@ jobs:
     needs: [queue-selection, changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -298,6 +298,10 @@ jobs:
           echo "aggregated go-core result: ${result}"
           if [ "${changes_result}" != "success" ]; then
             echo "::error::changes gate did not succeed (result=${changes_result}) - a skipped go-core cannot be trusted as a docs-only skip"
+            exit 1
+          fi
+          if [ "${result}" = "cancelled" ]; then
+            echo "::error::go-core timed out or was cancelled (result=cancelled) - not a lint or build finding; rerun the failed job"
             exit 1
           fi
           if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
