@@ -27,7 +27,6 @@ from live_postgres_readiness_records import package_records  # noqa: E402
 
 
 SHARDS = ("1/4", "2/4", "3/4", "4/4")
-PACKAGE_RE = re.compile(r"^\./[A-Za-z0-9_./-]+$")
 TEST_RE = re.compile(r"^Test[A-Za-z0-9_]+$")
 RUN_RE = re.compile(r"^\./[A-Za-z0-9_./-]+\|Test[A-Za-z0-9_]+$")
 HEAD_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -259,7 +258,7 @@ def _report(head: str, shard: str, plan: Path, manifest_path: Path,
     for error in errors:
         print(f"readiness shard {shard}: {error}", file=sys.stderr)
     print(f"readiness shard {shard}: {report['observed_count']}/{len(expected)} "
-          f"terminal runs, ok={not errors}")
+          f"passing runs, ok={not errors}")
     return not errors
 
 
