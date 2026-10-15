@@ -410,6 +410,7 @@ PACKAGES = {
         ),
         "go/internal/query/content_reader_search_scoped_union_probe_live_test.go": (
             "TestUnionAllProbeDerivationGuard",
+            "TestUnionAllProbePoisonLegKeepsBindPositions",
             "TestUnionAllProbeWorkAndEquivalenceLive",
             "TestRareEmptySingleScopeBitmapInvestigationLive",
         ),
