@@ -23,15 +23,30 @@ Layout:
   non-blank remainder, no `@ref`; surrounding whitespace is trimmed, the same
   as `querycontract.CanonicalRepositoryIDForScopeID`). Otherwise the request is a 400
   naming every bad selector, and nothing is recorded. A catalog failure is a
-  500, not a 400. Distinct scopes are recorded in one
+  500 (`repository reindex selector lookup failed`), or the retryable 503
+  for a stale reader, not a 400. Distinct scopes are recorded in one
   `RepositoryReindexRequester` call and returned per repository.
+- `server_failure.go` — the fixed failure messages, one per failing route
+  step, and the three helpers every 5xx goes through (#7674). Inspection
+  reads answer the shared reader verdict (503 with `Retry-After`, or the
+  graph-read 504) first, the bounded reads under their capability-matrix
+  row and the rest under `querycontract.NoCapability` (no `capability`
+  field; #8176 registers their rows), the bounded reads then their
+  `timeout_ms` 504, and everything else a 500
+  with the step's fixed message through `tracing.WriteServerFailure`; a
+  client cancel answers 499 with no span error. The backend error goes on
+  the request span, never in the body. On a mutation, 499 only means the
+  client left: each call site says what may already have committed. See
+  [Admin route failures](../../../../docs/public/reference/http-api/admin-failures.md).
 - `identity/` — tenant identity reads and mutations.
 - `provider/config/` — identity provider-config reads and mutations.
 - `store/` — the Postgres `Store` implementation and replay ledger.
 - `audit/` — the shared audit/permission glue (actor mapping, correlation,
   permission gate, identity hashes).
 
-The OpenAPI fragments documenting these routes live in `openapi/paths/auth/`. The
+The `/api/v0/admin/*` routes are documented in `openapi/paths/status/admin.go`
+and the `/api/v0/auth/admin/*` identity and provider-config routes in
+`openapi/paths/auth/`. The
 root `admin_alias.go` keeps every pre-move `query.Admin*` spelling working
 so wiring and callers outside the family are untouched.
 
@@ -60,3 +75,11 @@ lives.
 writer-backed `Handler.Store`. A nil read port preserves legacy construction;
 a configured read port never falls back to the writer after an error. The
 three list-only MCP handlers accept `ReadStore` and expose no mutation routes.
+
+Failure telemetry (#7674): No-Observability-Change. No instrument was added
+or renamed. A failed step now marks the request span through
+`tracing.WriteServerFailure` (Error status with the fixed message, one
+`exception` event; or the `eshu.request.client_canceled` event on a client
+cancel), and the routes keep `eshu_dp_api_request_duration_seconds` and
+`eshu_dp_api_request_errors_total`. The changed-since child span no longer
+records a client cancel as an exception. No SQL changed.
