@@ -59,15 +59,20 @@ derived from code, not copied:
   `content.CanonicalEntityIDWithMetadata`. That function differs from
   `CanonicalEntityID` only for dependency-identity Variables
   (`content/dependency_identity.go`).
-- The set is the route-reachable members of the derived-id set, minus
-  Variable. `metadata_anchored_identity_test.go` runs every member through
+- The set is the route-reachable members of the derived-id set whose
+  content entity type (`taxonomy.GraphLabelToContentEntityType`) is non-empty,
+  minus Variable. Six derived-id Terraform labels the route reaches
+  (TerraformBackend, TerraformCheck, TerraformImport, TerraformLockProvider,
+  TerraformMovedBlock, TerraformRemovedBlock) have an empty content type, so
+  they never reach the enrichment and get no content read at all. `metadata_anchored_identity_test.go` runs every member through
   `canonical.ExtractEntityRows` with dependency-shaped metadata and three
   incoming ids (minted, stale, none), and asserts graph id equals content id.
   A mutation that added Module, SqlTable and Variable to the set failed that
   test with "projector wrote 0 graph rows" for Module and Variable, and
   "graph id producer-supplied-stale-id != content id" for SqlTable.
 
-Labels outside the set keep the page read in this PR.
+Labels outside the set that have a content entity type keep the page read in
+this PR; labels without one are not enriched, as before.
 
 ## Not a rows-equal change
 
@@ -169,10 +174,16 @@ and wired through `Handler.Instruments` in `cmd/api` and `cmd/mcp-server`.
 The id lookup's `postgres.query` span reports
 `db.operation=list_entity_metadata_by_ids` and the id count.
 `metadata_anchored_telemetry_test.go` asserts the span attributes and counter
-values for both paths. An operator at 3 AM reads `page_read/missing` against
-`page_read/enriched` to size the remaining page-read gap. A non-zero
-`anchored/missing` means graph rows with no content row: projection lag or
-drift, not a query fault.
+values for both paths. A row counts as `missing` when it merged no content
+metadata. On `anchored` that is no content row for its id, a content row
+whose metadata holds nothing beyond fingerprint keys (`decodeEntityMetadata`
+strips those, so for example a Go struct with no docstring decodes to empty),
+or a content row in another repository. On `page_read` it is no page row with
+the same repository, path, label, name and start line, or a matched row with
+no metadata beyond fingerprint keys. The counter does not separate these
+causes, so `missing` alone is not evidence of projection lag; an operator
+compares `missing` against `enriched` per path and drills into the request
+span before blaming the projector.
 
 ## NOT_CHECKED
 

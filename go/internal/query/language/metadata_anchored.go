@@ -31,11 +31,17 @@ import (
 // row's own entity_id names its content row exactly, and the enrichment reads
 // those rows by id instead of a second filtered page.
 //
-// The set is the route-reachable members of the projector's derived-id set,
-// minus Variable. Labels outside it keep the page read: Module has its own
-// MERGE key, Variable can carry a dependency id, and the SQL, Terraform,
-// Component, ImplBlock, TypeAlias and Typedef labels are not in the derived-id
-// set. metadata_anchored_identity_test.go pins every member against the
+// The set is the route-reachable members of the projector's derived-id set
+// whose content entity type (graphLabelToContentEntityType) is non-empty,
+// minus Variable. A label whose content type is empty never reaches the
+// enrichment at all: that includes the six derived-id Terraform labels the
+// route reaches (TerraformBackend, TerraformCheck, TerraformImport,
+// TerraformLockProvider, TerraformMovedBlock, TerraformRemovedBlock). Labels
+// that do reach the enrichment but sit outside this set keep the page read:
+// Module has its own MERGE key, Variable can carry a dependency id, and the
+// SQL labels, TerraformModule, TerragruntConfig, Component, ImplBlock,
+// TypeAlias and Typedef are not in the derived-id set.
+// metadata_anchored_identity_test.go pins every member against the
 // projector's real entity extraction, so a member whose ids stop agreeing
 // fails the build's tests rather than silently mis-attaching metadata.
 var contentIDAnchoredLabels = map[string]struct{}{
@@ -143,7 +149,10 @@ func (h *Handler) enrichLanguageResultsByEntityID(
 // recordMetadataEnrichment writes how the enrichment served this request onto
 // the request span and the eshu_dp_language_query_metadata_rows_total counter.
 // enriched rows merged content metadata; missing rows reached the enrichment
-// and got none. h.Instruments may be nil.
+// and merged none: no matching content row, a content row whose metadata held
+// nothing beyond fingerprint keys (decodeEntityMetadata strips those), or, on
+// the anchored path, a content row in another repository or a graph row with
+// no entity_id. h.Instruments may be nil.
 func (h *Handler) recordMetadataEnrichment(ctx context.Context, path string, enriched, missing int) {
 	trace.SpanFromContext(ctx).SetAttributes(
 		attribute.String(spanAttrMetadataPath, path),

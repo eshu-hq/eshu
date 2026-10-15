@@ -23,8 +23,9 @@
 //
 // Content-metadata enrichment of a graph page reads, for a label whose graph
 // id is the content primary key (contentIDAnchoredLabels), the page's own
-// content rows by entity id; every other label keeps the filtered content
-// page read (#7247). Either way it records the path and the enriched and
+// content rows by entity id; every other label with a content entity type
+// keeps the filtered content page read, and a label without one is not
+// enriched (#7247). Either way it records the path and the enriched and
 // missing row counts on the request span and the
 // eshu_dp_language_query_metadata_rows_total counter.
 //

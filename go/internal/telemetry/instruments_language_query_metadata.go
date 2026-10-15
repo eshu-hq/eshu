@@ -29,7 +29,7 @@ func registerLanguageQueryMetadataInstruments(meter metric.Meter, inst *Instrume
 	var err error
 	if inst.LanguageQueryMetadataRows, err = meter.Int64Counter(
 		"eshu_dp_language_query_metadata_rows_total",
-		metric.WithDescription("Graph rows POST /api/v0/code/language-query sent to content-metadata enrichment, by metadata_path (anchored: one entity_id lookup keyed by the graph rows; page_read: the filtered content page merged by path/type/name/line) and outcome (enriched: the row merged content metadata; missing: no content metadata matched the row)"),
+		metric.WithDescription("Graph rows POST /api/v0/code/language-query sent to content-metadata enrichment, by metadata_path (anchored: one entity_id lookup keyed by the graph rows; page_read: the filtered content page merged by path/type/name/line) and outcome (enriched: the row merged content metadata; missing: the row merged no content metadata -- no matching content row, a content row with no metadata beyond fingerprint keys, or on anchored a content row in another repository)"),
 	); err != nil {
 		return fmt.Errorf("register LanguageQueryMetadataRows counter: %w", err)
 	}

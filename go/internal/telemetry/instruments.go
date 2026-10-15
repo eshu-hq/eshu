@@ -2454,8 +2454,10 @@ type Instruments struct {
 	EntityContextResolution metric.Int64Counter
 	// LanguageQueryMetadataRows counts POST /api/v0/code/language-query graph
 	// rows sent to content-metadata enrichment, by metadata_path (anchored,
-	// page_read) and outcome (enriched, missing; #7247). page_read/missing is
-	// the share the filtered page read could not key to the graph rows.
+	// page_read) and outcome (enriched, missing; #7247). missing means the row
+	// merged no content metadata: no matching content row, a content row whose
+	// metadata holds nothing beyond fingerprint keys, or (anchored) a content
+	// row in another repository.
 	// Registered by registerLanguageQueryMetadataInstruments.
 	LanguageQueryMetadataRows metric.Int64Counter
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:

@@ -34,8 +34,8 @@ type languageEntityContentSearcher = taxonomy.LanguageEntityContentSearcher
 // metadata into graph-sourced results. For a content-id-anchored label
 // (contentIDAnchoredLabels) on a store that implements the id lookup, it reads
 // the graph rows' own content rows by entity id (#7247,
-// enrichLanguageResultsByEntityID). Every other label keeps the filtered
-// content page read, merged by repository plus file path/label/name/start
+// enrichLanguageResultsByEntityID). Every other label with a content entity
+// type keeps the filtered content page read, merged by repository plus file path/label/name/start
 // line (languageResultRepositoryMatchKey). Either way it records which path
 // served the request and how many rows it enriched. merged
 // reports true whenever a matched row's content metadata was

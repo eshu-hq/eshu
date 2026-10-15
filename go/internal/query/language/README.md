@@ -127,8 +127,9 @@ independently ordered content page. It reads the graph rows' own content rows
 by `entity_id`, with the caller's repository scope bound in the statement.
 The row set, order, and non-metadata fields do not change. Rows the page read
 missed now carry content metadata, so the truth basis can move from
-`authoritative_graph` to `hybrid` on the same rows. Every other label keeps
-the page read.
+`authoritative_graph` to `hybrid` on the same rows. Every other label with a
+content entity type keeps the page read; a label without one (for example
+`TerraformBackend`) never reaches the enrichment.
 
 Performance Evidence: one bounded primary-key lookup replaces the filtered
 page read for anchored labels. On the disposable PostgreSQL 18 fixture in

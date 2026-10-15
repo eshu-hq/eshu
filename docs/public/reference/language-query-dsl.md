@@ -359,8 +359,8 @@ and the same repository. This covers the `function`, `class`, `struct`,
 `enum`, `union`, `macro`, `type_annotation`, `annotation`,
 `terragrunt_dependency`, and `guard` entity types.
 
-**Other labels.** `Module`, `Variable` (`module_attribute`), the SQL,
-Terraform, and Terragrunt-config labels, `Component`, `ImplBlock`,
+**Page-read labels.** `Module`, `Variable` (`module_attribute`), the SQL
+labels, `TerraformModule`, `TerragruntConfig`, `Component`, `ImplBlock`,
 `TypeAlias`, and `Typedef` still use the filtered content page. That page is
 merged by repository, file path, label, name, and start line. It is ordered
 and matched independently of the graph page, so on a large repository it
@@ -368,20 +368,31 @@ can share few rows with the graph page. Those rows keep only their graph
 metadata. `Variable` stays on this path on purpose: a dependency-manifest
 `Variable` has a different content id than its graph node.
 
+**Labels with no enrichment.** A label with no content entity type never
+reaches the enrichment: `Repository`, `Directory`, `File`, `Protocol`,
+`ProtocolImplementation`, `TerraformBackend`, `TerraformCheck`,
+`TerraformImport`, `TerraformLockProvider`, `TerraformMovedBlock`, and
+`TerraformRemovedBlock`. Their rows carry only graph metadata, with no content
+read.
+
 **What changed in #7247.** The row set, the order, and every non-metadata
 field are unchanged. Rows of an id-anchored label that the page read used to
 miss now carry their content metadata. The same answer can therefore move
 from `basis: authoritative_graph` / `source_backend: graph` to
 `basis: hybrid` / `source_backend: hybrid_graph_and_content`. A row with no
-content row keeps its graph metadata, and a page where no row matched stays
-`graph`.
+content row keeps its graph metadata, and a page where no row merged content
+metadata stays `basis: authoritative_graph` / `source_backend: graph`.
 
 Operators see the enrichment on the request span
 (`eshu.language_query.metadata_path`, `..._metadata_rows_enriched`,
 `..._metadata_rows_missing`) and on
-`eshu_dp_language_query_metadata_rows_total{metadata_path, outcome}`. A rising
-`page_read/missing` share is the page-read gap, and `anchored/missing` counts
-graph rows that have no content row.
+`eshu_dp_language_query_metadata_rows_total{metadata_path, outcome}`. A row
+counts as `missing` when it merged no content metadata. On `anchored` that is
+no content row for its id, a content row whose metadata holds nothing beyond
+fingerprint keys (for example a struct with no docstring), or a content row in
+another repository. On `page_read` it is no page row with the same key, or a
+matched row with no metadata beyond fingerprint keys. The counter does not
+separate those causes.
 
 ## Errors
 
