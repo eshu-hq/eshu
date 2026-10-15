@@ -60,9 +60,9 @@ func TestLiveRepositoryRetryInterleavedWithWorkloadMaterialization(t *testing.T)
 			live.seedReducerEdges(ctx, t)
 
 			hook := func() { live.materializeRetryWorkloads(ctx, t) }
-			sequential := cypher.NewCanonicalNodeWriter(phaseHookExecutor{
+			sequential := live.backendWriter(cypher.NewCanonicalNodeWriter(phaseHookExecutor{
 				inner: live.exec, phase: phase, hook: hook, once: &sync.Once{},
-			}, 500, nil)
+			}, 500, nil))
 			live.write(ctx, t, sequential, live.materialization(retryFixtureRepo, "gen-1", false))
 			if phase == "after" {
 				hook()

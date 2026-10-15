@@ -34,6 +34,13 @@ type CanonicalNodeWriter struct {
 	tfStateConfigMatchResolver        TerraformStateConfigMatchResolver
 	kustomizeOverlayResolver          KustomizeOverlayResolver
 	schemaWriteFence                  func(context.Context) error
+	// repositoryRetirementBare emits the bare path-conflict retirement
+	// shape instead of the attributed one. It MUST be set on every writer
+	// targeting NornicDB: the attributed shape's OPTIONAL MATCH + WITH
+	// collect composition drops the id guard there and deletes the live
+	// node in steady state (#8173). The default (false) keeps the
+	// attributed shape, which is Neo4j-only.
+	repositoryRetirementBare bool
 }
 
 type canonicalWritePhase struct {

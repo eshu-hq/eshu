@@ -60,10 +60,19 @@ func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat canonical.Can
 		return nil
 	}
 	r := mat.Repository
+	cleanupCypher := canonicalNodeRepositoryPathCleanupCypher
+	if w.repositoryRetirementBare {
+		// NornicDB drops the id guard on the attributed shape's
+		// OPTIONAL MATCH + WITH collect composition (#8173). The bare
+		// shape carries the same anchor, guard, params, and summary
+		// key, so capture and reporting treat both identically; only
+		// the Dropped collection is absent (attribution=false).
+		cleanupCypher = canonicalNodeRepositoryPathCleanupBareCypher
+	}
 	return []Statement{
 		{
 			Operation: OperationCanonicalRetract,
-			Cypher:    canonicalNodeRepositoryPathCleanupCypher,
+			Cypher:    cleanupCypher,
 			Parameters: map[string]any{
 				"repo_id":                   r.RepoID,
 				"path":                      r.Path,

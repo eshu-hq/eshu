@@ -329,11 +329,14 @@ func fileNameLineKey(filePath, name string, line int) string {
 // --- Phase B: Repository ---
 
 // isRepositoryPathCleanupEntry reports whether a write-count entry belongs to
-// the path-conflict retirement statement. It matches on the Cypher text,
-// which no executor rewrites; the summary metadata key is stripped before
-// the Bolt seam on the phase-group path (SanitizeStatement).
+// the path-conflict retirement statement, in either its attributed or its
+// bare shape (the bare shape is what NornicDB-targeted writers emit, #8173).
+// It matches on the Cypher text, which no executor rewrites; the summary
+// metadata key is stripped before the Bolt seam on the phase-group path
+// (SanitizeStatement).
 func isRepositoryPathCleanupEntry(entry WriteCountEntry) bool {
-	return entry.Cypher == canonicalNodeRepositoryPathCleanupCypher
+	return entry.Cypher == canonicalNodeRepositoryPathCleanupCypher ||
+		entry.Cypher == canonicalNodeRepositoryPathCleanupBareCypher
 }
 
 // captureRepositoryRetirement stashes a filtered write-count collector for
@@ -343,7 +346,8 @@ func isRepositoryPathCleanupEntry(entry WriteCountEntry) bool {
 // every entry to any collector the caller already stashed.
 func captureRepositoryRetirement(ctx context.Context, statements []Statement) (context.Context, *WriteCountsCollector) {
 	for _, stmt := range statements {
-		if stmt.Cypher != canonicalNodeRepositoryPathCleanupCypher {
+		if stmt.Cypher != canonicalNodeRepositoryPathCleanupCypher &&
+			stmt.Cypher != canonicalNodeRepositoryPathCleanupBareCypher {
 			continue
 		}
 		collector := NewFilteredWriteCountsCollector(WriteCountsCollectorFromContext(ctx), isRepositoryPathCleanupEntry)

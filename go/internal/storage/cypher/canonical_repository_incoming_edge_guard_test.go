@@ -21,12 +21,15 @@ import (
 // general re-arm signal exists to rebuild edges a delete dropped. The
 // contract therefore forbids the deletes that would drop them:
 //
-//   - Rule 1: the only statically visible statement that may delete a
-//     Repository node is canonicalNodeRepositoryPathCleanupCypher, the
-//     path-conflict retirement the repository_path UNIQUE constraint
-//     requires, and it is the only delete that drops edges with a Repository.
-//     Identity is the constant itself (whitespace-normalised), not a string
-//     allowlist. The one other Repository delete in the tree is the orphan
+//   - Rule 1: the only statically visible statements that may delete a
+//     Repository node are the two path-conflict retirement shapes —
+//     canonicalNodeRepositoryPathCleanupCypher (attributed, Neo4j-only)
+//     and canonicalNodeRepositoryPathCleanupBareCypher (bare, what
+//     NornicDB writers emit, #8173) — the retirement the repository_path
+//     UNIQUE constraint requires, and they are the only deletes that drop
+//     edges with a Repository. Identity is the constants themselves
+//     (whitespace-normalised), not a string allowlist. The one other
+//     Repository delete in the tree is the orphan
 //     sweep (BuildSweepOrphanNodesStatement, orphan_sweep_writes.go): a plain
 //     `DELETE n` (not DETACH) of Repository stubs that are disconnected and
 //     not projector-owned (`evidence_source <> 'projector/canonical'`). It
@@ -158,14 +161,16 @@ func repositoryDeleteScan(text string) (violations []string, nodeDeletes, incomi
 		bindings[binding] = true
 	}
 	incoming := repositoryIncomingRelationships(text, bindings)
-	isPathCleanup := normalizeCypherWhitespace(text) == normalizeCypherWhitespace(canonicalNodeRepositoryPathCleanupCypher)
+	normalized := normalizeCypherWhitespace(text)
+	isPathCleanup := normalized == normalizeCypherWhitespace(canonicalNodeRepositoryPathCleanupCypher) ||
+		normalized == normalizeCypherWhitespace(canonicalNodeRepositoryPathCleanupBareCypher)
 	for _, match := range cypherDeletePattern.FindAllStringSubmatch(text, -1) {
 		for _, variable := range strings.Split(match[2], ",") {
 			variable = strings.TrimSpace(variable)
 			if bindings[variable] {
 				nodeDeletes++
 				if !isPathCleanup {
-					violations = append(violations, "rule 1: Repository node "+variable+" deleted outside canonicalNodeRepositoryPathCleanupCypher")
+					violations = append(violations, "rule 1: Repository node "+variable+" deleted outside the path-conflict retirement shapes")
 				}
 			}
 			if incoming[variable] {
@@ -321,14 +326,15 @@ func TestRepositoryIncomingEdgesAreDeletedOnlyByTheirOwners(t *testing.T) {
 	// CORRELATES_DEPLOYABLE_UNIT, PINS_SUBMODULE, BUILT_FROM and the two
 	// folded typed-relationship retracts over RepoDependencyRelationshipEdgeTypes),
 	// so a scanner regression that stops seeing them fails instead of passing.
-	if literals < 200 || deletes < 20 || nodeDeletes < 1 || incomingDeletes < 6 {
+	// The bare retirement shape (#8173) is the second node delete.
+	if literals < 200 || deletes < 20 || nodeDeletes < 2 || incomingDeletes < 6 {
 		t.Fatalf("scan reached %d strings, %d DELETE strings, %d node deletes, %d incoming deletes; the scan is not reaching the tree",
 			literals, deletes, nodeDeletes, incomingDeletes)
 	}
 	sort.Strings(violations)
 	if len(violations) > 0 {
 		t.Fatalf("contract A (#7324): Repository nodes and incoming Repository edges may be deleted only by "+
-			"canonicalNodeRepositoryPathCleanupCypher and by the edge's own evidence_source-scoped writer:\n%s",
+			"the path-conflict retirement shapes and by the edge's own evidence_source-scoped writer:\n%s",
 			strings.Join(violations, "\n"))
 	}
 }
@@ -339,7 +345,7 @@ func TestRepositoryDeleteViolationsDetectsSeededDeletes(t *testing.T) {
 	t.Parallel()
 
 	rule1 := func(v string) string {
-		return "rule 1: Repository node " + v + " deleted outside canonicalNodeRepositoryPathCleanupCypher"
+		return "rule 1: Repository node " + v + " deleted outside the path-conflict retirement shapes"
 	}
 	rule2 := func(v string) string {
 		return "rule 2: relationship " + v + " into a Repository deleted without " + v + ".evidence_source ="
@@ -356,6 +362,8 @@ func TestRepositoryDeleteViolationsDetectsSeededDeletes(t *testing.T) {
 		{"label predicate node delete", "MATCH (n) WHERE n:Repository AND n.path = $p DETACH DELETE n", []string{rule1("n")}},
 		{"path cleanup with its guard removed", "MATCH (r:Repository {path: $path})\nDETACH DELETE r", []string{rule1("r")}},
 		{"the path cleanup constant", canonicalNodeRepositoryPathCleanupCypher, nil},
+		{"the bare path cleanup constant", canonicalNodeRepositoryPathCleanupBareCypher, nil},
+		{"the bare path cleanup, reflowed", "MATCH (r:Repository {path: $path})  WHERE r.id <> $repo_id\n\n DETACH DELETE r", nil},
 		{"the path cleanup, reflowed", "MATCH (r:Repository {path: $path})  WHERE r.id <> $repo_id\n\n OPTIONAL MATCH (r)-[rel]-(other)\n WITH r, collect(CASE WHEN rel IS NULL THEN NULL ELSE {t: type(rel), dir: CASE WHEN startNode(rel) = r THEN 'out' ELSE 'in' END, src: rel.evidence_source} END) AS dropped\n DETACH DELETE r\n RETURN dropped", nil},
 		{"incoming delete, no evidence scope", "MATCH (w:Workload)-[rel:DEPLOYS_FROM]->(r:Repository {id: $id}) DELETE rel", []string{rule2("rel")}},
 		{"incoming delete from the left", "MATCH (r:Repository {id: $id})<-[rel:DEPENDS_ON]-(o:Repository) DELETE rel", []string{rule2("rel")}},

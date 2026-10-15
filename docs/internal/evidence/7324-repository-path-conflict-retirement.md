@@ -304,6 +304,13 @@ the benchmark above measures end to end.
 
 ### NornicDB probe outcome
 
+- CORRECTION (#8173): the claim below holds only when a real conflict
+  exists. In steady state (same id, same path) the rewritten statement
+  DETACH DELETEs the live node on NornicDB: the `OPTIONAL MATCH` + `WITH
+  collect` composition drops the WHERE guard there. Full probe matrix,
+  interleaving, and the backend partition fix are in
+  `7324-retirement-nornicdb-steady-state.md`. NornicDB writers now emit
+  the bare shape; the attributed shape is Neo4j-only.
 - The rewritten statement deletes correctly on the pinned NornicDB: the
   old-id node is gone and the backend reports `relationships_deleted=20`
   on the production phase-group shape. `RETURN`-after-`DETACH DELETE` and

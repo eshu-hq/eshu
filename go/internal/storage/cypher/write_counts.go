@@ -177,10 +177,14 @@ func ReportWriteCountsWithDropped(ctx context.Context, cypher string, params map
 	WriteCountsCollectorFromContext(ctx).Add(WriteCountEntry{Cypher: cypher, Parameters: params, Counters: counters, Dropped: dropped})
 }
 
-// IsRepositoryPathCleanupCypher reports whether cypher is the path-conflict
-// retirement statement. Bolt seams use it to decide whether a RETURN dropped
-// record is waiting to be consumed; identity is the constant itself, the
-// same equality the Rule 1 guard pins.
+// IsRepositoryPathCleanupCypher reports whether cypher is the ATTRIBUTED
+// path-conflict retirement statement. Bolt seams use it to decide whether a
+// RETURN dropped record is waiting to be consumed; identity is the constant
+// itself, the same equality the Rule 1 guard pins. The bare retirement
+// shape (canonicalNodeRepositoryPathCleanupBareCypher, what NornicDB writers
+// emit) carries no RETURN record, so it is deliberately not matched here:
+// CollectRetiredRelationships leaves its result untouched and its entry
+// stays unattributed.
 func IsRepositoryPathCleanupCypher(cypher string) bool {
 	return cypher == canonicalNodeRepositoryPathCleanupCypher
 }
