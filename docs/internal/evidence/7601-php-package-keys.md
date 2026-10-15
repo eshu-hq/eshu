@@ -181,8 +181,9 @@ producer scopes (composer keys count as package keys). Resolved edges carry
 `git-collector.v3`. The parser now emits new fields for unchanged PHP input
 that has composer files, and without the bump `GenerationContentVersion()` is
 byte-identical on base and head, so already-indexed PHP repositories would keep
-keyless facts until their next commit. The pin fixture
-(`testdata/content_version`) has no composer files, so the re-pin moves only
+keyless facts until their next commit. The pin fixture (the
+`content_version` fixture tree beside `snapshot_content_version_gate_test.go`)
+has no composer files, so the re-pin moves only
 `content_version`; the digest and the 238-fact count are unchanged. A PHP
 composer change is therefore not caught by the pin; the fixture was left alone
 because #7978 owns it. Production discovery already prunes `vendor/`
