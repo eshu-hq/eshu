@@ -124,6 +124,15 @@ type graphReadHTTPError struct {
 	retryable bool
 }
 
+// NoCapability is the capability a WriteGraphReadError or
+// GraphReadErrorEnvelope call site passes when its route is operator tooling
+// that is not registered in the capability matrix. The error envelope then
+// carries no capability field; the verdict, status, Retry-After, and message
+// are unchanged. The capability sweep in package query accepts it only from
+// an allowlisted directory (the /api/v0/admin/* routes, until #8176 registers
+// their keys); anywhere else, or as a bare "" literal, the sweep fails.
+const NoCapability = ""
+
 // WriteGraphReadError writes the stable HTTP contract for a bounded graph-read
 // availability error, and for a PostgreSQL reader that was stale or whose
 // connection acquisition (pool wait or dial) or identity check timed out (a

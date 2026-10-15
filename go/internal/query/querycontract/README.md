@@ -363,6 +363,14 @@ writes an envelope from `GraphReadErrorEnvelope` keeps the header. A `503`
 permanent and carries no `Retry-After`. Handlers that write a store
 error as a 500 must call `WriteGraphReadError` first for this contract to apply.
 
+The `capability` argument is a capability-matrix key, checked by the root
+`TestWriteGraphReadErrorCapabilitiesExistInMatrix` sweep. `NoCapability` is the
+one named exception: a route that is operator tooling with no matrix row
+passes it, and the envelope then omits the `capability` field while the status,
+`Retry-After`, code, and message stay the same. The sweep accepts it only from
+the directories in its `noCapabilityAllowedDirs` allowlist (today `admin/`,
+until #8176 registers those keys); a bare `""` literal always fails.
+
 `K8sSelectCandidate` carries selector presence separately from selector value.
 Family code must preserve absent, present-empty, and present-nonempty states
 when converting it into matcher input.
