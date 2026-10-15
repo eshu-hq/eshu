@@ -2098,7 +2098,7 @@ type Instruments struct {
 
 	// ProducerManifestTagOutcomes counts code-call producer manifest rows by
 	// generation-tag outcome (#7760), labeled by a closed kind
-	// (package|gomod) and outcome
+	// (package|composer|gomod) and outcome
 	// (clean|null_tag|dangling_tag|unactivated_tag|manifest_less). A nonzero
 	// dirty rate is normal during migration convergence (legacy NULL tags);
 	// a sustained unactivated_tag rate afterwards means ahead writes keep
@@ -5902,7 +5902,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ProducerManifestTagOutcomes, err = meter.Int64Counter(
 		"eshu_dp_producer_manifest_tag_outcomes_total",
-		metric.WithDescription("Code-call producer manifest rows by generation-tag outcome, labeled by kind (package|gomod) and outcome (clean|null_tag|dangling_tag|unactivated_tag|manifest_less) (#7760)"),
+		metric.WithDescription("Code-call producer manifest rows by generation-tag outcome, labeled by kind (package|composer|gomod) and outcome (clean|null_tag|dangling_tag|unactivated_tag|manifest_less) (#7760)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProducerManifestTagOutcomes counter: %w", err)

@@ -137,7 +137,7 @@ func TestDefaultEngineParsePathPHPStampsConsumerPackageExportSymbols(t *testing.
 		{"$factory = Logger::create();", "Logger.create", `package:acme/logging#Acme\Logging\Logger::create`},
 		{"$aliased = Fmt::make();", "Formatter.make", `package:acme/logging#Acme\Logging\Formatter::make`},
 		// Group use; the longer locked prefix Acme\Logging\Handler\ wins.
-		{"$grouped = new Stream();", "StreamHandler", `package:acme/logging-handlers#Acme\Logging\Handler\StreamHandler`},
+		{"$grouped = new Stream();", "Stream", `package:acme/logging-handlers#Acme\Logging\Handler\StreamHandler`},
 		{"$level = Level::fromName('x');", "Level.fromName", `package:acme/logging#Acme\Logging\Level::fromName`},
 		{`$literal = new \Acme\Logging\Logger();`, "Logger", `package:acme/logging#Acme\Logging\Logger`},
 		{`$literalStatic = \Acme\Logging\Logger::create();`, `Acme\Logging\Logger.create`, `package:acme/logging#Acme\Logging\Logger::create`},

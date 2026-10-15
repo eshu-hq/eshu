@@ -7,7 +7,9 @@
 // whole corpus (#7601, #7623).
 //
 // Two kinds of key name their producer. A package:<id>#<export> key is produced
-// by the repositories whose package.json names the package. A
+// by the repositories whose package.json names the npm package, or, when <id>
+// is a composer vendor/name (the PHP keys of #7601), whose composer.json names
+// it; the two name spaces are disjoint, so each key reads one manifest kind. A
 // scip-go gomod <import path> <symbol> key is produced by the repositories whose
 // go.mod module path is the import path or one of its '/'-prefixes: the Go
 // parser builds a definition's import path from its nearest go.mod module path
@@ -19,7 +21,7 @@
 // line-ending normalization, the first line of exactly two fields whose first is
 // "module"), so the anchor and the import paths on definitions share one rule.
 //
-// Store runs the two manifest reads over an injected db.Queryer. This package
+// Store runs the three manifest reads over an injected db.Queryer. This package
 // must not import the parent internal/storage/postgres package from non-test
 // code (#6693).
 //

@@ -31,6 +31,9 @@ func collectPHPImports(state *phpParseState, node *tree_sitter.Node) {
 		if importType == "use" && alias != "" {
 			state.importAliases[alias] = normalizePHPTypeName(name)
 		}
+		if importType == "use" {
+			state.packageKeys.recordUse(name, alias)
+		}
 		shared.AppendBucket(state.payload, "imports", map[string]any{
 			"name":             name,
 			"full_import_name": fullImportName,

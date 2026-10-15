@@ -105,7 +105,9 @@ func emitPHPMemberCall(state *phpParseState, node *tree_sitter.Node) {
 }
 
 // emitPHPScopedCall emits a call row for static and self/parent/static method
-// calls of the form Receiver::method(...).
+// calls of the form Receiver::method(...), and stamps the #7601 package key
+// when Receiver is an imported or fully qualified class a composer.lock
+// provides.
 func emitPHPScopedCall(state *phpParseState, node *tree_sitter.Node) {
 	scopeNode := node.ChildByFieldName("scope")
 	nameNode := node.ChildByFieldName("name")
@@ -128,15 +130,23 @@ func emitPHPScopedCall(state *phpParseState, node *tree_sitter.Node) {
 	}
 	fullName := receiver + "." + methodName
 	ctx := phpResolveContext(node, state.source, state.parents)
-	appendUniquePHPCall(
+	item := appendUniquePHPCall(
 		state.payload, state.seenCalls,
 		methodName, fullName, shared.NodeLine(node),
 		phpCallArguments(node, state.source),
 		ctx.name, ctx.kind, ctx.line, receiver,
 	)
+	if item != nil && nameNode.Kind() == "name" && phpIsPlainName(methodName) {
+		fqcn := state.packageKeys.classTarget(scopeNode, state.source)
+		if key := state.packageKeys.consumerKey(fqcn, methodName); key != "" {
+			item["package_export_symbol"] = key
+		}
+	}
 }
 
-// emitPHPObjectCreation emits a call row for `new Type(...)` expressions.
+// emitPHPObjectCreation emits a call row for `new Type(...)` expressions and
+// stamps the #7601 package key when the type is an imported or fully
+// qualified class a composer.lock provides.
 func emitPHPObjectCreation(state *phpParseState, node *tree_sitter.Node) {
 	classNode := phpObjectCreationTypeNode(node)
 	if classNode == nil {
@@ -148,13 +158,19 @@ func emitPHPObjectCreation(state *phpParseState, node *tree_sitter.Node) {
 		return
 	}
 	ctx := phpResolveContext(node, state.source, state.parents)
-	appendUniquePHPCall(
+	item := appendUniquePHPCall(
 		state.payload, state.seenCalls,
 		className, className, shared.NodeLine(node),
 		phpCallArguments(node, state.source),
 		ctx.name, ctx.kind, ctx.line,
 		normalizePHPImportedTypeName(className, state.importAliases),
 	)
+	if item != nil {
+		fqcn := state.packageKeys.classTarget(classNode, state.source)
+		if key := state.packageKeys.consumerKey(fqcn, ""); key != "" {
+			item["package_export_symbol"] = key
+		}
+	}
 }
 
 // emitPHPFunctionCall emits a call row for a free function call when the callee

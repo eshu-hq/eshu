@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/php/composer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -173,6 +174,67 @@ WHERE scope.scope_kind = 'repository'
   )
 `
 
+// ComposerManifestsQuery reads every stored composer.json manifest of a
+// repository scope that has an active generation, for package:<vendor>/<name>#
+// keys stamped by the PHP adapter (#7601). It mirrors PackageManifestsQuery: a
+// MATERIALIZED manifest CTE (one content_files read, not one probe per scope)
+// and the generation-tag rule (#7760), where content resolves only when the
+// writing generation activated and every other tag state fails safe to a dirty
+// NULL row the anchored scan always visits, plus the manifest-less leg for
+// scopes with a never-activated generation. A manifest under a vendor/
+// directory is excluded: it is an installed copy of a dependency, not a
+// publisher, and the parser never stamps package_id there. Nested manifests
+// (monorepo packages) are included, because the parser stamps each class with
+// its nearest composer.json name.
+const ComposerManifestsQuery = `
+WITH manifest AS MATERIALIZED (
+    SELECT repo_id, content, generation_id
+    FROM content_files
+    WHERE (relative_path = 'composer.json' OR relative_path LIKE '%/composer.json')
+      AND relative_path !~ '(^|/)vendor/'
+),
+tagged AS (
+    SELECT manifest.repo_id, manifest.content, manifest.generation_id AS tag,
+           tag.generation_id AS tag_row_id, tag.activated_at AS tag_activated_at
+    FROM manifest
+    LEFT JOIN scope_generations AS tag ON tag.generation_id = manifest.generation_id
+)
+SELECT
+    scope.scope_id,
+    CASE WHEN tagged.tag_activated_at IS NOT NULL THEN tagged.content END,
+    CASE WHEN tagged.tag_activated_at IS NOT NULL THEN 'clean'
+         WHEN tagged.tag IS NULL THEN 'null_tag'
+         WHEN tagged.tag_row_id IS NULL THEN 'dangling_tag'
+         ELSE 'unactivated_tag' END
+FROM tagged
+JOIN ingestion_scopes AS scope
+  ON scope.source_key = tagged.repo_id
+ AND scope.scope_kind = 'repository'
+JOIN scope_generations AS generation
+  ON generation.scope_id = scope.scope_id
+ AND generation.generation_id = scope.active_generation_id
+ AND generation.status = 'active'
+UNION ALL
+SELECT scope.scope_id, NULL, 'manifest_less'
+FROM ingestion_scopes AS scope
+JOIN scope_generations AS active
+  ON active.scope_id = scope.scope_id
+ AND active.generation_id = scope.active_generation_id
+ AND active.status = 'active'
+WHERE scope.scope_kind = 'repository'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM manifest
+    WHERE manifest.repo_id = scope.source_key
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM scope_generations AS pending
+    WHERE pending.scope_id = scope.scope_id
+      AND pending.activated_at IS NULL
+  )
+`
+
 // Store reads the producer manifests over an injected database handle.
 type Store struct {
 	database    db.Queryer
@@ -190,48 +252,85 @@ func (s Store) WithInstruments(instruments *telemetry.Instruments) Store {
 	return s
 }
 
+// manifestKind names one manifest read: its error-message text and its
+// closed telemetry label.
+type manifestKind struct {
+	description string
+	label       string
+}
+
+var (
+	npmManifestKind      = manifestKind{description: "package", label: "package"}
+	composerManifestKind = manifestKind{description: "composer package", label: "composer"}
+	goModuleManifestKind = manifestKind{description: "go module", label: "gomod"}
+)
+
 // recordTagOutcomes adds one counter sample per tag outcome observed in a
-// manifest read. It no-ops without instruments. The reads pass "package" and
-// "go module"; the label is normalized to the closed pair (package|gomod),
-// never the error text.
-func (s Store) recordTagOutcomes(ctx context.Context, kind string, outcomes map[string]int64) {
+// manifest read. It no-ops without instruments. The kind label is the closed
+// set package|composer|gomod, never error text.
+func (s Store) recordTagOutcomes(ctx context.Context, kind manifestKind, outcomes map[string]int64) {
 	if s.instruments == nil {
 		return
 	}
-	metricKind := "package"
-	if kind != "package" {
-		metricKind = "gomod"
-	}
 	for outcome, count := range outcomes {
 		s.instruments.ProducerManifestTagOutcomes.Add(ctx, count, metric.WithAttributes(
-			telemetry.AttrKind(metricKind),
+			telemetry.AttrKind(kind.label),
 			telemetry.AttrOutcome(outcome),
 		))
 	}
 }
 
 // PackageScopeIDs resolves package:<id>#<export> keys to the sorted, distinct
-// scope ids whose stored package.json manifests publish one of the named
-// packages, plus every dirty scope. A package published by several repositories
+// scope ids whose stored manifests publish one of the named packages, plus
+// every dirty scope. An npm name is matched against package.json manifests and
+// a composer name (vendor/name in the composer grammar, #7601 PHP keys)
+// against composer.json manifests; the two name spaces are disjoint, so each
+// key reads only its own manifest kind and a request carrying both runs both
+// reads and unions their scopes. A package published by several repositories
 // returns every one of them, so the reducer sees each candidate definition and
 // keeps the key unresolved. A NULL manifest marks a dirty scope (#7609): its
-// stored content may be ahead of its active generation, so it is always scanned
-// and the anchored definition match still gates on each definition's own
-// package_id.
+// stored content may be ahead of its active generation, so it is always
+// scanned and the anchored definition match still gates on each definition's
+// own package_id.
 func (s Store) PackageScopeIDs(ctx context.Context, packageKeys []string) ([]string, error) {
-	packageNames := make(map[string]struct{}, len(packageKeys))
+	npmNames := make(map[string]struct{}, len(packageKeys))
+	composerNames := make(map[string]struct{})
 	for _, key := range packageKeys {
-		if name := PackageName(key); name != "" {
-			packageNames[name] = struct{}{}
+		name := PackageName(key)
+		switch {
+		case name == "":
+		case composer.ValidPackageName(name):
+			composerNames[name] = struct{}{}
+		default:
+			npmNames[name] = struct{}{}
 		}
 	}
-	if len(packageNames) == 0 {
+	var scopeIDs []string
+	if len(npmNames) > 0 {
+		npmScopes, err := s.scopeIDsWhere(ctx, PackageManifestsQuery, npmManifestKind, func(content string) bool {
+			_, ok := npmNames[PackageManifestName(content)]
+			return ok
+		})
+		if err != nil {
+			return nil, err
+		}
+		scopeIDs = append(scopeIDs, npmScopes...)
+	}
+	if len(composerNames) > 0 {
+		composerScopes, err := s.scopeIDsWhere(ctx, ComposerManifestsQuery, composerManifestKind, func(content string) bool {
+			_, ok := composerNames[ComposerManifestName(content)]
+			return ok
+		})
+		if err != nil {
+			return nil, err
+		}
+		scopeIDs = append(scopeIDs, composerScopes...)
+	}
+	if scopeIDs == nil {
 		return nil, nil
 	}
-	return s.scopeIDsWhere(ctx, PackageManifestsQuery, "package", func(content string) bool {
-		_, ok := packageNames[PackageManifestName(content)]
-		return ok
-	})
+	slices.Sort(scopeIDs)
+	return slices.Compact(scopeIDs), nil
 }
 
 // GoModuleScopeIDs resolves scip-go gomod keys to the sorted, distinct scope
@@ -250,7 +349,7 @@ func (s Store) GoModuleScopeIDs(ctx context.Context, goKeys []string) ([]string,
 	if len(modulePaths) == 0 {
 		return nil, nil
 	}
-	return s.scopeIDsWhere(ctx, GoModuleManifestsQuery, "go module", func(content string) bool {
+	return s.scopeIDsWhere(ctx, GoModuleManifestsQuery, goModuleManifestKind, func(content string) bool {
 		_, ok := modulePaths[GoModuleName(content)]
 		return ok
 	})
@@ -262,10 +361,10 @@ func (s Store) GoModuleScopeIDs(ctx context.Context, goKeys []string) ([]string,
 // or never-activated, so the anchored scan must visit it. Each row's tag
 // outcome is counted into ProducerManifestTagOutcomes once per read when the
 // store carries instruments.
-func (s Store) scopeIDsWhere(ctx context.Context, query, kind string, match func(content string) bool) ([]string, error) {
+func (s Store) scopeIDsWhere(ctx context.Context, query string, kind manifestKind, match func(content string) bool) ([]string, error) {
 	rows, err := s.database.QueryContext(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("list code call %s producer manifests: %w", kind, err)
+		return nil, fmt.Errorf("list code call %s producer manifests: %w", kind.description, err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -276,7 +375,7 @@ func (s Store) scopeIDsWhere(ctx context.Context, query, kind string, match func
 		var content sql.NullString
 		var outcome string
 		if err := rows.Scan(&scopeID, &content, &outcome); err != nil {
-			return nil, fmt.Errorf("list code call %s producer manifests: %w", kind, err)
+			return nil, fmt.Errorf("list code call %s producer manifests: %w", kind.description, err)
 		}
 		outcomes[outcome]++
 		if !content.Valid {
@@ -288,7 +387,7 @@ func (s Store) scopeIDsWhere(ctx context.Context, query, kind string, match func
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list code call %s producer manifests: %w", kind, err)
+		return nil, fmt.Errorf("list code call %s producer manifests: %w", kind.description, err)
 	}
 	s.recordTagOutcomes(ctx, kind, outcomes)
 

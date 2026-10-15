@@ -86,3 +86,52 @@ func TestGoModuleNameMatchesTheImportPathTheParserStamps(t *testing.T) {
 		})
 	}
 }
+
+// TestComposerManifestNameMatchesThePackageIDTheParserStamps pins the #7601 PHP
+// anchor contract: the loader keeps a scope only when ComposerManifestName of
+// its stored composer.json equals a key's package name, and the key's package
+// name is the package_id the PHP adapter stamped from the same file. If the two
+// read a name differently, the anchor drops the producer and the key silently
+// stays unresolved. Each name is written into a composer.json beside a psr-4
+// class, the class is parsed through the default engine, and its package_id
+// (absent meaning "") must equal ComposerManifestName's answer.
+func TestComposerManifestNameMatchesThePackageIDTheParserStamps(t *testing.T) {
+	t.Parallel()
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	for _, name := range []string{
+		`"acme/logging"`, `"acme-corp/log.ging_x"`, `"a/b--c"`, `"Acme/Logging"`, `"@acme/logging"`,
+		`"logging"`, `"acme/logging/extra"`, `" acme/logging"`, `"acme/logging "`, `42`, `null`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			repoRoot := t.TempDir()
+			manifest := `{"name": ` + name + `, "autoload": {"psr-4": {"Acme\\Logging\\": "src/"}}}`
+			if err := os.WriteFile(filepath.Join(repoRoot, "composer.json"), []byte(manifest), 0o600); err != nil {
+				t.Fatalf("write composer.json: %v", err)
+			}
+			if err := os.MkdirAll(filepath.Join(repoRoot, "src"), 0o750); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			source := filepath.Join(repoRoot, "src", "Logger.php")
+			if err := os.WriteFile(source, []byte("<?php\nnamespace Acme\\Logging;\n\nclass Logger {}\n"), 0o600); err != nil {
+				t.Fatalf("write source: %v", err)
+			}
+			payload, err := engine.ParsePath(repoRoot, source, false, parser.Options{})
+			if err != nil {
+				t.Fatalf("ParsePath() error = %v, want nil", err)
+			}
+			classes, _ := payload["classes"].([]map[string]any)
+			if len(classes) != 1 {
+				t.Fatalf("classes = %#v, want one Logger", classes)
+			}
+			stamped, _ := classes[0]["package_id"].(string)
+			if got := producerstore.ComposerManifestName(manifest); got != stamped {
+				t.Fatalf("ComposerManifestName(%s) = %q, but the parser stamps package_id %q", manifest, got, stamped)
+			}
+		})
+	}
+}

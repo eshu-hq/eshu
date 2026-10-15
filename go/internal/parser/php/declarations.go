@@ -31,6 +31,7 @@ func collectPHPClassDeclaration(state *phpParseState, node *tree_sitter.Node) {
 		item["trait_adaptations"] = adaptations
 	}
 	shared.AppendBucket(state.payload, "classes", item)
+	state.packageKeys.recordType(name, true, item)
 	collectPHPTypeMembers(state, node, name, "class_declaration")
 }
 
@@ -48,6 +49,7 @@ func collectPHPInterfaceDeclaration(state *phpParseState, node *tree_sitter.Node
 	}
 	recordPHPDeadCodeType(state.deadCodeFacts, "interface_declaration", name, bases)
 	shared.AppendBucket(state.payload, "interfaces", item)
+	state.packageKeys.recordType(name, false, item)
 	collectPHPTypeMembers(state, node, name, "interface_declaration")
 }
 
@@ -172,6 +174,7 @@ func collectPHPFunction(state *phpParseState, node *tree_sitter.Node, typeName s
 
 	state.recordPHPFunctionParameterTypes(node, typeName, name)
 	fingerprint.Attach("php", state.fpHasError, node.ChildByFieldName("body"), state.source, item, state.fpStats)
+	state.packageKeys.recordMethod(node, state.source, typeName, typeKind, item)
 	recordPHPDeadCodeFunction(state.deadCodeFacts, name, typeName, typeKind, parameters)
 	state.deadCodeFunctions = append(state.deadCodeFunctions, phpDeadCodeFunctionFact{
 		item:        item,

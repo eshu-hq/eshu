@@ -96,7 +96,7 @@ func TestGatherResolveForwardReferences(t *testing.T) {
 		t.Fatalf("SetLanguage(php) error = %v, want nil", err)
 	}
 
-	payload, err := Parse(path, false, shared.Options{}, parser)
+	payload, err := Parse("", path, false, shared.Options{}, parser)
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/php/composer"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -41,4 +42,14 @@ func PackageManifestName(content string) string {
 	}
 	name, _ := manifest.Name.(string)
 	return strings.TrimSpace(name)
+}
+
+// ComposerManifestName returns the "name" of a composer.json manifest when it
+// is in the composer package-name grammar, and "" otherwise. It delegates to
+// the PHP adapter's own rule (composer.ManifestName), the one the parser applies
+// before stamping package_id on a definition, so the anchor and the stamp
+// cannot disagree; TestComposerManifestNameMatchesThePackageIDTheParserStamps
+// pins it end to end.
+func ComposerManifestName(content string) string {
+	return composer.ManifestName([]byte(content))
 }
