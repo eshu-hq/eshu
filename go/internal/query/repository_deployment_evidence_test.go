@@ -390,8 +390,14 @@ func TestGetRepositoryContextReturnsErrorWhenDeploymentEvidenceReadModelFails(t 
 	if got, want := w.Code, http.StatusInternalServerError; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if body := w.Body.String(); !strings.Contains(body, "postgres read model unavailable") {
-		t.Fatalf("body = %s, want read-model error", body)
+	// The body names the failing step with fixed text; the read-model error
+	// stays on the request span (#7674).
+	body := w.Body.String()
+	if strings.Contains(body, "postgres read model unavailable") {
+		t.Fatalf("body = %s leaks the read-model error text", body)
+	}
+	if !strings.Contains(body, "repository context deployment evidence read failed") {
+		t.Fatalf("body = %s, want the fixed deployment evidence message", body)
 	}
 }
 

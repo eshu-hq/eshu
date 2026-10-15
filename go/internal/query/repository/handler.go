@@ -148,7 +148,7 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	if h.Neo4j == nil {
 		repos, err := h.listRepositoriesFromContent(r.Context())
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+			writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListContentFailedMessage)
 			return
 		}
 		repos = access.FilterRepositoryMaps(repos)
@@ -168,10 +168,7 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	// with the page query on any graph backend at production scale.
 	total, err := queryRepositoryTotal(r.Context(), h.Neo4j, access)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListCountFailedMessage)
 		return
 	}
 
@@ -186,10 +183,7 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.Neo4j.Run(r.Context(), cypher, access.GraphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListPageFailedMessage)
 		return
 	}
 	truncated := len(rows) > page.Limit
@@ -262,10 +256,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	row, err := h.Neo4j.RunSingle(r.Context(), repositoryBaseCypher, map[string]any{"repo_id": repoID})
 	timer.Done(r.Context(), slog.Bool("found", row != nil), slog.Bool("error", err != nil))
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryStoryLookupFailedMessage)
 		return
 	}
 	if row == nil {
@@ -278,15 +269,15 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "content_coverage")
 	contentCoverage, coverageSummary, coverageErr := h.repositoryStoryContentCoverage(r.Context(), repoID)
 	timer.Done(r.Context(), repositoryStatsCoverageLogAttrs(coverageSummary, coverageErr)...)
+	if writeCoverageVerdict(w, r, coverageErr, repositoryStoryCoverageFailedMessage) {
+		return
+	}
 	readModelSummary := repository.LoadRepositoryReadModelSummary(r.Context(), h.Content, repoID)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "graph_summary")
 	storySummary, err := queryRepositoryStoryGraphSummary(r.Context(), h.Neo4j, map[string]any{"repo_id": repoID}, row, contentCoverage, readModelSummary)
 	if err != nil {
 		timer.Done(r.Context(), slog.Bool("error", true))
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryStoryGraphSummaryFailedMessage)
 		return
 	}
 	timer.Done(
@@ -306,7 +297,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	semanticOverview, files, semanticTruncated, filesTruncated, err := loadRepositorySemanticOverview(r.Context(), h.Content, repoID)
 	timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(files)), slog.Bool("truncated", semanticTruncated), slog.Bool("files_truncated", filesTruncated))
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("semantic overview failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryStorySemanticOverviewFailedMessage)
 		return
 	}
 	var infrastructureOverview map[string]any
@@ -377,7 +368,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		narrativeFiles, err = hydrateRepositoryNarrativeFiles(r.Context(), h.Content, repoID, files)
 		timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(narrativeFiles)))
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate repository narrative files failed: %v", err))
+			writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryStoryNarrativeFilesFailedMessage)
 			return
 		}
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "relationships")
@@ -397,10 +388,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	deploymentEvidence, err := loadRepositoryDeploymentEvidenceForOverview(r.Context(), h.Neo4j, h.Content, repoID)
 	timer.Done(r.Context(), slog.Bool("has_result", len(deploymentEvidence) > 0), slog.Bool("error", err != nil))
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load deployment evidence: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryStoryDeploymentEvidenceFailedMessage)
 		return
 	}
 	infrastructureOverview = attachRepositoryDeploymentEvidence(infrastructureOverview, deploymentEvidence)
@@ -408,7 +396,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	ciCDEvidence, err := artifacts.LoadRepositoryScopedCICDEvidenceFromFiles(r.Context(), h.Content, h.CICDRunCorrelations, repoID, files, filesTruncated)
 	timer.Done(r.Context(), slog.Bool("has_result", len(ciCDEvidence) > 0), slog.Bool("error", err != nil))
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load ci/cd evidence: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryStoryCICDEvidenceFailedMessage)
 		return
 	}
 	if len(ciCDEvidence) > 0 {
@@ -440,7 +428,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		slog.Bool("error", err != nil),
 	)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load target documentation: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryStoryTargetDocumentationFailedMessage)
 		return
 	}
 	if documentationOverview := querycontract.AttachStoryTargetDocumentation(
@@ -461,7 +449,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		slog.Bool("error", err != nil),
 	)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load target support: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryStoryTargetSupportFailedMessage)
 		return
 	}
 	if len(targetSupport) > 0 {

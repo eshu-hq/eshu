@@ -53,7 +53,7 @@ func (h *Handler) getRepositoryFreshness(w http.ResponseWriter, r *http.Request)
 	snapshot, err := h.Freshness.ReadRepositoryFreshness(r.Context(), repoID)
 	timer.Done(r.Context())
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "read repository freshness failed: "+err.Error())
+		writeReadFailure(w, r, err, "repository_freshness.status", repositoryFreshnessReadFailedMessage)
 		return
 	}
 
@@ -62,10 +62,7 @@ func (h *Handler) getRepositoryFreshness(w http.ResponseWriter, r *http.Request)
 
 	repoRef, _, err := h.repositoryStatsRepositoryRef(r.Context(), repoID)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "repository_freshness.status") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, "query repository failed: "+err.Error())
+		writeReadFailure(w, r, err, "repository_freshness.status", repositoryFreshnessLookupFailedMessage)
 		return
 	}
 	if repoRef == nil {

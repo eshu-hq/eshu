@@ -68,6 +68,9 @@ func (h *Handler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
 	coverage, coverageErr := h.repositoryStatsContentCoverage(ctx, repoID)
 	coverageMap := repositoryStatsCoverageMap(coverage, coverageErr, h.Content != nil)
 	timer.Done(ctx, repositoryStatsCoverageLogAttrs(coverageMap, coverageErr)...)
+	if writeCoverageVerdict(w, r, coverageErr, repositoryStatsCoverageFailedMessage) {
+		return
+	}
 
 	response := repositoryStatsResponse(repo, coverage, coverageMap)
 	response["result_limits"] = repositoryStatsResultLimits(response, repoID)
@@ -117,11 +120,7 @@ func (h *Handler) resolveRepositoryStatsPathSelector(
 		if selector.WriteLookupFailure(w, r, err) {
 			return "", false
 		}
-		status := http.StatusBadRequest
-		if selector.IsNotFound(err) {
-			status = http.StatusNotFound
-		}
-		querycontract.WriteError(w, status, err.Error())
+		writeSelectorAnswer(w, r, err)
 		return "", false
 	}
 	return repoID, true
@@ -236,7 +235,7 @@ func repositoryStatsCoverageMap(
 		lastError = fmt.Sprintf("content store coverage exceeded %s route timeout", repositoryStatsReadTimeout)
 	case coverageErr != nil:
 		missingEvidence = []string{"content_store_coverage_error"}
-		lastError = coverageErr.Error()
+		lastError = coverageReadFailedLastError
 	case !contentConfigured:
 		lastError = "content store not configured"
 	default:

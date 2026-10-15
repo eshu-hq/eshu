@@ -4,7 +4,6 @@
 package repository
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -36,10 +35,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	baseRow, err := h.Neo4j.RunSingle(ctx, repositoryBaseCypher, params)
 	timer.Done(ctx, slog.Bool("found", baseRow != nil), slog.Bool("error", err != nil))
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryContextLookupFailedMessage)
 		return
 	}
 	if baseRow == nil {
@@ -82,10 +78,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	counts, err := queryRepositoryContextCounts(ctx, h.Neo4j, params, baseRow, contentCoverage, readModelCounts)
 	if err != nil {
 		timer.Done(ctx, slog.Bool("error", true))
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryContextCountsFailedMessage)
 		return
 	}
 	timer.Done(
@@ -179,10 +172,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	deploymentEvidence, err := queryRepoDeploymentEvidence(ctx, h.Neo4j, h.Content, params)
 	if err != nil {
 		timer.Done(ctx, slog.Bool("error", true))
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load deployment evidence: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryContextDeploymentEvidenceFailedMessage)
 		return
 	}
 	if len(deploymentEvidence) > 0 {
