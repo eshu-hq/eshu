@@ -15,7 +15,7 @@ live in `7932-storage-attribution.sql`; the seeded fixture that checks them is
 | Relation sizes, row estimates, generation counts, and the retention settings of the deployment | Reported in #7932 and its comments on 2026-10-10 and 2026-10-11. Not re-measured here: this work has no access to that database. |
 | The lifecycle categories the attribution query assigns | Proved here on a seeded fixture (below). |
 | Bytes by lifecycle category on the deployment | NOT_CHECKED. The query is ready; it has not run against the deployment. |
-| Cleanup cost per generation (rows, buffers, WAL, lock hold) | Measured here on a scratch PostgreSQL 18.6 with the production schema, at fixture scale. Production scale is labelled as such. |
+| Cleanup cost per generation (rows, buffers, WAL, lock hold) | Measured on a scratch PostgreSQL 18.6 with the production schema, at fixture scale, by the #7420 and #7427 leaves (both unmerged when this audit was written; some raw output was not retained). This audit did not re-run them. Production scale is labelled as such. |
 | Physical reclaimable bytes | NOT_CHECKED. A DELETE returns space to the table, not to the filesystem. No bloat measurement exists. |
 
 ## Method
@@ -99,8 +99,7 @@ Two arithmetic facts follow from those numbers; neither is a byte measurement:
 
 - 827 of 31,701 generations are active, 2.6%. If a superseded generation's
   search terms were about the same size as an active one's, about 97% of the
-  terms bytes would belong to generations no query reads. That is an upper
-  bound under a uniformity assumption; the sampled footprint in section 2 of the
+  terms bytes would belong to generations no query reads. That is an estimate under a uniformity assumption, with unknown direction; the sampled footprint in section 2 of the
   script replaces it with a measurement.
 - Terms are hash-partitioned by `scope_id` across 64 leaves, not by generation,
   so no partition can be dropped to reclaim a generation's terms.
@@ -122,21 +121,23 @@ So for a superseded generation the derived search index is storage with no
 reader, and retention's cascade is the only thing that deletes it. With
 retention held at 87600h that cascade never runs.
 
-## Cleanup cost, measured at fixture scale
+## Cleanup cost, from the sibling leaves, at fixture scale
 
 PostgreSQL 18.6, production schema, shared scratch host (buffer and call counts
-are the primary evidence; wall time is secondary). These are costs a policy
-change would pay; they are not a recommendation to run them.
+are the primary evidence; wall time is secondary). These figures come from the #7420 and #7427 evidence notes and their
+scratch runs, not from this audit; where a figure's raw output was not retained
+the row says so. They are costs a policy change would pay; they are not a
+recommendation to run them.
 
 | Measurement | Result |
 |---|---|
-| Prune of one 400k-fact generation through `DELETE FROM scope_generations` (the retention path), key tables at 100%, 20% and 5% coverage | 6.64M buffer hits. The three per-fact referential-integrity triggers account for about 4.6M of them (400,000 calls each). 8.6 s on a quiet moment, 18.9 s under host load. |
-| WAL for that prune | about 47 MB: 21 MB the fact cascade, 21 MB the first key table, 4 MB and 1 MB the others. About 118 bytes per fact at those coverage ratios. |
+| Prune of one 400k-fact generation through `DELETE FROM scope_generations` (the retention path), key tables at 100%, 20% and 5% coverage | 6.64M buffer hits. The three per-fact referential-integrity triggers account for about 4.6M of them (400,000 calls each). 8.6 s on a quiet moment, 18.9 s under host load. (Figure from a drive-local shim or sibling run; raw output not retained, so not independently traceable.) |
+| WAL for that prune | about 47 MB: 21 MB the fact cascade, 21 MB the first key table, 4 MB and 1 MB the others. About 118 bytes per fact at those coverage ratios. (Figure from a drive-local shim or sibling run; raw output not retained, so not independently traceable.) |
 | Prune of one 1.5M-fact generation, 20% of each child table, 7.5M facts, warm (#7420) | 28.133 s, 26.4M buffer hits, 182 MB WAL. The three per-fact RI cascades took 7.05 s, 5.71 s and 5.06 s at 1,500,000 calls each; the fact cascade took 1.96 s. |
 | Same generation with the per-fact FKs dropped and explicit `(scope_id, generation_id)` child deletes (new partition indexes on two tables) | 2.428 s, 5.04M buffer hits, WAL unchanged at 182 MB. Cold shared buffers: 36.5 s before, 6.8 s after. The WAL is the cost of deleting the rows, which no ordering removes. |
-| Same prune with children deleted first and the foreign keys kept | the fact delete still took 6.2 s with 1.2M trigger calls and zero child rows: the trigger invocation, not child work, is the cost (#7420). |
+| Same prune with children deleted first and the foreign keys kept | the fact delete still took 6.2 s with 1.2M trigger calls and zero child rows: the trigger invocation, not child work, is the cost (#7420). (Figure from a drive-local shim or sibling run; raw output not retained, so not independently traceable.) |
 | Terms cascade for one superseded generation at 18% of a 10M-row leaf | 3.3 s under the scope lock: about 1 buffer per deleted row, plus a full-leaf scan of 99,998 pages with no `scope_id` predicate (#7427). |
-| Pre-deleting that generation's terms in 20,000-row batches | 91 batches, 3.1 s total, about 23 ms and 1.08 MB of WAL per batch, no parent-row lock; the active-generation read probe stayed at 189 buffers and p50 0.28 ms during the loop. |
+| Pre-deleting that generation's terms in 20,000-row batches | 91 batches, 3.1 s total, about 23 ms and 1.08 MB of WAL per batch, no parent-row lock; the active-generation read probe stayed at 189 buffers and p50 0.28 ms during the loop. (Figure from a drive-local shim or sibling run; raw output not retained, so not independently traceable.) |
 
 The lock-hold figures describe the scope row lock that retention holds for the
 whole pruning transaction. #7420 and #7427 own the changes to those costs; this
@@ -156,7 +157,7 @@ None of these is applied here. They are ordered by what must be known first.
 3. Treat the derived search index as a separate lifecycle from fact history.
    For a superseded generation it has no reader and is derived from facts that
    the history hold keeps anyway, so a hold that is right for history also keeps
-   up to the upper bound above of unread index bytes (not measured). The batch
+   an estimated share of unread index bytes (the estimate above; not measured, direction unknown). The batch
    pre-delete measured above is the mechanism; it does not need to wait for the
    history policy to change. This needs an owner decision and its own issue:
    retention only deletes eligible generations, so with the current hold even

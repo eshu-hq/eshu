@@ -28,7 +28,10 @@
 -- The category predicate mirrors generationRetentionCandidateQuery
 -- (go/internal/storage/postgres/generation_retention_sql.go, ranked_superseded_
 -- generations / eligible CTEs) at origin/main 329b630a4. If that query changes,
--- re-derive this one; the evidence doc names the check.
+-- re-derive this one. The category `superseded_eligible` is correct for that
+-- commit only: open PR #8139 (delta-base retention guard, #7802) will make
+-- retention keep delta bases, after which this script over-counts eligible
+-- generations until it is re-derived.
 
 \set ON_ERROR_STOP on
 \if :{?sample} \else \set sample 40 \endif
