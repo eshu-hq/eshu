@@ -40,13 +40,6 @@ func codeTopicCandidateCap(termCount int) int {
 	return candidateCap
 }
 
-// isReaderMemberLoss accepts only a guarded runtime marker for a lost physical
-// reader; generic PostgreSQL failures and caller cancellation are not retried.
-func isReaderMemberLoss(err error) bool {
-	var lost interface{ ReaderMemberLost() bool }
-	return errors.As(err, &lost) && lost.ReaderMemberLost()
-}
-
 // InvestigateCodeTopic ranks term matches in content_entities (name/source)
 // and content_files (path/content), scoped by repo or caller grant. It serves
 // CodeHandler and change-surface fast paths; a missing store fails closed.
@@ -92,6 +85,9 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		if err == nil {
 			span.SetAttributes(attribute.String("code_topic.execution_mode", "parallel_shared_snapshot"))
 			return results, nil
+		}
+		if errors.Is(err, db.ErrSnapshotExportUnqualified) {
+			return nil, recordCodeTopicSnapshotExportDenial(span, err)
 		}
 		if ctx.Err() != nil || !errors.Is(err, db.ErrSnapshotReservationCapacity) {
 			span.SetAttributes(attribute.String("code_topic.execution_mode", "parallel_shared_snapshot"))

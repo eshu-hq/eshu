@@ -125,8 +125,20 @@ graph-read helper answer:
 | Condition | HTTP status | Error code | Message |
 | --- | --- | --- | --- |
 | Replica behind the writer checkpoint, or reader connection acquisition or identity check timed out | `503` | `backend_unavailable` | `database read temporarily unavailable; retry shortly` |
+| Reader build not qualified for shared-snapshot export (#7957; permanent) | `503` | `backend_unavailable` | `shared-snapshot read refused: the PostgreSQL reader build is not qualified for snapshot export` |
 
-The response carries `Retry-After: 2` (a fixed number of seconds, sized to the
+The shared-snapshot refusal applies to `POST /api/v0/code/topics/investigate`
+and the change-planning routes that read code-topic evidence
+(`POST /api/v0/impact/change-surface/investigate`, `.../pre-change`,
+`.../developer-change-plan`) when the topic expands to 16 search terms on a
+reader with at least four connections. It carries
+`error.details.reason: "snapshot_export_unqualified"` and **no** `Retry-After`
+or `retry_after_seconds`: it lasts until the operator upgrades the reader to
+PostgreSQL 18.7 or later or declares the exact build, so retrying does not
+help. No reader connection was borrowed and no snapshot was exported. See
+[Shared-snapshot export qualification](../deployment/postgres-read-routing.md#shared-snapshot-export-qualification).
+
+The stale or timed-out reader response carries `Retry-After: 2` (a fixed number of seconds, sized to the
 2-second replay window) and the same hint in the envelope as
 `error.details.retry_after_seconds`, because the MCP transport forwards the
 envelope rather than HTTP headers. The body never carries the Go error text.

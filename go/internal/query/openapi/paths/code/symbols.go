@@ -370,7 +370,20 @@ const Symbols = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "503": {
+            "description": "Backend unavailable. A replica behind the writer checkpoint, or a reader connection acquisition or identity check that timed out, answers a transient backend_unavailable with a Retry-After hint and error.details.retry_after_seconds. A PostgreSQL reader build that is not qualified for shared-snapshot export (#7957) refuses every search that would run on one shared snapshot (16 search terms on a reader with at least four connections): it answers a permanent backend_unavailable with the fixed message 'shared-snapshot read refused: the PostgreSQL reader build is not qualified for snapshot export', error.details.reason=snapshot_export_unqualified, and no Retry-After. It persists until the operator upgrades the reader to PostgreSQL 18.7 or later or declares the exact build in ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS; retrying does not help.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying. Present only on the transient reader or graph verdicts; absent from the permanent snapshot_export_unqualified refusal.",
+                "schema": {"type": "integer", "minimum": 1}
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
