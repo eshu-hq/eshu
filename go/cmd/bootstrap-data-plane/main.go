@@ -224,6 +224,8 @@ func run(
 		executor: nd.executor,
 		timeout:  statementTimeout,
 	})
+	keyRunner := infraSearchKeyRunner(nd.runner, statementTimeout)
+	awaitSeconds := infraSearchKeyAwaitSeconds(statementTimeout)
 	adoptionMode := graphSchemaAdoptionModeFromEnv(getenv, backend)
 	if adoptOnly {
 		adoptionMode = graphSchemaAdoptionRequired
@@ -240,7 +242,8 @@ func run(
 		} else {
 			adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
 			defer cancel()
-			adopted, actualNames, err := adoptExistingGraphSchema(adoptionCtx, database, nd.inspector, logger, schemaApplication)
+			adopted, actualNames, err := adoptExistingGraphSchema(adoptionCtx, database, nd.inspector, logger, schemaApplication,
+				infraSearchKeyAdoptionGate(ctx, backend, keyRunner, logger, awaitSeconds))
 			if err != nil {
 				return err
 			}
@@ -259,7 +262,6 @@ func run(
 			existingNames: existingSchemaNames,
 		}
 	}
-	keyRunner := infraSearchKeyRunner(nd.runner, statementTimeout)
 	if backend == graph.SchemaBackendNeo4j {
 		if err = checkInfraSearchKeyReadiness(ctx, keyRunner, logger); err != nil {
 			return err
@@ -269,7 +271,7 @@ func run(
 		return err
 	}
 	if backend == graph.SchemaBackendNeo4j {
-		if err = backfillInfraSearchKeys(ctx, keyRunner, logger); err != nil {
+		if err = backfillInfraSearchKeys(ctx, keyRunner, logger, awaitSeconds); err != nil {
 			return err
 		}
 	}

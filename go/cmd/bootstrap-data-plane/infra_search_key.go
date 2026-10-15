@@ -21,6 +21,10 @@ import (
 // or a FAILED infra_search_key_ft index.
 const infraSearchKeyRunbook = "go/internal/graph/README.md#infra-search-key-index-runbook"
 
+// infraSearchKeyAwaitCypher waits for the #7245 index to come ONLINE; it
+// errors when the index is FAILED or the wait runs out.
+const infraSearchKeyAwaitCypher = "CALL db.awaitIndex($name, $seconds)"
+
 // infraSearchKeyIndexStateCypher reads the state and population of the #7245
 // FULLTEXT index.
 const infraSearchKeyIndexStateCypher = "SHOW FULLTEXT INDEXES YIELD name, state, populationPercent " +
@@ -59,23 +63,28 @@ func checkInfraSearchKeyReadiness(ctx context.Context, runner search.Runner, log
 		oversized, graph.InfraSearchKeyMaxChars, graph.InfraSearchKeyIndexName, infraSearchKeyRunbook)
 }
 
-// backfillInfraSearchKeys runs after the Neo4j graph DDL and before the schema
-// marker: it keys every existing infra node, then checks the index. A failed
-// label or a FAILED index leaves the marker unset, so the next bootstrap
-// retries; the backfill skips nodes already keyed, so a retry resumes.
-func backfillInfraSearchKeys(ctx context.Context, runner search.Runner, logger *slog.Logger) error {
+// backfillInfraSearchKeys runs after the Neo4j graph DDL (or after a complete
+// adoption) and before the schema marker: it keys every existing infra node,
+// waits for the index, and requires it ONLINE. A failed label, a FAILED index,
+// or an index still populating when the wait ends leaves the marker unset, so
+// the next bootstrap retries; the backfill skips nodes already keyed, so a
+// retry resumes.
+func backfillInfraSearchKeys(ctx context.Context, runner search.Runner, logger *slog.Logger, awaitSeconds int) error {
 	if runner == nil {
 		return errors.New("infra search key backfill requires a graph query runner")
 	}
 	if _, err := search.Backfill(ctx, runner, search.BackfillOptions{Logger: logger}); err != nil {
 		return err
 	}
+	_, awaitErr := runner.Run(ctx, infraSearchKeyAwaitCypher, map[string]any{
+		"name": graph.InfraSearchKeyIndexName, "seconds": awaitSeconds,
+	})
 	rows, err := runner.Run(ctx, infraSearchKeyIndexStateCypher, map[string]any{"name": graph.InfraSearchKeyIndexName})
 	if err != nil {
-		return fmt.Errorf("read %s state: %w", graph.InfraSearchKeyIndexName, err)
+		return fmt.Errorf("read %s state: %w", graph.InfraSearchKeyIndexName, errors.Join(err, awaitErr))
 	}
 	if len(rows) == 0 {
-		return fmt.Errorf("%s is missing after graph DDL", graph.InfraSearchKeyIndexName)
+		return fmt.Errorf("%s is missing", graph.InfraSearchKeyIndexName)
 	}
 	state, _ := rows[0]["state"].(string)
 	population, _ := rows[0]["populationPercent"].(float64)
@@ -85,15 +94,45 @@ func backfillInfraSearchKeys(ctx context.Context, runner search.Runner, logger *
 		"state", state,
 		"population_percent", population,
 	)
-	if state == "FAILED" {
+	switch {
+	case state == "FAILED":
 		logger.ErrorContext(ctx, "infra search key index is FAILED",
 			telemetry.EventAttr("bootstrap.graph.infra_search_key.index_failed"),
 			"index", graph.InfraSearchKeyIndexName,
 			"runbook", infraSearchKeyRunbook,
 		)
 		return fmt.Errorf("%s is FAILED (see %s)", graph.InfraSearchKeyIndexName, infraSearchKeyRunbook)
+	case state != "ONLINE":
+		return errors.Join(fmt.Errorf("%s is %s after waiting %ds, want ONLINE; rerun bootstrap once it is populated",
+			graph.InfraSearchKeyIndexName, state, awaitSeconds), awaitErr)
 	}
-	return nil
+	return awaitErr
+}
+
+// infraSearchKeyAdoptionGate returns the step adoption runs before it writes
+// the schema marker on Neo4j: the same probe, backfill, and ONLINE check as
+// the DDL path, so adopting an existing infra_search_key_ft never trusts a
+// FAILED index or a backfill that never ran. It returns nil for NornicDB.
+func infraSearchKeyAdoptionGate(ctx context.Context, backend graph.SchemaBackend, runner search.Runner, logger *slog.Logger, awaitSeconds int) func() error {
+	if backend != graph.SchemaBackendNeo4j {
+		return nil
+	}
+	return func() error {
+		if err := checkInfraSearchKeyReadiness(ctx, runner, logger); err != nil {
+			return err
+		}
+		return backfillInfraSearchKeys(ctx, runner, logger, awaitSeconds)
+	}
+}
+
+// infraSearchKeyAwaitSeconds is the db.awaitIndex budget: most of the
+// statement timeout that bounds the call.
+func infraSearchKeyAwaitSeconds(statementTimeout time.Duration) int {
+	seconds := int(statementTimeout.Seconds() * 0.9)
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
 }
 
 // infraSearchKeyRunner bounds runner with the graph schema statement timeout,

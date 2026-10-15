@@ -30,6 +30,9 @@ func (r *fakeGraphRunner) Run(_ context.Context, cypher string, _ map[string]any
 	case strings.Contains(cypher, "IN TRANSACTIONS"):
 		*r.events = append(*r.events, "backfill")
 		return []map[string]any{{"keyed": int64(1), "overflowed": int64(0)}}, nil
+	case strings.HasPrefix(cypher, "CALL db.awaitIndex("):
+		*r.events = append(*r.events, "await_index")
+		return nil, nil
 	case strings.HasPrefix(cypher, "SHOW FULLTEXT INDEXES"):
 		*r.events = append(*r.events, "index_state")
 		state := r.indexState
@@ -84,7 +87,7 @@ func TestRunProbesBeforeDDLAndBackfillsBeforeTheMarker(t *testing.T) {
 	for range graph.InfraSearchKeyLabels() {
 		want = append(want, "backfill")
 	}
-	want = append(want, "index_state")
+	want = append(want, "await_index", "index_state")
 	if strings.Join(events, ",") != strings.Join(want, ",") {
 		t.Fatalf("events = %v, want %v", events, want)
 	}

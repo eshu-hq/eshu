@@ -86,10 +86,14 @@ On Neo4j only, after the schema marker check and before the graph DDL,
 FULLTEXT term over Lucene's limit and fail `infra_search_key_ft`, so a
 non-zero count stops the run before any DDL and before the marker. After the
 DDL and before the marker, `backfillInfraSearchKeys` runs `search.Backfill`
-over every infra label in batched transactions, then reads the index state and
-population. A failed label or a `FAILED` index returns an error and leaves the
-marker unset; the next run retries, and the backfill resumes after the nodes
-already keyed. Each statement is bounded by
+over every infra label in batched transactions, waits with `db.awaitIndex`,
+and reads the index state and population. Anything but `ONLINE` (a failed
+label, a `FAILED` index, an index still populating) returns an error and
+leaves the marker unset; the next run retries, and the backfill resumes after
+the nodes already keyed. Schema adoption (`ESHU_GRAPH_SCHEMA_ADOPT_EXISTING`)
+runs the same probe, backfill, and `ONLINE` check before it writes the
+adoption marker, so adopting an existing `infra_search_key_ft` by name never
+trusts a `FAILED` index or a backfill that never ran. Each statement is bounded by
 `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT`. NornicDB runs none of this. Recovery:
 the runbook in `go/internal/graph/README.md`.
 

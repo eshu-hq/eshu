@@ -127,6 +127,7 @@ func adoptExistingGraphSchema(
 	inspector graphSchemaInspector,
 	logger *slog.Logger,
 	app graph.SchemaApplication,
+	beforeMark func() error,
 ) (bool, map[string]struct{}, error) {
 	if inspector == nil {
 		return false, nil, fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
@@ -160,6 +161,13 @@ func adoptExistingGraphSchema(
 			)
 		}
 		return false, actualNames, nil
+	}
+	// A complete catalog is not enough on its own: an adopted index can be
+	// FAILED, or its data unbackfilled (#7245). beforeMark runs that gate.
+	if beforeMark != nil {
+		if err := beforeMark(); err != nil {
+			return false, actualNames, err
+		}
 	}
 	if err := markGraphSchemaApplied(ctx, db, app); err != nil {
 		return false, actualNames, err
