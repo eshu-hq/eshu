@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -120,6 +121,49 @@ func (s routeStepStore) RepositoryLanguageInventory(
 	return s.FakePortContentStore.RepositoryLanguageInventory(ctx, limit, offset, allScopes, repoIDs, scopeIDs)
 }
 
+// treeListerStore adds the optional tree listers (repoFileLanguageLister and
+// repoFilePathLister) to routeStepStore, so the pushed-down tree branches
+// reach their own reads.
+type treeListerStore struct {
+	routeStepStore
+}
+
+func (s treeListerStore) RepoFilePathContext(context.Context, string, string) (bool, string, error) {
+	if err := s.fail("path_context"); err != nil {
+		return false, "", err
+	}
+	return true, "", nil
+}
+
+func (s treeListerStore) ListRepoFilesByLanguage(context.Context, string, []string, string, int) ([]querycontract.FileContent, error) {
+	return nil, s.fail("language_files")
+}
+
+func (s treeListerStore) ListRepoFilesByPath(context.Context, string, string, int) ([]querycontract.FileContent, error) {
+	return nil, s.fail("path_files")
+}
+
+// failingCICDStore fails every CI/CD run-correlation read with err.
+type failingCICDStore struct{ err error }
+
+func (s failingCICDStore) ListCICDRunCorrelations(context.Context, querycontract.CICDRunCorrelationFilter) ([]querycontract.CICDRunCorrelationRow, error) {
+	return nil, s.err
+}
+
+// matchFailingGraph answers the repository base lookup, fails every Run
+// whose Cypher contains match with err, and answers every other read with no
+// rows.
+func matchFailingGraph(match string, err error) graph.FakeRepoGraphReader {
+	g := storyGraph(nil)
+	g.RunFn = func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if strings.Contains(cypher, match) {
+			return nil, err
+		}
+		return nil, nil
+	}
+	return g
+}
+
 // stepStore builds a routeStepStore over the one-repository fixture catalog.
 func stepStore(step string, err error) routeStepStore {
 	return routeStepStore{
@@ -190,8 +234,19 @@ func repositoryRouteSteps() []routeStep {
 		{"catalog/repositories", "/api/v0/catalog", catalogRepositoriesFailedMessage, func(err error) *Handler {
 			return &Handler{Neo4j: failingGraph(err)}
 		}},
+		{"catalog/workloads", "/api/v0/catalog", catalogWorkloadsFailedMessage, func(err error) *Handler {
+			return &Handler{Neo4j: matchFailingGraph("(w:Workload", err)}
+		}},
 		{"context/lookup", stepRepoPath + "/context", repositoryContextLookupFailedMessage, func(err error) *Handler {
 			return &Handler{Neo4j: failingGraph(err)}
+		}},
+		{"context/counts", stepRepoPath + "/context", repositoryContextCountsFailedMessage, func(err error) *Handler {
+			return &Handler{Neo4j: storyGraph(err)}
+		}},
+		{"context/deployment evidence", stepRepoPath + "/context", repositoryContextDeploymentEvidenceFailedMessage, func(err error) *Handler {
+			store := stepStore("", nil)
+			store.DeploymentEvidenceErr = err
+			return &Handler{Neo4j: storyGraph(nil), Content: store}
 		}},
 		{"story/lookup", stepRepoPath + "/story", repositoryStoryLookupFailedMessage, func(err error) *Handler {
 			return &Handler{Neo4j: failingGraph(err)}
@@ -212,6 +267,9 @@ func repositoryRouteSteps() []routeStep {
 			store.DeploymentEvidenceErr = err
 			return &Handler{Neo4j: storyGraph(nil), Content: store}
 		}},
+		{"story/ci-cd evidence", stepRepoPath + "/story", repositoryStoryCICDEvidenceFailedMessage, func(err error) *Handler {
+			return &Handler{Neo4j: storyGraph(nil), Content: stepStore("", nil), CICDRunCorrelations: failingCICDStore{err: err}}
+		}},
 		{"story/target documentation", stepRepoPath + "/story", repositoryStoryTargetDocumentationFailedMessage, func(err error) *Handler {
 			store := stepStore("", nil)
 			store.DocumentationFindingsErr = err
@@ -227,6 +285,18 @@ func repositoryRouteSteps() []routeStep {
 		}},
 		{"tree/files", stepRepoPath + "/tree", repositoryTreeFilesFailedMessage, func(err error) *Handler {
 			return &Handler{Content: stepStore("repo_files", err)}
+		}},
+		{"tree/path context (language filter)", stepRepoPath + "/tree?language=go", repositoryTreePathContextFailedMessage, func(err error) *Handler {
+			return &Handler{Content: treeListerStore{stepStore("path_context", err)}}
+		}},
+		{"tree/path context (path scope)", stepRepoPath + "/tree?path=src", repositoryTreePathContextFailedMessage, func(err error) *Handler {
+			return &Handler{Content: treeListerStore{stepStore("path_context", err)}}
+		}},
+		{"tree/language-filtered files", stepRepoPath + "/tree?language=go", repositoryTreeLanguageFilesFailedMessage, func(err error) *Handler {
+			return &Handler{Content: treeListerStore{stepStore("language_files", err)}}
+		}},
+		{"tree/path-scoped files", stepRepoPath + "/tree?path=src", repositoryTreePathFilesFailedMessage, func(err error) *Handler {
+			return &Handler{Content: treeListerStore{stepStore("path_files", err)}}
 		}},
 		{"tree/refs", stepRepoPath + "/tree?ref=main", repositoryTreeRefsFailedMessage, func(err error) *Handler {
 			return &Handler{Content: stepStore("repository_refs", err)}
@@ -291,12 +361,15 @@ func TestRepositoryRouteStepFailuresAnswerFixedMessages(t *testing.T) {
 func TestRepositoryRouteStepMessagesAreDistinct(t *testing.T) {
 	t.Parallel()
 
+	// Rows of one step reached through different branches share its
+	// message; they differ only in a parenthesized branch note.
 	seen := map[string]string{}
 	for _, step := range repositoryRouteSteps() {
-		if other, ok := seen[step.message]; ok {
-			t.Fatalf("steps %q and %q share the message %q", other, step.name, step.message)
+		name, _, _ := strings.Cut(step.name, " (")
+		if other, ok := seen[step.message]; ok && other != name {
+			t.Fatalf("steps %q and %q share the message %q", other, name, step.message)
 		}
-		seen[step.message] = step.name
+		seen[step.message] = name
 	}
 }
 
