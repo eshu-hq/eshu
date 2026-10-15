@@ -72,6 +72,13 @@ const (
 // verbatim into `LIMIT $limit` with no ceiling of their own. Mirrors the
 // sibling code_symbol.go symbolSearchMaxLimit (200) on the nearest sibling
 // route in package query.
+//
+// Coupled to taxonomy.MaxLanguageEntityIDLookup (#7247): a page of this many
+// graph rows is the id set the anchored metadata lookup receives, and the
+// content reader refuses a larger set with an error (a 500) rather than
+// truncating it, so a silent drift cannot leave rows without metadata. Raise
+// both together; TestLanguageQueryMaxLimitFitsTheIDLookupBound in
+// metadata_anchored_test.go fails when this exceeds the lookup bound.
 const languageQueryMaxLimit = 200
 
 // Handler provides language-specific entity queries against the graph and

@@ -75,6 +75,14 @@ type LanguageEntityIDLookup struct {
 // MaxLanguageEntityIDLookup bounds one LanguageEntityIDLookup to the largest
 // language-query page (the route clamps limit to 200), so the id set, and the
 // rows the lookup can return, never exceed one page.
+//
+// It is coupled to the route's clamp, languageQueryMaxLimit in
+// go/internal/query/language/handler.go: the reader rejects a larger set with
+// an error on purpose (a loud 500, never a silent truncation that would leave
+// rows without metadata). Raise both together;
+// TestLanguageQueryMaxLimitFitsTheIDLookupBound in
+// go/internal/query/language/metadata_anchored_test.go fails when the clamp
+// exceeds this bound.
 const MaxLanguageEntityIDLookup = 200
 
 // LanguageEntityMetadataByIDReader is the id-anchored content read the

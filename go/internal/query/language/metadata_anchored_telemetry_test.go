@@ -13,7 +13,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -128,16 +127,5 @@ func TestLanguageMetadataEnrichmentRecordsThePageReadPath(t *testing.T) {
 	}
 	if got := obs.counts["page_read/enriched"]; got != 0 {
 		t.Fatalf("counter page_read/enriched = %d, want 0", got)
-	}
-}
-
-// TestLanguageQueryPageFitsTheIDLookupBound keeps the route's limit clamp and
-// the id lookup's bound in step: a full page must never exceed the bound.
-func TestLanguageQueryPageFitsTheIDLookupBound(t *testing.T) {
-	t.Parallel()
-
-	if languageQueryMaxLimit > taxonomy.MaxLanguageEntityIDLookup {
-		t.Fatalf("languageQueryMaxLimit %d > taxonomy.MaxLanguageEntityIDLookup %d: a full page would be refused by the id lookup",
-			languageQueryMaxLimit, taxonomy.MaxLanguageEntityIDLookup)
 	}
 }

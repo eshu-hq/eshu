@@ -92,6 +92,9 @@ func (cr *ContentReader) ListEntityMetadataByIDsForAccess(
 	if len(ids) == 0 {
 		return nil, nil
 	}
+	// Refuse, never truncate: a silent clamp would leave rows without metadata
+	// and hide drift between this bound and the route's limit clamp, which
+	// TestLanguageQueryMaxLimitFitsTheIDLookupBound (package language) pins.
 	if len(ids) > taxonomy.MaxLanguageEntityIDLookup {
 		err := fmt.Errorf("list entity metadata by ids: %d ids exceeds %d", len(ids), taxonomy.MaxLanguageEntityIDLookup)
 		span.RecordError(err)

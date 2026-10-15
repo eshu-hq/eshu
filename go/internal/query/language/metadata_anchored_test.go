@@ -375,3 +375,21 @@ func withoutEnrichment(row map[string]any) map[string]any {
 	}
 	return out
 }
+
+// TestLanguageQueryMaxLimitFitsTheIDLookupBound pins the coupling between the
+// route's limit clamp (languageQueryMaxLimit, handler.go) and the id lookup's
+// bound (taxonomy.MaxLanguageEntityIDLookup, search.go). The only path that
+// feeds the lookup is a graph page of at most languageQueryMaxLimit rows, and
+// the content reader refuses a larger id set with an error rather than
+// truncating it. So if the clamp is raised past the bound, every full page of
+// an anchored label would fail as a 500. This test makes that a build-time
+// failure instead: raise both constants together.
+func TestLanguageQueryMaxLimitFitsTheIDLookupBound(t *testing.T) {
+	t.Parallel()
+
+	if taxonomy.MaxLanguageEntityIDLookup < languageQueryMaxLimit {
+		t.Fatalf("taxonomy.MaxLanguageEntityIDLookup = %d < languageQueryMaxLimit = %d: a full %d-row page of an anchored "+
+			"label would be refused by the id lookup and answer 500; raise the lookup bound with the clamp",
+			taxonomy.MaxLanguageEntityIDLookup, languageQueryMaxLimit, languageQueryMaxLimit)
+	}
+}
