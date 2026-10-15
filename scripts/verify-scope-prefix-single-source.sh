@@ -26,10 +26,16 @@
 #
 # The gate and its own test necessarily contain the literal they match.
 #
-# Known residual (accepted, tracked in #8112): split-concatenation such as
-# "git-repository-" + "scope:" evades this grep guard by construction, as do
-# suffixed placeholder spellings outside the bare literal. Broadening the
-# pattern would false-positive on placeholders, so the tradeoff stays.
+# Known residual (accepted; the live site was converted under #8112):
+# split-concatenation such as "git-repository-" + "scope:" evades this grep
+# guard by construction. The one live production placeholder spelling (the
+# service-catalog correlation anchor key) now names the constant instead of
+# the literal and is pinned by its own correlation test
+# (TestServiceCatalogCorrelationRequiredAnchorKeysNameScopePrefix), so no
+# production code placeholder remains for the pattern to miss. Placeholder display
+# spellings in comments and *_test.go fixtures stay out of scope by design.
+# Broadening the pattern to catch them would false-positive on placeholders
+# without closing concatenation evasion, so the tradeoff stays.
 #
 # Modes:
 #   (default)      tree mode — scan every tracked Go file. Used by CI so a

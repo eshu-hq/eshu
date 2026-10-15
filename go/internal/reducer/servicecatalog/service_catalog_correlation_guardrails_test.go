@@ -5,6 +5,9 @@ package servicecatalog
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -82,6 +85,35 @@ func TestServiceCatalogCorrelationSummaryExposesFanoutGuardrails(t *testing.T) {
 	rejected := decisions["component:default/name-only"]
 	if got, want := rejected.RequiredAnchorKeys, serviceCatalogCorrelationRequiredAnchorKeys(); !slices.Equal(got, want) {
 		t.Fatalf("rejected RequiredAnchorKeys = %v, want %v", got, want)
+	}
+}
+
+// TestServiceCatalogCorrelationRequiredAnchorKeysNameScopePrefix pins the
+// #7879 single-source contract at the one production placeholder spelling
+// (#8112): the repo-local scope anchor key names the scope constant instead
+// of respelling its literal, so the grep gate's bare-literal blind spot for
+// suffixed placeholder spellings cannot hide a second definition.
+func TestServiceCatalogCorrelationRequiredAnchorKeysNameScopePrefix(t *testing.T) {
+	t.Parallel()
+
+	keys := serviceCatalogCorrelationRequiredAnchorKeys()
+	if len(keys) != 3 {
+		t.Fatalf("serviceCatalogCorrelationRequiredAnchorKeys() has %d keys, want 3", len(keys))
+	}
+	if want := serviceCatalogGitRepositoryScopePrefix + "<repo_id>"; keys[2] != want {
+		t.Fatalf("anchor key = %q, want %q", keys[2], want)
+	}
+
+	_, callerFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	source, err := os.ReadFile(filepath.Join(filepath.Dir(callerFile), "service_catalog_correlation_guardrails.go"))
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if strings.Contains(string(source), `"git-repository-scope:`) {
+		t.Fatalf("service_catalog_correlation_guardrails.go spells the scope prefix literal; name serviceCatalogGitRepositoryScopePrefix instead")
 	}
 }
 

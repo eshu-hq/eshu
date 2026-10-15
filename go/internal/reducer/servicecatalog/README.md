@@ -148,6 +148,34 @@ or log field. The two counters above and the reducer executions that wrap
 them are the same before and after the move; only the file paths the
 telemetry-coverage rows point at changed.
 
+### #8112 scope-prefix placeholder conversion
+
+No-Regression Evidence (#8112): the correlation anchor key is now built as
+serviceCatalogGitRepositoryScopePrefix + "<repo_id>" instead of respelling
+the prefix literal. Baseline origin/main e7073ced05, measured after the
+final edit on this branch with the Go unit lane (go1.26.2 linux/amd64, no
+Docker, Postgres, or Neo4j): `go test ./internal/reducer/servicecatalog/
+-count=1` passes, including the new
+TestServiceCatalogCorrelationRequiredAnchorKeysNameScopePrefix (RED before
+the conversion, GREEN after) and the existing EvidenceSummary pin on the
+required_anchor_keys text; the ServiceCatalog suites in
+internal/collector/repo/git, internal/query/service, and internal/query also
+pass, and `go vet`, the scope-prefix guard, and its mirror pass. Input shape
+is the package stub loader (3 entities, 2 repository links, 2 active
+repositories) with terminal counts candidate_fanout_total=2,
+max_candidate_fanout=2, dropped_ambiguous_candidates=2,
+missing_anchor_entities=2, identical to the baseline run. No Cypher, SQL,
+queue, lease, batching, or concurrency path is touched; the alias equals the
+constant by construction, so the emitted anchor value is byte-identical and
+no hot-path cost changes.
+
+No-Observability-Change (#8112): no new queue domain, worker, lease, graph
+or Postgres operation, runtime setting, metric instrument, metric label,
+span, or log field. The eshu_dp_service_catalog_correlations_total and
+eshu_dp_service_catalog_correlation_guardrails_total counters asserted by
+TestServiceCatalogCorrelationCountersSeparateGuardrails record the same
+values as the baseline; only the Go spelling of the anchor key changed.
+
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a
