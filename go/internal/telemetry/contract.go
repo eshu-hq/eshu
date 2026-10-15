@@ -59,7 +59,9 @@ const (
 	MetricDimensionWritePhase = "write_phase"
 	MetricDimensionOutcome    = "outcome"
 	// MetricDimensionPhase labels the delta-baseline fence counter (#7319)
-	// with the closed phase that decided: preflight or ack.
+	// with the closed phase that decided: preflight or ack. The
+	// package-consumption scope-rebuild counter (#7663) uses it for its
+	// closed pass phase: initial or dirty_repair.
 	MetricDimensionPhase = "phase"
 	// MetricDimensionWriter labels the Repository stub-creation counter
 	// (#7446) with the closed shared-edge writer: repo_dependency or

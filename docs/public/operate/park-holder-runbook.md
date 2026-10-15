@@ -13,9 +13,15 @@ The park is an operator-held session advisory lock, key `(5318, 7088)`, that
 keeps the reducer's package-manifest backfill from running passes. Each pass
 starts by trying that lock
 (`go/cmd/reducer/package_manifest_backfill.go`); while the park is held the
-pass reports `contended` and retries on the next poll. Operators park the
-backfill because a pass can hold one transaction for an hour on a large scope
-(#7663), and that window is a bad time to start other sensitive work.
+pass reports `contended` and retries on the next poll. Operators parked the
+backfill because, before #7663, a pass held one transaction for a whole scope:
+more than an hour on a large one, with the scope row locked and reducer
+inserts for that scope blocked or timing out. A pass now commits one
+transaction per 500-fact page and never holds a scope row across pages. The
+`eshu_dp_package_manifest_backfill_page_duration_seconds` and
+`eshu_dp_package_manifest_backfill_scope_lock_wait_seconds` metrics show
+what a pass is holding. The park remains the way to stop passes during other
+sensitive work.
 
 A park holder must be an idle session. A holder shaped as a long statement
 pins the vacuum horizon for the whole database and stalls any `CREATE INDEX

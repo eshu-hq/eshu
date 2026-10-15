@@ -54,7 +54,7 @@ func runPackageManifestConsumptionKeyBackfill(ctx context.Context, database *sql
 		started := time.Now()
 		ran, err := withPackageManifestBackfillLeadership(ctx, database, func(passCtx context.Context, conn *sql.Conn) error {
 			bound := packageManifestBackfillConn{conn: conn}
-			if err := postgres.BackfillPackageManifestConsumptionKeys(passCtx, bound); err != nil {
+			if err := (postgres.PackageManifestConsumptionKeyBackfill{Instruments: instruments}).Run(passCtx, bound); err != nil {
 				return err
 			}
 			var readyErr error
