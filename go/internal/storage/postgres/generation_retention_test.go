@@ -221,8 +221,9 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotReportRowsPruned(t *testing.
 	if result.GenerationsPruned != 0 {
 		t.Fatalf("GenerationsPruned = %d, want 0", result.GenerationsPruned)
 	}
-	// 101 own fact rows over a limit of 100: permanently unprunable on
-	// this path, so #7334 fix 3 reports row_limit_own_rows, not row_limit.
+	// 101 own fact rows over a limit of 100 at count time, after a clean
+	// pre-screen: #7334 fix 3 reports row_limit_own_rows, not row_limit.
+	// Since #7981 this is the facts-grew race; the next cycle chunks it.
 	if got, want := result.Skipped["row_limit_own_rows"], 1; got != want {
 		t.Fatalf("Skipped[row_limit_own_rows] = %d, want %d", got, want)
 	}

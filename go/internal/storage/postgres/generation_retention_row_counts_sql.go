@@ -3,6 +3,13 @@
 
 package postgres
 
+import (
+	"context"
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+)
+
 // generationRetentionRowCountsQuery reports, per candidate generation and
 // table, the rows a retention batch over $1 deletes. Generation-owned tables
 // count the generation's own rows. A content row (content_entities,
@@ -423,3 +430,68 @@ LEFT JOIN shared_projection_unroutable_intents AS row
   ON row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 `
+
+// queryChunkPage reads one oldest-first #7981 over-limit fact page, a bounded
+// read sizing the batch's deletes like the counts above. The deletes run
+// under the narrow lock in generation_retention_relock.go.
+func queryChunkPage(
+	ctx context.Context,
+	tx db.Transaction,
+	candidate generationRetentionCandidate,
+	chunkRows int,
+) (retentionChunkPage, error) {
+	rows, err := tx.QueryContext(ctx, generationRetentionChunkPageQuery,
+		candidate.scopeID, candidate.generationID, chunkRows)
+	if err != nil {
+		return retentionChunkPage{}, fmt.Errorf("generation retention: page chunk facts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var page retentionChunkPage
+	for rows.Next() {
+		var id, kind, repoID, path, entityID string
+		var tombstone bool
+		if err := rows.Scan(&id, &kind, &tombstone, &repoID, &path, &entityID); err != nil {
+			return retentionChunkPage{}, fmt.Errorf("generation retention: scan chunk page: %w", err)
+		}
+		page.ids = append(page.ids, id)
+		switch {
+		case !tombstone && kind == "file" && repoID != "" && path != "":
+			page.fileRepos = append(page.fileRepos, repoID)
+			page.filePaths = append(page.filePaths, path)
+		case !tombstone && kind == "content_entity" && repoID != "" && entityID != "":
+			page.entityRepos = append(page.entityRepos, repoID)
+			page.entityIDs = append(page.entityIDs, entityID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return retentionChunkPage{}, fmt.Errorf("generation retention: page chunk facts: %w", err)
+	}
+	return page, nil
+}
+
+// queryChunkPruneCounts runs one chunk content prune and scans its one
+// count row into the given destinations.
+func queryChunkPruneCounts(
+	ctx context.Context,
+	tx db.Transaction,
+	statement string,
+	keysA, keysB []string,
+	counts ...*int64,
+) error {
+	rows, err := tx.QueryContext(ctx, statement, keysA, keysB)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	values := make([]any, len(counts))
+	for i, count := range counts {
+		values[i] = count
+	}
+	if !rows.Next() {
+		return fmt.Errorf("generation retention: chunk prune returned no count row")
+	}
+	if err := rows.Scan(values...); err != nil {
+		return fmt.Errorf("generation retention: scan chunk prune counts: %w", err)
+	}
+	return rows.Err()
+}

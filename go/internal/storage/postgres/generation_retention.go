@@ -163,15 +163,24 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	if _, err := tx.ExecContext(ctx, generationRetentionSavepointStatement); err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: savepoint: %w", err)
 	}
-	candidates, rowCounts, eventRowCounts, err := s.selectPrunableCandidates(ctx, tx, now, policy, &result)
+	candidates, rowCounts, eventRowCounts, chunkTarget, err := s.selectPrunableCandidates(ctx, tx, now, policy, &result)
 	if err != nil {
 		return GenerationRetentionResult{}, err
 	}
 	// ScopeLockHold spans the re-lock, its recount and the prune, and is
-	// zero when the pass locks nothing.
+	// zero when the pass locks nothing. A chunk cycle holds the same narrow
+	// window for its page delete, so each cycle's hold stays bounded.
 	var narrowHoldStart time.Time
 	held := false
-	if len(candidates) > 0 {
+	var chunk generationRetentionChunk
+	var chunked bool
+	if chunkTarget != nil {
+		narrowHoldStart = time.Now()
+		candidates, rowCounts, eventRowCounts, chunk, chunked, held, err = s.relockChunkedBatch(ctx, tx, now, policy, candidates, *chunkTarget, &result)
+		if err != nil {
+			return GenerationRetentionResult{}, err
+		}
+	} else if len(candidates) > 0 {
 		narrowHoldStart = time.Now()
 		candidates, rowCounts, eventRowCounts, held, err = s.relockRetentionSelection(ctx, tx, now, policy, candidates, &result)
 		if err != nil {
@@ -182,6 +191,11 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, eventRowCounts, policy, now, &result); err != nil {
 			return GenerationRetentionResult{}, err
 		}
+	}
+	if chunked {
+		// pruneCandidates rebuilds RowsPruned from the normal batch, so
+		// the chunk's counts merge after it, never before.
+		mergeChunkProgress(&result, *chunkTarget, chunk, now)
 	}
 
 	phaseStart = time.Now()
@@ -208,18 +222,27 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 // savepoint is rolled back before planning, so the pre-screen, the row count
 // and the re-check loop all run unlocked; the caller re-locks the
 // provisionally selected set before pruning (#7334 fix 1).
+// selectPrunableCandidates plans one pass unlocked and returns the counted
+// normal batch plus, since #7981, at most one over-limit chunk target: the
+// oldest candidate whose own facts exceed BatchRowLimit. The chunk target
+// drains one bounded page per cycle under the narrow lock instead of
+// skipping forever; the other over-limit candidates wait silently for a
+// later cycle, when they are re-selected and re-checked like any crash
+// resume. The #7981 witness retains the newest copy per same-identity group
+// in the planned batch before counting, so unlocked planning never assembles
+// a batch that removes every copy at once.
 func (s GenerationRetentionStore) selectPrunableCandidates(
 	ctx context.Context,
 	tx db.Transaction,
 	now time.Time,
 	policy GenerationRetentionPolicy,
 	result *GenerationRetentionResult,
-) ([]generationRetentionCandidate, map[string]int64, map[string]map[string]int64, error) {
+) ([]generationRetentionCandidate, map[string]int64, map[string]map[string]int64, *generationRetentionCandidate, error) {
 	phaseStart := time.Now()
 	candidates, err := s.selectCandidates(ctx, tx, now, policy)
 	result.PhaseDurations[GenerationRetentionPhaseSelectCandidates] += time.Since(phaseStart)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	// Uncovered writers (#7472) ride the candidate query's report leg so the
 	// pass can tally them as skipped without spending prune batch slots on
@@ -233,42 +256,65 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 		prunable = append(prunable, candidate)
 	}
 	candidates = prunable
+	// The witness runs once on the unlocked plan: per identity group the
+	// newest copy sits this batch out, so planning never proposes removing
+	// every copy at once. Retained copies never enter the lock set, so the
+	// re-lock needs no second pass: pruning any locked subset still leaves
+	// a copy behind. The re-lock's fresh snapshot remains the eligibility
+	// backstop for rows that changed between the two.
+	candidates, witnessRetained := dropNewestSameIdentityPerBatch(candidates)
+	for range witnessRetained {
+		result.Skipped[sameSHANewestSkippedReason]++
+	}
 	if len(candidates) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 	// Give the selection's locks back immediately; everything below plans
 	// unlocked, and the caller re-locks only the selected set.
 	if _, err := tx.ExecContext(ctx, generationRetentionRollbackSavepointStatement); err != nil {
-		return nil, nil, nil, fmt.Errorf("generation retention: rollback to savepoint: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("generation retention: rollback to savepoint: %w", err)
 	}
 	// #7334 fix 2: generations over the limit on own facts alone can never
-	// join a batch; skip them without running the heavyweight row count.
+	// join a batch; since #7981 the oldest one drains a bounded chunk per
+	// cycle instead of skipping forever, without ever entering the
+	// heavyweight row count.
 	phaseStart = time.Now()
 	ownFacts, err := s.prescreenOwnFacts(ctx, tx, candidates)
 	result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	rowLimit := int64(policy.BatchRowLimit)
 	countable := make([]generationRetentionCandidate, 0, len(candidates))
+	var chunkTarget *generationRetentionCandidate
 	for _, candidate := range candidates {
 		if ownFacts[candidate.generationID] > rowLimit {
-			result.Skipped["row_limit_own_rows"]++
+			// Candidates arrive oldest-first, so the first over-limit
+			// one is the oldest; the rest wait for later cycles.
+			if chunkTarget == nil {
+				target := candidate
+				chunkTarget = &target
+			}
 			continue
 		}
 		countable = append(countable, candidate)
 	}
 	if len(countable) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, chunkTarget, nil
 	}
 
 	phaseStart = time.Now()
 	_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(countable), retentionGenerationIDs(countable))
 	result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	return s.recheckRetentionBatch(ctx, tx, countable, eventRowCounts, policy.BatchRowLimit, result)
+	selected, rowCounts, selectedEventRowCounts, err := s.recheckRetentionBatch(
+		ctx, tx, countable, eventRowCounts, policy.BatchRowLimit, result)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	return selected, rowCounts, selectedEventRowCounts, chunkTarget, nil
 }
 
 type generationRetentionCandidate struct {
@@ -281,6 +327,14 @@ type generationRetentionCandidate struct {
 	// reconcile probe still needs it, so it is counted as skipped and
 	// never locked or deleted.
 	uncovered bool
+	// sourceCommitSHA, isDelta and freshnessHint carry the same-identity
+	// columns the #7981 witness rule groups by (scope, non-empty SHA,
+	// is_delta, COALESCE freshness_hint). Rows scanned from six-column
+	// legacy fixtures keep the zero values and never match an identity
+	// group, so they are never retained or exempted by the rule.
+	sourceCommitSHA string
+	isDelta         bool
+	freshnessHint   string
 }
 
 func (s GenerationRetentionStore) selectCandidates(
@@ -329,6 +383,7 @@ const (
 	GenerationRetentionPhasePruneFiles            = "prune_content_files"
 	GenerationRetentionPhaseDeleteLedger          = "delete_changed_since_ledger"
 	GenerationRetentionPhaseDeleteGenerations     = "delete_scope_generations"
+	GenerationRetentionPhasePruneChunkedFacts     = "prune_chunked_facts"
 	GenerationRetentionPhaseCommit                = "commit"
 )
 

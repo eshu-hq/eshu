@@ -16,12 +16,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
-// TestGenerationRetentionPrescreenSkipsOverFactGenerationsLive is #7334 fix
-// 2 through the real store: ps-over (150 own facts against a limit of 100)
-// is skipped with row_limit_own_rows and survives, while ps-under (50 facts)
-// is counted and pruned. The pre-screen SQL is also queried directly to pin
-// its per-generation counts.
-func TestGenerationRetentionPrescreenSkipsOverFactGenerationsLive(t *testing.T) {
+// TestGenerationRetentionPrescreenChunksOverFactGenerationsLive is #7334 fix
+// 2 through the real store, under the #7981 chunk rule: ps-over (150 own
+// facts against a limit of 100) drains one bounded 100-fact chunk and
+// survives with 50 facts, while ps-under (50 facts) is counted and pruned in
+// the same pass. The pre-screen SQL is also queried directly to pin its
+// per-generation counts.
+func TestGenerationRetentionPrescreenChunksOverFactGenerationsLive(t *testing.T) {
 	// Bridge the live-postgres-readiness runner's family DSN onto the shared
 	// helper's generic variable, as TestGenerationRetentionHardCeilingLive
 	// does. Local runs keep using ESHU_POSTGRES_TEST_DSN directly.
@@ -82,12 +83,25 @@ func TestGenerationRetentionPrescreenSkipsOverFactGenerationsLive(t *testing.T) 
 	if result.GenerationsPruned != 1 {
 		t.Fatalf("GenerationsPruned = %d, want 1 (ps-under only)", result.GenerationsPruned)
 	}
-	if got, want := result.Skipped["row_limit_own_rows"], 1; got != want {
-		t.Fatalf("Skipped[row_limit_own_rows] = %d, want %d (ps-over)", got, want)
+	if got, want := result.Skipped["row_limit_chunked"], 1; got != want {
+		t.Fatalf("Skipped[row_limit_chunked] = %d, want %d (ps-over drained one chunk)", got, want)
+	}
+	if got := result.Skipped["row_limit_own_rows"]; got != 0 {
+		t.Fatalf("Skipped[row_limit_own_rows] = %d, want 0 (the prescreen skip is a chunk now)", got)
+	}
+	// 50 counted ps-under facts plus the 100 drained ps-over facts.
+	if got := result.RowsPruned["fact_records"]; got != 150 {
+		t.Fatalf("RowsPruned[fact_records] = %d, want 150 (50 counted + 100 chunked)", got)
+	}
+	if result.ScopeLockHold <= 0 {
+		t.Fatal("ScopeLockHold <= 0, want the chunk cycle's measured narrow hold")
 	}
 	remaining := remainingScopeGenerations(t, ctx, database, []string{"ps-over-g0", "ps-under-g0"})
 	if len(remaining) != 1 || !remaining["ps-over-g0"] {
 		t.Fatalf("remaining generations = %v, want only ps-over-g0", remaining)
+	}
+	if facts := countScopeGenerationFacts(t, ctx, database, "ps-over", "ps-over-g0"); facts != 50 {
+		t.Fatalf("ps-over facts = %d, want 50 (150 drained by one 100-fact chunk)", facts)
 	}
 }
 
@@ -434,7 +448,10 @@ func runTargetedLockRaceCase(t *testing.T, ctx context.Context, database *sql.DB
 			var scope, gotGenerationID, scopeKind string
 			var supersededAt, observedAt time.Time
 			var uncovered bool
-			if err := rows.Scan(&scope, &gotGenerationID, &scopeKind, &supersededAt, &observedAt, &uncovered); err != nil {
+			var sourceCommitSHA, freshnessHint string
+			var isDelta bool
+			if err := rows.Scan(&scope, &gotGenerationID, &scopeKind, &supersededAt, &observedAt, &uncovered,
+				&sourceCommitSHA, &isDelta, &freshnessHint); err != nil {
 				lockErr = err
 				return
 			}

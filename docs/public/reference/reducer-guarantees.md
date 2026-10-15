@@ -48,6 +48,13 @@ immediately after a new generation is admitted, and must not assume they stay
 forever. The only guarantee is that they stop contributing to current graph
 truth from the moment the newer generation supersedes them.
 
+A superseded generation that carries no distinct truth is prunable past the
+count window without waiting for rank or age (#7981): same scope, non-empty
+`source_commit_sha`, same `is_delta` and same `COALESCE` freshness hint as a
+newer generation, past the soft age floor. Uncovered writers still outrank
+the exemption at any age, and each prune batch retains its newest copy per
+identity, so one cycle never removes every copy at once.
+
 ## Unknown Fact Kinds Are Stored But Unconsumed
 
 A fact kind with no reducer consumer contract is still admitted and stored;

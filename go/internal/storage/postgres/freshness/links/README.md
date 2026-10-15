@@ -150,10 +150,12 @@ most its own ledger rows; while another batch is being filled it is deferred
 with reason `row_limit_ledger` and leads a later batch. So a link larger than
 the limit no longer holds the generations it names
 (`TestRetentionRowLimitDoesNotStarveLedgerHeavyGenerations`). A candidate
-whose own rows outside the ledger exceed the limit is skipped as
-permanent (`row_limit_own_rows`, ADR #2248): the pre-screen excludes it
-before the full count, since only its own prune could delete those rows.
-The deferred rest keep `row_limit`. Every pass selects inside a
+whose own rows outside the ledger exceed the limit drains one bounded chunk
+per cycle (`row_limit_chunked`, #7981) instead of skipping forever: the
+pre-screen diverts it past the full count, and the generation row goes in a
+later cycle once the remainder fits, with the ledger-before-generations
+order intact. `row_limit_own_rows` remains only for the recount race. The
+deferred rest keep `row_limit`. Every pass selects inside a
 savepoint, rolls back to it (which releases the selection's row locks),
 plans unlocked, and re-locks only the selected set in `(scope,
 generation)` order with `SKIP LOCKED` before it recounts and deletes

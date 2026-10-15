@@ -39,6 +39,20 @@ func retentionSelectionPolicy(minSuperseded int, maxAge time.Duration, batchLimi
 	}
 }
 
+// countScopeGenerationFacts reports how many fact_records rows one
+// (scope, generation) still owns, so a chunk test can prove per-cycle drain
+// progress without re-reading whole tables.
+func countScopeGenerationFacts(t *testing.T, ctx context.Context, database *sql.DB, scopeID, generationID string) int64 {
+	t.Helper()
+	var facts int64
+	if err := database.QueryRowContext(ctx,
+		`SELECT count(*) FROM fact_records WHERE scope_id = $1 AND generation_id = $2`,
+		scopeID, generationID).Scan(&facts); err != nil {
+		t.Fatalf("count generation facts: %v", err)
+	}
+	return facts
+}
+
 // remainingScopeGenerations reports which of ids still exist in
 // scope_generations, so a test can confirm a candidate that must survive a
 // pass is untouched and one that must be pruned is gone.

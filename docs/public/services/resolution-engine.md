@@ -100,12 +100,19 @@ the limit by that generation's ledger rows and nothing else; while another
 batch is being filled it is deferred with reason `row_limit_ledger` and leads
 a later batch. Each such batch adds one to
 `eshu_dp_generation_retention_over_limit_batches_total`, and the cycle log
-reports `rows_over_batch_row_limit`. A generation whose own rows outside the
-ledger already exceed the limit is skipped with reason `row_limit_own_rows`
-and never enters the full count: the pre-screen excludes it before the
-count runs (no recount can ever admit it). The deferred rest keep reason
-`row_limit` (ADR #2248). Every pass rolls its selection back to a
-savepoint, plans unlocked, and re-locks only the selected set in
+reports `rows_over_batch_row_limit`. A generation over the limit on its own
+rows drains one bounded chunk per cycle instead of skipping forever (#7981):
+the pre-screen diverts the oldest over-limit candidate past the count, the
+pass re-locks it with the batch and deletes one bounded page of oldest facts
+(keyset order, primary-key delete, at most `BatchRowLimit` rows and never more
+than the default row limit) plus the content rows whose only live fact was in
+that page. The generation row goes in a later cycle once the remainder fits,
+keeping the ledger-before-generations order.
+Each chunk cycle reports `row_limit_chunked` with its drained rows, so the
+runner retries soon; a crash resumes on the still-superseded row with no
+progress table. `row_limit_own_rows` remains only for the recount race; the
+deferred rest keep `row_limit` (ADR #2248). Every pass rolls its selection
+back to a savepoint, plans unlocked, and re-locks only the selected set in
 `(scope, generation)` order with `SKIP LOCKED` before it recounts and
 deletes. The cycle log's `locked_scope_rows` counts the distinct scopes
 of the pruned batch: usually the pass's full lock set, except when the

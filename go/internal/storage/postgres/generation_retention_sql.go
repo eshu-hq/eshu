@@ -32,6 +32,17 @@ import (
 // Skipped "uncovered_writer", which the retention runner already logs per
 // cycle.
 //
+// Same-SHA duplicates (#7981) are eligible regardless of rank once past the
+// soft floor: a superseded generation with a non-empty source_commit_sha
+// that matches a newer same-scope generation on SHA, is_delta and COALESCE
+// freshness_hint carries no distinct truth, so the rank arm admits it when a
+// witness exists (the active generation, or a newer superseded copy). NULL
+// and empty SHAs never match, so generations without a recorded commit stay
+// on rank and age only. Uncovered writers still outrank the exemption: the
+// prunable legs keep excluding them at any age. The Go witness
+// (dropNewestSameIdentityPerBatch) additionally retains the newest copy per
+// identity in each prune batch, so one cycle never removes every copy.
+//
 // $1 soft cutoff, $2 min newer superseded generations, $3 batch/lock-set
 // limit (each leg separately), $4 hard-ceiling cutoff (#7585): the count
 // preference cannot retain ordinary superseded history older than $4.
@@ -44,6 +55,9 @@ WITH ranked_superseded_generations AS (
         generation.observed_at,
         generation.projection_write_started_at,
         generation.activated_at,
+        COALESCE(generation.source_commit_sha, '') AS source_commit_sha,
+        generation.is_delta,
+        COALESCE(generation.freshness_hint, '') AS freshness_hint,
         ROW_NUMBER() OVER (PARTITION BY generation.scope_id ORDER BY generation.superseded_at DESC, generation.generation_id DESC) AS superseded_rank
     FROM scope_generations AS generation
     WHERE generation.status = 'superseded'
@@ -65,6 +79,7 @@ live_work AS MATERIALIZED (
 ),
 eligible AS MATERIALIZED (
     SELECT ranked.scope_id, ranked.generation_id, scope.scope_kind, ranked.superseded_at, ranked.observed_at,
+        ranked.source_commit_sha, ranked.is_delta, ranked.freshness_hint,
         (ranked.projection_write_started_at IS NOT NULL
          AND ranked.activated_at IS NULL
          AND ranked.projection_write_started_at > COALESCE(last_full.full_write_started_at, '-infinity'::timestamptz)) AS uncovered
@@ -74,7 +89,19 @@ eligible AS MATERIALIZED (
     LEFT JOIN last_activated_full_write AS last_full
       ON last_full.scope_id = ranked.scope_id
     WHERE ranked.generation_id IS DISTINCT FROM scope.active_generation_id
-      AND ((ranked.superseded_at < $1 AND ranked.superseded_rank > $2) OR ranked.superseded_at < $4)
+      AND ((ranked.superseded_at < $1 AND (ranked.superseded_rank > $2 OR (
+             ranked.source_commit_sha <> ''
+             AND EXISTS (
+                 SELECT 1 FROM scope_generations AS newer
+                 WHERE newer.scope_id = ranked.scope_id
+                   AND newer.generation_id <> ranked.generation_id
+                   AND newer.source_commit_sha = ranked.source_commit_sha
+                   AND newer.is_delta = ranked.is_delta
+                   AND COALESCE(newer.freshness_hint, '') = ranked.freshness_hint
+                   AND (newer.generation_id = scope.active_generation_id
+                        OR (newer.status = 'superseded' AND newer.superseded_at IS NOT NULL
+                            AND (newer.superseded_at, newer.generation_id) > (ranked.superseded_at, ranked.generation_id))))
+             ))) OR ranked.superseded_at < $4)
       AND NOT EXISTS (
           SELECT 1
           FROM live_work
@@ -105,7 +132,8 @@ prunable_generations AS (
     LIMIT $3
 ),
 reported_uncovered_writers AS (
-    SELECT eligible.scope_id, eligible.generation_id, eligible.scope_kind, eligible.superseded_at, eligible.observed_at
+    SELECT eligible.scope_id, eligible.generation_id, eligible.scope_kind, eligible.superseded_at, eligible.observed_at,
+        eligible.source_commit_sha, eligible.is_delta, eligible.freshness_hint
     FROM eligible
     WHERE eligible.uncovered
     ORDER BY eligible.superseded_at ASC, eligible.generation_id ASC
@@ -117,7 +145,10 @@ locked_prunable AS (
         candidate.generation_id,
         candidate.scope_kind,
         candidate.superseded_at,
-        candidate.observed_at
+        candidate.observed_at,
+        candidate.source_commit_sha,
+        candidate.is_delta,
+        candidate.freshness_hint
     FROM prunable_generations AS candidate
     JOIN scope_generations AS generation
       ON generation.generation_id = candidate.generation_id
@@ -134,7 +165,10 @@ SELECT
     locked.scope_kind,
     locked.superseded_at,
     locked.observed_at,
-    false AS uncovered
+    false AS uncovered,
+    locked.source_commit_sha,
+    locked.is_delta,
+    locked.freshness_hint
 FROM locked_prunable AS locked
 UNION ALL
 SELECT
@@ -143,7 +177,10 @@ SELECT
     reported.scope_kind,
     reported.superseded_at,
     reported.observed_at,
-    true AS uncovered
+    true AS uncovered,
+    reported.source_commit_sha,
+    reported.is_delta,
+    reported.freshness_hint
 FROM reported_uncovered_writers AS reported
 `
 
@@ -157,29 +194,6 @@ const (
 	generationRetentionSavepointStatement         = "SAVEPOINT retention_selection"
 	generationRetentionRollbackSavepointStatement = "ROLLBACK TO SAVEPOINT retention_selection"
 )
-
-// generationRetentionPrescreenQuery counts own fact_records rows per
-// candidate generation (#7334 fix 2): the pre-screen runs unlocked right
-// after the selection's savepoint rollback, before the heavyweight row
-// count. A generation with more own facts than BatchRowLimit is over the
-// limit on facts alone and is skipped without ever entering the full
-// count. Soundness: fact rows are a subset of the rows outside the
-// changed-since ledger, and every count arm is non-negative, so own facts
-// above the limit decisively exceed it. The join follows the
-// (scope_id, generation_id) index prefix; the LEFT JOIN keeps zero-fact
-// generations in the result with a zero count so they stay countable.
-//
-// $1 generation ids.
-const generationRetentionPrescreenQuery = `-- retention: own-fact pre-screen
-SELECT candidate.generation_id, COUNT(row.fact_id) AS own_facts
-FROM (SELECT unnest($1::text[]) AS generation_id) AS candidate
-LEFT JOIN scope_generations AS generation
-  ON generation.generation_id = candidate.generation_id
-LEFT JOIN fact_records AS row
-  ON row.scope_id = generation.scope_id
- AND row.generation_id = candidate.generation_id
-GROUP BY candidate.generation_id
-`
 
 // generationRetentionTargetedCandidateQuery re-locks the provisionally
 // selected set after the selection's savepoint rollback (#7334 fix 1): the
@@ -208,6 +222,12 @@ GROUP BY candidate.generation_id
 // before the prune commits; closing that would serialize activation
 // against retention, which the repo forbids.
 //
+// The lock re-checks the #7981 same-SHA exemption in the same terms as the
+// general candidate query (non-empty SHA, same scope, same is_delta, same
+// COALESCE freshness hint, soft floor, active-or-newer witness, uncovered
+// still excluded), so the two stay in lockstep: a member eligible at
+// selection is still eligible here unless its row changed under it.
+//
 // $1 soft cutoff, $2 minimum newer generations, $3 excluded ids, $4 scope
 // ids, $5 generation ids, $6 hard-ceiling cutoff (#7585).
 const generationRetentionTargetedCandidateQuery = `-- retention: targeted candidate lock
@@ -224,6 +244,9 @@ WITH last_activated_full_write AS MATERIALIZED (
 provisional AS (
     SELECT generation.scope_id, generation.generation_id, scope.scope_kind,
         generation.superseded_at, generation.observed_at,
+        COALESCE(generation.source_commit_sha, '') AS source_commit_sha,
+        generation.is_delta,
+        COALESCE(generation.freshness_hint, '') AS freshness_hint,
         (generation.projection_write_started_at IS NOT NULL
          AND generation.activated_at IS NULL
          AND generation.projection_write_started_at > COALESCE(last_full.full_write_started_at, '-infinity'::timestamptz)) AS uncovered
@@ -236,7 +259,8 @@ provisional AS (
 ),
 locked_members AS (
     SELECT provisional.scope_id, provisional.generation_id, provisional.scope_kind,
-        provisional.superseded_at, provisional.observed_at
+        provisional.superseded_at, provisional.observed_at,
+        provisional.source_commit_sha, provisional.is_delta, provisional.freshness_hint
     FROM provisional
     JOIN scope_generations AS generation ON generation.generation_id = provisional.generation_id
     JOIN ingestion_scopes AS scope ON scope.scope_id = provisional.scope_id
@@ -244,7 +268,7 @@ locked_members AS (
       AND generation.status = 'superseded'
       AND generation.superseded_at IS NOT NULL
       AND generation.generation_id IS DISTINCT FROM scope.active_generation_id
-      AND ((generation.superseded_at < $1 AND (
+      AND ((generation.superseded_at < $1 AND ((
           SELECT count(*)
           FROM scope_generations AS newer
           WHERE newer.scope_id = generation.scope_id
@@ -252,7 +276,19 @@ locked_members AS (
             AND newer.generation_id <> ALL($3::text[])
             AND newer.superseded_at IS NOT NULL
             AND (newer.superseded_at, newer.generation_id) > (generation.superseded_at, generation.generation_id)
-      ) >= $2) OR generation.superseded_at < $6)
+      ) >= $2 OR (
+             COALESCE(generation.source_commit_sha, '') <> ''
+             AND EXISTS (
+                 SELECT 1 FROM scope_generations AS newer
+                 WHERE newer.scope_id = generation.scope_id
+                   AND newer.generation_id <> generation.generation_id
+                   AND newer.source_commit_sha = generation.source_commit_sha
+                   AND newer.is_delta = generation.is_delta
+                   AND COALESCE(newer.freshness_hint, '') = COALESCE(generation.freshness_hint, '')
+                   AND (newer.generation_id = scope.active_generation_id
+                        OR (newer.status = 'superseded' AND newer.superseded_at IS NOT NULL
+                            AND (newer.superseded_at, newer.generation_id) > (generation.superseded_at, generation.generation_id)))
+             )))) OR generation.superseded_at < $6)
       AND NOT EXISTS (
           SELECT 1
           FROM fact_work_items AS work
@@ -262,10 +298,12 @@ locked_members AS (
     ORDER BY generation.scope_id, generation.generation_id
     FOR UPDATE OF generation, scope SKIP LOCKED
 )
-SELECT locked.scope_id, locked.generation_id, locked.scope_kind, locked.superseded_at, locked.observed_at, false AS uncovered
+SELECT locked.scope_id, locked.generation_id, locked.scope_kind, locked.superseded_at, locked.observed_at, false AS uncovered,
+    locked.source_commit_sha, locked.is_delta, locked.freshness_hint
 FROM locked_members AS locked
 UNION ALL
-SELECT provisional.scope_id, provisional.generation_id, provisional.scope_kind, provisional.superseded_at, provisional.observed_at, true AS uncovered
+SELECT provisional.scope_id, provisional.generation_id, provisional.scope_kind, provisional.superseded_at, provisional.observed_at, true AS uncovered,
+    provisional.source_commit_sha, provisional.is_delta, provisional.freshness_hint
 FROM provisional
 WHERE provisional.uncovered
 `

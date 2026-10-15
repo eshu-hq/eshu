@@ -380,6 +380,10 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 	if len(dest) == 11 && len(row) == 10 {
 		row = append(row[:9:9], append([]any{row[8]}, row[9:]...)...)
 	}
+	// #7981 triple: zero-fill six-column fixtures (zero identity never matches).
+	if len(dest) == 9 && len(row) == 6 {
+		row = append(row[:6:6], "", false, "")
+	}
 	if len(dest) != len(row) {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
 	}

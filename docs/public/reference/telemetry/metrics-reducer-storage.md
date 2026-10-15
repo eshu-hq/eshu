@@ -80,12 +80,12 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 | `eshu_dp_generation_retention_generations_pruned_total` | counter | Superseded generations pruned by bounded retention cleanup. |
 | `eshu_dp_generation_retention_rows_pruned_total` | counter | Rows pruned by bounded table/data-class label. |
 | `eshu_dp_generation_retention_failures_total` | counter | Cleanup failures by bounded reason: `store_error`, or `key_index_unavailable` when a cycle is refused because a retention key index is missing or invalid. |
-| `eshu_dp_generation_retention_skipped_total` | counter | Candidate generations skipped by bounded reason: `row_limit` (it fits alone but the batch was full: transient, a later pass retries it), `row_limit_own_rows` (its own rows outside the changed-since ledger already exceed `BatchRowLimit`: permanent, no recount can admit it), `row_limit_ledger` (it exceeds the limit only because of its changed-since ledger rows: deferred to a batch of its own), `uncovered_writer` (an uncovered projection writer the reconcile probe still needs: never pruned at any age; reported oldest-first up to the `BatchGenerationLimit` batch limit, so the count is a floor when writers exceed the cap, #7472; the targeted re-lock also reports members that flip to uncovered after selection, #7903). |
+| `eshu_dp_generation_retention_skipped_total` | counter | Candidate generations skipped by bounded reason: `row_limit` (it fits alone but the batch was full: transient, a later pass retries it), `row_limit_own_rows` (the recount found its rows outside the changed-since ledger over `BatchRowLimit` after a clean pre-screen: a facts-grew race, the next cycle's pre-screen diverts it to a chunk), `row_limit_chunked` (an over-limit generation drained one bounded fact chunk this cycle: progress, the next cycle re-selects the remainder until it fits and prunes whole, #7981), `same_sha_newest` (a same-SHA duplicate batch kept its newest copy per identity this cycle: retained, pruned once older copies clear, #7981), `row_limit_ledger` (it exceeds the limit only because of its changed-since ledger rows: deferred to a batch of its own), `uncovered_writer` (an uncovered projection writer the reconcile probe still needs: never pruned at any age; reported oldest-first up to the `BatchGenerationLimit` batch limit, so the count is a floor when writers exceed the cap, #7472; the targeted re-lock also reports members that flip to uncovered after selection, #7903). |
 | `eshu_dp_generation_retention_over_limit_batches_total` | counter | Retention batches of one generation admitted over `BatchRowLimit` by its changed-since ledger rows. A rising rate means the limit is small for the links being written; the cycle log's `rows_over_batch_row_limit` gives the excess of one batch, and its `locked_scope_rows` the distinct scopes of the pruned batch (usually the pass's full lock set since #7334; members the under-lock refit skips stay held but uncounted). |
 | `eshu_dp_generation_retention_duration_seconds` | histogram | Cleanup transaction duration. |
 | `eshu_dp_generation_retention_batch_size` | histogram | Superseded generation count selected by one cleanup batch. |
 | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | histogram | Oldest selected superseded generation age in one batch. |
-| `eshu_dp_generation_retention_phase_duration_seconds` | histogram | Cleanup transaction time by bounded `phase`: `key_index_check`, `select_candidates`, `count_rows`, `record_events`, `delete_shared_projection_intents`, `prune_content_file_references`, `lock_infra_repositories`, `prune_content_entities`, `delete_infra_orphans`, `prune_content_files`, `delete_changed_since_ledger` (the changed-since ledger delete, #7127), `delete_scope_generations`, `commit`. Every pass times its targeted re-lock of the selected set under `select_candidates` and the recount under that lock under `count_rows` (#7334). |
+| `eshu_dp_generation_retention_phase_duration_seconds` | histogram | Cleanup transaction time by bounded `phase`: `key_index_check`, `select_candidates`, `count_rows`, `record_events`, `delete_shared_projection_intents`, `prune_content_file_references`, `lock_infra_repositories`, `prune_content_entities`, `delete_infra_orphans`, `prune_content_files`, `delete_changed_since_ledger` (the changed-since ledger delete, #7127), `delete_scope_generations`, `prune_chunked_facts` (one over-limit generation's bounded fact page, keyset page plus primary-key delete plus page-key content prunes, #7981), `commit`. Every pass times its targeted re-lock of the selected set under `select_candidates` and the recount under that lock under `count_rows` (#7334). |
 | `eshu_dp_generation_retention_scope_lock_hold_seconds` | histogram | How long one cleanup transaction held its re-locked `ingestion_scopes` rows, from the targeted re-lock of the selected set to the commit. The selection, pre-screen and planning counts run unlocked (#7334). A fact insert into one of those scopes waits up to this long. |
 | `eshu_dp_changed_since_links_total` | counter | Changed-since link attempts (#7127, dark) by `link_kind` (root, incremental, none) and `outcome` (linked, break, failed, poisoned, canceled; `canceled` is a link cut short by reducer shutdown, not counted as a failure). A rebase over a pruned prior is `root`/`linked`. |
 | `eshu_dp_changed_since_link_retries_total` | counter | Non-counting changed-since link misses by `reason` (cursor_locked, generation_locked, generation_lock_timeout, slot_busy; generation_locked covers the activating generation and the link's prior; generation_lock_timeout is a generation lock that waited 250 ms in PostgreSQL's update-chain walk or on a table lock and gave up, from a link or a journal pass); nothing written, the cursor did not move. A steady generation_lock_timeout rate means a transaction holds generation rows for long: check `pg_stat_activity` and `pg_blocking_pids` (usually a retention batch, or a migration). |
@@ -118,6 +118,28 @@ Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event
 table's safe hashes and structured logs for authorized drilldown.
 
+Benchmark Evidence (#7981): same-SHA exemption plus chunked over-limit
+drains. Baseline `EXPLAIN ANALYZE` on the candidate SELECT: 0.416 ms;
+with the dupe leg 0.609 ms (~1.5x, no `fact_records` touch, the
+newer-EXISTS probe rides `scope_generations_scope_generation_idx`).
+Chunk page SELECT is index-only at 0.348 ms per 1000 rows; the
+single-statement `DELETE ... IN (SELECT ... LIMIT)` seq-scanned at
+16.7 ms, so chunks page by keyset then delete by primary-key array.
+After: `TestGenerationRetentionChunkedDrainLive` drains one 2500-fact
+superseded generation in 3 cycles at ~27/22/38 ms per cycle on
+throwaway PostgreSQL 16.15, page cap `min(BatchRowLimit, 100000)`,
+terminal count `GenerationsPruned=1` with the remainder gone. Safe
+because every chunk stays inside one bounded key-range of its own
+scope+generation, the generation row goes last, the changed-since
+ledger rows go before the generations in the same transaction, and a
+crashed drain resumes: the remainder is still superseded and the next
+pre-screen re-selects it.
+
+Observability Evidence (#7981): `row_limit_chunked` (progress),
+`same_sha_newest` (retained newest copy), and the `prune_chunked_facts`
+phase join the existing retention counters, histograms, spans, and
+cycle logs; no new cardinality (bounded reasons and phases only).
+
 Each `generation_retention_events` row carries `row_counts`, the rows its
 generation's pruning removes by table. A content row shared by several
 generations in one batch is counted once, on the newest of them. For the
@@ -130,7 +152,8 @@ counts sum to the rows that `eshu_dp_generation_retention_rows_pruned_total`
 adds for that table, in the absence of concurrent writes between the count and
 the deletes. `scope_generations` has no event count (every other pruned
 table, including `shared_projection_unroutable_intents` since #7784, is
-counted). The `infra_resource_entities` delete also removes mirror rows
+counted). A chunk-drained generation reports the final remainder in its
+event row; prior chunks appear in the counters only. The `infra_resource_entities` delete also removes mirror rows
 that were already orphaned before the batch, so the counter can exceed the event
 sum for that table.
 
