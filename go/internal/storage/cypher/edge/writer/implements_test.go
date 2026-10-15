@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 )
 
 func TestBuildInheritanceRowMapRoutesImplementsLabelScoped(t *testing.T) {
@@ -43,7 +44,7 @@ func TestBuildInheritanceRowMapRoutesImplementsCanonicalFallback(t *testing.T) {
 	if !ok {
 		t.Fatal("buildInheritanceRowMap ok = false, want true")
 	}
-	if cypher != sourcecypher.BatchCanonicalImplementsEdgeUpsertCypher {
+	if cypher != inheritance.BatchImplementsUpsertCypher {
 		t.Errorf("expected canonical IMPLEMENTS template fallback, got %q", cypher)
 	}
 }

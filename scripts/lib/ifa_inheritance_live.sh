@@ -30,8 +30,8 @@ ifa_inheritance_drive() {
 # `as` adaptation -- one class-to-trait and one method-to-method, which carry
 # different child ids so neither can be masked by the other's dedup key.
 #
-# Four types across two writer files: canonical_inheritance_edges.go holds the
-# INHERITS/OVERRIDES/ALIASES templates and canonical_implements_edges.go holds
+# Four types across two writer files: canonical/inheritance/edges.go holds the
+# INHERITS/OVERRIDES/ALIASES templates and canonical/inheritance/implements.go holds
 # IMPLEMENTS. A count-only assertion would pass on INHERITS alone and undercount
 # the family fourfold, which is why this is an exact multiset assertion over the
 # committed expected-edge file rather than a threshold.

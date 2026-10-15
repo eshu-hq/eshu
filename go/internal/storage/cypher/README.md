@@ -724,7 +724,7 @@ repository ids, node ids, and statements stay out of metric labels.
 
 - `CodeCallMaterializedEdgeTypes` - the code_calls family's four types (CALLS,
   REFERENCES, USES_METACLASS, INSTANTIATES), keyed by type
-- `InheritanceMaterializedEdgeTypes` - the inheritance_edges family's four
+- `inheritance.MaterializedEdgeTypes` - the inheritance_edges family's four
   (INHERITS, OVERRIDES, ALIASES, IMPLEMENTS)
 - `RepoDependencyMaterializedEdgeTypes` - the repo_dependency family's seven:
   the six repo-to-repo alternatives split out of the live retract's alternation,

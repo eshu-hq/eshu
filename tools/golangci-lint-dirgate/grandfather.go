@@ -27,6 +27,6 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/parser":             {FileCount: 45, Digest: "ec26538203a8717bfb5cdc794d85fd02156914c7678f1683f1229d13cf7c6bf5", NamingExempt: []string{"c_language.go", "cpp_language.go", "csharp_language.go", "dart_language.go", "dockerfile_language.go", "elixir_language.go", "gomod_language.go", "gradle_language.go", "groovy_language.go", "hcl_language.go", "java_language.go", "java_metadata_files.go", "javascript_language.go", "json_language.go", "kotlin_language.go", "maven_language.go", "perl_haskell_language.go", "php_language.go", "python_dep_language.go", "python_language.go", "ruby_language.go", "rust_language.go", "scala_language.go", "shared_bridge.go", "sql_language.go", "swift_language.go", "yaml_language.go"}},
 	"internal/query":              {FileCount: 252, Digest: "6a369fab5e74a59148ffd84b1c2cf0d346ad82ea635726fa348e82ab1275cfa4"},
 	"internal/reducer":            {FileCount: 129, Digest: "d1ed380a1a061cf8a3d2e8fbf5b2dcd22d77137394f7b9f533123db35de125b6"},
-	"internal/storage/cypher":     {FileCount: 109, Digest: "e8063838d416354547735422111cdaa416b281a48d60a7a49245ed3abb92660e"},
+	"internal/storage/cypher":     {FileCount: 107, Digest: "6f2730b0905d71309cbda88d881b55e57451f265fc67d8780a82a80b3d86ca92"},
 	"internal/storage/postgres":   {FileCount: 321, Digest: "e41f2e9e6cd27f9617416f3b5fdd193b030b6730e21c29cf62fed8cb6e64c62c"},
 }

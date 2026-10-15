@@ -135,7 +135,7 @@
       # family, without depending on anyone remembering to add a filename
       # (#6200). The Cypher writers below still need naming: internal/storage/
       # cypher is not globbed by either gate, so each family enumerates its
-      # own writer there (canonical_inheritance_edges.go, ...).
+      # own writer there (canonical/inheritance/edges.go, ...).
       # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 68
       # literal scripts/lib/ filenames and two globs to 13 literals and 6
       # globs. Same defect as the reducer and factschema entries above, on a
