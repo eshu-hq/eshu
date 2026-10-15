@@ -42,6 +42,20 @@ The operator escape hatch is
 `POST /api/v0/admin/recover-generations`, which durably re-drives a named scope
 set and records the action in the `admin_replay_requests` ledger.
 
+**Bootstrap-only shape (#7265).** A re-drive reopens a succeeded
+`projector`/`source_local` row so a projector can claim it. A deployment that
+runs `eshu-bootstrap-index` and the resolution engine but no ingester and no
+projector has nothing that claims a reopened row, so a re-drive there leaves the
+row `pending` and `index-status` reports `stalled` after an otherwise successful
+bootstrap. Re-driving a healthy long shared tail is how the #7230 acceptance run
+hit this. The progress-window hold now prevents that. For this shape, run a
+projector next to the resolution engine (the Compose stacks already do), or set
+`ESHU_GENERATION_LIVENESS_ENABLED=false` on the resolution engine for the run.
+Disabling the sweep also stops the orphan-supersede statement, because one runner
+runs both; the `stuck` gauge bucket still reports. A genuinely wedged generation
+is then recovered by the operator through
+`POST /api/v0/admin/recover-generations` and a projector, not by the sweep.
+
 Observability Evidence: each re-drive logs `generation liveness re-drove wedged
 generation` (Info) with `scope_id`, `generation_id`,
 `liveness_recovery_attempts`, `reason="no_intent_progress_within_window"`, and
