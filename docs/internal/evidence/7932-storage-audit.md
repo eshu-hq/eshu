@@ -50,11 +50,12 @@ The category predicate mirrors `generationRetentionCandidateQuery`
 "Pinned" has no flag in the code. `generation_retention_policy.go` describes
 dependency-pinned generations as the active pointer, live work and uncovered
 writers; the query implements exactly those three exclusions. A delta
-baseline is not a retention predicate: `projector_queue_delta_baseline.go` fences
-the Ack path, and the changed-since ledger is pruned with its generation (#7127).
-Whether a pruned superseded generation can still be the base of an unpruned delta
-generation is a question for the #7585 and #7399 owners; this audit does not
-answer it. It is listed under "Open questions".
+baseline is not a retention predicate on main: `projector_queue_delta_baseline.go`
+fences the Ack path, and the changed-since ledger is pruned with its generation
+(#7127). #7802 reports that a delta-active scope can lose its base full
+generation to retention past the hard ceiling, and PR #8139 adds that guard; it
+was open and unmerged when this audit was written. Until it merges, any
+relaxation of the hold (recommendation 2) can prune a delta scope's base.
 
 ## Proof that the categories are assigned as stated
 
@@ -170,9 +171,9 @@ None of these is applied here. They are ordered by what must be known first.
 
 ## Open questions
 
-- Can a pruned superseded generation be the baseline of an unpruned delta
-  generation (`delta_baseline_commit_sha`), and does exact historical diff need
-  its facts? The retention predicate does not check this.
+- Does exact historical diff need the facts of a pruned superseded generation
+  beyond the delta-base case that #7802 and PR #8139 cover? The retention
+  predicate on main checks neither.
 - What are the real bytes of `superseded_eligible`, `superseded_retained` and
   `superseded_pinned_live_work` on the deployment? The script answers it.
 - How much of the 2 TiB is dead tuples and bloat today? No measurement exists.
