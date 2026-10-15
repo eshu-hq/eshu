@@ -6,6 +6,8 @@ package cypher
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
 
 // canonicalPhaseCloudResource names the AWS CloudResource node materialization
@@ -153,15 +155,34 @@ DETACH DELETE n`
 type CloudResourceNodeWriter struct {
 	executor  Executor
 	batchSize int
+	// searchKey decides whether the upsert appends the #7245 infra search key
+	// clause.
+	searchKey search.Dialect
 }
 
 // NewCloudResourceNodeWriter returns a CloudResourceNodeWriter backed by the
 // given Executor. A batchSize of 0 or less uses DefaultBatchSize (500).
+//
+// It emits the default Neo4j-keyed shape (search.On), for tests and fixtures;
+// production wiring must use NewCloudResourceNodeWriterWithDialect.
 func NewCloudResourceNodeWriter(executor Executor, batchSize int) *CloudResourceNodeWriter {
+	return newCloudResourceNodeWriter(executor, batchSize, search.On)
+}
+
+// NewCloudResourceNodeWriterWithDialect returns a CloudResourceNodeWriter
+// whose upsert follows searchKey: search.On (Neo4j) appends the infra search
+// key clause, search.Off (NornicDB) emits the statement byte for byte as
+// before the key existed. It panics on an invalid dialect.
+func NewCloudResourceNodeWriterWithDialect(executor Executor, batchSize int, searchKey search.Dialect) *CloudResourceNodeWriter {
+	search.MustDialect(searchKey, "NewCloudResourceNodeWriterWithDialect")
+	return newCloudResourceNodeWriter(executor, batchSize, searchKey)
+}
+
+func newCloudResourceNodeWriter(executor Executor, batchSize int, searchKey search.Dialect) *CloudResourceNodeWriter {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
-	return &CloudResourceNodeWriter{executor: executor, batchSize: batchSize}
+	return &CloudResourceNodeWriter{executor: executor, batchSize: batchSize, searchKey: searchKey}
 }
 
 // WriteCloudResourceNodes upserts CloudResource nodes for the given rows using
@@ -192,7 +213,11 @@ func (w *CloudResourceNodeWriter) WriteCloudResourceNodes(
 		annotated = append(annotated, cloned)
 	}
 
-	stmts := BuildBatchedStatements(canonicalCloudResourceUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(
+		search.Statement(w.searchKey, "CloudResource", "r", canonicalCloudResourceUpsertCypher),
+		annotated,
+		w.batchSize,
+	)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

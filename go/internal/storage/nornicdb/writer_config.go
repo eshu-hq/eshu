@@ -41,7 +41,10 @@ func ConfigureCanonicalWriter(
 	if writer == nil {
 		return nil
 	}
-	writer = writer.WithEntityContainmentInEntityUpsert().
+	// NornicDB cannot evaluate the #7245 infra search key clause, so the
+	// NornicDB shape never carries it.
+	writer = writer.WithoutInfraSearchKey().
+		WithEntityContainmentInEntityUpsert().
 		WithFileBatchSize(config.FileBatchSize).
 		WithEntityBatchSize(config.EntityBatchSize).
 		WithBareRepositoryRetirement()
