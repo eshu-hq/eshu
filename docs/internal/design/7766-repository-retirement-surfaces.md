@@ -15,7 +15,8 @@ Binding inputs: the arbiter rulings on
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), F7,
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)), section 2.
-Source check: origin/main c88c3806a, 2026-10-09.
+Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from
+c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)).
 
 ## Read Surfaces And OpenAPI
 
@@ -37,9 +38,9 @@ Retiring and retired rows also carry `retirement` = {`state` (policy enum),
 
 | Surface | Change |
 | --- | --- |
-| GET `/api/v0/repositories` (`query/repository/handler.go:137-219`) | Graph path: add `r.evidence_source` to the page query and look up tombstones for the page ids only (`WHERE repo_id = ANY($page_ids)`, in a new `retirement_state.go`; the dir carries `//nolint:dirgate`, `doc.go:16`). Content path (`content_reader_repository_catalog.go:16-32` reads `ingestion_scopes WHERE scope_kind='repository'`): `UNION ALL` the complete tombstones that have no scope row. Nothing is dropped from the list; every row is labelled. `total` stays the node count. |
+| GET `/api/v0/repositories` (`query/repository/handler.go:141-223`) | Graph path: add `r.evidence_source` to the page query and look up tombstones for the page ids only (`WHERE repo_id = ANY($page_ids)`, in a new `retirement_state.go`; the dir carries `//nolint:dirgate`, `doc.go:16`). Content path (`content_reader_repository_catalog.go:16-32` reads `ingestion_scopes WHERE scope_kind='repository'`): `UNION ALL` the complete tombstones that have no scope row. Nothing is dropped from the list; every row is labelled. `total` stays the node count. |
 | MCP `list_indexed_repositories` (`mcp/dispatch_repositories.go:74`, routes to the above) | Picks up the fields; the tool description in `tools_codebase.go:227` names `index_state` (mcp-schema-drift). |
-| `/api/v0/index-status`, MCP `get_index_status` (`query/status.go:225-245`) | `repository_count` keeps its query. Adds `repository_count_by_state{indexed,stub}` from `MATCH (r:Repository) WITH r.evidence_source = 'projector/canonical' AS idx RETURN idx, count(*)`. Adds a `repository_retirements` block: counts by state, `oldest_pending_age_seconds`, `last_completed_at`. Counts only, no ids. |
+| `/api/v0/index-status`, MCP `get_index_status` (`query/status.go:226-246`) | `repository_count` keeps its query. Adds `repository_count_by_state{indexed,stub}` from `MATCH (r:Repository) WITH r.evidence_source = 'projector/canonical' AS idx RETURN idx, count(*)`. Adds a `repository_retirements` block: counts by state, `oldest_pending_age_seconds`, `last_completed_at`. Counts only, no ids. |
 | Freshness (`status/repository_freshness.go:22-27`, computed at `:183-205`) | The verdict is a closed set today (`current`, `building`, `behind`, `unobserved`, `not_selected`, `unknown`), and nothing in it knows a tombstone. Add `retiring` and `retired` to `RepositoryFreshnessVerdict` as rule 0, from a tombstone lookup by `repo_id` that runs before `repositoryFreshnessResolveQuery`: an open non-`complete` row gives `retiring`, a `complete` row gives `retired`. The snapshot gains `Retirement *RepositoryFreshnessRetirement`. |
 | Console (`apps/console/src/api/repoCatalog.ts`) | Badge from `index_state`; retired and retiring rows are muted, not hidden. |
 
@@ -69,7 +70,7 @@ OpenAPI changes:
 - the repositories list schema: add `index_state` and `retirement`;
 - the index-status schema: add the new blocks;
 - new admin fragments go in `paths/status/repository_retirement.go`
-  (`paths/status/admin.go` is 461 lines, so it cannot take them).
+  (`paths/status/admin.go` is 463 lines at `ef5703ec26`, so it cannot take them).
 
 ## Operator Surface
 
@@ -79,7 +80,7 @@ Admin routes live in a new leaf, `query/admin/retirement/`, because the admin
 - `POST /api/v0/admin/repository-retirements` with body
   `{"repositories":[sel,...1..25], "reason":str, "idempotency_key":str, "dry_run":bool}`.
   - **Selectors:** resolved with `MatchRepositories` and `gitDefaultScopeMatch`
-    (`reindex_repository.go:55-131`, `content_reader_repository_catalog.go:145-171`
+    (`query/admin/reindex_repository.go:52-128`, `content_reader_repository_catalog.go:145-171`
     matches repo id, `scope_id`, name, slug, path, local path). The request is
     all or nothing, and a 400 names every bad selector. A scope id
     disambiguates the duplicate case.

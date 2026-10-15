@@ -13,7 +13,8 @@ Binding inputs: the arbiter rulings on
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)), section 3.
-Source check: origin/main c88c3806a, 2026-10-09.
+Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from
+c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)).
 
 Deliverable 2 completes what Deliverable 1 starts. Deliverable 1 leaves the
 scope `pending`, fenced, and reported `retiring`. The runner takes it through
@@ -47,17 +48,23 @@ what make the order safe.
 resumed runner cannot assume the queue stayed quiet.
 
 - **2c, graph (`state=repairing_graph`):** see Graph Retraction. Each statement
-  is idempotent. The cursor advances after each statement commits.
+  is idempotent. The cursor advances after each statement commits. On first
+  entry, before G1, the runner reads the repository root and stores it in
+  `graph_repo_root`, in the transaction that persists the cursor. It is never
+  overwritten, so a re-run of 2c after G6 has cleared `Repository.path` and 2d/2e
+  have deleted `content_files` still has it (see
+  [Parameter nodes](#parameter-nodes-g5p)). An empty root goes to `failed`,
+  `failure_class=repository_root_unknown`.
 - **2d, purge (`state=running`):** each batch is one transaction:
   1. `SELECT ... FROM ingestion_scopes WHERE scope_id = ANY FOR NO KEY UPDATE SKIP LOCKED`.
      This is the `retention:<scope_id>` domain, and it conflicts with
      `generationRetentionCandidateQuery`'s `FOR UPDATE OF scope SKIP LOCKED`
-     (`generation_retention_sql.go:61-68`). On a miss: `blocked/scope_lock_busy`, retry.
+     (`generation_retention_sql.go:117-124`). On a miss: `blocked/scope_lock_busy`, retry.
   2. Select up to `BatchGenerationLimit=100` generations of the scopes, oldest
      first, all `superseded`. Count them with `generationRetentionRowCountsQuery`
      and apply `BatchRowLimit=100000` with the same one-generation exception
-     (`generation_retention.go:27-28`, ADR 2248).
-  3. Run the ADR 2248 cascade (`generation_retention.go:437-471`):
+     (`generation_retention.go:26-27`, ADR 2248).
+  3. Run the ADR 2248 cascade (`generation_retention.go:425-459`):
      shared intents → unroutable intents → `content_file_references` →
      infra repo lock → `content_entities` → `infra_resource_entities` →
      `content_files` → changed-since ledger → `scope_generations`. The last
@@ -65,7 +72,12 @@ resumed runner cannot assume the queue stayed quiet.
      `fact_work_items`, `shared_projection_acceptance`
      (`migrations/011:2-5`), and the rest (the
      [census](7766-repository-retirement-table-census.md#purged-at-2d-by-the-generation-cascade) lists them).
-  4. `rows_deleted = rows_deleted + batch` in the same transaction, then commit.
+  4. Delete the batch's rows from `relationship_evidence_facts`,
+     `relationship_candidates`, and `resolved_relationships` by
+     `generation_id = ANY` the batch's ids. Retention has no deleter for them;
+     the [census](7766-repository-retirement-table-census.md#relationship-tables)
+     explains why this runs here and not in 2e.
+  5. `rows_deleted = rows_deleted + batch` in the same transaction, then commit.
 - **2d', lease settle.** When the last 2d batch commits, set `phase='census'`
   and `next_attempt_at = clock_timestamp() + ReducerQueue.LeaseDuration` in the
   same transaction. The runner's claim honours `next_attempt_at` through
@@ -78,7 +90,7 @@ resumed runner cannot assume the queue stayed quiet.
   (`storage/postgres/reducer_queue.go:385-409`), and the reducer service cancels
   the handler context on the first periodic failure
   (`reducer/service_heartbeat.go:97-123`; interval `LeaseDuration/2`,
-  `cmd/reducer/main.go:404`; lease 1 min, `cmd/reducer/main_helpers.go:53`). So a
+  `cmd/reducer/main.go:394`, `main_helpers.go:46`; lease 1 min, `cmd/reducer/main_helpers.go:42`). So a
   handler whose row the cascade removed is cancelled within `LeaseDuration/2` plus
   one in-flight statement, and the lease TTL is the bound the lease contract
   gives. No new column and no new `blocked_reason`: the cost is one pause of
@@ -98,10 +110,11 @@ resumed runner cannot assume the queue stayed quiet.
   - Postgres: 0 rows of the scopes in `fact_work_items`,
     `shared_projection_intents`, `shared_projection_unroutable_intents`, and
     `shared_projection_acceptance`.
-  - Graph: the P10 census, anchored by repo id. The runtime census must be
-    index-anchored; P10' proves it (`PROFILE`, db hits at most 2x at 10x store).
-    If it cannot be anchored, restrict it to the label and edge families in the
-    plan table below.
+  - Graph: the P10 census, anchored by repo id, plus a count of `Parameter`
+    nodes under the G5p predicate, because Parameters carry no `repo_id`. The
+    runtime census must be index-anchored; P10' proves it (`PROFILE`, db hits at
+    most 2x at 10x store). If it cannot be anchored, restrict it to the label
+    and edge families in the plan table below.
   - Dirty: re-run 2c once and re-census.
   - Still dirty: `state=failed`, `failure_class=graph_residue`, the census in
     `failure_details`. A re-issue resumes at 2c.
@@ -175,9 +188,10 @@ Repository node:
 | --- | --- | --- |
 | G1 | `EdgeWriter.RetractEdges` (`edge/writer/retract.go:33-131`) per repo-keyed domain, rows from `buildRepoDependencyRetractRows` (`reducer/repo_dependency_projection_replay.go:285`) and siblings: repo_dependency, submodule_pin, codeowners, workload_dependency, deployable_unit_edges, code_calls, handles_route, runs_in, invokes_cloud_action, shell_exec, sql_relationships, inheritance_edges | Source-anchored, `evidence_source`-scoped edges the repo owns, including its outgoing edges into other Repositories (rule 2 holds) |
 | G2 | `RetractEdges(rationale_edges, buildRationaleRepoRetractRows)` (`reducer/rationale_delta_scope.go:143`) | `EXPLAINS` |
-| G3 | `RetractEdges(documentation_edges, buildDocumentationScopeRetractRows(scope_ids))` (`reducer/documentation_edge_delta_scope.go:287`) | `DOCUMENTS` by `section.scope_id` |
+| G3 | `RetractEdges(documentation_edges, buildDocumentationScopeRetractRows(scope_ids))` (`reducer/documentation_edge_delta_scope.go:288`) | `DOCUMENTS` by `section.scope_id` |
 | G4 | `RetractSingleRepoRelationshipEdgesCypher`, `RetractSingleRepoRunsOnEdgesCypher`, `RetractSingleRepoEvidenceArtifactsCypher` (`canonical_relationships.go:351-382`) | Repo-anchored relationship edges and evidence artifacts |
-| G5 | `CanonicalNodeWriter.buildRetractStatements` + `buildEntityRetractStatements` (`canonical_node_writer_retract.go:19-146`) with `RepoID`, sentinel `GenerationID="retired:<retirement_id>"`, no files, `FirstGeneration=false`, `DeltaProjection=false`, `Drain=true`; plus `canonicalNodeRetractParametersCypher` (`canonical_node_cypher.go:110-113`) with paths paged from `content_files` (still present, because 2c precedes 2d) | Every projector-owned File, Directory, entity, and Parameter node of the repo, and every relationship on them |
+| G5 | `CanonicalNodeWriter.buildRetractStatements` + `buildEntityRetractStatements` (`canonical_node_writer_retract.go:19-146`) with `RepoID`, sentinel `GenerationID="retired:<retirement_id>"`, no files, `FirstGeneration=false`, `DeltaProjection=false`, `Drain=true` | Every projector-owned File, Directory, and entity node of the repo, and every relationship on them |
+| G5p | New prefix-bound Parameter retract, `Drain=true` (see [Parameter nodes](#parameter-nodes-g5p)) | Every projector-owned Parameter node under the repository root, of any generation |
 | G6 | New statement (below) | Demotes the Repository node |
 
 Which evidence sources each G1 domain is retracted under comes from one closed
@@ -190,6 +204,57 @@ set (`reducer/contract/domain.go:17-180`) and requires each domain to be one of:
 
 It is the same shape as `TestWholeScopeRetractDomainsCoversFencedSet`, so a
 domain added later fails the test until someone classifies it.
+
+### Parameter Nodes (G5p)
+
+A `Parameter` node has no `repo_id`. Its key is `(name, path,
+function_line_number)` (`canonical_node_cypher.go:406-413`,
+`graph/schema_tables.go:146`), and its `path` is the repository root joined to
+the file's relative path (`projector/canonical/builder.go:394-407`,
+`qualifyPath` at `:443-451`). The existing retract,
+`canonicalNodeRetractParametersCypher` (`canonical_node_cypher.go:110-113`),
+takes an exact path list. That list is only known while the paths are: G6 clears
+`Repository.path`, and 2d and 2e delete `content_files`. So a 2c re-run on the
+2z dirty path could not rebuild the list, and a census by `repo_id` never sees a
+Parameter. G5p is anchored on the root instead:
+
+```cypher
+MATCH (p:Parameter)
+WHERE p.path STARTS WITH $root_prefix
+  AND p.evidence_source = 'projector/canonical'
+  AND NOT any(n IN $nested_root_prefixes WHERE p.path STARTS WITH n)
+DETACH DELETE p
+```
+
+- **`$root_prefix`** is `graph_repo_root + '/'`. The root is read once, at 2c
+  entry, with the precedence `BuildMaterialization` uses: the Repository node's
+  `path`, else the scope's `metadata.repo_path` (`builder.go:39`, `:57`).
+- **`$nested_root_prefixes`** is `path + '/'` of every other Repository whose
+  `path` starts with `$root_prefix`, read just before each G5p batch through the
+  `repository_path` uniqueness index (`graph/schema_tables.go:17`). A checkout
+  nested inside the retired one keeps its Parameters.
+- **Empty root fails closed.** A projector Run with no root writes bare relative
+  paths (`builder.go:444-446`). Those collide across repositories under the
+  uniqueness key, so no path predicate can scope them to one repository.
+- **G5p also reaps Parameters that full refreshes already leaked.** The
+  full-refresh retract names only the current files' paths
+  (`canonical_node_writer_retract.go:35-39`, `:104-114`). The entity retract
+  deletes a removed file's `Function` and its `HAS_PARAMETER` edge, and the
+  Parameter is left with no edges. That is from source, not run live. It
+  predates #7766, and G5p removes it for the retired repository only.
+- **Index.** On Neo4j the only index on `Parameter.path` is the composite
+  uniqueness index, which leads with `name`, so a `path`-only predicate cannot
+  seek it. The single-property `Parameter.path` index is NornicDB-only
+  (`graph/schema_tables_indexes.go:331`). PR 6 adds a Neo4j range index on
+  `Parameter.path`, and P5 and P10' prove the prefix seek.
+- **Replay.** The `NOT` term makes `isIdempotentRetractStatement` false
+  (`storage/cypher/writer.go:179-193`), the same as the existing G5 retracts'
+  `generation_id <> $generation_id`. The runner's cursor owns the retry, not the
+  executor's group replay.
+- **Residuals.** A repository whose root moved between generations keeps
+  Parameters under the old root, and neither retract names them. A checkout
+  nested under the root and first indexed between the nested-root read and the
+  batch loses its Parameters until its next generation re-merges them.
 
 **Repository node decision: demote, then the orphan sweep reaps it.**
 

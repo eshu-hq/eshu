@@ -22,13 +22,14 @@ Binding inputs: the arbiter rulings on
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)).
-Source check: origin/main c88c3806a, 2026-10-09.
+Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from
+c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)).
 
 ## Prove-First Table
 
 Data shape: PostgreSQL 18, 12,000 scopes and 739,838 generations, per-scope
 p50 27, p99 79, max 3,280, plus one 5,000 tail. This is the QA shape measured
-in `storage/postgres/membership/README.md:160-161`; ADR 2248 does not carry
+in `storage/postgres/membership/README.md:232-233`; ADR 2248 does not carry
 these numbers. Facts are seeded per the #2249 large fixture
 (`TestGenerationRetentionStoreLargeFixtureLive`, formerly
 `...Integration`; #7756 moved it to the migrated schema), scaled to 400 facts
@@ -71,7 +72,7 @@ Checked in the PR that builds the piece: P6 (index-status grouping) and P8
 | --- | --- | --- | --- | --- |
 | P6 | Index-status grouping is cheap | `PROFILE` of the grouped count against the current count at 12,000 Repository nodes | ≤ 50 ms and ≤ 2x baseline | Count indexed only |
 | P7 | The candidates read is cheap (PR 10) | `EXPLAIN ANALYZE` of the Candidates query at 12k scopes x 2 selectors | ≤ 200 ms | Per-selector partition |
-| P8 | Refinalize skip arm | `EXPLAIN ANALYZE` of `AffectedGenerationsTemplate` with the `EXISTS` arm, all-scopes | ≤ +5% | Hashed anti-join |
+| P8 | Refinalize skip arm | `EXPLAIN ANALYZE` of `AffectedGenerationsTemplate` with the `EXISTS` arm, all-scopes, against the four-column (`is_delta`) template as the baseline | ≤ +5% | Hashed anti-join |
 
 ### Deliverable 2: before code
 
@@ -82,16 +83,16 @@ Checked in the PR that builds the piece: P6 (index-status grouping) and P8
 | P9b | The `claimed_at` arm is free on the heartbeat path | `ClaimPartitionLease` benchmark before and after the arm | Median ns/op delta ≤ 1% | Move the epoch out of the claim statement |
 | P9c | The 2b deletes use their indexes | `EXPLAIN` of both 2b deletes at 3x QA scale | Index scans on the named indexes; ≤ 1 s per 10,000-row chunk; 0 rows remain | Add index (new proof) |
 | P9d | 2b' latency is known | p99 cycle time per shared domain on the QA shape | State it. If > 5 min, the readback already names the partition | Runbook step for the operator |
-| P10' | The runtime 2z graph census is index-anchored | `PROFILE` of the 2z census statements | db hits ≤ 2x at 10x store | Restrict the census to the label and edge families in the runner's plan table |
+| P10' | The runtime 2z graph census is index-anchored | `PROFILE` of the 2z census statements, including the G5p `Parameter` count | db hits ≤ 2x at 10x store | Restrict the census to the label and edge families in the runner's plan table |
 
 Checked in the PR that builds the piece:
 
 | # | Theory | Shim | Pass | Fail → |
 | --- | --- | --- | --- | --- |
-| P3 | Purge batches are bounded | EXPLAIN every purge step (runner, step 2d) for a 100-generation batch of the 3,280 scope; run the full purge while projector load runs | Each batch ≤ 5 s and ≤ 100,000 rows; total ≤ 33 batches; active projection slowdown ≤ 10% (ADR 2248 bound) | Lower the batch limit |
-| P4 | Repo-keyed deletes use indexes | EXPLAIN of the 2e deletes by `repo_id` and `scope_id` for the census `2e` rows | Index scans on `content_files_repo_path_idx` and `content_entities_repo_idx`; a named index per other table | Add index (new proof) |
-| P5 | Graph retract is repo-bounded | `PROFILE` of each G5 statement with the sentinel generation and of G6 | db hits proportional to repo nodes, not store size (≤ 2x at 10x store); G6 = `NodeUniqueIndexSeek`, 1 row | Bounded drain per label |
-| P10 | Post-retirement residue | Census: `MATCH (n) WHERE n.repo_id=$id RETURN labels(n), count(*)` and `MATCH (r:Repository {id:$id})-[x]-() RETURN type(x), x.evidence_source, count(*)` | 0 owned nodes; only foreign-owned incoming edges | Extend plan table |
+| P3 | Purge batches are bounded | EXPLAIN every purge step (runner, step 2d), including the relationship-table deletes by generation, for a 100-generation batch of the 3,280 scope; run the full purge while projector load runs | Each batch ≤ 5 s and ≤ 100,000 rows; total ≤ 33 batches; active projection slowdown ≤ 10% (ADR 2248 bound) | Lower the batch limit |
+| P4 | Repo-keyed deletes use indexes | EXPLAIN of the 2e deletes by `repo_id` and `scope_id` for the census `2e` rows, including the relationship tables' `source_repo_id` arm (only `resolved_relationships` has that index today) | Index scans on `content_files_repo_path_idx` and `content_entities_repo_idx`; a named index per other table | Add index (new proof) |
+| P5 | Graph retract is repo-bounded | `PROFILE` of each G5 statement with the sentinel generation, of G5p, and of G6 | db hits proportional to repo nodes, not store size (≤ 2x at 10x store); G5p seeks the `Parameter.path` range index by prefix; G6 = `NodeUniqueIndexSeek`, 1 row | Bounded drain per label |
+| P10 | Post-retirement residue | Census: `MATCH (n) WHERE n.repo_id=$id RETURN labels(n), count(*)` and `MATCH (r:Repository {id:$id})-[x]-() RETURN type(x), x.evidence_source, count(*)`, plus a `Parameter` count under the G5p predicate | 0 owned nodes and 0 Parameters; only foreign-owned incoming edges | Extend plan table |
 
 ### Original rows
 
@@ -195,13 +196,15 @@ Real-Postgres tests run in the `reducer-contention` gate. Graph tests run under
 | The 2b' lease-domain list equals the writers of `shared_projection_partition_leases` found in source | `TestRetirementLeaseDomainsMatchLeaseWriters` |
 | Every scope- and repo-keyed table has a disposition (seeded violation fails, clean tree passes) | `TestRetirementTableCensusClassifiesEveryScopeKeyedTable` |
 | 2z fails closed: residue after a re-run of 2c gives `failed/graph_residue` and the census in `failure_details` | `TestRetirementResidueCensusFailsClosed` |
+| A 2c re-run after 2d and 2e still retracts a leftover Parameter, and 2z counts it. RED on the `content_files`-paged form | `TestRetirementParameterRetractSurvivesContentPurge` |
+| G5p keeps the Parameters of a checkout nested under the root, and an empty root fails `repository_root_unknown` | `TestRetirementParameterRetractSparesNestedRoot` |
 | Phase 3 pre-counts the grant tables, drops them, and re-admission does not restore them | `TestRetirementGrantsCountedAndDropped` |
 
 Retry and dead-letter matrix:
 - transient errors retry with backoff, and the state reports `blocked` with a reason;
 - non-transient errors go to `failed` after 5 attempts and are resumable by re-issue;
 - the tombstone row is the durable failure record, so no work item is dead-lettered;
-- collector refusals return nil, so no `commit_retryable` quarantine fires (`collector/service.go:330-347`).
+- collector refusals return nil, so no `commit_retryable` quarantine fires (`collector/service.go:347-364`).
 
 ## Test Plan
 
@@ -245,10 +248,10 @@ Gates are from `specs/ci-gates.v1.yaml`.
 | PR | Content | Gates |
 | --- | --- | --- |
 | 1 | These design files, the evidence note (`docs/internal/evidence/7766-retirement-prove-first.md`), and its raw outputs, SQL, and shell wrappers (`docs/internal/evidence/7766-retirement-prove-first/`) | markdown-file-cap, docs-*, doc-citations, measurement-citations |
-| 2 | Refactor: move the retention prune steps and SQL to leaf `storage/postgres/retention/prune` with no behavior change. `generation_retention.go` sits at the 500-line cap, and `storage/postgres` is pinned at 335 files (`scripts/lib/dirgate-grandfather.tsv`), so the move is net zero. Deliverable 2 consumes it; Deliverable 1 does not depend on it. | go-file-cap, go-dir-gate, reducer-contention, package-docs |
-| 3 | Marker migration (`repository_retirements`, number 169 at this check) + leaf `storage/postgres/retirement` (marker store, folded commit gate, commit-path benchmark for P2'); gates in `ingestion.go` (490 lines: share the finalized-skip rollback helper), backfill, recovery skip reasons, reindex refusal; refusal counter. No `claimed_at` change. | migration-immutability, reducer-contention, telemetry-coverage, go-file-cap |
-| 4 | Webhook handoff gate (`collector/repo/git`, edits only; grandfathered at 65) | go-dir-gate, telemetry-coverage |
-| 4a | `Fail` lock-order fix: take the scope row first under a `lock_timeout`, defer-retry on `55P03`, correct the comment at `projector_queue.go:214-220`. Projector code, not retirement code. Must land before PR 5. | reducer-contention, go-file-cap |
+| 2 | Refactor: move the retention prune steps and SQL to leaf `storage/postgres/retention/prune` with no behavior change. `generation_retention.go` is 488 lines against the 500-line cap, and `storage/postgres` is pinned at 321 non-test files (`scripts/lib/dirgate-grandfather.tsv`), both at `ef5703ec26`, so the move is net zero. Deliverable 2 consumes it; Deliverable 1 does not depend on it. | go-file-cap, go-dir-gate, reducer-contention, package-docs |
+| 3 | Marker migration (`repository_retirements`, number 178 at this check) + leaf `storage/postgres/retirement` (marker store, folded commit gate, commit-path benchmark for P2'); gates in `ingestion.go` (475 lines: share the finalized-skip rollback helper), backfill, recovery skip reasons, reindex refusal; refusal counter. No `claimed_at` change. | migration-immutability, reducer-contention, telemetry-coverage, go-file-cap |
+| 4 | Webhook handoff gate (`collector/repo/git`, edits only; grandfathered at 67) | go-dir-gate, telemetry-coverage |
+| 4a | `Fail` lock-order fix: take the scope row first under a `lock_timeout`, defer-retry on `55P03`, correct the comment at `projector_queue.go:214-222`. Projector code, not retirement code. Must land before PR 5. | reducer-contention, go-file-cap |
 | 5 | `repositoryretirement` service; phase 1 with the precheck, the deadline, 7d as a mark, the projector-lease wait and recheck (I0), and the new scope-bound drain/recheck/fence helper in `rebuild/reset`; admin leaf routes (create, get, list, dry run with grant counts); audit EventType; OpenAPI fragment | openapi-surface, route-coverage, reducer-contention, telemetry-coverage |
 | 8 | Read surfaces, the `retiring` and `retired` freshness verdicts and OpenAPI enum, MCP descriptions, golden corpus | openapi-surface, mcp-schema-drift, golden-corpus-gate, read-api-latency-gate, query-plan-regression |
 
@@ -262,7 +265,7 @@ can follow PR 3.
 
 | PR | Content | Gates |
 | --- | --- | --- |
-| 6 | Graph library: retract plan, demotion, coverage test, live Neo4j test | race-graph-writes, query-plan-regression |
+| 6 | Graph library: retract plan, G5p, demotion, coverage test, live Neo4j test; Neo4j range index on `Parameter.path` | race-graph-writes, query-plan-regression |
 | 6a | `claimed_at` migration and the `claimPartitionLeaseSQL` epoch arm with the P9b benchmark; the lease-domain test | migration-immutability, reducer-contention |
 | 7 | Reducer runner (2a, 2q, 2b, 2b', 2c, 2d, 2d', 2e, 2z, phase 3) in `reducer/retirement` + `cmd/reducer` wiring; the table census test; grants pre-count; 2q and 2z telemetry | reducer-contention, race-graph-writes, telemetry-coverage, env-registry-doc |
 

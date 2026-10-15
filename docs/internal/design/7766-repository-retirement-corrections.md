@@ -14,7 +14,10 @@ Binding inputs: the arbiter rulings on
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)).
-Source check: origin/main c88c3806a, 2026-10-09.
+Source check: origin/main ef5703ec26, 2026-10-15, for
+[Re-Anchor At ef5703ec26](#re-anchor-at-ef5703ec26) and the sections after it.
+The correction lists before it are records, each checked at the SHA it names
+(195337b97, 3b03f018e, or c88c3806a), and their citations are not rewritten.
 
 ## Corrections To The First Arbiter Ruling
 
@@ -231,6 +234,74 @@ after `3b03f018e`):
   cap") is `selection.go:179-183`.
 - `worker/runner.go:30` (`DefaultLeaseTTL`, 60 s) is unchanged.
 
+## Re-Anchor At ef5703ec26
+
+Main moved 1,211 commits between c88c3806a and ef5703ec26. Every `file:line`
+citation in the design files was mapped to the new SHA. Where the cited lines
+moved unchanged, only the number changed. The rest were re-read, and the claim
+each one supports still holds. None of the changes below breaks lock order, the
+fences, the #7130 claim branch, or how `upsertIngestionScope` binds status. The
+correction lists above are not rewritten.
+
+**Moved or renamed code:**
+- Deferred backfill moved into package `storage/postgres/backfill` (afeeba19c).
+  `latestGenerationCTE` is `backfill.LatestGenerationCTE`
+  (`backfill/generation_cte.go:41-52`), with a byte-identical body, so the
+  any-status fallback holds. `loadGenerations` runs under the exclusive repo
+  lock at `backfill/engine.go:328-332`. The gate moves into that package or
+  behind its `Store` seam, because the package must not import its parent.
+- The repository catalog query is `backfill/catalog.go:29` (SQL at `:51-56`).
+  It still reads every `repository` fact.
+- The finalized-skip branch is `ingestion.go:215-229`. It records
+  `RefreshSkipReasonFinalizedGenerationReplay`, and the retiring refusal keeps
+  its own counter.
+- `failProjectorWorkQuery` is `projector_queue_sql.go:144-216`. Its order is
+  unchanged, and its new `spared_generation` read keeps a spared generation
+  active. The comment PR 4a corrects is `projector_queue.go:214-222`.
+- Ack's refusal predicate is `projector_queue_sql.go:61-75`. It now also stamps
+  `reconcile_projected_at` on a re-projection.
+- The claim statement is split across `projector_queue_claim_sql.go` and
+  `projector_queue_claim_pool_sql.go` at a CTE boundary, and it is still one
+  statement. The re-admit probe is `projector_queue_claim_pool_sql.go:255-260`.
+  It now also accepts `activated_at IS NOT NULL`, and a re-admitted generation is
+  `pending` with no siblings, so it is still a first generation.
+- The refinalize template returns an `is_delta` column (`reset.go:75-123`; the
+  skip-reason CASE is `:78-86`). P8's baseline is the four-column template.
+- The reducer heartbeat is `reducerHeartbeatInterval`
+  (`cmd/reducer/main_helpers.go:46`, used at `main.go:394`). The lease is
+  `reducerClaimLeaseDuration` (`:42`).
+- #7795 added `ignored_decision` to the webhook failure constants (`:38-47`).
+
+**Writers the design did not list:**
+- **#7978 duplicate-generation reproject.** It runs before the commit
+  transaction and skips the commit gate, but it locks the scope row first and
+  re-opens only the active, activated generation, so phase 1 fences it. It is
+  added to the writer table and the lock-order table.
+- **Refinalize's delta reindex request (#7797).** A refinalize whose read
+  predates phase 1 can re-create the `repository_reindex_requests` row that 7e
+  deletes. The writer table and the census name it, and 2e deletes the row.
+
+**Point-in-time numbers re-read:** the marker migration is 178 (177 is the
+latest, and no open PR adds one). The `storage/postgres` dirgate pin is 321.
+`collector/repo/git` is at 67. `generation_retention.go` is 488 lines,
+`ingestion.go` is 475, and `paths/status/admin.go` is 463.
+
+**Table census:** every table it left NOT_CHECKED is now classified. Migration
+170 added three repo-keyed tables. The sweep also found
+`service_materialization_generations` and the `projection_decision_evidence` blind
+spot (see the [census](7766-repository-retirement-table-census.md)).
+
+## Draft Review: N7
+
+**N7 (P2, Deliverable 2): Parameter nodes.** Parameter nodes carry no
+`repo_id`, and G5 retracted them through a path list paged from `content_files`.
+After 2d and 2e that list is gone, and G6 has cleared `Repository.path`, so a 2c
+re-run could not retract a leftover Parameter, and the 2z census could not see
+one. Fixed with the root-anchored G5p and the `graph_repo_root` column (runner,
+[Parameter Nodes (G5p)](7766-repository-retirement-runner.md#parameter-nodes-g5p)).
+The root anchor was chosen over a snapshot of the paths because it also covers
+Parameters that full refreshes already leaked, and the snapshot does not.
+
 ## Out Of Scope: Pre-Existing Issues
 
 Two defects the proof exposed predate #7766. #7766 references them and does not
@@ -238,8 +309,8 @@ depend on them: #7852 and #7853.
 
 - **Refinalize `LOCK TABLE` convoy (#7852).**
   `AcquireReducerClaimFence` runs `LOCK TABLE fact_work_items IN EXCLUSIVE
-  MODE` (`rebuild/reset/refinalize.go:65-66`, `:381`, driven from
-  `storage/postgres/recovery.go:369`) with no `lock_timeout` anywhere in
+  MODE` (`rebuild/reset/refinalize.go:65-66`, `:382`, driven from
+  `storage/postgres/recovery.go:394`) with no `lock_timeout` anywhere in
   `recovery.go` or `refinalize.go`. The fix is a bounded-wait and retry fence
   helper in `rebuild/reset`. #7766 PR 5 builds the scope-bound form, and the
   refinalize issue adopts the same shape for its pair-bound form.
@@ -256,6 +327,12 @@ depend on them: #7852 and #7853.
   issue: RED/GREEN with 10,100 orphans and one healthy intent (the healthy one
   processed in cycle 1 after the drain, one extra query per cycle, a torn-write
   intent not drained), reproduced deterministically.
+- **Leaks the census found.** A full refresh retracts Parameters only for the
+  current files, so a removed file's Parameters stay as nodes with no edges
+  (runner, G5p). `relationship_evidence_facts`, `relationship_candidates`,
+  `resolved_relationships`, and `relationship_generations` have no deleter, so
+  their rows accumulate across generations (census, Relationship Tables).
+  #7766 removes both for a retired repository only. Neither is filed yet.
 - **Claim-side supersede arm for retired generations.** If 2z ever finds
   residue after a clean 2c, the structural fix changes general reducer queue
   semantics. It gets its own issue and prove-first (see the
@@ -273,9 +350,9 @@ depend on them: #7852 and #7853.
   fixture SQL, and the shell wrappers. The Go drivers are described, not
   committed (round 4, N5).
 - Projector `LeaseDuration` defaults: 1 min for the projector service
-  (`cmd/projector/runtime_wiring.go:69`), 5 min for the ingester's in-process
-  projector (`cmd/ingester/wiring.go:276`), 1 min for bootstrap-index
-  (`cmd/bootstrap-index/wiring.go:115`).
+  (`cmd/projector/runtime_wiring.go:70`), 5 min for the ingester's in-process
+  projector (`cmd/ingester/wiring.go:293`), 1 min for bootstrap-index
+  (`cmd/bootstrap-index/wiring.go:128`).
 - ACK dirty-reopen trigger text (migration 093): it fires only on a `BEFORE
   UPDATE OF status` of a reducer row where `OLD.cross_scope_replay_required` and
   `OLD.status IN ('claimed','running')` and `NEW.status IN ('succeeded',
@@ -306,17 +383,19 @@ depend on them: #7852 and #7853.
 - **Runtime cost of the 2z census.** P10' is the bar.
 - **Identity target writers.** Who writes `identity_role_scope_targets` and
   `identity_role_repository_targets`.
-- **Census classification.** The tables listed as NOT_CHECKED in the
-  [census](7766-repository-retirement-table-census.md), the `repo` key of
-  `function_*`, the winners rebuild cadence, and the changed-since reaper
-  cadence.
+- **Census classification.** The three items left in the
+  [census](7766-repository-retirement-table-census.md#not_checked-blocks-pr-7),
+  the `repo` key of `function_*`, the winners rebuild cadence, and the
+  changed-since reaper cadence.
+- **Parameter leak.** That a full refresh leaves the Parameters of a removed
+  file with no edges is from source, not run live.
 - **Workload and semantic nodes.** Whether workload, semantic, or other
   reducer-materialized nodes carry `repo_id` and survive G1 to G5 (P10).
 - **Ingester catalog.** Whether the in-process repository catalog cache ever
   evicts a deleted repo id.
 - **Slug form.** The `repo_slug` form stored for GitLab and Bitbucket scopes,
   against the trigger form `provider/<full_name>`
-  (`webhook_trigger_selector.go:298-311`). The webhook gate depends on it.
+  (`webhook_trigger_selector.go:435-448`). The webhook gate depends on it.
 - **NornicDB.** Whether NornicDB honours the demotion `SET` and the sweep reap
   the way Neo4j does. Neo4j is the supported backend, so this is not a blocker.
 - **#7765.** GitHub fork filtering in `githubOrg`.

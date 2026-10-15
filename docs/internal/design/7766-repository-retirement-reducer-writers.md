@@ -8,7 +8,8 @@ lock-order rule), [Runner](7766-repository-retirement-runner.md) (phase 2), and
 
 Binding inputs: the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), section F1,
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)), sections 1 and 2.
-Source check: origin/main c88c3806a, 2026-10-09.
+Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from
+c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)).
 
 Phase 1 fences claims for the reducer rows that exist at commit. It does not
 stop the paths that create or reopen reducer rows afterwards. This file lists
@@ -24,7 +25,7 @@ from source:
   autocommit (`:321`).
 - The projector enqueues reducer intents inside `Run`, before Ack
   (`projector/runtime/projection.go:227`). Ack is a separate transaction
-  (`projector_queue.go:199-226`), so an Ack refusal does not roll the enqueue
+  (`projector_queue.go:199-228`), so an Ack refusal does not roll the enqueue
   back.
 - A pending reducer row of a scope whose `active_generation_id` is NULL is
   claimable. The supersede CTE needs `scope.active_generation_id =
@@ -33,10 +34,10 @@ from source:
   (`reducer_queue_claim_query.go:9-104`). 7b nulls the pointer and 7a
   supersedes the generations; neither hides the row.
 - Deferred maintenance reopens succeeded rows in its own transaction with no
-  repo lock (`ingestion_reopen_deployment_mapping.go:70-143`). The replay floor
+  repo lock (`ingestion_reopen_deployment_mapping.go:71-144`). The replay floor
   falls back to the latest generation of any status when the pointer is NULL
-  (`ingestion_reopen_correlation.go:104-121`), and the bound excludes only
-  `work_generation.status <> 'failed'`, not `superseded` (`:149-154`). After
+  (`ingestion_reopen_correlation.go:105-122`), and the bound excludes only
+  `work_generation.status <> 'failed'`, not `superseded` (`:150-155`). After
   7b the floor is the newest generation. If that generation has succeeded rows,
   they reopen on every drain (see
   [Interim Behavior](#interim-behavior-until-the-runner-ships)).
@@ -47,9 +48,9 @@ from source:
   the fence (step 6), so no projector Run of the scopes is live at commit
   (invariant I0). Without that wait a live Run would keep enqueueing until the
   next heartbeat refused it: Heartbeat refuses a superseded generation
-  (`projector_queue_scan.go:414`), the service cancels the Run context on
+  (`projector_queue_scan.go:429`), the service cancels the Run context on
   heartbeat failure (`projector/service_heartbeat.go:41-66`), and the interval
-  is lease/3 capped at 1 min (`cmd/projector/runtime_wiring.go:121-131`), so
+  is lease/3 capped at 1 min (`cmd/projector/runtime_wiring.go:122-132`), so
   20 s to 1 min later, or the whole Run with heartbeats off. A Run that
   outlived its lease is outside the lease contract and stays a fresh-id
   residual.
@@ -109,8 +110,8 @@ does not exist yet, bounded by 2d, settled by 2d', and caught by 2z.
 | Writer | Source | Touches | Closed by |
 | --- | --- | --- | --- |
 | Projector reducer-intent enqueue | `projector/runtime/projection.go:227` into `reducer_queue.go:25-35`, `:321` | New `pending` rows, any scope with a live projector Run | Phase 1 wait (I0) + 2a + 2q |
-| Deferred maintenance reopen | `ingestion_reopen_deployment_mapping.go:70-143`; floor `ingestion_reopen_correlation.go:104-121`, bound `:149-154` | `succeeded` to `pending`, `deployment_mapping`, `code_import_repo_edge`, and `CrossScopeCorrelationReopenDomains()`; no repo lock | 2q (succeeded only) |
-| Targeted maintenance reopen | `ingestion_targeted_maintenance_write.go:145-177` | `succeeded` to `pending`, same domains, by partition | 2q (succeeded only) |
+| Deferred maintenance reopen | `ingestion_reopen_deployment_mapping.go:71-144`; floor `ingestion_reopen_correlation.go:105-122`, bound `:150-155` | `succeeded` to `pending`, `deployment_mapping`, `code_import_repo_edge`, and `CrossScopeCorrelationReopenDomains()`; no repo lock | 2q (succeeded only) |
+| Targeted maintenance reopen | `ingestion_targeted_maintenance_write.go:146-188` | `succeeded` to `pending`, same domains, by partition | 2q (succeeded only) |
 | Producer-settle reopen | `ingestion_producer_activation.go:298-306` | `ReopenSucceeded` of producer dependents, inside activation Finalize | 2q (succeeded only) |
 | Admin reopen, reducer rows | `admin/store/reopen.go:75-85`; #7734 rollover fence `:199-213`; generation resolve `:28-39` | `succeeded` to `pending` for one domain; with the pointer NULL it resolves the newest generation, not an error | 2q (succeeded only) |
 | Admin reopen, shared intents | `admin/store/reopen.go:124-134` (`reopenIntentsQuery`) | `completed_at` to NULL on completed shared intents of one scope and domain, not reducer rows | Harmless: 2b deletes those intents, and 2c retracts any edge a pre-barrier drain wrote (I4) |
@@ -138,7 +139,7 @@ first with a 5 s `lock_timeout` (`:196-211`), so it cannot join the lock cycle
 Closed by phase 1 already: the cross-scope fanout and the zombie heal. A heal
 whose statement snapshot predates phase 1 can still insert a pending projector
 row for a generation phase 1 then supersedes. The #7130 claim branch supersedes
-it (`projector_queue_claim_sql.go:158-179`), and 2a waits for any projector
+it (`projector_queue_claim_sql.go:188-209`), and 2a waits for any projector
 lease.
 
 ## 2a And 2q
@@ -150,13 +151,13 @@ so 2a stays as a cheap recheck: a resumed runner cannot assume the queue stayed
 quiet, and a zombie-heal snapshot that predates phase 1 can still insert a stale
 pending projector row. It converges within one lease TTL: the #7130 claim branch
 supersedes pending, retrying, and expired rows of superseded generations
-(`projector_queue_claim_sql.go:158-179`), Heartbeat refuses a superseded
-generation and the service cancels the Run (`projector_queue_scan.go:414`,
+(`projector_queue_claim_sql.go:188-209`), Heartbeat refuses a superseded
+generation and the service cancels the Run (`projector_queue_scan.go:429`,
 `projector/service_heartbeat.go:65`), and Ack refuses
-(`projector_queue_sql.go:108-116`). The projector `LeaseDuration` defaults set
-the bound: 1 min for the projector service (`cmd/projector/runtime_wiring.go:69`),
-5 min for the ingester's in-process projector (`cmd/ingester/wiring.go:276`), and
-1 min for bootstrap-index (`cmd/bootstrap-index/wiring.go:115`).
+(`projector_queue_sql.go:61-75`). The projector `LeaseDuration` defaults set
+the bound: 1 min for the projector service (`cmd/projector/runtime_wiring.go:70`),
+5 min for the ingester's in-process projector (`cmd/ingester/wiring.go:293`), and
+1 min for bootstrap-index (`cmd/bootstrap-index/wiring.go:128`).
 
 **2q, reducer quiesce.** It runs after 2a and before 2b.
 
@@ -221,7 +222,7 @@ generation between 2q and 2d is reasoned structurally only (NOT_CHECKED).
 Deliverable 1 has no 2q. Until 2q lands, the per-drain maintenance reopen
 replays the newest generation's succeeded rows in the six reopen domains
 (`deployment_mapping`, `code_import_repo_edge`, and the four of
-`CrossScopeCorrelationReopenDomains()`, `ingestion_reopen_correlation.go:70-75`:
+`CrossScopeCorrelationReopenDomains()`, `ingestion_reopen_correlation.go:71-76`:
 `deployable_unit_correlation`, `kubernetes_correlation_materialization`,
 `container_image_identity`, `aws_cloud_runtime_drift`). That is the same replay
 an active scope gets today, and a reducer can claim the reopened rows because the

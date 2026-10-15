@@ -50,7 +50,8 @@ lands until the bars for that deliverable in the
 [prove-first table](7766-repository-retirement-proof-and-rollout.md#prove-first-table)
 pass.
 
-Source check: origin/main c88c3806a, 2026-10-09. The design was written against
+Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from c88c3806a
+(see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)). Before that: origin/main c88c3806a, 2026-10-09. The design was written against
 `3b03f018e`, which is an ancestor of `c88c3806a`. Of the files main changed
 between the two, the shared-projection worker (`worker/process.go`,
 `selection.go`, `runner.go`) is the only one whose lines this design cites. Those
@@ -147,12 +148,12 @@ What Deliverable 1 does not do, stated plainly:
 ## Durable Marker And Writers
 
 `ingestion_scopes.status` cannot carry the marker. The ON CONFLICT arm of the
-upsert rewrites it on every commit (`storage/postgres/ingestion_queries.go:79-85`, value bound at `:249`).
+upsert rewrites it on every commit (`storage/postgres/ingestion_queries.go:74-80`, value bound at `:199`).
 
-The Deliverable 1 migration takes the next free number: 169 at this check
-(`migrations/168_webhook_refresh_triggers_claim_fencing.sql` is the latest;
-167 is `167_unroutable_intents_generation_idx.sql`). Re-check at PR time,
-because open branches can claim the same number. The table carries every column
+The Deliverable 1 migration takes the next free number: 178 at this check
+(`ef5703ec26`: `migrations/177_content_files_content_lower_trgm_index.sql` is
+the latest, and no open PR adds a migration). Re-check at PR time against main
+and open PRs, because open branches can claim the same number. The table carries every column
 the runner needs, because a merged migration cannot be edited. The
 `shared_projection_partition_leases.claimed_at` column is not here: it belongs
 to Deliverable 2 (PR 6a), since only the barrier reads it.
@@ -166,6 +167,7 @@ CREATE TABLE IF NOT EXISTS repository_retirements (
     state TEXT NOT NULL CHECK (state IN ('pending','running','blocked','repairing_graph','complete','failed')),
     phase TEXT NOT NULL CHECK (phase IN ('fenced','quiesce','barrier','graph_retract','purge','census','finalize','done')),
     graph_step_cursor INTEGER NOT NULL DEFAULT 0,
+    graph_repo_root TEXT NULL,                 -- G5p prefix; set once at 2c entry, never overwritten
     blocked_reason TEXT NOT NULL DEFAULT '' CHECK (blocked_reason IN
       ('','projector_lease_live','reducer_lease_live','shared_lease_live',
        'scope_lock_busy','claim_fence_busy','graph_unavailable')),
@@ -199,20 +201,21 @@ the bounded refusal each writer returns.
 
 | Writer | Check point | Ingest refusal |
 | --- | --- | --- |
-| Collector commit: `CommitScopeGeneration` / `CommitClaimedScopeGeneration` (`ingestion.go:118-143`), bootstrap-index (`cmd/bootstrap-index/bootstrap_collector_commit.go:79`), ingester's in-process path, collector dead-letter replay (`recovery.go:288-311` re-commits) | Inside `commitScopeGeneration`, after the shared advisory lock (`ingestion.go:219`), folded into `upsertIngestionScope` (`:231`) so the check and the write share one snapshot (see [Commit Gate](7766-repository-retirement-concurrency.md#commit-gate-folded-into-the-scope-upsert)) | `repository_retiring`. Roll back, drain the stream, return nil. This mirrors the finalized-skip branch (`ingestion.go:237-251`), so there is no dead letter. |
-| Webhook handoff (`collector/repo/git/webhook_trigger_selector.go:142`) | After `repositoryIDsFromWebhookTriggers`, match on `repo_slug_key` for open, non-`complete` rows | `MarkTriggersFailed(..., "repository_retiring", ...)`, a new constant beside `:36-40`. A slug-form miss still hits the commit fence. |
-| Projector claim (`projector_queue_claim_sql.go:158-179`) | No SQL change. Phase 1 waits out live projector leases, rechecks them under the fence, supersedes the generations, and marks every projector row (7c); the #7130 branch (`:158-179`), Heartbeat refusal (`projector_queue_scan.go:405-420`), and Ack refusal (`projector_queue_sql.go:108-116`, the refusal marker at `:275-305`) are backstops, not the fence. Replay is fenced (`recovery.go:119`, `projector_queue_sql.go:307-316`). | Existing `projector_superseded_by_newer_generation` / ack-superseded classes. |
+| Collector commit: `CommitScopeGeneration` / `CommitClaimedScopeGeneration` (`ingestion.go:120-145`), bootstrap-index (`cmd/bootstrap-index/bootstrap_collector_commit.go:79`), ingester's in-process path, collector dead-letter replay (`recovery.go:306-329` re-commits) | Inside `commitScopeGeneration`, after the shared advisory lock (`ingestion.go:197`), folded into `upsertIngestionScope` (`:209`) so the check and the write share one snapshot (see [Commit Gate](7766-repository-retirement-concurrency.md#commit-gate-folded-into-the-scope-upsert)) | `repository_retiring`. Roll back, drain the stream, return nil. This mirrors the finalized-skip branch (`ingestion.go:215-229`), so there is no dead letter. That branch records `RefreshSkipReasonFinalizedGenerationReplay` (`:226`); the retiring refusal counts on the retirement refusal counter instead. |
+| Duplicate-generation reproject (#7978): `skipUnchangedGeneration` (`ingestion.go:159`) runs before the commit transaction; `reprojectActiveGeneration`, `ReprojectActiveGeneration`, and `StampActiveGeneration` (`generation_freshness_reproject.go:138-193`, `:293-357`), the last two also from the git pre-parse path (`collector/repo/git/preparse/run.go:111-113`) | No change. They take no advisory key and skip the commit gate, but each locks the scope row `FOR NO KEY UPDATE` (`generation_freshness_reproject.go:23-25`) and then re-opens only a generation that is the scope's active pointer, `active`, and activated (`:61-73`). They serialize with phase 1 on the scope row and match nothing after 7a and 7b. One that commits first re-opens the active generation's projector row, which 7c marks. The duplicate candidate read takes only `pending` and `active` generations (`generation_freshness.go:276`), so a snapshot after phase 1 takes the store path and meets the gate. | None needed. A duplicate snapshot that lands before phase 1 is skipped as unchanged, not counted as a refusal. |
+| Webhook handoff (`collector/repo/git/webhook_trigger_selector.go:188`) | After `repositoryIDsFromWebhookTriggers`, match on `repo_slug_key` for open, non-`complete` rows | `MarkTriggersFailed(..., "repository_retiring", ...)`, a new constant beside `:38-47`. A slug-form miss still hits the commit fence. |
+| Projector claim (`projector_queue_claim_sql.go:188-209`) | No SQL change. Phase 1 waits out live projector leases, rechecks them under the fence, supersedes the generations, and marks every projector row (7c); the #7130 branch (`:188-209`), Heartbeat refusal (`projector_queue_scan.go:420-435`), and Ack refusal (`projector_queue_sql.go:61-75`, the refusal marker at `:260-290`) are backstops, not the fence. Replay is fenced (`recovery.go:137`, `projector_queue_sql.go:292-301`). | Existing `projector_superseded_by_newer_generation` / ack-superseded classes. |
 | Projector zombie heal (`projector_queue_zombie_heal.go`, #7209) | No change. The heal re-opens the scope's active generation row only when `scope.active_generation_id IS NOT NULL` (`:97`), and 7b nulls it. A heal whose snapshot predates phase 1 can insert a pending projector row of a superseded generation; the #7130 claim branch supersedes it, and 2a rechecks. | None needed. |
 | Reducer claim | Phase 1 marks the claimable reducer rows `superseded` (7d) under the claim fence. Later inserts and reopens are closed by 2q (see [Reducer Reopen And Replay Writers](7766-repository-retirement-reducer-writers.md)). | No claimable row at commit |
-| `recover-generations` / `refinalize` (`rebuild/reset/reset.go:63-100`) | New first CASE arm: `EXISTS` open row → skip. Named unknown scope with a `complete` row (`refinalize.go:262-267`) | `skip_reason=repository_retiring` / `repository_retired`, new `recovery.SkipReason*` |
-| Repository reindex (`query/admin/reindex_repository.go:68`) | After `gitDefaultScopeMatch`, look up the open row | 400 problem `"<sel>": repository is retiring (state <s>)`. Phase 1 also deletes the scope's `repository_reindex_requests` row. |
-| Deferred backfill (`ingestion_backfill.go:333`, under the same exclusive repo lock) | Filter repo ids that have an open row from `loadGenerations` | skipped; `writer=deferred_backfill` refusal count |
+| `recover-generations` / `refinalize` (`rebuild/reset/reset.go:75-123`) | New first CASE arm in the skip-reason CASE (`:78-86`): `EXISTS` open row → skip. Named unknown scope with a `complete` row (`refinalize.go:263-268`). A refinalize whose read predates phase 1 and whose fence follows it still writes for its stale set: projector re-enqueue, which the #7130 claim branch supersedes as it does the zombie heal, and the #7797 delta reindex request (`reset/delta_active.go:101-115`, called at `recovery.go:405`), which can re-create the `repository_reindex_requests` row 7e deleted. That row is a watermark the git collector reads (`maintenance/repository_reindex.go:106`); the re-parse it forces meets the commit gate, and 2e deletes the row. | `skip_reason=repository_retiring` / `repository_retired`, new `recovery.SkipReason*` |
+| Repository reindex (`query/admin/reindex_repository.go:65`) | After `gitDefaultScopeMatch`, look up the open row | 400 problem `"<sel>": repository is retiring (state <s>)`. Phase 1 also deletes the scope's `repository_reindex_requests` row. |
+| Deferred backfill (`storage/postgres/backfill/engine.go:332`, under the same exclusive repo lock at `:328`) | Filter repo ids that have an open row from `loadGenerations`. The engine is package `backfill`, which must not import the parent package (`backfill/AGENTS.md`), so the gate sits behind its `Store` seam or in a leaf. The whole pass and the targeted pass (`ingestion_targeted_maintenance_write.go:94-97`) both run through it. | skipped; `writer=deferred_backfill` refusal count |
 
-Backfill must be fenced explicitly. `latestGenerationCTE`
-(`latest_generation_cte.go:41-52`) falls back to the newest generation of any
+Backfill must be fenced explicitly. `backfill.LatestGenerationCTE`
+(`backfill/generation_cte.go:41-52`) falls back to the newest generation of any
 status, so clearing `active_generation_id` does not hide a retiring scope from
 backfill or from freshness resolution. Two other writers are exempt: the
-`ingestion_scopes` writers in `vulnerability_suppression_store.go:26` and
+`ingestion_scopes` writers in `vulnerability_suppression_store.go:27` and
 migration 115 write non-git scopes.
 
 ## Fence Sequence
@@ -221,7 +224,7 @@ migration 115 write non-git scopes.
 
 The API runs this inside its response window. `WriteTimeout` is
 `DefaultRefinalizeDrainTimeout + apiRecoveryResponseMargin`, 5 min plus 1 min
-(`cmd/api/main.go:26`, `:130-131`; `refinalize.go:31`). Phase 1 therefore runs
+(`cmd/api/main.go:27`, `:159-160`; `refinalize.go:31`). Phase 1 therefore runs
 under **one deadline of 5 min 30 s** from request start. Every wait below is
 bounded by `min(its own bound, remaining)`. The
 [lock budget](7766-repository-retirement-concurrency.md#phase-1-lock-budget)
@@ -234,7 +237,8 @@ refinalize shape and the wrong one here.
 
 1. Read the generation set of every scope with `partition_key = ANY($repo_ids)`.
    The read takes no locks. This mirrors `ReadAffectedGenerations`
-   (`refinalize.go:227-271`). Build `reset.Generations`.
+   (`refinalize.go:227-272`). Build `reset.Generations` with `Append`
+   (`reset.go:280`); the `IsDelta` column is refinalize's concern.
    - **Precheck.** Count non-superseded generations and reducer rows matching
      step 7d's predicate. Over 5,000 generations or 20,000 rows in total: 409
      `request_too_large` with per-repo counts. These limits are candidates that
@@ -253,7 +257,7 @@ refinalize shape and the wrong one here.
    separate transaction afterwards.
 3. Take `lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(repo_ids)`
    (`lock/deferred_maintenance.go:66-79`, sorted). The same key is held in
-   shared mode by every commit (`ingestion.go:219`), so this waits for in-flight
+   shared mode by every commit (`ingestion.go:197`), so this waits for in-flight
    commits of these repos and blocks new ones. `lock_timeout` is computed from
    the remaining budget minus a fence reserve (see the lock budget), not a
    constant.
@@ -276,8 +280,8 @@ refinalize shape and the wrong one here.
    - **Lock-order rule: advisory key, then scope row, then the
      `fact_work_items` relation.** A writer that blocks on a retired scope row
      or on the key takes it in a statement that references no other relation
-     (Ack `projector_queue.go:221`, Finalize `activation/sql.go:68`, admin
-     reopen `store/reopen.go:257`, the commit `ingestion.go:219` and `:231`).
+     (Ack `projector_queue.go:223`, Finalize `activation/sql.go:68`, admin
+     reopen `store/reopen.go:257`, the commit `ingestion.go:197` and `:209`).
      `Fail` violated this at the relation level and is fixed in PR 4a, which
      lands before PR 5 (see
      [Lock-Order Rule](7766-repository-retirement-concurrency.md#lock-order-rule-and-the-fail-fix)).
@@ -305,7 +309,7 @@ refinalize shape and the wrong one here.
    - (e) `DELETE FROM repository_reindex_requests WHERE scope_id = ANY`;
    - (g) `INSERT INTO repository_retirements ... ON CONFLICT DO NOTHING RETURNING *` on the open-repo index. `DO NOTHING` returns no row on a conflict, so when `RETURNING` is empty the transaction reads the existing open row by `repo_id`. It holds the key and the scope rows, so the read is stable. Either path yields the row, which makes a re-issue idempotent.
 8. `AssertRetirementFenced` (scope-bound form, counting generations superseded
-   plus reducer rows marked; the shape of `refinalize.go:401-418`), then commit.
+   plus reducer rows marked; the shape of `refinalize.go:402-419`), then commit.
 
 Phase 1 closes the claim path for rows that exist at commit and, through I0,
 stops every projector Run of the scopes. It does not stop later reducer inserts
@@ -372,7 +376,7 @@ sections of the concurrency contract.
   `upsertIngestionScope` from `Exec` to `Query`; `LIMIT 1` relies on the
   partial unique open-repo index.
 - **Retired id lingers in the ingester catalog.** The catalog read covers every
-  `repository` fact (`ingestion_queries.go:19-24`), and the in-process catalog
+  `repository` fact (`backfill/catalog.go:29`, SQL at `:51-56`), and the in-process catalog
   cache may hold a retired id until restart. Other repos' evidence then names
   it and produces truthful stubs.
 - **Name confusion with the 7324 counter.** The new
