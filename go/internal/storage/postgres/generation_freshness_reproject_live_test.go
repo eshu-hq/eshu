@@ -70,9 +70,10 @@ func (p *reprojectProof) stampGeneration(generation, sha, identity string) strin
 // an empty stored identity at the same commit on a full active generation,
 // stamps the proven identity with the skip count reset (a stamp counts as a
 // parse for the valve), and re-opens the canonical projector row under the
-// same lock and in-flight guard as the store re-open. A repeat while pending
-// neither re-opens nor re-stamps; a second stamp after the Ack finds a stored
-// identity and is superseded (the one-shot fence); a moved commit or an empty
+// same lock and in-flight guard as the store re-open. A repeat after a
+// successful stamp is superseded by the one-shot fence (the stored identity
+// is non-empty, so the target cannot match again) — while pending and after
+// the Ack alike; neither re-opens nor re-stamps. A moved commit or an empty
 // request is superseded too.
 func TestStampActiveGenerationLifecycleLive(t *testing.T) {
 	telemetry.ResetSkippedRefreshCountForTesting()
@@ -99,9 +100,13 @@ func TestStampActiveGenerationLifecycleLive(t *testing.T) {
 		t.Fatalf("active identity = %q skips = %d (%v), want %q and 0",
 			state.ActivePreparseIdentity, state.ActivePreparseSkips, err, preparseIdentityA)
 	}
-	// Pending repeat: the row is already open, so nothing is re-stamped.
-	if got := p.stampGeneration("gen-a", "sha-a", preparseIdentityA); got != telemetry.RefreshSkipReasonReconcileReprojectionPending {
-		t.Fatalf("repeat while pending = %q, want %q", got, telemetry.RefreshSkipReasonReconcileReprojectionPending)
+	// Repeat after a successful stamp: the one-shot fence wins over the
+	// in-flight guard (the stored identity is non-empty, so the target cannot
+	// match again) — superseded, nothing re-stamped. Production reaches a
+	// repeat stamp only via a concurrent double-decide race, whose loser
+	// parsing is the fail-safe direction.
+	if got := p.stampGeneration("gen-a", "sha-a", preparseIdentityA); got != telemetry.RefreshSkipReasonReconcileSuperseded {
+		t.Fatalf("repeat while pending = %q, want %q (one-shot fence: an identity is already stored)", got, telemetry.RefreshSkipReasonReconcileSuperseded)
 	}
 	if identity, skips := p.preparseStamp("gen-a"); identity != preparseIdentityA || skips != 0 {
 		t.Fatalf("gen-a stamp after a pending repeat = %q/%d, want %q/0", identity, skips, preparseIdentityA)
