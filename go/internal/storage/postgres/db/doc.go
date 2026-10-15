@@ -11,6 +11,12 @@
 // ReadTransaction has no Exec or raw transaction method. A guarded runtime
 // implementation owns the connection and snapshot lifecycle behind this leaf.
 //
+// ErrSnapshotReservationCapacity and ErrSnapshotExportUnqualified are the two
+// snapshot-set refusals, both raised before any business query. The capacity
+// marker allows a caller's separately fenced single-statement path; the export
+// refusal (#7957: the PostgreSQL reader build is not qualified for
+// pg_export_snapshot) is permanent and allows no fallback.
+//
 // The package is a dependency leaf on purpose. It imports only the Go
 // standard library, so domain stores can depend on these contracts without
 // importing the postgres root package. If a store moved to a subpackage while

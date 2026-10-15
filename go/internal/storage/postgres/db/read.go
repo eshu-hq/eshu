@@ -13,6 +13,16 @@ import (
 // business query started, and all partial reservations were released.
 var ErrSnapshotReservationCapacity = errors.New("snapshot reader reservation capacity unavailable")
 
+// ErrSnapshotExportUnqualified means a snapshot set was refused because the
+// PostgreSQL reader build is not qualified for pg_export_snapshot and SET
+// TRANSACTION SNAPSHOT (#7957). The refusal happens before any reader is
+// borrowed, any transaction begins, or any snapshot is exported. It is a
+// permanent configuration state until the operator upgrades the reader build or
+// declares a qualified one: callers must not retry it, must not fall back to a
+// single statement or to independent snapshots, and must answer it as a
+// non-retryable unavailability.
+var ErrSnapshotExportUnqualified = errors.New("shared snapshot export refused: PostgreSQL reader build is not qualified")
+
 // Row scans one result without exposing the underlying SQL connection.
 type Row interface {
 	Scan(...any) error
