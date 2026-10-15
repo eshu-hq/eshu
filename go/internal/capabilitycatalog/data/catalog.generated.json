@@ -684,11 +684,16 @@
       },
       {
         "family": "operator_dead_letters",
-        "description": "Bounded dead-letter, input-invalid-quarantine, and changed-since poisoned/retrying-link operator triage reads over fact work items, reducer_input_invalid_facts, and changed_since_scope_cursor, scoped to granted repositories or source scopes.",
+        "description": "Bounded dead-letter, input-invalid-quarantine, changed-since poisoned/retrying-link, work-item, decision, decision-evidence, replay-event, and repository-catalog operator triage reads over fact work items, reducer_input_invalid_facts, changed_since_scope_cursor, projection decisions, fact_replay_events, and the repository catalog, scoped to granted repositories or source scopes.",
         "capability_prefixes": [
           "operator.dead_letters.",
           "operator.reducer_input_invalid_facts.",
-          "operator.changed_since_poisoned_links."
+          "operator.changed_since_poisoned_links.",
+          "operator.work_items.",
+          "operator.decisions.",
+          "operator.decision_evidence.",
+          "operator.replay_events.",
+          "operator.repository_catalog."
         ],
         "action": "service.runtime.read",
         "data_classes": [
@@ -5717,6 +5722,130 @@
       }
     },
     {
+      "capability": "operator.decision_evidence.list",
+      "display_name": "Operator Decision Evidence List",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "decision_id_scope"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "decision_id_scope"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "decision_id_scope"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "decision_id_scope"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operator.decisions.list",
+      "display_name": "Operator Decisions List",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_source_run_scope"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_source_run_scope"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_source_run_scope"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "repository_source_run_scope"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
       "capability": "operator.reducer_input_invalid_facts.list",
       "display_name": "Operator Reducer Input Invalid Facts List",
       "maturity": "general_availability",
@@ -5773,6 +5902,192 @@
         {
           "kind": "remote_validation",
           "ref": "prod-reducer-input-invalid-facts-list"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operator.replay_events.list",
+      "display_name": "Operator Replay Events List",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_work_item_failure_class_window"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_work_item_failure_class_window"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_work_item_failure_class_window"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_work_item_failure_class_window"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operator.repository_catalog.lookup",
+      "display_name": "Operator Repository Catalog Lookup",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_selector_scope"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_selector_scope"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_selector_scope"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "repository_selector_scope"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operator.work_items.list",
+      "display_name": "Operator Work Items List",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "status_scope_failure_class_time_window"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "status_scope_failure_class_time_window"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "status_scope_failure_class_time_window"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "status_scope_failure_class_time_window"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
         }
       ],
       "console": false,

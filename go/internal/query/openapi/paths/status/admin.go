@@ -82,7 +82,7 @@ const Admin = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "503": {"description": "Reindex requests, or repository-scoped reindex requests, are not configured on this API instance."}
+          "503": {"description": "Reindex requests, or repository-scoped reindex requests, are not configured on this API instance; a repository-scoped catalog lookup also answers 503 with capability operator.repository_catalog.lookup when the PostgreSQL reader is fenced."}
         }
       }
     },
@@ -179,7 +179,8 @@ const Admin = `
         "responses": {
           "200": {"description": "Admin work-item query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"description": "PostgreSQL reader fenced; retryable 503 with capability operator.work_items.list."}
         }
       }
     },
@@ -190,7 +191,8 @@ const Admin = `
         "responses": {
           "200": {"description": "Projection decision query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"description": "PostgreSQL reader fenced; retryable 503 with capability operator.decisions.list, or operator.decision_evidence.list for the include_evidence read."}
         }
       }
     },
@@ -456,7 +458,8 @@ const Admin = `
         "responses": {
           "200": {"description": "Replay-event query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"description": "PostgreSQL reader fenced; retryable 503 with capability operator.replay_events.list."}
         }
       }
     },
