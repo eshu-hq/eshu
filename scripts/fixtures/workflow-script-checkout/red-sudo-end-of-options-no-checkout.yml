@@ -1,0 +1,13 @@
+name: Fixture red sudo end-of-options without checkout
+# Seeded RED for scripts/test-verify-workflow-script-checkout.sh (#8107):
+# the step executes a repository script through `sudo --` (end-of-options
+# marker) and no actions/checkout step anywhere in the job. The verifier
+# must fail on this file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve image reference past end-of-options
+        run: sudo -- scripts/ci/resolve-image-scan-ref.sh

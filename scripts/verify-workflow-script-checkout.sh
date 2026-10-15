@@ -16,7 +16,8 @@
 # optional `./`/`../` prefix (the working-directory: go form), an optional
 # `$GITHUB_WORKSPACE`/`${GITHUB_WORKSPACE}`/`${{ github.workspace }}`
 # prefix, stacked `VAR=value` prefixes (before and after sudo, values may be
-# quoted), or one `sudo` (flags such as `-E` or `-u <user>` allowed); or the
+# quoted), or one `sudo` (flags such as `-E` or `-u <user>`, a joined
+# `-u$USER`, a bare `--`, or an `env` command allowed); or the
 # same path as the argument of a leading `bash`/`sh`/`source`/`. ` command
 # that itself starts at a command boundary in the same command segment
 # (with the same sudo and `VAR=value` prefixes allowed before that leading

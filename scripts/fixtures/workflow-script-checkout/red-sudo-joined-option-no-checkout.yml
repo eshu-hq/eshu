@@ -1,0 +1,13 @@
+name: Fixture red sudo joined option without checkout
+# Seeded RED for scripts/test-verify-workflow-script-checkout.sh (#8107):
+# the step executes a repository script through `sudo -u$USER` (short option
+# with a joined argument, no space) and no actions/checkout step anywhere in
+# the job. The verifier must fail on this file.
+on:
+  workflow_dispatch:
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve image reference as the invoking user
+        run: sudo -u$USER scripts/ci/resolve-image-scan-ref.sh
