@@ -21,7 +21,7 @@ Source binding: branch `perf/7127-pr3b-ack-journal` on `origin/main`
 `eef372440`. PostgreSQL 18.6 (`postgres:18`, aarch64) in two disposable
 containers: one with `pg_stat_statements` preloaded (`track = all`), one
 without it, as the CI readiness service runs. The host had 16 CPUs and load1
-between 13 and 51 during the runs, so no wall time below is a result.
+between 13 and 70 during the runs, so no wall time below is a result.
 
 ## Design as built
 
@@ -116,8 +116,10 @@ each journal row at commit (`aj_audit`).
 
 | Run | Acks ok | Deadlocks | Commit-order violations | Duplicates | Orphans | Scopes off their active generation | Rows by source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| uniform | 480 | 0 | 0 | 0 | 0/0/0 | 0/24 | ack 441, backfill 24, sweeper 12 |
-| mixed (every second Ack flag off) | 480 | 0 | 0 | 0 | 0/0/0 | 0/24 | ack 197, backfill 24, sweeper 210 |
+| uniform, first run | 480 | 0 | 0 | 0 | 0/0/0 | 0/24 | ack 441, backfill 24, sweeper 12 |
+| mixed (every second Ack flag off), first run | 480 | 0 | 0 | 0 | 0/0/0 | 0/24 | ack 197, backfill 24, sweeper 210 |
+| uniform, final commit (`pg_stat_statements` server) | 480 | 0 | 0 | 0 | 0/0/0 | 0/24 | ack 426, backfill 24, sweeper 28 |
+| mixed, final commit (`pg_stat_statements` server) | 480 | 0 | 0 | 0 | 0/0/0 | 0/24 | ack 182, backfill 24, sweeper 235 |
 | mixed, ungated (one local run, not shipped) | 480 | 0 | 4 | 0 | 0/0/0 | 1/24 | ack 240, backfill 24, sweeper 237 |
 
 The last row is a one-off local edit that pointed the flag-on queue at the
@@ -129,24 +131,25 @@ shipped test runs only the gated statement.
 One backend runs every Ack (single-connection pool), alternating the flag over
 4 rounds of 200 Acks. WAL records and buffer hits come from
 `pg_stat_get_backend_wal` and `pg_stat_get_backend_io` (PostgreSQL 18), which
-count only that backend; `pg_stat_statements` is gated too when preloaded.
-Both servers gave the same backend numbers.
+count only that backend; `pg_stat_statements` is gated too when preloaded. The
+gate is on the on-minus-off difference of the per-Ack means. Absolute levels
+move with the state of the database (they differ between a run alone and a
+run inside the whole package suite), the differences do not. Four runs, two
+per server, the last two at the final commit inside the full package suite:
 
-| Per Ack | Flag off | Flag on | Difference | Bound |
+| Run | Statements client / `pg_stat_statements` (off = on) | WAL records off, on (diff) | Buffer hits off, on (diff) | Seeded RED caught |
 | --- | --- | --- | --- | --- |
-| Statements sent by the client | 9.00 | 9.00 | 0 | equal |
-| `pg_stat_statements` calls (`track = all`) | 14.00 | 14.00 | 0 | equal |
-| WAL records, backend | 39.97 | 44.67 | +4.70 | +6 |
-| WAL records, `pg_stat_statements` | 42.90 | 47.56 | +4.67 | +6 |
-| Shared buffer hits, backend | 122.80 | 133.91 | +11.11 | +40 |
-| Shared buffer hits, `pg_stat_statements` | 136.76 | 147.81 | +11.05 | +40 |
+| with `pg_stat_statements`, alone | 9 / 14 | 39.97, 44.67 (+4.70); `pg_stat_statements` 42.90, 47.56 (+4.67) | 122.80, 133.91 (+11.11); `pg_stat_statements` 136.76, 147.81 (+11.05) | WAL +17.05, hits +64.97 |
+| without it, alone | 9 / not loaded | 39.97, 44.67 (+4.70) | 122.80, 133.91 (+11.11) | WAL +17.05, hits +64.97 |
+| with `pg_stat_statements`, suite | 9 / 14 | 39.64, 43.90 (+4.26); `pg_stat_statements` 42.44, 46.69 (+4.24) | 114.99, 127.27 (+12.28); `pg_stat_statements` 128.89, 140.47 (+11.59) | WAL +15.71 |
+| without it, suite | 9 / not loaded | 39.96, 44.71 (+4.74) | 220.65, 231.83 (+11.18) | WAL +17.05, hits +205.22 |
 
-Seeded RED: a planted statement that writes three more rows per Ack fails the
-same verdict (backend WAL +17.05, hits +64.97). Wall time, reported and not
-gated: mean Ack 1.44 ms off and 1.42 ms on with `pg_stat_statements`
-(on/off ratio per round mean 1.162, SD 0.546), and 2.21 ms off and 2.85 ms on
-without it (ratio mean 1.292, SD 0.123), at load1 21-51 on 16 CPUs. No
-quiet-host wall gate was run (rule PD).
+Bounds: statements equal, WAL records at most +6, buffer hits at most +40 per
+Ack. The seeded RED is a planted statement, derived from the shipped one, that
+writes three more rows per Ack. Wall time, reported and not gated: the on/off
+ratio of the mean Ack per round was 1.162 (SD 0.546), 1.292 (SD 0.123), 0.998
+(SD 0.358) and 1.140 (SD 0.116) in the four runs, at load1 21-51 (runs alone) and 33-43 (suite runs) on 16 CPUs.
+No quiet-host wall gate was run (rule PD).
 
 ## Not checked
 
@@ -169,8 +172,9 @@ go test ./cmd/ingester/ ./cmd/bootstrap-index/ ./cmd/reducer/ -count=1
 ```
 
 Performance Evidence: the deterministic cost gate above (statements per Ack
-equal at 9 client and 14 `pg_stat_statements`, WAL +4.70 and buffer hits
-+11.11 per Ack against bounds of +6 and +40, seeded RED caught), the
+equal at 9 client and 14 `pg_stat_statements`, WAL +4.26 to +4.74 and buffer
+hits +11.11 to +12.28 per Ack over four runs against bounds of +6 and +40,
+seeded RED caught each time), the
 contention run (480 Acks, 16 workers, 24 scopes, 0 deadlocks and 0
 commit-order violations), and unchanged flag-off statements. The read path is
 unchanged (11-18 s on the 12k-file scope).
