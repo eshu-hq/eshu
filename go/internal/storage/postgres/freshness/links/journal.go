@@ -19,6 +19,10 @@ const (
 	SourceSweeper = "sweeper"
 	// SourceBackfill marks a retained generation journaled by the backfill.
 	SourceBackfill = "backfill"
+	// SourceAck marks a generation the projector Ack journaled in its own
+	// transaction (#7127 PR-3b), with the generation it superseded as the
+	// prior when exactly one was active, otherwise NULL.
+	SourceAck = "ack"
 )
 
 // JournalResult summarizes one journal pass.

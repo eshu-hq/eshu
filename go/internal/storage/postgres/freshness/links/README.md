@@ -10,7 +10,9 @@ path (PR-3c) answers `get_changed_since` from those links in O(changes)
 instead of diffing two whole generations.
 
 The store is dark. Nothing reads the ledger yet, and the runner is off unless
-`ESHU_CHANGED_SINCE_LINK_ENABLED=true`.
+`ESHU_CHANGED_SINCE_LINK_ENABLED=true`. The same switch makes the projector
+Ack in the ingester and bootstrap-index journal each activation it commits
+(PR-3b, "Ack writer" below); off, the Ack issues no ledger SQL.
 
 ## Tables (migration 136)
 
@@ -110,6 +112,48 @@ and the next cycle retries. The timeout is reset before the sweeper insert. Then
 generation that has no row, with a `NULL` prior. `BacklogScopes`, `Stats` and
 `OrphanScopes`/`DeleteOrphanScope` serve the runner.
 
+## Ack writer (PR-3b)
+
+With the switch on, `ProjectorQueue.Ack`
+(`go/internal/storage/postgres/projector_queue_ack.go`) writes the scope's
+activation row in its own transaction, so the link writer does not wait for
+the sweeper. Its supersede of the scope's active generation returns the
+superseded generation id: exactly one row is the prior, none or several give
+a `NULL` prior, as the sweeper writes. Its activate statement becomes one
+statement with three CTEs: the activate `UPDATE ... RETURNING`, a
+`MATERIALIZED` gate that evaluates `AckJournalGateSQL` once for the activated
+row, and an `INSERT ... ON CONFLICT (scope_id, generation_id) DO NOTHING` of
+`source = 'ack'` that runs only when the gate was acquired. `activated_at`
+is the generation's own activation time.
+
+**The journal key is shared with the Ack, exclusive for the pass, and
+neither waits.** `AckJournalGateSQL` is
+`pg_try_advisory_xact_lock_shared(SlotLockClass, 0)`; the journal pass takes
+`pg_try_advisory_xact_lock(SlotLockClass, 0)`. Acks share the key with each
+other, and a pass excludes them all. An Ack that misses the gate (a pass is
+running) writes no row and does not wait; the next pass's sweeper journals
+the generation with a `NULL` prior. That is accuracy-neutral: a full link is
+computed from the cursor state, and the prior only feeds the delta break
+reasons. A pass that misses the key skips its cycle, as it does when another
+replica holds it.
+
+Why the gate. Without it, a pass can run between an Ack's insert and its
+commit. If the scope's active generation has no journal row (it was
+activated by an Ack with the switch off, or before the switch was turned
+on), the backfill or the sweeper inserts that older generation with a higher
+`activation_seq` than the Ack's row and commits first. The cursor then ends
+on the superseded generation while the newer one is active. A plain insert
+after the activate statement and an ungated CTE both fail this way
+(`TestProjectorAckJournalInversion`).
+
+Lock rules. The Ack holds the scope row `FOR UPDATE` from its first
+statement, so Acks of one scope are serialized and retention, which locks
+scope rows `FOR UPDATE SKIP LOCKED`, skips the scope until the Ack commits.
+The Ack's own `UPDATE`s hold both generations its row names (the activated
+generation and the prior), which satisfies the writer rule below. The Ack
+never writes attempt columns and never reads the cursor, so it takes no lock
+the link writer holds.
+
 ## Retention
 
 Generation retention (`go/internal/storage/postgres/generation_retention.go`)
@@ -176,7 +220,9 @@ is complete only if every ledger writer holds `FOR KEY SHARE` on every
 generation it names until it commits. Then a row naming a generation commits
 before retention can lock that generation, and retention's delete statement
 sees it. The link writer locks the activating generation and the prior
-(`fencePrior`); the backfill inserts through the generation row. **Any later
+(`fencePrior`); the backfill inserts through the generation row; the Ack
+writes its row while its own `UPDATE`s hold the activated generation and the
+prior, under the scope row. **Any later
 writer of a ledger row, `pairwise` (PR-3c) first, must lock both generations
 it names the same way**, `SKIP LOCKED` under the generation lock timeout,
 after the cursor and before the slot.

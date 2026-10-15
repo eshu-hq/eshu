@@ -30,6 +30,12 @@
 // delta whose prior is unknown is a chain break: the cursor advances and the
 // state is kept. The overlay link for delta generations is not shipped yet.
 //
+// The projector Ack journals the activation it commits (source "ack") when
+// ESHU_CHANGED_SINCE_LINK_ENABLED is on, gated by AckJournalGateSQL: the
+// shared side of the journal pass's try-only advisory key. The pass holds
+// the key exclusively, so an Ack's insert never lands inside a pass, and
+// neither side waits.
+//
 // JournalStore journals activations the Ack path has not (the sweeper, with
 // an unknown prior), backfills retained history for scopes with no journal
 // rows (each row inserted through its locked generation row), reads the
