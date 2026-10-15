@@ -365,10 +365,15 @@ scored AS (
         d.document_id,
         stats.document_count,
         false AS corpus_may_be_truncated,
+        -- Ordered aggregate (#7737): float addition is not associative, so a
+        -- bare SUM lets the plan-dependent row order change score bits and
+        -- tie order for three-or-more-term queries. Ordering by the stable
+        -- per-term key fixes the summation order under any plan.
         SUM(
             LN(1 + ((stats.document_count::float8 - df.doc_frequency + 0.5) / (df.doc_frequency + 0.5))) *
             ((t.term_frequency::float8 * 2.2) /
              (t.term_frequency::float8 + 1.2 * (0.25 + 0.75 * (d.document_length::float8 / NULLIF(stats.average_document_length, 0)))))
+            ORDER BY t.term_key, t.term
         ) AS score
     FROM matched_terms t
     JOIN document_frequency df ON df.term_key = t.term_key AND df.term = t.term

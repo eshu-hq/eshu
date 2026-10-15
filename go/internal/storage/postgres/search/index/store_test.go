@@ -333,6 +333,26 @@ func TestBuildEshuSearchIndexQueryKeepsHandlePredicateForForeignRepoAnchor(t *te
 	}
 }
 
+// TestBuildEshuSearchIndexQueryOrdersScoreSummation pins the deterministic
+// summation order inside the BM25 score aggregate (#7737). Float addition is
+// not associative, so the plan-dependent row order reaching a bare SUM changes
+// score bits and tie order for three-or-more-term queries. The ordered
+// aggregate fixes the summation order on the stable per-term key.
+func TestBuildEshuSearchIndexQueryOrdersScoreSummation(t *testing.T) {
+	t.Parallel()
+
+	query, _ := BuildEshuSearchIndexQuery(EshuSearchIndexSearch{
+		ScopeID: "scope-1",
+		RepoID:  "repo-1",
+		Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1"},
+		Limit:   31,
+	}, []string{"alpha", "beta", "gamma"}, []string{"key-alpha", "key-beta", "key-gamma"})
+	const want = "ORDER BY t.term_key, t.term"
+	if !strings.Contains(query, want) {
+		t.Fatalf("BM25 score aggregate missing deterministic summation order %q:\n%s", want, query)
+	}
+}
+
 func TestBuildEshuSearchIndexQueryKeepsHandlePredicateForUntrimmedRepoAnchor(t *testing.T) {
 	t.Parallel()
 
