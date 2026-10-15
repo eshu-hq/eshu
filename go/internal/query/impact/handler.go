@@ -239,15 +239,13 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default and clamp max_depth
+	// Default and clamp max_depth. The <= 0 default to 8 makes a < 1
+	// floor unreachable, so none is checked.
 	if req.MaxDepth <= 0 {
 		req.MaxDepth = 8
 	}
 	if req.MaxDepth > 20 {
 		req.MaxDepth = 20
-	}
-	if req.MaxDepth < 1 {
-		req.MaxDepth = 1
 	}
 	limit := normalizeImpactListLimit(req.Limit)
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
@@ -273,6 +271,10 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 	truncated := false
 	if start != nil {
 		startInfo = map[string]any{"id": start.ID, "name": start.Name, "labels": start.Labels}
+		// #7931 option C: traversal observability only; the statements below
+		// are byte-identical to the uninstrumented shape.
+		r, traversal := startResourceToCodeTraversal(r, start.Label, req.MaxDepth, limit, access.Scoped())
+		defer traversal.End()
 		// Anchor the resolved label inline on the canonical id (indexed) and
 		// project the raw relationships(path) list, unwound into per-hop
 		// provenance in Go — the map-valued `[rel IN relationships(path) | {…}]`
@@ -285,14 +287,16 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 			cypher = fmt.Sprintf(deployment.ImpactScopedRepoPathCypher, start.Pattern("start", "start_id"), req.MaxDepth)
 			params["allowed_repository_ids"], params["allowed_scope_ids"] = ownership.TerminalGrantParams(access)
 		}
-		rows, rerr := h.Neo4j.Run(r.Context(), cypher, params)
+		rows, rerr := h.Neo4j.Run(traversal.Context(), cypher, params)
 		if rerr != nil {
+			traversal.ObserveRun(r.Context(), h.Instruments, nil, rerr)
 			if querycontract.WriteGraphReadError(w, r, rerr, "platform_impact.resource_to_code") {
 				return
 			}
 			tracing.WriteServerFailure(w, r, rerr, http.StatusInternalServerError, resourceToCodePathsFailedMessage)
 			return
 		}
+		traversal.ObserveRun(r.Context(), h.Instruments, rows, nil)
 		// truncated comes from the raw row count, before the grant filter.
 		var trimmed []map[string]any
 		trimmed, truncated = trimImpactRows(rows, limit)
@@ -322,6 +326,7 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 				"hops":      h.pathProbe().TraceHops(row["rels"]),
 			})
 		}
+		traversal.SetReturned(len(paths))
 	}
 	resp := map[string]any{"start": startInfo, "paths": paths, "count": len(paths), "limit": limit, "truncated": truncated}
 	if req.Environment != "" {

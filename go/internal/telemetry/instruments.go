@@ -1124,6 +1124,16 @@ type Instruments struct {
 	// TerraformStateResource) and outcome (ok, error). It is the per-class
 	// cost the ownership budget in impact/ownership/budget.go is sized from.
 	QueryImpactOwnershipCheckDuration metric.Float64Histogram
+	// QueryResourceToCodeTraversalDuration observes the trace-resource-to-code
+	// graph-stage wall time (#7931 option C, observability only): traversal
+	// build plus the bounded graph run, excluding Go-side page shaping (which
+	// the query.resource_to_code.traversal span duration covers). Labelled by
+	// route (the POST /api/v0/impact/trace-resource-to-code pattern),
+	// node_label (the resolved anchor's closed Cypher label, never an id or
+	// name) and outcome (ok, error). Nil-tolerant emission: a nil Instruments
+	// or a nil histogram records nothing, so tests can build Handler without
+	// the full telemetry stack.
+	QueryResourceToCodeTraversalDuration metric.Float64Histogram
 	// QueryScopeGrantInlineCapped counts scoped-token reads whose grant set
 	// overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
 	// currently 128), so the USES and/or DEFINES-collision admission families
@@ -4442,6 +4452,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryImpactOwnershipCheckDuration histogram: %w", err)
+	}
+
+	inst.QueryResourceToCodeTraversalDuration, err = meter.Float64Histogram(
+		"eshu_dp_query_resource_to_code_traversal_duration_seconds",
+		metric.WithDescription("Wall time of one trace-resource-to-code graph traversal stage (build plus bounded graph run), by route, start node_label, and outcome"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryResourceToCodeTraversalDuration histogram: %w", err)
 	}
 
 	inst.ProjectorInputInvalidFacts, err = meter.Int64Counter(

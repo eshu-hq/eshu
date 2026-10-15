@@ -335,7 +335,7 @@ source_coverage:
   - file: impact/handler.go
     calls:
       - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 623aa6ee262ecb5605377d234403863d6a96e794d87e1b610fdf44c2b96d3dcb, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
-      - {symbol: "(*Handler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: a3e0277635075cb62a8ebe69e533e3d5f27808a822d61d2ecb69bd51840da3cb, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*Handler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: df67f1fc7b2995e57a0fb370d70e4040a07649d71b5c1e1aa8cde3540c813b1b, key_bound: single_key, max_results: 201}}
   - file: impact/ownership/checker.go
     calls:
       - {symbol: "(Checker).runClass", count: 1, non_hot: {class: keyed_support, source_sha256: 0feb627d627d2941349a7851a8511e78dfd4c5ba6e06e7e1c4bdc2a3fd97d15c, key_bound: bounded_key_batch, max_keys: 50, max_results: 800}}
