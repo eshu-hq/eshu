@@ -202,9 +202,14 @@ order. The exact-match (`exact=true`) symbol path is left lexical because it is
 an identity lookup, not a relevance ranking.
 
 Performance Evidence: the re-rank is CPU-only over at most the request limit of
-request-local documents (default 50, hard cap 100 in the ranker), with BM25
-served from an inverted index and vector cosine exact below the staged ANN
-threshold of 256 documents. It adds no Cypher, graph write, queue, lease, or
+request-local documents (default 50, maximum 200, the `find_code` page ceiling
+`CodeSearchRankedWindow`), with BM25 served from an inverted index and vector
+cosine exact below the staged ANN threshold of 256 documents. The ranker ranks
+the whole page through `searchhybrid.Backend.RankAll`, which is bounded by that
+index cap rather than the public retrieval limit of 100. Before #7746 a page of
+101 to 200 projectable rows failed that limit and stayed in lexical order. A
+200-row page now costs about twice a 100-row page (see
+`docs/internal/evidence/7746-ranker-determinism.md`). It adds no Cypher, graph write, queue, lease, or
 goroutine, and runs after the Postgres/graph round-trips it reorders, so it
 introduces no new hot-path scan. `go test ./internal/query -run CodeSearch...`
 proves a known fixture is reordered by hybrid relevance and that the lexical
