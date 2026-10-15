@@ -22,25 +22,33 @@ schema, graph schema, and worker behavior move together.
    schema Job (`eshu-bootstrap-data-plane`) applies only the numbered files
    in `go/internal/storage/postgres/migrations/`. Some stores also run their
    own DDL from `EnsureSchema`, but only in the binaries that own them
-   (`webhook-listener`, `workflow-coordinator`). A column or index that a
-   release adds only in that Go DDL is missing for every other binary until
-   an owner starts. For each Go file the second command lists, confirm that
-   a numbered migration at or before the target tag declares the same
-   column, index, or table. If one is missing, hold the upgrade. Since #7792 a unit test fails
-   the build on that gap, so a hit here is a reason to check, not proof of a
-   gap.
+   (`webhook-listener`, `workflow-coordinator`). Schema that a release adds
+   only in that Go DDL is missing for every other binary until an owner
+   starts. For each Go file the second command lists, confirm that a
+   numbered migration at or before the target tag makes the same change. If
+   one is missing, hold the upgrade.
+
+   Since #7792 a unit test fails the build when Go DDL declares a column,
+   index name, table, named constraint, trigger, or function that no
+   numbered migration declares. It does not compare extensions,
+   `ALTER COLUMN` changes, or definitions (column types and defaults, index
+   columns, constraint, trigger, and function bodies). Read the diff of each
+   listed file for those. The `-G` pattern is case-sensitive and Eshu's Go
+   DDL is upper case; rerun it in lower case if a release adds lower-case
+   SQL.
 
 ```bash
-FROM=v1.3.2   # tag the cluster runs now
-TO=v1.3.3     # tag you are upgrading to
+# Placeholders: use real release tags (they look like v0.0.3-pre-release-18).
+FROM=<tag the cluster runs now>
+TO=<tag you are upgrading to>
 
 # New numbered migrations the schema Job will apply.
 git diff --name-status --diff-filter=A "$FROM..$TO" -- \
   go/internal/storage/postgres/migrations/
 
-# Go files whose DDL changed; each needs a matching numbered migration.
+# Go files whose Postgres DDL changed; each needs a matching migration.
 git diff --stat "$FROM..$TO" \
-  -G'ADD COLUMN|CREATE (UNIQUE )?INDEX|CREATE TABLE' -- \
+  -G'ADD COLUMN|ADD IF NOT EXISTS|CREATE (UNIQUE )?INDEX|CREATE TABLE|ADD CONSTRAINT|CREATE (OR REPLACE )?(TRIGGER|FUNCTION)|CREATE EXTENSION|ALTER COLUMN' -- \
   'go/*.go' ':!*_test.go' ':!go/internal/storage/postgres/migrations/'
 ```
 
