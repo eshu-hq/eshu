@@ -131,7 +131,7 @@ three runs with identical buffers.
 | page read (old) | force_generic_plan | 100 | 157,469 | |
 
 Execution time, non-gating, shared host: the id lookup took 0.45-0.65 ms in
-both modes. The page read took 16.2-16.5 ms (custom) and 64.6-112.0 ms
+both modes. The page read took 16.2-16.5 ms (custom) and 100.2-112.0 ms
 (generic).
 
 The test gates on the new read's shape: exact rows, a primary-key index scan,
