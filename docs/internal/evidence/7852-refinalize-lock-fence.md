@@ -10,6 +10,10 @@ fix, that update waited 1.504933211 seconds and failed the 1.5-second ceiling.
 After the fix, it completed in 1.004146947 seconds while the holder retained its
 lock. The fence's first 1-second `lock_timeout` raised 55P03, the failed
 transaction rolled back, and a retry completed after the holder was released.
+The retry deadline also covers each subsequent transaction's reducer drain.
+A live-Postgres regression inserts a live lease after the first 55P03; the
+second attempt returns `blocked/claim_fence_busy` when the shortened test budget
+expires at 4.003231653 seconds. The production budget remains 30 seconds.
 
 Backend/version: PostgreSQL 18.3 (Debian 18.3-1.pgdg13+1), disposable local
 Docker database with the repository's 196 migrations applied. Input shape:
