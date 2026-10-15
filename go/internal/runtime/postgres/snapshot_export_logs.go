@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"context"
 	"log/slog"
 )
 
@@ -33,4 +34,54 @@ func logSnapshotExportDeclarations(logger *slog.Logger, builds []SnapshotExportB
 			slog.String("evidence", build.Evidence),
 		)
 	}
+}
+
+// logSnapshotExportQualification records, once at Open, whether each reader
+// pool or fleet member may export a shared snapshot: INFO when qualified, WARN
+// when every snapshot-set read it would serve will be refused. It binds the
+// server_version, server_version_num, recovery state, and declared evidence
+// an operator needs to tie the verdict to an image.
+func (a *Access) logSnapshotExportQualification() {
+	if len(a.readerMembers) == 0 {
+		logSnapshotExportVerdict(context.Background(), a.logger, slog.LevelInfo, snapshotExportQualificationEvent, "", -1, a.snapshotExport)
+		return
+	}
+	for i := range a.readerMembers {
+		member := &a.readerMembers[i]
+		logSnapshotExportVerdict(context.Background(), a.logger, slog.LevelInfo, snapshotExportQualificationEvent, "", member.ordinal, member.snapshotExport)
+	}
+}
+
+// logSnapshotExportVerdict writes one qualification or denial record. A
+// qualified verdict logs at level; an unqualified or unobserved one logs WARN.
+// ordinal is the member's inventory ordinal, or negative for the single pool.
+func logSnapshotExportVerdict(ctx context.Context, logger *slog.Logger, level slog.Level, event, message string, ordinal int, holder *snapshotExportQualification) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	verdict := holder.current()
+	attrs := []slog.Attr{slog.String("event_name", event)}
+	if ordinal >= 0 {
+		attrs = append(attrs, slog.Int("member_ordinal", ordinal))
+	}
+	if verdict == nil {
+		level = slog.LevelWarn
+		attrs = append(attrs, slog.Bool("qualified", false), slog.String("reason", holder.denialReason()), slog.String("server_version", ""))
+	} else {
+		if !verdict.qualified {
+			level = slog.LevelWarn
+		}
+		attrs = append(attrs,
+			slog.Bool("qualified", verdict.qualified),
+			slog.String("reason", verdict.reason),
+			slog.String("server_version", verdict.serverVersion),
+			slog.Int("server_version_num", verdict.serverVersionNum),
+			slog.Bool("in_recovery", verdict.inRecovery),
+			slog.String("evidence", verdict.evidence),
+		)
+	}
+	if message == "" {
+		message = "PostgreSQL reader snapshot export qualification"
+	}
+	logger.LogAttrs(ctx, level, message, attrs...)
 }

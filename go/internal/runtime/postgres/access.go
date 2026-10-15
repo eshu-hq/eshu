@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -87,6 +88,11 @@ type Access struct {
 	readerInventoryCount int
 	allocator            *readerAllocator
 	nextReader           atomic.Uint64
+	// snapshotExport is the single reader pool's #7957 snapshot-export
+	// verdict; fleet members carry their own. logger receives the
+	// snapshot-export qualification and denial records.
+	snapshotExport *snapshotExportQualification
+	logger         *slog.Logger
 }
 
 // Open validates physical writer and reader identity before exposing either pool.
@@ -157,10 +163,11 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		readCfg.RuntimeParams = map[string]string{}
 	}
 	readCfg.RuntimeParams["default_transaction_read_only"] = "on"
+	exportQualification := newSnapshotExportQualification(cfg.SnapshotExportBuilds)
 	if cfg.SamePrimary {
-		readCfg.ValidateConnect = samePrimaryReaderValidator(lineage)
+		readCfg.ValidateConnect = samePrimaryReaderValidator(lineage, exportQualification)
 	} else {
-		readCfg.ValidateConnect = readerValidator(identity)
+		readCfg.ValidateConnect = readerValidator(identity, exportQualification)
 	}
 	var reader *sql.DB
 	var members []physicalReaderMember
@@ -178,7 +185,10 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 		reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 	}
-	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, lineage: lineage, snapshotSetGate: make(chan struct{}, 1)}
+	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, lineage: lineage, snapshotSetGate: make(chan struct{}, 1), snapshotExport: exportQualification, logger: cfg.Logger}
+	if access.logger == nil {
+		access.logger = slog.Default()
+	}
 	access.snapshotSetGate <- struct{}{}
 	if len(members) > 0 {
 		caps := make([]int, len(members))
@@ -208,6 +218,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		_ = access.Close()
 		return nil, privateFailure(failureReaderPing, err)
 	}
+	access.logSnapshotExportQualification()
 	return access, nil
 }
 

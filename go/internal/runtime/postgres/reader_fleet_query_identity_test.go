@@ -155,8 +155,8 @@ type fleetEventConn struct{ snapshotEventConn }
 func (c *fleetEventConn) QueryContext(ctx context.Context, statement string, args []driver.NamedValue) (driver.Rows, error) {
 	if strings.Contains(statement, "pg_control_system()") {
 		return &queryIdentityRows{
-			columns: []string{"read_only", "recovery", "system_id", "database", "incarnation", "address"},
-			values:  []driver.Value{"on", true, "7", "eshu", "123", "127.0.0.1"},
+			columns: []string{"read_only", "recovery", "system_id", "database", "incarnation", "address", "server_version", "server_version_num"},
+			values:  []driver.Value{"on", true, "7", "eshu", "123", "127.0.0.1", "18.7", int64(180007)},
 		}, nil
 	}
 	if strings.Contains(statement, "pg_last_wal_replay_lsn()") {

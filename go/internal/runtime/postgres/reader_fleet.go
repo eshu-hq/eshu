@@ -222,7 +222,8 @@ func (a *Access) borrowReserved(ctx context.Context, point checkpoint, reservati
 		reservation.ReleaseOne()
 		return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, err))
 	}
-	if err := a.checkReader(ctx, conn, point, member); err != nil {
+	exportQualified, err := a.checkReader(ctx, conn, point, member)
+	if err != nil {
 		if errors.Is(err, ErrWrongTopology) {
 			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 		}
@@ -230,7 +231,7 @@ func (a *Access) borrowReserved(ctx context.Context, point checkpoint, reservati
 		reservation.ReleaseOne()
 		return nil, err
 	}
-	return &readerConnection{Conn: conn, reservation: reservation, member: member}, nil
+	return &readerConnection{Conn: conn, reservation: reservation, member: member, snapshotExportQualified: exportQualified}, nil
 }
 
 func (a *Access) borrowFleet(ctx context.Context) (*readerConnection, error) {
