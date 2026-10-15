@@ -461,3 +461,25 @@ Original lines 647–650.
           # dot-separated), spontaneously reddening the go/internal/runtime
           # Helm contract tests with no code change. See eshu-hq/eshu#5566.
 ```
+
+## Comment group 30
+
+`go-core` job `timeout-minutes` (eshu-hq/eshu#8135; recorded here because
+`test.yml` carries no inline comments — see the header above).
+
+```yaml
+    # #8135: 25m had 3m of headroom over a normal run (job totals 16–22m,
+    # `Lint Go` 12–17m across 8 recent test.yml runs; one slow runner hit
+    # the 25m cap with `Lint Go` at 20m and failed `go-core-complete` with
+    # no lint finding). 35m — the same cap comment group 23 measured for
+    # the go-race shards — holds the 22m longest normal run at ~63% of cap
+    # (inside the ~70% bar), so ordinary runner variance no longer
+    # false-positives as a failure, while a genuine hang still fails in
+    # under 35 minutes rather than running unbounded.
+```
+
+The sibling `go-core-complete` change in the same PR keeps the timeout
+signal distinct from a finding: a `cancelled` aggregate (the conclusion a
+`timeout-minutes` cutoff produces) now fails with its own `timed out or
+was cancelled — not a lint or build finding` annotation instead of sharing
+the generic `did not succeed` one a real lint/build failure emits.
