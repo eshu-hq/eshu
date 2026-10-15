@@ -181,3 +181,43 @@ func TestRepositoryCoverageClientCancelAnswers499(t *testing.T) {
 		})
 	}
 }
+
+// TestRepositoryCoverageCancelNeedsBothHalves pins the client-cancel
+// conjunction on the coverage read: only a context.Canceled error on a
+// canceled request is a client cancel. A store fault on a canceled request,
+// and a context.Canceled from an inner context on a live request, are both
+// coverage faults that degrade to the 200 partial with the fixed last_error,
+// never 499.
+func TestRepositoryCoverageCancelNeedsBothHalves(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		err    error
+		cancel bool
+	}{
+		{"canceled request, store fault", errors.New("private pq: " + repositoryCoverageCanary), true},
+		{"live request, inner cancel", fmt.Errorf("private read store %s: %w", repositoryCoverageCanary, context.Canceled), false},
+	}
+	for _, route := range repositoryCoverageRoutes {
+		for _, tc := range cases {
+			t.Run(route.name+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				rec, span := serveRepositoryCoverageFailure(t, tc.err, route.path, tc.cancel)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+				}
+				coverage := testutil.MustMapField(t, testutil.DecodeResponseBody(t, rec), route.field)
+				if got, want := coverage["last_error"], "content store coverage read failed"; got != want {
+					t.Fatalf("%s.last_error = %#v, want %#v", route.field, got, want)
+				}
+				testutil.RequireStringSlice(t, coverage, "missing_evidence", []string{"content_store_coverage_error"})
+				for _, event := range span.Events() {
+					if event.Name == tracing.ClientCanceledEvent {
+						t.Fatalf("span carries %s for a coverage fault", tracing.ClientCanceledEvent)
+					}
+				}
+			})
+		}
+	}
+}
