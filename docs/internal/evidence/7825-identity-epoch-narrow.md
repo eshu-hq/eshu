@@ -70,7 +70,7 @@ production timing is claimed):
 Conclusion: the narrowing removes a scan instead of adding one; no
 performance regression expected.
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 Baseline: old probe plan-shape with the second `ingestion_scopes` scan (see
 Measurement above). After: single-scan plan-shape, same index searches,
@@ -81,7 +81,7 @@ proofs green (`TestIdentityEpochProbeIgnoresIdentityEmptySupersessionLive`
 PASS: empty flip ignored with count=3; `DetectsSupersessionLive` PASS with
 count=2 unchanged and fingerprint flipped).
 
-## Observability Evidence
+## No-Observability-Change:
 
 No-observability-change. No new metrics, spans, or logs: the narrowing flows
 through the existing #7805 signals (`IdentityCacheReloadTotal`,
