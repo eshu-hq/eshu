@@ -45,6 +45,9 @@ while IFS= read -r path; do
     scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*)
       apkfloors=true
       ;;
+    scripts/verify-runtime-image-tools.sh|scripts/test-verify-runtime-image-tools.sh)
+      image=true
+      ;;
     go/*)
       if [[ "${merge_group_lane}" == false ]]; then
         image=true

@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 142 gates. Local execution runs the primary
+The registry currently defines 143 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -101,7 +101,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (53 gates)
+### Contract: Do declared or generated artifacts match the code? (54 gates)
 
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
 - `route-coverage` (blocking): Fails when a registered HTTP route has no test that actually references it.
@@ -152,6 +152,7 @@ results are derived from the inputs rather than written by hand. See
 - `cassette-author` (blocking): Scans committed cassettes for leaked private data and validates each one against the v1 cassette-format schema.
 - `authz-scoped-route-tests` (blocking): Confirms scoped-token route authorization in code matches the declared authorization-catalog and replay-coverage specs.
 - `docker-image-reproducibility` (blocking): Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible.
+- `runtime-image-tools` (blocking): Fails when the built runtime image is missing git, ssh, or curl, the external tools the collector and HEALTHCHECK exec.
 - `apk-floors` (blocking): Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves.
 - `pg-statement-report` (blocking): Checks the pg-statement-report script keeps its read-only, no-DDL-without-install, privacy-filter, and not-preloaded contract against a stub psql.
 - `product-claim-ledger` (blocking): Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code.
@@ -335,6 +336,7 @@ results are derived from the inputs rather than written by hand. See
 | `release-sbom-attach` | Release SBOM attach | release | ci-heavy | false | — (CI-only: attaches a release asset with the workflow token; tag-push only, never runs on a pull_request or merge_group) | docker-publish.yml / attach-release-sbom | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
 | `ci-service-mirror-publish` | CI service image mirror publish | release | manual | false | — (CI-only: manual main-only dispatch with packages: write and a GHCR login; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / publish-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
 | `ci-service-mirror-verify-public` | CI service image mirror public verify | release | manual | false | — (CI-only: manual main-only dispatch that needs live registry reads; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / verify-public-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
+| `runtime-image-tools` | Runtime image ships required tools | exactness | pre-pr | true | `bash scripts/test-verify-runtime-image-tools.sh` | docker-publish.yml / verify-reproducibility | 5 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `apk-floors` | Alpine apk floors match the repository | exactness | pre-pr | true | `bash scripts/verify-apk-floors.sh`<br>then self-test: `bash scripts/test-verify-apk-floors.sh` | docker-publish.yml / verify-apk-floors | 6 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `apk-floors-drift` | Alpine apk floors drift (daily) | exactness | ci-heavy | false | — (CI-only: daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script) | apk-floors-drift.yml / Apk floors drift (daily) | 5 path(s): Dockerfile, .github/workflows/apk-floors-drift.yml, scripts/verify-apk-floors.sh, … |
 | `helm-package` | Helm chart lint and package | release | ci-heavy | true | — (CI-only: requires the hosted Helm packaging lane; PR runs skip the registry push) | docker-publish.yml / package-and-push-chart | 4 path(s): deploy/helm/**, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |

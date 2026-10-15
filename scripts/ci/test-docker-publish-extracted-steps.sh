@@ -102,6 +102,18 @@ run_selection merge_group "$(git -C "${repo}" rev-parse HEAD)"
 rg -q '^image=false$' "${scratch}/output"
 rg -q '^chart=true$' "${scratch}/output"
 rg -q '^apkfloors=false$' "${scratch}/output"
+# #7762: the runtime image tool verifier and its suite select the image lane,
+# whose verify-reproducibility job runs both against the built rootfs.
+for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-runtime-image-tools.sh; do
+  tool_base="$(git -C "${repo}" rev-parse HEAD)"
+  printf '#!/usr/bin/env bash\n' > "${repo}/${tool_script}"
+  git -C "${repo}" add "${tool_script}"
+  git -C "${repo}" commit -qm "${tool_script##*/}"
+  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${tool_base}"
+  rg -q '^image=true$' "${scratch}/output"
+  rg -q '^chart=false$' "${scratch}/output"
+  rg -q '^apkfloors=false$' "${scratch}/output"
+done
 printf 'version: 1.2.3\n' > "${repo}/deploy/helm/eshu/Chart.yaml"
 printf 'chart bytes\n' > "${repo}/dist/eshu-1.2.3.tgz"
 cat > "${scratch}/helm" <<'STUB'

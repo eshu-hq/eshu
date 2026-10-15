@@ -11,6 +11,7 @@ on:
       'Dockerfile', '.dockerignore', 'go/**',
       'deploy/helm/**', '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/ci/push-helm-chart.sh', 'scripts/verify-apk-floors.sh',
       'scripts/test-verify-apk-floors.sh', 'scripts/fixtures/apk-floors/**',
+      'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
     ]
   pull_request:
     branches:
@@ -21,6 +22,7 @@ on:
       '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh',
       'scripts/ci/push-helm-chart.sh', 'scripts/verify-apk-floors.sh', 'scripts/test-verify-apk-floors.sh',
       'scripts/fixtures/apk-floors/**',
+      'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
     ]
   workflow_dispatch:
     inputs:
@@ -317,6 +319,15 @@ jobs:
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         run: |
           bash scripts/ci/build-reproducibility-image.sh /tmp/out1 "${{ steps.epoch.outputs.epoch }}"
+      - name: Self-test the runtime image tool verifier
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
+        run: bash scripts/test-verify-runtime-image-tools.sh
+      - name: Verify runtime image ships required tools
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
+        # #7762: git execs ssh for ESHU_GIT_AUTH_METHOD=ssh and the
+        # HEALTHCHECK execs curl. Assert both, plus git itself, against the
+        # rootfs this job just built rather than the Dockerfile text.
+        run: bash scripts/verify-runtime-image-tools.sh /tmp/out1
       - name: Build image (second, no cache)
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-reproducibility'))) && (env.LANE_APPLIES == 'true') }}
         run: |
