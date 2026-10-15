@@ -1335,6 +1335,9 @@
             "gitlabGroup": {
               "type": "string"
             },
+            "gitlabHost": {
+              "type": "string"
+            },
             "repositories": {
               "type": "array",
               "items": { "type": "string" }

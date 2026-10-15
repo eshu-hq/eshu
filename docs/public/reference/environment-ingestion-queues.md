@@ -14,7 +14,7 @@ queue, or graph-write evidence.
 | `ESHU_GITLAB_GROUP` | unset | GitLab selector | GitLab group full path (`acme/platform`, subgroups included) or numeric ID to discover (#7765). Required in `gitlabGroup` mode; ignored by every other mode. Empty fails collector startup in `gitlabGroup` mode. Auth is token-only (`ESHU_GIT_AUTH_METHOD=token` with `ESHU_GIT_TOKEN`); `GITHUB_TOKEN` is not accepted as a fallback. |
 | `ESHU_REPOSITORY_RULES_JSON` | unset | collector selector | Exact/regex include rules; exact rules define repos for `explicit` and `filesystem`. |
 | `ESHU_REPOS_DIR` | `/data/repos` | collector | Local clone/cache directory. |
-| `ESHU_REPO_LIMIT` | `4000` | GitHub selector | Maximum repos discovered in one cycle. |
+| `ESHU_REPO_LIMIT` | `4000` | GitHub, GitLab selector | Maximum repos discovered in one cycle. |
 | `ESHU_REPO_SHARD_COUNT` | `1` | collector selector | Deterministic repository shard count. Values greater than `1` filter discovered repository IDs before filesystem or Git sync. |
 | `ESHU_REPO_SHARD_INDEX` | `0` | collector selector | Zero-based shard index; must be less than `ESHU_REPO_SHARD_COUNT`. Helm sets shard count from `ingester.replicas` and shard index from the StatefulSet pod ordinal when horizontal ingesters are enabled. |
 | `ESHU_CLONE_DEPTH` | `1` | collector | Git clone depth. |

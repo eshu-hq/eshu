@@ -215,6 +215,12 @@ Defaults: enabled, bootstrap on, `initialDelaySeconds=0`,
 `repoSync.source.rules` renders to `ESHU_REPOSITORY_RULES_JSON`. SSH auth is
 valid only for `explicit` or `filesystem` source modes, not `githubOrg`.
 
+`source.mode=gitlabGroup` discovers one GitLab group including subgroups
+(`source.gitlabGroup`, required) with token auth only
+(`auth.method=token`); `source.gitlabHost` renders `ESHU_GITLAB_HOST` when
+chart-set for a self-managed host, otherwise the `gitlab.com` default
+applies.
+
 `ingester.scipWorkers` defaults to `4` and renders `SCIP_WORKERS` for the
 ingester. `SCIP_WORKERS` is only a concurrency cap: SCIP language/package-root
 indexing still requires an explicit `SCIP_INDEXER=1`, `true`, `yes`, or `on`
