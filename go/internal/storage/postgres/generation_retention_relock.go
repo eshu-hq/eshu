@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
@@ -403,6 +404,7 @@ type generationRetentionChunk struct {
 	referencesPruned int64
 	entitiesPruned   int64
 	mirrorPruned     int64
+	factKeysPruned   map[string]int64 // #7420 key sidecar rows, by table
 }
 
 // retentionChunkPage is one fact page: the ids to delete and the live
@@ -421,8 +423,8 @@ type retentionChunkPage struct {
 // oldest facts through the keyset index, delete exactly that page by primary
 // key, prune content rows whose only live fact was in the page, and clean
 // their new mirror orphans. The generation row is never touched, so a crash
-// resumes on the still-superseded row with no progress table. Per-fact
-// children follow by FK cascade; generation-scoped rows (work items, ledger,
+// resumes on the still-superseded row with no progress table. The page's key
+// sidecar rows go first (#7420); generation-scoped rows (work items, ledger,
 // search state) wait for the final whole-generation prune with its
 // ledger-before-generations order. It returns full when the page holds fewer
 // rows than the bound: the remainder fits, so the caller folds it back into
@@ -454,6 +456,9 @@ func pruneChunkedCandidate(
 			return generationRetentionChunk{}, false, fmt.Errorf(
 				"generation retention: lock chunk repositories: %w", err)
 		}
+	}
+	if chunk.factKeysPruned, err = factkeys.DeletePage(ctx, tx, candidate.scopeID, candidate.generationID, page.ids); err != nil {
+		return generationRetentionChunk{}, false, fmt.Errorf("generation retention: %w", err)
 	}
 	deleted, err := execRowsAffected(ctx, tx, generationRetentionChunkDeleteFactsQuery, page.ids)
 	if err != nil {

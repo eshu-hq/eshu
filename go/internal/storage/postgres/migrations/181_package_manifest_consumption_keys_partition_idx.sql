@@ -1,0 +1,35 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Back the #7420 explicit retention deletes on
+-- package_manifest_consumption_keys.
+-- Evidence: docs/internal/evidence/7420-key-sidecar-explicit-deletes.md.
+--
+-- WHAT GOES WRONG TODAY. The table reaches fact_records only through its
+-- per-fact fact_id foreign key (ON DELETE CASCADE), so a retention prune
+-- fires one referential-integrity trigger per deleted fact (1.5M calls for a
+-- 1.5M-fact generation). #7420 replaces that cascade with an explicit
+-- DELETE ... WHERE scope_id = $1 AND generation_id = $2 before the
+-- generation delete, and a page delete that also binds the page's fact ids.
+-- The existing indexes cannot serve those predicates: the primary key leads
+-- with fact_id and the lookup index with (ecosystem, package_name), so the
+-- generation delete plans as a sequential scan of the whole table (measured
+-- 67,368 pages at a 5% generation share).
+--
+-- THE INDEX. (scope_id, generation_id, fact_id) makes the generation delete
+-- one bitmap index range over the generation (1 index search) and the page
+-- delete one index range with the page ids as the third-column array, with
+-- buffers that track the generation, not the table, at 5% and 20% shares,
+-- under stale statistics, and under a forced generic plan. Same shape as
+-- relationship_reference_candidate_keys_partition_idx (migration 058). Build
+-- cost 3.2 s and 85 MB at 1.5M rows; insert tax +2.3 to 3.2 ms (+16 to 22%)
+-- per 500-row ON CONFLICT batch.
+--
+-- CONCURRENTLY so bootstrap never blocks the key writers; IF NOT EXISTS so
+-- every later bootstrap over an install that has it is a no-op. The lone
+-- statement in this file so the migration coordinator can run it outside a
+-- transaction without the bootstrap lock_timeout (#7004) and drop an invalid
+-- same-name index before retrying a failed build. A new file per #7002:
+-- never edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS package_manifest_consumption_keys_partition_idx
+    ON package_manifest_consumption_keys (scope_id, generation_id, fact_id);

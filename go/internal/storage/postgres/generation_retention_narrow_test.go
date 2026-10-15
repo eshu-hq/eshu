@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 )
 
 // statementLabel names a retention statement for the sequence assertions.
@@ -34,6 +36,8 @@ func statementLabel(statement string) string {
 		return "count"
 	case strings.Contains(statement, "INSERT INTO generation_retention_events"):
 		return "event"
+	case strings.HasPrefix(statement, factkeys.DeleteMarker):
+		return "fact_key" // #7420: three per pruned generation
 	case strings.Contains(statement, "del_activations"):
 		return "ledger_delete"
 	case strings.Contains(statement, "doomed AS MATERIALIZED"):
@@ -136,14 +140,15 @@ func TestGenerationRetentionNarrowsTheLockSetForAnOverLimitBatch(t *testing.T) {
 	if len(overLabels) < len(wantOverHead) || !slices.Equal(overLabels[:len(wantOverHead)], wantOverHead) {
 		t.Fatalf("over-limit batch statements = %v, want to start %v", overLabels, wantOverHead)
 	}
-	// After the re-lock, the prune sequence is the base one: one event per
-	// pruned generation, then the same deletes in the same order.
+	// After the re-lock, the prune sequence is the base one: one event and
+	// three key sidecar deletes (#7420) per pruned generation, then the same
+	// deletes in the same order.
 	withoutEvents := func(labels []string) []string {
-		return slices.DeleteFunc(slices.Clone(labels), func(l string) bool { return l == "event" })
+		return slices.DeleteFunc(slices.Clone(labels), func(l string) bool { return l == "event" || l == "fact_key" })
 	}
 	overTail, normalTail := overLabels[len(wantOverHead):], normalLabels[len(wantNormalHead):]
 	if !slices.Equal(withoutEvents(overTail), withoutEvents(normalTail)) ||
-		len(overTail)-len(withoutEvents(overTail)) != 1 || len(normalTail)-len(withoutEvents(normalTail)) != 2 {
+		len(overTail)-len(withoutEvents(overTail)) != 1+3 || len(normalTail)-len(withoutEvents(normalTail)) != 2+6 {
 		t.Fatalf("over-limit prune sequence %v differs from the normal one %v beyond one event per generation", overTail, normalTail)
 	}
 	for _, query := range over.queries {

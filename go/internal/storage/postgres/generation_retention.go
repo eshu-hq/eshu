@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
@@ -100,7 +101,8 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 
 // PruneSupersededGenerations deletes one bounded batch of superseded
 // generations outside the retained window. It records safe retention events
-// before deletion and removes generation-owned rows through FK cascades.
+// before deletion, deletes the per-fact key sidecars explicitly (#7420), and
+// removes the other generation-owned rows through FK cascades.
 //
 // Before it locks anything it checks that both retention key indexes are
 // valid; if either is not, it refuses the cycle with an error wrapping
@@ -390,6 +392,7 @@ const (
 	GenerationRetentionPhaseDeleteInfraOrphans    = "delete_infra_orphans"
 	GenerationRetentionPhasePruneFiles            = "prune_content_files"
 	GenerationRetentionPhaseDeleteLedger          = "delete_changed_since_ledger"
+	GenerationRetentionPhaseDeleteFactKeys        = "delete_fact_keys" // #7420 key sidecars, before the generations
 	GenerationRetentionPhaseDeleteGenerations     = "delete_scope_generations"
 	GenerationRetentionPhasePruneChunkedFacts     = "prune_chunked_facts"
 	GenerationRetentionPhaseCommit                = "commit"
@@ -462,6 +465,9 @@ func (s GenerationRetentionStore) pruneCandidates(
 			result.LedgerRowsPruned = ledgerRows
 			maps.Copy(result.RowsPruned, ledgerRows)
 			return 0, nil
+		}},
+		{GenerationRetentionPhaseDeleteFactKeys, "", func() (int64, error) {
+			return 0, factkeys.DeleteGenerations(ctx, tx, retentionScopeIDs(candidates), generationIDs, result.RowsPruned)
 		}},
 		{GenerationRetentionPhaseDeleteGenerations, "scope_generations", deleteWith(deleteScopeGenerationsForRetentionQuery)},
 	}

@@ -231,6 +231,18 @@
   `listPackageManifestConsumptionKeyScopeFactsSQL`'s predicate byte-aligned
   with migration 181's partial index. See `consumption/AGENTS.md` and
   `docs/internal/evidence/7663-backfill-page-lock.md`.
+- **Key sidecar deletes (#7420).** A new statement that deletes
+  `fact_records` (or `scope_generations` / `ingestion_scopes`, which cascade
+  to it) must either be scoped to fact kinds that own no rows in
+  `relationship_reference_candidate_keys`, `package_manifest_consumption_keys`
+  or `package_registry_identity_keys`, or first call the explicit key sidecar
+  delete (`facts/keys`) in the same transaction, then
+  be classified in `factDeleteSites` (`fact_delete_key_guard_test.go`). Keep
+  the table order relationship, manifest, registry: the package key backfill
+  clears manifest then registry keys, and the reversed order deadlocks
+  (`TestRetentionFactKeyReversedOrderDeadlocksLive`). Keep every delete on
+  the `(scope_id, generation_id, fact_id)` partition index; a fact_id-only
+  page delete plans as a sequential scan.
 
 ## Evidence notes
 

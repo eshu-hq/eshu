@@ -448,6 +448,9 @@ func mergeChunkProgress(
 	result.RowsPruned["content_file_references"] += chunk.referencesPruned
 	result.RowsPruned["content_entities"] += chunk.entitiesPruned
 	result.RowsPruned["infra_resource_entities"] += chunk.mirrorPruned
+	for table, rows := range chunk.factKeysPruned {
+		result.RowsPruned[table] += rows // #7420 key sidecars
+	}
 	result.Skipped[generationRetentionChunkedProgressSkippedReason]++
 	if age := now.Sub(target.supersededAt); age > result.OldestEligibleAge {
 		result.OldestEligibleAge = age

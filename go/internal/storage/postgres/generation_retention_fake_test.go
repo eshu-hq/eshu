@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
+	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 )
 
 type generationRetentionFakeDB struct {
@@ -62,6 +64,10 @@ type generationRetentionFakeDB struct {
 	// statement that execs and execResults deliberately skip so the positional
 	// exec scripts stay aligned with the retention deletes.
 	statements []string
+	// factKeyRows answers the #7420 key sidecar deletes by table name, and
+	// factKeyExecs records them; they bypass the positional exec scripts.
+	factKeyRows  map[string]int64
+	factKeyExecs []fakeExecCall
 }
 
 func (database *generationRetentionFakeDB) Begin(context.Context) (db.Transaction, error) {
@@ -231,6 +237,15 @@ func (tx *generationRetentionFakeTx) ExecContext(_ context.Context, query string
 		if strings.HasPrefix(query, prefix) {
 			return fakeResult{}, nil
 		}
+	}
+	if strings.HasPrefix(query, factkeys.DeleteMarker) {
+		tx.database.factKeyExecs = append(tx.database.factKeyExecs, fakeExecCall{query: query, args: args})
+		for table, rows := range tx.database.factKeyRows {
+			if strings.Contains(query, "DELETE FROM "+table+"\n") {
+				return fakeRowsAffected{n: rows}, nil
+			}
+		}
+		return fakeRowsAffected{}, nil
 	}
 	tx.database.execs = append(tx.database.execs, fakeExecCall{query: query, args: args})
 	if len(tx.database.execResults) == 0 {
