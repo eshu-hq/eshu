@@ -3,21 +3,28 @@
 This note records two defects that block the score-keyed cursor in #7746, and
 their fixes. The cursor itself is later work and is not part of this change.
 
-Branch `fix/7746-ranker-determinism`, base `origin/main` `ef5703ec2`.
+Branch `fix/7746-ranker-determinism`. Commits are named by subject line, not
+SHA, because each rebase onto a moving `origin/main` rewrites branch SHAs. In
+order:
 
-The commits are, in order: `daebbdaf6` (BM25 term order), `cc9c6eda0` (code
-ranker and `RankAll`), `317d1b703` (content ranker), `a51260c81` (`RankAll`
-benchmark), `3fb03e3c9` (this note), `304e2b338` (content cap tied to the
-page cap), `facf0faf1` (contract doc), and `6b811096c` (stage span).
+1. `fix(searchhybrid): sum BM25 contributions in sorted term order`
+2. `fix(codemodel): hybrid-rank find_code pages of 101-200 rows`
+3. `fix(contentread): hybrid-rank content pages of 101-200 rows`
+4. `test(searchhybrid): benchmark RankAll at 100 and 200 documents`
+5. `docs(search): record #7746 ranker determinism evidence`
+6. `fix(contentread): tie the content re-rank cap to the page cap`
+7. `docs(search): drop the stale re-rank validation claim`
+8. `feat(query): add a query.hybrid_rerank stage span`
+9. `docs(search): cite rebased commits and the stage span in #7746 evidence`
+10. `docs(search): name #7746 evidence commits by subject`
 
-The measurements below ran before the branch was rebased from `88beb12d0` onto
-`ef5703ec2`. The pre-rebase commits were `bc3fd3767`, `1d98d612e`,
-`f1cea4dbb`, and `eff5b2fe9`. `git range-diff` shows every commit unchanged
-(`=`). `git diff` between each pre-rebase commit and its rebased commit, and
-between `88beb12d0` and `ef5703ec2`, is empty for every measured package
+Every figure below was measured on the branch before rebasing onto
+`origin/main`. `git range-diff` shows the patches unchanged across each rebase,
+and `git diff` between the bases is empty for every measured package
 (`searchhybrid`, `searchembed`, `searchdocs`, `searchretrieval`,
-`query/codemodel`, `query/contentread`). Each figure is cited below at its
-rebased commit; the ledger rows name both.
+`query/codemodel`, `query/contentread`, `query/tracing`). The baseline rows were
+measured with the branch on `88beb12d0` and the stage-span rows with the branch
+on `ef5703ec2`. Both are commits on main, and the ledger rows cite them.
 
 ## Defect 2: BM25 score bits depended on map iteration order
 
@@ -34,8 +41,8 @@ each other, because they order on different keys and group the BM25 formula
 differently.
 
 RED: `TestBM25ScoreBytesStableAcrossTermOrder` uses 8 terms and 4 query-term
-maps, with 200 scorings of each map. On `88beb12d0`, the pre-rebase base, it
-failed in every run:
+maps, with 200 scorings of each map. On `88beb12d0`, a main commit, it failed
+in every run:
 5/5 runs (ledger:7746-bm25-order-red-runs). In the first run the off-reference
 counts were 454/800 runs for `bm25Score` (ledger:7746-bm25-order-red-direct),
 448/800 runs for `bm25ScoredInScope` (ledger:7746-bm25-order-red-postings),
@@ -96,7 +103,8 @@ Fix:
 - `codeHybridRerankLimit = CodeSearchRankedWindow` (200), and
   `contentHybridRerankLimit = ContentSearchMaxLimit` (200), the page caps of
   their handlers. Both maximum-page tests size the page from the page cap, so a
-  ranker cap below it fails them (seeded mutation in `304e2b338`).
+  ranker cap below it fails them (seeded mutation recorded in
+  `fix(contentread): tie the content re-rank cap to the page cap`).
 - `searchretrieval.maxLimit` stays 100. `semantic_search`, `searchpostgres`, and
   `searchnornicdb` validation is unchanged.
 
@@ -111,10 +119,10 @@ behavior. It is not the cursor feature.
 
 RED before each ranker fix:
 
-- Code, on `daebbdaf6`: 3/3 runs failed (ledger:7746-code-max-page-red-runs).
-- Content, on `cc9c6eda0`: 3/3 runs failed (ledger:7746-content-max-page-red-runs).
+- Code, with commit 1 applied: 3/3 runs failed (ledger:7746-code-max-page-red-runs).
+- Content, with commits 1-2 applied: 3/3 runs failed (ledger:7746-content-max-page-red-runs).
 
-Failure text, with the line numbers those commits had:
+Failure text, with the line numbers the test files had then:
 
 ```text
 code_hybrid_rerank_test.go:80: Rerank applied = false, want true for a projectable maximum page
@@ -138,14 +146,14 @@ are the comparison. Each line is 5 runs (`-count=5 -benchmem -run '^$'`).
 `source_cache` bodies. That covers projection, index build with hash embedding,
 ranking, and reorder.
 
-| Rows | Commit | ns/op (non-gating) | B/op | allocs/op | applied |
+| Rows | Branch state (commits applied) | ns/op (non-gating) | B/op | allocs/op | applied |
 |---|---|---|---|---|---|
-| 100 | `88beb12d0` (pre-rebase base) | 9819476 to 10089606 | 11107153 to 11107287 | 6005 to 6006 (ledger:7746-code-rerank-100-main-allocs) | 1 |
-| 100 | `daebbdaf6` (BM25 order) | 9660761 to 9712469 | 11107175 to 11107184 | 6006 (ledger:7746-code-rerank-100-bm25-allocs) | 1 |
-| 200 | `daebbdaf6` (cap 100) | 11050028 to 11128917 | 11439134 to 11439157 (ledger:7746-code-rerank-200-before-bytes) | 7153 (ledger:7746-code-rerank-200-before-allocs) | 0 |
-| 100 | `cc9c6eda0` (RankAll) | 9879470 to 11106963 | 11107211 to 11107411 | 6006 to 6008 | 1 |
-| 200 | `cc9c6eda0` (RankAll) | 20664122 to 21345694 | 22176291 to 22176468 (ledger:7746-code-rerank-200-after-bytes) | 11586 to 11587 (ledger:7746-code-rerank-200-after-allocs) | 1 |
-| 200 | `6b811096c` (stage span) | 20163058 to 22256571 | 22176643 to 22176827 (ledger:7746-code-rerank-200-span-bytes) | 11592 to 11593 (ledger:7746-code-rerank-200-span-allocs) | 1 |
+| 100 | none, `88beb12d0` on main | 9819476 to 10089606 | 11107153 to 11107287 | 6005 to 6006 (ledger:7746-code-rerank-100-main-allocs) | 1 |
+| 100 | 1 (BM25 order) | 9660761 to 9712469 | 11107175 to 11107184 | 6006 (ledger:7746-code-rerank-100-bm25-allocs) | 1 |
+| 200 | 1 (cap 100) | 11050028 to 11128917 | 11439134 to 11439157 (ledger:7746-code-rerank-200-before-bytes) | 7153 (ledger:7746-code-rerank-200-before-allocs) | 0 |
+| 100 | 1-2 (RankAll) | 9879470 to 11106963 | 11107211 to 11107411 | 6006 to 6008 | 1 |
+| 200 | 1-2 (RankAll) | 20664122 to 21345694 | 22176291 to 22176468 (ledger:7746-code-rerank-200-after-bytes) | 11586 to 11587 (ledger:7746-code-rerank-200-after-allocs) | 1 |
+| 200 | 1-8 (stage span) | 20163058 to 22256571 | 22176643 to 22176827 (ledger:7746-code-rerank-200-span-bytes) | 11592 to 11593 (ledger:7746-code-rerank-200-span-allocs) | 1 |
 
 What the numbers show:
 
@@ -159,7 +167,7 @@ What the numbers show:
   maximum page, and nothing in this change is faster.
 - The cost grows linearly with rows: about 110 KB and 56 allocations per added row.
 - The stage span adds 5 allocations and about 413 B per re-rank with the
-  default no-op tracer, measured at `6b811096c` after the rebase.
+  default no-op tracer, measured with commits 1-8 applied.
 
 `BenchmarkRankAll` (`go/internal/searchhybrid`) runs `Backend.RankAll` alone
 over a prebuilt index with the shipped hash embedder and about 3 KB bodies:
@@ -183,7 +191,7 @@ SQL, no graph write, no queue, no lease, and no goroutine.
 
 Observability Evidence: each re-rank pass that reaches the ranking work emits
 a `query.hybrid_rerank` span, a child of the request span, through
-`tracing.StartHybridRerankSpan` (`6b811096c`). Its attributes are
+`tracing.StartHybridRerankSpan` (commit 8). Its attributes are
 `search.rerank.tool` (`find_code`, `search_entity_content`, or
 `search_file_content`), `search.rerank.rows` (the page row count, at most 200),
 and `search.rerank.applied` (whether the page was reordered). The span's
