@@ -17,7 +17,8 @@ const Admin = `
             "content": {"application/json": {"schema": {"type": "object", "properties": {"skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"}, "delta_active_scopes": {"$ref": "#/components/schemas/DeltaActiveScopesReport"}, "reindex_requests_written": {"$ref": "#/components/schemas/ReindexRequestsWrittenReport"}}}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -25,7 +26,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Request a fleet-wide or per-repository reindex",
-        "description": "Records a reindex watermark, stamped by Postgres and never moved backward. With scope workspace (the default) it records the fleet watermark, returned as requested_at: on each sync cycle every git ingester shard forces a full re-parse (reconcile reason reindex_requested) of each repository it owns whose newest activated full generation was ingested before requested_at. With scope repository it resolves each repositories selector to exactly one git default-branch repository scope and records a watermark for each, returned per repository; the owning shard forces a full re-parse (reconcile reason repository_reindex_requested) and syncs requested repositories first. A repository-scoped request is all or nothing: any selector that matches no repository, matches several, or is not a git default-branch scope fails the request with 400 naming every such selector, and nothing is recorded. Both share the reconciliation sweep's per-cycle budget (ESHU_REPO_RECONCILE_MAX_PER_CYCLE) and its in-flight and retry-backoff throttle. A request is satisfied repository by repository as those full generations activate; it is never claimed and has no completion status. Webhook-only ingesters reach only the repositories they are triggered for, and filesystem source mode does not read either watermark. Send the request only after every git ingester runs the target binary: the watermark records when a full generation was ingested, not which parser produced it. Unknown body fields are rejected.",
+        "description": "Records a reindex watermark, stamped by Postgres and never moved backward. With scope workspace (the default) it records the fleet watermark, returned as requested_at: on each sync cycle every git ingester shard forces a full re-parse (reconcile reason reindex_requested) of each repository it owns whose newest activated full generation was ingested before requested_at. With scope repository it resolves each repositories selector to exactly one git default-branch repository scope and records a watermark for each, returned per repository; the owning shard forces a full re-parse (reconcile reason repository_reindex_requested) and syncs requested repositories first. A repository-scoped request is all or nothing: any selector that matches no repository, matches several, or is not a git default-branch scope fails the request with 400 naming every such selector, and nothing is recorded. Both share the reconciliation sweep's per-cycle budget (ESHU_REPO_RECONCILE_MAX_PER_CYCLE) and its in-flight and retry-backoff throttle. A request is satisfied repository by repository as those full generations activate; it is never claimed and has no completion status. Webhook-only ingesters reach only the repositories they are triggered for, and filesystem source mode does not read either watermark. Send the request only after every git ingester runs the target binary: the watermark records when a full generation was ingested, not which parser produced it. Unknown body fields are rejected. A 503 without Retry-After means reindex requests, or repository-scoped reindex requests, are not configured on this API instance; a 503 with Retry-After means the repository catalog lookup hit a stale or timed-out PostgreSQL reader, and nothing was recorded.",
         "requestBody": {
           "required": true,
           "content": {
@@ -82,7 +83,8 @@ const Admin = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "503": {"description": "Reindex requests, or repository-scoped reindex requests, are not configured on this API instance; a repository-scoped catalog lookup also answers 503 with capability operator.repository_catalog.lookup when the PostgreSQL reader is fenced."}
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"}
         }
       }
     },
@@ -159,7 +161,8 @@ const Admin = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"description": "Recovery requires an admin (all-scopes) token"},
           "409": {"description": "Idempotency key already in progress or reused with different scope_ids"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -180,7 +183,8 @@ const Admin = `
           "200": {"description": "Admin work-item query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "503": {"description": "PostgreSQL reader fenced; retryable 503 with capability operator.work_items.list."}
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"}
         }
       }
     },
@@ -192,7 +196,8 @@ const Admin = `
           "200": {"description": "Projection decision query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "503": {"description": "PostgreSQL reader fenced; retryable 503 with capability operator.decisions.list, or operator.decision_evidence.list for the include_evidence read."}
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"}
         }
       }
     },
@@ -227,8 +232,9 @@ const Admin = `
           "200": {"description": "Bounded dead-letter page with schema_version, limit, count, truncated, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Dead-letter query timed out"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "504": {"description": "Dead-letter query exceeded its timeout_ms budget (fixed message dead-letter query timed out)"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -261,8 +267,9 @@ const Admin = `
           "200": {"description": "Bounded input_invalid quarantine page with schema_version, limit, count, truncated, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Input-invalid-facts query timed out"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "504": {"description": "Input-invalid-facts query exceeded its timeout_ms budget (fixed message input-invalid-facts query timed out)"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -294,8 +301,9 @@ const Admin = `
           "200": {"description": "Bounded changed-since poisoned/retrying link page with schema_version, limit, count, truncated, next_cursor, and items"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "504": {"description": "Changed-since poisoned-links query timed out"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "504": {"description": "Changed-since poisoned-links query exceeded its timeout_ms budget (fixed message changed-since poisoned-links query timed out)"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -306,7 +314,8 @@ const Admin = `
         "responses": {
           "200": {"description": "Dead-letter request results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -319,7 +328,8 @@ const Admin = `
           "200": {"description": "Skip request results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "409": {"$ref": "#/components/responses/Conflict"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -386,7 +396,8 @@ const Admin = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -436,7 +447,8 @@ const Admin = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -447,7 +459,8 @@ const Admin = `
         "responses": {
           "200": {"description": "Backfill request results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -459,7 +472,8 @@ const Admin = `
           "200": {"description": "Replay-event query results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "503": {"description": "PostgreSQL reader fenced; retryable 503 with capability operator.replay_events.list."}
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"}
         }
       }
     },
