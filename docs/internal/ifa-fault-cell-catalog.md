@@ -37,8 +37,9 @@ than there are entries here.
    claim (attempt_count = held + 1, a new last_attempt_at, lease cleared). A
    stale ACK accepted after the successor's own ACK would add a second
    `succeeded` record and fail the cell. When the stale and the successor ACK
-   share one flush batch, the Service logs both as `ack_outcome_unknown` and
-   writes no `succeeded` record for the item (#8007);
+   share one flush batch, the queue commits the successor and names the
+   dropped stale claim, so the Service logs the successor as `succeeded` and
+   the stale claim as `ack_claim_rejected` (#8007);
    the log carries no claim epoch, so the check does not attribute a record to
    the stale claim or the successor. Epoch-level rejection against a live
    successor is proven by `TestReducerQueueExpiryInterleaveLive` (class

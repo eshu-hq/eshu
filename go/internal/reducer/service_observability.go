@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -257,6 +258,103 @@ func ackFailureStatus(err error) string {
 		return ackStatusAbandonedToLeaseExpiry
 	}
 	return ackStatusOutcomeUnknown
+}
+
+// BatchAckSupersededError reports a batch ACK in which the queue dropped one
+// or more superseded claims before running any UPDATE, while the surviving
+// claims were still acked (#8007). A lease that expires mid-handler is
+// re-claimed by the same process, so one flush batch can carry both the stale
+// claim and its successor for one work item: the queue commits the successor
+// and rejects the batch for the dropped claim. Mapping that one error onto
+// every item in the flush logs the committed successor as ack_outcome_unknown
+// and drops its result, so the Service needs the dropped-claim identities to
+// tell committed items from superseded ones.
+//
+// It unwraps to ErrExecutionClaimRejected, so every existing errors.Is branch
+// (the batch acker survives instead of stopping the reducer) keeps working.
+type BatchAckSupersededError struct {
+	// Superseded holds the claims the queue dropped without attempting any
+	// UPDATE. They never committed.
+	Superseded []Intent
+	// KeptCommitted reports whether every surviving claim's UPDATE matched
+	// its row. False means some surviving claim was stale too, so the
+	// surviving items that are not superseded stay ack_outcome_unknown
+	// instead of being reported as succeeded.
+	KeptCommitted bool
+}
+
+// Error names the superseded work items, so an operator reading the batch
+// fence line can tell which claims the queue dropped.
+func (e *BatchAckSupersededError) Error() string {
+	ids := make([]string, 0, len(e.Superseded))
+	for _, intent := range e.Superseded {
+		ids = append(ids, intent.IntentID)
+	}
+	return fmt.Sprintf(
+		"batch ack superseded claims [%s]: %v",
+		strings.Join(ids, ", "),
+		ErrExecutionClaimRejected,
+	)
+}
+
+// Unwrap keeps errors.Is(err, ErrExecutionClaimRejected) true, which is the
+// discriminator the batch acker uses to log and continue.
+func (e *BatchAckSupersededError) Unwrap() error {
+	return ErrExecutionClaimRejected
+}
+
+// Supersedes reports whether intent is one of the dropped claims. The match
+// is by claim identity, not bare work item id: a flush batch can carry two
+// claims of one work item, and only the older one was dropped.
+func (e *BatchAckSupersededError) Supersedes(intent Intent) bool {
+	for _, dropped := range e.Superseded {
+		if dropped.IntentID == intent.IntentID &&
+			dropped.ClaimEpoch == intent.ClaimEpoch &&
+			sameBatchAckClaimedAt(dropped.ClaimedAt, intent.ClaimedAt) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameBatchAckClaimedAt(left, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Equal(*right)
+}
+
+// recordBatchAckError splits one failed batch ACK into per-item outcomes. A
+// batch that carried a superseded claim alongside its successor reports the
+// dropped claim as ack_claim_rejected (with its own stale-claim log line
+// carrying the work item id) and each committed survivor as succeeded with
+// its result; survivors that may not have committed, and every item of a
+// rejection without supersession detail, stay on the previous outcome. It
+// returns how many items were left unattributed, so the caller can keep the
+// batch fence line for exactly those batches.
+func (s Service) recordBatchAckError(ctx context.Context, pending []batchAckItem, ackErr error) int {
+	var superseded *BatchAckSupersededError
+	if !errors.As(ackErr, &superseded) || superseded == nil {
+		status := ackFailureStatus(ackErr)
+		for _, item := range pending {
+			s.recordBatchAckOutcome(ctx, item, status, ackErr)
+		}
+		return len(pending)
+	}
+	unknown := 0
+	for _, item := range pending {
+		switch {
+		case superseded.Supersedes(item.intent):
+			s.recordBatchAckOutcome(ctx, item, "ack_claim_rejected", ackErr)
+			s.logReducerAckClaimRejected(ctx, &item.intent, 0, ackErr)
+		case superseded.KeptCommitted:
+			s.recordBatchAckOutcome(ctx, item, "succeeded", nil)
+		default:
+			s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ackErr)
+			unknown++
+		}
+	}
+	return unknown
 }
 
 func (s Service) logAckTransient(ctx context.Context, message, failureClass string, batchSize, attempt int, err error) {

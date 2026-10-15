@@ -21,10 +21,13 @@ The identity fact epoch cache counters (`eshu_dp_identity_cache_*`) and the
 | `eshu_dp_reducer_heartbeat_missed_total` | counter | Reducer lease heartbeat failures by domain, including the immediate pre-heartbeat emitted at claim time. A non-zero rate means a worker's lease may be reclaimed and re-executed by another worker. |
 
 `eshu_dp_reducer_executions_total{status="succeeded"}` means the reducer ACK
-completed. `ack_claim_rejected` marks a rejected single-item ACK;
-`ack_outcome_unknown` marks a batch whose ACK may have committed only some
-items, or an ACK cut short by shutdown. `ack_abandoned_to_lease_expiry` marks
-an ACK, single-item or batch, that kept failing with a Postgres deadlock
+completed. `ack_claim_rejected` marks a rejected single-item ACK, and each
+superseded claim dropped from a batch ACK (one record per dropped claim,
+carrying its work item id); a successor whose ACK committed in such a batch is
+recorded as `succeeded` with its result. `ack_outcome_unknown` marks a batch
+whose ACK may have committed only some of its surviving items, or an ACK cut
+short by shutdown. `ack_abandoned_to_lease_expiry` marks an ACK, single-item
+or batch, that kept failing with a Postgres deadlock
 (40P01) or serialization failure (40001) through its five attempts: the claim
 stays leased and is reclaimed when the lease expires, and the run keeps
 draining. A steady rate of it points at lock contention on the queue rows, not
