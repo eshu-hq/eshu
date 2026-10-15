@@ -131,7 +131,9 @@ Each statement is prepared with typed parameters, then run under
 - Run A: `postgres:18-alpine` (18.6, musl), `shared_buffers=256MB`, three runs
   with identical buffers, on the branch before its rebase onto `eef372440`.
 - Run B: `postgres:18` (Debian `18.6-1.pgdg13+2`, glibc), default
-  `shared_buffers=128MB`, two runs with identical buffers, at `1948dc60c`. The
+  `shared_buffers=128MB`, two runs with identical buffers, on the branch after
+  the commit `query: pin the language-query limit clamp to the id-lookup bound`
+  (before its rebase onto `871baddb4`; the patches are unchanged). The
   independent reviewer reported the same four counts from a Debian
   PostgreSQL 18.6 image.
 
