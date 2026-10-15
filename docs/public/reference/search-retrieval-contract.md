@@ -209,11 +209,12 @@ the whole page through `searchhybrid.Backend.RankAll`, which is bounded by that
 index cap rather than the public retrieval limit of 100. Before #7746 a page of
 101 to 200 projectable rows failed that limit and stayed in lexical order. A
 200-row page now costs about twice a 100-row page (see
-`docs/internal/evidence/7746-ranker-determinism.md`). It adds no Cypher, graph write, queue, lease, or
-goroutine, and runs after the Postgres/graph round-trips it reorders, so it
-introduces no new hot-path scan. `go test ./internal/query -run CodeSearch...`
-proves a known fixture is reordered by hybrid relevance and that the lexical
-fallback edges are byte-stable.
+`docs/internal/evidence/7746-ranker-determinism.md`). It adds no Cypher, graph
+write, queue, lease, or goroutine, and runs after the Postgres/graph
+round-trips it reorders, so it introduces no new hot-path scan.
+`go test ./internal/query -run CodeSearch...` proves a known fixture is
+reordered by hybrid relevance and that the lexical fallback edges are
+byte-stable.
 
 No-Regression Evidence: `cd go && go test ./internal/query ./internal/mcp
 ./internal/searchhybrid ./internal/searchretrieval ./internal/searchembed
@@ -224,8 +225,11 @@ path when the ranker is nil or reports a no-op.
 Observability Evidence: reordered rows carry a `search_backend=hybrid` marker
 and the response `source_backend` switches to `hybrid_content_store` only when
 the hybrid pass changed the ranking, so an operator can confirm from the
-response envelope whether vector retrieval participated. The bounded request
-reuses the `searchretrieval` request-validation contract.
+response envelope whether vector retrieval participated. The ranker does not go
+through `searchretrieval` request validation, whose limit of 100 is the public
+retrieval cap. `searchhybrid.Backend.RankAll` rejects a blank query, a missing
+scope or index, and a done context, and the ranker keeps the lexical order on
+any of those errors.
 
 ### search_entity_content / search_file_content Hybrid Re-rank
 
