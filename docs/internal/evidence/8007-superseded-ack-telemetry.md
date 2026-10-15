@@ -15,8 +15,9 @@ result. A rejection with no supersession keeps the bare error and the previous
 all-unknown telemetry, and survivors that may not have committed stay unknown,
 so no path reports a success the queue did not write.
 
-No-Regression Evidence (#8007): baseline `origin/main` 97994911b8, changed
-head 2e405a89cd. No SQL text changed: the same ack UPDATE statements run over
+No-Regression Evidence (#8007): baseline `origin/main` 97994911b8, after the
+fix range on branch `fix/8007-superseded-ack-telemetry`. No SQL text changed:
+the same ack UPDATE statements run over
 the same surviving claims in the same order, and the split keeps the same
 newest claim it kept before. No goroutine, lock, lease, batch-size, or retry
 change: the only new work per batch is one slice append per dropped duplicate
