@@ -10,7 +10,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchembed"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
@@ -21,6 +20,8 @@ import (
 // ranks for one content-search request. The handler already bounds its lexical
 // result set to the request limit (default 50, hard maximum 200), so the index
 // is built over a small, request-local document set and never the whole corpus.
+// RankAll ranks every row of a page up to this cap; before #7746 a page of more
+// than 100 rows failed the public retrieval limit and stayed lexical.
 const contentHybridRerankLimit = 200
 
 // contentHybridRerankTimeout bounds the in-process re-rank pass. It guards the
@@ -168,7 +169,7 @@ func (r *ContentHybridRanker) canRerank(ctx context.Context, repoID string, rowC
 
 // rankDocuments builds the request-local hybrid index over the projected
 // documents and returns the fused candidates. It returns ok=false on any bounded
-// failure (index build, request validation, search error, or empty result) so
+// failure (index build, invalid query or scope, ranking error, or empty result) so
 // callers fall back to the lexical order.
 func (r *ContentHybridRanker) rankDocuments(
 	ctx context.Context,
@@ -197,18 +198,11 @@ func (r *ContentHybridRanker) rankDocuments(
 		return nil, false
 	}
 
-	req := searchretrieval.Request{
-		Query:   query,
-		Scope:   searchretrieval.Scope{RepoID: repoID},
-		Mode:    searchbench.ModeHybrid,
-		Limit:   len(docs),
-		Timeout: contentHybridRerankTimeout,
-	}
-	if err := searchretrieval.ValidateRequest(req); err != nil {
-		return nil, false
-	}
-
-	candidates, err := (searchhybrid.Backend{Index: index}).Search(rankCtx, req)
+	// RankAll ranks the whole request-local index. Search would reject a page
+	// larger than the public retrieval limit (100) and leave it in lexical
+	// order (#7746); this page is already bounded by contentHybridRerankLimit.
+	scope := searchretrieval.Scope{RepoID: repoID}
+	candidates, err := (searchhybrid.Backend{Index: index}).RankAll(rankCtx, query, scope)
 	if err != nil || len(candidates) == 0 {
 		return nil, false
 	}

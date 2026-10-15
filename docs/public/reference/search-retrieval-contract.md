@@ -258,6 +258,15 @@ deployments keep the lexical content order. `go test ./internal/query -run
 proves a known fixture is reordered by hybrid relevance and that the lexical
 fallback edges preserve order, basis, and length.
 
+The ranker ranks every row of a page up to the 200-row cap through
+`searchhybrid.Backend.RankAll`, which is bounded by the request-local index
+cap instead of the public retrieval limit of 100. Before #7746 a page of 101 to
+200 projectable rows failed that limit and kept its whole lexical order with no
+`search_backend` or `page_position` markers; such a page is now reordered and
+marked like any smaller page. `go test ./internal/query/contentread -run
+ContentHybridRerankRanksAllRowsOfAMaximumPage` covers entity and file pages of
+200 rows.
+
 ## Persisted Postgres Search Index
 
 `go/internal/storage/postgres/search/index.EshuSearchIndexStore` serves the default public
