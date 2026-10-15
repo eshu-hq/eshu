@@ -326,3 +326,38 @@ func assertFinalizeAfterCancelLog(t *testing.T, logs, route string) {
 		t.Fatalf("found %d %s log lines, want 1; logs = %s", found, finalizeAfterClientCancelEvent, logs)
 	}
 }
+
+// TestAdminMutationFinalizeAfterRequestDeadlineDoesNotLogClientCancel pins
+// that only a client cancel emits the finalize-after-cancel INFO event: a
+// request whose own deadline expired before the finalize still records the
+// outcome, but it is not logged as a client walking away. It swaps the
+// default slog logger, so it must not be parallel.
+func TestAdminMutationFinalizeAfterRequestDeadlineDoesNotLogClientCancel(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	for _, route := range finalizeRoutes() {
+		t.Run(route.name, func(t *testing.T) {
+			logs.Reset()
+			ledger := newFinalizeLedger()
+			ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+			defer cancel()
+			mux := http.NewServeMux()
+			route.handler(ledger, &recordingAudit{}).Mount(mux)
+			req := httptest.NewRequest(http.MethodPost, route.path, strings.NewReader(route.body)).WithContext(ctx)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK || !ledger.completed {
+				t.Fatalf("status = %d, completed = %v; want 200 with the outcome recorded; body = %s",
+					rec.Code, ledger.completed, rec.Body.String())
+			}
+			if strings.Contains(logs.String(), finalizeAfterClientCancelEvent) {
+				t.Fatalf("a request deadline logged %s: %s", finalizeAfterClientCancelEvent, logs.String())
+			}
+		})
+	}
+}

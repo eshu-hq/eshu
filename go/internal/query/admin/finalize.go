@@ -5,6 +5,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -50,11 +51,12 @@ func writeFinalizeFailure(w http.ResponseWriter, r *http.Request, finalizeCtx co
 }
 
 // logFinalizeAfterClientCancel writes one INFO line when the outcome was
-// recorded although the client had already left, so an operator can see that
+// recorded although the client had already left (the request context was
+// canceled; a request deadline is not a client leaving), so an operator can see that
 // a 200 nobody received still applied and a retry will return it. It carries
 // the route and the sanitized correlation id, no identifiers or error text.
 func logFinalizeAfterClientCancel(r *http.Request, finalizeCtx context.Context, operation, correlationID string) {
-	if r.Context().Err() == nil {
+	if !errors.Is(r.Context().Err(), context.Canceled) {
 		return
 	}
 	slog.Default().LogAttrs(finalizeCtx, slog.LevelInfo, "admin recovery outcome recorded after client cancel",
