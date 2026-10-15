@@ -205,6 +205,18 @@ deferral adds the queue's retry delay to that pass and writes nothing. The
 runtime graph read moved earlier in the pass (before the correlation write)
 but runs the same number of times per committed pass.
 
+No-Regression Evidence (#7816): B-7 golden corpus on Neo4j, same corpus,
+compose topology, and fresh storage per run, on a shared 16-core host whose
+load average ranged 17 to 93 across the runs (not a quiet host). Gate
+pipeline elapsed: base 309 s (5 min 9 s) and 359 s (5 min 59 s); with the
+fence 340 s (5 min 40 s) and 300 s (5 min 0 s). First drain: base 129 s and
+189 s; with the fence 128 s and 128 s. The spread is host contention; the
+fence adds no measurable drain time at this scale. Correctness on the same
+runs: the base's first runtime read returned 0 rows (digest e3b0c442) before
+the WorkloadInstance MERGE; with the fence every read returned the 2 rows
+(digest 1aefe225), and one run logged the deferral with
+`producer_retrying=2`.
+
 Observability Evidence (#7816): `eshu_dp_service_catalog_runtime_readiness_total`
 by outcome, the defer and bound-overrun logs above, and the durable
 `failure_class` `service_catalog_correlation_runtime_not_ready` on the work
