@@ -33,4 +33,6 @@ From `go/`: `go test ./internal/query/testutil/failure/ -count=1`. Prove a
 change to `check.go` by mutation: switch the assertion off and confirm
 `TestCheckCatchesEachWrongSampleOnItsAssertionOnly` names the sample that now
 violates nothing. Use `go test -overlay` with a mutated copy of `check.go`, so
-the tracked file is never edited.
+the tracked file is never edited. `TestEveryReportedAssertionIsListed` reads
+source from disk and cannot see an overlay: to mutate against it, commit,
+edit the file, run, and `git restore` it.

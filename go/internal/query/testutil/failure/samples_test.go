@@ -28,9 +28,13 @@ type wrongSample struct {
 	sibling bool
 }
 
-// wrongSamples holds one sample per assertion Check makes. The registry test
-// requires the two lists to match one for one, so an assertion cannot be added
-// to Check without a sample that only it catches.
+// wrongSamples holds one sample per assertion Check makes.
+// TestEveryAssertionHasOneWrongSample requires this list and Assertions() to
+// match one for one, and TestEveryReportedAssertionIsListed requires every
+// Assertion that check code reports to be a constant listed in Assertions().
+// Together they keep a new condition from landing without a sample that only
+// it catches. NoCanaryInBody also has one single-token variant per canary
+// token in TestCanaryScanChecksEveryToken, outside this registry.
 var wrongSamples = []wrongSample{
 	{assertion: failure.NoCanaryInBody, respond: leaky},
 	{assertion: failure.FaultStatus, respond: faultAs504},
@@ -69,6 +73,22 @@ func leaky(w http.ResponseWriter, r *http.Request, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(marked.Code)
 	_ = json.NewEncoder(w).Encode(map[string]string{"detail": probeMessage, "debug": err.Error()})
+}
+
+// leakOnly returns a route that marks the span and picks the status exactly
+// as the helper does, then puts only token, one part of the Canary, beside the
+// fixed message.
+func leakOnly(token string) answer {
+	return func(w http.ResponseWriter, r *http.Request, err error) {
+		if querycontract.WriteGraphReadError(w, r, err, "probe") {
+			return
+		}
+		marked := httptest.NewRecorder()
+		tracing.WriteServerFailure(marked, r, err, http.StatusInternalServerError, probeMessage)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(marked.Code)
+		_ = json.NewEncoder(w).Encode(map[string]string{"detail": probeMessage, "debug": token})
+	}
 }
 
 // faultAs504 answers a plain server fault 504; a cancel-wrapped error on a
@@ -231,7 +251,7 @@ func cancelTwoEvents(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 // cancelEventWithAttribute answers a client cancel 499 with one cancel event
-// that carries the error text as an attribute.
+// that carries a fixed "error" attribute.
 func cancelEventWithAttribute(w http.ResponseWriter, r *http.Request, err error) {
 	if tracing.ClientCanceled(r.Context(), err) {
 		trace.SpanFromContext(r.Context()).AddEvent(tracing.ClientCanceledEvent,

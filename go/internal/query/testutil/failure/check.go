@@ -132,7 +132,10 @@ func statusAssertion(kind Kind) (int, Assertion, error) {
 	case ReaderFence:
 		return http.StatusServiceUnavailable, FenceStatus, nil
 	default:
-		return 0, "", fmt.Errorf("unknown failure kind %v", kind)
+		// A zero-valued variable, not a "" literal: every constant Assertion
+		// must be a listed one (TestEveryReportedAssertionIsListed).
+		var none Assertion
+		return 0, none, fmt.Errorf("unknown failure kind %v", kind)
 	}
 }
 

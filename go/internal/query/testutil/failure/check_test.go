@@ -157,6 +157,25 @@ func TestCheckCatchesEachWrongSampleOnItsAssertionOnly(t *testing.T) {
 	}
 }
 
+// TestCanaryScanChecksEveryToken proves the leak scan matches each part of
+// the Canary on its own: a body that quotes only the credential, only the
+// host, only the relation, or only the Cypher fragment is a NoCanaryInBody
+// violation and nothing else. The token list is fixed here, not read from the
+// harness, so dropping a token from the scan fails this test. Not parallel:
+// it swaps probeTracer.
+func TestCanaryScanChecksEveryToken(t *testing.T) {
+	canary := failure.Canary
+	for _, token := range []string{"hunter2", "pg-primary.canary.internal", "canary_secret_table", "MATCH (n)"} {
+		if !strings.Contains(canary, token) {
+			t.Fatalf("Canary %q does not contain token %q", canary, token)
+		}
+		violated := violations(t, probeSuite(true, false, leakOnly(token)))
+		if len(violated) != 1 || !violated[failure.NoCanaryInBody] {
+			t.Errorf("body leaking only %q violated %v, want only %q", token, violated, failure.NoCanaryInBody)
+		}
+	}
+}
+
 // recordingTB records Error calls instead of failing the enclosing test.
 type recordingTB struct {
 	testing.TB

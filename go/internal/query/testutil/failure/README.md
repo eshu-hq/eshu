@@ -90,10 +90,18 @@ Unset fault span reports `FaultSpanError` alone.
 exactly one way. `TestEveryAssertionHasOneWrongSample` requires the sample list
 and `Assertions()` to match one for one, and
 `TestCheckCatchesEachWrongSampleOnItsAssertionOnly` requires each sample to
-violate its own assertion and no other. Weakening any assertion therefore
-leaves its sample violating nothing, and the package goes RED; this was run as
-21 `go test -overlay` mutants, one or more per assertion, all RED (#7674
-slice 5 PR body).
+violate its own assertion and no other. `TestEveryReportedAssertionIsListed`
+type-checks the package and requires every constant `Assertion` that check
+code reports to be a declared constant listed in `Assertions()`, and every
+listed one to be reported somewhere, so a new condition cannot bypass the
+registry. `TestCanaryScanChecksEveryToken` drives one route per canary token
+that leaks only that token (credential, host, relation, Cypher) and requires
+a `NoCanaryInBody` violation and nothing else. Weakening any assertion,
+dropping a canary token, or reporting an unlisted assertion therefore turns
+the package RED. This was run as 21 `go test -overlay` mutants plus the
+review's K1 (one canary token) and K2 (an unlisted assertion), all RED
+(#7674 slice 5 PR body). The type-check test reads source from disk, so
+mutate `check.go` on disk for it, not with `-overlay`.
 
 ## Remainder
 

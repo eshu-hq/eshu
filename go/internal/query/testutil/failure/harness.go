@@ -53,7 +53,7 @@ const (
 	ReaderFence
 )
 
-// String names the kind for subtest and failure text.
+// String names the kind in failure text.
 func (k Kind) String() string {
 	switch k {
 	case Fault:
@@ -71,7 +71,7 @@ func (k Kind) String() string {
 
 // Case is one failure a route's backend read returns.
 type Case struct {
-	// Name labels the subtest.
+	// Name labels the case in Check and Run errors ("<route> / <case>: ...").
 	Name string
 	// Kind is the failure class Check holds the answer to.
 	Kind Kind
@@ -97,7 +97,7 @@ type Mounter interface{ Mount(*http.ServeMux) }
 // handler whose read for that step fails with the case error, and the fixed
 // message a server fault and a client cancel answer with.
 type Route struct {
-	// Name labels the subtest.
+	// Name labels the route in Check and Run errors ("<route> / <case>: ...").
 	Name string
 	// Method is the request method; empty means GET.
 	Method string
