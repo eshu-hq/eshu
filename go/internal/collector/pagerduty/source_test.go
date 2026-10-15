@@ -276,6 +276,67 @@ func TestIdenticalCollectionsSkipSecondGeneration(t *testing.T) {
 	}
 }
 
+// TestStatusOnlyChangeStoresNewGeneration proves a second claimed collection
+// stores a new generation when only the incident status drifts with no new
+// lifecycle event: the status-only change moves the freshness hint, so the
+// store cannot skip it as unchanged (#8149).
+func TestStatusOnlyChangeStoresNewGeneration(t *testing.T) {
+	t.Parallel()
+
+	now := testObservedAt()
+	newSource := func(incident Incident) *ClaimedSource {
+		source, err := NewClaimedSource(SourceConfig{
+			CollectorInstanceID: "pagerduty-primary",
+			Targets: []TargetConfig{{
+				Provider:         ProviderPagerDuty,
+				ScopeID:          "pagerduty:account:example",
+				AccountID:        "example",
+				Token:            "pd-token",
+				IncidentLookback: time.Hour,
+			}},
+			ClientFactory: func(TargetConfig) (EvidenceClient, error) {
+				return staticEvidenceClient{result: CollectionResult{
+					Incidents:  []Incident{incident},
+					ObservedAt: now,
+				}}, nil
+			},
+			Now: func() time.Time { return now },
+		})
+		if err != nil {
+			t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+		}
+		return source
+	}
+
+	first, ok, err := newSource(testIncident("P123")).NextClaimed(context.Background(), testPagerDutyWorkItem(now))
+	if err != nil || !ok {
+		t.Fatalf("first NextClaimed() = ok %v err %v, want ok true nil", ok, err)
+	}
+	resolved := testIncident("P123")
+	resolved.Status = "resolved"
+	resolved.ResolvedAt = now
+	secondItem := testPagerDutyWorkItem(now.Add(time.Minute))
+	secondItem.GenerationID = "pagerduty:generation-2"
+	secondItem.WorkItemID = "pagerduty:pagerduty-primary:generation-2"
+	second, ok, err := newSource(resolved).NextClaimed(context.Background(), secondItem)
+	if err != nil || !ok {
+		t.Fatalf("second NextClaimed() = ok %v err %v, want ok true nil", ok, err)
+	}
+
+	if first.Generation.FreshnessHint == second.Generation.FreshnessHint {
+		t.Fatalf("FreshnessHint did not change after status-only drift: %q", second.Generation.FreshnessHint)
+	}
+	candidate := backfill.UnchangedGenerationCandidate{
+		GenerationID:  first.Generation.GenerationID,
+		FreshnessHint: first.Generation.FreshnessHint,
+		Status:        scope.GenerationStatusActive,
+	}
+	action, _ := backfill.DecideUnchangedGeneration(second.Generation, candidate, true)
+	if action != backfill.UnchangedActionStore {
+		t.Fatalf("DecideUnchangedGeneration() = %d, want store (%d)", action, backfill.UnchangedActionStore)
+	}
+}
+
 func TestClaimedSourceClassifiesAuthDeniedAndRateLimitedFailures(t *testing.T) {
 	t.Parallel()
 
