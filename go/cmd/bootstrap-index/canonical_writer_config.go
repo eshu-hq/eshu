@@ -6,8 +6,11 @@ package main
 import (
 	"sort"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // bootstrapCanonicalWriterConfig captures canonical writer tuning for the
@@ -71,4 +74,20 @@ func orderedBootstrapEntityBatchLabels(labelBatchSizes map[string]int) []string 
 	}
 	sort.Strings(labels)
 	return labels
+}
+
+// newBootstrapCanonicalNodeWriter builds the canonical writer with the #7245
+// infra search key dialect resolved from the configured graph backend: Neo4j
+// writes the key, NornicDB keeps its statements byte for byte.
+func newBootstrapCanonicalNodeWriter(
+	executor sourcecypher.Executor,
+	graphBackend runtimecfg.GraphBackend,
+	batchSize int,
+	instruments *telemetry.Instruments,
+) (*sourcecypher.CanonicalNodeWriter, error) {
+	searchKey, err := search.DialectForBackend(graph.SchemaBackend(graphBackend))
+	if err != nil {
+		return nil, err
+	}
+	return sourcecypher.NewCanonicalNodeWriterWithDialect(executor, batchSize, instruments, searchKey), nil
 }

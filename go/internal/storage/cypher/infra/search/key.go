@@ -61,7 +61,11 @@ func (d Dialect) String() string {
 
 // DialectForBackend maps the configured graph backend, the same
 // value that selects the schema dialect, to the writer dialect: Neo4j writes
-// the key, NornicDB does not. Any other value is an error.
+// the key, NornicDB does not. Any other value is an error. Writing binaries
+// pass graph.SchemaBackend(runtimecfg.LoadGraphBackend(...)); the two value
+// sets are pinned equal by TestRuntimeGraphBackendsMatchSchemaBackends. This
+// package must not import internal/runtime: runtime's tests import
+// storage/cypher, which imports this package.
 func DialectForBackend(backend graph.SchemaBackend) (Dialect, error) {
 	switch backend {
 	case graph.SchemaBackendNeo4j:

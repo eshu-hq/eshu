@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/clock"
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
@@ -22,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -95,7 +97,11 @@ func buildReducerService(
 	edgeWriterForHandlers.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
 	// #5007/#5062: owner-ledger and lock-only gates for the canonical node writers.
 	ownerGate, lockGate := newGraphOwnerGates(database, instruments)
-	graphWriters := newCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), ownerGate, lockGate)
+	searchKey, err := search.DialectForBackend(graph.SchemaBackend(graphBackend))
+	if err != nil {
+		return reducer.Service{}, err
+	}
+	graphWriters := newCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), ownerGate, lockGate, searchKey)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {
 		return reducer.Service{}, err
