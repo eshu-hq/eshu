@@ -605,8 +605,7 @@ console or API defect.
   original response was lost, read the effect from the queue instead: pending
   `projector` rows in `fact_work_items`, and `shared_projection_intents` with
   `completed_at IS NULL`.
-- `GET /api/v0/admin/shared-projection/tuning-report` returns the operator
-  tuning report for shared-projection backlog behavior.
+- `GET /api/v0/admin/shared-projection/tuning-report` returns the operator tuning report for shared-projection backlog behavior.
 - `POST /api/v0/admin/replay`
 - `POST /api/v0/admin/dead-letter`
 - `POST /api/v0/admin/skip`
@@ -614,6 +613,10 @@ console or API defect.
 - `POST /api/v0/admin/work-items/query`
 - `POST /api/v0/admin/decisions/query`
 - `POST /api/v0/admin/replay-events/query`
+- `GET /api/v0/admin/delta-union/completeness` returns the read-only delta-union completeness
+  report: per repository, the graph's file set against the ACTIVE set (repeat `scope` to filter;
+  empty covers every active generation). Past the cap it fails loudly; a mismatch names the diff
+  for a forced full re-parse. The check never repairs; `503` when unconfigured. See [Delta-base union](../../operate/graph-delta-union.md).
 
 The recovery handler owns replay, dead-letter, skip, backfill, and decisions;
 mount it only where durable queue mutation is allowed. Each item returned by `POST /api/v0/admin/work-items/query` and by the dead-letter and skip responses can carry `operator_note` and `prior_failure` (`status`, `failure_class`, `failure_message`, `updated_at`), read from the `operator_note` and `prior_failure` keys of the row's `failure_details` when it is a JSON object, and omitted otherwise (a replay clears `failure_details`, so replay responses never carry them); this route has no OpenAPI response schema. Skip dead-letters at most
