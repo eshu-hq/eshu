@@ -3,6 +3,7 @@
 
 from live_postgres_readiness_inventory_names import (
     IMPACT_PACKAGE,
+    SEARCH_INDEX_RETENTION_PACKAGE,
     STORAGE_PACKAGE,
 )
 
@@ -198,6 +199,12 @@ STORAGE_PACKAGES = {
             "TestRetentionFactKeyDeletesBesideBackfillRebuildLive",
             "TestRetentionFactKeyReversedOrderDeadlocksLive",
         ),
+        "go/internal/storage/postgres/generation_retention_search_index_live_test.go": (
+            "TestGenerationRetentionPredeletesSearchIndexBeforeTheScopeLockLive",
+            "TestGenerationRetentionAdmitsOnlyDrainedGenerationsLive",
+            "TestGenerationRetentionAdmitSkipsAGenerationWhoseLockIsHeldLive",
+            "TestGenerationRetentionCandidateReadQueryPreparesLive",
+        ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),
@@ -348,6 +355,16 @@ STORAGE_PACKAGES = {
         ),
         "go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_differential_live_test.go": (
             "TestAWSCloudRuntimeDriftStateARNJoinMatchesReferenceLive",
+        ),
+    },
+    SEARCH_INDEX_RETENTION_PACKAGE: {
+        "go/internal/storage/postgres/search/index/retention/drain_live_test.go": (
+            "TestDrainLiveRemovesOnlyTheSupersededGeneration",
+            "TestDrainLiveLeavesNonTerminalGenerationsWhole",
+            "TestDrainLiveWaitsForRunningSearchDocumentWork",
+            "TestDrainLiveCancelledMidLoopConverges",
+            "TestDrainLiveResweepRemovesARowInsertedBehindTheCursor",
+            "TestDrainLiveSkipsAGenerationAnotherSessionHolds",
         ),
     },
 }

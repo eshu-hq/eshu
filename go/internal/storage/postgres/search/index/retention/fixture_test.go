@@ -32,9 +32,17 @@ type liveFixture struct {
 
 func openLiveFixture(t *testing.T) *liveFixture {
 	t.Helper()
-	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	// The live-postgres-readiness runner provides the retention family's
+	// disposable DSN; a developer run may use ESHU_POSTGRES_DSN instead.
+	dsn := os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")
+	if dsn != "" && os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE") != "1" {
+		t.Fatal("ESHU_GENERATION_RETENTION_PROOF_DSN is set without ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1")
+	}
 	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the search index pre-delete live proofs")
+		dsn = os.Getenv("ESHU_POSTGRES_DSN")
+	}
+	if dsn == "" {
+		t.Skip("set ESHU_GENERATION_RETENTION_PROOF_DSN or ESHU_POSTGRES_DSN to run the search index pre-delete live proofs")
 	}
 	database := postgresproof.OpenIsolatedSchema(t, dsn, "idxret7427", func(ctx context.Context, db *sql.DB) error {
 		return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db})

@@ -50,6 +50,7 @@ func countRetentionSearchIndex(t *testing.T, ctx context.Context, database *sql.
 // and the pass still reports them in RowsPruned. The active generation's
 // re-minted rows survive.
 func TestGenerationRetentionPredeletesSearchIndexBeforeTheScopeLockLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	scopeID := "scope-7427-" + now.Format("150405.000000000")
@@ -94,6 +95,7 @@ func TestGenerationRetentionPredeletesSearchIndexBeforeTheScopeLockLive(t *testi
 // so the pass skips it as search_index_undrained and prunes nothing; the next
 // pass at the default cap drains and prunes it. No progress table is needed.
 func TestGenerationRetentionAdmitsOnlyDrainedGenerationsLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	scopeID := "scope-7427u-" + now.Format("150405.000000000")
@@ -142,6 +144,7 @@ func TestGenerationRetentionAdmitsOnlyDrainedGenerationsLive(t *testing.T) {
 // advisory_lock_busy, never waited on, so a pre-delete batch and the FK
 // cascade never delete one generation's rows at once (#7427 D4).
 func TestGenerationRetentionAdmitSkipsAGenerationWhoseLockIsHeldLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	scopeID := "scope-7427b-" + now.Format("150405.000000000")
@@ -190,6 +193,7 @@ func TestGenerationRetentionAdmitSkipsAGenerationWhoseLockIsHeldLive(t *testing.
 // TestGenerationRetentionCandidateReadQueryPreparesLive proves the marked
 // candidate read and its work_mem setting run against the migrated schema.
 func TestGenerationRetentionCandidateReadQueryPreparesLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	prepared, err := database.PrepareContext(ctx, generationRetentionSearchIndexReadQuery)
 	if err != nil {
