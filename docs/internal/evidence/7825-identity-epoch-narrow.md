@@ -50,4 +50,43 @@ scan instead of adding one.
 
 ## Measurement
 
-MEASUREMENT PENDING: throwaway EXPLAIN ANALYZE shim, old vs new probe.
+Plan-shape `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)` of old vs new
+`probeIdentityEpochQuery` on scratch PostgreSQL 18-alpine (near-empty fixture
+DB — plan shapes are structural; toy-DB timings are not comparable and no
+production timing is claimed):
+
+- Old: `Nested Loop` over two Aggregates — the fact_records count/max scan
+  plus a second `Seq Scan on ingestion_scopes` with Sort for the fingerprint.
+- New: single Aggregate over one fact_records scan; the only
+  ingestion_scopes read is the hashed SubPlan active-generation filter,
+  riding the same `scope_generations_active_scope_idx` and
+  `ingestion_scopes_active_generation_idx` index searches as the old plan.
+- Predicate coverage is unchanged:
+  `TestIdentityEpochIndexPredicateMatchesIdentityFactFilter` passes, so the
+  partial index `fact_records_identity_epoch_idx_v2` still covers the probe
+  (no full-scan fallback). The #7805 identity-page query and its 546k-row
+  4.7s timing are untouched — the page query is not in this diff.
+
+Conclusion: the narrowing removes a scan instead of adding one; no
+performance regression expected.
+
+## No-Regression Evidence
+
+Baseline: old probe plan-shape with the second `ingestion_scopes` scan (see
+Measurement above). After: single-scan plan-shape, same index searches,
+predicate coverage pinned by test. Backend: scratch PostgreSQL 18-alpine
+(container `eshu-7825-pg`). Input shape: near-empty fixture DB; structural
+plan comparison only, no wall-time claim. Queue/row counts: terminal live
+proofs green (`TestIdentityEpochProbeIgnoresIdentityEmptySupersessionLive`
+PASS: empty flip ignored with count=3; `DetectsSupersessionLive` PASS with
+count=2 unchanged and fingerprint flipped).
+
+## Observability Evidence
+
+No-observability-change. No new metrics, spans, or logs: the narrowing flows
+through the existing #7805 signals (`IdentityCacheReloadTotal`,
+`IdentityCacheReloadDuration`, `IdentityCacheLoadRetryTotal`,
+`IdentityCacheProbeDuration`, `IdentityCachePassthroughTotal`, and the
+`torn_set` waiter outcome). Fewer identity-empty activations move the epoch,
+so torn-flight retries should decrease — observable on the existing retry
+counter with no new signal required.
