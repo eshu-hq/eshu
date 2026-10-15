@@ -1182,6 +1182,7 @@ repoSync:
   source:
     mode: githubOrg
     githubOrg: eshu-hq
+    gitlabGroup: ""
     repositories: []
     rules: []
     filesystemRoot: /fixtures

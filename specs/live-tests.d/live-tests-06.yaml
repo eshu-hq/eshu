@@ -188,6 +188,11 @@ tests:
     class: postgres_ci
     reason: "#7625 disposable PostgreSQL 18 proof of the github_org host filter on KnownScopes: with host github.com only the org's github.com scopes are known (HTTPS and normalized SSH remotes), and gitlab.com, GitHub Enterprise, and remote-less scopes drop out; with an empty host the read keeps the slug-only org partition. Enrolled in the live-postgres-readiness runner; 1.58-1.61s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/known_scopes_prefix_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7765 disposable PostgreSQL 18 proof of the gitlab_group path-prefix partition on KnownScopes: only the nested group's git repository scopes are known (sibling group, lookalike prefix, underscore-prefix scope, another host's same-path scope, repository_ref, and remote-less scopes drop out), a gitlab_group upsert round-trips through the widened selector_kind CHECK, and the bootstrap applies twice. Enrolled in the live-postgres-readiness runner; 2.0-2.1s of test time on postgres:18-alpine on 2026-10-15; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/membership/live_read_live_test.go
     tag: ~
     class: postgres_ci

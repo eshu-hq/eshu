@@ -3,11 +3,11 @@
 ## Purpose
 
 This package owns `repository_selection_observations` (#7625): per git
-repository scope and per selector, whether the newest complete GitHub org
-listing, or an explicit configured repository list, still selects the
-repository. The git collector's `membership.Observer` reads and writes it once
-per githubOrg or explicit cycle (once per owner for an explicit list), on
-shard 0 only. The rows are evidence; nothing deletes, hides, or retires a
+repository scope and per selector, whether the newest complete GitHub org or
+GitLab group listing, or an explicit configured repository list, still selects
+the repository. The git collector's `membership.Observer` reads and writes it
+once per githubOrg or gitlabGroup cycle (once per owner for an explicit list),
+on shard 0 only. The rows are evidence; nothing deletes, hides, or retires a
 scope because of them. The only rows this package deletes are observation
 rows that stayed expired for a grace (`membership.ExpiredObservationGrace`,
 7 days) past their own liveness window (#7774), and never `not_listed` rows,
@@ -23,7 +23,7 @@ is the bootstrap source of truth), the org partition read of
 `go/internal/collector/repo/git/membership` owns the evaluation, the
 `Store` interface this type implements, and every operator signal.
 `cmd/ingester` and `cmd/collector-git` construct the store and hand it to the
-native selector, which observes in githubOrg and explicit mode.
+native selector, which observes in githubOrg, gitlabGroup, and explicit mode.
 
 ## Exported surface
 
@@ -184,6 +184,23 @@ org scope; the evaluation transaction held only `AccessShareLock` on
 `scope_id` (the phase-two freshness read) measured 0.019 ms on the primary
 key. The work runs once per githubOrg cycle, or once per owner of an explicit
 list, on shard 0 only.
+
+### Performance Evidence (#7765)
+
+The gitlab_group prefix partition read
+(`starts_with(lower(payload->>'repo_slug'), $1)` with `$1` the lowercased
+group path plus `/`, same host predicate) was re-measured on PostgreSQL 18.6
+with 20,000 seeded scopes before any index decision; scripts and raw output
+are in `docs/internal/evidence/7765-gitlab-group-prefix-read.md`. The group
+read returns exactly the 900 nested scopes (sibling, lookalike,
+underscore-prefix, other-host, `repository_ref`, and remote-less scopes drop
+out) in **9.22 ms median** (seq scan, 495 shared buffers), 1.56x the
+host-filtered first-segment baseline (5.93 ms) from per-row `lower()` CPU,
+not a plan difference. pgbench read-only: 8.5 ms average, stddev 0.5 ms. A
+`FOR UPDATE` held on a nested scope does not block the read. **No new
+index**: the read runs once per cycle on shard 0, the planner correctly
+seq-scans at this scale, and an index would add write amplification without
+serving this shape.
 
 ### Freshness read
 
