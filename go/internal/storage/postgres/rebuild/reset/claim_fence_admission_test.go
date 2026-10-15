@@ -5,9 +5,14 @@ package reset
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
 
 func TestFenceAdmissionBudgetExpiryAndAcceptanceRace(t *testing.T) {
@@ -69,4 +74,83 @@ func TestFenceAdmissionBudgetExpiresBeforeAcceptance(t *testing.T) {
 		t.Fatal("expired admission did not cancel its transaction context")
 	}
 	budget.Close()
+}
+
+func TestRefinalizeClaimFenceWithRetryRetriesOnlyFence55P03(t *testing.T) {
+	attempts := 0
+	want := recovery.RefinalizeResult{Enqueued: 1}
+	got, err := RefinalizeClaimFenceWithRetry(
+		context.Background(), time.Second, nil,
+		func(_ context.Context, budget *FenceAdmissionBudget) (recovery.RefinalizeResult, error) {
+			attempts++
+			budget.start()
+			if attempts == 1 {
+				return recovery.RefinalizeResult{}, &ClaimFenceLockTimeoutError{
+					err: &pgconn.PgError{Code: "55P03"},
+				}
+			}
+			if err := budget.admit(); err != nil {
+				return recovery.RefinalizeResult{}, err
+			}
+			return want, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("RefinalizeClaimFenceWithRetry() error = %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+	if got.Enqueued != want.Enqueued {
+		t.Fatalf("result = %+v, want %+v", got, want)
+	}
+}
+
+func TestRefinalizeClaimFenceWithRetryPreservesOtherErrors(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		err  error
+	}{
+		{name: "untyped 55P03", err: &pgconn.PgError{Code: "55P03"}},
+		{name: "typed different state", err: &ClaimFenceLockTimeoutError{err: &pgconn.PgError{Code: "40001"}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			attempts := 0
+			_, err := RefinalizeClaimFenceWithRetry(
+				context.Background(), time.Second, nil,
+				func(_ context.Context, budget *FenceAdmissionBudget) (recovery.RefinalizeResult, error) {
+					attempts++
+					budget.start()
+					return recovery.RefinalizeResult{}, test.err
+				},
+			)
+			if !errors.Is(err, test.err) {
+				t.Fatalf("error = %v, want %v", err, test.err)
+			}
+			if attempts != 1 {
+				t.Fatalf("attempts = %d, want 1", attempts)
+			}
+		})
+	}
+}
+
+func TestRefinalizeClaimFenceWithRetryExhaustsAdmissionBudget(t *testing.T) {
+	attempts := 0
+	_, err := RefinalizeClaimFenceWithRetry(
+		context.Background(), time.Nanosecond, nil,
+		func(_ context.Context, budget *FenceAdmissionBudget) (recovery.RefinalizeResult, error) {
+			attempts++
+			budget.start()
+			time.Sleep(time.Millisecond)
+			return recovery.RefinalizeResult{}, &ClaimFenceLockTimeoutError{
+				err: &pgconn.PgError{Code: "55P03"},
+			}
+		},
+	)
+	if !errors.Is(err, recovery.ErrRefinalizeClaimFenceBusy) {
+		t.Fatalf("error = %v, want busy sentinel", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
 }

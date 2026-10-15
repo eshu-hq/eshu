@@ -6,10 +6,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -316,67 +313,21 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 }
 
 // RefinalizeScopeProjections re-enqueues selected scopes and clears dedup state.
-// Fence 55P03 retries the whole transaction; exhaustion returns a busy sentinel.
+// The reset package retries claim-fence admission; after acquisition, the caller
+// context governs this transaction through commit.
 func (s RecoveryStore) RefinalizeScopeProjections(
 	ctx context.Context,
 	filter recovery.RefinalizeFilter,
 	now time.Time,
 ) (recovery.RefinalizeResult, error) {
-	logger := s.logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	retryBudget := s.refinalizeClaimFenceRetryBudget
-	if retryBudget <= 0 {
-		retryBudget = reset.DefaultRefinalizeClaimFenceRetryBudget
-	}
-	admission := reset.NewFenceAdmissionBudget(ctx, retryBudget)
-	defer admission.Close()
-	budgetError := func(attempt int, cause string) error {
-		elapsed := admission.Elapsed()
-		logger.WarnContext(ctx, "refinalize claim fence admission budget exhausted",
-			slog.String("outcome", "blocked/claim_fence_busy"), slog.Int("attempts", attempt),
-			slog.Duration("retry_elapsed", elapsed), slog.String("phase", "fence_admission"),
-			slog.String("cause", cause), slog.String("last_sqlstate", "55P03"))
-		return fmt.Errorf("%w after %s and %d attempts", recovery.ErrRefinalizeClaimFenceBusy, elapsed.Round(time.Millisecond), attempt)
-	}
-	for attempt := 1; ; attempt++ {
-		result, err := s.refinalizeScopeProjectionsAttempt(admission.Context(), admission, filter, now)
-		if err == nil {
-			return result, nil
-		}
-		if ctx.Err() != nil {
-			return recovery.RefinalizeResult{}, err
-		}
-		if admission.Expired() {
-			return recovery.RefinalizeResult{}, budgetError(attempt, "admission_deadline")
-		}
-		var lockTimeout *reset.ClaimFenceLockTimeoutError
-		if !errors.As(err, &lockTimeout) || !coordination.IsLockNotAvailable(err) {
-			return recovery.RefinalizeResult{}, err
-		}
-		elapsed := admission.Elapsed()
-		if elapsed >= retryBudget {
-			return recovery.RefinalizeResult{}, budgetError(attempt, "last_fence_timeout")
-		}
-		delay := 100*time.Millisecond + time.Duration(rand.Int64N(401))*time.Millisecond
-		if remaining := retryBudget - elapsed; delay > remaining {
-			delay = remaining
-		}
-		logger.InfoContext(ctx, "refinalize claim fence timed out; retrying transaction",
-			slog.Int("attempt", attempt), slog.Duration("backoff", delay),
-			slog.Duration("retry_elapsed", elapsed), slog.String("sqlstate", "55P03"))
-		timer := time.NewTimer(delay)
-		select {
-		case <-admission.Context().Done():
-			timer.Stop()
-			if ctx.Err() != nil {
-				return recovery.RefinalizeResult{}, fmt.Errorf("refinalize claim fence retry: %w", ctx.Err())
-			}
-			return recovery.RefinalizeResult{}, budgetError(attempt, "admission_deadline")
-		case <-timer.C:
-		}
-	}
+	return reset.RefinalizeClaimFenceWithRetry(
+		ctx,
+		s.refinalizeClaimFenceRetryBudget,
+		s.logger,
+		func(attemptCtx context.Context, admission *reset.FenceAdmissionBudget) (recovery.RefinalizeResult, error) {
+			return s.refinalizeScopeProjectionsAttempt(attemptCtx, admission, filter, now)
+		},
+	)
 }
 
 func (s RecoveryStore) refinalizeScopeProjectionsAttempt(
