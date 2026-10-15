@@ -10,14 +10,16 @@ import "strings"
 // The only differences are the scope selector (service_id, not an ingestion
 // scope/repository), the generation lineage it diffs
 // (service_materialization_generations, not scope_generations), and the evidence
-// categories it reports. Stage 1 reports the ownership family only.
+// categories it reports: all seven families below, each with zero counts
+// when it has no rows.
 
 // ServiceCategories is the closed, ordered set of service evidence
-// families this surface computes. Ownership (#1943), deployment (#1985), runtime
-// (#1986), dependencies (#1987), docs (#1988), and incidents (#1989) ship; the
-// remaining family (vulnerabilities) is a tracked follow-up that appends here as
-// it lands. The delta SQL groups by evidence_family, so a new family appears
-// automatically once its rows are written and its category is registered here.
+// families this surface computes: ownership (#1943), deployment (#1985),
+// runtime (#1986), dependencies (#1987), docs (#1988), incidents (#1989), and
+// vulnerabilities (#1990). The reader emits every family on every diff; a
+// family with no rows reports zero counts. The delta SQL groups by
+// evidence_family, so a new family appears automatically once its rows are
+// written and its category is registered here.
 var ServiceCategories = []Category{
 	CategoryOwnership,
 	CategoryDeployment,

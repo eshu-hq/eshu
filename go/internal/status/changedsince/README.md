@@ -94,8 +94,8 @@ None. This package performs no I/O; it defines the diff contract that
   (#6475). The reader binds them in SQL on the lineage row's `scope_id`; the
   handler never filters rows itself. `ServiceSummary.OutsideGrant` is
   telemetry-only (`json:"-"`) and must never reach a response body.
-- `ServiceCategories` grows as new evidence families land (vulnerabilities is
-  a tracked follow-up); a new family's category constant belongs here, in
+- `ServiceCategories` reports all seven evidence families (vulnerabilities
+  landed in #1990); a new family's category constant belongs here, in
   lockstep with the SQL grouping by `evidence_family` in
   `internal/query/freshness`.
 

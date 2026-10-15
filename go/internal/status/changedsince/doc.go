@@ -29,9 +29,8 @@
 // lineage instead of an ingestion scope. It reports the ownership
 // (CategoryOwnership, #1943), deployment (CategoryDeployment, #1985),
 // runtime (CategoryRuntime, #1986), dependencies (CategoryDependencies,
-// #1987), docs (CategoryDocs, #1988), and incidents (CategoryIncidents,
-// #1989) evidence families; the remaining family (vulnerabilities) appends
-// to ServiceCategories as it lands.
+// #1987), docs (CategoryDocs, #1988), incidents (CategoryIncidents, #1989),
+// and vulnerabilities (CategoryVulnerabilities, #1990) evidence families.
 //
 // A service id holds one lineage per ingestion scope (#6475), so
 // ServiceFilter also carries an optional ScopeID selector and the caller's
