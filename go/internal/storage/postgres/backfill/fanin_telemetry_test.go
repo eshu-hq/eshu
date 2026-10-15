@@ -131,6 +131,7 @@ func TestDeferredBackfillFanInRecordsPublishedAndDurationMetrics(t *testing.T) {
 		map[string][]relationships.EvidenceFact{},
 		nil,
 		"fingerprint-metrics",
+		nil,
 		instruments,
 	)
 	if err != nil {
@@ -179,6 +180,7 @@ func TestDeferredBackfillFanInRecordsSkippedMetricWhenGenerationAdvanced(t *test
 		map[string][]relationships.EvidenceFact{},
 		nil,
 		"fingerprint-skip-metrics",
+		nil,
 		instruments,
 	)
 	if err != nil {
@@ -214,6 +216,7 @@ func TestDeferredFanInSkipReasonsAreTheLoggedReasons(t *testing.T) {
 	}{
 		{name: "under-lock re-read", got: deferredFanInSkipGenerationAdvanced, want: "generation_advanced_since_batch"},
 		{name: "fact-load snapshot", got: deferredFanInSkipSnapshotAdvanced, want: "generation_advanced_since_snapshot"},
+		{name: "unchanged since memo", got: deferredFanInSkipUnchanged, want: "unchanged_since_memo"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.got != tc.want {

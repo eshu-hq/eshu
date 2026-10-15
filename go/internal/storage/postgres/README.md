@@ -1586,7 +1586,10 @@ The contract the fan-in provides:
 
 Operators see `deferred_backfill_fanin_completed partitions=N published=P
 skipped=S duration_s=D workers=W` once per pass. `skipped=S` counts partitions
-whose generation advanced under the fan-in; the absence of the line after a
+whose generation advanced under the fan-in, plus, on the whole pass, the
+partitions left untouched because the pass did not change them (#8082; the
+`deferred_backfill_fanin_unchanged_checked` line gives that part, see
+`backfill/README.md`). The absence of the line after a
 batch phase means the fan-in never ran, which is distinguishable from a fan-in
 that ran and published nothing (`published=0`).
 

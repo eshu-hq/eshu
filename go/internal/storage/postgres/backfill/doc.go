@@ -15,7 +15,9 @@
 // maintenance locks, then publishes backward-evidence readiness and the
 // partition memo in a per-partition fan-in. No step holds a fleet-wide lock.
 // The memo gate lets later passes skip partitions whose evidence already
-// committed under the current catalog fingerprint.
+// committed under the current catalog fingerprint, and the whole-pass fan-in
+// then leaves those partitions unpublished when the pass inserted no evidence
+// under them and their readiness row exists.
 //
 // Store carries the engine's durable handles: the database, the transaction
 // beginner, the batch-size and worker-count overrides, the clock, the logger,

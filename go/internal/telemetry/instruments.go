@@ -6095,7 +6095,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.DeferredBackfillFanInSkipped, err = meter.Int64Counter(
 		"eshu_dp_deferred_backfill_fanin_skipped_total",
-		metric.WithDescription("Total partitions the fan-in declined to publish because the scope's active generation moved between the evidence batch and the publication transaction, labeled by reason (generation_advanced_since_batch when the under-lock re-read disagrees, generation_advanced_since_snapshot when the fact-load snapshot does). Sustained non-zero means ingestion is outrunning the maintenance pass, not that anything failed."),
+		metric.WithDescription("Total partitions the fan-in did not publish, labeled by reason: generation_advanced_since_batch when the under-lock re-read disagrees with the batch, generation_advanced_since_snapshot when the fact-load snapshot does, and unchanged_since_memo when the whole pass did not change the partition's evidence and its readiness row already exists (#8082). Sustained non-zero for the two generation reasons means ingestion is outrunning the maintenance pass; unchanged_since_memo is the normal steady state."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeferredBackfillFanInSkipped counter: %w", err)

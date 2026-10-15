@@ -88,6 +88,7 @@ func TestDeferredBackfillPublishesOneRowPerPartitionHermetic(t *testing.T) {
 		nil,
 		"fingerprint-hermetic",
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("writeDeferredBackfillInBatches() error = %v, want nil", err)
@@ -145,6 +146,7 @@ func TestDeferredBackfillWithholdsPublicationForSupersededGenerationHermetic(t *
 		map[string][]relationships.EvidenceFact{},
 		nil,
 		"fingerprint-superseded",
+		nil,
 		nil,
 	)
 	if err != nil {

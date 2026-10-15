@@ -80,6 +80,16 @@ import (
 //   - Each fan-in transaction holds exactly one pooled connection and never
 //     nests a second acquisition, so a worker count above the pool size
 //     throttles on Begin rather than deadlocking.
+//
+// # Unchanged partitions (#8082)
+//
+// This exported entry point publishes every contributed partition; the
+// partition-scoped pass (#7584) calls it. The whole pass calls
+// publishChangedDeferredBackfillPartitions instead, with the set of partitions
+// it provably did not change, and leaves those untouched when their readiness
+// row is present (see splitUnchangedDeferredPartitions for the invariant).
+// Skipped partitions take no lock and open no transaction, so the deadlock
+// argument above covers exactly the partitions that still publish.
 func (s Store) PublishDeferredBackfillPartitions(
 	ctx context.Context,
 	contributions map[ScopeGenerationPartition][]string,
@@ -88,8 +98,36 @@ func (s Store) PublishDeferredBackfillPartitions(
 	workers int,
 	instruments *telemetry.Instruments,
 ) (int, error) {
+	result, err := s.publishChangedDeferredBackfillPartitions(
+		ctx, contributions, nil, snapshotGenerations, catalogFingerprint, workers, instruments,
+	)
+	return result.published, err
+}
+
+// deferredFanInResult counts what one fan-in did. skipped is every partition
+// not published: the generation-advanced skips plus skippedUnchanged.
+type deferredFanInResult struct {
+	published             int
+	skipped               int
+	skippedUnchanged      int
+	unchangedMissingPhase int
+}
+
+// publishChangedDeferredBackfillPartitions is PublishDeferredBackfillPartitions
+// minus the partitions in unchanged whose readiness row already exists. A nil
+// or empty unchanged publishes every partition, exactly like the exported
+// entry point.
+func (s Store) publishChangedDeferredBackfillPartitions(
+	ctx context.Context,
+	contributions map[ScopeGenerationPartition][]string,
+	unchanged map[ScopeGenerationPartition]struct{},
+	snapshotGenerations map[string]string,
+	catalogFingerprint string,
+	workers int,
+	instruments *telemetry.Instruments,
+) (deferredFanInResult, error) {
 	if len(contributions) == 0 {
-		return 0, nil
+		return deferredFanInResult{}, nil
 	}
 
 	partitions := make([]ScopeGenerationPartition, 0, len(contributions))
@@ -103,14 +141,20 @@ func (s Store) PublishDeferredBackfillPartitions(
 		return partitions[i].GenerationID < partitions[j].GenerationID
 	})
 
+	start := time.Now()
+	split := s.splitUnchangedDeferredPartitions(ctx, partitions, unchanged)
+	if split.skippedUnchanged > 0 && instruments != nil {
+		instruments.DeferredBackfillFanInSkipped.Add(ctx, int64(split.skippedUnchanged),
+			metric.WithAttributes(attribute.String("reason", deferredFanInSkipUnchanged)))
+	}
+
 	if workers < 1 {
 		workers = 1
 	}
-	if workers > len(partitions) {
-		workers = len(partitions)
+	if workers > len(split.toPublish) {
+		workers = len(split.toPublish)
 	}
 
-	start := time.Now()
 	groupCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -123,7 +167,7 @@ func (s Store) PublishDeferredBackfillPartitions(
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
 
-	for _, partition := range partitions {
+	for _, partition := range split.toPublish {
 		mu.Lock()
 		stop := firstErr != nil
 		mu.Unlock()
@@ -172,6 +216,12 @@ func (s Store) PublishDeferredBackfillPartitions(
 
 	wg.Wait()
 
+	result := deferredFanInResult{
+		published:             published,
+		skipped:               skipped + split.skippedUnchanged,
+		skippedUnchanged:      split.skippedUnchanged,
+		unchangedMissingPhase: split.unchangedMissingPhase,
+	}
 	fanInDuration := time.Since(start).Seconds()
 	if instruments != nil {
 		instruments.DeferredBackfillFanInDuration.Record(ctx, fanInDuration)
@@ -184,33 +234,36 @@ func (s Store) PublishDeferredBackfillPartitions(
 	// span (#8082); these attributes stay on the pass span for existing readers.
 	trace.SpanFromContext(ctx).SetAttributes(
 		attribute.Int("fanin_partition_count", len(partitions)),
-		attribute.Int("fanin_published_count", published),
-		attribute.Int("fanin_skipped_count", skipped),
+		attribute.Int("fanin_published_count", result.published),
+		attribute.Int("fanin_skipped_count", result.skipped),
+		attribute.Int("fanin_skipped_unchanged_count", result.skippedUnchanged),
+		attribute.Int("fanin_unchanged_missing_phase_count", result.unchangedMissingPhase),
 		attribute.Int("fanin_worker_count", workers),
 	)
 
 	if firstErr != nil {
-		return published, firstErr
+		return result, firstErr
 	}
 
 	// Operator-facing progress signal for the publication phase, mirroring
-	// deferred_backfill_batch_committed for the evidence phase. published +
-	// skipped accounts for every partition the pass committed evidence for, so a
-	// non-zero skipped count reads directly as "generations advanced under us"
-	// rather than as silently missing readiness.
+	// deferred_backfill_batch_committed for the evidence phase. Its shape is
+	// pinned. published + skipped accounts for every partition the pass
+	// committed evidence for. On the whole pass skipped includes the unchanged
+	// partitions; the deferred_backfill_fanin_unchanged_checked line before it
+	// gives that part, and the rest reads as "generations advanced under us".
 	log.Printf(
 		"deferred_backfill_fanin_completed partitions=%d published=%d skipped=%d duration_s=%.2f workers=%d",
-		len(partitions), published, skipped, fanInDuration, workers,
+		len(partitions), result.published, result.skipped, fanInDuration, workers,
 	)
 
-	return published, nil
+	return result, nil
 }
 
 // Closed set of reasons the fan-in declines to publish a partition. They label
-// DeferredBackfillFanInSkipped and appear verbatim in the
-// deferred_backfill_fanin_partition_skipped log line, so the metric's label
-// values and the log's reason field cannot drift apart. Keep the set small and
-// bounded: it is a metric label.
+// DeferredBackfillFanInSkipped. The two generation-advanced reasons also appear
+// verbatim in the deferred_backfill_fanin_partition_skipped log line, so the
+// metric's label values and the log's reason field cannot drift apart. Keep
+// the set small and bounded: it is a metric label.
 const (
 	// deferredFanInSkipGenerationAdvanced: the under-lock re-read found the
 	// scope on a different active generation than the batch committed against.
@@ -218,6 +271,13 @@ const (
 	// deferredFanInSkipSnapshotAdvanced: the partition no longer matches the
 	// fact-load snapshot this pass derived its evidence from.
 	deferredFanInSkipSnapshotAdvanced = "generation_advanced_since_snapshot"
+	// deferredFanInSkipUnchanged: the whole pass did not change the
+	// partition's backward evidence and its readiness row is already
+	// committed (#8082, splitUnchangedDeferredPartitions). It is not a
+	// withheld partition (its readiness is open), so it logs no
+	// deferred_backfill_fanin_partition_skipped line; the completion line's
+	// skipped_unchanged field counts it.
+	deferredFanInSkipUnchanged = "unchanged_since_memo"
 )
 
 // deferredFanInOutcome reports what one partition's publication attempt did.

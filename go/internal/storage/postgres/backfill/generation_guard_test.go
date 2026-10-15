@@ -83,6 +83,7 @@ func TestWriteDeferredBackfillSkipsReadinessWhenGenerationAdvanced(t *testing.T)
 				tc.snapshot,
 				"",
 				nil,
+				nil,
 			)
 			if err != nil {
 				t.Fatalf("writeDeferredBackfillInBatches() error = %v, want nil", err)

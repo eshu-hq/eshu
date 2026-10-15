@@ -33,6 +33,12 @@ type targetedDiffCase struct {
 	// wholeOutside, when non-nil, is the exact sorted set of rows outside the
 	// compared partitions that the whole arm changes.
 	wholeOutside []string
+	// unchanged are the partitions the whole arm must leave untouched (#8082):
+	// memo hits at pass start that receive no inserted evidence row. Their
+	// phase and memo rows must be identical to before in the whole arm, and in
+	// compared partitions the targeted arm may differ from it only in those
+	// rows' timestamps.
+	unchanged map[backfill.ScopeGenerationPartition]struct{}
 	// batchSize forces the per-repository batch size in both arms when > 0.
 	batchSize int
 	// hooks returns per-arm beginner hooks; nil runs both arms unwrapped.
@@ -112,7 +118,10 @@ func (p *targetedDiffPair) run(name string, c targetedDiffCase) targetedDiffOutc
 
 	outcome.whole = p.capture(p.whole)
 	outcome.targeted = p.capture(p.targeted)
-	outcome.report = diffStates(outcome.before, outcome.whole, outcome.targeted, c.compared)
+	if rewritten := wholeRewroteUnchanged(outcome.before, outcome.whole, c.unchanged); len(rewritten) > 0 {
+		p.t.Fatalf("%s: whole arm rewrote unchanged-since-memo rows: %v", name, rewritten)
+	}
+	outcome.report = diffStates(outcome.before, outcome.whole, outcome.targeted, c.compared, c.unchanged)
 	report := outcome.report
 	if len(report.wholeOnlyInScope) > 0 || len(report.targetedOnlyInScope) > 0 {
 		p.t.Fatalf("%s: compared partitions differ: whole-only=%v targeted-only=%v",

@@ -27,6 +27,7 @@ The engine never imports the parent postgres package.
   not import from the parent: the catalog loader and the evidence/phase
   store constructors
 - `RunAllRelationshipEvidence`, `RunDeferredBackfillBatchesWith`,
+  `PublishDeferredBackfillPartitions`,
   `BackfillRelationshipEvidenceForNewRepositories`, `BackfillScopedCatalog`
   — pass and per-commit entry points
 - `LoadRepositoryCatalog`, `LoadActiveRepositoryGenerations`,
@@ -40,7 +41,8 @@ The engine never imports the parent postgres package.
 - `BuildDeferredScopedFactQueryParams`, `DeferredScopedFactQueryParams`,
   `BuildDeferredRepoIDRegex`, `DeferredRepoIDReferenceKeys`,
   `DeferredCatalogFingerprint`, `NewDeferredBackfillPartitionMemoStore`,
-  `ApplyDeferredPartitionMemoGate` — query-arg derivation and memo gating
+  `ApplyDeferredPartitionMemoGate`, `LoadPartitionsMissingReadiness` —
+  query-arg derivation, memo gating, and the fan-in readiness check
 - `LatestGenerationCTE`, `List*Query`, `Active*Query` constants and the
   `DeferredRelationshipFamily*SQL` fragments — the shipped SQL the root
   differential proofs derive from, never hand-copy
@@ -60,7 +62,10 @@ See `doc.go` for the full contract.
 
 - Logs: `deferred_backfill_batch_committed` (per batch),
   `deferred_backfill_fanin_completed` (per pass),
-  `deferred_backfill_fanin_partition_skipped` (per withheld partition)
+  `deferred_backfill_fanin_partition_skipped` (per withheld partition),
+  `deferred_backfill_fanin_unchanged_checked` (per whole pass with unchanged
+  candidates; `deferred_backfill_fanin_unchanged_check_failed` when the
+  readiness check fails and the fan-in publishes every partition)
 - Spans: `relationship.backfill_deferred` — fan-out attributes land on it;
   the root seam tests pin them. Eight child spans, one per block
   (`relationship.backfill.catalog_load`, `params_build`, `partition_list`,
@@ -114,6 +119,16 @@ call.
   assertions belong to the root live seam tests.
 - The memo-hit skip set is revised from actually-inserted row counts, so a
   partition that receives new rows reopens even when the loader skipped it.
+- The whole-pass fan-in uses the same revised set (#8082). An unchanged
+  partition whose readiness row exists is not republished: no lock, no
+  transaction, no ArgoCD probe, and the counter
+  `eshu_dp_deferred_backfill_fanin_skipped_total{reason="unchanged_since_memo"}`.
+  One batched `ListPartitionsMissingReadinessQuery` read decides. A missing
+  row republishes the partition, and a failed read publishes all of them.
+  `PublishDeferredBackfillPartitions`, which the partition-scoped pass calls,
+  still publishes every partition. The invariant is on
+  `splitUnchangedDeferredPartitions` in `fanin_unchanged.go`. Evidence is in
+  `docs/internal/evidence/8082-fanin-unchanged-partitions.md`.
 - Differentials derive from the shipped constants. A hand-frozen copy
   drifts and goes false-green.
 

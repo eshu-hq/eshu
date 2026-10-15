@@ -263,9 +263,12 @@ type targetedDiffReport struct {
 }
 
 // diffStates compares before, whole and targeted over compared partitions.
+// unchanged is the fixture's declared set of partitions the whole pass leaves
+// untouched (#8082); on those alone a phase or memo row may differ between the
+// arms in its timestamps (see unchangedTimestampOnly).
 func diffStates(
 	before, whole, targeted targetedDiffState,
-	compared map[backfill.ScopeGenerationPartition]struct{},
+	compared, unchanged map[backfill.ScopeGenerationPartition]struct{},
 ) targetedDiffReport {
 	var report targetedDiffReport
 	inScope := func(row targetedDiffRow) bool {
@@ -275,7 +278,8 @@ func diffStates(
 	for key, row := range whole {
 		other, ok := targeted[key]
 		switch {
-		case inScope(row) && (!ok || other.value != row.value):
+		case inScope(row) && (!ok || other.value != row.value) &&
+			!unchangedTimestampOnly(key, before, whole, targeted, unchanged):
 			report.wholeOnlyInScope = append(report.wholeOnlyInScope, key+" = "+row.value)
 		case !inScope(row):
 			if prior, existed := before[key]; !existed || prior.value != row.value {
@@ -285,7 +289,8 @@ func diffStates(
 	}
 	for key, row := range targeted {
 		other, ok := whole[key]
-		if inScope(row) && (!ok || other.value != row.value) {
+		if inScope(row) && (!ok || other.value != row.value) &&
+			!unchangedTimestampOnly(key, before, whole, targeted, unchanged) {
 			report.targetedOnlyInScope = append(report.targetedOnlyInScope, key+" = "+row.value)
 		}
 		if !inScope(row) {
