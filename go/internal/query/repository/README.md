@@ -76,6 +76,22 @@ read failed`, `content store not configured`, or `content store coverage
 unavailable`, never the error text. Before degrading, `writeCoverageVerdict`
 answers a reader fence (503 with `Retry-After`) and a client cancel (499).
 
+The fence rule (#7674 acceptance bullet 2): a fence answers the retryable 503
+on every route whose read failure answers an error response, and no route folds
+a fence into a null or fabricated headline fact; a route whose headline fact
+falls back to a propagating, fenced read may attribute-degrade with a named
+partial reason. Context is that case: its `file_count` falls back to a graph
+count whose failure propagates through `writeReadFailure`, so a fence on its
+content summary keeps the 200 with `repository_context_content_coverage_degraded`.
+A client cancel of that read answers 499. Stats and story have no fallback (null
+counts), so their fence answers 503.
+
+Observability Evidence: the 34 `writeReadFailure` call sites, which recorded
+nothing on the request span before #7674, now record a span error with the
+step's message, or only the `eshu.request.client_canceled` event for a client
+cancel. `serveRepoServerFailure` in `server_failure_test.go` asserts both
+outcomes for every row of `repositoryRouteSteps`.
+
 No-Regression Evidence (#7626): for the content-backed selector routes in
 this package, `iac` dead-IaC, and `contentread`, the new
 `selector.WriteLookupFailure` calls run only after

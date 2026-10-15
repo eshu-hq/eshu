@@ -28,6 +28,7 @@ const (
 	catalogWorkloadsFailedMessage           = "catalog workload query failed"
 
 	repositoryContextLookupFailedMessage             = "repository context lookup failed"
+	repositoryContextCoverageFailedMessage           = "repository context content coverage read failed"
 	repositoryContextCountsFailedMessage             = "repository context summary count query failed"
 	repositoryContextDeploymentEvidenceFailedMessage = "repository context deployment evidence read failed"
 

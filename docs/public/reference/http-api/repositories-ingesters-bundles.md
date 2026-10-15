@@ -72,7 +72,9 @@ lower bounds. If the file read fails, it adds
 `repository_context_file_read_degraded` and may omit the overviews.
 If the content-file summary fails, context falls back to graph file counts and
 languages and adds `repository_context_content_coverage_degraded`; the graph
-may lag or omit file classes present in the content store.
+may lag or omit file classes present in the content store. A stale-reader
+fence on the content summary degrades the same way; a client cancel answers
+`499` (`repository context content coverage read failed`).
 The story's `infrastructure` panel is an auxiliary read layered on top of those
 headline facts: a graph-read failure there keeps the response at `200` with
 an empty panel instead, and `context` carries an additive `partial_reasons`

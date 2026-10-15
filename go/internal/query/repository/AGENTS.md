@@ -44,6 +44,13 @@
   cancel 499. `coverage.last_error` is a closed set of fixed strings; never
   copy `err` into it (#7674). Keep the OpenAPI `last_error` descriptions and
   `docs/public/reference/http-api/repository-coverage.md` in step with it.
+- Fence rule (#7674 bullet 2): a fence answers 503 on every route whose read
+  failure answers an error response, and no route folds a fence into a null or
+  fabricated headline fact. A route whose headline fact falls back to a
+  propagating, fenced read may attribute-degrade with a named partial reason.
+  Context does: a fence on its content summary keeps the 200 with
+  `repository_context_content_coverage_degraded`, and only a client cancel
+  answers 499. Do not add a generic "success on a canceled request is 499" rule.
 
 ## Verification
 

@@ -79,7 +79,12 @@ Stats and story degrade a failed content-store coverage read to a `200` partial
 whose `coverage.last_error` or `coverage_summary.last_error` is the fixed
 `content store coverage read failed`, not the error text. A reader fence on that
 read answers `503` and a client cancel `499` instead of the partial; see
-[Repository stats and story coverage](repository-coverage.md).
+[Repository stats and story coverage](repository-coverage.md). Context is the
+exception for a fence: its headline `file_count` falls back to a graph count
+whose own failure propagates, so a reader fence on the content summary keeps
+the `200` with `repository_context_content_coverage_degraded` in
+`partial_reasons`. A client cancel there answers `499` with `repository context
+content coverage read failed`.
 
 ## Platform impact read failures
 
