@@ -126,6 +126,21 @@ type Input struct {
 	StampProven bool
 }
 
+// submoduleAndValveGuards applies the submodule and valve guards shared by
+// the skip and stamp paths (a stamp candidate matched an earlier case, so the
+// later guards in Decide never evaluate for it). One owner for both callers,
+// so the next guard added to the skip path cannot silently miss stamps. It
+// reports the refusing outcome, or "" when the guards allow the skip.
+func submoduleAndValveGuards(in Input) (Outcome, bool) {
+	if in.HasSubmodules {
+		return OutcomeSubmodules, true
+	}
+	if in.Active.Skips >= in.MaxSkips-1 {
+		return OutcomeValveDue, true
+	}
+	return "", false
+}
+
 // Decide returns whether a forced reconcile may skip the parse. The rules run
 // cheapest first; clean (the git status check) runs only when every other rule
 // allows the skip. Any doubt parses: a wrong skip keeps stale facts, a wrong
@@ -151,21 +166,18 @@ func Decide(in Input, clean func() (bool, error)) Outcome {
 		if !stamp {
 			return OutcomeIdentityAbsent
 		}
-		// A stamp candidate matched an earlier case, so the later guards
-		// below never evaluate for it: repeat the submodule and valve guards
-		// here so a stamp never bypasses a parse they require.
-		if in.HasSubmodules {
-			return OutcomeSubmodules
-		}
-		if in.Active.Skips >= in.MaxSkips-1 {
-			return OutcomeValveDue
+		if outcome, refused := submoduleAndValveGuards(in); refused {
+			return outcome
 		}
 	case in.Active.Identity != in.Identity:
 		return OutcomeIdentityMismatch
-	case in.HasSubmodules:
-		return OutcomeSubmodules
-	case in.Active.Skips >= in.MaxSkips-1:
-		return OutcomeValveDue
+	default:
+		// The shared submodule and valve guards: stamps reach them through
+		// the helper in the empty-identity case, skips through here — one
+		// owner for both paths.
+		if outcome, refused := submoduleAndValveGuards(in); refused {
+			return outcome
+		}
 	}
 	ok, err := clean()
 	if err != nil {

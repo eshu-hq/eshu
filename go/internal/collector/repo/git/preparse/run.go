@@ -19,10 +19,16 @@ import (
 
 // Reprojector re-projects a scope's active generation without a snapshot and
 // returns the refresh-skip reason it recorded. The ingestion store implements
-// it (IngestionStore.ReprojectActiveGeneration); a resolver without it always
-// parses.
+// it (IngestionStore.ReprojectActiveGeneration for equal identities,
+// IngestionStore.StampActiveGeneration for a proven first-sweep stamp with an
+// empty stored identity); a resolver without it always parses.
 type Reprojector interface {
 	ReprojectActiveGeneration(ctx context.Context, request scope.ActiveReprojection) (string, error)
+	// StampActiveGeneration stamps a proven first-sweep identity (#8095):
+	// the stored identity is empty and the request carries the proven one.
+	// Its fence refuses anything else, so a resolver that only implements
+	// ReprojectActiveGeneration must still parse stamps.
+	StampActiveGeneration(ctx context.Context, request scope.ActiveReprojection) (string, error)
 }
 
 // Recorder carries the git collector's telemetry for Run. Both fields may be
@@ -91,12 +97,21 @@ func Run(ctx context.Context, attempt Attempt, clean func() (bool, error), repro
 	}
 	outcome := Decide(input, clean)
 	var storeErr error
-	if outcome == OutcomeSkipped || outcome == OutcomeStamped {
-		var reason string
-		reason, storeErr = reprojector.ReprojectActiveGeneration(ctx, scope.ActiveReprojection{
+	// A stamp never takes the identity-equality path: its stored identity is
+	// empty by definition, so that fence would refuse it. It takes the store
+	// stamp path, whose fence matches the empty stored identity and stamps
+	// the proven one with the skip count reset.
+	if outcome == OutcomeStamped || outcome == OutcomeSkipped {
+		request := scope.ActiveReprojection{
 			ScopeID: attempt.ScopeID, GenerationID: state.ActiveGenerationID, CommitSHA: attempt.RemoteCommit,
 			PreparseIdentity: attempt.Identity, Reason: attempt.Reason,
-		})
+		}
+		var reason string
+		if outcome == OutcomeStamped {
+			reason, storeErr = reprojector.StampActiveGeneration(ctx, request)
+		} else {
+			reason, storeErr = reprojector.ReprojectActiveGeneration(ctx, request)
+		}
 		outcome, storeErr = storeOutcome(outcome, reason, storeErr)
 	}
 	recorder.record(ctx, attempt, input, outcome, storeErr)

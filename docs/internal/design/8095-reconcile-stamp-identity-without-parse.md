@@ -56,10 +56,14 @@ same facts. A re-parse is the only confirmation until part 2 records them.
 
 - Proof absent or mismatched (old generation, version bump, config change,
   degraded snapshot): parse as today (`identity_absent` / `identity_mismatch`).
-- The stamp reuses the fenced re-projection path, so the store fence (active
-  pointer, full generation, commit, identity) still refuses a stale stamp with
-  `reprojection_superseded`, which parses in the same cycle.
-- The re-projection stamps `preparse_skips` 0, so a stamp counts as a parse
+- The stamp reuses the fenced re-open machinery through a dedicated store
+  stamp statement (`stampActiveGenerationQuery`): the fence (active pointer,
+  full generation, commit, empty stored identity, non-empty request) still
+  refuses a stale stamp with `reprojection_superseded`, which parses in the
+  same cycle. The stamp never takes the identity-equality path, whose fence
+  would refuse every stamp. A second stamp after the Ack finds a stored
+  identity and parses (one-shot by construction).
+- The stamp re-open stamps `preparse_skips` 0, so a stamp counts as a parse
   for `ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS`; a due valve still forces a real
   parse. A stamp still spends an `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` slot.
 - Submodules, dirty tree, moved head, delta-active, and ineligible reasons
@@ -81,15 +85,23 @@ the implementation's standing assumptions, not rulings.
 ## No-Regression Evidence:
 
 - Baseline: `origin/main` at `74d6777a81` — every `identity_absent` parses.
-- After: head `d972a1b75d` — with the setting off or unproven, the sweep takes
-  the identical path plus two short-circuit boolean checks in `Decide`.
-- Benchmark Evidence: `Decide` microbenchmark, 1e6 iterations x3, AMD EPYC
-  9R14, linux/amd64, go1.26.9: eligible-skip 8.8 ns/op, stampable 8.7 ns/op,
-  identical within noise — about six orders of magnitude below the guarded
-  `git status` subprocess (milliseconds) and a full parse (minutes).
+- After: this PR's head — with the setting off or unproven, the sweep takes
+  the identical path plus short-circuit boolean checks in `Decide`; with a
+  proven stamp, `Run` takes the store stamp statement instead of the
+  identity-equality path (same lock, same re-open guard, one extra fenced
+  predicate on the empty stored identity). The exact head SHA and the full
+  benchmark table are in the PR body; the numbers below were re-measured on
+  the final tree (no stale head).
+- Benchmark Evidence: in-tree `BenchmarkDecide`
+  (`go/internal/collector/repo/git/preparse/decision_bench_test.go`),
+  1e8 iterations x3, AMD EPYC 9R14, linux/amd64, go1.26.9: eligible-skip
+  12.0 ns/op, stampable 11.8 ns/op, identical within noise — about six orders
+  of magnitude below the guarded `git status` subprocess (milliseconds) and
+  a full parse (minutes).
 - Input shape: synthetic eligible and stampable `Input` at unit level; no
-  corpus, profile, or topology change. No SQL is touched, so terminal queue
-  and row counts are unchanged by construction.
+  corpus, profile, or topology change. The stamp statement touches the same
+  rows as the skip-path re-open (one generation row, its canonical projector
+  row), so terminal queue and row counts are unchanged by construction.
 - Why safe: no new I/O, locks, goroutines, or allocations on the decision
   path; the change is fail-closed, so production takes the old path until
   part 2 records the proof.

@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//nolint:filelength // The repo-sync env contract (config struct, loader, and
-// readers) intentionally stays in one file so the contract reads in one
-// place; the file was already at the cap before #8095 added its setting.
-
 package git
 
 import (
@@ -481,27 +477,4 @@ func sortUniqueStrings(values []string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-// defaultReconcileParseMaxSkips parses an unchanged repository at least once a
-// week at the default daily interval (ruling a9-143 D3).
-const defaultReconcileParseMaxSkips = 7
-
-// reconcileParseMaxSkipsFromEnv reads ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS
-// (ruling a9-143.1): unset or blank is the default, 0 never skips, and a
-// positive N allows N-1 skips after each parse. A negative or non-integer
-// value is a startup error that names the variable and the value, never a
-// silent fallback, because a typo would otherwise change how stale an
-// unfolded input may get.
-func reconcileParseMaxSkipsFromEnv(getenv func(string) string) (int, error) {
-	raw := getenv("ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS")
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return defaultReconcileParseMaxSkips, nil
-	}
-	value, err := strconv.Atoi(trimmed)
-	if err != nil || value < 0 {
-		return 0, fmt.Errorf("ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS=%q: a set value must be a non-negative integer (0 never skips the parse)", trimmed)
-	}
-	return value, nil
 }

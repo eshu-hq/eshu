@@ -150,3 +150,32 @@ func validateGitRefName(ref string) error {
 	}
 	return nil
 }
+
+// Reconcile valve env knob (ruling a9-143 D3): it lives here with the other
+// small repo-sync env readers (its interval and per-cycle siblings live in
+// selection_reconcile_config.go) so selection_config.go stays under the
+// filelength cap without growing this directory's file count (the dirgate
+// ledger forbids a count bump for a file this change would add).
+
+// defaultReconcileParseMaxSkips parses an unchanged repository at least once a
+// week at the default daily interval (ruling a9-143 D3).
+const defaultReconcileParseMaxSkips = 7
+
+// reconcileParseMaxSkipsFromEnv reads ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS
+// (ruling a9-143.1): unset or blank is the default, 0 never skips, and a
+// positive N allows N-1 skips after each parse. A negative or non-integer
+// value is a startup error that names the variable and the value, never a
+// silent fallback, because a typo would otherwise change how stale an
+// unfolded input may get.
+func reconcileParseMaxSkipsFromEnv(getenv func(string) string) (int, error) {
+	raw := getenv("ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS")
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return defaultReconcileParseMaxSkips, nil
+	}
+	value, err := strconv.Atoi(trimmed)
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("ESHU_REPO_RECONCILE_PARSE_MAX_SKIPS=%q: a set value must be a non-negative integer (0 never skips the parse)", trimmed)
+	}
+	return value, nil
+}

@@ -20,6 +20,10 @@ func (r answerReprojector) ReprojectActiveGeneration(context.Context, scope.Acti
 	return r.reason, nil
 }
 
+func (r answerReprojector) StampActiveGeneration(context.Context, scope.ActiveReprojection) (string, error) {
+	return r.reason, nil
+}
+
 // TestRunEventNamesTheScope (review P3-a): the decision event carries the
 // scope id, so the several decisions of one sync cycle are told apart in a
 // trace, along with the outcome and whether the parse was skipped.
@@ -57,11 +61,21 @@ type spyReprojector struct {
 	reason string
 	got    scope.ActiveReprojection
 	calls  int
+	// stampGot and stampCalls record the stamp-path calls; got and calls
+	// record the skip-path calls, so a test can assert which path Run took.
+	stampGot   scope.ActiveReprojection
+	stampCalls int
 }
 
 func (r *spyReprojector) ReprojectActiveGeneration(_ context.Context, request scope.ActiveReprojection) (string, error) {
 	r.got = request
 	r.calls++
+	return r.reason, nil
+}
+
+func (r *spyReprojector) StampActiveGeneration(_ context.Context, request scope.ActiveReprojection) (string, error) {
+	r.stampGot = request
+	r.stampCalls++
 	return r.reason, nil
 }
 
@@ -83,11 +97,16 @@ func TestRunStampsIdentityWithoutParsing(t *testing.T) {
 	if !Run(ctx, attempt, func() (bool, error) { return true, nil }, spy, Recorder{}) {
 		t.Fatal("Run() = false, want the stamp to skip the parse")
 	}
-	if spy.calls != 1 {
-		t.Fatalf("re-projection calls = %d, want 1", spy.calls)
+	// The stamp takes the store stamp path, never the identity-equality
+	// path: that fence would refuse it (stored empty never equals requested).
+	if spy.stampCalls != 1 {
+		t.Fatalf("stamp calls = %d, want 1", spy.stampCalls)
 	}
-	if spy.got.GenerationID != "gen-0" || spy.got.CommitSHA != "c" || spy.got.PreparseIdentity != "preparse:v1:now" {
-		t.Fatalf("re-projection request = %+v, want gen-0 at c with the computed identity", spy.got)
+	if spy.calls != 0 {
+		t.Fatalf("skip-path calls = %d, want 0 (the stamp must not take the identity-equality path)", spy.calls)
+	}
+	if spy.stampGot.GenerationID != "gen-0" || spy.stampGot.CommitSHA != "c" || spy.stampGot.PreparseIdentity != "preparse:v1:now" {
+		t.Fatalf("stamp request = %+v, want gen-0 at c with the computed identity", spy.stampGot)
 	}
 	span.End()
 	events := recorder.Ended()[0].Events()

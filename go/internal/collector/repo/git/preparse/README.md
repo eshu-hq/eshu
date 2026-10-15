@@ -15,7 +15,9 @@ It owns the pre-parse identity, the classification of every env key that can
 change emitted facts, the skip decision with its valve, and the decision's
 telemetry. It does not run git or read Postgres itself: the git collector
 supplies the inputs and the tree check, and the ingestion store owns the
-re-open, which `Run` reaches through the `Reprojector` interface.
+re-open, which `Run` reaches through the `Reprojector` interface (the skip
+path for equal identities, the stamp path for a proven first-sweep stamp with
+an empty stored identity).
 
 ## Exported surface
 

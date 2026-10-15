@@ -25,10 +25,13 @@ import (
 // skipParseResolver serves a settable reconcile state per scope and records
 // the skipped-parse re-projections the sync asks for.
 type skipParseResolver struct {
-	states       map[string]scope.FullReconcileState
-	fallback     scope.FullReconcileState
-	writers      []scope.UncoveredProjectionWriter
-	reprojected  []scope.ActiveReprojection
+	states      map[string]scope.FullReconcileState
+	fallback    scope.FullReconcileState
+	writers     []scope.UncoveredProjectionWriter
+	reprojected []scope.ActiveReprojection
+	// stamped records the stamp-path calls (#8095), kept apart from the
+	// skip-path re-projections so a test can assert which path the sync took.
+	stamped      []scope.ActiveReprojection
 	reprojectErr error
 	// reprojectReason, when set, is the reason the fake store returns instead
 	// of reconcile_reprojected.
@@ -55,6 +58,19 @@ func (r *skipParseResolver) ReprojectActiveGeneration(_ context.Context, request
 		return "", r.reprojectErr
 	}
 	r.reprojected = append(r.reprojected, request)
+	if r.reprojectReason != "" {
+		return r.reprojectReason, nil
+	}
+	return telemetry.RefreshSkipReasonReconcileReprojected, nil
+}
+
+// StampActiveGeneration records proven first-sweep stamps (#8095) separately
+// from skip-path re-projections, with the same error and reason behavior.
+func (r *skipParseResolver) StampActiveGeneration(_ context.Context, request scope.ActiveReprojection) (string, error) {
+	if r.reprojectErr != nil {
+		return "", r.reprojectErr
+	}
+	r.stamped = append(r.stamped, request)
 	if r.reprojectReason != "" {
 		return r.reprojectReason, nil
 	}
