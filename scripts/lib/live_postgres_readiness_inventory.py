@@ -107,6 +107,27 @@ PACKAGES = {
             "TestProjectorAckMarkerCommitRace",
             "TestProjectorAckObsoleteSkipsFencedBusyScope",
         ),
+        "go/internal/storage/postgres/projector_queue_ack_journal_live_test.go": (
+            "TestProjectorAckJournalAtomicity",
+            "TestProjectorAckJournalPriorLive",
+            "TestProjectorAckJournalOffWritesNothing",
+        ),
+        "go/internal/storage/postgres/projector_queue_ack_journal_inversion_live_test.go": (
+            "TestProjectorAckJournalInversion",
+            "TestProjectorAckJournalGateHeldByPass",
+        ),
+        "go/internal/storage/postgres/projector_queue_ack_journal_fence_live_test.go": (
+            "TestProjectorAckJournalLockFences",
+        ),
+        "go/internal/storage/postgres/projector_queue_ack_journal_contention_live_test.go": (
+            "TestProjectorAckJournalContention",
+        ),
+        "go/internal/storage/postgres/projector_queue_ack_journal_equivalence_live_test.go": (
+            "TestProjectorAckJournalEquivalence",
+        ),
+        "go/internal/storage/postgres/projector_queue_ack_journal_cost_live_test.go": (
+            "TestProjectorAckJournalCost",
+        ),
         "go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go": (
             "TestMarkProjectionWriteStartedFenceSync",
             "TestMarkProjectionWriteStartedMissingFenceRefuses",

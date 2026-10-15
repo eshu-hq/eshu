@@ -71,6 +71,18 @@ type ProjectorQueue struct {
 	// deadlock or serialization failure; each retry waits attempt*base plus
 	// up to one base of jitter. Zero uses defaultProjectorClaimConflictBackoff.
 	ClaimConflictBackoff time.Duration
+	// ChangedSinceJournalEnabled makes Ack journal the activation it commits
+	// into changed_since_activations (#7127 PR-3b, source 'ack'), in the same
+	// transaction, while it holds the shared side of the journal pass's
+	// advisory key; see activateAndJournalProjectorGenerationQuery. False,
+	// the default, keeps Ack's statements exactly as before, with no ledger
+	// SQL. The ingester and bootstrap-index set it from
+	// ESHU_CHANGED_SINCE_LINK_ENABLED.
+	ChangedSinceJournalEnabled bool
+	// ackJournalActivateQuery replaces activateAndJournalProjectorGenerationQuery
+	// when set. Only tests set it, to run a variant derived from the shipped
+	// statement (the ungated RED of the inversion proof).
+	ackJournalActivateQuery string
 }
 
 // defaultProjectorAckLockTimeout leaves room inside the projector service's

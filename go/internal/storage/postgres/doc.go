@@ -361,6 +361,13 @@
 // same reduction (a retried intent or a re-projected generation) converges on
 // one row per fact/field rather than duplicating it or erroring.
 //
+// ProjectorQueue.ChangedSinceJournalEnabled (#7127 PR-3b, off by default)
+// makes Ack journal the activation it commits into the changed-since ledger
+// (changed_since_activations, source 'ack') in the same transaction, gated by
+// the shared side of the journal pass's try-only advisory key
+// (linksfreshnessstore.AckJournalGateSQL). Off, Ack sends exactly the
+// statements it sent before.
+//
 // ConfigStateDriftRuntimeTrigger addresses the runtime delta-trigger gap
 // EnqueueConfigStateDriftIntents' doc comment anticipated (issue #5593): a
 // terraform_state_snapshot landing outside a bootstrap-index pass was never

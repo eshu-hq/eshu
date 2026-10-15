@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -111,12 +112,24 @@ func (q ProjectorQueue) Ack(
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
 		},
 	}
+	prior := ""
 	for _, step := range steps {
+		if q.ChangedSinceJournalEnabled && step.query == supersedeProjectorActiveGenerationQuery {
+			if prior, err = supersedeActiveGenerationReturningPrior(ctx, tx, step.args); err != nil {
+				return fmt.Errorf("ack projector work: %s: %w", step.op, err)
+			}
+			continue
+		}
 		if _, err := tx.ExecContext(ctx, step.query, step.args...); err != nil {
 			return fmt.Errorf("ack projector work: %s: %w", step.op, err)
 		}
 	}
-	activated, err := q.activateAckGeneration(ctx, tx, work, now)
+	var activated bool
+	if q.ChangedSinceJournalEnabled {
+		activated, _, err = q.activateAndJournalAckGeneration(ctx, tx, work, now, prior)
+	} else {
+		activated, err = q.activateAckGeneration(ctx, tx, work, now)
+	}
 	if err != nil {
 		return err
 	}
@@ -142,6 +155,90 @@ func (q ProjectorQueue) Ack(
 	q.runConfigStateDriftTriggerHook(ctx, work)
 
 	return nil
+}
+
+// Journal outcomes of a flag-on Ack that activated its generation (#7127
+// PR-3b).
+const (
+	// ackJournalOutcomeJournaled: the Ack wrote the generation's 'ack' row.
+	ackJournalOutcomeJournaled = "journaled"
+	// ackJournalOutcomeExists: the gate was acquired and the generation
+	// already had a row (a re-ack, or a sweeper or backfill row).
+	ackJournalOutcomeExists = "exists"
+	// ackJournalOutcomeGateSkipped: a journal pass held its key, so the Ack
+	// wrote no row and did not wait; the sweeper journals the generation.
+	ackJournalOutcomeGateSkipped = "gate_skipped"
+)
+
+// supersedeActiveGenerationReturningPrior runs the RETURNING form of Ack's
+// active supersede and returns the prior of the 'ack' activation row: the
+// superseded generation when exactly one was active, otherwise "" (NULL).
+func supersedeActiveGenerationReturningPrior(ctx context.Context, tx db.Transaction, args []any) (string, error) {
+	rows, err := tx.QueryContext(ctx, supersedeProjectorActiveGenerationReturningQuery, args...)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rows.Close() }()
+	var superseded []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return "", err
+		}
+		superseded = append(superseded, id)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	if len(superseded) != 1 {
+		return "", nil
+	}
+	return superseded[0], nil
+}
+
+// activateAndJournalAckGeneration is activateAckGeneration with the 'ack'
+// activation row (activateAndJournalProjectorGenerationQuery). It reports
+// whether the generation was activated and, if so, the journal outcome. It
+// adds one advisory lock, a try-lock on the shared side of the journal key,
+// so Ack still waits on nothing it did not wait on before.
+func (q ProjectorQueue) activateAndJournalAckGeneration(
+	ctx context.Context,
+	tx db.Transaction,
+	work projector.ScopeGenerationWork,
+	now time.Time,
+	prior string,
+) (bool, string, error) {
+	query := activateAndJournalProjectorGenerationQuery
+	if q.ackJournalActivateQuery != "" {
+		query = q.ackJournalActivateQuery
+	}
+	rows, err := tx.QueryContext(ctx, query, now, work.Scope.ScopeID, work.Generation.GenerationID, prior)
+	if err != nil {
+		return false, "", fmt.Errorf("ack projector work: activate and journal target generation: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var activated, journaled int64
+	var gated bool
+	if rows.Next() {
+		if err := rows.Scan(&activated, &journaled, &gated); err != nil {
+			return false, "", fmt.Errorf("ack projector work: activate and journal target generation: scan: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, "", fmt.Errorf("ack projector work: activate and journal target generation: %w", err)
+	}
+	switch {
+	case activated == 0 && journaled == 0:
+		return false, "", nil
+	case activated == 1 && journaled == 1 && gated:
+		return true, ackJournalOutcomeJournaled, nil
+	case activated == 1 && journaled == 0 && gated:
+		return true, ackJournalOutcomeExists, nil
+	case activated == 1 && journaled == 0:
+		return true, ackJournalOutcomeGateSkipped, nil
+	}
+	return false, "", fmt.Errorf("ack projector work: activate and journal target generation: activated=%d journaled=%d gated=%t",
+		activated, journaled, gated)
 }
 
 // CrossplaneRedriveSweeper is the narrow surface ProjectorQueue.Ack calls to
