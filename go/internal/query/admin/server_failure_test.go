@@ -60,7 +60,10 @@ func adminFailureError(kind adminFailureKind) error {
 	case adminFailureCancel:
 		return fmt.Errorf("%s: %w", adminFailureCanary, context.Canceled)
 	case adminFailureStale:
-		return fmt.Errorf("%s: %w", adminFailureCanary, db.ErrReaderStale)
+		// The guarded reader joins the stale sentinel with the replay-window
+		// deadline (runtime/postgres reader.go), so a route that checks its
+		// own timeout before the reader verdict would misreport it as 504.
+		return fmt.Errorf("%s: %w", adminFailureCanary, errors.Join(db.ErrReaderStale, context.DeadlineExceeded))
 	case adminFailureTimeout:
 		return fmt.Errorf("%s: %w", adminFailureCanary, context.DeadlineExceeded)
 	case adminFailureGraphDeadline:
