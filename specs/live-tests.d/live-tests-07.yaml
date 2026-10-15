@@ -386,3 +386,8 @@ tests:
     class: postgres_ci
     reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact walker cursor claim: consecutive pages, wrap at a short page and at an exact page boundary, and disjoint pages for five concurrent claimers; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_fanin_unchanged_partition_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8082 disposable PostgreSQL 18 proof that the whole-pass fan-in leaves an unchanged memo-hit partition's phase and memo rows untouched, publishes a memo hit that gained evidence and a memo miss, and republishes an unchanged partition whose readiness row is missing; reuses the #7584 targeted-maintenance proof DSN; enrolled in the live-postgres-readiness runner; two proofs took 3.05s and 3.13s (two bootstrapped schemas each) on a local PostgreSQL 18.6 on 2026-10-15; wall time is logged, not gated"
+    runner: live-postgres-readiness
