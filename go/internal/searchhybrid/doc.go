@@ -15,9 +15,10 @@
 //
 // Semantic retrieval is served through an index-owned vector retriever. Exact
 // cosine remains the deterministic zero-value correctness baseline. The
-// approximate mode is an explicitly selected pure-Go angular-LSH ANN candidate
-// index; it computes exact cosine for retrieved candidates and falls back to
-// exact retrieval when its scoped candidate set is empty.
+// approximate mode is a pure-Go angular-LSH ANN candidate index, used when
+// selected explicitly or by the auto mode at 256 or more indexed documents; it
+// computes exact cosine for retrieved candidates and falls back to exact
+// retrieval when its scoped candidate set is empty.
 //
 // The index enforces a hard cap on indexed document count and signals overflow
 // explicitly, and retrieval returns deterministic top-K results for fixed

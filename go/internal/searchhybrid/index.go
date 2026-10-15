@@ -56,8 +56,9 @@ type Options struct {
 	// present, NewIndex uses these vectors instead of embedding documents while
 	// still using Embedder for query vectors.
 	PrecomputedDocumentVectors map[string][]float64
-	// VectorRetrieval selects the semantic vector retrieval strategy. Auto and
-	// Exact use exact cosine; Approximate must be selected explicitly.
+	// VectorRetrieval selects the semantic vector retrieval strategy. Exact uses
+	// exact cosine; Auto uses exact cosine below approximateVectorAutoMinDocuments
+	// (256) indexed documents and the approximate retriever at or above it.
 	VectorRetrieval VectorRetrievalMode
 	// K1 and B are BM25 parameters. Zero selects the standard 1.2 and 0.75.
 	K1 float64
@@ -263,9 +264,11 @@ func (index *Index) vectorScoresInScope(queryVector []float64, inScope func(int)
 // and per architecture. It does not make them equal across architectures: Go
 // may fuse a multiply and add into one FMA instruction on arm64 but not on
 // amd64 at the default GOAMD64=v1 (on arm64 the compiler fuses the
-// termContribution denominator into FMADDD), so the same score can differ by a
-// few ulp between an arm64 and an amd64 replica (4 ulp observed). Ordering by score ties and ranks can then
-// differ only where two scores are within that noise. Nothing that crosses
+// termContribution denominator into FMADDD), so the same BM25 score can differ
+// by a few ulp between an arm64 and an amd64 replica (4 ulp observed), and two
+// scores that close can tie-break differently. The README lists the other
+// fused sites, including the approximate vector signature, where a flipped
+// bucket bit can change the candidate set itself. Nothing that crosses
 // processes, such as a cursor, may depend on exact score bits.
 func sortedQueryTerms(queryTerms map[string]int) []string {
 	terms := make([]string, 0, len(queryTerms))

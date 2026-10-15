@@ -19,6 +19,7 @@ order:
 10. `docs(search): name #7746 evidence commits by subject`
 11. `test(searchhybrid): pin Search scores to 8 digits, not raw bits`
 12. `docs(search): record the cross-architecture score limit for #7746`
+13. `docs(searchhybrid): record the approximate retrieval cross-architecture limit`
 
 Every figure below was measured on the branch before rebasing onto
 `origin/main`. `git range-diff` shows the patches unchanged across each rebase,
@@ -161,14 +162,36 @@ the `termContribution` denominator `tf + k1*(1-b+b*len/avg)` into `FMADDD`
 code compiles to separate `MULSD`/`DIVSD`/add instructions with no `VFMADD`.
 
 So BM25 score bits are stable per binary, which means per process and per
-architecture. Across architectures a score can differ by a few ulp. Two scores
-within that noise can tie-break differently on different replicas. This
-matters for the later score-keyed cursor in #7746: a cursor issued by an arm64
-replica and resumed on an amd64 replica must not compare exact score bits. It
-needs either an architecture-independent score (for example explicit
-`float64(...)` conversions, which the Go spec says prevent fusion, at every
-product in the BM25, cosine, and hash-embedding paths) or a key that does not
-rely on score bits.
+architecture. Across architectures a BM25 score can differ by a few ulp, and
+two scores that close can tie-break differently on different replicas.
+
+BM25 is not the only fused site. `go build -gcflags=-S` on arm64 shows
+`FMADDD` at:
+
+- the `termContribution` denominator (BM25, inexact: the case above);
+- `cosineSimilarity` (`dot`, `normA`, `normB`). With the shipped hash
+  embedder every vector component is an integer, so these products and sums
+  are exact and fusion changes nothing. With provider or precomputed float
+  vectors the cosine can differ by a few ulp;
+- `angularVectorSignature`'s projection `dot += value * weight`. This is inexact
+  even for hash-embedder vectors, and the sign of `dot` sets a bucket bit
+  (`dot >= 0`). A near-zero projection can flip a bit on another architecture,
+  so approximate vector retrieval (`VectorRetrievalApproximate`, or
+  `VectorRetrievalAuto` at 256 or more documents) can select a different
+  candidate set, not only different scores. The `find_code` and content
+  re-rankers stay below 256 documents and use exact cosine. The golden pin
+  covers only exact mode on a small corpus and does not exercise this path;
+- the hash embedder's `sign * count` and the projection weight `unit*2 - 1`.
+  Both products are exact (`sign` is ±1, `unit*2` is a power-of-two scale), so
+  fusion does not change them.
+
+This matters for the later score-keyed cursor in #7746: a cursor issued by an
+arm64 replica and resumed on an amd64 replica must not compare exact score
+bits, and must not assume both replicas saw the same approximate candidate
+set. It needs either architecture-independent arithmetic (explicit
+`float64(...)` conversions, which the Go spec says prevent fusion, at the
+inexact sites: the BM25 denominator, cosine over provider floats, and
+`angularVectorSignature`) or a key that does not rely on score bits.
 
 ## Golden pin provenance
 
