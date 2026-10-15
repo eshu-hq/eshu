@@ -20,10 +20,9 @@ recent shipped work grouped by feature area.
   `ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS` with evidence. **Breaking:** on
   any undeclared reader below 18.7, including the CI standby mirror and local
   Compose while its floating `postgres:18-alpine` tag resolves below 18.7, a
-  code-topic or
-  change-surface request whose topic expands to 16 terms answers `503`
-  `backend_unavailable` with `details.reason=snapshot_export_unqualified` and
-  no `Retry-After` until the reader is upgraded or declared. There is no
+  code-topic or change-surface request whose topic expands to 16 terms answers
+  `503` `backend_unavailable` with `details.reason=snapshot_export_unqualified`
+  and no `Retry-After` until the reader is upgraded or declared. There is no
   single-statement fallback. Watch
   `eshu_dp_postgres_reader_snapshot_export_qualified` and
   `eshu_dp_postgres_reader_snapshot_export_denials_total`.

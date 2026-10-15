@@ -267,12 +267,12 @@ client receives a permanent HTTP `503` `backend_unavailable` with
 There is no single-statement fallback, and ordinary fenced reads and single
 snapshots keep working.
 
-**Breaking change.** Any undeclared reader below 18.7 now answers every code-topic and change-surface
-request whose topic expands to 16 terms with that `503` until the operator
-upgrades the reader or declares the build. The CI standby mirror of
-`postgres:18.6-bookworm` is one, and so is the local Compose
-`postgres:18-alpine` tag while it resolves below 18.7 (the tag floats; check
-`SHOW server_version`).
+**Breaking change.** Any undeclared reader below 18.7 now answers every
+code-topic and change-surface request whose topic expands to 16 terms with
+that `503` until the operator upgrades the reader or declares the build. The
+CI standby mirror of `postgres:18.6-bookworm` is one, and so is the local
+Compose `postgres:18-alpine` tag while it resolves below 18.7 (the tag floats;
+check `SHOW server_version`).
 
 For local Compose, read `SELECT current_setting('server_version')` on the
 Compose database and, only if you accept the risk on local data, declare that

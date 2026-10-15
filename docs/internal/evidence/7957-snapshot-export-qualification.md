@@ -135,8 +135,10 @@ standby ran `log_statement=all`.
   passed when the unpatched build was declared, which proves only its
   mechanics. Its build-safety purpose needs a qualified image (#260).
 
-Base-versus-head live count. `go test ./internal/runtime/postgres
-./internal/query -count=1 -p 1 -v` ran against the same fixture with both the
+Base-versus-head live count, covering every live test in
+`go/internal/runtime/postgres` and `go/internal/query` and no other package.
+`go test ./internal/runtime/postgres ./internal/query -count=1 -p 1 -v` ran
+against the same fixture with both the
 `ESHU_READER_TEST_*` and the `ESHU_TEST_CONTENT_INDEX_POSTGRES_*` variables
 set, on base `7be0f4ce7` and on the branch after the guarded-proof fix below.
 Base: 3003 pass, 94 skip, 6 fail. Head: 3026 pass, 95 skip, 6 fail. The six
@@ -157,10 +159,15 @@ build. Its ledger class is `scheduled`, so CI would not have caught it.
 
 ## Live-suite declaration sweep
 
-Every test that builds a `runtime/postgres` Config or Access was checked, by
-`rg 'runtimepostgres\.(LoadConfig|Open)|LoadConfig\(|Open\(ctx|Open\(context'`
-over `*_test.go` in `go/internal`, `go/cmd`, and `scripts`. Each one either
-declares the fixture build or never reaches `BeginReadOnlySnapshotSet`.
+Every test that builds a `runtime/postgres` Config or Access was checked. The
+search was
+`rg 'runtimepostgres\.(LoadConfig|Open)|pgaccess\.(LoadConfig|Open)|wireAPI\(|LoadConfig\(|Open\(ctx|Open\(context'`
+over `*_test.go` in `go/internal`, `go/cmd`, and `scripts` (`scripts` holds no
+Go tests). Each one either declares the fixture build or never reaches
+`BeginReadOnlySnapshotSet`. In production the only caller of that method is
+`codetopicparallel.Investigate`, which `ContentReader.InvestigateCodeTopic`
+enters only when `codetopicparallel.Eligible` holds: exactly 16 search terms on
+a reader with at least four connections (`content_reader_code_topic.go:74`).
 
 | Test site | Reaches a snapshot set | Disposition |
 | --- | --- | --- |
@@ -177,6 +184,20 @@ declares the fixture build or never reaches `BeginReadOnlySnapshotSet`.
 | `query/code_topic_parallel_member_loss_test.go` | yes | declares |
 | `query/code_topic_parallel_guarded_live_test.go` | yes | declares (fixed in this revision) |
 | `query/code_topic_snapshot_export_endpoint_live_test.go` | yes | deliberate undeclared and declared halves |
-| `scopedtoken/identity_postgres_restart_test.go` | no; writer only | n/a |
 
-No test under `go/cmd` or `scripts` opens a `runtime/postgres` Access.
+Access-opening sites outside `runtime/postgres` and `query`:
+
+| Site | Reaches a snapshot set | Why |
+| --- | --- | --- |
+| `go/cmd/api/postgres_error_wire_test.go:102` (`wireAPI`, gated by `ESHU_AUTH_QUALIFIED_DSN`) | no | It reads only `GET /api/v0/status/index` (line 108), which uses the single status snapshot, not a set. |
+| `go/cmd/mcp-server/postgres_error_wire_test.go:105` (`wireAPI`, gated by `ESHU_AUTH_QUALIFIED_DSN`) | no | It calls only the `get_index_status` MCP tool (line 112), the same status read. |
+| `go/cmd/api/issue7033_canary_startup_live_test.go:62` (`wireAPI`) | no | It posts `{"topic":"issue7033canary","limit":1}` to `/api/v0/code/topics/investigate` (line 75). `CodeTopicSearchTerms` expands that to one term (measured: `["issue7033canary"]`), so `Eligible` is false and the single fenced statement runs. |
+| `go/internal/scopedtoken/identity_postgres_restart_test.go:60` (`pgaccess.Open`, gated by `ESHU_IDENTITY_RESTART_TEST=1`) | no | It opens a full Access and reads `GET /api/v0/repositories` (line 84) through the reader, which is not a code-topic read. |
+
+The other `wireAPI` callers in `go/cmd/api` (`wiring_test.go:27,36,51,66,81,455`
+and `semantic_search_wiring_test.go:238`) and in `go/cmd/mcp-server`
+(`wiring_test.go:25,34,49,64,79,336`, `cursor_keyring_wiring_test.go:29,57`,
+and `semantic_search_wiring_test.go:212`) all assert an error raised before
+`pgaccess.Open`. That is a config, profile, capture, keyring, or embedder
+error, or the missing-DSN refusal from `pgaccess.LoadConfig`, so none of them
+opens an Access.
