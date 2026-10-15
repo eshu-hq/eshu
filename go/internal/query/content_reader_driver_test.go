@@ -34,6 +34,10 @@ type contentReaderQueryResult struct {
 	// $1/$2/$3 binding is invisible to both (#5764 round-8 P2-2 review
 	// follow-up).
 	wantArgs []driver.Value
+	// routeArgs routes the answer by leading bind values instead of queue
+	// position; see contentreader.ReaderQueryResult.RouteArgs. It stays nil
+	// unless concurrent queries make arrival order nondeterministic.
+	routeArgs []driver.Value
 }
 
 // shared converts this package's result into the shared one.
@@ -45,6 +49,7 @@ func (r contentReaderQueryResult) shared() contentreader.ReaderQueryResult {
 		QueryContains:        r.queryContains,
 		QueryContainsInOrder: r.queryContainsInOrder,
 		WantArgs:             r.wantArgs,
+		RouteArgs:            r.routeArgs,
 	}
 }
 
