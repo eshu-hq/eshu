@@ -127,14 +127,18 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Store.CompleteReplayIdempotency(r.Context(), req.IdempotencyKey, result.Enqueued, result.ScopeIDs, h.now()); err != nil {
-		// The re-enqueue already committed; only the ledger finalize failed,
-		// and the row stays in_progress (retry returns 409). A client cancel
-		// here still answers 499 even though the recovery applied; the fixed
-		// message names that outcome.
-		writeMutationFailure(w, r, err, recoverGenerationsRecordFailedMessage)
+	// The re-enqueue committed: record it on a context a client cancel cannot
+	// abort, so the key never strands in_progress (finalizeContext).
+	finalizeCtx, cancelFinalize := h.finalizeContext(r)
+	defer cancelFinalize()
+	if err := h.Store.CompleteReplayIdempotency(finalizeCtx, req.IdempotencyKey, result.Enqueued, result.ScopeIDs, h.now()); err != nil {
+		// Only the ledger finalize failed, and the row stays in_progress
+		// (retry returns 409). This is always a server fault, client cancel
+		// or not.
+		writeFinalizeFailure(w, r, finalizeCtx, err, recoverGenerationsRecordFailedMessage)
 		return
 	}
+	logFinalizeAfterClientCancel(r, finalizeCtx, "recover-generations", correlationID)
 
 	// A rebuild that left scopes out is still an accepted request, but the audit
 	// ledger outlives logs and counters, so it records the partial outcome under
@@ -143,7 +147,7 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 	if result.Skipped.Total() > 0 {
 		acceptedReason = "recover_generations_accepted_partial"
 	}
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, acceptedReason, authCtx, correlationID)
+	h.recordRecoveryAction(finalizeCtx, governanceaudit.DecisionAllowed, acceptedReason, authCtx, correlationID)
 	mode := "scope_ids"
 	if req.AllScopes {
 		mode = "all_scopes"

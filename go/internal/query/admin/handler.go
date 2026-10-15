@@ -327,6 +327,13 @@ type Handler struct {
 	// Clock supplies the current time for idempotency bookkeeping; nil uses
 	// time.Now().UTC().
 	Clock func() time.Time
+	// FinalizeTimeout bounds the idempotency finalize and the accepted audit
+	// append that run after a replay, reopen, or recover-generations mutation
+	// committed. They run on a context detached from the request's cancel, so
+	// a client leaving cannot strand the ledger row in_progress; this bound
+	// keeps a hung finalize from holding the handler. Zero uses the 2s
+	// package default.
+	FinalizeTimeout time.Duration
 	// Instruments records query duration and error telemetry for
 	// listInputInvalidFacts (issue #4630). Nil disables that telemetry; the
 	// route itself is unaffected.

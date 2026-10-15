@@ -86,7 +86,11 @@ type adminFailureStep struct {
 	// timeoutMessage, when set, is the step's own 504 text for its route
 	// budget expiring.
 	timeoutMessage string
-	handler        func(err error) *Handler
+	// finalize marks a post-commit idempotency finalize. It runs on a context
+	// detached from the request's cancel, so it has no 499 variant here: a
+	// client cancel there is covered by the finalize_test.go tables.
+	finalize bool
+	handler  func(err error) *Handler
 }
 
 // runAdminFailureSteps drives every step through every failure kind it can
@@ -95,7 +99,10 @@ type adminFailureStep struct {
 func runAdminFailureSteps(t *testing.T, steps []adminFailureStep) {
 	t.Helper()
 	for _, step := range steps {
-		kinds := []adminFailureKind{adminFailureBackend, adminFailureCancel}
+		kinds := []adminFailureKind{adminFailureBackend}
+		if !step.finalize {
+			kinds = append(kinds, adminFailureCancel)
+		}
 		if step.reader {
 			kinds = append(kinds, adminFailureStale, adminFailureGraphDeadline)
 		}

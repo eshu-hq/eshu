@@ -140,16 +140,20 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ids := workItemIDList(items)
-	if err := h.Store.CompleteReplayIdempotency(r.Context(), req.IdempotencyKey, len(items), ids, h.now()); err != nil {
-		// The replay already committed; only the ledger finalize failed. Leave the
-		// row in_progress (retry returns 409) so the durable outcome is never
-		// erased by a reclaim. A client cancel here still answers 499 even
-		// though the replay applied; the fixed message names that outcome.
-		writeMutationFailure(w, r, err, replayRecordFailedMessage)
+	// The replay committed: record it on a context a client cancel cannot
+	// abort, so the key never strands in_progress (finalizeContext).
+	finalizeCtx, cancelFinalize := h.finalizeContext(r)
+	defer cancelFinalize()
+	if err := h.Store.CompleteReplayIdempotency(finalizeCtx, req.IdempotencyKey, len(items), ids, h.now()); err != nil {
+		// Only the ledger finalize failed. Leave the row in_progress (retry
+		// returns 409) so the durable outcome is never erased by a reclaim.
+		// This is always a server fault, client cancel or not.
+		writeFinalizeFailure(w, r, finalizeCtx, err, replayRecordFailedMessage)
 		return
 	}
+	logFinalizeAfterClientCancel(r, finalizeCtx, "replay", correlationID)
 
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "replay_accepted", authCtx, correlationID)
+	h.recordRecoveryAction(finalizeCtx, governanceaudit.DecisionAllowed, "replay_accepted", authCtx, correlationID)
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status":          "replayed",
 		"replayed_count":  len(items),

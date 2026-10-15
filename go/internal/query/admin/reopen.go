@@ -225,17 +225,20 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 	}
 
 	combined := append(append([]string{}, res.ReducerWorkItemIDs...), res.IntentIDs...)
-	if err := h.Store.CompleteReplayIdempotency(r.Context(), req.IdempotencyKey, len(combined), combined, h.now()); err != nil {
-		// The reopen already committed; only the ledger finalize failed.
-		// Leave the row in_progress (retry returns 409) so the durable
-		// outcome is never erased by a reclaim. A client cancel here still
-		// answers 499 even though the reopen applied; the fixed message
-		// names that outcome.
-		writeMutationFailure(w, r, err, reopenRecordFailedMessage)
+	// The reopen committed: record it on a context a client cancel cannot
+	// abort, so the key never strands in_progress (finalizeContext).
+	finalizeCtx, cancelFinalize := h.finalizeContext(r)
+	defer cancelFinalize()
+	if err := h.Store.CompleteReplayIdempotency(finalizeCtx, req.IdempotencyKey, len(combined), combined, h.now()); err != nil {
+		// Only the ledger finalize failed. Leave the row in_progress (retry
+		// returns 409) so the durable outcome is never erased by a reclaim.
+		// This is always a server fault, client cancel or not.
+		writeFinalizeFailure(w, r, finalizeCtx, err, reopenRecordFailedMessage)
 		return
 	}
+	logFinalizeAfterClientCancel(r, finalizeCtx, "reopen", correlationID)
 
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "reopen_accepted", authCtx, correlationID)
+	h.recordRecoveryAction(finalizeCtx, governanceaudit.DecisionAllowed, "reopen_accepted", authCtx, correlationID)
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status":                 "reopened",
 		"domain":                 req.Domain,

@@ -116,7 +116,7 @@ func TestAdminMutationFailuresAnswerFixedText(t *testing.T) {
 		},
 		{
 			name: "recover generations record", path: "/api/v0/admin/recover-generations", body: failureRecoverBody,
-			message: recoverGenerationsRecordFailedMessage,
+			message: recoverGenerationsRecordFailedMessage, finalize: true,
 			handler: func(err error) *Handler {
 				return &Handler{Recovery: &stubRecoveryHandler{}, Store: &stubAdminStore{claim: claimedFailureStep, completeErr: err}}
 			},
@@ -169,7 +169,7 @@ func TestAdminIdempotentMutationFailuresAnswerFixedText(t *testing.T) {
 		},
 		{
 			name: "replay record", path: "/api/v0/admin/replay", body: failureReplayBody,
-			message: replayRecordFailedMessage,
+			message: replayRecordFailedMessage, finalize: true,
 			handler: func(err error) *Handler {
 				return &Handler{Store: &stubAdminStore{claim: claimedFailureStep, completeErr: err}}
 			},
@@ -193,7 +193,7 @@ func TestAdminIdempotentMutationFailuresAnswerFixedText(t *testing.T) {
 		},
 		{
 			name: "reopen record", path: "/api/v0/admin/reopen", body: failureReopenBody,
-			message: reopenRecordFailedMessage,
+			message: reopenRecordFailedMessage, finalize: true,
 			handler: func(err error) *Handler {
 				return &Handler{Store: &stubAdminStore{claim: claimedFailureStep, completeErr: err}}
 			},
