@@ -90,9 +90,9 @@
 // (changedsince.CategoryDeployment, #1985), runtime
 // (changedsince.CategoryRuntime, #1986), dependencies
 // (changedsince.CategoryDependencies, #1987), docs
-// (changedsince.CategoryDocs, #1988), and incidents
-// (changedsince.CategoryIncidents, #1989) evidence families; the remaining family
-// appends to changedsince.ServiceCategories as it lands.
+// (changedsince.CategoryDocs, #1988), incidents
+// (changedsince.CategoryIncidents, #1989), and vulnerabilities
+// (changedsince.CategoryVulnerabilities, #1990) evidence families.
 //
 // ControlPlane projects an already-built Report into OperatorControlPlane, the
 // unified operator read model for the control-plane epic: queue depth with
