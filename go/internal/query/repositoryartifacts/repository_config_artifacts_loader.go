@@ -72,7 +72,9 @@ func (l configArtifactLoader) loadShared(
 	if err != nil {
 		return nil, err
 	}
-	controllerArtifacts, err := loadRepositoryControllerArtifacts(ctx, reader, repoID, repoName, files)
+	// The overview keeps its shape: production callers hold the anchor list,
+	// so the fallback never fires here and the flag is always false (#8157).
+	controllerArtifacts, _, err := loadRepositoryControllerArtifacts(ctx, reader, repoID, repoName, files)
 	if err != nil {
 		return nil, err
 	}
@@ -82,34 +84,39 @@ func (l configArtifactLoader) loadShared(
 	return configArtifacts, nil
 }
 
+// LoadRepositoryControllerArtifacts loads the anchor repository's controller
+// artifacts. The truncated flag is true only when the nil-list fallback
+// clipped the anchor list at the window; a caller holding its own list (the
+// production path) always sees false.
 func LoadRepositoryControllerArtifacts(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	repoID string,
 	repoName string,
 	files []querycontract.FileContent,
-) (map[string]any, error) {
+) (map[string]any, bool, error) {
 	if reader == nil || repoID == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	candidates := files
+	truncated := false
 	if candidates == nil {
 		var err error
-		candidates, err = listAnchorCandidateFiles(ctx, reader, repoID, "controller")
+		candidates, truncated, err = listAnchorCandidateFiles(ctx, reader, repoID, "controller")
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
 	hydratedCandidates, err := HydrateRepositoryCandidateFiles(ctx, reader, repoID, candidates, isPotentialControllerArtifact)
 	if err != nil {
-		return nil, fmt.Errorf("hydrate controller artifact files: %w", err)
+		return nil, false, fmt.Errorf("hydrate controller artifact files: %w", err)
 	}
 
 	contentFiles := append([]querycontract.FileContent(nil), hydratedCandidates...)
 
-	return BuildRepositoryControllerArtifacts(repoName, contentFiles), nil
+	return BuildRepositoryControllerArtifacts(repoName, contentFiles), truncated, nil
 }
 
 // QueryRelatedRepositoryArtifactSources walks every DEPENDS_ON/USES_MODULE/...
@@ -332,6 +339,6 @@ func loadRepositoryControllerArtifacts(
 	repoID string,
 	repoName string,
 	files []querycontract.FileContent,
-) (map[string]any, error) {
+) (map[string]any, bool, error) {
 	return LoadRepositoryControllerArtifacts(ctx, reader, repoID, repoName, files)
 }

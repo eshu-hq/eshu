@@ -73,17 +73,17 @@ func TestAnchorLoaderListsReadWholeWindowWithSentinel(t *testing.T) {
 	want := querycontract.RepositorySemanticEntityLimit + 1
 
 	workflowStore := &anchorListLimitRecorder{}
-	if _, err := LoadRepositoryWorkflowArtifacts(context.Background(), workflowStore, "repo-a", nil); err != nil {
+	if _, _, err := LoadRepositoryWorkflowArtifacts(context.Background(), workflowStore, "repo-a", nil); err != nil {
 		t.Fatalf("LoadRepositoryWorkflowArtifacts() error = %v, want nil", err)
 	}
 
 	runtimeStore := &anchorListLimitRecorder{}
-	if _, err := loadRepositoryRuntimeArtifacts(context.Background(), runtimeStore, "repo-a", nil); err != nil {
+	if _, _, err := loadRepositoryRuntimeArtifacts(context.Background(), runtimeStore, "repo-a", nil); err != nil {
 		t.Fatalf("loadRepositoryRuntimeArtifacts() error = %v, want nil", err)
 	}
 
 	controllerStore := &anchorListLimitRecorder{}
-	if _, err := LoadRepositoryControllerArtifacts(context.Background(), controllerStore, "repo-a", "svc", nil); err != nil {
+	if _, _, err := LoadRepositoryControllerArtifacts(context.Background(), controllerStore, "repo-a", "svc", nil); err != nil {
 		t.Fatalf("LoadRepositoryControllerArtifacts() error = %v, want nil", err)
 	}
 
@@ -144,12 +144,86 @@ func TestAnchorLoaderListClipsSentinelRow(t *testing.T) {
 	})
 	store := &anchorListLimitRecorder{rows: rows}
 
-	got, err := LoadRepositoryWorkflowArtifacts(context.Background(), store, "repo-a", nil)
+	got, truncated, err := LoadRepositoryWorkflowArtifacts(context.Background(), store, "repo-a", nil)
 	if err != nil {
 		t.Fatalf("LoadRepositoryWorkflowArtifacts() error = %v, want nil", err)
 	}
 	if got != nil {
 		t.Fatalf("LoadRepositoryWorkflowArtifacts() = %v, want nil (the only workflow file sits past the window)", got)
+	}
+	if !truncated {
+		t.Fatal("LoadRepositoryWorkflowArtifacts() truncated = false, want true (sentinel row past the window was cut)")
+	}
+}
+
+// TestListAnchorCandidateFilesReportsTruncation proves the fallback list
+// reports whether it clipped (#8157): a list past the window comes back
+// clipped with truncated true, and a short list comes back whole with
+// truncated false, so a direct caller can disclose the cut the same way
+// production callers do via AnchorFileListTruncatedReason.
+func TestListAnchorCandidateFilesReportsTruncation(t *testing.T) {
+	t.Parallel()
+
+	limit := querycontract.RepositorySemanticEntityLimit
+	clipped := make([]querycontract.FileContent, 0, limit+1)
+	for i := 0; i < limit+1; i++ {
+		clipped = append(clipped, querycontract.FileContent{RelativePath: fmt.Sprintf("file-%05d.txt", i)})
+	}
+	store := &anchorListLimitRecorder{rows: clipped}
+	files, truncated, err := listAnchorCandidateFiles(context.Background(), store, "repo-a", "workflow")
+	if err != nil {
+		t.Fatalf("listAnchorCandidateFiles() error = %v, want nil", err)
+	}
+	if len(files) != limit {
+		t.Fatalf("len(files) = %d, want clipped window %d", len(files), limit)
+	}
+	if !truncated {
+		t.Fatal("listAnchorCandidateFiles() truncated = false, want true (list was cut)")
+	}
+
+	short := &anchorListLimitRecorder{rows: clipped[:10]}
+	files, truncated, err = listAnchorCandidateFiles(context.Background(), short, "repo-a", "workflow")
+	if err != nil {
+		t.Fatalf("listAnchorCandidateFiles() error = %v, want nil", err)
+	}
+	if len(files) != 10 {
+		t.Fatalf("len(files) = %d, want 10 (short list passes through)", len(files))
+	}
+	if truncated {
+		t.Fatal("listAnchorCandidateFiles() truncated = true, want false (nothing was cut)")
+	}
+}
+
+// TestAnchorLoaderFallbackPropagatesTruncation proves every anchor-only
+// loader surfaces a clipped fallback list to its direct nil caller (#8157),
+// while a non-nil production list never reports a cut.
+func TestAnchorLoaderFallbackPropagatesTruncation(t *testing.T) {
+	t.Parallel()
+
+	limit := querycontract.RepositorySemanticEntityLimit
+	rows := make([]querycontract.FileContent, 0, limit+1)
+	for i := 0; i < limit+1; i++ {
+		rows = append(rows, querycontract.FileContent{RelativePath: fmt.Sprintf("file-%05d.txt", i)})
+	}
+
+	workflowStore := &anchorListLimitRecorder{rows: rows}
+	if _, truncated, err := LoadRepositoryWorkflowArtifacts(context.Background(), workflowStore, "repo-a", nil); err != nil || !truncated {
+		t.Fatalf("LoadRepositoryWorkflowArtifacts() = (_, %v, %v), want (_, true, nil)", truncated, err)
+	}
+
+	runtimeStore := &anchorListLimitRecorder{rows: rows}
+	if _, truncated, err := loadRepositoryRuntimeArtifacts(context.Background(), runtimeStore, "repo-a", nil); err != nil || !truncated {
+		t.Fatalf("loadRepositoryRuntimeArtifacts() = (_, %v, %v), want (_, true, nil)", truncated, err)
+	}
+
+	controllerStore := &anchorListLimitRecorder{rows: rows}
+	if _, truncated, err := LoadRepositoryControllerArtifacts(context.Background(), controllerStore, "repo-a", "svc", nil); err != nil || !truncated {
+		t.Fatalf("LoadRepositoryControllerArtifacts() = (_, %v, %v), want (_, true, nil)", truncated, err)
+	}
+
+	whole := []querycontract.FileContent{{RelativePath: "file-00000.txt"}}
+	if _, truncated, err := LoadRepositoryWorkflowArtifacts(context.Background(), &anchorListLimitRecorder{}, "repo-a", whole); err != nil || truncated {
+		t.Fatalf("LoadRepositoryWorkflowArtifacts(non-nil) = (_, %v, %v), want (_, false, nil)", truncated, err)
 	}
 }
 

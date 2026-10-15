@@ -118,14 +118,16 @@ func (l configArtifactLoader) loadDeploymentArtifactOverview(
 	cloudFormationArtifacts := buildRepositoryCloudFormationRuntimeArtifacts(infrastructure)
 	merged = mergeArtifactOverview(merged, cloudFormationArtifacts)
 
-	runtimeArtifacts, err := loadRepositoryRuntimeArtifacts(ctx, content, repoID, artifactFiles)
+	// The overview keeps its shape: production callers hold the anchor list,
+	// so the fallback never fires here and the flag is always false (#8157).
+	runtimeArtifacts, _, err := loadRepositoryRuntimeArtifacts(ctx, content, repoID, artifactFiles)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	} else {
 		merged = mergeArtifactOverview(merged, runtimeArtifacts)
 	}
 
-	workflowArtifacts, err := loadRepositoryWorkflowArtifacts(ctx, content, repoID, artifactFiles)
+	workflowArtifacts, _, err := loadRepositoryWorkflowArtifacts(ctx, content, repoID, artifactFiles)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	} else {

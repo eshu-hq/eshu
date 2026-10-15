@@ -32,7 +32,7 @@ func TestLoadRepositoryControllerArtifactsFallsBackToGetFileContentForJenkinsfil
 	})
 
 	reader := NewContentReader(db)
-	got, err := artifacts.LoadRepositoryControllerArtifacts(
+	got, _, err := artifacts.LoadRepositoryControllerArtifacts(
 		context.Background(),
 		reader,
 		"repo-1",

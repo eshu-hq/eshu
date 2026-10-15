@@ -71,7 +71,11 @@ importing a query package. This package keeps:
   `GetFileContents` statement per ten paths replaced the old one-file reads
   capped at `RepositoryArtifactHydrationLimit` (the 50-candidate floor, kept
   exported for #6060). The loader fallback lists read
-  `RepositorySemanticEntityLimit+1` rows and clip to the window;
+  `RepositorySemanticEntityLimit+1` rows, clip to the window, and report the
+  clip: `listAnchorCandidateFiles` returns a truncated flag alongside the
+  clipped list (#8157), and each anchor-only loader propagates it, so a
+  direct nil caller can disclose the cut via `AnchorFileListTruncatedReason`
+  the same way production callers do;
 - `ConfigArtifactReadStats`, which sums the per-repository `ReadStats` of the
   neutral package with the stage's statement and byte counts.
 
@@ -170,6 +174,25 @@ anchor pass adds no per-loader counts of its own.
 The metric and log fields are in
 [Telemetry metrics](../../../../docs/public/reference/telemetry/metrics.md) and
 [Telemetry logs](../../../../docs/public/reference/telemetry/logs.md).
+
+### Anchor fallback truncation flag (#8157)
+
+No-Regression Evidence (#8157): the flag adds one bool to existing returns
+and changes no statement shape. The fallback still reads
+`anchorCandidateListLimit+1` rows in one `ListRepoFiles` call, pinned by
+`TestAnchorLoaderListsReadWholeWindowWithSentinel` on all three loaders, and
+hydration still costs ceil(candidates/10) `GetFileContents` statements with 8
+in flight, pinned at 6 statements for 60 candidates by
+`TestAnchorHydrationReadsWholeCandidateWindow`. Baseline is the pre-#8157
+tree with the same limits and chunking. After the change:
+`go test ./internal/query/repositoryartifacts/ -count=1` is ok,
+`-race` on the anchor tests is ok, and the `query`, `query/service`,
+`query/cicd`, and `content/artifacts` suites are all ok.
+
+No-Observability-Change (#8157): no new metric, span, log field, or
+stage-line field. The flag travels in return values only; the service routes
+keep disclosing cuts through the existing `AnchorFileListTruncatedReason`
+path.
 
 ## Dependencies
 

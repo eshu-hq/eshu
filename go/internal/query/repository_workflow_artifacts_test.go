@@ -61,7 +61,7 @@ jobs:
 	})
 
 	reader := NewContentReader(db)
-	got, err := artifacts.LoadRepositoryWorkflowArtifacts(
+	got, _, err := artifacts.LoadRepositoryWorkflowArtifacts(
 		context.Background(),
 		reader,
 		"repo-1",
