@@ -41,7 +41,7 @@ func syncGitRepositoriesWithLogger(
 	}
 	ctx = deadline.WithSweep(deadline.WithMetrics(ctx, baseline.Instruments), config.GitDeadlines, logger)
 	token, err := resolveGitToken(ctx, config)
-	if err != nil && config.SourceMode == "githubOrg" {
+	if err != nil && (config.SourceMode == "githubOrg" || config.SourceMode == "gitlabGroup") {
 		return GitSyncSelection{}, err
 	}
 

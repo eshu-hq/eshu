@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/gitlab"
 )
 
 // newGitHubOrgListingServer serves total repositories for org acme with the
@@ -211,8 +212,8 @@ func TestLinkHeaderHasNext(t *testing.T) {
 		{name: "next only in the target", values: []string{`<https://x/?rel=next>; rel="last"`}, want: false},
 	}
 	for _, tc := range cases {
-		if got := linkHeaderHasNext(tc.values); got != tc.want {
-			t.Errorf("%s: linkHeaderHasNext(%q) = %v, want %v", tc.name, tc.values, got, tc.want)
+		if got := gitlab.HasNextLink(tc.values); got != tc.want {
+			t.Errorf("%s: HasNextLink(%q) = %v, want %v", tc.name, tc.values, got, tc.want)
 		}
 	}
 }

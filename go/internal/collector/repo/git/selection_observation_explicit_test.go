@@ -173,9 +173,9 @@ type ownerKnownStore struct {
 	batches []membership.Batch
 }
 
-func (s *ownerKnownStore) KnownScopes(_ context.Context, owner, host string) ([]membership.KnownScope, error) {
-	s.hosts = append(s.hosts, host)
-	return s.known[owner], nil
+func (s *ownerKnownStore) KnownScopes(_ context.Context, partition membership.Partition) ([]membership.KnownScope, error) {
+	s.hosts = append(s.hosts, partition.Host)
+	return s.known[partition.Owner], nil
 }
 
 func (s *ownerKnownStore) Observations(context.Context, string) ([]membership.Observation, error) {
