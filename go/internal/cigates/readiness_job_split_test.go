@@ -97,13 +97,14 @@ const (
 
 	readinessShardJob  = "live-postgres-readiness-shards"
 	readinessShardName = "live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/4)"
-	// Interim 17-minute leg budget (#7864): predicted max shard 756s test
-	// wall plus per-package overhead and ~80s fixed job cost is 12.6m, plus
-	// the 16m suite-range quarter share is 16.6m, ceilinged to 17m (1020s).
-	// Worst-case estimate 992s sits inside the cap. Five green sharded runs
-	// tighten this in a follow-up; a leg approaching the cap means split
-	// further, never raise the cap to mask a hang.
-	readinessShardTimeout  = 17
+	// Interim 30-minute leg budget (#7864): test walls alone predicted 12.6m,
+	// but real sharded runs showed the cold `go test` build of the giant
+	// storage package costs ~9m on slow runners (leg 2/4: 821s suite for
+	// 249s of tests). The heavy leg needs ~22m decomposed and timed out at
+	// 17m, while a fast run finished every leg in 8-15m. 30m covers the slow
+	// need with margin at half the old 60m cap; five green sharded runs plus
+	// a build-cache investigation tighten it in a follow-up.
+	readinessShardTimeout  = 30
 	readinessShardRunner   = `bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/4" --report readiness-shard-report.json`
 	readinessShardContract = "python3 scripts/test-live-postgres-readiness-shards.py"
 	readinessFixtureStart  = "bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'"
@@ -171,7 +172,7 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	}
 	if hermetic.TimeoutMinutes != 30 || shards.TimeoutMinutes != readinessShardTimeout ||
 		aggregate.TimeoutMinutes != 10 {
-		return "hermetic, shard, and aggregate jobs must retain independent 30/17/10-minute limits"
+		return "hermetic, shard, and aggregate jobs must retain independent 30/30/10-minute limits"
 	}
 	if !slices.Equal(readinessNeedsList(hermetic), []string{"queue-selection"}) ||
 		hermetic.If != "" || hermetic.ContinueOnError != "" {
