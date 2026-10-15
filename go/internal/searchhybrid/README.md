@@ -63,7 +63,10 @@ documents, and returns up to `limit+1` candidates so the runner can detect and
 report truncation. Ordering is deterministic for fixed inputs: ties break by
 document id, matching the runner's normalization. BM25 sums each document's
 per-term contributions in sorted term order, never Go map-iteration order, so
-score bits are identical on every request (#7746). `RankAll` shares the same
+score bits are identical on every request served by one binary (#7746).
+Across architectures a score can differ by a few ulp, because Go may fuse a
+multiply and add (FMA) on arm64 but not on amd64 at the default `GOAMD64=v1`;
+ranks and order agree except for scores within that noise. `RankAll` shares the same
 ranking core with a fusion pool of the whole index and returns every ranked
 in-scope document, not `limit+1`.
 

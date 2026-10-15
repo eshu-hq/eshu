@@ -202,7 +202,8 @@ func (index *Index) documentVector(
 // corpus statistics. It is kept for direct single-document scoring and tests;
 // retrieval uses bm25ScoredInScope, which is driven by the inverted index.
 // Contributions are summed in sorted term order (see sortedQueryTerms), so the
-// score bits match bm25ScoredInScope and are stable across requests.
+// score bits match bm25ScoredInScope and are stable across requests served by
+// one binary (see sortedQueryTerms for the cross-architecture limit).
 func (index *Index) bm25Score(queryTerms map[string]int, entry indexedDocument) float64 {
 	if index.count == 0 || index.averageLen == 0 {
 		return 0
@@ -224,7 +225,7 @@ func (index *Index) bm25Score(queryTerms map[string]int, entry indexedDocument) 
 // resolved request scope. The result contains only documents with at least one
 // matching term, so zero-overlap documents never appear. Each document's
 // contributions are added in sorted term order, never map-iteration order, so
-// its score bits are identical on every request.
+// its score bits are identical on every request served by one binary.
 func (index *Index) bm25ScoredInScope(queryTerms map[string]int, inScope func(int) bool) map[int]float64 {
 	scores := make(map[int]float64)
 	if index.count == 0 || index.averageLen == 0 {
@@ -257,6 +258,15 @@ func (index *Index) vectorScoresInScope(queryVector []float64, inScope func(int)
 // different keys (term here, (term_key, term) there) and associate the BM25
 // formula differently, so their score bits are each stable but not equal to
 // each other.
+//
+// The fixed order makes score bits stable per binary, which means per process
+// and per architecture. It does not make them equal across architectures: Go
+// may fuse a multiply and add into one FMA instruction on arm64 but not on
+// amd64 at the default GOAMD64=v1 (on arm64 the compiler fuses the
+// termContribution denominator into FMADDD), so the same score can differ by a
+// few ulp between an arm64 and an amd64 replica (4 ulp observed). Ordering by score ties and ranks can then
+// differ only where two scores are within that noise. Nothing that crosses
+// processes, such as a cursor, may depend on exact score bits.
 func sortedQueryTerms(queryTerms map[string]int) []string {
 	terms := make([]string, 0, len(queryTerms))
 	for term := range queryTerms {

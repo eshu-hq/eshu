@@ -49,6 +49,10 @@
 - Symptom: score bits or tie order change between identical requests - a sum
   over a map is iterating in map order; sum in a sorted key order
   (`sortedQueryTerms`).
+- Symptom: a test pinning raw score bits passes on arm64 and fails on amd64
+  (or the reverse) by a few ulp - Go may fuse multiply-add (FMA) on arm64 but
+  not on amd64 at the default `GOAMD64=v1`. Pin scores to a fixed number of significant digits (see
+  `searchGoldenScoreDigits`), never raw bits across architectures.
 
 ## Anti-patterns specific to this package
 

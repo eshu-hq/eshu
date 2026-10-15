@@ -87,11 +87,18 @@ func reversed(values []string) []string {
 }
 
 // TestBM25ScoreBytesStableAcrossTermOrder pins that a document's BM25 score is
-// byte-identical on every request and across query-term maps built in any
-// insertion order. Float addition is not associative, so summing per-term
-// contributions in map-iteration order changes the score bits from run to run
-// (#7746, the in-process twin of #7737). Both the inverted-index path and the
-// direct single-document path must sum in sorted term order.
+// bit-identical on every request within one process and across query-term
+// maps built in any insertion order. Float addition is not associative, so
+// summing per-term contributions in map-iteration order changes the score bits
+// from run to run (#7746, the in-process twin of #7737). Both the
+// inverted-index path and the direct single-document path must sum in sorted
+// term order.
+//
+// The test holds on every architecture: the reference is computed in the same
+// binary, with the same termContribution and the same summation order, and no
+// product feeds the summing add directly, so FMA fusion cannot treat the
+// reference and production sums differently. It does not compare bits across
+// architectures; see sortedQueryTerms for that limit.
 func TestBM25ScoreBytesStableAcrossTermOrder(t *testing.T) {
 	t.Parallel()
 
