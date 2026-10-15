@@ -12,7 +12,8 @@ instead of diffing two whole generations.
 The store is dark. Nothing reads the ledger yet, and the runner is off unless
 `ESHU_CHANGED_SINCE_LINK_ENABLED=true`. The same switch makes the projector
 Ack in the ingester and bootstrap-index journal each activation it commits
-(PR-3b, "Ack writer" below); off, the Ack issues no ledger SQL.
+(PR-3b, "Ack writer" below); off, the Ack issues no ledger SQL. `Enabled`
+parses the switch for all three binaries, so they cannot disagree on a value.
 
 ## Tables (migration 136)
 

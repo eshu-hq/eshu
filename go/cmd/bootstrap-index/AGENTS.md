@@ -181,6 +181,10 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
 
 ## Anti-patterns
 
+- **Do not parse `ESHU_CHANGED_SINCE_LINK_ENABLED` here.** `buildBootstrapProjector`
+  sets `ProjectorQueue.ChangedSinceJournalEnabled` from
+  `linksfreshnessstore.Enabled(getenv)`, the reducer's parse (#7127 PR-3b);
+  `TestBuildBootstrapProjectorWiresChangedSinceJournal` pins it, off by default.
 - **Do not skip `SkipRelationshipBackfill=true`.** Without it, every
   `CommitScopeGeneration` call runs a full per-repo backfill. On 800+ repos
   this is quadratically expensive and defeats the deferred-backfill design.

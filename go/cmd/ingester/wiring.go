@@ -25,6 +25,7 @@ import (
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/maintenance"
 	membershipstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/membership"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
@@ -310,6 +311,11 @@ func buildIngesterProjectorService(
 	projectorQueue.MaxRetryDelay = retryPolicy.MaxRetryDelay
 	projectorQueue.JitterFraction = retryPolicy.JitterFraction
 	projectorQueue.Instruments = instruments
+	// #7127 PR-3b: with ESHU_CHANGED_SINCE_LINK_ENABLED on, Ack journals the
+	// activation it commits into the changed-since ledger, gated so it never
+	// waits on the reducer's journal pass. Off (the default) Ack sends no
+	// ledger SQL. The reducer parses the same switch with the same function.
+	projectorQueue.ChangedSinceJournalEnabled = linksfreshnessstore.Enabled(getenv)
 	// ConfigStateDriftTrigger (issue #5593): a terraform_state_snapshot scope
 	// generation that activates here -- from collector-terraform-state facts
 	// committed through the normal ingestion boundary and drained by this

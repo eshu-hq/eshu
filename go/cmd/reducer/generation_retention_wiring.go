@@ -162,7 +162,7 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 // Changed-since link domain knobs (#7127 PR-3a). The domain is dark: it is
 // off by default, and with the switch off it issues no SQL.
 const (
-	changedSinceLinkEnabledEnv          = "ESHU_CHANGED_SINCE_LINK_ENABLED"
+	changedSinceLinkEnabledEnv          = linkstore.EnabledEnv
 	changedSinceLinkSlotsEnv            = "ESHU_CHANGED_SINCE_LINK_SLOTS"
 	changedSinceLinkStatementTimeoutEnv = "ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT"
 	changedSinceLinkPollIntervalEnv     = "ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL"
@@ -182,7 +182,9 @@ type changedSinceLinkConfig struct {
 // value uses the default, as the other reducer maintenance knobs do.
 func loadChangedSinceLinkConfig(getenv func(string) string) changedSinceLinkConfig {
 	return changedSinceLinkConfig{
-		Enabled:          loadBoolOrDefault(getenv, changedSinceLinkEnabledEnv, false),
+		// One parse for every binary: the ingester and bootstrap-index read
+		// the same switch for the Ack journal (#7127 PR-3b).
+		Enabled:          linkstore.Enabled(getenv),
 		Slots:            loadPositiveIntOrDefault(getenv, changedSinceLinkSlotsEnv, linkstore.DefaultSlots),
 		StatementTimeout: loadDurationOrDefault(getenv, changedSinceLinkStatementTimeoutEnv, linkstore.DefaultStatementTimeout),
 		Runner: links.Config{
