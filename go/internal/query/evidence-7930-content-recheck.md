@@ -33,7 +33,7 @@
   `fileContentMultiScopeWhere`, `fileContentScopedQuery` (byte-identical SQL;
   pinned by `TestScopedSearchShippedDerivationGuard`). No predicate, order,
   limit, span, or argument change.
-- New guard `content_reader_search_scoped_workbound_live_test.go` (20 cells),
+- New guard `content_reader_search_scoped_workbound_guard_live_test.go` (20 cells),
   shared fixture `content_reader_search_scoped_fixture_test.go`, probes
   `content_reader_search_scoped_union_probe_live_test.go` (A + B with
   derivation guards). Tests skip cleanly without
@@ -90,8 +90,7 @@ Fixture PG 18.6 vs serving 18.3; synthetic corpus (no production rows);
 single-sample cells (buffer counts were stable across runs, wall time was
 not, and wall time is not capped at this rung); collation en_US.UTF-8/UTF8
 asserted in-fixture. No serving claims: nothing here predicts production
-latency. NOT_CHECKED (rung-3/4): built-binary replay, p50/p95, standby
-replay, pooler characterization.
+latency.
 
 ## Rung-3/4 serving proof (2026-10-15, QA, Eshu 8ee65f5, ledger 177)
 
@@ -116,3 +115,6 @@ evidence on the pre-177 fixture; serving on the shipped schema does not
 reproduce a tail. No probe ships: probes A/B stay killed (measured
 no-gain), bitmap-free guard stays superseded, trigram-GIN preservation
 stands. Guard + kill record pinned by the tests in this change.
+
+NOT_CHECKED (rung-3/4 remainder): standby replay. Built-binary replay,
+p50/p95, and pooler characterization are reported in this section above.

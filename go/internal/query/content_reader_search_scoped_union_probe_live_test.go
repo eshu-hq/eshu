@@ -47,12 +47,27 @@ func dedupeScopedRepos(repos []string) []string {
 // builders, and only the UNION ALL joints plus the outer ORDER BY/LIMIT are
 // probe-only assembly.
 func unionAllProbeQuery(repos []string, patternArg, firstRepoArg, limitArg, offsetArg int) (string, int) {
+	return unionAllProbeQueryFrom(repos, firstRepoArg, limitArg, offsetArg, func(repoArg int) string {
+		return fileContentScopedQuery(fileContentSingleScopeWhere(repoArg, patternArg), limitArg, offsetArg)
+	})
+}
+
+// unionAllProbeQueryFrom assembles the probe statement from one shipped
+// single-scope statement per deduplicated repository. legStatement is a seam
+// so a unit test can simulate builder drift (a statement whose text no
+// longer ends at the stable ORDER BY boundary) and pin the poison-leg path;
+// the guard and live probe always pass the shipped builders via
+// unionAllProbeQuery.
+func unionAllProbeQueryFrom(repos []string, firstRepoArg, limitArg, offsetArg int, legStatement func(repoArg int) string) (string, int) {
 	deduped := dedupeScopedRepos(repos)
 	const orderBoundary = "\n\t\tORDER BY repo_id, relative_path"
 	legs := make([]string, 0, len(deduped))
-	repoArg := firstRepoArg
-	for range deduped {
-		full := fileContentScopedQuery(fileContentSingleScopeWhere(repoArg, patternArg), limitArg, offsetArg)
+	// Derive each leg's repo bind from its leg index, never from a running
+	// counter: a poison leg below must not shift the binds of later legs,
+	// because unionAllProbeArgs binds one repo per deduped leg in order.
+	for i := range deduped {
+		repoArg := firstRepoArg + i
+		full := legStatement(repoArg)
 		body, found := strings.CutSuffix(strings.TrimSpace(full), orderBoundary+"\n\t\tLIMIT $"+fmt.Sprint(limitArg)+" OFFSET $"+fmt.Sprint(offsetArg))
 		if !found {
 			// Fall back to a hard failure downstream: a leg that is not a
@@ -61,10 +76,9 @@ func unionAllProbeQuery(repos []string, patternArg, firstRepoArg, limitArg, offs
 			continue
 		}
 		legs = append(legs, "("+strings.TrimSpace(body)+")")
-		repoArg++
 	}
 	outer := fmt.Sprintf(orderBoundary+"\n\t\tLIMIT $%d OFFSET $%d\n\t", limitArg, offsetArg)
-	return strings.Join(legs, "\n\t\tUNION ALL ") + outer, repoArg
+	return strings.Join(legs, "\n\t\tUNION ALL ") + outer, firstRepoArg + len(deduped)
 }
 
 // unionAllProbeArgs binds one probe execution: the shared pattern, one repo
@@ -92,9 +106,10 @@ func TestUnionAllProbeDerivationGuard(t *testing.T) {
 		t.Fatalf("dedupeScopedRepos(%v) = %v, want first-seen order without duplicates", repos, got)
 	}
 	// Bind layout: $1 pattern, $2/$3 repos, $4 limit, $5 offset.
-	query, nextArg := unionAllProbeQuery(repos, 1, 2, 4, 5)
-	if nextArg != 4 {
-		t.Fatalf("unionAllProbeQuery consumed through $%d, want $3", nextArg-1)
+	const firstRepoArg = 2
+	query, nextArg := unionAllProbeQuery(repos, 1, firstRepoArg, 4, 5)
+	if want := firstRepoArg + len(dedupeScopedRepos(repos)); nextArg != want {
+		t.Fatalf("unionAllProbeQuery nextArg = $%d, want $%d (firstRepoArg+len(deduped))", nextArg, want)
 	}
 	if strings.Contains(query, "string_to_array") {
 		t.Fatalf("probe carries the ANY mechanism under test:\n%s", query)
@@ -111,10 +126,60 @@ func TestUnionAllProbeDerivationGuard(t *testing.T) {
 	if strings.Contains(query, "NOT DERIVED FROM SHIPPED TEXT") {
 		t.Fatalf("probe leg is not a truncation of the shipped builders:\n%s", query)
 	}
-	for _, leg := range []string{"repo_id = $2 AND", "repo_id = $3 AND"} {
-		if !strings.Contains(query, leg) {
-			t.Errorf("probe lost per-leg predicate %q:\n%s", leg, query)
+	// Each leg must carry its own distinct repo bind, in leg order, matching
+	// the one-repo-per-deduped-leg order unionAllProbeArgs binds.
+	legs := strings.Split(query, "UNION ALL")
+	if len(legs) != 2 {
+		t.Fatalf("probe holds %d legs, want 2:\n%s", len(legs), query)
+	}
+	for i, leg := range legs {
+		want := fmt.Sprintf("repo_id = $%d AND", firstRepoArg+i)
+		if !strings.Contains(leg, want) {
+			t.Errorf("leg %d lost its distinct repo bind %q:\n%s", i, want, leg)
 		}
+	}
+}
+
+// TestUnionAllProbePoisonLegKeepsBindPositions pins the CutSuffix-miss path:
+// when a leg statement no longer ends at the shipped ORDER BY boundary, that
+// leg stays poison (a hard failure downstream), but later legs must keep the
+// repo bind their position in the deduplicated grant implies, and nextArg
+// must still be firstRepoArg+len(deduped). unionAllProbeArgs binds one repo
+// per deduped leg unconditionally, so a bind recycled after a poison leg
+// would silently query the wrong repository.
+func TestUnionAllProbePoisonLegKeepsBindPositions(t *testing.T) {
+	t.Parallel()
+
+	repos := []string{scopedSmallRepo(9), scopedSmallRepo(10)}
+	const firstRepoArg = 2
+	calls := 0
+	query, nextArg := unionAllProbeQueryFrom(repos, firstRepoArg, 4, 5, func(repoArg int) string {
+		calls++
+		if calls == 1 {
+			// Simulated builder drift: no shipped ORDER BY/LIMIT suffix.
+			return fmt.Sprintf("SELECT repo_id FROM content_files WHERE repo_id = $%d", repoArg)
+		}
+		return fileContentScopedQuery(fileContentSingleScopeWhere(repoArg, 1), 4, 5)
+	})
+	if !strings.Contains(query, "NOT DERIVED FROM SHIPPED TEXT") {
+		t.Fatalf("poison leg missing after a derivation miss:\n%s", query)
+	}
+	if want := firstRepoArg + len(dedupeScopedRepos(repos)); nextArg != want {
+		t.Fatalf("nextArg after a poison leg = $%d, want $%d (firstRepoArg+len(deduped)):\n%s", nextArg, want, query)
+	}
+	legs := strings.Split(query, "UNION ALL")
+	if len(legs) != 2 {
+		t.Fatalf("probe holds %d legs, want 2:\n%s", len(legs), query)
+	}
+	if want := "repo_id = $3 AND"; !strings.Contains(legs[1], want) {
+		t.Fatalf("leg after a poison leg lost its positional repo bind %q:\n%s", want, legs[1])
+	}
+	if strings.Contains(legs[1], "repo_id = $2 AND") {
+		t.Fatalf("leg after a poison leg recycled $2, colliding with the first leg's bind:\n%s", legs[1])
+	}
+	args := unionAllProbeArgs(repos, "pattern", 10, 0)
+	if len(args) != 5 || args[1] != scopedSmallRepo(9) || args[2] != scopedSmallRepo(10) {
+		t.Fatalf("unionAllProbeArgs = %v, want one repo per deduped leg at $2/$3", args)
 	}
 }
 
