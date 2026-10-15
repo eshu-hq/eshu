@@ -4,7 +4,6 @@
 package repository
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -67,7 +66,7 @@ func (h *Handler) listRepositoriesByLanguage(w http.ResponseWriter, r *http.Requ
 			r.Context(), languages, page.Limit+1, page.Offset, allScopes, allowedRepositoryIDs, allowedScopeIDs,
 		)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("read repositories by language: %v", err))
+			writeReadFailure(w, r, err, "platform_impact.catalog", repositoriesByLanguageReadFailedMessage)
 			return
 		}
 		truncated = len(rows) > page.Limit
@@ -77,7 +76,7 @@ func (h *Handler) listRepositoriesByLanguage(w http.ResponseWriter, r *http.Requ
 	} else {
 		aggregate, err = h.Content.CountRepositoriesByLanguage(r.Context(), languages, allScopes, allowedRepositoryIDs, allowedScopeIDs)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("count repositories by language: %v", err))
+			writeReadFailure(w, r, err, "platform_impact.catalog", repositoriesByLanguageCountFailedMessage)
 			return
 		}
 	}
@@ -130,7 +129,7 @@ func (h *Handler) getRepositoryLanguageInventory(w http.ResponseWriter, r *http.
 		r.Context(), page.Limit+1, page.Offset, !access.Scoped(), access.GrantedRepositoryIDs(), access.GrantedScopeIDs(),
 	)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("repository language inventory: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.catalog", repositoryLanguageInventoryFailedMessage)
 		return
 	}
 	truncated := len(rows) > page.Limit

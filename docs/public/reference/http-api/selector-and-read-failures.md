@@ -59,6 +59,33 @@ failed`. Each is recorded on the request span. A reader fence on these reads
 answers the retryable `503` with `Retry-After`; the content routes and the
 service story's ci/cd and supply-chain reads previously answered `500`.
 
+## Repository route read failures
+
+Every `GET /api/v0/repositories...` route and `GET /api/v0/catalog` answer a
+failed read with a fixed message per route step instead of the backend error
+text (#7674), recorded on the request span. The routes are the repository list,
+`by-language`, `language-inventory`, and the `{repo_id}` routes `context`,
+`story`, `stats`, `coverage`, `tree`, `content`, `branches`, and `freshness`.
+Each step has its own message, for example `repository list count query
+failed`, `catalog workload query failed`, `repository story semantic overview
+read failed`, `repository tree file list failed`, `repository file content read
+failed`, `repository freshness read failed`, or `repository language inventory
+read failed`. A reader fence on any of these reads answers the retryable `503`
+with `Retry-After`; a content-store read previously answered `500`. A client
+cancel answers `499` with the step's message and no span error; the story
+route previously answered `500` when the caller canceled mid-read.
+
+Stats and story degrade a failed content-store coverage read to a `200` partial
+whose `coverage.last_error` or `coverage_summary.last_error` is the fixed
+`content store coverage read failed`, not the error text. A reader fence on that
+read answers `503` and a client cancel `499` instead of the partial; see
+[Repository stats and story coverage](repository-coverage.md). Context is the
+exception for a fence: its headline `file_count` falls back to a graph count
+whose own failure propagates, so a reader fence on the content summary keeps
+the `200` with `repository_context_content_coverage_degraded` in
+`partial_reasons`. A client cancel there answers `499` with `repository context
+content coverage read failed`.
+
 ## Platform impact read failures
 
 The `POST /api/v0/impact/*` routes answer a failed graph or content read with

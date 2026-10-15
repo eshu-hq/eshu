@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -99,7 +98,7 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 	if h.Neo4j == nil {
 		response.Repositories, response.Truncated, err = h.listCatalogRepositoriesFromContent(r.Context(), limit)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+			writeReadFailure(w, r, err, catalogCapability, catalogContentRepositoriesFailedMessage)
 			return
 		}
 		response.Limitations = append(response.Limitations, "workload and service catalog rows require an authoritative graph backend")
@@ -111,10 +110,7 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 	var dependencyDegraded bool
 	response.Repositories, response.Truncated, dependencyDegraded, err = h.listCatalogRepositoriesFromGraph(r.Context(), limit)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, catalogCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repositories: %v", err))
+		writeReadFailure(w, r, err, catalogCapability, catalogRepositoriesFailedMessage)
 		return
 	}
 	if dependencyDegraded {
@@ -131,10 +127,7 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Workloads, response.WorkloadsTruncated, err = h.listCatalogWorkloads(r.Context(), limit)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, catalogCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query workloads: %v", err))
+		writeReadFailure(w, r, err, catalogCapability, catalogWorkloadsFailedMessage)
 		return
 	}
 	response.Truncated = response.Truncated || response.WorkloadsTruncated

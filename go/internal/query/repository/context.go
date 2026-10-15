@@ -4,13 +4,13 @@
 package repository
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // GetRepositoryContext serves repository context. It forwards to getRepositoryContext; exported for
@@ -36,10 +36,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	baseRow, err := h.Neo4j.RunSingle(ctx, repositoryBaseCypher, params)
 	timer.Done(ctx, slog.Bool("found", baseRow != nil), slog.Bool("error", err != nil))
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryContextLookupFailedMessage)
 		return
 	}
 	if baseRow == nil {
@@ -50,6 +47,15 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "content_coverage")
 	contentCoverage, coverageErr := loadRepositoryContentCoverage(ctx, h.Content, repoID)
 	coverageAttrs := []slog.Attr{slog.Bool("available", contentCoverage != nil), slog.Bool("error", coverageErr != nil)}
+	if tracing.ClientCanceled(ctx, coverageErr) {
+		// A client cancel is not a coverage degrade: answer 499 rather than a
+		// partial nobody reads. A reader fence or any other coverage fault
+		// still degrades below, because file_count falls back to a graph count
+		// whose own failure propagates (#7674 F2 ruling).
+		timer.Done(ctx, coverageAttrs...)
+		tracing.WriteServerFailure(w, r, coverageErr, http.StatusInternalServerError, repositoryContextCoverageFailedMessage)
+		return
+	}
 	if coverageErr != nil {
 		partialReasons = append(partialReasons, contextCoverageDegradedReason)
 		coverageAttrs = append(coverageAttrs, slog.String("failure_class", contextCoverageDegradedReason))
@@ -82,10 +88,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	counts, err := queryRepositoryContextCounts(ctx, h.Neo4j, params, baseRow, contentCoverage, readModelCounts)
 	if err != nil {
 		timer.Done(ctx, slog.Bool("error", true))
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryContextCountsFailedMessage)
 		return
 	}
 	timer.Done(
@@ -179,10 +182,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	deploymentEvidence, err := queryRepoDeploymentEvidence(ctx, h.Neo4j, h.Content, params)
 	if err != nil {
 		timer.Done(ctx, slog.Bool("error", true))
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load deployment evidence: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryContextDeploymentEvidenceFailedMessage)
 		return
 	}
 	if len(deploymentEvidence) > 0 {

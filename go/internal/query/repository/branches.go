@@ -49,10 +49,7 @@ func (h *Handler) getRepositoryBranches(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	repoRef, _, err := h.repositoryStatsRepositoryRef(ctx, repoID)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryBranchesLookupFailedMessage)
 		return
 	}
 	if repoRef == nil {
@@ -66,7 +63,7 @@ func (h *Handler) getRepositoryBranches(w http.ResponseWriter, r *http.Request) 
 	// longer include it.
 	refs, err := readmodel.Refs(ctx, h.Content, repoID)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryBranchesRefsFailedMessage)
 		return
 	}
 	if len(refs) > 0 {

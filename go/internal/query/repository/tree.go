@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -66,10 +65,7 @@ func (h *Handler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	repoRef, _, err := h.repositoryStatsRepositoryRef(ctx, repoID)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryTreeLookupFailedMessage)
 		return
 	}
 	if repoRef == nil {
@@ -102,7 +98,7 @@ func (h *Handler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
 		// 404.
 		exists, ref, ctxErr := lister.RepoFilePathContext(ctx, repoID, requestPath)
 		if ctxErr != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", ctxErr))
+			writeReadFailure(w, r, ctxErr, "platform_impact.context_overview", repositoryTreePathContextFailedMessage)
 			return
 		}
 		indexedRef = ref
@@ -110,19 +106,19 @@ func (h *Handler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
 		matchedKnown = true
 		files, err = lister.ListRepoFilesByLanguage(ctx, repoID, languageList, requestPath, repositoryTreeFileLimit+1)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
+			writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryTreeLanguageFilesFailedMessage)
 			return
 		}
 		languageFilter = nil
 	} else if lister, ok := h.Content.(repoFilePathLister); ok && requestPath != "" && len(languageList) == 0 {
 		_, indexedRef, err = lister.RepoFilePathContext(ctx, repoID, "")
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
+			writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryTreePathContextFailedMessage)
 			return
 		}
 		files, err = lister.ListRepoFilesByPath(ctx, repoID, requestPath, repositoryTreeFileLimit+1)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
+			writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryTreePathFilesFailedMessage)
 			return
 		}
 		// The scoped read includes descendants only. An exact file path has no
@@ -132,17 +128,17 @@ func (h *Handler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
 	} else if h.Content != nil {
 		files, err = h.Content.ListRepoFiles(ctx, repoID, repositoryTreeFileLimit+1)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
+			writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryTreeFilesFailedMessage)
 			return
 		}
 		indexedRef = repositoryTreeRef(files)
 	}
 
 	if status, message, err := readmodel.ValidateSelectedRepositoryRef(ctx, h.Content, repoID, requestedRef, indexedRef); err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
+		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryTreeRefsFailedMessage)
 		return
 	} else if status != 0 {
-		querycontract.WriteError(w, status, message)
+		writeRefVerdict(w, status, message)
 		return
 	}
 	truncated = len(files) > repositoryTreeFileLimit

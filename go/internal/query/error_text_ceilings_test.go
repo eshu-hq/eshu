@@ -10,7 +10,8 @@ package query
 // file absent from the map must have zero sites: every file under impact/
 // (first #7674 slice), iac/ and supply/chain/ (second slice), the small
 // packages, package/registry/, and secrets/ (third slice), and codequery/,
-// entity/, and querycontract/ (fourth slice) was converted and is not listed.
+// entity/, and querycontract/ (fourth slice), and repository/ (the
+// repository slice) was converted and is not listed.
 // Lower a ceiling (or delete the entry) when a change removes sites; never
 // raise one. The final #7674 slice deletes this map.
 var queryErrorTextLeakCeilings = map[string]int{
@@ -42,16 +43,6 @@ var queryErrorTextLeakCeilings = map[string]int{
 	"investigation_packet_supply_chain.go":   2,
 	"operator_control_plane.go":              1,
 	"relationships_catalog.go":               2,
-	"repository/branches.go":                 2,
-	"repository/catalog.go":                  3,
-	"repository/content.go":                  3,
-	"repository/context.go":                  3,
-	"repository/freshness.go":                2,
-	"repository/handler.go":                  11,
-	"repository/language_inventory.go":       3,
-	"repository/selectors.go":                1,
-	"repository/stats.go":                    1,
-	"repository/tree.go":                     7,
 	"status_answer_narration.go":             1,
 	"status_collector_readiness.go":          1,
 	"status_freshness_causality.go":          1,

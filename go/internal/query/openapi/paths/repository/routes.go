@@ -138,6 +138,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -182,6 +183,7 @@ const Routes = `
             }
           },
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -343,7 +345,7 @@ const Routes = `
                     "gitops_overview": {"type": "object"},
                     "documentation_overview": {"type": "object"},
                     "support_overview": {"type": "object"},
-                    "coverage_summary": {"type": "object"},
+                    "coverage_summary": {"type": "object", "description": "Bounded content-store coverage, sharing the stats coverage contract. last_error, when present, is one fixed string from the same closed set as the stats coverage.last_error, never backend error text."},
                     "limitations": {
                       "type": "array",
                       "description": "Explicit reasons the story is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed, relationships_read_degraded when the outgoing dependencies read failed, infrastructure_truncated when a healthy infrastructure read landed past its bound, story_rows_truncated when the workload/platform/language narrative rows landed past their bound, or repository_semantic_read_truncated_at_5000 when the bounded semantic entity or file read found a row past its 5000-row cap, or deployment_artifacts_read_degraded when a content or graph read of the deployment-artifact stage failed and the artifacts hold the loads that succeeded and lack the artifacts of the load that failed, or deployment_artifacts_candidates_budget_reached means the request budget of 12,000 config-artifact candidates beyond the per-repository floor of 50 ran out, so at least one related repository had candidates inside its 5,000-file window that were not read and the config rows are a lower bound, or deployment_artifacts_related_file_list_truncated_at_5000 means at least one related repository has more than 5,000 files, so its candidates past the window are unknown; always present so the envelope shape is stable.",

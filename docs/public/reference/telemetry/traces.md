@@ -111,7 +111,8 @@ up on the HTTP server metrics. A read counts as canceled only when the error
 is `context.Canceled` and the request's own context was canceled; a cancel
 from inside the server still reads as a fault. The routes covered are the
 selector lookups that answer through `selector.WriteLookupFailure`, the content
-read and search routes, repository stats and coverage, the service context,
+read and search routes, the repository list, catalog, language, and
+`/api/v0/repositories/{repo_id}/*` routes (#7674), the service context,
 investigation, and story routes, the `POST /api/v0/impact/*` routes, the IaC,
 AWS runtime drift, and replatforming routes, the supply-chain query routes
 and vulnerability suppression mutation, the package-registry and

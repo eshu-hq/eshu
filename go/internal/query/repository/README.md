@@ -49,20 +49,48 @@ verdict answers 503/504 through `querycontract.WriteGraphReadError`; any other
 failed catalog or graph read answers 500 with the fixed `repository selector
 lookup failed` body and an error on the request span
 (`selector.WriteLookupFailure`, #7626); an unmatched selector answers 404 and
-an ambiguous one 400. The stats route answers 504 with the same fixed body
+an ambiguous one 400 with only the typed error's own text, and any other error
+answers the same fixed 500 (`writeSelectorAnswer`, #7674). The stats route answers 504 with the same fixed body
 and span error when the selector read runs out its 2s route budget
 (`context.DeadlineExceeded`). Coverage re-resolves the selector and answers
 that second resolution the same way.
 
-After the selector resolved, a failed stats repository lookup or coverage
-read maps a reader fence or graph verdict through
+## Read failures
+
+Every route step that fails a read maps a reader fence or graph verdict through
 `querycontract.WriteGraphReadError` first, then answers through
-`tracing.WriteServerFailure` with a fixed body
-(`repository stats query failed` or `repository coverage query failed`) and an
-error on the request span. Stats keeps 504 when its own route budget ran out.
-A read that failed because the caller canceled the request answers 499 with
-the same body and only the `eshu.request.client_canceled` span event. Before
-this, both answered with the backend error text in the body (#7626).
+`tracing.WriteServerFailure` with that step's fixed message from `failure.go`
+and an error on the request span (`writeReadFailure`). One constant per step
+(`repository story semantic overview read failed`, `repository tree file list
+failed`, ...) lets an operator name the failing read from the body alone. A
+read that failed because the caller canceled the request answers 499 with the
+same body and only the `eshu.request.client_canceled` span event. The stats
+repository lookup keeps 504 when its own route budget ran out. Before #7626
+(stats and coverage) and #7674 (every other route) these answered with the
+backend error text in the body.
+
+Stats and story read content-store coverage and degrade a failed read to a 200
+partial. `coverage.last_error` and the story's `coverage_summary.last_error`
+are a closed set of fixed strings: the timeout text, `content store coverage
+read failed`, `content store not configured`, or `content store coverage
+unavailable`, never the error text. Before degrading, `writeCoverageVerdict`
+answers a reader fence (503 with `Retry-After`) and a client cancel (499).
+
+The fence rule (#7674 acceptance bullet 2): a fence answers the retryable 503
+on every route whose read failure answers an error response, and no route folds
+a fence into a null or fabricated headline fact; a route whose headline fact
+falls back to a propagating, fenced read may attribute-degrade with a named
+partial reason. Context is that case: its `file_count` falls back to a graph
+count whose failure propagates through `writeReadFailure`, so a fence on its
+content summary keeps the 200 with `repository_context_content_coverage_degraded`.
+A client cancel of that read answers 499. Stats and story have no fallback (null
+counts), so their fence answers 503.
+
+Observability Evidence: the 34 `writeReadFailure` call sites, which recorded
+nothing on the request span before #7674, now record a span error with the
+step's message, or only the `eshu.request.client_canceled` event for a client
+cancel. `serveRepoServerFailure` in `server_failure_test.go` asserts both
+outcomes for every row of `repositoryRouteSteps`.
 
 No-Regression Evidence (#7626): for the content-backed selector routes in
 this package, `iac` dead-IaC, and `contentread`, the new
