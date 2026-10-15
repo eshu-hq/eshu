@@ -38,6 +38,7 @@ namespace App;
 use Acme\Logging\Logger;
 use Acme\Logging\Formatter as Fmt;
 use Acme\Logging\{Level, Handler\StreamHandler as Stream};
+use Acme\Logging\{Channel, function make};
 use Acme\Testkit\Fake;
 use Psr\Log\InvalidArgumentException;
 use Resend\Email as ResendEmail;
@@ -56,6 +57,7 @@ class Service
         $aliased = Fmt::make();
         $grouped = new Stream();
         $level = Level::fromName('x');
+        $mixed = make::x();
         $literal = new \Acme\Logging\Logger();
         $literalStatic = \Acme\Logging\Logger::create();
         $devOnly = new Fake();
@@ -177,6 +179,8 @@ func TestDefaultEngineParsePathPHPSkipsUnprovableConsumerKeys(t *testing.T) {
 		{"variable method name", "$dynamic = Logger::$factoryName();", "Logger.$factoryName"},
 		{"instance method call", "$member = $typed->info('x');", "$typed.info"},
 		{"use function", "helper();", "helper"},
+		// A function clause inside a class group use binds no class.
+		{"function clause in a mixed group use", "$mixed = make::x();", "make.x"},
 		{"parent:: receiver", "$viaParent = parent::create();", "Logger.create"},
 		{"self:: receiver", "$viaSelf = self::create();", "ChildLogger.create"},
 	} {
