@@ -36,14 +36,16 @@ func maxPageBody(i, count int) string {
 }
 
 // TestContentHybridRerankRanksAllRowsOfAMaximumPage pins that a content-search
-// page of contentHybridRerankLimit (200) rows is hybrid-ranked in full for both
-// entity and file rows. A page of more than 100 rows used to exceed the public
-// retrieval limit, fail request validation, and stay in lexical order with
-// applied=false (#7746).
+// page of ContentSearchMaxLimit (200) rows, the largest page the handler
+// serves, is hybrid-ranked in full for both entity and file rows. A page of
+// more than 100 rows used to exceed the public retrieval limit, fail request
+// validation, and stay in lexical order with applied=false (#7746). The row
+// count is the page cap, not the ranker's own index cap, so lowering the
+// ranker cap below the page size fails this test.
 func TestContentHybridRerankRanksAllRowsOfAMaximumPage(t *testing.T) {
 	t.Parallel()
 
-	const count = contentHybridRerankLimit
+	const count = ContentSearchMaxLimit
 	ranker := NewContentHybridRanker(true)
 
 	t.Run("entities", func(t *testing.T) {

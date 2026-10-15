@@ -17,12 +17,13 @@ import (
 )
 
 // contentHybridRerankLimit caps the candidate set the in-process hybrid index
-// ranks for one content-search request. The handler already bounds its lexical
-// result set to the request limit (default 50, hard maximum 200), so the index
-// is built over a small, request-local document set and never the whole corpus.
-// RankAll ranks every row of a page up to this cap; before #7746 a page of more
-// than 100 rows failed the public retrieval limit and stayed lexical.
-const contentHybridRerankLimit = 200
+// ranks for one content-search request. It equals ContentSearchMaxLimit, the
+// largest page the handler passes in (default 50, maximum 200 rows), so a
+// maximum page is ranked in full and the index is still built over a small,
+// request-local document set, never the whole corpus. RankAll ranks every row
+// of a page up to this cap; before #7746 a page of more than 100 rows failed
+// the public retrieval limit and stayed lexical.
+const contentHybridRerankLimit = ContentSearchMaxLimit
 
 // contentHybridRerankTimeout bounds the in-process re-rank pass. It guards the
 // embedder and cosine scoring against a pathological corpus; the work is
