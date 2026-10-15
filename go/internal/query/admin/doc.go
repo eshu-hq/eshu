@@ -22,5 +22,7 @@
 // shared retryable 503 first, bounded reads then answer their route-timeout
 // 504, and every other failure answers 500 through tracing.WriteServerFailure,
 // or 499 on a client cancel. A 499 on a mutation says only that the client
-// left, not that nothing was written.
+// left, not that nothing was written. The replay, reopen, and
+// recover-generations idempotency finalize runs detached from the request's
+// cancel, so it never answers 499 and a finalize failure is always a 500.
 package admin

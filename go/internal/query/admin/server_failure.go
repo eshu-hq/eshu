@@ -106,7 +106,9 @@ func writeBoundedReadFailure(
 // 499 when the caller canceled the request. Mutations run on the writer, not
 // the guarded reader, so no reader verdict applies. A 499 here says only that
 // the client left; it does not say the mutation did not apply. Each call site
-// states what may already have committed when its step fails.
+// states what may already have committed when its step fails. The post-commit
+// idempotency finalize does not use it: it fails through writeFinalizeFailure
+// (finalize.go), which is always a 500.
 func writeMutationFailure(w http.ResponseWriter, r *http.Request, err error, message string) {
 	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
 }

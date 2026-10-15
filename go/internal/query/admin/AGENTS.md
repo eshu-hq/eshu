@@ -50,6 +50,12 @@ adapters; the root `admin_alias.go` keeps every old exported spelling.
   (`noCapabilityAllowedDirs` in the root capability sweep, #8176); a new
   admin read with a matrix row passes its key instead. Keep 400 echoes of caller input, the 409/422 refusals, and the
   configuration 503s as they are.
+- The replay, reopen, and recover-generations idempotency finalize and
+  their accepted audit append run on `Handler.finalizeContext` (detached
+  from the request cancel, bounded by `FinalizeTimeout`) and fail through
+  `writeFinalizeFailure`, which is always a 500. Do not move them back onto
+  `r.Context()`: a client cancel there strands the ledger row in_progress
+  forever (no expiry exists). Do not detach anything before the commit.
 - A mutation step's 499 does not mean nothing changed. When you add or move
   a mutation step, state in a comment beside the call what may already have
   committed when it fails, and keep `docs/public/reference/http-api/admin-failures.md`

@@ -26,7 +26,8 @@ status is Error with the fixed message as its description. The
 A failed step checks the reader verdict first, then the route timeout, then
 answers `500`.
 
-A client that cancels its request gets `499` with the same fixed message. The
+A client that cancels its request gets `499` with the same fixed message,
+except at the ledger finalize described below. The
 request span stays Unset and carries an `eshu.request.client_canceled` event
 with no exception. No route documents `499` in the OpenAPI spec, because the
 client has already gone. See
@@ -106,7 +107,15 @@ not apply. Before you retry, read the state the route writes:
 - The replay update is a work-item update plus a replay-event insert, not one
   transaction, so a cancel can follow a partial replay. The key stays in
   progress and a retry answers `409`.
-- A ledger-finalize failure, `499` included, means the replay, reopen, or
-  recovery applied and only its idempotency record did not. The key stays in
-  progress and a retry answers `409`. Inspect the work items before you use a
-  new key.
+- After the replay, reopen, or recovery mutation committed, its idempotency
+  finalize and its accepted audit event run on a context the client cancel
+  does not reach, bounded at 2 seconds. A client that leaves then still gets
+  its outcome recorded: the route answers `200` to nobody, logs one INFO
+  `admin_recovery.finalize_after_client_cancel` line with the route and
+  correlation id, and a retry with the same key returns the prior outcome
+  (`duplicate=true`). These steps never answer `499`.
+- A ledger-finalize failure, including that 2-second bound expiring, answers
+  `500` with the step's fixed message and an Error span, client cancel or
+  not. The replay, reopen, or recovery applied and only its idempotency record
+  did not. The key stays in progress and a retry answers `409`. Inspect the
+  work items before you use a new key.
