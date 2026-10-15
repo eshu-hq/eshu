@@ -184,6 +184,7 @@ PACKAGES = {
             "TestPreparseIdentityStampsAndActiveStateLive",
             "TestCheapReprojectLifecycleLive",
             "TestCheapReprojectRacesLive",
+            "TestStampActiveGenerationLifecycleLive",
             "TestPreparseIdentityDroppedByTheStreamLive",
             "TestStreamDroppedGenerationHealsLive",
             "TestIdentitylessStreamDropIsMarkedLive",
