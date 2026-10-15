@@ -125,8 +125,9 @@ func (q ProjectorQueue) Ack(
 		}
 	}
 	var activated bool
+	journalOutcome := ""
 	if q.ChangedSinceJournalEnabled {
-		activated, _, err = q.activateAndJournalAckGeneration(ctx, tx, work, now, prior)
+		activated, journalOutcome, err = q.activateAndJournalAckGeneration(ctx, tx, work, now, prior)
 	} else {
 		activated, err = q.activateAckGeneration(ctx, tx, work, now)
 	}
@@ -150,6 +151,7 @@ func (q ProjectorQueue) Ack(
 	}
 	txDone = true
 	projector.RecordDeltaBaselineFence(ctx, q.Instruments, projector.DeltaBaselinePhaseAck, baselineFence.outcome)
+	q.recordAckJournal(ctx, work, journalOutcome)
 
 	q.runCrossplaneRedriveHook(ctx, work)
 	q.runConfigStateDriftTriggerHook(ctx, work)
@@ -239,6 +241,27 @@ func (q ProjectorQueue) activateAndJournalAckGeneration(
 	}
 	return false, "", fmt.Errorf("ack projector work: activate and journal target generation: activated=%d journaled=%d gated=%t",
 		activated, journaled, gated)
+}
+
+// recordAckJournal counts a committed flag-on Ack's journal outcome on
+// eshu_dp_changed_since_ack_journal_total and logs a gate skip with the scope
+// and generation, so an operator can see which activations the sweeper still
+// owes. An empty outcome (journal off) records nothing.
+func (q ProjectorQueue) recordAckJournal(ctx context.Context, work projector.ScopeGenerationWork, outcome string) {
+	if outcome == "" {
+		return
+	}
+	if q.Instruments != nil && q.Instruments.ChangedSinceAckJournal != nil {
+		q.Instruments.ChangedSinceAckJournal.Add(context.WithoutCancel(ctx), 1,
+			metric.WithAttributes(telemetry.AttrOutcome(outcome)))
+	}
+	if outcome == ackJournalOutcomeGateSkipped {
+		slog.InfoContext(ctx, "changed-since ack journal skipped while a journal pass held its key; the sweeper journals the generation",
+			slog.String(telemetry.LogKeyScopeID, work.Scope.ScopeID),
+			slog.String(telemetry.LogKeyGenerationID, work.Generation.GenerationID),
+			slog.String(telemetry.LogKeyOutcome, outcome),
+		)
+	}
 }
 
 // CrossplaneRedriveSweeper is the narrow surface ProjectorQueue.Ack calls to

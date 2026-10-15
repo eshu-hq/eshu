@@ -7,8 +7,11 @@ import (
 	"context"
 	"testing"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestProjectorAckJournalInversion is the seeded RED/GREEN pair of the gate
@@ -91,8 +94,8 @@ func TestProjectorAckJournalInversion(t *testing.T) {
 
 // TestProjectorAckJournalGateHeldByPass proves the other direction: while a
 // journal pass holds its key, a flag-on Ack activates its generation, writes
-// no journal row, and does not wait (it returns while the holder still holds
-// the key; a wait would never return). The next pass's sweeper journals the
+// no journal row, counts one gate_skipped, and does not wait (it returns
+// while the holder still holds the key; a wait would never return). The next pass's sweeper journals the
 // generation, and it links as the active state.
 func TestProjectorAckJournalGateHeldByPass(t *testing.T) {
 	d := openAckJournalDB(t, 8)
@@ -109,8 +112,18 @@ func TestProjectorAckJournalGateHeldByPass(t *testing.T) {
 		linksfreshnessstore.SlotLockClass, 0).Scan(&locked); err != nil || !locked {
 		t.Fatalf("hold the journal key: %v %v", locked, err)
 	}
-	if err := ajQueue(SQLDB{DB: d}, true).Ack(ctx, work, runtime.Result{}); err != nil {
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	q := ajQueue(SQLDB{DB: d}, true)
+	q.Instruments = instruments
+	if err := q.Ack(ctx, work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack with the journal key held: %v", err)
+	}
+	if counts := ajJournalCounts(t, reader); len(counts) != 1 || counts[ackJournalOutcomeGateSkipped] != 1 {
+		t.Fatalf("journal outcome counts = %v, want one gate_skipped", counts)
 	}
 	if seq := ajSeq(t, d, "held", "held-g1"); seq != -1 {
 		t.Fatalf("Ack wrote journal row seq %d while the pass held the key", seq)

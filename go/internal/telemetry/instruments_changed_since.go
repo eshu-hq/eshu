@@ -35,6 +35,12 @@ func registerChangedSinceLinkInstruments(meter metric.Meter, inst *Instruments) 
 	); err != nil {
 		return fmt.Errorf("register ChangedSinceLinks counter: %w", err)
 	}
+	if inst.ChangedSinceAckJournal, err = meter.Int64Counter(
+		"eshu_dp_changed_since_ack_journal_total",
+		metric.WithDescription("Committed projector Acks with the changed-since journal on, by outcome (journaled, exists, gate_skipped)"),
+	); err != nil {
+		return fmt.Errorf("register ChangedSinceAckJournal counter: %w", err)
+	}
 	if inst.ChangedSinceLinkRetries, err = meter.Int64Counter(
 		"eshu_dp_changed_since_link_retries_total",
 		metric.WithDescription("Non-counting changed-since link outcomes by reason"),

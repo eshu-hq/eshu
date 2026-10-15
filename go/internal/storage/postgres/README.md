@@ -122,6 +122,9 @@ High-signal invariants for this package:
   (`linksfreshnessstore.AckJournalGateSQL`); a missed gate writes nothing and
   does not wait. Both statements are derived from the shipped ones; off, Ack
   sends exactly the statements it sent before. Nothing reads the ledger yet.
+  Each committed flag-on Ack counts `eshu_dp_changed_since_ack_journal_total`
+  by `outcome` (`journaled`, `exists`, `gate_skipped`); a gate skip also logs
+  INFO with `scope_id` and `generation_id`.
   See `freshness/links/README.md` ("Ack writer") and
   `docs/internal/evidence/7127-changed-since-ack-journal.md`.
 - Generation liveness reopens `source_local` only for blockage that replay can

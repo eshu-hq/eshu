@@ -155,6 +155,11 @@ generation and the prior), which satisfies the writer rule below. The Ack
 never writes attempt columns and never reads the cursor, so it takes no lock
 the link writer holds.
 
+Telemetry: `eshu_dp_changed_since_ack_journal_total{outcome}` (`journaled`,
+`exists`, `gate_skipped`), counted by the projector queue after the Ack
+commits, and an INFO log with `scope_id` and `generation_id` on each gate
+skip.
+
 ## Retention
 
 Generation retention (`go/internal/storage/postgres/generation_retention.go`)
@@ -265,7 +270,8 @@ the two never touch the same scope.
 ## Telemetry
 
 None here. The runner records the metrics, the span and the structured log
-(see `go/internal/reducer/freshness/links/README.md`).
+(see `go/internal/reducer/freshness/links/README.md`); the projector queue
+records the Ack writer's counter ("Ack writer" above).
 
 ## Verification
 
