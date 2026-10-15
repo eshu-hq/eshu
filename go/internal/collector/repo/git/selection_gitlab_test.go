@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,8 +21,17 @@ type gitlabAPI struct {
 	t            *testing.T
 	server       *httptest.Server
 	pages        map[int]string
+	mu           sync.Mutex
 	projectHits  int
 	resolveGroup string
+}
+
+// projectHitCount returns the number of /projects requests. The handler
+// runs on server goroutines, so tests read under the same mutex.
+func (f *gitlabAPI) projectHitCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.projectHits
 }
 
 func newGitLabAPI(t *testing.T) *gitlabAPI {
@@ -30,7 +40,9 @@ func newGitLabAPI(t *testing.T) *gitlabAPI {
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if strings.Contains(r.URL.EscapedPath(), "/projects") {
+			f.mu.Lock()
 			f.projectHits++
+			f.mu.Unlock()
 			page := 0
 			fmt.Sscanf(r.URL.Query().Get("page"), "%d", &page)
 			body, ok := f.pages[page]
@@ -100,8 +112,8 @@ func TestDiscoverSelectionGitLabGroup(t *testing.T) {
 	if selection.GroupFullPath != "acme/platform" {
 		t.Fatalf("GroupFullPath = %q, want acme/platform", selection.GroupFullPath)
 	}
-	if api.projectHits != 2 {
-		t.Fatalf("project requests = %d, want 2 (one page plus the empty page)", api.projectHits)
+	if api.projectHitCount() != 2 {
+		t.Fatalf("project requests = %d, want 2 (one page plus the empty page)", api.projectHitCount())
 	}
 }
 
@@ -152,8 +164,8 @@ func TestDiscoverSelectionGitLabGroupRejectsExactRuleOutsideResolvedGroup(t *tes
 	if got := gitlab.ClassOf(err); got != gitlab.FailureClassConfigInvalid {
 		t.Fatalf("failure class = %q, want config_invalid", got)
 	}
-	if api.projectHits != 0 {
-		t.Fatalf("project requests = %d, want 0 (fail before the listing)", api.projectHits)
+	if api.projectHitCount() != 0 {
+		t.Fatalf("project requests = %d, want 0 (fail before the listing)", api.projectHitCount())
 	}
 }
 

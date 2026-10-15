@@ -28,10 +28,10 @@ func TestResolveGroup(t *testing.T) {
 	if group.ID != 42 || group.FullPath != "acme/platform" {
 		t.Fatalf("group = %+v, want ID 42 and full_path acme/platform", group)
 	}
-	if len(f.requests) != 1 {
-		t.Fatalf("requests = %d, want 1", len(f.requests))
+	if f.requestCount() != 1 {
+		t.Fatalf("requests = %d, want 1", f.requestCount())
 	}
-	req := f.requests[0]
+	req := f.firstRequest()
 	if !strings.Contains(req.escapedPath, "Acme%2FPlatform") {
 		t.Fatalf("escaped path = %q, want the configured form escaped", req.escapedPath)
 	}

@@ -187,20 +187,28 @@ list, on shard 0 only.
 
 ### Performance Evidence (#7765)
 
-The gitlab_group prefix partition read
+Performance Evidence: the gitlab_group prefix partition read
 (`starts_with(lower(payload->>'repo_slug'), $1)` with `$1` the lowercased
-group path plus `/`, same host predicate) was re-measured on PostgreSQL 18.6
-with 20,000 seeded scopes before any index decision; scripts and raw output
-are in `docs/internal/evidence/7765-gitlab-group-prefix-read.md`. The group
-read returns exactly the 900 nested scopes (sibling, lookalike,
-underscore-prefix, other-host, `repository_ref`, and remote-less scopes drop
-out) in **9.22 ms median** (seq scan, 495 shared buffers), 1.56x the
-host-filtered first-segment baseline (5.93 ms) from per-row `lower()` CPU,
-not a plan difference. pgbench read-only: 8.5 ms average, stddev 0.5 ms. A
-`FOR UPDATE` held on a nested scope does not block the read. **No new
-index**: the read runs once per cycle on shard 0, the planner correctly
-seq-scans at this scale, and an index would add write amplification without
-serving this shape.
+group path plus `/`, same host predicate) was re-measured on PostgreSQL
+18.6 with 20,000 seeded scopes before any index decision; scripts and raw
+output are in `docs/internal/evidence/7765-gitlab-group-prefix-read.md`.
+Baseline (prove-first shim on the same shape): sub-millisecond small-set
+reads with a 0.9 ms contended read. After: the group read returns exactly
+the 900 nested scopes (sibling, lookalike, underscore-prefix, other-host,
+`repository_ref`, and remote-less scopes drop out) in **9.22 ms median**
+(seq scan, 495 shared buffers), 1.56x the host-filtered first-segment
+baseline (5.93 ms) from per-row `lower()` CPU, not a plan difference.
+pgbench read-only: 8.5 ms average, stddev 0.5 ms. A `FOR UPDATE` held on a
+nested scope does not block the read. The change is safe because the read is
+read-only, runs once per cycle on shard 0, and the planner correctly
+seq-scans at this scale. **No new index**: an index would add write
+amplification without serving this shape.
+
+Observability Evidence: `eshu_dp_collector_repository_listing_requests_total`
+(`collector_kind`, `provider`, `outcome`) counts every group resolve and page
+request, with INFO `git_gitlab_group_listing_completed` per finished listing
+and WARN `git_gitlab_group_listing_retry` per waited retry; selection
+outcomes ride the existing `repository_selection_evaluations_total` counter.
 
 ### Freshness read
 

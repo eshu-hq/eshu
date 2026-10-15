@@ -84,8 +84,8 @@ func TestListGroupProjectsRateLimitExhausted(t *testing.T) {
 	if !errors.As(err, &glErr) || glErr.Class != "rate_limited" {
 		t.Fatalf("error = %v, want failure_class rate_limited", err)
 	}
-	if len(f.requests) != 4 {
-		t.Fatalf("requests = %d, want 1 initial plus 3 retries", len(f.requests))
+	if f.requestCount() != 4 {
+		t.Fatalf("requests = %d, want 1 initial plus 3 retries", f.requestCount())
 	}
 	if got := h.listingOutcomeCount(t, "rate_limited"); got != 1 {
 		t.Fatalf("rate_limited count = %d, want 1", got)
@@ -110,8 +110,8 @@ func TestListGroupProjectsContextCancelDuringWait(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", err)
 	}
-	if len(f.requests) != 1 {
-		t.Fatalf("requests = %d, want 1 (no second attempt after cancel)", len(f.requests))
+	if f.requestCount() != 1 {
+		t.Fatalf("requests = %d, want 1 (no second attempt after cancel)", f.requestCount())
 	}
 }
 
@@ -149,8 +149,8 @@ func TestListGroupProjectsStatusClasses(t *testing.T) {
 			if !errors.As(err, &glErr) || glErr.Class != tc.class {
 				t.Fatalf("error = %v, want failure_class %q", err, tc.class)
 			}
-			if len(f.requests) != 1 {
-				t.Fatalf("requests = %d, want 1 (no retry on %d)", len(f.requests), tc.status)
+			if f.requestCount() != 1 {
+				t.Fatalf("requests = %d, want 1 (no retry on %d)", f.requestCount(), tc.status)
 			}
 		})
 	}

@@ -47,8 +47,6 @@ dist/
 .envrc
 .venv
 env/
-# Tracked exception to env/ above: the git collector's env helper leaf (#7765).
-!/go/internal/collector/repo/git/env/
 venv/
 
 # IDEs and editors

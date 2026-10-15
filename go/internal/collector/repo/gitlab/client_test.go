@@ -54,6 +54,29 @@ type listingFixture struct {
 	resolveStatus int
 }
 
+// requestCount returns the number of recorded requests. The test server
+// handler appends from its own goroutines, so tests read under the same
+// mutex.
+func (f *listingFixture) requestCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.requests)
+}
+
+// firstRequest returns the first recorded request.
+func (f *listingFixture) firstRequest() recordedRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.requests[0]
+}
+
+// allRequests returns a copy of every recorded request.
+func (f *listingFixture) allRequests() []recordedRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]recordedRequest(nil), f.requests...)
+}
+
 func newListingFixture(t *testing.T) *listingFixture {
 	t.Helper()
 	f := &listingFixture{t: t, pages: map[int]string{}}
@@ -184,10 +207,10 @@ func TestListGroupProjectsRequestShape(t *testing.T) {
 	if len(listing.Projects) != 1 || listing.Projects[0].PathWithNamespace != "acme/platform/a" {
 		t.Fatalf("projects = %+v, want the one listed project", listing.Projects)
 	}
-	if len(f.requests) < 1 {
+	if f.requestCount() < 1 {
 		t.Fatal("no requests recorded")
 	}
-	first := f.requests[0]
+	first := f.firstRequest()
 	if !strings.Contains(first.escapedPath, "acme%2Fplatform") {
 		t.Fatalf("escaped path = %q, want acme%%2Fplatform", first.escapedPath)
 	}
@@ -243,7 +266,7 @@ func TestListGroupProjectsPages(t *testing.T) {
 	if listing.Pages != 4 {
 		t.Fatalf("pages = %d, want 4 requests", listing.Pages)
 	}
-	for _, req := range f.requests {
+	for _, req := range f.allRequests() {
 		if !strings.Contains(req.query, "per_page=100") {
 			t.Fatalf("query = %q, page size must stay fixed at 100", req.query)
 		}
