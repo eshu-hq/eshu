@@ -11,10 +11,16 @@ untouched when:
 2. the pass inserted zero evidence rows under it
    (`ExcludePartitionsWithNewEvidence`);
 3. its (scope, generation) still matches the fact-load snapshot (the batch
-   guard); and
-4. its `cross_repo_evidence` / `backward_evidence_committed` row exists. One
-   batched `ListPartitionsMissingReadinessQuery` read checks this. A missing
-   row is republished.
+   guard), and its scope is still on that generation when the fan-in checks;
+   and
+4. its `cross_repo_evidence` / `backward_evidence_committed` row exists.
+
+One batched `ListUnchangedPartitionsNeedingPublicationQuery` read checks 3 and
+4. A missing readiness row is republished. A scope that moved to a new
+generation after its batch goes to the locked path, whose under-lock re-read
+declines it with `generation_advanced_since_batch`, as before. A move that
+commits after the unlocked check is counted `unchanged_since_memo`. Neither
+case writes a row for the superseded generation.
 
 Every other partition publishes as before, under the same sorted locks in its
 own transaction. The partition-scoped pass (#7584) still calls
@@ -23,35 +29,65 @@ unchanged. A failed evidence batch still withholds the whole fan-in. A failed
 readiness check falls back to publishing every partition.
 
 Republishing an unchanged partition rewrote only phase `committed_at` and
-`updated_at` and memo `committed_at`, with the same fingerprint. No reader
-decides on those timestamps. `GraphProjectionPhaseStateStore.Lookup`,
-`activation` `phaseReadyQuery`, and the obligation backlog all test for the row.
+`updated_at` and memo `committed_at`, with the same fingerprint. Readiness
+readers test that the phase row exists (`GraphProjectionPhaseStateStore.Lookup`,
+`activation` `phaseReadyQuery`, the obligation backlog). One reader orders on
+memo `committed_at`: the partition-scoped pass's `targetedCatalogBaselineQuery`
+picks each scope's latest memo (`owed_latest_memo`). That order still holds.
+Memos are written only for the scope's active generation under its lock, and a
+superseded generation never becomes active again (#7130). So a newer
+generation's first memo commits after every memo of an older one, and
+`committed_at` orders a scope's memos by activation, not by observation
+recency. Skipping a re-stamp keeps a memo at its first publication.
+`TestWholePassFanInKeepsTargetedBaselineOnActiveMemoLive` proves the active
+generation's memo still wins after a skipped re-stamp.
 The full invariant, including the pending-generation same-ID retry case, is in
 the doc comment on `splitUnchangedDeferredPartitions`
 (`go/internal/storage/postgres/backfill/fanin_unchanged.go`).
 
 ## Performance Evidence:
 
-Shim: Postgres 18.6, database `p8082`, 809 partitions, 740 memo hits, 8 fan-in
-workers. The bench harness replays the fan-in transaction statements. Runs come
-from the coordinator's shim report.
+Shim: Postgres 18.6 (aarch64 container on the development host), 809
+partitions, 740 memo hits, 6 ArgoCD-bearing memo misses, 8 fan-in workers.
+
+Built code. A throwaway harness (not committed) called the shipped
+`publishChangedDeferredBackfillPartitions` with the real
+`GraphProjectionPhaseStateStore`, on `p8082_timing`, a `CREATE DATABASE ...
+TEMPLATE p8082` copy of the shim. Inputs came from the shipped loaders:
+contributions from `LoadActiveRepositoryGenerations` (809 partitions), the
+snapshot from `LoadActiveScopeGenerationPartitions`, and the unchanged set from
+the 740 memo rows. The runs alternated after one warm-up of each arm (the cold
+warm-up of the before arm took 17.135 s).
+
+| Fan-in, 8 workers | Run 1 | Run 2 | Run 3 |
+| --- | --- | --- | --- |
+| Before (unchanged set nil, publishes 809) | 4.913 s | 4.888 s | 5.362 s |
+| After (740 unchanged, publishes 69) | 0.478 s | 0.438 s | 0.481 s |
+
+The median falls from 4.913 s to 0.478 s (-90%). Every after run logged
+`deferred_backfill_fanin_unchanged_checked candidates=740 skipped_unchanged=740
+republished_missing_phase=0 generation_advanced=0` and `published=69
+skipped=740`.
+
+Statement replay (the coordinator's shim report, before the change was built):
 
 | Fan-in shape | Wall time |
 | --- | --- |
 | Full fan-in (main) | 4.756 s and 4.811 s (two runs) |
 | Without the ArgoCD probe | 0.112 s and 0.156 s |
 | Memo-hit partitions only (740) | 4.0 s |
-| Only the 69 non-hit partitions (this change) | 0.38 s (-91%) |
+| Only the 69 non-hit partitions (projection of this change) | 0.38 s |
 
 The ArgoCD-bearing probe (`ListArgoCDBearingPartitionsQuery`) is 97.3 to 97.4
 percent of summed transaction time (36.9 to 37.3 s over 809 calls, mean
 46 ms). Every other fan-in statement totals about 0.1 s.
 
-The new readiness check, `EXPLAIN (ANALYZE, BUFFERS)` on the same shim over the
-740 memo-hit partitions: a Nested Loop Anti Join with 740 index-only probes of
-`graph_projection_phase_state_pkey`, 0 heap fetches, 1,459 shared hits, and
-8.0 ms of execution (3.0 ms of it builds the input arrays). This cost replaces
-740 probe transactions.
+The readiness part of the check, `EXPLAIN (ANALYZE, BUFFERS)` on the same shim
+over the 740 memo-hit partitions: a Nested Loop Anti Join with 740 index-only
+probes of `graph_projection_phase_state_pkey`, 0 heap fetches, 1,459 shared
+hits, and 8.0 ms of execution (3.0 ms of it builds the input arrays). The
+shipped check also reads each scope's active generation. Its whole cost is
+inside the after timings above.
 
 QA log facts before the change: `deferred_backfill_fanin_completed
 partitions=809 published=809 skipped=0`, `unskipped_new_evidence=0`, and a
@@ -68,11 +104,16 @@ advisory lock. Worker and lease settings are unchanged
 
 Proofs:
 
-- `TestDeferredBackfillFanInSkipsUnchangedMemoHitPartitionsLive`: RED on main.
+- `TestWholePassFanInSkipsUnchangedMemoHitPartitionsLive`: RED on main.
   The unchanged partition's phase `updated_at` moved to the pass clock. GREEN
   after the change.
-- `TestDeferredBackfillFanInRepublishesUnchangedPartitionMissingPhaseRowLive`:
+- `TestWholePassFanInRepublishesUnchangedPartitionMissingPhaseRowLive`:
   self-healing republish.
+- `TestWholePassFanInKeepsTargetedBaselineOnActiveMemoLive`: the targeted
+  catalog baseline still picks the active generation's memo.
+- `TestDeferredFanInUnchangedPartitionWithAdvancedGenerationKeepsAdvancedReason`:
+  RED before the fix (counted `unchanged_since_memo`); the partition now keeps
+  `generation_advanced_since_batch`.
 - `TestTargetedMaintenanceMatchesWholePass`: each fixture now declares the
   partitions the whole arm leaves unchanged. The whole arm must hold those
   phase and memo rows identical to before. The arms may differ there only in
@@ -85,7 +126,7 @@ Proofs:
   counts unchanged partitions per pass. The label set stays closed at three
   values.
 - New log line `deferred_backfill_fanin_unchanged_checked candidates=N
-  skipped_unchanged=S republished_missing_phase=M`, and
+  skipped_unchanged=S republished_missing_phase=M generation_advanced=G`, and
   `deferred_backfill_fanin_unchanged_check_failed ... falling_back=true` on a
   failed check. The pinned `deferred_backfill_fanin_completed` line keeps its
   shape. Its `skipped` now includes the unchanged partitions.
@@ -95,3 +136,5 @@ Proofs:
 - `readiness_rows` on `deferred_backfill_completed` and on the `write_batches`
   block counts the readiness rows written this pass, not every active
   partition.
+- `deferred_backfill_skip_set_revised` is now logged after the fan-in
+  succeeds, so a pass whose fan-in fails no longer reports it.

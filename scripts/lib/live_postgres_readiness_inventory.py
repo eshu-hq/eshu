@@ -195,6 +195,11 @@ PACKAGES = {
             "TestReconcileReopenLosesLockRaceToNewerActivationLive",
             "TestReconcileReprojectionSupersededBeforeClaimIsNoopLive",
         ),
+        "go/internal/storage/postgres/ingestion_fanin_unchanged_partition_live_test.go": (
+            "TestWholePassFanInSkipsUnchangedMemoHitPartitionsLive",
+            "TestWholePassFanInRepublishesUnchangedPartitionMissingPhaseRowLive",
+            "TestWholePassFanInKeepsTargetedBaselineOnActiveMemoLive",
+        ),
         "go/internal/storage/postgres/ingestion_flux_evidence_identity_live_test.go": (
             "TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively",
             "TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist",

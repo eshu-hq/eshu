@@ -29,10 +29,14 @@ import (
 // ($2, DISTINCT scope_ids): a quiet generation that advanced past its memo
 // still proves catalog currency when its scope's latest memo carries the
 // current fingerprint (#7638 item 9). The latest memo is the greatest
-// committed_at (generation_id breaks ties); memos publish only for the
-// active generation under lock, so same-scope memos commit in activation
-// order and committed_at tracks observation recency. If a future path ever
-// writes memos for non-active generations, this ordering argument must be
+// committed_at (generation_id breaks ties). committed_at records a memo's
+// first publication, in activation order, not observation recency: memos are
+// written only for the scope's active generation under its lock, a superseded
+// generation never becomes active again (#7130), so a newer generation's
+// first memo commits after every memo of an older one. The whole pass does
+// not re-stamp a partition it did not change (#8082), which keeps a memo at
+// its first publication and keeps that order. If a future path ever writes
+// memos for non-active generations, this ordering argument must be
 // revisited.
 const targetedCatalogBaselineQuery = backfill.LatestGenerationCTE + `,
 owed_latest_memo AS (

@@ -389,5 +389,5 @@ tests:
   - file: go/internal/storage/postgres/ingestion_fanin_unchanged_partition_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8082 disposable PostgreSQL 18 proof that the whole-pass fan-in leaves an unchanged memo-hit partition's phase and memo rows untouched, publishes a memo hit that gained evidence and a memo miss, and republishes an unchanged partition whose readiness row is missing; reuses the #7584 targeted-maintenance proof DSN; enrolled in the live-postgres-readiness runner; two proofs took 3.05s and 3.13s (two bootstrapped schemas each) on a local PostgreSQL 18.6 on 2026-10-15; wall time is logged, not gated"
+    reason: "#8082 disposable PostgreSQL 18 proof that the whole-pass fan-in leaves an unchanged memo-hit partition's phase and memo rows untouched, publishes a memo hit that gained evidence and a memo miss, republishes an unchanged partition whose readiness row is missing, and keeps the targeted catalog baseline on the active generation's memo after a skipped re-stamp; reuses the #7584 targeted-maintenance proof DSN; enrolled in the live-postgres-readiness runner (scripts/lib/live_postgres_readiness_inventory.py); three proofs took 2.8-3.7s each (two bootstrapped schemas each, two runs) on a local PostgreSQL 18.6 on 2026-10-15; wall time is logged, not gated"
     runner: live-postgres-readiness

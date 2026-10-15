@@ -19,13 +19,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	lockstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // unchangedFanInDB is a Beginner that records every transaction the fan-in
 // opens and every repository lock it takes, and answers the base-handle
-// readiness check (ListPartitionsMissingReadinessQuery) from a seeded missing
-// set. Any other base-handle query fails the test: the fan-in's only
-// non-transactional read is the readiness check.
+// unchanged-partition check (ListUnchangedPartitionsNeedingPublicationQuery)
+// from a seeded missing set and the seeded active generations. Any other base-handle query fails the test: the fan-in's only
+// non-transactional read is that check.
 type unchangedFanInDB struct {
 	generations  map[string]string
 	missing      map[ScopeGenerationPartition]struct{}
@@ -38,7 +40,7 @@ type unchangedFanInDB struct {
 }
 
 func (d *unchangedFanInDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	if query != ListPartitionsMissingReadinessQuery {
+	if query != ListUnchangedPartitionsNeedingPublicationQuery {
 		return nil, fmt.Errorf("unexpected base-handle query: %s", firstLine(query))
 	}
 	d.mu.Lock()
@@ -52,8 +54,10 @@ func (d *unchangedFanInDB) QueryContext(_ context.Context, query string, args ..
 	rows := &queueFakeRows{}
 	for i := range scopes {
 		partition := ScopeGenerationPartition{ScopeID: scopes[i], GenerationID: generations[i]}
-		if _, ok := d.missing[partition]; ok {
-			rows.rows = append(rows.rows, []any{partition.ScopeID, partition.GenerationID})
+		_, missing := d.missing[partition]
+		advanced := d.generations[partition.ScopeID] != partition.GenerationID
+		if missing || advanced {
+			rows.rows = append(rows.rows, []any{partition.ScopeID, partition.GenerationID, missing, advanced})
 		}
 	}
 	return rows, nil
@@ -229,4 +233,87 @@ func TestDeferredFanInUnchangedCheckFailurePublishesEveryPartition(t *testing.T)
 	if result.published != 3 || result.skippedUnchanged != 0 || database.begins != 3 {
 		t.Fatalf("result = %+v, transactions = %d, want 3 published, 0 skipped, 3 transactions", result, database.begins)
 	}
+}
+
+// TestDeferredFanInUnchangedPartitionWithAdvancedGenerationKeepsAdvancedReason
+// pins the #8082 review finding F4: a memo-hit partition whose scope moved to a
+// new generation after its evidence batch is not "unchanged". It must take the
+// locked publication path, where the under-lock re-read declines it with
+// generation_advanced_since_batch, exactly as before #8082.
+func TestDeferredFanInUnchangedPartitionWithAdvancedGenerationKeepsAdvancedReason(t *testing.T) {
+	t.Parallel()
+
+	contributions, generations := unchangedFanInFixture()
+	generations["scope-a"] = "gen-a2" // scope-a advanced after its batch
+	database := &unchangedFanInDB{generations: generations}
+	store, _, phases := testStore(database)
+	store.Now = func() time.Time { return time.Unix(0, 0).UTC() }
+	reader, instruments := fanInMetricHarness(t)
+	unchanged := map[ScopeGenerationPartition]struct{}{
+		{ScopeID: "scope-a", GenerationID: "gen-a"}: {},
+		{ScopeID: "scope-b", GenerationID: "gen-b"}: {},
+	}
+
+	result, err := store.publishChangedDeferredBackfillPartitions(
+		context.Background(), contributions, unchanged, nil, "fingerprint", 2, instruments,
+	)
+	if err != nil {
+		t.Fatalf("publishChangedDeferredBackfillPartitions() error = %v", err)
+	}
+	want := deferredFanInResult{published: 1, skipped: 2, skippedUnchanged: 1}
+	if result != want {
+		t.Fatalf("result = %+v, want %+v (A declined as advanced, B unchanged, C published)", result, want)
+	}
+	byReason := fanInSkippedByReasonTotals(t, reader)
+	if want := map[string]int64{deferredFanInSkipGenerationAdvanced: 1, deferredFanInSkipUnchanged: 1}; !reflect.DeepEqual(byReason, want) {
+		t.Fatalf("fanin_skipped_total by reason = %v, want %v", byReason, want)
+	}
+	if got, want := sortedPublishedScopes(phases), []string{"scope-c"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("published readiness scopes = %v, want %v", got, want)
+	}
+}
+
+// TestUnchangedCheckDerivesActiveGenerationFromShippedQuery guards the
+// derivation of the check's generation probe: it is ActiveScopeGenerationQuery
+// with only its $1 scope bound to the unnest row. A drift in the shipped query
+// that breaks the replacement would leave the probe comparing against $1.
+func TestUnchangedCheckDerivesActiveGenerationFromShippedQuery(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(activeGenerationForRequestedScope, "$1") {
+		t.Fatalf("derived probe still binds $1; ActiveScopeGenerationQuery changed shape:\n%s", activeGenerationForRequestedScope)
+	}
+	if want := strings.Replace(activeGenerationForRequestedScope, "requested.scope_id", "$1", 1); want != ActiveScopeGenerationQuery {
+		t.Fatalf("derived probe differs from ActiveScopeGenerationQuery beyond the scope binding")
+	}
+	if !strings.Contains(ListUnchangedPartitionsNeedingPublicationQuery, activeGenerationForRequestedScope) {
+		t.Fatal("check query does not embed the derived probe")
+	}
+}
+
+// fanInSkippedByReasonTotals returns eshu_dp_deferred_backfill_fanin_skipped_total
+// summed per reason label.
+func fanInSkippedByReasonTotals(t *testing.T, reader *sdkmetric.ManualReader) map[string]int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	totals := map[string]int64{}
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, record := range scopeMetrics.Metrics {
+			if record.Name != "eshu_dp_deferred_backfill_fanin_skipped_total" {
+				continue
+			}
+			sum, ok := record.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("skipped counter data = %T", record.Data)
+			}
+			for _, dp := range sum.DataPoints {
+				reason, _ := dp.Attributes.Value("reason")
+				totals[reason.AsString()] += dp.Value
+			}
+		}
+	}
+	return totals
 }

@@ -272,11 +272,16 @@ const (
 	// fact-load snapshot this pass derived its evidence from.
 	deferredFanInSkipSnapshotAdvanced = "generation_advanced_since_snapshot"
 	// deferredFanInSkipUnchanged: the whole pass did not change the
-	// partition's backward evidence and its readiness row is already
-	// committed (#8082, splitUnchangedDeferredPartitions). It is not a
-	// withheld partition (its readiness is open), so it logs no
-	// deferred_backfill_fanin_partition_skipped line; the completion line's
-	// skipped_unchanged field counts it.
+	// partition's backward evidence, its scope is still on the partition's
+	// generation, and its readiness row is already committed (#8082,
+	// splitUnchangedDeferredPartitions). It is not a withheld partition (its
+	// readiness is open), so it logs no
+	// deferred_backfill_fanin_partition_skipped line; the
+	// deferred_backfill_fanin_unchanged_checked line counts it. A memo hit
+	// whose scope moved to a new generation before that check keeps
+	// generation_advanced_since_batch. The check takes no lock, so a move that
+	// commits after it can still be counted here; the pass writes nothing for
+	// the superseded generation in either case.
 	deferredFanInSkipUnchanged = "unchanged_since_memo"
 )
 

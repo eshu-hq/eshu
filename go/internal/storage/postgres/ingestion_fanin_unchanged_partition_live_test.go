@@ -16,6 +16,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -140,14 +141,14 @@ func fanInSkippedByReason(t *testing.T, reader *sdkmetric.ManualReader, reason s
 	return total
 }
 
-// TestDeferredBackfillFanInSkipsUnchangedMemoHitPartitionsLive is the #8082
+// TestWholePassFanInSkipsUnchangedMemoHitPartitionsLive is the #8082
 // RED/GREEN proof. Partition A (memo hit, no new evidence) must not be
 // republished: its phase updated_at and memo committed_at keep the pre-pass
 // stamp. B (memo hit that gained evidence) and C (memo miss) publish at the
 // pass clock. The completion line reports published=2 skipped=1, the
 // unchanged-check line names the skip, and the skipped counter carries reason
 // unchanged_since_memo.
-func TestDeferredBackfillFanInSkipsUnchangedMemoHitPartitionsLive(t *testing.T) {
+func TestWholePassFanInSkipsUnchangedMemoHitPartitionsLive(t *testing.T) {
 	p := seedFanInUnchangedCorpus(t)
 	prepassAt := targetedDiffBase.Add(time.Hour)
 	if got, ok := fanInPhaseUpdatedAt(t, p.ctx, p, "git:tgt", "tgt-1"); !ok || !got.Equal(prepassAt) {
@@ -170,7 +171,7 @@ func TestDeferredBackfillFanInSkipsUnchangedMemoHitPartitionsLive(t *testing.T) 
 	if got := fanInMemoCommittedAt(t, p.ctx, p, "git:miss", "miss-1"); !got.Equal(fanInUnchangedPassAt) {
 		t.Fatalf("C (memo miss) memo committed_at = %v, want %v", got, fanInUnchangedPassAt)
 	}
-	if !strings.Contains(logs, "deferred_backfill_fanin_unchanged_checked candidates=1 skipped_unchanged=1 republished_missing_phase=0\n") ||
+	if !strings.Contains(logs, "deferred_backfill_fanin_unchanged_checked candidates=1 skipped_unchanged=1 republished_missing_phase=0 generation_advanced=0\n") ||
 		!strings.Contains(logs, "deferred_backfill_fanin_completed partitions=3 published=2 skipped=1 ") {
 		t.Fatalf("fan-in lines missing or wrong; logs:\n%s", logs)
 	}
@@ -190,11 +191,11 @@ func TestDeferredBackfillFanInSkipsUnchangedMemoHitPartitionsLive(t *testing.T) 
 	}
 }
 
-// TestDeferredBackfillFanInRepublishesUnchangedPartitionMissingPhaseRowLive
+// TestWholePassFanInRepublishesUnchangedPartitionMissingPhaseRowLive
 // pins the self-healing check: an unchanged memo-hit partition whose readiness
 // row is gone is republished, so skipping unchanged partitions can never leave
 // readiness missing.
-func TestDeferredBackfillFanInRepublishesUnchangedPartitionMissingPhaseRowLive(t *testing.T) {
+func TestWholePassFanInRepublishesUnchangedPartitionMissingPhaseRowLive(t *testing.T) {
 	p := seedFanInUnchangedCorpus(t)
 	p.exec(`DELETE FROM graph_projection_phase_state
 WHERE scope_id = 'git:tgt' AND keyspace = 'cross_repo_evidence' AND phase = 'backward_evidence_committed'`)
@@ -204,11 +205,60 @@ WHERE scope_id = 'git:tgt' AND keyspace = 'cross_repo_evidence' AND phase = 'bac
 	if got, ok := fanInPhaseUpdatedAt(t, p.ctx, p, "git:tgt", "tgt-1"); !ok || !got.Equal(fanInUnchangedPassAt) {
 		t.Fatalf("A phase updated_at = %v (present=%v), want %v: an unchanged partition missing its phase row must be republished", got, ok, fanInUnchangedPassAt)
 	}
-	if !strings.Contains(logs, "deferred_backfill_fanin_unchanged_checked candidates=1 skipped_unchanged=0 republished_missing_phase=1\n") ||
+	if !strings.Contains(logs, "deferred_backfill_fanin_unchanged_checked candidates=1 skipped_unchanged=0 republished_missing_phase=1 generation_advanced=0\n") ||
 		!strings.Contains(logs, "deferred_backfill_fanin_completed partitions=3 published=3 skipped=0 ") {
 		t.Fatalf("fan-in lines missing or wrong; logs:\n%s", logs)
 	}
 	if got := fanInSkippedByReason(t, reader, "unchanged_since_memo"); got != 0 {
 		t.Fatalf("fanin_skipped_total{reason=unchanged_since_memo} = %d, want 0", got)
+	}
+}
+
+// TestWholePassFanInKeepsTargetedBaselineOnActiveMemoLive pins review finding
+// F2: targetedCatalogBaselineQuery's owed_latest_memo picks a scope's latest
+// memo by committed_at, and the whole pass no longer re-stamps an unchanged
+// memo. The active generation's memo must still win over the superseded
+// generation's memo after a skipped re-stamp. tgt-1 is published by the
+// pre-pass (+1h), tgt-2 by pass 2 (+2h, memo miss), and pass 3 (+3h) skips
+// tgt-2 as unchanged. tgt-1's memo is then given a stale fingerprint: if
+// owed_latest_memo picked it, the baseline would report a stale catalog.
+func TestWholePassFanInKeepsTargetedBaselineOnActiveMemoLive(t *testing.T) {
+	p := newTargetedDiffPair(t)
+	seedTargetedCorpus(p)
+	p.prepass()
+	p.quietGeneration("git:tgt", "tgt-2", "repo-tgt", "payments-service", "orders-api")
+
+	pass2At, pass3At := targetedDiffBase.Add(2*time.Hour), targetedDiffBase.Add(3*time.Hour)
+	for _, at := range []time.Time{pass2At, pass3At} {
+		if err := targetedDiffStore(p.whole, at).RunDeferredRelationshipMaintenance(p.ctx, nil, nil); err != nil {
+			t.Fatalf("RunDeferredRelationshipMaintenance(%v) error = %v", at, err)
+		}
+	}
+	if got := fanInMemoCommittedAt(t, p.ctx, p, "git:tgt", "tgt-2"); !got.Equal(pass2At) {
+		t.Fatalf("tgt-2 memo committed_at = %v, want %v (pass 3 must skip the unchanged partition)", got, pass2At)
+	}
+	if got := fanInMemoCommittedAt(t, p.ctx, p, "git:tgt", "tgt-1"); !got.Before(pass2At) {
+		t.Fatalf("tgt-1 memo committed_at = %v, want before %v", got, pass2At)
+	}
+
+	var fingerprint string
+	if err := p.whole.QueryRowContext(p.ctx,
+		`SELECT catalog_fingerprint FROM deferred_backfill_partition_memo WHERE scope_id = 'git:tgt' AND generation_id = 'tgt-2'`,
+	).Scan(&fingerprint); err != nil {
+		t.Fatalf("read tgt-2 fingerprint: %v", err)
+	}
+	if _, err := p.whole.ExecContext(p.ctx,
+		`UPDATE deferred_backfill_partition_memo SET catalog_fingerprint = 'sha256:stale' WHERE scope_id = 'git:tgt' AND generation_id = 'tgt-1'`,
+	); err != nil {
+		t.Fatalf("stale tgt-1 fingerprint: %v", err)
+	}
+
+	var hasBaseline, stale bool
+	if err := p.whole.QueryRowContext(p.ctx, targetedCatalogBaselineQuery, fingerprint, array.StringArray([]string{"git:tgt"})).
+		Scan(&hasBaseline, &stale); err != nil {
+		t.Fatalf("targetedCatalogBaselineQuery: %v", err)
+	}
+	if !hasBaseline || stale {
+		t.Fatalf("baseline = (has=%v, stale=%v), want (true, false): owed_latest_memo must select the active generation's memo", hasBaseline, stale)
 	}
 }

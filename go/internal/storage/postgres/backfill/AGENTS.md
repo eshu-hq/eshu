@@ -46,7 +46,9 @@
 
 - **Unchanged partitions are not republished** (#8082) — the whole-pass fan-in
   skips a partition only when it was a start-of-pass memo hit, got no inserted
-  evidence row, and still has its readiness row. Keep all three conditions.
+  evidence row, its scope is still on that generation, and it still has its
+  readiness row. Keep all four conditions; a moved generation must reach the
+  locked path so it keeps `generation_advanced_since_batch`.
   Keep `PublishDeferredBackfillPartitions` (the partition-scoped pass's entry)
   publishing every partition. A failed readiness check must fall back to
   publishing all partitions, never to skipping them.

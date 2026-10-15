@@ -235,7 +235,10 @@ func (s Store) writeDeferredBackfillInBatches(
 		return 0, nil, fmt.Errorf("deferred backfill canceled before readiness publication: %w", err)
 	}
 
-	unchanged := ExcludePartitionsWithNewEvidence(memoHits, insertedRows)
+	// The revised set is computed before the fan-in, which consumes it, but
+	// logged only after the fan-in succeeds, so a pass whose fan-in fails
+	// does not report a revision nobody acted on.
+	unchanged, unskipped := excludePartitionsWithNewEvidence(memoHits, insertedRows)
 	fanInBlock := startBlockFromContext(ctx, BlockFanIn)
 	probeTimer := &argoCDProbeTimer{}
 	fanIn, err := s.publishChangedDeferredBackfillPartitions(
@@ -250,6 +253,7 @@ func (s Store) writeDeferredBackfillInBatches(
 	if err != nil {
 		return 0, nil, err
 	}
+	logSkipSetRevised(memoHits, unskipped, unchanged)
 	return fanIn.published, unchanged, nil
 }
 
@@ -417,42 +421,4 @@ func (s Store) writeDeferredBackfillBatchWith(
 	}
 	committed = true
 	return contributions, insertedRows, nil
-}
-
-// ExcludePartitionsWithNewEvidence revises a same-pass memo-hit skip-set with
-// the ground truth of what the pass's backfill actually wrote (issue #7636).
-// skipped holds the partitions the fact loader skipped at pass start; a
-// memo-hit partition can still receive NEW evidence during the pass when
-// cross-partition discovery writes under its generation (for example a GCP
-// cloud scope with no repository fact of its own). insertedRows maps each
-// partition to the rows the pass's backfill actually INSERTED — ON CONFLICT
-// DO NOTHING skips do not count — so a re-upsert of already-committed
-// evidence never invalidates a skip. Every skipped partition with a positive
-// count is excluded; the result is the set whose backward evidence the pass
-// provably did NOT change.
-//
-// A nil skipped (gate failure upstream) stays nil: the reopen-all fallback is
-// preserved, not converted into an empty skip-set. The input map is not
-// mutated. Indexing a nil insertedRows is safe and excludes nothing.
-func ExcludePartitionsWithNewEvidence(
-	skipped map[ScopeGenerationPartition]struct{},
-	insertedRows map[ScopeGenerationPartition]int64,
-) map[ScopeGenerationPartition]struct{} {
-	if skipped == nil {
-		return nil
-	}
-	revised := make(map[ScopeGenerationPartition]struct{}, len(skipped))
-	unskipped := 0
-	for partition := range skipped {
-		if insertedRows[partition] > 0 {
-			unskipped++
-			continue
-		}
-		revised[partition] = struct{}{}
-	}
-	log.Printf(
-		"deferred_backfill_skip_set_revised skipped_before=%d unskipped_new_evidence=%d skipped_after=%d",
-		len(skipped), unskipped, len(revised),
-	)
-	return revised
 }

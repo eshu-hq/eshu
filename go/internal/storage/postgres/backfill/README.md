@@ -41,8 +41,9 @@ The engine never imports the parent postgres package.
 - `BuildDeferredScopedFactQueryParams`, `DeferredScopedFactQueryParams`,
   `BuildDeferredRepoIDRegex`, `DeferredRepoIDReferenceKeys`,
   `DeferredCatalogFingerprint`, `NewDeferredBackfillPartitionMemoStore`,
-  `ApplyDeferredPartitionMemoGate`, `LoadPartitionsMissingReadiness` —
-  query-arg derivation, memo gating, and the fan-in readiness check
+  `ApplyDeferredPartitionMemoGate`,
+  `ListUnchangedPartitionsNeedingPublicationQuery` — query-arg derivation,
+  memo gating, and the fan-in unchanged-partition check
 - `LatestGenerationCTE`, `List*Query`, `Active*Query` constants and the
   `DeferredRelationshipFamily*SQL` fragments — the shipped SQL the root
   differential proofs derive from, never hand-copy
@@ -123,8 +124,12 @@ call.
   partition whose readiness row exists is not republished: no lock, no
   transaction, no ArgoCD probe, and the counter
   `eshu_dp_deferred_backfill_fanin_skipped_total{reason="unchanged_since_memo"}`.
-  One batched `ListPartitionsMissingReadinessQuery` read decides. A missing
-  row republishes the partition, and a failed read publishes all of them.
+  One batched `ListUnchangedPartitionsNeedingPublicationQuery` read decides.
+  A missing readiness row republishes the partition; a scope that moved to a
+  new generation sends it to the locked path, which declines it with
+  `generation_advanced_since_batch` as before; a failed read publishes all of
+  them. Memo `committed_at` then records the publication that last changed a
+  partition, still in activation order (see `targetedCatalogBaselineQuery`).
   `PublishDeferredBackfillPartitions`, which the partition-scoped pass calls,
   still publishes every partition. The invariant is on
   `splitUnchangedDeferredPartitions` in `fanin_unchanged.go`. Evidence is in

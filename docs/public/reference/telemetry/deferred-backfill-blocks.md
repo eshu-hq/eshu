@@ -45,8 +45,10 @@ Rules that make the numbers safe to compare:
   no inserted evidence row and whose readiness row already exists (#8082).
   Such a partition takes no lock, opens no transaction, and runs no ArgoCD
   probe. The `deferred_backfill_fanin_unchanged_checked` line gives the same
-  count and `republished_missing_phase`, the unchanged partitions republished
-  because their readiness row was missing. That count should stay 0.
+  count, `republished_missing_phase` (unchanged partitions republished
+  because their readiness row was missing, which should stay 0), and
+  `generation_advanced` (unchanged-set partitions sent back to the locked path
+  because their generation moved after the batch).
 - `fanin` `argocd_probe_seconds` is the sum of the per-partition
   ArgoCD-bearing-partition probe durations across the fan-in workers. The
   probes overlap, so the sum can exceed the block's duration; it is the probe's
@@ -140,7 +142,11 @@ existing `deferred_backfill_completed` line, the existing
    `eshu_dp_deferred_backfill_batch_duration_seconds`.
 5. A long `fanin` with `skipped` above `skipped_unchanged` means generations
    advanced during the pass. See `eshu_dp_deferred_backfill_fanin_skipped_total`
-   by `reason`; `unchanged_since_memo` is the normal steady state. A long `fanin`
+   by `reason`; `unchanged_since_memo` is the normal steady state. A memo-hit
+   partition whose generation advanced before the unchanged check keeps
+   `generation_advanced_since_batch` (the check line's `generation_advanced`
+   field counts it); one that advanced after that unlocked check can be
+   counted as `unchanged_since_memo`. Neither writes a row. A long `fanin`
    with `argocd_probe_seconds` near its duration times the worker count means
    the per-partition ArgoCD probe owns it.
 6. A `deferred_backfill_block_failed` line names the block that failed the
