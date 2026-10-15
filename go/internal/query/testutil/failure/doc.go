@@ -19,9 +19,11 @@
 //   - ReaderFence: db.ErrReaderStale answers 503 backend_unavailable with
 //     Retry-After.
 //
-// No case may put any Canary token in the body. Check is the same assertion
-// returning an error instead of failing the test, which is how this
-// package's own tests prove it rejects wrong routes. Serve and Message are
+// No case may put any Canary token in the body. Each condition is an
+// Assertion constant, listed by Assertions and evaluated independently.
+// Evaluate returns every Violation for one case, and Check joins them into an
+// error instead of failing the test, which is how this package's own tests
+// prove each assertion rejects a route wrong in that one way. Serve and Message are
 // the building blocks for a route test that needs one request and its body
 // text, such as a 400 or 404 sentinel check.
 //

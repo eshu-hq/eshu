@@ -27,7 +27,11 @@ is passed here by pointer.
   wrong answer as a test error named `route / case`. It opens no subtests:
   a `t.Run` call in this non-test file would count as an unregistered query
   callsite under `internal/queryplan`'s inventory (parent invariant 4).
-- `Check(suite, route, case)` — the same assertion returning an error.
+- `Check(suite, route, case)` — the same check returning an error that
+  joins every violation.
+- `Evaluate(suite, route, case)` — the violations as `[]Violation`, each
+  naming the `Assertion` it broke. `Assertions()` lists every assertion
+  `Check` makes (17, one exported constant each).
 - `Cases`, `Case`, `Kind` (`Fault`, `ClientCancel`, `InnerCancel`,
   `ReaderFence`) and `Canary` — the failure table.
 - `Serve` and `Message` — one request on a recording tracer, and the error
@@ -48,8 +52,9 @@ func TestRoutesAnswerFixedServerFailures(t *testing.T) {
 
 ## What Check asserts
 
-For every case the body carries no `Canary` token (credential, host, relation,
-Cypher). Then by kind:
+Each row below is one or more `Assertion` constants, evaluated independently,
+so a route wrong in two ways reports both. For every case the body carries no
+`Canary` token (credential, host, relation, Cypher). Then by kind:
 
 | Kind | Status | Body | Span |
 | --- | --- | --- | --- |
@@ -58,14 +63,19 @@ Cypher). Then by kind:
 | `InnerCancel` | 500 | fixed message | same as `Fault` |
 | `ReaderFence` | 503 | `backend_unavailable` envelope + `Retry-After` | not checked |
 
-With a `HandlerTracer`, the checked span is the one span opened directly under
-the test's `request` span; without one it is the `request` span itself, which
-stands in for the otelhttp server span.
+With a `HandlerTracer`, exactly one span must open directly under the test's
+`request` span (`OneHandlerSpan`), and that is the span checked; without one
+the `request` span itself is checked, standing in for the otelhttp server
+span. The fault description is checked only when the status is Error, so an
+Unset fault span reports `FaultSpanError` alone.
 
 ## Gotchas / invariants
 
-- `Run` and `Check` swap the package tracer var for the request and restore
-  it before returning. A test using a `HandlerTracer` must not be parallel.
+- `Serve` swaps the package tracer var named by `Suite.HandlerTracer` for the
+  request and restores it before returning; `Run`, `Check`, and `Evaluate`
+  reach it through `Serve`, and a route test may call `Serve` directly (the
+  incident 404 test does). Any test whose suite sets `HandlerTracer` must not
+  be parallel.
 - `InnerCancel` is the case that keeps the `tracing.ClientCanceled`
   conjunction honest: a route that answers 499 for any `context.Canceled`
   passes the client-cancel case and fails this one.
@@ -75,13 +85,22 @@ stands in for the otelhttp server span.
 
 ## Proof
 
-`check_test.go` builds a converted sample route (GREEN, in both span modes)
-and eight sample routes each wrong in one way: leaking the error text, a fence
-answered 500, a cancel answered 500 (twice: with and without a clean span), a
-cancel recording an exception, an inner cancel answered 499, a wrong message,
-and no handler span (RED). Each assertion was mutated off in turn and the
-matching wrong route then passed, which is the evidence each one is
-load-bearing (#7674 slice 5 PR body).
+`check_test.go` drives a converted sample route (GREEN, in both span modes).
+`samples_test.go` holds one wrong sample route per `Assertion`, each wrong in
+exactly one way. `TestEveryAssertionHasOneWrongSample` requires the sample list
+and `Assertions()` to match one for one, and
+`TestCheckCatchesEachWrongSampleOnItsAssertionOnly` requires each sample to
+violate its own assertion and no other. Weakening any assertion therefore
+leaves its sample violating nothing, and the package goes RED; this was run as
+21 `go test -overlay` mutants, one or more per assertion, all RED (#7674
+slice 5 PR body).
+
+## Remainder
+
+Three families still carry an inline copy (`service`, `terraform/drift`,
+`workitem`), and nine more carry a custom harness this one does not yet cover
+(stage logs, a 504 fault status, write paths with no fence, sentinel 503s).
+#8172 tracks moving them here.
 
 No-Regression Evidence: test-only package with no production importer
 (`internal/queryplan`'s production-import guard rejects one). The `MATCH (n)`
