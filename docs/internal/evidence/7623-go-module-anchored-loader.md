@@ -87,10 +87,14 @@ block).
   go.mod from `content_files`; the parser reads it from disk. An ignore rule
   (`.eshuignore`, `ignored_path_globs`, an ignored extension) can drop go.mod
   from the content store while the `.go` files next to it are still parsed.
-  `content_files` also has no generation column, so it can run ahead of or
-  behind the active generation: a renamed module in a pending generation can
-  drop a scope whose active facts still carry the old keys until the generation
-  activates. In both cases the anchor loads fewer definitions than the
+  `content_files` rows are stamped with the writing generation (#7760). The tag
+  rule in `GoModuleManifestsQuery` reads a manifest written by a generation that
+  never activated as a dirty scope the scan always visits, so a rename in a pending
+  generation is not dropped. Two residuals remain, both recorded in
+  `7760-generation-tag.md`: a manifest deleted by a write with no generation row,
+  and a legacy row that a behind-skewed writer clock attributes wrongly. In the
+  ignore-rule case and in each residual
+  case the anchor can load fewer definitions than the
   corpus-wide scan would have. Usually the key is then unresolved. If the
   missing scope was one of several declaring the same module, the remaining
   candidate can be the only one the reducer sees, and its unique-or-unresolved
@@ -163,6 +167,49 @@ times fewer buffers than the corpus scan and returns the identical row set. On
 the QA replica a Go load goes from 6.5 to 6.8 s to about 15 to 20 ms (the
 manifest read plus the anchored scan). A consumer whose Go keys no stored go.mod
 declares goes from the full scan to the manifest read alone.
+
+### Re-measure at the QA corpus shape (2026-10-15)
+
+The QA read replica is not reachable from the box that ran this drive, so the
+issue's corpus shape was rebuilt locally and the two statements timed through the
+shipped loader. Shim: throwaway `postgres:18-alpine` database, migrations 001, 002,
+003 (both files), 004, 099, 134 and 169, seeded by
+`7623-go-module-anchored-loader/seed-qa-shape.sql`: 766 active repository scopes,
+127,156 active file facts (766 x 166), 8 go.mod rows, one of them the producer of
+`example.com/lib`. Each file fact carries about 11 KB of stored jsonb (16 KB as text,
+1,317 MB stored in total against the issue's 1.3 GB of compressed payload), and no
+two payloads are equal. The consumer asks for two `scip-go gomod` keys of that
+module. A throwaway test, deleted before the commit, called
+`FactStore.LoadActiveCodeCallSymbolDefinitionFacts` for the anchored load. It
+called the loader's paging function with the shipped
+`listActiveCodeCallSymbolDefinitionFactsQuery` for the corpus-wide scan, which is
+the path these keys took before #7837.
+
+| Case | Time, 3 runs in order | Rows |
+| --- | --- | --- |
+| Anchored Go load (go.mod read plus anchored scan, one producer scope) | 33.7 ms, 8.5 ms, 9.1 ms | 2 |
+| Corpus-wide scan of the same keys | 4.76 s, 4.67 s, 4.58 s | 2 |
+
+The log line for the anchored loads reported `go_producer_scope_count=1`. The
+corpus-wide scan is about 500 times slower than the warm anchored load and returns the
+same two definitions. The first anchored run is colder than the other two.
+
+What this does and does not show. The issue's 33 to 37 s was measured before #7697,
+whose `LATERAL` read took the same statement to 6.5 to 6.8 s on the QA replica (see
+the replica table above). This shim runs that statement in 4.6 to 4.8 s, so it is
+about 30% faster than the replica and does not reproduce the 33 to 37 s. The claim here is
+the ratio, and that the Go path no longer runs a corpus-wide step. The post-deploy
+reducer log reading stays NOT_CHECKED.
+
+An earlier run of this seed gave every function the same source string, so the payload
+compressed about 9 times and the scan was slower (10.9 s). It is not used.
+
+Accepted residual: keys from other SCIP indexers (the "SCIP" half of the issue title)
+still take the corpus-wide scan. With `SCIP_INDEXER` off, which is the default, and in
+the QA corpus today, no such key exists. A deployment that turns SCIP supplement
+indexing on for a non-Go language pays the scan for those keys. That leg is not
+measured. It is tracked in #8166, which needs a producing-manifest anchor for each
+key shape.
 
 ## Correctness proof
 
