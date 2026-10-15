@@ -39,6 +39,7 @@ func TestDefaultRegistryIncludesPostgresReaderSettings(t *testing.T) {
 		{"ESHU_POSTGRES_EXPECTED_SYSTEM_ID", VarString},
 		{"ESHU_POSTGRES_READ_DSN", VarDSN},
 		{"ESHU_POSTGRES_READ_MEMBERS", VarString},
+		{"ESHU_POSTGRES_READ_SNAPSHOT_EXPORT_BUILDS", VarString},
 		{"ESHU_POSTGRES_READ_MAX_IDLE_CONNS", VarInt},
 		{"ESHU_POSTGRES_READ_MAX_OPEN_CONNS", VarInt},
 	} {

@@ -117,6 +117,10 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 			return nil, err
 		}
 	}
+	if err := validateSnapshotExportBuilds(cfg.SnapshotExportBuilds); err != nil {
+		return nil, err
+	}
+	logSnapshotExportDeclarations(cfg.Logger, cfg.SnapshotExportBuilds)
 	totalBudget := cfg.PingTimeout - time.Since(openStarted)
 	if callerDeadline, ok := ctx.Deadline(); ok {
 		if remaining := time.Until(callerDeadline); remaining < totalBudget {
