@@ -216,8 +216,33 @@ Observability Evidence:
 - A genuinely wedged generation whose blocking domain queue never goes quiet
   stays `draining`. It is visible in the gauge, and
   `POST /api/v0/admin/recover-generations` is the manual path.
-- The bootstrap-only compose shape and the remote #7230-shape rerun are out of
-  scope here.
+- The bootstrap-only shape (bootstrap-index and the resolution engine, no
+  ingester and no projector) cannot drain a re-opened source-local row. It is
+  documented in `go/internal/reducer/recovery-runners.md` and
+  `docs/public/services/bootstrap-index.md` with the two ways out: run a
+  projector, or set `ESHU_GENERATION_LIVENESS_ENABLED=false`. The Compose stacks
+  already run an always-on projector.
+- The remote #7230-shape rerun (984 repositories on the reference host) was not
+  run for this record. It is not one of the issue's acceptance criteria.
+  Criteria 1 and 2 are covered by the live `TestGenerationLivenessProgressWindow`
+  RED and GREEN runs. Criterion 3 is covered by
+  `TestGenerationLivenessRunnerLogsEachRedrive` and the `draining` gauge bucket.
+  All of these are recorded on the issue. Criterion 4 is the documentation above.
+
+## Registry entries for the liveness variables
+
+No-Regression Evidence: this PR adds five `ESHU_GENERATION_LIVENESS_*` entries to
+`go/internal/envregistry/entries.go` and regenerates `docs/public/reference/env-registry.md`.
+The reducer already reads all five variables in `go/cmd/reducer/config.go` and
+`generation_liveness_wiring.go`, with the same defaults the entries state
+(`true`, `5m`, `30m`, `5`, `200`). The change is registry data only. It touches no
+query, lease, claim, batch size, worker count or runtime default, so queue and row
+counts are unchanged. `go test ./internal/envregistry ./cmd/reducer -count=1` passes
+and `scripts/verify-env-registry-doc.sh` exits 0.
+
+No-Observability-Change: no metric, span, log line, status field or route changes.
+The re-drive log line and the `eshu_dp_active_generations` buckets described above
+are the operator signal, as before.
 
 ## Artifacts
 

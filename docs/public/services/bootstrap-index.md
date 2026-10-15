@@ -98,6 +98,15 @@ Use them only as diagnostic baselines.
 - The binary exits with `0` only after every bootstrap step completes.
 - Re-running it on an already-seeded environment re-indexes the selected corpus.
 - It does not mount `/healthz`, `/readyz`, `/metrics`, or `/admin/status`.
+- Running bootstrap-index with the resolution engine and no projector or
+  ingester is a bootstrap-only shape. The reducer's generation-liveness sweep can
+  re-open a succeeded source-local projector row there, and nothing claims it, so
+  `index-status` stays `stalled`. Run a projector, or set
+  `ESHU_GENERATION_LIVENESS_ENABLED=false` on the resolution engine for the run.
+  Disabling the sweep also stops the orphan-supersede statement. The sweep holds
+  off while shared intents are still draining
+  (`ESHU_GENERATION_LIVENESS_PROGRESS_WINDOW`), so this only matters for a
+  generation that is genuinely stuck.
 - Use `ESHU_DISCOVERY_REPORT=<path>` to write a discovery advisory JSON array
   for noisy-repository tuning.
 - Use `eshu scan` when you need the local CLI to launch bootstrap and wait for
